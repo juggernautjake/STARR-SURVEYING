@@ -740,6 +740,8 @@ async function searchCadPlaywright(
     // "By Address" tab selectors — defined here so they can be reused when
     // navigating back to the search form between variants.
     const tabSelectors = [
+      // Bell CAD uses data-filter attributes for tab switching
+      'a[data-filter="search-address"]',
       '#home-page-tabs a:has-text("Address")',
       '#home-page-tabs li:has-text("Address") a',
       'a[href*="address" i][data-bs-toggle="tab"]',
@@ -762,7 +764,7 @@ async function searchCadPlaywright(
           const tab = page.locator(sel).first();
           if (await tab.isVisible({ timeout: 2_000 })) {
             await tab.click();
-            await page.waitForTimeout(800);
+            await page.waitForLoadState('domcontentloaded', { timeout: 3_000 }).catch(() => {});
             return;
           }
         } catch { continue; }
@@ -970,8 +972,8 @@ async function searchCadPlaywright(
           }
         }
 
-        // Small settle delay for any late-arriving content
-        await page.waitForTimeout(1000);
+        // Wait for network to settle (replaces fixed 1000ms delay)
+        await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {});
         resolveCapture = null;
 
         if (capturedResults.length > 0) {
@@ -1094,7 +1096,7 @@ async function searchCadPlaywright(
             const tab = page.locator(sel).first();
             if (await tab.isVisible({ timeout: 2_000 })) {
               await tab.click();
-              await page.waitForTimeout(800);
+              await page.waitForLoadState('domcontentloaded', { timeout: 3_000 }).catch(() => {});
               break;
             }
           } catch { continue; }
@@ -1143,7 +1145,7 @@ async function searchCadPlaywright(
             page.waitForURL('**/search/result**', { timeout: 10_000 }).then(() => 'nav'),
             page.waitForTimeout(10_000).then(() => 'timeout'),
           ]).catch(() => { /* ignore */ });
-          await page.waitForTimeout(800);
+          await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {});
 
           const ownerDomResults = await extractResultsFromDOM(page);
           if (ownerDomResults.length > 0) {
@@ -1198,7 +1200,7 @@ async function searchCadPlaywright(
             const tab = page.locator(sel).first();
             if (await tab.isVisible({ timeout: 2_000 })) {
               await tab.click();
-              await page.waitForTimeout(800);
+              await page.waitForLoadState('domcontentloaded', { timeout: 3_000 }).catch(() => {});
               break;
             }
           } catch { continue; }
@@ -1241,7 +1243,7 @@ async function searchCadPlaywright(
             page.waitForURL('**/search/result**', { timeout: 10_000 }).then(() => 'nav'),
             page.waitForTimeout(10_000).then(() => 'timeout'),
           ]).catch(() => { /* ignore */ });
-          await page.waitForTimeout(800);
+          await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {});
 
           const idDomResults = await extractResultsFromDOM(page);
           if (idDomResults.length > 0) {
@@ -1254,11 +1256,22 @@ async function searchCadPlaywright(
       }
     }
 
-    // Take screenshot for Vision OCR fallback
+    // Take screenshot for Vision OCR fallback + failure diagnostics
     try {
       screenshot = await page.screenshot({ fullPage: true }) as Buffer;
+      logger.info('Stage1B', `Screenshot captured: ${(screenshot.length / 1024).toFixed(0)} KB`);
     } catch {
       logger.warn('Stage1B', 'Failed to take screenshot');
+    }
+
+    // Dump page HTML on failure for post-mortem debugging
+    if (capturedResults.length === 0) {
+      try {
+        const failHtml = await page.content();
+        const htmlSnippet = failHtml.substring(0, 2000);
+        logger.info('Stage1B', `[failure-dump] Page URL: ${page.url()}`);
+        logger.info('Stage1B', `[failure-dump] HTML length: ${failHtml.length} chars, snippet: ${htmlSnippet.replace(/\s+/g, ' ').substring(0, 500)}`);
+      } catch { /* page may already be closed */ }
     }
 
     await browser.close();
@@ -2533,21 +2546,6 @@ export async function searchBisCad(
 // LOOKUP WRAPPER — used by the new pipeline.ts orchestrator
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Simplified CAD lookup for Bell County.
- * Normalizes the address, then searches Bell CAD via searchBisCad().
- * Returns the best matching property or null if not found.
- */
-export async function lookupBisCad(
-  address: string,
-  logger: PipelineLogger,
-): Promise<PropertyIdResult | null> {
-  const normalized = await normalizeAddress(address, logger);
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
-  const { property } = await searchBisCad('bell', normalized, apiKey, logger);
-  return property;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // BIS GIS — ArcGIS REST API integration (Phase 17)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2711,6 +2709,119 @@ async function queryArcGisLayer(
 }
 
 /**
+ * Selects the single best-matching GIS feature from a spatial query result set.
+ *
+ * Priority order:
+ *   1. Property ID match — if we already know the ID from CAD, use it
+ *   2. Address match — street number must match exactly; street name fuzzy
+ *   3. Centroid proximity — pick the feature whose centroid is closest to the
+ *      query coordinates (the geocoded address point should be inside its parcel)
+ *   4. First feature — fallback when no other signal is available
+ *
+ * This prevents the pipeline from merging instruments from neighbouring parcels
+ * into the target property when the spatial query returns multiple features
+ * (e.g. an envelope that straddles a subdivision block can return 18+ parcels).
+ */
+function selectBestGisFeature(
+  features: Array<{ attributes: Record<string, unknown>; geometry?: unknown }>,
+  options: { propertyId?: string; address?: string; lat?: number | null; lon?: number | null },
+  logger: PipelineLogger,
+): { attributes: Record<string, unknown>; geometry?: unknown } {
+  if (features.length === 1) return features[0];
+
+  // ── Priority 1: Property ID match ────────────────────────────────────────
+  if (options.propertyId) {
+    for (const feat of features) {
+      const pid = extractGisField(feat.attributes, 'propertyId');
+      if (pid && pid.replace(/\s/g, '') === options.propertyId.replace(/\s/g, '')) {
+        logger.info('Stage1E', `GIS: ${features.length} features → selected propertyId=${pid} (property ID match)`);
+        return feat;
+      }
+    }
+  }
+
+  // ── Priority 2: Address match ─────────────────────────────────────────────
+  if (options.address) {
+    const inputNum = options.address.match(/^(\d+)/)?.[1] ?? '';
+    // Normalize street name: uppercase, strip common suffixes, collapse spaces
+    const normStreet = (s: string) =>
+      s.toUpperCase()
+       .replace(/\b(DRIVE|DR|STREET|ST|AVENUE|AVE|ROAD|RD|LANE|LN|BLVD|BOULEVARD|COURT|CT|WAY|CIRCLE|CIR|TRAIL|TRL|PLACE|PL)\b\.?/g, '')
+       .replace(/[^A-Z0-9]+/g, ' ')
+       .trim();
+    const inputStreetNorm = normStreet(options.address);
+
+    for (const feat of features) {
+      const situs = extractGisField(feat.attributes, 'situsAddress')
+        ?? [
+             feat.attributes['situs_num'],
+             feat.attributes['situs_street_prefx'],
+             feat.attributes['situs_street'],
+             feat.attributes['situs_street_sufix'],
+           ].filter(p => p !== undefined && p !== null && String(p).trim() !== '')
+            .map(p => String(p).trim()).join(' ');
+
+      if (!situs) continue;
+
+      // Street number must match exactly
+      const situsNum = situs.match(/^(\d+)/)?.[1] ?? '';
+      if (inputNum && situsNum !== inputNum) continue;
+
+      // Street name fuzzy match (normalized tokens overlap)
+      const situsNorm = normStreet(situs);
+      const inputTokens = inputStreetNorm.split(' ').filter(Boolean);
+      const situsTokens = new Set(situsNorm.split(' ').filter(Boolean));
+      const overlap = inputTokens.filter(t => situsTokens.has(t)).length;
+
+      if (overlap > 0 && inputTokens.length > 0) {
+        const pid = extractGisField(feat.attributes, 'propertyId') ?? 'n/a';
+        logger.info('Stage1E', `GIS: ${features.length} features → selected propertyId=${pid} (address match: "${situs}")`);
+        return feat;
+      }
+    }
+  }
+
+  // ── Priority 3: Centroid proximity ────────────────────────────────────────
+  if (options.lat != null && options.lon != null) {
+    let bestIdx = 0;
+    let bestDist = Infinity;
+
+    for (let i = 0; i < features.length; i++) {
+      const geo = features[i].geometry as Record<string, unknown> | undefined;
+      if (!geo) continue;
+      const rings = geo['rings'];
+      if (!Array.isArray(rings) || rings.length === 0) continue;
+      const ring = rings[0] as number[][];
+      if (!Array.isArray(ring) || ring.length === 0) continue;
+
+      // Compute ring centroid
+      let sumX = 0, sumY = 0, count = 0;
+      for (const pt of ring) {
+        if (Array.isArray(pt) && pt.length >= 2) {
+          sumX += pt[0]; sumY += pt[1]; count++;
+        }
+      }
+      if (count === 0) continue;
+      const cx = sumX / count;
+      const cy = sumY / count;
+      const dist = Math.hypot(cx - options.lon, cy - options.lat);
+      if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+    }
+
+    if (bestDist < Infinity) {
+      const pid = extractGisField(features[bestIdx].attributes, 'propertyId') ?? 'n/a';
+      logger.info('Stage1E', `GIS: ${features.length} features → selected propertyId=${pid} (centroid proximity, dist=${bestDist.toFixed(6)})`);
+      return features[bestIdx];
+    }
+  }
+
+  // ── Priority 4: First feature fallback ───────────────────────────────────
+  const pid = extractGisField(features[0].attributes, 'propertyId') ?? 'n/a';
+  logger.info('Stage1E', `GIS: ${features.length} features → selected propertyId=${pid} (first feature fallback)`);
+  return features[0];
+}
+
+/**
  * Query the BIS GIS ArcGIS REST API to retrieve property data.
  * Tries property ID lookup, then geocode-based spatial query, then owner name search.
  * Does not require Playwright — uses the ArcGIS HTTP REST API directly.
@@ -2772,20 +2883,9 @@ export async function searchBisGis(
         }, logger);
         if (fs?.features && fs.features.length > 0) {
           logger.info('Stage1E', `GIS: found via spatial query on direct layer (${fs.features.length} feature(s))`);
-          const primary = buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
-          // Merge instrument numbers & deed history from all features
-          if (fs.features.length > 1) {
-            const allInstr = new Set(primary.instrumentNumbers ?? []);
-            const allDeed = [...(primary.deedHistory ?? [])];
-            for (let i = 1; i < fs.features.length; i++) {
-              const extra = buildGisPropertyData(fs.features[i].attributes);
-              for (const n of extra.instrumentNumbers ?? []) allInstr.add(n);
-              allDeed.push(...(extra.deedHistory ?? []));
-            }
-            primary.instrumentNumbers = [...allInstr];
-            primary.deedHistory = allDeed;
-          }
-          return primary;
+          // Select the single best-matching feature instead of merging all
+          const selected = selectBestGisFeature(fs.features, options, logger);
+          return buildGisPropertyData(selected.attributes, selected.geometry);
         }
       }
 

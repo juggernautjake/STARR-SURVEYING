@@ -202,12 +202,12 @@ describe('importSearchResults — row schema compliance', () => {
   });
 
   it('does not use the non-existent analysis_status field', () => {
-    const row = buildImportRow(sampleResult) as Record<string, unknown>;
+    const row = buildImportRow(sampleResult) as unknown as Record<string, unknown>;
     expect(row).not.toHaveProperty('analysis_status');
   });
 
   it('does not include non-schema fields (has_text, has_image, has_ocr, metadata)', () => {
-    const row = buildImportRow(sampleResult) as Record<string, unknown>;
+    const row = buildImportRow(sampleResult) as unknown as Record<string, unknown>;
     expect(row).not.toHaveProperty('has_text');
     expect(row).not.toHaveProperty('has_image');
     expect(row).not.toHaveProperty('has_ocr');

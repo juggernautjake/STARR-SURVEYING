@@ -534,6 +534,7 @@ async function extractPdfViaPageRendering(
         const avResult = await adaptiveVisionOcr(
           screenshotBuf, 'image/png', anthropicApiKey, logger,
           `${docLabel}-p${pageNum}`,
+          docLabel,
         );
 
         const pageText = avResult.mergedText.trim();
@@ -584,6 +585,72 @@ async function extractPdfViaPageRendering(
  *  ~800 000 base64 chars ≈ 600 KB decoded, which is roughly a small thumbnail.
  *  Anything larger (full-res plat scans) goes through adaptive-vision.ts. */
 const ADAPTIVE_VISION_THRESHOLD = 800_000;
+
+/** Anthropic Vision API maximum pixels on any single dimension. */
+const MAX_VISION_DIMENSION = 7_900; // leave 100px margin below the hard 8000 limit
+
+/** Anthropic Vision API hard limit: 5 MiB per image. Use 4.5 MiB as our safety margin. */
+const MAX_IMAGE_BYTES = 4_718_592; // 4.5 MiB
+
+/**
+ * Resizes and/or compresses an image buffer so that:
+ *   1. Neither pixel dimension exceeds MAX_VISION_DIMENSION (7 900 px), and
+ *   2. The encoded byte size stays below MAX_IMAGE_BYTES (4.5 MB).
+ *
+ * Strategy:
+ *   - Step 1: pixel resize (PNG) if dimensions are too large.
+ *   - Step 2: JPEG compression at quality=80 if buffer is still > 4.5 MB.
+ *   - Step 3: JPEG compression at quality=60 if buffer is still > 4.5 MB.
+ *
+ * Returns the original buffer unchanged if it is within limits or if sharp
+ * is unavailable (non-fatal).
+ *
+ * Intentionally uses console.log (not PipelineLogger) because this function
+ * is a standalone utility not bound to any pipeline execution context.
+ */
+async function resizeIfNeeded(imageBuffer: Buffer): Promise<Buffer> {
+  try {
+    const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
+    const meta = await sharp(imageBuffer).metadata();
+    const { width, height } = meta;
+    if (!width || !height) return imageBuffer;
+
+    let result = imageBuffer;
+
+    // Step 1: pixel dimension resize
+    if (width > MAX_VISION_DIMENSION || height > MAX_VISION_DIMENSION) {
+      const scale = MAX_VISION_DIMENSION / Math.max(width, height);
+      const newWidth  = Math.round(width  * scale);
+      const newHeight = Math.round(height * scale);
+      console.log(`[Vision] Resizing image from ${width}x${height} to ${newWidth}x${newHeight}`);
+      result = await sharp(result)
+        .resize(newWidth, newHeight, { fit: 'inside', withoutEnlargement: true })
+        .png()
+        .toBuffer();
+    }
+
+    // Step 2: byte-size compression — JPEG quality=80
+    if (result.length > MAX_IMAGE_BYTES) {
+      console.log(`[Vision] Compressing image (${result.length} bytes > ${MAX_IMAGE_BYTES}) — JPEG q80`);
+      result = await sharp(result)
+        .jpeg({ quality: 80 })
+        .toBuffer();
+    }
+
+    // Step 3: byte-size compression — JPEG quality=60 (last resort)
+    if (result.length > MAX_IMAGE_BYTES) {
+      console.log(`[Vision] Re-compressing image (${result.length} bytes still > ${MAX_IMAGE_BYTES}) — JPEG q60`);
+      result = await sharp(result)
+        .jpeg({ quality: 60 })
+        .toBuffer();
+    }
+
+    return result;
+  } catch {
+    // If sharp fails for any reason, return the original (non-fatal)
+    return imageBuffer;
+  }
+}
 
 /** Internal image extraction -- takes explicit apiKey, mediaType, and docLabel. */
 async function extractFromImageInternal(
@@ -700,7 +767,7 @@ async function extractFromImageInternal(
 
     const imgBuffer = Buffer.from(imageBase64, 'base64');
     const avResult = await adaptiveVisionOcr(
-      imgBuffer, effectiveMediaType, anthropicApiKey, logger, docLabel,
+      imgBuffer, effectiveMediaType, anthropicApiKey, logger, docLabel, docLabel,
     );
 
     ocrTracker.step(
@@ -741,6 +808,9 @@ async function extractFromImageInternal(
   ocrTracker.step(`Media type: ${mediaType}, effective: ${effectiveMediaType}, base64 length: ${imageBase64.length}`);
 
   ocrTracker.step('Sending image to Claude Vision for OCR...');
+  const imgBuffer = Buffer.from(imageBase64, 'base64');
+  const resizedBuffer = await resizeIfNeeded(imgBuffer);
+  const resizedBase64 = resizedBuffer === imgBuffer ? imageBase64 : resizedBuffer.toString('base64');
   const ocrResponse = await callClaudeWithRetry(
     anthropicApiKey,
     [{
@@ -748,7 +818,7 @@ async function extractFromImageInternal(
       content: [
         {
           type: 'image',
-          source: { type: 'base64', media_type: effectiveMediaType, data: imageBase64 },
+          source: { type: 'base64', media_type: effectiveMediaType, data: resizedBase64 },
         },
         {
           type: 'text',
@@ -952,9 +1022,12 @@ async function extractFromPageScreenshots(
     // Build multi-image message content
     const contentParts: Array<{ type: string; source?: unknown; text?: string }> = [];
     for (const page of batch) {
+      const pageBuffer = Buffer.from(page.imageBase64, 'base64');
+      const resizedPageBuffer = await resizeIfNeeded(pageBuffer);
+      const pageBase64 = resizedPageBuffer === pageBuffer ? page.imageBase64 : resizedPageBuffer.toString('base64');
       contentParts.push({
         type: 'image',
-        source: { type: 'base64', media_type: 'image/png' as const, data: page.imageBase64 },
+        source: { type: 'base64', media_type: 'image/png' as const, data: pageBase64 },
       });
       contentParts.push({
         type: 'text',
@@ -1207,6 +1280,235 @@ export async function extractDocuments(
   return { documents, boundary: finalBoundary };
 }
 
+// ── Stage 3C: Plat-based boundary extraction for platted subdivisions ─────────
+
+const PLAT_LOT_EXTRACTION_PROMPT = (lot: string, block: string, subdivision: string) =>
+  `You are analyzing a recorded subdivision plat drawing. Extract the boundary data for a specific lot.
+
+TARGET: Lot ${lot}, Block ${block}, ${subdivision}
+
+Find this specific lot on the plat and extract ALL boundary information:
+1. All boundary line bearings and distances (in order, clockwise from the most northerly point)
+2. Any curve data (radius, arc length, chord bearing, chord distance, delta angle)
+3. The lot area (if shown — acreage or square feet)
+4. Adjacent lot numbers on each side
+5. Street names and right-of-way widths for any sides fronting streets
+
+Return ONLY valid JSON in this exact format:
+{
+  "type": "metes_and_bounds",
+  "calls": [
+    { "bearing": "N 56°31'22\" W", "distance": 150.00, "type": "line" },
+    { "radius": 300.00, "arcLength": 45.67, "chordBearing": "N 60°00'00\" W", "chordDistance": 45.50, "delta": "8°43'15\"", "type": "curve" }
+  ],
+  "area_sqft": 8500,
+  "area_acres": 0.195,
+  "confidence": 0.85,
+  "adjacentLots": ["Lot 23 Block 8", "Lot 25 Block 8"],
+  "streets": [{ "name": "WAGGONER DR", "rowWidth": 60 }],
+  "lot": "${lot}",
+  "block": "${block}",
+  "subdivision": "${subdivision}"
+}
+
+If you cannot find the specific lot on this plat, return:
+{ "type": "lot_and_block", "calls": [], "confidence": 0.0, "reason": "lot not found on plat" }`;
+
+/**
+ * Stage 3C: Plat-specific boundary extraction for platted subdivisions.
+ *
+ * Called when Stage 3 returns only lot_and_block results (no metes-and-bounds)
+ * AND the property is classified as a platted subdivision. Sends the plat
+ * image to Claude Vision with a lot-targeted prompt to extract the specific
+ * lot's boundary calls from the plat drawing.
+ *
+ * @param platDoc  - The plat document with image data
+ * @param lot      - Lot number from the deed extraction
+ * @param block    - Block number from the deed extraction
+ * @param subdivision - Subdivision name
+ * @param anthropicApiKey
+ * @param logger
+ */
+export async function extractPlatBoundary(
+  platDoc: DocumentResult,
+  lot: string,
+  block: string,
+  subdivision: string,
+  anthropicApiKey: string,
+  logger: PipelineLogger,
+): Promise<ExtractedBoundaryData | null> {
+  const tracker = logger.startAttempt({
+    layer: 'Stage3-Plat',
+    source: 'Claude-Vision-Plat',
+    method: 'plat-lot-extraction',
+    input: `Lot ${lot} Block ${block} ${subdivision}`,
+  });
+
+  tracker.step(`Extracting boundary for Lot ${lot}, Block ${block} from plat drawing`);
+
+  // Resolve the image to send — prefer page screenshots, then imageBase64
+  let imageBase64ForVision: string | null = null;
+  let mediaType: 'image/png' | 'image/jpeg' | 'application/pdf' = 'image/png';
+
+  if (platDoc.imageBase64 && platDoc.imageFormat) {
+    imageBase64ForVision = platDoc.imageBase64;
+    mediaType = platDoc.imageFormat === 'jpg' ? 'image/jpeg'
+      : platDoc.imageFormat === 'pdf' ? 'application/pdf'
+      : 'image/png';
+  } else if (platDoc.pageScreenshots && platDoc.pageScreenshots.length > 0) {
+    // Use first page screenshot
+    imageBase64ForVision = platDoc.pageScreenshots[0].imageBase64;
+    mediaType = 'image/png';
+  }
+
+  if (!imageBase64ForVision) {
+    tracker({ status: 'fail', error: 'No image available in plat document' });
+    return null;
+  }
+
+  // Resize if needed before sending to Vision API
+  const imgBuffer = Buffer.from(imageBase64ForVision, 'base64');
+  const resizedBuffer = await resizeIfNeeded(imgBuffer);
+  const sendBase64 = resizedBuffer === imgBuffer ? imageBase64ForVision : resizedBuffer.toString('base64');
+  const sendMediaType: 'image/png' | 'image/jpeg' | 'application/pdf' = mediaType;
+
+  const prompt = PLAT_LOT_EXTRACTION_PROMPT(lot, block, subdivision);
+
+  let rawResponse: string | null = null;
+  try {
+    if (sendMediaType === 'application/pdf') {
+      rawResponse = await callClaudeWithRetry(
+        anthropicApiKey,
+        [{
+          role: 'user',
+          content: [
+            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: sendBase64 } },
+            { type: 'text', text: prompt },
+          ] as unknown,
+        }],
+        'You are an expert land surveyor analyzing a Texas subdivision plat drawing.',
+        logger,
+        `plat-lot:${lot}-${block}`,
+        4096,
+      );
+    } else {
+      rawResponse = await callClaudeWithRetry(
+        anthropicApiKey,
+        [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: sendMediaType, data: sendBase64 } },
+            { type: 'text', text: prompt },
+          ],
+        }],
+        'You are an expert land surveyor analyzing a Texas subdivision plat drawing.',
+        logger,
+        `plat-lot:${lot}-${block}`,
+        4096,
+      );
+    }
+  } catch (err) {
+    tracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+
+  if (!rawResponse) {
+    tracker({ status: 'fail', error: 'No response from Claude Vision' });
+    return null;
+  }
+
+  // Parse the JSON response
+  const parsed = safeParseJson(rawResponse);
+  if (!parsed || typeof parsed !== 'object') {
+    tracker({ status: 'fail', error: 'Non-JSON response from plat extraction' });
+    return null;
+  }
+
+  // If Claude couldn't find the lot
+  if (parsed.type === 'lot_and_block' || (Array.isArray(parsed.calls) && parsed.calls.length === 0)) {
+    tracker({
+      status: 'partial',
+      dataPointsFound: 0,
+      details: `Lot not found or no calls extracted: ${parsed.reason ?? 'unknown'}`,
+    });
+    return null;
+  }
+
+  // Build ExtractedBoundaryData from the plat extraction result.
+  // decimalDegrees values are set to 0 as placeholders — the `raw` string is the
+  // authoritative value.  Downstream validation (traverse-closure.ts) parses the
+  // raw bearing string rather than relying on pre-computed decimal degrees.
+  const calls: BoundaryCall[] = [];
+  if (Array.isArray(parsed.calls)) {
+    let seq = 1;
+    for (const c of parsed.calls) {
+      if (c.type === 'curve' && c.radius != null) {
+        calls.push({
+          sequence: seq++,
+          bearing: null,
+          distance: null,
+          curve: {
+            radius: { raw: String(c.radius), value: c.radius },
+            arcLength: c.arcLength != null ? { raw: String(c.arcLength), value: c.arcLength } : null,
+            chordBearing: c.chordBearing ? { raw: c.chordBearing, decimalDegrees: 0, quadrant: '' } : null,
+            chordDistance: c.chordDistance != null ? { raw: String(c.chordDistance), value: c.chordDistance } : null,
+            direction: 'right',
+            delta: c.delta ? { raw: c.delta, decimalDegrees: 0 } : null,
+          },
+          toPoint: null,
+          along: null,
+          confidence: 0.75,
+        });
+      } else if (c.bearing && c.distance != null) {
+        calls.push({
+          sequence: seq++,
+          bearing: { raw: c.bearing, decimalDegrees: 0, quadrant: '' },
+          distance: { raw: String(c.distance), value: c.distance, unit: 'feet' },
+          curve: null,
+          toPoint: null,
+          along: null,
+          confidence: 0.75,
+        });
+      }
+    }
+  }
+
+  const areaSqft  = typeof parsed.area_sqft  === 'number' ? parsed.area_sqft  : null;
+  const areaAcres = typeof parsed.area_acres === 'number' ? parsed.area_acres : null;
+
+  const result: ExtractedBoundaryData = {
+    type: calls.length > 0 ? 'metes_and_bounds' : 'lot_and_block',
+    datum: 'unknown',
+    pointOfBeginning: { description: '', referenceMonument: null },
+    calls,
+    references: [],
+    area: areaSqft != null
+      ? { raw: `${areaSqft} sqft`, value: areaSqft / 43560, unit: 'acres' }
+      : areaAcres != null
+      ? { raw: `${areaAcres} acres`, value: areaAcres, unit: 'acres' }
+      : null,
+    lotBlock: {
+      lot,
+      block,
+      subdivision,
+      phase: null,
+      cabinet: null,
+      slide: null,
+    },
+    confidence: typeof parsed.confidence === 'number' ? parsed.confidence : (calls.length > 0 ? 0.75 : 0),
+    warnings: [],
+    verified: false,
+  };
+
+  tracker({
+    status: calls.length > 0 ? 'success' : 'partial',
+    dataPointsFound: calls.length,
+    details: `Plat extraction: ${calls.length} boundary calls, confidence=${result.confidence}`,
+  });
+
+  return result;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PROVEN VISION PIPELINE — from Ash Trust sessions (March 4, 2026)
 // These lean exports are used by the new pipeline.ts orchestrator.
@@ -1280,6 +1582,9 @@ export async function extractFromImage(
   let ocrText = '';
   try {
     const client = await getAnthropicClient();
+    const imgBuffer = Buffer.from(imageBase64, 'base64');
+    const resizedBuffer = await resizeIfNeeded(imgBuffer);
+    const sendBase64 = resizedBuffer === imgBuffer ? imageBase64 : resizedBuffer.toString('base64');
     const ocrResponse = await client.messages.create({
       model: AI_MODEL,
       max_tokens: 8192,
@@ -1287,7 +1592,7 @@ export async function extractFromImage(
       messages: [{
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: sendBase64 } },
           { type: 'text', text: `Extract all text from this Texas property document. County: ${county}.` },
         ],
       }],
@@ -1345,13 +1650,17 @@ export async function analyzeDocumentQuadrants(
             page.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png';
           const focusPrompt = `${PLAT_QUADRANT_PROMPT_PREFIX}\n\nFocus specifically on the ${quadrantLabels[q]} portion of this image. This is page ${page.pageNumber} of a ${documentType} from ${county} County, Texas.`;
 
+          const imgBuf = Buffer.from(page.imageBase64, 'base64');
+          const resized = await resizeIfNeeded(imgBuf);
+          const sendData = resized === imgBuf ? page.imageBase64 : resized.toString('base64');
+
           const response = await client.messages.create({
             model: AI_MODEL,
             max_tokens: 8000,
             messages: [{
               role: 'user',
               content: [
-                { type: 'image', source: { type: 'base64', media_type: mediaType, data: page.imageBase64 } },
+                { type: 'image', source: { type: 'base64', media_type: mediaType, data: sendData } },
                 { type: 'text', text: focusPrompt },
               ],
             }],
@@ -1395,8 +1704,13 @@ export async function analyzeDocumentQuadrants(
 }
 
 /**
- * NEW: Send multiple document pages in a single Vision call.
- * Proven working: extracted metes & bounds from 4-page Ash Trust deed+plat.
+ * Analyze multiple document pages by processing each page individually.
+ *
+ * Each page image is pre-processed through resizeIfNeeded() (pixel resize +
+ * byte-size JPEG compression) before being sent to Claude, so no single
+ * API call will exceed the 5 MB per-image limit.  Individual page texts are
+ * concatenated and then passed through extractFromTextInternal() for
+ * structured extraction.
  */
 export async function analyzeMultiPageDocument(
   pages: DocumentPage[],
@@ -1409,30 +1723,52 @@ export async function analyzeMultiPageDocument(
   );
   const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
 
+  if (!pages.length) {
+    attempt.fail('No pages provided');
+    return { text: '', data: null };
+  }
+
   try {
     const client = await getAnthropicClient();
+    const pageTexts: string[] = [];
 
-    const imageContent: any[] = pages.map(p => ({
-      type: 'image',
-      source: {
-        type: 'base64',
-        media_type: p.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png',
-        data: p.imageBase64,
-      },
-    }));
+    for (const page of pages) {
+      const imgBuf = Buffer.from(page.imageBase64, 'base64');
+      const resized = await resizeIfNeeded(imgBuf);
+      const pageBase64 = resized === imgBuf ? page.imageBase64 : resized.toString('base64');
+      // Map common format strings to Claude-supported MIME types; default to PNG
+      const mediaType: 'image/jpeg' | 'image/png' =
+        page.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png';
 
-    const response = await client.messages.create({
-      model: AI_MODEL,
-      max_tokens: 8000,
-      messages: [{ role: 'user', content: [...imageContent, { type: 'text', text: prompt }] }],
-    });
+      try {
+        const response = await client.messages.create({
+          model: AI_MODEL,
+          max_tokens: 8000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: pageBase64 } },
+              { type: 'text', text: `[Page ${page.pageNumber}] ${prompt}` },
+            ],
+          }],
+        });
 
-    const text = response.content
-      .filter((b: any) => b.type === 'text')
-      .map((b: any) => b.text as string)
-      .join('');
+        const pageText = response.content
+          .filter((b: any) => b.type === 'text')
+          .map((b: any) => b.text as string)
+          .join('');
 
-    attempt.success(1, `Multi-page extraction: ${text.length} chars`);
+        if (pageText) {
+          pageTexts.push(`--- PAGE ${page.pageNumber} ---\n${pageText}`);
+        }
+      } catch (pageErr: any) {
+        // Log per-page failure but continue with remaining pages
+        logger.warn('3B-MULTI', `Page ${page.pageNumber} extraction failed: ${pageErr.message}`);
+      }
+    }
+
+    const text = pageTexts.join('\n\n');
+    attempt.success(pageTexts.length, `Multi-page extraction: ${text.length} chars from ${pageTexts.length}/${pages.length} pages`);
 
     const data = await extractFromTextInternal(text, apiKey, logger, `multi-page-${county}`);
     return { text, data };

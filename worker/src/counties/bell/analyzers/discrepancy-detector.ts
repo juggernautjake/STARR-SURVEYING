@@ -9,8 +9,8 @@
  *   - Easement conflicts
  */
 
-import type { DiscrepancyItem } from '../types/research-result';
-import { computeConfidence } from '../types/confidence';
+import type { DiscrepancyItem } from '../types/research-result.js';
+import { computeConfidence } from '../types/confidence.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

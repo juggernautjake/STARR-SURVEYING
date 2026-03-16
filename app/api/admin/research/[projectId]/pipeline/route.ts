@@ -20,6 +20,42 @@ function workerHeaders(): Record<string, string> {
   };
 }
 
+// ── Bell County Auto-Detection ────────────────────────────────────────────────
+// Keep in sync with worker/src/counties/router.ts BELL_COUNTY_CITIES
+
+const BELL_COUNTY_CITIES_LOWER = [
+  'belton', 'killeen', 'temple', 'harker heights', 'nolanville', 'salado',
+  'holland', 'rogers', 'troy', 'moody', 'bartlett', 'little river-academy',
+  'little river academy', 'copperas cove', 'morgans point resort', 'moffat',
+  'pendleton', 'eddy', 'heidenheimer', 'academy', 'prairie dell',
+];
+
+const BELL_COUNTY_ZIPS = new Set([
+  '76501', '76502', '76503', '76504', '76505', '76506', '76507', '76508',
+  '76513', '76517', '76520', '76522', '76523', '76524', '76525', '76526',
+  '76527', '76528', '76530', '76534', '76537', '76538', '76539',
+  '76540', '76541', '76542', '76543', '76544', '76545', '76546', '76547',
+  '76548', '76549', '76554', '76557', '76561', '76569', '76570', '76571',
+]);
+
+function detectBellCountyFromAddress(address: string): boolean {
+  if (!address) return false;
+  const lower = address.toLowerCase();
+  if (/\bbell\s+county\b/.test(lower)) return true;
+  for (const city of BELL_COUNTY_CITIES_LOWER) {
+    const escaped = city.replace(/-/g, '[-\\s]?');
+    if (new RegExp(`\\b${escaped}\\b`).test(lower)) return true;
+  }
+  const zipMatches = address.match(/\b(\d{5})(?:-\d{4})?\b/g);
+  if (zipMatches) {
+    for (const zip of zipMatches) {
+      if (BELL_COUNTY_ZIPS.has(zip.slice(0, 5))) return true;
+    }
+  }
+  return false;
+}
+// ── End Bell County Auto-Detection ────────────────────────────────────────────
+
 /* POST — Start a deep research pipeline on the worker */
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -52,10 +88,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     ownerName?: string;
   };
 
+  const rawCounty = body.county || project.county || '';
+  const rawAddress = body.address || project.property_address || '';
+
+  // Auto-detect Bell County from address when county is not explicitly set
+  const autoCounty = !rawCounty && rawAddress ? (detectBellCountyFromAddress(rawAddress) ? 'Bell' : '') : '';
+
   const payload = {
     projectId,
-    address: body.address || project.property_address || '',
-    county: body.county || project.county || '',
+    address: rawAddress,
+    county: rawCounty || autoCounty,
     state: project.state || 'TX',
     propertyId: body.propertyId || undefined,
     ownerName: body.ownerName || undefined,
@@ -107,7 +149,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // Poll worker status
   const workerRes = await fetch(`${WORKER_URL}/research/status/${projectId}`, {
     headers: workerHeaders(),
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!workerRes.ok) {

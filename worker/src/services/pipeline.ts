@@ -1,15 +1,24 @@
-// worker/src/services/pipeline.ts — Main 4-stage pipeline orchestrator
-// Coordinates: Stage 0 (normalize) → Stage 1 (CAD) → Stage 2 (Clerk) → Stage 3 (AI) → Stage 4 (Validate)
+// worker/src/services/pipeline.ts — Main research pipeline orchestrator
+// Stage 0: Normalize address → Stage 1: CAD lookup → Stage 2: Clerk search (iterative)
+// Stage 3: AI extraction → Stage 3.5: Geometric reconciliation
+// Stage 4: Boundary validation → Stage 5: Synthesis & cross-validation report
 // Supports: direct property ID lookup, owner name search, user file uploads.
+//
+// Iterative Discovery Loop (Stage 2):
+//   Each pass scans collected documents for new instrument numbers, owner names,
+//   and subdivision names.  Any previously-unsearched identifiers trigger another
+//   round of document retrieval.  This continues up to MAX_ENRICHMENT_ITERATIONS
+//   times so that chains like deed → prior deed → plat are automatically followed.
 
 import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyIdResult, SearchDiagnostics } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
-import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchBellClerkOwnerForPlatDeed } from './bell-clerk.js';
-import { extractDocuments } from './ai-extraction.js';
+import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchBellClerkOwnerForPlatDeed, searchSuperSearch, searchClerkByAddress, searchClerkForPlats } from './bell-clerk.js';
+import { extractDocuments, extractPlatBoundary } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
+import { runPropertyValidationPipeline } from './property-validation-pipeline.js';
 import { bundleAndUploadPages } from './pages-to-pdf.js';
 import { extractSubdivisionName, fetchBestMatchingPlat, hasPlatRepository } from './county-plats.js';
 import {
@@ -22,6 +31,20 @@ import {
   mergeCascadeIntoPipeline,
 } from './bell-county-research.js';
 import { classifyBellProperty } from './bell-county-classifier.js';
+import {
+  createDiscoveryState,
+  extractNewIdentifiers,
+  consumePendingInstruments,
+  consumePendingOwners,
+  consumePendingSubdivisions,
+  shouldContinueDiscovery,
+  stateSummary,
+  pendingSummary,
+  formatDiscoveryChain,
+  classifyDocumentRecency,
+  DISCOVERY_DEFAULTS,
+  type DiscoveryState,
+} from './discovery-loop.js';
 
 // ── Deed Reference Parser ─────────────────────────────────────────────────
 
@@ -73,11 +96,92 @@ export function parseDeedReferences(legalDescription: string): {
   return { instrumentNumbers, volumePages, platRefs };
 }
 
+// ── Iterative Discovery Loop ──────────────────────────────────────────────
+//
+// Maximum number of enrichment passes after the initial Stage 2.
+// Each pass fetches newly-discovered instruments not yet retrieved.
+// Set conservatively to avoid runaway API/browser costs.
+const MAX_ENRICHMENT_ITERATIONS = 3;
+
+// Maximum new instruments to fetch per enrichment iteration.
+const MAX_NEW_INSTRUMENTS_PER_ITER = 5;
+
+/**
+ * Scan a collection of DocumentResult objects for identifiers that have not
+ * yet been searched.  Returns:
+ *   - newInstruments: instrument numbers referenced in document text / AI extraction
+ *   - newOwners:      owner names from grantor/grantee fields (normalised to UPPERCASE)
+ *   - newSubdivisions: subdivision names extracted from text content
+ *
+ * Sources checked (in priority order):
+ *   1. doc.extractedData.references  — AI-extracted document references (most precise)
+ *   2. doc.textContent / doc.ocrText — parseDeedReferences() for inline number patterns
+ *   3. doc.ref.grantors / grantees   — owner names from clerk search metadata
+ *
+ * @param docs                    Documents collected so far (pre- and post-AI extraction)
+ * @param searchedInstruments     Set of instrument numbers already fetched (mutated by callers)
+ * @param searchedOwners          Set of owner names already searched (normalised UPPERCASE)
+ * @param searchedSubdivisions    Set of subdivision names already searched
+ */
+export function extractNewIdentifiersFromDocuments(
+  docs: DocumentResult[],
+  searchedInstruments: ReadonlySet<string>,
+  searchedOwners: ReadonlySet<string>,
+  searchedSubdivisions: ReadonlySet<string>,
+): {
+  newInstruments: string[];
+  newOwners: string[];
+  newSubdivisions: string[];
+} {
+  const candidateInstruments = new Set<string>();
+  const candidateOwners      = new Set<string>();
+  const candidateSubdivisions = new Set<string>();
+
+  for (const doc of docs) {
+    const docInstr = doc.ref.instrumentNumber ?? '';
+
+    // 1. AI-extracted document references (most reliable)
+    if (doc.extractedData?.references) {
+      for (const ref of doc.extractedData.references) {
+        if (ref.instrumentNumber && ref.instrumentNumber !== docInstr) {
+          candidateInstruments.add(ref.instrumentNumber);
+        }
+      }
+    }
+
+    // 2. Parse instrument numbers from raw text / OCR text
+    const textToScan = [doc.textContent, doc.ocrText].filter(Boolean).join('\n');
+    if (textToScan) {
+      const parsed = parseDeedReferences(textToScan);
+      for (const n of parsed.instrumentNumbers) {
+        if (n !== docInstr) candidateInstruments.add(n);
+      }
+    }
+
+    // 3. Owner names from grantor/grantee clerk metadata
+    for (const name of [...doc.ref.grantors, ...doc.ref.grantees]) {
+      const normalized = name.trim().toUpperCase();
+      // Filter out noise: skip very short strings, numbers-only, or common
+      // non-person tokens that appear in Texas deed records.
+      if (normalized.length > 3 && !/^\d+$/.test(normalized) &&
+          !/^(ET AL|ET UX|ETAL|UNKNOWN|TRUSTEE|N\/A)$/.test(normalized)) {
+        candidateOwners.add(normalized);
+      }
+    }
+  }
+
+  return {
+    newInstruments:  [...candidateInstruments].filter(n => !searchedInstruments.has(n)),
+    newOwners:       [...candidateOwners].filter(n => !searchedOwners.has(n)),
+    newSubdivisions: [...candidateSubdivisions].filter(n => !searchedSubdivisions.has(n)),
+  };
+}
+
 // ── Supabase Client (Lazy Init) ───────────────────────────────────────────
 
 let supabaseClient: Awaited<ReturnType<typeof import('@supabase/supabase-js').createClient>> | null = null;
 
-async function getSupabase() {
+export async function getSupabase() {
   if (supabaseClient) return supabaseClient;
 
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -93,6 +197,23 @@ async function getSupabase() {
   return supabaseClient;
 }
 
+// ── In-Memory Running Message Cache ────────────────────────────────────────
+// Stores the latest pipeline stage message per projectId so the status
+// endpoint in index.ts can return it without a Supabase round-trip.
+// This ensures the UI sees live messages even when Supabase is slow or not
+// configured, which was the primary cause of the stepper appearing "stuck".
+const _runningMessages = new Map<string, string>();
+
+/** Return the latest in-progress stage message for a project, if available. */
+export function getRunningMessage(projectId: string): string | undefined {
+  return _runningMessages.get(projectId);
+}
+
+/** Remove the cached message when a pipeline completes or fails. */
+export function clearRunningMessage(projectId: string): void {
+  _runningMessages.delete(projectId);
+}
+
 // ── Status Updates ─────────────────────────────────────────────────────────
 
 async function updateStatus(
@@ -101,6 +222,11 @@ async function updateStatus(
   message: string,
   metadata?: Record<string, unknown>,
 ): Promise<void> {
+  // Always write to the in-memory cache immediately — this is the primary
+  // source for the /research/status/:id endpoint so the UI gets live updates
+  // even when Supabase is unavailable or slow.
+  _runningMessages.set(projectId, message);
+
   try {
     const supabase = await getSupabase();
     if (!supabase) return;
@@ -130,69 +256,6 @@ async function updateStatus(
   }
 }
 
-// ── AI-Assisted Owner Name Formatting ──────────────────────────────────────
-
-/**
- * If the user provides an owner name, use Claude to determine the best
- * search format for that name against the county clerk system.
- */
-async function aiFormatOwnerName(
-  ownerName: string,
-  anthropicApiKey: string,
-  logger: PipelineLogger,
-): Promise<string[]> {
-  const finish = logger.startAttempt({
-    layer: 'OwnerFormat',
-    source: 'Claude',
-    method: 'name-formatting',
-    input: ownerName,
-  });
-
-  try {
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const client = new Anthropic({ apiKey: anthropicApiKey });
-
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 1024,
-      temperature: 0,
-      messages: [{
-        role: 'user',
-        content: `Given this property owner name: "${ownerName}"
-
-Generate ALL plausible search formats that a Texas county clerk or CAD system might use to index this name. Consider:
-- LAST, FIRST format (most common for clerk records)
-- FIRST LAST format
-- Business entity variations (with/without LLC, Inc, etc.)
-- Common abbreviations (Wm for William, Chas for Charles, etc.)
-- Initials instead of full names
-- Maiden name / married name possibilities
-- Trust or estate variations
-
-Return ONLY a JSON array of strings, no explanation. Example: ["SMITH, JOHN", "JOHN SMITH", "SMITH JOHN"]`,
-      }],
-    });
-
-    const text = response.content.find((c) => c.type === 'text');
-    if (!text || text.type !== 'text') {
-      finish({ status: 'fail', error: 'No response' });
-      return [ownerName];
-    }
-
-    const cleaned = text.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const parsed = JSON.parse(cleaned);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      finish({ status: 'success', dataPointsFound: parsed.length, details: `Generated ${parsed.length} name variants` });
-      return parsed.map(String);
-    }
-  } catch (err) {
-    finish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
-  }
-
-  // Fallback: basic formatting
-  return [ownerName, ownerName.toUpperCase()];
-}
-
 // ── User File Processing ───────────────────────────────────────────────────
 
 function processUserFiles(userFiles: UserFile[], logger: PipelineLogger): DocumentResult[] {
@@ -213,7 +276,8 @@ function processUserFiles(userFiles: UserFile[], logger: PipelineLogger): Docume
       // Decode base64 to text
       try {
         textContent = Buffer.from(file.data, 'base64').toString('utf-8');
-      } catch {
+      } catch (decodeErr) {
+        logger.warn('UserFiles', `Failed to decode text from ${file.filename}: ${decodeErr instanceof Error ? decodeErr.message : String(decodeErr)}`);
         textContent = null;
       }
     }
@@ -403,6 +467,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     // STAGE 0: Address Normalization + County Capability Discovery
     // ═══════════════════════════════════════════════════════════════════
 
+    const stage0Start = Date.now();
     const normalized = await normalizeAddress(input.address, logger);
 
     // Warn once if geocoder disagrees with the supplied county
@@ -423,9 +488,21 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       kofile     ? `Clerk:Kofile(${kofileBase.replace('https://', '')})` : 'Clerk:none',
       platRepo   ? 'Plat:repo'                                   : null,
     ].filter(Boolean);
-    logger.info('Stage0', `${normalized.canonical ?? input.address} — ${input.county} County [${capParts.join(' · ')}]`);
+    logger.info('Stage0', `${normalized.canonical ?? input.address} — ${input.county} County [${capParts.join(' · ')}] (${Date.now() - stage0Start}ms)`);
+
+    // Log county-specific capabilities for transparency
+    if (cadConfig) {
+      logger.info('Stage0', `Using ${cadConfig.name} for property lookups — ${input.county} County-specific CAD system detected`);
+    }
+    if (kofile) {
+      logger.info('Stage0', `${input.county} County clerk records available via Kofile — will search for deeds, plats, and instruments`);
+    }
+    if (!cadConfig && !kofile) {
+      logger.warn('Stage0', `No county-specific services configured for ${input.county} County — using generic search methods only`);
+    }
 
     await updateStatus(input.projectId, 'running', `Stage 1: Searching ${input.county} CAD…`);
+    const stage1Start = Date.now();
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 1: Property Identification
@@ -476,6 +553,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     } else {
       logger.info('Stage1', `Found: ${propertyResult.ownerName} · ID ${propertyResult.propertyId} · conf ${propertyResult.matchConfidence.toFixed(2)}${propertyResult.acreage ? ` · ${propertyResult.acreage} ac` : ''}`);
     }
+    logger.info('Stage1', `Stage 1 completed in ${Date.now() - stage1Start}ms`);
 
     // ── Bell County Cascading Enrichment ──────────────────────────────────────
     // For Bell County properties, run a multi-wave cascade that:
@@ -490,9 +568,11 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     // All state is passed through the knownIds object for Stage 2 to consume.
     let bellKnownIds: ReturnType<typeof createSearchState> | null = null;
     let bellAllProperties: PropertyIdResult[] = [];
+    let isPlatted = false; // set during Bell County classification if applicable
 
     if (input.county.toLowerCase() === 'bell') {
       logger.info('Stage1-Bell', '═══ Bell County Cascade Enrichment ═══');
+      await updateStatus(input.projectId, 'running', `Stage 1: Bell County — building deed history & known identifiers…`);
       try {
         // Seed the cascade state with everything we know so far
         const cascadeState = createSearchState({
@@ -521,6 +601,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         if (resultIsBP && propertyResult) {
           logger.info('Stage1-Bell',
             `Personal property account (${propertyResult.propertyId}) — pivoting to land accounts`);
+          await updateStatus(input.projectId, 'running', `Stage 1: Bell County — personal property detected, finding land accounts…`);
           const landAccounts = await pivotPersonalPropertyToLand(
             propertyResult, cascadeState, logger,
           );
@@ -548,6 +629,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         const currentTypeCode = (propertyResult?.propertyType ?? '').toUpperCase();
         const currentIsBP = currentTypeCode === 'BP' || currentTypeCode === 'P';
         if (propertyResult && !currentIsBP && cascadeState.ownerNames.length > 0) {
+          await updateStatus(input.projectId, 'running',
+            `Stage 1: Bell County — finding related parcels for "${cascadeState.ownerNames[0]}"…`);
           const related = await findRelatedBellProperties(
             cascadeState, propertyResult.propertyId, logger,
           );
@@ -602,6 +685,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
             propertyResult.legalDescription,
             propertyResult.ownerName,
           );
+          isPlatted = classification.isPlatted;
           logger.info('Stage1-Bell',
             `Classification: type=${classification.typeCode} ` +
             `cat=${classification.landCategory} ` +
@@ -689,16 +773,41 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     let instrumentSearchSucceeded = false;
 
+    // ── Initialize Discovery State ──────────────────────────────────────
+    // Seed with everything we know from Stage 0 + Stage 1 so the discovery
+    // loop can track what's been searched vs what's newly discovered.
+    const discoveryState = createDiscoveryState({
+      instrumentNumbers: allInstrumentNumbers,
+      ownerNames: [propertyResult?.ownerName, input.ownerName].filter((n): n is string => !!n),
+      volumePages: deedRefs.volumePages,
+      platRefs: deedRefs.platRefs,
+      subdivisionNames: bellKnownIds?.subdivisionNames ?? [],
+    });
+    const discoveryLoopStart = Date.now();
+    logger.info('Discovery', `Initialized discovery state: ${stateSummary(discoveryState)}`);
+
     // ── Path A: Instrument number search (fast, precise, no SPA) ─────────
     if (allInstrumentNumbers.length > 0 && kofile) {
+      const MAX_INSTRUMENTS = 10;
+      const instrToFetch = allInstrumentNumbers.slice(0, MAX_INSTRUMENTS);
+      if (allInstrumentNumbers.length > MAX_INSTRUMENTS) {
+        logger.warn('Stage2', `Found ${allInstrumentNumbers.length} instrument numbers — capping at ${MAX_INSTRUMENTS} (dropped ${allInstrumentNumbers.length - MAX_INSTRUMENTS})`);
+      }
+
+      // Fetch documents in parallel (batches of 3 to avoid overloading)
+      const BATCH_SIZE = 3;
       const docsAdded: string[] = [];
       const instrErrors: string[] = [];
+      const instrBatch = allInstrumentNumbers.slice(0, 5);
 
-      for (const instrNum of allInstrumentNumbers.slice(0, 5)) {
+      for (let instrIdx = 0; instrIdx < instrBatch.length; instrIdx++) {
+        const instrNum = instrBatch[instrIdx];
+        await updateStatus(input.projectId, 'running',
+          `Stage 2: Fetching deed record ${instrIdx + 1}/${instrBatch.length} — instrument ${instrNum}…`);
         // Use more expected pages for plats — large multi-lot plats can have 10+ pages
         const expectedPages = /plat/i.test(legalDesc) ? 10 : 2;
         try {
-          const pages = await fetchDocumentImages(instrNum, expectedPages, logger);
+          const pages = await fetchDocumentImages(input.county, instrNum, expectedPages, logger);
           if (pages.length > 0) {
             const docResult: DocumentResult = {
               ref: {
@@ -714,13 +823,24 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
             documents.push(docResult);
             instrumentSearchSucceeded = true;
             docsAdded.push(`${instrNum}(${pages.length}pp)`);
-            // Bundle pages → PDF non-fatally
+            // Bundle pages → PDF non-fatally but LOG failures
             bundleAndUploadPages(pages, input.projectId, instrNum, docResult.ref.documentType)
-              .then(url => { if (url) docResult.pagesPdfUrl = url; })
-              .catch(() => undefined);
+              .then(url => {
+                if (url) {
+                  docResult.pagesPdfUrl = url;
+                  logger.info('Stage2-PDF', `Bundled ${pages.length} pages for ${instrNum} → ${url.substring(0, 80)}`);
+                }
+              })
+              .catch((pdfErr) => {
+                logger.warn('Stage2-PDF', `PDF bundling failed for ${instrNum}: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`);
+              });
+          } else {
+            logger.info('Stage2', `Instrument ${instrNum}: no pages captured`);
           }
-        } catch (imgErr) {
-          instrErrors.push(`${instrNum}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+        } catch (instrErr) {
+          const errMsg = instrErr instanceof Error ? instrErr.message : String(instrErr);
+          instrErrors.push(`${instrNum}: ${errMsg}`);
+          logger.warn('Stage2', `Instrument ${instrNum} fetch failed: ${errMsg}`);
         }
       }
 
@@ -761,7 +881,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           if (documents.some((d) => d.ref.documentType === 'Plat (county repository)')) break;
           try {
             logger.info('Stage2A', `Plat repo: searching for "${subdivisionName}"`);
-            const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger);
+            const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger, anthropicApiKey);
             if (platResult) {
               logger.info('Stage2A', `Plat: "${platResult.name}" (${platResult.source})`);
               documents.push({
@@ -804,6 +924,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       const mapHint = typePMapId ? ` (Type P Map ID: ${typePMapId})` : '';
       logger.info('Stage2B',
         `CAD unreachable/personal-property${mapHint} — searching Bell County Clerk directly for plat+deed: "${ownerNameForPlatSearch}"`);
+      await updateStatus(input.projectId, 'running',
+        `Stage 2: Searching Bell County Clerk for owner "${ownerNameForPlatSearch}"…`);
       try {
         const { platInstruments, deedInstruments } =
           await searchBellClerkOwnerForPlatDeed(ownerNameForPlatSearch, logger);
@@ -815,9 +937,14 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         ];
 
         for (const { instrNum, docType } of instrToFetch) {
+          await updateStatus(input.projectId, 'running',
+            `Stage 2: Downloading ${docType} ${instrNum} for "${ownerNameForPlatSearch}"…`);
           try {
             const isPlat = /plat/i.test(docType);
-            const pages = await fetchDocumentImages(instrNum, isPlat ? 3 : 2, logger);
+            // Use 20 as the upper bound for plats — large multi-lot plats can have
+            // many pages and the dynamic stopping in fetchDocumentImages will bail
+            // out early once no more pages are found.  Deeds rarely exceed 4 pages.
+            const pages = await fetchDocumentImages(input.county, instrNum, isPlat ? 20 : 4, logger);
             if (pages.length > 0) {
               const docResult: DocumentResult = {
                 ref: {
@@ -825,7 +952,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                   volume: null, page: null,
                   documentType: docType,
                   recordingDate: null, grantors: [], grantees: [],
-                  source: 'Bell County Clerk PublicSearch',
+                  source: `${input.county} County Clerk PublicSearch`,
                   url: `${kofileBase}/doc/${instrNum}/details`,
                 },
                 textContent: null, pages,
@@ -867,6 +994,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
       if (subdivisionNamesForClerk.length > 0) {
         for (const subdivName of subdivisionNamesForClerk.slice(0, 3)) {
+          await updateStatus(input.projectId, 'running',
+            `Stage 2: Searching Bell County Clerk by subdivision "${subdivName}"…`);
           try {
             logger.info('Stage2C',
               `Bell County Clerk search by subdivision name: "${subdivName}"`);
@@ -883,13 +1012,15 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
             );
 
             for (const instrNum of newInstrNums.slice(0, 5)) {
+              const isPlat = platInstruments.includes(instrNum);
+              const docType = isPlat ? 'Final Plat' : 'Warranty Deed';
+              await updateStatus(input.projectId, 'running',
+                `Stage 2: Downloading ${docType} ${instrNum} (${subdivName})…`);
               try {
-                const isPlat = platInstruments.includes(instrNum);
                 // Fetch more pages for plats (large plats may have many pages)
                 const expectedPgs = isPlat ? 10 : 2;
-                const pages = await fetchDocumentImages(instrNum, expectedPgs, logger);
+                const pages = await fetchDocumentImages(input.county, instrNum, expectedPgs, logger);
                 if (pages.length > 0) {
-                  const docType = isPlat ? 'Final Plat' : 'Warranty Deed';
                   const docResult: DocumentResult = {
                     ref: {
                       instrumentNumber: instrNum,
@@ -898,7 +1029,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                       recordingDate: allDocuments.find((d) => d.instrumentNumber === instrNum)?.recordingDate ?? null,
                       grantors: allDocuments.find((d) => d.instrumentNumber === instrNum)?.grantors ?? [],
                       grantees: allDocuments.find((d) => d.instrumentNumber === instrNum)?.grantees ?? [],
-                      source: 'Bell County Clerk PublicSearch',
+                      source: `${input.county} County Clerk PublicSearch`,
                       url: `${kofileBase}/doc/${instrNum}/details`,
                     },
                     textContent: null, pages, ocrText: null, extractedData: null,
@@ -948,15 +1079,26 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           if (!doc.ref.instrumentNumber) continue;
           try {
             const isPlat = /plat/i.test(doc.ref.documentType);
-            const pages = await fetchDocumentImages(doc.ref.instrumentNumber, isPlat ? 10 : 2, logger);
+            const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber, isPlat ? 10 : 2, logger);
             if (pages.length > 0) {
               doc.pages = pages;
               totalPages += pages.length;
-              bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber, doc.ref.documentType)
-                .then(url => { if (url) doc.pagesPdfUrl = url; })
-                .catch(() => undefined);
+              bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber!, doc.ref.documentType)
+                .then(url => {
+                  if (url) {
+                    doc.pagesPdfUrl = url;
+                    logger.info('Stage2-PDF', `Bundled ${pages.length} pages for ${doc.ref.instrumentNumber} → ${url.substring(0, 80)}`);
+                  }
+                })
+                .catch((pdfErr) => {
+                  logger.warn('Stage2-PDF', `PDF bundling failed for ${doc.ref.instrumentNumber}: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`);
+                });
             }
-          } catch (e) { imgErrors.push(`${doc.ref.instrumentNumber}: ${e instanceof Error ? e.message : String(e)}`); }
+          } catch (imgErr) {
+            const errMsg = imgErr instanceof Error ? imgErr.message : String(imgErr);
+            imgErrors.push(errMsg);
+            logger.warn('Stage2', `Image fetch for ${doc.ref.instrumentNumber} failed: ${errMsg}`);
+          }
         }
         const imgNote = totalPages > 0 ? `${totalPages}pp` : '0pp';
         logger.info('Stage2', `Owner-name: ${ownerDocs.length} doc(s), ${imgNote}${imgErrors.length ? ` [${imgErrors.length} img error(s)]` : ''}`);
@@ -978,29 +1120,705 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       }
     }
 
+    // ── Path D: SUPERSEARCH fallback (full-text OCR search) ──────────────
+    // If no documents found yet, try SUPERSEARCH with the legal description.
+    // SUPERSEARCH searches inside scanned document text, not just metadata.
+    if (documents.length === 0 && legalDesc && kofile) {
+      logger.info('Stage2-SS', 'No documents from owner/instrument search — trying SUPERSEARCH with legal description');
+      // Extract the most useful search terms from legal description
+      // (subdivision name + lot/block is usually the best query)
+      const subdivName = extractSubdivisionName(legalDesc);
+      const ssQuery = subdivName || legalDesc.substring(0, 120);
+      try {
+        const ssDocs = await searchSuperSearch(input.county, ssQuery, logger);
+        if (ssDocs.length > 0) {
+          logger.info('Stage2-SS', `SUPERSEARCH found ${ssDocs.length} documents for "${ssQuery}"`);
+          documents = [...documents, ...ssDocs];
+        }
+      } catch (ssErr) {
+        logger.warn('Stage2-SS', `SUPERSEARCH failed: ${ssErr instanceof Error ? ssErr.message : String(ssErr)}`);
+      }
+    }
+
+    // ── Path E: Address-based clerk search ────────────────────────────────
+    // When owner/instrument searches fail, search the clerk by property
+    // address using all the address variants we generated in Stage 0.
+    if (documents.length === 0 && kofile && normalized.variants.length > 0) {
+      logger.info('Stage2-Addr', 'No documents yet — trying address-based clerk search');
+      const addressQueries = normalized.variants
+        .filter((v) => v.streetNumber && v.streetName)
+        .map((v) => ({
+          streetNumber: v.streetNumber,
+          streetName: v.streetName,
+          format: v.format,
+        }));
+
+      // Also add the situs address from the CAD result if available
+      if (propertyResult?.situsAddress) {
+        const situs = propertyResult.situsAddress.trim();
+        if (situs) {
+          addressQueries.unshift({
+            streetNumber: '',
+            streetName: situs,
+            format: 'situs_address',
+          });
+        }
+      }
+
+      if (addressQueries.length > 0) {
+        try {
+          const addrDocs = await searchClerkByAddress(input.county, addressQueries, logger);
+          if (addrDocs.length > 0) {
+            logger.info('Stage2-Addr', `Address search found ${addrDocs.length} documents — fetching images`);
+            // Fetch page images for address-found documents
+            const docsWithInstr = addrDocs.filter(d => d.ref.instrumentNumber).slice(0, 8);
+            const BATCH_SIZE = 3;
+            for (let batch = 0; batch < docsWithInstr.length; batch += BATCH_SIZE) {
+              const batchItems = docsWithInstr.slice(batch, batch + BATCH_SIZE);
+              const batchResults = await Promise.allSettled(
+                batchItems.map(async (doc) => {
+                  const fetchStart = Date.now();
+                  const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
+                  logger.info('Stage2-Addr', `Fetched ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
+                  return { doc, pages };
+                }),
+              );
+              for (const result of batchResults) {
+                if (result.status === 'fulfilled' && result.value.pages.length > 0) {
+                  const { doc, pages } = result.value;
+                  doc.pages = pages;
+                  bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber!, doc.ref.documentType)
+                    .then(url => { if (url) doc.pagesPdfUrl = url; })
+                    .catch((e) => { logger.warn('Stage2-PDF', `PDF bundling failed: ${e instanceof Error ? e.message : String(e)}`); });
+                }
+              }
+            }
+            documents = [...documents, ...addrDocs];
+          }
+        } catch (addrErr) {
+          logger.warn('Stage2-Addr', `Address clerk search failed: ${addrErr instanceof Error ? addrErr.message : String(addrErr)}`);
+        }
+      }
+    }
+
+    // ── Path F: Plat-specific clerk search ────────────────────────────────
+    // Targeted search for subdivision plats even if we already have deeds.
+    // Plats are critical for boundary surveys — search if we have a
+    // subdivision name and haven't found any plat documents yet.
+    const hasPlat = documents.some((d) =>
+      /\bplat\b/i.test(d.ref.documentType) || /^PLT$/i.test(d.ref.documentType.trim()),
+    );
+    const subdivForPlat = legalDesc ? extractSubdivisionName(legalDesc) : null;
+
+    if (!hasPlat && subdivForPlat && kofile) {
+      logger.info('Stage2-Plat', `No plats found yet — searching clerk for "${subdivForPlat}" plat`);
+      // Extract lot/block info for more targeted search
+      const lotBlockMatch = legalDesc.match(/\b(?:lot|lt)\s*(\d+)/i);
+      const blockMatch = legalDesc.match(/\b(?:block|blk)\s*(\w+)/i);
+      const additionalTerms = [
+        lotBlockMatch ? `LOT ${lotBlockMatch[1]}` : '',
+        blockMatch ? `BLOCK ${blockMatch[1]}` : '',
+      ].filter(Boolean).join(' ');
+
+      try {
+        const platDocs = await searchClerkForPlats(input.county, subdivForPlat, logger, additionalTerms || undefined);
+        if (platDocs.length > 0) {
+          logger.info('Stage2-Plat', `Plat search found ${platDocs.length} documents — fetching images`);
+          // Fetch page images for plat documents (use higher page count for plats)
+          const platsWithInstr = platDocs.filter(d => d.ref.instrumentNumber).slice(0, 5);
+          const BATCH_SIZE = 3;
+          for (let batch = 0; batch < platsWithInstr.length; batch += BATCH_SIZE) {
+            const batchItems = platsWithInstr.slice(batch, batch + BATCH_SIZE);
+            const batchResults = await Promise.allSettled(
+              batchItems.map(async (doc) => {
+                const fetchStart = Date.now();
+                // Plats often have more pages — request up to 5
+                const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber!, 5, logger);
+                logger.info('Stage2-Plat', `Fetched plat ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
+                return { doc, pages };
+              }),
+            );
+            for (const result of batchResults) {
+              if (result.status === 'fulfilled' && result.value.pages.length > 0) {
+                const { doc, pages } = result.value;
+                doc.pages = pages;
+                bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber!, doc.ref.documentType)
+                  .then(url => { if (url) doc.pagesPdfUrl = url; })
+                  .catch((e) => { logger.warn('Stage2-PDF', `PDF bundling failed: ${e instanceof Error ? e.message : String(e)}`); });
+              }
+            }
+          }
+          documents = [...documents, ...platDocs];
+        }
+      } catch (platErr) {
+        logger.warn('Stage2-Plat', `Plat search failed: ${platErr instanceof Error ? platErr.message : String(platErr)}`);
+      }
+    }
+
+    // ── Iterative Enrichment Loop (Stage 2 Knowledge Snowball) ─────────────
+    // Now that the initial search passes (A–F) are done, scan everything
+    // collected so far for identifiers we haven't yet searched.  Each
+    // iteration may find previously-unknown instrument numbers or owner names
+    // referenced *inside* the documents themselves — following the chain:
+    //   deed → prior deed → plat → prior plat → …
+    //
+    // Safeguards:
+    //   • MAX_ENRICHMENT_ITERATIONS caps the number of extra passes
+    //   • searchedInstruments / searchedOwners prevent re-fetching
+    //   • MAX_NEW_INSTRUMENTS_PER_ITER limits per-pass fetch volume
+    {
+      // Seed the "already searched" sets from everything fetched in passes A–F
+      const searchedInstruments = new Set<string>(allInstrumentNumbers);
+      const searchedOwners      = new Set<string>();
+      if (ownerForClerk)           searchedOwners.add(ownerForClerk.toUpperCase());
+      if (ownerNameForPlatSearch)  searchedOwners.add(ownerNameForPlatSearch.toUpperCase());
+      const searchedSubdivisions = new Set<string>();
+
+      for (let iter = 0; iter < MAX_ENRICHMENT_ITERATIONS; iter++) {
+        const { newInstruments, newOwners } = extractNewIdentifiersFromDocuments(
+          documents,
+          searchedInstruments,
+          searchedOwners,
+          searchedSubdivisions,
+        );
+
+        if (newInstruments.length === 0 && newOwners.length === 0) {
+          logger.info('Stage2-Enrich',
+            `Iteration ${iter + 1}: no new identifiers discovered — enrichment complete`);
+          break;
+        }
+
+        logger.info('Stage2-Enrich',
+          `Iteration ${iter + 1}: discovered ${newInstruments.length} new instrument(s)` +
+          (newOwners.length > 0 ? `, ${newOwners.length} new owner(s)` : '') +
+          ` — fetching additional documents`);
+        await updateStatus(input.projectId, 'running',
+          `Stage 2 (enrichment ${iter + 1}): following ${newInstruments.length} reference(s) discovered in documents…`);
+
+        // ── Fetch newly-discovered instrument documents ─────────────────
+        const instrToEnrich = newInstruments.slice(0, MAX_NEW_INSTRUMENTS_PER_ITER);
+        for (const instrNum of instrToEnrich) {
+          searchedInstruments.add(instrNum); // mark before fetch so errors don't retry
+          if (!kofile) continue;
+          try {
+            const isPlat = /plat/i.test(legalDesc);
+            const expectedPages = isPlat ? 10 : 2;
+            const pages = await fetchDocumentImages(input.county, instrNum, expectedPages, logger);
+            if (pages.length > 0) {
+              const docResult: DocumentResult = {
+                ref: {
+                  instrumentNumber: instrNum,
+                  volume: null, page: null,
+                  documentType: 'Deed (discovered reference)',
+                  recordingDate: null, grantors: [], grantees: [],
+                  source: `${input.county.charAt(0).toUpperCase() + input.county.slice(1)} County Clerk`,
+                  url: `${kofileBase}/doc/${instrNum}/details`,
+                },
+                textContent: null, pages, ocrText: null, extractedData: null,
+              };
+              documents.push(docResult);
+              instrumentSearchSucceeded = true;
+              bundleAndUploadPages(pages, input.projectId, instrNum, docResult.ref.documentType)
+                .then(url => { if (url) docResult.pagesPdfUrl = url; })
+                .catch(() => undefined);
+              logger.info('Stage2-Enrich',
+                `  → Instrument ${instrNum}: ${pages.length} page(s) retrieved`);
+            } else {
+              logger.info('Stage2-Enrich', `  → Instrument ${instrNum}: no pages captured`);
+            }
+          } catch (enrichErr) {
+            logger.warn('Stage2-Enrich',
+              `  → Instrument ${instrNum} fetch failed: ${enrichErr instanceof Error ? enrichErr.message : String(enrichErr)}`);
+          }
+        }
+
+        // ── Search newly-discovered owner names (clerk) ─────────────────
+        // Only run if instrument searches came up empty for this iteration
+        // and we still need documents — this avoids expensive SPA searches
+        // when instruments are already providing sufficient coverage.
+        if (instrToEnrich.length === 0 && newOwners.length > 0 && kofile && !instrumentSearchSucceeded) {
+          for (const ownerName of newOwners.slice(0, 2)) {
+            searchedOwners.add(ownerName);
+            try {
+              const ownerDocs = await searchClerkRecords(input.county, ownerName, logger);
+              if (ownerDocs.length > 0) {
+                logger.info('Stage2-Enrich',
+                  `  → Owner "${ownerName}": ${ownerDocs.length} document(s) found`);
+                documents = [...documents, ...ownerDocs];
+              }
+            } catch (ownerErr) {
+              logger.warn('Stage2-Enrich',
+                `  → Owner search "${ownerName}" failed: ${ownerErr instanceof Error ? ownerErr.message : String(ownerErr)}`);
+            }
+          }
+        }
+
+        // Log running total after each enrichment pass
+        const enrichTotal = documents.reduce((n, d) => n + (d.pages?.length ?? 0), 0);
+        logger.info('Stage2-Enrich',
+          `Iteration ${iter + 1} complete: ${documents.length} doc(s), ${enrichTotal} total pages`);
+      }
+    }
+
     // Merge user-uploaded documents
     if (userDocuments.length > 0) documents = [...documents, ...userDocuments];
 
     const totalPages = documents.reduce((n, d) => n + (d.pages?.length ?? 0), 0);
     const docSummary = `${documents.length} doc(s)${totalPages > 0 ? `, ${totalPages} pages` : ''}`;
     logger.info('Stage2', `Total: ${docSummary}`);
-    await updateStatus(input.projectId, 'running', `Stage 3: AI extraction — ${docSummary}…`);
+    await updateStatus(input.projectId, 'running',
+      `Stage 3: Running Claude AI on ${docSummary} — extracting boundaries, owners, legal descriptions…`);
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 3: AI Extraction
     // ═══════════════════════════════════════════════════════════════════
 
-    const { documents: processedDocs, boundary } = await extractDocuments(
+    // Mark all initial instruments/owners as searched in discovery state
+    // (they were used in the Stage 2 paths above)
+    for (const n of allInstrumentNumbers) discoveryState.searchedInstruments.add(n);
+    if (propertyResult?.ownerName) discoveryState.searchedOwnerNames.add(propertyResult.ownerName.toUpperCase());
+    if (input.ownerName) discoveryState.searchedOwnerNames.add(input.ownerName.toUpperCase());
+    // Mark initial instruments as no longer pending
+    for (const n of allInstrumentNumbers) discoveryState.pendingInstruments.delete(n);
+    discoveryState.totalDocumentsRetrieved = documents.length;
+
+    const stage3T = logger.attempt('Stage3', 'Claude AI', 'extractDocuments',
+      `${documents.length} doc(s) — initial pass`);
+    const { documents: processedDocs, boundary: rawBoundary } = await extractDocuments(
       documents,
       propertyResult?.legalDescription ?? null,
       anthropicApiKey,
       logger,
     );
+    {
+      const bNote = rawBoundary
+        ? `${rawBoundary.type} (${rawBoundary.calls.length} calls, conf ${(rawBoundary.confidence * 100).toFixed(0)}%)`
+        : 'no boundary';
+      stage3T.success(processedDocs.length, `${processedDocs.length} doc(s) processed — ${bNote}`);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ITERATIVE DISCOVERY LOOP
+    // After the initial Stage 2 → Stage 3 pass, check if AI extraction
+    // discovered new identifiers (instrument numbers, owner names, etc.)
+    // referenced within the documents. If so, fetch those documents and
+    // extract from them. Repeat until no new identifiers or limits hit.
+    // ═══════════════════════════════════════════════════════════════════
+
+    // Extract identifiers from AI-processed documents (iteration 0)
+    const initialNewIds = extractNewIdentifiers(discoveryState, processedDocs, logger);
+    if (initialNewIds > 0) {
+      logger.info('Discovery', `═══ ITERATIVE DISCOVERY LOOP ═══`);
+      logger.info('Discovery', `Initial extraction found ${initialNewIds} new identifier(s): ${pendingSummary(discoveryState)}`);
+    }
+
+    // The processedDocs array accumulates ALL documents across iterations
+    const allProcessedDocs = [...processedDocs];
+    let bestBoundary = rawBoundary;
+
+    // Discovery iterations (1, 2, 3, ...)
+    while (true) {
+      discoveryState.iteration++;
+      const { shouldContinue, reason } = shouldContinueDiscovery(discoveryState, discoveryLoopStart);
+      if (!shouldContinue) {
+        if (discoveryState.iteration > 1) {
+          logger.info('Discovery', `Loop stopped: ${reason}`);
+        }
+        break;
+      }
+
+      logger.info('Discovery', `── Iteration ${discoveryState.iteration} ──`);
+      logger.info('Discovery', `Pending: ${pendingSummary(discoveryState)}`);
+      await updateStatus(input.projectId, 'running',
+        `Discovery iteration ${discoveryState.iteration}: following ${pendingSummary(discoveryState)}…`);
+
+      const iterationDocs: DocumentResult[] = [];
+
+      // ── Fetch documents for pending instrument numbers ──────────────
+      const pendingInstrs = consumePendingInstruments(discoveryState);
+      if (pendingInstrs.length > 0 && kofile) {
+        logger.info('Discovery', `Fetching ${pendingInstrs.length} instrument(s): [${pendingInstrs.join(', ')}]`);
+        for (const instrNum of pendingInstrs) {
+          const t = logger.attempt('Discovery', `${input.county} County Clerk`, 'fetchDocumentImages', instrNum);
+          try {
+            const expectedPages = 4; // general default
+            const pages = await fetchDocumentImages(input.county, instrNum, expectedPages, logger);
+            if (pages.length > 0) {
+              const docResult: DocumentResult = {
+                ref: {
+                  instrumentNumber: instrNum,
+                  volume: null, page: null,
+                  documentType: 'Document (discovery)',
+                  recordingDate: null, grantors: [], grantees: [],
+                  source: `${input.county} County Clerk (discovery iter ${discoveryState.iteration})`,
+                  url: `${kofileBase}/doc/${instrNum}/details`,
+                },
+                textContent: null, pages, ocrText: null, extractedData: null,
+              };
+              iterationDocs.push(docResult);
+              discoveryState.totalDocumentsRetrieved++;
+              t.success(pages.length, `${pages.length} page(s) retrieved`);
+
+              // Bundle PDF in background
+              bundleAndUploadPages(pages, input.projectId, instrNum, 'Document (discovery)')
+                .then(url => { if (url) docResult.pagesPdfUrl = url; })
+                .catch(() => undefined);
+            } else {
+              t.partial(0, 'No pages captured — document may not exist or be inaccessible');
+            }
+          } catch (err) {
+            t.fail(`Fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      }
+
+      // ── Search by pending owner names ──────────────────────────────
+      const pendingOwners = consumePendingOwners(discoveryState);
+      if (pendingOwners.length > 0 && kofile) {
+        for (const ownerName of pendingOwners) {
+          const t = logger.attempt('Discovery', `${input.county} County Clerk`, 'searchClerkRecords', ownerName);
+          try {
+            const ownerDocs = await searchClerkRecords(input.county, ownerName, logger);
+            if (ownerDocs.length > 0) {
+              // Only keep docs we don't already have (by instrument number)
+              const existingInstrs = new Set(
+                [...documents, ...iterationDocs].map(d => d.ref.instrumentNumber).filter(Boolean),
+              );
+              const newOwnerDocs = ownerDocs.filter(d =>
+                !d.ref.instrumentNumber || !existingInstrs.has(d.ref.instrumentNumber),
+              );
+              if (newOwnerDocs.length > 0) {
+                t.success(newOwnerDocs.length, `${newOwnerDocs.length} new doc(s) (${ownerDocs.length} total from clerk)`);
+                // Fetch images for the new documents
+                for (const doc of newOwnerDocs.slice(0, 5)) {
+                  if (!doc.ref.instrumentNumber) continue;
+                  const imgT = logger.attempt('Discovery', `${input.county} County Clerk`, 'fetchDocumentImages', doc.ref.instrumentNumber);
+                  try {
+                    const isPlat = /plat/i.test(doc.ref.documentType);
+                    const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber, isPlat ? 10 : 2, logger);
+                    if (pages.length > 0) {
+                      doc.pages = pages;
+                      discoveryState.totalDocumentsRetrieved++;
+                      imgT.success(pages.length, `${pages.length} page(s)`);
+                      bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber!, doc.ref.documentType)
+                        .then(url => { if (url) doc.pagesPdfUrl = url; })
+                        .catch(() => undefined);
+                    } else {
+                      imgT.partial(0, 'No pages captured');
+                    }
+                  } catch (imgErr) {
+                    imgT.fail(`Image fetch failed: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+                  }
+                }
+                iterationDocs.push(...newOwnerDocs);
+              } else {
+                t.partial(0, `${ownerDocs.length} doc(s) found but all already retrieved`);
+              }
+            } else {
+              t.partial(0, 'No documents found for this owner name');
+            }
+          } catch (err) {
+            t.fail(`Owner search failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      }
+
+      // ── Search by pending subdivisions (Bell County clerk) ─────────
+      const pendingSubdivs = consumePendingSubdivisions(discoveryState);
+      if (pendingSubdivs.length > 0 && kofile && input.county.toLowerCase() === 'bell') {
+        for (const subdivName of pendingSubdivs) {
+          const t = logger.attempt('Discovery', 'Bell County Clerk', 'searchBellClerkOwnerForPlatDeed', subdivName);
+          try {
+            const { platInstruments, deedInstruments } =
+              await searchBellClerkOwnerForPlatDeed(subdivName, logger);
+            const existingInstrs = new Set(
+              [...documents, ...iterationDocs].map(d => d.ref.instrumentNumber).filter(Boolean),
+            );
+            const newInstrs = [...platInstruments, ...deedInstruments].filter(n => !existingInstrs.has(n));
+
+            if (newInstrs.length === 0) {
+              t.partial(0, `Found ${platInstruments.length + deedInstruments.length} instrument(s) but all already retrieved`);
+            } else {
+              t.success(newInstrs.length, `${platInstruments.length} plat(s), ${deedInstruments.length} deed(s) — fetching ${newInstrs.length} new`);
+              for (const instrNum of newInstrs.slice(0, 5)) {
+                const isPlat = platInstruments.includes(instrNum);
+                const docType = isPlat ? 'Final Plat (discovery)' : 'Warranty Deed (discovery)';
+                const imgT = logger.attempt('Discovery', 'Bell County Clerk', 'fetchDocumentImages', instrNum);
+                try {
+                  const pages = await fetchDocumentImages(input.county, instrNum, isPlat ? 10 : 4, logger);
+                  if (pages.length > 0) {
+                    const docResult: DocumentResult = {
+                      ref: {
+                        instrumentNumber: instrNum, volume: null, page: null,
+                        documentType: docType, recordingDate: null,
+                        grantors: [], grantees: [],
+                        source: `${input.county} County Clerk (discovery iter ${discoveryState.iteration})`,
+                        url: `${kofileBase}/doc/${instrNum}/details`,
+                      },
+                      textContent: null, pages, ocrText: null, extractedData: null,
+                    };
+                    iterationDocs.push(docResult);
+                    discoveryState.totalDocumentsRetrieved++;
+                    imgT.success(pages.length, `${pages.length} page(s) for ${docType}`);
+                    bundleAndUploadPages(pages, input.projectId, instrNum, docType)
+                      .then(url => { if (url) docResult.pagesPdfUrl = url; })
+                      .catch(() => undefined);
+                  } else {
+                    imgT.partial(0, 'No pages captured');
+                  }
+                } catch (imgErr) {
+                  imgT.fail(`Image fetch failed: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+                }
+              }
+            }
+          } catch (err) {
+            t.fail(`Subdivision search failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      }
+
+      // If no documents were retrieved this iteration, stop
+      if (iterationDocs.length === 0) {
+        logger.info('Discovery', `Iteration ${discoveryState.iteration}: no new documents retrieved — stopping`);
+        break;
+      }
+
+      // Run AI extraction on the newly discovered documents
+      logger.info('Discovery', `Iteration ${discoveryState.iteration}: extracting from ${iterationDocs.length} new document(s)`);
+      await updateStatus(input.projectId, 'running',
+        `Discovery iteration ${discoveryState.iteration}: AI extracting from ${iterationDocs.length} new document(s)…`);
+
+      let newProcessedDocs: typeof processedDocs = [];
+      let newBoundary: typeof rawBoundary = null;
+      const extractT = logger.attempt('Discovery', 'Claude AI', 'extractDocuments',
+        `${iterationDocs.length} doc(s) — iter ${discoveryState.iteration}`);
+      try {
+        const result = await extractDocuments(
+          iterationDocs,
+          propertyResult?.legalDescription ?? null,
+          anthropicApiKey,
+          logger,
+        );
+        newProcessedDocs = result.documents;
+        newBoundary = result.boundary;
+        const boundaryNote = newBoundary
+          ? `boundary: ${newBoundary.type} (${newBoundary.calls.length} calls, conf ${(newBoundary.confidence * 100).toFixed(0)}%)`
+          : 'no boundary';
+        extractT.success(newProcessedDocs.length, `${newProcessedDocs.length} doc(s) processed — ${boundaryNote}`);
+      } catch (extractErr) {
+        extractT.fail(`AI extraction failed: ${extractErr instanceof Error ? extractErr.message : String(extractErr)}`);
+        // Non-fatal: skip this iteration's extraction but continue the loop
+        allProcessedDocs.push(...iterationDocs); // add without extraction
+        documents.push(...iterationDocs);
+        break;
+      }
+
+      // Accumulate processed docs
+      allProcessedDocs.push(...newProcessedDocs);
+      documents.push(...iterationDocs);
+
+      // Keep the best boundary (highest confidence, most calls)
+      if (newBoundary) {
+        if (!bestBoundary) {
+          bestBoundary = newBoundary;
+          logger.info('Discovery', `New boundary found in iteration ${discoveryState.iteration}: ${newBoundary.type}, ${newBoundary.calls.length} calls, confidence ${newBoundary.confidence}`);
+        } else if (
+          newBoundary.calls.length > bestBoundary.calls.length ||
+          (newBoundary.calls.length === bestBoundary.calls.length && newBoundary.confidence > bestBoundary.confidence)
+        ) {
+          logger.info('Discovery', `Better boundary found in iteration ${discoveryState.iteration}: ${newBoundary.type}, ${newBoundary.calls.length} calls (was ${bestBoundary.calls.length}), confidence ${newBoundary.confidence} (was ${bestBoundary.confidence})`);
+          bestBoundary = newBoundary;
+        }
+      }
+
+      // Extract new identifiers from the newly processed documents
+      const iterNewIds = extractNewIdentifiers(discoveryState, newProcessedDocs, logger);
+      logger.info('Discovery', `Iteration ${discoveryState.iteration}: ${iterNewIds} new identifier(s) extracted`);
+      logger.info('Discovery', stateSummary(discoveryState));
+
+      if (iterNewIds === 0) {
+        logger.info('Discovery', `No new identifiers — discovery complete`);
+        break;
+      }
+    }
+
+    // Log final discovery summary
+    if (discoveryState.iteration > 0 && discoveryState.totalNewIdentifiers > 0) {
+      logger.info('Discovery', `═══ Discovery Loop Complete ═══`);
+      logger.info('Discovery', stateSummary(discoveryState));
+      logger.info('Discovery', formatDiscoveryChain(discoveryState));
+
+      // Classify documents by recency for operator awareness
+      const { primary, historical } = classifyDocumentRecency(allProcessedDocs);
+      if (historical.length > 0) {
+        const histLabels = historical
+          .map(d => `${d.ref.instrumentNumber ?? d.ref.documentType} (${d.ref.recordingDate ?? 'undated'})`)
+          .join(', ');
+        logger.info('Discovery', `Document recency: ${primary.length} primary, ${historical.length} historical: [${histLabels}]`);
+        logger.info('Discovery', `Note: boundary data is based on the most recent deed/plat. Historical documents provide chain-of-title context.`);
+      }
+    }
+
+    // Use accumulated docs and best boundary for subsequent stages
+    const finalProcessedDocs = allProcessedDocs;
+
+    // ── Stage 3C: Plat-based extraction (platted subdivisions) ───────────────
+    // If the property is a platted subdivision AND all extractions returned only
+    // lot_and_block references (no metes-and-bounds calls), route to a
+    // plat-specific Vision extraction to get the actual lot boundary from the
+    // plat drawing.  This covers cases where deeds reference "Lot 24 Block 8"
+    // but the geometry lives in the recorded plat image, not the deed text.
+    let boundary = bestBoundary;
+    const needsPlatExtraction = isPlatted && (
+      boundary === null ||
+      (boundary.type === 'lot_and_block' && boundary.calls.length === 0)
+    );
+
+    if (needsPlatExtraction) {
+      // Find the lot/block from the best extraction we have
+      const lotBlockSource = bestBoundary?.lotBlock
+        ?? finalProcessedDocs
+             .map(d => d.extractedData?.lotBlock)
+             .find(lb => lb?.lot && lb.block);
+
+      if (lotBlockSource?.lot && lotBlockSource.block) {
+        const lot          = lotBlockSource.lot;
+        const block        = lotBlockSource.block;
+        // Prefer the subdivision name from the extracted lot/block; fall back to the first
+        // segment of the CAD legal description (strips ", Lot N Block M …" trailing detail).
+        const subdivision  = lotBlockSource.subdivision || propertyResult?.legalDescription?.replace(/,.*$/, '').trim() || 'Unknown Subdivision';
+
+        logger.info('Stage3', `All documents are lot_and_block (0 boundary calls) — property is platted`);
+        logger.info('Stage3', `Routing to plat-based extraction for Lot ${lot}, Block ${block} from plat document`);
+
+        // Find plat document: prefer 'Final Plat', 'Plat', or any doc whose type includes 'plat'
+        const platDocForExtraction = finalProcessedDocs.find(d =>
+          (d.imageBase64 || (d.pageScreenshots && d.pageScreenshots.length > 0)) &&
+          /plat/i.test(d.ref.documentType)
+        ) ?? finalProcessedDocs.find(d =>
+          d.imageBase64 || (d.pageScreenshots && d.pageScreenshots.length > 0)
+        );
+
+        if (platDocForExtraction) {
+          logger.info('Stage3-Plat', `Sending plat image to Claude Vision with lot-specific prompt…`);
+          try {
+            const platBoundary = await extractPlatBoundary(
+              platDocForExtraction,
+              lot,
+              block,
+              subdivision,
+              anthropicApiKey,
+              logger,
+            );
+            if (platBoundary && platBoundary.calls.length > 0) {
+              boundary = platBoundary;
+              logger.info('Stage3-Plat', `Extracted ${boundary.calls.length} boundary calls from plat for Lot ${lot}, Block ${block} (confidence: ${boundary.confidence})`);
+            } else {
+              logger.warn('Stage3-Plat', `Plat extraction returned no boundary calls — falling back to lot_and_block result`);
+            }
+          } catch (platErr) {
+            logger.warn('Stage3-Plat', `Plat extraction failed (non-fatal): ${platErr instanceof Error ? platErr.message : String(platErr)}`);
+          }
+        } else {
+          logger.warn('Stage3', `No plat document with image available — cannot attempt plat-based extraction`);
+        }
+      }
+    }
 
     const boundaryNote = boundary
       ? `${boundary.type}, ${boundary.calls.length} calls`
       : 'no boundary';
     logger.info('Stage3', `Extraction: ${boundaryNote}`);
+
+    // ── Stage 3 Reference Chase ─────────────────────────────────────────
+    // Now that AI extraction has run, processedDocs[*].extractedData.references
+    // contains instrument numbers, volumes/pages, and plat refs that the AI
+    // found inside the document text.  If any of these haven't been fetched
+    // yet (i.e., they weren't available before AI extraction), fetch them now
+    // and run a lightweight AI extraction pass so they contribute to the final
+    // boundary and reference coverage.
+    //
+    // This is the Stage 3 half of the iterative discovery loop: the pre-AI
+    // enrichment loop above found instruments in raw text; this catches
+    // references that only become visible after the AI reads the document.
+    if (kofile) {
+      // Collect all instruments already present in processedDocs
+      const stage3SearchedInstrs = new Set<string>(
+        processedDocs.map(d => d.ref.instrumentNumber).filter(Boolean) as string[],
+      );
+
+      const { newInstruments: stage3NewInstrs } = extractNewIdentifiersFromDocuments(
+        processedDocs,
+        stage3SearchedInstrs,
+        new Set<string>(),
+        new Set<string>(),
+      );
+
+      if (stage3NewInstrs.length > 0) {
+        logger.info('Stage3-Chase',
+          `AI extraction revealed ${stage3NewInstrs.length} new instrument reference(s) — fetching: ` +
+          `[${stage3NewInstrs.slice(0, 5).join(', ')}${stage3NewInstrs.length > 5 ? '…' : ''}]`);
+        await updateStatus(input.projectId, 'running',
+          `Stage 3: Following ${stage3NewInstrs.length} document reference(s) discovered by AI…`);
+
+        const chaseDocs: DocumentResult[] = [];
+        for (const instrNum of stage3NewInstrs.slice(0, MAX_NEW_INSTRUMENTS_PER_ITER)) {
+          stage3SearchedInstrs.add(instrNum);
+          try {
+            const isPlat = /plat/i.test(legalDesc);
+            const pages = await fetchDocumentImages(input.county, instrNum, isPlat ? 10 : 2, logger);
+            if (pages.length > 0) {
+              const chaseDoc: DocumentResult = {
+                ref: {
+                  instrumentNumber: instrNum,
+                  volume: null, page: null,
+                  documentType: 'Deed (AI reference chase)',
+                  recordingDate: null, grantors: [], grantees: [],
+                  source: `${input.county.charAt(0).toUpperCase() + input.county.slice(1)} County Clerk`,
+                  url: `${kofileBase}/doc/${instrNum}/details`,
+                },
+                textContent: null, pages, ocrText: null, extractedData: null,
+              };
+              chaseDocs.push(chaseDoc);
+              bundleAndUploadPages(pages, input.projectId, instrNum, chaseDoc.ref.documentType)
+                .then(url => { if (url) chaseDoc.pagesPdfUrl = url; })
+                .catch(() => undefined);
+              logger.info('Stage3-Chase',
+                `  → Instrument ${instrNum}: ${pages.length} page(s) retrieved`);
+            } else {
+              logger.info('Stage3-Chase', `  → Instrument ${instrNum}: no pages captured`);
+            }
+          } catch (chaseErr) {
+            logger.warn('Stage3-Chase',
+              `  → Instrument ${instrNum} fetch failed: ${chaseErr instanceof Error ? chaseErr.message : String(chaseErr)}`);
+          }
+        }
+
+        // Run AI extraction on the chased documents and merge into processedDocs
+        if (chaseDocs.length > 0) {
+          logger.info('Stage3-Chase',
+            `Running AI extraction on ${chaseDocs.length} chased document(s)…`);
+          try {
+            const { documents: chasedExtracted } = await extractDocuments(
+              chaseDocs,
+              propertyResult?.legalDescription ?? null,
+              anthropicApiKey,
+              logger,
+            );
+            // Append to processedDocs so all downstream stages (3.5, 4, 5) see them
+            processedDocs.push(...chasedExtracted);
+            logger.info('Stage3-Chase',
+              `Merged ${chasedExtracted.length} chased document(s) into pipeline`);
+          } catch (chaseExtractErr) {
+            logger.warn('Stage3-Chase',
+              `Chase extraction failed (non-fatal): ${chaseExtractErr instanceof Error ? chaseExtractErr.message : String(chaseExtractErr)}`);
+          }
+        }
+      } else {
+        logger.info('Stage3-Chase', 'No new instrument references discovered by AI extraction');
+      }
+    }
+
     await updateStatus(input.projectId, 'running', `Stage 3.5: Geometric reconciliation…`);
 
     // ═══════════════════════════════════════════════════════════════════
@@ -1012,35 +1830,96 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     logger.info('Stage3.5', '═══ STAGE 3.5: Geometric Reconciliation ═══');
 
-    // Find the best plat image document (prefer plats, then surveys, then any image)
-    const platDoc = processedDocs.find(d =>
-      d.imageBase64 && d.imageFormat &&
+    // Resolve the best plat image for geo-reconcile.  Priority order:
+    //   1. imageBase64 + imageFormat (not PDF/TIFF) — legacy single-image path
+    //   2. pages[0] (DocumentPage array, captured via signed-URL interception)
+    //   3. pageScreenshots[0] (PageScreenshot array, legacy browser capture)
+    // This handles Bell County documents which use the pages[] path from
+    // fetchDocumentImages / captureAllDocumentPages.
+
+    type PlatImageCandidate = { base64: string; mediaType: 'image/png' | 'image/jpeg'; label: string };
+
+    function resolvePlatImage(doc: (typeof finalProcessedDocs)[number]): PlatImageCandidate | null {
+      // Path 1: single imageBase64 field (not PDF/TIFF)
+      if (doc.imageBase64 && doc.imageFormat &&
+          doc.imageFormat !== 'pdf' && doc.imageFormat !== 'tiff') {
+        return {
+          base64: doc.imageBase64,
+          mediaType: doc.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png',
+          label: doc.ref.instrumentNumber ?? doc.ref.documentType,
+        };
+      }
+      // Path 2: DocumentPage array (Kofile signed-URL capture)
+      if (doc.pages && doc.pages.length > 0) {
+        const p = doc.pages[0];
+        if (p.imageFormat !== 'tiff') {
+          return {
+            base64: p.imageBase64,
+            mediaType: p.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png',
+            label: `${doc.ref.instrumentNumber ?? doc.ref.documentType}-p${p.pageNumber}`,
+          };
+        }
+      }
+      // Path 3: PageScreenshot array (legacy browser capture)
+      if (doc.pageScreenshots && doc.pageScreenshots.length > 0) {
+        return {
+          base64: doc.pageScreenshots[0].imageBase64,
+          mediaType: 'image/png',
+          label: `${doc.ref.instrumentNumber ?? doc.ref.documentType}-p${doc.pageScreenshots[0].pageNumber}`,
+        };
+      }
+      return null;
+    }
+
+    // Find the best plat document: prefer plats/surveys, then any document with an image
+    const platDocForReconcile = finalProcessedDocs.find(d =>
+      resolvePlatImage(d) !== null &&
       (d.ref.documentType.toLowerCase().includes('plat') ||
        d.ref.documentType.toLowerCase().includes('survey'))
-    ) ?? processedDocs.find(d => d.imageBase64 && d.imageFormat);
+    ) ?? finalProcessedDocs.find(d => resolvePlatImage(d) !== null);
 
     let reconciliation: import('../types/index.js').PipelineResult['reconciliation'] = undefined;
 
-    if (platDoc?.imageBase64 && platDoc.imageFormat && platDoc.imageFormat !== 'pdf') {
-      // PDFs use Claude's 'document' source type and are handled in Stage3/ai-extraction.
+    const platImage = platDocForReconcile ? resolvePlatImage(platDocForReconcile) : null;
+
+    if (platImage) {
+      // PDFs and TIFFs are handled by the Claude 'document' source type in Stage 3.
       // runGeoReconcile only accepts rasterised images (image/png | image/jpeg).
-      const mediaType = (
-        platDoc.imageFormat === 'jpg' ? 'image/jpeg' :
-        'image/png'
-      ) as 'image/png' | 'image/jpeg';
+      // Pass the subdivision name extracted from the legal description so that
+      // geo-reconcile.js-style prompts can reference the exact plat by name.
+      const subdivNameForReconcile = legalDesc ? extractSubdivisionName(legalDesc) : undefined;
       try {
         reconciliation = await runGeoReconcile(
           boundary,
-          platDoc.imageBase64,
-          mediaType,
+          platImage.base64,
+          platImage.mediaType,
           anthropicApiKey,
           logger,
-          platDoc.ref.instrumentNumber ?? platDoc.ref.documentType,
+          platImage.label,
+          subdivNameForReconcile ?? undefined,
         );
         logger.info('Stage3.5',
           `Reconciliation: ${reconciliation.agreementCount} confirmed, ` +
           `${reconciliation.conflictCount} conflicts, ` +
           `${reconciliation.overallAgreementPct}% agreement`);
+        if (reconciliation.confidenceSummary) {
+          const cs = reconciliation.confidenceSummary;
+          logger.info('Stage3.5',
+            `Confidence summary: HIGH=${cs.high} MEDIUM=${cs.medium} LOW=${cs.low} ` +
+            `[ESTIMATED]=${cs.estimated} [DEDUCED]=${cs.deduced} [VERIFY]=${cs.verify} [MISSING]=${cs.missing}`);
+          const totalRated = cs.high + cs.medium + cs.low;
+          if (totalRated > 0) {
+            const highRatePct = Math.round((cs.high / totalRated) * 100);
+            logger.info('Stage3.5',
+              `High-confidence rate: ${highRatePct}% of ${totalRated} rated calls`);
+          }
+        }
+        if (reconciliation.multiCropAnalysis) {
+          logger.info('Stage3.5',
+            `Multi-crop analysis: ${reconciliation.multiCropAnalysis.apiCallCount} API calls ` +
+            `(overview=${reconciliation.multiCropAnalysis.overviewText.split('\n').length}L, ` +
+            `geometry=${reconciliation.multiCropAnalysis.geometryText.split('\n').length}L)`);
+        }
       } catch (err) {
         logger.warn('Stage3.5', `Geometric reconciliation failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -1059,6 +1938,48 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     logger.info('Stage4', `Quality: ${validation.overallQuality}, Flags: ${validation.flags.length}`);
 
     // ═══════════════════════════════════════════════════════════════════
+    // STAGE 5: Property Validation Pipeline (Calls 5-7)
+    // Text synthesis, cross-validation, and final discrepancy/confidence
+    // report.  Non-fatal — if it fails the rest of the result is still
+    // returned.  Only runs when the pipeline has an Anthropic API key.
+    // ═══════════════════════════════════════════════════════════════════
+
+    await updateStatus(input.projectId, 'running', 'Stage 5: Synthesis & cross-validation…');
+
+    logger.info('Stage5', '═══ STAGE 5: Property Validation Pipeline (Calls 5-7) ═══');
+
+    let validationReport: import('../types/index.js').PipelineResult['validationReport'];
+
+    // Collect raw OCR text from all processed documents to give Stage 5 the
+    // multi-pass unstructured output alongside the structured boundary calls.
+    const rawOcrTexts = finalProcessedDocs
+      .map(d => d.ocrText ?? null)
+      .filter((t): t is string => t !== null && t.length > 0);
+
+    try {
+      validationReport = await runPropertyValidationPipeline(
+        boundary,
+        validation,
+        reconciliation ?? null,
+        {
+          ownerName:        propertyResult?.ownerName ?? null,
+          acreage:          propertyResult?.acreage ?? null,
+          legalDescription: propertyResult?.legalDescription ?? null,
+          county:           input.county,
+        },
+        anthropicApiKey,
+        logger,
+        rawOcrTexts.length > 0 ? rawOcrTexts : undefined,
+      );
+      logger.info('Stage5',
+        `Validation report: ${validationReport.overallConfidencePct}% overall confidence ` +
+        `(${validationReport.overallRating.display} ${validationReport.overallRating.label}), ` +
+        `${validationReport.discrepancies.length} discrepancies`);
+    } catch (err) {
+      logger.warn('Stage5', `Property validation pipeline failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     // Final Result
     // ═══════════════════════════════════════════════════════════════════
 
@@ -1069,7 +1990,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       status = 'partial';
     } else if (propertyResult?.propertyId) {
       status = 'partial';
-    } else if (processedDocs.length > 0 || userDocuments.length > 0) {
+    } else if (finalProcessedDocs.length > 0 || userDocuments.length > 0) {
       // CAD lookup failed but documents were found via clerk search or user upload
       status = 'partial';
     }
@@ -1115,10 +2036,11 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       ownerName: propertyResult?.ownerName ?? null,
       legalDescription: propertyResult?.legalDescription ?? null,
       acreage: propertyResult?.acreage ?? null,
-      documents: processedDocs,
+      documents: finalProcessedDocs,
       boundary,
       validation,
       reconciliation,
+      validationReport,
       log: logger.getAttempts(),
       duration_ms,
       searchDiagnostics,
@@ -1132,6 +2054,9 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       duration_ms,
     });
 
+    // Clear the in-memory cache — pipeline has finished.
+    clearRunningMessage(input.projectId);
+
     return result;
 
   } catch (err) {
@@ -1141,6 +2066,10 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     logger.error('Pipeline', `CRASH: ${errMsg}`, err);
 
     await updateStatus(input.projectId, 'failed', `Pipeline crashed: ${errMsg}`);
+
+    // Clear the in-memory cache even on crash so the status endpoint doesn't
+    // keep serving a stale "running" message after the pipeline has gone away.
+    clearRunningMessage(input.projectId);
 
     const result = emptyResult();
     result.log = logger.getAttempts(); // Preserve all diagnostic logs

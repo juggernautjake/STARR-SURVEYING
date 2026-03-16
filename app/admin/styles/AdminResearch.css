@@ -924,6 +924,229 @@
   color: #EF4444;
 }
 
+.research-upload__doc-view {
+  background: none;
+  border: none;
+  color: #9CA3AF;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s;
+  margin-right: 0.15rem;
+}
+
+.research-upload__doc-view:hover {
+  color: #3B82F6;
+}
+
+/* ── Document Viewer Modal ────────────────────────────────────────────────── */
+
+.docviewer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(2px);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.docviewer {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.docviewer__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #E5E7EB;
+  flex-shrink: 0;
+}
+
+.docviewer__header-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.docviewer__header-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.docviewer__header-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #111827;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.docviewer__header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.6rem;
+  font-size: 0.78rem;
+  color: #6B7280;
+  margin-top: 0.2rem;
+}
+
+.docviewer__header-meta span::after {
+  content: '·';
+  margin-left: 0.6rem;
+}
+
+.docviewer__header-meta span:last-child::after {
+  content: '';
+  margin-left: 0;
+}
+
+.docviewer__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.docviewer__open-btn {
+  display: inline-block;
+  padding: 0.3rem 0.7rem;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 6px;
+  color: #1D4ED8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.docviewer__open-btn:hover {
+  background: #DBEAFE;
+  border-color: #93C5FD;
+}
+
+.docviewer__close {
+  background: none;
+  border: none;
+  color: #9CA3AF;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  line-height: 1;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.docviewer__close:hover {
+  color: #374151;
+}
+
+.docviewer__body {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  position: relative;
+}
+
+/* Image viewer */
+.docviewer__image-wrap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem;
+  min-height: 300px;
+  background: #F9FAFB;
+}
+
+.docviewer__image {
+  max-width: 100%;
+  height: auto;
+  max-height: calc(90vh - 100px);
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+}
+
+/* PDF viewer */
+.docviewer__pdf-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 500px;
+}
+
+.docviewer__pdf-iframe {
+  flex: 1;
+  width: 100%;
+  height: calc(90vh - 100px);
+  border: none;
+  background: #F3F4F6;
+}
+
+/* Text viewer */
+.docviewer__text {
+  padding: 1rem 1.25rem;
+  margin: 0;
+  font-size: 0.82rem;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #1F2937;
+  background: #F9FAFB;
+  min-height: 200px;
+}
+
+/* Error / fallback */
+.docviewer__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 2rem;
+  text-align: center;
+  color: #6B7280;
+  font-size: 0.9rem;
+  gap: 0.75rem;
+}
+
+.docviewer__fallback-link {
+  display: inline-block;
+  padding: 0.4rem 1rem;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 6px;
+  color: #1D4ED8;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.docviewer__fallback-link:hover {
+  background: #DBEAFE;
+}
+
 /* ── Configure Step ──────────────────────────────────────────────────────── */
 
 .research-configure {
@@ -1175,14 +1398,14 @@
 }
 .research-analyzing__log-entry {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 0.45rem;
   padding: 0.18rem 0.75rem;
   animation: log-entry-in 0.2s ease forwards;
 }
 @keyframes log-entry-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 .research-analyzing__log-entry:hover {
   background: rgba(0,0,0,0.03);
@@ -1212,10 +1435,16 @@
   color: #1F2937;
   flex: 1;
   min-width: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 .research-analyzing__log-detail {
   color: #6B7280;
   font-size: 0.7rem;
+  flex-shrink: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 .research-analyzing__log-empty {
   display: flex;
@@ -7919,6 +8148,7 @@
 .research-search__map-img {
   display: block;
   width: 100%;
+  height: auto;
   max-height: 360px;
   object-fit: cover;
   object-position: center;
@@ -7933,6 +8163,11 @@
 .research-search__import-map-note {
   font-size: 0.82rem;
   color: #1D4ED8;
+}
+
+.research-search__import-existing-note {
+  color: #6b7280;
+  font-size: 0.85em;
 }
 
 /* ── Boundary Calls: Property ID Unlock Banner ───────────────────────────── */

@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import NextImage from 'next/image';
 import type { PropertySearchResult, PropertySearchResponse, SearchSource } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
 import Image from 'next/image';
@@ -68,6 +69,28 @@ interface PropertySearchPanelProps {
   defaultCounty?: string;
   defaultParcelId?: string;
   onImported?: () => void;
+  /**
+   * When provided the "Initiate Research & Analysis" button calls this callback
+   * (passing current form values) instead of running the search inline.
+   * Used by Stage 1 so clicking the button navigates to Stage 2.
+   */
+  onNavigateAway?: (params: { address: string; county: string; parcelId: string; ownerName: string }) => void;
+  /**
+   * When true, the search-results section (source chips, online-resource links,
+   * location map, pipeline progress panel) is hidden.  Only the input form and
+   * button are rendered.  Used by Stage 1 so no links appear there.
+   */
+  hideResultsAndProgress?: boolean;
+  /**
+   * When true, automatically fires "Initiate Research & Analysis" on mount.
+   * Used by Stage 2 so research begins the moment the node is entered.
+   */
+  autoStart?: boolean;
+  /**
+   * Fires when the deep research pipeline finishes (status: success | partial | failed).
+   * Does NOT fire for lite-pipeline runs.
+   */
+  onPipelineComplete?: (status: string) => void;
 }
 
 const SOURCE_LABELS: Record<SearchSource, { label: string; icon: string }> = {
@@ -84,25 +107,68 @@ const SOURCE_LABELS: Record<SearchSource, { label: string; icon: string }> = {
   texas_file:      { label: 'TexasFile Deed Search', icon: '📋' },
 };
 
+// ── Bell County Auto-Detection ──────────────────────────────────────────────
+// Keep in sync with worker/src/counties/router.ts BELL_COUNTY_CITIES
+
+const BELL_COUNTY_CITIES_LOWER = [
+  'belton', 'killeen', 'temple', 'harker heights', 'nolanville', 'salado',
+  'holland', 'rogers', 'troy', 'moody', 'bartlett', 'little river-academy',
+  'little river academy', 'copperas cove', 'morgans point resort', 'moffat',
+  'pendleton', 'eddy', 'heidenheimer', 'academy', 'prairie dell',
+];
+
+const BELL_COUNTY_ZIPS = new Set([
+  '76501', '76502', '76503', '76504', '76505', '76506', '76507', '76508',
+  '76513', '76517', '76520', '76522', '76523', '76524', '76525', '76526',
+  '76527', '76528', '76530', '76534', '76537', '76538', '76539',
+  '76540', '76541', '76542', '76543', '76544', '76545', '76546', '76547',
+  '76548', '76549', '76554', '76557', '76561', '76569', '76570', '76571',
+]);
+
+function detectBellCountyFromAddress(address: string): boolean {
+  if (!address) return false;
+  const lower = address.toLowerCase();
+  if (/\bbell\s+county\b/.test(lower)) return true;
+  for (const city of BELL_COUNTY_CITIES_LOWER) {
+    const escaped = city.replace(/-/g, '[-\\s]?');
+    if (new RegExp(`\\b${escaped}\\b`).test(lower)) return true;
+  }
+  const zipMatches = address.match(/\b(\d{5})(?:-\d{4})?\b/g);
+  if (zipMatches) {
+    for (const zip of zipMatches) {
+      if (BELL_COUNTY_ZIPS.has(zip.slice(0, 5))) return true;
+    }
+  }
+  return false;
+}
+// ── End Bell County Auto-Detection ─────────────────────────────────────────
+
 export default function PropertySearchPanel({
   projectId,
   defaultAddress,
   defaultCounty,
   defaultParcelId,
   onImported,
+  onNavigateAway,
+  hideResultsAndProgress,
+  autoStart,
+  onPipelineComplete,
 }: PropertySearchPanelProps) {
   const [address, setAddress] = useState(defaultAddress || '');
   const [county, setCounty] = useState(defaultCounty || '');
+  // Track whether the county was auto-populated (so we can clear it if address changes)
+  const [countyAutoDetected, setCountyAutoDetected] = useState(false);
   const [parcelId, setParcelId] = useState(defaultParcelId || '');
   const [ownerName, setOwnerName] = useState('');
 
   const [searching, setSearching] = useState(false);
   const [searchResponse, setSearchResponse] = useState<PropertySearchResponse | null>(null);
   const [searchError, setSearchError] = useState('');
+  const [mapImgError, setMapImgError] = useState(false);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ count: number; mapNote?: string } | null>(null);
+  const [importResult, setImportResult] = useState<{ count: number; newCount?: number; alreadyExistedCount?: number; mapNote?: string } | null>(null);
 
   const [showAddressIssues, setShowAddressIssues] = useState(true);
   const [resourcesOpen, setResourcesOpen] = useState(true);
@@ -131,8 +197,20 @@ export default function PropertySearchPanel({
   const [pipelineStatus, setPipelineStatus] = useState<string | null>(null);
   const [pipelineResult, setPipelineResult] = useState<PipelineStatusResponse | null>(null);
   const [pipelineError, setPipelineError] = useState('');
+  const [pipelineStallMinutes, setPipelineStallMinutes] = useState(0);
   // showPipelineLog moved to PipelineProgressPanel (internal state)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // How many consecutive 404 responses we've received — we only give up after 5
+  // consecutive misses so a brief worker restart doesn't kill the poll.
+  const consecutive404CountRef = useRef(0);
+  // Timestamp when the current polling run started — used to compute stall warnings.
+  const pollStartTimeRef = useRef<number>(0);
+
+  // Auto-start: fire handleInitiateResearch once on mount when autoStart is true.
+  // We use a ref so navigating back to Stage 2 doesn't re-fire the auto-start.
+  const autoStartFiredRef = useRef(false);
+  // Keep a stable ref to handleInitiateResearch so the effect closure stays fresh.
+  const handleInitiateResearchRef = useRef<(() => void) | null>(null);
 
   const stopLitePolling = useCallback(() => {
     if (liteRef.current) { clearInterval(liteRef.current); liteRef.current = null; }
@@ -140,6 +218,20 @@ export default function PropertySearchPanel({
 
   // Clean up lite polling interval on unmount to prevent memory leaks
   useEffect(() => () => stopLitePolling(), [stopLitePolling]);
+
+  // When autoStart is true, trigger research once after the first render so
+  // the default form values (address / county / parcelId) have been applied.
+  useEffect(() => {
+    if (!autoStart || autoStartFiredRef.current) return;
+    autoStartFiredRef.current = true;
+    // handleInitiateResearchRef is assigned synchronously on every render (see below),
+    // so it is guaranteed to be non-null here.
+    if (handleInitiateResearchRef.current) {
+      handleInitiateResearchRef.current();
+    }
+  // Only run on mount; handleInitiateResearchRef is kept fresh below
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const pollLiteStatus = useCallback(async () => {
     try {
@@ -189,6 +281,13 @@ export default function PropertySearchPanel({
 
   // Unified handler: runs public records search and deep/lite pipeline simultaneously.
   async function handleInitiateResearch() {
+    // If a parent supplied onNavigateAway, delegate navigation to them and stop here.
+    // Stage 2 will re-mount this component with autoStart=true and run the research there.
+    if (onNavigateAway) {
+      onNavigateAway({ address, county, parcelId, ownerName });
+      return;
+    }
+
     const anyRunning = liteRunning || searching || pipelineRunning;
     if (anyRunning) return;
     if (!address.trim() && !county.trim() && !parcelId.trim()) {
@@ -201,6 +300,7 @@ export default function PropertySearchPanel({
     setLiteError('');
     setPipelineError('');
     setSearchResponse(null);
+    setMapImgError(false);
     setSelected(new Set());
     setImportResult(null);
     setShowAddressIssues(true);
@@ -254,6 +354,9 @@ export default function PropertySearchPanel({
       } else if (res.ok) {
         setPipelineRunning(true);
         setPipelineStatus('running');
+        setPipelineStallMinutes(0);
+        consecutive404CountRef.current = 0;
+        pollStartTimeRef.current = Date.now();
         stopPolling();
         pollRef.current = setInterval(pollPipelineStatus, 5_000);
       } else {
@@ -271,6 +374,10 @@ export default function PropertySearchPanel({
     }
   }
 
+  // Keep the ref in sync with the latest version of handleInitiateResearch so
+  // the autoStart useEffect always calls the current closure.
+  handleInitiateResearchRef.current = handleInitiateResearch;
+
   // Deep research pipeline state - NOTE: declared in state section above, not duplicated here
 
   // ── Deep Research Pipeline ──────────────────────────────────────────
@@ -287,11 +394,25 @@ export default function PropertySearchPanel({
       const res = await fetch(`/api/admin/research/${projectId}/pipeline`);
       if (!res.ok) {
         if (res.status === 404) {
-          setPipelineStatus('not_found');
-          stopPolling();
+          consecutive404CountRef.current += 1;
+          // Only give up after 5 consecutive 404s — a transient worker restart
+          // or in-flight deployment can cause a brief 404 that should be retried.
+          if (consecutive404CountRef.current >= 5) {
+            setPipelineStatus('not_found');
+            stopPolling();
+          }
         }
+        // For all other non-OK responses keep polling (same as network errors).
         return;
       }
+      // Successful response — reset the 404 counter.
+      consecutive404CountRef.current = 0;
+
+      // Update stall-warning display (elapsed minutes since polling started).
+      const elapsedMs = Date.now() - pollStartTimeRef.current;
+      const elapsedMin = Math.floor(elapsedMs / 60_000);
+      setPipelineStallMinutes(elapsedMin);
+
       const data = await res.json() as PipelineStatusResponse;
       setPipelineResult(data);
 
@@ -299,15 +420,18 @@ export default function PropertySearchPanel({
         setPipelineStatus('running');
       } else {
         // Pipeline finished (success, partial, or failed)
-        setPipelineStatus(data.status);
+        const finalStatus = data.status;
+        setPipelineStatus(finalStatus);
         setPipelineRunning(false);
+        setPipelineStallMinutes(0);
         stopPolling();
         onImported?.();
+        onPipelineComplete?.(finalStatus);
       }
     } catch {
       // Network error — keep polling
     }
-  }, [projectId, stopPolling, onImported]);
+  }, [projectId, stopPolling, onImported, onPipelineComplete]);
 
   function toggleResult(id: string) {
     setSelected((prev: Set<string>) => {
@@ -356,7 +480,12 @@ export default function PropertySearchPanel({
         const mapNote = data.map_images_queued
           ? ' Satellite and topo map images are being captured in the background and will appear in Documents.'
           : '';
-        setImportResult({ count: data.imported, mapNote });
+        setImportResult({
+          count: data.imported,
+          newCount: data.new_count,
+          alreadyExistedCount: data.already_existed_count,
+          mapNote,
+        });
         setSelected(new Set());
         onImported?.();
       } else {
@@ -410,9 +539,14 @@ export default function PropertySearchPanel({
   return (
     <div className="research-search">
       <div className="research-search__header">
-        <h3 className="research-search__title">Research & Analysis</h3>
+        <h3 className="research-search__title">
+          {hideResultsAndProgress ? 'Property Information' : 'Research & Analysis'}
+        </h3>
         <p className="research-search__desc">
-          Enter the property details below and click <strong>Initiate Research &amp; Analysis</strong>. The AI will search all public records, navigate county CAD and deed/records office websites, capture screenshots of relevant documents, extract all available property information — including bearings, coordinates, acreage, and legal descriptions — and log any discrepancies found.
+          {hideResultsAndProgress
+            ? <>Enter the property details below, then click <strong>Initiate Research &amp; Analysis</strong> to begin. You can also upload deeds, plats, and field notes using the panel above.</>
+            : <>The AI is searching all public records, navigating county CAD and deed/records office websites, capturing screenshots of relevant documents, and extracting all available property information — including bearings, coordinates, acreage, and legal descriptions.</>
+          }
         </p>
       </div>
 
@@ -428,7 +562,21 @@ export default function PropertySearchPanel({
             type="text"
             placeholder="e.g. 1234 Main St, Belton, TX 76513"
             value={address}
-            onChange={e => setAddress(e.target.value)}
+            onChange={e => {
+              const val = e.target.value;
+              setAddress(val);
+              // Auto-detect Bell County from address when county is blank or was auto-filled
+              if (!county.trim() || countyAutoDetected) {
+                if (detectBellCountyFromAddress(val)) {
+                  setCounty('Bell');
+                  setCountyAutoDetected(true);
+                } else if (countyAutoDetected) {
+                  // Clear the auto-detected county if address no longer matches
+                  setCounty('');
+                  setCountyAutoDetected(false);
+                }
+              }
+            }}
             onKeyDown={e => e.key === 'Enter' && handleInitiateResearch()}
           />
         </div>
@@ -444,7 +592,11 @@ export default function PropertySearchPanel({
               type="text"
               placeholder="e.g. Bell"
               value={county}
-              onChange={e => setCounty(e.target.value)}
+              onChange={e => {
+                setCounty(e.target.value);
+                // If user manually edits county, stop auto-detecting
+                setCountyAutoDetected(false);
+              }}
             />
           </div>
           <div className="research-search__field research-search__field--half">
@@ -495,12 +647,14 @@ export default function PropertySearchPanel({
         </div>
 
         {/* ── Research loading animation (visible while any pipeline is running) ── */}
-        {(searching || liteRunning || pipelineRunning) && (
+        {!hideResultsAndProgress && (searching || liteRunning || pipelineRunning) && (
           <div className="research-search__loading">
             <div className="research-search__loading-spinner" />
             <div className="research-search__loading-title">Research In Progress</div>
             <div className="research-search__loading-subtitle">
-              {pipelineRunning && pipelineResult?.currentStage
+              {pipelineRunning && pipelineResult?.message
+                ? pipelineResult.message.replace(/^Stage\s*\d+(?:\.\d+)?:\s*/i, '')
+                : pipelineRunning && pipelineResult?.currentStage
                 ? pipelineResult.currentStage
                 : liteRunning && liteStage
                 ? liteStage
@@ -516,17 +670,25 @@ export default function PropertySearchPanel({
               <div className={`research-search__loading-step${liteRunning || pipelineRunning ? ' research-search__loading-step--active' : ''}`}>
                 <span className="research-search__loading-step__dot" />
                 {pipelineRunning
-                  ? `Navigating county records sites, extracting data…${pipelineResult?.currentStage ? ` (${pipelineResult.currentStage})` : ''}`
+                  ? (pipelineResult?.message
+                      ? pipelineResult.message
+                      : 'Navigating county records sites, extracting data…')
                   : liteRunning
                   ? (liteStage || 'Analyzing property data…')
                   : 'Awaiting pipeline start…'}
               </div>
             </div>
+            {/* Stall warning — shown after 45+ minutes to reassure user the run is continuing */}
+            {pipelineRunning && pipelineStallMinutes >= 45 && (
+              <div style={{ marginTop: '0.5rem', padding: '0.4rem 0.6rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: '0.78rem', color: '#92400e' }}>
+                ⏳ Still running ({pipelineStallMinutes} min elapsed) — complex properties with many documents take longer. The run will complete on its own.
+              </div>
+            )}
           </div>
         )}
 
         {/* ── Research pipeline results (deep or lite) ── */}
-        {(liteSummary || pipelineStatus) && (
+        {!hideResultsAndProgress && (liteSummary || pipelineStatus) && (
           <div style={{ marginTop: '0.75rem' }}>
 
             {/* Lite pipeline summary */}
@@ -600,14 +762,24 @@ export default function PropertySearchPanel({
                   documents={pipelineResult?.documents}
                   log={pipelineResult?.log}
                   failureReason={pipelineResult?.failureReason}
+                  onLoadLogs={async () => {
+                    try {
+                      const res = await fetch(`/api/admin/research/${projectId}/logs`);
+                      if (!res.ok) return null;
+                      const data = await res.json() as { log?: PipelineLogEntry[] };
+                      return data.log ?? null;
+                    } catch {
+                      return null;
+                    }
+                  }}
                 />
               </>
             )}
           </div>
         )}
       </div>
-      {/* Search results */}
-      {searchResponse && (
+      {/* Search results — only shown when hideResultsAndProgress is not set */}
+      {!hideResultsAndProgress && searchResponse && (
         <div className="research-search__results">
 
           {/* Address normalization alert */}
@@ -695,16 +867,18 @@ export default function PropertySearchPanel({
                   USGS satellite imagery — importing will also save full-resolution satellite &amp; topo images as project documents for AI analysis
                 </span>
               </div>
-              <Image
-                className="research-search__map-img"
-                src={searchResponse.location_preview_url}
-                alt="Satellite view of geocoded property location"
-                width={400}
-                height={300}
-                unoptimized
-                loading="lazy"
-                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
+              {!mapImgError && (
+                <NextImage
+                  className="research-search__map-img"
+                  src={searchResponse.location_preview_url}
+                  alt="Satellite view of geocoded property location"
+                  width={0}
+                  height={0}
+                  sizes="100vw"
+                  unoptimized
+                  onError={() => setMapImgError(true)}
+                />
+              )}
             </div>
           )}
 
@@ -861,7 +1035,14 @@ export default function PropertySearchPanel({
           {/* Import success */}
           {importResult && (
             <div className="research-search__import-success">
-              <p>✅ Successfully imported {importResult.count} document{importResult.count !== 1 ? 's' : ''} into your project.</p>
+              <p>
+                ✅ Successfully imported {importResult.count} document{importResult.count !== 1 ? 's' : ''} into your project.
+                {importResult.alreadyExistedCount != null && importResult.alreadyExistedCount > 0 && (
+                  <span className="research-search__import-existing-note">
+                    {' '}({importResult.newCount} new, {importResult.alreadyExistedCount} already existed)
+                  </span>
+                )}
+              </p>
               {importResult.mapNote && (
                 <p className="research-search__import-map-note">🛰️ {importResult.mapNote}</p>
               )}

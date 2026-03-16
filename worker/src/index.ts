@@ -8,7 +8,7 @@ import path from 'path';
 import express from 'express';
 import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile } from './types/index.js';
-import { runPipeline } from './services/pipeline.js';
+import { runPipeline, getSupabase, getRunningMessage } from './services/pipeline.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
@@ -340,7 +340,10 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     })),
   };
 
-  // Register active pipeline
+  // Register active pipeline — clear any stale completed result so that
+  // the status endpoint returns "running" (not the old failed/complete result)
+  // while this new run is in progress.
+  completedResults.delete(projectId);
   activePipelines.set(projectId, {
     projectId,
     address: researchInput.address ?? '',
@@ -384,6 +387,31 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       if (unifiedResult.resultType === 'generic-pipeline') {
         const r = unifiedResult.data;
         console.log(`[Pipeline] ${projectId} (${county}, generic): ${r.status.toUpperCase()} in ${(r.duration_ms / 1000).toFixed(1)}s`);
+        // Persist log to Supabase so the frontend can retrieve it after page refresh.
+        // Fire-and-forget — a save failure must never affect the completed result.
+        if (r.log.length > 0) {
+          getSupabase()
+            .then((supabase) => {
+              if (!supabase) return;
+              // `as any` because the Supabase client types haven't been regenerated
+              // to include the new `research_logs` column from migration 104.
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              return (supabase as any)
+                .from('research_projects')
+                .update({ research_logs: r.log })
+                .eq('id', projectId);
+            })
+            .then((res: { error?: { message?: string } } | null | undefined) => {
+              if (res?.error) {
+                console.warn(`[Pipeline] ${projectId}: failed to save logs to Supabase:`, res.error.message);
+              } else {
+                console.log(`[Pipeline] ${projectId}: saved ${r.log.length} log entries to Supabase`);
+              }
+            })
+            .catch((err: unknown) => {
+              console.warn(`[Pipeline] ${projectId}: error saving logs to Supabase:`, err instanceof Error ? err.message : String(err));
+            });
+        }
       } else {
         const r = unifiedResult.data;
         console.log(`[Pipeline] ${projectId} (${county}, county-specific): COMPLETE in ${(r.durationMs / 1000).toFixed(1)}s`);
@@ -391,6 +419,9 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     })
     .catch((err) => {
       console.error(`[Pipeline] ${projectId} CRASH:`, err);
+      const errMessage = err instanceof Error
+        ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
+        : String(err ?? 'Unknown error');
       const fallback: PipelineResult = {
         projectId,
         status: 'failed',
@@ -402,17 +433,61 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         documents: [],
         boundary: null,
         validation: null,
-        log: [{ layer: 'Pipeline', source: 'crash', method: 'unhandled', input: '', status: 'fail', duration_ms: 0, dataPointsFound: 0, error: err instanceof Error ? err.message : String(err), timestamp: new Date().toISOString() }],
+        log: [{ layer: 'Pipeline', source: 'crash', method: 'unhandled', input: '', status: 'fail', duration_ms: 0, dataPointsFound: 0, error: errMessage, timestamp: new Date().toISOString() }],
         duration_ms: 0,
+        failureReason: `Pipeline crashed: ${errMessage}`,
       };
       completedResults.set(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);
     });
 });
 
+// ── GET /research/logs/:projectId ──────────────────────────────────────────
+// Returns the persisted log for a completed pipeline run.  When the result is
+// still cached in-memory the log is served from there.  Otherwise the worker
+// falls back to reading `research_logs` from Supabase (saved on completion).
+
+app.get('/research/logs/:projectId', requireAuth, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  // Fast path: still in-memory cache
+  if (completedResults.has(projectId)) {
+    const unified = completedResults.get(projectId)!;
+    if (unified.resultType === 'generic-pipeline') {
+      res.json({ projectId, log: unified.data.log });
+    } else {
+      // County-specific results don't carry a structured log array.
+      res.json({ projectId, log: [] });
+    }
+    return;
+  }
+
+  // Slow path: read from Supabase persisted column
+  try {
+    const supabase = await getSupabase();
+    if (!supabase) {
+      res.status(503).json({ error: 'Supabase not configured' });
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from('research_projects')
+      .select('research_logs')
+      .eq('id', projectId)
+      .single();
+    if (error || !data) {
+      res.status(404).json({ error: `No log found for project ${projectId}` });
+      return;
+    }
+    res.json({ projectId, log: data.research_logs ?? [] });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ── GET /research/status/:projectId ────────────────────────────────────────
 
-app.get('/research/status/:projectId', requireAuth, (req: Request, res: Response) => {
+app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Response) => {
   const { projectId } = req.params;
 
   if (completedResults.has(projectId)) {
@@ -520,11 +595,34 @@ app.get('/research/status/:projectId', requireAuth, (req: Request, res: Response
 
   if (activePipelines.has(projectId)) {
     const pipeline = activePipelines.get(projectId)!;
+    // Prefer the in-memory message cache (updated synchronously by updateStatus
+    // in pipeline.ts) over a Supabase round-trip. This ensures the UI sees live
+    // stage updates immediately even when Supabase is slow or not configured,
+    // which was the primary cause of the stepper appearing permanently "stuck".
+    let message: string | undefined = getRunningMessage(projectId);
+
+    if (!message) {
+      // Fallback: read from Supabase (covers cross-process / restarted-worker cases)
+      try {
+        const supabase = await getSupabase();
+        if (supabase) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data } = await (supabase as any)
+            .from('research_projects')
+            .select('research_message')
+            .eq('id', projectId)
+            .single();
+          if (data?.research_message) message = String(data.research_message);
+        }
+      } catch { /* non-fatal — return without message */ }
+    }
+
     res.json({
       projectId,
       status: 'running',
       startedAt: pipeline.startedAt,
       currentStage: pipeline.currentStage,
+      message,
       address: pipeline.address,
       county: pipeline.county,
     });
@@ -2744,6 +2842,6 @@ app.listen(PORT, () => {
   console.log('  DELETE /admin/health/alerts             ← Clear alerts');
   console.log('');
 
-  // Start periodic health checks (every 30 minutes)
-  siteHealthMonitor.startPeriodicChecks(30 * 60 * 1000);
+  // Start periodic health checks (every 6 hours — reduced to minimise log noise)
+  siteHealthMonitor.startPeriodicChecks(6 * 60 * 60 * 1000);
 });

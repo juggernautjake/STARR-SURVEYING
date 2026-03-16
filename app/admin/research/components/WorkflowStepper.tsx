@@ -20,7 +20,9 @@ const STEP_ICONS: Record<WorkflowStep, string> = {
 };
 
 export default function WorkflowStepper({ currentStatus, onStepClick }: WorkflowStepperProps) {
-  const currentIndex = WORKFLOW_STEPS.findIndex(s => s.key === currentStatus);
+  // Map 'analyzing' to 'configure' since they share the same visual step
+  const effectiveStatus = currentStatus === 'analyzing' ? 'configure' : currentStatus;
+  const currentIndex = WORKFLOW_STEPS.findIndex(s => s.key === effectiveStatus);
 
   return (
     <div className="research-workflow">

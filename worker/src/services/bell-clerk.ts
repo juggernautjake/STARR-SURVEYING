@@ -623,7 +623,7 @@ async function captureCurrentPageScreenshot(
     // If we found an img element, try to download the source at full resolution
     if (docElement.found && docElement.isImg && docElement.imgSrc) {
       try {
-        const imgResponse = await page.context().request.get(docElement.imgSrc, { timeout: 15_000 });
+        const imgResponse = await page.context().request.get(docElement.imgSrc, { timeout: 30_000 });
         if (imgResponse.ok()) {
           const imgBuffer = await imgResponse.body();
           if (imgBuffer.length > 1000) {
@@ -718,7 +718,7 @@ async function fetchDocumentDetail(
     // Set a larger viewport for high-res capture
     await page.setViewportSize({ width: 1920, height: 1200 });
 
-    const response = await page.goto(doc.url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    const response = await page.goto(doc.url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
     // Check HTTP response status
     if (response && (response.status() >= 400 || response.status() === 0)) {
@@ -1218,22 +1218,22 @@ export async function searchClerkRecords(
         const searchUrl = buildTylerUrl(baseUrl, searchName, 0);
         logger.info('Stage2A', `Trying: ${searchUrl}`);
 
-        await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+        await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
         // Race: AJAX capture vs DOM rendering vs timeout
         // The SPA loads results asynchronously — wait for AJAX or rendered DOM
         try {
           await Promise.race([
             capturePromise,
-            page.waitForSelector('table tbody tr[aria-selected], section.search-results__results-wrap table tbody tr', { timeout: 20_000 }),
+            page.waitForSelector('.result-card, table tbody tr[aria-selected], section.search-results__results-wrap table tbody tr', { timeout: 40_000 }),
             page.waitForTimeout(20_000),
           ]);
         } catch {
           // Continue with whatever we have
         }
 
-        // Small extra wait to ensure AJAX response is fully processed
-        await page.waitForTimeout(2_000);
+        // Wait for network to settle (AJAX responses fully processed)
+        await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
         // ── Parse captured AJAX data ──────────────────────────────────
         if (capturedDocs.length > 0) {
@@ -1290,8 +1290,8 @@ export async function searchClerkRecords(
         }
 
         // ── Fallback: Parse from Redux store in window.__data ────────
-        // Wait a bit extra for the store to be populated by async fetch
-        await page.waitForTimeout(3_000);
+        // Wait for network to settle (Redux store populated by async fetch)
+        await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
         const storeExtracted = await page.evaluate((bUrl: string) => {
           const docs: Array<{
@@ -1429,8 +1429,8 @@ export async function searchClerkRecords(
           continue;
         }
 
-        // Extra wait for Tyler PublicSearch React SPA to finish rendering
-        await page.waitForTimeout(3_000);
+        // Wait for Tyler PublicSearch React SPA to finish rendering
+        await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
         // DOM extraction: Tyler PublicSearch uses a standard <table> with
         // column classes col-0 through col-9. Document ID is embedded in the
@@ -1517,7 +1517,7 @@ export async function searchClerkRecords(
             href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
 
           const resultItems = document.querySelectorAll(
-            '.result-item, .result-row, .search-result, .document-result, ' +
+            '.result-card, .result-item, .result-row, .search-result, .document-result, ' +
             '.document-row, [class*="result-row"], [class*="ResultRow"]',
           );
           let resultElements: Element[] = Array.from(resultItems);
@@ -1646,7 +1646,7 @@ export async function searchClerkRecords(
                 logger.info('Stage2A', `Loading page ${pg}/${totalPages}: offset=${(pg - 1) * 50}`);
                 await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
                 try {
-                  await page.waitForSelector('table tbody tr[aria-selected]', { timeout: 15_000 });
+                  await page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 30_000 });
                 } catch {
                   logger.info('Stage2A', `Page ${pg}: no result rows — stopping pagination`);
                   break;
@@ -1772,6 +1772,19 @@ export async function searchClerkRecords(
       }
     }
 
+    // If no documents found after all name variants, capture failure diagnostics
+    if (documents.length === 0) {
+      try {
+        const failUrl = page.url();
+        const failHtml = await page.content();
+        logger.warn('Stage2A', `[failure-dump] No documents found. Final URL: ${failUrl}`);
+        logger.warn('Stage2A', `[failure-dump] Page HTML length: ${failHtml.length}, snippet: ${failHtml.replace(/\s+/g, ' ').substring(0, 500)}`);
+        // Take a screenshot for manual inspection
+        const failScreenshot = await page.screenshot({ fullPage: true }) as Buffer;
+        logger.warn('Stage2A', `[failure-dump] Screenshot captured: ${(failScreenshot.length / 1024).toFixed(0)} KB`);
+      } catch { /* page may be in bad state */ }
+    }
+
     // Log all found URLs
     for (let i = 0; i < documents.length; i++) {
       logger.info('Stage2', `  [${i + 1}] ${documents[i].documentType} | Inst: ${documents[i].instrumentNumber ?? 'NONE'} | URL: ${documents[i].url ?? 'NONE'}`);
@@ -1855,12 +1868,10 @@ export async function searchClerkRecords(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// KOFILE IMAGE INTERCEPTION — proven working (Ash Trust, March 4, 2026)
-// These functions intercept signed PNG URLs from the document viewer network
-// traffic instead of taking screenshots. This yields full-resolution originals.
+// SUPERSEARCH — Full-text OCR search fallback
+// When owner-name search returns 0 results, try searching the full-text OCR
+// index with legal description keywords (subdivision name, lot, block, etc.)
 // ─────────────────────────────────────────────────────────────────────────────
-
-const BELL_CLERK_BASE = 'https://bell.tx.publicsearch.us';
 
 /**
  * Tyler PublicSearch SPA render time.
@@ -1869,129 +1880,680 @@ const BELL_CLERK_BASE = 'https://bell.tx.publicsearch.us';
  *   - 8s after clicking a result row for the Kofile viewer to fire the signed image URL
  *   - 5s after clicking "Next Page" for the new page image to load
  * If this proves insufficient on slow connections, increase to 10s rather than polling.
+ * Exported for testability and to document the proven grab-docs.js timings.
  */
-const TYLER_SPA_RENDER_TIMEOUT_MS  = 8_000;
-const TYLER_VIEWER_LOAD_TIMEOUT_MS = 8_000;
-const TYLER_NEXT_PAGE_TIMEOUT_MS   = 5_000;
+export const TYLER_SPA_RENDER_TIMEOUT_MS  = 8_000;
+export const TYLER_VIEWER_LOAD_TIMEOUT_MS = 8_000;
+export const TYLER_NEXT_PAGE_TIMEOUT_MS   = 5_000;
 
 /**
  * Search Bell County clerk records by owner name.
  * Uses direct URL parameters rather than form interaction.
  */
-export async function searchBellClerk(
-  ownerName: string,
+export async function searchSuperSearch(
+  county: string,
+  query: string,
   logger: PipelineLogger,
-): Promise<DocumentRef[]> {
-  let browser: import('playwright').Browser | null = null;
-  const attempt = logger.attempt('2A', BELL_CLERK_BASE, 'PLAYWRIGHT_SEARCH', ownerName);
+): Promise<DocumentResult[]> {
+  const config = KOFILE_CONFIGS[county.toLowerCase()];
+  if (!config) {
+    logger.warn('Stage2-SS', `No Kofile config for county: ${county}`);
+    return [];
+  }
+
+  const baseUrl = `https://${config.subdomain}`;
+  const tracker = logger.startAttempt({
+    layer: 'Stage2-SuperSearch',
+    source: config.name,
+    method: 'supersearch-ocr',
+    input: query.substring(0, 80),
+  });
+
+  let browser = null;
 
   try {
     const { chromium } = await import('playwright');
     browser = await chromium.launch({
-      headless: true,
+      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
 
     const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      viewport: { width: 1280, height: 900 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      viewport: { width: 1366, height: 768 },
     });
+
     const page = await context.newPage();
 
-    const nameParts = _parseOwnerName(ownerName);
-    attempt.step(`Searching for: ${nameParts.searchQuery}`);
+    // Intercept API responses for document data
+    let capturedDocs: DocumentRef[] = [];
+    const handleResponse = async (response: PlaywrightResponse): Promise<void> => {
+      try {
+        const ct = response.headers()['content-type'] ?? '';
+        if (!ct.includes('json')) return;
+        const data = await response.json() as unknown;
+        const items = normaliseKofileApiResponse(data);
+        if (items.length === 0 || !looksLikeKofileDocuments(items)) return;
 
-    // Use correct Tyler PublicSearch URL parameters (verified from actual HTML, March 2026)
-    const d0 = new Date();
-    const dateTo0 = `${d0.getFullYear()}${String(d0.getMonth() + 1).padStart(2, '0')}${String(d0.getDate()).padStart(2, '0')}`;
-    const buildBellUrl = (offset: number): string =>
-      `${BELL_CLERK_BASE}/results?department=RP&keywordSearch=false&limit=50&offset=${offset}` +
-      `&recordedDateRange=16000101%2C${dateTo0}&searchOcrText=true&searchType=quickSearch` +
-      `&searchValue=${encodeURIComponent(nameParts.searchQuery)}`;
+        for (const item of items) {
+          const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? item.docNumber ?? '').trim();
+          const docType = String(item.docTypeDescription ?? item.documentType ?? item.docType ?? 'Unknown').trim();
+          const date = String(item.recordingDate ?? item.documentDate ?? item.filingDate ?? '').trim();
+          capturedDocs.push({
+            instrumentNumber: id || null,
+            documentType: docType,
+            recordingDate: date || null,
+            grantors: extractKofilePartyNames(item.grantors ?? item.grantor),
+            grantees: extractKofilePartyNames(item.grantees ?? item.grantee),
+            source: `${config.name} (SUPERSEARCH)`,
+            url: id ? `${baseUrl}/doc/${id}` : null,
+            volume: String(item.volume ?? item.bookNumber ?? '').trim() || null,
+            page: String(item.page ?? item.pageNumber ?? '').trim() || null,
+          });
+        }
+        logger.info('Stage2-SS', `[api-intercept] Captured ${items.length} docs from SUPERSEARCH`);
+      } catch { /* ignore parse errors */ }
+    };
+    page.on('response', (r) => { void handleResponse(r); });
 
-    await page.goto(buildBellUrl(0), { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    // Wait for Tyler SPA to render result rows
+    // Navigate to SUPERSEARCH page
+    const ssUrl = `${baseUrl}/results?department=RP&limit=50&offset=0&searchOcrText=true&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`;
+    logger.info('Stage2-SS', `SUPERSEARCH: ${ssUrl}`);
+    await page.goto(ssUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+
+    // Wait for results to load
     try {
-      await page.waitForSelector('table tbody tr[aria-selected]', { timeout: 15_000 });
-    } catch { /* continue even if no rows yet */ }
+      await Promise.race([
+        page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 40_000 }),
+        page.waitForTimeout(20_000),
+      ]);
+    } catch { /* continue with whatever we have */ }
     await page.waitForTimeout(2_000);
 
-    // Accept disclaimers if present
-    try {
-      const btn = await page.$('button:has-text("Accept"), button:has-text("OK"), button:has-text("I Agree"), button:has-text("Continue")');
-      if (btn) { await btn.click(); await page.waitForTimeout(1000); }
-    } catch { /* no dialog */ }
+    // If API intercept didn't capture, try DOM extraction
+    if (capturedDocs.length === 0) {
+      const domDocs = await page.evaluate((bUrl: string) => {
+        const docs: Array<{
+          instrumentNumber: string; documentType: string; recordingDate: string;
+          grantors: string[]; grantees: string[]; url: string | null;
+          volume: string; page: string;
+        }> = [];
+        document.querySelectorAll('table tbody tr[aria-selected]').forEach((row) => {
+          const checkbox = row.querySelector('input[id^="table-checkbox-"]') as HTMLInputElement | null;
+          const docId = checkbox?.id?.replace('table-checkbox-', '') ?? '';
+          const getCol = (n: number): string =>
+            (row.querySelector(`td.col-${n}, td:nth-child(${n + 1})`)?.textContent?.trim() ?? '');
+          const instrNum = getCol(7);
+          const docType = getCol(5);
+          if (!instrNum && !docType && !docId) return;
+          const bvp = getCol(8);
+          const bvpMatch = bvp.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+          docs.push({
+            instrumentNumber: instrNum || docId,
+            documentType: docType || 'Unknown',
+            recordingDate: getCol(6),
+            grantors: getCol(3) ? [getCol(3)] : [],
+            grantees: getCol(4) ? [getCol(4)] : [],
+            url: docId ? `${bUrl}/doc/${docId}` : null,
+            volume: bvpMatch ? bvpMatch[1] : '',
+            page: bvpMatch ? bvpMatch[2] : '',
+          });
+        });
+        return docs;
+      }, baseUrl);
 
-    let documents = await _extractSearchResults(page);
+      if (domDocs.length > 0) {
+        for (const doc of domDocs) {
+          capturedDocs.push({
+            ...doc,
+            instrumentNumber: doc.instrumentNumber || null,
+            volume: doc.volume || null,
+            page: doc.page || null,
+            recordingDate: doc.recordingDate || null,
+            source: `${config.name} (SUPERSEARCH)`,
+          });
+        }
+        logger.info('Stage2-SS', `SUPERSEARCH DOM extraction: ${domDocs.length} docs`);
+      }
+    }
 
-    // URL-based multi-page fetching (Tyler uses offset= for pagination)
-    const totalBellPages = await page.evaluate(() =>
-      document.querySelectorAll('nav.Pagination button[aria-label^="page "]').length,
-    );
-    if (totalBellPages > 1) {
-      for (let pg = 2; pg <= Math.min(totalBellPages, 5); pg++) {
+    // Check for no results
+    if (capturedDocs.length === 0) {
+      const noResults = await page.evaluate(() => {
+        const text = document.body.textContent?.toLowerCase() ?? '';
+        return text.includes('no results') || text.includes('0 results') || text.includes('no records found');
+      });
+      if (noResults) {
+        logger.info('Stage2-SS', 'SUPERSEARCH returned no results');
+      } else {
+        logger.warn('Stage2-SS', 'SUPERSEARCH: no docs captured but page does not say "no results"');
         try {
-          await page.goto(buildBellUrl((pg - 1) * 50), { waitUntil: 'domcontentloaded', timeout: 30_000 });
-          await page.waitForSelector('table tbody tr[aria-selected]', { timeout: 15_000 }).catch(() => {});
-          await page.waitForTimeout(1_000);
-          const more = await _extractSearchResults(page);
-          documents = [...documents, ...more];
-          logger.info('Stage2A', `searchBellClerk page ${pg}: +${more.length} docs`);
-        } catch { break; }
+          const failHtml = await page.content();
+          logger.info('Stage2-SS', `[failure-dump] HTML snippet: ${failHtml.replace(/\s+/g, ' ').substring(0, 500)}`);
+        } catch { /* ignore */ }
       }
     }
 
     await browser.close();
+    browser = null;
 
-    if (documents.length > 0) {
-      attempt.success(documents.length, `Found ${documents.length} records`);
-    } else {
-      attempt.fail('No deed/plat records found');
+    // Filter to deed-relevant and sort by relevance
+    const relevant = capturedDocs.filter((d) => isDeedRelevant(d.documentType));
+    const finalDocs = relevant.length > 0 ? relevant.slice(0, 10) : capturedDocs.slice(0, 5);
+
+    tracker({
+      status: capturedDocs.length > 0 ? 'success' : 'fail',
+      dataPointsFound: capturedDocs.length,
+      details: `${capturedDocs.length} total, ${relevant.length} deed-relevant`,
+    });
+
+    // Return as DocumentResult[]
+    return finalDocs.map((d) => ({
+      ref: d,
+      textContent: null,
+      ocrText: null,
+      extractedData: null,
+    }));
+  } catch (err) {
+    if (browser) {
+      try { await browser.close(); } catch { /* ignore */ }
     }
-    return documents;
-  } catch (err: any) {
-    logger.error('Stage2A', 'searchBellClerk failed', err);
-    if (browser) await browser.close().catch(() => {});
-    attempt.fail(err.message);
+    const errMsg = err instanceof Error ? err.message : String(err);
+    tracker({ status: 'fail', error: errMsg });
+    logger.error('Stage2-SS', `SUPERSEARCH failed: ${errMsg}`, err);
     return [];
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ADDRESS-BASED CLERK SEARCH
+// When owner-name search returns 0 results, search the clerk by property
+// address variants (street number + street name combinations). Uses a single
+// browser session to try multiple address queries efficiently.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface AddressSearchQuery {
+  streetNumber: string;
+  streetName: string;
+  format?: string;
+}
+
 /**
- * Search Bell County clerk by instrument number.
+ * Search county clerk records by property address variants.
+ * Tries multiple address formats in a single Playwright session: full address,
+ * bare street name, suffix swaps, etc.
+ * @param county - County key (e.g., "bell")
+ * @param queries - Address search variants (from address-utils generateVariants)
+ * @param logger - Pipeline logger
+ * @returns Deed-relevant documents found
  */
-export async function searchByInstrument(
-  instrumentNumber: string,
+export async function searchClerkByAddress(
+  county: string,
+  queries: AddressSearchQuery[],
   logger: PipelineLogger,
-): Promise<DocumentRef | null> {
-  let browser: import('playwright').Browser | null = null;
-  const attempt = logger.attempt('2A-INST', BELL_CLERK_BASE, 'PLAYWRIGHT_INST', instrumentNumber);
+): Promise<DocumentResult[]> {
+  const config = KOFILE_CONFIGS[county.toLowerCase()];
+  if (!config) {
+    logger.warn('Stage2-Addr', `No Kofile config for county: ${county}`);
+    return [];
+  }
+  if (queries.length === 0) {
+    logger.warn('Stage2-Addr', 'No address queries provided');
+    return [];
+  }
+
+  const baseUrl = `https://${config.subdomain}`;
+  const tracker = logger.startAttempt({
+    layer: 'Stage2-Address',
+    source: config.name,
+    method: 'playwright-address-search',
+    input: `${queries[0].streetNumber} ${queries[0].streetName}`,
+  });
+
+  // Limit to top 6 variants to keep search time reasonable
+  const queriesToTry = queries.slice(0, 6);
+  logger.info('Stage2-Addr', `Searching ${config.name} by address with ${queriesToTry.length} variants (of ${queries.length} total)`);
+
+  let browser = null;
 
   try {
     const { chromium } = await import('playwright');
-    browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-    const page = await browser.newPage();
+    browser = await chromium.launch({
+      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
 
-    const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(5000);
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      viewport: { width: 1366, height: 768 },
+    });
 
-    const documents = await _extractSearchResults(page);
-    await browser.close();
+    const page = await context.newPage();
 
-    if (documents.length > 0) {
-      attempt.success(1, `Found instrument ${instrumentNumber}`);
-      return documents[0];
+    // Collect all documents from all variants, deduped by instrument number
+    const allCaptured: DocumentRef[] = [];
+    const seenInstruments = new Set<string>();
+
+    const handleResponse = async (response: PlaywrightResponse): Promise<void> => {
+      try {
+        const ct = response.headers()['content-type'] ?? '';
+        if (!ct.includes('json')) return;
+        const data = await response.json() as unknown;
+        const items = normaliseKofileApiResponse(data);
+        if (items.length === 0 || !looksLikeKofileDocuments(items)) return;
+
+        for (const item of items) {
+          const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? item.docNumber ?? '').trim();
+          if (!id || seenInstruments.has(id)) continue;
+          seenInstruments.add(id);
+          const docType = String(item.docTypeDescription ?? item.documentType ?? item.docType ?? 'Unknown').trim();
+          const date = String(item.recordingDate ?? item.documentDate ?? item.filingDate ?? '').trim();
+          allCaptured.push({
+            instrumentNumber: id,
+            documentType: docType,
+            recordingDate: date || null,
+            grantors: extractKofilePartyNames(item.grantors ?? item.grantor),
+            grantees: extractKofilePartyNames(item.grantees ?? item.grantee),
+            source: `${config.name} (address search)`,
+            url: `${baseUrl}/doc/${id}`,
+            volume: String(item.volume ?? item.bookNumber ?? '').trim() || null,
+            page: String(item.page ?? item.pageNumber ?? '').trim() || null,
+          });
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    page.on('response', (r) => { void handleResponse(r); });
+
+    // Try each address variant as a quickSearch query
+    for (const q of queriesToTry) {
+      const searchTerm = `${q.streetNumber} ${q.streetName}`.trim();
+      if (!searchTerm) continue;
+
+      const url = buildTylerUrl(baseUrl, searchTerm, 0);
+      logger.info('Stage2-Addr', `Trying: "${searchTerm}" (${q.format})`);
+
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        // Wait for results or "no results" indicator
+        await Promise.race([
+          page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 12_000 }),
+          page.waitForSelector('text=No results', { timeout: 12_000 }),
+          page.waitForTimeout(12_000),
+        ]).catch(() => {});
+        // Small settle delay for API responses
+        await page.waitForTimeout(1_500);
+
+        // If API intercept didn't capture, try DOM extraction for this query
+        if (allCaptured.length === 0) {
+          const domDocs = await page.evaluate((bUrl: string) => {
+            const docs: Array<{
+              instrumentNumber: string; documentType: string; recordingDate: string;
+              grantors: string[]; grantees: string[]; url: string | null;
+              volume: string; page: string;
+            }> = [];
+            document.querySelectorAll('table tbody tr[aria-selected]').forEach((row) => {
+              const checkbox = row.querySelector('input[id^="table-checkbox-"]') as HTMLInputElement | null;
+              const docId = checkbox?.id?.replace('table-checkbox-', '') ?? '';
+              const getCol = (n: number): string =>
+                (row.querySelector(`td.col-${n}, td:nth-child(${n + 1})`)?.textContent?.trim() ?? '');
+              const instrNum = getCol(7);
+              const docType = getCol(5);
+              if (!instrNum && !docType && !docId) return;
+              const bvp = getCol(8);
+              const bvpMatch = bvp.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+              docs.push({
+                instrumentNumber: instrNum || docId,
+                documentType: docType || 'Unknown',
+                recordingDate: getCol(6),
+                grantors: getCol(3) ? [getCol(3)] : [],
+                grantees: getCol(4) ? [getCol(4)] : [],
+                url: docId ? `${bUrl}/doc/${docId}` : null,
+                volume: bvpMatch ? bvpMatch[1] : '',
+                page: bvpMatch ? bvpMatch[2] : '',
+              });
+            });
+            return docs;
+          }, baseUrl);
+
+          for (const doc of domDocs) {
+            const id = doc.instrumentNumber;
+            if (!id || seenInstruments.has(id)) continue;
+            seenInstruments.add(id);
+            allCaptured.push({
+              ...doc,
+              instrumentNumber: id || null,
+              volume: doc.volume || null,
+              page: doc.page || null,
+              recordingDate: doc.recordingDate || null,
+              source: `${config.name} (address search)`,
+            });
+          }
+        }
+
+        // If we found deed-relevant docs, stop trying more variants
+        const deedDocs = allCaptured.filter((d) => isDeedRelevant(d.documentType));
+        if (deedDocs.length >= 2) {
+          logger.info('Stage2-Addr', `Found ${deedDocs.length} deed-relevant docs with "${searchTerm}" — stopping search`);
+          break;
+        }
+      } catch (navErr) {
+        logger.warn('Stage2-Addr', `Navigation failed for "${searchTerm}": ${navErr instanceof Error ? navErr.message : String(navErr)}`);
+      }
     }
 
-    attempt.fail(`Instrument ${instrumentNumber} not found`);
-    return null;
-  } catch (err: any) {
-    if (browser) await browser.close().catch(() => {});
-    attempt.fail(err.message);
-    return null;
+    // Capture screenshot of last results page for Vision OCR analysis
+    let searchScreenshot: Buffer | null = null;
+    try {
+      searchScreenshot = await page.screenshot({ fullPage: true });
+      logger.info('Stage2-Addr', `[screenshot] Captured ${Math.round((searchScreenshot?.length ?? 0) / 1024)}KB results screenshot`);
+    } catch { /* page may be closed */ }
+
+    // Failure diagnostic dump
+    if (allCaptured.length === 0) {
+      try {
+        const failHtml = await page.content();
+        logger.info('Stage2-Addr', `[failure-dump] No docs found. URL: ${page.url()}`);
+        logger.info('Stage2-Addr', `[failure-dump] HTML snippet: ${failHtml.replace(/\s+/g, ' ').substring(0, 500)}`);
+      } catch { /* page may be closed */ }
+    }
+
+    await browser.close();
+    browser = null;
+
+    // Filter and sort
+    const relevant = allCaptured.filter((d) => isDeedRelevant(d.documentType));
+    const finalDocs = relevant.length > 0 ? relevant.slice(0, 10) : allCaptured.slice(0, 5);
+
+    logger.info('Stage2-Addr', `Address search: ${allCaptured.length} total, ${relevant.length} deed-relevant → returning ${finalDocs.length}`);
+
+    tracker({
+      status: allCaptured.length > 0 ? 'success' : 'fail',
+      dataPointsFound: allCaptured.length,
+      details: `${allCaptured.length} total, ${relevant.length} deed-relevant from ${queriesToTry.length} address variants`,
+    });
+
+    // If we found docs, attach screenshot to the first result for Vision OCR
+    const results: DocumentResult[] = finalDocs.map((d) => ({
+      ref: d,
+      textContent: null,
+      ocrText: null,
+      extractedData: null,
+    }));
+
+    // Attach search results screenshot as a page screenshot on the first doc
+    // so that Vision OCR can analyze what the clerk site showed
+    if (searchScreenshot && results.length > 0) {
+      results[0].pageScreenshots = [{
+        pageNumber: 0,
+        imageBase64: searchScreenshot.toString('base64'),
+        width: 1366,
+        height: 768,
+      }];
+    }
+
+    return results;
+  } catch (err) {
+    if (browser) {
+      try { await browser.close(); } catch { /* ignore */ }
+    }
+    const errMsg = err instanceof Error ? err.message : String(err);
+    tracker({ status: 'fail', error: errMsg });
+    logger.error('Stage2-Addr', `Address clerk search failed: ${errMsg}`, err);
+    return [];
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAT-SPECIFIC CLERK SEARCH
+// Targeted search for subdivision plats on the county clerk site.
+// Uses multiple query strategies: "plat [subdivision]", "[subdivision] plat",
+// "replat [subdivision]", and bare subdivision name filtered to plat types.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Search county clerk records specifically for subdivision plats.
+ * Tries multiple plat-focused queries in a single browser session.
+ * @param county - County key
+ * @param subdivisionName - Subdivision name extracted from legal description
+ * @param logger - Pipeline logger
+ * @param additionalTerms - Extra search terms like lot/block numbers
+ * @returns Plat documents found
+ */
+export async function searchClerkForPlats(
+  county: string,
+  subdivisionName: string,
+  logger: PipelineLogger,
+  additionalTerms?: string,
+): Promise<DocumentResult[]> {
+  const config = KOFILE_CONFIGS[county.toLowerCase()];
+  if (!config) {
+    logger.warn('Stage2-Plat', `No Kofile config for county: ${county}`);
+    return [];
+  }
+  if (!subdivisionName.trim()) {
+    logger.warn('Stage2-Plat', 'Empty subdivision name');
+    return [];
+  }
+
+  const baseUrl = `https://${config.subdomain}`;
+  const subDiv = subdivisionName.trim().toUpperCase();
+  const tracker = logger.startAttempt({
+    layer: 'Stage2-PlatSearch',
+    source: config.name,
+    method: 'playwright-plat-search',
+    input: subDiv,
+  });
+
+  // Build plat-focused search queries in priority order
+  const platQueries = [
+    `${subDiv} PLAT`,                                  // "WESTWOOD ADDITION PLAT"
+    `PLAT ${subDiv}`,                                  // "PLAT WESTWOOD ADDITION"
+    subDiv,                                            // "WESTWOOD ADDITION" (filter to plat types)
+    `${subDiv} REPLAT`,                                // "WESTWOOD ADDITION REPLAT"
+    `${subDiv} AMENDED PLAT`,                          // "WESTWOOD ADDITION AMENDED PLAT"
+  ];
+
+  // If we have lot/block info, add a targeted query
+  if (additionalTerms) {
+    platQueries.push(`${subDiv} ${additionalTerms.trim().toUpperCase()}`);
+  }
+
+  logger.info('Stage2-Plat', `Searching ${config.name} for plats of "${subDiv}" with ${platQueries.length} queries`);
+
+  let browser = null;
+
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({
+      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      viewport: { width: 1366, height: 768 },
+    });
+
+    const page = await context.newPage();
+    const allCaptured: DocumentRef[] = [];
+    const seenInstruments = new Set<string>();
+
+    const handleResponse = async (response: PlaywrightResponse): Promise<void> => {
+      try {
+        const ct = response.headers()['content-type'] ?? '';
+        if (!ct.includes('json')) return;
+        const data = await response.json() as unknown;
+        const items = normaliseKofileApiResponse(data);
+        if (items.length === 0 || !looksLikeKofileDocuments(items)) return;
+
+        for (const item of items) {
+          const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? item.docNumber ?? '').trim();
+          if (!id || seenInstruments.has(id)) continue;
+          seenInstruments.add(id);
+          const docType = String(item.docTypeDescription ?? item.documentType ?? item.docType ?? 'Unknown').trim();
+          const date = String(item.recordingDate ?? item.documentDate ?? item.filingDate ?? '').trim();
+          allCaptured.push({
+            instrumentNumber: id,
+            documentType: docType,
+            recordingDate: date || null,
+            grantors: extractKofilePartyNames(item.grantors ?? item.grantor),
+            grantees: extractKofilePartyNames(item.grantees ?? item.grantee),
+            source: `${config.name} (plat search)`,
+            url: `${baseUrl}/doc/${id}`,
+            volume: String(item.volume ?? item.bookNumber ?? '').trim() || null,
+            page: String(item.page ?? item.pageNumber ?? '').trim() || null,
+          });
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    page.on('response', (r) => { void handleResponse(r); });
+
+    for (const query of platQueries) {
+      const url = buildTylerUrl(baseUrl, query, 0);
+      logger.info('Stage2-Plat', `Trying: "${query}"`);
+
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        await Promise.race([
+          page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 12_000 }),
+          page.waitForSelector('text=No results', { timeout: 12_000 }),
+          page.waitForTimeout(12_000),
+        ]).catch(() => {});
+        await page.waitForTimeout(1_500);
+
+        // DOM extraction fallback
+        if (allCaptured.length === 0) {
+          const domDocs = await page.evaluate((bUrl: string) => {
+            const docs: Array<{
+              instrumentNumber: string; documentType: string; recordingDate: string;
+              grantors: string[]; grantees: string[]; url: string | null;
+              volume: string; page: string;
+            }> = [];
+            document.querySelectorAll('table tbody tr[aria-selected]').forEach((row) => {
+              const checkbox = row.querySelector('input[id^="table-checkbox-"]') as HTMLInputElement | null;
+              const docId = checkbox?.id?.replace('table-checkbox-', '') ?? '';
+              const getCol = (n: number): string =>
+                (row.querySelector(`td.col-${n}, td:nth-child(${n + 1})`)?.textContent?.trim() ?? '');
+              const instrNum = getCol(7);
+              const docType = getCol(5);
+              if (!instrNum && !docType && !docId) return;
+              const bvp = getCol(8);
+              const bvpMatch = bvp.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+              docs.push({
+                instrumentNumber: instrNum || docId,
+                documentType: docType || 'Unknown',
+                recordingDate: getCol(6),
+                grantors: getCol(3) ? [getCol(3)] : [],
+                grantees: getCol(4) ? [getCol(4)] : [],
+                url: docId ? `${bUrl}/doc/${docId}` : null,
+                volume: bvpMatch ? bvpMatch[1] : '',
+                page: bvpMatch ? bvpMatch[2] : '',
+              });
+            });
+            return docs;
+          }, baseUrl);
+
+          for (const doc of domDocs) {
+            const id = doc.instrumentNumber;
+            if (!id || seenInstruments.has(id)) continue;
+            seenInstruments.add(id);
+            allCaptured.push({
+              ...doc,
+              instrumentNumber: id || null,
+              volume: doc.volume || null,
+              page: doc.page || null,
+              recordingDate: doc.recordingDate || null,
+              source: `${config.name} (plat search)`,
+            });
+          }
+        }
+
+        // Filter to plat-specific documents
+        const platDocs = allCaptured.filter((d) =>
+          /\bplat\b/i.test(d.documentType) || /\breplat\b/i.test(d.documentType) ||
+          /^PLT$/i.test(d.documentType.trim()),
+        );
+
+        if (platDocs.length >= 1) {
+          logger.info('Stage2-Plat', `Found ${platDocs.length} plat docs with "${query}" — stopping search`);
+          break;
+        }
+      } catch (navErr) {
+        logger.warn('Stage2-Plat', `Navigation failed for "${query}": ${navErr instanceof Error ? navErr.message : String(navErr)}`);
+      }
+    }
+
+    // Capture screenshot of results for Vision OCR analysis
+    let searchScreenshot: Buffer | null = null;
+    try {
+      searchScreenshot = await page.screenshot({ fullPage: true });
+      logger.info('Stage2-Plat', `[screenshot] Captured ${Math.round((searchScreenshot?.length ?? 0) / 1024)}KB plat results screenshot`);
+    } catch { /* page may be closed */ }
+
+    // Failure diagnostic
+    if (allCaptured.length === 0) {
+      try {
+        const failHtml = await page.content();
+        logger.info('Stage2-Plat', `[failure-dump] No plats found. URL: ${page.url()}`);
+        logger.info('Stage2-Plat', `[failure-dump] HTML snippet: ${failHtml.replace(/\s+/g, ' ').substring(0, 500)}`);
+      } catch { /* ignore */ }
+    }
+
+    await browser.close();
+    browser = null;
+
+    // Prioritize actual plats, then include other deed-relevant docs
+    const platDocs = allCaptured.filter((d) =>
+      /\bplat\b/i.test(d.documentType) || /\breplat\b/i.test(d.documentType) ||
+      /^PLT$/i.test(d.documentType.trim()),
+    );
+    const otherRelevant = allCaptured.filter(
+      (d) => isDeedRelevant(d.documentType) && !platDocs.includes(d),
+    );
+    const finalDocs = [...platDocs.slice(0, 5), ...otherRelevant.slice(0, 5)];
+
+    logger.info('Stage2-Plat', `Plat search: ${allCaptured.length} total, ${platDocs.length} plats, ${otherRelevant.length} other relevant → returning ${finalDocs.length}`);
+
+    tracker({
+      status: allCaptured.length > 0 ? 'success' : 'fail',
+      dataPointsFound: allCaptured.length,
+      details: `${platDocs.length} plats, ${otherRelevant.length} other from ${platQueries.length} queries`,
+    });
+
+    const results: DocumentResult[] = finalDocs.map((d) => ({
+      ref: d,
+      textContent: null,
+      ocrText: null,
+      extractedData: null,
+    }));
+
+    // Attach search results screenshot for Vision OCR analysis
+    if (searchScreenshot && results.length > 0) {
+      results[0].pageScreenshots = [{
+        pageNumber: 0,
+        imageBase64: searchScreenshot.toString('base64'),
+        width: 1366,
+        height: 768,
+      }];
+    }
+
+    return results;
+  } catch (err) {
+    if (browser) {
+      try { await browser.close(); } catch { /* ignore */ }
+    }
+    const errMsg = err instanceof Error ? err.message : String(err);
+    tracker({ status: 'fail', error: errMsg });
+    logger.error('Stage2-Plat', `Plat search failed: ${errMsg}`, err);
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KOFILE IMAGE INTERCEPTION — proven working (Ash Trust, March 4, 2026)
+// These functions intercept signed PNG URLs from the document viewer network
+// traffic instead of taking screenshots. This yields full-resolution originals.
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Download all page images for a document by intercepting signed image URLs.
@@ -2003,14 +2565,30 @@ export async function searchByInstrument(
  * This avoids screenshot latency and gets the full-resolution originals.
  * Navigates directly to the document detail page (/doc/{id}/details) rather
  * than the old search-then-click approach (saves ~16 seconds per document).
+ *
+ * Dynamic stopping: pagination stops as soon as no new signed URL is intercepted
+ * after a page navigation (or the URL-construction fallback also fails), even if
+ * fewer than `expectedPages` pages were retrieved. This mirrors the grab-docs.js
+ * production workflow proven on the 3779 FM 436 / Ash Family Trust session.
+ *
+ * @param instrumentNumber  Kofile/Tyler instrument number to fetch
+ * @param expectedPages     Upper bound on pages to fetch (hard cap = min(expectedPages, 20)).
+ *                          Pass a large value (e.g. 20) for plats with unknown page count.
+ * @param logger  Pipeline logger
  */
 export async function fetchDocumentImages(
+  county: string,
   instrumentNumber: string,
   expectedPages: number,
   logger: PipelineLogger,
 ): Promise<DocumentPage[]> {
+  const baseUrl = getKofileBaseUrl(county);
+  if (!baseUrl) {
+    logger.warn('2D-IMG', `No Kofile config for county "${county}" — cannot fetch document images`);
+    return [];
+  }
   let browser: import('playwright').Browser | null = null;
-  const attempt = logger.attempt('2D-IMG', BELL_CLERK_BASE, 'PLAYWRIGHT_IMAGES', instrumentNumber);
+  const attempt = logger.attempt('2D-IMG', baseUrl, 'PLAYWRIGHT_IMAGES', instrumentNumber);
   const pages: DocumentPage[] = [];
 
   try {
@@ -2023,28 +2601,33 @@ export async function fetchDocumentImages(
     });
     const page = await context.newPage();
 
-    // Intercept signed image URLs from the Kofile viewer
+    // Intercept signed image URLs from the Kofile viewer.
+    // Deduplicate by URL — the Kofile viewer sometimes fires the same signed URL
+    // twice (thumbnail preloads, XHR retries), which would corrupt the per-page
+    // imageUrls[pageNum - 1] indexing. Matches the grab-docs.js deduplication:
+    //   if (!imageUrls.includes(u)) imageUrls.push(u);
     const imageUrls: string[] = [];
     page.on('response', (res) => {
       const url = res.url();
       // Match Kofile signed document image URLs (PNG, JPG, TIFF)
       if (
         (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
-        /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
+        /\.(png|jpe?g|tiff?)(\?|$)/i.test(url) &&
+        !imageUrls.includes(url)
       ) {
         imageUrls.push(url);
-        attempt.step(`Captured image URL: ${url.substring(0, 100)}...`);
+        console.log(`[DOC-IMG] Captured: ${url.substring(0, 100)}...`);
       }
     });
 
     // Navigate directly to the document viewer page (avoids search+click overhead)
-    const viewerUrl = `${BELL_CLERK_BASE}/doc/${encodeURIComponent(instrumentNumber)}/details`;
-    attempt.step(`Navigating to viewer: ${viewerUrl}`);
+    const viewerUrl = `${baseUrl}/doc/${encodeURIComponent(instrumentNumber)}/details`;
+    console.log(`[DOC-IMG] Navigating directly to viewer: ${viewerUrl}`);
     try {
-      await page.goto(viewerUrl, { waitUntil: 'networkidle', timeout: 45_000 });
+      await page.goto(viewerUrl, { waitUntil: 'networkidle', timeout: 60_000 });
     } catch {
       // networkidle timeout is acceptable — images may still be loading
-      await page.goto(viewerUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      await page.goto(viewerUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
       await page.waitForTimeout(5_000);
     }
 
@@ -2054,15 +2637,15 @@ export async function fetchDocumentImages(
       await page.waitForTimeout(500);
     }
 
-    attempt.step(`After viewer load: ${imageUrls.length} URLs captured`);
+    console.log(`[DOC-IMG] After viewer load: ${imageUrls.length} URLs captured`);
 
     // Fallback: if direct viewer didn't capture images, try the proven search+click
     // approach. Per transcripts (Ash Trust, March 4, 2026): 8s after navigation for
     // the Tyler SPA to render results, then 8s after clicking a result row for the
     // Kofile document viewer to fire the signed image URL.
     if (imageUrls.length === 0) {
-      attempt.step('Direct viewer captured no images — falling back to search+click');
-      const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
+      console.log('[DOC-IMG] Direct viewer captured no images — falling back to search+click');
+      const searchUrl = `${baseUrl}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
       // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
       await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
@@ -2071,7 +2654,7 @@ export async function fetchDocumentImages(
         // Kofile viewer needs TYLER_VIEWER_LOAD_TIMEOUT_MS to fire the signed image URL.
         await page.waitForTimeout(TYLER_VIEWER_LOAD_TIMEOUT_MS);
       } catch (e: any) {
-        attempt.step(`Search+click fallback: could not click result: ${e.message}`);
+        console.log('[DOC-IMG] Search+click fallback: could not click result:', e.message);
       }
     }
 
@@ -2096,22 +2679,30 @@ export async function fetchDocumentImages(
             height: 0,
             signedUrl: imgUrl,
           });
-          attempt.step(`Page ${pageNum}: ${buf.length} bytes (${detectFormat(imgUrl)})`);
+          console.log(`[DOC-IMG] Page ${pageNum}: ${buf.length} bytes (${detectFormat(imgUrl)})`);
           return true;
         }
       } catch (e: any) {
-        attempt.step(`Page ${pageNum} download failed: ${e.message}`);
+        console.log(`[DOC-IMG] Page ${pageNum} download failed: ${e.message}`);
       }
       return false;
     };
 
-    // Download page 1
+    // Download page 1 — use imageUrls[0] (the first intercepted URL).
+    // The Kofile viewer fires page 1's signed URL first when loading the document;
+    // using the last captured URL risks picking a pre-loaded later page if the viewer
+    // loads multiple images at once. This matches the proven grab-docs.js approach.
     if (imageUrls.length > 0) {
-      await downloadPage(imageUrls[imageUrls.length - 1], 1);
+      await downloadPage(imageUrls[0], 1);  // first intercepted URL = page 1 (viewer fires page 1 first)
     }
 
-    // Navigate to subsequent pages using the next-page button
-    for (let pageNum = 2; pageNum <= Math.min(expectedPages, 20); pageNum++) {
+    // Navigate to subsequent pages using the next-page button.
+    // Uses dynamic stopping (like grab-docs.js): stop when no next-page button
+    // is found OR when no new signed URL is intercepted after navigation AND the
+    // URL-construction fallback also fails — whichever comes first.
+    // The expectedPages cap (max 20) is the absolute upper bound for safety.
+    const maxPages = Math.min(expectedPages, 20);
+    for (let pageNum = 2; pageNum <= maxPages; pageNum++) {
       const urlCountBefore = imageUrls.length;
 
       const nextSelectors = [
@@ -2130,23 +2721,35 @@ export async function fetchDocumentImages(
       }
 
       if (!clicked) {
-        attempt.step(`No next-page button for page ${pageNum}`);
+        console.log(`[DOC-IMG] No next-page button for page ${pageNum} — done`);
         break;
       }
 
       await page.waitForTimeout(TYLER_NEXT_PAGE_TIMEOUT_MS);
 
       if (imageUrls.length > urlCountBefore) {
+        // A new signed URL was intercepted — this is the confirmed image for this page
         await downloadPage(imageUrls[imageUrls.length - 1], pageNum);
       } else if (imageUrls.length > 0) {
-        // Construct URL for this page by replacing the page number in the seed URL
-        // Handles both _1.png and _1.jpg patterns
+        // No new URL intercepted — try constructing the URL from the page-1 seed.
+        // Handles cases where viewer reuses auth tokens and only the page number changes.
         const seedUrl = imageUrls[0];
         const constructedUrl = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_${pageNum}.$1`);
         if (constructedUrl !== seedUrl) {
           const ok = await downloadPage(constructedUrl, pageNum);
-          if (!ok) attempt.step(`Page ${pageNum} constructed URL failed`);
+          if (!ok) {
+            // Construction failed — no more pages available
+            console.log(`[DOC-IMG] No new image URL for page ${pageNum} — stopping`);
+            break;
+          }
+        } else {
+          // Cannot construct a different URL — stop
+          console.log(`[DOC-IMG] No new image URL for page ${pageNum} — stopping`);
+          break;
         }
+      } else {
+        // No URLs captured at all — stop
+        break;
       }
     }
 
@@ -2160,11 +2763,188 @@ export async function fetchDocumentImages(
     }
     return pages;
   } catch (err: any) {
-    logger.error('Stage2D', 'fetchDocumentImages failed', err);
+    console.error('[DOC-IMG] Image fetch failed:', err.message);
     if (browser) await browser.close().catch(() => {});
     attempt.fail(err.message);
     return [];
   }
+}
+
+/**
+ * Search for a single document by instrument number using the Kofile quickSearch API.
+ * Returns a DocumentRef with metadata (type, grantors, grantees, recording date) or null.
+ *
+ * Used by Bell County scrapers (clerk-scraper.ts, plat-scraper.ts) to fetch
+ * document metadata before downloading page images.
+ */
+export async function searchByInstrument(
+  instrumentNumber: string,
+  logger: PipelineLogger,
+): Promise<DocumentRef | null> {
+  const bellBaseUrl = getKofileBaseUrl('bell') || 'https://bell.tx.publicsearch.us';
+  logger.info('Stage2-Instr', `Searching Bell County Clerk for instrument ${instrumentNumber}`);
+
+  let browser: import('playwright').Browser | null = null;
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      viewport: { width: 1280, height: 900 },
+    });
+    const page = await context.newPage();
+
+    // Intercept API responses to capture document metadata
+    const captured: DocumentRef[] = [];
+    page.on('response', async (res) => {
+      const url = res.url();
+      if (!url.includes('/api/') && !url.includes('/search')) return;
+      if (res.status() !== 200) return;
+      try {
+        const json = await res.json();
+        const items = normaliseKofileApiResponse(json);
+        for (const item of items) {
+          if (!looksLikeKofileDocuments([item])) continue;
+          const instrNum = String(item.instrumentNumber ?? item.instrument_number ?? item.InstrumentNumber ?? '');
+          if (!instrNum) continue;
+          captured.push({
+            instrumentNumber: instrNum,
+            volume: String(item.volume ?? item.bookVolume ?? '') || null,
+            page: String(item.page ?? item.bookPage ?? '') || null,
+            documentType: String(item.documentType ?? item.document_type ?? item.docType ?? 'Unknown'),
+            recordingDate: String(item.recordingDate ?? item.recording_date ?? '') || null,
+            grantors: extractKofilePartyNames(item.grantors ?? item.grantor ?? item.Grantors),
+            grantees: extractKofilePartyNames(item.grantees ?? item.grantee ?? item.Grantees),
+            source: 'Bell County Clerk PublicSearch',
+            url: `${bellBaseUrl}/doc/${instrNum}/details`,
+          });
+        }
+      } catch { /* not JSON */ }
+    });
+
+    const searchUrl = `${bellBaseUrl}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
+
+    await browser.close();
+    browser = null;
+
+    // Find exact match by instrument number
+    const match = captured.find(d => d.instrumentNumber === instrumentNumber) ?? captured[0] ?? null;
+    if (match) {
+      logger.info('Stage2-Instr', `Found instrument ${instrumentNumber}: ${match.documentType}`);
+    } else {
+      logger.warn('Stage2-Instr', `Instrument ${instrumentNumber} not found in Bell County Clerk`);
+    }
+    return match;
+  } catch (err: any) {
+    logger.warn('Stage2-Instr', `Instrument search failed: ${err.message}`);
+    if (browser) await browser.close().catch(() => {});
+    return null;
+  }
+}
+
+/**
+ * Extract search results from a Tyler PublicSearch results page.
+ * Parses both structured table rows (td.col-N) and fallback text parsing.
+ * Used by searchBellClerkOwnerForPlatDeed to extract document metadata.
+ */
+async function _extractSearchResults(
+  page: import('playwright').Page,
+): Promise<DocumentRef[]> {
+  const bellBaseUrl = getKofileBaseUrl('bell') || 'https://bell.tx.publicsearch.us';
+  const documents: DocumentRef[] = [];
+  const rows = await page.$$('.result-card, table tbody tr[aria-selected], .result-row, .search-result');
+
+  for (const row of rows) {
+    try {
+      const text = await row.textContent() || '';
+      if (text.toLowerCase().includes('recording date') && text.toLowerCase().includes('document type')) continue;
+
+      const checkbox = await row.$('input[id^="table-checkbox-"]');
+      const docId = checkbox ? (await checkbox.getAttribute('id'))?.replace('table-checkbox-', '') ?? '' : '';
+      const getColText = async (n: number): Promise<string> => {
+        const cell = await row.$(`td.col-${n}, td:nth-child(${n + 1})`);
+        return cell ? ((await cell.textContent()) ?? '').trim() : '';
+      };
+      const colDocType = await getColText(5);
+      const colInstr = await getColText(7);
+
+      if (colDocType || colInstr) {
+        const colDate = await getColText(6);
+        const colBVP = await getColText(8);
+        const colGrantor = await getColText(3);
+        const colGrantee = await getColText(4);
+        let volume = '';
+        let pg = '';
+        const bvpMatch = colBVP.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+        if (bvpMatch) { volume = bvpMatch[1]; pg = bvpMatch[2]; }
+
+        documents.push({
+          instrumentNumber: colInstr || null,
+          volume: volume || null,
+          page: pg || null,
+          documentType: colDocType || 'Unknown',
+          recordingDate: colDate || null,
+          grantors: colGrantor ? [colGrantor] : [],
+          grantees: colGrantee ? [colGrantee] : [],
+          source: 'County Clerk PublicSearch',
+          url: docId ? `${bellBaseUrl}/doc/${docId}` : null,
+        });
+        continue;
+      }
+
+      // Fallback: parse document type from text content
+      const typeMatch = text.match(
+        /(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Deed of Trust|Plat|Plat Amended|Quit Claim|Transfer)/i,
+      );
+      if (typeMatch) {
+        const dateMatch   = text.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+        const instrMatch  = text.match(/(?:Inst(?:rument)?|Doc)[\s#:]*(\d{6,})/i) || text.match(/(\d{10,})/);
+        const volPageMatch = text.match(/Vol(?:ume)?[\s.]*(\d+)[\s,]*(?:Pg|Page)[\s.]*(\d+)/i);
+
+        const doc: DocumentRef = {
+          instrumentNumber: instrMatch ? instrMatch[1] : null,
+          volume: volPageMatch ? volPageMatch[1] : null,
+          page: volPageMatch ? volPageMatch[2] : null,
+          documentType: typeMatch[1],
+          recordingDate: dateMatch ? dateMatch[1] : null,
+          grantors: [],
+          grantees: [],
+          source: 'County Clerk PublicSearch',
+          url: null,
+        };
+        const link = await row.$('a[href]');
+        if (link) {
+          const href = await link.getAttribute('href');
+          if (href) doc.url = href.startsWith('http') ? href : bellBaseUrl + href;
+        }
+        if (!doc.url && docId) {
+          doc.url = `${bellBaseUrl}/doc/${docId}`;
+        }
+        documents.push(doc);
+      }
+    } catch { /* skip row */ }
+  }
+
+  return documents.filter(d => /deed|warranty|plat|conveyance/i.test(d.documentType));
+}
+
+/**
+ * Search Bell County Clerk records by owner name using Playwright SPA automation.
+ * Bell County-specific wrapper around searchClerkRecords() — handles the full
+ * Kofile PublicSearch SPA interaction: API intercept, networkidle+window-state
+ * detection, and result parsing.
+ *
+ * @param ownerName - Owner name to search for (e.g. "SMITH JOHN" or "ASH FAMILY TRUST")
+ * @param logger    - Pipeline logger
+ * @returns Array of DocumentResult with metadata and page screenshots
+ */
+export async function searchBellClerk(
+  ownerName: string,
+  logger: PipelineLogger,
+): Promise<DocumentResult[]> {
+  return searchClerkRecords('bell', ownerName, logger);
 }
 
 /**
@@ -2188,9 +2968,10 @@ export async function searchBellClerkOwnerForPlatDeed(
   deedInstruments: string[];
   allDocuments: DocumentRef[];
 }> {
+  const bellBaseUrl = getKofileBaseUrl('bell') || 'https://bell.tx.publicsearch.us';
   let browser: import('playwright').Browser | null = null;
   const attempt = logger.attempt(
-    '2B-PLAT', BELL_CLERK_BASE, 'PLAYWRIGHT_PLAT_DEED', ownerOrSubdivisionName,
+    '2B-PLAT', bellBaseUrl, 'PLAYWRIGHT_PLAT_DEED', ownerOrSubdivisionName,
   );
 
   try {
@@ -2210,7 +2991,7 @@ export async function searchBellClerkOwnerForPlatDeed(
     // Per proven timing: Tyler PublicSearch SPA needs 8 full seconds to render
     // result rows after domcontentloaded fires.
     const searchUrl =
-      `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch` +
+      `${bellBaseUrl}/results?department=RP&searchType=quickSearch` +
       `&searchValue=${encodeURIComponent(ownerOrSubdivisionName)}`;
 
     attempt.step(`Searching: ${searchUrl}`);
@@ -2289,108 +3070,3 @@ export function savePageImages(
   return paths;
 }
 
-// ── Helpers (private to this module section) ──────────────────────────────
-
-async function _extractSearchResults(
-  page: import('playwright').Page,
-): Promise<DocumentRef[]> {
-  const documents: DocumentRef[] = [];
-  const rows = await page.$$('table tbody tr[aria-selected], .result-row, .search-result');
-
-  for (const row of rows) {
-    try {
-      const text = await row.textContent() || '';
-      if (text.toLowerCase().includes('recording date') && text.toLowerCase().includes('document type')) continue;
-
-      // Tyler PublicSearch: extract from table columns by class
-      const checkbox = await row.$('input[id^="table-checkbox-"]');
-      const docId = checkbox ? (await checkbox.getAttribute('id'))?.replace('table-checkbox-', '') ?? '' : '';
-      const getColText = async (n: number): Promise<string> => {
-        const cell = await row.$(`td.col-${n}, td:nth-child(${n + 1})`);
-        return cell ? ((await cell.textContent()) ?? '').trim() : '';
-      };
-      const colDocType = await getColText(5);
-      const colInstr = await getColText(7);
-
-      if (colDocType || colInstr) {
-        // Structured Tyler table row
-        const colDate = await getColText(6);
-        const colBVP = await getColText(8);
-        const colGrantor = await getColText(3);
-        const colGrantee = await getColText(4);
-        let volume = '';
-        let pg = '';
-        const bvpMatch = colBVP.match(/(?:OPR\/)?(\d+)\/(\d+)/);
-        if (bvpMatch) { volume = bvpMatch[1]; pg = bvpMatch[2]; }
-
-        documents.push({
-          instrumentNumber: colInstr || null,
-          volume: volume || null,
-          page: pg || null,
-          documentType: colDocType || 'Unknown',
-          recordingDate: colDate || null,
-          grantors: colGrantor ? [colGrantor] : [],
-          grantees: colGrantee ? [colGrantee] : [],
-          source: 'Bell County Clerk PublicSearch',
-          url: docId ? `${BELL_CLERK_BASE}/doc/${docId}` : null,
-        });
-        continue;
-      }
-
-      // Fallback: parse from text content
-      const doc = _parseDocumentRow(text);
-      if (doc) {
-        const link = await row.$('a[href]');
-        if (link) {
-          const href = await link.getAttribute('href');
-          if (href) doc.url = href.startsWith('http') ? href : BELL_CLERK_BASE + href;
-        }
-        if (!doc.url && docId) {
-          doc.url = `${BELL_CLERK_BASE}/doc/${docId}`;
-        }
-        documents.push(doc);
-      }
-    } catch { /* skip */ }
-  }
-
-  return documents.filter(d => /deed|warranty|plat|conveyance/i.test(d.documentType));
-}
-
-function _parseDocumentRow(text: string): DocumentRef | null {
-  const typeMatch = text.match(
-    /(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Deed of Trust|Plat|Plat Amended|Quit Claim|Transfer)/i,
-  );
-  if (!typeMatch) return null;
-
-  const dateMatch   = text.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
-  const instrMatch  = text.match(/(?:Inst(?:rument)?|Doc)[\s#:]*(\d{6,})/i) || text.match(/(\d{10,})/);
-  const volPageMatch = text.match(/Vol(?:ume)?[\s.]*(\d+)[\s,]*(?:Pg|Page)[\s.]*(\d+)/i);
-  const grantorMatch = text.match(/(?:Grantor|From)[\s:]*([^,\n]+)/i);
-  const granteeMatch = text.match(/(?:Grantee|To)[\s:]*([^,\n]+)/i);
-
-  return {
-    instrumentNumber: instrMatch ? instrMatch[1] : null,
-    volume:           volPageMatch ? volPageMatch[1] : null,
-    page:             volPageMatch ? volPageMatch[2] : null,
-    documentType:     typeMatch[1],
-    recordingDate:    dateMatch ? dateMatch[1] : null,
-    grantors:         grantorMatch ? [grantorMatch[1].trim()] : [],
-    grantees:         granteeMatch ? [granteeMatch[1].trim()] : [],
-    source:           'Bell County Clerk PublicSearch',
-    url:              null,
-  };
-}
-
-function _parseOwnerName(name: string): { lastName: string; firstName: string; searchQuery: string } {
-  if (name.includes(',')) {
-    const [last, first] = name.split(',').map(s => s.trim());
-    return { lastName: last, firstName: first, searchQuery: `${last}, ${first}` };
-  }
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    const last  = parts[parts.length - 1];
-    const first = parts.slice(0, -1).join(' ');
-    return { lastName: last, firstName: first, searchQuery: `${last}, ${first}` };
-  }
-  return { lastName: name, firstName: '', searchQuery: name };
-}

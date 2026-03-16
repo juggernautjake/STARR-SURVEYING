@@ -5,13 +5,13 @@
  * Everything needed for Bell County research lives in this folder.
  */
 
-import { orchestrateBellResearch } from './orchestrator';
+import { orchestrateBellResearch } from './orchestrator.js';
 export { orchestrateBellResearch };
-export type { OrchestratorProgress, ProgressCallback } from './orchestrator';
-export type { BellResearchInput } from './types/research-input';
-export type { BellResearchResult } from './types/research-result';
-export { buildToggleSections, generateResearchSummary } from './reports/report-builder';
-export { generateSurveyPlan } from './reports/survey-plan-generator';
+export type { OrchestratorProgress, ProgressCallback } from './orchestrator.js';
+export type { BellResearchInput } from './types/research-input.js';
+export type { BellResearchResult } from './types/research-result.js';
+export { buildToggleSections, generateResearchSummary } from './reports/report-builder.js';
+export { generateSurveyPlan } from './reports/survey-plan-generator.js';
 
 /**
  * Run the complete Bell County property research pipeline.
