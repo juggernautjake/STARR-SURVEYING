@@ -423,13 +423,16 @@ type BoundaryLike = { type: string; calls: unknown[]; confidence: number };
 /**
  * Compare two boundary extractions. Returns > 0 if `a` is better than `b`.
  * Scoring rules:
- *   1. metes_and_bounds > lot_and_block > reference_only (type hierarchy)
+ *   1. metes_and_bounds > hybrid > lot_and_block > reference_only (type hierarchy)
  *   2. Within same type: more calls > fewer calls
  *   3. Tie-break on confidence
+ *
+ * Keep in sync with the `boundaryScore` function in ai-extraction.ts.
  */
 function compareBoundaries(a: BoundaryLike, b: BoundaryLike): number {
   const typeScore = (t: string): number => {
     if (t === 'metes_and_bounds') return 3;
+    if (t === 'hybrid') return 2.5;
     if (t === 'lot_and_block') return 2;
     if (t === 'reference_only') return 1;
     return 0;
