@@ -19,6 +19,7 @@ import { extractDocuments, extractPlatBoundary } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
 import { runPropertyValidationPipeline } from './property-validation-pipeline.js';
+import { generateAndWriteReport } from './report-generator.js';
 import { bundleAndUploadPages } from './pages-to-pdf.js';
 import { extractSubdivisionName, fetchBestMatchingPlat, hasPlatRepository } from './county-plats.js';
 import {
@@ -2098,8 +2099,61 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         `Validation report: ${validationReport.overallConfidencePct}% overall confidence ` +
         `(${validationReport.overallRating.display} ${validationReport.overallRating.label}), ` +
         `${validationReport.discrepancies.length} discrepancies`);
+
+      // Log top actions (most actionable output for the surveyor)
+      if (validationReport.topActions.length > 0) {
+        logger.info('Stage5', `  Top actions for this property:`);
+        for (const a of validationReport.topActions.slice(0, 3)) {
+          logger.info('Stage5', `    ${a.priority}. ${a.action} — ${a.expectedBenefit}`);
+        }
+      }
+
+      // Log adjacent research order
+      if (validationReport.adjacentResearchOrder.length > 0) {
+        logger.info('Stage5', `  Adjacent research order (${validationReport.adjacentResearchOrder.length} ranked):`);
+        for (const e of validationReport.adjacentResearchOrder.slice(0, 3)) {
+          logger.info('Stage5', `    ${e.rank}. ${e.ownerName}${e.recordingRef ? ` (${e.recordingRef})` : ''} — ${e.rationale}`);
+        }
+      }
+
+      // Log any discrepancies from the structured log
+      if (validationReport.discrepancyLog.length > 0) {
+        const criticals = validationReport.discrepancyLog.filter(d => d.severity === 'CRITICAL');
+        if (criticals.length > 0) {
+          logger.warn('Stage5', `  CRITICAL items in discrepancy log (${criticals.length}):`);
+          for (const d of criticals) {
+            logger.warn('Stage5', `    ✗✗ ${d.item}: "${d.sourceA}" vs "${d.sourceB}" — ${d.actionNeeded}`);
+          }
+        }
+      }
     } catch (err) {
       logger.warn('Stage5', `Property validation pipeline failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // STAGE 6: Master Validation Report
+    // Generate the formatted MASTER_VALIDATION_REPORT.txt for the
+    // surveyor.  Non-fatal — a write failure does not affect the result.
+    // ═══════════════════════════════════════════════════════════════════
+
+    let masterReportText: string | undefined;
+    if (validationReport) {
+      logger.info('Stage6', '═══ STAGE 6: Master Validation Report ═══');
+      // Build a partial PipelineResult for the report generator (the full
+      // result object is not assembled yet, but the report only needs a
+      // subset of fields that are already available here).
+      const partialResult = {
+        projectId: input.projectId,
+        propertyId: propertyResult?.propertyId ?? null,
+        validation,
+      } as PipelineResult;
+      try {
+        const { text, filePath } = await generateAndWriteReport(validationReport, partialResult);
+        masterReportText = text;
+        logger.info('Stage6', `Master validation report written: ${filePath} (${text.length} chars, ${text.split('\n').length} lines)`);
+      } catch (err) {
+        logger.warn('Stage6', `Master report write failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -2164,6 +2218,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       validation,
       reconciliation,
       validationReport,
+      masterReportText,
       log: logger.getAttempts(),
       duration_ms,
       searchDiagnostics,

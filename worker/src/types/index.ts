@@ -36,6 +36,13 @@ export interface PipelineResult {
    * Only present when the pipeline reaches Stage 5 (requires Anthropic API key).
    */
   validationReport?: import('../services/property-validation-pipeline.js').ValidationReport;
+  /**
+   * Stage 6: MASTER_VALIDATION_REPORT.txt text content.
+   * Formatted surveyor report including traverse quality, top actions,
+   * adjacent research order, discrepancy log, and all perimeter data.
+   * Only present when Stage 5 succeeds and the report generator runs.
+   */
+  masterReportText?: string;
   /** Search diagnostics: which variants were tried, which hit */
   searchDiagnostics?: SearchDiagnostics;
   /**

@@ -275,11 +275,182 @@ function buildRecommendedActions(report: ValidationReport): string {
   return lines.join('\n');
 }
 
+// ── Surveyor-specific sections ────────────────────────────────────────────────
+
+/**
+ * TRAVERSE QUALITY — closure error, precision ratio, area, and quality score
+ * from the mathematical boundary validation (Stage 4).
+ */
+function buildValidationQuality(pipeline: PipelineResult): string {
+  const v = pipeline.validation;
+  const lines: string[] = [
+    'TRAVERSE QUALITY',
+    HR2,
+  ];
+
+  if (!v || v.overallQuality === 'failed') {
+    lines.push('  Traverse check: N/A — no metes-and-bounds calls available for closure computation.');
+    return lines.join('\n');
+  }
+
+  lines.push(
+    `  Quality Score:       ${v.overallQuality.toUpperCase()}`,
+    `  Closure Error:       ${v.closureError_ft != null ? `${v.closureError_ft} ft` : 'N/A'}`,
+    `  Precision Ratio:     ${v.precisionRatio ?? 'N/A'}`,
+  );
+
+  if (v.totalPerimeter_ft != null) {
+    lines.push(`  Total Perimeter:     ${v.totalPerimeter_ft.toFixed(2)} ft`);
+  }
+
+  if (v.computedArea_acres != null) {
+    lines.push(`  Computed Area:       ${v.computedArea_acres.toFixed(4)} ac (${v.computedArea_sqft?.toFixed(0)} sqft)`);
+  }
+
+  if (v.cadAcreage != null) {
+    const disc = v.areaDiscrepancy_pct;
+    lines.push(`  CAD Stated Area:     ${v.cadAcreage.toFixed(4)} ac${disc != null ? `  (${disc}% discrepancy)` : ''}`);
+  }
+
+  lines.push(
+    `  Bearing Sanity:      ${v.bearingSanity ? '✓ PASS' : '✗ FAIL — one or more bearings exceed 90°'}`,
+    `  Distance Sanity:     ${v.distanceSanity ? '✓ PASS' : '✗ FAIL — outlier distance detected'}`,
+    `  Reference Complete:  ${v.referenceComplete ? '✓ PASS' : '✗ FAIL — some calls have low confidence'}`,
+  );
+
+  if (v.flags.length > 0) {
+    lines.push('');
+    lines.push(`  Flags (${v.flags.length}):`);
+    for (const flag of v.flags) {
+      lines.push(`    ⚑ ${flag}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * TOP ACTIONS — priority-ordered next steps from Call 7 to improve confidence.
+ * Displayed first after the confidence summary — most actionable output for
+ * a working surveyor.
+ */
+function buildTopActions(report: ValidationReport): string {
+  const lines: string[] = [
+    'TOP ACTIONS (PRIORITIZED)',
+    HR2,
+    '  These are the highest-value steps to increase confidence before field work.',
+    '',
+  ];
+
+  if (report.topActions.length === 0) {
+    lines.push('  No actions needed — confidence is at target or AI call was unavailable.');
+    return lines.join('\n');
+  }
+
+  for (const action of report.topActions) {
+    lines.push(`  [${action.priority}] ${action.action}`);
+    lines.push(`      Expected benefit: ${action.expectedBenefit}`);
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * ADJACENT RESEARCH ORDER — ranked list of neighbor property records to pull.
+ * Pulling the right adjacent deeds first is how surveyors independently verify
+ * shared boundary calls — this section makes that workflow explicit.
+ */
+function buildAdjacentResearchOrder(report: ValidationReport): string {
+  const lines: string[] = [
+    'ADJACENT RESEARCH ORDER',
+    HR2,
+    '  Pull these adjacent property records in rank order to verify shared boundaries.',
+    '',
+  ];
+
+  if (report.adjacentResearchOrder.length === 0) {
+    lines.push('  No adjacent research order generated.');
+    lines.push('  (This section populates once adjacent properties are identified and ranked.)');
+    return lines.join('\n');
+  }
+
+  lines.push(
+    `  ${'Rank'.padEnd(5)} ${'Owner'.padEnd(30)} ${'Recording Ref'.padEnd(24)} Rationale`,
+    '  ' + HR3,
+  );
+
+  for (const entry of report.adjacentResearchOrder) {
+    const rank = pad(entry.rank, 4, true);
+    const owner = pad(entry.ownerName, 30);
+    const ref   = pad(entry.recordingRef ?? '—', 24);
+    lines.push(`  ${rank} ${owner} ${ref} ${entry.rationale}`);
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * DISCREPANCY LOG — every conflict ordered by severity in a compact table.
+ * Supplements the existing DISCREPANCY REPORT section (which is narrative)
+ * with a machine-readable-style table that is easy to scan on the job site.
+ */
+function buildDiscrepancyLog(report: ValidationReport): string {
+  const lines: string[] = [
+    'DISCREPANCY LOG',
+    HR2,
+  ];
+
+  if (report.discrepancyLog.length === 0) {
+    lines.push('  No structured discrepancy log produced in this run.');
+    lines.push('  (Check the DISCREPANCY REPORT section above for any narrative findings.)');
+    return lines.join('\n');
+  }
+
+  // Sort CRITICAL → MODERATE → MINOR
+  const order: Record<string, number> = { CRITICAL: 0, MODERATE: 1, MINOR: 2 };
+  const sorted = [...report.discrepancyLog].sort(
+    (a, b) => (order[a.severity] ?? 9) - (order[b.severity] ?? 9),
+  );
+
+  lines.push(
+    `  ${'#'.padEnd(4)} ${'Sev'.padEnd(9)} ${'Item'.padEnd(20)} ${'Source A'.padEnd(24)} ${'Source B'.padEnd(24)} Action`,
+    '  ' + HR3,
+  );
+
+  for (let i = 0; i < sorted.length; i++) {
+    const d = sorted[i];
+    const num     = pad(i + 1, 3, true);
+    const sev     = pad(d.severity, 9);
+    const item    = pad(d.item, 20);
+    const srcA    = pad(d.sourceA, 24);
+    const srcB    = pad(d.sourceB, 24);
+    lines.push(`  ${num} ${sev} ${item} ${srcA} ${srcB}`);
+    lines.push(`  ${''.padEnd(4)} ${''.padEnd(9)} Action: ${d.actionNeeded}`);
+  }
+
+  return lines.join('\n');
+}
+
 // ── Main report builder ───────────────────────────────────────────────────────
 
 /**
  * Build the full MASTER_VALIDATION_REPORT text from a ValidationReport
  * and its originating PipelineResult.
+ *
+ * Section order is designed for working surveyors:
+ *   1. Property Summary (identity + overall confidence)
+ *   2. Traverse Quality (closure, precision, area — mathematical ground truth)
+ *   3. Confidence Summary (per-symbol breakdown)
+ *   4. TOP ACTIONS (what to do next — most actionable)
+ *   5. Perimeter Analysis (per-call table)
+ *   6. Discrepancy Report (narrative discrepancy detail)
+ *   7. Discrepancy Log (compact table for quick reference on site)
+ *   8. Adjacent Properties (owners + recording refs)
+ *   9. Adjacent Research Order (ranked neighbor records to pull)
+ *  10. Roads
+ *  11. Easements
+ *  12. Recommended Document Purchases
  */
 export function buildMasterReport(
   report: ValidationReport,
@@ -295,12 +466,16 @@ export function buildMasterReport(
 
   const sections = [
     buildPropertySummary(report, pipeline),
+    buildValidationQuality(pipeline),
+    buildConfidenceSummary(report),
+    buildTopActions(report),
     buildPerimeterAnalysis(report),
+    buildDiscrepancyReport(report),
+    buildDiscrepancyLog(report),
     buildAdjacentProperties(report),
+    buildAdjacentResearchOrder(report),
     buildRoads(report),
     buildEasements(report),
-    buildDiscrepancyReport(report),
-    buildConfidenceSummary(report),
     buildRecommendedActions(report),
   ];
 
