@@ -166,6 +166,30 @@ function cleanupOldResults(): void {
 
 setInterval(cleanupOldResults, 10 * 60 * 1000);
 
+// ── Document Type Normalizer ───────────────────────────────────────────────
+// Maps free-text document type strings from the pipeline to the canonical set
+// used by the research_documents table (matches page.tsx docTypeIcons keys).
+
+function normDocType(rawType: string | null | undefined): string {
+  if (!rawType) return 'other';
+  const lower = rawType.toLowerCase();
+  if (/warranty deed|general warranty|deed of trust|trustee.*deed|deed/i.test(lower)) return 'deed';
+  if (/subdivision plat|plat/i.test(lower)) return rawType.toLowerCase().includes('subdivision') ? 'subdivision_plat' : 'plat';
+  if (/survey/i.test(lower)) return 'survey';
+  if (/legal desc/i.test(lower)) return 'legal_description';
+  if (/easement/i.test(lower)) return 'easement';
+  if (/covenant|restriction/i.test(lower)) return 'restrictive_covenant';
+  if (/field note/i.test(lower)) return 'field_notes';
+  if (/metes|bounds/i.test(lower)) return 'metes_and_bounds';
+  if (/appraisal|assessment|cad record/i.test(lower)) return 'appraisal_record';
+  if (/county record/i.test(lower)) return 'county_record';
+  if (/title commitment/i.test(lower)) return 'title_commitment';
+  if (/aerial|satellite/i.test(lower)) return 'aerial_photo';
+  if (/topo|topographic/i.test(lower)) return 'topo_map';
+  if (/utility/i.test(lower)) return 'utility_map';
+  return 'other';
+}
+
 // ── Health Check ───────────────────────────────────────────────────────────
 
 app.get('/health', async (_req: Request, res: Response) => {
@@ -425,6 +449,147 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
               console.warn(`[Worker] ${projectId}: error saving logs to Supabase:`, err instanceof Error ? err.message : String(err));
             });
         }
+        // ── Persist pipeline documents to research_documents table ────────────
+        // Save every document the pipeline found so the Review stage can display
+        // them after navigating away or refreshing the page.
+        // User-uploaded documents (fromUserUpload=true) already exist in the DB
+        // from Stage 1 — skip them to avoid duplicates.
+        const pipelineDocs = r.documents.filter(d => !d.fromUserUpload);
+        if (pipelineDocs.length > 0) {
+          getSupabase()
+            .then(async (supabase) => {
+              if (!supabase) return;
+              // Delete documents from any previous pipeline run for this project
+              // so a re-run always shows fresh results.
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (supabase as any)
+                .from('research_documents')
+                .delete()
+                .eq('research_project_id', projectId)
+                .eq('source_type', 'property_search');
+
+              const now = new Date().toISOString();
+              const docInserts = pipelineDocs.map((doc) => {
+                const ref = doc.ref;
+                const instr = ref.instrumentNumber;
+                const volPage = ref.volume && ref.page ? `Vol. ${ref.volume}, Pg. ${ref.page}` : null;
+                const recordingInfo = [
+                  instr ? `Instrument No. ${instr}` : null,
+                  volPage,
+                ].filter(Boolean).join(' — ') || null;
+                const pageCount = (doc.pages?.length ?? doc.pageScreenshots?.length) || null;
+                const rawText = doc.ocrText ?? doc.textContent ?? null;
+                // Cap at 50 000 chars to stay within DB limits
+                const extractedText = rawText ? rawText.slice(0, 50_000) : null;
+                // Build a descriptive label: "Warranty Deed - Smith to Jones (Instr. 12345)"
+                const grantorStr = ref.grantors?.length ? ref.grantors.slice(0, 2).join(', ') : null;
+                const granteeStr = ref.grantees?.length ? ref.grantees.slice(0, 2).join(', ') : null;
+                const partyStr = grantorStr && granteeStr ? ` — ${grantorStr} to ${granteeStr}` : (grantorStr ? ` — ${grantorStr}` : '');
+                const instrStr = instr ? ` (Instr. ${instr})` : '';
+                const docLabel = `${ref.documentType || 'Document'}${partyStr}${instrStr}`;
+
+                return {
+                  research_project_id: projectId,
+                  source_type: 'property_search',
+                  original_filename: docLabel,
+                  file_type: doc.imageFormat ?? 'pdf',
+                  document_type: normDocType(ref.documentType),
+                  document_label: ref.documentType || 'Document',
+                  recording_info: recordingInfo,
+                  recorded_date: ref.recordingDate ?? null,
+                  extracted_text: extractedText,
+                  processing_status: 'analyzed',
+                  page_count: pageCount ?? null,
+                  source_url: ref.url ?? null,
+                  ocr_confidence: doc.extractedData?.confidence ?? null,
+                  created_at: now,
+                  updated_at: now,
+                };
+              });
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const { error: docsErr } = await (supabase as any)
+                .from('research_documents')
+                .insert(docInserts);
+              if (docsErr) {
+                console.warn(`[Worker] ${projectId}: failed to save pipeline docs: ${docsErr.message}`);
+              } else {
+                console.log(`[Worker] ${projectId}: saved ${docInserts.length} pipeline documents to Supabase`);
+              }
+            })
+            .catch((err: unknown) => {
+              console.warn(`[Worker] ${projectId}: error saving pipeline docs:`, err instanceof Error ? err.message : String(err));
+            });
+        }
+
+        // ── Persist result summary to analysis_metadata ────────────────────
+        // The Review stage reads project.analysis_metadata.result.* to render
+        // the Summary tab (owner, legal desc, boundary, acreage, final summary).
+        // Merge with existing metadata so user-authored job_notes are preserved.
+        getSupabase()
+          .then(async (supabase) => {
+            if (!supabase) return;
+            // Fetch current metadata to preserve job_notes
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: existingRow } = await (supabase as any)
+              .from('research_projects')
+              .select('analysis_metadata')
+              .eq('id', projectId)
+              .single();
+            const currentMeta = (existingRow?.analysis_metadata as Record<string, unknown>) ?? {};
+
+            // Build auto-summary if Stage 6 master report is not available
+            const parts: string[] = [];
+            if (r.ownerName) parts.push(`Owner: ${r.ownerName}`);
+            if (r.propertyId) parts.push(`Property ID: ${r.propertyId}`);
+            if (r.acreage) parts.push(`Acreage: ${r.acreage} ac`);
+            if (r.legalDescription) parts.push(`Legal Description: ${r.legalDescription.slice(0, 300)}`);
+            if (r.documents.length > 0) parts.push(`${r.documents.length} document(s) found and analyzed`);
+            if (r.boundary?.calls?.length) parts.push(`${r.boundary.calls.length} boundary call(s) extracted`);
+            if (r.boundary?.confidence) parts.push(`Confidence: ${Math.round(r.boundary.confidence * 100)}%`);
+            const autoSummary = parts.length > 0 ? parts.join('\n') : 'Research pipeline completed.';
+
+            const updatedMeta: Record<string, unknown> = {
+              ...currentMeta,
+              result: {
+                ownerName: r.ownerName ?? null,
+                propertyId: r.propertyId ?? null,
+                geoId: r.geoId ?? null,
+                legalDescription: r.legalDescription ?? null,
+                acreage: r.acreage ?? null,
+                documentCount: r.documents.length,
+                duration_ms: r.duration_ms,
+                boundary: r.boundary ? {
+                  type: r.boundary.type,
+                  callCount: r.boundary.calls.length,
+                  referenceCount: r.boundary.references.length,
+                  confidence: r.boundary.confidence,
+                  lotBlock: r.boundary.lotBlock,
+                  area: r.boundary.area,
+                  verified: r.boundary.verified ?? false,
+                } : null,
+                validation: r.validation ?? null,
+                // finalSummary is what the Summary tab renders as "Research Summary"
+                finalSummary: r.masterReportText ?? autoSummary,
+                masterReportText: r.masterReportText ?? null,
+              },
+            };
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error: metaErr } = await (supabase as any)
+              .from('research_projects')
+              .update({ analysis_metadata: updatedMeta })
+              .eq('id', projectId);
+            if (metaErr) {
+              console.warn(`[Worker] ${projectId}: failed to save analysis_metadata: ${metaErr.message}`);
+            } else {
+              console.log(`[Worker] ${projectId}: saved analysis_metadata to Supabase`);
+            }
+          })
+          .catch((err: unknown) => {
+            console.warn(`[Worker] ${projectId}: error saving analysis_metadata:`, err instanceof Error ? err.message : String(err));
+          });
+
         // Update project status to 'review' in Supabase so a page-refresh still
         // lands the user on Stage 3 after the pipeline finishes.
         if (r.status === 'complete' || r.status === 'partial') {

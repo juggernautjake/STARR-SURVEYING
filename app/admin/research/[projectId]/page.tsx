@@ -1778,6 +1778,25 @@ export default function ResearchProjectPage() {
             </div>
             <PipelineProgressPanel
               status="success"
+              result={(() => {
+                const meta = project.analysis_metadata as Record<string, unknown> | null;
+                const r = meta?.result as Record<string, unknown> | null;
+                if (!r) return undefined;
+                return {
+                  propertyId: (r.propertyId as string | undefined) ?? undefined,
+                  ownerName: (r.ownerName as string | undefined) ?? undefined,
+                  legalDescription: (r.legalDescription as string | undefined) ?? undefined,
+                  acreage: (r.acreage as string | number | undefined) ?? undefined,
+                  documentCount: (r.documentCount as number | undefined) ?? undefined,
+                  duration_ms: (r.duration_ms as number | undefined) ?? undefined,
+                  boundary: (r.boundary as { type?: string; callCount?: number; confidence?: number; verified?: boolean } | null) ?? null,
+                };
+              })()}
+              masterReportText={(() => {
+                const meta = project.analysis_metadata as Record<string, unknown> | null;
+                const r = meta?.result as Record<string, unknown> | null;
+                return (r?.masterReportText as string | undefined) ?? undefined;
+              })()}
               onLoadLogs={async () => {
                 try {
                   const res = await fetch(`/api/admin/research/${projectId}/logs`);

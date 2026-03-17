@@ -31,6 +31,14 @@ interface PipelineLogEntry {
   steps?: string[];
 }
 
+/** A user-friendly activity log entry shown in the live activity stream */
+interface FriendlyLog {
+  id: string;
+  ts: number;
+  level: 'info' | 'success' | 'warn' | 'progress';
+  message: string;
+}
+
 interface PipelineStatusResponse {
   projectId: string;
   status: string;
@@ -103,6 +111,171 @@ type MicroStageId = (typeof MICRO_STAGES)[number]['id'];
 type LogFilter = 'all' | 'errors' | 'warn' | 'info';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Convert a raw pipeline log entry to a human-readable friendly message, or
+ *  null if the entry is too noisy / internal to be worth surfacing. */
+function logEntryToFriendly(entry: PipelineLogEntry): FriendlyLog | null {
+  const id = `${entry.layer}-${entry.source}-${entry.timestamp || Date.now()}`;
+  const ts = entry.timestamp ? new Date(entry.timestamp).getTime() : Date.now();
+  const details = entry.details || '';
+  const layer = entry.layer || '';
+
+  // ── Info/warn convenience logs (source='info'/'warn', details = message) ──
+  if (entry.source === 'info' || entry.source === 'warn') {
+    // Skip noisy internal entries
+    if (/Stage \d+ completed/i.test(details) || /^\d+ doc\(s\)/i.test(details)) return null;
+    if (/^Total:/i.test(details) || /PDF.*bundl/i.test(details) || /Fetched \w+:/i.test(details)) return null;
+
+    if (/County.*specific.*CAD/i.test(details) || /County clerk records available/i.test(details))
+      return { id, ts, level: 'success', message: details };
+    if (/No county-specific/i.test(details))
+      return { id, ts, level: 'warn', message: details };
+
+    if (/Found:.*conf\s/i.test(details)) {
+      const ownerMatch = details.match(/Found:\s*(.+?)\s*·/);
+      const idMatch = details.match(/ID\s+(\S+)/);
+      const acreMatch = details.match(/([\d.]+)\s*ac/);
+      const parts: string[] = [];
+      if (ownerMatch) parts.push(`Owner: ${ownerMatch[1]}`);
+      if (idMatch) parts.push(`Property ID: ${idMatch[1]}`);
+      if (acreMatch) parts.push(`${acreMatch[1]} acres`);
+      return { id, ts, level: 'success', message: `Found the property! ${parts.join(', ')}` };
+    }
+    if (/CAD lookup failed/i.test(details))
+      return { id, ts, level: 'warn', message: 'Property not found in county appraisal records — searching clerk records instead...' };
+    if (/Direct ID lookup/i.test(details))
+      return { id, ts, level: 'info', message: `Looking up property by ID: ${details.replace(/Direct ID lookup:\s*/i, '')}` };
+
+    if (/Instruments:/i.test(details)) {
+      const count = (details.match(/\(/g) || []).length;
+      return { id, ts, level: 'success', message: `Retrieved ${count} deed document${count !== 1 ? 's' : ''} from county clerk records!` };
+    }
+    if (/Owner-name:.*doc/i.test(details)) {
+      const docCount = details.match(/(\d+)\s*doc/)?.[1] || '0';
+      return { id, ts, level: 'success', message: `Owner name search found ${docCount} document${docCount !== '1' ? 's' : ''} in clerk records.` };
+    }
+    if (/No documents found for/i.test(details)) {
+      const name = details.match(/for\s+"([^"]+)"/)?.[1] || 'owner';
+      return { id, ts, level: 'warn', message: `No clerk records found under "${name}". Trying alternative search methods...` };
+    }
+    if (/trying address-based/i.test(details))
+      return { id, ts, level: 'info', message: 'Searching county clerk records by property address...' };
+    if (/Address search found/i.test(details)) {
+      const count = details.match(/(\d+)/)?.[1] || '0';
+      return { id, ts, level: 'success', message: `Address search found ${count} document${count !== '1' ? 's' : ''} in clerk records!` };
+    }
+    if (/trying SUPERSEARCH/i.test(details))
+      return { id, ts, level: 'info', message: 'Running broad full-text search for additional related documents...' };
+    if (/SUPERSEARCH found/i.test(details)) {
+      const count = details.match(/(\d+)/)?.[1] || '0';
+      return { id, ts, level: 'success', message: `Broad search found ${count} additional document${count !== '1' ? 's' : ''}!` };
+    }
+    if (/No plats found.*searching clerk/i.test(details))
+      return { id, ts, level: 'info', message: 'Searching county clerk for subdivision plat documents...' };
+    if (/Plat search found/i.test(details)) {
+      const count = details.match(/(\d+)/)?.[1] || '0';
+      return { id, ts, level: 'success', message: `Found ${count} plat document${count !== '1' ? 's' : ''} for the subdivision!` };
+    }
+    if (/Plat:.*\(/i.test(details)) {
+      const name = details.match(/Plat:\s*"([^"]+)"/)?.[1] || 'subdivision';
+      return { id, ts, level: 'success', message: `Found plat: "${name}" from the county plat repository.` };
+    }
+    if (/Stage 3: AI extraction/i.test(details))
+      return { id, ts, level: 'progress', message: 'Starting AI document analysis and data extraction...' };
+    if (/Extraction:.*calls/i.test(details)) {
+      const callMatch = details.match(/(\d+)\s*calls/);
+      return callMatch
+        ? { id, ts, level: 'success', message: `AI extracted ${callMatch[1]} boundary calls from the documents!` }
+        : { id, ts, level: 'info', message: 'AI extraction complete.' };
+    }
+    if (/no boundary/i.test(details))
+      return { id, ts, level: 'info', message: 'No boundary calls found — may be a lot-and-block or reference-only description.' };
+    if (/Geometric Reconciliation/i.test(details))
+      return { id, ts, level: 'progress', message: 'Cross-checking document data against plat geometry...' };
+    if (/Reconciliation:.*confirmed/i.test(details)) {
+      const confirmed = details.match(/(\d+)\s*confirmed/)?.[1] || '0';
+      const conflicts = details.match(/(\d+)\s*conflicts/)?.[1] || '0';
+      const pct = details.match(/(\d+)%/)?.[1] || '0';
+      return conflicts === '0'
+        ? { id, ts, level: 'success', message: `Geometry check: all ${confirmed} data points confirmed (${pct}% agreement). ✓` }
+        : { id, ts, level: 'warn', message: `Geometry check: ${confirmed} confirmed, ${conflicts} conflict(s) (${pct}% agreement) — flagged for review.` };
+    }
+    if (/No plat image available/i.test(details))
+      return { id, ts, level: 'info', message: 'No plat image available — skipping geometry reconciliation.' };
+    if (/STAGE 4.*Validation/i.test(details))
+      return { id, ts, level: 'progress', message: 'Running final validation checks...' };
+    if (/Quality:/i.test(details)) {
+      const quality = details.match(/Quality:\s*(\w+)/)?.[1] || 'unknown';
+      const flags = details.match(/Flags:\s*(\d+)/)?.[1] || '0';
+      return (quality === 'excellent' || quality === 'good')
+        ? { id, ts, level: 'success', message: `Validation passed! Quality: ${quality}${flags !== '0' ? ` (${flags} minor flag${flags !== '1' ? 's' : ''})` : ''}.` }
+        : { id, ts, level: 'warn', message: `Validation: ${quality} quality${flags !== '0' ? ` with ${flags} flag${flags !== '1' ? 's' : ''}` : ''}. Some data may need review.` };
+    }
+    if (/Pipeline (COMPLETE|PARTIAL|FAILED)/i.test(details)) return null;
+    if (/Processing:.*KB/i.test(details) && layer === 'UserFiles')
+      return { id, ts, level: 'info', message: `Processing uploaded file: ${details.replace('Processing: ', '')}` };
+    if (/Processed.*user files/i.test(details)) {
+      const count = details.match(/(\d+)/)?.[1] || '0';
+      return { id, ts, level: 'success', message: `Processed ${count} uploaded file${count !== '1' ? 's' : ''}.` };
+    }
+    if (entry.source === 'warn' && /WARNING:/i.test(details)) {
+      const msg = details.replace(/^WARNING:\s*/i, '');
+      if (/Instrument errors/i.test(msg) || /capping/i.test(msg)) return null;
+      return { id, ts, level: 'warn', message: msg };
+    }
+    return null;
+  }
+
+  // ── Structured attempt entries ──────────────────────────────────────────
+  if (entry.status === 'fail') {
+    const errText = entry.error || '';
+    if (/timeout/i.test(errText))
+      return { id, ts, level: 'warn', message: 'A search is taking longer than expected. Moving on to other sources.' };
+    if (/not found|no results|empty/i.test(errText))
+      return { id, ts, level: 'warn', message: `No matches from ${entry.source || 'this source'}. Checking other sources.` };
+    if (/error/i.test(entry.source)) return null;
+    return { id, ts, level: 'warn', message: `Issue with ${entry.source || 'a source'}. Continuing with other resources.` };
+  }
+  if (entry.status === 'skip') return null;
+
+  const pts = entry.dataPointsFound;
+  if (entry.status === 'success' && pts > 0) {
+    const src = entry.source || 'a source';
+    if (/cad/i.test(src) || /property/i.test(entry.method))
+      return { id, ts, level: 'success', message: `Found ${pts} data point${pts !== 1 ? 's' : ''} from county appraisal records!` };
+    if (/clerk|kofile/i.test(src))
+      return { id, ts, level: 'success', message: `Found ${pts} data point${pts !== 1 ? 's' : ''} from county clerk records!` };
+    return { id, ts, level: 'success', message: `Extracted ${pts} data point${pts !== 1 ? 's' : ''} from ${src}.` };
+  }
+  if (entry.status === 'partial')
+    return { id, ts, level: 'info', message: `Got partial results from ${entry.source || 'a source'} — using what was available.` };
+
+  return null;
+}
+
+/** Generate a stage-transition friendly message when the pipeline enters a new stage */
+function stageTransitionMessage(stage: MicroStageId, docCount: number): FriendlyLog {
+  const ts = Date.now();
+  const id = `stage-${stage}-${ts}`;
+  switch (stage) {
+    case 'compiling':
+      return { id, ts, level: 'progress', message: 'Starting up! Searching for all available property records and resources...' };
+    case 'validating':
+      return { id, ts, level: 'progress', message: `Found ${docCount} resource${docCount !== 1 ? 's' : ''} so far. Verifying all records relate to the correct property...` };
+    case 'analyzing':
+      return { id, ts, level: 'progress', message: 'Analyzing each document and resource in detail...' };
+    case 'extracting':
+      return { id, ts, level: 'progress', message: 'Extracting key data points — legal descriptions, boundaries, ownership info...' };
+    case 'compiling_data':
+      return { id, ts, level: 'progress', message: 'Organizing all extracted data into a structured format...' };
+    case 'validating_data':
+      return { id, ts, level: 'progress', message: 'Cross-referencing data across sources to check for consistency...' };
+    case 'resource_summary':
+      return { id, ts, level: 'progress', message: 'Building individual summaries for each resource...' };
+    case 'final_summary':
+      return { id, ts, level: 'progress', message: 'Almost done! Compiling the final research summary...' };
+  }
+}
 
 function inferMicroStage(message: string | undefined, status: string | null, docCount: number): MicroStageId {
   if (!status || status === 'starting') return 'compiling';
@@ -211,6 +384,7 @@ export default function ResearchRunPanel({
   const [currentMicroStage, setCurrentMicroStage] = useState<MicroStageId>('compiling');
   const [currentMessage, setCurrentMessage] = useState('Starting research pipeline…');
   const [logs, setLogs] = useState<PipelineLogEntry[]>([]);
+  const [friendlyLogs, setFriendlyLogs] = useState<FriendlyLog[]>([]);
   const [logFilter, setLogFilter] = useState<LogFilter>('all');
   const [allCopied, setAllCopied] = useState(false);
   const [failureReason, setFailureReason] = useState<string | null>(null);
@@ -219,9 +393,13 @@ export default function ResearchRunPanel({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoStartFiredRef = useRef(false);
   const logScrollRef = useRef<HTMLDivElement>(null);
+  const friendlyScrollRef = useRef<HTMLDivElement>(null);
   const userScrolledUpRef = useRef(false);
+  const friendlyUserScrolledRef = useRef(false);
   const consecutive404Ref = useRef(0);
   const docCountRef = useRef(0);
+  const processedLogCountRef = useRef(0);
+  const prevMicroStageRef = useRef<MicroStageId | null>(null);
 
   // Track whether the user has scrolled up in the log viewer (pause auto-scroll)
   function handleLogScroll(e: React.UIEvent<HTMLDivElement>) {
@@ -230,12 +408,25 @@ export default function ResearchRunPanel({
     userScrolledUpRef.current = !atBottom;
   }
 
+  function handleFriendlyScroll(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    friendlyUserScrolledRef.current = !atBottom;
+  }
+
   // Auto-scroll when new log entries arrive
   useEffect(() => {
     if (!userScrolledUpRef.current && logScrollRef.current) {
       logScrollRef.current.scrollTop = logScrollRef.current.scrollHeight;
     }
   }, [logs]);
+
+  // Auto-scroll friendly log stream
+  useEffect(() => {
+    if (!friendlyUserScrolledRef.current && friendlyScrollRef.current) {
+      friendlyScrollRef.current.scrollTop = friendlyScrollRef.current.scrollHeight;
+    }
+  }, [friendlyLogs]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -291,6 +482,28 @@ export default function ResearchRunPanel({
       const stage = inferMicroStage(data.message, normalizedStatus, docCount);
       setCurrentMicroStage(stage);
 
+      // ── Generate friendly log entries from new raw pipeline log entries ──
+      if (data.log && data.log.length > processedLogCountRef.current) {
+        const newEntries = data.log.slice(processedLogCountRef.current);
+        processedLogCountRef.current = data.log.length;
+        const newFriendly: FriendlyLog[] = [];
+        for (const entry of newEntries) {
+          const friendly = logEntryToFriendly(entry);
+          if (friendly) newFriendly.push(friendly);
+        }
+        if (newFriendly.length > 0) {
+          setFriendlyLogs(prev => [...prev, ...newFriendly]);
+        }
+      }
+
+      // Add stage transition message when stage changes
+      if (prevMicroStageRef.current !== stage) {
+        if (prevMicroStageRef.current !== null) {
+          setFriendlyLogs(prev => [...prev, stageTransitionMessage(stage, docCount)]);
+        }
+        prevMicroStageRef.current = stage;
+      }
+
       // Update the friendly current message
       if (data.message) {
         setCurrentMessage(data.message);
@@ -308,6 +521,24 @@ export default function ResearchRunPanel({
         );
         stopPolling();
         if (data.failureReason) setFailureReason(data.failureReason);
+        // Add completion friendly log
+        if (normalizedStatus === 'success' || normalizedStatus === 'partial') {
+          const totalDocs = data.documents?.length ?? data.result?.documentCount ?? 0;
+          const totalPts = data.log?.reduce((sum, l) => sum + l.dataPointsFound, 0) ?? 0;
+          setFriendlyLogs(prev => [...prev, {
+            id: `complete-success-${Date.now()}`,
+            ts: Date.now(),
+            level: 'success',
+            message: `Research complete! Analyzed ${totalDocs} resource${totalDocs !== 1 ? 's' : ''} and extracted ${totalPts} data point${totalPts !== 1 ? 's' : ''}.`,
+          }]);
+        } else if (normalizedStatus === 'failed') {
+          setFriendlyLogs(prev => [...prev, {
+            id: `complete-fail-${Date.now()}`,
+            ts: Date.now(),
+            level: 'warn',
+            message: data.failureReason || 'Research pipeline encountered an error. Some results may still be available.',
+          }]);
+        }
         onPipelineComplete?.(normalizedStatus);
       }
     } catch (err) {
@@ -322,6 +553,14 @@ export default function ResearchRunPanel({
     setStarted(true);
     setCurrentMessage('Starting research pipeline…');
     setPipelineStatus('starting');
+    processedLogCountRef.current = 0;
+    prevMicroStageRef.current = null;
+    setFriendlyLogs([{
+      id: `init-${Date.now()}`,
+      ts: Date.now(),
+      level: 'progress',
+      message: 'Initiating Research & Analysis pipeline...',
+    }]);
 
     const payload = {
       address: address?.trim() || undefined,
@@ -346,6 +585,12 @@ export default function ResearchRunPanel({
         console.log(
           `[ResearchRunPanel] ${projectId}: pipeline started OK — pollUrl=${data.pollUrl ?? `/api/admin/research/${projectId}/pipeline`}`,
         );
+        setFriendlyLogs(prev => [...prev, {
+          id: `started-${Date.now()}`,
+          ts: Date.now(),
+          level: 'success',
+          message: 'Pipeline started! Searching for property records and resources...',
+        }]);
         setPipelineStatus('running');
         onPipelineStart?.();
         stopPolling();
@@ -538,11 +783,57 @@ export default function ResearchRunPanel({
         )}
       </div>
 
-      {/* ── Element 2: Raw Log Viewer ── */}
+      {/* ── Element 2: Live Activity Stream (friendly human-readable logs) ── */}
+      {friendlyLogs.length > 0 && (
+        <div className="rrp__activity">
+          <div className="rrp__activity-header">
+            <span className="rrp__activity-title">
+              {isRunning ? '⚡ Live Activity' : '📋 Activity Log'}
+            </span>
+            {isRunning && <span className="rrp__logviewer-live">LIVE</span>}
+          </div>
+          <div
+            className="rrp__activity-stream"
+            ref={friendlyScrollRef}
+            onScroll={handleFriendlyScroll}
+          >
+            {friendlyLogs.map((entry) => (
+              <div
+                key={entry.id}
+                className={`rrp__activity-entry rrp__activity-entry--${entry.level}`}
+              >
+                <span className="rrp__activity-time">
+                  {new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+                <span className="rrp__activity-icon">
+                  {entry.level === 'success' ? '✅' :
+                   entry.level === 'warn'    ? '⚠️' :
+                   entry.level === 'progress'? '➡️' :
+                   'ℹ️'}
+                </span>
+                <span className="rrp__activity-msg">{entry.message}</span>
+              </div>
+            ))}
+            {isRunning && (
+              <div className="rrp__activity-entry rrp__activity-entry--typing">
+                <span className="rrp__activity-time">&nbsp;</span>
+                <span className="rrp__activity-icon">&nbsp;</span>
+                <span className="rrp__activity-dots">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Element 3: Raw Log Viewer (technical details) ── */}
       <div className="rrp__logviewer">
         <div className="rrp__logviewer-header">
           <div className="rrp__logviewer-header-left">
-            <span className="rrp__logviewer-title">Research Logs</span>
+            <span className="rrp__logviewer-title">Technical Logs</span>
             {logs.length > 0 && (
               <span className="rrp__logviewer-count">{logs.length}</span>
             )}
@@ -851,6 +1142,63 @@ export default function ResearchRunPanel({
 .rrp__log-detail-row code { background: #f3f4f6; padding: 0 4px; border-radius: 3px; }
 .rrp__log-detail-row--error { color: #dc2626; }
 .rrp__log-detail-row--step { color: #6b7280; padding-left: 0.5rem; }
+
+/* ── Live Activity Stream ────────────────────────────────────── */
+.rrp__activity {
+  width: 100%;
+  border: 1.5px solid #3b82f6;
+  border-radius: 10px;
+  background: #eff6ff;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.1);
+  margin-bottom: 1rem;
+}
+.rrp__activity-header {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  background: #dbeafe; border-bottom: 1px solid #bfdbfe;
+}
+.rrp__activity-title {
+  font-weight: 700; font-size: 0.85rem; color: #1e40af; flex: 1;
+}
+.rrp__activity-stream {
+  max-height: 320px; overflow-y: auto;
+  padding: 0.4rem 0;
+}
+.rrp__activity-entry {
+  display: flex; align-items: baseline; gap: 0.5rem;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.875rem; line-height: 1.4;
+  border-bottom: 1px solid rgba(59,130,246,0.1);
+  transition: background 0.1s;
+}
+.rrp__activity-entry:last-child { border-bottom: none; }
+.rrp__activity-entry--success { background: rgba(16,185,129,0.05); }
+.rrp__activity-entry--warn    { background: rgba(245,158,11,0.07); }
+.rrp__activity-entry--progress{ background: rgba(59,130,246,0.06); }
+.rrp__activity-entry--info    { background: transparent; }
+.rrp__activity-time {
+  color: #94a3b8; font-size: 0.72rem; white-space: nowrap;
+  font-variant-numeric: tabular-nums; flex-shrink: 0;
+}
+.rrp__activity-icon { flex-shrink: 0; font-size: 0.9rem; }
+.rrp__activity-msg  { color: #1e293b; flex: 1; }
+.rrp__activity-entry--success .rrp__activity-msg { color: #065f46; font-weight: 500; }
+.rrp__activity-entry--warn    .rrp__activity-msg { color: #92400e; }
+.rrp__activity-entry--progress.rrp__activity-msg { color: #1d4ed8; }
+.rrp__activity-entry--typing {
+  padding: 0.4rem 0.85rem;
+}
+.rrp__activity-dots {
+  display: flex; gap: 4px; padding-left: 2px;
+}
+.rrp__activity-dots span {
+  width: 7px; height: 7px; border-radius: 50%; background: #60a5fa;
+  animation: rrp-bounce 1.2s infinite both;
+}
+.rrp__activity-dots span:nth-child(2) { animation-delay: 0.2s; }
+.rrp__activity-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes rrp-bounce { 0%,80%,100% { transform: scale(0.7); opacity: 0.5; } 40% { transform: scale(1); opacity: 1; } }
       `}</style>
     </>
   );
