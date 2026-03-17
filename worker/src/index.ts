@@ -451,7 +451,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         const durationSec = (r.durationMs / 1000).toFixed(1);
         const errorCount = r.errors?.length ?? 0;
         console.log(
-          `[Worker] ${projectId} (${county}, county-specific): COMPLETE duration=${durationSec}s errors=${errorCount} confidence=${r.overallConfidence?.toFixed(2) ?? 'n/a'}`,
+          `[Worker] ${projectId} (${county}, county-specific): COMPLETE duration=${durationSec}s errors=${errorCount} confidence=${r.overallConfidence?.score?.toFixed(2) ?? r.overallConfidence?.tier ?? 'n/a'}`,
         );
         // Persist error log entries to Supabase for county-specific pipelines
         // so the Review stage can show them after a page refresh.
