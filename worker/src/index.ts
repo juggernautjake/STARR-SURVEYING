@@ -604,6 +604,38 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
           : `status=complete county=${unifiedResult.county}`)
         .success(0, `[Worker→Frontend] Pipeline finished — results ready`);
       console.log(`[Worker] ${projectId} → Frontend: pipeline complete handshake emitted`);
+
+      // ── Save verification handshake entries (captured before live-log clear) ──
+      // Emit structured entries announcing what will be saved to the review DB.
+      // These are captured below in capturedLiveLog so the frontend log viewer
+      // can show them when the user loads the review page.
+      if (unifiedResult.resultType === 'generic-pipeline') {
+        const rv = unifiedResult.data;
+        const docsToSave = rv.documents?.filter((d) => !d.fromUserUpload).length ?? 0;
+        const hasReport  = !!rv.masterReportText;
+        const ocrCount   = rv.documents?.filter((d) => d.ocrText).length ?? 0;
+        const aiCount    = rv.documents?.filter((d) => d.extractedData).length ?? 0;
+        const urlCount   = rv.documents?.filter((d) => d.ref?.url).length ?? 0;
+        handshakeLogger.attempt('[Save Check]', 'info', 'Persisting Documents',
+          `${docsToSave} research documents → review database`)
+          .success(docsToSave,
+            docsToSave > 0
+              ? `Saving ${docsToSave} documents to review DB (OCR: ${ocrCount}, AI extracted: ${aiCount}, source URLs: ${urlCount})`
+              : '⚠ No documents to save — pipeline found 0 documents from research sources');
+        if (hasReport) {
+          handshakeLogger.attempt('[Save Check]', 'info', 'Persisting AI Summary',
+            `masterReportText: ${rv.masterReportText!.length} chars`)
+            .success(1, `AI master report (${rv.masterReportText!.length} chars) saved to analysis_metadata`);
+        } else {
+          handshakeLogger.attempt('[Save Check]', 'warn', 'No AI Summary',
+            'masterReportText is empty')
+            .warn('⚠ No master report text — Stage 5/6 may have been skipped or failed. Review summary will show auto-generated fallback.');
+        }
+        console.log(
+          `[Worker] ${projectId}: save check — docs=${docsToSave} hasReport=${hasReport} ocr=${ocrCount} aiExtracted=${aiCount} urls=${urlCount}`,
+        );
+      }
+
       // Capture live log entries before clearing — needed for county-specific pipelines
       // which don't have their own LayerAttempt-format log the way generic pipelines do.
       const capturedLiveLog = getLiveLogForProject(projectId) ?? [];
@@ -615,6 +647,13 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         console.log(
           `[Worker] ${projectId} (${county}, generic): COMPLETE status=${r.status.toUpperCase()} duration=${durationSec}s docs=${r.documents?.length ?? 0} logEntries=${r.log?.length ?? 0}`,
         );
+        // ── Cache handshake entries so logs endpoint can serve them ──────────
+        // capturedLiveLog contains the handshake/save-check entries emitted
+        // just before live-log-clear.  Store them in completedLogs so the
+        // /research/logs/ endpoint can merge them with result.log.
+        if (capturedLiveLog.length > 0) {
+          completedLogs.set(projectId, capturedLiveLog);
+        }
         // Persist log to Supabase so the frontend can retrieve it after page refresh.
         // Fire-and-forget — a save failure must never affect the completed result.
         if (r.log.length > 0) {
@@ -909,7 +948,14 @@ app.get('/research/logs/:projectId', requireAuth, async (req: Request, res: Resp
   if (completedResults.has(projectId)) {
     const unified = completedResults.get(projectId)!;
     if (unified.resultType === 'generic-pipeline') {
-      res.json({ projectId, log: unified.data.log });
+      // Merge pipeline log (result.log) with handshake/save-check entries
+      // captured at completion (stored in completedLogs for generic pipelines).
+      const pipelineLog = unified.data.log ?? [];
+      const handshakeEntries = completedLogs.get(projectId) ?? [];
+      const mergedLog = handshakeEntries.length > 0
+        ? [...pipelineLog, ...handshakeEntries]
+        : pipelineLog;
+      res.json({ projectId, log: mergedLog });
     } else {
       // County-specific results: serve from the in-memory cache populated at completion.
       res.json({ projectId, log: completedLogs.get(projectId) ?? [] });
@@ -995,7 +1041,9 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
             verified: d.extractedData.verified,
           } : null,
         })),
-        log: result.log,
+        log: completedLogs.has(projectId)
+          ? [...result.log, ...completedLogs.get(projectId)!]
+          : result.log,
         failureReason: result.failureReason,
         masterReportText: result.masterReportText,
       });
