@@ -8789,3 +8789,358 @@
     border: 1px solid #ccc !important;
   }
 }
+
+/* ── Stage 3 Review — Summary Panel with Tabs ─────────────────── */
+
+.review-summary-panel {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+
+.review-summary-panel__tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  overflow-x: auto;
+}
+
+.review-summary-panel__tab {
+  padding: 0.6rem 1rem;
+  border: none;
+  background: transparent;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.review-summary-panel__tab:hover { color: #1e293b; }
+.review-summary-panel__tab--active {
+  color: #1d4ed8;
+  border-bottom-color: #1d4ed8;
+  background: #fff;
+}
+.review-summary-panel__tab-badge {
+  background: #fef9c3;
+  border: 1px solid #fde047;
+  border-radius: 10px;
+  padding: 0 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #854d0e;
+}
+
+.review-summary-panel__body {
+  padding: 1rem 1.25rem;
+}
+
+.review-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Stats row */
+.review-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+.review-stat {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.45rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 100px;
+}
+.review-stat--warn { background: #fffbeb; border-color: #fde68a; }
+.review-stat__label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.review-stat__value {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* Legal description block */
+.review-legal-desc {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #3b82f6;
+  border-radius: 0 8px 8px 0;
+  padding: 0.65rem 0.9rem;
+}
+.review-legal-desc__label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.35rem;
+}
+.review-legal-desc__text {
+  font-size: 0.88rem;
+  color: #374151;
+  line-height: 1.6;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Narrative summary */
+.review-narrative {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+.review-narrative__label {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.45rem;
+}
+.review-narrative__text {
+  font-size: 0.9rem;
+  color: #1e293b;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+/* Property Info grid */
+.review-property-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+.review-property-field {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.6rem 0.85rem;
+}
+.review-property-field--wide {
+  grid-column: 1 / -1;
+}
+.review-property-field__label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.25rem;
+}
+.review-property-field__value {
+  font-size: 0.9rem;
+  color: #1e293b;
+  font-weight: 500;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* ── Stage 3 Review — Log Section ─────────────────────────────── */
+
+.review-log-section {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+.review-log-section__header {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.review-log-section__title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #1e293b;
+}
+
+/* ── Stage 3 Review — Document List ──────────────────────────── */
+
+.review-doc-list {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+.review-doc-list__header {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.review-doc-list__title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #1e293b;
+}
+.review-doc-list__count {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.review-doc-group {
+  border-bottom: 1px solid #f1f5f9;
+}
+.review-doc-group:last-child { border-bottom: none; }
+.review-doc-group__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  background: #fafafa;
+  border-bottom: 1px solid #f1f5f9;
+}
+.review-doc-group__label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #374151;
+}
+.review-doc-group__count {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+
+/* Collapsible document card */
+.review-doc-card {
+  border-bottom: 1px solid #f3f4f6;
+}
+.review-doc-card:last-child { border-bottom: none; }
+.review-doc-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  transition: background 0.1s;
+  flex-wrap: nowrap;
+}
+.review-doc-card__header:hover { background: #f9fafb; }
+.review-doc-card--open .review-doc-card__header { background: #eff6ff; }
+
+.review-doc-card__icon { font-size: 1.1rem; flex-shrink: 0; }
+.review-doc-card__title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111827;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.review-doc-card__type {
+  font-size: 0.72rem;
+  color: #6b7280;
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 1px 7px;
+  flex-shrink: 0;
+}
+.review-doc-card__badge {
+  font-size: 0.7rem;
+  border-radius: 8px;
+  padding: 1px 7px;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+.review-doc-card__badge--ok { color: #059669; background: #d1fae5; }
+.review-doc-card__badge--err { color: #dc2626; background: #fee2e2; }
+.review-doc-card__chevron {
+  color: #94a3b8;
+  font-size: 0.7rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.review-doc-card__body {
+  padding: 0.65rem 1rem 0.85rem 1rem;
+  border-top: 1px dashed #e5e7eb;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.review-doc-card__excerpt {
+  font-size: 0.82rem;
+  color: #4b5563;
+  line-height: 1.55;
+  background: #f8fafc;
+  border-left: 3px solid #bfdbfe;
+  padding-left: 0.5rem;
+  border-radius: 0 4px 4px 0;
+}
+.review-doc-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.85rem;
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+.review-doc-card__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.review-doc-card__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  border-radius: 0.3rem;
+  padding: 0.25rem 0.65rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+.review-doc-card__action--link {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+.review-doc-card__action--view {
+  color: #7c3aed;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+}
+.review-doc-card__action--link:hover { background: #dbeafe; }
+.review-doc-card__action--view:hover { background: #ede9fe; }
