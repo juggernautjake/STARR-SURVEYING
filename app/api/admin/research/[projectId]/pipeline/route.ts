@@ -136,7 +136,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   console.log(
-    `[pipeline/route] POST ${projectId}: worker accepted — status=${workerData.status ?? 'running'}`,
+    `[pipeline/route] POST ${projectId}: worker accepted — status=${workerData.status ?? 'running'} (Frontend → Backend → Worker handshake complete)`,
   );
 
   return NextResponse.json({
@@ -174,13 +174,21 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Worker error' }, { status: 502 });
   }
 
-  const data = await workerRes.json() as { status?: string; log?: unknown[]; message?: string };
+  const data = await workerRes.json() as { status?: string; log?: unknown[]; message?: string; currentStage?: string };
 
   // Log non-trivial status changes (not on every poll to avoid noise)
   if (data.status && data.status !== 'running') {
     console.log(
       `[pipeline/route] GET ${projectId}: status=${data.status} logEntries=${data.log?.length ?? 0}`,
     );
+  } else {
+    // Log running status with log count so we can confirm data is flowing
+    const logCount = data.log?.length ?? 0;
+    if (logCount > 0) {
+      console.log(
+        `[pipeline/route] GET ${projectId}: forwarding live data — status=${data.status ?? 'running'} logEntries=${logCount} stage="${data.currentStage ?? data.message?.slice(0, 40) ?? 'unknown'}"`,
+      );
+    }
   }
 
   return NextResponse.json(data);
