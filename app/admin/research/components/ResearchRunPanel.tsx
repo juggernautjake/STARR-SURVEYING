@@ -112,10 +112,14 @@ type LogFilter = 'all' | 'errors' | 'warn' | 'info';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Counter to guarantee unique friendly-log IDs even for burst entries with identical timestamps.
+let _friendlyIdSeq = 0;
+
 /** Convert a raw pipeline log entry to a human-readable friendly message, or
  *  null if the entry is too noisy / internal to be worth surfacing. */
 function logEntryToFriendly(entry: PipelineLogEntry): FriendlyLog | null {
-  const id = `${entry.layer}-${entry.source}-${entry.timestamp || Date.now()}`;
+  const seq = ++_friendlyIdSeq;
+  const id = `${entry.layer}-${entry.source}-${entry.timestamp || ''}-${seq}`;
   const ts = entry.timestamp ? new Date(entry.timestamp).getTime() : Date.now();
   const details = entry.details || '';
   const layer = entry.layer || '';
@@ -256,7 +260,7 @@ function logEntryToFriendly(entry: PipelineLogEntry): FriendlyLog | null {
 /** Generate a stage-transition friendly message when the pipeline enters a new stage */
 function stageTransitionMessage(stage: MicroStageId, docCount: number): FriendlyLog {
   const ts = Date.now();
-  const id = `stage-${stage}-${ts}`;
+  const id = `stage-${stage}-${ts}-${++_friendlyIdSeq}`;
   switch (stage) {
     case 'compiling':
       return { id, ts, level: 'progress', message: 'Starting up! Searching for all available property records and resources...' };

@@ -8,7 +8,7 @@ import path from 'path';
 import express from 'express';
 import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile } from './types/index.js';
-import { runPipeline, getSupabase, getRunningMessage } from './services/pipeline.js';
+import { runPipeline, getSupabase, getRunningMessage, setRunningMessage } from './services/pipeline.js';
 import { getLiveLogForProject, clearLiveLogForProject } from './lib/logger.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
@@ -177,7 +177,7 @@ function normDocType(rawType: string | null | undefined): string {
   if (!rawType) return 'other';
   const lower = rawType.toLowerCase();
   if (/warranty deed|general warranty|deed of trust|trustee.*deed|deed/i.test(lower)) return 'deed';
-  if (/subdivision plat|plat/i.test(lower)) return rawType.toLowerCase().includes('subdivision') ? 'subdivision_plat' : 'plat';
+  if (/subdivision plat|plat/i.test(lower)) return lower.includes('subdivision') ? 'subdivision_plat' : 'plat';
   if (/survey/i.test(lower)) return 'survey';
   if (/legal desc/i.test(lower)) return 'legal_description';
   if (/easement/i.test(lower)) return 'easement';
@@ -191,6 +191,160 @@ function normDocType(rawType: string | null | undefined): string {
   if (/topo|topographic/i.test(lower)) return 'topo_map';
   if (/utility/i.test(lower)) return 'utility_map';
   return 'other';
+}
+
+
+// ── persistCountyResults ───────────────────────────────────────────────────
+// Saves a completed Bell County research result to Supabase so the Review
+// stage can display it after page refresh.
+//
+// Three writes:
+//   1. analysis_metadata on research_projects — summary, owner, acreage, etc.
+//   2. Delete + re-insert research_documents rows for deed records.
+//   3. Delete + re-insert research_documents rows for plat records.
+
+async function persistCountyResults(
+  projectId: string,
+  r: import('./counties/bell/types/research-result.js').BellResearchResult,
+): Promise<void> {
+  const supabase = await getSupabase();
+  if (!supabase) {
+    console.warn(`[Worker] ${projectId}: persistCountyResults — Supabase not available`);
+    return;
+  }
+
+  // ── 1. Save analysis_metadata ──────────────────────────────────────
+  const now = new Date().toISOString();
+  const property = r.property;
+
+  // Fetch current metadata to avoid overwriting user-authored job_notes
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existingRow } = await (supabase as any)
+    .from('research_projects')
+    .select('analysis_metadata')
+    .eq('id', projectId)
+    .single();
+  const currentMeta = (existingRow?.analysis_metadata as Record<string, unknown>) ?? {};
+
+  const autoSummaryParts: string[] = [];
+  if (property.ownerName) autoSummaryParts.push(`Owner: ${property.ownerName}`);
+  if (property.propertyId) autoSummaryParts.push(`Property ID: ${property.propertyId}`);
+  if (property.acreage) autoSummaryParts.push(`Acreage: ${property.acreage} ac`);
+  if (property.legalDescription) autoSummaryParts.push(`Legal Description: ${property.legalDescription.slice(0, 300)}`);
+  const deedCount = r.deedsAndRecords.records.length;
+  const platCount = r.plats.plats.length;
+  if (deedCount > 0) autoSummaryParts.push(`${deedCount} deed record(s) retrieved`);
+  if (platCount > 0) autoSummaryParts.push(`${platCount} plat record(s) retrieved`);
+  if (r.discrepancies.length > 0) autoSummaryParts.push(`${r.discrepancies.length} discrepancy/ies flagged`);
+  const autoSummary = autoSummaryParts.join('\n') || 'Bell County research completed.';
+
+  const updatedMeta: Record<string, unknown> = {
+    ...currentMeta,
+    result: {
+      ownerName: property.ownerName || null,
+      propertyId: property.propertyId || null,
+      legalDescription: property.legalDescription || null,
+      acreage: property.acreage ?? null,
+      situsAddress: property.situsAddress || null,
+      documentCount: deedCount + platCount,
+      duration_ms: r.durationMs,
+      deedSummary: r.deedsAndRecords.summary || null,
+      platSummary: r.plats.summary || null,
+      easementSummary: r.easementsAndEncumbrances.summary || null,
+      discrepancyCount: r.discrepancies.length,
+      confidenceTier: r.overallConfidence.tier,
+      confidenceScore: r.overallConfidence.score,
+      finalSummary: autoSummary,
+      masterReportText: null,
+    },
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: metaErr } = await (supabase as any)
+    .from('research_projects')
+    .update({ analysis_metadata: updatedMeta })
+    .eq('id', projectId);
+  if (metaErr) {
+    console.warn(`[Worker] ${projectId}: failed to save county analysis_metadata: ${metaErr.message}`);
+  } else {
+    console.log(`[Worker] ${projectId}: saved county analysis_metadata to Supabase`);
+  }
+
+  // ── 2. Save deed records to research_documents ─────────────────────
+  // Delete previous property_search rows, then insert fresh ones.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
+    .from('research_documents')
+    .delete()
+    .eq('research_project_id', projectId)
+    .eq('source_type', 'property_search');
+
+  const docInserts: Record<string, unknown>[] = [];
+
+  for (const deed of r.deedsAndRecords.records) {
+    const instr = deed.instrumentNumber;
+    const volPage = deed.volume && deed.page ? `Vol. ${deed.volume}, Pg. ${deed.page}` : null;
+    const recordingInfo = [instr ? `Instrument No. ${instr}` : null, volPage].filter(Boolean).join(' — ') || null;
+    const grantorStr = deed.grantor ?? null;
+    const granteeStr = deed.grantee ?? null;
+    const partyStr = grantorStr && granteeStr ? ` — ${grantorStr} to ${granteeStr}` : (grantorStr ? ` — ${grantorStr}` : '');
+    const instrStr = instr ? ` (Instr. ${instr})` : '';
+    const docLabel = `${deed.documentType || 'Deed'}${partyStr}${instrStr}`;
+    const rawText = deed.legalDescription ?? deed.aiSummary ?? null;
+    const extractedText = rawText ? rawText.slice(0, MAX_EXTRACTED_TEXT_LENGTH) : null;
+
+    docInserts.push({
+      research_project_id: projectId,
+      source_type: 'property_search',
+      original_filename: docLabel,
+      file_type: 'pdf',
+      document_type: normDocType(deed.documentType),
+      document_label: deed.documentType || 'Deed',
+      recording_info: recordingInfo,
+      recorded_date: deed.recordingDate ?? null,
+      extracted_text: extractedText,
+      processing_status: deed.aiSummary ? 'analyzed' : 'extracted',
+      source_url: deed.sourceUrl ?? null,
+      created_at: now,
+      updated_at: now,
+    });
+  }
+
+  // ── 3. Save plat records to research_documents ─────────────────────
+  for (const plat of r.plats.plats) {
+    const instr = plat.instrumentNumber;
+    const instrStr = instr ? ` (Instr. ${instr})` : '';
+    const docLabel = `Plat: ${plat.name}${instrStr}`;
+    const rawText = plat.aiAnalysis ? JSON.stringify(plat.aiAnalysis).slice(0, MAX_EXTRACTED_TEXT_LENGTH) : null;
+
+    docInserts.push({
+      research_project_id: projectId,
+      source_type: 'property_search',
+      original_filename: docLabel,
+      file_type: 'pdf',
+      document_type: normDocType('plat'),
+      document_label: 'Subdivision Plat',
+      recording_info: instr ? `Instrument No. ${instr}` : null,
+      recorded_date: plat.date ?? null,
+      extracted_text: rawText,
+      processing_status: plat.aiAnalysis ? 'analyzed' : 'extracted',
+      source_url: plat.sourceUrl ?? null,
+      created_at: now,
+      updated_at: now,
+    });
+  }
+
+  if (docInserts.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: docsErr } = await (supabase as any)
+      .from('research_documents')
+      .insert(docInserts);
+    if (docsErr) {
+      console.warn(`[Worker] ${projectId}: failed to save county documents: ${docsErr.message}`);
+    } else {
+      console.log(`[Worker] ${projectId}: saved ${docInserts.length} county document(s) to Supabase`);
+    }
+  }
 }
 
 // ── Health Check ───────────────────────────────────────────────────────────
@@ -410,6 +564,13 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         pipeline.currentStage = progress.phase;
         pipeline.lastUpdate = progress.timestamp;
       }
+      // Push the latest phase message to the running-message cache so the status
+      // endpoint can return it as the `message` field. Without this, Bell County
+      // runs always return `message: undefined` and the frontend stays stuck on
+      // "Compiling Resources" (the default when no message is present).
+      if (typeof progress.message === 'string' && progress.message) {
+        setRunningMessage(projectId, `[${progress.phase}] ${progress.message}`);
+      }
       // Log key phase transitions (not every progress tick to avoid spam)
       if (typeof progress.message === 'string' && progress.message && !progress.message.startsWith('[')) {
         console.debug(`[Worker] ${projectId} [${progress.phase}]: ${progress.message.slice(0, 120)}`);
@@ -419,6 +580,9 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     .then(async (unifiedResult) => {
       completedResults.set(projectId, unifiedResult);
       activePipelines.delete(projectId);
+      // Capture live log entries before clearing — needed for county-specific pipelines
+      // which don't have their own LayerAttempt-format log the way generic pipelines do.
+      const capturedLiveLog = getLiveLogForProject(projectId) ?? [];
       clearLiveLogForProject(projectId);
 
       if (unifiedResult.resultType === 'generic-pipeline') {
@@ -621,35 +785,37 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         console.log(
           `[Worker] ${projectId} (${county}, county-specific): COMPLETE duration=${durationSec}s errors=${errorCount} confidence=${r.overallConfidence?.score?.toFixed(2) ?? r.overallConfidence?.tier ?? 'n/a'}`,
         );
-        // Persist error log entries to Supabase for county-specific pipelines
-        // so the Review stage can show them after a page refresh.
-        const countyLogEntries = r.errors?.map((e: { phase?: string; source?: string; message?: string; timestamp?: string }) => ({
-          layer: e.phase ?? 'County',
-          source: e.source ?? 'unknown',
-          method: 'error',
-          input: '',
-          status: 'fail' as const,
-          duration_ms: 0,
-          dataPointsFound: 0,
-          error: e.message ?? String(e),
-          timestamp: e.timestamp ?? new Date().toISOString(),
-        })) ?? [];
-        if (countyLogEntries.length > 0) {
-          console.log(`[Worker] ${projectId}: persisting ${countyLogEntries.length} error log entries to Supabase`);
+
+        // ── Persist live logs to Supabase for county-specific pipelines ────────
+        // capturedLiveLog holds the PipelineLogger entries emitted by the scrapers.
+        // These are the entries shown in the live log viewer; we persist them so
+        // the Review stage can reload them on page refresh.
+        const logsToSave = capturedLiveLog.length > 0 ? capturedLiveLog : [];
+        console.log(`[Worker] ${projectId}: persisting ${logsToSave.length} live log entries to Supabase`);
+        if (logsToSave.length > 0) {
           getSupabase()
             .then((supabase) => {
               if (!supabase) return;
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               return (supabase as any)
                 .from('research_projects')
-                .update({ research_logs: countyLogEntries })
+                .update({ research_logs: logsToSave })
                 .eq('id', projectId);
             })
             .catch((err: unknown) => {
               console.warn(`[Worker] ${projectId}: error saving county logs to Supabase:`, err instanceof Error ? err.message : String(err));
             });
         }
-        // Update project status to 'review' in Supabase for county-specific pipelines too.
+
+        // ── Persist results to Supabase ────────────────────────────────────────
+        // The Review stage reads from analysis_metadata and research_documents.
+        // Without this, all Bell County results are only in memory and disappear
+        // on page refresh.
+        persistCountyResults(projectId, r).catch((err: unknown) => {
+          console.warn(`[Worker] ${projectId}: persistCountyResults error:`, err instanceof Error ? err.message : String(err));
+        });
+
+        // ── Update project status to 'review' ─────────────────────────────────
         getSupabase()
           .then(async (supabase) => {
             if (!supabase) return;

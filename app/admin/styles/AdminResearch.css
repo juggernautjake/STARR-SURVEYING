@@ -22,6 +22,8 @@
   padding: 0;
   /* Add bottom padding to prevent FAB menu from obscuring action buttons */
   padding-bottom: 5rem;
+  /* Prevent horizontal overflow from long log messages / monospace content */
+  overflow-x: hidden;
 }
 
 /* Back navigation button — used at the top of each step to return to the previous step */
@@ -1390,11 +1392,13 @@
 .research-analyzing__log-entries {
   max-height: 300px;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 0.35rem 0;
   font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
   font-size: 0.74rem;
   line-height: 1.5;
   scroll-behavior: smooth;
+  word-break: break-word;
 }
 .research-analyzing__log-entry {
   display: flex;
