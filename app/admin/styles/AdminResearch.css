@@ -8441,6 +8441,9 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .research-stage2__launch {
@@ -8449,6 +8452,8 @@
   border-left: 4px solid var(--recon-brand);
   border-radius: 12px;
   padding: 1.5rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .research-stage2__launch-title {

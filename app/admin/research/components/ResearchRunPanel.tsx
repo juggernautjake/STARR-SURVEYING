@@ -124,6 +124,39 @@ function logEntryToFriendly(entry: PipelineLogEntry): FriendlyLog | null {
   const details = entry.details || '';
   const layer = entry.layer || '';
 
+  // ── Handshake entries — phase-transition confirmations from the worker ──
+  // These have source='handshake' and show real-time pipeline progress with
+  // explicit proof that the worker is sending data to the frontend.
+  if (entry.source === 'handshake') {
+    // Pipeline lifecycle handshakes (start / complete / fail)
+    if (layer === '[Pipeline Lifecycle]') {
+      if (/Pipeline Started/i.test(entry.method)) {
+        const county = details.match(/\[Worker→Frontend\].*for\s+(.+?)\s+County/i)?.[1] ?? '';
+        return { id, ts, level: 'progress', message: `🔄 Pipeline started${county ? ` for ${county} County` : ''} — worker confirmed` };
+      }
+      if (/Pipeline Complete/i.test(entry.method)) {
+        return { id, ts, level: 'success', message: `✅ Worker confirmed: pipeline complete — results ready for review` };
+      }
+      if (/Pipeline Failed/i.test(entry.method)) {
+        const errMsg = details.replace(/\[Worker→Frontend\]\s*/i, '').replace(/Pipeline crashed:\s*/i, '');
+        return { id, ts, level: 'warn', message: `⚠ Pipeline stopped: ${errMsg.slice(0, 120)}` };
+      }
+    }
+    // Phase-transition handshakes (layer='[Pipeline Phase]')
+    if (layer === '[Pipeline Phase]') {
+      const phase = entry.method || 'Unknown Phase';
+      const phaseFriendly = details
+        .replace(/^\[Worker→Frontend\]\s*/i, '')
+        .replace(new RegExp(`^${phase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\s*`, 'i'), '')
+        .slice(0, 120);
+      return {
+        id, ts, level: 'progress',
+        message: `🔄 Worker → ${phase}${phaseFriendly ? `: ${phaseFriendly}` : ''}`,
+      };
+    }
+    return null;
+  }
+
   // ── Info/warn convenience logs (source='info'/'warn', details = message) ──
   if (entry.source === 'info' || entry.source === 'warn') {
     // Skip noisy internal entries
@@ -486,6 +519,12 @@ export default function ResearchRunPanel({
       const stage = inferMicroStage(data.message, normalizedStatus, docCount);
       setCurrentMicroStage(stage);
 
+      // ── Frontend receipt confirmation — log every poll so we can verify
+      // that data is flowing from worker → API route → frontend.
+      console.log(
+        `[ResearchRunPanel] ${projectId} ← Worker: status=${normalizedStatus} logEntries=${newLogCount} stage="${stage}"`,
+      );
+
       // ── Generate friendly log entries from new raw pipeline log entries ──
       if (data.log && data.log.length > processedLogCountRef.current) {
         const newEntries = data.log.slice(processedLogCountRef.current);
@@ -495,6 +534,7 @@ export default function ResearchRunPanel({
           const friendly = logEntryToFriendly(entry);
           if (friendly) newFriendly.push(friendly);
         }
+        console.log(`[ResearchRunPanel] ${projectId} ← Worker: processed ${newEntries.length} new log entries, ${newFriendly.length} added to activity stream`);
         if (newFriendly.length > 0) {
           setFriendlyLogs(prev => [...prev, ...newFriendly]);
         }
@@ -514,10 +554,6 @@ export default function ResearchRunPanel({
       } else if (data.status === 'starting') {
         setCurrentMessage('Starting research pipeline…');
       }
-
-      console.debug(
-        `[ResearchRunPanel] ${projectId}: status=${normalizedStatus} stage=${stage} logs=${newLogCount} msg="${(data.message ?? '').slice(0, 80)}"`,
-      );
 
       if (normalizedStatus !== 'running' && normalizedStatus !== 'starting') {
         console.log(
@@ -587,7 +623,7 @@ export default function ResearchRunPanel({
       if (res.ok) {
         const data = await res.json().catch(() => ({})) as Record<string, unknown>;
         console.log(
-          `[ResearchRunPanel] ${projectId}: pipeline started OK — pollUrl=${data.pollUrl ?? `/api/admin/research/${projectId}/pipeline`}`,
+          `[ResearchRunPanel] ${projectId} → Backend: pipeline start confirmed — worker accepted request`,
         );
         setFriendlyLogs(prev => [...prev, {
           id: `started-${Date.now()}`,
@@ -1076,7 +1112,7 @@ export default function ResearchRunPanel({
 .rrp__logviewer-copy-btn:disabled { opacity: 0.5; cursor: default; }
 
 .rrp__logviewer-stream {
-  max-height: 420px; overflow-y: auto;
+  max-height: 420px; overflow-y: auto; overflow-x: hidden;
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: 0.78rem; line-height: 1.4;
 }
@@ -1142,8 +1178,9 @@ export default function ResearchRunPanel({
   padding: 0.35rem 0.75rem 0.45rem 1.5rem;
   border-top: 1px dashed #e5e7eb; background: #f8fafc;
   font-size: 0.76rem; line-height: 1.6; color: #374151; display: flex; flex-direction: column; gap: 3px;
+  overflow: hidden; word-break: break-word;
 }
-.rrp__log-detail-row code { background: #f3f4f6; padding: 0 4px; border-radius: 3px; }
+.rrp__log-detail-row code { background: #f3f4f6; padding: 0 4px; border-radius: 3px; word-break: break-all; overflow-wrap: break-word; }
 .rrp__log-detail-row--error { color: #dc2626; }
 .rrp__log-detail-row--step { color: #6b7280; padding-left: 0.5rem; }
 
@@ -1166,7 +1203,7 @@ export default function ResearchRunPanel({
   font-weight: 700; font-size: 0.85rem; color: #1e40af; flex: 1;
 }
 .rrp__activity-stream {
-  max-height: 320px; overflow-y: auto;
+  max-height: 320px; overflow-y: auto; overflow-x: hidden;
   padding: 0.4rem 0;
 }
 .rrp__activity-entry {
@@ -1186,7 +1223,7 @@ export default function ResearchRunPanel({
   font-variant-numeric: tabular-nums; flex-shrink: 0;
 }
 .rrp__activity-icon { flex-shrink: 0; font-size: 0.9rem; }
-.rrp__activity-msg  { color: #1e293b; flex: 1; }
+.rrp__activity-msg  { color: #1e293b; flex: 1; min-width: 0; overflow-wrap: break-word; word-break: break-word; }
 .rrp__activity-entry--success .rrp__activity-msg { color: #065f46; font-weight: 500; }
 .rrp__activity-entry--warn    .rrp__activity-msg { color: #92400e; }
 .rrp__activity-entry--progress .rrp__activity-msg { color: #1d4ed8; }
