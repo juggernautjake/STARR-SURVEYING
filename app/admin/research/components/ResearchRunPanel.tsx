@@ -1185,7 +1185,7 @@ export default function ResearchRunPanel({
 .rrp__activity-msg  { color: #1e293b; flex: 1; }
 .rrp__activity-entry--success .rrp__activity-msg { color: #065f46; font-weight: 500; }
 .rrp__activity-entry--warn    .rrp__activity-msg { color: #92400e; }
-.rrp__activity-entry--progress.rrp__activity-msg { color: #1d4ed8; }
+.rrp__activity-entry--progress .rrp__activity-msg { color: #1d4ed8; }
 .rrp__activity-entry--typing {
   padding: 0.4rem 0.85rem;
 }

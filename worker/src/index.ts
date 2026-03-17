@@ -170,6 +170,9 @@ setInterval(cleanupOldResults, 10 * 60 * 1000);
 // Maps free-text document type strings from the pipeline to the canonical set
 // used by the research_documents table (matches page.tsx docTypeIcons keys).
 
+/** Maximum number of characters to store in the extracted_text column. */
+const MAX_EXTRACTED_TEXT_LENGTH = 50_000;
+
 function normDocType(rawType: string | null | undefined): string {
   if (!rawType) return 'other';
   const lower = rawType.toLowerCase();
@@ -479,8 +482,8 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
                 ].filter(Boolean).join(' — ') || null;
                 const pageCount = (doc.pages?.length ?? doc.pageScreenshots?.length) || null;
                 const rawText = doc.ocrText ?? doc.textContent ?? null;
-                // Cap at 50 000 chars to stay within DB limits
-                const extractedText = rawText ? rawText.slice(0, 50_000) : null;
+                // Cap at MAX_EXTRACTED_TEXT_LENGTH chars to stay within DB limits
+                const extractedText = rawText ? rawText.slice(0, MAX_EXTRACTED_TEXT_LENGTH) : null;
                 // Build a descriptive label: "Warranty Deed - Smith to Jones (Instr. 12345)"
                 const grantorStr = ref.grantors?.length ? ref.grantors.slice(0, 2).join(', ') : null;
                 const granteeStr = ref.grantees?.length ? ref.grantees.slice(0, 2).join(', ') : null;
