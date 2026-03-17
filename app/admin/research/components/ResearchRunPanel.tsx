@@ -143,15 +143,42 @@ function logEntryToFriendly(entry: PipelineLogEntry): FriendlyLog | null {
       }
     }
     // Phase-transition handshakes (layer='[Pipeline Phase]')
+    // Only surface meaningful phase milestones — filter out verbose sub-step messages
+    // like separator lines, timestamps, and repetitive detail logs.
     if (layer === '[Pipeline Phase]') {
       const phase = entry.method || 'Unknown Phase';
       const phaseFriendly = details
         .replace(/^\[Worker→Frontend\]\s*/i, '')
         .replace(new RegExp(`^${phase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\s*`, 'i'), '')
-        .slice(0, 120);
+        .trim();
+
+      // Filter out noise: separator lines, empty messages, timestamps-only
+      if (!phaseFriendly) return null;
+      if (/^[-─═]{3,}/.test(phaseFriendly)) return null; // separator lines
+      if (/^\[\d+s\]\s*[-─═]{3,}/.test(phaseFriendly)) return null; // timestamped separators
+      if (/^\[\d+s\]\s*$/.test(phaseFriendly)) return null; // timestamp only
+
+      // Strip timestamp prefixes like "[23s] " for cleaner display
+      const cleanMsg = phaseFriendly.replace(/^\[\d+s\]\s*/, '').trim();
+      if (!cleanMsg) return null;
+
+      // Only show key milestones, not every sub-step
+      const isKeyMessage = (
+        /^PHASE \d/i.test(cleanMsg) ||              // Phase header
+        /✓|✗|complete|found|identified/i.test(cleanMsg) || // Results
+        /⚠|discrepanc|error|fail/i.test(cleanMsg) ||       // Warnings
+        /RESEARCH SUMMARY/i.test(cleanMsg) ||        // Final summary
+        /Research complete/i.test(cleanMsg) ||
+        /^Input:/i.test(cleanMsg) ||                 // Input parameters
+        /Absorbed.*identifier/i.test(cleanMsg) ||    // Data enrichment
+        /result:.*ID=/i.test(cleanMsg)               // Property results
+      );
+
+      if (!isKeyMessage) return null;
+
       return {
-        id, ts, level: 'progress',
-        message: `🔄 Worker → ${phase}${phaseFriendly ? `: ${phaseFriendly}` : ''}`,
+        id, ts, level: /⚠|discrepanc|error|fail/i.test(cleanMsg) ? 'warn' : 'progress',
+        message: `${phase}: ${cleanMsg}`.slice(0, 150),
       };
     }
     return null;
@@ -260,6 +287,28 @@ function logEntryToFriendly(entry: PipelineLogEntry): FriendlyLog | null {
       if (/Instrument errors/i.test(msg) || /capping/i.test(msg)) return null;
       return { id, ts, level: 'warn', message: msg };
     }
+
+    // ── Surface backend worker logs that don't match specific patterns above ──
+    // These are the detailed Stage1A, Stage2A, Stage1E, etc. logs from the worker.
+    // Show them as info-level so users can see what the backend is actually doing.
+    if (layer && details) {
+      // Skip truly noisy internal entries
+      if (/^\[html_structure\]|^\[runtime\]|^\[failure-dump\]|^\[no-results-dump\]|^\[url-dump\]/i.test(details)) return null;
+      if (/^GET https?:/i.test(details) || /^Response: HTTP/i.test(details)) return null;
+      if (/^Content-Type:/i.test(details) || /^Loading homepage/i.test(details)) return null;
+      if (/^Acquired cookies/i.test(details) || /^Got session token/i.test(details)) return null;
+      if (/^Requesting search session/i.test(details)) return null;
+
+      // Format meaningful worker logs with their stage prefix
+      const stagePrefix = layer.replace(/^Stage/, '').replace(/^2D-IMG$/, 'Images');
+      const isWarn = entry.source === 'warn';
+      return {
+        id, ts,
+        level: isWarn ? 'warn' : 'info',
+        message: `[${stagePrefix}] ${details}`.slice(0, 180),
+      };
+    }
+
     return null;
   }
 

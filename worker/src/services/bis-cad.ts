@@ -681,12 +681,15 @@ function parseHtmlSearchResults(
 
   // Strategy 2: Broader link-based extraction if table parsing found nothing.
   // Handles both URL formats: /Property/View/XXXX (path) and /Property/View?Id=XXXX (query-string)
+  // IMPORTANT: Only match inside href="..." attributes to avoid capturing JavaScript
+  // template literals like `/Property/View/${propId}` from inline scripts.
   if (results.length === 0) {
-    const allLinks = html.matchAll(/\/Property\/View\/([^"&\s?#/]+)|\/Property\/View\?(?:Id|id)=([^"&\s]+)/gi);
+    const allLinks = html.matchAll(/href=["'](?:[^"']*?)\/Property\/View\/([^"'&\s?#/]+)|href=["'](?:[^"']*?)\/Property\/View\?(?:Id|id)=([^"'&\s]+)/gi);
     const seenIds = new Set<string>();
     for (const m of allLinks) {
       const id = m[1] ?? m[2];
-      if (id && !seenIds.has(id)) {
+      // Skip IDs that look like unresolved template expressions (e.g. "${propId}")
+      if (id && !seenIds.has(id) && !id.includes('$') && !id.includes('{')) {
         seenIds.add(id);
         results.push({ propertyId: id } as CadSearchResult);
       }
@@ -1551,10 +1554,21 @@ Return ONLY valid JSON array, no markdown. If NO results visible, return [].`,
     return parsed;
   } catch (err) {
     // Capture full error detail including any HTTP status from Anthropic API errors
-    const status = (err != null && typeof err === 'object') ? (err as Record<string, unknown>)['status'] : undefined;
-    const detail = err instanceof Error
-      ? (status != null ? `HTTP ${status}: ${err.message}` : err.message)
-      : String(err);
+    const errObj = (err != null && typeof err === 'object') ? err as Record<string, unknown> : {};
+    const status = errObj['status'];
+    const code = errObj['code'] ?? errObj['error_code'];
+    const type = errObj['type'] ?? errObj['error_type'];
+    let detail: string;
+    if (err instanceof Error) {
+      const parts = [err.message];
+      if (status != null) parts.unshift(`HTTP ${status}`);
+      if (code) parts.push(`code=${code}`);
+      if (type) parts.push(`type=${type}`);
+      if (err.name && err.name !== 'Error') parts.push(`(${err.name})`);
+      detail = parts.join(': ');
+    } else {
+      detail = `${String(err)} [type=${typeof err}]`;
+    }
     finish({ status: 'fail', error: detail });
     return [];
   }
@@ -2893,6 +2907,7 @@ export async function searchBisGis(
           geometryType: 'esriGeometryEnvelope',
           spatialRel: 'esriSpatialRelIntersects',
           inSR: '4326',
+          outSR: '4326',
           outFields: '*',
           returnGeometry: 'true',
         }, logger);
@@ -2971,6 +2986,8 @@ export async function searchBisGis(
             geometry: envelope,
             geometryType: 'esriGeometryEnvelope',
             spatialRel: 'esriSpatialRelIntersects',
+            inSR: '4326',
+            outSR: '4326',
             outFields: '*',
             returnGeometry: 'true',
           }, logger);
@@ -2999,6 +3016,7 @@ export async function searchBisGis(
           geometryType: 'esriGeometryEnvelope',
           spatialRel: 'esriSpatialRelIntersects',
           inSR: '4326',
+          outSR: '4326',
           outFields: '*',
           returnGeometry: 'true',
         }, logger);
