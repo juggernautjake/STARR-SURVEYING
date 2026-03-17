@@ -9,7 +9,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile, LayerAttempt } from './types/index.js';
 import { runPipeline, getSupabase, getRunningMessage, setRunningMessage } from './services/pipeline.js';
-import { getLiveLogForProject, clearLiveLogForProject } from './lib/logger.js';
+import { getLiveLogForProject, clearLiveLogForProject, PipelineLogger } from './lib/logger.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
@@ -542,6 +542,14 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     `[Worker] ${projectId}: pipeline START — county="${county}" address="${researchInput.address ?? ''}" propertyId="${researchInput.propertyId ?? ''}" ownerName="${researchInput.ownerName ?? ''}" files=${parsedUserFiles?.length ?? 0}`,
   );
 
+  // ── Handshake logger — emits visible phase-transition entries into the live
+  // log registry so the frontend's log viewer can confirm pipeline progress.
+  const handshakeLogger = new PipelineLogger(projectId);
+  // Emit an initial "pipeline started" handshake entry
+  handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Started', `county=${county} address=${researchInput.address ?? ''}`)
+    .success(0, `[Worker→Frontend] Pipeline starting for ${county} County`);
+  console.log(`[Worker] ${projectId} → Frontend: pipeline started handshake emitted`);
+
   // Return 202 immediately
   res.status(202).json({
     message: 'Pipeline started',
@@ -574,15 +582,28 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       if (typeof progress.message === 'string' && progress.message) {
         setRunningMessage(projectId, `[${progress.phase}] ${progress.message}`);
       }
-      // Log key phase transitions (not every progress tick to avoid spam)
-      if (typeof progress.message === 'string' && progress.message && !progress.message.startsWith('[')) {
-        console.debug(`[Worker] ${projectId} [${progress.phase}]: ${progress.message.slice(0, 120)}`);
+      // ── Handshake: emit a structured LayerAttempt entry for every phase
+      // transition. These appear in the live log registry and are returned on
+      // the next status poll, so the frontend's log viewer shows real-time
+      // proof that the worker is progressing and sending data.
+      if (typeof progress.phase === 'string' && typeof progress.message === 'string' && progress.message) {
+        const truncated = progress.message.slice(0, 160);
+        handshakeLogger.attempt('[Pipeline Phase]', 'handshake', progress.phase, truncated)
+          .success(0, `[Worker→Frontend] ${progress.phase}: ${truncated}`);
+        console.log(`[Worker] ${projectId} → Frontend: phase="${progress.phase}" msg="${truncated.slice(0, 80)}"`);
       }
     },
   )
     .then(async (unifiedResult) => {
       completedResults.set(projectId, unifiedResult);
       activePipelines.delete(projectId);
+      // ── Handshake: emit a pipeline-complete entry so the final poll sees it
+      handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Complete',
+        unifiedResult.resultType === 'generic-pipeline'
+          ? `status=${unifiedResult.data.status} docs=${unifiedResult.data.documents?.length ?? 0}`
+          : `status=complete county=${unifiedResult.county}`)
+        .success(0, `[Worker→Frontend] Pipeline finished — results ready`);
+      console.log(`[Worker] ${projectId} → Frontend: pipeline complete handshake emitted`);
       // Capture live log entries before clearing — needed for county-specific pipelines
       // which don't have their own LayerAttempt-format log the way generic pipelines do.
       const capturedLiveLog = getLiveLogForProject(projectId) ?? [];
@@ -850,6 +871,10 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       const errMessage = err instanceof Error
         ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
         : String(err ?? 'Unknown error');
+      // Emit a failure handshake so the frontend log shows the crash reason
+      handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Failed', errMessage.slice(0, 160))
+        .fail(`[Worker→Frontend] Pipeline crashed: ${errMessage.slice(0, 120)}`);
+      console.log(`[Worker] ${projectId} → Frontend: pipeline failure handshake emitted`);
       const fallback: PipelineResult = {
         projectId,
         status: 'failed',
@@ -1049,6 +1074,10 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
       } catch { /* non-fatal — return without message */ }
     }
 
+    const liveLog = getLiveLogForProject(projectId) ?? [];
+    // Log a confirmation that we're actively sending live data to the frontend
+    console.log(`[Worker] ${projectId} → Frontend: status poll — stage="${pipeline.currentStage ?? 'unknown'}" logEntries=${liveLog.length} msg="${(message ?? '').slice(0, 60)}"`);
+
     res.json({
       projectId,
       status: 'running',
@@ -1057,7 +1086,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
       message,
       address: pipeline.address,
       county: pipeline.county,
-      log: getLiveLogForProject(projectId) ?? [],
+      log: liveLog,
     });
     return;
   }
