@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import express from 'express';
 import type { Request, Response } from 'express';
-import type { PipelineInput, PipelineResult, ActivePipeline, UserFile } from './types/index.js';
+import type { PipelineInput, PipelineResult, ActivePipeline, UserFile, LayerAttempt } from './types/index.js';
 import { runPipeline, getSupabase, getRunningMessage, setRunningMessage } from './services/pipeline.js';
 import { getLiveLogForProject, clearLiveLogForProject } from './lib/logger.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
@@ -143,6 +143,8 @@ function requireAuth(req: Request, res: Response, next: () => void): void {
 
 const activePipelines = new Map<string, ActivePipeline>();
 const completedResults = new Map<string, UnifiedResearchResult>();
+/** Cached live log entries for county-specific pipelines, keyed by projectId. */
+const completedLogs = new Map<string, LayerAttempt[]>();
 
 // Keep completed results for 4 hours
 const RESULT_TTL_MS = 4 * 60 * 60 * 1000;
@@ -160,6 +162,7 @@ function cleanupOldResults(): void {
     }
     if (completedAt > 0 && completedAt < cutoff) {
       completedResults.delete(key);
+      completedLogs.delete(key);
     }
   }
 }
@@ -786,8 +789,15 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
           `[Worker] ${projectId} (${county}, county-specific): COMPLETE duration=${durationSec}s errors=${errorCount} confidence=${r.overallConfidence?.score?.toFixed(2) ?? r.overallConfidence?.tier ?? 'n/a'}`,
         );
 
-        // ── Persist live logs to Supabase for county-specific pipelines ────────
+        // ── Cache live logs in memory for immediate status/logs responses ─────
         // capturedLiveLog holds the PipelineLogger entries emitted by the scrapers.
+        // Cache them so the status endpoint can return them before the Supabase
+        // write completes, closing the gap where the log viewer would be empty.
+        if (capturedLiveLog.length > 0) {
+          completedLogs.set(projectId, capturedLiveLog);
+        }
+
+        // ── Persist live logs to Supabase for county-specific pipelines ────────
         // These are the entries shown in the live log viewer; we persist them so
         // the Review stage can reload them on page refresh.
         const logsToSave = capturedLiveLog.length > 0 ? capturedLiveLog : [];
@@ -876,8 +886,8 @@ app.get('/research/logs/:projectId', requireAuth, async (req: Request, res: Resp
     if (unified.resultType === 'generic-pipeline') {
       res.json({ projectId, log: unified.data.log });
     } else {
-      // County-specific results don't carry a structured log array.
-      res.json({ projectId, log: [] });
+      // County-specific results: serve from the in-memory cache populated at completion.
+      res.json({ projectId, log: completedLogs.get(projectId) ?? [] });
     }
     return;
   }
@@ -1009,6 +1019,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         errors: result.errors,
         screenshotCount: result.screenshots.length,
         aiUsage: result.aiUsage,
+        log: completedLogs.get(projectId) ?? [],
       });
     }
     return;
