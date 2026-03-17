@@ -210,6 +210,11 @@ export function getRunningMessage(projectId: string): string | undefined {
   return _runningMessages.get(projectId);
 }
 
+/** Update the in-progress stage message for a project (used by county-specific pipelines). */
+export function setRunningMessage(projectId: string, message: string): void {
+  _runningMessages.set(projectId, message);
+}
+
 /** Remove the cached message when a pipeline completes or fails. */
 export function clearRunningMessage(projectId: string): void {
   _runningMessages.delete(projectId);

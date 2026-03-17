@@ -1064,6 +1064,7 @@ export function PipelineProgressStyles() {
   max-height: 480px;
   overflow-y: auto;
   color: #1e293b;
+  word-break: break-word;
 }
 
 /* ── Result card ─────────────────────────────────────────── */
