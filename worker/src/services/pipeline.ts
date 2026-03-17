@@ -1450,6 +1450,33 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     discoveryState.totalDocumentsRetrieved = documents.length;
     logger.info('Discovery', `Post-Stage2 state: ${stateSummary(discoveryState)}`);
 
+    // ── Stage 3 pre-flight: log each document's content for operator visibility ──
+    logger.info('Stage3', `═══ STAGE 3: OCR + AI Deep Analysis ═══`);
+    logger.info('Stage3', `Preparing ${documents.length} document(s) for OCR + AI extraction`);
+    if (documents.length === 0) {
+      logger.warn('Stage3', `⚠ No documents to analyze — Stage 2 found no documents. OCR and AI extraction will be skipped.`);
+    } else {
+      let hasImageCount = 0;
+      let hasTextCount = 0;
+      for (const doc of documents) {
+        const hasImg = !!(doc.imageBase64 || (doc.pages?.length ?? 0) > 0 || (doc.pageScreenshots?.length ?? 0) > 0);
+        const hasTxt = !!(doc.textContent);
+        if (hasImg) hasImageCount++;
+        if (hasTxt) hasTextCount++;
+        const instr = doc.ref.instrumentNumber
+          ? `Instr.${doc.ref.instrumentNumber}`
+          : doc.ref.volume
+            ? `Vol.${doc.ref.volume}/Pg.${doc.ref.page}`
+            : 'no-id';
+        const srcUrl = doc.ref.url ? ` url=${doc.ref.url}` : '';
+        logger.info('Stage3', `  → ${doc.ref.documentType || 'Document'} [${instr}]: image=${hasImg} text=${hasTxt}${srcUrl}`);
+      }
+      logger.info('Stage3', `Document content summary: ${hasImageCount}/${documents.length} have image/pages, ${hasTextCount}/${documents.length} have text content`);
+      if (hasImageCount === 0 && hasTextCount === 0) {
+        logger.warn('Stage3', `⚠ No documents have image or text content — OCR and AI extraction may produce no results`);
+      }
+    }
+
     const stage3T = logger.attempt('Stage3', 'Claude AI', 'extractDocuments',
       `${documents.length} doc(s) — initial pass`);
     const { documents: processedDocs, boundary: rawBoundary } = await extractDocuments(
@@ -1463,6 +1490,13 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         ? `${rawBoundary.type} (${rawBoundary.calls.length} calls, conf ${(rawBoundary.confidence * 100).toFixed(0)}%)`
         : 'no boundary';
       stage3T.success(processedDocs.length, `${processedDocs.length} doc(s) processed — ${bNote}`);
+      // Log per-document extraction results
+      const ocrCount = processedDocs.filter(d => d.ocrText).length;
+      const extractedCount = processedDocs.filter(d => d.extractedData).length;
+      logger.info('Stage3', `Initial extraction complete: ${ocrCount}/${processedDocs.length} with OCR text, ${extractedCount}/${processedDocs.length} with extracted data`);
+      if (extractedCount === 0 && processedDocs.length > 0) {
+        logger.warn('Stage3', `⚠ AI extraction returned no structured data on initial pass — documents may lack sufficient image/text content`);
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -2207,6 +2241,42 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         failureReason = `Property not found after trying ${searchDiagnostics.variantsTried.length} address variants on ${cadName}. ` +
           `The property may be indexed differently (e.g., by legal description or owner name instead of street address). ` +
           `Try searching manually at ${cadUrl} to find how the property is listed.`;
+      }
+    }
+
+    // ── Completion Integrity Checks ─────────────────────────────────────────
+    // These final checks log whether each critical pipeline stage produced
+    // results.  They appear in the log viewer so operators can immediately
+    // see if OCR, AI extraction, source saving, or summary generation failed.
+    {
+      const totalDocs         = finalProcessedDocs.length;
+      const userDocs          = userDocuments.length;
+      const ocrCount          = finalProcessedDocs.filter(d => d.ocrText).length;
+      const extractedCount    = finalProcessedDocs.filter(d => d.extractedData).length;
+      const sourcesWithUrls   = finalProcessedDocs.filter(d => d.ref.url).length;
+      const hasMasterReport   = !!masterReportText;
+
+      logger.info('Pipeline', `═══ COMPLETION INTEGRITY CHECKS ═══`);
+      logger.info('Pipeline', `Documents: ${totalDocs} from research${userDocs > 0 ? ` + ${userDocs} user uploads` : ''}`);
+      logger.info('Pipeline', `OCR analysis: ${ocrCount}/${totalDocs} documents have OCR text${ocrCount === 0 && totalDocs > 0 ? ' ⚠' : ''}`);
+      logger.info('Pipeline', `AI extraction: ${extractedCount}/${totalDocs} documents have extracted data${extractedCount === 0 && totalDocs > 0 ? ' ⚠' : ''}`);
+      logger.info('Pipeline', `Sources with URLs: ${sourcesWithUrls}/${totalDocs}`);
+      logger.info('Pipeline', `AI summary (master report): ${hasMasterReport ? `YES — ${masterReportText!.length} chars` : 'NO ⚠'}`);
+
+      if (totalDocs === 0) {
+        logger.warn('Pipeline', `⚠ COMPLETION CHECK FAILED: No documents were found or retained — pipeline may have encountered search failures`);
+      }
+      if (ocrCount === 0 && totalDocs > 0) {
+        logger.warn('Pipeline', `⚠ COMPLETION CHECK: No OCR text on any document — documents may lack image or text content, or OCR failed`);
+      }
+      if (extractedCount === 0 && totalDocs > 0) {
+        logger.warn('Pipeline', `⚠ COMPLETION CHECK: No AI-extracted data on any document — Stage 3 extraction may not have produced results`);
+      }
+      if (!hasMasterReport) {
+        logger.warn('Pipeline', `⚠ COMPLETION CHECK: No master report / AI summary generated — Stage 5/6 may have been skipped or failed`);
+      }
+      if (sourcesWithUrls > 0) {
+        logger.info('Pipeline', `Source URLs collected: ${finalProcessedDocs.filter(d => d.ref.url).map(d => d.ref.url!).slice(0, 5).join(', ')}${sourcesWithUrls > 5 ? ` …+${sourcesWithUrls - 5} more` : ''}`);
       }
     }
 
