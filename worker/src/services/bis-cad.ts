@@ -645,9 +645,11 @@ function parseHtmlSearchResults(
   }
 
   // Strategy 1: Find table rows with property links
-  // BIS results pages use <tr> elements with <a href="/Property/View?Id=XXXX">
+  // BIS results pages use either:
+  //   <a href="/Property/View?Id=XXXX">  (legacy query-string format)
+  //   <a href="/Property/View/XXXX">     (Bell CAD path format — confirmed current)
   const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  const linkPattern = /\/Property\/View\?(?:Id|id)=([^"&\s]+)/i;
+  const linkPattern = /\/Property\/View\/([^"&\s?#/]+)|\/Property\/View\?(?:Id|id)=([^"&\s]+)/i;
 
   let rowMatch;
   let rowCount = 0;
@@ -657,7 +659,7 @@ function parseHtmlSearchResults(
     const linkMatch = linkPattern.exec(rowHtml);
     if (!linkMatch) continue;
 
-    const propertyId = linkMatch[1];
+    const propertyId = linkMatch[1] ?? linkMatch[2];
 
     // Extract cell contents
     const cells: string[] = [];
@@ -677,14 +679,16 @@ function parseHtmlSearchResults(
 
   tracker.step(`[html_structure] Strategy 1: Scanned ${rowCount} <tr> elements, found ${results.length} with property links`);
 
-  // Strategy 2: Broader link-based extraction if table parsing found nothing
+  // Strategy 2: Broader link-based extraction if table parsing found nothing.
+  // Handles both URL formats: /Property/View/XXXX (path) and /Property/View?Id=XXXX (query-string)
   if (results.length === 0) {
-    const allLinks = html.matchAll(/\/Property\/View\?(?:Id|id)=([^"&\s]+)/gi);
+    const allLinks = html.matchAll(/\/Property\/View\/([^"&\s?#/]+)|\/Property\/View\?(?:Id|id)=([^"&\s]+)/gi);
     const seenIds = new Set<string>();
     for (const m of allLinks) {
-      if (!seenIds.has(m[1])) {
-        seenIds.add(m[1]);
-        results.push({ propertyId: m[1] } as CadSearchResult);
+      const id = m[1] ?? m[2];
+      if (id && !seenIds.has(id)) {
+        seenIds.add(id);
+        results.push({ propertyId: id } as CadSearchResult);
       }
     }
     tracker.step(`[html_structure] Strategy 2: Fallback link scan found ${results.length} unique property IDs`);
@@ -1030,8 +1034,11 @@ async function searchCadPlaywright(
 
         diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
 
-        // Detect transient backend outage — stop wasting time on more variants
-        if (pageState.transientDataError) {
+        // Detect transient backend outage — stop wasting time on more variants.
+        // However, if the page already shows property links, the error text may be a
+        // non-blocking banner rather than a full outage; extractResultsFromDOM has
+        // already run above so those results are captured — keep going.
+        if (pageState.transientDataError && pageState.propertyLinkCount === 0) {
           logger.warn('Stage1B', 'CAD backend reporting temporary data access issue — aborting Playwright search');
           diagnostics.cadSiteError = 'The county appraisal website is experiencing a temporary data access issue. The search could not be completed — results may exist but the database was unavailable.';
           break;
@@ -1369,13 +1376,18 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
 
     if (results.length > 0) return results as CadSearchResult[];
 
-    // Strategy 1: Links to /Property/View?Id=... (most reliable across all BIS versions)
+    // Strategy 1: Links to /Property/View?Id=... (legacy query-string) or /Property/View/...
+    // (Bell CAD path format — confirmed current) — most reliable across all BIS versions
     const propertyLinks = document.querySelectorAll('a[href*="/Property/View"]');
     if (propertyLinks.length > 0) {
       const seenIds = new Set<string>();
       propertyLinks.forEach((link) => {
         const href = link.getAttribute('href') ?? '';
-        const idMatch = href.match(/[?&](?:Id|id|ID)=([^&\s]+)/);
+        // Handle both URL formats:
+        //   /Property/View/12345          (Bell CAD path format — confirmed current)
+        //   /Property/View?Id=12345       (legacy query-string format)
+        const idMatch = href.match(/\/Property\/View\/([^"&\s?#/]+)/)
+          ?? href.match(/[?&](?:Id|id|ID)=([^&\s]+)/);
         if (!idMatch || seenIds.has(idMatch[1])) return;
         seenIds.add(idMatch[1]);
 
@@ -1414,7 +1426,10 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
         let propertyId: string | null = null;
         for (const link of links) {
           const href = link.getAttribute('href') ?? '';
-          const match = href.match(/(?:Id|id|ID|propertyId)=(\w+)/);
+          // Handle Bell CAD path format (/Property/View/XXXX) and legacy query-string format
+          const pathMatch = href.match(/\/Property\/View\/([^"&\s?#/]+)/);
+          const queryMatch = href.match(/(?:Id|id|ID|propertyId)=(\w+)/);
+          const match = pathMatch ?? queryMatch;
           if (match) { propertyId = match[1]; break; }
         }
 
