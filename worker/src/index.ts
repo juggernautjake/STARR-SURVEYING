@@ -354,6 +354,10 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     currentStage: 'Routing',
   });
 
+  console.log(
+    `[Worker] ${projectId}: pipeline START — county="${county}" address="${researchInput.address ?? ''}" propertyId="${researchInput.propertyId ?? ''}" ownerName="${researchInput.ownerName ?? ''}" files=${parsedUserFiles?.length ?? 0}`,
+  );
+
   // Return 202 immediately
   res.status(202).json({
     message: 'Pipeline started',
@@ -379,16 +383,23 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         pipeline.currentStage = progress.phase;
         pipeline.lastUpdate = progress.timestamp;
       }
+      // Log key phase transitions (not every progress tick to avoid spam)
+      if (typeof progress.message === 'string' && progress.message && !progress.message.startsWith('[')) {
+        console.debug(`[Worker] ${projectId} [${progress.phase}]: ${progress.message.slice(0, 120)}`);
+      }
     },
   )
-    .then((unifiedResult) => {
+    .then(async (unifiedResult) => {
       completedResults.set(projectId, unifiedResult);
       activePipelines.delete(projectId);
       clearLiveLogForProject(projectId);
 
       if (unifiedResult.resultType === 'generic-pipeline') {
         const r = unifiedResult.data;
-        console.log(`[Pipeline] ${projectId} (${county}, generic): ${r.status.toUpperCase()} in ${(r.duration_ms / 1000).toFixed(1)}s`);
+        const durationSec = (r.duration_ms / 1000).toFixed(1);
+        console.log(
+          `[Worker] ${projectId} (${county}, generic): COMPLETE status=${r.status.toUpperCase()} duration=${durationSec}s docs=${r.documents?.length ?? 0} logEntries=${r.log?.length ?? 0}`,
+        );
         // Persist log to Supabase so the frontend can retrieve it after page refresh.
         // Fire-and-forget — a save failure must never affect the completed result.
         if (r.log.length > 0) {
@@ -403,20 +414,45 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
                 .update({ research_logs: r.log })
                 .eq('id', projectId);
             })
-            .then((res: { error?: { message?: string } } | null | undefined) => {
-              if (res?.error) {
-                console.warn(`[Pipeline] ${projectId}: failed to save logs to Supabase:`, res.error.message);
+            .then((dbRes: { error?: { message?: string } } | null | undefined) => {
+              if (dbRes?.error) {
+                console.warn(`[Worker] ${projectId}: failed to save logs to Supabase: ${dbRes.error.message}`);
               } else {
-                console.log(`[Pipeline] ${projectId}: saved ${r.log.length} log entries to Supabase`);
+                console.log(`[Worker] ${projectId}: saved ${r.log.length} log entries to Supabase`);
               }
             })
             .catch((err: unknown) => {
-              console.warn(`[Pipeline] ${projectId}: error saving logs to Supabase:`, err instanceof Error ? err.message : String(err));
+              console.warn(`[Worker] ${projectId}: error saving logs to Supabase:`, err instanceof Error ? err.message : String(err));
+            });
+        }
+        // Update project status to 'review' in Supabase so a page-refresh still
+        // lands the user on Stage 3 after the pipeline finishes.
+        if (r.status === 'complete' || r.status === 'partial') {
+          getSupabase()
+            .then(async (supabase) => {
+              if (!supabase) return;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const { error } = await (supabase as any)
+                .from('research_projects')
+                .update({ status: 'review' })
+                .eq('id', projectId);
+              if (error) {
+                console.warn(`[Worker] ${projectId}: failed to set status=review: ${error.message}`);
+              } else {
+                console.log(`[Worker] ${projectId}: status set to 'review' in Supabase`);
+              }
+            })
+            .catch((err: unknown) => {
+              console.warn(`[Worker] ${projectId}: error setting status=review:`, err instanceof Error ? err.message : String(err));
             });
         }
       } else {
         const r = unifiedResult.data;
-        console.log(`[Pipeline] ${projectId} (${county}, county-specific): COMPLETE in ${(r.durationMs / 1000).toFixed(1)}s`);
+        const durationSec = (r.durationMs / 1000).toFixed(1);
+        const errorCount = r.errors?.length ?? 0;
+        console.log(
+          `[Worker] ${projectId} (${county}, county-specific): COMPLETE duration=${durationSec}s errors=${errorCount} confidence=${r.overallConfidence?.toFixed(2) ?? 'n/a'}`,
+        );
         // Persist error log entries to Supabase for county-specific pipelines
         // so the Review stage can show them after a page refresh.
         const countyLogEntries = r.errors?.map((e: { phase?: string; source?: string; message?: string; timestamp?: string }) => ({
@@ -431,6 +467,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
           timestamp: e.timestamp ?? new Date().toISOString(),
         })) ?? [];
         if (countyLogEntries.length > 0) {
+          console.log(`[Worker] ${projectId}: persisting ${countyLogEntries.length} error log entries to Supabase`);
           getSupabase()
             .then((supabase) => {
               if (!supabase) return;
@@ -441,13 +478,31 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
                 .eq('id', projectId);
             })
             .catch((err: unknown) => {
-              console.warn(`[Pipeline] ${projectId}: error saving county logs to Supabase:`, err instanceof Error ? err.message : String(err));
+              console.warn(`[Worker] ${projectId}: error saving county logs to Supabase:`, err instanceof Error ? err.message : String(err));
             });
         }
+        // Update project status to 'review' in Supabase for county-specific pipelines too.
+        getSupabase()
+          .then(async (supabase) => {
+            if (!supabase) return;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as any)
+              .from('research_projects')
+              .update({ status: 'review' })
+              .eq('id', projectId);
+            if (error) {
+              console.warn(`[Worker] ${projectId}: failed to set status=review (county-specific): ${error.message}`);
+            } else {
+              console.log(`[Worker] ${projectId}: status set to 'review' in Supabase (county-specific)`);
+            }
+          })
+          .catch((err: unknown) => {
+            console.warn(`[Worker] ${projectId}: error setting status=review (county-specific):`, err instanceof Error ? err.message : String(err));
+          });
       }
     })
     .catch((err) => {
-      console.error(`[Pipeline] ${projectId} CRASH:`, err);
+      console.error(`[Worker] ${projectId} CRASH:`, err);
       const errMessage = err instanceof Error
         ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
         : String(err ?? 'Unknown error');
@@ -469,6 +524,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       completedResults.set(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);
       clearLiveLogForProject(projectId);
+      console.error(`[Worker] ${projectId}: pipeline crash recorded — failureReason="${errMessage.slice(0, 120)}"`);
     });
 });
 

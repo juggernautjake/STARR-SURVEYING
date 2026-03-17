@@ -68,8 +68,10 @@ export interface ResearchRunPanelProps {
   /** Pre-filled owner name from Stage 1 */
   ownerName?: string;
   /**
-   * When true, fires the pipeline POST automatically on mount.
+   * When true (default), fires the pipeline POST automatically on mount.
    * Set to true when arriving from Stage 1 via "Initiate Research & Analysis".
+   * Set to false to delay the start until the caller triggers it explicitly
+   * (reserved for future manual-trigger use-cases).
    */
   autoStart?: boolean;
   /** Called when the pipeline run starts (first status update received) */
@@ -260,12 +262,19 @@ export default function ResearchRunPanel({
 
       if (res.status === 404) {
         consecutive404Ref.current++;
-        if (consecutive404Ref.current >= 5) stopPolling();
+        console.debug(`[ResearchRunPanel] ${projectId}: poll 404 (${consecutive404Ref.current}/5)`);
+        if (consecutive404Ref.current >= 5) {
+          console.warn(`[ResearchRunPanel] ${projectId}: 5 consecutive 404s — stopping poll`);
+          stopPolling();
+        }
         return;
       }
       consecutive404Ref.current = 0;
 
-      if (!res.ok) return;
+      if (!res.ok) {
+        console.warn(`[ResearchRunPanel] ${projectId}: poll HTTP ${res.status}`);
+        return;
+      }
 
       const data = await res.json() as PipelineStatusResponse;
 
@@ -273,6 +282,7 @@ export default function ResearchRunPanel({
       const normalizedStatus = data.status === 'complete' ? 'success' : data.status;
       setPipelineStatus(normalizedStatus);
 
+      const newLogCount = data.log?.length ?? 0;
       if (data.log) setLogs(data.log);
 
       const docCount = data.documents?.length ?? data.result?.documentCount ?? 0;
@@ -288,12 +298,21 @@ export default function ResearchRunPanel({
         setCurrentMessage('Starting research pipeline…');
       }
 
+      console.debug(
+        `[ResearchRunPanel] ${projectId}: status=${normalizedStatus} stage=${stage} logs=${newLogCount} msg="${(data.message ?? '').slice(0, 80)}"`,
+      );
+
       if (normalizedStatus !== 'running' && normalizedStatus !== 'starting') {
+        console.log(
+          `[ResearchRunPanel] ${projectId}: pipeline DONE status=${normalizedStatus} logs=${newLogCount} failureReason=${data.failureReason ?? 'none'}`,
+        );
         stopPolling();
         if (data.failureReason) setFailureReason(data.failureReason);
         onPipelineComplete?.(normalizedStatus);
       }
-    } catch { /* keep polling */ }
+    } catch (err) {
+      console.warn(`[ResearchRunPanel] ${projectId}: poll error —`, err instanceof Error ? err.message : String(err));
+    }
   }, [projectId, stopPolling, onPipelineComplete]);
 
   // ── Pipeline Start ─────────────────────────────────────────────────────────
@@ -304,19 +323,29 @@ export default function ResearchRunPanel({
     setCurrentMessage('Starting research pipeline…');
     setPipelineStatus('starting');
 
+    const payload = {
+      address: address?.trim() || undefined,
+      county: county?.trim() || undefined,
+      propertyId: parcelId?.trim() || undefined,
+      ownerName: ownerName?.trim() || undefined,
+    };
+
+    console.log(
+      `[ResearchRunPanel] ${projectId}: POST /pipeline — address="${payload.address ?? ''}" county="${payload.county ?? ''}" propertyId="${payload.propertyId ?? ''}"`,
+    );
+
     try {
       const res = await fetch(`/api/admin/research/${projectId}/pipeline`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          address: address?.trim() || undefined,
-          county: county?.trim() || undefined,
-          propertyId: parcelId?.trim() || undefined,
-          ownerName: ownerName?.trim() || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
+        const data = await res.json().catch(() => ({})) as Record<string, unknown>;
+        console.log(
+          `[ResearchRunPanel] ${projectId}: pipeline started OK — pollUrl=${data.pollUrl ?? `/api/admin/research/${projectId}/pipeline`}`,
+        );
         setPipelineStatus('running');
         onPipelineStart?.();
         stopPolling();
@@ -324,7 +353,11 @@ export default function ResearchRunPanel({
         // Fire first poll immediately
         pollStatus();
       } else if (res.status === 409) {
-        // Already running — start polling
+        // Already running — start polling to pick up existing run
+        const data = await res.json().catch(() => ({})) as Record<string, unknown>;
+        console.log(
+          `[ResearchRunPanel] ${projectId}: pipeline already running (409) startedAt=${data.startedAt ?? 'unknown'} — resuming poll`,
+        );
         setPipelineStatus('running');
         onPipelineStart?.();
         stopPolling();
@@ -332,6 +365,10 @@ export default function ResearchRunPanel({
         pollStatus();
       } else if (res.status === 503) {
         // Worker unavailable — fall back to lite pipeline
+        const errData = await res.json().catch(() => ({})) as Record<string, unknown>;
+        console.warn(
+          `[ResearchRunPanel] ${projectId}: worker unavailable (503) — falling back to lite pipeline. error=${errData.error ?? 'none'}`,
+        );
         setCurrentMessage('Full research worker unavailable. Falling back to lite pipeline…');
         const liteRes = await fetch(`/api/admin/research/${projectId}/lite-pipeline`, {
           method: 'POST',
@@ -344,6 +381,7 @@ export default function ResearchRunPanel({
           }),
         });
         if (liteRes.ok) {
+          console.log(`[ResearchRunPanel] ${projectId}: lite-pipeline started OK`);
           setPipelineStatus('running');
           onPipelineStart?.();
           stopPolling();
@@ -351,27 +389,41 @@ export default function ResearchRunPanel({
             try {
               const r = await fetch(`/api/admin/research/${projectId}/lite-pipeline`);
               if (!r.ok) return;
-              const d = await r.json();
+              const d = await r.json() as { status: string };
               const ns = d.status === 'complete' ? 'success' : d.status;
               setPipelineStatus(ns);
               if (ns !== 'running') {
+                console.log(`[ResearchRunPanel] ${projectId}: lite-pipeline done status=${ns}`);
                 stopPolling();
                 onPipelineComplete?.(ns);
               }
-            } catch { /* keep polling */ }
+            } catch (err) {
+              console.warn(`[ResearchRunPanel] ${projectId}: lite-pipeline poll error —`, err instanceof Error ? err.message : String(err));
+            }
           }, 4_000);
         } else {
+          const liteErr = await liteRes.json().catch(() => ({})) as Record<string, unknown>;
+          console.error(
+            `[ResearchRunPanel] ${projectId}: lite-pipeline POST failed HTTP ${liteRes.status} — ${liteErr.error ?? 'unknown error'}`,
+          );
           setPipelineStatus('failed');
           setFailureReason('Research worker is not available. Please go back and try again.');
           onPipelineComplete?.('failed');
         }
       } else {
-        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        const err = await res.json().catch(() => ({ error: 'Unknown error' })) as { error?: string };
+        console.error(
+          `[ResearchRunPanel] ${projectId}: POST pipeline failed HTTP ${res.status} — ${err.error ?? 'unknown'}`,
+        );
         setPipelineStatus('failed');
         setFailureReason(err.error || 'Failed to start research pipeline.');
         onPipelineComplete?.('failed');
       }
-    } catch {
+    } catch (err) {
+      console.error(
+        `[ResearchRunPanel] ${projectId}: network error starting pipeline —`,
+        err instanceof Error ? err.message : String(err),
+      );
       setPipelineStatus('failed');
       setFailureReason('Network error. Check your connection and try again.');
       onPipelineComplete?.('failed');
@@ -385,11 +437,11 @@ export default function ResearchRunPanel({
   useEffect(() => { startPipelineRef.current = startPipeline; }, [startPipeline]);
 
   useEffect(() => {
-    // Fire once on mount regardless of autoStart.
-    // autoStart is kept as a prop to signal "kick off immediately" vs
-    // "wait for user action", but in this component we always auto-start
-    // because the component is only mounted when research should begin.
-    if (!autoStartFiredRef.current) {
+    // When autoStart is true (default, set by page.tsx for Stage 2), fire the
+    // pipeline on first mount. When false, the caller is expected to trigger it
+    // manually (future use-case). We guard with autoStartFiredRef so strict-mode
+    // double-mount and re-renders never trigger a second POST.
+    if (autoStart !== false && !autoStartFiredRef.current) {
       autoStartFiredRef.current = true;
       startPipelineRef.current();
     }

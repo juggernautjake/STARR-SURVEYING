@@ -62,6 +62,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   if (!WORKER_URL || !WORKER_API_KEY) {
+    console.warn('[pipeline/route] POST: worker not configured (WORKER_URL/WORKER_API_KEY missing)');
     return NextResponse.json({
       error: 'Deep research worker is not configured. Set WORKER_URL and WORKER_API_KEY in your environment.',
     }, { status: 503 });
@@ -78,6 +79,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .single();
 
   if (projError || !project) {
+    console.warn(`[pipeline/route] POST ${projectId}: project not found — ${projError?.message ?? 'no data'}`);
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
@@ -104,8 +106,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   };
 
   if (!payload.county) {
+    console.warn(`[pipeline/route] POST ${projectId}: county missing — address="${rawAddress}"`);
     return NextResponse.json({ error: 'County is required for deep research' }, { status: 400 });
   }
+
+  console.log(
+    `[pipeline/route] POST ${projectId}: forwarding to worker — county="${payload.county}" address="${payload.address}" workerUrl=${WORKER_URL}`,
+  );
 
   // Forward to worker
   const workerRes = await fetch(`${WORKER_URL}/research/property-lookup`, {
@@ -118,12 +125,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const workerData = await workerRes.json();
 
   if (!workerRes.ok) {
+    console.error(
+      `[pipeline/route] POST ${projectId}: worker responded HTTP ${workerRes.status} — ${workerData.error ?? 'unknown'}`,
+    );
     return NextResponse.json({
       error: workerData.error || 'Worker rejected the request',
       hint: workerData.hint,
       workerStatus: workerRes.status,
     }, { status: workerRes.status >= 500 ? 502 : workerRes.status });
   }
+
+  console.log(
+    `[pipeline/route] POST ${projectId}: worker accepted — status=${workerData.status ?? 'running'}`,
+  );
 
   return NextResponse.json({
     message: 'Deep research pipeline started',
@@ -156,9 +170,18 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     if (workerRes.status === 404) {
       return NextResponse.json({ projectId, status: 'not_found' }, { status: 404 });
     }
+    console.warn(`[pipeline/route] GET ${projectId}: worker error HTTP ${workerRes.status}`);
     return NextResponse.json({ error: 'Worker error' }, { status: 502 });
   }
 
-  const data = await workerRes.json();
+  const data = await workerRes.json() as { status?: string; log?: unknown[]; message?: string };
+
+  // Log non-trivial status changes (not on every poll to avoid noise)
+  if (data.status && data.status !== 'running') {
+    console.log(
+      `[pipeline/route] GET ${projectId}: status=${data.status} logEntries=${data.log?.length ?? 0}`,
+    );
+  }
+
   return NextResponse.json(data);
 }, { routeName: 'research/pipeline/status' });

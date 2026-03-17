@@ -81,6 +81,10 @@ export async function orchestrateBellResearch(
   const allLinks: ResearchedLink[] = [];
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? '';
 
+  console.log(
+    `[BellOrchestrator] ${input.projectId ?? 'no-id'}: START — address="${input.address ?? ''}" propertyId="${input.propertyId ?? ''}" ownerName="${input.ownerName ?? ''}"`,
+  );
+
   // ── Accumulated identifiers: grows throughout the pipeline ─────────
   const knownIds = {
     addresses: new Set<string>(input.address ? [input.address] : []),
@@ -100,6 +104,7 @@ export async function orchestrateBellResearch(
   const recordError = (phase: string, source: string, err: unknown, recovered = true) => {
     const msg = err instanceof Error ? err.message : String(err);
     errors.push({ phase, source, message: msg, timestamp: new Date().toISOString(), recovered });
+    console.error(`[BellOrchestrator] ${input.projectId ?? 'no-id'} [${phase}] ERROR ${source}: ${msg.slice(0, 200)}`);
     progress(phase, `⚠ ${source} error (${recovered ? 'recovered' : 'fatal'}): ${msg.slice(0, 100)}`);
   };
 
@@ -694,6 +699,15 @@ export async function orchestrateBellResearch(
   };
 
   progress('Phase 4', 'Research complete!', 100);
+
+  console.log(
+    `[BellOrchestrator] ${input.projectId ?? 'no-id'}: COMPLETE — duration=${Math.round(durationMs / 1000)}s ` +
+    `owner="${property.ownerName ?? ''}" propertyId="${property.propertyId ?? ''}" ` +
+    `deeds=${deedRecords.length} plats=${plats?.plats.length ?? 0} discrepancies=${discrepancies.length} ` +
+    `errors=${errors.filter(e => !e.recovered).length} fatal + ${errors.filter(e => e.recovered).length} recovered ` +
+    `confidence=${overallConfidence.tier}(${overallConfidence.score})`,
+  );
+
   return result;
 }
 

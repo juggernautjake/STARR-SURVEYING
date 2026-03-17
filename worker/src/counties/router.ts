@@ -453,6 +453,8 @@ export async function runCountyResearch(
 
   const county = input.county.toLowerCase().trim();
 
+  console.log(`[CountyRouter] ${input.projectId}: routing to county="${county}" address="${input.address ?? ''}"`);
+
   switch (county) {
     // ── Bell County — Dedicated module ──────────────────────────────
     case 'bell': {
@@ -484,6 +486,7 @@ export async function runCountyResearch(
         const errMsg = err instanceof Error
           ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
           : String(err ?? 'Unknown error');
+        console.error(`[CountyRouter] ${input.projectId}: Bell County CRASHED — ${errMsg.slice(0, 200)}`);
         onProgress({
           phase: 'Failed',
           message: `Bell County pipeline error: ${errMsg}`,
@@ -519,6 +522,9 @@ export async function runCountyResearch(
         };
         return { resultType: 'generic-pipeline', county: 'Bell', data: failedResult };
       }
+      console.log(
+        `[CountyRouter] ${input.projectId}: Bell County DONE — owner="${bellResult.property?.ownerName ?? ''}" confidence=${bellResult.overallConfidence?.tier ?? 'n/a'}`,
+      );
       return { resultType: 'county-specific', county: 'Bell', data: bellResult };
     }
 
@@ -529,6 +535,8 @@ export async function runCountyResearch(
         message: `Stage 0: Routing to generic pipeline for ${input.county} County…`,
         timestamp: new Date().toISOString(),
       });
+
+      console.log(`[CountyRouter] ${input.projectId}: using GENERIC pipeline for county="${county}"`);
 
       const { runPipeline } = await import('../services/pipeline.js');
 
@@ -559,13 +567,19 @@ export async function runCountyResearch(
       try {
         result = await runPipeline(pipelineInput);
       } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[CountyRouter] ${input.projectId}: generic pipeline CRASHED — ${errMsg.slice(0, 200)}`);
         onProgress({
           phase: 'Failed',
-          message: `Pipeline failed: ${err instanceof Error ? err.message : String(err)}`,
+          message: `Pipeline failed: ${errMsg}`,
           timestamp: new Date().toISOString(),
         });
         throw err;
       }
+
+      console.log(
+        `[CountyRouter] ${input.projectId}: generic pipeline DONE — status=${result.status} docs=${result.documents?.length ?? 0}`,
+      );
 
       onProgress({
         phase: result.status === 'failed' ? 'Failed' : 'Complete',
