@@ -270,9 +270,16 @@ async function searchByAddress(
       const results = parseSearchResultsHtml(html);
 
       if (results.length > 0) {
-        progress('CAD-L2', `Variant "${[variant.number, variant.name].filter(Boolean).join(' ')}": ${results.length} result(s)`);
+        const variantLabel = [variant.number, variant.name].filter(Boolean).join(' ');
+        progress('CAD-L2', `Variant "${variantLabel}": ${results.length} result(s)`);
+        if (results.length > 1) {
+          for (const r of results.slice(0, 5)) {
+            progress('CAD-L2', `  → ID=${r.propertyId} addr="${r.address ?? '?'}" owner="${r.ownerName?.slice(0, 30) ?? '?'}"`);
+          }
+        }
         const bestPropId = pickBestMatch(results, parsed);
         if (bestPropId) {
+          progress('CAD-L2', `Selected best match: ID=${bestPropId}`);
           return lookupByPropertyId(bestPropId, screenshots, urlsVisited, progress);
         }
       }
@@ -623,29 +630,58 @@ interface ParsedSearchResult {
 
 function parseSearchResultsHtml(html: string): ParsedSearchResult[] {
   const results: ParsedSearchResult[] = [];
+  const strip = (s: string) => s.replace(/<[\s\S]*?>/g, ' ').replace(/\s+/g, ' ').trim();
 
-  // Match onclick handlers that contain property IDs
-  const onclickPattern = /onclick\s*=\s*["'][^"']*(?:\/Property\/View\/|propertyId[=:]\s*)(\d+)/gi;
-  let match;
-  while ((match = onclickPattern.exec(html)) !== null) {
-    if (!results.find(r => r.propertyId === match![1])) {
-      results.push({ propertyId: match[1] });
-    }
+  // Strategy 1: Extract from table rows with full context (address, owner, type)
+  const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let rowMatch;
+  while ((rowMatch = rowPattern.exec(html)) !== null) {
+    const rowHtml = rowMatch[1];
+    // Check if this row has a property link
+    const propIdMatch = rowHtml.match(/(?:\/Property\/View\/|propertyId[=:]\s*|"PropertyId"\s*:\s*"?)(\d{4,})/i);
+    if (!propIdMatch) continue;
+    const propertyId = propIdMatch[1];
+    if (results.find(r => r.propertyId === propertyId)) continue;
+
+    // Extract all cell text from this row
+    const cells = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)]
+      .map(c => strip(c[1]));
+
+    // Try to identify address cell (contains number + street pattern, reasonable length)
+    const addressCell = cells.find(c =>
+      /\d+\s+[A-Za-z]/.test(c) && c.length > 5 && c.length < 120
+    );
+
+    // Owner cell: uppercase name-like text, not the address
+    const ownerCell = cells.find(c =>
+      c.length > 3 && c.length < 80 && /[A-Z]{2,}/.test(c) && c !== addressCell && !/^\d+$/.test(c)
+    );
+
+    results.push({ propertyId, ownerName: ownerCell, address: addressCell });
   }
 
-  // Also try href pattern
-  const hrefPattern = /href\s*=\s*["'](?:https?:\/\/[^/]*)?\/Property\/View\/(\d+)/gi;
-  while ((match = hrefPattern.exec(html)) !== null) {
-    if (!results.find(r => r.propertyId === match![1])) {
-      results.push({ propertyId: match[1] });
+  // Strategy 2: Fallback — extract property IDs from onclick/href/JSON patterns
+  if (results.length === 0) {
+    let match;
+    const onclickPattern = /onclick\s*=\s*["'][^"']*(?:\/Property\/View\/|propertyId[=:]\s*)(\d+)/gi;
+    while ((match = onclickPattern.exec(html)) !== null) {
+      if (!results.find(r => r.propertyId === match![1])) {
+        results.push({ propertyId: match[1] });
+      }
     }
-  }
 
-  // JSON array pattern (some BIS versions return embedded JSON)
-  const jsonPattern = /"PropertyId"\s*:\s*"?(\d+)"?/gi;
-  while ((match = jsonPattern.exec(html)) !== null) {
-    if (!results.find(r => r.propertyId === match![1])) {
-      results.push({ propertyId: match[1] });
+    const hrefPattern = /href\s*=\s*["'](?:https?:\/\/[^/]*)?\/Property\/View\/(\d+)/gi;
+    while ((match = hrefPattern.exec(html)) !== null) {
+      if (!results.find(r => r.propertyId === match![1])) {
+        results.push({ propertyId: match[1] });
+      }
+    }
+
+    const jsonPattern = /"PropertyId"\s*:\s*"?(\d+)"?/gi;
+    while ((match = jsonPattern.exec(html)) !== null) {
+      if (!results.find(r => r.propertyId === match![1])) {
+        results.push({ propertyId: match[1] });
+      }
     }
   }
 
@@ -966,7 +1002,51 @@ function generateOwnerNameVariants(ownerName: string): string[] {
  * Currently returns the first result; orchestrator validates via GIS.
  */
 function pickBestMatch(results: ParsedSearchResult[], parsed: AddressComponents): string | null {
-  return results[0]?.propertyId ?? null;
+  if (results.length === 0) return null;
+  if (results.length === 1) return results[0].propertyId;
+
+  // Score each result by how well its address matches the input
+  const inputNum = parsed.streetNumber;
+  const inputStreet = parsed.streetName.toUpperCase();
+  const inputDir = parsed.direction;
+
+  let bestId = results[0].propertyId;
+  let bestScore = -1;
+
+  for (const r of results) {
+    let score = 0;
+    const addr = (r.address ?? '').toUpperCase();
+
+    if (!addr) {
+      // No address info — give it a baseline score of 0
+      if (bestScore < 0) { bestId = r.propertyId; bestScore = 0; }
+      continue;
+    }
+
+    // Exact street number match (most important for lot selection)
+    if (inputNum && addr.includes(inputNum)) score += 10;
+    // Penalize if the address has a DIFFERENT number
+    if (inputNum && !addr.includes(inputNum)) {
+      const otherNum = addr.match(/^(\d+)/);
+      if (otherNum && otherNum[1] !== inputNum) score -= 5;
+    }
+
+    // Street name word match
+    const streetWords = inputStreet.split(/\s+/).filter(w => w.length > 1);
+    for (const word of streetWords) {
+      if (addr.includes(word)) score += 2;
+    }
+
+    // Direction match
+    if (inputDir && addr.includes(inputDir)) score += 1;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = r.propertyId;
+    }
+  }
+
+  return bestId;
 }
 
 /**

@@ -574,7 +574,7 @@ export default function BoundaryCallsPanel({
           )}
 
           {!hasCalls && result.success === false && (
-            <div style={{ color: '#9CA3AF', fontSize: '0.88rem', marginTop: '0.5rem' }}>
+            <div style={{ color: '#6B7280', fontSize: '0.88rem', marginTop: '0.5rem' }}>
               No boundary calls could be parsed from the legal description. The legal description may
               be a lot/block reference or may not contain metes-and-bounds text.
             </div>

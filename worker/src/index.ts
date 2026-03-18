@@ -3059,6 +3059,8 @@ const siteHealthMonitor = new SiteHealthMonitor({
     // TODO: integrate with WebSocket broadcast to admin dashboard
     // TODO: integrate with email/Slack notifications
   },
+  // Only check Bell County CAD + clerk sites (the only county with a live orchestrator)
+  countyFips: ['48027'],
 });
 
 /**
