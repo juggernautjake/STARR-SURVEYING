@@ -226,7 +226,7 @@ export async function orchestrateBellResearch(
       (p) => progress('Phase 1', `CAD: ${p.message}`),
     ),
     scrapeBellGis(
-      { propertyId: input.propertyId, ownerName: input.ownerName, lat, lon },
+      { propertyId: input.propertyId, ownerName: input.ownerName, lat, lon, address: input.address },
       (p) => progress('Phase 1', `GIS: ${p.message}`),
     ),
   ]);
