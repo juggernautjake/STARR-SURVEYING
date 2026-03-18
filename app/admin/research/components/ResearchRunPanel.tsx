@@ -234,6 +234,31 @@ export default function ResearchRunPanel({
   const docCountRef = useRef(0);
   const prevMicroStageRef = useRef<MicroStageId | null>(null);
 
+  // Elapsed timer — tracks total time since pipeline started
+  const startTimeRef = useRef<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Start elapsed timer when pipeline begins
+  useEffect(() => {
+    if (pipelineStatus === 'running' && !startTimeRef.current) {
+      startTimeRef.current = Date.now();
+      elapsedTimerRef.current = setInterval(() => {
+        if (startTimeRef.current) {
+          setElapsedSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
+        }
+      }, 1000);
+    }
+    // Stop timer when pipeline finishes
+    if (pipelineStatus && pipelineStatus !== 'running' && pipelineStatus !== 'starting' && elapsedTimerRef.current) {
+      clearInterval(elapsedTimerRef.current);
+      elapsedTimerRef.current = null;
+    }
+    return () => {
+      if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
+    };
+  }, [pipelineStatus]);
+
   // Track whether the user has scrolled up in the log viewer (pause auto-scroll)
   function handleLogScroll(e: React.UIEvent<HTMLDivElement>) {
     const el = e.currentTarget;
@@ -331,11 +356,12 @@ export default function ResearchRunPanel({
       const stage = inferMicroStage(data.message, normalizedStatus, docCount);
       setCurrentMicroStage(stage);
 
-      // ── Frontend receipt confirmation — log every poll so we can verify
-      // that data is flowing from worker → API route → frontend.
-      console.log(
-        `[ResearchRunPanel] ${projectId} ← Worker: status=${normalizedStatus} logEntries=${newLogCount} stage="${stage}"`,
-      );
+      // Log only when new entries arrive (not every 3s poll)
+      if (newLogCount > 0) {
+        console.log(
+          `[ResearchRunPanel] ${projectId}: +${newLogCount} log(s), stage="${stage}"`,
+        );
+      }
 
       // Track stage transitions for micro-stage display
       if (prevMicroStageRef.current !== stage) {
@@ -581,6 +607,18 @@ export default function ResearchRunPanel({
           {!isDone && <span className="rrp__progress-headline">Research in Progress</span>}
           {isDone && isSuccess && <span className="rrp__progress-headline rrp__progress-headline--done">Research Complete</span>}
           {isDone && !isSuccess && <span className="rrp__progress-headline rrp__progress-headline--failed">Research Failed</span>}
+        </div>
+
+        {/* Elapsed timer */}
+        <div className="rrp__progress-timer" style={{
+          fontSize: '1.1rem',
+          fontWeight: 600,
+          fontVariantNumeric: 'tabular-nums',
+          color: isDone ? (isSuccess ? '#059669' : '#DC2626') : '#2563EB',
+          margin: '0.25rem 0',
+        }}>
+          {Math.floor(elapsedSeconds / 60).toString().padStart(2, '0')}:{(elapsedSeconds % 60).toString().padStart(2, '0')}
+          <span style={{ fontSize: '0.7rem', fontWeight: 400, marginLeft: '0.35rem', color: '#9CA3AF' }}>elapsed</span>
         </div>
 
         {/* Current micro-stage */}

@@ -87,12 +87,15 @@ export const RATE_LIMITS = {
 
 /** Request timeouts (milliseconds) */
 export const TIMEOUTS = {
-  httpRequest: 15_000,
-  arcgisQuery: 20_000,
-  playwrightNavigation: 30_000,
-  playwrightAction: 10_000,
-  screenshotCapture: 5_000,
-  aiAnalysis: 60_000,
-  /** Maximum total research time */
-  maxResearch: 30 * 60 * 1000,
+  httpRequest: 30_000,
+  arcgisQuery: 30_000,
+  playwrightNavigation: 45_000,
+  playwrightAction: 15_000,
+  screenshotCapture: 10_000,
+  /** AI analysis per-call timeout — vision OCR on large plat images needs time */
+  aiAnalysis: 300_000,
+  /** AI analysis for deed chain history — recursive lookups take longer */
+  aiDeedChain: 180_000,
+  /** Maximum total research time — increased to accommodate deep deed chain tracing */
+  maxResearch: 45 * 60 * 1000,
 } as const;

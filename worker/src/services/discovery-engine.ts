@@ -81,6 +81,20 @@ function detectSubdivision(legalDescription: string | null): SubdivisionInfo {
     };
   }
 
+  // Pattern 1B: "SUBDIVISION NAME, BLOCK X, LOT Y" — Bell CAD standard format
+  // e.g. "ASH FAMILY TRUST 12.358 ACRE ADDITION, BLOCK 001, LOT 0002"
+  const subdivBlockLotMatch = desc.match(
+    /^(.+?),\s*BLOCK\s+(\w+)[,\s]+LOT\s+(\w+)/,
+  );
+  if (subdivBlockLotMatch) {
+    return {
+      isSubdivision:   true,
+      subdivisionName: subdivBlockLotMatch[1].trim(),
+      blockNumber:     subdivBlockLotMatch[2],
+      lotNumber:       subdivBlockLotMatch[3],
+    };
+  }
+
   // Pattern 2: "LOT X, SUBDIVISION NAME"
   const lotSubdivMatch = desc.match(/^LOT\s+(\w+)[,\s]+(.+?)(?:\s+PHASE\s+\d+)?(?:\s*,.*)?$/);
   if (lotSubdivMatch) {

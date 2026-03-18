@@ -1427,7 +1427,7 @@ export default function ResearchProjectPage() {
         <div>
           <h1 className="research-page__title">{project.name}</h1>
           {project.property_address && (
-            <div style={{ color: '#6B7280', fontSize: '0.9rem', marginTop: '0.25rem' }}>
+            <div style={{ color: '#374151', fontSize: '0.9rem', marginTop: '0.25rem' }}>
               📍 {project.property_address}
               {project.county && (
                 <span className="research-county-badge">
@@ -1438,7 +1438,7 @@ export default function ResearchProjectPage() {
             </div>
           )}
           {project.description && (
-            <div style={{ color: '#9CA3AF', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+            <div style={{ color: '#4B5563', fontSize: '0.85rem', marginTop: '0.25rem' }}>
               {project.description}
             </div>
           )}
@@ -2157,7 +2157,7 @@ export default function ResearchProjectPage() {
             ];
             if (documents.length === 0) {
               return (
-                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#9CA3AF', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, marginTop: '1rem' }}>
+                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#4B5563', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, marginTop: '1rem' }}>
                   <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📭</div>
                   <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>No documents captured</div>
                   <div style={{ fontSize: '0.85rem' }}>Go back to Research &amp; Analysis to run the pipeline.</div>
@@ -2466,7 +2466,7 @@ export default function ResearchProjectPage() {
                         />
                       ) : (
                         <div className="research-canvas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
-                          <div style={{ color: '#9CA3AF', fontSize: '0.88rem' }}>Loading drawing...</div>
+                          <div style={{ color: '#6B7280', fontSize: '0.88rem' }}>Loading drawing...</div>
                         </div>
                       )}
                     </div>
@@ -2655,7 +2655,7 @@ export default function ResearchProjectPage() {
                       </div>
                       <div className="research-final-doc__prop-item">
                         <div className="research-final-doc__prop-label">Discrepancies</div>
-                        <div className="research-final-doc__prop-value" style={{ color: stats.discrepancy_count > 0 ? '#D97706' : '#059669' }}>
+                        <div className="research-final-doc__prop-value" style={{ color: stats.discrepancy_count > 0 ? '#B45309' : '#047857' }}>
                           {stats.discrepancy_count > 0
                             ? `${stats.resolved_count}/${stats.discrepancy_count} resolved`
                             : 'None'}
@@ -2675,7 +2675,7 @@ export default function ResearchProjectPage() {
                       <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', maxHeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC' }}
                         dangerouslySetInnerHTML={{ __html: sanitizedDrawingSvg }}
                       />
-                      <div style={{ fontSize: '0.78rem', color: '#6B7280', marginTop: '0.5rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.78rem', color: '#4B5563', marginTop: '0.5rem', textAlign: 'center' }}>
                         {activeDrawing.name} — v{activeDrawing.version}
                         {activeDrawing.overall_confidence ? ` — ${Math.round(activeDrawing.overall_confidence)}% confidence` : ''}
                       </div>
@@ -2684,7 +2684,7 @@ export default function ResearchProjectPage() {
                   {!activeDrawing && (
                     <div className="research-final-doc__section">
                       <h3 className="research-final-doc__section-title">✏️ Boundary Drawing</h3>
-                      <div style={{ padding: '2rem', textAlign: 'center', color: '#9CA3AF', background: '#F9FAFB', border: '1px dashed #D1D5DB', borderRadius: 8 }}>
+                      <div style={{ padding: '2rem', textAlign: 'center', color: '#4B5563', background: '#F9FAFB', border: '1px dashed #D1D5DB', borderRadius: 8 }}>
                         <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📐</div>
                         <div style={{ fontSize: '0.88rem' }}>
                           No drawing generated yet. Go to the <button onClick={() => setJobPrepTab('drawing')} style={{ background: 'none', border: 'none', color: '#1D4ED8', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit', padding: 0 }}>Drawing tab</button> to generate an AI boundary drawing.
@@ -2699,40 +2699,93 @@ export default function ResearchProjectPage() {
                     <SurveyPlanPanel projectId={projectId} />
                   </div>
 
-                  {/* Screenshots / Aerial Photos from research */}
+                  {/* Screenshots / Documents / Deed & Plat images from research */}
                   {(() => {
+                    // Include all document types that have viewable images: deeds, plats,
+                    // aerial photos, appraisal records, easements, surveys, and any file
+                    // with an image extension or MIME type
+                    const viewableTypes = new Set([
+                      'aerial_photo', 'deed', 'plat', 'survey', 'easement',
+                      'appraisal_record', 'restriction', 'screenshot', 'other',
+                    ]);
                     const imageDocs = documents.filter(d =>
-                      d.document_type === 'aerial_photo' ||
-                      (d.file_type && (d.file_type.startsWith('image/') || d.file_type === 'image')) ||
-                      (d.storage_url && /\.(png|jpg|jpeg|webp|gif)$/i.test(d.storage_url))
+                      (d.document_type && viewableTypes.has(d.document_type)) ||
+                      (d.file_type && (
+                        d.file_type.startsWith('image/') ||
+                        d.file_type === 'image' ||
+                        /^(png|jpg|jpeg|webp|gif|tiff|bmp)$/i.test(d.file_type)
+                      )) ||
+                      (d.storage_url && /\.(png|jpg|jpeg|webp|gif|tiff|bmp)$/i.test(d.storage_url)) ||
+                      (d.pages_pdf_url)
                     );
                     if (imageDocs.length === 0) return null;
+
+                    // Group by document type for organized display
+                    const grouped = new Map<string, typeof imageDocs>();
+                    for (const doc of imageDocs) {
+                      const key = doc.document_type?.replace(/_/g, ' ') ?? 'other';
+                      if (!grouped.has(key)) grouped.set(key, []);
+                      grouped.get(key)!.push(doc);
+                    }
+
                     return (
                       <div className="research-final-doc__section">
-                        <h3 className="research-final-doc__section-title">🛰️ Research Images &amp; Screenshots ({imageDocs.length})</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.75rem' }}>
-                          {imageDocs.map(doc => (
-                            <div key={doc.id} style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', background: '#F8FAFC' }}>
-                              {(doc.storage_url || doc.pages_pdf_url) && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={doc.storage_url ?? doc.pages_pdf_url ?? ''}
-                                  alt={doc.document_label || doc.original_filename || 'Research image'}
-                                  style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
-                                  loading="lazy"
-                                />
-                              )}
-                              <div style={{ padding: '0.5rem 0.65rem', fontSize: '0.75rem', color: '#6B7280' }}>
-                                {doc.document_label || doc.original_filename || doc.document_type?.replace(/_/g, ' ') || 'Image'}
-                                {doc.source_url && (
-                                  <a href={doc.source_url} target="_blank" rel="noopener noreferrer" style={{ marginLeft: '0.4rem', color: '#1D4ED8' }}>
-                                    ↗ Source
-                                  </a>
-                                )}
-                              </div>
+                        <h3 className="research-final-doc__section-title">Research Documents &amp; Screenshots ({imageDocs.length})</h3>
+                        {[...grouped.entries()].map(([groupName, groupDocs]) => (
+                          <div key={groupName} style={{ marginBottom: '1rem' }}>
+                            <h4 style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', textTransform: 'capitalize', marginBottom: '0.5rem' }}>
+                              {groupName} ({groupDocs.length})
+                            </h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem' }}>
+                              {groupDocs.map(doc => {
+                                const isPdf = doc.file_type === 'pdf' || doc.pages_pdf_url?.endsWith('.pdf');
+                                const imgSrc = doc.storage_url ?? doc.pages_pdf_url ?? '';
+                                return (
+                                  <div key={doc.id} style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', background: '#F8FAFC' }}>
+                                    {imgSrc && !isPdf && (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={imgSrc}
+                                        alt={doc.document_label || doc.original_filename || 'Research image'}
+                                        style={{ width: '100%', height: 200, objectFit: 'contain', display: 'block', background: '#fff', cursor: 'pointer' }}
+                                        loading="lazy"
+                                        onClick={() => window.open(imgSrc, '_blank')}
+                                      />
+                                    )}
+                                    {imgSrc && isPdf && (
+                                      <div
+                                        style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', cursor: 'pointer' }}
+                                        onClick={() => window.open(imgSrc, '_blank')}
+                                      >
+                                        <div style={{ textAlign: 'center', color: '#374151' }}>
+                                          <div style={{ fontSize: '2rem' }}>PDF</div>
+                                          <div style={{ fontSize: '0.7rem' }}>Click to view</div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    <div style={{ padding: '0.5rem 0.65rem', fontSize: '0.75rem', color: '#4B5563', borderTop: '1px solid #E5E7EB' }}>
+                                      <div style={{ fontWeight: 500, color: '#374151' }}>
+                                        {doc.document_label || doc.original_filename || doc.document_type?.replace(/_/g, ' ') || 'Document'}
+                                      </div>
+                                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                                        {imgSrc && (
+                                          <a href={imgSrc} target="_blank" rel="noopener noreferrer" style={{ color: '#1D4ED8', fontSize: '0.78rem' }}>
+                                            Open full size
+                                          </a>
+                                        )}
+                                        {doc.source_url && (
+                                          <a href={doc.source_url} target="_blank" rel="noopener noreferrer" style={{ color: '#1D4ED8', fontSize: '0.78rem' }}>
+                                            Source
+                                          </a>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
                     );
                   })()}
@@ -2741,7 +2794,7 @@ export default function ResearchProjectPage() {
                   <div className="research-final-doc__section research-final-doc__section--editable">
                     <h3 className="research-final-doc__section-title">
                       📝 Job Notes &amp; Field Instructions
-                      <span style={{ marginLeft: '0.5rem', fontSize: '0.68rem', fontWeight: 400, color: '#9CA3AF', textTransform: 'none', letterSpacing: 0 }}>
+                      <span style={{ marginLeft: '0.5rem', fontSize: '0.72rem', fontWeight: 400, color: '#6B7280', textTransform: 'none', letterSpacing: 0 }}>
                         {savingJobNotes ? '⏳ Saving…' : '(editable — auto-saved)'}
                       </span>
                     </h3>
@@ -2781,7 +2834,7 @@ export default function ResearchProjectPage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         {documents.map((doc, i) => (
                           <div key={doc.id} style={{ display: 'flex', gap: '0.75rem', fontSize: '0.82rem', padding: '0.4rem 0', borderBottom: i < documents.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
-                            <span style={{ color: '#9CA3AF', width: 20, flexShrink: 0 }}>{i + 1}.</span>
+                            <span style={{ color: '#6B7280', width: 20, flexShrink: 0 }}>{i + 1}.</span>
                             <span style={{ fontWeight: 600, color: '#1F2937', flex: 1 }}>
                               {doc.document_label || doc.original_filename || doc.document_type?.replace(/_/g, ' ') || 'Document'}
                             </span>
@@ -2790,7 +2843,7 @@ export default function ResearchProjectPage() {
                                 🔗 Source
                               </a>
                             )}
-                            <span style={{ color: doc.processing_status === 'analyzed' ? '#059669' : '#9CA3AF', flexShrink: 0 }}>
+                            <span style={{ color: doc.processing_status === 'analyzed' ? '#059669' : '#6B7280', flexShrink: 0 }}>
                               {doc.processing_status === 'analyzed' ? '✓ Analyzed' : doc.processing_status}
                             </span>
                           </div>

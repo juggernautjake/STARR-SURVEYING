@@ -8693,7 +8693,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #9CA3AF;
+  color: #6B7280;
   margin-bottom: 0.2rem;
 }
 
@@ -8878,7 +8878,7 @@
 .review-stat--warn { background: #fffbeb; border-color: #fde68a; }
 .review-stat__label {
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: #64748b;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -9079,7 +9079,7 @@
 }
 .review-doc-card__type {
   font-size: 0.72rem;
-  color: #6b7280;
+  color: #374151;
   background: #f3f4f6;
   border-radius: 8px;
   padding: 1px 7px;
@@ -9095,7 +9095,7 @@
 .review-doc-card__badge--ok { color: #059669; background: #d1fae5; }
 .review-doc-card__badge--err { color: #dc2626; background: #fee2e2; }
 .review-doc-card__chevron {
-  color: #94a3b8;
+  color: #6b7280;
   font-size: 0.7rem;
   flex-shrink: 0;
   margin-left: auto;
@@ -9123,7 +9123,7 @@
   flex-wrap: wrap;
   gap: 0.5rem 0.85rem;
   font-size: 0.78rem;
-  color: #6b7280;
+  color: #4b5563;
 }
 .review-doc-card__actions {
   display: flex;

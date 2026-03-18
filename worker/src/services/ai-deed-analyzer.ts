@@ -32,36 +32,52 @@ const VARAS_TO_FEET = 2.7778;
 
 // ── Metadata extraction prompt ────────────────────────────────────────────
 
-const DEED_METADATA_PROMPT = `Given this Texas deed document text, extract structured metadata.
+const DEED_METADATA_PROMPT = `You are a senior Texas RPLS and title examiner with 30+ years of experience. Given this Texas deed document text, extract structured metadata with maximum thoroughness.
 
 Return ONLY valid JSON (no markdown fences):
 {
-  "grantor": "full legal name of grantor/seller or empty string",
-  "grantee": "full legal name of grantee/buyer or empty string",
+  "grantor": "full legal name of grantor/seller — include middle names, suffixes, entity types",
+  "grantee": "full legal name of grantee/buyer — include middle names, suffixes, entity types",
   "deedDate": "YYYY-MM-DD or null",
   "recordingDate": "YYYY-MM-DD or null",
   "instrumentNumber": "string or null",
   "volumePage": { "volume": "string", "page": "string" } or null,
   "calledAcreage": number or null,
-  "surveyReference": "JOHN SMITH SURVEY, A-123 or null",
+  "surveyReference": "JOHN SMITH SURVEY, A-123 or null — include abstract number",
   "parentTract": "description of the larger tract this parcel was carved from, or null",
-  "parentInstrument": "instrument number of the parent tract deed, or null",
-  "calledFrom": [
-    { "name": "string", "reference": "Vol 1234, Pg 567 or null", "acreage": number or null, "direction": "north|south|east|west|null" }
+  "parentInstrument": "instrument number or Vol/Page of the parent tract deed, or null",
+  "priorDeedReferences": [
+    {
+      "instrumentNumber": "string or null — e.g. 2010043440",
+      "volumePage": { "volume": "string", "page": "string" } or null,
+      "description": "context of the reference — e.g. 'being the same land conveyed to...'",
+      "type": "parent_deed|prior_conveyance|easement_deed|plat_reference|abstract_reference"
+    }
   ],
-  "easementsMentioned": ["string description of each easement"],
+  "calledFrom": [
+    { "name": "string — full name of adjacent owner", "reference": "Vol 1234, Pg 567 or instrument number or null", "acreage": number or null, "direction": "north|south|east|west|northeast|northwest|southeast|southwest|null" }
+  ],
+  "easementsMentioned": ["detailed string description of each easement — include width, type, beneficiary, and location"],
+  "rightOfWay": [
+    { "name": "road/highway name", "width": number or null, "unit": "feet", "type": "TxDOT|county|city|private" }
+  ],
   "coordinateInfo": {
     "datum": "NAD83|NAD27|unknown or null",
     "zone": "Texas Central|Texas South|Texas North|null",
     "pob": { "northing": number or null, "easting": number or null }
   } or null,
-  "specialNotes": ["any unusual provisions, restrictions, or title concerns"]
+  "mineralReservation": "description of any mineral rights reservation or null",
+  "restrictions": ["any restrictive covenants or deed restrictions"],
+  "specialNotes": ["any unusual provisions, liens, title concerns, or surveyor notes"]
 }
 
-RULES:
+CRITICAL RULES:
+- Extract EVERY reference to prior deeds. These are essential for building the deed chain history.
+- Look for: "being the same property conveyed in...", "as described in...", "recorded in Vol...", "Instrument No..."
+- For calledFrom: include EVERY adjacent owner mentioned by name in the boundary description.
+- For easementsMentioned: include ALL easements — created, referenced, or reserved. Include width and type.
+- For priorDeedReferences: capture ALL instrument numbers and Vol/Page references found anywhere in the deed.
 - Extract exact names, do not abbreviate.
-- For calledFrom: include every adjacent owner mentioned by name in the boundary description.
-- For easementsMentioned: include all easements created by or referenced in this deed.
 - Return empty arrays [] when no data found, not null.`;
 
 // ── Public interfaces ─────────────────────────────────────────────────────
@@ -345,17 +361,22 @@ export class AIDeedAnalyzer {
     surveyReference?: string;
     parentTract?: string;
     parentInstrument?: string;
+    priorDeedReferences?: { instrumentNumber?: string; volumePage?: { volume: string; page: string }; description?: string; type?: string }[];
     calledFrom: { name: string; reference?: string; acreage?: number; direction?: string }[];
     easementsMentioned: string[];
+    rightOfWay?: { name: string; width?: number; unit?: string; type?: string }[];
     coordinateInfo?: {
       datum?: string;
       zone?: string;
       pob?: { northing?: number; easting?: number };
     };
+    mineralReservation?: string;
+    restrictions?: string[];
     specialNotes: string[];
   }> {
     const emptyMeta = {
       grantor: '', grantee: '', calledFrom: [], easementsMentioned: [], specialNotes: [],
+      priorDeedReferences: [], rightOfWay: [], restrictions: [],
     };
 
     if (!text || text.trim().length < 30) {
@@ -374,11 +395,11 @@ export class AIDeedAnalyzer {
       const client = new Anthropic({ apiKey: this.apiKey });
       const response = await client.messages.create({
         model:      AI_MODEL,
-        max_tokens: 2048,
+        max_tokens: 4096,
         temperature: 0,
         messages: [{
           role: 'user',
-          content: `${DEED_METADATA_PROMPT}\n\n=== DEED TEXT ===\n${text.substring(0, 8000)}`,
+          content: `${DEED_METADATA_PROMPT}\n\n=== DEED TEXT ===\n${text.substring(0, 15000)}`,
         }],
       });
 
@@ -414,9 +435,13 @@ export class AIDeedAnalyzer {
         surveyReference: this.safeStr(parsed.surveyReference),
         parentTract:     this.safeStr(parsed.parentTract),
         parentInstrument: this.safeStr(parsed.parentInstrument),
+        priorDeedReferences: this.parsePriorDeedReferences(parsed.priorDeedReferences),
         calledFrom:      this.parseCalledFrom(parsed.calledFrom),
         easementsMentioned: this.parseStringArray(parsed.easementsMentioned),
+        rightOfWay:      this.parseRightOfWay(parsed.rightOfWay),
         coordinateInfo:  this.parseCoordinateInfo(parsed.coordinateInfo),
+        mineralReservation: this.safeStr(parsed.mineralReservation),
+        restrictions:    this.parseStringArray(parsed.restrictions),
         specialNotes:    this.parseStringArray(parsed.specialNotes),
       };
     } catch (err) {
@@ -490,5 +515,46 @@ export class AIDeedAnalyzer {
           ? (obj.pob as Record<string, unknown>).easting  as number : undefined,
       } : undefined,
     };
+  }
+
+  private parsePriorDeedReferences(val: unknown): {
+    instrumentNumber?: string;
+    volumePage?: { volume: string; page: string };
+    description?: string;
+    type?: string;
+  }[] {
+    if (!Array.isArray(val)) return [];
+    return val.flatMap(item => {
+      if (!item || typeof item !== 'object') return [];
+      const obj = item as Record<string, unknown>;
+      const instrumentNumber = this.safeStr(obj.instrumentNumber);
+      const volumePage = this.parseVolumePage(obj.volumePage);
+      const description = this.safeStr(obj.description);
+      const type = this.safeStr(obj.type);
+      // At least one identifying field must be present
+      if (!instrumentNumber && !volumePage) return [];
+      return [{ instrumentNumber, volumePage, description, type }];
+    });
+  }
+
+  private parseRightOfWay(val: unknown): {
+    name: string;
+    width?: number;
+    unit?: string;
+    type?: string;
+  }[] {
+    if (!Array.isArray(val)) return [];
+    return val.flatMap(item => {
+      if (!item || typeof item !== 'object') return [];
+      const obj = item as Record<string, unknown>;
+      const name = this.safeStr(obj.name);
+      if (!name) return [];
+      return [{
+        name,
+        width: typeof obj.width === 'number' ? obj.width : undefined,
+        unit: this.safeStr(obj.unit) ?? 'feet',
+        type: this.safeStr(obj.type),
+      }];
+    });
   }
 }

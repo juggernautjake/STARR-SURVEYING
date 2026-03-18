@@ -162,26 +162,24 @@ async function resizeDeedImage(base64Img: string): Promise<{ data: string; media
       const scale = MAX_DEED_DIMENSION / Math.max(width, height);
       const nw = Math.round(width * scale);
       const nh = Math.round(height * scale);
-      console.log(`[deed-analyzer] Resizing deed image from ${width}x${height} to ${nw}x${nh}`);
+      // Resize oversized image to fit Claude Vision API limits
       buf = await sharp(buf).resize(nw, nh, { fit: 'inside', withoutEnlargement: true }).png().toBuffer();
     }
 
     if (buf.length > MAX_DEED_IMAGE_BYTES) {
-      console.log(`[deed-analyzer] Compressing deed image (${buf.length} bytes) — JPEG q80`);
+      // Compress oversized image to JPEG q80
       buf = await sharp(buf).jpeg({ quality: 80 }).toBuffer();
       mediaType = 'image/jpeg';
     }
 
     if (buf.length > MAX_DEED_IMAGE_BYTES) {
-      console.log(`[deed-analyzer] Re-compressing deed image (${buf.length} bytes) — JPEG q60`);
+      // Re-compress to JPEG q60 as fallback
       buf = await sharp(buf).jpeg({ quality: 60 }).toBuffer();
       mediaType = 'image/jpeg';
     }
 
     return { data: buf.toString('base64'), mediaType };
-  } catch (err) {
-    const rawBytes = Buffer.from(base64Img, 'base64');
-    console.warn(`[deed-analyzer] Image resize failed (${rawBytes.length} bytes), skipping image:`, err instanceof Error ? err.message : String(err));
+  } catch {
     return null;
   }
 }
@@ -200,7 +198,7 @@ async function analyzeDeedException(
     const resizeResults = await Promise.all(record.pageImages.slice(0, 5).map(img => resizeDeedImage(img)));
     const resized = resizeResults.filter((r): r is NonNullable<typeof r> => r !== null);
     if (resized.length === 0) {
-      console.warn('[deed-analyzer] All deed images failed resize — skipping AI analysis');
+      // All deed images failed resize — fall back to metadata-only summary
       return { summary: buildFallbackDeedSummary(record), usage: {} };
     }
     const imageContent = resized.map(({ data, mediaType }) => ({
@@ -214,30 +212,54 @@ async function analyzeDeedException(
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 3000,
+      max_tokens: 8000,
       messages: [{
         role: 'user',
         content: [
           ...imageContent,
           {
             type: 'text',
-            text: `You are analyzing a deed document from Bell County, Texas for a property surveyor.
-Extract ALL of the following information thoroughly:
+            text: `You are an expert Texas Registered Professional Land Surveyor (RPLS) and title examiner analyzing a deed document from Bell County, Texas. Extract ALL information with maximum thoroughness and precision.
 
-1. Document type (warranty deed, deed of trust, easement, etc.)
-2. Grantor (seller/from) and Grantee (buyer/to) — include full legal names
-3. Recording date and instrument number
-4. Legal description — transcribe the FULL metes & bounds description if present,
-   including ALL bearing/distance calls (e.g., "N 45°30'15" E, 200.50 ft"),
-   points of beginning, monuments, and curve data
-5. Lot number, block number, and subdivision name if referenced
-6. Any easements, restrictions, right-of-way dedications, or encumbrances mentioned
-7. Consideration (price) if stated
-8. Acreage or area if stated
-9. Any notable conditions, liens, or provisions
+REQUIRED EXTRACTION — do not skip any section:
 
-Be thorough — every bearing, distance, monument, and easement reference matters for the survey.
-Provide a detailed summary suitable for a field surveyor reviewing the chain of title.`,
+1. **Document Type**: warranty deed, deed of trust, special warranty deed, quitclaim, easement, right-of-way, restrictive covenant, etc.
+
+2. **Parties**: Full legal names of Grantor (seller/from) and Grantee (buyer/to). Include middle names, suffixes (Jr., Sr., III), entity types (LLC, LP, Inc.), and trustee designations.
+
+3. **Recording Information**: Recording date, instrument number, volume/page (if older deed), county clerk file number, any cross-references.
+
+4. **Legal Description — TRANSCRIBE IN FULL**:
+   - Point of Beginning (POB): full description including reference monument, distance, and bearing from a known point
+   - ALL bearing/distance calls: transcribe EXACTLY as written (e.g., "N 45°30'15" E, 200.50 feet" or "S 89°59'30" W, 461.81 ft")
+   - ALL curve data: radius, arc length, chord bearing, chord distance, delta angle, direction (left/right)
+   - ALL monument descriptions at each call point: iron rod, iron pin, concrete monument, PK nail, railroad spike, etc. with "found" or "set"
+   - Along lines: "along the south line of Lot 12", "along the north R.O.W. line of FM 436"
+   - Texas vara measurements: note if varas are used (1 vara = 33⅓ inches = 2.7778 feet)
+   - Closure: does the description close back to the POB?
+
+5. **Lot/Block/Subdivision**: Lot number, block number, subdivision/addition name, phase, abstract/survey name and number (e.g., "A-488")
+
+6. **Prior Deed References — CRITICAL FOR DEED CHAIN HISTORY**:
+   - ALL references to prior deeds: "being the same property conveyed in Vol. 465, Pg. 96" or "Instrument No. 2010043440"
+   - Parent tract references: "being a part of a 12.358 acre tract described in..."
+   - Survey/abstract references: "situated in the William Hartrick Survey, Abstract No. 488"
+   - Any "called from" references mentioning adjacent owners by name
+   - Previous instrument numbers or recording references in the body of the deed
+
+7. **Easements & Encumbrances**: ALL easements created, referenced, or reserved — utility, drainage, access, conservation. Include width, location, and beneficiary.
+
+8. **Right-of-Way**: Any ROW dedications or references to existing ROW (TxDOT, county road, FM road)
+
+9. **Financial**: Consideration (price), liens, deed of trust references
+
+10. **Area**: Acreage or square footage as stated, "more or less" qualifier
+
+11. **Special Provisions**: Restrictions, covenants, mineral reservations, timber rights, water rights, homestead disclaimers
+
+12. **Adjacent Owners**: Any neighboring property owners mentioned by name in the boundary description
+
+FORMAT your response as a detailed narrative summary suitable for a field surveyor. Start with document identification, then systematic description of the boundary, then all references and encumbrances. Mark uncertain readings with [?].`,
           },
         ],
       }],
@@ -335,12 +357,20 @@ async function generateDeedSummary(
       `${link.order}. ${link.date ?? '?'}: ${link.from} → ${link.to} (${link.type}, Inst# ${link.instrumentNumber ?? 'n/a'})`
     ).join('\n');
 
+    // Gather AI summaries from individual deed analyses for richer context
+    const deedDetails = records
+      .filter(r => r.aiSummary && r.aiSummary.length > 50)
+      .map(r => `--- ${r.documentType} (${r.instrumentNumber ?? 'no inst#'}, ${r.recordingDate ?? '?'}) ---\n${r.aiSummary!.substring(0, 1500)}`)
+      .join('\n\n');
+
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
+      max_tokens: 2000,
       messages: [{
         role: 'user',
-        content: `Summarize this Bell County, Texas property ownership history for a surveyor. Current owner: ${currentOwner ?? 'unknown'}.
+        content: `You are a senior Texas RPLS and title examiner. Synthesize a comprehensive property ownership history for a Bell County, Texas surveyor.
+
+Current owner: ${currentOwner ?? 'unknown'}.
 
 Chain of title:
 ${chainText}
@@ -348,11 +378,19 @@ ${chainText}
 Total documents found: ${records.length}
 Document types: ${[...new Set(records.map(r => r.documentType))].join(', ')}
 
-Write a concise 3-5 sentence narrative summary covering:
-- Current ownership
-- Key transfers and dates
-- Any gaps or concerns in the chain
-- Total span of recorded history`,
+${deedDetails ? `\nDetailed AI analysis of each deed:\n${deedDetails}\n` : ''}
+
+Write a thorough ownership history summary (8-15 sentences) covering:
+- Complete chain of title from earliest to most recent owner
+- Key transfers: who sold to whom, when, and the instrument numbers
+- Legal description consistency: did the legal description change between deeds?
+- Acreage consistency: did the acreage change between conveyances (was land split off)?
+- Subdivision history: when was the land platted, who was the developer?
+- Any gaps or anomalies in the chain (missing links, long gaps between transfers)
+- Easements created or referenced across the deed history
+- Prior deed references found that could lead to even older records
+- Abstract/survey references (e.g., "William Hartrick Survey, A-488")
+- Any red flags: boundary discrepancies, unclear descriptions, potential title issues`,
       }],
     });
 

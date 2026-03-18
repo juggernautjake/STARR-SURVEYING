@@ -256,6 +256,23 @@ function validatePropertyResult(
     issues.push(`Owner name appears invalid: "${resultOwner}"`);
   }
 
+  // Exact situs address match — bonus for results whose situs address
+  // contains the exact street number + road combination from the input.
+  // This is critical for subdivisions where multiple lots share the same
+  // road but have different house numbers (e.g., LOT 001 = 3777, LOT 002 = 3779).
+  let exactSitusMatch = false;
+  if (inputNum && inputAddress.parsed.streetName) {
+    const normalizedInput = `${inputNum} ${inputAddress.parsed.streetName}`.toLowerCase().replace(/\s+/g, ' ').trim();
+    const normalizedResult = resultAddress.toLowerCase().replace(/\s+/g, ' ').trim();
+    // Strip direction prefix (W, E, N, S) from both sides for comparison —
+    // input may be "3779 FM 436" while situs is "3779 W FM 436" or vice versa
+    const stripDir = (s: string) => s.replace(/^(\d+)\s+[nsew]\s+/i, '$1 ');
+    exactSitusMatch = normalizedResult.includes(normalizedInput) ||
+      normalizedResult.includes(stripDir(normalizedInput)) ||
+      stripDir(normalizedResult).includes(normalizedInput) ||
+      stripDir(normalizedResult).includes(stripDir(normalizedInput));
+  }
+
   // Compute overall confidence
   let confidence = 1.0;
   if (!streetNumberMatch) confidence -= 0.4;
@@ -263,6 +280,9 @@ function validatePropertyResult(
   if (inputCity && !resultHasCity) confidence -= 0.05;
   if (!ownerNameValid) confidence -= 0.1;
   if (acreageReasonable === false) confidence -= 0.1;
+  // Boost for exact situs match — this ensures the correct lot is selected
+  // when multiple lots in the same subdivision have different house numbers
+  if (exactSitusMatch) confidence += 0.15;
   confidence = Math.max(0, Math.min(1, confidence));
 
   if (issues.length > 0) {
@@ -1908,11 +1928,19 @@ function pickBestResult(
   // Sort by confidence descending
   scored.sort((a, b) => b.validation.confidence - a.validation.confidence);
 
-  // Log top candidates (include property type for clarity)
-  for (let i = 0; i < Math.min(3, scored.length); i++) {
+  // Log top candidates (include property type, lot info, and situs address for clarity)
+  for (let i = 0; i < Math.min(5, scored.length); i++) {
     const { result: r, validation: v } = scored[i];
     const pType = getProp(r, 'propertyType', 'PropertyType') ?? '?';
-    logger.info('Stage1-Pick', `  #${i + 1}: ID=${getProp(r, 'propertyId', 'PropertyId')}, Type=${pType}, confidence=${v.confidence.toFixed(2)}, addr="${getProp(r, 'address', 'Address', 'situsAddress') ?? 'N/A'}"`);
+    const legalDesc = getProp(r, 'legalDescription', 'LegalDescription') ?? '';
+    // Extract lot from legal for logging
+    const lotMatch = legalDesc.toUpperCase().match(/LOT\s+([\dA-Z]+)/);
+    const blockMatch = legalDesc.toUpperCase().match(/BLOCK\s+([\dA-Z]+)/);
+    const lotInfo = lotMatch ? `Lot ${lotMatch[1]}${blockMatch ? ` Blk ${blockMatch[1]}` : ''}` : '';
+    logger.info('Stage1-Pick',
+      `  #${i + 1}: ID=${getProp(r, 'propertyId', 'PropertyId')}, Type=${pType}, ` +
+      `confidence=${v.confidence.toFixed(2)}, ${lotInfo ? lotInfo + ', ' : ''}` +
+      `addr="${getProp(r, 'address', 'Address', 'situsAddress') ?? 'N/A'}"`);
   }
 
   // Warn if best match has low confidence
