@@ -187,15 +187,20 @@ function DocumentPill({ doc, idx }: { doc: PipelineDocument; idx: number }) {
 
 function LogEntry({ entry }: { entry: PipelineLogEntry }) {
   const [open, setOpen] = useState(false);
-  // info/warn/error are plain informational messages where source===method===the level
-  const isInfoMsg = entry.source === 'info' || entry.source === 'warn' || entry.source === 'error';
-  // For info/warn/error entries: show details inline in the method column; the
-  // "details" expand section is still available when the row has extras.
-  const inlineText = isInfoMsg ? (entry.details ?? entry.error ?? '') : null;
+  // Inline-text entries: info, warn, error messages AND handshake phase messages
+  const isInlineMsg = entry.source === 'info' || entry.source === 'warn' || entry.source === 'error' || entry.source === 'handshake';
+  const inlineText = isInlineMsg
+    ? (entry.details ?? entry.error ?? entry.method ?? '')
+      .replace(/^\[Worker→Frontend\]\s*/i, '') // Strip worker→frontend prefix for cleaner display
+    : null;
   const hasExtra = !!(entry.error || entry.input || (entry.steps?.length) ||
-    (!isInfoMsg && entry.details));
+    (!isInlineMsg && entry.details));
   const ts = entry.timestamp ? formatTimestamp(entry.timestamp) : null;
   const icon = statusIcon(entry.status);
+  // For handshake entries, show the phase as the layer label
+  const displayLayer = entry.source === 'handshake'
+    ? (entry.method || entry.layer || 'Pipeline')
+    : entry.layer;
 
   return (
     <div className={`ppanel__log-entry ppanel__log-entry--${entry.status}`}>
@@ -206,15 +211,15 @@ function LogEntry({ entry }: { entry: PipelineLogEntry }) {
       >
         <span className={`ppanel__log-status ppanel__log-status--${entry.status}`}>{icon}</span>
         {ts && <span className="ppanel__log-ts">{ts}</span>}
-        <span className="ppanel__log-layer">{entry.layer}</span>
-        {!isInfoMsg && <span className="ppanel__log-source">{entry.source}</span>}
+        <span className="ppanel__log-layer">{displayLayer}</span>
+        {!isInlineMsg && <span className="ppanel__log-source">{entry.source}</span>}
         <span className="ppanel__log-method ppanel__log-method--msg">
-          {isInfoMsg ? inlineText : entry.method}
+          {isInlineMsg ? inlineText : entry.method}
         </span>
         {entry.dataPointsFound > 0 && (
           <span className="ppanel__log-points">{entry.dataPointsFound} pt{entry.dataPointsFound !== 1 ? 's' : ''}</span>
         )}
-        {entry.duration_ms > 0 && !isInfoMsg && (
+        {entry.duration_ms > 0 && !isInlineMsg && (
           <span className="ppanel__log-dur">{(entry.duration_ms / 1000).toFixed(2)}s</span>
         )}
         {hasExtra && (
@@ -224,7 +229,7 @@ function LogEntry({ entry }: { entry: PipelineLogEntry }) {
       {open && hasExtra && (
         <div className="ppanel__log-detail">
           {entry.input   && <div className="ppanel__log-detail-row"><b>Input:</b> <code>{entry.input}</code></div>}
-          {!isInfoMsg && entry.details && <div className="ppanel__log-detail-row"><b>Details:</b> {entry.details}</div>}
+          {!isInlineMsg && entry.details && <div className="ppanel__log-detail-row"><b>Details:</b> {entry.details}</div>}
           {entry.error   && <div className="ppanel__log-detail-row ppanel__log-detail-row--error"><b>Error:</b> {entry.error}</div>}
           {entry.steps?.map((s, i) => (
             <div key={i} className="ppanel__log-detail-row ppanel__log-detail-row--step">↳ {s}</div>
@@ -401,16 +406,16 @@ export function PipelineProgressPanel({
   const filteredLog = useMemo(() => {
     if (!log) return undefined;
     switch (logFilter) {
-      case 'errors':   return log.filter(e => e.status === 'fail');
-      case 'warnings': return log.filter(e => e.status === 'warn');
-      case 'info':     return log.filter(e => e.status === 'skip' || e.source === 'info');
+      case 'errors':   return log.filter(e => e.status === 'fail' || e.source === 'error');
+      case 'warnings': return log.filter(e => e.status === 'fail' || e.status === 'warn' || e.source === 'warn' || e.source === 'error');
+      case 'info':     return log.filter(e => e.source === 'info' || e.source === 'handshake' || e.status === 'success' || e.status === 'partial' || e.status === 'skip');
       default:         return log;
     }
   }, [log, logFilter]);
 
   // Counts for filter buttons
-  const errorCount   = useMemo(() => log?.filter(e => e.status === 'fail').length ?? 0, [log]);
-  const warningCount = useMemo(() => log?.filter(e => e.status === 'warn').length ?? 0, [log]);
+  const errorCount   = useMemo(() => log?.filter(e => e.status === 'fail' || e.source === 'error').length ?? 0, [log]);
+  const warningCount = useMemo(() => log?.filter(e => e.status === 'fail' || e.status === 'warn' || e.source === 'warn' || e.source === 'error').length ?? 0, [log]);
 
   // Live update feed: last 6 meaningful log entries (shown during run as "what's happening now")
   const liveUpdates = useMemo(() => {
