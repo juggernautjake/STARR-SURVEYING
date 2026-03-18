@@ -36,6 +36,7 @@ interface PipelineStatusResponse {
   status: string;
   currentStage?: string;
   message?: string;
+  startedAt?: string;
   result?: {
     propertyId?: string;
     ownerName?: string;
@@ -519,14 +520,77 @@ export default function ResearchRunPanel({
   const startPipelineRef = useRef(startPipeline);
   useEffect(() => { startPipelineRef.current = startPipeline; }, [startPipeline]);
 
+  // On mount: either auto-start (coming from Stage 1 "Initiate Research") or
+  // check if a pipeline is already running (page refresh during active run).
+  // NEVER auto-start on a bare page refresh — only when autoStart is explicitly true.
+  const mountCheckDoneRef = useRef(false);
   useEffect(() => {
-    // When autoStart is true (default, set by page.tsx for Stage 2), fire the
-    // pipeline on first mount. When false, the caller is expected to trigger it
-    // manually (future use-case). We guard with autoStartFiredRef so strict-mode
-    // double-mount and re-renders never trigger a second POST.
-    if (autoStart !== false && !autoStartFiredRef.current) {
+    if (mountCheckDoneRef.current) return;
+    mountCheckDoneRef.current = true;
+
+    if (autoStart === true && !autoStartFiredRef.current) {
+      // User clicked "Initiate Research & Analysis" from Stage 1
       autoStartFiredRef.current = true;
       startPipelineRef.current();
+    } else if (!autoStartFiredRef.current) {
+      // Page refresh or navigated back — check if a run is active on the worker.
+      // If so, resume polling. If not, stay idle (don't start a new run).
+      (async () => {
+        try {
+          const res = await fetch(`/api/admin/research/${projectId}/pipeline`, {
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (res.ok) {
+            const data = await res.json() as PipelineStatusResponse;
+            const ns = data.status === 'complete' ? 'success' : data.status;
+            // Compute the real start time from the API response (worker sends startedAt)
+            const apiStartedAt = data.startedAt ? new Date(data.startedAt).getTime() : null;
+            const docCount = data.documents?.length ?? data.result?.documentCount ?? 0;
+
+            if (ns === 'running' || ns === 'starting') {
+              // Pipeline is actively running — resume polling
+              console.log(`[ResearchRunPanel] ${projectId}: page refresh detected active pipeline — resuming poll`);
+              setPipelineStatus(ns);
+              setStarted(true);
+              startTimeRef.current = apiStartedAt && !isNaN(apiStartedAt) ? apiStartedAt : Date.now();
+              if (data.log) setLogs(data.log);
+              if (data.message) setCurrentMessage(data.message);
+              setCurrentMicroStage(inferMicroStage(data.message, ns, docCount));
+              docCountRef.current = docCount;
+              pollRef.current = setInterval(pollStatus, 3_000);
+            } else if (ns === 'success' || ns === 'partial') {
+              // Pipeline completed — show final state
+              console.log(`[ResearchRunPanel] ${projectId}: page refresh — pipeline already complete`);
+              setPipelineStatus(ns);
+              setStarted(true);
+              if (apiStartedAt && !isNaN(apiStartedAt)) {
+                startTimeRef.current = apiStartedAt;
+                const elapsed = data.result?.duration_ms
+                  ? Math.floor(data.result.duration_ms / 1000)
+                  : Math.floor((Date.now() - apiStartedAt) / 1000);
+                setElapsedSeconds(elapsed);
+              }
+              if (data.log) setLogs(data.log);
+              if (data.message) setCurrentMessage(data.message);
+              setCurrentMicroStage(inferMicroStage(data.message, ns, docCount));
+              docCountRef.current = docCount;
+            } else if (ns === 'failed') {
+              // Pipeline failed — show failed state
+              console.log(`[ResearchRunPanel] ${projectId}: page refresh — pipeline failed`);
+              setPipelineStatus('failed');
+              setStarted(true);
+              if (data.log) setLogs(data.log);
+              if (data.failureReason) setFailureReason(data.failureReason);
+              if (data.message) setCurrentMessage(data.message);
+              setCurrentMicroStage(inferMicroStage(data.message, 'failed', docCount));
+            }
+            // If 404 or other — pipeline doesn't exist, stay idle
+          }
+          // If network error or 404 — stay in idle state (pipelineStatus = null)
+        } catch {
+          // Silently stay idle — no active pipeline
+        }
+      })();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -582,20 +646,89 @@ export default function ResearchRunPanel({
 
   const stageDef = MICRO_STAGES.find(s => s.id === currentMicroStage) ?? MICRO_STAGES[0];
 
+  // Whether the component is in an idle state (no pipeline started, or page refreshed with no active run)
+  const isIdle = pipelineStatus === null && !started;
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <>
-      {/* ── Element 1: Progress Indicator ── */}
+      {/* ── Back button — always visible at top-left ── */}
+      {onBack && (
+        <button
+          className="rrp__back-topleft"
+          onClick={onBack}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            background: 'none',
+            border: '1px solid #D1D5DB',
+            borderRadius: '0.375rem',
+            padding: '0.4rem 0.85rem',
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            color: '#374151',
+            cursor: 'pointer',
+            marginBottom: '1rem',
+          }}
+        >
+          ← Back to Property Information
+        </button>
+      )}
+
+      {/* ── Idle State: no pipeline running, waiting for user action ── */}
+      {isIdle && (
+        <div className="rrp__progress rrp__progress--idle" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '3rem 2rem',
+          background: '#F9FAFB',
+          border: '1px solid #E5E7EB',
+          borderRadius: '0.75rem',
+          textAlign: 'center',
+          gap: '0.75rem',
+        }}>
+          <div style={{ fontSize: '2.5rem' }}>🔬</div>
+          <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#1F2937' }}>No Active Research</div>
+          <div style={{ fontSize: '0.88rem', color: '#4B5563', maxWidth: '28rem', lineHeight: 1.5 }}>
+            No research pipeline is currently running for this project.
+            Go back to Property Information and click &quot;Initiate Research &amp; Analysis&quot; to start.
+          </div>
+          {onBack && (
+            <button
+              onClick={onBack}
+              style={{
+                marginTop: '0.75rem',
+                background: '#1D4ED8',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '0.375rem',
+                padding: '0.5rem 1.25rem',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              ← Go to Property Information
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Element 1: Progress Indicator (only when pipeline has started) ── */}
+      {!isIdle && (<>
       <div className={`rrp__progress${isDone ? (isSuccess ? ' rrp__progress--success' : ' rrp__progress--failed') : ' rrp__progress--running'}`}>
-        {/* Top-left stop button — always visible and obvious while running */}
+        {/* Top-left stop button — always visible while running */}
         {isRunning && !cancelling && (
           <button
             className="rrp__stop-topleft"
             onClick={() => setShowCancelConfirm(true)}
-            aria-label="Stop research pipeline"
+            aria-label="Stop research and analysis"
           >
-            ■ Stop
+            <span className="rrp__stop-icon" aria-hidden="true" />
+            Stop Research and Analysis
           </button>
         )}
         {cancelling && (
@@ -649,7 +782,8 @@ export default function ResearchRunPanel({
             className="rrp__stop-btn"
             onClick={() => setShowCancelConfirm(true)}
           >
-            ■ Stop Research
+            <span className="rrp__stop-icon" aria-hidden="true" />
+            Stop Research and Analysis
           </button>
         )}
         {cancelling && (
@@ -723,8 +857,10 @@ export default function ResearchRunPanel({
               <button
                 className="rrp__stop-btn-compact"
                 onClick={() => setShowCancelConfirm(true)}
+                aria-label="Stop research and analysis"
               >
-                ■ STOP
+                <span className="rrp__stop-icon rrp__stop-icon--sm" aria-hidden="true" />
+                Stop
               </button>
             )}
             {cancelling && (
@@ -799,11 +935,7 @@ export default function ResearchRunPanel({
           )}
         </div>
       </div>
-
-      {/* ── Back Button ── */}
-      <button className="research-back-btn" onClick={onBack} style={{ marginTop: '1rem' }}>
-        ← Back to Property Information
-      </button>
+      </>)}
 
       {/* ── Styles ── */}
       <style>{`
@@ -824,36 +956,59 @@ export default function ResearchRunPanel({
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
-/* Top-left stop button — pinned to corner for immediate visibility */
+/* Round stop icon — used inside all stop buttons */
+.rrp__stop-icon {
+  display: inline-block;
+  width: 14px; height: 14px;
+  background: #dc2626;
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+}
+.rrp__stop-icon::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px; height: 6px;
+  background: #fff;
+  border-radius: 1px;
+}
+.rrp__stop-icon--sm {
+  width: 11px; height: 11px;
+}
+.rrp__stop-icon--sm::after {
+  width: 5px; height: 5px;
+}
+
+/* Top-left stop button */
 .rrp__stop-topleft {
   position: absolute;
-  top: 0.65rem;
-  left: 0.65rem;
-  background: #dc2626;
-  color: #fff;
-  border: 2px solid #b91c1c;
-  border-radius: 8px;
-  padding: 0.4rem 1rem;
-  font-size: 0.85rem;
-  font-weight: 700;
+  top: 0.6rem;
+  left: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  color: #6B7280;
+  border: 1px solid #D1D5DB;
+  border-radius: 0.375rem;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 500;
   cursor: pointer;
-  letter-spacing: 0.03em;
-  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.35);
-  transition: background 0.15s, transform 0.1s;
+  transition: color 0.15s, border-color 0.15s;
   z-index: 2;
 }
 .rrp__stop-topleft:hover {
-  background: #b91c1c;
-  transform: scale(1.05);
-  box-shadow: 0 2px 14px rgba(220, 38, 38, 0.5);
+  color: #dc2626;
+  border-color: #fca5a5;
 }
-.rrp__stop-topleft:active { transform: scale(0.97); }
+.rrp__stop-topleft:active { transform: scale(0.98); }
 .rrp__stop-topleft--cancelling {
-  background: #991b1b;
-  border-color: #7f1d1d;
+  color: #991b1b;
   cursor: default;
-  font-size: 0.8rem;
-  animation: rrp-pulse 1.4s ease-in-out infinite;
+  font-size: 0.75rem;
 }
 .rrp__progress--running { border-color: #3b82f6; }
 .rrp__progress--success { border-color: #10b981; background: #f0fdf4; }
@@ -926,22 +1081,17 @@ export default function ResearchRunPanel({
 /* ── Stop Button ───────────────────────────────────────────── */
 .rrp__stop-btn {
   margin-top: 1rem;
-  background: #dc2626; color: #fff;
-  border: 3px solid #b91c1c; border-radius: 10px;
-  padding: 0.85rem 2.5rem;
-  font-size: 1.15rem; font-weight: 800;
-  cursor: pointer; transition: background 0.15s, transform 0.1s;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  box-shadow: 0 0 15px rgba(220, 38, 38, 0.4), 0 4px 12px rgba(0,0,0,0.15);
-  animation: rrp-stop-pulse 2s ease-in-out infinite;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: none; color: #6B7280;
+  border: 1px solid #D1D5DB; border-radius: 0.375rem;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.88rem; font-weight: 500;
+  cursor: pointer; transition: color 0.15s, border-color 0.15s;
 }
-@keyframes rrp-stop-pulse {
-  0%, 100% { box-shadow: 0 0 15px rgba(220, 38, 38, 0.4), 0 4px 12px rgba(0,0,0,0.15); }
-  50% { box-shadow: 0 0 30px rgba(220, 38, 38, 0.7), 0 4px 20px rgba(220, 38, 38, 0.3); }
-}
-.rrp__stop-btn:hover { background: #b91c1c; transform: scale(1.05); box-shadow: 0 0 30px rgba(220, 38, 38, 0.7), 0 4px 20px rgba(220, 38, 38, 0.3); }
-.rrp__stop-btn:active { transform: scale(0.97); }
+.rrp__stop-btn:hover { color: #dc2626; border-color: #fca5a5; }
+.rrp__stop-btn:active { transform: scale(0.98); }
 
 .rrp__cancel-status {
   margin-top: 0.5rem; font-size: 0.9rem; color: #dc2626; font-weight: 600;
@@ -949,16 +1099,17 @@ export default function ResearchRunPanel({
 
 /* Compact stop button in log viewer header */
 .rrp__stop-btn-compact {
-  background: #dc2626; color: #fff;
-  border: 2px solid #b91c1c; border-radius: 6px;
-  padding: 0.35rem 1rem;
-  font-size: 0.8rem; font-weight: 800;
-  cursor: pointer; transition: background 0.15s;
-  letter-spacing: 0.05em;
-  animation: rrp-stop-pulse 2s ease-in-out infinite;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: none; color: #6B7280;
+  border: 1px solid #D1D5DB; border-radius: 0.375rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem; font-weight: 500;
+  cursor: pointer; transition: color 0.15s, border-color 0.15s;
   margin-right: 0.5rem;
 }
-.rrp__stop-btn-compact:hover { background: #b91c1c; }
+.rrp__stop-btn-compact:hover { color: #dc2626; border-color: #fca5a5; }
 .rrp__cancel-status-compact {
   font-size: 0.8rem; color: #dc2626; font-weight: 600; margin-right: 0.5rem;
 }
