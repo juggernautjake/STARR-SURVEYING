@@ -141,7 +141,7 @@ export async function orchestrateBellResearch(
     if (ids.legalDescription) {
       // Extract subdivision name from legal description using dynamic import
       try {
-        const platScraper = await import('./scrapers/plat-scraper');
+        const platScraper = await import('./scrapers/plat-scraper.js');
         const subdivName = platScraper.extractSubdivisionNameFromLegal(ids.legalDescription);
         if (subdivName && !knownIds.subdivisionNames.has(subdivName)) {
           knownIds.subdivisionNames.add(subdivName); discovered++;
