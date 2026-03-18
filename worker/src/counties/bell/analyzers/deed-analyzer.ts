@@ -151,7 +151,7 @@ const MAX_DEED_IMAGE_BYTES = 4_718_592; // 4.5 MiB
 async function resizeDeedImage(base64Img: string): Promise<{ data: string; mediaType: 'image/png' | 'image/jpeg' } | null> {
   try {
     const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
-    let buf: Buffer<ArrayBufferLike> = Buffer.from(base64Img, 'base64');
+    let buf: any = Buffer.from(base64Img, 'base64');
     const meta = await sharp(buf).metadata();
     const { width, height } = meta;
     if (!width || !height) return { data: base64Img, mediaType: 'image/png' };
