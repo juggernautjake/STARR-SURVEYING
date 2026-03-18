@@ -410,11 +410,19 @@ function Spinner() {
 
 function LogEntryRow({ entry }: { entry: PipelineLogEntry }) {
   const [open, setOpen] = useState(false);
-  const isInfoMsg = entry.source === 'info' || entry.source === 'warn' || entry.source === 'error';
-  const inlineText = isInfoMsg ? (entry.details ?? entry.error ?? '') : null;
-  const hasExtra = !!(entry.error || entry.input || (entry.steps?.length) || (!isInfoMsg && entry.details));
+  // Inline-text entries: info, warn, error messages AND handshake phase messages
+  const isInlineMsg = entry.source === 'info' || entry.source === 'warn' || entry.source === 'error' || entry.source === 'handshake';
+  const inlineText = isInlineMsg
+    ? (entry.details ?? entry.error ?? entry.method ?? '')
+      .replace(/^\[Worker→Frontend\]\s*/i, '') // Strip worker→frontend prefix for cleaner display
+    : null;
+  const hasExtra = !!(entry.error || entry.input || (entry.steps?.length) || (!isInlineMsg && entry.details));
   const ts = entry.timestamp ? formatTimestamp(entry.timestamp) : null;
   const icon = statusIcon(entry.status);
+  // For handshake entries, show the phase as the layer label
+  const displayLayer = entry.source === 'handshake'
+    ? (entry.method || entry.layer || 'Pipeline')
+    : entry.layer;
 
   return (
     <div className={`rrp__log-entry rrp__log-entry--${entry.status}`}>
@@ -425,15 +433,15 @@ function LogEntryRow({ entry }: { entry: PipelineLogEntry }) {
       >
         <span className={`rrp__log-status rrp__log-status--${entry.status}`}>{icon}</span>
         {ts && <span className="rrp__log-ts">{ts}</span>}
-        <span className="rrp__log-layer">{entry.layer}</span>
-        {!isInfoMsg && <span className="rrp__log-source">{entry.source}</span>}
+        <span className="rrp__log-layer">{displayLayer}</span>
+        {!isInlineMsg && <span className="rrp__log-source">{entry.source}</span>}
         <span className="rrp__log-method">
-          {isInfoMsg ? inlineText : entry.method}
+          {isInlineMsg ? inlineText : entry.method}
         </span>
         {entry.dataPointsFound > 0 && (
           <span className="rrp__log-pts">{entry.dataPointsFound} pt{entry.dataPointsFound !== 1 ? 's' : ''}</span>
         )}
-        {entry.duration_ms > 0 && !isInfoMsg && (
+        {entry.duration_ms > 0 && !isInlineMsg && (
           <span className="rrp__log-dur">{(entry.duration_ms / 1000).toFixed(2)}s</span>
         )}
         {hasExtra && <span className="rrp__log-expand">{open ? '▲' : '▼'}</span>}
@@ -441,7 +449,7 @@ function LogEntryRow({ entry }: { entry: PipelineLogEntry }) {
       {open && hasExtra && (
         <div className="rrp__log-detail">
           {entry.input && <div className="rrp__log-detail-row"><b>Input:</b> <code>{entry.input}</code></div>}
-          {!isInfoMsg && entry.details && <div className="rrp__log-detail-row"><b>Details:</b> {entry.details}</div>}
+          {!isInlineMsg && entry.details && <div className="rrp__log-detail-row"><b>Details:</b> {entry.details}</div>}
           {entry.error && <div className="rrp__log-detail-row rrp__log-detail-row--error"><b>Error:</b> {entry.error}</div>}
           {entry.steps?.map((s, i) => (
             <div key={i} className="rrp__log-detail-row rrp__log-detail-row--step">↳ {s}</div>
@@ -787,8 +795,9 @@ export default function ResearchRunPanel({
   const filteredLogs = logs.filter(entry => {
     if (logFilter === 'all') return true;
     if (logFilter === 'errors') return entry.status === 'fail' || entry.source === 'error';
-    if (logFilter === 'warn') return entry.status === 'fail' || entry.source === 'warn' || entry.source === 'error';
-    if (logFilter === 'info') return entry.source === 'info';
+    if (logFilter === 'warn') return entry.status === 'fail' || entry.status === 'warn' || entry.source === 'warn' || entry.source === 'error';
+    // "Info" shows everything that isn't an error/warning — includes info, handshake, success, partial, skip
+    if (logFilter === 'info') return entry.source === 'info' || entry.source === 'handshake' || entry.status === 'success' || entry.status === 'partial' || entry.status === 'skip';
     return true;
   });
 
@@ -933,28 +942,24 @@ export default function ResearchRunPanel({
           <div className="rrp__logviewer-header-right">
             {/* Filter buttons */}
             <div className="rrp__logviewer-filters" role="group" aria-label="Log filter">
-              {(['all', 'errors', 'warn', 'info'] as const).map(f => (
-                <button
-                  key={f}
-                  className={`rrp__logviewer-filter${logFilter === f ? ' rrp__logviewer-filter--active' : ''}`}
-                  onClick={() => setLogFilter(f)}
-                >
-                  {f === 'all' ? 'All' : f === 'errors' ? 'Errors' : f === 'warn' ? 'Warnings' : 'Info'}
-                  {f !== 'all' && logs.filter(e =>
-                    f === 'errors' ? (e.status === 'fail' || e.source === 'error') :
-                    f === 'warn'   ? (e.status === 'fail' || e.source === 'warn' || e.source === 'error') :
-                    e.source === 'info'
-                  ).length > 0 && (
-                    <span className="rrp__logviewer-filter-count">
-                      {logs.filter(e =>
-                        f === 'errors' ? (e.status === 'fail' || e.source === 'error') :
-                        f === 'warn'   ? (e.status === 'fail' || e.source === 'warn' || e.source === 'error') :
-                        e.source === 'info'
-                      ).length}
-                    </span>
-                  )}
-                </button>
-              ))}
+              {(['all', 'errors', 'warn', 'info'] as const).map(f => {
+                const count = f === 'all' ? logs.length :
+                  f === 'errors' ? logs.filter(e => e.status === 'fail' || e.source === 'error').length :
+                  f === 'warn'   ? logs.filter(e => e.status === 'fail' || e.status === 'warn' || e.source === 'warn' || e.source === 'error').length :
+                  logs.filter(e => e.source === 'info' || e.source === 'handshake' || e.status === 'success' || e.status === 'partial' || e.status === 'skip').length;
+                return (
+                  <button
+                    key={f}
+                    className={`rrp__logviewer-filter${logFilter === f ? ' rrp__logviewer-filter--active' : ''}`}
+                    onClick={() => setLogFilter(f)}
+                  >
+                    {f === 'all' ? 'All' : f === 'errors' ? 'Errors' : f === 'warn' ? 'Warnings' : 'Info'}
+                    {count > 0 && (
+                      <span className="rrp__logviewer-filter-count">{count}</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
             <button
               className="rrp__logviewer-copy-btn"
