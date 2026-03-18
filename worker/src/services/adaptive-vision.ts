@@ -184,6 +184,8 @@ interface GridChoice {
 }
 
 function selectOptimalGrid(info: ImageInfo): GridChoice {
+  // Always use at least a 2x2 grid to ensure thorough quadrant-level OCR analysis.
+  // For larger images, use finer grids as needed for readability.
   for (const grid of GRID_OPTIONS) {
     const pieceWidth  = Math.ceil(info.width  / grid.cols);
     const pieceHeight = Math.ceil(info.height / grid.rows);
@@ -441,12 +443,12 @@ export async function adaptiveVisionOcr(
     logger.warn('AdaptiveVision', `${label}: sharp not available — falling back to single-image extraction`);
   }
 
-  // ── Single-image fallback (sharp unavailable OR small image) ─────────────
-  // Also route oversized images (> 4.5 MB) to grid segmentation even when
-  // sharp IS available — they would fail the Claude 5 MB-per-image limit.
-  if (!sharpLib || (imageBuffer.length < SMALL_IMAGE_BYTES && imageBuffer.length <= MAX_IMAGE_BYTES)) {
-    const strategy = !sharpLib ? 'single (no sharp)' : 'single (small image)';
-    logger.info('AdaptiveVision', `${label}: ${strategy}`);
+  // ── Single-image fallback — ONLY when sharp is unavailable ───────────────
+  // All images are now processed with grid segmentation (minimum 2x2) to
+  // maximize data extraction from deeds and plats. The AI analyzes each
+  // quadrant independently for thorough OCR coverage.
+  if (!sharpLib) {
+    logger.info('AdaptiveVision', `${label}: single (no sharp — library unavailable)`);
     const text = await extractSegment(imageBuffer, mediaType, 'full', anthropicApiKey, logger);
     totalApiCalls++;
     const score = scoreConfidence(text);
@@ -593,19 +595,45 @@ export async function adaptiveVisionOcr(
           `dataPoints=${zScore.dataPoints}, uncertainty=${zScore.uncertaintyScore} ` +
           `([?]×${zScore.uncertainMarkers}, words×${zScore.uncertainWords})`);
 
+        // Level 3 escalation: if zoom sub-segment still has low confidence,
+        // split it into 2x2 again for maximum extraction depth
+        let finalText = zText;
+        let finalConfidence = zScore.confidence;
+        if (zScore.needsZoom && zbox.width > 200 && zbox.height > 200) {
+          logger.info('AdaptiveVision',
+            `${label} [${zId}]: depth-2 escalation — confidence ${zScore.confidence} still low, splitting again`);
+          const z2Boxes = computeCropBoxes(zbox.width, zbox.height, 2, 2, ZOOM_OVERLAP_PCT);
+          const z2Texts: string[] = [];
+          let z2TotalConf = 0;
+          for (const z2box of z2Boxes) {
+            const z2Buf = await sharpLib(zBuf)
+              .extract({ left: z2box.left, top: z2box.top, width: z2box.width, height: z2box.height })
+              .png()
+              .toBuffer();
+            const z2Id = `${zId}_z${z2box.segmentId}`;
+            const z2Text = await extractSegment(z2Buf, 'image/png', z2Id, anthropicApiKey, logger, `${zPosHint} (depth-2 zoom)`, documentName);
+            totalApiCalls++;
+            const z2Score = scoreConfidence(z2Text);
+            z2Texts.push(z2Text);
+            z2TotalConf += z2Score.confidence;
+          }
+          finalText = z2Texts.join('\n\n');
+          finalConfidence = Math.round(z2TotalConf / z2Texts.length);
+        }
+
         zoomResults.push({
           segmentId:           zId,
           row:                 zbox.row,
           col:                 zbox.col,
           depth:               1,
           boundingBox:         { x: box.left + zbox.left, y: box.top + zbox.top, w: zbox.width, h: zbox.height },
-          text:                zText,
-          confidence:          zScore.confidence,
+          text:                finalText,
+          confidence:          finalConfidence,
           dataPoints:          zScore.dataPoints,
           uncertaintyScore:    zScore.uncertaintyScore,
           bearings:            zScore.bearings,
           distances:           zScore.distances,
-          flaggedForZoom:      false,  // no further escalation
+          flaggedForZoom:      false,
           flaggedForManualReview: zScore.needsManualReview,
         });
       }

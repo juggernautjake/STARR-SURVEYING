@@ -2699,40 +2699,93 @@ export default function ResearchProjectPage() {
                     <SurveyPlanPanel projectId={projectId} />
                   </div>
 
-                  {/* Screenshots / Aerial Photos from research */}
+                  {/* Screenshots / Documents / Deed & Plat images from research */}
                   {(() => {
+                    // Include all document types that have viewable images: deeds, plats,
+                    // aerial photos, appraisal records, easements, surveys, and any file
+                    // with an image extension or MIME type
+                    const viewableTypes = new Set([
+                      'aerial_photo', 'deed', 'plat', 'survey', 'easement',
+                      'appraisal_record', 'restriction', 'screenshot', 'other',
+                    ]);
                     const imageDocs = documents.filter(d =>
-                      d.document_type === 'aerial_photo' ||
-                      (d.file_type && (d.file_type.startsWith('image/') || d.file_type === 'image')) ||
-                      (d.storage_url && /\.(png|jpg|jpeg|webp|gif)$/i.test(d.storage_url))
+                      (d.document_type && viewableTypes.has(d.document_type)) ||
+                      (d.file_type && (
+                        d.file_type.startsWith('image/') ||
+                        d.file_type === 'image' ||
+                        /^(png|jpg|jpeg|webp|gif|tiff|bmp)$/i.test(d.file_type)
+                      )) ||
+                      (d.storage_url && /\.(png|jpg|jpeg|webp|gif|tiff|bmp)$/i.test(d.storage_url)) ||
+                      (d.pages_pdf_url)
                     );
                     if (imageDocs.length === 0) return null;
+
+                    // Group by document type for organized display
+                    const grouped = new Map<string, typeof imageDocs>();
+                    for (const doc of imageDocs) {
+                      const key = doc.document_type?.replace(/_/g, ' ') ?? 'other';
+                      if (!grouped.has(key)) grouped.set(key, []);
+                      grouped.get(key)!.push(doc);
+                    }
+
                     return (
                       <div className="research-final-doc__section">
-                        <h3 className="research-final-doc__section-title">🛰️ Research Images &amp; Screenshots ({imageDocs.length})</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.75rem' }}>
-                          {imageDocs.map(doc => (
-                            <div key={doc.id} style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', background: '#F8FAFC' }}>
-                              {(doc.storage_url || doc.pages_pdf_url) && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={doc.storage_url ?? doc.pages_pdf_url ?? ''}
-                                  alt={doc.document_label || doc.original_filename || 'Research image'}
-                                  style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
-                                  loading="lazy"
-                                />
-                              )}
-                              <div style={{ padding: '0.5rem 0.65rem', fontSize: '0.75rem', color: '#6B7280' }}>
-                                {doc.document_label || doc.original_filename || doc.document_type?.replace(/_/g, ' ') || 'Image'}
-                                {doc.source_url && (
-                                  <a href={doc.source_url} target="_blank" rel="noopener noreferrer" style={{ marginLeft: '0.4rem', color: '#1D4ED8' }}>
-                                    ↗ Source
-                                  </a>
-                                )}
-                              </div>
+                        <h3 className="research-final-doc__section-title">Research Documents &amp; Screenshots ({imageDocs.length})</h3>
+                        {[...grouped.entries()].map(([groupName, groupDocs]) => (
+                          <div key={groupName} style={{ marginBottom: '1rem' }}>
+                            <h4 style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', textTransform: 'capitalize', marginBottom: '0.5rem' }}>
+                              {groupName} ({groupDocs.length})
+                            </h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem' }}>
+                              {groupDocs.map(doc => {
+                                const isPdf = doc.file_type === 'pdf' || doc.pages_pdf_url?.endsWith('.pdf');
+                                const imgSrc = doc.storage_url ?? doc.pages_pdf_url ?? '';
+                                return (
+                                  <div key={doc.id} style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', background: '#F8FAFC' }}>
+                                    {imgSrc && !isPdf && (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={imgSrc}
+                                        alt={doc.document_label || doc.original_filename || 'Research image'}
+                                        style={{ width: '100%', height: 200, objectFit: 'contain', display: 'block', background: '#fff', cursor: 'pointer' }}
+                                        loading="lazy"
+                                        onClick={() => window.open(imgSrc, '_blank')}
+                                      />
+                                    )}
+                                    {imgSrc && isPdf && (
+                                      <div
+                                        style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', cursor: 'pointer' }}
+                                        onClick={() => window.open(imgSrc, '_blank')}
+                                      >
+                                        <div style={{ textAlign: 'center', color: '#6B7280' }}>
+                                          <div style={{ fontSize: '2rem' }}>PDF</div>
+                                          <div style={{ fontSize: '0.7rem' }}>Click to view</div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    <div style={{ padding: '0.5rem 0.65rem', fontSize: '0.75rem', color: '#6B7280', borderTop: '1px solid #E5E7EB' }}>
+                                      <div style={{ fontWeight: 500, color: '#374151' }}>
+                                        {doc.document_label || doc.original_filename || doc.document_type?.replace(/_/g, ' ') || 'Document'}
+                                      </div>
+                                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                                        {imgSrc && (
+                                          <a href={imgSrc} target="_blank" rel="noopener noreferrer" style={{ color: '#1D4ED8', fontSize: '0.7rem' }}>
+                                            Open full size
+                                          </a>
+                                        )}
+                                        {doc.source_url && (
+                                          <a href={doc.source_url} target="_blank" rel="noopener noreferrer" style={{ color: '#1D4ED8', fontSize: '0.7rem' }}>
+                                            Source
+                                          </a>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
                     );
                   })()}

@@ -161,18 +161,14 @@ export async function orchestrateBellResearch(
         console.warn(`[orchestrator] Could not extract subdivision from "${source}": ${err instanceof Error ? err.message : String(err)}`);
       }
       // Extract lot and block numbers from legal description
-      const lotBlockMatch = ids.legalDescription.match(
-        /LOT\s+(\S+)\s+(?:BLK|BLOCK)\s+(\S+)/i,
-      );
-      if (lotBlockMatch) {
-        const lot = lotBlockMatch[1].replace(/,$/,'');
-        const block = lotBlockMatch[2].replace(/,$/,'');
-        if (!knownIds.lotNumber) {
-          knownIds.lotNumber = lot;
-          knownIds.blockNumber = block;
-          discovered++;
-          progress('Enrich', `  ← Lot/Block from ${source}: Lot ${lot}, Block ${block}`);
-        }
+      // Bell CAD uses both "BLOCK X, LOT Y" and "LOT X, BLOCK Y" formats
+      const { extractLotBlock: extractLB } = await import('../../services/bell-county-classifier.js');
+      const lotBlock = extractLB(ids.legalDescription);
+      if (lotBlock.lot && !knownIds.lotNumber) {
+        knownIds.lotNumber = lotBlock.lot;
+        knownIds.blockNumber = lotBlock.block;
+        discovered++;
+        progress('Enrich', `  ← Lot/Block from ${source}: Lot ${lotBlock.lot}, Block ${lotBlock.block ?? '—'}`);
       }
     }
     if (discovered > 0) {
@@ -550,6 +546,141 @@ export async function orchestrateBellResearch(
     78,
   );
 
+  // ══════════════════════════════════════════════════════════════════
+  //  PHASE 3B: RECURSIVE DEED CHAIN TRACING
+  //  Mine AI summaries for historical references (Vol/Page, instrument
+  //  numbers) and fetch those older deeds from the clerk. This deepens
+  //  the chain of title automatically.
+  // ══════════════════════════════════════════════════════════════════
+  if (deeds && deeds.records.length > 0) {
+    checkAborted();
+    progress('Phase 3B', 'Mining deed summaries for historical references...', 79);
+
+    const existingInstruments = new Set(
+      (clerk?.documents ?? []).map(d => d.instrumentNumber).filter(Boolean) as string[],
+    );
+
+    // Extract references from AI summaries
+    const discoveredInstruments: string[] = [];
+    const discoveredVolPages: Array<{ volume: string; page: string }> = [];
+
+    for (const record of deeds.records) {
+      const text = (record.aiSummary ?? '') + ' ' + (record.legalDescription ?? '');
+      if (!text || text.length < 20) continue;
+
+      // Find instrument numbers in text (8-10 digit sequences starting with 19xx or 20xx)
+      const instrMatches = text.matchAll(/\b((?:19|20)\d{2}\d{5,7})\b/g);
+      for (const m of instrMatches) {
+        if (!existingInstruments.has(m[1]) && !discoveredInstruments.includes(m[1])) {
+          discoveredInstruments.push(m[1]);
+        }
+      }
+
+      // Find Vol/Page references: "Vol. 465, Pg. 96", "Volume 1234 Page 567"
+      const volPgMatches = text.matchAll(/Vol(?:ume)?\.?\s*(\d+)[,\s]+P(?:age|g)\.?\s*(\d+)/gi);
+      for (const m of volPgMatches) {
+        const key = `VOL${m[1]}-PG${m[2]}`;
+        if (!existingInstruments.has(key)) {
+          discoveredVolPages.push({ volume: m[1], page: m[2] });
+          existingInstruments.add(key);
+        }
+      }
+    }
+
+    const totalDiscovered = discoveredInstruments.length + discoveredVolPages.length;
+
+    if (totalDiscovered > 0) {
+      progress('Phase 3B',
+        `Found ${totalDiscovered} historical reference(s) in deed summaries: ` +
+        `${discoveredInstruments.length} instrument(s), ${discoveredVolPages.length} vol/page ref(s)`,
+      );
+
+      // Limit recursive depth to avoid runaway — fetch up to 10 additional historical docs
+      const maxHistorical = 10;
+      const histInstruments = discoveredInstruments.slice(0, maxHistorical);
+      const histVolPages = discoveredVolPages.slice(0, maxHistorical - histInstruments.length);
+
+      progress('Phase 3B',
+        `Fetching up to ${histInstruments.length + histVolPages.length} historical deed(s) from clerk...`,
+      );
+
+      try {
+        const historicalClerk = await scrapeBellClerk(
+          {
+            instrumentNumbers: histInstruments,
+            volumePages: histVolPages,
+            maxDocuments: maxHistorical,
+            captureImages: true,
+            projectId: input.projectId,
+          },
+          (p) => progress('Phase 3B', `Historical: ${p.message}`),
+        );
+
+        if (historicalClerk.documents.length > 0) {
+          progress('Phase 3B',
+            `Retrieved ${historicalClerk.documents.length} historical document(s) — running AI analysis`,
+          );
+
+          // Collect screenshots from historical fetch
+          allScreenshots.push(...historicalClerk.screenshots);
+          recordLinks(historicalClerk.urlsVisited, 'Phase 3B historical deed fetch', true);
+
+          // Analyze historical deeds
+          const historicalDeedRecords = historicalClerk.documents.map(doc => ({
+            instrumentNumber: doc.instrumentNumber,
+            volume: doc.volume,
+            page: doc.page,
+            recordingDate: doc.recordingDate,
+            documentType: doc.documentType,
+            grantor: doc.grantor,
+            grantee: doc.grantee,
+            legalDescription: doc.legalDescription,
+            aiSummary: null as string | null,
+            pageImages: doc.pageImages,
+            sourceUrl: doc.sourceUrl,
+            source: 'Bell County Clerk (Historical)',
+            confidence: scoreOverallConfidence([]),
+          }));
+
+          const historicalAnalysis = await analyzeBellDeeds(
+            {
+              deedRecords: historicalDeedRecords,
+              cadLegalDescription: property.legalDescription,
+              currentOwner: property.ownerName,
+            },
+            anthropicApiKey,
+            (p) => progress('Phase 3B', `Historical AI: ${p.message}`),
+          );
+
+          if (historicalAnalysis.section.records.length > 0) {
+            // Merge historical records into the main deed section
+            deeds.records.push(...historicalAnalysis.section.records);
+            deeds.chainOfTitle.push(...historicalAnalysis.section.chainOfTitle);
+            // Re-sort chain of title by date
+            deeds.chainOfTitle.sort((a, b) => {
+              const dateA = a.date ? new Date(a.date).getTime() : 0;
+              const dateB = b.date ? new Date(b.date).getTime() : 0;
+              return dateA - dateB;
+            });
+            // Re-number
+            deeds.chainOfTitle.forEach((link, i) => { link.order = i + 1; });
+
+            progress('Phase 3B',
+              `Historical analysis complete: added ${historicalAnalysis.section.records.length} record(s), ` +
+              `chain of title now ${deeds.chainOfTitle.length} links deep`,
+            );
+          }
+        } else {
+          progress('Phase 3B', 'No additional historical documents found at clerk');
+        }
+      } catch (err) {
+        recordError('Phase 3B', 'Historical Deed Fetch', err);
+      }
+    } else {
+      progress('Phase 3B', 'No additional historical references found in deed summaries');
+    }
+  }
+
   // ── Extract easements & restrictive covenants from clerk documents ─
   const easementRecords = extractEasementRecords(clerk?.documents ?? []);
   const restrictiveCovenants = extractRestrictiveCovenants(clerk?.documents ?? [], plats?.plats ?? []);
@@ -810,14 +941,31 @@ function resolveProperty(
   knownIds?: { lotNumber?: string | null; blockNumber?: string | null; subdivisionNames?: Set<string> },
 ): ResolvedProperty {
   // Extract lot/block from legal description if not already in knownIds
+  // Use the robust extractLotBlock from bell-county-classifier which handles
+  // both "BLOCK X, LOT Y" (Bell CAD standard) and "LOT X, BLOCK Y" formats
   const legalDesc = cad?.legalDescription ?? gis?.legalDescription ?? '';
   let lotNumber = knownIds?.lotNumber ?? null;
   let blockNumber = knownIds?.blockNumber ?? null;
   if (!lotNumber && legalDesc) {
-    const match = legalDesc.match(/LOT\s+(\S+)\s+(?:BLK|BLOCK)\s+(\S+)/i);
-    if (match) {
-      lotNumber = match[1].replace(/,$/,'');
-      blockNumber = match[2].replace(/,$/,'');
+    const desc = legalDesc.toUpperCase();
+    // Try BLOCK-first pattern (Bell CAD standard: "BLOCK 001, LOT 0002")
+    const blockFirst = desc.match(/BLOCK\s+([\dA-Z]+)[,\s]+LOT\s+([\dA-Z]+)/);
+    if (blockFirst) {
+      blockNumber = blockFirst[1];
+      lotNumber = blockFirst[2];
+    } else {
+      // Try LOT-first pattern ("LOT 3, BLOCK A")
+      const lotFirst = desc.match(/LOT\s+([\dA-Z]+)[,\s]+(?:BLK|BLOCK)\s+([\dA-Z]+)/);
+      if (lotFirst) {
+        lotNumber = lotFirst[1];
+        blockNumber = lotFirst[2];
+      } else {
+        // Fallback: independent extraction
+        const lotOnly = desc.match(/\bLOT\s+([\dA-Z]+)/);
+        const blockOnly = desc.match(/\bBLOCK\s+([\dA-Z]+)/);
+        lotNumber = lotOnly?.[1] ?? null;
+        blockNumber = blockOnly?.[1] ?? null;
+      }
     }
   }
   const subdivisionName = knownIds?.subdivisionNames?.size
