@@ -163,18 +163,18 @@ async function resizeDeedImage(base64Img: string): Promise<{ data: string; media
       const nw = Math.round(width * scale);
       const nh = Math.round(height * scale);
       console.log(`[deed-analyzer] Resizing deed image from ${width}x${height} to ${nw}x${nh}`);
-      buf = await sharp(buf).resize(nw, nh, { fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+      buf = await sharp(buf).resize(nw, nh, { fit: 'inside', withoutEnlargement: true }).png().toBuffer() as Buffer;
     }
 
     if (buf.length > MAX_DEED_IMAGE_BYTES) {
       console.log(`[deed-analyzer] Compressing deed image (${buf.length} bytes) — JPEG q80`);
-      buf = await sharp(buf).jpeg({ quality: 80 }).toBuffer();
+      buf = await sharp(buf).jpeg({ quality: 80 }).toBuffer() as Buffer;
       mediaType = 'image/jpeg';
     }
 
     if (buf.length > MAX_DEED_IMAGE_BYTES) {
       console.log(`[deed-analyzer] Re-compressing deed image (${buf.length} bytes) — JPEG q60`);
-      buf = await sharp(buf).jpeg({ quality: 60 }).toBuffer();
+      buf = await sharp(buf).jpeg({ quality: 60 }).toBuffer() as Buffer;
       mediaType = 'image/jpeg';
     }
 
