@@ -96,14 +96,15 @@ export function getNumericField(attrs: Record<string, unknown>, keys: readonly s
 /** Bell CAD eSearch keyword format helpers */
 export const ESEARCH_FORMATS = {
   /** Build a keyword search string for Bell CAD eSearch */
-  buildKeywords(streetNumber: string | null, streetName: string): string {
+  buildKeywords(streetNumber: string | null, streetName: string, includePropertyType = true): string {
     const namePart = streetName.includes(' ')
       ? `StreetName:"${streetName}"`
       : `StreetName:${streetName}`;
+    const typePart = includePropertyType ? ' PropertyType:Real' : '';
     if (streetNumber) {
-      return `StreetNumber:${streetNumber} ${namePart} PropertyType:Real`;
+      return `StreetNumber:${streetNumber} ${namePart}${typePart}`;
     }
-    return `${namePart} PropertyType:Real`;
+    return `${namePart}${typePart}`;
   },
 
   /** Build an owner name search string */

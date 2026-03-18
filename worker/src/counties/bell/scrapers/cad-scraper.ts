@@ -291,6 +291,48 @@ async function searchByAddress(
     }
   }
 
+  // Fallback: retry top 3 variants WITHOUT PropertyType:Real filter.
+  // Some Bell CAD properties are categorized under non-standard types
+  // and get filtered out by the PropertyType constraint.
+  progress('CAD-L2', 'All variants with PropertyType:Real failed — retrying top 3 without type filter');
+  for (const variant of variants.slice(0, 3)) {
+    const keywords = ESEARCH_FORMATS.buildKeywords(variant.number, variant.name, false);
+    const url = `${BELL_ENDPOINTS.cad.searchResults}?keywords=${encodeURIComponent(keywords)}&searchSessionToken=${encodeURIComponent(session.token)}`;
+    urlsVisited.push(url);
+
+    try {
+      const resp = await fetch(url, {
+        headers: {
+          'Accept': 'text/html,application/xhtml+xml,application/json,*/*',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Cookie': session.cookies,
+          'Referer': BELL_ENDPOINTS.cad.home,
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(TIMEOUTS.httpRequest),
+      });
+
+      if (!resp.ok) continue;
+      const html = await resp.text();
+      const results = parseSearchResultsHtml(html);
+
+      if (results.length > 0) {
+        const variantLabel = [variant.number, variant.name].filter(Boolean).join(' ');
+        progress('CAD-L2', `Unfiltered variant "${variantLabel}": ${results.length} result(s)`);
+        const bestPropId = pickBestMatch(results, parsed);
+        if (bestPropId) {
+          progress('CAD-L2', `Selected best match (unfiltered): ID=${bestPropId}`);
+          return lookupByPropertyId(bestPropId, screenshots, urlsVisited, progress);
+        }
+      }
+
+      await delay(RATE_LIMITS.cadSearch);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      progress('CAD-L2', `Unfiltered variant error: ${msg} — continuing`);
+    }
+  }
+
   return null;
 }
 
@@ -935,12 +977,20 @@ function generateSearchVariants(parsed: AddressComponents): SearchVariant[] {
       `${prefix} ${num}`,          // "FM 436"
       `${prefix}${num}`,            // "FM436"
       num,                          // "436" (Bell CAD strips prefix in some searches)
-      `FM ROAD ${num}`,
+      `${prefix} ROAD ${num}`,      // "FM ROAD 436"
+      `${prefix} RD ${num}`,        // "FM RD 436"
       `FARM TO MARKET ${num}`,
       `FARM TO MARKET ROAD ${num}`,
-      `FM RD ${num}`,
-      `${prefix} RD ${num}`,
+      `FARM MARKET ${num}`,         // Without "TO"
+      `FARM MARKET RD ${num}`,
+      `F M ${num}`,                 // Space between letters
+      `HWY ${num}`,                 // Highway fallback
+      `HIGHWAY ${num}`,
     ];
+    // CR-specific variants
+    if (prefix === 'CR') {
+      roadVariants.push(`COUNTY ROAD ${num}`, `COUNTY RD ${num}`);
+    }
     for (const roadName of roadVariants) {
       addVariant(streetNumber, roadName);
     }
