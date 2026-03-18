@@ -393,6 +393,7 @@ async function reverseGeocodeCounty(lat: number, lon: number): Promise<CountyRec
 export async function runCountyResearch(
   input: CountyResearchInput,
   onProgress: (p: CountyResearchProgress) => void,
+  signal?: AbortSignal,
 ): Promise<UnifiedResearchResult> {
   // ── Validate address + county match before doing any work ────────
   if (input.address) {
@@ -481,6 +482,7 @@ export async function runCountyResearch(
             maxResearchTimeMinutes: input.maxResearchTimeMinutes,
           },
           onProgress,
+          signal,
         );
       } catch (err) {
         const errMsg = err instanceof Error

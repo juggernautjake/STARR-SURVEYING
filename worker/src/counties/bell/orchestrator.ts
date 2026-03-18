@@ -74,12 +74,20 @@ export type ProgressCallback = (p: OrchestratorProgress) => void;
 export async function orchestrateBellResearch(
   input: BellResearchInput,
   onProgress: ProgressCallback,
+  signal?: AbortSignal,
 ): Promise<BellResearchResult> {
   const startedAt = new Date();
   const errors: ResearchError[] = [];
   const allScreenshots: ScreenshotCapture[] = [];
   const allLinks: ResearchedLink[] = [];
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? '';
+
+  /** Throws if the pipeline has been cancelled via AbortController */
+  function checkAborted(): void {
+    if (signal?.aborted) {
+      throw new DOMException('Pipeline cancelled by user', 'AbortError');
+    }
+  }
 
   console.log(
     `[BellOrchestrator] ${input.projectId ?? 'no-id'}: START — address="${input.address ?? ''}" propertyId="${input.propertyId ?? ''}" ownerName="${input.ownerName ?? ''}"`,
@@ -141,7 +149,7 @@ export async function orchestrateBellResearch(
     if (ids.legalDescription) {
       // Extract subdivision name from legal description using dynamic import
       try {
-        const platScraper = await import('./scrapers/plat-scraper');
+        const platScraper = await import('./scrapers/plat-scraper.js');
         const subdivName = platScraper.extractSubdivisionNameFromLegal(ids.legalDescription);
         if (subdivName && !knownIds.subdivisionNames.has(subdivName)) {
           knownIds.subdivisionNames.add(subdivName); discovered++;
@@ -166,6 +174,7 @@ export async function orchestrateBellResearch(
   //  After each result, absorbs all discovered identifiers into knownIds
   //  so Phase 2 benefits from the full picture.
   // ══════════════════════════════════════════════════════════════════
+  checkAborted();
 
   progress('Phase 1', '─────────────────────────────────────────────', 5);
   progress('Phase 1', 'PHASE 1 — Property Identification', 5);
@@ -291,6 +300,7 @@ export async function orchestrateBellResearch(
   //  Clerk + Plats run sequentially (clerk feeds plat instrument numbers).
   //  FEMA + TxDOT + Tax run in parallel.
   // ══════════════════════════════════════════════════════════════════
+  checkAborted();
 
   progress('Phase 2', '─────────────────────────────────────────────', 20);
   progress('Phase 2', 'PHASE 2 — Scraping Bell County Records', 20);
@@ -450,6 +460,7 @@ export async function orchestrateBellResearch(
   //  PHASE 3: AI ANALYSIS (~5-15 minutes)
   // ══════════════════════════════════════════════════════════════════
 
+  checkAborted();
   progress('Phase 3', '─────────────────────────────────────────────', 60);
   progress('Phase 3', 'PHASE 3 — AI Analysis', 60);
 
@@ -569,6 +580,7 @@ export async function orchestrateBellResearch(
   //  PHASE 4: ASSEMBLE REPORT (~10-30 seconds)
   // ══════════════════════════════════════════════════════════════════
 
+  checkAborted();
   progress('Phase 4', '─────────────────────────────────────────────', 90);
   progress('Phase 4', 'PHASE 4 — Assembling Research Report', 90);
 
@@ -977,21 +989,38 @@ function extractLocationFromLegal(text: string): string | undefined {
  * Returned strings are already normalised for direct comparison with plat calls.
  */
 export function extractDeedCallsFromLegalDescriptions(legalDescriptions: string[]): string[] {
-  // Match: [N/S] <deg>[°|DEG] <min>['/MIN] [<sec>["/"SEC]] [E/W] [,] <dist>[ft|feet|foot|LF]
-  // Uses two passes: symbol notation and spelled-out notation.
-  // Note: patterns are created fresh per-call so no lastIndex state leaks between texts.
+  // Match bearing/distance calls in multiple common surveying notations.
+  // Uses fresh regex instances per call to avoid lastIndex state leaks.
   const calls = new Set<string>();
   for (const text of legalDescriptions) {
     if (!text) continue;
 
-    // Symbol notation: e.g. "N 45°30'15" E, 200.50 ft" or "S89°45'W 150.00 feet"
+    // Pattern 1 — Symbol notation (multiple Unicode degree/quote variants):
+    //   "N 45°30'15" E, 200.50 ft"  or  "S89°45'W 150.00 feet"
+    //   Also handles: ˚ (ring), ° (HTML entity result), fancy quotes ′″, and
+    //   optional leading zeros like "N 045°30'15" E"
     const symbolPattern =
-      /[NSEW]\s*\d+\s*°\s*\d+[''′]\s*(?:\d+[""″]\s*)?[NSEW]?\s*,?\s*\d+(?:\.\d+)?\s*(?:ft|feet|foot|LF)\b/gi;
-    // Spelled-out notation: e.g. "NORTH 30 DEG 15 MIN 00 SEC EAST 125.00 FEET"
-    const spelledPattern =
-      /(?:NORTH|SOUTH|EAST|WEST|[NSEW])\s+\d+\s+DEG\s+\d+\s+MIN(?:\s+\d+\s+SEC)?\s+(?:EAST|WEST|[EW])\s+\d+(?:\.\d+)?\s+(?:FEET|FOOT|FT|LF)\b/gi;
+      /[NSEW]\s*0?\d+\s*[°˚ᵒ]\s*\d+\s*[''′']\s*(?:\d+\s*[""″"]\s*)?[NSEW]?\s*[,;]?\s*\d+(?:\.\d+)?\s*(?:ft|feet|foot|LF|')\b/gi;
 
-    for (const pattern of [symbolPattern, spelledPattern]) {
+    // Pattern 2 — Spelled-out notation:
+    //   "NORTH 30 DEG 15 MIN 00 SEC EAST 125.00 FEET"
+    //   Also handles: "DEGREES" / "MINUTES" / "SECONDS" long-form,
+    //   optional seconds, and both N/S/E/W abbreviations
+    const spelledPattern =
+      /(?:NORTH|SOUTH|EAST|WEST|[NSEW])\s+\d+\s+(?:DEG(?:REES?)?)\s+\d+\s+(?:MIN(?:UTES?)?)\s*(?:\d+\s+(?:SEC(?:ONDS?)?))?\.?\s+(?:NORTH|SOUTH|EAST|WEST|[NSEW])\s+\d+(?:\.\d+)?\s+(?:FEET|FOOT|FT|LF)\b/gi;
+
+    // Pattern 3 — "thence" notation (common in Texas deeds):
+    //   "thence N 45°30'15" E a distance of 200.50 feet"
+    //   Captures the bearing and distance when separated by filler words
+    const thencePattern =
+      /(?:thence|then)\s+[NSEW]\s*0?\d+\s*[°˚ᵒ]\s*\d+\s*[''′']\s*(?:\d+\s*[""″"]\s*)?[NSEW]\s*[,;]?\s*(?:a\s+distance\s+of\s+)?\d+(?:\.\d+)?\s*(?:ft|feet|foot|LF)\b/gi;
+
+    // Pattern 4 — Simple cardinal + distance (less common but found in some deeds):
+    //   "along the north line 150.00 feet" or "easterly 200 ft"
+    const cardinalPattern =
+      /(?:along\s+the\s+)?(?:north(?:erly|ern)?|south(?:erly|ern)?|east(?:erly|ern)?|west(?:erly|ern)?)\s+(?:line\s+)?\d+(?:\.\d+)?\s*(?:ft|feet|foot|LF)\b/gi;
+
+    for (const pattern of [symbolPattern, spelledPattern, thencePattern, cardinalPattern]) {
       const matches = text.match(pattern);
       if (matches) {
         for (const m of matches) {

@@ -33,6 +33,7 @@ export { generateSurveyPlan } from './reports/survey-plan-generator.js';
 export async function runBellCountyResearch(
   input: import('./types/research-input').BellResearchInput,
   onProgress: import('./orchestrator').ProgressCallback,
+  signal?: AbortSignal,
 ): Promise<import('./types/research-result').BellResearchResult> {
-  return orchestrateBellResearch(input, onProgress);
+  return orchestrateBellResearch(input, onProgress, signal);
 }

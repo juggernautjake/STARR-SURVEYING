@@ -223,6 +223,8 @@ export default function ResearchRunPanel({
   const [allCopied, setAllCopied] = useState(false);
   const [failureReason, setFailureReason] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoStartFiredRef = useRef(false);
@@ -254,6 +256,35 @@ export default function ResearchRunPanel({
   }, []);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
+
+  // ── Cancel Pipeline ─────────────────────────────────────────────────────
+  const cancelPipeline = useCallback(async () => {
+    setCancelling(true);
+    setShowCancelConfirm(false);
+    console.log(`[ResearchRunPanel] ${projectId}: sending cancel request`);
+
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/pipeline`, {
+        method: 'DELETE',
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      if (res.ok) {
+        console.log(`[ResearchRunPanel] ${projectId}: pipeline cancel confirmed`);
+        stopPolling();
+        setPipelineStatus('failed');
+        setFailureReason('Pipeline cancelled by user.');
+        onPipelineComplete?.('failed');
+      } else {
+        const data = await res.json().catch(() => ({})) as Record<string, unknown>;
+        console.warn(`[ResearchRunPanel] ${projectId}: cancel failed HTTP ${res.status} — ${data.error ?? 'unknown'}`);
+        setCancelling(false);
+      }
+    } catch (err) {
+      console.error(`[ResearchRunPanel] ${projectId}: cancel network error —`, err instanceof Error ? err.message : String(err));
+      setCancelling(false);
+    }
+  }, [projectId, stopPolling, onPipelineComplete]);
 
   const isRunning = pipelineStatus === 'running' || pipelineStatus === 'starting';
   const isDone    = pipelineStatus === 'success' || pipelineStatus === 'partial' ||
@@ -549,6 +580,46 @@ export default function ResearchRunPanel({
           </div>
         )}
 
+        {/* Stop Pipeline button — visible while running */}
+        {isRunning && !cancelling && (
+          <button
+            className="rrp__stop-btn"
+            onClick={() => setShowCancelConfirm(true)}
+          >
+            ■ Stop Research
+          </button>
+        )}
+        {cancelling && (
+          <div className="rrp__cancel-status">Cancelling pipeline…</div>
+        )}
+
+        {/* Cancel confirmation dialog */}
+        {showCancelConfirm && (
+          <div className="rrp__confirm-overlay" onClick={() => setShowCancelConfirm(false)}>
+            <div className="rrp__confirm-dialog" onClick={e => e.stopPropagation()}>
+              <div className="rrp__confirm-title">Stop Research Pipeline?</div>
+              <p className="rrp__confirm-text">
+                This will cancel the running research. Any partial results collected so far will be lost.
+                You can restart the research later from the property information page.
+              </p>
+              <div className="rrp__confirm-actions">
+                <button
+                  className="rrp__confirm-cancel"
+                  onClick={() => setShowCancelConfirm(false)}
+                >
+                  Keep Running
+                </button>
+                <button
+                  className="rrp__confirm-stop"
+                  onClick={cancelPipeline}
+                >
+                  Yes, Stop Research
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Failure reason */}
         {isDone && !isSuccess && failureReason && (
           <div className="rrp__progress-failure">{failureReason}</div>
@@ -743,6 +814,66 @@ export default function ResearchRunPanel({
   cursor: pointer; transition: background 0.15s;
 }
 .rrp__continue-btn:hover { background: #059669; }
+
+/* ── Stop Button ───────────────────────────────────────────── */
+.rrp__stop-btn {
+  margin-top: 0.5rem;
+  background: #dc2626; color: #fff;
+  border: 2px solid #b91c1c; border-radius: 8px;
+  padding: 0.6rem 1.6rem;
+  font-size: 1rem; font-weight: 700;
+  cursor: pointer; transition: background 0.15s, transform 0.1s;
+  letter-spacing: 0.02em;
+}
+.rrp__stop-btn:hover { background: #b91c1c; transform: scale(1.02); }
+.rrp__stop-btn:active { transform: scale(0.98); }
+
+.rrp__cancel-status {
+  margin-top: 0.5rem; font-size: 0.9rem; color: #dc2626; font-weight: 600;
+}
+
+/* ── Confirmation Dialog ───────────────────────────────────── */
+.rrp__confirm-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999;
+  animation: rrp-fade-in 0.15s ease-out;
+}
+@keyframes rrp-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.rrp__confirm-dialog {
+  background: #fff; border-radius: 12px;
+  padding: 1.75rem 2rem;
+  max-width: 420px; width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  animation: rrp-slide-up 0.2s ease-out;
+}
+@keyframes rrp-slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.rrp__confirm-title {
+  font-size: 1.15rem; font-weight: 700; color: #1e293b;
+  margin-bottom: 0.5rem;
+}
+.rrp__confirm-text {
+  font-size: 0.88rem; color: #475569; line-height: 1.6;
+  margin-bottom: 1.25rem;
+}
+.rrp__confirm-actions {
+  display: flex; gap: 0.75rem; justify-content: flex-end;
+}
+.rrp__confirm-cancel {
+  background: #f1f5f9; border: 1px solid #d1d5db; border-radius: 6px;
+  padding: 0.5rem 1.2rem; font-size: 0.88rem; font-weight: 600;
+  color: #374151; cursor: pointer; transition: background 0.1s;
+}
+.rrp__confirm-cancel:hover { background: #e2e8f0; }
+.rrp__confirm-stop {
+  background: #dc2626; border: none; border-radius: 6px;
+  padding: 0.5rem 1.2rem; font-size: 0.88rem; font-weight: 700;
+  color: #fff; cursor: pointer; transition: background 0.1s;
+}
+.rrp__confirm-stop:hover { background: #b91c1c; }
 
 /* ── Log Viewer ─────────────────────────────────────────────── */
 .rrp__logviewer {

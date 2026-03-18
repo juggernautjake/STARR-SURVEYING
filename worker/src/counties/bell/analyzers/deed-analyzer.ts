@@ -148,7 +148,7 @@ function buildFallbackDeedSummary(record: DeedRecord): string {
 const MAX_DEED_DIMENSION = 7_900;
 const MAX_DEED_IMAGE_BYTES = 4_718_592; // 4.5 MiB
 
-async function resizeDeedImage(base64Img: string): Promise<{ data: string; mediaType: 'image/png' | 'image/jpeg' }> {
+async function resizeDeedImage(base64Img: string): Promise<{ data: string; mediaType: 'image/png' | 'image/jpeg' } | null> {
   try {
     const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
     let buf = Buffer.from(base64Img, 'base64');
@@ -180,8 +180,9 @@ async function resizeDeedImage(base64Img: string): Promise<{ data: string; media
 
     return { data: buf.toString('base64'), mediaType };
   } catch (err) {
-    console.warn(`[deed-analyzer] Image resize failed, using original:`, err);
-    return { data: base64Img, mediaType: 'image/png' };
+    const rawBytes = Buffer.from(base64Img, 'base64');
+    console.warn(`[deed-analyzer] Image resize failed (${rawBytes.length} bytes), skipping image:`, err instanceof Error ? err.message : String(err));
+    return null;
   }
 }
 
@@ -196,7 +197,12 @@ async function analyzeDeedException(
     const client = new Anthropic({ apiKey });
 
     // Resize images to fit within Claude Vision API limits (max 8000px per dimension)
-    const resized = await Promise.all(record.pageImages.slice(0, 5).map(img => resizeDeedImage(img)));
+    const resizeResults = await Promise.all(record.pageImages.slice(0, 5).map(img => resizeDeedImage(img)));
+    const resized = resizeResults.filter((r): r is NonNullable<typeof r> => r !== null);
+    if (resized.length === 0) {
+      console.warn('[deed-analyzer] All deed images failed resize — skipping AI analysis');
+      return { summary: buildFallbackDeedSummary(record), usage: {} };
+    }
     const imageContent = resized.map(({ data, mediaType }) => ({
       type: 'image' as const,
       source: {

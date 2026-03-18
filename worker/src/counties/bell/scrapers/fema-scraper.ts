@@ -44,7 +44,8 @@ export async function scrapeBellFema(
   progress(`Querying FEMA flood zones at ${input.lat.toFixed(5)}, ${input.lon.toFixed(5)}`);
 
   // ── Query Flood Hazard Areas (Layer 28) ────────────────────────────
-  const floodResult = await queryFemaLayer(
+  // Try point query first, then fall back to envelope query with small buffer
+  let floodResult = await queryFemaLayer(
     BELL_ENDPOINTS.fema.floodZonesLayer,
     input.lat,
     input.lon,
@@ -52,8 +53,39 @@ export async function scrapeBellFema(
   );
 
   if (!floodResult) {
-    progress('FEMA query returned no flood zone data');
-    return { result: null, screenshots, urlsVisited };
+    // Retry with a small envelope buffer (~100m) — point queries can miss
+    // properties near flood zone boundaries
+    progress('FEMA point query returned no data — retrying with buffer...');
+    floodResult = await queryFemaLayerEnvelope(
+      BELL_ENDPOINTS.fema.floodZonesLayer,
+      input.lat,
+      input.lon,
+      0.001, // ~110m buffer
+      urlsVisited,
+    );
+  }
+
+  if (!floodResult) {
+    progress('FEMA query returned no flood zone data — property may be in Zone X (unmapped/minimal flood risk)');
+    // Return Zone X as default when no data found (most of Bell County is Zone X)
+    const defaultResult: FemaFloodInfo = {
+      floodZone: 'X (No data)',
+      zoneSubtype: null,
+      inSFHA: false,
+      firmPanel: null,
+      effectiveDate: null,
+      mapScreenshot: null,
+      sourceUrl: `https://msc.fema.gov/portal/search?AddressQuery=${input.lat},${input.lon}`,
+      confidence: computeConfidence({
+        sourceReliability: SOURCE_RELIABILITY['fema-nfhl'],
+        dataUsefulness: 10,
+        crossValidation: 0,
+        sourceName: 'FEMA NFHL (no data at coordinates)',
+        validatedBy: [],
+        contradictedBy: [],
+      }),
+    };
+    return { result: defaultResult, screenshots, urlsVisited };
   }
 
   // ── Query FIRM Panel (Layer 3) ─────────────────────────────────────
@@ -130,6 +162,54 @@ async function queryFemaLayer(
   } catch (err) {
     console.warn(
       `[fema-scraper] FEMA layer ${layerNumber} query failed: ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Query FEMA using an envelope (bounding box) instead of a point.
+ * Used as fallback when point query returns no results.
+ */
+async function queryFemaLayerEnvelope(
+  layerNumber: number,
+  lat: number,
+  lon: number,
+  bufferDeg: number,
+  urlsVisited: string[],
+): Promise<Record<string, unknown> | null> {
+  const baseUrl = `${BELL_ENDPOINTS.fema.mapServer}/${layerNumber}/query`;
+  const envelope = `${lon - bufferDeg},${lat - bufferDeg},${lon + bufferDeg},${lat + bufferDeg}`;
+  const params = new URLSearchParams({
+    geometry: envelope,
+    geometryType: 'esriGeometryEnvelope',
+    spatialRel: 'esriSpatialRelIntersects',
+    inSR: '4326',
+    outFields: '*',
+    returnGeometry: 'false',
+    f: 'json',
+  });
+
+  const fullUrl = `${baseUrl}?${params.toString()}`;
+  urlsVisited.push(fullUrl);
+
+  try {
+    const resp = await fetch(fullUrl, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(TIMEOUTS.arcgisQuery),
+    });
+
+    if (!resp.ok) return null;
+    const data = await resp.json() as { features?: Array<{ attributes: Record<string, unknown> }> };
+
+    if (data.features && data.features.length > 0) {
+      return data.features[0].attributes;
+    }
+  } catch (err) {
+    console.warn(
+      `[fema-scraper] FEMA envelope query for layer ${layerNumber} failed: ` +
       `${err instanceof Error ? err.message : String(err)}`,
     );
   }

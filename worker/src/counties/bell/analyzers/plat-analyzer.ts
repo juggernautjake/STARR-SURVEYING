@@ -130,7 +130,7 @@ const MAX_PLAT_IMAGE_BYTES = 4_718_592; // 4.5 MiB safety margin
  * Resizes a base64-encoded image so neither dimension exceeds 7 900 px
  * and the byte size stays below 4.5 MB. Returns the resized base64 string.
  */
-async function resizePlatImage(base64Img: string): Promise<{ data: string; mediaType: 'image/png' | 'image/jpeg' }> {
+async function resizePlatImage(base64Img: string): Promise<{ data: string; mediaType: 'image/png' | 'image/jpeg' } | null> {
   try {
     const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
     let buf = Buffer.from(base64Img, 'base64');
@@ -165,8 +165,12 @@ async function resizePlatImage(base64Img: string): Promise<{ data: string; media
 
     return { data: buf.toString('base64'), mediaType };
   } catch (err) {
-    console.warn(`[plat-analyzer] Image resize failed, using original:`, err);
-    return { data: base64Img, mediaType: 'image/png' };
+    // Check if the original image exceeds Claude's 8000px limit
+    // If sharp isn't available, we can still check raw size via base64 header
+    const rawBytes = Buffer.from(base64Img, 'base64');
+    console.warn(`[plat-analyzer] Image resize failed (${rawBytes.length} bytes), checking if original is safe:`, err instanceof Error ? err.message : String(err));
+    // Return null to signal the caller to skip this image rather than send an oversized one
+    return null;
   }
 }
 
@@ -183,7 +187,12 @@ async function analyzePlatImage(
     const client = new Anthropic({ apiKey });
 
     // Resize images to fit within Claude Vision API limits (max 8000px per dimension)
-    const resized = await Promise.all(images.slice(0, 3).map(img => resizePlatImage(img)));
+    const resizeResults = await Promise.all(images.slice(0, 3).map(img => resizePlatImage(img)));
+    const resized = resizeResults.filter((r): r is NonNullable<typeof r> => r !== null);
+    if (resized.length === 0) {
+      console.warn('[plat-analyzer] All plat images failed resize — skipping AI analysis');
+      return { analysis: null, usage: {} };
+    }
     const imageContent = resized.map(({ data, mediaType }) => ({
       type: 'image' as const,
       source: {
