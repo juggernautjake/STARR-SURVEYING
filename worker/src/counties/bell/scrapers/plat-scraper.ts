@@ -415,14 +415,17 @@ async function searchClerkForPlats(
         }
       }
 
-      urlsVisited.push(BELL_ENDPOINTS.clerk.document(instrNum));
+      // Use the correct Kofile internal document URL from allDocuments (not constructed from instrument number)
+      const docRef = allDocuments.find(d => d.instrumentNumber === instrNum);
+      const docUrl = docRef?.url ?? BELL_ENDPOINTS.clerk.document(instrNum);
+      urlsVisited.push(docUrl);
       plats.push({
         name,
         date: null,
         instrumentNumber: instrNum,
         images: pageImages,
         aiAnalysis: null,
-        sourceUrl: BELL_ENDPOINTS.clerk.document(instrNum),
+        sourceUrl: docUrl,
         source: 'Bell County Clerk (bell.tx.publicsearch.us)',
         confidence: makeConfidence(0.85),
       });
@@ -476,7 +479,7 @@ async function searchByCabinetSlide(
       instrumentNumber: instrNum || null,
       images: pageImages,
       aiAnalysis: null,
-      sourceUrl: instrNum ? BELL_ENDPOINTS.clerk.document(instrNum) : null,
+      sourceUrl: platRef.url ?? (instrNum ? BELL_ENDPOINTS.clerk.document(instrNum) : null),
       source: 'Bell County Clerk (Cabinet/Slide)',
       confidence: makeConfidence(0.85),
     };
@@ -528,7 +531,7 @@ async function searchByVolumePage(
       instrumentNumber: instrNum || null,
       images: pageImages,
       aiAnalysis: null,
-      sourceUrl: instrNum ? BELL_ENDPOINTS.clerk.document(instrNum) : null,
+      sourceUrl: platRef.url ?? (instrNum ? BELL_ENDPOINTS.clerk.document(instrNum) : null),
       source: 'Bell County Clerk (Volume/Page)',
       confidence: makeConfidence(0.8),
     };
@@ -557,7 +560,8 @@ async function checkInstrumentForPlat(
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(projectId ?? `plat-instr-${Date.now()}`);
 
-    urlsVisited.push(BELL_ENDPOINTS.clerk.document(instrumentNumber));
+    const constructedUrl = BELL_ENDPOINTS.clerk.document(instrumentNumber);
+    urlsVisited.push(constructedUrl);
     const docRef = await searchByInstrument(instrumentNumber, logger);
     if (!docRef) return null;
 
@@ -582,7 +586,7 @@ async function checkInstrumentForPlat(
       instrumentNumber,
       images: pageImages,
       aiAnalysis: null,
-      sourceUrl: BELL_ENDPOINTS.clerk.document(instrumentNumber),
+      sourceUrl: docRef.url ?? constructedUrl,
       source: 'Bell County Clerk (instrument lookup)',
       confidence: makeConfidence(0.95),
     };

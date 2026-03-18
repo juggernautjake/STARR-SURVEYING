@@ -318,7 +318,7 @@ async function fetchInstrumentDocument(
       grantee: docRef.grantees[0] ?? null,
       legalDescription: null, // Not in DocumentRef; extracted separately by deed analyzer
       pageImages,
-      sourceUrl: docUrl,
+      sourceUrl: docRef.url ?? docUrl,
       relevanceScore: getDocumentRelevance(docRef.documentType),
     };
   } catch (err) {
@@ -394,7 +394,7 @@ async function searchClerkByOwner(
           grantee: ref.grantees[0] ?? null,
           legalDescription: null,
           pageImages,
-          sourceUrl: instrNum ? BELL_ENDPOINTS.clerk.document(instrNum) : null,
+          sourceUrl: ref.url ?? (instrNum ? BELL_ENDPOINTS.clerk.document(instrNum) : null),
           relevanceScore: getDocumentRelevance(ref.documentType),
         });
       }
@@ -444,6 +444,12 @@ async function searchClerkBySubdivision(
 
     progress(`  Subdivision "${subdivisionName}": ${allDocuments.length} docs, ${platInstruments.length} plats, ${deedInstruments.length} deeds`);
 
+    // Helper: look up the correct URL from allDocuments by instrument number
+    const getDocUrl = (instrNum: string): string | null => {
+      const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
+      return ref?.url ?? BELL_ENDPOINTS.clerk.document(instrNum);
+    };
+
     // Process plat instruments first (highest priority)
     for (const instrNum of platInstruments) {
       let pageImages: string[] = [];
@@ -463,7 +469,7 @@ async function searchClerkBySubdivision(
         documentType: 'PLAT',
         grantor: null, grantee: null, legalDescription: null,
         pageImages,
-        sourceUrl: BELL_ENDPOINTS.clerk.document(instrNum),
+        sourceUrl: getDocUrl(instrNum),
         relevanceScore: getDocumentRelevance('PLAT'),
       });
     }
@@ -484,7 +490,7 @@ async function searchClerkBySubdivision(
         documentType: 'WARRANTY DEED',
         grantor: null, grantee: null, legalDescription: null,
         pageImages,
-        sourceUrl: BELL_ENDPOINTS.clerk.document(instrNum),
+        sourceUrl: getDocUrl(instrNum),
         relevanceScore: getDocumentRelevance('WARRANTY DEED'),
       });
     }
@@ -543,7 +549,7 @@ async function fetchByVolumePage(
       grantee: match.grantees[0] ?? null,
       legalDescription: null,
       pageImages,
-      sourceUrl: match.instrumentNumber ? BELL_ENDPOINTS.clerk.document(match.instrumentNumber) : null,
+      sourceUrl: match.url ?? (match.instrumentNumber ? BELL_ENDPOINTS.clerk.document(match.instrumentNumber) : null),
       relevanceScore: getDocumentRelevance(match.documentType),
     };
   } catch (err) {

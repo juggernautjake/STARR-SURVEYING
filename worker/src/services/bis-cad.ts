@@ -264,9 +264,13 @@ function validatePropertyResult(
   if (inputNum && inputAddress.parsed.streetName) {
     const normalizedInput = `${inputNum} ${inputAddress.parsed.streetName}`.toLowerCase().replace(/\s+/g, ' ').trim();
     const normalizedResult = resultAddress.toLowerCase().replace(/\s+/g, ' ').trim();
-    // Check both with and without direction prefix (W, E, N, S)
+    // Strip direction prefix (W, E, N, S) from both sides for comparison —
+    // input may be "3779 FM 436" while situs is "3779 W FM 436" or vice versa
+    const stripDir = (s: string) => s.replace(/^(\d+)\s+[nsew]\s+/i, '$1 ');
     exactSitusMatch = normalizedResult.includes(normalizedInput) ||
-      normalizedResult.includes(normalizedInput.replace(/^(\d+)\s+[nsew]\s+/i, '$1 '));
+      normalizedResult.includes(stripDir(normalizedInput)) ||
+      stripDir(normalizedResult).includes(normalizedInput) ||
+      stripDir(normalizedResult).includes(stripDir(normalizedInput));
   }
 
   // Compute overall confidence
