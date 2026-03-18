@@ -553,6 +553,22 @@ export default function ResearchRunPanel({
     <>
       {/* ── Element 1: Progress Indicator ── */}
       <div className={`rrp__progress${isDone ? (isSuccess ? ' rrp__progress--success' : ' rrp__progress--failed') : ' rrp__progress--running'}`}>
+        {/* Top-left stop button — always visible and obvious while running */}
+        {isRunning && !cancelling && (
+          <button
+            className="rrp__stop-topleft"
+            onClick={() => setShowCancelConfirm(true)}
+            aria-label="Stop research pipeline"
+          >
+            ■ Stop
+          </button>
+        )}
+        {cancelling && (
+          <div className="rrp__stop-topleft rrp__stop-topleft--cancelling" aria-live="polite">
+            Stopping…
+          </div>
+        )}
+
         {/* Spinner or checkmark */}
         <div className="rrp__progress-icon">
           {!isDone && <Spinner />}
@@ -746,6 +762,7 @@ export default function ResearchRunPanel({
       <style>{`
 /* ── ResearchRunPanel shell ─────────────────────────────────── */
 .rrp__progress {
+  position: relative;
   width: 100%;
   border: 1.5px solid #e2e8f0;
   border-radius: 10px;
@@ -758,6 +775,38 @@ export default function ResearchRunPanel({
   gap: 0.75rem;
   margin-bottom: 1rem;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* Top-left stop button — pinned to corner for immediate visibility */
+.rrp__stop-topleft {
+  position: absolute;
+  top: 0.65rem;
+  left: 0.65rem;
+  background: #dc2626;
+  color: #fff;
+  border: 2px solid #b91c1c;
+  border-radius: 8px;
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.35);
+  transition: background 0.15s, transform 0.1s;
+  z-index: 2;
+}
+.rrp__stop-topleft:hover {
+  background: #b91c1c;
+  transform: scale(1.05);
+  box-shadow: 0 2px 14px rgba(220, 38, 38, 0.5);
+}
+.rrp__stop-topleft:active { transform: scale(0.97); }
+.rrp__stop-topleft--cancelling {
+  background: #991b1b;
+  border-color: #7f1d1d;
+  cursor: default;
+  font-size: 0.8rem;
+  animation: rrp-pulse 1.4s ease-in-out infinite;
 }
 .rrp__progress--running { border-color: #3b82f6; }
 .rrp__progress--success { border-color: #10b981; background: #f0fdf4; }
