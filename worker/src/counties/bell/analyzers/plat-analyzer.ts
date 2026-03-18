@@ -121,6 +121,55 @@ export async function analyzeBellPlats(
   };
 }
 
+// ── Internal: Image resize utility ───────────────────────────────────
+
+const MAX_PLAT_DIMENSION = 7_900; // leave 100px margin below the hard 8000 limit
+const MAX_PLAT_IMAGE_BYTES = 4_718_592; // 4.5 MiB safety margin
+
+/**
+ * Resizes a base64-encoded image so neither dimension exceeds 7 900 px
+ * and the byte size stays below 4.5 MB. Returns the resized base64 string.
+ */
+async function resizePlatImage(base64Img: string): Promise<{ data: string; mediaType: 'image/png' | 'image/jpeg' }> {
+  try {
+    const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
+    let buf = Buffer.from(base64Img, 'base64');
+    const meta = await sharp(buf).metadata();
+    const { width, height } = meta;
+    if (!width || !height) return { data: base64Img, mediaType: 'image/png' };
+
+    let mediaType: 'image/png' | 'image/jpeg' = 'image/png';
+
+    // Step 1: pixel dimension resize
+    if (width > MAX_PLAT_DIMENSION || height > MAX_PLAT_DIMENSION) {
+      const scale = MAX_PLAT_DIMENSION / Math.max(width, height);
+      const nw = Math.round(width * scale);
+      const nh = Math.round(height * scale);
+      console.log(`[plat-analyzer] Resizing plat image from ${width}x${height} to ${nw}x${nh}`);
+      buf = await sharp(buf).resize(nw, nh, { fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+    }
+
+    // Step 2: byte-size compression — JPEG quality=80
+    if (buf.length > MAX_PLAT_IMAGE_BYTES) {
+      console.log(`[plat-analyzer] Compressing plat image (${buf.length} bytes) — JPEG q80`);
+      buf = await sharp(buf).jpeg({ quality: 80 }).toBuffer();
+      mediaType = 'image/jpeg';
+    }
+
+    // Step 3: byte-size compression — JPEG quality=60 (last resort)
+    if (buf.length > MAX_PLAT_IMAGE_BYTES) {
+      console.log(`[plat-analyzer] Re-compressing plat image (${buf.length} bytes) — JPEG q60`);
+      buf = await sharp(buf).jpeg({ quality: 60 }).toBuffer();
+      mediaType = 'image/jpeg';
+    }
+
+    return { data: buf.toString('base64'), mediaType };
+  } catch (err) {
+    console.warn(`[plat-analyzer] Image resize failed, using original:`, err);
+    return { data: base64Img, mediaType: 'image/png' };
+  }
+}
+
 // ── Internal: AI Plat Image Analysis ─────────────────────────────────
 
 async function analyzePlatImage(
@@ -133,12 +182,14 @@ async function analyzePlatImage(
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
 
-    const imageContent = images.slice(0, 3).map(img => ({
+    // Resize images to fit within Claude Vision API limits (max 8000px per dimension)
+    const resized = await Promise.all(images.slice(0, 3).map(img => resizePlatImage(img)));
+    const imageContent = resized.map(({ data, mediaType }) => ({
       type: 'image' as const,
       source: {
         type: 'base64' as const,
-        media_type: 'image/png' as const,
-        data: img,
+        media_type: mediaType,
+        data,
       },
     }));
 

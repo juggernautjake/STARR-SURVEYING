@@ -143,6 +143,48 @@ function buildFallbackDeedSummary(record: DeedRecord): string {
   return parts.join(' | ') + '. (AI image analysis was not available for this document.)';
 }
 
+// ── Image resize utility ─────────────────────────────────────────────
+
+const MAX_DEED_DIMENSION = 7_900;
+const MAX_DEED_IMAGE_BYTES = 4_718_592; // 4.5 MiB
+
+async function resizeDeedImage(base64Img: string): Promise<{ data: string; mediaType: 'image/png' | 'image/jpeg' }> {
+  try {
+    const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
+    let buf = Buffer.from(base64Img, 'base64');
+    const meta = await sharp(buf).metadata();
+    const { width, height } = meta;
+    if (!width || !height) return { data: base64Img, mediaType: 'image/png' };
+
+    let mediaType: 'image/png' | 'image/jpeg' = 'image/png';
+
+    if (width > MAX_DEED_DIMENSION || height > MAX_DEED_DIMENSION) {
+      const scale = MAX_DEED_DIMENSION / Math.max(width, height);
+      const nw = Math.round(width * scale);
+      const nh = Math.round(height * scale);
+      console.log(`[deed-analyzer] Resizing deed image from ${width}x${height} to ${nw}x${nh}`);
+      buf = await sharp(buf).resize(nw, nh, { fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+    }
+
+    if (buf.length > MAX_DEED_IMAGE_BYTES) {
+      console.log(`[deed-analyzer] Compressing deed image (${buf.length} bytes) — JPEG q80`);
+      buf = await sharp(buf).jpeg({ quality: 80 }).toBuffer();
+      mediaType = 'image/jpeg';
+    }
+
+    if (buf.length > MAX_DEED_IMAGE_BYTES) {
+      console.log(`[deed-analyzer] Re-compressing deed image (${buf.length} bytes) — JPEG q60`);
+      buf = await sharp(buf).jpeg({ quality: 60 }).toBuffer();
+      mediaType = 'image/jpeg';
+    }
+
+    return { data: buf.toString('base64'), mediaType };
+  } catch (err) {
+    console.warn(`[deed-analyzer] Image resize failed, using original:`, err);
+    return { data: base64Img, mediaType: 'image/png' };
+  }
+}
+
 async function analyzeDeedException(
   record: DeedRecord,
   apiKey: string,
@@ -153,13 +195,14 @@ async function analyzeDeedException(
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
 
-    // Build image content blocks
-    const imageContent = record.pageImages.slice(0, 5).map(img => ({
+    // Resize images to fit within Claude Vision API limits (max 8000px per dimension)
+    const resized = await Promise.all(record.pageImages.slice(0, 5).map(img => resizeDeedImage(img)));
+    const imageContent = resized.map(({ data, mediaType }) => ({
       type: 'image' as const,
       source: {
         type: 'base64' as const,
-        media_type: 'image/png' as const,
-        data: img,
+        media_type: mediaType,
+        data,
       },
     }));
 

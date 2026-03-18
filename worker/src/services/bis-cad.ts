@@ -1550,7 +1550,11 @@ Return ONLY valid JSON array, no markdown. If NO results visible, return [].`,
       return [];
     }
 
-    finish({ status: parsed.length > 0 ? 'success' : 'fail', dataPointsFound: parsed.length });
+    finish({
+      status: parsed.length > 0 ? 'success' : 'fail',
+      dataPointsFound: parsed.length,
+      error: parsed.length === 0 ? 'Vision OCR found no property data in screenshot' : undefined,
+    });
     return parsed;
   } catch (err) {
     // Capture full error detail including any HTTP status from Anthropic API errors
@@ -2141,14 +2145,24 @@ async function searchCadHttpRawKeyword(
         | { resultsList?: CadSearchResult[]; results?: CadSearchResult[]; data?: CadSearchResult[] }
         | CadSearchResult[];
       const results = Array.isArray(data) ? data : (data.resultsList ?? data.results ?? data.data ?? []);
-      tracker({ status: results.length > 0 ? 'success' : 'fail', dataPointsFound: results.length, details: `${results.length} JSON results` });
+      tracker({
+        status: results.length > 0 ? 'success' : 'fail',
+        dataPointsFound: results.length,
+        details: `${results.length} JSON results`,
+        error: results.length === 0 ? 'No results in JSON response' : undefined,
+      });
       return results.length > 0 ? results : null;
     }
 
     if (contentType.includes('html')) {
       const html = await response.text();
       const results = parseHtmlSearchResults(html, tracker);
-      tracker({ status: results.length > 0 ? 'success' : 'fail', dataPointsFound: results.length, details: `${results.length} results from HTML` });
+      tracker({
+        status: results.length > 0 ? 'success' : 'fail',
+        dataPointsFound: results.length,
+        details: `${results.length} results from HTML`,
+        error: results.length === 0 ? 'No results found in HTML' : undefined,
+      });
       return results.length > 0 ? results : null;
     }
 
