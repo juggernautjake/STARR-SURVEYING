@@ -1374,6 +1374,26 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
 
   if (activePipelines.has(projectId)) {
     const pipeline = activePipelines.get(projectId)!;
+
+    // If the abort controller has been triggered, report 'failed' (cancelled)
+    // immediately — don't wait for the async pipeline unwinding to finish.
+    if (pipeline.abortController?.signal.aborted) {
+      const liveLog = getLiveLogForProject(projectId) ?? [];
+      console.log(`[Worker] ${projectId} → Frontend: status poll — pipeline ABORTED, reporting failed`);
+      res.json({
+        projectId,
+        status: 'failed',
+        failureReason: 'Pipeline cancelled by user',
+        startedAt: pipeline.startedAt,
+        currentStage: pipeline.currentStage,
+        message: 'Pipeline cancelled by user',
+        address: pipeline.address,
+        county: pipeline.county,
+        log: liveLog,
+      });
+      return;
+    }
+
     // Prefer the in-memory message cache (updated synchronously by updateStatus
     // in pipeline.ts) over a Supabase round-trip. This ensures the UI sees live
     // stage updates immediately even when Supabase is slow or not configured,
