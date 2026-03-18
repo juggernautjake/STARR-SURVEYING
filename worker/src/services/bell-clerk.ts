@@ -2593,12 +2593,29 @@ export async function searchClerkForPlats(
  *                          Pass a large value (e.g. 20) for plats with unknown page count.
  * @param logger  Pipeline logger
  */
+/**
+ * Module-level image cache — prevents re-fetching the same instrument's images
+ * within a pipeline run. Each fetch spawns a Playwright browser (~10-20s), so
+ * caching previously captured pages saves significant time and avoids the
+ * browser-cache regression where revisiting a document returns 0 signed URLs.
+ */
+const imageCache = new Map<string, { pages: DocumentPage[]; timestamp: number }>();
+const IMAGE_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 export async function fetchDocumentImages(
   instrumentNumber: string,
   expectedPages: number,
   logger: PipelineLogger,
   county: string = 'bell',
 ): Promise<DocumentPage[]> {
+  // Check image cache — return cached pages if we already captured this instrument
+  const cacheKey = `${county}:${instrumentNumber}`;
+  const cached = imageCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < IMAGE_CACHE_TTL_MS && cached.pages.length > 0) {
+    logger.info('2D-IMG', `Image cache hit for instrument ${instrumentNumber}: ${cached.pages.length} page(s) — skipping re-fetch`);
+    return cached.pages;
+  }
+
   const baseUrl = getKofileBaseUrl(county);
   if (!baseUrl) {
     logger.warn('2D-IMG', `No Kofile config for county "${county}" — cannot fetch document images`);
@@ -2612,9 +2629,17 @@ export async function fetchDocumentImages(
     const { chromium } = await import('playwright');
     browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 
+    // Disable browser HTTP cache to ensure fresh signed URLs on every visit.
+    // Without this, revisiting a document serves cached (expired) signed URLs,
+    // resulting in 0 captured page images.
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       viewport: { width: 1280, height: 900 },
+      extraHTTPHeaders: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+      serviceWorkers: 'block',
     });
     const page = await context.newPage();
 
@@ -2822,6 +2847,8 @@ export async function fetchDocumentImages(
 
     if (pages.length > 0) {
       attempt.success(pages.length, `Downloaded ${pages.length} page images`);
+      // Cache successful captures for this instrument
+      imageCache.set(cacheKey, { pages: [...pages], timestamp: Date.now() });
     } else {
       attempt.fail('No page images captured');
       logger.warn('2D-IMG', `Failed to capture any images for instrument ${instrumentNumber} — check if instrument exists and viewer URL is correct`);

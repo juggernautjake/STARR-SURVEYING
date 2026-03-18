@@ -153,9 +153,9 @@ export default function AnalysisSummary({ projectId, stats }: AnalysisSummaryPro
                   <tbody>
                     {summary.calls.map((call, i) => (
                       <tr key={i}>
-                        <td style={{ color: '#9CA3AF' }}>{call.seq}</td>
-                        <td style={{ fontFamily: 'monospace' }}>{call.bearing || '\u2014'}</td>
-                        <td style={{ fontFamily: 'monospace' }}>{call.distance || '\u2014'}</td>
+                        <td style={{ color: '#4B5563', fontWeight: 500 }}>{call.seq}</td>
+                        <td style={{ fontFamily: 'monospace', color: '#111827' }}>{call.bearing || '\u2014'}</td>
+                        <td style={{ fontFamily: 'monospace', color: '#111827' }}>{call.distance || '\u2014'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -192,7 +192,7 @@ function StatChip({ label, value, warn }: { label: string; value: number | strin
       padding: '0.35rem 0.75rem',
       fontSize: '0.82rem',
     }}>
-      <span style={{ color: '#6B7280' }}>{label}: </span>
+      <span style={{ color: '#374151' }}>{label}: </span>
       <span style={{ fontWeight: 600, color: warn ? '#92400E' : '#111827' }}>{value}</span>
     </div>
   );

@@ -6725,12 +6725,13 @@
   padding: 0.35rem 0.5rem;
   text-align: left;
   font-weight: 600;
-  color: #6B7280;
+  color: #374151;
   font-size: 0.78rem;
 }
 
 .research-analysis-summary__table td {
   padding: 0.3rem 0.5rem;
+  color: #1F2937;
 }
 
 .research-analysis-summary__table tbody tr {
@@ -8270,6 +8271,128 @@
   font-size: 0.76rem;
   color: #065F46;
   line-height: 1.5;
+}
+
+/* ── Boundary Calls / Plat Analysis Table Styles ─────────────────────────── */
+
+.research-boundary__table-wrap {
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  border-radius: 0.375rem;
+  max-height: 400px;
+  overflow-y: auto;
+  font-size: 0.85rem;
+}
+
+.research-boundary__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.research-boundary__table thead tr {
+  background: #F3F4F6;
+  border-bottom: 1px solid #D1D5DB;
+}
+
+.research-boundary__table th {
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  font-weight: 600;
+  color: #1F2937;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.research-boundary__table td {
+  padding: 0.35rem 0.6rem;
+  color: #111827;
+}
+
+.research-boundary__table tbody tr {
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.research-boundary__table tbody tr:hover {
+  background: #F9FAFB;
+}
+
+.research-boundary__td-seq {
+  color: #4B5563;
+  font-weight: 500;
+  width: 2.5rem;
+}
+
+.research-boundary__td-type {
+  font-weight: 500;
+}
+
+.research-boundary__td-bearing {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.research-boundary__td-dist {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.research-boundary__td-raw {
+  color: #4B5563;
+  font-size: 0.8rem;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.research-boundary__section-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1F2937;
+  margin-bottom: 0.35rem;
+}
+
+.research-boundary__call-count {
+  font-weight: 400;
+  font-size: 0.82rem;
+  color: #4B5563;
+  margin-left: 0.5rem;
+}
+
+.research-boundary__pob {
+  margin-bottom: 0.75rem;
+  font-size: 0.88rem;
+  color: #1F2937;
+}
+
+.research-boundary__pob-text {
+  color: #111827;
+}
+
+.research-boundary__detail-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.research-boundary__detail-label {
+  font-weight: 600;
+  color: #374151;
+  min-width: 6rem;
+}
+
+.research-boundary__detail-value {
+  color: #111827;
+}
+
+.research-boundary__row--curve {
+  background: #FAFAFA;
 }
 
 /* ============================================================================

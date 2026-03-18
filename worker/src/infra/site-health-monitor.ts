@@ -141,9 +141,19 @@ export class SiteHealthMonitor {
   private browser: Browser | null = null;
   /** Callback invoked whenever a health alert is generated */
   private onAlert?: (alert: SiteAlert) => void;
+  /** When set, only check sites whose FIPS code is in this set */
+  private activeCountyFips: Set<string> | null = null;
 
-  constructor(options?: { onAlert?: (alert: SiteAlert) => void }) {
+  constructor(options?: { onAlert?: (alert: SiteAlert) => void; countyFips?: string[] }) {
     this.onAlert = options?.onAlert;
+    if (options?.countyFips?.length) {
+      this.activeCountyFips = new Set(options.countyFips);
+    }
+  }
+
+  /** Restrict health checks to specific counties by FIPS code. */
+  setActiveCounties(fips: string[]): void {
+    this.activeCountyFips = fips.length > 0 ? new Set(fips) : null;
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────────────
@@ -273,12 +283,13 @@ export class SiteHealthMonitor {
       probes: SelectorProbe[];
     }> = [];
 
-    // CAD sites from registry
+    // CAD sites from registry — filtered to active counties when set
     const counties = listRegisteredCounties();
-    // Deduplicate by URL — many BIS counties share the same vendor probes
     const seenUrls = new Set<string>();
 
     for (const { fips, config } of counties) {
+      // Skip counties not in the active set (when a filter is configured)
+      if (this.activeCountyFips && !this.activeCountyFips.has(fips)) continue;
       if (seenUrls.has(config.searchUrl)) continue;
       seenUrls.add(config.searchUrl);
 
@@ -294,15 +305,19 @@ export class SiteHealthMonitor {
       });
     }
 
-    // Clerk systems (sampled — one per vendor)
-    checks.push({
-      siteId: 'clerk-kofile-bell',
-      name: 'Kofile — Bell County',
-      vendor: 'kofile',
-      url: 'https://bell.tx.publicsearch.us/',
-      probes: VENDOR_PROBES.kofile ?? [],
-    });
+    // Clerk systems — only include Bell County clerk when Bell is active (or no filter)
+    const includeBell = !this.activeCountyFips || this.activeCountyFips.has('48027');
+    if (includeBell) {
+      checks.push({
+        siteId: 'clerk-kofile-bell',
+        name: 'Kofile — Bell County',
+        vendor: 'kofile',
+        url: 'https://bell.tx.publicsearch.us/',
+        probes: VENDOR_PROBES.kofile ?? [],
+      });
+    }
 
+    // TexasFile is statewide — always include
     checks.push({
       siteId: 'clerk-texasfile',
       name: 'TexasFile (statewide)',
