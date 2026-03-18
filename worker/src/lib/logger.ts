@@ -234,8 +234,7 @@ export class PipelineLogger {
     const startTime = Date.now();
 
     const logStep = (msg: string) => {
-      const elapsed = Date.now() - startTime;
-      console.log(`[${this.projectId}] [${opts.layer}]   STEP: [+${elapsed}ms] ${msg}`);
+      // builder.step() already logs to console — don't double-log here
       builder.step(msg);
     };
 
