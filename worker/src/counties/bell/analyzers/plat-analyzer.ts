@@ -133,7 +133,7 @@ const MAX_PLAT_IMAGE_BYTES = 4_718_592; // 4.5 MiB safety margin
 async function resizePlatImage(base64Img: string): Promise<{ data: string; mediaType: 'image/png' | 'image/jpeg' } | null> {
   try {
     const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
-    let buf = Buffer.from(base64Img, 'base64');
+    let buf: any = Buffer.from(base64Img, 'base64');
     const meta = await sharp(buf).metadata();
     const { width, height } = meta;
     if (!width || !height) return { data: base64Img, mediaType: 'image/png' };
@@ -146,20 +146,20 @@ async function resizePlatImage(base64Img: string): Promise<{ data: string; media
       const nw = Math.round(width * scale);
       const nh = Math.round(height * scale);
       console.log(`[plat-analyzer] Resizing plat image from ${width}x${height} to ${nw}x${nh}`);
-      buf = await sharp(buf).resize(nw, nh, { fit: 'inside', withoutEnlargement: true }).png().toBuffer() as Buffer;
+      buf = await sharp(buf).resize(nw, nh, { fit: 'inside', withoutEnlargement: true }).png().toBuffer();
     }
 
     // Step 2: byte-size compression — JPEG quality=80
     if (buf.length > MAX_PLAT_IMAGE_BYTES) {
       console.log(`[plat-analyzer] Compressing plat image (${buf.length} bytes) — JPEG q80`);
-      buf = await sharp(buf).jpeg({ quality: 80 }).toBuffer() as Buffer;
+      buf = await sharp(buf).jpeg({ quality: 80 }).toBuffer();
       mediaType = 'image/jpeg';
     }
 
     // Step 3: byte-size compression — JPEG quality=60 (last resort)
     if (buf.length > MAX_PLAT_IMAGE_BYTES) {
       console.log(`[plat-analyzer] Re-compressing plat image (${buf.length} bytes) — JPEG q60`);
-      buf = await sharp(buf).jpeg({ quality: 60 }).toBuffer() as Buffer;
+      buf = await sharp(buf).jpeg({ quality: 60 }).toBuffer();
       mediaType = 'image/jpeg';
     }
 
