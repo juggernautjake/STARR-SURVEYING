@@ -989,21 +989,38 @@ function extractLocationFromLegal(text: string): string | undefined {
  * Returned strings are already normalised for direct comparison with plat calls.
  */
 export function extractDeedCallsFromLegalDescriptions(legalDescriptions: string[]): string[] {
-  // Match: [N/S] <deg>[°|DEG] <min>['/MIN] [<sec>["/"SEC]] [E/W] [,] <dist>[ft|feet|foot|LF]
-  // Uses two passes: symbol notation and spelled-out notation.
-  // Note: patterns are created fresh per-call so no lastIndex state leaks between texts.
+  // Match bearing/distance calls in multiple common surveying notations.
+  // Uses fresh regex instances per call to avoid lastIndex state leaks.
   const calls = new Set<string>();
   for (const text of legalDescriptions) {
     if (!text) continue;
 
-    // Symbol notation: e.g. "N 45°30'15" E, 200.50 ft" or "S89°45'W 150.00 feet"
+    // Pattern 1 — Symbol notation (multiple Unicode degree/quote variants):
+    //   "N 45°30'15" E, 200.50 ft"  or  "S89°45'W 150.00 feet"
+    //   Also handles: ˚ (ring), ° (HTML entity result), fancy quotes ′″, and
+    //   optional leading zeros like "N 045°30'15" E"
     const symbolPattern =
-      /[NSEW]\s*\d+\s*°\s*\d+[''′]\s*(?:\d+[""″]\s*)?[NSEW]?\s*,?\s*\d+(?:\.\d+)?\s*(?:ft|feet|foot|LF)\b/gi;
-    // Spelled-out notation: e.g. "NORTH 30 DEG 15 MIN 00 SEC EAST 125.00 FEET"
-    const spelledPattern =
-      /(?:NORTH|SOUTH|EAST|WEST|[NSEW])\s+\d+\s+DEG\s+\d+\s+MIN(?:\s+\d+\s+SEC)?\s+(?:EAST|WEST|[EW])\s+\d+(?:\.\d+)?\s+(?:FEET|FOOT|FT|LF)\b/gi;
+      /[NSEW]\s*0?\d+\s*[°˚ᵒ]\s*\d+\s*[''′']\s*(?:\d+\s*[""″"]\s*)?[NSEW]?\s*[,;]?\s*\d+(?:\.\d+)?\s*(?:ft|feet|foot|LF|')\b/gi;
 
-    for (const pattern of [symbolPattern, spelledPattern]) {
+    // Pattern 2 — Spelled-out notation:
+    //   "NORTH 30 DEG 15 MIN 00 SEC EAST 125.00 FEET"
+    //   Also handles: "DEGREES" / "MINUTES" / "SECONDS" long-form,
+    //   optional seconds, and both N/S/E/W abbreviations
+    const spelledPattern =
+      /(?:NORTH|SOUTH|EAST|WEST|[NSEW])\s+\d+\s+(?:DEG(?:REES?)?)\s+\d+\s+(?:MIN(?:UTES?)?)\s*(?:\d+\s+(?:SEC(?:ONDS?)?))?\.?\s+(?:NORTH|SOUTH|EAST|WEST|[NSEW])\s+\d+(?:\.\d+)?\s+(?:FEET|FOOT|FT|LF)\b/gi;
+
+    // Pattern 3 — "thence" notation (common in Texas deeds):
+    //   "thence N 45°30'15" E a distance of 200.50 feet"
+    //   Captures the bearing and distance when separated by filler words
+    const thencePattern =
+      /(?:thence|then)\s+[NSEW]\s*0?\d+\s*[°˚ᵒ]\s*\d+\s*[''′']\s*(?:\d+\s*[""″"]\s*)?[NSEW]\s*[,;]?\s*(?:a\s+distance\s+of\s+)?\d+(?:\.\d+)?\s*(?:ft|feet|foot|LF)\b/gi;
+
+    // Pattern 4 — Simple cardinal + distance (less common but found in some deeds):
+    //   "along the north line 150.00 feet" or "easterly 200 ft"
+    const cardinalPattern =
+      /(?:along\s+the\s+)?(?:north(?:erly|ern)?|south(?:erly|ern)?|east(?:erly|ern)?|west(?:erly|ern)?)\s+(?:line\s+)?\d+(?:\.\d+)?\s*(?:ft|feet|foot|LF)\b/gi;
+
+    for (const pattern of [symbolPattern, spelledPattern, thencePattern, cardinalPattern]) {
       const matches = text.match(pattern);
       if (matches) {
         for (const m of matches) {

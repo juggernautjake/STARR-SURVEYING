@@ -38,7 +38,7 @@ export async function scrapeBellTxDot(
 ): Promise<{ result: TxDotRowInfo | null; screenshots: ScreenshotCapture[]; urlsVisited: string[] }> {
   const screenshots: ScreenshotCapture[] = [];
   const urlsVisited: string[] = [];
-  const buffer = input.bufferDeg ?? 0.003; // ~330m default
+  const buffer = input.bufferDeg ?? 0.005; // ~550m default (wider search for rural properties)
 
   const progress = (msg: string) => {
     onProgress({ phase: 'TxDOT', message: msg, timestamp: new Date().toISOString() });
@@ -78,7 +78,7 @@ export async function scrapeBellTxDot(
   const hasData = rowWidth !== null || csjNumber !== null || highwayName !== null;
 
   if (hasData) {
-    progress(`TxDOT ROW found: ${highwayName ?? 'unnamed'}, width=${rowWidth ?? 'unknown'}ft`);
+    progress(`TxDOT ROW found: ${highwayName ?? 'unnamed'}${rowWidth ? `, width=${rowWidth}ft` : ' (width not available)'}`);
   } else {
     progress('TxDOT query returned features but no ROW data extracted');
   }

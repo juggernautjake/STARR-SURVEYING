@@ -241,6 +241,75 @@ async function persistCountyResults(
   if (r.discrepancies.length > 0) autoSummaryParts.push(`${r.discrepancies.length} discrepancy/ies flagged`);
   const autoSummary = autoSummaryParts.join('\n') || 'Bell County research completed.';
 
+  // Build boundary data from plat AI analysis + deed calls
+  const allBearings: string[] = [];
+  const allMonuments: string[] = [];
+  const allCurves: string[] = [];
+  const allLotDimensions: string[] = [];
+  const allRowWidths: string[] = [];
+  const allPlatEasements: string[] = [];
+  for (const plat of r.plats.plats) {
+    if (plat.aiAnalysis) {
+      allBearings.push(...plat.aiAnalysis.bearingsAndDistances);
+      allMonuments.push(...plat.aiAnalysis.monuments);
+      allCurves.push(...plat.aiAnalysis.curves);
+      allLotDimensions.push(...plat.aiAnalysis.lotDimensions);
+      allRowWidths.push(...plat.aiAnalysis.rowWidths);
+      allPlatEasements.push(...plat.aiAnalysis.easements);
+    }
+  }
+
+  // Build easement records for persistence (strip base64 images to save space)
+  const easementRecordsForMeta = r.easementsAndEncumbrances.easements.map(e => ({
+    type: e.type,
+    description: e.description,
+    instrumentNumber: e.instrumentNumber,
+    width: e.width ?? null,
+    location: e.location ?? null,
+    sourceUrl: e.sourceUrl,
+    source: e.source,
+  }));
+
+  // Build chain of title for persistence
+  const chainOfTitle = r.deedsAndRecords.chainOfTitle.map(c => ({
+    order: c.order,
+    instrumentNumber: c.instrumentNumber,
+    date: c.date,
+    from: c.from,
+    to: c.to,
+    type: c.type,
+  }));
+
+  // Build discrepancies for persistence
+  const discrepanciesForMeta = r.discrepancies.map(d => ({
+    category: d.category,
+    description: d.description,
+    source1: d.source1,
+    source1Value: d.source1Value,
+    source2: d.source2,
+    source2Value: d.source2Value,
+    severity: d.severity,
+    aiRecommendation: d.aiRecommendation,
+  }));
+
+  // Plat analysis summaries (per-plat, without base64 images)
+  const platAnalyses = r.plats.plats
+    .filter(p => p.aiAnalysis)
+    .map(p => ({
+      name: p.name,
+      instrumentNumber: p.instrumentNumber,
+      date: p.date,
+      narrative: p.aiAnalysis!.narrative,
+      bearingsAndDistances: p.aiAnalysis!.bearingsAndDistances,
+      lotDimensions: p.aiAnalysis!.lotDimensions,
+      monuments: p.aiAnalysis!.monuments,
+      easements: p.aiAnalysis!.easements,
+      curves: p.aiAnalysis!.curves,
+      rowWidths: p.aiAnalysis!.rowWidths,
+      adjacentReferences: p.aiAnalysis!.adjacentReferences,
+      changesFromPrevious: p.aiAnalysis!.changesFromPrevious,
+    }));
+
   const updatedMeta: Record<string, unknown> = {
     ...currentMeta,
     result: {
@@ -249,6 +318,10 @@ async function persistCountyResults(
       legalDescription: property.legalDescription || null,
       acreage: property.acreage ?? null,
       situsAddress: property.situsAddress || null,
+      lat: property.lat || null,
+      lon: property.lon || null,
+      mapId: property.mapId || null,
+      propertyType: property.propertyType || null,
       documentCount: deedCount + platCount,
       duration_ms: r.durationMs,
       deedSummary: r.deedsAndRecords.summary || null,
@@ -259,6 +332,70 @@ async function persistCountyResults(
       confidenceScore: r.overallConfidence.score,
       finalSummary: autoSummary,
       masterReportText: null,
+
+      // ── FEMA Flood Zone Data ──
+      fema: r.easementsAndEncumbrances.fema ? {
+        floodZone: r.easementsAndEncumbrances.fema.floodZone,
+        zoneSubtype: r.easementsAndEncumbrances.fema.zoneSubtype,
+        inSFHA: r.easementsAndEncumbrances.fema.inSFHA,
+        firmPanel: r.easementsAndEncumbrances.fema.firmPanel,
+        effectiveDate: r.easementsAndEncumbrances.fema.effectiveDate,
+        sourceUrl: r.easementsAndEncumbrances.fema.sourceUrl,
+      } : null,
+
+      // ── TxDOT ROW Data ──
+      txdot: r.easementsAndEncumbrances.txdot ? {
+        rowWidth: r.easementsAndEncumbrances.txdot.rowWidth,
+        csjNumber: r.easementsAndEncumbrances.txdot.csjNumber,
+        highwayName: r.easementsAndEncumbrances.txdot.highwayName,
+        highwayClass: r.easementsAndEncumbrances.txdot.highwayClass,
+        district: r.easementsAndEncumbrances.txdot.district,
+        acquisitionDate: r.easementsAndEncumbrances.txdot.acquisitionDate,
+        sourceUrl: r.easementsAndEncumbrances.txdot.sourceUrl,
+      } : null,
+
+      // ── Easement Records ──
+      easements: easementRecordsForMeta,
+      restrictiveCovenants: r.easementsAndEncumbrances.restrictiveCovenants,
+
+      // ── Boundary Data (bearings, distances, monuments) ──
+      boundary: {
+        bearingsAndDistances: allBearings,
+        lotDimensions: allLotDimensions,
+        monuments: allMonuments,
+        curves: allCurves,
+        rowWidths: allRowWidths,
+        platEasements: allPlatEasements,
+        callCount: allBearings.length,
+        confidence: r.overallConfidence.score,
+      },
+
+      // ── Chain of Title ──
+      chainOfTitle,
+
+      // ── Plat Analyses ──
+      platAnalyses,
+      crossValidation: r.plats.crossValidation,
+
+      // ── Discrepancies ──
+      discrepancies: discrepanciesForMeta,
+
+      // ── Links & Screenshots ──
+      researchedLinks: r.researchedLinks.map(l => ({
+        url: l.url,
+        title: l.title,
+        source: l.source,
+        dataFound: l.dataFound,
+      })),
+      screenshotCount: r.screenshots.length,
+
+      // ── Errors ──
+      errors: r.errors.map(e => ({
+        phase: e.phase,
+        source: e.source,
+        message: e.message,
+        recovered: e.recovered,
+      })),
     },
   };
 
@@ -346,6 +483,60 @@ async function persistCountyResults(
       console.warn(`[Worker] ${projectId}: failed to save county documents: ${docsErr.message}`);
     } else {
       console.log(`[Worker] ${projectId}: saved ${docInserts.length} county document(s) to Supabase`);
+    }
+  }
+
+  // ── 4. Save discrepancies to discrepancies table ─────────────────────
+  if (r.discrepancies.length > 0) {
+    // Delete previous discrepancies for this project
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from('discrepancies')
+      .delete()
+      .eq('research_project_id', projectId);
+
+    // Map severity levels: our pipeline uses high/medium/low, table uses
+    // info/unclear/uncertain/discrepancy/contradiction/error
+    const severityMap: Record<string, string> = {
+      high: 'error',
+      medium: 'discrepancy',
+      low: 'info',
+    };
+
+    // Map category to probable_cause
+    const causeMap: Record<string, string> = {
+      legal_description: 'transcription_error',
+      acreage: 'rounding_difference',
+      boundary: 'surveying_error',
+      ownership: 'clerical_error',
+      easement: 'missing_information',
+      other: 'unknown',
+    };
+
+    const discInserts = r.discrepancies.map(d => ({
+      research_project_id: projectId,
+      severity: severityMap[d.severity] ?? 'discrepancy',
+      probable_cause: causeMap[d.category] ?? 'unknown',
+      title: `${d.category}: ${d.source1} vs ${d.source2}`,
+      description: d.description,
+      ai_recommendation: d.aiRecommendation || null,
+      affects_boundary: d.category === 'boundary' || d.category === 'legal_description',
+      affects_area: d.category === 'acreage',
+      affects_closure: d.category === 'boundary',
+      estimated_impact: `${d.source1}: "${d.source1Value}" vs ${d.source2}: "${d.source2Value}"`,
+      resolution_status: 'open',
+      created_at: now,
+      updated_at: now,
+    }));
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: discErr } = await (supabase as any)
+      .from('discrepancies')
+      .insert(discInserts);
+    if (discErr) {
+      console.warn(`[Worker] ${projectId}: failed to save county discrepancies: ${discErr.message}`);
+    } else {
+      console.log(`[Worker] ${projectId}: saved ${discInserts.length} county discrepancy/ies to Supabase`);
     }
   }
 }

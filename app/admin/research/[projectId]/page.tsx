@@ -1639,28 +1639,42 @@ export default function ResearchProjectPage() {
                 const finalSummary = (result?.finalSummary ?? meta?.finalSummary ?? '') as string;
                 const ownerName = (result?.ownerName ?? (meta as Record<string, unknown> | null)?.ownerName ?? '') as string;
                 const propertyId = (result?.propertyId ?? project.parcel_id ?? '') as string;
+                const situsAddress = (result?.situsAddress ?? '') as string;
                 const acreage = (result?.acreage ?? '') as string | number;
                 const legalDesc = (result?.legalDescription ?? project.legal_description_summary ?? '') as string;
-                const docCount = stats.document_count;
+                const docCount = stats.document_count || (result?.documentCount as number ?? 0);
                 const dpCount = stats.data_point_count;
-                const discCount = stats.discrepancy_count;
+                const discCount = stats.discrepancy_count || (result?.discrepancyCount as number ?? 0);
                 const durationMs = (result?.duration_ms ?? 0) as number;
-                const boundary = result?.boundary as { type?: string; callCount?: number; confidence?: number; verified?: boolean } | null;
-                const confidence = boundary?.confidence ? Math.round(boundary.confidence * 100) : null;
+                const boundary = result?.boundary as { type?: string; callCount?: number; confidence?: number; verified?: boolean; bearingsAndDistances?: string[]; monuments?: string[] } | null;
+                const callCount = boundary?.callCount ?? boundary?.bearingsAndDistances?.length ?? 0;
+                const monumentCount = boundary?.monuments?.length ?? 0;
+                const confidenceTier = (result?.confidenceTier ?? '') as string;
+                const confidenceScore = (result?.confidenceScore ?? 0) as number;
+                const fema = result?.fema as { floodZone?: string; inSFHA?: boolean } | null;
+                const txdot = result?.txdot as { highwayName?: string; rowWidth?: number | null } | null;
+                const screenshotCount = (result?.screenshotCount ?? 0) as number;
+                const errorCount = ((result?.errors ?? []) as Array<{recovered: boolean}>).length;
+                const fatalErrors = ((result?.errors ?? []) as Array<{recovered: boolean}>).filter(e => !e.recovered).length;
                 return (
                   <div className="review-tab-content">
                     {/* Stats row */}
                     <div className="review-stats-row">
                       {ownerName && <div className="review-stat"><span className="review-stat__label">Owner</span><span className="review-stat__value">{ownerName}</span></div>}
                       {propertyId && <div className="review-stat"><span className="review-stat__label">Property ID</span><span className="review-stat__value">{propertyId}</span></div>}
+                      {situsAddress && <div className="review-stat"><span className="review-stat__label">Address</span><span className="review-stat__value">{situsAddress}</span></div>}
                       {acreage && <div className="review-stat"><span className="review-stat__label">Acreage</span><span className="review-stat__value">{acreage} ac</span></div>}
-                      {boundary?.type && <div className="review-stat"><span className="review-stat__label">Boundary Type</span><span className="review-stat__value">{boundary.type.replace(/_/g, ' ')}</span></div>}
-                      {boundary?.callCount != null && <div className="review-stat"><span className="review-stat__label">Boundary Calls</span><span className="review-stat__value">{boundary.callCount}</span></div>}
-                      {confidence != null && <div className="review-stat"><span className="review-stat__label">Confidence</span><span className="review-stat__value">{confidence}%</span></div>}
+                      {callCount > 0 && <div className="review-stat"><span className="review-stat__label">Boundary Calls</span><span className="review-stat__value">{callCount}</span></div>}
+                      {monumentCount > 0 && <div className="review-stat"><span className="review-stat__label">Monuments</span><span className="review-stat__value">{monumentCount}</span></div>}
+                      {confidenceTier && <div className="review-stat"><span className="review-stat__label">Confidence</span><span className="review-stat__value">{confidenceTier} ({confidenceScore}/100)</span></div>}
                       {docCount > 0 && <div className="review-stat"><span className="review-stat__label">Documents</span><span className="review-stat__value">{docCount}</span></div>}
                       {dpCount > 0 && <div className="review-stat"><span className="review-stat__label">Data Points</span><span className="review-stat__value">{dpCount}</span></div>}
                       {discCount > 0 && <div className="review-stat review-stat--warn"><span className="review-stat__label">Discrepancies</span><span className="review-stat__value">{discCount}</span></div>}
-                      {durationMs > 0 && <div className="review-stat"><span className="review-stat__label">Duration</span><span className="review-stat__value">{(durationMs / 1000).toFixed(1)}s</span></div>}
+                      {fema && <div className="review-stat"><span className="review-stat__label">Flood Zone</span><span className="review-stat__value" style={{ color: fema.inSFHA ? '#f87171' : '#4ade80' }}>{fema.floodZone}{fema.inSFHA ? ' (SFHA)' : ''}</span></div>}
+                      {txdot && <div className="review-stat"><span className="review-stat__label">TxDOT ROW</span><span className="review-stat__value">{txdot.highwayName ?? 'Highway'}{txdot.rowWidth ? ` (${txdot.rowWidth}ft)` : ''}</span></div>}
+                      {screenshotCount > 0 && <div className="review-stat"><span className="review-stat__label">Screenshots</span><span className="review-stat__value">{screenshotCount}</span></div>}
+                      {durationMs > 0 && <div className="review-stat"><span className="review-stat__label">Duration</span><span className="review-stat__value">{durationMs >= 60000 ? `${Math.floor(durationMs / 60000)}m ${Math.floor((durationMs % 60000) / 1000)}s` : `${(durationMs / 1000).toFixed(1)}s`}</span></div>}
+                      {errorCount > 0 && <div className={`review-stat${fatalErrors > 0 ? ' review-stat--warn' : ''}`}><span className="review-stat__label">Errors</span><span className="review-stat__value">{errorCount} ({fatalErrors} fatal)</span></div>}
                     </div>
                     {/* Legal description */}
                     {legalDesc && (
@@ -1729,32 +1743,330 @@ export default function ResearchProjectPage() {
               })()}
 
               {/* ── Tab: Survey Data ── */}
-              {reviewTab === 'survey' && (
-                <DataPointsPanel
-                  projectId={projectId}
-                  onViewSource={(docId, excerpt) => {
-                    const doc = documents.find(d => d.id === docId);
-                    if (doc) {
-                      setViewerDoc(doc);
-                      setViewerHighlight(excerpt);
-                    }
-                  }}
-                />
-              )}
+              {reviewTab === 'survey' && (() => {
+                const meta = project.analysis_metadata as Record<string, unknown> | null;
+                const result = meta?.result as Record<string, unknown> | null;
+                const boundary = result?.boundary as {
+                  bearingsAndDistances?: string[];
+                  lotDimensions?: string[];
+                  monuments?: string[];
+                  curves?: string[];
+                  rowWidths?: string[];
+                  platEasements?: string[];
+                  callCount?: number;
+                  confidence?: number;
+                } | null;
+                const chainOfTitle = (result?.chainOfTitle ?? []) as Array<{
+                  order: number; instrumentNumber: string | null; date: string | null;
+                  from: string; to: string; type: string;
+                }>;
+                const platAnalyses = (result?.platAnalyses ?? []) as Array<{
+                  name: string; instrumentNumber: string | null; date: string | null;
+                  narrative: string; bearingsAndDistances: string[]; lotDimensions: string[];
+                  monuments: string[]; easements: string[]; curves: string[];
+                  rowWidths: string[]; adjacentReferences: string[]; changesFromPrevious: string[];
+                }>;
+                const crossValidation = (result?.crossValidation ?? []) as string[];
+                const deedSummary = (result?.deedSummary ?? '') as string;
+                const platSummary = (result?.platSummary ?? '') as string;
+
+                const hasBoundary = boundary && (boundary.bearingsAndDistances?.length ?? 0) > 0;
+                const hasChain = chainOfTitle.length > 0;
+                const hasPlats = platAnalyses.length > 0;
+
+                return (
+                  <div className="review-tab-content">
+                    {/* Deed Summary */}
+                    {deedSummary && (
+                      <div className="review-narrative" style={{ marginBottom: '1rem' }}>
+                        <div className="review-narrative__label">Deed Analysis Summary</div>
+                        <div className="review-narrative__text">{deedSummary}</div>
+                      </div>
+                    )}
+
+                    {/* Plat Summary */}
+                    {platSummary && (
+                      <div className="review-narrative" style={{ marginBottom: '1rem' }}>
+                        <div className="review-narrative__label">Plat Analysis Summary</div>
+                        <div className="review-narrative__text">{platSummary}</div>
+                      </div>
+                    )}
+
+                    {/* Boundary Bearings & Distances */}
+                    {hasBoundary ? (
+                      <div className="review-data-section" style={{ marginBottom: '1rem' }}>
+                        <div className="review-narrative__label">Boundary Bearings &amp; Distances ({boundary.bearingsAndDistances?.length ?? 0} calls)</div>
+                        <table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid #334155' }}>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>#</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>Bearing / Distance Call</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(boundary.bearingsAndDistances ?? []).map((call, i) => (
+                              <tr key={i} style={{ borderBottom: '1px solid #1e293b' }}>
+                                <td style={{ padding: '0.3rem 0.6rem', color: '#64748b' }}>{i + 1}</td>
+                                <td style={{ padding: '0.3rem 0.6rem', color: '#e2e8f0', fontFamily: 'monospace' }}>{call}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                        No boundary bearing/distance data extracted. This requires plat images to be analyzed by AI (ensure <code>sharp</code> is installed on the worker).
+                      </div>
+                    )}
+
+                    {/* Lot Dimensions */}
+                    {(boundary?.lotDimensions?.length ?? 0) > 0 && (
+                      <div className="review-data-section" style={{ marginBottom: '1rem' }}>
+                        <div className="review-narrative__label">Lot Dimensions</div>
+                        <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
+                          {boundary!.lotDimensions!.map((d, i) => (
+                            <li key={i} style={{ color: '#e2e8f0', fontSize: '0.85rem', marginBottom: '0.2rem' }}>{d}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Monuments */}
+                    {(boundary?.monuments?.length ?? 0) > 0 && (
+                      <div className="review-data-section" style={{ marginBottom: '1rem' }}>
+                        <div className="review-narrative__label">Monuments ({boundary!.monuments!.length})</div>
+                        <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
+                          {boundary!.monuments!.map((m, i) => (
+                            <li key={i} style={{ color: '#e2e8f0', fontSize: '0.85rem', marginBottom: '0.2rem' }}>{m}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Curves */}
+                    {(boundary?.curves?.length ?? 0) > 0 && (
+                      <div className="review-data-section" style={{ marginBottom: '1rem' }}>
+                        <div className="review-narrative__label">Curves / Arc Data</div>
+                        <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
+                          {boundary!.curves!.map((c, i) => (
+                            <li key={i} style={{ color: '#e2e8f0', fontSize: '0.85rem', marginBottom: '0.2rem', fontFamily: 'monospace' }}>{c}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Cross-Validation Notes */}
+                    {crossValidation.length > 0 && (
+                      <div className="review-data-section" style={{ marginBottom: '1rem' }}>
+                        <div className="review-narrative__label">Cross-Validation (Plat vs Deed)</div>
+                        <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
+                          {crossValidation.map((note, i) => (
+                            <li key={i} style={{
+                              color: note.startsWith('MATCH') ? '#4ade80' : note.startsWith('MISMATCH') ? '#f87171' : '#94a3b8',
+                              fontSize: '0.85rem', marginBottom: '0.2rem',
+                            }}>{note}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Chain of Title */}
+                    {hasChain && (
+                      <div className="review-data-section" style={{ marginBottom: '1rem' }}>
+                        <div className="review-narrative__label">Chain of Title ({chainOfTitle.length} links)</div>
+                        <table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid #334155' }}>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>#</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>Date</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>From</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>To</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>Instrument</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>Type</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {chainOfTitle.map((link, i) => (
+                              <tr key={i} style={{ borderBottom: '1px solid #1e293b' }}>
+                                <td style={{ padding: '0.3rem 0.6rem', color: '#64748b' }}>{link.order}</td>
+                                <td style={{ padding: '0.3rem 0.6rem', color: '#e2e8f0' }}>{link.date || '—'}</td>
+                                <td style={{ padding: '0.3rem 0.6rem', color: '#e2e8f0' }}>{link.from}</td>
+                                <td style={{ padding: '0.3rem 0.6rem', color: '#e2e8f0' }}>{link.to}</td>
+                                <td style={{ padding: '0.3rem 0.6rem', color: '#e2e8f0', fontFamily: 'monospace' }}>{link.instrumentNumber || '—'}</td>
+                                <td style={{ padding: '0.3rem 0.6rem', color: '#94a3b8' }}>{link.type}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Per-Plat AI Analysis Details */}
+                    {hasPlats && (
+                      <div className="review-data-section" style={{ marginBottom: '1rem' }}>
+                        <div className="review-narrative__label">Plat Analysis Details</div>
+                        {platAnalyses.map((plat, pi) => (
+                          <div key={pi} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginTop: '0.5rem' }}>
+                            <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '0.3rem' }}>
+                              {plat.name}{plat.instrumentNumber ? ` (Inst# ${plat.instrumentNumber})` : ''}{plat.date ? ` — ${plat.date}` : ''}
+                            </div>
+                            {plat.narrative && <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{plat.narrative}</div>}
+                            {plat.adjacentReferences.length > 0 && (
+                              <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.3rem' }}>
+                                Adjacent: {plat.adjacentReferences.join('; ')}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Fallback: DataPointsPanel for any extracted data points */}
+                    <div style={{ marginTop: '1rem', borderTop: '1px solid #1e293b', paddingTop: '1rem' }}>
+                      <div className="review-narrative__label" style={{ marginBottom: '0.5rem' }}>Extracted Data Points</div>
+                      <DataPointsPanel
+                        projectId={projectId}
+                        onViewSource={(docId, excerpt) => {
+                          const doc = documents.find(d => d.id === docId);
+                          if (doc) {
+                            setViewerDoc(doc);
+                            setViewerHighlight(excerpt);
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* ── Tab: Easements ── */}
-              {reviewTab === 'easements' && (
-                <DataPointsPanel
-                  projectId={projectId}
-                  onViewSource={(docId, excerpt) => {
-                    const doc = documents.find(d => d.id === docId);
-                    if (doc) {
-                      setViewerDoc(doc);
-                      setViewerHighlight(excerpt);
-                    }
-                  }}
-                />
-              )}
+              {reviewTab === 'easements' && (() => {
+                const meta = project.analysis_metadata as Record<string, unknown> | null;
+                const result = meta?.result as Record<string, unknown> | null;
+                const easementSummary = (result?.easementSummary ?? '') as string;
+                const fema = result?.fema as {
+                  floodZone?: string; zoneSubtype?: string | null; inSFHA?: boolean;
+                  firmPanel?: string | null; effectiveDate?: string | null; sourceUrl?: string;
+                } | null;
+                const txdot = result?.txdot as {
+                  rowWidth?: number | null; csjNumber?: string | null; highwayName?: string | null;
+                  highwayClass?: string | null; district?: string | null; acquisitionDate?: string | null;
+                  sourceUrl?: string;
+                } | null;
+                const easements = (result?.easements ?? []) as Array<{
+                  type: string; description: string; instrumentNumber: string | null;
+                  width?: string | null; location?: string | null; sourceUrl: string | null; source: string;
+                }>;
+                const covenants = (result?.restrictiveCovenants ?? []) as string[];
+                const rowWidths = ((result?.boundary as Record<string, unknown> | null)?.rowWidths ?? []) as string[];
+                const platEasements = ((result?.boundary as Record<string, unknown> | null)?.platEasements ?? []) as string[];
+
+                const hasData = fema || txdot || easements.length > 0 || covenants.length > 0;
+
+                return (
+                  <div className="review-tab-content">
+                    {/* Easement Summary */}
+                    {easementSummary && (
+                      <div className="review-narrative" style={{ marginBottom: '1rem' }}>
+                        <div className="review-narrative__label">Easements &amp; Encumbrances Summary</div>
+                        <div className="review-narrative__text">{easementSummary}</div>
+                      </div>
+                    )}
+
+                    {/* FEMA Flood Zone */}
+                    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
+                      <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '0.5rem' }}>FEMA Flood Zone</div>
+                      {fema ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.5rem' }}>
+                          <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Zone</span><br/><span style={{ color: fema.inSFHA ? '#f87171' : '#4ade80', fontWeight: 600 }}>{fema.floodZone}</span></div>
+                          {fema.zoneSubtype && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Subtype</span><br/><span style={{ color: '#e2e8f0' }}>{fema.zoneSubtype}</span></div>}
+                          <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>In SFHA?</span><br/><span style={{ color: fema.inSFHA ? '#f87171' : '#4ade80', fontWeight: 600 }}>{fema.inSFHA ? 'YES — flood insurance required' : 'No'}</span></div>
+                          {fema.firmPanel && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>FIRM Panel</span><br/><span style={{ color: '#e2e8f0' }}>{fema.firmPanel}</span></div>}
+                          {fema.effectiveDate && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Effective Date</span><br/><span style={{ color: '#e2e8f0' }}>{fema.effectiveDate}</span></div>}
+                          {fema.sourceUrl && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Source</span><br/><a href={fema.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontSize: '0.85rem' }}>FEMA MSC</a></div>}
+                        </div>
+                      ) : (
+                        <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>No FEMA flood zone data available. Requires valid coordinates from geocoding.</div>
+                      )}
+                    </div>
+
+                    {/* TxDOT Right-of-Way */}
+                    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
+                      <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '0.5rem' }}>TxDOT Right-of-Way</div>
+                      {txdot ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.5rem' }}>
+                          {txdot.highwayName && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Highway</span><br/><span style={{ color: '#e2e8f0', fontWeight: 600 }}>{txdot.highwayName}</span></div>}
+                          <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>ROW Width</span><br/><span style={{ color: txdot.rowWidth ? '#e2e8f0' : '#94a3b8', fontWeight: 600 }}>{txdot.rowWidth ? `${txdot.rowWidth} ft` : 'Unknown'}</span></div>
+                          {txdot.highwayClass && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Classification</span><br/><span style={{ color: '#e2e8f0' }}>{txdot.highwayClass}</span></div>}
+                          {txdot.csjNumber && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>CSJ Number</span><br/><span style={{ color: '#e2e8f0' }}>{txdot.csjNumber}</span></div>}
+                          {txdot.district && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>District</span><br/><span style={{ color: '#e2e8f0' }}>{txdot.district}</span></div>}
+                          {txdot.acquisitionDate && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Acquisition Date</span><br/><span style={{ color: '#e2e8f0' }}>{txdot.acquisitionDate}</span></div>}
+                          {txdot.sourceUrl && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Source</span><br/><a href={txdot.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontSize: '0.85rem' }}>TxDOT GIS</a></div>}
+                        </div>
+                      ) : (
+                        <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>No TxDOT ROW data available. Requires valid coordinates from geocoding.</div>
+                      )}
+                    </div>
+
+                    {/* ROW Widths from Plats */}
+                    {rowWidths.length > 0 && (
+                      <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
+                        <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '0.5rem' }}>Right-of-Way Widths (from Plats)</div>
+                        <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
+                          {rowWidths.map((w, i) => (
+                            <li key={i} style={{ color: '#e2e8f0', fontSize: '0.85rem', marginBottom: '0.2rem' }}>{w}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Easements from Plats */}
+                    {platEasements.length > 0 && (
+                      <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
+                        <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '0.5rem' }}>Easements Shown on Plats ({platEasements.length})</div>
+                        <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
+                          {platEasements.map((e, i) => (
+                            <li key={i} style={{ color: '#e2e8f0', fontSize: '0.85rem', marginBottom: '0.2rem' }}>{e}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Recorded Easements from Clerk */}
+                    {easements.length > 0 && (
+                      <div style={{ marginBottom: '1rem' }}>
+                        <div className="review-narrative__label">Recorded Easements ({easements.length})</div>
+                        {easements.map((e, i) => (
+                          <div key={i} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginTop: '0.5rem' }}>
+                            <div style={{ fontWeight: 600, color: '#e2e8f0' }}>{e.type}{e.instrumentNumber ? ` — Inst# ${e.instrumentNumber}` : ''}</div>
+                            <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.25rem' }}>{e.description}</div>
+                            {e.width && <div style={{ color: '#60a5fa', fontSize: '0.85rem', marginTop: '0.15rem' }}>Width: {e.width}</div>}
+                            {e.sourceUrl && <a href={e.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontSize: '0.8rem' }}>View Source</a>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Restrictive Covenants */}
+                    {covenants.length > 0 && (
+                      <div style={{ marginBottom: '1rem' }}>
+                        <div className="review-narrative__label">Restrictive Covenants ({covenants.length})</div>
+                        <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
+                          {covenants.map((c, i) => (
+                            <li key={i} style={{ color: '#e2e8f0', fontSize: '0.85rem', marginBottom: '0.2rem' }}>{c}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {!hasData && (
+                      <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '1rem 0' }}>
+                        No easement or encumbrance data found. Run the full research pipeline to populate this section.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* ── Tab: Discrepancies ── */}
               {reviewTab === 'discrepancies' && (
