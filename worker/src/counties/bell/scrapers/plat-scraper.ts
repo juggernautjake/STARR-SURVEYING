@@ -91,8 +91,10 @@ export async function scrapeBellPlats(
 
   /** Add a plat if not already present (dedup by platName + source) */
   const addPlat = (plat: PlatRecord): boolean => {
+    // Deduplicate by instrument number (primary key) OR by name+source
     const exists = plats.find(
-      p => p.name === plat.name && p.source === plat.source,
+      p => (plat.instrumentNumber && p.instrumentNumber === plat.instrumentNumber) ||
+           (p.name === plat.name && p.source === plat.source),
     );
     if (!exists) { plats.push(plat); return true; }
     return false;
@@ -191,6 +193,12 @@ export async function scrapeBellPlats(
   if (input.instrumentNumbers && input.instrumentNumbers.length > 0) {
     progress(`Layer 3: Checking ${input.instrumentNumbers.length} instrument(s) for plat records...`);
     for (const instrNum of input.instrumentNumbers) {
+      // Skip instruments already captured by earlier layers to avoid re-downloading images
+      if (plats.some(p => p.instrumentNumber === instrNum)) {
+        progress(`    Instrument ${instrNum} already captured — skipping Layer 3 check`);
+        instrumentsChecked++;
+        continue;
+      }
       const p = await checkInstrumentForPlat(instrNum, captureImages, screenshots, urlsVisited, progress, input.projectId);
       instrumentsChecked++;
       if (p && addPlat(p)) {
