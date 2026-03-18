@@ -237,6 +237,8 @@ export async function orchestrateBellResearch(
   if (cadResult.status === 'rejected') recordError('Phase 1', 'CAD', cadResult.reason);
   if (gisResult.status === 'rejected') recordError('Phase 1', 'GIS', gisResult.reason);
 
+  checkAborted();
+
   // Record links and screenshots from Phase 1
   if (cad) {
     allScreenshots.push(...cad.screenshots);
@@ -377,6 +379,8 @@ export async function orchestrateBellResearch(
     recordError('Phase 2', 'Clerk', err);
   }
 
+  checkAborted();
+
   // ── 2B: Bell County Plat Repository + Clerk Plats ─────────────────
   progress('Phase 2', '2B — Plat repository + clerk plat search...', 35);
   let plats: Awaited<ReturnType<typeof scrapeBellPlats>> | null = null;
@@ -404,6 +408,8 @@ export async function orchestrateBellResearch(
   } catch (err) {
     recordError('Phase 2', 'Plats', err);
   }
+
+  checkAborted();
 
   // ── 2C/2D/2E: FEMA, TxDOT, Tax (parallel) ────────────────────────
   progress('Phase 2', '2C/D/E — FEMA + TxDOT + Tax (parallel)...', 45);
@@ -436,6 +442,8 @@ export async function orchestrateBellResearch(
   if (femaResult.status === 'rejected') recordError('Phase 2', 'FEMA', femaResult.reason);
   if (txdotResult.status === 'rejected') recordError('Phase 2', 'TxDOT', txdotResult.reason);
   if (taxResult.status === 'rejected') recordError('Phase 2', 'Tax', taxResult.reason);
+
+  checkAborted();
 
   progress('Phase 2',
     `2C/D/E complete: FEMA=${fema?.result ? fema.result.floodZone : 'none'} ` +
@@ -537,6 +545,8 @@ export async function orchestrateBellResearch(
 
   if (deedAnalysisResult.status === 'rejected') recordError('Phase 3', 'Deed Analysis', deedAnalysisResult.reason);
   if (platAnalysisResult.status === 'rejected') recordError('Phase 3', 'Plat Analysis', platAnalysisResult.reason);
+
+  checkAborted();
 
   progress('Phase 3',
     `AI analysis complete: ` +
@@ -680,6 +690,8 @@ export async function orchestrateBellResearch(
       progress('Phase 3B', 'No additional historical references found in deed summaries');
     }
   }
+
+  checkAborted();
 
   // ── Extract easements & restrictive covenants from clerk documents ─
   const easementRecords = extractEasementRecords(clerk?.documents ?? []);

@@ -239,10 +239,15 @@ export default function ResearchRunPanel({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Start elapsed timer when pipeline begins
+  // Start elapsed timer as soon as pipeline begins (including 'starting' phase)
   useEffect(() => {
-    if (pipelineStatus === 'running' && !startTimeRef.current) {
-      startTimeRef.current = Date.now();
+    const isActive = pipelineStatus === 'running' || pipelineStatus === 'starting';
+    if (isActive && !elapsedTimerRef.current) {
+      // Reset timer for new runs — if startTimeRef is stale from a previous run, refresh it
+      if (!startTimeRef.current) {
+        startTimeRef.current = Date.now();
+        setElapsedSeconds(0);
+      }
       elapsedTimerRef.current = setInterval(() => {
         if (startTimeRef.current) {
           setElapsedSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
@@ -250,7 +255,7 @@ export default function ResearchRunPanel({
       }, 1000);
     }
     // Stop timer when pipeline finishes
-    if (pipelineStatus && pipelineStatus !== 'running' && pipelineStatus !== 'starting' && elapsedTimerRef.current) {
+    if (pipelineStatus && !isActive && elapsedTimerRef.current) {
       clearInterval(elapsedTimerRef.current);
       elapsedTimerRef.current = null;
     }
@@ -299,6 +304,7 @@ export default function ResearchRunPanel({
         stopPolling();
         setPipelineStatus('failed');
         setFailureReason('Pipeline cancelled by user.');
+        setCancelling(false);
         onPipelineComplete?.('failed');
       } else {
         const data = await res.json().catch(() => ({})) as Record<string, unknown>;
@@ -396,6 +402,9 @@ export default function ResearchRunPanel({
     setCurrentMessage('Starting research pipeline…');
     setPipelineStatus('starting');
     prevMicroStageRef.current = null;
+    // Reset elapsed timer for a fresh run
+    startTimeRef.current = Date.now();
+    setElapsedSeconds(0);
 
     const payload = {
       address: address?.trim() || undefined,
@@ -618,7 +627,7 @@ export default function ResearchRunPanel({
           margin: '0.25rem 0',
         }}>
           {Math.floor(elapsedSeconds / 60).toString().padStart(2, '0')}:{(elapsedSeconds % 60).toString().padStart(2, '0')}
-          <span style={{ fontSize: '0.7rem', fontWeight: 400, marginLeft: '0.35rem', color: '#9CA3AF' }}>elapsed</span>
+          <span style={{ fontSize: '0.75rem', fontWeight: 400, marginLeft: '0.35rem', color: '#6B7280' }}>elapsed</span>
         </div>
 
         {/* Current micro-stage */}
