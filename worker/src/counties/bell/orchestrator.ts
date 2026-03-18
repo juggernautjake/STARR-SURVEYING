@@ -74,12 +74,20 @@ export type ProgressCallback = (p: OrchestratorProgress) => void;
 export async function orchestrateBellResearch(
   input: BellResearchInput,
   onProgress: ProgressCallback,
+  signal?: AbortSignal,
 ): Promise<BellResearchResult> {
   const startedAt = new Date();
   const errors: ResearchError[] = [];
   const allScreenshots: ScreenshotCapture[] = [];
   const allLinks: ResearchedLink[] = [];
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? '';
+
+  /** Throws if the pipeline has been cancelled via AbortController */
+  function checkAborted(): void {
+    if (signal?.aborted) {
+      throw new DOMException('Pipeline cancelled by user', 'AbortError');
+    }
+  }
 
   console.log(
     `[BellOrchestrator] ${input.projectId ?? 'no-id'}: START — address="${input.address ?? ''}" propertyId="${input.propertyId ?? ''}" ownerName="${input.ownerName ?? ''}"`,
@@ -166,6 +174,7 @@ export async function orchestrateBellResearch(
   //  After each result, absorbs all discovered identifiers into knownIds
   //  so Phase 2 benefits from the full picture.
   // ══════════════════════════════════════════════════════════════════
+  checkAborted();
 
   progress('Phase 1', '─────────────────────────────────────────────', 5);
   progress('Phase 1', 'PHASE 1 — Property Identification', 5);
@@ -291,6 +300,7 @@ export async function orchestrateBellResearch(
   //  Clerk + Plats run sequentially (clerk feeds plat instrument numbers).
   //  FEMA + TxDOT + Tax run in parallel.
   // ══════════════════════════════════════════════════════════════════
+  checkAborted();
 
   progress('Phase 2', '─────────────────────────────────────────────', 20);
   progress('Phase 2', 'PHASE 2 — Scraping Bell County Records', 20);
@@ -450,6 +460,7 @@ export async function orchestrateBellResearch(
   //  PHASE 3: AI ANALYSIS (~5-15 minutes)
   // ══════════════════════════════════════════════════════════════════
 
+  checkAborted();
   progress('Phase 3', '─────────────────────────────────────────────', 60);
   progress('Phase 3', 'PHASE 3 — AI Analysis', 60);
 
@@ -569,6 +580,7 @@ export async function orchestrateBellResearch(
   //  PHASE 4: ASSEMBLE REPORT (~10-30 seconds)
   // ══════════════════════════════════════════════════════════════════
 
+  checkAborted();
   progress('Phase 4', '─────────────────────────────────────────────', 90);
   progress('Phase 4', 'PHASE 4 — Assembling Research Report', 90);
 

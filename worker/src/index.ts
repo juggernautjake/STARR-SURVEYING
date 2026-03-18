@@ -529,6 +529,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
   // the status endpoint returns "running" (not the old failed/complete result)
   // while this new run is in progress.
   completedResults.delete(projectId);
+  const pipelineAbortController = new AbortController();
   activePipelines.set(projectId, {
     projectId,
     address: researchInput.address ?? '',
@@ -536,6 +537,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     state: researchInput.state ?? 'TX',
     startedAt: new Date().toISOString(),
     currentStage: 'Routing',
+    abortController: pipelineAbortController,
   });
 
   console.log(
@@ -593,6 +595,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         console.log(`[Worker] ${projectId} → Frontend: phase="${progress.phase}" msg="${truncated.slice(0, 80)}"`);
       }
     },
+    pipelineAbortController.signal,
   )
     .then(async (unifiedResult) => {
       completedResults.set(projectId, unifiedResult);
@@ -906,14 +909,25 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       }
     })
     .catch((err) => {
-      console.error(`[Worker] ${projectId} CRASH:`, err);
-      const errMessage = err instanceof Error
-        ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
-        : String(err ?? 'Unknown error');
-      // Emit a failure handshake so the frontend log shows the crash reason
-      handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Failed', errMessage.slice(0, 160))
-        .fail(`[Worker→Frontend] Pipeline crashed: ${errMessage.slice(0, 120)}`);
-      console.log(`[Worker] ${projectId} → Frontend: pipeline failure handshake emitted`);
+      const isAborted = err instanceof DOMException && err.name === 'AbortError';
+      if (isAborted) {
+        console.log(`[Worker] ${projectId}: pipeline CANCELLED by user`);
+        handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Cancelled', 'User requested cancellation')
+          .warn(`[Worker→Frontend] Pipeline cancelled by user`);
+      } else {
+        console.error(`[Worker] ${projectId} CRASH:`, err);
+      }
+      const errMessage = isAborted
+        ? 'Pipeline cancelled by user'
+        : (err instanceof Error
+          ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
+          : String(err ?? 'Unknown error'));
+      if (!isAborted) {
+        // Emit a failure handshake so the frontend log shows the crash reason
+        handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Failed', errMessage.slice(0, 160))
+          .fail(`[Worker→Frontend] Pipeline crashed: ${errMessage.slice(0, 120)}`);
+        console.log(`[Worker] ${projectId} → Frontend: pipeline failure handshake emitted`);
+      }
       const fallback: PipelineResult = {
         projectId,
         status: 'failed',
@@ -925,14 +939,16 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         documents: [],
         boundary: null,
         validation: null,
-        log: [{ layer: 'Pipeline', source: 'crash', method: 'unhandled', input: '', status: 'fail', duration_ms: 0, dataPointsFound: 0, error: errMessage, timestamp: new Date().toISOString() }],
+        log: [{ layer: 'Pipeline', source: isAborted ? 'cancelled' : 'crash', method: isAborted ? 'user-cancel' : 'unhandled', input: '', status: 'fail', duration_ms: 0, dataPointsFound: 0, error: errMessage, timestamp: new Date().toISOString() }],
         duration_ms: 0,
-        failureReason: `Pipeline crashed: ${errMessage}`,
+        failureReason: errMessage,
       };
       completedResults.set(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);
       clearLiveLogForProject(projectId);
-      console.error(`[Worker] ${projectId}: pipeline crash recorded — failureReason="${errMessage.slice(0, 120)}"`);
+      if (!isAborted) {
+        console.error(`[Worker] ${projectId}: pipeline crash recorded — failureReason="${errMessage.slice(0, 120)}"`);
+      }
     });
 });
 
@@ -1199,6 +1215,30 @@ app.delete('/research/result/:projectId', requireAuth, (req: Request, res: Respo
     res.json({ message: `Result for ${projectId} deleted` });
   } else {
     res.status(404).json({ error: `No result found for ${projectId}` });
+  }
+});
+
+// ── POST /research/cancel/:projectId ──────────────────────────────────────
+// Cancel a running pipeline by triggering its AbortController.
+
+app.post('/research/cancel/:projectId', requireAuth, (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  if (!activePipelines.has(projectId)) {
+    res.status(404).json({ error: `No active pipeline for project ${projectId}` });
+    return;
+  }
+
+  const pipeline = activePipelines.get(projectId)!;
+  if (pipeline.abortController) {
+    pipeline.abortController.abort();
+    console.log(`[Worker] ${projectId}: cancel requested — AbortController.abort() called`);
+    res.json({ message: `Cancel signal sent for project ${projectId}`, status: 'cancelling' });
+  } else {
+    // Legacy pipeline without AbortController — force-remove from active
+    activePipelines.delete(projectId);
+    console.log(`[Worker] ${projectId}: cancel requested — no AbortController, force-removed from active`);
+    res.json({ message: `Pipeline force-removed for project ${projectId}`, status: 'removed' });
   }
 });
 

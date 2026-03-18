@@ -148,6 +148,51 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }, { status: 202 });
 }, { routeName: 'research/pipeline/start' });
 
+/* DELETE — Cancel a running pipeline */
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  if (!WORKER_URL || !WORKER_API_KEY) {
+    return NextResponse.json({ error: 'Worker not configured' }, { status: 503 });
+  }
+
+  const projectId = extractProjectId(req);
+  if (!projectId) return NextResponse.json({ error: 'Project ID required' }, { status: 400 });
+
+  console.log(`[pipeline/route] DELETE ${projectId}: sending cancel request to worker`);
+
+  try {
+    const workerRes = await fetch(`${WORKER_URL}/research/cancel/${projectId}`, {
+      method: 'POST',
+      headers: workerHeaders(),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    const data = await workerRes.json();
+
+    if (!workerRes.ok) {
+      console.warn(`[pipeline/route] DELETE ${projectId}: worker responded HTTP ${workerRes.status}`);
+      return NextResponse.json(data, { status: workerRes.status });
+    }
+
+    // Update project status in Supabase
+    await supabaseAdmin
+      .from('research_projects')
+      .update({
+        status: 'configure',
+        research_message: 'Pipeline cancelled by user',
+      })
+      .eq('id', projectId);
+
+    console.log(`[pipeline/route] DELETE ${projectId}: pipeline cancelled successfully`);
+    return NextResponse.json({ message: 'Pipeline cancelled', projectId, ...data });
+  } catch (err) {
+    console.error(`[pipeline/route] DELETE ${projectId}: cancel failed —`, err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ error: 'Failed to cancel pipeline' }, { status: 502 });
+  }
+}, { routeName: 'research/pipeline/cancel' });
+
 /* GET — Poll worker for pipeline status / results */
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();

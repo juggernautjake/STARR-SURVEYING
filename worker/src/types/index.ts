@@ -419,6 +419,8 @@ export interface ActivePipeline {
   currentStage: string;
   /** When the last status update was sent */
   lastUpdate?: string;
+  /** AbortController to cancel the running pipeline */
+  abortController?: AbortController;
 }
 
 // ── Document Purchase Record ────────────────────────
