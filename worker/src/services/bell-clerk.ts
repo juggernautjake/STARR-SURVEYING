@@ -173,9 +173,14 @@ async function safeCloseBrowser(browser: import('playwright').Browser | null, lo
 /**
  * Build a Tyler/Kofile PublicSearch results URL with the correct parameters.
  * URL format confirmed from actual HTML inspection of bell.tx.publicsearch.us (March 2026):
- *   /results?department=RP&keywordSearch=false&limit=50&offset={offset}
+ *   /results?department=RP&limit=50&offset={offset}
  *     &recordedDateRange=16000101%2C{YYYYMMDD}
  *     &searchOcrText=true&searchType=quickSearch&searchValue={value}
+ *
+ * NOTE: keywordSearch=false was removed because it causes the Tyler SPA to
+ * wrap the search value in literal quotes (%22...%22), which yields 0 results
+ * for owner name searches. Without this param, the SPA performs a normal
+ * quickSearch and correctly returns matching documents.
  *
  * Offset is 0-based: page 1 = offset 0, page 2 = offset 50, page 3 = offset 100, etc.
  */
@@ -183,7 +188,7 @@ function buildTylerUrl(baseUrl: string, searchValue: string, offset = 0): string
   const d = new Date();
   const dateTo = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
   return (
-    `${baseUrl}/results?department=RP&keywordSearch=false&limit=50&offset=${offset}` +
+    `${baseUrl}/results?department=RP&limit=50&offset=${offset}` +
     `&recordedDateRange=16000101%2C${dateTo}&searchOcrText=true&searchType=quickSearch` +
     `&searchValue=${encodeURIComponent(searchValue)}`
   );
@@ -710,9 +715,11 @@ async function fetchDocumentDetail(
 
   if (!doc.url) {
     if (doc.instrumentNumber) {
-      // Build a direct detail page URL using Kofile's /doc/{id}/details pattern
+      // NOTE: Tyler PublicSearch /doc/{id} URLs use internal document IDs, not
+      // instrument numbers. This fallback URL may not resolve correctly.
+      // Prefer extracting the actual doc ID from search result checkboxes.
       doc.url = `${baseUrl}/doc/${encodeURIComponent(doc.instrumentNumber)}/details`;
-      logger.info('Stage2B', `${label}: Built detail URL from instrument number: ${doc.url}`);
+      logger.warn('Stage2B', `${label}: No doc URL available — built fallback from instrument number (may not resolve): ${doc.url}`);
     } else {
       result.processingErrors.push('No URL or instrument number available');
       return result;
@@ -2617,12 +2624,17 @@ export async function fetchDocumentImages(
     // imageUrls[pageNum - 1] indexing. Matches the grab-docs.js deduplication:
     //   if (!imageUrls.includes(u)) imageUrls.push(u);
     const imageUrls: string[] = [];
+    const allResponseUrls: string[] = []; // Diagnostic: track all URLs for debugging
     page.on('response', (res) => {
       const url = res.url();
+      // Track all non-static responses for diagnostics (skip common static assets)
+      if (!url.includes('.css') && !url.includes('.js') && !url.includes('google') && !url.includes('analytics')) {
+        allResponseUrls.push(`[${res.status()}] ${url.substring(0, 150)}`);
+      }
       // Match Kofile signed document image URLs (PNG, JPG, TIFF)
       if (
-        (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
-        /\.(png|jpe?g|tiff?)(\?|$)/i.test(url) &&
+        (url.includes('/files/documents/') || url.includes('/documents/files/') || url.includes('/api/') && /image|file|page/i.test(url)) &&
+        (/\.(png|jpe?g|tiff?)(\?|$)/i.test(url) || res.headers()['content-type']?.startsWith('image/')) &&
         !imageUrls.includes(url)
       ) {
         imageUrls.push(url);
@@ -2630,57 +2642,79 @@ export async function fetchDocumentImages(
       }
     });
 
-    // Navigate directly to the document viewer page (avoids search+click overhead)
-    const viewerUrl = `${baseUrl}/doc/${encodeURIComponent(instrumentNumber)}/details`;
-    logger.info('2D-IMG', `Navigating to viewer: ${viewerUrl}`);
-    try {
-      await page.goto(viewerUrl, { waitUntil: 'networkidle', timeout: 60_000 });
-    } catch {
-      // networkidle timeout is acceptable — images may still be loading
-      logger.info('2D-IMG', `networkidle timed out — falling back to domcontentloaded + 5s wait`);
-      await page.goto(viewerUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-      await page.waitForTimeout(5_000);
-    }
+    // PRIMARY approach: Search+click. Tyler PublicSearch /doc/{id} URLs use internal
+    // document IDs (e.g. 170349374), NOT instrument numbers (e.g. 2023032044).
+    // Constructing /doc/{instrumentNumber} navigates to the wrong page or 404.
+    // Instead, search by instrument number, find the correct result, click it to open
+    // the viewer, and capture the signed image URLs that the viewer fires.
+    const searchUrl = `${baseUrl}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
+    logger.info('2D-IMG', `Search+click: searching for instrument ${instrumentNumber}`);
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
+    await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
 
-    // Wait up to 10 seconds for at least one image URL to appear
-    const imageWaitDeadline = Date.now() + 10_000;
-    while (imageUrls.length === 0 && Date.now() < imageWaitDeadline) {
-      await page.waitForTimeout(500);
-    }
+    // Check if any results appeared
+    const rowCount = await page.$$eval('tbody tr[aria-selected]', (rows: Element[]) => rows.length).catch(
+      () => page.$$eval('tbody tr', (rows: Element[]) => rows.length).catch(() => 0)
+    );
 
-    logger.info('2D-IMG', `After viewer load: ${imageUrls.length} URL(s) intercepted`);
+    if (rowCount === 0) {
+      logger.warn('2D-IMG', `Search: no result rows found for instrument ${instrumentNumber} — document may not exist`);
+      try {
+        const pageContent = await page.content();
+        logger.info('2D-IMG', `[no-results-dump] URL: ${page.url()}, HTML: ${pageContent.replace(/\s+/g, ' ').substring(0, 400)}`);
+      } catch { /* ignore */ }
+    } else {
+      logger.info('2D-IMG', `Search: ${rowCount} result row(s) found — clicking first to open viewer`);
 
-    // Fallback: if direct viewer didn't capture images, try the proven search+click
-    // approach. Per transcripts (Ash Trust, March 4, 2026): 8s after navigation for
-    // the Tyler SPA to render results, then 8s after clicking a result row for the
-    // Kofile document viewer to fire the signed image URL.
-    if (imageUrls.length === 0) {
-      logger.info('2D-IMG', `Direct viewer captured no images — falling back to search+click`);
-      const searchUrl = `${baseUrl}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
-      logger.info('2D-IMG', `Search+click: ${searchUrl}`);
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-      // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
-      await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
+      // Extract the internal document ID and actual URL before clicking
+      const docInfo = await page.evaluate(() => {
+        const row = document.querySelector('tbody tr[aria-selected]') ?? document.querySelector('tbody tr');
+        if (!row) return null;
+        const checkbox = row.querySelector('input[id^="table-checkbox-"]') as HTMLInputElement | null;
+        const docId = checkbox?.id?.replace('table-checkbox-', '') ?? '';
+        const link = row.querySelector('a[href*="/doc/"]') as HTMLAnchorElement | null;
+        const href = link?.href ?? '';
+        return { docId, href };
+      });
 
-      // Check if any results appeared at all
-      const rowCount = await page.$$eval('tbody tr', (rows: Element[]) => rows.length).catch(() => 0);
-      if (rowCount === 0) {
-        logger.warn('2D-IMG', `Search+click: no result rows found for instrument ${instrumentNumber} — document may not exist`);
-        try {
-          const pageContent = await page.content();
-          logger.info('2D-IMG', `[no-results-dump] URL: ${page.url()}, HTML: ${pageContent.replace(/\s+/g, ' ').substring(0, 400)}`);
-        } catch { /* ignore */ }
-      } else {
-        logger.info('2D-IMG', `Search+click: ${rowCount} result row(s) found — clicking first`);
-        try {
-          await page.locator('tbody tr').first().click();
-          // Kofile viewer needs TYLER_VIEWER_LOAD_TIMEOUT_MS to fire the signed image URL.
-          await page.waitForTimeout(TYLER_VIEWER_LOAD_TIMEOUT_MS);
-          logger.info('2D-IMG', `After click+wait: ${imageUrls.length} URL(s) intercepted`);
-        } catch (e: any) {
-          logger.warn('2D-IMG', `Search+click: could not click result row: ${e.message}`);
-        }
+      if (docInfo) {
+        logger.info('2D-IMG', `Search: internal docId=${docInfo.docId}, href=${docInfo.href}`);
       }
+
+      try {
+        // Click the result row to navigate to the document viewer
+        const firstRow = page.locator('tbody tr[aria-selected]').first();
+        const fallbackRow = page.locator('tbody tr').first();
+        await (await firstRow.count() > 0 ? firstRow : fallbackRow).click();
+        // Kofile viewer needs TYLER_VIEWER_LOAD_TIMEOUT_MS to fire the signed image URL.
+        await page.waitForTimeout(TYLER_VIEWER_LOAD_TIMEOUT_MS);
+        logger.info('2D-IMG', `After click+wait: ${imageUrls.length} URL(s) intercepted`);
+
+        // Capture the actual document URL for reference
+        const finalUrl = page.url();
+        logger.info('2D-IMG', `Viewer URL: ${finalUrl}`);
+      } catch (e: any) {
+        logger.warn('2D-IMG', `Search+click: could not click result row: ${e.message}`);
+      }
+    }
+
+    // If search+click captured nothing, try direct viewer as last resort
+    // (works when the instrument number happens to match the internal ID)
+    if (imageUrls.length === 0) {
+      const viewerUrl = `${baseUrl}/doc/${encodeURIComponent(instrumentNumber)}/details`;
+      logger.info('2D-IMG', `Search yielded no images — trying direct viewer: ${viewerUrl}`);
+      try {
+        await page.goto(viewerUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+      } catch {
+        await page.goto(viewerUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        await page.waitForTimeout(5_000);
+      }
+      const imageWaitDeadline = Date.now() + 10_000;
+      while (imageUrls.length === 0 && Date.now() < imageWaitDeadline) {
+        await page.waitForTimeout(500);
+      }
+      logger.info('2D-IMG', `After direct viewer: ${imageUrls.length} URL(s) intercepted`);
     }
 
     // ── Helper: detect image format from URL extension ────────────────────
@@ -2791,6 +2825,14 @@ export async function fetchDocumentImages(
     } else {
       attempt.fail('No page images captured');
       logger.warn('2D-IMG', `Failed to capture any images for instrument ${instrumentNumber} — check if instrument exists and viewer URL is correct`);
+      // Dump all intercepted response URLs for diagnostics — helps identify new URL patterns
+      if (allResponseUrls.length > 0) {
+        const sample = allResponseUrls.slice(-20); // Last 20 URLs
+        logger.info('2D-IMG', `[url-dump] ${allResponseUrls.length} total responses intercepted. Last ${sample.length}:`);
+        for (const u of sample) {
+          logger.info('2D-IMG', `[url-dump]   ${u}`);
+        }
+      }
     }
     return pages;
   } catch (err: any) {
@@ -2804,6 +2846,15 @@ export async function fetchDocumentImages(
 }
 
 /**
+ * Module-level cache for instrument lookups to avoid redundant Playwright sessions.
+ * Each lookup spawns a browser (~16s). Within a single pipeline run, the same
+ * instrument may be searched in Phase 2A (Path A) and again in Phase 2B (Layer 3).
+ * This cache eliminates the duplicate, saving ~16s per repeated instrument.
+ */
+const instrumentCache = new Map<string, { result: DocumentRef | null; timestamp: number }>();
+const INSTRUMENT_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
  * Search for a single document by instrument number using the Kofile quickSearch API.
  * Returns a DocumentRef with metadata (type, grantors, grantees, recording date) or null.
  *
@@ -2814,6 +2865,13 @@ export async function searchByInstrument(
   instrumentNumber: string,
   logger: PipelineLogger,
 ): Promise<DocumentRef | null> {
+  // Check cache to avoid redundant Playwright lookups for the same instrument
+  const cached = instrumentCache.get(instrumentNumber);
+  if (cached && (Date.now() - cached.timestamp) < INSTRUMENT_CACHE_TTL_MS) {
+    logger.info('Stage2-Instr', `Instrument ${instrumentNumber} already searched (cached: ${cached.result ? 'found' : 'not found'}) — skipping`);
+    return cached.result;
+  }
+
   const bellBaseUrl = getKofileBaseUrl('bell') || 'https://bell.tx.publicsearch.us';
   logger.info('Stage2-Instr', `Searching Bell County Clerk for instrument ${instrumentNumber}`);
 
@@ -2840,6 +2898,11 @@ export async function searchByInstrument(
           if (!looksLikeKofileDocuments([item])) continue;
           const instrNum = String(item.instrumentNumber ?? item.instrument_number ?? item.InstrumentNumber ?? '');
           if (!instrNum) continue;
+          // Use internal doc ID (not instrument number) for the URL —
+          // Tyler PublicSearch /doc/{id} URLs use internal IDs, not instrument numbers.
+          // e.g. instrument 2023032044 lives at /doc/170349374, NOT /doc/2023032044.
+          const internalDocId = String(item.id ?? item.docId ?? item.documentId ?? '').trim();
+          const urlId = internalDocId || instrNum; // fallback to instrNum only if no internal ID
           captured.push({
             instrumentNumber: instrNum,
             volume: String(item.volume ?? item.bookVolume ?? '') || null,
@@ -2849,7 +2912,7 @@ export async function searchByInstrument(
             grantors: extractKofilePartyNames(item.grantors ?? item.grantor ?? item.Grantors),
             grantees: extractKofilePartyNames(item.grantees ?? item.grantee ?? item.Grantees),
             source: 'Bell County Clerk PublicSearch',
-            url: `${bellBaseUrl}/doc/${instrNum}/details`,
+            url: `${bellBaseUrl}/doc/${urlId}/details`,
           });
         }
       } catch { /* not JSON */ }
@@ -2858,6 +2921,49 @@ export async function searchByInstrument(
     const searchUrl = `${bellBaseUrl}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
+
+    // If AJAX intercept captured nothing, try DOM extraction for internal doc IDs.
+    // Tyler PublicSearch uses checkbox IDs like "table-checkbox-{docId}" where docId
+    // is the internal ID needed for /doc/{docId} URLs.
+    if (captured.length === 0) {
+      const domDocs = await page.evaluate((bUrl: string) => {
+        const results: Array<{ instrumentNumber: string; docId: string; url: string; docType: string; recDate: string }> = [];
+        const rows = document.querySelectorAll('table tbody tr[aria-selected]');
+        rows.forEach((row) => {
+          const checkbox = row.querySelector('input[id^="table-checkbox-"]') as HTMLInputElement | null;
+          const docId = checkbox?.id?.replace('table-checkbox-', '') ?? '';
+          const getCol = (n: number): string => {
+            const cell = row.querySelector(`td.col-${n}, td:nth-child(${n + 1})`);
+            return cell?.textContent?.trim() ?? '';
+          };
+          const instrNum = getCol(7);
+          if (instrNum || docId) {
+            results.push({
+              instrumentNumber: instrNum,
+              docId,
+              url: docId ? `${bUrl}/doc/${docId}` : '',
+              docType: getCol(5),
+              recDate: getCol(6),
+            });
+          }
+        });
+        return results;
+      }, bellBaseUrl);
+
+      for (const domDoc of domDocs) {
+        captured.push({
+          instrumentNumber: domDoc.instrumentNumber,
+          volume: null,
+          page: null,
+          documentType: domDoc.docType || 'Unknown',
+          recordingDate: domDoc.recDate || null,
+          grantors: [],
+          grantees: [],
+          source: 'Bell County Clerk PublicSearch',
+          url: domDoc.url || `${bellBaseUrl}/doc/${domDoc.instrumentNumber}/details`,
+        });
+      }
+    }
 
     await browser.close();
     browser = null;
@@ -2869,9 +2975,13 @@ export async function searchByInstrument(
     } else {
       logger.warn('Stage2-Instr', `Instrument ${instrumentNumber} not found in Bell County Clerk`);
     }
+    // Cache the result to avoid redundant lookups later in the pipeline
+    instrumentCache.set(instrumentNumber, { result: match, timestamp: Date.now() });
     return match;
   } catch (err: any) {
     logger.warn('Stage2-Instr', `Instrument search failed: ${err.message}`);
+    // Cache failures too — no point retrying the same instrument
+    instrumentCache.set(instrumentNumber, { result: null, timestamp: Date.now() });
     return null;
   } finally {
     await safeCloseBrowser(browser, logger, 'Stage2-Instr');
