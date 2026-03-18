@@ -53,6 +53,12 @@ export interface ResolvedProperty {
   situsAddress: string;
   mailingAddress?: string;
   propertyType?: string;
+  /** Lot number from legal description (e.g., "5") */
+  lotNumber?: string | null;
+  /** Block number from legal description (e.g., "3") */
+  blockNumber?: string | null;
+  /** Subdivision name extracted from legal description */
+  subdivisionName?: string | null;
   /** GIS parcel boundary as [lon, lat] coordinate rings */
   parcelBoundary?: number[][][];
   /** Geocoded centroid */

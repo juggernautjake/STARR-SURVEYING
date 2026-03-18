@@ -1713,14 +1713,21 @@ export default function ResearchProjectPage() {
                 const result = meta?.result as Record<string, unknown> | null;
                 const ownerFromResult = (result?.ownerName ?? '') as string;
                 const legalFromResult = (result?.legalDescription ?? '') as string;
+                const propertyIdFromResult = (result?.propertyId ?? '') as string;
+                const lotNumber = (result?.lotNumber ?? '') as string;
+                const blockNumber = (result?.blockNumber ?? '') as string;
+                const subdivisionName = (result?.subdivisionName ?? '') as string;
                 const fields = [
-                  { label: 'Property Address', value: proj.property_address },
+                  { label: 'Property Address', value: proj.property_address || (result?.situsAddress as string) },
                   { label: 'County', value: proj.county },
                   { label: 'State', value: proj.state },
                   { label: 'Owner Name', value: proj.owner_name || ownerFromResult },
-                  { label: 'Parcel / Property ID', value: proj.parcel_id },
+                  { label: 'Parcel / Property ID', value: proj.parcel_id || propertyIdFromResult },
+                  { label: 'Lot', value: lotNumber || null },
+                  { label: 'Block', value: blockNumber || null },
+                  { label: 'Subdivision', value: subdivisionName || null },
                   { label: 'Legal Description', value: proj.legal_description || legalFromResult || project.legal_description_summary, wide: true },
-                  { label: 'Acreage', value: proj.acreage ? `${proj.acreage} ac` : null },
+                  { label: 'Acreage', value: proj.acreage ? `${proj.acreage} ac` : (result?.acreage ? `${result.acreage} ac` : null) },
                 ].filter(r => r.value);
                 return (
                   <div className="review-tab-content">

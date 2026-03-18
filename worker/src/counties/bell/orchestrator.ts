@@ -101,6 +101,8 @@ export async function orchestrateBellResearch(
     instrumentNumbers: new Set<string>(input.instrumentNumber ? [input.instrumentNumber] : []),
     subdivisionNames: new Set<string>(),
     volumePages: new Set<string>(), // format: "vol/page"
+    lotNumber: null as string | null,
+    blockNumber: null as string | null,
   };
 
   const pctStart = Date.now();
@@ -157,6 +159,20 @@ export async function orchestrateBellResearch(
         }
       } catch (err) {
         console.warn(`[orchestrator] Could not extract subdivision from "${source}": ${err instanceof Error ? err.message : String(err)}`);
+      }
+      // Extract lot and block numbers from legal description
+      const lotBlockMatch = ids.legalDescription.match(
+        /LOT\s+(\S+)\s+(?:BLK|BLOCK)\s+(\S+)/i,
+      );
+      if (lotBlockMatch) {
+        const lot = lotBlockMatch[1].replace(/,$/,'');
+        const block = lotBlockMatch[2].replace(/,$/,'');
+        if (!knownIds.lotNumber) {
+          knownIds.lotNumber = lot;
+          knownIds.blockNumber = block;
+          discovered++;
+          progress('Enrich', `  ← Lot/Block from ${source}: Lot ${lot}, Block ${block}`);
+        }
       }
     }
     if (discovered > 0) {
@@ -268,16 +284,22 @@ export async function orchestrateBellResearch(
   }
 
   // Merge CAD + GIS into resolved property (CAD takes priority)
-  const property = resolveProperty(cad, gis, input, lat, lon);
+  const property = resolveProperty(cad, gis, input, lat, lon, knownIds);
 
   if (!property.propertyId && !property.ownerName) {
     progress('Phase 1', '⚠ WARNING: Could not identify property from CAD or GIS — continuing with limited data', 10);
     progress('Phase 1', '  Possible causes: property not yet in CAD, rural acreage with no situs address, FM road variant mismatch');
     recordError('Phase 1', 'Resolution', 'Property could not be identified from any source', false);
   } else {
+    const lotBlockInfo = property.lotNumber
+      ? ` Lot ${property.lotNumber} Block ${property.blockNumber ?? '?'}`
+      : '';
+    const subdivInfo = property.subdivisionName
+      ? ` in ${property.subdivisionName}`
+      : '';
     progress('Phase 1',
       `✓ Property identified: "${property.ownerName || '(no owner)'}" ` +
-      `ID=${property.propertyId || '(none)'} ` +
+      `ID=${property.propertyId || '(none)'}${lotBlockInfo}${subdivInfo} ` +
       `type=${property.propertyType ?? '?'} ` +
       `legal="${(property.legalDescription ?? '').slice(0, 60)}..."`,
       15,
@@ -285,12 +307,15 @@ export async function orchestrateBellResearch(
   }
 
   // Final identifier summary before Phase 2
+  const lotBlockStr = knownIds.lotNumber
+    ? `, Lot ${knownIds.lotNumber} Block ${knownIds.blockNumber ?? '?'}`
+    : '';
   progress('Phase 1',
     `Phase 1 complete — accumulated identifiers: ` +
     `${knownIds.propertyIds.size} property ID(s), ` +
     `${knownIds.ownerNames.size} owner name(s), ` +
     `${knownIds.instrumentNumbers.size} instrument number(s), ` +
-    `${knownIds.subdivisionNames.size} subdivision name(s)`,
+    `${knownIds.subdivisionNames.size} subdivision name(s)${lotBlockStr}`,
     15,
   );
 
@@ -782,15 +807,34 @@ function resolveProperty(
   input: BellResearchInput,
   lat: number | null,
   lon: number | null,
+  knownIds?: { lotNumber?: string | null; blockNumber?: string | null; subdivisionNames?: Set<string> },
 ): ResolvedProperty {
+  // Extract lot/block from legal description if not already in knownIds
+  const legalDesc = cad?.legalDescription ?? gis?.legalDescription ?? '';
+  let lotNumber = knownIds?.lotNumber ?? null;
+  let blockNumber = knownIds?.blockNumber ?? null;
+  if (!lotNumber && legalDesc) {
+    const match = legalDesc.match(/LOT\s+(\S+)\s+(?:BLK|BLOCK)\s+(\S+)/i);
+    if (match) {
+      lotNumber = match[1].replace(/,$/,'');
+      blockNumber = match[2].replace(/,$/,'');
+    }
+  }
+  const subdivisionName = knownIds?.subdivisionNames?.size
+    ? [...knownIds.subdivisionNames][0]
+    : null;
+
   return {
     propertyId: cad?.propertyId ?? gis?.propertyId ?? input.propertyId ?? '',
     ownerName: cad?.ownerName ?? gis?.ownerName ?? input.ownerName ?? '',
-    legalDescription: cad?.legalDescription ?? gis?.legalDescription ?? '',
+    legalDescription: legalDesc,
     acreage: cad?.acreage ?? gis?.acreage ?? null,
     situsAddress: cad?.situsAddress ?? gis?.situsAddress ?? input.address ?? '',
     mailingAddress: cad?.mailingAddress,
     propertyType: cad?.propertyType ?? undefined,
+    lotNumber,
+    blockNumber,
+    subdivisionName,
     parcelBoundary: gis?.parcelBoundary ?? undefined,
     lat: lat ?? 0,
     lon: lon ?? 0,
