@@ -720,14 +720,15 @@ export default function ResearchRunPanel({
       {/* ── Element 1: Progress Indicator (only when pipeline has started) ── */}
       {!isIdle && (<>
       <div className={`rrp__progress${isDone ? (isSuccess ? ' rrp__progress--success' : ' rrp__progress--failed') : ' rrp__progress--running'}`}>
-        {/* Top-left stop button — always visible and obvious while running */}
+        {/* Top-left stop button — always visible while running */}
         {isRunning && !cancelling && (
           <button
             className="rrp__stop-topleft"
             onClick={() => setShowCancelConfirm(true)}
-            aria-label="Stop research pipeline"
+            aria-label="Stop research and analysis"
           >
-            ■ Stop
+            <span className="rrp__stop-icon" aria-hidden="true" />
+            Stop Research and Analysis
           </button>
         )}
         {cancelling && (
@@ -781,7 +782,8 @@ export default function ResearchRunPanel({
             className="rrp__stop-btn"
             onClick={() => setShowCancelConfirm(true)}
           >
-            ■ Stop Research
+            <span className="rrp__stop-icon" aria-hidden="true" />
+            Stop Research and Analysis
           </button>
         )}
         {cancelling && (
@@ -855,8 +857,10 @@ export default function ResearchRunPanel({
               <button
                 className="rrp__stop-btn-compact"
                 onClick={() => setShowCancelConfirm(true)}
+                aria-label="Stop research and analysis"
               >
-                ■ STOP
+                <span className="rrp__stop-icon rrp__stop-icon--sm" aria-hidden="true" />
+                Stop
               </button>
             )}
             {cancelling && (
@@ -952,30 +956,56 @@ export default function ResearchRunPanel({
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
-/* Top-left stop button — subtle but accessible */
+/* Round stop icon — used inside all stop buttons */
+.rrp__stop-icon {
+  display: inline-block;
+  width: 14px; height: 14px;
+  background: #dc2626;
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+}
+.rrp__stop-icon::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px; height: 6px;
+  background: #fff;
+  border-radius: 1px;
+}
+.rrp__stop-icon--sm {
+  width: 11px; height: 11px;
+}
+.rrp__stop-icon--sm::after {
+  width: 5px; height: 5px;
+}
+
+/* Top-left stop button */
 .rrp__stop-topleft {
   position: absolute;
   top: 0.6rem;
   left: 0.6rem;
-  background: #fff;
-  color: #dc2626;
-  border: 1px solid #fca5a5;
-  border-radius: 6px;
-  padding: 0.3rem 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  color: #6B7280;
+  border: 1px solid #D1D5DB;
+  border-radius: 0.375rem;
+  padding: 0.3rem 0.7rem;
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: color 0.15s, border-color 0.15s;
   z-index: 2;
 }
 .rrp__stop-topleft:hover {
-  background: #fef2f2;
-  border-color: #dc2626;
+  color: #dc2626;
+  border-color: #fca5a5;
 }
 .rrp__stop-topleft:active { transform: scale(0.98); }
 .rrp__stop-topleft--cancelling {
-  background: #fef2f2;
-  border-color: #dc2626;
   color: #991b1b;
   cursor: default;
   font-size: 0.75rem;
@@ -1051,13 +1081,16 @@ export default function ResearchRunPanel({
 /* ── Stop Button ───────────────────────────────────────────── */
 .rrp__stop-btn {
   margin-top: 1rem;
-  background: #fff; color: #dc2626;
-  border: 1px solid #fca5a5; border-radius: 6px;
-  padding: 0.5rem 1.4rem;
-  font-size: 0.9rem; font-weight: 600;
-  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: none; color: #6B7280;
+  border: 1px solid #D1D5DB; border-radius: 0.375rem;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.88rem; font-weight: 500;
+  cursor: pointer; transition: color 0.15s, border-color 0.15s;
 }
-.rrp__stop-btn:hover { background: #fef2f2; border-color: #dc2626; }
+.rrp__stop-btn:hover { color: #dc2626; border-color: #fca5a5; }
 .rrp__stop-btn:active { transform: scale(0.98); }
 
 .rrp__cancel-status {
@@ -1066,14 +1099,17 @@ export default function ResearchRunPanel({
 
 /* Compact stop button in log viewer header */
 .rrp__stop-btn-compact {
-  background: #fff; color: #dc2626;
-  border: 1px solid #fca5a5; border-radius: 5px;
-  padding: 0.25rem 0.75rem;
-  font-size: 0.75rem; font-weight: 600;
-  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: none; color: #6B7280;
+  border: 1px solid #D1D5DB; border-radius: 0.375rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem; font-weight: 500;
+  cursor: pointer; transition: color 0.15s, border-color 0.15s;
   margin-right: 0.5rem;
 }
-.rrp__stop-btn-compact:hover { background: #fef2f2; border-color: #dc2626; }
+.rrp__stop-btn-compact:hover { color: #dc2626; border-color: #fca5a5; }
 .rrp__cancel-status-compact {
   font-size: 0.8rem; color: #dc2626; font-weight: 600; margin-right: 0.5rem;
 }
