@@ -322,6 +322,9 @@ async function persistCountyResults(
       lon: property.lon || null,
       mapId: property.mapId || null,
       propertyType: property.propertyType || null,
+      lotNumber: property.lotNumber || null,
+      blockNumber: property.blockNumber || null,
+      subdivisionName: property.subdivisionName || null,
       documentCount: deedCount + platCount,
       duration_ms: r.durationMs,
       deedSummary: r.deedsAndRecords.summary || null,
@@ -775,15 +778,25 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       if (typeof progress.message === 'string' && progress.message) {
         setRunningMessage(projectId, `[${progress.phase}] ${progress.message}`);
       }
-      // ── Handshake: emit a structured LayerAttempt entry for every phase
-      // transition. These appear in the live log registry and are returned on
-      // the next status poll, so the frontend's log viewer shows real-time
-      // proof that the worker is progressing and sending data.
+      // ── Log each county progress event as a detailed LayerAttempt entry ──
+      // These appear in the live log registry and are persisted to Supabase,
+      // so the review page's log viewer shows the full pipeline activity.
+      // Using the phase as the 'layer' and 'info' as the source so the
+      // frontend visibleLogs filter does NOT exclude them (it only excludes
+      // entries with source='handshake' and layer='[Pipeline Phase]').
       if (typeof progress.phase === 'string' && typeof progress.message === 'string' && progress.message) {
-        const truncated = progress.message.slice(0, 160);
-        handshakeLogger.attempt('[Pipeline Phase]', 'handshake', progress.phase, truncated)
-          .success(0, `[Worker→Frontend] ${progress.phase}: ${truncated}`);
-        console.log(`[Worker] ${projectId} → Frontend: phase="${progress.phase}" msg="${truncated.slice(0, 80)}"`);
+        const truncated = progress.message.slice(0, 200);
+        // Determine status from message content
+        const msgLower = progress.message.toLowerCase();
+        const builder = handshakeLogger.attempt(progress.phase, 'info', progress.phase, truncated);
+        if (msgLower.includes('failed') || msgLower.includes('error') || msgLower.includes('crash')) {
+          builder.fail(truncated);
+        } else if (msgLower.includes('warn') || msgLower.includes('⚠') || msgLower.includes('skip') || msgLower.includes('not found') || msgLower.includes('no data')) {
+          builder.warn(truncated);
+        } else {
+          builder.success(0, truncated);
+        }
+        console.log(`[Worker] ${projectId} → log: phase="${progress.phase}" msg="${truncated.slice(0, 80)}"`);
       }
     },
     pipelineAbortController.signal,
@@ -830,12 +843,11 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         );
       }
 
-      // Capture live log entries before clearing — needed for county-specific pipelines
-      // which don't have their own LayerAttempt-format log the way generic pipelines do.
-      const capturedLiveLog = getLiveLogForProject(projectId) ?? [];
-      clearLiveLogForProject(projectId);
-
       if (unifiedResult.resultType === 'generic-pipeline') {
+        // For generic pipelines, capture live log before clearing — the summary
+        // entries were already emitted above in the save-check section.
+        const capturedLiveLog = getLiveLogForProject(projectId) ?? [];
+        clearLiveLogForProject(projectId);
         const r = unifiedResult.data;
         const durationSec = (r.duration_ms / 1000).toFixed(1);
         console.log(
@@ -1043,10 +1055,65 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
           `[Worker] ${projectId} (${county}, county-specific): COMPLETE duration=${durationSec}s errors=${errorCount} confidence=${r.overallConfidence?.score?.toFixed(2) ?? r.overallConfidence?.tier ?? 'n/a'}`,
         );
 
-        // ── Cache live logs in memory for immediate status/logs responses ─────
-        // capturedLiveLog holds the PipelineLogger entries emitted by the scrapers.
-        // Cache them so the status endpoint can return them before the Supabase
-        // write completes, closing the gap where the log viewer would be empty.
+        // ── Emit county-specific completion summary log entries ──────────────
+        // These are structured entries that appear in the review log viewer
+        // alongside the progress entries emitted during the pipeline run.
+        const deedCount = r.deedsAndRecords?.records?.length ?? 0;
+        const platCount = r.plats?.plats?.length ?? 0;
+        const easementCount = r.easementsAndEncumbrances?.easements?.length ?? 0;
+        const femaResult = r.easementsAndEncumbrances?.fema;
+        const txdotResult = r.easementsAndEncumbrances?.txdot;
+        const discrepancyCount = r.discrepancies?.length ?? 0;
+        const screenshotCount = r.screenshots?.length ?? 0;
+
+        handshakeLogger.attempt('Results', 'info', 'Documents Found', `${deedCount} deeds, ${platCount} plats`)
+          .success(deedCount + platCount, `${deedCount} deed record(s) and ${platCount} plat record(s) retrieved from county clerk`);
+
+        if (femaResult) {
+          handshakeLogger.attempt('Results', 'info', 'FEMA Flood Zone', `Zone: ${femaResult.floodZone}`)
+            .success(1, `Flood zone: ${femaResult.floodZone}${femaResult.inSFHA ? ' — IN Special Flood Hazard Area' : ''}`);
+        }
+        if (txdotResult) {
+          handshakeLogger.attempt('Results', 'info', 'TxDOT ROW', `Highway: ${txdotResult.highwayName ?? 'unnamed'}`)
+            .success(1, `TxDOT ROW: ${txdotResult.highwayName ?? 'unnamed'}${txdotResult.rowWidth ? ` — ${txdotResult.rowWidth}ft wide` : ''}`);
+        }
+        if (easementCount > 0) {
+          handshakeLogger.attempt('Results', 'info', 'Easements', `${easementCount} found`)
+            .success(easementCount, `${easementCount} easement record(s) identified from deed records`);
+        }
+        if (discrepancyCount > 0) {
+          handshakeLogger.attempt('Results', 'warn', 'Discrepancies', `${discrepancyCount} flagged`)
+            .warn(`${discrepancyCount} discrepancy/ies detected between data sources`);
+        }
+        if (screenshotCount > 0) {
+          handshakeLogger.attempt('Results', 'info', 'Screenshots', `${screenshotCount} captured`)
+            .success(screenshotCount, `${screenshotCount} screenshot(s) captured from research sources`);
+        }
+
+        // AI analysis summary
+        const platsWithAI = r.plats?.plats?.filter(p => p.aiAnalysis)?.length ?? 0;
+        const totalBearings = r.plats?.plats?.reduce((n, p) => n + (p.aiAnalysis?.bearingsAndDistances?.length ?? 0), 0) ?? 0;
+        const totalMonuments = r.plats?.plats?.reduce((n, p) => n + (p.aiAnalysis?.monuments?.length ?? 0), 0) ?? 0;
+        if (platsWithAI > 0) {
+          handshakeLogger.attempt('Results', 'info', 'AI Plat Analysis', `${platsWithAI} plat(s) analyzed`)
+            .success(totalBearings + totalMonuments, `AI extracted ${totalBearings} bearing/distance call(s) and ${totalMonuments} monument(s) from ${platsWithAI} plat image(s)`);
+        } else if (platCount > 0) {
+          handshakeLogger.attempt('Results', 'warn', 'AI Plat Analysis', 'No plats analyzed')
+            .warn(`${platCount} plat(s) found but AI analysis failed — check if sharp is installed on the worker`);
+        }
+
+        // Final summary entry
+        handshakeLogger.attempt('Results', 'info', 'Pipeline Complete',
+          `Confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`)
+          .success(0, `Pipeline completed in ${durationSec}s — ${deedCount + platCount} documents, ${errorCount} error(s), confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`);
+
+        // ── Capture live logs NOW (after summary entries) and cache ──────────
+        // capturedLiveLog includes ALL entries: progress events from the
+        // pipeline run + the summary entries emitted above. The live log
+        // registry is then cleared so it doesn't leak memory.
+        const capturedLiveLog = getLiveLogForProject(projectId) ?? [];
+        clearLiveLogForProject(projectId);
+
         if (capturedLiveLog.length > 0) {
           completedLogs.set(projectId, capturedLiveLog);
         }

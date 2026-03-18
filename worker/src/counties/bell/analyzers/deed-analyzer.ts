@@ -214,23 +214,30 @@ async function analyzeDeedException(
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
+      max_tokens: 3000,
       messages: [{
         role: 'user',
         content: [
           ...imageContent,
           {
             type: 'text',
-            text: `Analyze this deed document. Extract and summarize:
-1. Document type (warranty deed, deed of trust, easement, etc.)
-2. Grantor (seller/from) and Grantee (buyer/to)
-3. Recording date and instrument number
-4. Legal description — exact metes & bounds if present
-5. Any easements, restrictions, or encumbrances mentioned
-6. Consideration (price) if stated
-7. Any notable conditions or provisions
+            text: `You are analyzing a deed document from Bell County, Texas for a property surveyor.
+Extract ALL of the following information thoroughly:
 
-Provide a concise 2-3 sentence summary suitable for a property surveyor.`,
+1. Document type (warranty deed, deed of trust, easement, etc.)
+2. Grantor (seller/from) and Grantee (buyer/to) — include full legal names
+3. Recording date and instrument number
+4. Legal description — transcribe the FULL metes & bounds description if present,
+   including ALL bearing/distance calls (e.g., "N 45°30'15" E, 200.50 ft"),
+   points of beginning, monuments, and curve data
+5. Lot number, block number, and subdivision name if referenced
+6. Any easements, restrictions, right-of-way dedications, or encumbrances mentioned
+7. Consideration (price) if stated
+8. Acreage or area if stated
+9. Any notable conditions, liens, or provisions
+
+Be thorough — every bearing, distance, monument, and easement reference matters for the survey.
+Provide a detailed summary suitable for a field surveyor reviewing the chain of title.`,
           },
         ],
       }],

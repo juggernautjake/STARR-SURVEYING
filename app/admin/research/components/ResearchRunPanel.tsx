@@ -655,6 +655,18 @@ export default function ResearchRunPanel({
             )}
           </div>
           <div className="rrp__logviewer-header-right">
+            {/* Stop button in log header — always visible while running */}
+            {isRunning && !cancelling && (
+              <button
+                className="rrp__stop-btn-compact"
+                onClick={() => setShowCancelConfirm(true)}
+              >
+                ■ STOP
+              </button>
+            )}
+            {cancelling && (
+              <span className="rrp__cancel-status-compact">Cancelling…</span>
+            )}
             {/* Filter buttons */}
             <div className="rrp__logviewer-filters" role="group" aria-label="Log filter">
               {(['all', 'errors', 'warn', 'info'] as const).map(f => (
@@ -817,19 +829,42 @@ export default function ResearchRunPanel({
 
 /* ── Stop Button ───────────────────────────────────────────── */
 .rrp__stop-btn {
-  margin-top: 0.5rem;
+  margin-top: 1rem;
   background: #dc2626; color: #fff;
-  border: 2px solid #b91c1c; border-radius: 8px;
-  padding: 0.6rem 1.6rem;
-  font-size: 1rem; font-weight: 700;
+  border: 3px solid #b91c1c; border-radius: 10px;
+  padding: 0.85rem 2.5rem;
+  font-size: 1.15rem; font-weight: 800;
   cursor: pointer; transition: background 0.15s, transform 0.1s;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 0 15px rgba(220, 38, 38, 0.4), 0 4px 12px rgba(0,0,0,0.15);
+  animation: rrp-stop-pulse 2s ease-in-out infinite;
 }
-.rrp__stop-btn:hover { background: #b91c1c; transform: scale(1.02); }
-.rrp__stop-btn:active { transform: scale(0.98); }
+@keyframes rrp-stop-pulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(220, 38, 38, 0.4), 0 4px 12px rgba(0,0,0,0.15); }
+  50% { box-shadow: 0 0 30px rgba(220, 38, 38, 0.7), 0 4px 20px rgba(220, 38, 38, 0.3); }
+}
+.rrp__stop-btn:hover { background: #b91c1c; transform: scale(1.05); box-shadow: 0 0 30px rgba(220, 38, 38, 0.7), 0 4px 20px rgba(220, 38, 38, 0.3); }
+.rrp__stop-btn:active { transform: scale(0.97); }
 
 .rrp__cancel-status {
   margin-top: 0.5rem; font-size: 0.9rem; color: #dc2626; font-weight: 600;
+}
+
+/* Compact stop button in log viewer header */
+.rrp__stop-btn-compact {
+  background: #dc2626; color: #fff;
+  border: 2px solid #b91c1c; border-radius: 6px;
+  padding: 0.35rem 1rem;
+  font-size: 0.8rem; font-weight: 800;
+  cursor: pointer; transition: background 0.15s;
+  letter-spacing: 0.05em;
+  animation: rrp-stop-pulse 2s ease-in-out infinite;
+  margin-right: 0.5rem;
+}
+.rrp__stop-btn-compact:hover { background: #b91c1c; }
+.rrp__cancel-status-compact {
+  font-size: 0.8rem; color: #dc2626; font-weight: 600; margin-right: 0.5rem;
 }
 
 /* ── Confirmation Dialog ───────────────────────────────────── */
