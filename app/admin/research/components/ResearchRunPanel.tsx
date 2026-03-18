@@ -261,7 +261,10 @@ export default function ResearchRunPanel({
       elapsedTimerRef.current = null;
     }
     return () => {
-      if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
+      if (elapsedTimerRef.current) {
+        clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = null;
+      }
     };
   }, [pipelineStatus]);
 

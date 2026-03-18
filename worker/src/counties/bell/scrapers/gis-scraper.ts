@@ -102,6 +102,64 @@ export async function scrapeBellGis(
     }
   }
 
+  // ── Approach 1B: Situs Address Query ─────────────────────────────
+  // Query GIS directly by situs_num + situs_street fields. This is the most
+  // reliable way to find the exact lot when the CAD eSearch fails, because
+  // it matches the property's indexed address components directly.
+  if (input.address) {
+    const addrClean = input.address.replace(/,/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+    const addrParts = addrClean.split(' ');
+    let situsNum: string | null = null;
+    let streetStartIdx = 0;
+
+    if (/^\d+$/.test(addrParts[0])) {
+      situsNum = addrParts[0];
+      streetStartIdx = 1;
+    }
+
+    // Skip directional prefix for the street query
+    const dirs = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW', 'NORTH', 'SOUTH', 'EAST', 'WEST'];
+    if (streetStartIdx < addrParts.length && dirs.includes(addrParts[streetStartIdx])) {
+      streetStartIdx++;
+    }
+
+    // Strip city/state/zip from street name
+    const cities = ['BELTON', 'KILLEEN', 'TEMPLE', 'SALADO', 'NOLANVILLE', 'TROY', 'HOLLAND', 'ROGERS', 'MOODY', 'HARKER', 'HEIGHTS', 'COPPERAS', 'COVE'];
+    const streetParts = addrParts.slice(streetStartIdx).filter(w =>
+      w.length > 1 && !/^(TX|TEXAS|\d{5}(-\d{4})?)$/.test(w) && !cities.includes(w)
+    );
+    const streetName = streetParts.join(' ');
+
+    if (situsNum && streetName) {
+      // Try FM road variants for street name matching
+      const fmMatch = streetName.match(/^(FM|CR|SH|RR|US|IH|HWY)\s*(\d+)$/);
+      const streetVariants = [streetName];
+      if (fmMatch) {
+        const pfx = fmMatch[1];
+        const num = fmMatch[2];
+        streetVariants.push(`${pfx} ${num}`, `${pfx}${num}`, num, `FARM TO MARKET ${num}`, `FM RD ${num}`);
+      }
+      // Deduplicate
+      const uniqueVariants = [...new Set(streetVariants)];
+
+      for (const street of uniqueVariants) {
+        progress(`Querying GIS by situs address: ${situsNum} ${street}`);
+        // Use LIKE for street to handle suffixes and partial matches
+        const where = `situs_num='${situsNum}' AND UPPER(situs_street) LIKE '%${street.replace(/'/g, "''")}%'`;
+        const result = await queryLayer(queryUrl, {
+          where,
+          outFields: '*',
+          returnGeometry: 'true',
+        }, urlsVisited);
+
+        if (result && result.features.length > 0) {
+          progress(`Found ${result.features.length} parcel(s) by situs address query`);
+          return buildResult(result.features, screenshots, urlsVisited);
+        }
+      }
+    }
+  }
+
   // ── Approach 2: Spatial Query (lat/lon) ────────────────────────────
   if (input.lat && input.lon) {
     progress(`Querying GIS by coordinates: ${input.lat.toFixed(5)}, ${input.lon.toFixed(5)}`);
@@ -120,7 +178,8 @@ export async function scrapeBellGis(
 
     if (result && result.features.length > 0) {
       progress(`Found ${result.features.length} parcel(s) by spatial query`);
-      return buildResult(result.features, screenshots, urlsVisited);
+      const sorted = rankFeaturesByAddress(result.features, input.address, progress);
+      return buildResult(sorted, screenshots, urlsVisited);
     }
 
     // Widen the envelope and retry
@@ -139,7 +198,8 @@ export async function scrapeBellGis(
 
     if (wideResult && wideResult.features.length > 0) {
       progress(`Found ${wideResult.features.length} parcel(s) with widened search`);
-      return buildResult(wideResult.features, screenshots, urlsVisited);
+      const sorted = rankFeaturesByAddress(wideResult.features, input.address, progress);
+      return buildResult(sorted, screenshots, urlsVisited);
     }
   }
 
@@ -255,6 +315,79 @@ async function queryLayer(
   } catch {
     return null;
   }
+}
+
+// ── Internal: Rank Features by Address Match ─────────────────────────
+
+/**
+ * When a spatial query returns multiple parcels, rank them by how well
+ * their situs address matches the input address. The best match becomes
+ * features[0] so buildResult picks the correct lot.
+ *
+ * Scoring: street number match (+10), street name words (+2 each),
+ * direction match (+1). Without an input address, original order is kept.
+ */
+function rankFeaturesByAddress(
+  features: ArcGisFeature[],
+  inputAddress: string | undefined,
+  progress: (msg: string) => void,
+): ArcGisFeature[] {
+  if (!inputAddress || features.length <= 1) return features;
+
+  const upper = inputAddress.toUpperCase().replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+  const parts = upper.split(' ');
+
+  // Parse street number and direction from input
+  let inputNum: string | null = null;
+  let idx = 0;
+  if (/^\d+$/.test(parts[0])) { inputNum = parts[0]; idx = 1; }
+  const dirs = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW'];
+  let inputDir: string | null = null;
+  if (idx < parts.length && dirs.includes(parts[idx])) { inputDir = parts[idx]; idx++; }
+  // Remaining words are the street name (strip city/state/zip from end)
+  const streetWords = parts.slice(idx).filter(w =>
+    w.length > 1 && !/^(TX|TEXAS|\d{5})$/.test(w) &&
+    !/^(BELTON|KILLEEN|TEMPLE|SALADO|NOLANVILLE|TROY|HOLLAND|ROGERS|MOODY)$/.test(w)
+  );
+
+  const scored = features.map((feat, origIdx) => {
+    const situs = composeSitusAddress(feat.attributes)?.toUpperCase() ?? '';
+    let score = 0;
+
+    // Street number match (most critical for correct lot)
+    if (inputNum) {
+      const situsNum = getField(feat.attributes, [...GIS_FIELD_MAP.situsNumber]);
+      if (situsNum === inputNum) {
+        score += 10;
+      } else if (situs.includes(inputNum)) {
+        score += 5;
+      }
+    }
+
+    // Street name word match
+    for (const word of streetWords) {
+      if (situs.includes(word)) score += 2;
+    }
+
+    // Direction match
+    if (inputDir) {
+      const situsPfx = getField(feat.attributes, [...GIS_FIELD_MAP.situsStreetPrefx])?.toUpperCase();
+      if (situsPfx === inputDir || situs.includes(inputDir)) score += 1;
+    }
+
+    return { feat, score, origIdx };
+  });
+
+  // Sort by score descending, break ties by original order
+  scored.sort((a, b) => b.score - a.score || a.origIdx - b.origIdx);
+
+  if (scored.length > 1 && scored[0].score > scored[1].score) {
+    const bestSitus = composeSitusAddress(scored[0].feat.attributes) ?? '?';
+    const bestPid = getField(scored[0].feat.attributes, [...GIS_FIELD_MAP.propertyId]) ?? '?';
+    progress(`Address match: selected parcel ${bestPid} (situs: "${bestSitus}", score: ${scored[0].score}) over ${scored.length - 1} other parcel(s)`);
+  }
+
+  return scored.map(s => s.feat);
 }
 
 // ── Internal: Build Result from Features ─────────────────────────────
