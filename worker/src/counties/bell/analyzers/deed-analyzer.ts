@@ -151,7 +151,7 @@ const MAX_DEED_IMAGE_BYTES = 4_718_592; // 4.5 MiB
 async function resizeDeedImage(base64Img: string): Promise<{ data: string; mediaType: 'image/png' | 'image/jpeg' } | null> {
   try {
     const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
-    let buf = Buffer.from(base64Img, 'base64');
+    let buf: Buffer<ArrayBufferLike> = Buffer.from(base64Img, 'base64');
     const meta = await sharp(buf).metadata();
     const { width, height } = meta;
     if (!width || !height) return { data: base64Img, mediaType: 'image/png' };
@@ -163,18 +163,18 @@ async function resizeDeedImage(base64Img: string): Promise<{ data: string; media
       const nw = Math.round(width * scale);
       const nh = Math.round(height * scale);
       console.log(`[deed-analyzer] Resizing deed image from ${width}x${height} to ${nw}x${nh}`);
-      buf = await sharp(buf).resize(nw, nh, { fit: 'inside', withoutEnlargement: true }).png().toBuffer() as Buffer;
+      buf = await sharp(buf).resize(nw, nh, { fit: 'inside', withoutEnlargement: true }).png().toBuffer();
     }
 
     if (buf.length > MAX_DEED_IMAGE_BYTES) {
       console.log(`[deed-analyzer] Compressing deed image (${buf.length} bytes) — JPEG q80`);
-      buf = await sharp(buf).jpeg({ quality: 80 }).toBuffer() as Buffer;
+      buf = await sharp(buf).jpeg({ quality: 80 }).toBuffer();
       mediaType = 'image/jpeg';
     }
 
     if (buf.length > MAX_DEED_IMAGE_BYTES) {
       console.log(`[deed-analyzer] Re-compressing deed image (${buf.length} bytes) — JPEG q60`);
-      buf = await sharp(buf).jpeg({ quality: 60 }).toBuffer() as Buffer;
+      buf = await sharp(buf).jpeg({ quality: 60 }).toBuffer();
       mediaType = 'image/jpeg';
     }
 
