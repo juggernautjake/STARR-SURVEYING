@@ -39,7 +39,7 @@ import { analyzeBellPlats } from './analyzers/plat-analyzer.js';
 import { detectDiscrepancies } from './analyzers/discrepancy-detector.js';
 import { scoreOverallConfidence, type DataItem } from './analyzers/confidence-scorer.js';
 import { analyzeSiteScreenshots } from './analyzers/site-intelligence.js';
-import { validateDeedRelevance, validatePlatRelevance, type PropertyIdentifiers } from './analyzers/document-relevance-validator.js';
+import { validateDeedRelevance, validatePlatRelevance, extractAbstractAndSurvey, type PropertyIdentifiers } from './analyzers/document-relevance-validator.js';
 import { computeConfidence, SOURCE_RELIABILITY } from './types/confidence.js';
 
 import { TIMEOUTS } from './config/endpoints.js';
@@ -773,6 +773,14 @@ export async function orchestrateBellResearch(
   //  returned documents for the wrong lot, a different property
   //  belonging to the same owner, etc.
   // ══════════════════════════════════════════════════════════════════
+  // Extract abstract/survey from legal description and GIS data
+  const legalAbsSurvey = extractAbstractAndSurvey(property.legalDescription ?? '');
+  const gisAbstractSubdiv = gis?.abstractSubdiv ?? null;
+  // GIS abstractSubdiv may contain "A-12" or "12" format
+  const gisAbstractNum = gisAbstractSubdiv
+    ? (gisAbstractSubdiv.match(/\d+/)?.[0] ?? null)
+    : null;
+
   const propertyIds: PropertyIdentifiers = {
     ownerName: property.ownerName,
     legalDescription: property.legalDescription,
@@ -781,7 +789,18 @@ export async function orchestrateBellResearch(
     blockNumber: property.blockNumber ?? knownIds.blockNumber,
     subdivisionName: property.subdivisionName ?? (knownIds.subdivisionNames.size > 0 ? [...knownIds.subdivisionNames][0] : null),
     situsAddress: property.situsAddress,
+    abstractNumber: legalAbsSurvey.abstractNumber ?? gisAbstractNum,
+    surveyName: legalAbsSurvey.surveyName,
   };
+
+  progress('Phase 3C',
+    `Property identifiers for relevance check: ` +
+    `owner="${propertyIds.ownerName}", acreage=${propertyIds.acreage}, ` +
+    `abstract=${propertyIds.abstractNumber ?? 'unknown'}, survey="${propertyIds.surveyName ?? 'unknown'}", ` +
+    `subdivision="${propertyIds.subdivisionName ?? 'unknown'}", ` +
+    `lot=${propertyIds.lotNumber ?? 'unknown'}, block=${propertyIds.blockNumber ?? 'unknown'}`,
+    81,
+  );
 
   if (deeds && deeds.records.length > 0) {
     progress('Phase 3C', `Validating relevance of ${deeds.records.length} deed(s) to target property...`, 81);
@@ -1135,6 +1154,11 @@ function resolveProperty(
     ? [...knownIds.subdivisionNames][0]
     : null;
 
+  // Extract abstract number and survey name from legal description
+  const absSurvey = extractAbstractAndSurvey(legalDesc);
+  // Also try GIS abstractSubdiv field (e.g., "A-12")
+  const gisAbsNum = gis?.abstractSubdiv ? (gis.abstractSubdiv.match(/\d+/)?.[0] ?? null) : null;
+
   return {
     propertyId: cad?.propertyId ?? gis?.propertyId ?? input.propertyId ?? '',
     ownerName: cad?.ownerName ?? gis?.ownerName ?? input.ownerName ?? '',
@@ -1146,6 +1170,8 @@ function resolveProperty(
     lotNumber,
     blockNumber,
     subdivisionName,
+    abstractNumber: absSurvey.abstractNumber ?? gisAbsNum,
+    surveyName: absSurvey.surveyName,
     parcelBoundary: gis?.parcelBoundary ?? undefined,
     lat: lat ?? 0,
     lon: lon ?? 0,

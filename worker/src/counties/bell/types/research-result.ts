@@ -59,6 +59,10 @@ export interface ResolvedProperty {
   blockNumber?: string | null;
   /** Subdivision name extracted from legal description */
   subdivisionName?: string | null;
+  /** Abstract number from GIS or legal description (e.g., "12", "488") */
+  abstractNumber?: string | null;
+  /** Survey name from legal description (e.g., "A. Manchaca") */
+  surveyName?: string | null;
   /** GIS parcel boundary as [lon, lat] coordinate rings */
   parcelBoundary?: number[][][];
   /** Geocoded centroid */
