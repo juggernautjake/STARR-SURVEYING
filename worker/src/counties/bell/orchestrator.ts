@@ -1071,6 +1071,38 @@ export async function orchestrateBellResearch(
     siteIntelligence = [];
   }
 
+  // ── Screenshot classification ─────────────────────────────────────
+  // Use AI vision to review each screenshot and classify it as useful
+  // or misc. Misc screenshots (error pages, empty results, auth walls,
+  // blank PDF viewers) are tagged so the frontend can show them in a
+  // collapsed section at the bottom instead of cluttering the main view.
+  progress('Phase 3', 'Classifying screenshots for review...', 87);
+  try {
+    const { classifyScreenshots } = await import('./analyzers/screenshot-classifier.js');
+    const classResult = await classifyScreenshots(
+      allScreenshots,
+      anthropicApiKey,
+      (msg) => progress('Phase 3', `Screenshots: ${msg}`),
+    );
+
+    // Tag each screenshot with its classification
+    for (const ss of classResult.useful) {
+      ss.classification = 'useful';
+    }
+    for (const ss of classResult.misc) {
+      ss.classification = 'misc';
+    }
+
+    if (classResult.misc.length > 0) {
+      progress('Phase 3',
+        `Screenshot classification: ${classResult.useful.length} useful, ${classResult.misc.length} misc (hidden in review)`,
+      );
+    }
+  } catch (err) {
+    recordError('Phase 3', 'Screenshot Classification', err);
+    // On failure, all screenshots stay as-is (default = useful)
+  }
+
   // ══════════════════════════════════════════════════════════════════
   //  PHASE 4: ASSEMBLE REPORT (~10-30 seconds)
   // ══════════════════════════════════════════════════════════════════
