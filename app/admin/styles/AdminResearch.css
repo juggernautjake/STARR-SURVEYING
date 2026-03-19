@@ -2701,6 +2701,226 @@
   }
 }
 
+/* ── Coherence Review ──────────────────────────────────────────────────── */
+
+.coherence-review {
+  margin-top: 1.25rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.coherence-review__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #F9FAFB;
+  border-bottom: 1px solid #E5E7EB;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.coherence-review__title {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: #1F2937;
+}
+
+.coherence-review__verdict {
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.coherence-review__statement {
+  padding: 0.6rem 1rem;
+  font-size: 0.82rem;
+  color: #374151;
+  background: #FFFBEB;
+  border-bottom: 1px solid #FDE68A;
+}
+
+.coherence-review__summary {
+  padding: 0.75rem 1rem;
+  font-size: 0.82rem;
+  color: #374151;
+  line-height: 1.6;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+/* Data quality scores */
+.coherence-review__scores {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.coherence-review__scores-title {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.5rem;
+}
+
+.coherence-review__scores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+.coherence-review__score-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.coherence-review__score-bar {
+  flex: 1;
+  height: 6px;
+  background: #E5E7EB;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.coherence-review__score-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.coherence-review__score-label {
+  font-size: 0.72rem;
+  color: #6B7280;
+  min-width: 80px;
+  text-transform: capitalize;
+}
+
+.coherence-review__score-value {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #374151;
+  min-width: 24px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Issues sections */
+.coherence-review__section {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.coherence-review__section:last-child {
+  border-bottom: none;
+}
+
+.coherence-review__section-title {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.5rem;
+}
+
+.coherence-review__issue {
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  margin-bottom: 0.4rem;
+  background: #F9FAFB;
+  border-left: 3px solid #D1D5DB;
+}
+
+.coherence-review__issue--critical {
+  background: #FEF2F2;
+  border-left-color: #DC2626;
+}
+
+.coherence-review__issue--warning {
+  background: #FFFBEB;
+  border-left-color: #D97706;
+}
+
+.coherence-review__issue--info {
+  background: #EFF6FF;
+  border-left-color: #3B82F6;
+}
+
+.coherence-review__issue-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.25rem;
+}
+
+.coherence-review__issue-severity {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.coherence-review__issue-title {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #1F2937;
+}
+
+.coherence-review__issue-area {
+  font-size: 0.68rem;
+  color: #9CA3AF;
+  background: #F3F4F6;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  text-transform: capitalize;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.coherence-review__issue-desc {
+  font-size: 0.78rem;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.coherence-review__issue-rec {
+  font-size: 0.75rem;
+  color: #059669;
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
+/* Lists */
+.coherence-review__list {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.8rem;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.coherence-review__list li {
+  margin-bottom: 0.25rem;
+}
+
+.coherence-review__list--missing li {
+  color: #D97706;
+}
+
+@media (max-width: 640px) {
+  .coherence-review__scores-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .coherence-review__issue-header {
+    flex-wrap: wrap;
+  }
+
+  .coherence-review__issue-area {
+    margin-left: 0;
+  }
+}
+
 /* View Pages button in document list */
 .research-upload__doc-pdf-btn {
   display: inline-flex;

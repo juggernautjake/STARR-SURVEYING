@@ -1699,6 +1699,159 @@ export default function ResearchProjectPage() {
                         No summary available. Run the full research pipeline to generate a summary.
                       </div>
                     )}
+
+                    {/* ── Coherence Review ── */}
+                    {(() => {
+                      const cr = meta?.coherence_review as Record<string, unknown> | null;
+                      if (!cr) return null;
+
+                      const verdict = (cr.overall_verdict ?? 'unknown') as string;
+                      const score = (cr.overall_score ?? 0) as number;
+                      const statement = (cr.confidence_statement ?? '') as string;
+                      const summary = (cr.summary ?? '') as string;
+                      const dq = cr.data_quality as Record<string, { score: number; assessment: string }> | null;
+                      const coherenceIssues = (cr.coherence_issues ?? []) as Array<{ severity: string; area: string; title: string; description: string; recommendation: string }>;
+                      const pipelineIssues = (cr.pipeline_issues ?? []) as Array<{ severity: string; category: string; title: string; description: string; suggested_fix: string }>;
+                      const fieldNotes = (cr.field_survey_notes ?? []) as string[];
+                      const missing = (cr.missing_information ?? []) as string[];
+
+                      const verdictColors: Record<string, string> = {
+                        ready_for_fieldwork: '#059669',
+                        needs_attention: '#D97706',
+                        significant_issues: '#DC2626',
+                        unreliable: '#991B1B',
+                      };
+                      const verdictLabels: Record<string, string> = {
+                        ready_for_fieldwork: 'Ready for Fieldwork',
+                        needs_attention: 'Needs Attention',
+                        significant_issues: 'Significant Issues',
+                        unreliable: 'Unreliable',
+                      };
+
+                      return (
+                        <div className="coherence-review">
+                          <div className="coherence-review__header">
+                            <span className="coherence-review__title">Quality & Coherence Review</span>
+                            <span
+                              className="coherence-review__verdict"
+                              style={{ color: verdictColors[verdict] || '#6B7280' }}
+                            >
+                              {verdictLabels[verdict] || verdict} — {score}/100
+                            </span>
+                          </div>
+
+                          {statement && (
+                            <div className="coherence-review__statement">{statement}</div>
+                          )}
+
+                          {summary && (
+                            <div className="coherence-review__summary">{summary}</div>
+                          )}
+
+                          {/* Data quality scores */}
+                          {dq && (
+                            <div className="coherence-review__scores">
+                              <div className="coherence-review__scores-title">Data Quality Scores</div>
+                              <div className="coherence-review__scores-grid">
+                                {Object.entries(dq).map(([key, val]) => (
+                                  <div key={key} className="coherence-review__score-item">
+                                    <div className="coherence-review__score-bar">
+                                      <div
+                                        className="coherence-review__score-fill"
+                                        style={{
+                                          width: `${Math.min(val.score, 100)}%`,
+                                          background: val.score >= 70 ? '#059669' : val.score >= 40 ? '#D97706' : '#DC2626',
+                                        }}
+                                      />
+                                    </div>
+                                    <span className="coherence-review__score-label">
+                                      {key.replace(/_/g, ' ')}
+                                    </span>
+                                    <span className="coherence-review__score-value">{val.score}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Coherence issues */}
+                          {coherenceIssues.length > 0 && (
+                            <div className="coherence-review__section">
+                              <div className="coherence-review__section-title">
+                                Coherence Issues ({coherenceIssues.length})
+                              </div>
+                              {coherenceIssues.map((issue, i) => (
+                                <div key={i} className={`coherence-review__issue coherence-review__issue--${issue.severity}`}>
+                                  <div className="coherence-review__issue-header">
+                                    <span className="coherence-review__issue-severity">
+                                      {issue.severity === 'critical' ? '🔴' : issue.severity === 'warning' ? '🟡' : '🔵'}
+                                    </span>
+                                    <span className="coherence-review__issue-title">{issue.title}</span>
+                                    <span className="coherence-review__issue-area">{issue.area}</span>
+                                  </div>
+                                  <div className="coherence-review__issue-desc">{issue.description}</div>
+                                  {issue.recommendation && (
+                                    <div className="coherence-review__issue-rec">
+                                      → {issue.recommendation}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Pipeline issues (dev/debug) */}
+                          {pipelineIssues.length > 0 && (
+                            <div className="coherence-review__section">
+                              <div className="coherence-review__section-title">
+                                Pipeline Diagnostics ({pipelineIssues.length})
+                              </div>
+                              {pipelineIssues.map((issue, i) => (
+                                <div key={i} className={`coherence-review__issue coherence-review__issue--${issue.severity}`}>
+                                  <div className="coherence-review__issue-header">
+                                    <span className="coherence-review__issue-severity">
+                                      {issue.severity === 'critical' ? '🔴' : issue.severity === 'warning' ? '🟡' : '🔵'}
+                                    </span>
+                                    <span className="coherence-review__issue-title">{issue.title}</span>
+                                    <span className="coherence-review__issue-area">{issue.category}</span>
+                                  </div>
+                                  <div className="coherence-review__issue-desc">{issue.description}</div>
+                                  {issue.suggested_fix && (
+                                    <div className="coherence-review__issue-rec">
+                                      Fix: {issue.suggested_fix}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Field survey notes */}
+                          {fieldNotes.length > 0 && (
+                            <div className="coherence-review__section">
+                              <div className="coherence-review__section-title">Field Survey Notes</div>
+                              <ul className="coherence-review__list">
+                                {fieldNotes.map((note, i) => (
+                                  <li key={i}>{note}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Missing information */}
+                          {missing.length > 0 && (
+                            <div className="coherence-review__section">
+                              <div className="coherence-review__section-title">Missing Information</div>
+                              <ul className="coherence-review__list coherence-review__list--missing">
+                                {missing.map((item, i) => (
+                                  <li key={i}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}

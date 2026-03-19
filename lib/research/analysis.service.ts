@@ -1202,10 +1202,65 @@ export async function analyzeProject(
       addLog('success', `Saved ${allDiscrepancies.length} discrepancies to database`);
     }
 
+    // 8. Final coherence review — AI reviews ALL data for consistency and quality
+    addLog('info', 'Running final coherence review of all extracted data...');
+    await persistLogs();
+
+    let coherenceReview: Record<string, unknown> | null = null;
+    try {
+      coherenceReview = await runFinalCoherenceReview(
+        projectId,
+        allDataPoints,
+        allDiscrepancies,
+        allDocuments as ResearchDocument[],
+        logs,
+        addLog,
+        accumulateTokens,
+      );
+      if (coherenceReview) {
+        const verdict = coherenceReview.overall_verdict as string || 'unknown';
+        const score = coherenceReview.overall_score as number || 0;
+        const coherenceIssues = (coherenceReview.coherence_issues as unknown[]) || [];
+        const pipelineIssues = (coherenceReview.pipeline_issues as unknown[]) || [];
+        const criticalCount = coherenceIssues.filter(
+          (i: unknown) => (i as { severity?: string }).severity === 'critical'
+        ).length;
+
+        const verdictLabels: Record<string, string> = {
+          ready_for_fieldwork: 'Ready for fieldwork',
+          needs_attention: 'Needs attention',
+          significant_issues: 'Significant issues found',
+          unreliable: 'Data unreliable',
+        };
+
+        addLog(
+          score >= 70 ? 'success' : score >= 40 ? 'warn' : 'error',
+          `Coherence review: ${verdictLabels[verdict] || verdict} (score: ${score}/100)`,
+          `${coherenceIssues.length} coherence issue(s), ${pipelineIssues.length} pipeline issue(s)${criticalCount > 0 ? `, ${criticalCount} CRITICAL` : ''}`,
+        );
+
+        if (criticalCount > 0) {
+          for (const issue of coherenceIssues) {
+            const typed = issue as { severity?: string; title?: string; description?: string };
+            if (typed.severity === 'critical') {
+              addLog('error', `[CRITICAL] ${typed.title}`, typed.description);
+            }
+          }
+        }
+
+        const statement = coherenceReview.confidence_statement as string;
+        if (statement) {
+          addLog('info', `Data reliability: ${statement}`);
+        }
+      }
+    } catch (err) {
+      addLog('warn', 'Coherence review failed — continuing without it', err instanceof Error ? err.message : String(err));
+    }
+
     const completedAt = new Date().toISOString();
     addLog('success', `Analysis complete — ${allDataPoints.length} data points, ${allDiscrepancies.length} discrepancies`, `Duration: ${Math.round((new Date(completedAt).getTime() - new Date(analysisStartedAt).getTime()) / 1000)}s`);
 
-    // 8. Update project status to review
+    // 9. Update project status to review
     await supabaseAdmin.from('research_projects').update({
       status: 'review',
       analysis_metadata: {
@@ -1216,6 +1271,7 @@ export async function analyzeProject(
         discrepancy_count: allDiscrepancies.length,
         documents_analyzed: allDocuments.length,
         tokens_used: tokenUsage,
+        coherence_review: coherenceReview,
         logs,
       },
       updated_at: new Date().toISOString(),
@@ -1492,6 +1548,150 @@ function attemptNormalization(
   } catch {
     return existingNormalized || null;
   }
+}
+
+// ── Final Coherence Review ──────────────────────────────────────────────────
+
+/**
+ * Run a final AI-powered coherence review across all extracted data, discrepancies,
+ * documents, and pipeline logs. Produces a structured quality assessment with:
+ * - Data quality scores per category
+ * - Coherence issues (does the data tell a consistent story?)
+ * - Pipeline diagnostics (what went wrong technically?)
+ * - Field survey notes (practical advice for the surveyor)
+ * - Missing information inventory
+ */
+async function runFinalCoherenceReview(
+  _projectId: string,
+  dataPoints: ExtractedDataPoint[],
+  discrepancies: Omit<Discrepancy, 'id' | 'created_at' | 'updated_at'>[],
+  documents: ResearchDocument[],
+  logs: AnalysisLogEntry[],
+  addLog: (level: AnalysisLogEntry['level'], message: string, detail?: string) => void,
+  accumulateTokens: (used: { input: number; output: number }) => void,
+): Promise<Record<string, unknown> | null> {
+  if (dataPoints.length === 0 && documents.length === 0) {
+    addLog('info', 'Skipping coherence review — no data to review');
+    return null;
+  }
+
+  // Build a comprehensive summary for the reviewer
+  const sections: string[] = [];
+
+  // Section 1: Documents summary
+  sections.push('=== DOCUMENTS PROCESSED ===');
+  for (const doc of documents) {
+    const status = doc.processing_status || 'unknown';
+    const docType = doc.document_type || 'unknown';
+    const label = doc.document_label || doc.original_filename || 'Untitled';
+    const textLen = doc.extracted_text?.length || 0;
+    const error = doc.processing_error || '';
+    sections.push(
+      `- "${label}" (type: ${docType}, status: ${status}, text: ${textLen} chars)` +
+      (error ? ` ERROR: ${error}` : ''),
+    );
+  }
+
+  // Section 2: Extracted data points grouped by category
+  sections.push('\n=== EXTRACTED DATA POINTS ===');
+  const byCategory: Record<string, ExtractedDataPoint[]> = {};
+  for (const dp of dataPoints) {
+    const cat = dp.data_category || 'unknown';
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(dp);
+  }
+  for (const [cat, points] of Object.entries(byCategory)) {
+    sections.push(`\n--- ${cat.toUpperCase()} (${points.length} points) ---`);
+    // Show up to 30 points per category to stay within context limits
+    const shown = points.slice(0, 30);
+    for (const p of shown) {
+      const conf = p.extraction_confidence != null ? ` (confidence: ${p.extraction_confidence}%)` : '';
+      const norm = p.normalized_value ? ` [normalized: ${JSON.stringify(p.normalized_value)}]` : '';
+      const seq = p.sequence_order != null ? ` seq:${p.sequence_order}` : '';
+      const group = p.sequence_group ? ` group:${p.sequence_group}` : '';
+      sections.push(`  ${p.raw_value}${conf}${norm}${seq}${group}`);
+    }
+    if (points.length > 30) {
+      sections.push(`  ... and ${points.length - 30} more`);
+    }
+  }
+
+  // Section 3: Discrepancies found
+  sections.push('\n=== DISCREPANCIES FOUND ===');
+  if (discrepancies.length === 0) {
+    sections.push('  (none)');
+  } else {
+    for (const d of discrepancies) {
+      sections.push(
+        `- [${d.severity}] ${d.title}: ${d.description}` +
+        (d.ai_recommendation ? `\n  Recommendation: ${d.ai_recommendation}` : '') +
+        (d.estimated_impact ? `\n  Impact: ${d.estimated_impact}` : '') +
+        `\n  Affects: boundary=${d.affects_boundary}, area=${d.affects_area}, closure=${d.affects_closure}`,
+      );
+    }
+  }
+
+  // Section 4: Analysis logs (last 100 entries to stay within context)
+  sections.push('\n=== ANALYSIS LOG (recent entries) ===');
+  const recentLogs = logs.slice(-100);
+  for (const l of recentLogs) {
+    const ts = l.ts ? new Date(l.ts).toISOString().slice(11, 19) : '';
+    sections.push(`[${l.level}] ${ts} ${l.message}${l.detail ? ` — ${l.detail}` : ''}`);
+  }
+
+  // Section 5: Stats summary
+  const errorLogs = logs.filter(l => l.level === 'error');
+  const warnLogs = logs.filter(l => l.level === 'warn');
+  const docsFailed = documents.filter(d => d.processing_status === 'error');
+  const docsSkipped = documents.filter(d =>
+    d.processing_error?.startsWith('Pre-screening skip'),
+  );
+
+  sections.push('\n=== PIPELINE STATISTICS ===');
+  sections.push(`Total documents: ${documents.length}`);
+  sections.push(`Documents analyzed successfully: ${documents.filter(d => d.processing_status === 'analyzed').length}`);
+  sections.push(`Documents failed: ${docsFailed.length}`);
+  sections.push(`Documents skipped (pre-screening): ${docsSkipped.length}`);
+  sections.push(`Total data points extracted: ${dataPoints.length}`);
+  sections.push(`Total discrepancies: ${discrepancies.length}`);
+  sections.push(`Log errors: ${errorLogs.length}`);
+  sections.push(`Log warnings: ${warnLogs.length}`);
+  sections.push(`Data categories: ${Object.keys(byCategory).join(', ')}`);
+
+  // Build average confidence per category
+  for (const [cat, points] of Object.entries(byCategory)) {
+    const confs = points.filter(p => p.extraction_confidence != null).map(p => p.extraction_confidence!);
+    if (confs.length > 0) {
+      const avg = Math.round(confs.reduce((a, b) => a + b, 0) / confs.length);
+      sections.push(`Average confidence (${cat}): ${avg}%`);
+    }
+  }
+
+  const userContent = sections.join('\n');
+
+  // Truncate to ~30k chars if needed to stay within token limits
+  const truncated = userContent.length > 30_000
+    ? userContent.substring(0, 30_000) + '\n\n[TRUNCATED — input too large for full review]'
+    : userContent;
+
+  addLog('info', `Coherence review input: ${documents.length} docs, ${dataPoints.length} data points, ${discrepancies.length} discrepancies, ${logs.length} log entries`);
+
+  const result = await callAI({
+    promptKey: 'FINAL_COHERENCE_REVIEWER',
+    userContent: truncated,
+    maxTokens: 4096,
+    timeoutMs: 120_000,
+  });
+
+  const review = result.response as Record<string, unknown>;
+
+  // Accumulate and log token usage
+  if (result.tokensUsed) {
+    accumulateTokens(result.tokensUsed);
+    addLog('info', `Coherence review tokens: ${result.tokensUsed.input} in / ${result.tokensUsed.output} out`);
+  }
+
+  return review;
 }
 
 // ── Cross-Reference Analysis ────────────────────────────────────────────────
