@@ -1,11 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import QRCode from 'react-qr-code';
 import GoogleAdsScript from './GoogleAdsScript';
 
 // Footer CSS
 import '../styles/Footer.css';
+
+const GOOGLE_REVIEW_URL = 'https://g.page/r/CWAlbfLLIz0BEAI/review';
 
 // Office address - Professional format
 const OFFICE_ADDRESS = '3779 W FM 436, Belton, TX 76513';
@@ -25,6 +29,30 @@ interface ContactInfo {
 
 const Footer = (): React.ReactElement => {
   const currentYear = new Date().getFullYear();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(GOOGLE_REVIEW_URL);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for browsers without clipboard API support
+      const textArea = document.createElement('textarea');
+      textArea.value = GOOGLE_REVIEW_URL;
+      textArea.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+      } finally {
+        document.body.removeChild(textArea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const quickLinks: FooterLink[] = [
     { href: '/', label: 'Home' },
@@ -158,6 +186,52 @@ const Footer = (): React.ReactElement => {
             <div className="footer__license">
               <span className="footer__license-label">Licensed Surveyor</span>
               <span className="footer__license-name">Henry S. Maddux, RPLS# 6706</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Google Reviews Section */}
+        <div className="footer__reviews-bar">
+          <div className="footer__reviews-container">
+            <div className="footer__reviews-content">
+              <div className="footer__reviews-text">
+                <span className="footer__reviews-stars" role="img" aria-label="Rated 5 out of 5 stars">★★★★★</span>
+                <div className="footer__reviews-info">
+                  <h3 className="footer__reviews-heading">Love our work? Leave us a Google Review!</h3>
+                  <p className="footer__reviews-subtext">Your review helps us grow and serve more of Central Texas.</p>
+                </div>
+              </div>
+              <div className="footer__reviews-actions">
+                <a
+                  href={GOOGLE_REVIEW_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="footer__reviews-link"
+                >
+                  Write a Review ›
+                </a>
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className={`footer__reviews-copy${copied ? ' footer__reviews-copy--copied' : ''}`}
+                  aria-label="Copy review link"
+                  title="Copy review link"
+                >
+                  {copied ? '✓ Copied!' : '⧉ Copy Link'}
+                </button>
+              </div>
+            </div>
+            <div className="footer__reviews-qr">
+              <p className="footer__reviews-qr-label">Scan to review</p>
+              <div className="footer__reviews-qr-code">
+                <QRCode
+                  value={GOOGLE_REVIEW_URL}
+                  size={96}
+                  bgColor="transparent"
+                  fgColor="#FFFFFF"
+                  level="M"
+                />
+              </div>
             </div>
           </div>
         </div>
