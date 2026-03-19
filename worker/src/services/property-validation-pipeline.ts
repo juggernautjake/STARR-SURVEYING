@@ -128,6 +128,10 @@ export interface ValidationReport {
   adjacentResearchOrder: AdjacentResearchEntry[];
   discrepancyLog: DiscrepancyLogEntry[];
 
+  // ── Analysis limitations ──────────────────────────────────────────
+  /** Limitations detected during analysis that the surveyor should know about */
+  analysisLimitations: string[];
+
   // ── Meta ──────────────────────────────────────────────────────────
   generatedAt: string;
   totalApiCalls: number;
@@ -777,6 +781,7 @@ export async function runPropertyValidationPipeline(
     topActions,
     adjacentResearchOrder,
     discrepancyLog,
+    analysisLimitations: [],
     generatedAt,
     totalApiCalls,
   };

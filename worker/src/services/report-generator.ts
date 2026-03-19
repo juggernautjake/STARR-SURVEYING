@@ -432,6 +432,30 @@ function buildDiscrepancyLog(report: ValidationReport): string {
   return lines.join('\n');
 }
 
+function buildAnalysisLimitations(report: ValidationReport): string {
+  const lines: string[] = [
+    'ANALYSIS LIMITATIONS',
+    HR2,
+  ];
+
+  if (report.analysisLimitations.length === 0) {
+    lines.push('  No significant limitations detected in this analysis.');
+    return lines.join('\n');
+  }
+
+  lines.push(
+    '  The following limitations were detected during automated analysis.',
+    '  These may affect the accuracy or completeness of the extracted data.',
+    '',
+  );
+
+  for (let i = 0; i < report.analysisLimitations.length; i++) {
+    lines.push(`  ${i + 1}. ${report.analysisLimitations[i]}`);
+  }
+
+  return lines.join('\n');
+}
+
 // ── Main report builder ───────────────────────────────────────────────────────
 
 /**
@@ -466,6 +490,7 @@ export function buildMasterReport(
 
   const sections = [
     buildPropertySummary(report, pipeline),
+    buildAnalysisLimitations(report),
     buildValidationQuality(pipeline),
     buildConfidenceSummary(report),
     buildTopActions(report),

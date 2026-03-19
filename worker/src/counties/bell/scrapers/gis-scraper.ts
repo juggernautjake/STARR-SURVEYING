@@ -49,6 +49,8 @@ export interface GisFeatureSummary {
   ownerName: string | null;
   acreage: number | null;
   instrumentNumber: string | null;
+  situsAddress: string | null;
+  legalDescription: string | null;
 }
 
 export interface GisSearchInput {
@@ -417,11 +419,17 @@ function buildResult(
       allDeedHistory.push({ instrumentNumber: instrNum ?? undefined, volume: volume ?? undefined, page: page ?? undefined, deedDate: deedDate ?? undefined });
     }
 
+    const featLegal1 = getField(a, ['legal_desc']) ?? '';
+    const featLegal2 = getField(a, ['legal_desc2']) ?? '';
+    const featLegal = [featLegal1, featLegal2].filter(Boolean).join(' ') || null;
+
     allFeatures.push({
       propertyId: getField(a, [...GIS_FIELD_MAP.propertyId]),
       ownerName: getField(a, [...GIS_FIELD_MAP.ownerName]),
       acreage: getNumericField(a, [...GIS_FIELD_MAP.acreage]),
       instrumentNumber: instrNum,
+      situsAddress: composeSitusAddress(a),
+      legalDescription: featLegal,
     });
   }
 

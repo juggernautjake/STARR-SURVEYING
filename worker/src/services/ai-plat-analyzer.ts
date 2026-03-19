@@ -80,6 +80,8 @@ export interface PlatAnalysisResult {
     chordDistance: number;
   }[];
   notes: string[];
+  /** Limitations detected during analysis that the surveyor should be aware of */
+  analysisLimitations: string[];
   totalApiCalls: number;
   durationMs: number;
 }
@@ -352,6 +354,9 @@ export class AIPlatAnalyzer {
     );
     result.totalApiCalls = apiCalls;
 
+    // ── Step 7: Detect analysis limitations ──────────────────────────────
+    result.analysisLimitations = this.detectLimitations(ocrResult, reconciliation, result);
+
     return result;
   }
 
@@ -450,7 +455,7 @@ export class AIPlatAnalyzer {
       } catch {
         this.logger.warn('AIPlatAnalyzer', `[${label}] Synthesis JSON parse error — returning empty lots`);
         tracker({ status: 'partial', error: 'JSON parse error in synthesis response' });
-        return { lots: [], perimeterCalls: [], adjacentOwners: [], roads: [], easements: [], subdivisionInfo: {}, lineTable: [], curveTable: [], notes: [] };
+        return { lots: [], perimeterCalls: [], adjacentOwners: [], roads: [], easements: [], subdivisionInfo: {}, lineTable: [], curveTable: [], notes: [], analysisLimitations: [] };
       }
 
       tracker({ status: 'success', dataPointsFound: 1 });
@@ -458,7 +463,7 @@ export class AIPlatAnalyzer {
     } catch (err) {
       tracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
       this.logger.error('AIPlatAnalyzer', `[${label}] Synthesis API call failed`, err);
-      return { lots: [], perimeterCalls: [], adjacentOwners: [], roads: [], easements: [], subdivisionInfo: {}, lineTable: [], curveTable: [], notes: [] };
+      return { lots: [], perimeterCalls: [], adjacentOwners: [], roads: [], easements: [], subdivisionInfo: {}, lineTable: [], curveTable: [], notes: [], analysisLimitations: [] };
     }
   }
 
@@ -482,6 +487,7 @@ export class AIPlatAnalyzer {
       lineTable:       [],
       curveTable:      [],
       notes:           [],
+      analysisLimitations: [],
       totalApiCalls:   0,
       durationMs:      0,
     };
@@ -898,9 +904,10 @@ export class AIPlatAnalyzer {
       if (primary.lineTable.length === 0) primary.lineTable = page.lineTable;
       if (primary.curveTable.length === 0) primary.curveTable = page.curveTable;
 
-      // Accumulate notes and easements
+      // Accumulate notes, easements, and limitations
       primary.notes.push(...page.notes);
       primary.easements.push(...page.easements);
+      primary.analysisLimitations.push(...page.analysisLimitations);
       primary.totalApiCalls += page.totalApiCalls;
     }
 
@@ -928,6 +935,85 @@ export class AIPlatAnalyzer {
     };
   }
 
+  // ── Private: limitation detection ───────────────────────────────────────
+
+  /**
+   * Detect analysis limitations from OCR quality, reconciliation conflicts,
+   * and extraction results. These are surfaced in the report summary so the
+   * surveyor knows where the AI analysis may be unreliable.
+   */
+  private detectLimitations(
+    ocrResult: AdaptiveVisionResult,
+    reconciliation: ReconciliationResult,
+    platResult: PlatAnalysisResult,
+  ): string[] {
+    const lims: string[] = [];
+
+    // Low overall OCR confidence
+    if (ocrResult.overallConfidence < 50) {
+      lims.push(
+        `OCR confidence is low (${ocrResult.overallConfidence}%) — text extraction may contain errors. ` +
+        'Consider obtaining an unwatermarked or higher-resolution scan.'
+      );
+    }
+
+    // High escalation rate — many segments needed zooming
+    if (ocrResult.totalSegments > 0 && ocrResult.escalatedSegments > 0) {
+      const escalPct = Math.round((ocrResult.escalatedSegments / ocrResult.totalSegments) * 100);
+      if (escalPct >= 50) {
+        lims.push(
+          `${escalPct}% of image segments required zoom escalation due to poor text readability — ` +
+          'watermarks, low DPI, or dense text may be degrading extraction accuracy.'
+        );
+      }
+    }
+
+    // Manual review flagged
+    if (ocrResult.manualReviewSegments > 0) {
+      lims.push(
+        `${ocrResult.manualReviewSegments} image segment(s) flagged for manual surveyor review — ` +
+        'AI could not reliably extract data from these areas.'
+      );
+    }
+
+    // Subdivision plat with many lots — inherent density limitation
+    if (platResult.lots.length > 4) {
+      lims.push(
+        `This is a subdivision plat with ${platResult.lots.length} lots. ` +
+        'Dense lot layouts may cause boundary call text to be misattributed between adjacent lots. ' +
+        'Per-lot isolation analysis is recommended for verification.'
+      );
+    }
+
+    // Low-confidence lots
+    const lowConfLots = platResult.lots.filter(l => l.confidence < 50);
+    if (lowConfLots.length > 0) {
+      lims.push(
+        `${lowConfLots.length} lot(s) have low extraction confidence (<50%): ` +
+        `${lowConfLots.map(l => `${l.name} (${l.confidence}%)`).join(', ')}. ` +
+        'Boundary data for these lots should be manually verified.'
+      );
+    }
+
+    // Geometry conflicts
+    if (reconciliation.conflictCount > 0) {
+      lims.push(
+        `${reconciliation.conflictCount} geometric conflict(s) detected between OCR text and visual measurements — ` +
+        'the printed text may disagree with what the drawing actually shows.'
+      );
+    }
+
+    // Missing line/curve table
+    if (platResult.lineTable.length === 0 && platResult.lots.some(l => l.boundaryCalls.length === 0)) {
+      lims.push(
+        'No line table data was extracted, and some lots have no boundary calls. ' +
+        'The plat may reference a line/curve table that was on a separate page not included in this analysis.'
+      );
+    }
+
+    return lims;
+  }
+
   // ── Private: utility helpers ───────────────────────────────────────────
 
   private emptyResult(durationMs: number): PlatAnalysisResult {
@@ -941,6 +1027,7 @@ export class AIPlatAnalyzer {
       lineTable:      [],
       curveTable:     [],
       notes:          [],
+      analysisLimitations: [],
       totalApiCalls:  0,
       durationMs,
     };
