@@ -40,7 +40,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Organize into categories
-  const artifacts = (docs || []).map((doc) => ({
+  const artifacts = (docs || []).map((doc: Record<string, string | number | null>) => ({
     id: doc.id,
     filename: doc.original_filename,
     fileType: doc.file_type,
