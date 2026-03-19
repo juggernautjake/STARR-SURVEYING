@@ -40,6 +40,7 @@ import { detectDiscrepancies } from './analyzers/discrepancy-detector.js';
 import { scoreOverallConfidence, type DataItem } from './analyzers/confidence-scorer.js';
 import { analyzeSiteScreenshots } from './analyzers/site-intelligence.js';
 import { validateDeedRelevance, validatePlatRelevance, extractAbstractAndSurvey, type PropertyIdentifiers } from './analyzers/document-relevance-validator.js';
+import { correlateTargetLot, type LotCorrelationInput } from './analyzers/lot-correlator.js';
 import { computeConfidence, SOURCE_RELIABILITY } from './types/confidence.js';
 
 import { TIMEOUTS } from './config/endpoints.js';
@@ -858,6 +859,80 @@ export async function orchestrateBellResearch(
       }
     } catch (err) {
       recordError('Phase 3C', 'Plat Relevance Validation', err);
+    }
+  }
+
+  checkAborted();
+
+  // ══════════════════════════════════════════════════════════════════
+  //  PHASE 3D: LOT CORRELATION
+  //  For multi-lot plats, identify which specific lot corresponds to
+  //  the target property using data matching, GIS parcel map, and
+  //  AI visual correlation.
+  // ══════════════════════════════════════════════════════════════════
+  if (platSection && platSection.plats.length > 0) {
+    progress('Phase 3D', 'Correlating target lot on plat(s)...', 83);
+
+    const lotInput: LotCorrelationInput = {
+      lotNumber: property.lotNumber ?? knownIds.lotNumber,
+      blockNumber: property.blockNumber ?? knownIds.blockNumber,
+      acreage: property.acreage,
+      ownerName: property.ownerName,
+      propertyId: property.propertyId,
+      situsAddress: property.situsAddress,
+      parcelBoundary: property.parcelBoundary ?? null,
+      lat: property.lat,
+      lon: property.lon,
+      subdivisionName: property.subdivisionName ?? propertyIds.subdivisionName,
+    };
+
+    for (const plat of platSection.plats) {
+      if (!plat.aiAnalysis && plat.images.length === 0) continue;
+
+      try {
+        const correlation = await correlateTargetLot(
+          lotInput,
+          plat.images,
+          plat.name,
+          plat.aiAnalysis,
+          anthropicApiKey,
+          (msg) => progress('Phase 3D', msg),
+        );
+
+        // Store result in plat analysis
+        if (plat.aiAnalysis) {
+          plat.aiAnalysis.targetLot = {
+            lotId: correlation.identifiedLot,
+            confidence: correlation.confidence,
+            method: correlation.method,
+            reasoning: correlation.reasoning,
+          };
+        }
+
+        // Store parcel map as a screenshot if generated
+        if (correlation.parcelMapImage) {
+          allScreenshots.push({
+            source: 'GIS Parcel Map',
+            url: `generated://parcel-map/${property.propertyId}`,
+            imageBase64: correlation.parcelMapImage,
+            capturedAt: new Date().toISOString(),
+            description: `GIS parcel boundary map for ${property.situsAddress} (Lot ${property.lotNumber ?? '?'})`,
+          });
+        }
+
+        if (correlation.identifiedLot) {
+          progress('Phase 3D',
+            `✓ Target lot on "${plat.name}": Lot ${correlation.identifiedLot} ` +
+            `(${correlation.confidence}% confidence, method: ${correlation.method})`,
+          );
+        } else {
+          progress('Phase 3D',
+            `⚠ Could not identify target lot on "${plat.name}" — ${correlation.reasoning}`,
+          );
+        }
+      } catch (err) {
+        recordError('Phase 3D', 'Lot Correlation', err);
+      }
     }
   }
 

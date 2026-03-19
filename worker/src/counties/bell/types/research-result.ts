@@ -160,6 +160,17 @@ export interface PlatAnalysis {
   changesFromPrevious: string[];
   /** Full AI narrative */
   narrative: string;
+  /** Target lot identification (which lot on this plat is the target property) */
+  targetLot?: {
+    /** Lot number/label identified */
+    lotId: string | null;
+    /** Confidence 0-100 */
+    confidence: number;
+    /** How it was identified (data-match, ai-visual, fallback) */
+    method: string;
+    /** Detailed reasoning */
+    reasoning: string;
+  } | null;
 }
 
 // ── Section: Easements & Encumbrances ────────────────────────────────
