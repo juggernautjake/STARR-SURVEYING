@@ -46,6 +46,12 @@ import { computeConfidence, SOURCE_RELIABILITY } from './types/confidence.js';
 import { TIMEOUTS } from './config/endpoints.js';
 import { resolveAddressToLot, validateAddressParcelMatch } from '../../services/address-lot-resolver.js';
 import type { GisFeatureForMatching } from '../../services/address-lot-resolver.js';
+import {
+  resetCreditGuard,
+  isCreditDepleted,
+  isCreditDepletionError,
+  AnthropicCreditDepletedError,
+} from '../../lib/credit-guard.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -93,9 +99,32 @@ export async function orchestrateBellResearch(
     }
   }
 
+  // Reset the credit guard so previous pipeline state doesn't carry over
+  resetCreditGuard();
+
   console.log(
     `[BellOrchestrator] ${input.projectId ?? 'no-id'}: START — address="${input.address ?? ''}" propertyId="${input.propertyId ?? ''}" ownerName="${input.ownerName ?? ''}"`,
   );
+
+  /** Tracks whether we've already emitted the credit-depleted progress message */
+  let creditDepletionNotified = false;
+
+  /** If AI credits are depleted, emit a prominent progress message (once) */
+  function notifyCreditDepleted(): void {
+    if (isCreditDepleted() && !creditDepletionNotified) {
+      creditDepletionNotified = true;
+      const msg = 'AI CREDIT BALANCE DEPLETED — Remaining AI analysis steps will be skipped. Please add funds to your Anthropic account at console.anthropic.com/settings/billing and re-run research.';
+      progress('CREDIT ERROR', msg);
+      console.error(`[BellOrchestrator] ${input.projectId ?? 'no-id'}: ${msg}`);
+      errors.push({
+        phase: 'AI Credits',
+        source: 'Anthropic API',
+        message: msg,
+        timestamp: new Date().toISOString(),
+        recovered: false,
+      });
+    }
+  }
 
   // ── Accumulated identifiers: grows throughout the pipeline ─────────
   const knownIds = {
@@ -116,6 +145,15 @@ export async function orchestrateBellResearch(
   };
 
   const recordError = (phase: string, source: string, err: unknown, recovered = true) => {
+    // Detect credit depletion from any error — sets the module-level flag
+    // so all subsequent AI calls short-circuit immediately
+    if (isCreditDepletionError(err)) {
+      const creditMsg = 'AI CREDIT BALANCE DEPLETED — Please add funds to your Anthropic account at console.anthropic.com/settings/billing and re-run research.';
+      errors.push({ phase, source: 'AI Credits', message: creditMsg, timestamp: new Date().toISOString(), recovered: false });
+      console.error(`[BellOrchestrator] ${input.projectId ?? 'no-id'} [${phase}] CREDIT DEPLETED detected in ${source}`);
+      progress('CREDIT ERROR', creditMsg);
+      return;
+    }
     const msg = err instanceof Error ? err.message : String(err);
     errors.push({ phase, source, message: msg, timestamp: new Date().toISOString(), recovered });
     console.error(`[BellOrchestrator] ${input.projectId ?? 'no-id'} [${phase}] ERROR ${source}: ${msg.slice(0, 200)}`);
@@ -753,6 +791,8 @@ export async function orchestrateBellResearch(
   if (platAnalysisResult.status === 'rejected') recordError('Phase 3', 'Plat Analysis', platAnalysisResult.reason);
 
   checkAborted();
+  // If AI credits ran out during deed/plat analysis, notify and skip remaining AI work
+  notifyCreditDepleted();
 
   progress('Phase 3',
     `AI analysis complete: ` +
@@ -1082,8 +1122,11 @@ export async function orchestrateBellResearch(
   }
 
   // ── Site intelligence ──────────────────────────────────────────────
-  progress('Phase 3', 'Analyzing site screenshots for system improvement...', 85);
   let siteIntelligence: SiteIntelligenceNote[] = [];
+  if (isCreditDepleted()) {
+    progress('Phase 3', 'Skipping site intelligence analysis — AI credits depleted', 85);
+  } else {
+  progress('Phase 3', 'Analyzing site screenshots for system improvement...', 85);
   try {
     siteIntelligence = await analyzeSiteScreenshots(
       allScreenshots.slice(0, 10),
@@ -1097,12 +1140,16 @@ export async function orchestrateBellResearch(
     recordError('Phase 3', 'Site Intelligence', err);
     siteIntelligence = [];
   }
+  } // end if !isCreditDepleted
 
   // ── Screenshot classification ─────────────────────────────────────
   // Use AI vision to review each screenshot and classify it as useful
   // or misc. Misc screenshots (error pages, empty results, auth walls,
   // blank PDF viewers) are tagged so the frontend can show them in a
   // collapsed section at the bottom instead of cluttering the main view.
+  if (isCreditDepleted()) {
+    progress('Phase 3', 'Skipping screenshot classification — AI credits depleted', 87);
+  } else {
   progress('Phase 3', 'Classifying screenshots for review...', 87);
   try {
     const { classifyScreenshots } = await import('./analyzers/screenshot-classifier.js');
@@ -1129,12 +1176,15 @@ export async function orchestrateBellResearch(
     recordError('Phase 3', 'Screenshot Classification', err);
     // On failure, all screenshots stay as-is (default = useful)
   }
+  } // end if !isCreditDepleted
 
   // ══════════════════════════════════════════════════════════════════
   //  PHASE 4: ASSEMBLE REPORT (~10-30 seconds)
   // ══════════════════════════════════════════════════════════════════
 
   checkAborted();
+  // Final credit-depletion notification (catches any late-stage detection)
+  notifyCreditDepleted();
   progress('Phase 4', '─────────────────────────────────────────────', 90);
   progress('Phase 4', 'PHASE 4 — Assembling Research Report', 90);
 
@@ -1262,6 +1312,7 @@ export async function orchestrateBellResearch(
     errors,
     aiUsage,
     overallConfidence,
+    creditDepleted: isCreditDepleted() || undefined,
   };
 
   progress('Phase 4', 'Research complete!', 100);

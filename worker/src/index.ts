@@ -47,6 +47,7 @@ import { FidlarPayAdapter } from './services/purchase-adapters/fidlar-pay-adapte
 import { GovOSGuestAdapter } from './services/purchase-adapters/govos-guest-adapter.js';
 import { LandExApiAdapter } from './services/purchase-adapters/landex-api-adapter.js';
 import { NotificationService } from './services/notification-service.js';
+import { isCreditDepleted, getDepletionMessage, AnthropicCreditDepletedError } from './lib/credit-guard.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -1167,7 +1168,9 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
                 .update({
                   status: 'review',
                   research_status: 'complete',
-                  research_message: `Pipeline completed in ${(r.duration_ms / 1000).toFixed(1)}s`,
+                  research_message: isCreditDepleted()
+                    ? `Pipeline completed in ${(r.duration_ms / 1000).toFixed(1)}s — ⚠ AI CREDITS DEPLETED: Some analysis was skipped. Add funds at console.anthropic.com/settings/billing and re-run.`
+                    : `Pipeline completed in ${(r.duration_ms / 1000).toFixed(1)}s`,
                 })
                 .eq('id', projectId);
               if (error) {
@@ -1235,6 +1238,16 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
             .warn(`${platCount} plat(s) found but AI analysis failed — check if sharp is installed on the worker`);
         }
 
+        // ── Credit depletion warning ──────────────────────────────────────
+        // If AI credits ran out during the pipeline, emit a prominent warning
+        // in the log so the user can see exactly what happened.
+        if (r.creditDepleted || isCreditDepleted()) {
+          console.error(`[Worker] ${projectId}: AI CREDIT DEPLETION — pipeline completed with partial AI results`);
+          handshakeLogger.attempt('CREDIT ERROR', 'warn', 'AI Credits Depleted',
+            'Anthropic API credit balance too low')
+            .fail('AI CREDIT BALANCE DEPLETED — Some analysis steps were skipped because your Anthropic API credits ran out. Please add funds at console.anthropic.com/settings/billing, then re-run research for complete results.');
+        }
+
         // Final summary entry
         handshakeLogger.attempt('Results', 'info', 'Pipeline Complete',
           `Confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`)
@@ -1289,7 +1302,9 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
               .update({
                 status: 'review',
                 research_status: 'complete',
-                research_message: `Pipeline completed in ${(result.durationMs / 1000).toFixed(1)}s`,
+                research_message: (r.creditDepleted || isCreditDepleted())
+                  ? `Pipeline completed in ${durationSec}s — ⚠ AI CREDITS DEPLETED: Some analysis was skipped. Add funds at console.anthropic.com/settings/billing and re-run.`
+                  : `Pipeline completed in ${durationSec}s`,
               })
               .eq('id', projectId);
             if (error) {
@@ -1305,19 +1320,41 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     })
     .catch((err) => {
       const isAborted = err instanceof DOMException && err.name === 'AbortError';
+      const isCreditError = err instanceof AnthropicCreditDepletedError || isCreditDepleted();
       if (isAborted) {
         console.log(`[Worker] ${projectId}: pipeline CANCELLED by user`);
         handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Cancelled', 'User requested cancellation')
           .warn(`[Worker→Frontend] Pipeline cancelled by user`);
+      } else if (isCreditError) {
+        console.error(`[Worker] ${projectId}: pipeline FAILED — AI CREDITS DEPLETED`);
+        handshakeLogger.attempt('CREDIT ERROR', 'warn', 'AI Credits Depleted', 'Pipeline failed due to credit depletion')
+          .fail('AI CREDIT BALANCE DEPLETED — The research pipeline could not complete because your Anthropic API credits ran out. Please add funds at console.anthropic.com/settings/billing, then re-run research.');
+        // Persist credit depletion status to DB so the frontend shows it on refresh
+        getSupabase()
+          .then(async (supabase) => {
+            if (!supabase) return;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (supabase as any)
+              .from('research_projects')
+              .update({
+                status: 'configure',
+                research_status: 'failed',
+                research_message: 'AI CREDITS DEPLETED — Please add funds to your Anthropic account at console.anthropic.com/settings/billing, then re-run research.',
+              })
+              .eq('id', projectId);
+          })
+          .catch(() => { /* best-effort */ });
       } else {
         console.error(`[Worker] ${projectId} CRASH:`, err);
       }
       const errMessage = isAborted
         ? 'Pipeline cancelled by user'
-        : (err instanceof Error
-          ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
-          : String(err ?? 'Unknown error'));
-      if (!isAborted) {
+        : isCreditError
+          ? 'AI credit balance depleted. Please add funds to your Anthropic account and re-run research.'
+          : (err instanceof Error
+            ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
+            : String(err ?? 'Unknown error'));
+      if (!isAborted && !isCreditError) {
         // Emit a failure handshake so the frontend log shows the crash reason
         handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Failed', errMessage.slice(0, 160))
           .fail(`[Worker→Frontend] Pipeline crashed: ${errMessage.slice(0, 120)}`);

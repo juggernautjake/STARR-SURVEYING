@@ -6,6 +6,7 @@
 import type { DocumentResult, ExtractedBoundaryData, BoundaryCall, DocumentReference, PageScreenshot, DocumentPage } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { adaptiveVisionOcr } from './adaptive-vision.js';
+import { checkAndFlagCreditDepletion, isCreditDepleted, AnthropicCreditDepletedError as SharedCreditError } from '../lib/credit-guard.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -148,6 +149,12 @@ async function callClaudeWithRetry(
   label: string,
   maxTokens: number = 16384,
 ): Promise<string | null> {
+  // Short-circuit if credits are already known to be depleted
+  if (isCreditDepleted()) {
+    logger.warn('Stage3', `${label}: Skipped — AI credits depleted`);
+    return null;
+  }
+
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {
       const delayMs = BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
@@ -177,16 +184,19 @@ async function callClaudeWithRetry(
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
 
+      // Use shared credit guard to detect and flag credit depletion
+      try {
+        checkAndFlagCreditDepletion(err);
+      } catch (creditErr) {
+        // Credit depletion detected — throw as shared error so it propagates
+        logger.error('Stage3', `${label}: AI CREDITS DEPLETED — ${errMsg}`);
+        throw creditErr;
+      }
+
       // Don't retry on auth/permission errors
       if (err && typeof err === 'object' && 'status' in err) {
         const status = (err as { status: number }).status;
         if (status === 400 || status === 401 || status === 403) {
-          // Detect depleted credit balance specifically so the caller can fail fast
-          if (/credit balance is too low/i.test(errMsg)) {
-            throw new AnthropicCreditDepletedError(
-              'Anthropic API credit balance is too low. Please go to Plans & Billing to add credits, then re-run research.',
-            );
-          }
           logger.error('Stage3', `${label}: Non-retryable error (HTTP ${status})`, err);
           return null;
         }
@@ -1179,8 +1189,8 @@ export async function extractDocuments(
         }
       }
     } catch (err) {
-      if (err instanceof AnthropicCreditDepletedError) {
-        logger.error('Stage3', `AI extraction halted — ${err.message}`);
+      if (err instanceof AnthropicCreditDepletedError || err instanceof SharedCreditError || isCreditDepleted()) {
+        logger.error('Stage3', `AI extraction halted — credits depleted: ${err instanceof Error ? err.message : String(err)}`);
         return { documents, boundary: null };
       }
       throw err;
@@ -1273,7 +1283,7 @@ export async function extractDocuments(
             logger.warn('Stage3', `${label} Route C: analyzeMultiPageDocument returned no extracted data`);
           }
         } catch (pagesErr: any) {
-          if (pagesErr instanceof AnthropicCreditDepletedError) throw pagesErr;
+          if (pagesErr instanceof AnthropicCreditDepletedError || pagesErr instanceof SharedCreditError || isCreditDepleted()) throw pagesErr;
           logger.warn('Stage3', `${label} Route C failed: ${pagesErr.message}`);
         }
       }
@@ -1318,8 +1328,8 @@ export async function extractDocuments(
         logger.warn('Stage3', `${label}: extraction produced no data (tried: ${availablePaths.join(', ')})`);
       }
     } catch (err) {
-      if (err instanceof AnthropicCreditDepletedError) {
-        logger.error('Stage3', `AI extraction halted at ${label} — ${err.message}`);
+      if (err instanceof AnthropicCreditDepletedError || err instanceof SharedCreditError || isCreditDepleted()) {
+        logger.error('Stage3', `AI extraction halted at ${label} — credits depleted: ${err instanceof Error ? err.message : String(err)}`);
         // Return what we have so far; remaining documents won't be enriched
         break;
       }

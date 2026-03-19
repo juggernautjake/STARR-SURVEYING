@@ -41,6 +41,8 @@ export interface BellResearchResult {
   aiUsage: AiUsageSummary;
   /** Overall confidence in the research completeness */
   overallConfidence: ConfidenceRating;
+  /** True if the pipeline detected that AI credits were depleted */
+  creditDepleted?: boolean;
 }
 
 // ── Resolved Property ────────────────────────────────────────────────
