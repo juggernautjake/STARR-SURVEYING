@@ -595,6 +595,33 @@ export async function orchestrateBellResearch(
     }
   }
 
+  // ── Capture GIS viewer screenshots ──────────────────────────────────
+  // Open the Bell County GIS viewer in Playwright, zoom to the target
+  // parcel, and capture multiple views: subdivision overview, parcel
+  // detail, aerial with/without property lines, and adjacent lots.
+  if (property.parcelBoundary || (property.lat && property.lon)) {
+    progress('Phase 2', 'Capturing GIS viewer screenshots (multiple views)...', 59);
+    try {
+      const { captureGisViewerScreenshots } = await import('./scrapers/gis-viewer-capture.js');
+      const gisViewerScreenshots = await captureGisViewerScreenshots(
+        {
+          parcelBoundary: property.parcelBoundary ?? null,
+          lat: property.lat,
+          lon: property.lon,
+          propertyId: property.propertyId ?? null,
+          situsAddress: property.situsAddress ?? null,
+          lotNumber: property.lotNumber ?? null,
+          subdivisionName: property.subdivisionName ?? (knownIds.subdivisionNames.size > 0 ? [...knownIds.subdivisionNames][0] : null),
+        },
+        (p) => progress('Phase 2', `GIS Viewer: ${p.message}`),
+      );
+      allScreenshots.push(...gisViewerScreenshots);
+      progress('Phase 2', `✓ ${gisViewerScreenshots.length} GIS viewer screenshot(s) captured`);
+    } catch (err) {
+      recordError('Phase 2', 'GIS Viewer Screenshots', err);
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════
   //  PHASE 3: AI ANALYSIS (~5-15 minutes)
   // ══════════════════════════════════════════════════════════════════
