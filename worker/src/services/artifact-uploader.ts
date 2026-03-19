@@ -154,22 +154,32 @@ export async function uploadPipelineArtifacts(
   };
 
   console.log(
-    `[ArtifactUploader] ${projectId}: uploading ${screenshots.length} screenshot(s) + ${pageImages.length} page image(s)`,
+    `[ArtifactUploader] ${projectId}: START — uploading ${screenshots.length} screenshot(s) + ${pageImages.length} page image(s)`,
+  );
+  console.log(
+    `[ArtifactUploader] ${projectId}: Screenshot sources: ${screenshots.map(s => `${s.source}(${s.url?.substring(0, 60) ?? 'no-url'})`).join(', ')}`,
   );
 
   // ── Upload screenshots (classified as useful or misc) ─────────────
   let miscCount = 0;
+  let usefulCount = 0;
   for (let i = 0; i < screenshots.length; i++) {
     const ss = screenshots[i];
     try {
       // Use pre-classification from pipeline AI if available, otherwise fall back to regex
+      const preClassified = ss.classification != null;
       const classification = ss.classification ?? classifyScreenshot(ss.url || '', ss.description || '', ss.pageText);
       const safeName = sanitizeFilename(ss.source);
       const subfolder = classification === 'misc' ? 'screenshots-misc' : 'screenshots';
       const filename = `screenshot_${i + 1}_${safeName}.png`;
       const storagePath = `${projectId}/artifacts/${subfolder}/${filename}`;
 
+      console.log(
+        `[ArtifactUploader] Screenshot ${i + 1}/${screenshots.length}: source="${ss.source}", url="${ss.url?.substring(0, 80) ?? 'none'}", classification=${classification}${preClassified ? ' (pre-classified)' : ' (regex)'}, folder=${subfolder}`,
+      );
+
       if (classification === 'misc') miscCount++;
+      else usefulCount++;
 
       const buffer = Buffer.from(ss.imageBase64, 'base64');
       const { error: uploadErr } = await (supabase.storage as any)
@@ -218,9 +228,7 @@ export async function uploadPipelineArtifacts(
     }
   }
 
-  if (miscCount > 0) {
-    console.log(`[ArtifactUploader] ${projectId}: ${miscCount} screenshot(s) classified as MISC (error/empty/auth pages)`);
-  }
+  console.log(`[ArtifactUploader] ${projectId}: Screenshot upload complete — ${usefulCount} useful, ${miscCount} misc, ${result.errors.length} errors`);
 
   // ── Group page images by document (category + label) ─────────────
   // This ensures all pages from the same deed/plat are bundled together.
@@ -239,6 +247,9 @@ export async function uploadPipelineArtifacts(
   console.log(
     `[ArtifactUploader] ${projectId}: ${pageImages.length} page image(s) grouped into ${docGroups.size} document(s)`,
   );
+  for (const [key, pages] of docGroups) {
+    console.log(`[ArtifactUploader] ${projectId}: Doc group "${key}": ${pages.length} page(s), sourceUrl=${pages[0]?.sourceUrl ?? 'none'}`);
+  }
 
   // ── Upload grouped documents ──────────────────────────────────────
   for (const [groupKey, pages] of docGroups) {

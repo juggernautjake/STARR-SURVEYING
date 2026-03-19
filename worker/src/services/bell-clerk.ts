@@ -2632,9 +2632,10 @@ export async function fetchDocumentImages(
     // Disable browser HTTP cache to ensure fresh signed URLs on every visit.
     // Without this, revisiting a document serves cached (expired) signed URLs,
     // resulting in 0 captured page images.
+    // Use large viewport for maximum resolution document image capture.
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      viewport: { width: 1280, height: 900 },
+      viewport: { width: 1920, height: 1200 },
       extraHTTPHeaders: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
@@ -2642,6 +2643,7 @@ export async function fetchDocumentImages(
       serviceWorkers: 'block',
     });
     const page = await context.newPage();
+    logger.info('2D-IMG', `Browser launched — viewport 1920x1200 for max resolution capture`);
 
     // Intercept signed image URLs from the Kofile viewer.
     // Deduplicate by URL — the Kofile viewer sometimes fires the same signed URL
@@ -2712,6 +2714,8 @@ export async function fetchDocumentImages(
         const firstRow = page.locator('tbody tr[aria-selected]').first();
         const fallbackRow = page.locator('tbody tr').first();
         await (await firstRow.count() > 0 ? firstRow : fallbackRow).click();
+        logger.info('2D-IMG', `Clicked result row — waiting for viewer to load...`);
+
         // Kofile viewer needs TYLER_VIEWER_LOAD_TIMEOUT_MS to fire the signed image URL.
         await page.waitForTimeout(TYLER_VIEWER_LOAD_TIMEOUT_MS);
         logger.info('2D-IMG', `After click+wait: ${imageUrls.length} URL(s) intercepted`);
@@ -2719,6 +2723,28 @@ export async function fetchDocumentImages(
         // Capture the actual document URL for reference
         const finalUrl = page.url();
         logger.info('2D-IMG', `Viewer URL: ${finalUrl}`);
+
+        // Try to expand the document viewer for maximum image resolution.
+        // Kofile viewers sometimes have a "maximize" or "full screen" button.
+        try {
+          const expandSelectors = [
+            'button[title*="expand" i]', 'button[title*="maximize" i]',
+            'button[title*="full" i]', 'button[aria-label*="expand" i]',
+            'button[aria-label*="maximize" i]', '.expand-btn', '.maximize-btn',
+            '[data-testid="expand"]', 'img[alt*="expand" i]',
+          ];
+          for (const sel of expandSelectors) {
+            const btn = page.locator(sel).first();
+            if (await btn.count() > 0) {
+              await btn.click();
+              await page.waitForTimeout(1000);
+              logger.info('2D-IMG', `Expanded viewer using selector: ${sel}`);
+              break;
+            }
+          }
+        } catch {
+          // Expand is best-effort — not all viewers have it
+        }
       } catch (e: any) {
         logger.warn('2D-IMG', `Search+click: could not click result row: ${e.message}`);
       }
@@ -2998,9 +3024,9 @@ export async function searchByInstrument(
     // Find exact match by instrument number
     const match = captured.find(d => d.instrumentNumber === instrumentNumber) ?? captured[0] ?? null;
     if (match) {
-      logger.info('Stage2-Instr', `Found instrument ${instrumentNumber}: ${match.documentType}`);
+      logger.info('Stage2-Instr', `Found instrument ${instrumentNumber}: type=${match.documentType}, url=${match.url ?? 'none'}, grantors=${match.grantors.join(',')}, grantees=${match.grantees.join(',')}`);
     } else {
-      logger.warn('Stage2-Instr', `Instrument ${instrumentNumber} not found in Bell County Clerk`);
+      logger.warn('Stage2-Instr', `Instrument ${instrumentNumber} not found in Bell County Clerk (captured ${captured.length} docs, none matched)`);
     }
     // Cache the result to avoid redundant lookups later in the pipeline
     instrumentCache.set(instrumentNumber, { result: match, timestamp: Date.now() });

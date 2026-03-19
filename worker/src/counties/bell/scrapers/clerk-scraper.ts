@@ -121,9 +121,13 @@ export async function scrapeBellClerk(
   const searchPaths: string[] = [];
   const startedAt = Date.now();
 
+  console.log(`[ClerkScraper] scrapeBellClerk START: instruments=${input.instrumentNumbers?.length ?? 0}, owner="${input.ownerName ?? ''}", subdiv="${input.subdivisionName ?? ''}", volPages=${input.volumePages?.length ?? 0}, maxDocs=${maxDocs}, captureImages=${captureImages}`);
+
   const progress = (msg: string) => {
     const elapsed = Date.now() - startedAt;
-    onProgress({ phase: 'Clerk', message: `[+${elapsed}ms] ${msg}`, timestamp: new Date().toISOString() });
+    const logMsg = `[+${elapsed}ms] ${msg}`;
+    console.log(`[ClerkScraper] ${logMsg}`);
+    onProgress({ phase: 'Clerk', message: logMsg, timestamp: new Date().toISOString() });
   };
 
   /** Add a document if not already in the list (dedup by instrument number) */
@@ -274,8 +278,11 @@ async function fetchInstrumentDocument(
   progress: (msg: string) => void,
   projectId?: string,
 ): Promise<ClerkDocument | null> {
-  const docUrl = BELL_ENDPOINTS.clerk.document(instrumentNumber);
-  urlsVisited.push(docUrl);
+  // NOTE: Do NOT push a constructed URL here — Tyler PublicSearch uses internal
+  // doc IDs, not instrument numbers. We push the real URL after searchByInstrument
+  // resolves the actual document page.
+  progress(`    [fetchInstrument] Starting lookup for instrument ${instrumentNumber}`);
+  console.log(`[ClerkScraper] fetchInstrumentDocument: instrument=${instrumentNumber}, captureImages=${captureImages}`);
 
   try {
     // Use the proven bell-clerk.ts service layer for Playwright interaction
@@ -283,32 +290,48 @@ async function fetchInstrumentDocument(
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(projectId ?? `clerk-instr-${instrumentNumber}-${Date.now()}`);
 
-    // Fetch document metadata first
+    // Fetch document metadata first — this searches the clerk SPA and clicks
+    // the result to get the real internal doc ID and URL
+    progress(`    [fetchInstrument] Searching Bell Clerk SPA for instrument ${instrumentNumber}...`);
     const docRef = await searchByInstrument(instrumentNumber, logger);
     if (!docRef) {
-      progress(`    Instrument ${instrumentNumber} not found in Bell Clerk`);
+      progress(`    [fetchInstrument] Instrument ${instrumentNumber} not found in Bell Clerk`);
+      console.log(`[ClerkScraper] Instrument ${instrumentNumber}: NOT FOUND`);
       return null;
     }
+
+    // Now we have the REAL document URL from the clerk SPA (with internal doc ID)
+    const realDocUrl = docRef.url ?? BELL_ENDPOINTS.clerk.document(instrumentNumber);
+    urlsVisited.push(realDocUrl);
+    progress(`    [fetchInstrument] Found: ${docRef.documentType} — real URL: ${realDocUrl}`);
+    console.log(`[ClerkScraper] Instrument ${instrumentNumber}: found type=${docRef.documentType}, url=${realDocUrl}, grantors=${docRef.grantors.join(',')}`)
 
     // Capture page images if requested
     let pageImages: string[] = [];
     if (captureImages) {
       try {
-        progress(`    Capturing pages for ${instrumentNumber}...`);
+        progress(`    [fetchInstrument] Capturing page images for ${instrumentNumber}...`);
+        console.log(`[ClerkScraper] fetchDocumentImages: instrument=${instrumentNumber}, maxPages=20`);
         const pages = await fetchDocumentImages(instrumentNumber, 20, logger);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
         if (pageImages.length > 0) {
-          progress(`    ✓ Captured ${pageImages.length} page(s) for ${instrumentNumber}`);
+          progress(`    [fetchInstrument] ✓ Captured ${pageImages.length} page(s) for ${instrumentNumber}`);
+          console.log(`[ClerkScraper] Instrument ${instrumentNumber}: captured ${pageImages.length} page(s), total bytes=${pageImages.reduce((s, p) => s + p.length, 0)}`);
+        } else {
+          progress(`    [fetchInstrument] ⚠ No page images captured for ${instrumentNumber} (viewer may not have loaded)`);
+          console.warn(`[ClerkScraper] Instrument ${instrumentNumber}: 0 page images captured`);
         }
       } catch (imgErr) {
         const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
-        progress(`    ✗ Image capture failed for ${instrumentNumber}: ${msg}`);
+        progress(`    [fetchInstrument] ✗ Image capture failed for ${instrumentNumber}: ${msg}`);
+        console.error(`[ClerkScraper] Instrument ${instrumentNumber}: image capture error: ${msg}`);
         // Continue without images — metadata is still valuable
       }
     }
 
     // Convert DocumentRef → ClerkDocument
-    return {
+    // Use the REAL URL from docRef (which has the internal doc ID), not a constructed one
+    const result: ClerkDocument = {
       instrumentNumber: docRef.instrumentNumber,
       volume: docRef.volume,
       page: docRef.page,
@@ -318,14 +341,18 @@ async function fetchInstrumentDocument(
       grantee: docRef.grantees[0] ?? null,
       legalDescription: null, // Not in DocumentRef; extracted separately by deed analyzer
       pageImages,
-      sourceUrl: docRef.url ?? docUrl,
+      sourceUrl: realDocUrl,
       relevanceScore: getDocumentRelevance(docRef.documentType),
     };
+
+    progress(`    [fetchInstrument] ✓ Complete: ${result.documentType} inst#${instrumentNumber} — ${pageImages.length} page(s), url=${realDocUrl}`);
+    return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    progress(`    Error fetching instrument ${instrumentNumber}: ${msg}`);
+    progress(`    [fetchInstrument] Error fetching instrument ${instrumentNumber}: ${msg}`);
+    console.error(`[ClerkScraper] fetchInstrumentDocument ERROR for ${instrumentNumber}: ${msg}`);
     if (/playwright|browser|chromium/i.test(msg)) {
-      progress(`    ↳ Playwright error — check browser installation on server`);
+      progress(`    [fetchInstrument] ↳ Playwright error — check browser installation on server`);
     }
     return null;
   }
@@ -350,6 +377,9 @@ async function searchClerkByOwner(
   const documents: ClerkDocument[] = [];
   const nameVariants = formatOwnerNameVariants(ownerName);
 
+  progress(`  [ownerSearch] Starting owner search for "${ownerName}" (${nameVariants.length} variant(s): ${nameVariants.join(', ')})`);
+  console.log(`[ClerkScraper] searchClerkByOwner: owner="${ownerName}", maxDocs=${maxDocs}, variants=${nameVariants.join(',')}`);
+
   try {
     const { searchClerkRecords, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
@@ -357,7 +387,8 @@ async function searchClerkByOwner(
 
     for (const name of nameVariants) {
       if (documents.length >= maxDocs) break;
-      progress(`  Trying owner variant: "${name}"`);
+      progress(`  [ownerSearch] Trying owner variant: "${name}"`);
+      console.log(`[ClerkScraper] Owner search variant: "${name}"`);
 
       const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(name)}`;
       urlsVisited.push(searchUrl);
@@ -365,22 +396,38 @@ async function searchClerkByOwner(
       const docResults = await searchClerkRecords('bell', name, logger);
       const docRefs = docResults.map(d => d.ref);
       if (!docRefs || docRefs.length === 0) {
-        progress(`  No results for "${name}"`);
+        progress(`  [ownerSearch] No results for "${name}"`);
+        console.log(`[ClerkScraper] Owner variant "${name}": 0 results`);
         continue;
       }
 
-      progress(`  Found ${docRefs.length} document(s) for "${name}" — fetching details...`);
+      progress(`  [ownerSearch] Found ${docRefs.length} document(s) for "${name}" — fetching details...`);
+      console.log(`[ClerkScraper] Owner variant "${name}": ${docRefs.length} results, types: ${docRefs.map(r => r.documentType).join(', ')}`);
 
       for (const ref of docRefs.slice(0, maxDocs - documents.length)) {
         const instrNum = ref.instrumentNumber ?? '';
         let pageImages: string[] = [];
 
+        // Use the REAL URL from the search result (has internal doc ID), not a constructed one
+        const realUrl = ref.url ?? null;
+        if (realUrl) {
+          progress(`  [ownerSearch] Doc ${instrNum}: real URL from search = ${realUrl}`);
+        } else {
+          progress(`  [ownerSearch] Doc ${instrNum}: ⚠ no URL from search result`);
+          console.warn(`[ClerkScraper] Owner doc ${instrNum}: no URL in search result`);
+        }
+
         if (captureImages && instrNum) {
           try {
+            progress(`  [ownerSearch] Capturing pages for ${instrNum}...`);
             const pages = await fetchDocumentImages(instrNum, 10, logger);
             pageImages = pages.map(p => p.imageBase64).filter(Boolean);
-          } catch {
-            // Image capture failed — continue with metadata only
+            progress(`  [ownerSearch] ${instrNum}: ${pageImages.length} page(s) captured`);
+            console.log(`[ClerkScraper] Owner doc ${instrNum}: ${pageImages.length} pages captured`);
+          } catch (imgErr) {
+            const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
+            progress(`  [ownerSearch] ${instrNum}: image capture failed: ${msg}`);
+            console.warn(`[ClerkScraper] Owner doc ${instrNum}: image capture error: ${msg}`);
           }
         }
 
@@ -394,18 +441,26 @@ async function searchClerkByOwner(
           grantee: ref.grantees[0] ?? null,
           legalDescription: null,
           pageImages,
-          sourceUrl: ref.url ?? (instrNum ? BELL_ENDPOINTS.clerk.document(instrNum) : null),
+          // Use real URL from search results, NOT a constructed URL with instrument number
+          sourceUrl: realUrl,
           relevanceScore: getDocumentRelevance(ref.documentType),
         });
       }
 
-      if (documents.length > 0) break; // First successful variant is enough
+      if (documents.length > 0) {
+        progress(`  [ownerSearch] ✓ Owner variant "${name}" yielded ${documents.length} document(s) — stopping search`);
+        break;
+      }
     }
+
+    progress(`  [ownerSearch] Complete: ${documents.length} document(s) from owner search`);
+    console.log(`[ClerkScraper] searchClerkByOwner complete: ${documents.length} docs found`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    progress(`Owner search error: ${msg}`);
+    progress(`  [ownerSearch] Error: ${msg}`);
+    console.error(`[ClerkScraper] searchClerkByOwner ERROR: ${msg}`);
     if (/playwright|browser|chromium/i.test(msg)) {
-      progress('↳ Playwright unavailable — clerk owner search skipped');
+      progress('  [ownerSearch] ↳ Playwright unavailable — clerk owner search skipped');
     }
   }
 
@@ -429,6 +484,9 @@ async function searchClerkBySubdivision(
 ): Promise<ClerkDocument[]> {
   const documents: ClerkDocument[] = [];
 
+  progress(`  [subdivSearch] Starting subdivision search for "${subdivisionName}"`);
+  console.log(`[ClerkScraper] searchClerkBySubdivision: subdiv="${subdivisionName}"`);
+
   try {
     const { searchBellClerkOwnerForPlatDeed, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
@@ -442,12 +500,21 @@ async function searchClerkBySubdivision(
       logger,
     );
 
-    progress(`  Subdivision "${subdivisionName}": ${allDocuments.length} docs, ${platInstruments.length} plats, ${deedInstruments.length} deeds`);
+    progress(`  [subdivSearch] "${subdivisionName}": ${allDocuments.length} docs total, ${platInstruments.length} plats, ${deedInstruments.length} deeds`);
+    console.log(`[ClerkScraper] Subdivision "${subdivisionName}": ${allDocuments.length} docs, plats=[${platInstruments.join(',')}], deeds=[${deedInstruments.join(',')}]`);
 
-    // Helper: look up the correct URL from allDocuments by instrument number
+    // Helper: look up the REAL URL from allDocuments by instrument number
+    // Only fall back to constructed URL if absolutely no real URL is available
     const getDocUrl = (instrNum: string): string | null => {
       const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
-      return ref?.url ?? BELL_ENDPOINTS.clerk.document(instrNum);
+      if (ref?.url) {
+        progress(`  [subdivSearch] ${instrNum}: using real URL from search = ${ref.url}`);
+        return ref.url;
+      }
+      // No real URL available — log a warning
+      console.warn(`[ClerkScraper] Subdivision doc ${instrNum}: no real URL from search, URL will be null`);
+      progress(`  [subdivSearch] ${instrNum}: ⚠ no real URL from search result`);
+      return null;
     };
 
     // Process plat instruments first (highest priority)
@@ -455,19 +522,29 @@ async function searchClerkBySubdivision(
       let pageImages: string[] = [];
       if (captureImages) {
         try {
+          progress(`  [subdivSearch] Capturing plat pages for ${instrNum}...`);
           const pages = await fetchDocumentImages(instrNum, 15, logger);
           pageImages = pages.map(p => p.imageBase64).filter(Boolean);
-          progress(`  ✓ Plat ${instrNum}: ${pageImages.length} pages captured`);
-        } catch {
-          progress(`  ✗ Plat ${instrNum}: image capture failed`);
+          progress(`  [subdivSearch] ✓ Plat ${instrNum}: ${pageImages.length} pages captured`);
+          console.log(`[ClerkScraper] Subdivision plat ${instrNum}: ${pageImages.length} pages`);
+        } catch (imgErr) {
+          const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
+          progress(`  [subdivSearch] ✗ Plat ${instrNum}: image capture failed: ${msg}`);
+          console.error(`[ClerkScraper] Subdivision plat ${instrNum}: image error: ${msg}`);
         }
       }
 
+      // Get metadata from allDocuments if available
+      const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
       documents.push({
         instrumentNumber: instrNum,
-        volume: null, page: null, recordingDate: null,
-        documentType: 'PLAT',
-        grantor: null, grantee: null, legalDescription: null,
+        volume: ref?.volume ?? null,
+        page: ref?.page ?? null,
+        recordingDate: ref?.recordingDate ?? null,
+        documentType: ref?.documentType ?? 'PLAT',
+        grantor: ref?.grantors?.[0] ?? null,
+        grantee: ref?.grantees?.[0] ?? null,
+        legalDescription: null,
         pageImages,
         sourceUrl: getDocUrl(instrNum),
         relevanceScore: getDocumentRelevance('PLAT'),
@@ -479,24 +556,40 @@ async function searchClerkBySubdivision(
       let pageImages: string[] = [];
       if (captureImages) {
         try {
+          progress(`  [subdivSearch] Capturing deed pages for ${instrNum}...`);
           const pages = await fetchDocumentImages(instrNum, 10, logger);
           pageImages = pages.map(p => p.imageBase64).filter(Boolean);
-        } catch { /* continue without images */ }
+          progress(`  [subdivSearch] ✓ Deed ${instrNum}: ${pageImages.length} pages captured`);
+          console.log(`[ClerkScraper] Subdivision deed ${instrNum}: ${pageImages.length} pages`);
+        } catch (imgErr) {
+          const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
+          progress(`  [subdivSearch] ✗ Deed ${instrNum}: image capture failed: ${msg}`);
+          console.error(`[ClerkScraper] Subdivision deed ${instrNum}: image error: ${msg}`);
+        }
       }
 
+      const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
       documents.push({
         instrumentNumber: instrNum,
-        volume: null, page: null, recordingDate: null,
-        documentType: 'WARRANTY DEED',
-        grantor: null, grantee: null, legalDescription: null,
+        volume: ref?.volume ?? null,
+        page: ref?.page ?? null,
+        recordingDate: ref?.recordingDate ?? null,
+        documentType: ref?.documentType ?? 'WARRANTY DEED',
+        grantor: ref?.grantors?.[0] ?? null,
+        grantee: ref?.grantees?.[0] ?? null,
+        legalDescription: null,
         pageImages,
         sourceUrl: getDocUrl(instrNum),
-        relevanceScore: getDocumentRelevance('WARRANTY DEED'),
+        relevanceScore: getDocumentRelevance(ref?.documentType ?? 'WARRANTY DEED'),
       });
     }
+
+    progress(`  [subdivSearch] Complete: ${documents.length} document(s) for subdivision "${subdivisionName}"`);
+    console.log(`[ClerkScraper] searchClerkBySubdivision complete: ${documents.length} docs`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    progress(`Subdivision search error: ${msg}`);
+    progress(`  [subdivSearch] Error: ${msg}`);
+    console.error(`[ClerkScraper] searchClerkBySubdivision ERROR: ${msg}`);
   }
 
   return documents;
@@ -518,6 +611,9 @@ async function fetchByVolumePage(
   const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`;
   urlsVisited.push(searchUrl);
 
+  progress(`  [volPage] Searching for Vol ${volume} Pg ${page}...`);
+  console.log(`[ClerkScraper] fetchByVolumePage: vol=${volume}, page=${page}`);
+
   try {
     const { searchClerkRecords, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
@@ -525,18 +621,35 @@ async function fetchByVolumePage(
 
     const docResults = await searchClerkRecords('bell', query, logger);
     const docRefs = docResults.map(d => d.ref);
-    if (!docRefs || docRefs.length === 0) return null;
+    if (!docRefs || docRefs.length === 0) {
+      progress(`  [volPage] No results for Vol ${volume} Pg ${page}`);
+      console.log(`[ClerkScraper] Vol ${volume}/Pg ${page}: 0 results`);
+      return null;
+    }
+
+    progress(`  [volPage] Found ${docRefs.length} result(s) for Vol ${volume} Pg ${page}`);
 
     // Pick the best matching result
     const match = docRefs.find(d => d.volume === volume && d.page === page) ?? docRefs[0];
     if (!match) return null;
 
+    // Use the REAL URL from the search result
+    const realUrl = match.url ?? null;
+    progress(`  [volPage] Best match: ${match.documentType} inst#${match.instrumentNumber ?? '?'}, url=${realUrl ?? 'none'}`);
+    console.log(`[ClerkScraper] Vol ${volume}/Pg ${page}: match type=${match.documentType}, inst=${match.instrumentNumber}, url=${realUrl}`);
+
     let pageImages: string[] = [];
     if (captureImages && match.instrumentNumber) {
       try {
+        progress(`  [volPage] Capturing pages for ${match.instrumentNumber}...`);
         const pages = await fetchDocumentImages(match.instrumentNumber, 10, logger);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
-      } catch { /* continue */ }
+        progress(`  [volPage] ✓ ${match.instrumentNumber}: ${pageImages.length} page(s) captured`);
+      } catch (imgErr) {
+        const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
+        progress(`  [volPage] ✗ ${match.instrumentNumber}: image capture failed: ${msg}`);
+        console.error(`[ClerkScraper] Vol/page image error for ${match.instrumentNumber}: ${msg}`);
+      }
     }
 
     return {
@@ -549,12 +662,14 @@ async function fetchByVolumePage(
       grantee: match.grantees[0] ?? null,
       legalDescription: null,
       pageImages,
-      sourceUrl: match.url ?? (match.instrumentNumber ? BELL_ENDPOINTS.clerk.document(match.instrumentNumber) : null),
+      // Use real URL from search results, NOT a constructed URL
+      sourceUrl: realUrl,
       relevanceScore: getDocumentRelevance(match.documentType),
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    progress(`  Vol/page lookup error (${volume}/${page}): ${msg}`);
+    progress(`  [volPage] Vol/page lookup error (${volume}/${page}): ${msg}`);
+    console.error(`[ClerkScraper] fetchByVolumePage ERROR for ${volume}/${page}: ${msg}`);
     return null;
   }
 }
@@ -572,9 +687,10 @@ export async function captureDocumentPages(
   progress: (msg: string) => void,
   projectId?: string,
 ): Promise<string[]> {
-  const docUrl = BELL_ENDPOINTS.clerk.document(instrumentId);
-  urlsVisited.push(docUrl);
-  progress(`Capturing pages for document: ${instrumentId} (max ${maxPages})`);
+  // NOTE: We don't push a constructed URL here — fetchDocumentImages uses
+  // search+click to find the correct document page with the real internal ID.
+  progress(`[capturePages] Capturing pages for document: ${instrumentId} (max ${maxPages})`);
+  console.log(`[ClerkScraper] captureDocumentPages: instrument=${instrumentId}, maxPages=${maxPages}`);
 
   try {
     const { fetchDocumentImages } = await import('../../../services/bell-clerk.js');
@@ -583,11 +699,21 @@ export async function captureDocumentPages(
 
     const pages = await fetchDocumentImages(instrumentId, maxPages, logger);
     const images = pages.map(p => p.imageBase64).filter(Boolean);
-    progress(`✓ Captured ${images.length}/${pages.length} page(s) for ${instrumentId}`);
+    progress(`[capturePages] ✓ Captured ${images.length}/${pages.length} page(s) for ${instrumentId}`);
+    console.log(`[ClerkScraper] captureDocumentPages ${instrumentId}: ${images.length} images captured`);
+
+    // Push the actual viewer URL if we got one from the signed URLs
+    if (pages.length > 0 && pages[0].signedUrl) {
+      // The signed URL reveals the actual doc path — but use the search URL for reference
+      const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentId)}`;
+      urlsVisited.push(searchUrl);
+    }
+
     return images;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    progress(`✗ Document image capture failed for ${instrumentId}: ${msg}`);
+    progress(`[capturePages] ✗ Document image capture failed for ${instrumentId}: ${msg}`);
+    console.error(`[ClerkScraper] captureDocumentPages ERROR for ${instrumentId}: ${msg}`);
     return [];
   }
 }
