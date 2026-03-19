@@ -408,6 +408,7 @@ export default function ResearchAnalysisPanel({
 
   // Friendly live log stream
   const [friendlyLogs, setFriendlyLogs] = useState<FriendlyLog[]>([]);
+  const [logCollapsed, setLogCollapsed] = useState(false);
   const logStreamRef = useRef<HTMLDivElement>(null);
   const prevStageRef = useRef<ResearchStageId | null>(null);
   const processedLogCountRef = useRef(0);
@@ -810,47 +811,71 @@ export default function ResearchAnalysisPanel({
   function renderLogStream() {
     if (friendlyLogs.length === 0) return null;
 
+    const warnCount = friendlyLogs.filter(l => l.level === 'warn').length;
+
     return (
       <div className="ra-live-log">
-        <div className="ra-live-log__header">
-          <span className="ra-live-log__title">Activity Log</span>
+        <div
+          className="ra-live-log__header"
+          onClick={() => setLogCollapsed(c => !c)}
+          style={{ cursor: 'pointer', userSelect: 'none' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span
+              className="ra-live-log__toggle"
+              style={{ fontSize: '0.75rem', opacity: 0.7, transition: 'transform 0.2s', display: 'inline-block', transform: logCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+            >
+              {logCollapsed ? '\u25B6' : '\u25BC'}
+            </span>
+            <span className="ra-live-log__title">Activity Log</span>
+            <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+              ({friendlyLogs.length} entries{warnCount > 0 ? `, ${warnCount} warning${warnCount !== 1 ? 's' : ''}` : ''})
+            </span>
+            {logCollapsed && (
+              <span style={{ fontSize: '0.7rem', opacity: 0.5, marginLeft: '4px' }}>
+                {isRunning ? 'live' : isComplete ? 'complete' : ''}
+              </span>
+            )}
+          </div>
           <button
             className="ra-live-log__copy-btn"
-            onClick={handleCopyLogs}
+            onClick={(e) => { e.stopPropagation(); handleCopyLogs(); }}
           >
             {logsCopied ? 'Copied!' : 'Copy Logs'}
           </button>
         </div>
-        <div className="ra-live-log__stream" ref={logStreamRef}>
-          {friendlyLogs.map((entry) => (
-            <div
-              key={entry.id}
-              className={`ra-live-log__entry ra-live-log__entry--${entry.level}`}
-            >
-              <span className="ra-live-log__time">
-                {new Date(entry.ts).toLocaleTimeString()}
-              </span>
-              <span className="ra-live-log__icon">
-                {entry.level === 'success' ? '\u2705' :
-                 entry.level === 'warn' ? '\u26A0\uFE0F' :
-                 entry.level === 'progress' ? '\u27A1\uFE0F' :
-                 '\u2139\uFE0F'}
-              </span>
-              <span className="ra-live-log__msg">{entry.message}</span>
-            </div>
-          ))}
-          {isRunning && (
-            <div className="ra-live-log__entry ra-live-log__entry--typing">
-              <span className="ra-live-log__time">&nbsp;</span>
-              <span className="ra-live-log__icon">&nbsp;</span>
-              <span className="ra-live-log__dots">
-                <span className="ra-live-log__dot" />
-                <span className="ra-live-log__dot" />
-                <span className="ra-live-log__dot" />
-              </span>
-            </div>
-          )}
-        </div>
+        {!logCollapsed && (
+          <div className="ra-live-log__stream" ref={logStreamRef}>
+            {friendlyLogs.map((entry) => (
+              <div
+                key={entry.id}
+                className={`ra-live-log__entry ra-live-log__entry--${entry.level}`}
+              >
+                <span className="ra-live-log__time">
+                  {new Date(entry.ts).toLocaleTimeString()}
+                </span>
+                <span className="ra-live-log__icon">
+                  {entry.level === 'success' ? '\u2705' :
+                   entry.level === 'warn' ? '\u26A0\uFE0F' :
+                   entry.level === 'progress' ? '\u27A1\uFE0F' :
+                   '\u2139\uFE0F'}
+                </span>
+                <span className="ra-live-log__msg">{entry.message}</span>
+              </div>
+            ))}
+            {isRunning && (
+              <div className="ra-live-log__entry ra-live-log__entry--typing">
+                <span className="ra-live-log__time">&nbsp;</span>
+                <span className="ra-live-log__icon">&nbsp;</span>
+                <span className="ra-live-log__dots">
+                  <span className="ra-live-log__dot" />
+                  <span className="ra-live-log__dot" />
+                  <span className="ra-live-log__dot" />
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }

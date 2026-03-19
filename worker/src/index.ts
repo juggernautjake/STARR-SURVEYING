@@ -493,6 +493,12 @@ async function persistCountyResults(
   // ── 4. Upload pipeline artifacts (screenshots + page images) ────────
   // This makes captured images viewable on the frontend.
   try {
+    console.log(`[Worker] ${projectId}: Preparing artifact upload — ${r.screenshots.length} screenshots, ${r.deedsAndRecords.records.length} deed(s), ${r.plats.plats.length} plat(s)`);
+    const classifiedScreenshots = r.screenshots.filter(ss => ss.classification != null).length;
+    const usefulScreenshots = r.screenshots.filter(ss => ss.classification === 'useful').length;
+    const miscScreenshots = r.screenshots.filter(ss => ss.classification === 'misc').length;
+    console.log(`[Worker] ${projectId}: Screenshot classifications — ${classifiedScreenshots} pre-classified (${usefulScreenshots} useful, ${miscScreenshots} misc), ${r.screenshots.length - classifiedScreenshots} unclassified`);
+
     const artifactScreenshots: ArtifactScreenshot[] = r.screenshots.map(ss => ({
       source: ss.source,
       url: ss.url,
@@ -507,6 +513,9 @@ async function persistCountyResults(
     const artifactPageImages: ArtifactPageImage[] = [];
 
     for (const deed of r.deedsAndRecords.records) {
+      if (deed.pageImages.length > 0) {
+        console.log(`[Worker] ${projectId}: Deed artifact: inst#${deed.instrumentNumber ?? '?'}, type=${deed.documentType}, pages=${deed.pageImages.length}, sourceUrl=${deed.sourceUrl ?? 'NONE'}`);
+      }
       for (let pi = 0; pi < deed.pageImages.length; pi++) {
         artifactPageImages.push({
           category: 'deed',
@@ -519,6 +528,9 @@ async function persistCountyResults(
     }
 
     for (const plat of r.plats.plats) {
+      if (plat.images.length > 0) {
+        console.log(`[Worker] ${projectId}: Plat artifact: inst#${plat.instrumentNumber ?? '?'}, name="${plat.name}", pages=${plat.images.length}, sourceUrl=${plat.sourceUrl ?? 'NONE'}`);
+      }
       for (let pi = 0; pi < plat.images.length; pi++) {
         artifactPageImages.push({
           category: 'plat',
