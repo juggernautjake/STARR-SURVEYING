@@ -1202,10 +1202,80 @@ export async function analyzeProject(
       addLog('success', `Saved ${allDiscrepancies.length} discrepancies to database`);
     }
 
+    // 8. Final coherence review — 3-pass AI review of ALL data for consistency and quality
+    addLog('info', 'Running multi-pass coherence review of all extracted data (3 passes)...');
+    await persistLogs();
+
+    let coherenceReview: Record<string, unknown> | null = null;
+    try {
+      coherenceReview = await runFinalCoherenceReview(
+        projectId,
+        allDataPoints,
+        allDiscrepancies,
+        allDocuments as ResearchDocument[],
+        logs,
+        addLog,
+        accumulateTokens,
+      );
+      if (coherenceReview) {
+        const verdict = coherenceReview.overall_verdict as string || 'unknown';
+        const score = coherenceReview.overall_score as number || 0;
+        const coherenceIssues = (coherenceReview.coherence_issues as unknown[]) || [];
+        const pipelineIssues = (coherenceReview.pipeline_issues as unknown[]) || [];
+        const criticalCount = coherenceIssues.filter(
+          (i: unknown) => (i as { severity?: string }).severity === 'critical'
+        ).length;
+        const passComparison = coherenceReview.pass_comparison as {
+          pass1_issues_confirmed?: number;
+          pass2_new_issues?: number;
+          pass1_false_alarms?: number;
+          total_issues?: number;
+        } | null;
+
+        const verdictLabels: Record<string, string> = {
+          ready_for_fieldwork: 'Ready for fieldwork',
+          needs_attention: 'Needs attention',
+          significant_issues: 'Significant issues found',
+          unreliable: 'Data unreliable',
+        };
+
+        addLog(
+          score >= 70 ? 'success' : score >= 40 ? 'warn' : 'error',
+          `Coherence review: ${verdictLabels[verdict] || verdict} (score: ${score}/100)`,
+          `${coherenceIssues.length} coherence issue(s), ${pipelineIssues.length} pipeline issue(s)${criticalCount > 0 ? `, ${criticalCount} CRITICAL` : ''}`,
+        );
+
+        if (passComparison) {
+          addLog('info', `Pass comparison: ${passComparison.pass1_issues_confirmed ?? 0} confirmed, ${passComparison.pass2_new_issues ?? 0} new from deep analysis, ${passComparison.pass1_false_alarms ?? 0} false alarms, ${passComparison.total_issues ?? 0} total`);
+        }
+
+        if (criticalCount > 0) {
+          for (const issue of coherenceIssues) {
+            const typed = issue as { severity?: string; title?: string; description?: string };
+            if (typed.severity === 'critical') {
+              addLog('error', `[CRITICAL] ${typed.title}`, typed.description);
+            }
+          }
+        }
+
+        const statement = coherenceReview.confidence_statement as string;
+        if (statement) {
+          addLog('info', `Data reliability: ${statement}`);
+        }
+
+        const execSummary = coherenceReview.executive_summary as string;
+        if (execSummary) {
+          addLog('info', `Executive summary: ${execSummary}`);
+        }
+      }
+    } catch (err) {
+      addLog('warn', 'Coherence review failed — continuing without it', err instanceof Error ? err.message : String(err));
+    }
+
     const completedAt = new Date().toISOString();
     addLog('success', `Analysis complete — ${allDataPoints.length} data points, ${allDiscrepancies.length} discrepancies`, `Duration: ${Math.round((new Date(completedAt).getTime() - new Date(analysisStartedAt).getTime()) / 1000)}s`);
 
-    // 8. Update project status to review
+    // 9. Update project status to review
     await supabaseAdmin.from('research_projects').update({
       status: 'review',
       analysis_metadata: {
@@ -1216,6 +1286,7 @@ export async function analyzeProject(
         discrepancy_count: allDiscrepancies.length,
         documents_analyzed: allDocuments.length,
         tokens_used: tokenUsage,
+        coherence_review: coherenceReview,
         logs,
       },
       updated_at: new Date().toISOString(),
@@ -1492,6 +1563,287 @@ function attemptNormalization(
   } catch {
     return existingNormalized || null;
   }
+}
+
+// ── Final Coherence Review (Multi-Pass) ─────────────────────────────────────
+
+/** Partial data point type used during analysis (before DB insert assigns id/timestamps). */
+type PartialDataPoint = Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>;
+
+/**
+ * Build a text summary of all extracted data for the coherence reviewer.
+ * Returns the summary string and a grouped-by-category data point map.
+ */
+function buildCoherenceInput(
+  dataPoints: PartialDataPoint[],
+  discrepancies: Omit<Discrepancy, 'id' | 'created_at' | 'updated_at'>[],
+  documents: ResearchDocument[],
+  logs: AnalysisLogEntry[],
+): { text: string; byCategory: Record<string, PartialDataPoint[]> } {
+  const sections: string[] = [];
+
+  // Section 1: Documents summary
+  sections.push('=== DOCUMENTS PROCESSED ===');
+  for (const doc of documents) {
+    const status = doc.processing_status || 'unknown';
+    const docType = doc.document_type || 'unknown';
+    const label = doc.document_label || doc.original_filename || 'Untitled';
+    const textLen = doc.extracted_text?.length || 0;
+    const error = doc.processing_error || '';
+    sections.push(
+      `- "${label}" (type: ${docType}, status: ${status}, text: ${textLen} chars)` +
+      (error ? ` ERROR: ${error}` : ''),
+    );
+  }
+
+  // Section 2: Extracted data points grouped by category
+  sections.push('\n=== EXTRACTED DATA POINTS ===');
+  const byCategory: Record<string, PartialDataPoint[]> = {};
+  for (const dp of dataPoints) {
+    const cat = dp.data_category || 'unknown';
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(dp);
+  }
+  for (const [cat, points] of Object.entries(byCategory)) {
+    sections.push(`\n--- ${cat.toUpperCase()} (${points.length} points) ---`);
+    // Show up to 50 points per category for thorough review
+    const shown = points.slice(0, 50);
+    for (const p of shown) {
+      const conf = p.extraction_confidence != null ? ` (confidence: ${p.extraction_confidence}%)` : '';
+      const norm = p.normalized_value ? ` [normalized: ${JSON.stringify(p.normalized_value)}]` : '';
+      const seq = p.sequence_order != null ? ` seq:${p.sequence_order}` : '';
+      const group = p.sequence_group ? ` group:${p.sequence_group}` : '';
+      const src = p.source_text_excerpt ? ` src:"${p.source_text_excerpt.slice(0, 60)}"` : '';
+      sections.push(`  ${p.raw_value}${conf}${norm}${seq}${group}${src}`);
+    }
+    if (points.length > 50) {
+      sections.push(`  ... and ${points.length - 50} more`);
+    }
+  }
+
+  // Section 3: Discrepancies found
+  sections.push('\n=== DISCREPANCIES FOUND ===');
+  if (discrepancies.length === 0) {
+    sections.push('  (none)');
+  } else {
+    for (const d of discrepancies) {
+      sections.push(
+        `- [${d.severity}] ${d.title}: ${d.description}` +
+        (d.probable_cause ? `\n  Probable cause: ${d.probable_cause}` : '') +
+        (d.ai_recommendation ? `\n  Recommendation: ${d.ai_recommendation}` : '') +
+        (d.estimated_impact ? `\n  Impact: ${d.estimated_impact}` : '') +
+        `\n  Affects: boundary=${d.affects_boundary}, area=${d.affects_area}, closure=${d.affects_closure}`,
+      );
+    }
+  }
+
+  // Section 4: Analysis logs (last 120 entries)
+  sections.push('\n=== ANALYSIS LOG (recent entries) ===');
+  const recentLogs = logs.slice(-120);
+  for (const l of recentLogs) {
+    const ts = l.ts ? new Date(l.ts).toISOString().slice(11, 19) : '';
+    sections.push(`[${l.level}] ${ts} ${l.message}${l.detail ? ` — ${l.detail}` : ''}`);
+  }
+
+  // Section 5: Stats summary
+  const errorLogs = logs.filter(l => l.level === 'error');
+  const warnLogs = logs.filter(l => l.level === 'warn');
+  const docsFailed = documents.filter(d => d.processing_status === 'error');
+  const docsSkipped = documents.filter(d =>
+    d.processing_error?.startsWith('Pre-screening skip'),
+  );
+
+  sections.push('\n=== PIPELINE STATISTICS ===');
+  sections.push(`Total documents: ${documents.length}`);
+  sections.push(`Documents analyzed successfully: ${documents.filter(d => d.processing_status === 'analyzed').length}`);
+  sections.push(`Documents failed: ${docsFailed.length}`);
+  sections.push(`Documents skipped (pre-screening): ${docsSkipped.length}`);
+  sections.push(`Total data points extracted: ${dataPoints.length}`);
+  sections.push(`Total discrepancies: ${discrepancies.length}`);
+  sections.push(`Log errors: ${errorLogs.length}`);
+  sections.push(`Log warnings: ${warnLogs.length}`);
+  sections.push(`Data categories: ${Object.keys(byCategory).join(', ')}`);
+
+  // Build average confidence per category
+  for (const [cat, points] of Object.entries(byCategory)) {
+    const confs = points.filter(p => p.extraction_confidence != null).map(p => p.extraction_confidence!);
+    if (confs.length > 0) {
+      const avg = Math.round(confs.reduce((a, b) => a + b, 0) / confs.length);
+      sections.push(`Average confidence (${cat}): ${avg}%`);
+    }
+  }
+
+  return { text: sections.join('\n'), byCategory };
+}
+
+/** Truncate content to a max char length with a note. */
+function truncateForAI(content: string, maxChars: number): string {
+  if (content.length <= maxChars) return content;
+  return content.substring(0, maxChars) + '\n\n[TRUNCATED — input too large for full review]';
+}
+
+/**
+ * Run a multi-pass AI coherence review across all extracted data, discrepancies,
+ * documents, and pipeline logs. Three passes:
+ *
+ * Pass 1 (FINAL_COHERENCE_REVIEWER): Broad quality assessment — scores, issues, pipeline diagnostics
+ * Pass 2 (COHERENCE_DEEP_ANALYSIS): Detailed walkthrough of boundary, legal, deed chain, monuments
+ * Pass 3 (COHERENCE_SYNTHESIS): Reconcile Pass 1 & 2, produce final authoritative report
+ */
+async function runFinalCoherenceReview(
+  _projectId: string,
+  dataPoints: PartialDataPoint[],
+  discrepancies: Omit<Discrepancy, 'id' | 'created_at' | 'updated_at'>[],
+  documents: ResearchDocument[],
+  logs: AnalysisLogEntry[],
+  addLog: (level: AnalysisLogEntry['level'], message: string, detail?: string) => void,
+  accumulateTokens: (used: { input: number; output: number }) => void,
+): Promise<Record<string, unknown> | null> {
+  if (dataPoints.length === 0 && documents.length === 0) {
+    addLog('info', 'Skipping coherence review — no data to review');
+    return null;
+  }
+
+  const { text: baseInput, byCategory } = buildCoherenceInput(dataPoints, discrepancies, documents, logs);
+
+  addLog('info', `Coherence review input: ${documents.length} docs, ${dataPoints.length} data points, ${discrepancies.length} discrepancies, ${logs.length} log entries`);
+
+  // ── Pass 1: Broad quality assessment ──────────────────────────────────
+  addLog('info', 'Coherence Pass 1/3 — broad quality assessment...');
+
+  const pass1Result = await callAI({
+    promptKey: 'FINAL_COHERENCE_REVIEWER',
+    userContent: truncateForAI(baseInput, 30_000),
+    maxTokens: 4096,
+    timeoutMs: 120_000,
+  });
+
+  const pass1 = pass1Result.response as Record<string, unknown>;
+  if (pass1Result.tokensUsed) {
+    accumulateTokens(pass1Result.tokensUsed);
+    addLog('info', `Pass 1 tokens: ${pass1Result.tokensUsed.input} in / ${pass1Result.tokensUsed.output} out`);
+  }
+
+  const pass1Score = (pass1.overall_score ?? 0) as number;
+  const pass1Verdict = (pass1.overall_verdict ?? 'unknown') as string;
+  addLog('info', `Pass 1 result: ${pass1Verdict} (${pass1Score}/100), ${((pass1.coherence_issues ?? []) as unknown[]).length} issues, ${((pass1.pipeline_issues ?? []) as unknown[]).length} pipeline issues`);
+
+  // ── Pass 2: Deep analysis focused on weak areas ───────────────────────
+  addLog('info', 'Coherence Pass 2/3 — deep boundary/legal/deed analysis...');
+
+  // Build focused input for Pass 2: Pass 1 findings + all relevant data
+  const pass2Sections: string[] = [];
+
+  pass2Sections.push('=== PASS 1 INITIAL REVIEW RESULTS ===');
+  pass2Sections.push(JSON.stringify(pass1, null, 2));
+
+  // Include ALL boundary-relevant data points (calls, bearings, distances, curves, monuments)
+  const boundaryCategories = ['call', 'bearing', 'distance', 'curve_data', 'monument', 'coordinate', 'area'];
+  pass2Sections.push('\n=== FULL BOUNDARY-RELEVANT DATA ===');
+  for (const cat of boundaryCategories) {
+    const points = byCategory[cat];
+    if (!points || points.length === 0) continue;
+    pass2Sections.push(`\n--- ${cat.toUpperCase()} (${points.length} points, ALL shown) ---`);
+    for (const p of points) {
+      const conf = p.extraction_confidence != null ? ` (confidence: ${p.extraction_confidence}%)` : '';
+      const norm = p.normalized_value ? ` [normalized: ${JSON.stringify(p.normalized_value)}]` : '';
+      const seq = p.sequence_order != null ? ` seq:${p.sequence_order}` : '';
+      const group = p.sequence_group ? ` group:${p.sequence_group}` : '';
+      const src = p.source_text_excerpt ? ` src:"${p.source_text_excerpt.slice(0, 80)}"` : '';
+      const docId = p.document_id ? ` doc:${p.document_id.slice(0, 8)}` : '';
+      pass2Sections.push(`  ${p.raw_value}${conf}${norm}${seq}${group}${docId}${src}`);
+    }
+  }
+
+  // Include legal description, deed, and chain-of-title data
+  const legalCategories = ['legal_description', 'deed_reference', 'recording_info', 'property_id', 'owner', 'chain_of_title'];
+  pass2Sections.push('\n=== FULL LEGAL/DEED DATA ===');
+  for (const cat of legalCategories) {
+    const points = byCategory[cat];
+    if (!points || points.length === 0) continue;
+    pass2Sections.push(`\n--- ${cat.toUpperCase()} (${points.length} points, ALL shown) ---`);
+    for (const p of points) {
+      const conf = p.extraction_confidence != null ? ` (confidence: ${p.extraction_confidence}%)` : '';
+      const norm = p.normalized_value ? ` [normalized: ${JSON.stringify(p.normalized_value)}]` : '';
+      const docId = p.document_id ? ` doc:${p.document_id.slice(0, 8)}` : '';
+      const src = p.source_text_excerpt ? ` src:"${p.source_text_excerpt.slice(0, 120)}"` : '';
+      pass2Sections.push(`  ${p.raw_value}${conf}${norm}${docId}${src}`);
+    }
+  }
+
+  // Include ALL discrepancies for Pass 2 to review
+  pass2Sections.push('\n=== ALL DISCREPANCIES ===');
+  for (const d of discrepancies) {
+    pass2Sections.push(
+      `- [${d.severity}/${d.probable_cause || 'unknown'}] ${d.title}: ${d.description}` +
+      (d.ai_recommendation ? `\n  Recommendation: ${d.ai_recommendation}` : '') +
+      (d.estimated_impact ? `\n  Impact: ${d.estimated_impact}` : ''),
+    );
+  }
+
+  // Document list for cross-referencing
+  pass2Sections.push('\n=== DOCUMENT INDEX ===');
+  for (const doc of documents) {
+    pass2Sections.push(
+      `- ${doc.id.slice(0, 8)}: "${doc.document_label || doc.original_filename || 'Untitled'}" ` +
+      `(type: ${doc.document_type || 'unknown'}, status: ${doc.processing_status || 'unknown'})`,
+    );
+  }
+
+  const pass2Input = pass2Sections.join('\n');
+
+  const pass2Result = await callAI({
+    promptKey: 'COHERENCE_DEEP_ANALYSIS',
+    userContent: truncateForAI(pass2Input, 40_000),
+    maxTokens: 4096,
+    timeoutMs: 150_000,
+  });
+
+  const pass2 = pass2Result.response as Record<string, unknown>;
+  if (pass2Result.tokensUsed) {
+    accumulateTokens(pass2Result.tokensUsed);
+    addLog('info', `Pass 2 tokens: ${pass2Result.tokensUsed.input} in / ${pass2Result.tokensUsed.output} out`);
+  }
+
+  const newIssues = (pass2.new_issues_found ?? []) as unknown[];
+  const revisedRisks = (pass2.revised_risk_areas ?? []) as string[];
+  addLog('info', `Pass 2 result: ${newIssues.length} new issues found, ${revisedRisks.length} revised risk areas`);
+
+  // ── Pass 3: Synthesis — produce final authoritative report ────────────
+  addLog('info', 'Coherence Pass 3/3 — synthesizing final report...');
+
+  const pass3Sections: string[] = [];
+  pass3Sections.push('=== PASS 1 RESULTS (broad quality review) ===');
+  pass3Sections.push(JSON.stringify(pass1, null, 2));
+  pass3Sections.push('\n=== PASS 2 RESULTS (deep analysis) ===');
+  pass3Sections.push(JSON.stringify(pass2, null, 2));
+  pass3Sections.push('\n=== ORIGINAL STATISTICS ===');
+  pass3Sections.push(`Documents: ${documents.length} (${documents.filter(d => d.processing_status === 'analyzed').length} analyzed successfully)`);
+  pass3Sections.push(`Data points: ${dataPoints.length} across ${Object.keys(byCategory).length} categories`);
+  pass3Sections.push(`Discrepancies: ${discrepancies.length}`);
+  pass3Sections.push(`Categories: ${Object.entries(byCategory).map(([k, v]) => `${k}(${v.length})`).join(', ')}`);
+
+  const pass3Input = pass3Sections.join('\n');
+
+  const pass3Result = await callAI({
+    promptKey: 'COHERENCE_SYNTHESIS',
+    userContent: truncateForAI(pass3Input, 40_000),
+    maxTokens: 4096,
+    timeoutMs: 120_000,
+  });
+
+  const finalReview = pass3Result.response as Record<string, unknown>;
+  if (pass3Result.tokensUsed) {
+    accumulateTokens(pass3Result.tokensUsed);
+    addLog('info', `Pass 3 tokens: ${pass3Result.tokensUsed.input} in / ${pass3Result.tokensUsed.output} out`);
+  }
+
+  // Attach the intermediate results for debugging/transparency
+  finalReview._pass1 = pass1;
+  finalReview._pass2 = pass2;
+  finalReview._pass_count = 3;
+
+  return finalReview;
 }
 
 // ── Cross-Reference Analysis ────────────────────────────────────────────────

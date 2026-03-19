@@ -2701,6 +2701,413 @@
   }
 }
 
+/* ── Coherence Review ──────────────────────────────────────────────────── */
+
+.coherence-review {
+  margin-top: 1.25rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.coherence-review__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #F9FAFB;
+  border-bottom: 1px solid #E5E7EB;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.coherence-review__title {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: #1F2937;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.coherence-review__pass-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #6366F1;
+  background: #EEF2FF;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.coherence-review__verdict {
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.coherence-review__statement {
+  padding: 0.6rem 1rem;
+  font-size: 0.82rem;
+  color: #374151;
+  background: #FFFBEB;
+  border-bottom: 1px solid #FDE68A;
+}
+
+.coherence-review__summary {
+  padding: 0.75rem 1rem;
+  font-size: 0.82rem;
+  color: #374151;
+  line-height: 1.6;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+/* Data quality scores */
+.coherence-review__scores {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.coherence-review__scores-title {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.5rem;
+}
+
+.coherence-review__scores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+.coherence-review__score-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.coherence-review__score-bar {
+  flex: 1;
+  height: 6px;
+  background: #E5E7EB;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.coherence-review__score-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.coherence-review__score-label {
+  font-size: 0.72rem;
+  color: #6B7280;
+  min-width: 80px;
+  text-transform: capitalize;
+}
+
+.coherence-review__score-value {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #374151;
+  min-width: 24px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Issues sections */
+.coherence-review__section {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.coherence-review__section:last-child {
+  border-bottom: none;
+}
+
+.coherence-review__section-title {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.5rem;
+}
+
+.coherence-review__issue {
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  margin-bottom: 0.4rem;
+  background: #F9FAFB;
+  border-left: 3px solid #D1D5DB;
+}
+
+.coherence-review__issue--critical {
+  background: #FEF2F2;
+  border-left-color: #DC2626;
+}
+
+.coherence-review__issue--warning {
+  background: #FFFBEB;
+  border-left-color: #D97706;
+}
+
+.coherence-review__issue--info {
+  background: #EFF6FF;
+  border-left-color: #3B82F6;
+}
+
+.coherence-review__issue-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.25rem;
+}
+
+.coherence-review__issue-severity {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.coherence-review__issue-title {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #1F2937;
+}
+
+.coherence-review__issue-area {
+  font-size: 0.68rem;
+  color: #9CA3AF;
+  background: #F3F4F6;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  text-transform: capitalize;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.coherence-review__issue-desc {
+  font-size: 0.78rem;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.coherence-review__issue-rec {
+  font-size: 0.75rem;
+  color: #059669;
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
+/* Lists */
+.coherence-review__list {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.8rem;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.coherence-review__list li {
+  margin-bottom: 0.25rem;
+}
+
+.coherence-review__list--missing li {
+  color: #D97706;
+}
+
+/* Executive summary */
+.coherence-review__exec-summary {
+  padding: 0.75rem 1rem;
+  background: #F0FDF4;
+  border-bottom: 1px solid #BBF7D0;
+}
+
+.coherence-review__exec-summary-label {
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.3rem;
+}
+
+.coherence-review__exec-summary-text {
+  font-size: 0.82rem;
+  color: #1F2937;
+  line-height: 1.6;
+}
+
+/* Score delta indicator */
+.coherence-review__score-delta {
+  font-size: 0.62rem;
+  margin-left: 0.2rem;
+  font-weight: 700;
+}
+
+/* Issue pass badge */
+.coherence-review__issue-pass {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #6366F1;
+  background: #EEF2FF;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* Detail boxes (boundary traverse, deed chain) */
+.coherence-review__detail-box {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #E5E7EB;
+  background: #FAFAFA;
+}
+
+.coherence-review__detail-box-title {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: #374151;
+  margin-bottom: 0.35rem;
+}
+
+.coherence-review__detail-text {
+  font-size: 0.8rem;
+  color: #4B5563;
+  line-height: 1.5;
+  margin-bottom: 0.35rem;
+}
+
+.coherence-review__detail-stats {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.72rem;
+  color: #6B7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.coherence-review__detail-stats span {
+  white-space: nowrap;
+}
+
+/* Pass comparison footer */
+.coherence-review__pass-comparison {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.68rem;
+  color: #9CA3AF;
+  background: #F9FAFB;
+  border-top: 1px solid #E5E7EB;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .coherence-review__scores-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .coherence-review__issue-header {
+    flex-wrap: wrap;
+  }
+
+  .coherence-review__issue-area {
+    margin-left: 0;
+  }
+}
+
+/* ── MISC Documents Toggle ─────────────────────────────────────────────── */
+
+.misc-docs-toggle {
+  margin-top: 0.75rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #FAFAFA;
+}
+
+.misc-docs-toggle__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+.misc-docs-toggle__summary::-webkit-details-marker {
+  display: none;
+}
+
+.misc-docs-toggle__summary::before {
+  content: '▶';
+  font-size: 0.6rem;
+  color: #9CA3AF;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.misc-docs-toggle[open] > .misc-docs-toggle__summary::before {
+  transform: rotate(90deg);
+}
+
+.misc-docs-toggle__icon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.misc-docs-toggle__label {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #6B7280;
+}
+
+.misc-docs-toggle__count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #9CA3AF;
+  background: #F3F4F6;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.misc-docs-toggle__hint {
+  font-size: 0.7rem;
+  color: #9CA3AF;
+  font-style: italic;
+  margin-left: auto;
+}
+
+.misc-docs-toggle__body {
+  padding: 0.5rem;
+  border-top: 1px solid #E5E7EB;
+  background: #F9FAFB;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.misc-docs-toggle__body .review-doc-card {
+  opacity: 0.7;
+}
+
+.misc-docs-toggle__body .review-doc-card:hover {
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .misc-docs-toggle__hint {
+    display: none;
+  }
+}
+
 /* View Pages button in document list */
 .research-upload__doc-pdf-btn {
   display: inline-flex;

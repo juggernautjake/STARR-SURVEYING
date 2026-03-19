@@ -729,25 +729,94 @@ export default function ResearchAnalysisPanel({
     setUploading(true);
 
     try {
+      let uploadedCount = 0;
+      let extractedCount = 0;
+
       for (const file of uploadFiles) {
+        setFriendlyLogs(prev => [...prev, {
+          id: `upload-${Date.now()}-${file.name}`,
+          ts: Date.now(),
+          level: 'progress',
+          message: `Uploading & processing "${file.name}"...`,
+        }]);
+
         const formData = new FormData();
         formData.append('file', file);
-        await fetch(`/api/admin/research/${projectId}/documents`, {
+        const uploadRes = await fetch(`/api/admin/research/${projectId}/documents`, {
           method: 'POST',
           body: formData,
         });
+
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          uploadedCount++;
+          const docs = uploadData.documents || [];
+          // Check if documents were processed (text extracted)
+          for (const doc of docs) {
+            if (doc?.processing_status === 'extracted' || doc?.processing_status === 'analyzed') {
+              extractedCount++;
+            }
+          }
+          setFriendlyLogs(prev => [...prev, {
+            id: `upload-done-${Date.now()}-${file.name}`,
+            ts: Date.now(),
+            level: 'success',
+            message: `"${file.name}" uploaded and text extracted successfully.`,
+          }]);
+        } else {
+          setFriendlyLogs(prev => [...prev, {
+            id: `upload-err-${Date.now()}-${file.name}`,
+            ts: Date.now(),
+            level: 'warn',
+            message: `Failed to upload "${file.name}" — ${uploadRes.statusText}`,
+          }]);
+        }
       }
 
       setUploadFiles([]);
       setShowUpload(false);
       setUploading(false);
 
+      if (uploadedCount === 0) {
+        setError('No files were uploaded successfully.');
+        return;
+      }
+
+      // If no documents are in extracted state, wait briefly and poll for status
+      if (extractedCount === 0) {
+        setFriendlyLogs(prev => [...prev, {
+          id: `wait-extract-${Date.now()}`,
+          ts: Date.now(),
+          level: 'progress',
+          message: 'Waiting for document text extraction to complete...',
+        }]);
+
+        // Poll for up to 60 seconds for documents to reach extracted status
+        for (let attempt = 0; attempt < 12; attempt++) {
+          await new Promise(r => setTimeout(r, 5000));
+          const checkRes = await fetch(`/api/admin/research/${projectId}/documents`);
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            const docs = checkData.documents || [];
+            const pendingDocs = docs.filter((d: { processing_status: string }) =>
+              d.processing_status === 'pending' || d.processing_status === 'extracting'
+            );
+            if (pendingDocs.length === 0) {
+              extractedCount = docs.filter((d: { processing_status: string }) =>
+                d.processing_status === 'extracted' || d.processing_status === 'analyzed'
+              ).length;
+              break;
+            }
+          }
+        }
+      }
+
       setReanalyzing(true);
       setFriendlyLogs(prev => [...prev, {
         id: `reanalyze-${Date.now()}`,
         ts: Date.now(),
         level: 'progress',
-        message: 'Re-analyzing with new files included...',
+        message: `Re-analyzing with ${uploadedCount} new file(s) included...`,
       }]);
 
       const res = await fetch(`/api/admin/research/${projectId}/analyze`, {

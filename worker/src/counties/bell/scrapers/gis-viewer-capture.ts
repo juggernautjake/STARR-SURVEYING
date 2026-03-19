@@ -275,7 +275,7 @@ async function dismissDisclaimerDialog(page: any, progress: (msg: string) => voi
 
       // Also try clicking any visible button that says exactly "OK"
       const clicked = await page.evaluate(() => {
-        const buttons = document.querySelectorAll('button');
+        const buttons = Array.from(document.querySelectorAll('button'));
         for (const btn of buttons) {
           const text = btn.textContent?.trim();
           if (text === 'OK' || text === 'Accept' || text === 'I Agree') {
@@ -288,7 +288,7 @@ async function dismissDisclaimerDialog(page: any, progress: (msg: string) => voi
           }
         }
         // Also check for anchor tags styled as buttons
-        const anchors = document.querySelectorAll('a');
+        const anchors = Array.from(document.querySelectorAll('a'));
         for (const a of anchors) {
           const text = a.textContent?.trim();
           if (text === 'OK' || text === 'Accept') {

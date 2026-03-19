@@ -1699,6 +1699,247 @@ export default function ResearchProjectPage() {
                         No summary available. Run the full research pipeline to generate a summary.
                       </div>
                     )}
+
+                    {/* ── Coherence Review (Multi-Pass) ── */}
+                    {(() => {
+                      const cr = meta?.coherence_review as Record<string, unknown> | null;
+                      if (!cr) return null;
+
+                      const verdict = (cr.overall_verdict ?? 'unknown') as string;
+                      const score = (cr.overall_score ?? 0) as number;
+                      const statement = (cr.confidence_statement ?? '') as string;
+                      const execSummary = (cr.executive_summary ?? '') as string;
+                      const techSummary = (cr.summary ?? '') as string;
+                      const passCount = (cr._pass_count ?? 1) as number;
+                      const dq = cr.data_quality as Record<string, { score: number; pass1_score?: number; adjustment?: string; assessment: string }> | null;
+                      const coherenceIssues = (cr.coherence_issues ?? []) as Array<{ severity: string; area: string; title: string; description: string; recommendation: string; found_in?: string }>;
+                      const pipelineIssues = (cr.pipeline_issues ?? []) as Array<{ severity: string; category: string; title: string; description: string; suggested_fix: string }>;
+                      const fieldNotes = (cr.field_survey_notes ?? []) as string[];
+                      const missing = (cr.missing_information ?? []) as string[];
+                      const boundaryDetail = cr.boundary_detail as { traverse_summary?: string; closure_status?: string; call_count?: number; issues_found?: number; critical_calls?: string[] } | null;
+                      const deedDetail = cr.deed_chain_detail as { chain_summary?: string; complete?: boolean; deeds_found?: number; breaks?: number; missing_instruments?: string[] } | null;
+                      const passComparison = cr.pass_comparison as { pass1_issues_confirmed?: number; pass2_new_issues?: number; pass1_false_alarms?: number; total_issues?: number } | null;
+
+                      const verdictColors: Record<string, string> = {
+                        ready_for_fieldwork: '#059669',
+                        needs_attention: '#D97706',
+                        significant_issues: '#DC2626',
+                        unreliable: '#991B1B',
+                      };
+                      const verdictLabels: Record<string, string> = {
+                        ready_for_fieldwork: 'Ready for Fieldwork',
+                        needs_attention: 'Needs Attention',
+                        significant_issues: 'Significant Issues',
+                        unreliable: 'Unreliable',
+                      };
+
+                      return (
+                        <div className="coherence-review">
+                          <div className="coherence-review__header">
+                            <span className="coherence-review__title">
+                              Quality & Coherence Review
+                              {passCount > 1 && <span className="coherence-review__pass-badge">{passCount}-pass</span>}
+                            </span>
+                            <span
+                              className="coherence-review__verdict"
+                              style={{ color: verdictColors[verdict] || '#6B7280' }}
+                            >
+                              {verdictLabels[verdict] || verdict} — {score}/100
+                            </span>
+                          </div>
+
+                          {statement && (
+                            <div className="coherence-review__statement">{statement}</div>
+                          )}
+
+                          {/* Executive summary (for project managers) */}
+                          {execSummary && (
+                            <div className="coherence-review__exec-summary">
+                              <div className="coherence-review__exec-summary-label">Executive Summary</div>
+                              <div className="coherence-review__exec-summary-text">{execSummary}</div>
+                            </div>
+                          )}
+
+                          {/* Technical summary (for surveyors) */}
+                          {techSummary && (
+                            <div className="coherence-review__summary">{techSummary}</div>
+                          )}
+
+                          {/* Data quality scores with adjustment info */}
+                          {dq && (
+                            <div className="coherence-review__scores">
+                              <div className="coherence-review__scores-title">Data Quality Scores</div>
+                              <div className="coherence-review__scores-grid">
+                                {Object.entries(dq).map(([key, val]) => (
+                                  <div key={key} className="coherence-review__score-item">
+                                    <div className="coherence-review__score-bar">
+                                      <div
+                                        className="coherence-review__score-fill"
+                                        style={{
+                                          width: `${Math.min(val.score, 100)}%`,
+                                          background: val.score >= 70 ? '#059669' : val.score >= 40 ? '#D97706' : '#DC2626',
+                                        }}
+                                      />
+                                    </div>
+                                    <span className="coherence-review__score-label">
+                                      {key.replace(/_/g, ' ')}
+                                    </span>
+                                    <span className="coherence-review__score-value">
+                                      {val.score}
+                                      {val.pass1_score != null && val.pass1_score !== val.score && (
+                                        <span className="coherence-review__score-delta" style={{ color: val.score < val.pass1_score ? '#DC2626' : '#059669' }}>
+                                          {val.score < val.pass1_score ? '\u2193' : '\u2191'}{Math.abs(val.score - val.pass1_score)}
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Boundary detail */}
+                          {boundaryDetail && (boundaryDetail.traverse_summary || boundaryDetail.closure_status) && (
+                            <div className="coherence-review__detail-box">
+                              <div className="coherence-review__detail-box-title">Boundary Traverse</div>
+                              {boundaryDetail.traverse_summary && (
+                                <div className="coherence-review__detail-text">{boundaryDetail.traverse_summary}</div>
+                              )}
+                              <div className="coherence-review__detail-stats">
+                                {boundaryDetail.call_count != null && <span>Calls: {boundaryDetail.call_count}</span>}
+                                {boundaryDetail.issues_found != null && <span>Issues: {boundaryDetail.issues_found}</span>}
+                                {boundaryDetail.closure_status && <span>Closure: {boundaryDetail.closure_status}</span>}
+                              </div>
+                              {boundaryDetail.critical_calls && boundaryDetail.critical_calls.length > 0 && (
+                                <ul className="coherence-review__list">
+                                  {boundaryDetail.critical_calls.map((c, i) => <li key={i}>{c}</li>)}
+                                </ul>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Deed chain detail */}
+                          {deedDetail && (deedDetail.chain_summary || deedDetail.deeds_found) && (
+                            <div className="coherence-review__detail-box">
+                              <div className="coherence-review__detail-box-title">
+                                Deed Chain
+                                {deedDetail.complete != null && (
+                                  <span style={{ marginLeft: 8, color: deedDetail.complete ? '#059669' : '#DC2626', fontWeight: 600, fontSize: '0.75rem' }}>
+                                    {deedDetail.complete ? 'Complete' : 'Incomplete'}
+                                  </span>
+                                )}
+                              </div>
+                              {deedDetail.chain_summary && (
+                                <div className="coherence-review__detail-text">{deedDetail.chain_summary}</div>
+                              )}
+                              <div className="coherence-review__detail-stats">
+                                {deedDetail.deeds_found != null && <span>Deeds: {deedDetail.deeds_found}</span>}
+                                {deedDetail.breaks != null && deedDetail.breaks > 0 && <span style={{ color: '#DC2626' }}>Breaks: {deedDetail.breaks}</span>}
+                              </div>
+                              {deedDetail.missing_instruments && deedDetail.missing_instruments.length > 0 && (
+                                <div style={{ marginTop: '0.4rem' }}>
+                                  <div style={{ fontSize: '0.72rem', color: '#D97706', fontWeight: 600 }}>Missing instruments:</div>
+                                  <ul className="coherence-review__list coherence-review__list--missing">
+                                    {deedDetail.missing_instruments.map((inst, i) => <li key={i}>{inst}</li>)}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Coherence issues */}
+                          {coherenceIssues.length > 0 && (
+                            <div className="coherence-review__section">
+                              <div className="coherence-review__section-title">
+                                Coherence Issues ({coherenceIssues.length})
+                              </div>
+                              {coherenceIssues.map((issue, i) => (
+                                <div key={i} className={`coherence-review__issue coherence-review__issue--${issue.severity}`}>
+                                  <div className="coherence-review__issue-header">
+                                    <span className="coherence-review__issue-severity">
+                                      {issue.severity === 'critical' ? '\uD83D\uDD34' : issue.severity === 'warning' ? '\uD83D\uDFE1' : '\uD83D\uDD35'}
+                                    </span>
+                                    <span className="coherence-review__issue-title">{issue.title}</span>
+                                    {issue.found_in && (
+                                      <span className="coherence-review__issue-pass">
+                                        {issue.found_in === 'both' ? 'P1+P2' : issue.found_in === 'pass2' ? 'P2' : 'P1'}
+                                      </span>
+                                    )}
+                                    <span className="coherence-review__issue-area">{issue.area}</span>
+                                  </div>
+                                  <div className="coherence-review__issue-desc">{issue.description}</div>
+                                  {issue.recommendation && (
+                                    <div className="coherence-review__issue-rec">
+                                      → {issue.recommendation}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Pipeline issues (dev/debug) */}
+                          {pipelineIssues.length > 0 && (
+                            <div className="coherence-review__section">
+                              <div className="coherence-review__section-title">
+                                Pipeline Diagnostics ({pipelineIssues.length})
+                              </div>
+                              {pipelineIssues.map((issue, i) => (
+                                <div key={i} className={`coherence-review__issue coherence-review__issue--${issue.severity}`}>
+                                  <div className="coherence-review__issue-header">
+                                    <span className="coherence-review__issue-severity">
+                                      {issue.severity === 'critical' ? '\uD83D\uDD34' : issue.severity === 'warning' ? '\uD83D\uDFE1' : '\uD83D\uDD35'}
+                                    </span>
+                                    <span className="coherence-review__issue-title">{issue.title}</span>
+                                    <span className="coherence-review__issue-area">{issue.category}</span>
+                                  </div>
+                                  <div className="coherence-review__issue-desc">{issue.description}</div>
+                                  {issue.suggested_fix && (
+                                    <div className="coherence-review__issue-rec">
+                                      Fix: {issue.suggested_fix}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Field survey notes */}
+                          {fieldNotes.length > 0 && (
+                            <div className="coherence-review__section">
+                              <div className="coherence-review__section-title">Field Survey Notes</div>
+                              <ul className="coherence-review__list">
+                                {fieldNotes.map((note, i) => (
+                                  <li key={i}>{note}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Missing information */}
+                          {missing.length > 0 && (
+                            <div className="coherence-review__section">
+                              <div className="coherence-review__section-title">Missing Information</div>
+                              <ul className="coherence-review__list coherence-review__list--missing">
+                                {missing.map((item, i) => (
+                                  <li key={i}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Pass comparison (debug info) */}
+                          {passComparison && (
+                            <div className="coherence-review__pass-comparison">
+                              <span>Pass 1 confirmed: {passComparison.pass1_issues_confirmed ?? 0}</span>
+                              <span>Pass 2 new: {passComparison.pass2_new_issues ?? 0}</span>
+                              <span>False alarms: {passComparison.pass1_false_alarms ?? 0}</span>
+                              <span>Total: {passComparison.total_issues ?? 0}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
@@ -2154,7 +2395,17 @@ export default function ResearchProjectPage() {
               linked_reference: { label: 'Linked References', icon: '🔗' },
               manual_entry:     { label: 'Manual Entry', icon: '📝' },
             };
-            const grouped = documents.reduce<Record<string, typeof documents>>((acc, doc) => {
+
+            // Separate MISC documents from regular documents
+            const isMiscDoc = (doc: typeof documents[0]) => {
+              const label = (doc.document_label || '').toLowerCase();
+              const path = (doc.storage_url || '').toLowerCase();
+              return label.includes('misc screenshot') || label.startsWith('misc:') || path.includes('/screenshots-misc/');
+            };
+            const regularDocs = documents.filter(doc => !isMiscDoc(doc));
+            const miscDocs = documents.filter(doc => isMiscDoc(doc));
+
+            const grouped = regularDocs.reduce<Record<string, typeof documents>>((acc, doc) => {
               const key = doc.source_type || 'other';
               if (!acc[key]) acc[key] = [];
               acc[key].push(doc);
@@ -2175,27 +2426,68 @@ export default function ResearchProjectPage() {
               );
             }
             return (
-              <div className="review-doc-list">
-                <div className="review-doc-list__header">
-                  <span className="review-doc-list__title">📂 Documents &amp; Sources</span>
-                  <span className="review-doc-list__count">{documents.length}</span>
-                </div>
-                {sortedKeys.map(sourceKey => {
-                  const docs = grouped[sourceKey];
-                  const { label, icon } = sourceTypeLabels[sourceKey] || { label: sourceKey, icon: '📎' };
-                  return (
-                    <div key={sourceKey} className="review-doc-group">
-                      <div className="review-doc-group__header">
-                        <span>{icon}</span>
-                        <span className="review-doc-group__label">{label}</span>
-                        <span className="review-doc-group__count">{docs.length}</span>
+              <>
+                <div className="review-doc-list">
+                  <div className="review-doc-list__header">
+                    <span className="review-doc-list__title">📂 Documents &amp; Sources</span>
+                    <span className="review-doc-list__count">{regularDocs.length}</span>
+                  </div>
+                  {sortedKeys.map(sourceKey => {
+                    const docs = grouped[sourceKey];
+                    const { label, icon } = sourceTypeLabels[sourceKey] || { label: sourceKey, icon: '📎' };
+                    return (
+                      <div key={sourceKey} className="review-doc-group">
+                        <div className="review-doc-group__header">
+                          <span>{icon}</span>
+                          <span className="review-doc-group__label">{label}</span>
+                          <span className="review-doc-group__count">{docs.length}</span>
+                        </div>
+                        {docs.map(doc => {
+                          const typeIcon = doc.document_type ? (docTypeIcons[doc.document_type] || '📎') : '📎';
+                          const typeName = doc.document_type
+                            ? doc.document_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+                            : 'Document';
+                          const title = doc.document_label || doc.original_filename || typeName;
+                          const hasViewable = !!(doc.pages_pdf_url || doc.storage_url);
+                          const excerpt = doc.extracted_text
+                            ? doc.extracted_text.slice(0, 280) + (doc.extracted_text.length > 280 ? '…' : '')
+                            : null;
+                          return (
+                            <ReviewDocCard
+                              key={doc.id}
+                              typeIcon={typeIcon}
+                              title={title}
+                              typeName={typeName}
+                              doc={doc}
+                              excerpt={excerpt}
+                              hasViewable={hasViewable}
+                              onView={() => {
+                                setViewerDoc(doc);
+                                setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
+                                setViewerHighlight(undefined);
+                              }}
+                            />
+                          );
+                        })}
                       </div>
-                      {docs.map(doc => {
-                        const typeIcon = doc.document_type ? (docTypeIcons[doc.document_type] || '📎') : '📎';
-                        const typeName = doc.document_type
-                          ? doc.document_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
-                          : 'Document';
-                        const title = doc.document_label || doc.original_filename || typeName;
+                    );
+                  })}
+                </div>
+
+                {/* ── MISC Documents — collapsed toggle at the bottom ── */}
+                {miscDocs.length > 0 && (
+                  <details className="misc-docs-toggle">
+                    <summary className="misc-docs-toggle__summary">
+                      <span className="misc-docs-toggle__icon">🗑️</span>
+                      <span className="misc-docs-toggle__label">MISC / Unclassified Screenshots</span>
+                      <span className="misc-docs-toggle__count">{miscDocs.length}</span>
+                      <span className="misc-docs-toggle__hint">
+                        Error pages, empty results, auth walls, and other non-useful captures
+                      </span>
+                    </summary>
+                    <div className="misc-docs-toggle__body">
+                      {miscDocs.map(doc => {
+                        const title = doc.document_label || doc.original_filename || 'MISC Screenshot';
                         const hasViewable = !!(doc.pages_pdf_url || doc.storage_url);
                         const excerpt = doc.extracted_text
                           ? doc.extracted_text.slice(0, 280) + (doc.extracted_text.length > 280 ? '…' : '')
@@ -2203,9 +2495,9 @@ export default function ResearchProjectPage() {
                         return (
                           <ReviewDocCard
                             key={doc.id}
-                            typeIcon={typeIcon}
+                            typeIcon="🗑️"
                             title={title}
-                            typeName={typeName}
+                            typeName="MISC"
                             doc={doc}
                             excerpt={excerpt}
                             hasViewable={hasViewable}
@@ -2218,9 +2510,9 @@ export default function ResearchProjectPage() {
                         );
                       })}
                     </div>
-                  );
-                })}
-              </div>
+                  </details>
+                )}
+              </>
             );
           })()}
         </div>
