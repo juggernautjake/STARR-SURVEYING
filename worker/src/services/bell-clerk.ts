@@ -1902,9 +1902,9 @@ export async function searchClerkRecords(
  * If this proves insufficient on slow connections, increase to 10s rather than polling.
  * Exported for testability and to document the proven grab-docs.js timings.
  */
-export const TYLER_SPA_RENDER_TIMEOUT_MS  = 8_000;
-export const TYLER_VIEWER_LOAD_TIMEOUT_MS = 8_000;
-export const TYLER_NEXT_PAGE_TIMEOUT_MS   = 5_000;
+export const TYLER_SPA_RENDER_TIMEOUT_MS  = 12_000;
+export const TYLER_VIEWER_LOAD_TIMEOUT_MS = 12_000;
+export const TYLER_NEXT_PAGE_TIMEOUT_MS   = 8_000;
 
 /**
  * Search Bell County clerk records by owner name.

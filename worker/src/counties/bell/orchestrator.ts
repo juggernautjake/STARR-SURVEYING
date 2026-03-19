@@ -39,6 +39,8 @@ import { analyzeBellPlats } from './analyzers/plat-analyzer.js';
 import { detectDiscrepancies } from './analyzers/discrepancy-detector.js';
 import { scoreOverallConfidence, type DataItem } from './analyzers/confidence-scorer.js';
 import { analyzeSiteScreenshots } from './analyzers/site-intelligence.js';
+import { validateDeedRelevance, validatePlatRelevance, extractAbstractAndSurvey, type PropertyIdentifiers } from './analyzers/document-relevance-validator.js';
+import { correlateTargetLot, type LotCorrelationInput } from './analyzers/lot-correlator.js';
 import { computeConfidence, SOURCE_RELIABILITY } from './types/confidence.js';
 
 import { TIMEOUTS } from './config/endpoints.js';
@@ -765,6 +767,177 @@ export async function orchestrateBellResearch(
 
   checkAborted();
 
+  // ══════════════════════════════════════════════════════════════════
+  //  PHASE 3C: DOCUMENT RELEVANCE VALIDATION
+  //  Filter out deeds and plats that don't actually relate to the
+  //  target property. This catches cases where the clerk search
+  //  returned documents for the wrong lot, a different property
+  //  belonging to the same owner, etc.
+  // ══════════════════════════════════════════════════════════════════
+  // Extract abstract/survey from legal description and GIS data
+  const legalAbsSurvey = extractAbstractAndSurvey(property.legalDescription ?? '');
+  const gisAbstractSubdiv = gis?.abstractSubdiv ?? null;
+  // GIS abstractSubdiv may contain "A-12" or "12" format
+  const gisAbstractNum = gisAbstractSubdiv
+    ? (gisAbstractSubdiv.match(/\d+/)?.[0] ?? null)
+    : null;
+
+  const propertyIds: PropertyIdentifiers = {
+    ownerName: property.ownerName,
+    legalDescription: property.legalDescription,
+    acreage: property.acreage,
+    lotNumber: property.lotNumber ?? knownIds.lotNumber,
+    blockNumber: property.blockNumber ?? knownIds.blockNumber,
+    subdivisionName: property.subdivisionName ?? (knownIds.subdivisionNames.size > 0 ? [...knownIds.subdivisionNames][0] : null),
+    situsAddress: property.situsAddress,
+    abstractNumber: legalAbsSurvey.abstractNumber ?? gisAbstractNum,
+    surveyName: legalAbsSurvey.surveyName,
+  };
+
+  progress('Phase 3C',
+    `Property identifiers for relevance check: ` +
+    `owner="${propertyIds.ownerName}", acreage=${propertyIds.acreage}, ` +
+    `abstract=${propertyIds.abstractNumber ?? 'unknown'}, survey="${propertyIds.surveyName ?? 'unknown'}", ` +
+    `subdivision="${propertyIds.subdivisionName ?? 'unknown'}", ` +
+    `lot=${propertyIds.lotNumber ?? 'unknown'}, block=${propertyIds.blockNumber ?? 'unknown'}`,
+    81,
+  );
+
+  if (deeds && deeds.records.length > 0) {
+    progress('Phase 3C', `Validating relevance of ${deeds.records.length} deed(s) to target property...`, 81);
+    try {
+      const deedValidation = await validateDeedRelevance(
+        deeds.records,
+        propertyIds,
+        anthropicApiKey,
+        (msg) => progress('Phase 3C', msg),
+      );
+
+      if (deedValidation.summary.removed > 0) {
+        deeds.records = deedValidation.relevant;
+        // Also filter chain of title to only include kept instruments
+        const keptInstruments = new Set(deedValidation.relevant.map(d => d.instrumentNumber).filter(Boolean));
+        deeds.chainOfTitle = deeds.chainOfTitle.filter(link => {
+          // Keep links whose instrument number is in the kept set, or links without an instrument number
+          if (!link.instrumentNumber) return true;
+          return keptInstruments.has(link.instrumentNumber);
+        });
+        deeds.chainOfTitle.forEach((link, i) => { link.order = i + 1; });
+
+        progress('Phase 3C',
+          `Deed relevance: kept ${deedValidation.summary.kept} of ${deedValidation.summary.total}, removed ${deedValidation.summary.removed} unrelated`,
+        );
+      }
+
+      // Surface relevance warnings as discrepancy-level notes
+      for (const w of deedValidation.summary.warnings) {
+        recordError('Phase 3C', 'Deed Relevance', w);
+      }
+    } catch (err) {
+      recordError('Phase 3C', 'Deed Relevance Validation', err);
+    }
+  }
+
+  if (platSection && platSection.plats && platSection.plats.length > 0) {
+    progress('Phase 3C', `Validating relevance of ${platSection.plats.length} plat(s)...`, 82);
+    try {
+      const platValidation = validatePlatRelevance(
+        platSection.plats,
+        propertyIds,
+        (msg) => progress('Phase 3C', msg),
+      );
+
+      if (platValidation.warnings.length > 0) {
+        platSection.plats = platValidation.relevant;
+        progress('Phase 3C',
+          `Plat relevance: kept ${platValidation.relevant.length} of ${platValidation.relevant.length + platValidation.warnings.filter(w => w.startsWith('REMOVED')).length}`,
+        );
+      }
+
+      for (const w of platValidation.warnings) {
+        recordError('Phase 3C', 'Plat Relevance', w);
+      }
+    } catch (err) {
+      recordError('Phase 3C', 'Plat Relevance Validation', err);
+    }
+  }
+
+  checkAborted();
+
+  // ══════════════════════════════════════════════════════════════════
+  //  PHASE 3D: LOT CORRELATION
+  //  For multi-lot plats, identify which specific lot corresponds to
+  //  the target property using data matching, GIS parcel map, and
+  //  AI visual correlation.
+  // ══════════════════════════════════════════════════════════════════
+  if (platSection && platSection.plats.length > 0) {
+    progress('Phase 3D', 'Correlating target lot on plat(s)...', 83);
+
+    const lotInput: LotCorrelationInput = {
+      lotNumber: property.lotNumber ?? knownIds.lotNumber,
+      blockNumber: property.blockNumber ?? knownIds.blockNumber,
+      acreage: property.acreage,
+      ownerName: property.ownerName,
+      propertyId: property.propertyId,
+      situsAddress: property.situsAddress,
+      parcelBoundary: property.parcelBoundary ?? null,
+      lat: property.lat,
+      lon: property.lon,
+      subdivisionName: property.subdivisionName ?? propertyIds.subdivisionName,
+    };
+
+    for (const plat of platSection.plats) {
+      if (!plat.aiAnalysis && plat.images.length === 0) continue;
+
+      try {
+        const correlation = await correlateTargetLot(
+          lotInput,
+          plat.images,
+          plat.name,
+          plat.aiAnalysis,
+          anthropicApiKey,
+          (msg) => progress('Phase 3D', msg),
+        );
+
+        // Store result in plat analysis
+        if (plat.aiAnalysis) {
+          plat.aiAnalysis.targetLot = {
+            lotId: correlation.identifiedLot,
+            confidence: correlation.confidence,
+            method: correlation.method,
+            reasoning: correlation.reasoning,
+          };
+        }
+
+        // Store parcel map as a screenshot if generated
+        if (correlation.parcelMapImage) {
+          allScreenshots.push({
+            source: 'GIS Parcel Map',
+            url: `generated://parcel-map/${property.propertyId}`,
+            imageBase64: correlation.parcelMapImage,
+            capturedAt: new Date().toISOString(),
+            description: `GIS parcel boundary map for ${property.situsAddress} (Lot ${property.lotNumber ?? '?'})`,
+          });
+        }
+
+        if (correlation.identifiedLot) {
+          progress('Phase 3D',
+            `✓ Target lot on "${plat.name}": Lot ${correlation.identifiedLot} ` +
+            `(${correlation.confidence}% confidence, method: ${correlation.method})`,
+          );
+        } else {
+          progress('Phase 3D',
+            `⚠ Could not identify target lot on "${plat.name}" — ${correlation.reasoning}`,
+          );
+        }
+      } catch (err) {
+        recordError('Phase 3D', 'Lot Correlation', err);
+      }
+    }
+  }
+
+  checkAborted();
+
   // ── Extract easements & restrictive covenants from clerk documents ─
   const easementRecords = extractEasementRecords(clerk?.documents ?? []);
   const restrictiveCovenants = extractRestrictiveCovenants(clerk?.documents ?? [], plats?.plats ?? []);
@@ -1056,6 +1229,11 @@ function resolveProperty(
     ? [...knownIds.subdivisionNames][0]
     : null;
 
+  // Extract abstract number and survey name from legal description
+  const absSurvey = extractAbstractAndSurvey(legalDesc);
+  // Also try GIS abstractSubdiv field (e.g., "A-12")
+  const gisAbsNum = gis?.abstractSubdiv ? (gis.abstractSubdiv.match(/\d+/)?.[0] ?? null) : null;
+
   return {
     propertyId: cad?.propertyId ?? gis?.propertyId ?? input.propertyId ?? '',
     ownerName: cad?.ownerName ?? gis?.ownerName ?? input.ownerName ?? '',
@@ -1067,6 +1245,8 @@ function resolveProperty(
     lotNumber,
     blockNumber,
     subdivisionName,
+    abstractNumber: absSurvey.abstractNumber ?? gisAbsNum,
+    surveyName: absSurvey.surveyName,
     parcelBoundary: gis?.parcelBoundary ?? undefined,
     lat: lat ?? 0,
     lon: lon ?? 0,

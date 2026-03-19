@@ -59,6 +59,10 @@ export interface ResolvedProperty {
   blockNumber?: string | null;
   /** Subdivision name extracted from legal description */
   subdivisionName?: string | null;
+  /** Abstract number from GIS or legal description (e.g., "12", "488") */
+  abstractNumber?: string | null;
+  /** Survey name from legal description (e.g., "A. Manchaca") */
+  surveyName?: string | null;
   /** GIS parcel boundary as [lon, lat] coordinate rings */
   parcelBoundary?: number[][][];
   /** Geocoded centroid */
@@ -156,6 +160,17 @@ export interface PlatAnalysis {
   changesFromPrevious: string[];
   /** Full AI narrative */
   narrative: string;
+  /** Target lot identification (which lot on this plat is the target property) */
+  targetLot?: {
+    /** Lot number/label identified */
+    lotId: string | null;
+    /** Confidence 0-100 */
+    confidence: number;
+    /** How it was identified (data-match, ai-visual, fallback) */
+    method: string;
+    /** Detailed reasoning */
+    reasoning: string;
+  } | null;
 }
 
 // ── Section: Easements & Encumbrances ────────────────────────────────
