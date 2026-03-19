@@ -2726,6 +2726,20 @@
   font-weight: 600;
   font-size: 0.88rem;
   color: #1F2937;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.coherence-review__pass-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #6366F1;
+  background: #EEF2FF;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .coherence-review__verdict {
@@ -2907,6 +2921,92 @@
   color: #D97706;
 }
 
+/* Executive summary */
+.coherence-review__exec-summary {
+  padding: 0.75rem 1rem;
+  background: #F0FDF4;
+  border-bottom: 1px solid #BBF7D0;
+}
+
+.coherence-review__exec-summary-label {
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.3rem;
+}
+
+.coherence-review__exec-summary-text {
+  font-size: 0.82rem;
+  color: #1F2937;
+  line-height: 1.6;
+}
+
+/* Score delta indicator */
+.coherence-review__score-delta {
+  font-size: 0.62rem;
+  margin-left: 0.2rem;
+  font-weight: 700;
+}
+
+/* Issue pass badge */
+.coherence-review__issue-pass {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #6366F1;
+  background: #EEF2FF;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* Detail boxes (boundary traverse, deed chain) */
+.coherence-review__detail-box {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #E5E7EB;
+  background: #FAFAFA;
+}
+
+.coherence-review__detail-box-title {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: #374151;
+  margin-bottom: 0.35rem;
+}
+
+.coherence-review__detail-text {
+  font-size: 0.8rem;
+  color: #4B5563;
+  line-height: 1.5;
+  margin-bottom: 0.35rem;
+}
+
+.coherence-review__detail-stats {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.72rem;
+  color: #6B7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.coherence-review__detail-stats span {
+  white-space: nowrap;
+}
+
+/* Pass comparison footer */
+.coherence-review__pass-comparison {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.68rem;
+  color: #9CA3AF;
+  background: #F9FAFB;
+  border-top: 1px solid #E5E7EB;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 640px) {
   .coherence-review__scores-grid {
     grid-template-columns: 1fr;
@@ -2918,6 +3018,93 @@
 
   .coherence-review__issue-area {
     margin-left: 0;
+  }
+}
+
+/* ── MISC Documents Toggle ─────────────────────────────────────────────── */
+
+.misc-docs-toggle {
+  margin-top: 0.75rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #FAFAFA;
+}
+
+.misc-docs-toggle__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+.misc-docs-toggle__summary::-webkit-details-marker {
+  display: none;
+}
+
+.misc-docs-toggle__summary::before {
+  content: '▶';
+  font-size: 0.6rem;
+  color: #9CA3AF;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.misc-docs-toggle[open] > .misc-docs-toggle__summary::before {
+  transform: rotate(90deg);
+}
+
+.misc-docs-toggle__icon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.misc-docs-toggle__label {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #6B7280;
+}
+
+.misc-docs-toggle__count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #9CA3AF;
+  background: #F3F4F6;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.misc-docs-toggle__hint {
+  font-size: 0.7rem;
+  color: #9CA3AF;
+  font-style: italic;
+  margin-left: auto;
+}
+
+.misc-docs-toggle__body {
+  padding: 0.5rem;
+  border-top: 1px solid #E5E7EB;
+  background: #F9FAFB;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.misc-docs-toggle__body .review-doc-card {
+  opacity: 0.7;
+}
+
+.misc-docs-toggle__body .review-doc-card:hover {
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .misc-docs-toggle__hint {
+    display: none;
   }
 }
 
