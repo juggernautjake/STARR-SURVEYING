@@ -40,7 +40,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Organize into categories
-  const artifacts = (docs || []).map((doc: Record<string, string | number | null>) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const artifacts = (docs || []).map((doc: any) => ({
     id: doc.id,
     filename: doc.original_filename,
     fileType: doc.file_type,
