@@ -398,6 +398,8 @@ export function PipelineProgressPanel({
   // Master report section — collapsed by default, expanded on click.
   const [reportExpanded, setReportExpanded] = useState(false);
   const [reportCopied,   setReportCopied]   = useState(false);
+  // Log stream collapse — expanded by default, user can minimize.
+  const [logCollapsed,   setLogCollapsed]   = useState(false);
 
   // Resolved log — prefer in-memory prop, fall back to on-demand loaded.
   const log = (logProp && logProp.length > 0) ? logProp : (loadedLog ?? undefined);
@@ -686,10 +688,10 @@ export function PipelineProgressPanel({
       )}
 
       {/* ── Run Log Stream (always visible — live during run, persisted after) ── */}
-      <div className="ppanel__logstream">
+      <div className={`ppanel__logstream${logCollapsed ? ' ppanel__logstream--collapsed' : ''}`}>
 
-        {/* Log stream header with entry count + copy button */}
-        <div className="ppanel__logstream-header">
+        {/* Log stream header with entry count + collapse toggle + copy button */}
+        <div className="ppanel__logstream-header" onClick={() => setLogCollapsed(c => !c)} style={{ cursor: 'pointer' }}>
           <div className="ppanel__logstream-header-left">
             <span className="ppanel__logstream-title">📋 Run Log</span>
             {log && log.length > 0 && (
@@ -700,81 +702,101 @@ export function PipelineProgressPanel({
                 <Spinner /> Loading saved logs…
               </span>
             )}
+            {logCollapsed && log && log.length > 0 && (
+              <span className="ppanel__logstream-collapsed-hint">
+                {errorCount > 0 ? `${errorCount} error${errorCount !== 1 ? 's' : ''}` : isDone ? 'run complete' : 'live'}
+              </span>
+            )}
           </div>
-          <button
-            className="ppanel__logstream-copy-btn"
-            onClick={handleCopyAllLogs}
-            type="button"
-            title="Copy all run logs to clipboard (summary + full details with steps)"
-            disabled={!log || log.length === 0}
-          >
-            {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
-          </button>
-        </div>
-
-        {/* Filter bar — only visible when there are log entries */}
-        {log && log.length > 0 && (
-          <div className="ppanel__logstream-filters">
-            {(['all', 'errors', 'warnings', 'info'] as LogFilter[]).map(f => {
-              const count = f === 'errors' ? errorCount
-                : f === 'warnings' ? warningCount
-                : f === 'info' ? (log.filter(e => e.status === 'skip' || e.source === 'info').length)
-                : log.length;
-              return (
-                <button
-                  key={f}
-                  className={`ppanel__logstream-filter${logFilter === f ? ' ppanel__logstream-filter--active' : ''}${f === 'errors' && errorCount > 0 ? ' ppanel__logstream-filter--has-errors' : ''}${f === 'warnings' && warningCount > 0 ? ' ppanel__logstream-filter--has-warnings' : ''}`}
-                  onClick={() => setLogFilter(f)}
-                  type="button"
-                >
-                  {f === 'all' ? 'All' : f === 'errors' ? '✕ Errors' : f === 'warnings' ? '⚠ Warnings' : '− Info'}
-                  <span className="ppanel__logstream-filter-count">{count}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Scrollable log entry list */}
-        <div
-          className="ppanel__logstream-entries"
-          ref={logStreamRef}
-          onScroll={() => {
-            if (!logStreamRef.current) return;
-            const { scrollTop, scrollHeight, clientHeight } = logStreamRef.current;
-            // If user scrolls away from the bottom, stop auto-scrolling
-            setUserScrolled(scrollHeight - scrollTop - clientHeight > 40);
-          }}
-        >
-          {(!log || log.length === 0) ? (
-            renderLogEmpty()
-          ) : filteredLog && filteredLog.length === 0 ? (
-            <div className="ppanel__logstream-empty">No {logFilter} entries in this run.</div>
-          ) : (
-            (filteredLog ?? log).map((entry, i) => <LogEntry key={i} entry={entry} />)
-          )}
-        </div>
-
-        {/* Footer: entry count + second copy button (visible once logs exist) */}
-        {log && log.length > 0 && (
-          <div className="ppanel__logstream-footer">
-            <span className="ppanel__logstream-footer-note">
-              {logFilter !== 'all'
-                ? `${filteredLog?.length ?? 0} of ${log.length} entr${log.length !== 1 ? 'ies' : 'y'} (${logFilter} filter)`
-                : `${log.length} entr${log.length !== 1 ? 'ies' : 'y'}`}
-              {isDone ? ' — run complete' : ' — live'}
-              {errorCount > 0 && <span className="ppanel__logstream-footer-errors"> · {errorCount} error{errorCount !== 1 ? 's' : ''}</span>}
-              {warningCount > 0 && <span className="ppanel__logstream-footer-warnings"> · {warningCount} warning{warningCount !== 1 ? 's' : ''}</span>}
-            </span>
+          <div className="ppanel__logstream-header-right" onClick={e => e.stopPropagation()}>
             <button
-              className="ppanel__logstream-copy-btn ppanel__logstream-copy-btn--footer"
+              className="ppanel__logstream-copy-btn"
               onClick={handleCopyAllLogs}
               type="button"
-              title="Copy all run logs to clipboard"
+              title="Copy all run logs to clipboard (summary + full details with steps)"
+              disabled={!log || log.length === 0}
             >
               {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
             </button>
+            <button
+              className="ppanel__logstream-toggle-btn"
+              onClick={() => setLogCollapsed(c => !c)}
+              type="button"
+              title={logCollapsed ? 'Expand log viewer' : 'Collapse log viewer'}
+            >
+              {logCollapsed ? '▼' : '▲'}
+            </button>
           </div>
+        </div>
+
+        {/* Collapsible log body */}
+        {!logCollapsed && (
+          <>
+            {/* Filter bar — only visible when there are log entries */}
+            {log && log.length > 0 && (
+              <div className="ppanel__logstream-filters">
+                {(['all', 'errors', 'warnings', 'info'] as LogFilter[]).map(f => {
+                  const count = f === 'errors' ? errorCount
+                    : f === 'warnings' ? warningCount
+                    : f === 'info' ? (log.filter(e => e.status === 'skip' || e.source === 'info').length)
+                    : log.length;
+                  return (
+                    <button
+                      key={f}
+                      className={`ppanel__logstream-filter${logFilter === f ? ' ppanel__logstream-filter--active' : ''}${f === 'errors' && errorCount > 0 ? ' ppanel__logstream-filter--has-errors' : ''}${f === 'warnings' && warningCount > 0 ? ' ppanel__logstream-filter--has-warnings' : ''}`}
+                      onClick={() => setLogFilter(f)}
+                      type="button"
+                    >
+                      {f === 'all' ? 'All' : f === 'errors' ? '✕ Errors' : f === 'warnings' ? '⚠ Warnings' : '− Info'}
+                      <span className="ppanel__logstream-filter-count">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Scrollable log entry list */}
+            <div
+              className="ppanel__logstream-entries"
+              ref={logStreamRef}
+              onScroll={() => {
+                if (!logStreamRef.current) return;
+                const { scrollTop, scrollHeight, clientHeight } = logStreamRef.current;
+                // If user scrolls away from the bottom, stop auto-scrolling
+                setUserScrolled(scrollHeight - scrollTop - clientHeight > 40);
+              }}
+            >
+              {(!log || log.length === 0) ? (
+                renderLogEmpty()
+              ) : filteredLog && filteredLog.length === 0 ? (
+                <div className="ppanel__logstream-empty">No {logFilter} entries in this run.</div>
+              ) : (
+                (filteredLog ?? log).map((entry, i) => <LogEntry key={i} entry={entry} />)
+              )}
+            </div>
+
+            {/* Footer: entry count + second copy button (visible once logs exist) */}
+            {log && log.length > 0 && (
+              <div className="ppanel__logstream-footer">
+                <span className="ppanel__logstream-footer-note">
+                  {logFilter !== 'all'
+                    ? `${filteredLog?.length ?? 0} of ${log.length} entr${log.length !== 1 ? 'ies' : 'y'} (${logFilter} filter)`
+                    : `${log.length} entr${log.length !== 1 ? 'ies' : 'y'}`}
+                  {isDone ? ' — run complete' : ' — live'}
+                  {errorCount > 0 && <span className="ppanel__logstream-footer-errors"> · {errorCount} error{errorCount !== 1 ? 's' : ''}</span>}
+                  {warningCount > 0 && <span className="ppanel__logstream-footer-warnings"> · {warningCount} warning{warningCount !== 1 ? 's' : ''}</span>}
+                </span>
+                <button
+                  className="ppanel__logstream-copy-btn ppanel__logstream-copy-btn--footer"
+                  onClick={handleCopyAllLogs}
+                  type="button"
+                  title="Copy all run logs to clipboard"
+                >
+                  {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
+                </button>
+              </div>
+            )}
+          </>
         )}
 
       </div>
@@ -1361,6 +1383,41 @@ export function PipelineProgressStyles() {
 
 .ppanel__logstream-copy-btn--footer {
   font-size: 0.7rem;
+}
+
+/* ── Log stream collapse toggle ─────────────────────────── */
+.ppanel__logstream--collapsed {
+  border-top: 1px solid #e2e8f0;
+}
+.ppanel__logstream--collapsed .ppanel__logstream-header {
+  border-bottom: none;
+}
+.ppanel__logstream-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+.ppanel__logstream-toggle-btn {
+  background: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.65rem;
+  color: #64748b;
+  line-height: 1;
+  transition: background 0.1s, color 0.1s;
+}
+.ppanel__logstream-toggle-btn:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+.ppanel__logstream-collapsed-hint {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-style: italic;
+  margin-left: 0.25rem;
 }
 
 /* ── Detailed log entry (used inside LogEntry expand) ────── */

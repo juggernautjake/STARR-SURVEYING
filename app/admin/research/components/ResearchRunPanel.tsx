@@ -226,6 +226,7 @@ export default function ResearchRunPanel({
   const [started, setStarted] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [logCollapsed, setLogCollapsed] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoStartFiredRef = useRef(false);
@@ -841,8 +842,8 @@ export default function ResearchRunPanel({
       {/* [Pipeline Phase] handshake entries are excluded (see visibleLogs).    */}
       {/* All other worker log entries — Stage1-6, OCR, AI, completion checks  */}
       {/* — are shown in chronological order.                                   */}
-      <div className="rrp__logviewer">
-        <div className="rrp__logviewer-header">
+      <div className={`rrp__logviewer${logCollapsed ? ' rrp__logviewer--collapsed' : ''}`}>
+        <div className="rrp__logviewer-header" onClick={() => setLogCollapsed(c => !c)} style={{ cursor: 'pointer' }}>
           <div className="rrp__logviewer-header-left">
             <span className="rrp__logviewer-title">
               {isRunning ? '⚡ Live Pipeline Log' : '📋 Pipeline Activity Log'}
@@ -853,8 +854,13 @@ export default function ResearchRunPanel({
             {isRunning && (
               <span className="rrp__logviewer-live">LIVE</span>
             )}
+            {logCollapsed && visibleLogs.length > 0 && (
+              <span className="rrp__logviewer-collapsed-hint">
+                {isRunning ? 'live' : `${visibleLogs.length} entries`}
+              </span>
+            )}
           </div>
-          <div className="rrp__logviewer-header-right">
+          <div className="rrp__logviewer-header-right" onClick={e => e.stopPropagation()}>
             {/* Stop button in log header — always visible while running */}
             {isRunning && !cancelling && (
               <button
@@ -870,30 +876,32 @@ export default function ResearchRunPanel({
               <span className="rrp__cancel-status-compact">Cancelling…</span>
             )}
             {/* Filter buttons */}
-            <div className="rrp__logviewer-filters" role="group" aria-label="Log filter">
-              {(['all', 'errors', 'warn', 'info'] as const).map(f => (
-                <button
-                  key={f}
-                  className={`rrp__logviewer-filter${logFilter === f ? ' rrp__logviewer-filter--active' : ''}`}
-                  onClick={() => setLogFilter(f)}
-                >
-                  {f === 'all' ? 'All' : f === 'errors' ? 'Errors' : f === 'warn' ? 'Warnings' : 'Info'}
-                  {f !== 'all' && visibleLogs.filter(e =>
-                    f === 'errors' ? (e.status === 'fail' || e.source === 'error') :
-                    f === 'warn'   ? (e.status === 'fail' || e.source === 'warn' || e.source === 'error') :
-                    e.source === 'info'
-                  ).length > 0 && (
-                    <span className="rrp__logviewer-filter-count">
-                      {visibleLogs.filter(e =>
-                        f === 'errors' ? (e.status === 'fail' || e.source === 'error') :
-                        f === 'warn'   ? (e.status === 'fail' || e.source === 'warn' || e.source === 'error') :
-                        e.source === 'info'
-                      ).length}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+            {!logCollapsed && (
+              <div className="rrp__logviewer-filters" role="group" aria-label="Log filter">
+                {(['all', 'errors', 'warn', 'info'] as const).map(f => (
+                  <button
+                    key={f}
+                    className={`rrp__logviewer-filter${logFilter === f ? ' rrp__logviewer-filter--active' : ''}`}
+                    onClick={() => setLogFilter(f)}
+                  >
+                    {f === 'all' ? 'All' : f === 'errors' ? 'Errors' : f === 'warn' ? 'Warnings' : 'Info'}
+                    {f !== 'all' && visibleLogs.filter(e =>
+                      f === 'errors' ? (e.status === 'fail' || e.source === 'error') :
+                      f === 'warn'   ? (e.status === 'fail' || e.source === 'warn' || e.source === 'error') :
+                      e.source === 'info'
+                    ).length > 0 && (
+                      <span className="rrp__logviewer-filter-count">
+                        {visibleLogs.filter(e =>
+                          f === 'errors' ? (e.status === 'fail' || e.source === 'error') :
+                          f === 'warn'   ? (e.status === 'fail' || e.source === 'warn' || e.source === 'error') :
+                          e.source === 'info'
+                        ).length}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
             <button
               className="rrp__logviewer-copy-btn"
               onClick={handleCopyLogs}
@@ -901,42 +909,54 @@ export default function ResearchRunPanel({
             >
               {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
             </button>
+            <button
+              className="rrp__logviewer-toggle-btn"
+              onClick={() => setLogCollapsed(c => !c)}
+              type="button"
+              title={logCollapsed ? 'Expand log viewer' : 'Collapse log viewer'}
+            >
+              {logCollapsed ? '▼' : '▲'}
+            </button>
           </div>
         </div>
 
-        <div
-          className="rrp__logviewer-stream"
-          ref={logScrollRef}
-          onScroll={handleLogScroll}
-        >
-          {filteredLogs.length === 0 ? (
-            <div className="rrp__logviewer-empty">
-              {isRunning ? (
-                <><Spinner /> <span>Waiting for log entries…</span></>
-              ) : logs.length === 0 ? (
-                <span>No log entries available.</span>
+        {!logCollapsed && (
+          <>
+            <div
+              className="rrp__logviewer-stream"
+              ref={logScrollRef}
+              onScroll={handleLogScroll}
+            >
+              {filteredLogs.length === 0 ? (
+                <div className="rrp__logviewer-empty">
+                  {isRunning ? (
+                    <><Spinner /> <span>Waiting for log entries…</span></>
+                  ) : logs.length === 0 ? (
+                    <span>No log entries available.</span>
+                  ) : (
+                    <span>No entries match the current filter.</span>
+                  )}
+                </div>
               ) : (
-                <span>No entries match the current filter.</span>
+                filteredLogs.map((entry, i) => (
+                  <LogEntryRow key={`${entry.layer}-${entry.source}-${i}`} entry={entry} />
+                ))
+              )}
+              {/* Copy All button at the bottom for convenience */}
+              {visibleLogs.length > 20 && (
+                <div className="rrp__logviewer-footer">
+                  <button
+                    className="rrp__logviewer-copy-btn"
+                    onClick={handleCopyLogs}
+                    disabled={logs.length === 0}
+                  >
+                    {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
+                  </button>
+                </div>
               )}
             </div>
-          ) : (
-            filteredLogs.map((entry, i) => (
-              <LogEntryRow key={`${entry.layer}-${entry.source}-${i}`} entry={entry} />
-            ))
-          )}
-          {/* Copy All button at the bottom for convenience */}
-          {visibleLogs.length > 20 && (
-            <div className="rrp__logviewer-footer">
-              <button
-                className="rrp__logviewer-copy-btn"
-                onClick={handleCopyLogs}
-                disabled={logs.length === 0}
-              >
-                {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
-              </button>
-            </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
       </>)}
 
@@ -1228,6 +1248,27 @@ export default function ResearchRunPanel({
 }
 .rrp__logviewer-copy-btn:hover { background: #dcfce7; }
 .rrp__logviewer-copy-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ── Log viewer collapse toggle ─────────────────────────── */
+.rrp__logviewer--collapsed .rrp__logviewer-header { border-bottom: none; }
+.rrp__logviewer-toggle-btn {
+  background: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.65rem;
+  color: #64748b;
+  line-height: 1;
+  transition: background 0.1s, color 0.1s;
+}
+.rrp__logviewer-toggle-btn:hover { background: #f1f5f9; color: #334155; }
+.rrp__logviewer-collapsed-hint {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-style: italic;
+  margin-left: 0.25rem;
+}
 
 .rrp__logviewer-stream {
   max-height: 420px; overflow-y: auto; overflow-x: hidden;

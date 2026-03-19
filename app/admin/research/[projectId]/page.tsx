@@ -1808,25 +1808,25 @@ export default function ResearchProjectPage() {
                     {hasBoundary ? (
                       <div className="review-data-section" style={{ marginBottom: '1rem' }}>
                         <div className="review-narrative__label">Boundary Bearings &amp; Distances ({boundary.bearingsAndDistances?.length ?? 0} calls)</div>
-                        <table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                        <table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', marginTop: '0.5rem' }}>
                           <thead>
-                            <tr style={{ borderBottom: '2px solid #3b82f6' }}>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#93c5fd', fontWeight: 700 }}>#</th>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#93c5fd', fontWeight: 700 }}>Bearing / Distance Call</th>
+                            <tr style={{ borderBottom: '2px solid #1e40af' }}>
+                              <th style={{ textAlign: 'left', padding: '0.5rem 0.6rem', color: '#1e3a8a', fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase' as const }}>#</th>
+                              <th style={{ textAlign: 'left', padding: '0.5rem 0.6rem', color: '#1e3a8a', fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase' as const }}>Bearing / Distance Call</th>
                             </tr>
                           </thead>
                           <tbody>
                             {(boundary.bearingsAndDistances ?? []).map((call, i) => (
-                              <tr key={i} style={{ borderBottom: '1px solid #1e3a5f' }}>
-                                <td style={{ padding: '0.3rem 0.6rem', color: '#93c5fd', fontWeight: 600, width: '2.5rem' }}>{i + 1}</td>
-                                <td style={{ padding: '0.3rem 0.6rem', color: '#fbbf24', fontFamily: 'monospace', fontWeight: 600, fontSize: '0.88rem' }}>{call}</td>
+                              <tr key={i} style={{ borderBottom: '1px solid #dbeafe', background: i % 2 === 0 ? '#f0f7ff' : '#ffffff' }}>
+                                <td style={{ padding: '0.4rem 0.6rem', color: '#1e40af', fontWeight: 700, width: '2.5rem' }}>{i + 1}</td>
+                                <td style={{ padding: '0.4rem 0.6rem', color: '#111827', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.02em' }}>{call}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
                     ) : (
-                      <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                      <div style={{ color: '#6b7280', fontStyle: 'italic', padding: '0.5rem 0' }}>
                         No boundary bearing/distance data extracted. This requires plat images to be analyzed by AI (ensure <code>sharp</code> is installed on the worker).
                       </div>
                     )}
@@ -1837,7 +1837,7 @@ export default function ResearchProjectPage() {
                         <div className="review-narrative__label">Lot Dimensions</div>
                         <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
                           {boundary!.lotDimensions!.map((d, i) => (
-                            <li key={i} style={{ color: '#fbbf24', fontSize: '0.85rem', marginBottom: '0.2rem', fontFamily: 'monospace', fontWeight: 600 }}>{d}</li>
+                            <li key={i} style={{ color: '#0f766e', fontSize: '0.88rem', marginBottom: '0.3rem', fontFamily: 'monospace', fontWeight: 700 }}>{d}</li>
                           ))}
                         </ul>
                       </div>
@@ -1849,7 +1849,7 @@ export default function ResearchProjectPage() {
                         <div className="review-narrative__label">Monuments ({boundary!.monuments!.length})</div>
                         <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
                           {boundary!.monuments!.map((m, i) => (
-                            <li key={i} style={{ color: '#34d399', fontSize: '0.85rem', marginBottom: '0.2rem', fontWeight: 500 }}>{m}</li>
+                            <li key={i} style={{ color: '#166534', fontSize: '0.88rem', marginBottom: '0.3rem', fontWeight: 600 }}>{m}</li>
                           ))}
                         </ul>
                       </div>
@@ -1861,7 +1861,7 @@ export default function ResearchProjectPage() {
                         <div className="review-narrative__label">Curves / Arc Data</div>
                         <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
                           {boundary!.curves!.map((c, i) => (
-                            <li key={i} style={{ color: '#c084fc', fontSize: '0.85rem', marginBottom: '0.2rem', fontFamily: 'monospace', fontWeight: 600 }}>{c}</li>
+                            <li key={i} style={{ color: '#6b21a8', fontSize: '0.88rem', marginBottom: '0.3rem', fontFamily: 'monospace', fontWeight: 700 }}>{c}</li>
                           ))}
                         </ul>
                       </div>
@@ -1874,8 +1874,8 @@ export default function ResearchProjectPage() {
                         <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
                           {crossValidation.map((note, i) => (
                             <li key={i} style={{
-                              color: note.startsWith('MATCH') ? '#4ade80' : note.startsWith('MISMATCH') ? '#f87171' : '#94a3b8',
-                              fontSize: '0.85rem', marginBottom: '0.2rem',
+                              color: note.startsWith('MATCH') ? '#166534' : note.startsWith('MISMATCH') ? '#b91c1c' : '#4b5563',
+                              fontSize: '0.85rem', marginBottom: '0.2rem', fontWeight: 600,
                             }}>{note}</li>
                           ))}
                         </ul>
