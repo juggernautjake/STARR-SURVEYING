@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import QRCode from 'react-qr-code';
 import GoogleAdsScript from './GoogleAdsScript';
-import GoogleReviewWidget from './GoogleReviewWidget';
 
 // Footer CSS
 import '../styles/Footer.css';
@@ -235,13 +234,6 @@ const Footer = (): React.ReactElement => {
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Google Reviews Section */}
-      <div className="footer__reviews">
-        <div className="footer__reviews-container">
-          <GoogleReviewWidget />
         </div>
       </div>
 
