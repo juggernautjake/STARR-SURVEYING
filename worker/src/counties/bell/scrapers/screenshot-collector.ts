@@ -89,6 +89,15 @@ export async function captureScreenshots(
         const wait = Math.max(req.additionalWait ?? 0, minWait);
         await page.waitForTimeout(wait);
 
+        // Capture visible page text for screenshot classification
+        let pageText = '';
+        try {
+          pageText = await page.evaluate(() => {
+            const body = document.body?.innerText || '';
+            return body.substring(0, 500).trim();
+          });
+        } catch { /* page may not support evaluate */ }
+
         const buffer = await page.screenshot({
           fullPage: req.fullPage ?? true,
           type: 'png',
@@ -101,6 +110,7 @@ export async function captureScreenshots(
           imageBase64: buffer.toString('base64'),
           capturedAt: new Date().toISOString(),
           description: req.description,
+          pageText: pageText || undefined,
         });
 
         await page.close();

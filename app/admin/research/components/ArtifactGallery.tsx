@@ -36,7 +36,7 @@ interface ArtifactGalleryProps {
 
 // ── Category Display Config ───────────────────────────────────────────────────
 
-const CATEGORY_CONFIG: Record<string, { label: string; icon: string; order: number }> = {
+const CATEGORY_CONFIG: Record<string, { label: string; icon: string; order: number; defaultCollapsed?: boolean }> = {
   screenshots: { label: 'Screenshots', icon: '📸', order: 1 },
   deeds: { label: 'Deed Documents', icon: '📜', order: 2 },
   plats: { label: 'Plat Images', icon: '🗺', order: 3 },
@@ -48,6 +48,7 @@ const CATEGORY_CONFIG: Record<string, { label: string; icon: string; order: numb
   surveys: { label: 'Surveys', icon: '📐', order: 9 },
   tax: { label: 'Tax/Appraisal Records', icon: '🏛', order: 10 },
   other: { label: 'Other Documents', icon: '📄', order: 99 },
+  'screenshots-misc': { label: 'MISC Screenshots', icon: '🗑', order: 999, defaultCollapsed: true },
 };
 
 function getCategoryConfig(cat: string) {
@@ -63,7 +64,14 @@ export default function ArtifactGallery({ projectId }: ArtifactGalleryProps) {
   const [error, setError] = useState<string | null>(null);
   const [lightboxArtifact, setLightboxArtifact] = useState<Artifact | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => {
+    // Start with default-collapsed categories collapsed
+    const defaults = new Set<string>();
+    for (const [cat, config] of Object.entries(CATEGORY_CONFIG)) {
+      if (config.defaultCollapsed) defaults.add(cat);
+    }
+    return defaults;
+  });
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
 
   // ── Fetch artifacts ─────────────────────────────────────────────────
@@ -206,15 +214,22 @@ export default function ArtifactGallery({ projectId }: ArtifactGalleryProps) {
         const items = grouped[cat] || [];
         const collapsed = collapsedCategories.has(cat);
 
+        const isMisc = cat === 'screenshots-misc';
+
         return (
-          <div key={cat} className="artifact-gallery__section">
+          <div key={cat} className={`artifact-gallery__section ${isMisc ? 'artifact-gallery__section--misc' : ''}`}>
             <div
-              className="artifact-gallery__section-header"
+              className={`artifact-gallery__section-header ${isMisc ? 'artifact-gallery__section-header--misc' : ''}`}
               onClick={() => toggleCategory(cat)}
             >
               <span className="artifact-gallery__section-icon">{config.icon}</span>
               <span className="artifact-gallery__section-label">{config.label}</span>
               <span className="artifact-gallery__section-count">({items.length})</span>
+              {isMisc && (
+                <span className="artifact-gallery__section-desc" style={{ fontSize: '0.75rem', opacity: 0.6, marginLeft: '0.5rem' }}>
+                  Error pages, empty results, auth walls
+                </span>
+              )}
               <span className="artifact-gallery__section-chevron">
                 {collapsed ? '▶' : '▼'}
               </span>

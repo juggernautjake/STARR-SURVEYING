@@ -499,6 +499,7 @@ async function persistCountyResults(
       imageBase64: ss.imageBase64,
       capturedAt: ss.capturedAt,
       description: ss.description,
+      pageText: ss.pageText,
     }));
 
     // Collect page images from deeds and plats

@@ -27,6 +27,15 @@ export interface DeedAnalysisInput {
   cadLegalDescription: string | null;
   /** Current owner from CAD */
   currentOwner: string | null;
+  /** Target property context for relevance filtering in summaries */
+  targetProperty?: {
+    situsAddress: string | null;
+    acreage: number | null;
+    abstractNumber: string | null;
+    surveyName: string | null;
+    subdivisionName: string | null;
+    propertyId: string | null;
+  } | null;
 }
 
 export interface DeedAnalyzerProgress {
@@ -97,7 +106,7 @@ export async function analyzeBellDeeds(
 
   // ── Step 3: Generate overall summary ───────────────────────────────
   progress('Generating ownership history summary...');
-  const { summary, usage: summaryUsage } = await generateDeedSummary(analyzedRecords, chainOfTitle, input.currentOwner, anthropicApiKey);
+  const { summary, usage: summaryUsage } = await generateDeedSummary(analyzedRecords, chainOfTitle, input.currentOwner, anthropicApiKey, input.targetProperty);
   accumulateUsage(usage, summaryUsage);
 
   // ── Step 4: Compute confidence ─────────────────────────────────────
@@ -344,6 +353,7 @@ async function generateDeedSummary(
   chain: ChainLink[],
   currentOwner: string | null,
   apiKey: string,
+  targetProperty?: DeedAnalysisInput['targetProperty'],
 ): Promise<{ summary: string; usage: Partial<AiUsageSummary> }> {
   if (!apiKey) {
     return { summary: buildNoAiDeedSummary(records, chain, currentOwner), usage: {} };
@@ -363,6 +373,18 @@ async function generateDeedSummary(
       .map(r => `--- ${r.documentType} (${r.instrumentNumber ?? 'no inst#'}, ${r.recordingDate ?? '?'}) ---\n${r.aiSummary!.substring(0, 1500)}`)
       .join('\n\n');
 
+    // Build target property context for relevance guidance
+    const targetContext = targetProperty
+      ? `\nTARGET PROPERTY:
+- Address: ${targetProperty.situsAddress ?? 'unknown'}
+- Acreage: ${targetProperty.acreage ?? 'unknown'}
+- Abstract: ${targetProperty.abstractNumber ?? 'unknown'}
+- Survey: ${targetProperty.surveyName ?? 'unknown'}
+- Subdivision: ${targetProperty.subdivisionName ?? 'unknown'}
+- Property ID: ${targetProperty.propertyId ?? 'unknown'}
+`
+      : '';
+
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2000,
@@ -371,7 +393,7 @@ async function generateDeedSummary(
         content: `You are a senior Texas RPLS and title examiner. Synthesize a comprehensive property ownership history for a Bell County, Texas surveyor.
 
 Current owner: ${currentOwner ?? 'unknown'}.
-
+${targetContext}
 Chain of title:
 ${chainText}
 
@@ -379,6 +401,8 @@ Total documents found: ${records.length}
 Document types: ${[...new Set(records.map(r => r.documentType))].join(', ')}
 
 ${deedDetails ? `\nDetailed AI analysis of each deed:\n${deedDetails}\n` : ''}
+
+IMPORTANT: Only include information about the TARGET PROPERTY described above. If any deed or document references a completely different property (different survey, different abstract number, different subdivision, or a property clearly belonging to someone else), EXCLUDE it entirely from your summary. Do not mention unrelated properties, plats, or deeds — they were erroneously included in the search results.
 
 Write a thorough ownership history summary (8-15 sentences) covering:
 - Complete chain of title from earliest to most recent owner

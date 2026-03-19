@@ -26,7 +26,7 @@ import type {
 } from './types/research-result.js';
 
 import { scrapeBellCad } from './scrapers/cad-scraper.js';
-import { scrapeBellGis } from './scrapers/gis-scraper.js';
+import { scrapeBellGis, discoverSiblingLots } from './scrapers/gis-scraper.js';
 import { scrapeBellClerk } from './scrapers/clerk-scraper.js';
 import { scrapeBellPlats } from './scrapers/plat-scraper.js';
 import { scrapeBellFema } from './scrapers/fema-scraper.js';
@@ -39,7 +39,7 @@ import { analyzeBellPlats } from './analyzers/plat-analyzer.js';
 import { detectDiscrepancies } from './analyzers/discrepancy-detector.js';
 import { scoreOverallConfidence, type DataItem } from './analyzers/confidence-scorer.js';
 import { analyzeSiteScreenshots } from './analyzers/site-intelligence.js';
-import { validateDeedRelevance, validatePlatRelevance, extractAbstractAndSurvey, type PropertyIdentifiers } from './analyzers/document-relevance-validator.js';
+import { validateDeedRelevance, validatePlatRelevance, preFilterIrrelevantDocuments, extractAbstractAndSurvey, type PropertyIdentifiers } from './analyzers/document-relevance-validator.js';
 import { correlateTargetLot, type LotCorrelationInput } from './analyzers/lot-correlator.js';
 import { computeConfidence, SOURCE_RELIABILITY } from './types/confidence.js';
 
@@ -288,17 +288,53 @@ export async function orchestrateBellResearch(
   // Merge CAD + GIS into resolved property (CAD takes priority)
   const property = resolveProperty(cad, gis, input, lat, lon, knownIds);
 
-  // ── Address-to-Lot Resolution ─────────────────────────────────────
-  // For subdivision properties, resolve which specific lot the input address
-  // corresponds to. Uses GIS situs addresses, CAD legal descriptions, and
-  // acreage cross-referencing to find the exact lot.
-  const gisFeatsForMatching: GisFeatureForMatching[] = (gis?.allFeatures ?? []).map(f => ({
+  // ── Sibling Lot Discovery ──────────────────────────────────────────
+  // When GIS returns a single parcel (by property ID), we only have one
+  // lot's data. For subdivision properties, we need ALL sibling lots so
+  // the address-to-lot resolver can match situs addresses accurately.
+  // This spatial query finds nearby parcels in the same subdivision.
+  let gisFeatsForMatching: GisFeatureForMatching[] = (gis?.allFeatures ?? []).map(f => ({
     propertyId: f.propertyId,
     ownerName: f.ownerName,
     acreage: f.acreage,
     situsAddress: f.situsAddress,
     legalDescription: f.legalDescription,
   }));
+
+  if (gis?.parcelBoundary && gisFeatsForMatching.length <= 2) {
+    try {
+      const siblings = await discoverSiblingLots(
+        gis.parcelBoundary,
+        gis.propertyId,
+        gis.legalDescription,
+        (p) => progress('Phase 1', p.message),
+      );
+      if (siblings.length > 0) {
+        // Merge sibling data with existing features (avoid duplicates by property ID)
+        const existingPids = new Set(gisFeatsForMatching.map(f => f.propertyId));
+        const newSiblings = siblings
+          .filter(s => s.propertyId && !existingPids.has(s.propertyId))
+          .map(s => ({
+            propertyId: s.propertyId,
+            ownerName: s.ownerName,
+            acreage: s.acreage,
+            situsAddress: s.situsAddress,
+            legalDescription: s.legalDescription,
+          }));
+        gisFeatsForMatching = [...gisFeatsForMatching, ...newSiblings];
+        progress('Phase 1',
+          `Address resolution: ${gisFeatsForMatching.length} total lot(s) available ` +
+          `(${newSiblings.length} sibling lot(s) discovered)`);
+      }
+    } catch (err) {
+      progress('Phase 1', `⚠ Sibling lot discovery failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ── Address-to-Lot Resolution ─────────────────────────────────────
+  // For subdivision properties, resolve which specific lot the input address
+  // corresponds to. Uses GIS situs addresses, CAD legal descriptions, and
+  // acreage cross-referencing to find the exact lot.
 
   // Lightweight logger adapter for address-lot resolver (orchestrator uses progress callback)
   const resolverLogger = {
@@ -588,25 +624,94 @@ export async function orchestrateBellResearch(
     confidence: scoreOverallConfidence([]),
   }));
 
-  progress('Phase 3', `Analyzing ${deedRecords.length} deed(s) + ${plats?.plats.length ?? 0} plat(s)...`, 62);
+  // ── Pre-filter: remove clearly irrelevant documents BEFORE AI ────
+  // Build property identifiers early so we can pre-filter
+  const legalAbsSurvey = extractAbstractAndSurvey(property.legalDescription ?? '');
+  const gisAbstractSubdiv = gis?.abstractSubdiv ?? null;
+  const gisAbstractNum = gisAbstractSubdiv
+    ? (gisAbstractSubdiv.match(/\d+/)?.[0] ?? null)
+    : null;
+
+  const propertyIds: PropertyIdentifiers = {
+    ownerName: property.ownerName,
+    legalDescription: property.legalDescription,
+    acreage: property.acreage,
+    lotNumber: property.lotNumber ?? knownIds.lotNumber,
+    blockNumber: property.blockNumber ?? knownIds.blockNumber,
+    subdivisionName: property.subdivisionName ?? (knownIds.subdivisionNames.size > 0 ? [...knownIds.subdivisionNames][0] : null),
+    situsAddress: property.situsAddress,
+    abstractNumber: legalAbsSurvey.abstractNumber ?? gisAbstractNum,
+    surveyName: legalAbsSurvey.surveyName,
+  };
+
+  progress('Phase 3',
+    `Property identifiers: abstract=${propertyIds.abstractNumber ?? 'unknown'}, ` +
+    `survey="${propertyIds.surveyName ?? 'unknown'}", subdivision="${propertyIds.subdivisionName ?? 'unknown'}"`,
+    61,
+  );
+
+  const preFilterDeeds = preFilterIrrelevantDocuments(
+    deedRecords,
+    propertyIds,
+    (msg) => progress('Phase 3', `Pre-filter deeds: ${msg}`),
+  );
+  const filteredDeedRecords = preFilterDeeds.kept;
+  if (preFilterDeeds.removed.length > 0) {
+    for (const w of preFilterDeeds.warnings) recordError('Phase 3', 'Pre-Filter', w);
+  }
+
+  // Also pre-filter plats
+  let filteredPlats = plats?.plats ?? [];
+  if (filteredPlats.length > 0) {
+    const preFilterPlats = preFilterIrrelevantDocuments(
+      filteredPlats.map(p => ({
+        ...p,
+        legalDescription: p.aiAnalysis?.narrative ?? p.name,
+        grantor: null,
+        grantee: null,
+        documentType: 'Plat',
+      })),
+      propertyIds,
+      (msg) => progress('Phase 3', `Pre-filter plats: ${msg}`),
+    );
+    if (preFilterPlats.removed.length > 0) {
+      const removedNames = new Set(preFilterPlats.removed.map(r => r.name));
+      filteredPlats = filteredPlats.filter(p => !removedNames.has(p.name));
+      for (const w of preFilterPlats.warnings) recordError('Phase 3', 'Pre-Filter', w);
+    }
+  }
+
+  progress('Phase 3', `Analyzing ${filteredDeedRecords.length} deed(s) + ${filteredPlats.length} plat(s)...`, 62);
 
   // Extract bearing/distance calls from deed legal descriptions for plat cross-validation
   const deedCalls = extractDeedCallsFromLegalDescriptions(
-    deedRecords.map(r => r.legalDescription ?? ''),
+    filteredDeedRecords.map(r => r.legalDescription ?? ''),
   );
   if (deedCalls.length > 0) {
     progress('Phase 3', `Extracted ${deedCalls.length} bearing/distance call(s) from deed legal descriptions`);
   }
 
-  // Run AI analysis in parallel where possible
+  // Run AI analysis in parallel where possible — using PRE-FILTERED records
   const [deedAnalysisResult, platAnalysisResult] = await Promise.allSettled([
     analyzeBellDeeds(
-      { deedRecords, cadLegalDescription: property.legalDescription, currentOwner: property.ownerName },
+      {
+        deedRecords: filteredDeedRecords,
+        cadLegalDescription: property.legalDescription,
+        currentOwner: property.ownerName,
+        targetProperty: {
+          situsAddress: property.situsAddress,
+          acreage: property.acreage,
+          abstractNumber: propertyIds.abstractNumber,
+          surveyName: propertyIds.surveyName,
+          subdivisionName: propertyIds.subdivisionName,
+          propertyId: property.propertyId,
+        },
+      },
       anthropicApiKey,
       (p) => progress('Phase 3', `Deeds: ${p.message}`, 65),
     ),
     analyzeBellPlats(
-      { platRecords: plats?.plats ?? [], legalDescription: property.legalDescription, deedCalls },
+      { platRecords: filteredPlats, legalDescription: property.legalDescription, deedCalls },
       anthropicApiKey,
       (p) => progress('Phase 3', `Plats: ${p.message}`, 75),
     ),
@@ -768,38 +873,15 @@ export async function orchestrateBellResearch(
   checkAborted();
 
   // ══════════════════════════════════════════════════════════════════
-  //  PHASE 3C: DOCUMENT RELEVANCE VALIDATION
-  //  Filter out deeds and plats that don't actually relate to the
-  //  target property. This catches cases where the clerk search
-  //  returned documents for the wrong lot, a different property
-  //  belonging to the same owner, etc.
+  //  PHASE 3C: DOCUMENT RELEVANCE VALIDATION (POST-AI)
+  //  Second pass: now that AI summaries are available, run the full
+  //  relevance check (heuristic + AI) to catch any remaining
+  //  unrelated documents that slipped past pre-filtering.
+  //  PropertyIdentifiers were already built before Phase 3.
   // ══════════════════════════════════════════════════════════════════
-  // Extract abstract/survey from legal description and GIS data
-  const legalAbsSurvey = extractAbstractAndSurvey(property.legalDescription ?? '');
-  const gisAbstractSubdiv = gis?.abstractSubdiv ?? null;
-  // GIS abstractSubdiv may contain "A-12" or "12" format
-  const gisAbstractNum = gisAbstractSubdiv
-    ? (gisAbstractSubdiv.match(/\d+/)?.[0] ?? null)
-    : null;
-
-  const propertyIds: PropertyIdentifiers = {
-    ownerName: property.ownerName,
-    legalDescription: property.legalDescription,
-    acreage: property.acreage,
-    lotNumber: property.lotNumber ?? knownIds.lotNumber,
-    blockNumber: property.blockNumber ?? knownIds.blockNumber,
-    subdivisionName: property.subdivisionName ?? (knownIds.subdivisionNames.size > 0 ? [...knownIds.subdivisionNames][0] : null),
-    situsAddress: property.situsAddress,
-    abstractNumber: legalAbsSurvey.abstractNumber ?? gisAbstractNum,
-    surveyName: legalAbsSurvey.surveyName,
-  };
-
   progress('Phase 3C',
-    `Property identifiers for relevance check: ` +
-    `owner="${propertyIds.ownerName}", acreage=${propertyIds.acreage}, ` +
-    `abstract=${propertyIds.abstractNumber ?? 'unknown'}, survey="${propertyIds.surveyName ?? 'unknown'}", ` +
-    `subdivision="${propertyIds.subdivisionName ?? 'unknown'}", ` +
-    `lot=${propertyIds.lotNumber ?? 'unknown'}, block=${propertyIds.blockNumber ?? 'unknown'}`,
+    `Post-AI relevance check: abstract=${propertyIds.abstractNumber ?? 'unknown'}, ` +
+    `survey="${propertyIds.surveyName ?? 'unknown'}", subdivision="${propertyIds.subdivisionName ?? 'unknown'}"`,
     81,
   );
 
