@@ -5,8 +5,8 @@ import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET, ensureStorageBucket } from '@
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { processDocument, validateUploadFile, ACCEPTED_FILE_TYPES } from '@/lib/research/document.service';
 
-// Allow up to 60 seconds for uploads (large files + storage round-trip)
-export const maxDuration = 60;
+// Allow up to 120 seconds for uploads (large files + storage round-trip + OCR extraction)
+export const maxDuration = 120;
 
 /* GET — List all documents for a research project */
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -136,12 +136,23 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       continue;
     }
 
-    results.push({ document: doc });
-
-    // Trigger async processing (don't await — let it run in background)
-    processDocument(doc.id).catch(err => {
-      console.error(`[Upload] Background processing failed for ${doc.id}:`, err);
-    });
+    // Process document synchronously — extract text & classify so it's ready
+    // for analysis immediately after upload completes. This prevents the race
+    // condition where /analyze is called before extraction finishes.
+    try {
+      await processDocument(doc.id);
+      // Re-fetch updated document with extracted text and new status
+      const { data: updatedDoc } = await supabaseAdmin
+        .from('research_documents')
+        .select('*')
+        .eq('id', doc.id)
+        .single();
+      results.push({ document: updatedDoc || doc });
+    } catch (err) {
+      console.error(`[Upload] Document processing failed for ${doc.id}:`, err);
+      // Non-fatal: return the original doc record; user can retry via "Reprocess"
+      results.push({ document: doc });
+    }
   }
 
   const successCount = results.filter(r => r.document).length;

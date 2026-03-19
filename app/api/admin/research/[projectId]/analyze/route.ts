@@ -46,10 +46,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Analysis already in progress' }, { status: 409 });
   }
 
-  // Resume is only valid from 'analyzing' (frozen run) status
-  if (isResume && project.status !== 'analyzing') {
+  // Resume mode: allowed from 'analyzing' (frozen run) or 'review' (supplemental uploads).
+  // When resuming from 'review', only newly-uploaded documents (status 'extracted') are
+  // analyzed — previously-analyzed documents are skipped.
+  if (isResume && project.status !== 'analyzing' && project.status !== 'review') {
     return NextResponse.json({
-      error: `Cannot resume from "${project.status}" status — resume is only valid when a previous analysis appears frozen.`,
+      error: `Cannot resume from "${project.status}" status — resume is valid from "analyzing" (frozen run) or "review" (supplemental uploads).`,
     }, { status: 400 });
   }
 
