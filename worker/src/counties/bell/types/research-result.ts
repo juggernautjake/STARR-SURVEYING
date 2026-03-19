@@ -299,6 +299,8 @@ export interface ScreenshotCapture {
   capturedAt: string;
   /** Page title or description */
   description: string;
+  /** First ~500 chars of visible page text (for classification) */
+  pageText?: string;
 }
 
 export interface SiteIntelligenceNote {

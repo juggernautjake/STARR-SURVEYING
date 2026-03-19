@@ -97,6 +97,8 @@ function categorizeDocument(
   label: string | null,
 ): string {
   // Check storage path for artifacts subfolder
+  // IMPORTANT: check screenshots-misc BEFORE screenshots (more specific match first)
+  if (storagePath?.includes('/artifacts/screenshots-misc/')) return 'screenshots-misc';
   if (storagePath?.includes('/artifacts/screenshots/')) return 'screenshots';
   if (storagePath?.includes('/artifacts/deed/')) return 'deeds';
   if (storagePath?.includes('/artifacts/plat/')) return 'plats';
@@ -115,6 +117,7 @@ function categorizeDocument(
   if (docType === 'appraisal_record') return 'tax';
 
   // Check label
+  if (label?.toLowerCase().includes('misc screenshot')) return 'screenshots-misc';
   if (label?.toLowerCase().includes('screenshot')) return 'screenshots';
 
   return 'other';

@@ -26,7 +26,7 @@ import type {
 } from './types/research-result.js';
 
 import { scrapeBellCad } from './scrapers/cad-scraper.js';
-import { scrapeBellGis } from './scrapers/gis-scraper.js';
+import { scrapeBellGis, discoverSiblingLots } from './scrapers/gis-scraper.js';
 import { scrapeBellClerk } from './scrapers/clerk-scraper.js';
 import { scrapeBellPlats } from './scrapers/plat-scraper.js';
 import { scrapeBellFema } from './scrapers/fema-scraper.js';
@@ -288,17 +288,53 @@ export async function orchestrateBellResearch(
   // Merge CAD + GIS into resolved property (CAD takes priority)
   const property = resolveProperty(cad, gis, input, lat, lon, knownIds);
 
-  // ── Address-to-Lot Resolution ─────────────────────────────────────
-  // For subdivision properties, resolve which specific lot the input address
-  // corresponds to. Uses GIS situs addresses, CAD legal descriptions, and
-  // acreage cross-referencing to find the exact lot.
-  const gisFeatsForMatching: GisFeatureForMatching[] = (gis?.allFeatures ?? []).map(f => ({
+  // ── Sibling Lot Discovery ──────────────────────────────────────────
+  // When GIS returns a single parcel (by property ID), we only have one
+  // lot's data. For subdivision properties, we need ALL sibling lots so
+  // the address-to-lot resolver can match situs addresses accurately.
+  // This spatial query finds nearby parcels in the same subdivision.
+  let gisFeatsForMatching: GisFeatureForMatching[] = (gis?.allFeatures ?? []).map(f => ({
     propertyId: f.propertyId,
     ownerName: f.ownerName,
     acreage: f.acreage,
     situsAddress: f.situsAddress,
     legalDescription: f.legalDescription,
   }));
+
+  if (gis?.parcelBoundary && gisFeatsForMatching.length <= 2) {
+    try {
+      const siblings = await discoverSiblingLots(
+        gis.parcelBoundary,
+        gis.propertyId,
+        gis.legalDescription,
+        (p) => progress('Phase 1', p.message),
+      );
+      if (siblings.length > 0) {
+        // Merge sibling data with existing features (avoid duplicates by property ID)
+        const existingPids = new Set(gisFeatsForMatching.map(f => f.propertyId));
+        const newSiblings = siblings
+          .filter(s => s.propertyId && !existingPids.has(s.propertyId))
+          .map(s => ({
+            propertyId: s.propertyId,
+            ownerName: s.ownerName,
+            acreage: s.acreage,
+            situsAddress: s.situsAddress,
+            legalDescription: s.legalDescription,
+          }));
+        gisFeatsForMatching = [...gisFeatsForMatching, ...newSiblings];
+        progress('Phase 1',
+          `Address resolution: ${gisFeatsForMatching.length} total lot(s) available ` +
+          `(${newSiblings.length} sibling lot(s) discovered)`);
+      }
+    } catch (err) {
+      progress('Phase 1', `⚠ Sibling lot discovery failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ── Address-to-Lot Resolution ─────────────────────────────────────
+  // For subdivision properties, resolve which specific lot the input address
+  // corresponds to. Uses GIS situs addresses, CAD legal descriptions, and
+  // acreage cross-referencing to find the exact lot.
 
   // Lightweight logger adapter for address-lot resolver (orchestrator uses progress callback)
   const resolverLogger = {

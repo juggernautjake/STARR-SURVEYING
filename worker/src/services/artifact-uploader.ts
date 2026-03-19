@@ -14,6 +14,87 @@ import type { DocumentPage } from '../types/index.js';
 
 const BUCKET = 'research-documents';
 
+// ── Screenshot Classification ──────────────────────────────────────────────
+
+/** Patterns in URLs or descriptions that indicate a useless/junk screenshot */
+const MISC_SCREENSHOT_PATTERNS = [
+  // Error/empty pages
+  /no\s*results?\s*found/i,
+  /0\s*results?\s*found/i,
+  /no\s*records?\s*found/i,
+  /no\s*documents?\s*found/i,
+  /no\s*data\s*(?:available|found)/i,
+  /try\s*again/i,
+  /please\s*try\s*(?:again|later)/i,
+  /search\s*returned\s*no/i,
+  /your\s*search\s*did\s*not/i,
+  // Auth/access issues
+  /not\s*authorized/i,
+  /unauthorized/i,
+  /access\s*denied/i,
+  /permission\s*denied/i,
+  /login\s*required/i,
+  /sign\s*in\s*to\s*continue/i,
+  /session\s*(?:expired|timeout)/i,
+  /403\s*forbidden/i,
+  /401\s*unauthorized/i,
+  // Generic error pages
+  /page\s*not\s*found/i,
+  /404\s*(?:error|not\s*found)/i,
+  /500\s*(?:error|internal\s*server)/i,
+  /server\s*error/i,
+  /something\s*went\s*wrong/i,
+  /an?\s*error\s*(?:has\s*)?occurred/i,
+  // Empty/loading states
+  /loading\.{3,}/i,
+  /please\s*wait/i,
+  // CAPTCHA/bot detection
+  /captcha/i,
+  /verify\s*you\s*are\s*(?:human|not\s*a\s*(?:robot|bot))/i,
+  /robot\s*verification/i,
+];
+
+/** URL patterns that typically produce useless screenshots */
+const MISC_URL_PATTERNS = [
+  /\/query\?/i,          // ArcGIS REST API JSON responses
+  /[?&]f=json/i,         // ArcGIS JSON format parameter
+  /\/login/i,            // Login pages
+  /\/auth\//i,           // Auth pages
+  /\/error/i,            // Error pages
+  /about:blank/i,        // Blank pages
+  /chrome-error/i,       // Chrome error pages
+];
+
+/**
+ * Classify a screenshot as 'useful' or 'misc' based on its URL, description,
+ * and visible page text. Misc screenshots include error pages, empty search
+ * results, auth walls, empty PDF viewers, etc.
+ */
+function classifyScreenshot(url: string, description: string, pageText?: string): 'useful' | 'misc' {
+  // Check URL + description
+  const textToCheck = `${url} ${description}`;
+  for (const pattern of MISC_SCREENSHOT_PATTERNS) {
+    if (pattern.test(textToCheck)) return 'misc';
+  }
+  for (const pattern of MISC_URL_PATTERNS) {
+    if (pattern.test(url)) return 'misc';
+  }
+
+  // Check visible page text (captured from the browser)
+  if (pageText) {
+    for (const pattern of MISC_SCREENSHOT_PATTERNS) {
+      if (pattern.test(pageText)) return 'misc';
+    }
+
+    // Very short page text often means an empty/broken page
+    // (less than 20 chars of visible text = probably empty or loading)
+    const trimmed = pageText.replace(/\s+/g, ' ').trim();
+    if (trimmed.length < 20) return 'misc';
+  }
+
+  return 'useful';
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ArtifactScreenshot {
@@ -22,6 +103,8 @@ export interface ArtifactScreenshot {
   imageBase64: string;
   capturedAt: string;
   description: string;
+  /** First ~500 chars of visible page text (for classification) */
+  pageText?: string;
 }
 
 export interface ArtifactPageImage {
@@ -72,13 +155,18 @@ export async function uploadPipelineArtifacts(
     `[ArtifactUploader] ${projectId}: uploading ${screenshots.length} screenshot(s) + ${pageImages.length} page image(s)`,
   );
 
-  // ── Upload screenshots ────────────────────────────────────────────
+  // ── Upload screenshots (classified as useful or misc) ─────────────
+  let miscCount = 0;
   for (let i = 0; i < screenshots.length; i++) {
     const ss = screenshots[i];
     try {
+      const classification = classifyScreenshot(ss.url || '', ss.description || '', ss.pageText);
       const safeName = sanitizeFilename(ss.source);
+      const subfolder = classification === 'misc' ? 'screenshots-misc' : 'screenshots';
       const filename = `screenshot_${i + 1}_${safeName}.png`;
-      const storagePath = `${projectId}/artifacts/screenshots/${filename}`;
+      const storagePath = `${projectId}/artifacts/${subfolder}/${filename}`;
+
+      if (classification === 'misc') miscCount++;
 
       const buffer = Buffer.from(ss.imageBase64, 'base64');
       const { error: uploadErr } = await (supabase.storage as any)
@@ -110,9 +198,11 @@ export async function uploadPipelineArtifacts(
         storage_url: publicUrl,
         source_url: ss.url || null,
         document_type: 'other',
-        document_label: `Screenshot: ${ss.description || ss.source}`,
+        document_label: classification === 'misc'
+          ? `MISC Screenshot: ${ss.description || ss.source}`
+          : `Screenshot: ${ss.description || ss.source}`,
         processing_status: 'analyzed',
-        extracted_text: `Screenshot captured from ${ss.source} at ${ss.url}\n${ss.description}`,
+        extracted_text: `[${classification.toUpperCase()}] Screenshot captured from ${ss.source} at ${ss.url}\n${ss.description}`,
         created_at: ss.capturedAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
@@ -123,6 +213,10 @@ export async function uploadPipelineArtifacts(
       result.errors.push(`Screenshot ${i + 1}: ${msg}`);
       console.warn(`[ArtifactUploader] Screenshot ${i + 1} error: ${msg}`);
     }
+  }
+
+  if (miscCount > 0) {
+    console.log(`[ArtifactUploader] ${projectId}: ${miscCount} screenshot(s) classified as MISC (error/empty/auth pages)`);
   }
 
   // ── Group page images by document (category + label) ─────────────

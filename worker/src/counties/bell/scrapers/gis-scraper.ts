@@ -456,3 +456,129 @@ function buildResult(
     urlsVisited,
   };
 }
+
+// ── Sibling Lot Discovery ────────────────────────────────────────────
+
+/**
+ * After finding the target parcel, discover all sibling lots in the same
+ * subdivision. This gives the address-lot resolver a full set of candidates
+ * to compare situs addresses against, which is critical for identifying
+ * which lot number corresponds to a specific street address.
+ *
+ * Uses a spatial query with a buffer around the target parcel to find
+ * neighboring parcels, then filters to only those in the same subdivision
+ * (by checking abs_subdv_cd or legal description similarity).
+ */
+export async function discoverSiblingLots(
+  parcelBoundary: number[][][] | null,
+  targetPropertyId: string | null,
+  targetLegalDesc: string | null,
+  onProgress: (p: GisScraperProgress) => void,
+): Promise<GisFeatureSummary[]> {
+  if (!parcelBoundary || parcelBoundary.length === 0) return [];
+
+  const progress = (msg: string) => {
+    onProgress({ phase: 'GIS', message: msg, timestamp: new Date().toISOString() });
+  };
+
+  const queryUrl = `${BELL_ENDPOINTS.gis.parcelLayer}${BELL_ENDPOINTS.gis.queryPath}`;
+  const urlsVisited: string[] = [];
+
+  // Compute bounding box of target parcel with generous buffer (~200m)
+  let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  for (const ring of parcelBoundary) {
+    for (const [lon, lat] of ring) {
+      if (lon < minLon) minLon = lon;
+      if (lon > maxLon) maxLon = lon;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+    }
+  }
+
+  const buffer = 0.002; // ~220m buffer to capture entire subdivision
+  const envelope = `${minLon - buffer},${minLat - buffer},${maxLon + buffer},${maxLat + buffer}`;
+
+  progress('Discovering sibling lots in subdivision area...');
+
+  const result = await queryLayer(queryUrl, {
+    geometry: envelope,
+    geometryType: 'esriGeometryEnvelope',
+    spatialRel: 'esriSpatialRelIntersects',
+    inSR: '4326',
+    outFields: 'prop_id_text,file_as_name,legal_acreage,legal_desc,legal_desc2,situs_num,situs_street_prefx,situs_street,situs_street_sufix,situs_city,situs_state,situs_zip,abs_subdv_cd',
+    returnGeometry: 'false',
+    f: 'json',
+  }, urlsVisited);
+
+  if (!result || result.features.length === 0) {
+    progress('No sibling lots found in spatial query');
+    return [];
+  }
+
+  // Extract subdivision code from target's legal description to filter siblings
+  const targetSubdivCode = targetLegalDesc
+    ? extractSubdivCodeFromLegal(targetLegalDesc)
+    : null;
+
+  const siblings: GisFeatureSummary[] = [];
+
+  for (const feat of result.features) {
+    const a = feat.attributes;
+    const pid = getField(a, [...GIS_FIELD_MAP.propertyId]);
+
+    // Skip the target parcel itself
+    if (pid && pid === targetPropertyId) continue;
+
+    const legal1 = getField(a, ['legal_desc']) ?? '';
+    const legal2 = getField(a, ['legal_desc2']) ?? '';
+    const legal = [legal1, legal2].filter(Boolean).join(' ') || null;
+
+    // Filter to same subdivision: check abs_subdv_cd or legal description prefix
+    if (targetSubdivCode) {
+      const featSubdivCode = getField(a, ['abs_subdv_cd']);
+      const featLegalSubdiv = legal ? extractSubdivCodeFromLegal(legal) : null;
+
+      if (featSubdivCode !== targetSubdivCode && featLegalSubdiv !== targetSubdivCode) {
+        continue; // Different subdivision — skip
+      }
+    }
+
+    // Build situs address from components
+    const situsNum = getField(a, ['situs_num']);
+    const situsPrefix = getField(a, ['situs_street_prefx']);
+    const situsStreet = getField(a, ['situs_street']);
+    const situsSuffix = getField(a, ['situs_street_sufix']);
+    const situsCity = getField(a, ['situs_city']);
+    const situsState = getField(a, ['situs_state']);
+    const situsZip = getField(a, ['situs_zip']);
+    const situs = [situsNum, situsPrefix, situsStreet, situsSuffix]
+      .filter(Boolean).join(' ')
+      + (situsCity ? `, ${situsCity}` : '')
+      + (situsState ? `, ${situsState}` : '')
+      + (situsZip ? ` ${situsZip}` : '');
+
+    siblings.push({
+      propertyId: pid,
+      ownerName: getField(a, [...GIS_FIELD_MAP.ownerName]),
+      acreage: getNumericField(a, [...GIS_FIELD_MAP.acreage]),
+      instrumentNumber: getField(a, [...GIS_FIELD_MAP.instrumentNumber]),
+      situsAddress: situs.trim() || null,
+      legalDescription: legal,
+    });
+  }
+
+  progress(`Found ${siblings.length} sibling lot(s) in subdivision`);
+  return siblings;
+}
+
+/** Extract subdivision identifier from legal description text */
+function extractSubdivCodeFromLegal(legal: string): string | null {
+  const upper = legal.toUpperCase();
+  // Match "BLOCK X, LOT Y, SUBDIVISION_NAME" pattern
+  const m = upper.match(/\b(?:BLOCK\s+\w+\s*,?\s*LOT\s+\w+\s*,?\s*)(.+?)(?:\s+PHASE|\s+SECTION|\s*$)/);
+  if (m) return m[1].replace(/[,\s]+$/, '').trim();
+  // Match just the subdivision/addition name
+  const m2 = upper.match(/([A-Z][A-Z\s&.']+?)\s+(?:ADDITION|SUBDIVISION|ESTATES|SUBD?\.?|ADD\.?)\b/);
+  if (m2) return m2[1].trim();
+  return null;
+}
