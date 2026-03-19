@@ -264,28 +264,26 @@ export default function SourceDocumentViewer({
         {/* Document summary */}
         <div className="research-viewer__text-summary">
           <strong>Document Summary</strong>
-          <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem', fontSize: '0.8rem', color: '#6B7280' }}>
+          <ul>
             {summaryParts.map((part, i) => (
               <li key={i}>{part}</li>
             ))}
           </ul>
           {/* Per-image summaries */}
           {pageImageUrls.length > 0 && (
-            <>
-              <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#9CA3AF' }}>
-                <strong>Page Images:</strong>
-              </div>
-              <ul style={{ margin: '0.15rem 0 0', paddingLeft: '1.25rem', fontSize: '0.75rem', color: '#9CA3AF' }}>
+            <div className="research-viewer__text-summary-pages">
+              <strong>Page Images:</strong>
+              <ul>
                 {pageImageUrls.map((_, i) => (
                   <li key={i}>{getImageSummary(doc, i, pageImageUrls.length)}</li>
                 ))}
               </ul>
-            </>
+            </div>
           )}
         </div>
 
         {/* Extracted text content */}
-        <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+        <div className="research-viewer__text-separator">
           {renderHighlightedText()}
         </div>
       </div>
@@ -341,7 +339,7 @@ export default function SourceDocumentViewer({
                   >
                     ‹ Prev
                   </button>
-                  <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>
+                  <span className="research-viewer__img-page-info">
                     {currentPage + 1} / {pageImageUrls.length}
                   </span>
                   <button
@@ -357,16 +355,16 @@ export default function SourceDocumentViewer({
             <div className="research-viewer__img-toolbar-right">
               {/* Zoom controls */}
               <button onClick={() => setZoom(z => Math.max(z - 0.25, 0.1))} title="Zoom out">−</button>
-              <span style={{ fontSize: '0.75rem', minWidth: '40px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+              <span className="research-viewer__img-zoom-info">{Math.round(zoom * 100)}%</span>
               <button onClick={() => setZoom(z => Math.min(z + 0.25, 10))} title="Zoom in">+</button>
               <button onClick={resetView} title="Reset view">⟲</button>
 
               {/* Draw controls */}
-              <span style={{ width: '1px', height: '16px', background: '#D1D5DB', margin: '0 4px' }} />
+              <span className="research-viewer__img-divider" />
               <button
                 onClick={() => setDrawMode(!drawMode)}
                 title={drawMode ? 'Stop drawing' : 'Draw on image'}
-                style={{ background: drawMode ? '#EF4444' : undefined, color: drawMode ? '#fff' : undefined }}
+                data-active={drawMode ? 'true' : undefined}
               >
                 {drawMode ? '✏ Drawing' : '✏ Draw'}
               </button>
@@ -377,7 +375,7 @@ export default function SourceDocumentViewer({
               )}
 
               {/* Expand toggle */}
-              <span style={{ width: '1px', height: '16px', background: '#D1D5DB', margin: '0 4px' }} />
+              <span className="research-viewer__img-divider" />
               <button onClick={() => setExpanded(!expanded)} title={expanded ? 'Shrink modal' : 'Expand modal'}>
                 {expanded ? '⊟ Shrink' : '⊞ Expand'}
               </button>
@@ -385,19 +383,18 @@ export default function SourceDocumentViewer({
           </div>
 
           {/* Image caption */}
-          <div style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem', color: '#9CA3AF', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+          <div className="research-viewer__img-caption">
             {summary}
           </div>
 
           {/* Image display area with zoom/pan/draw */}
           <div
-            className="research-viewer__img-container"
+            className={`research-viewer__img-container${drawMode ? ' research-viewer__img-container--draw' : dragging ? ' research-viewer__img-container--dragging' : ''}`}
             ref={containerRef}
             onMouseDown={drawMode ? undefined : handleImgMouseDown}
             onMouseMove={drawMode ? undefined : handleImgMouseMove}
             onMouseUp={drawMode ? undefined : handleImgMouseUp}
             onMouseLeave={drawMode ? undefined : handleImgMouseUp}
-            style={{ cursor: drawMode ? 'crosshair' : (dragging ? 'grabbing' : 'grab') }}
           >
             <div
               style={{
@@ -557,7 +554,6 @@ export default function SourceDocumentViewer({
                     href={doc.source_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: '#3B82F6', textDecoration: 'none', fontSize: '0.75rem' }}
                     onClick={(e) => e.stopPropagation()}
                   >
                     Source ↗

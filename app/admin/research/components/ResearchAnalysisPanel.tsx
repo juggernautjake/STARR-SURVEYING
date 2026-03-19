@@ -818,21 +818,19 @@ export default function ResearchAnalysisPanel({
         <div
           className="ra-live-log__header"
           onClick={() => setLogCollapsed(c => !c)}
-          style={{ cursor: 'pointer', userSelect: 'none' }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="ra-live-log__header-left">
             <span
-              className="ra-live-log__toggle"
-              style={{ fontSize: '0.75rem', opacity: 0.7, transition: 'transform 0.2s', display: 'inline-block', transform: logCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+              className={`ra-live-log__toggle${logCollapsed ? ' ra-live-log__toggle--collapsed' : ''}`}
             >
-              {logCollapsed ? '\u25B6' : '\u25BC'}
+              ▼
             </span>
             <span className="ra-live-log__title">Activity Log</span>
-            <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+            <span className="ra-live-log__count">
               ({friendlyLogs.length} entries{warnCount > 0 ? `, ${warnCount} warning${warnCount !== 1 ? 's' : ''}` : ''})
             </span>
             {logCollapsed && (
-              <span style={{ fontSize: '0.7rem', opacity: 0.5, marginLeft: '4px' }}>
+              <span className="ra-live-log__status">
                 {isRunning ? 'live' : isComplete ? 'complete' : ''}
               </span>
             )}
