@@ -105,6 +105,8 @@ export interface ArtifactScreenshot {
   description: string;
   /** First ~500 chars of visible page text (for classification) */
   pageText?: string;
+  /** Pre-classified by AI/regex in the pipeline (if set, skips re-classification) */
+  classification?: 'useful' | 'misc';
 }
 
 export interface ArtifactPageImage {
@@ -160,7 +162,8 @@ export async function uploadPipelineArtifacts(
   for (let i = 0; i < screenshots.length; i++) {
     const ss = screenshots[i];
     try {
-      const classification = classifyScreenshot(ss.url || '', ss.description || '', ss.pageText);
+      // Use pre-classification from pipeline AI if available, otherwise fall back to regex
+      const classification = ss.classification ?? classifyScreenshot(ss.url || '', ss.description || '', ss.pageText);
       const safeName = sanitizeFilename(ss.source);
       const subfolder = classification === 'misc' ? 'screenshots-misc' : 'screenshots';
       const filename = `screenshot_${i + 1}_${safeName}.png`;

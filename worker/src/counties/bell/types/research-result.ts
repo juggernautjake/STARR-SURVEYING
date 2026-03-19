@@ -301,6 +301,8 @@ export interface ScreenshotCapture {
   description: string;
   /** First ~500 chars of visible page text (for classification) */
   pageText?: string;
+  /** Whether this screenshot was classified as useful or misc by the AI/regex classifier */
+  classification?: 'useful' | 'misc';
 }
 
 export interface SiteIntelligenceNote {
