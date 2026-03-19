@@ -1567,16 +1567,19 @@ function attemptNormalization(
 
 // ── Final Coherence Review (Multi-Pass) ─────────────────────────────────────
 
+/** Partial data point type used during analysis (before DB insert assigns id/timestamps). */
+type PartialDataPoint = Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>;
+
 /**
  * Build a text summary of all extracted data for the coherence reviewer.
  * Returns the summary string and a grouped-by-category data point map.
  */
 function buildCoherenceInput(
-  dataPoints: ExtractedDataPoint[],
+  dataPoints: PartialDataPoint[],
   discrepancies: Omit<Discrepancy, 'id' | 'created_at' | 'updated_at'>[],
   documents: ResearchDocument[],
   logs: AnalysisLogEntry[],
-): { text: string; byCategory: Record<string, ExtractedDataPoint[]> } {
+): { text: string; byCategory: Record<string, PartialDataPoint[]> } {
   const sections: string[] = [];
 
   // Section 1: Documents summary
@@ -1595,7 +1598,7 @@ function buildCoherenceInput(
 
   // Section 2: Extracted data points grouped by category
   sections.push('\n=== EXTRACTED DATA POINTS ===');
-  const byCategory: Record<string, ExtractedDataPoint[]> = {};
+  const byCategory: Record<string, PartialDataPoint[]> = {};
   for (const dp of dataPoints) {
     const cat = dp.data_category || 'unknown';
     if (!byCategory[cat]) byCategory[cat] = [];
@@ -1689,7 +1692,7 @@ function truncateForAI(content: string, maxChars: number): string {
  */
 async function runFinalCoherenceReview(
   _projectId: string,
-  dataPoints: ExtractedDataPoint[],
+  dataPoints: PartialDataPoint[],
   discrepancies: Omit<Discrepancy, 'id' | 'created_at' | 'updated_at'>[],
   documents: ResearchDocument[],
   logs: AnalysisLogEntry[],
