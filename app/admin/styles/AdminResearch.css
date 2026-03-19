@@ -9217,6 +9217,7 @@
 }
 .review-doc-card__badge--ok { color: #059669; background: #d1fae5; }
 .review-doc-card__badge--err { color: #dc2626; background: #fee2e2; }
+.review-doc-card__badge--img { color: #7c3aed; background: #f5f3ff; border: 1px solid #ddd6fe; }
 .review-doc-card__chevron {
   color: #6b7280;
   font-size: 0.7rem;

@@ -83,9 +83,11 @@ export async function captureScreenshots(
           }).catch(() => { /* selector may not exist */ });
         }
 
-        if (req.additionalWait) {
-          await page.waitForTimeout(req.additionalWait);
-        }
+        // Always wait at least 7 seconds to ensure the page has fully loaded
+        // (PDF viewers, image viewers, SPAs, and lazy content need time to render)
+        const minWait = 7_000;
+        const wait = Math.max(req.additionalWait ?? 0, minWait);
+        await page.waitForTimeout(wait);
 
         const buffer = await page.screenshot({
           fullPage: req.fullPage ?? true,
@@ -125,11 +127,15 @@ export async function captureScreenshots(
  * Used by scrapers that already have a browser open.
  */
 export async function capturePageScreenshot(
-  page: { screenshot: (opts: Record<string, unknown>) => Promise<Buffer>; url: () => string },
+  page: { screenshot: (opts: Record<string, unknown>) => Promise<Buffer>; url: () => string; waitForTimeout?: (ms: number) => Promise<void> },
   source: string,
   description: string,
 ): Promise<ScreenshotCapture | null> {
   try {
+    // Wait for dynamic content to finish rendering before capture
+    if (page.waitForTimeout) {
+      await page.waitForTimeout(5_000);
+    }
     const buffer = await page.screenshot({
       fullPage: true,
       type: 'png',
