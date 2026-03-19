@@ -42,6 +42,8 @@ import { analyzeSiteScreenshots } from './analyzers/site-intelligence.js';
 import { computeConfidence, SOURCE_RELIABILITY } from './types/confidence.js';
 
 import { TIMEOUTS } from './config/endpoints.js';
+import { resolveAddressToLot, validateAddressParcelMatch } from '../../services/address-lot-resolver.js';
+import type { GisFeatureForMatching } from '../../services/address-lot-resolver.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -283,6 +285,76 @@ export async function orchestrateBellResearch(
 
   // Merge CAD + GIS into resolved property (CAD takes priority)
   const property = resolveProperty(cad, gis, input, lat, lon, knownIds);
+
+  // ── Address-to-Lot Resolution ─────────────────────────────────────
+  // For subdivision properties, resolve which specific lot the input address
+  // corresponds to. Uses GIS situs addresses, CAD legal descriptions, and
+  // acreage cross-referencing to find the exact lot.
+  const gisFeatsForMatching: GisFeatureForMatching[] = (gis?.allFeatures ?? []).map(f => ({
+    propertyId: f.propertyId,
+    ownerName: f.ownerName,
+    acreage: f.acreage,
+    situsAddress: f.situsAddress,
+    legalDescription: f.legalDescription,
+  }));
+
+  // Lightweight logger adapter for address-lot resolver (orchestrator uses progress callback)
+  const resolverLogger = {
+    info: (_tag: string, msg: string) => progress('Phase 1', msg),
+    warn: (_tag: string, msg: string) => progress('Phase 1', `⚠ ${msg}`),
+    error: (_tag: string, msg: string) => progress('Phase 1', `✗ ${msg}`),
+    startAttempt: () => { const fn = (() => {}) as unknown as import('../../lib/logger.js').StepTracker; return fn; },
+  } as unknown as import('../../lib/logger.js').PipelineLogger;
+
+  const lotResolution = resolveAddressToLot(
+    input.address ?? undefined,
+    gisFeatsForMatching,
+    [], // plat lots not yet available in Phase 1 — will be populated in Phase 3
+    property.lotNumber,
+    property.blockNumber,
+    property.acreage,
+    property.propertyId,
+    resolverLogger,
+  );
+
+  if (lotResolution) {
+    // Update property with resolved lot info
+    if (lotResolution.lotNumber && !property.lotNumber) {
+      property.lotNumber = lotResolution.lotNumber;
+    }
+    if (lotResolution.blockNumber && !property.blockNumber) {
+      property.blockNumber = lotResolution.blockNumber;
+    }
+    if (lotResolution.propertyId && !property.propertyId) {
+      property.propertyId = lotResolution.propertyId;
+    }
+    if (lotResolution.ownerName && !property.ownerName) {
+      property.ownerName = lotResolution.ownerName;
+    }
+    if (lotResolution.acreage && !property.acreage) {
+      property.acreage = lotResolution.acreage;
+    }
+
+    progress('Phase 1',
+      `Lot resolution: ${lotResolution.lotName} (${lotResolution.resolvedBy}, ` +
+      `confidence ${lotResolution.confidence}%, ` +
+      `${lotResolution.candidates.length} candidate(s) evaluated)`);
+  }
+
+  // Validate address-to-parcel match
+  const addrWarnings = validateAddressParcelMatch(
+    input.address ?? undefined,
+    property.propertyId,
+    property.acreage,
+    property.situsAddress ?? null,
+    property.lotNumber,
+    gisFeatsForMatching,
+    resolverLogger,
+  );
+  for (const w of addrWarnings) {
+    progress('Phase 1', `⚠ ${w}`);
+    recordError('Phase 1', 'AddressValidation', w, false);
+  }
 
   if (!property.propertyId && !property.ownerName) {
     progress('Phase 1', '⚠ WARNING: Could not identify property from CAD or GIS — continuing with limited data', 10);

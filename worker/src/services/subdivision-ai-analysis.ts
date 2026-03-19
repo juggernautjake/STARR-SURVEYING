@@ -6,6 +6,8 @@
 
 import fs from 'fs';
 import type { LotInventoryEntry, InteriorLine, SubdivisionAnalysisResult } from '../types/subdivision.js';
+import { isolateAndAnalyzeLots } from './subdivision-lot-isolator.js';
+import type { PipelineLogger } from '../lib/logger.js';
 
 const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
 
@@ -24,9 +26,11 @@ export interface DeedDataSummary {
 
 export class SubdivisionAIAnalysis {
   private apiKey: string;
+  private logger: PipelineLogger | null;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, logger?: PipelineLogger) {
     this.apiKey = apiKey;
+    this.logger = logger ?? null;
   }
 
   async analyzeSubdivision(
@@ -191,7 +195,45 @@ Return your analysis as structured text with clear section headers.`;
     };
     const analysisText = data.content?.[0]?.text || '';
 
-    return this.parseAnalysis(analysisText);
+    const result = this.parseAnalysis(analysisText);
+
+    // ── Per-lot isolation analysis ──────────────────────────────────────────
+    // For subdivision plats with multiple lots, isolate each lot into its own
+    // cropped/upscaled image and run dedicated extraction. This catches data
+    // that the full-image analysis misses in dense layouts.
+    if (this.logger && lotInventory.length > 1) {
+      try {
+        const knownLotNames = lotInventory.map(l => l.lotName);
+        const lotIsolation = await isolateAndAnalyzeLots(
+          imageData,
+          mediaType as 'image/png' | 'image/jpeg',
+          this.apiKey,
+          this.logger,
+          knownLotNames,
+        );
+
+        // Append per-lot isolation results to the analysis
+        if (lotIsolation.lots.length > 0) {
+          const isolationSection = lotIsolation.lots.map(l =>
+            `### ${l.lotName} (isolated, ${l.upscaleFactor}x upscale, confidence ${l.confidence}%)\n${l.extractedText}`
+          ).join('\n\n');
+
+          result.sections['lot_isolation'] = isolationSection;
+          result.rawAnalysis += '\n\n## PER-LOT ISOLATION ANALYSIS\n' + isolationSection;
+        }
+
+        // Surface limitations
+        if (lotIsolation.limitations.length > 0) {
+          const limSection = lotIsolation.limitations.map((l, i) => `${i + 1}. ${l}`).join('\n');
+          result.sections['isolation_limitations'] = limSection;
+          result.rawAnalysis += '\n\n## LOT ISOLATION LIMITATIONS\n' + limSection;
+        }
+      } catch (err) {
+        console.warn('[SubdivisionAIAnalysis] Lot isolation failed:', err);
+      }
+    }
+
+    return result;
   }
 
   private parseAnalysis(text: string): SubdivisionAnalysisResult {

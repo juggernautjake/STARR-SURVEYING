@@ -791,6 +791,7 @@ export class AIDocumentAnalyzer {
       lineTable:       [],
       curveTable:      [],
       notes:           [],
+      analysisLimitations: [],
       totalApiCalls:   0,
       durationMs:      0,
     };

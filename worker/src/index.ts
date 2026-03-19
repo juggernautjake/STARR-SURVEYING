@@ -18,6 +18,7 @@ import { SubdivisionIntelligenceEngine } from './services/subdivision-intelligen
 import { runAdjacentResearch, type FullCrossValidationReport } from './services/adjacent-research-orchestrator.js';
 import { runROWIntegration, type ROWReport } from './services/row-integration-engine.js';
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
+import { uploadPipelineArtifacts, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 import { PaidPlatformRegistry } from './services/paid-platform-registry.js';
@@ -489,7 +490,96 @@ async function persistCountyResults(
     }
   }
 
-  // ── 4. Save discrepancies to discrepancies table ─────────────────────
+  // ── 4. Upload pipeline artifacts (screenshots + page images) ────────
+  // This makes captured images viewable on the frontend.
+  try {
+    const artifactScreenshots: ArtifactScreenshot[] = r.screenshots.map(ss => ({
+      source: ss.source,
+      url: ss.url,
+      imageBase64: ss.imageBase64,
+      capturedAt: ss.capturedAt,
+      description: ss.description,
+    }));
+
+    // Collect page images from deeds and plats
+    const artifactPageImages: ArtifactPageImage[] = [];
+
+    for (const deed of r.deedsAndRecords.records) {
+      for (let pi = 0; pi < deed.pageImages.length; pi++) {
+        artifactPageImages.push({
+          category: 'deed',
+          label: deed.instrumentNumber ?? deed.documentType ?? 'unknown',
+          pageNumber: pi + 1,
+          imageBase64: deed.pageImages[pi],
+          sourceUrl: deed.sourceUrl,
+        });
+      }
+    }
+
+    for (const plat of r.plats.plats) {
+      for (let pi = 0; pi < plat.images.length; pi++) {
+        artifactPageImages.push({
+          category: 'plat',
+          label: plat.instrumentNumber ?? plat.name ?? 'unknown',
+          pageNumber: pi + 1,
+          imageBase64: plat.images[pi],
+          sourceUrl: plat.sourceUrl,
+        });
+      }
+    }
+
+    // Upload FEMA and TxDOT map screenshots if they exist
+    if (r.easementsAndEncumbrances.fema?.mapScreenshot) {
+      artifactPageImages.push({
+        category: 'fema',
+        label: 'flood_map',
+        pageNumber: 1,
+        imageBase64: r.easementsAndEncumbrances.fema.mapScreenshot,
+        sourceUrl: r.easementsAndEncumbrances.fema.sourceUrl,
+      });
+    }
+    if (r.easementsAndEncumbrances.txdot?.mapScreenshot) {
+      artifactPageImages.push({
+        category: 'txdot',
+        label: 'row_map',
+        pageNumber: 1,
+        imageBase64: r.easementsAndEncumbrances.txdot.mapScreenshot,
+        sourceUrl: r.easementsAndEncumbrances.txdot.sourceUrl,
+      });
+    }
+
+    // Upload easement images
+    for (const eas of r.easementsAndEncumbrances.easements) {
+      if (eas.image) {
+        artifactPageImages.push({
+          category: 'easement',
+          label: eas.instrumentNumber ?? eas.type ?? 'easement',
+          pageNumber: 1,
+          imageBase64: eas.image,
+          sourceUrl: eas.sourceUrl,
+        });
+      }
+    }
+
+    const uploadResult = await uploadPipelineArtifacts(
+      supabase as any,
+      projectId,
+      artifactScreenshots,
+      artifactPageImages,
+    );
+
+    console.log(
+      `[Worker] ${projectId}: artifact upload complete — ` +
+      `${uploadResult.screenshotsUploaded} screenshots, ${uploadResult.pageImagesUploaded} page images` +
+      (uploadResult.errors.length > 0 ? ` (${uploadResult.errors.length} error(s))` : ''),
+    );
+  } catch (err) {
+    console.warn(
+      `[Worker] ${projectId}: artifact upload failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  // ── 5. Save discrepancies to discrepancies table ─────────────────────
   if (r.discrepancies.length > 0) {
     // Delete previous discrepancies for this project
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
