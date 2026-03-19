@@ -276,6 +276,144 @@
 }
 
 /* =============================================================================
+   9.7. GOOGLE REVIEWS BAR - Full-width band between columns and bottom bar
+   ============================================================================= */
+.footer__reviews-bar {
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 1.5rem 2rem;
+}
+
+.footer__reviews-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.footer__reviews-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.footer__reviews-text {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.footer__reviews-stars {
+  color: #FBBC04;
+  font-size: 1.4rem;
+  letter-spacing: 2px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.footer__reviews-info {
+  min-width: 0;
+}
+
+.footer__reviews-heading {
+  color: #FFFFFF;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 0.2rem;
+  white-space: nowrap;
+}
+
+.footer__reviews-subtext {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.footer__reviews-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.footer__reviews-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 1.1rem;
+  background-color: var(--brand-red);
+  color: #FFFFFF;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.footer__reviews-link:hover {
+  background-color: #FFFFFF;
+  color: var(--brand-red);
+  border-color: #FFFFFF;
+}
+
+.footer__reviews-copy {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 1rem;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.footer__reviews-copy:hover {
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.7);
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.footer__reviews-copy--copied {
+  color: #4ADE80;
+  border-color: #4ADE80;
+  background-color: rgba(74, 222, 128, 0.1);
+}
+
+.footer__reviews-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.footer__reviews-qr-label {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.footer__reviews-qr-code {
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 6px;
+  line-height: 0;
+}
+
+/* =============================================================================
    10. BOTTOM BAR - Dark blue, no red border line
    ============================================================================= */
 .footer__bottom {
@@ -1026,5 +1164,55 @@
   .footer__bottom-right {
     flex-direction: column;
     gap: 0.35rem;
+  }
+}
+
+/* Responsive adjustments for reviews bar */
+@media screen and (max-width: 767px) {
+  .footer__reviews-bar {
+    padding: 1.25rem 1rem;
+  }
+
+  .footer__reviews-container {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.25rem;
+  }
+
+  .footer__reviews-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    width: 100%;
+  }
+
+  .footer__reviews-heading {
+    white-space: normal;
+    font-size: 0.9rem;
+  }
+
+  .footer__reviews-actions {
+    width: 100%;
+  }
+
+  .footer__reviews-link,
+  .footer__reviews-copy {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .footer__reviews-qr {
+    align-items: flex-start;
+  }
+}
+
+@media screen and (min-width: 768px) and (max-width: 1023px) {
+  .footer__reviews-container {
+    gap: 1.5rem;
+  }
+
+  .footer__reviews-heading {
+    font-size: 0.88rem;
+    white-space: normal;
   }
 }
