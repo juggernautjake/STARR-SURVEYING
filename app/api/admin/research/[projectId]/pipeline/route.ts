@@ -206,35 +206,90 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (!projectId) return NextResponse.json({ error: 'Project ID required' }, { status: 400 });
 
   // Poll worker status
-  const workerRes = await fetch(`${WORKER_URL}/research/status/${projectId}`, {
-    headers: workerHeaders(),
-    signal: AbortSignal.timeout(30_000),
-  });
+  let workerRes: Response | null = null;
+  try {
+    workerRes = await fetch(`${WORKER_URL}/research/status/${projectId}`, {
+      headers: workerHeaders(),
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (err) {
+    console.warn(`[pipeline/route] GET ${projectId}: worker unreachable — ${err instanceof Error ? err.message : String(err)}`);
+    // Worker is down — fall through to DB check below
+  }
 
-  if (!workerRes.ok) {
-    if (workerRes.status === 404) {
-      return NextResponse.json({ projectId, status: 'not_found' }, { status: 404 });
+  if (workerRes && workerRes.ok) {
+    const data = await workerRes.json() as { status?: string; log?: unknown[]; message?: string; currentStage?: string };
+
+    // Log non-trivial status changes (not on every poll to avoid noise)
+    if (data.status && data.status !== 'running') {
+      console.log(
+        `[pipeline/route] GET ${projectId}: status=${data.status} logEntries=${data.log?.length ?? 0}`,
+      );
+    } else {
+      // Log running status with log count so we can confirm data is flowing
+      const logCount = data.log?.length ?? 0;
+      if (logCount > 0) {
+        console.log(
+          `[pipeline/route] GET ${projectId}: forwarding live data — status=${data.status ?? 'running'} logEntries=${logCount} stage="${data.currentStage ?? data.message?.slice(0, 40) ?? 'unknown'}"`,
+        );
+      }
     }
+
+    return NextResponse.json(data);
+  }
+
+  if (workerRes && workerRes.status !== 404) {
     console.warn(`[pipeline/route] GET ${projectId}: worker error HTTP ${workerRes.status}`);
     return NextResponse.json({ error: 'Worker error' }, { status: 502 });
   }
 
-  const data = await workerRes.json() as { status?: string; log?: unknown[]; message?: string; currentStage?: string };
+  // Worker returned 404 (pipeline not in memory) or worker is unreachable.
+  // Check the DB — the pipeline may have already completed and persisted results.
+  console.log(`[pipeline/route] GET ${projectId}: worker has no active/cached pipeline — checking DB`);
 
-  // Log non-trivial status changes (not on every poll to avoid noise)
-  if (data.status && data.status !== 'running') {
-    console.log(
-      `[pipeline/route] GET ${projectId}: status=${data.status} logEntries=${data.log?.length ?? 0}`,
-    );
-  } else {
-    // Log running status with log count so we can confirm data is flowing
-    const logCount = data.log?.length ?? 0;
-    if (logCount > 0) {
-      console.log(
-        `[pipeline/route] GET ${projectId}: forwarding live data — status=${data.status ?? 'running'} logEntries=${logCount} stage="${data.currentStage ?? data.message?.slice(0, 40) ?? 'unknown'}"`,
-      );
+  const { data: dbProject, error: dbError } = await supabaseAdmin
+    .from('research_projects')
+    .select('status, research_status, research_message, research_logs, analysis_metadata')
+    .eq('id', projectId)
+    .single();
+
+  if (dbError || !dbProject) {
+    return NextResponse.json({ projectId, status: 'not_found' }, { status: 404 });
+  }
+
+  // If project status is 'review' or later, the pipeline already completed
+  const completedStatuses = ['review', 'drawing', 'verifying', 'complete'];
+  if (completedStatuses.includes(dbProject.status)) {
+    const meta = (dbProject.analysis_metadata as Record<string, unknown>) ?? {};
+    const result = (meta.result ?? {}) as Record<string, unknown>;
+    console.log(`[pipeline/route] GET ${projectId}: pipeline already completed (DB status=${dbProject.status}) — returning persisted result`);
+    return NextResponse.json({
+      projectId,
+      status: 'complete',
+      message: (dbProject.research_message as string) ?? 'Pipeline completed',
+      result,
+      log: (dbProject.research_logs as unknown[]) ?? [],
+      fromDatabase: true,
+    });
+  }
+
+  // If project is in 'analyzing' state, the pipeline is still running but
+  // the worker may have restarted. Report as running so the frontend keeps
+  // polling (the worker may come back).
+  if (dbProject.status === 'analyzing' || dbProject.status === 'configure') {
+    const researchStatus = (dbProject.research_status as string) ?? '';
+    if (researchStatus === 'running') {
+      console.log(`[pipeline/route] GET ${projectId}: DB shows analyzing/running but worker lost state — reporting running`);
+      return NextResponse.json({
+        projectId,
+        status: 'running',
+        message: (dbProject.research_message as string) ?? 'Pipeline running (reconnecting…)',
+        log: (dbProject.research_logs as unknown[]) ?? [],
+        fromDatabase: true,
+      });
     }
   }
 
-  return NextResponse.json(data);
+  // Otherwise, no pipeline ever ran or it was in an unrecognized state
+  return NextResponse.json({ projectId, status: 'not_found' }, { status: 404 });
 }, { routeName: 'research/pipeline/status' });

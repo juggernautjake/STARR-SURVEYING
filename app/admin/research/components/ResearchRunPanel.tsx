@@ -538,7 +538,7 @@ export default function ResearchRunPanel({
       startPipelineRef.current();
     } else if (!autoStartFiredRef.current) {
       // Page refresh or navigated back — check if a run is active on the worker.
-      // If so, resume polling. If not, stay idle (don't start a new run).
+      // If so, resume polling. If not, check if it already completed.
       (async () => {
         try {
           const res = await fetch(`/api/admin/research/${projectId}/pipeline`, {
@@ -563,7 +563,7 @@ export default function ResearchRunPanel({
               docCountRef.current = docCount;
               pollRef.current = setInterval(pollStatus, 3_000);
             } else if (ns === 'success' || ns === 'partial') {
-              // Pipeline completed — show final state
+              // Pipeline completed — show final state and notify parent
               console.log(`[ResearchRunPanel] ${projectId}: page refresh — pipeline already complete`);
               setPipelineStatus(ns);
               setStarted(true);
@@ -578,6 +578,8 @@ export default function ResearchRunPanel({
               if (data.message) setCurrentMessage(data.message);
               setCurrentMicroStage(inferMicroStage(data.message, ns, docCount));
               docCountRef.current = docCount;
+              // Notify parent so it can reload documents/project from DB
+              onPipelineComplete?.(ns);
             } else if (ns === 'failed') {
               // Pipeline failed — show failed state
               console.log(`[ResearchRunPanel] ${projectId}: page refresh — pipeline failed`);
