@@ -842,6 +842,31 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     `[Worker] ${projectId}: pipeline START — county="${county}" address="${researchInput.address ?? ''}" propertyId="${researchInput.propertyId ?? ''}" ownerName="${researchInput.ownerName ?? ''}" files=${parsedUserFiles?.length ?? 0}`,
   );
 
+  // ── Mark project as 'analyzing' in DB immediately so that page refreshes
+  // during the run still land on Stage 2 (Research & Analysis) instead of
+  // reverting to Stage 1 (Property Information / configure).
+  getSupabase()
+    .then(async (supabase) => {
+      if (!supabase) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from('research_projects')
+        .update({
+          status: 'analyzing',
+          research_status: 'running',
+          research_message: `Pipeline started for ${county} County`,
+        })
+        .eq('id', projectId);
+      if (error) {
+        console.warn(`[Worker] ${projectId}: failed to set status=analyzing at start: ${error.message}`);
+      } else {
+        console.log(`[Worker] ${projectId}: status set to 'analyzing' in DB (pipeline started)`);
+      }
+    })
+    .catch((err: unknown) => {
+      console.warn(`[Worker] ${projectId}: error setting status=analyzing:`, err instanceof Error ? err.message : String(err));
+    });
+
   // ── Handshake logger — emits visible phase-transition entries into the live
   // log registry so the frontend's log viewer can confirm pipeline progress.
   const handshakeLogger = new PipelineLogger(projectId);
@@ -1139,7 +1164,11 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const { error } = await (supabase as any)
                 .from('research_projects')
-                .update({ status: 'review' })
+                .update({
+                  status: 'review',
+                  research_status: 'complete',
+                  research_message: `Pipeline completed in ${(r.duration_ms / 1000).toFixed(1)}s`,
+                })
                 .eq('id', projectId);
               if (error) {
                 console.warn(`[Worker] ${projectId}: failed to set status=review: ${error.message}`);
@@ -1257,7 +1286,11 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
               .from('research_projects')
-              .update({ status: 'review' })
+              .update({
+                status: 'review',
+                research_status: 'complete',
+                research_message: `Pipeline completed in ${(result.durationMs / 1000).toFixed(1)}s`,
+              })
               .eq('id', projectId);
             if (error) {
               console.warn(`[Worker] ${projectId}: failed to set status=review (county-specific): ${error.message}`);
