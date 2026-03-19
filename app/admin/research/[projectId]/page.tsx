@@ -30,6 +30,7 @@ import ExportPanel from '../components/ExportPanel';
 import SurveyPlanPanel from '../components/SurveyPlanPanel';
 import { PipelineProgressPanel, PipelineProgressStyles, type PipelineLogEntry } from '../components/PipelineProgressPanel';
 import ResearchRunPanel from '../components/ResearchRunPanel';
+import ArtifactGallery from '../components/ArtifactGallery';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
 
@@ -165,7 +166,7 @@ export default function ResearchProjectPage() {
   const [pipelineHasStarted, setPipelineHasStarted] = useState(false);
 
   // Review state
-  const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'discrepancies'>('summary');
+  const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'discrepancies' | 'artifacts'>('summary');
   const [showBriefing, setShowBriefing] = useState(true);
   const [viewerDoc, setViewerDoc] = useState<ResearchDocument | null>(null);
   const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
@@ -1612,7 +1613,7 @@ export default function ResearchProjectPage() {
           <div className="review-summary-panel">
             {/* Tab bar */}
             <div className="review-summary-panel__tabs">
-              {(['summary', 'property', 'survey', 'easements', 'discrepancies'] as const).map(tab => (
+              {(['summary', 'property', 'survey', 'easements', 'discrepancies', 'artifacts'] as const).map(tab => (
                 <button
                   key={tab}
                   className={`review-summary-panel__tab${reviewTab === tab ? ' review-summary-panel__tab--active' : ''}`}
@@ -1625,6 +1626,7 @@ export default function ResearchProjectPage() {
                   {tab === 'discrepancies' && (
                     <>Discrepancies{stats.discrepancy_count > 0 && <span className="review-summary-panel__tab-badge">{stats.discrepancy_count}</span>}</>
                   )}
+                  {tab === 'artifacts'     && '📸 Artifacts'}
                 </button>
               ))}
             </div>
@@ -2083,6 +2085,11 @@ export default function ResearchProjectPage() {
                     setStats(prev => ({ ...prev, discrepancy_count: total, resolved_count: resolved }));
                   }}
                 />
+              )}
+
+              {/* ── Tab: Artifacts — Screenshots, page images, plat images ── */}
+              {reviewTab === 'artifacts' && (
+                <ArtifactGallery projectId={projectId} />
               )}
             </div>
           </div>
