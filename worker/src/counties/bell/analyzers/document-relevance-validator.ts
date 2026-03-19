@@ -198,6 +198,114 @@ export function validatePlatRelevance<T extends { name: string; instrumentNumber
   return { relevant, warnings };
 }
 
+// ── Pre-Filter (Before AI Analysis) ──────────────────────────────────
+
+/**
+ * Lightweight pre-filter that removes clearly irrelevant documents BEFORE
+ * they are sent to AI analysis. This prevents the AI from seeing (and
+ * incorporating into its narrative) documents that obviously belong to
+ * a different property.
+ *
+ * Uses only clerk metadata (legal description, grantor/grantee, doc type)
+ * — does NOT require aiSummary, which isn't available yet at this stage.
+ *
+ * Only removes documents with very strong negative signals (abstract
+ * mismatch + survey mismatch). Uncertain documents are kept for the
+ * full post-AI validation to handle.
+ */
+export function preFilterIrrelevantDocuments<T extends {
+  instrumentNumber?: string | null;
+  documentType?: string;
+  legalDescription?: string | null;
+  grantor?: string | null;
+  grantee?: string | null;
+}>(
+  documents: T[],
+  property: PropertyIdentifiers,
+  onProgress: (msg: string) => void,
+): { kept: T[]; removed: T[]; warnings: string[] } {
+  if (documents.length === 0) return { kept: [], removed: [], warnings: [] };
+  if (!property.abstractNumber && !property.surveyName && !property.subdivisionName) {
+    // Without strong identifiers we can't pre-filter safely
+    onProgress('Pre-filter: skipped (no abstract/survey/subdivision identifiers available)');
+    return { kept: [...documents], removed: [], warnings: [] };
+  }
+
+  const kept: T[] = [];
+  const removed: T[] = [];
+  const warnings: string[] = [];
+
+  for (const doc of documents) {
+    const label = (doc as { instrumentNumber?: string | null }).instrumentNumber ?? (doc as { documentType?: string }).documentType ?? 'unknown';
+    const legalText = ((doc as { legalDescription?: string | null }).legalDescription ?? '').toUpperCase();
+
+    // Only pre-filter if we can check the legal description
+    if (!legalText || legalText.length < 20) {
+      kept.push(doc);
+      continue;
+    }
+
+    // Check for abstract mismatch (strongest disqualifier)
+    let abstractMismatch = false;
+    let surveyMismatch = false;
+
+    if (property.abstractNumber) {
+      const docAbstract = extractAbstractNumber(legalText);
+      if (docAbstract) {
+        if (normalizeAbstract(docAbstract) !== normalizeAbstract(property.abstractNumber)) {
+          abstractMismatch = true;
+        }
+      }
+    }
+
+    if (property.surveyName) {
+      const docSurvey = extractSurveyName(legalText);
+      if (docSurvey) {
+        const propSurvey = property.surveyName.toUpperCase();
+        const docSurveyUpper = docSurvey.toUpperCase();
+        if (!docSurveyUpper.includes(propSurvey) && !propSurvey.includes(docSurveyUpper)) {
+          surveyMismatch = true;
+        }
+      }
+    }
+
+    // Only remove if BOTH abstract AND survey are different (very high confidence)
+    // or if abstract is different AND there's a clear different subdivision
+    if (abstractMismatch && surveyMismatch) {
+      const docAbstract = extractAbstractNumber(legalText);
+      const docSurvey = extractSurveyName(legalText);
+      const reason = `PRE-FILTER REMOVED: ${label} — different abstract (${docAbstract} vs ${property.abstractNumber}) AND different survey ("${docSurvey}" vs "${property.surveyName}")`;
+      warnings.push(reason);
+      onProgress(`  ✗ ${reason}`);
+      removed.push(doc);
+      continue;
+    }
+
+    if (abstractMismatch && property.subdivisionName) {
+      const docSubdiv = extractSubdivisionFromText(legalText);
+      if (docSubdiv) {
+        const propSubdiv = property.subdivisionName.toUpperCase();
+        if (!docSubdiv.includes(propSubdiv) && !propSubdiv.includes(docSubdiv)) {
+          const docAbstract = extractAbstractNumber(legalText);
+          const reason = `PRE-FILTER REMOVED: ${label} — different abstract (${docAbstract} vs ${property.abstractNumber}) AND different subdivision ("${docSubdiv}" vs "${property.subdivisionName}")`;
+          warnings.push(reason);
+          onProgress(`  ✗ ${reason}`);
+          removed.push(doc);
+          continue;
+        }
+      }
+    }
+
+    kept.push(doc);
+  }
+
+  if (removed.length > 0) {
+    onProgress(`Pre-filter: removed ${removed.length} clearly unrelated document(s), keeping ${kept.length} for AI analysis`);
+  }
+
+  return { kept, removed, warnings };
+}
+
 // ── Heuristic Checks ─────────────────────────────────────────────────
 
 function heuristicRelevanceCheck(deed: DeedRecord, property: PropertyIdentifiers): RelevanceResult {
