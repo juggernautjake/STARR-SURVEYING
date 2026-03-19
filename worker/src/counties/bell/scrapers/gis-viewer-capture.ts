@@ -96,6 +96,13 @@ export async function captureGisViewerScreenshots(
       timeout: VIEWER_LOAD_TIMEOUT,
     });
 
+    // ── Step 1.5: Dismiss the Bell CAD disclaimer dialog ────────
+    // The GIS viewer always shows a disclaimer popup from BIS Consultants
+    // on first load with "OK" and "Cancel" buttons. We must click OK
+    // before we can interact with the map.
+    progress('Looking for disclaimer dialog...');
+    await dismissDisclaimerDialog(page, progress);
+
     // Wait for the ArcGIS map to initialize
     progress('Waiting for map to initialize...');
     const mapReady = await waitForMapReady(page, progress);
@@ -206,6 +213,113 @@ export async function captureGisViewerScreenshots(
   }
 
   return results;
+}
+
+// ── Internal: Dismiss Disclaimer Dialog ──────────────────────────────
+
+/**
+ * The Bell CAD GIS viewer (BIS Consultants) shows a disclaimer dialog on
+ * every page load. It has an "OK" button and a "Cancel" button. The dialog
+ * must be dismissed before the map can be interacted with.
+ *
+ * Dialog content: "Bell Central Appraisal District" disclaimer about
+ * informational purposes only, with OK/Cancel buttons at the bottom.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function dismissDisclaimerDialog(page: any, progress: (msg: string) => void): Promise<void> {
+  const maxWait = 15_000;
+  const pollInterval = 1_000;
+  let waited = 0;
+
+  while (waited < maxWait) {
+    try {
+      // Try multiple selectors for the OK button in the disclaimer dialog
+      const okSelectors = [
+        // Button with text "OK" — most reliable
+        'button:has-text("OK")',
+        // Calcite/Esri modal buttons
+        'calcite-button:has-text("OK")',
+        // Generic button matching
+        'button.btn-primary',
+        'button.esri-button',
+        '.modal-footer button:first-child',
+        '.dialog-footer button:first-child',
+        // ArcGIS Experience Builder dialog buttons
+        '.jimu-btn:has-text("OK")',
+        '[class*="modal"] button:has-text("OK")',
+        '[class*="dialog"] button:has-text("OK")',
+        '[class*="popup"] button:has-text("OK")',
+        // Generic overlay/dialog patterns
+        '[role="dialog"] button',
+        '[role="alertdialog"] button',
+      ];
+
+      for (const sel of okSelectors) {
+        try {
+          const btn = page.locator(sel).first();
+          if (await btn.count() > 0) {
+            const btnText = await btn.textContent().catch(() => '');
+            // Only click buttons that contain "OK" or are the primary action
+            if (btnText?.trim().toUpperCase() === 'OK' || btnText?.trim().toUpperCase() === 'ACCEPT' || sel.includes('primary')) {
+              await btn.click({ timeout: 3000 });
+              progress(`  ✓ Dismissed disclaimer dialog (clicked: "${btnText?.trim()}" via ${sel})`);
+              // Wait a moment for the dialog to close
+              await page.waitForTimeout(1500);
+              return;
+            }
+          }
+        } catch {
+          // Selector not found or click failed — try next
+        }
+      }
+
+      // Also try clicking any visible button that says exactly "OK"
+      const clicked = await page.evaluate(() => {
+        const buttons = document.querySelectorAll('button');
+        for (const btn of buttons) {
+          const text = btn.textContent?.trim();
+          if (text === 'OK' || text === 'Accept' || text === 'I Agree') {
+            // Check if the button is visible
+            const rect = btn.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+              btn.click();
+              return text;
+            }
+          }
+        }
+        // Also check for anchor tags styled as buttons
+        const anchors = document.querySelectorAll('a');
+        for (const a of anchors) {
+          const text = a.textContent?.trim();
+          if (text === 'OK' || text === 'Accept') {
+            const rect = a.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+              a.click();
+              return text;
+            }
+          }
+        }
+        return null;
+      });
+
+      if (clicked) {
+        progress(`  ✓ Dismissed disclaimer dialog (clicked: "${clicked}" via DOM evaluate)`);
+        await page.waitForTimeout(1500);
+        return;
+      }
+
+    } catch (err) {
+      // Evaluation may fail during page load — retry
+    }
+
+    await page.waitForTimeout(pollInterval);
+    waited += pollInterval;
+    if (waited < maxWait) {
+      progress(`  Waiting for disclaimer dialog... (${Math.round(waited / 1000)}s)`);
+    }
+  }
+
+  progress('  No disclaimer dialog found (may have been auto-dismissed or not present)');
 }
 
 // ── Internal: Wait for Map Ready ─────────────────────────────────────

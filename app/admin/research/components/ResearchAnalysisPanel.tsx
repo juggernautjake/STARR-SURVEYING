@@ -787,20 +787,74 @@ export default function ResearchAnalysisPanel({
   // ── Log Copy ────────────────────────────────────────────────────────────
 
   function handleCopyLogs() {
-    // Copy both friendly logs and raw pipeline logs
+    const sep = '═'.repeat(60);
+    const ts = new Date().toLocaleString();
+
+    // Section 1: Friendly activity log
     const friendlyText = friendlyLogs.map(l => {
       const time = new Date(l.ts).toLocaleTimeString();
       const prefix = l.level === 'success' ? '[OK]' : l.level === 'warn' ? '[WARN]' : l.level === 'progress' ? '[>>]' : '[--]';
       return `${time} ${prefix} ${l.message}`;
     }).join('\n');
 
-    const rawText = logs.length > 0
-      ? '\n\n--- Raw Pipeline Log ---\n' + logs.map(l =>
-          `[${l.layer}] ${l.source} | ${l.method} | ${l.status} | ${l.duration_ms}ms | ${l.dataPointsFound} pts${l.error ? ` | ERROR: ${l.error}` : ''}${l.details ? ` | ${l.details}` : ''}`
-        ).join('\n')
+    // Section 2: Raw pipeline log — summary (one line per entry)
+    const rawSummary = logs.length > 0
+      ? logs.map(l => {
+          const icon = l.status === 'success' ? '✓' : l.status === 'fail' ? '✕' : l.status === 'skip' ? '○' : '◐';
+          const pts = l.dataPointsFound > 0 ? ` [${l.dataPointsFound} pts]` : '';
+          const dur = l.duration_ms > 0 ? ` (${(l.duration_ms / 1000).toFixed(2)}s)` : '';
+          const isMsg = l.source === 'info' || l.source === 'warn' || l.source === 'error';
+          const line = isMsg
+            ? `${icon} ${l.layer}: ${l.details ?? l.error ?? l.method}${pts}`
+            : `${icon} ${l.layer} | ${l.source} | ${l.method}${pts}${dur}`;
+          const extras: string[] = [];
+          if (!isMsg && l.details) extras.push(`Details: ${l.details}`);
+          if (l.error && !isMsg) extras.push(`Error: ${l.error}`);
+          return extras.length ? `${line}\n    ${extras.join('\n    ')}` : line;
+        }).join('\n')
       : '';
 
-    navigator.clipboard.writeText(friendlyText + rawText).then(() => {
+    // Section 3: Detailed diagnostic — all fields, steps, inputs
+    const rawDetailed = logs.length > 0
+      ? logs.map((l, idx) => {
+          const icon = l.status === 'success' ? '✓' : l.status === 'fail' ? '✕' : l.status === 'skip' ? '○' : '◐';
+          const pts = l.dataPointsFound > 0 ? ` [${l.dataPointsFound} pts]` : '';
+          const dur = l.duration_ms > 0 ? ` (${(l.duration_ms / 1000).toFixed(2)}s)` : '';
+          const tsStr = l.timestamp ? ` @ ${l.timestamp}` : '';
+          const isMsg = l.source === 'info' || l.source === 'warn' || l.source === 'error';
+          let out = `--- Entry ${idx + 1} ---\n`;
+          out += `${icon} [${l.layer}] ${l.source} → ${l.method}${pts}${dur}${tsStr}\n`;
+          if (l.input) out += `  Input:   ${l.input}\n`;
+          if (isMsg) out += `  Message: ${l.details ?? l.error ?? ''}\n`;
+          else if (l.details) out += `  Details: ${l.details}\n`;
+          if (l.error && !isMsg) out += `  Error:   ${l.error}\n`;
+          if (l.steps?.length) {
+            out += `  Steps (${l.steps.length}):\n`;
+            out += l.steps.map(s => `    ↳ ${s}`).join('\n') + '\n';
+          }
+          return out;
+        }).join('\n')
+      : '';
+
+    // Combine all sections
+    const errorCount = logs.filter(l => l.status === 'fail').length;
+    const warnLogCount = logs.filter(l => l.source === 'warn').length;
+    const combined =
+      `${sep}\n` +
+      `STARR RECON — Research & Analysis Log\n` +
+      `Exported: ${ts}   Activity: ${friendlyLogs.length} entries   Pipeline: ${logs.length} entries\n` +
+      `Errors: ${errorCount}   Warnings: ${warnLogCount}\n` +
+      `${sep}\n\n` +
+      `── ACTIVITY LOG ──────────────────────────────────────────\n` +
+      friendlyText + '\n\n' +
+      (rawSummary
+        ? `── PIPELINE SUMMARY (one line per entry) ─────────────────\n` +
+          rawSummary + '\n\n' +
+          `── DETAILED DIAGNOSTIC (inputs · steps · errors) ─────────\n` +
+          rawDetailed
+        : '(No raw pipeline log entries)');
+
+    navigator.clipboard.writeText(combined).then(() => {
       setLogsCopied(true);
       setTimeout(() => setLogsCopied(false), 2000);
     });
@@ -818,21 +872,19 @@ export default function ResearchAnalysisPanel({
         <div
           className="ra-live-log__header"
           onClick={() => setLogCollapsed(c => !c)}
-          style={{ cursor: 'pointer', userSelect: 'none' }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="ra-live-log__header-left">
             <span
-              className="ra-live-log__toggle"
-              style={{ fontSize: '0.75rem', opacity: 0.7, transition: 'transform 0.2s', display: 'inline-block', transform: logCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+              className={`ra-live-log__toggle${logCollapsed ? ' ra-live-log__toggle--collapsed' : ''}`}
             >
-              {logCollapsed ? '\u25B6' : '\u25BC'}
+              ▼
             </span>
             <span className="ra-live-log__title">Activity Log</span>
-            <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+            <span className="ra-live-log__count">
               ({friendlyLogs.length} entries{warnCount > 0 ? `, ${warnCount} warning${warnCount !== 1 ? 's' : ''}` : ''})
             </span>
             {logCollapsed && (
-              <span style={{ fontSize: '0.7rem', opacity: 0.5, marginLeft: '4px' }}>
+              <span className="ra-live-log__status">
                 {isRunning ? 'live' : isComplete ? 'complete' : ''}
               </span>
             )}

@@ -1083,7 +1083,7 @@ export function PipelineProgressStyles() {
   padding: 0.6rem 0.9rem 0.75rem;
   background: #f8fafc;
   border-top: 1px solid #f1f5f9;
-  font-family: 'Courier New', monospace;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
   font-size: 0.72rem;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -1471,7 +1471,7 @@ export function PipelineProgressStyles() {
   border-radius: 3px;
   font-size: 0.67rem;
   word-break: break-all;
-  font-family: monospace;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
 }
 
 .ppanel__dlog-value { color: #334155; word-break: break-word; }
@@ -1511,7 +1511,7 @@ export function PipelineProgressStyles() {
 .ppanel__dlog-step-text {
   flex: 1;
   word-break: break-word;
-  font-family: monospace;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
   font-size: 0.68rem;
   color: #1e293b;
 }
