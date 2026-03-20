@@ -65,9 +65,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     category: categorizeDocument(doc.document_type, doc.storage_path, doc.document_label),
   }));
 
+  // Filter out MISC screenshots entirely — they clutter results with
+  // error pages, empty results, auth walls, and other non-useful captures.
+  const useful = artifacts.filter(
+    (a: { category: string }) => a.category !== 'screenshots-misc',
+  );
+
   // Group by category
   const grouped: Record<string, typeof artifacts> = {};
-  for (const a of artifacts) {
+  for (const a of useful) {
     const cat = a.category;
     if (!grouped[cat]) grouped[cat] = [];
     grouped[cat].push(a);
@@ -75,8 +81,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   return NextResponse.json({
     projectId,
-    totalCount: artifacts.length,
-    artifacts,
+    totalCount: useful.length,
+    miscCount: artifacts.length - useful.length,
+    artifacts: useful,
     grouped,
   });
 }, { routeName: 'research/artifacts' });

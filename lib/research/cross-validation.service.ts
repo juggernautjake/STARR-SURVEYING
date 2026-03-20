@@ -187,6 +187,19 @@ export interface ValidationGraph {
   };
 }
 
+// ── Validation Log ───────────────────────────────────────────────────────────
+
+/** Structured log entry from cross-validation. Shows what confirmed/conflicted. */
+export interface ValidationLog {
+  type: 'info' | 'confirmation' | 'conflict' | 'summary';
+  category: AtomCategory;
+  severity?: ConflictSeverity;
+  message: string;
+  sources: string[];
+  values?: string[];
+  matchScore?: number;
+}
+
 // ── Atom Factory ─────────────────────────────────────────────────────────────
 
 let atomCounter = 0;
@@ -320,8 +333,11 @@ function assessConflictSeverity(
  * Run cross-validation across all atoms in the graph.
  * Compares every pair of atoms with the same category from different sources.
  * Updates validation states, confirmed_by, and conflicted_by arrays.
+ * Returns structured validation logs showing what was confirmed vs conflicted.
  */
-export function crossValidateAtoms(graph: ValidationGraph): void {
+export function crossValidateAtoms(graph: ValidationGraph): ValidationLog[] {
+  const logs: ValidationLog[] = [];
+
   // Group atoms by category
   const byCategory = new Map<AtomCategory, DataAtom[]>();
   for (const atom of graph.atoms) {
@@ -332,6 +348,17 @@ export function crossValidateAtoms(graph: ValidationGraph): void {
 
   // Compare atoms within each category
   for (const [category, atoms] of byCategory) {
+    // Log multi-source coverage
+    const sources = [...new Set(atoms.map(a => a.source))];
+    if (sources.length > 1) {
+      logs.push({
+        type: 'info',
+        category,
+        message: `Cross-checking "${category}" across ${sources.length} sources: ${sources.join(', ')}`,
+        sources,
+      });
+    }
+
     for (let i = 0; i < atoms.length; i++) {
       for (let j = i + 1; j < atoms.length; j++) {
         const a = atoms[i];
@@ -379,6 +406,15 @@ export function crossValidateAtoms(graph: ValidationGraph): void {
             match_score: matchScore,
             description: `"${a.value}" matches "${b.value}" (sources: ${a.source} vs ${b.source})`,
           });
+
+          logs.push({
+            type: 'confirmation',
+            category,
+            message: `CONFIRMED: "${category}" = "${a.value}" — ${a.source} agrees with ${b.source} (match ${matchScore}%)`,
+            sources: [a.source, b.source],
+            values: [a.value, b.value],
+            matchScore,
+          });
         } else {
           // Conflict
           const { severity, description } = assessConflictSeverity(category, a, b);
@@ -408,13 +444,45 @@ export function crossValidateAtoms(graph: ValidationGraph): void {
             resolution: null,
             chosen_atom_id: null,
           });
+
+          const severityIcon = severity === 'critical' ? 'CRITICAL'
+            : severity === 'major' ? 'MAJOR'
+            : severity === 'moderate' ? 'MODERATE'
+            : 'MINOR';
+
+          logs.push({
+            type: 'conflict',
+            category,
+            severity,
+            message: `CONFLICT [${severityIcon}]: "${category}" — ${a.source} says "${a.value}" but ${b.source} says "${b.value}"`,
+            sources: [a.source, b.source],
+            values: [a.value, b.value],
+          });
         }
       }
     }
   }
 
-  // Update summary
-  graph.summary = computeGraphSummary(graph);
+  // Summary log
+  const summary = computeGraphSummary(graph);
+  graph.summary = summary;
+
+  logs.push({
+    type: 'summary',
+    category: 'other',
+    message: [
+      `Validation complete: ${summary.total_atoms} atoms, ` +
+      `${summary.confirmed_count} confirmed, ${summary.conflicted_count} conflicted, ` +
+      `${summary.unvalidated_count} unvalidated. ` +
+      `Overall confidence: ${summary.overall_confidence}%.`,
+      summary.critical_conflicts > 0
+        ? ` WARNING: ${summary.critical_conflicts} critical/major conflicts need resolution.`
+        : ' No critical conflicts.',
+    ].join(''),
+    sources: [],
+  });
+
+  return logs;
 }
 
 /**
@@ -476,8 +544,9 @@ export function createValidationGraph(): ValidationGraph {
 /**
  * Add an atom to the graph and immediately cross-validate it
  * against all existing atoms of the same category.
+ * Returns validation logs showing any new confirmations/conflicts.
  */
-export function addAtomAndValidate(graph: ValidationGraph, atom: DataAtom): void {
+export function addAtomAndValidate(graph: ValidationGraph, atom: DataAtom): ValidationLog[] {
   graph.atoms.push(atom);
   // Re-run full cross-validation (efficient enough for typical graph sizes < 500 atoms)
   graph.conflicts = [];
@@ -487,7 +556,7 @@ export function addAtomAndValidate(graph: ValidationGraph, atom: DataAtom): void
     a.conflicted_by = [];
     a.validation_state = 'unvalidated';
   }
-  crossValidateAtoms(graph);
+  return crossValidateAtoms(graph);
 }
 
 // ── AI-Powered Conflict Analysis ─────────────────────────────────────────────

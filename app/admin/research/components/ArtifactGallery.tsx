@@ -48,7 +48,7 @@ const CATEGORY_CONFIG: Record<string, { label: string; icon: string; order: numb
   surveys: { label: 'Surveys', icon: '📐', order: 9 },
   tax: { label: 'Tax/Appraisal Records', icon: '🏛', order: 10 },
   other: { label: 'Other Documents', icon: '📄', order: 99 },
-  'screenshots-misc': { label: 'MISC Screenshots', icon: '🗑', order: 999, defaultCollapsed: true },
+  // screenshots-misc are now filtered out at the API level — never shown
 };
 
 function getCategoryConfig(cat: string) {

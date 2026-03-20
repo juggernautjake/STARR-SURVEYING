@@ -20,9 +20,12 @@ import { geocodeAddress, type GeoPoint } from './map-image.service';
 
 const MAP_WIDTH = 1280;
 const MAP_HEIGHT = 960;
-const LOT_ZOOM = 19;        // Individual lot level (houses/lots visible)
-const BLOCK_ZOOM = 17;      // Block/subdivision level
-const NEIGHBORHOOD_ZOOM = 15; // Neighborhood context
+// Zoom 20 is most zoomed in — individual lot, ~30m radius
+// Zoom 19 is slightly wider — a few lots visible, ~60m radius
+// These tight zoom levels are critical for lot identification
+const LOT_ZOOM = 20;        // Tightest lot level — see individual lot clearly
+const BLOCK_ZOOM = 18;      // Block level — see full block with lot numbers
+const NEIGHBORHOOD_ZOOM = 16; // Neighborhood context
 
 const BELL_CAD_FEATURE_SERVER =
   'https://services7.arcgis.com/EHW2HuuyZNO7DZct/arcgis/rest/services/BellCADWebService/FeatureServer';
@@ -94,13 +97,16 @@ function buildGoogleStaticMapUrl(
 // ── ArcGIS Map Export ────────────────────────────────────────────────────────
 
 /**
- * Build an ArcGIS REST MapServer/FeatureServer export URL that renders
- * the Bell CAD parcel layer overlaid on aerial imagery.
+ * Build an ArcGIS REST Dynamic Map Service export URL.
+ * FeatureServer does NOT support /export — we need to use a MapServer or
+ * the ArcGIS Online dynamic layer approach.
  *
- * This renders:
- *   - Layer 0 (Parcels) boundaries in yellow
- *   - Layer 5 (Lot Lines) in cyan
- *   - Over USGS satellite imagery background
+ * Strategy: Use the USGS satellite as the base image, then create a
+ * second capture using the Esri World Imagery + parcel boundaries from
+ * the ArcGIS Online Community Basemap with parcels.
+ *
+ * For the Bell CAD parcel overlay, we query the FeatureServer for geometry
+ * and annotate the satellite image description so the AI can match features.
  */
 function buildArcGisParcelExportUrl(
   lat: number,
@@ -112,19 +118,55 @@ function buildArcGisParcelExportUrl(
   const latR = radiusDeg * aspect;
   const bbox = `${lon - lonR},${lat - latR},${lon + lonR},${lat + latR}`;
 
-  // Use the USGS satellite as base, then overlay parcels
+  // Use Esri World Imagery + dynamic parcel overlay via ArcGIS REST
+  // This is a public MapServer that renders parcel boundaries on imagery
+  const esriImagery = 'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export';
   const params = new URLSearchParams({
     bbox,
     bboxSR: '4326',
-    layers: 'show:0,5', // Parcels + Lot Lines
     size: `${MAP_WIDTH},${MAP_HEIGHT}`,
     imageSR: '4326',
     format: 'png32',
-    transparent: 'true',
+    transparent: 'false',
     f: 'image',
   });
 
-  return `${BELL_CAD_FEATURE_SERVER}/export?${params}`;
+  return `${esriImagery}?${params}`;
+}
+
+/**
+ * Build a Bell CAD parcel query URL that returns parcel boundaries as GeoJSON
+ * within a bounding box. Used alongside satellite imagery for lot identification.
+ */
+function buildParcelQueryUrl(
+  lat: number,
+  lon: number,
+  radiusDeg: number,
+): string {
+  // Query parcels that intersect the bounding box
+  // The FeatureServer uses WKID 2277 (state plane) so we use a geometry envelope in 4326
+  const aspect = MAP_HEIGHT / MAP_WIDTH;
+  const lonR = radiusDeg;
+  const latR = radiusDeg * aspect;
+  const envelope = JSON.stringify({
+    xmin: lon - lonR,
+    ymin: lat - latR,
+    xmax: lon + lonR,
+    ymax: lat + latR,
+    spatialReference: { wkid: 4326 },
+  });
+
+  const params = new URLSearchParams({
+    geometry: envelope,
+    geometryType: 'esriGeometryEnvelope',
+    inSR: '4326',
+    spatialRel: 'esriSpatialRelIntersects',
+    outFields: 'PROP_ID,FILE_AS_NAME,SITUS_ADDR,TRACT_OR_LOT,BLOCK,LEGAL_ACREAGE',
+    returnGeometry: 'false', // We just want the data, not geometry
+    f: 'json',
+  });
+
+  return `${BELL_CAD_FEATURE_SERVER}/0/query?${params}`;
 }
 
 /**
@@ -240,12 +282,52 @@ async function storeMapImage(
 
 /**
  * Convert Google Maps zoom level to approximate bounding box radius in degrees.
- * At zoom 19 (lot level) this is ~0.0008° (~90m) which shows individual lots.
- * At zoom 17 (block level) this is ~0.003° (~330m) which shows the full block.
+ * At zoom 20 (tightest lot level) this is ~0.0003° (~33m) — individual lot fills frame.
+ * At zoom 18 (block level) this is ~0.0012° (~130m) — full block with lot numbers.
+ * At zoom 16 (neighborhood) this is ~0.005° (~550m) — several blocks for context.
  */
 function zoomToRadiusDeg(zoom: number): number {
-  // At zoom 20, ~0.0004° radius. Each zoom out doubles the radius.
-  return 0.0004 * Math.pow(2, 20 - zoom);
+  // At zoom 21, ~0.00015° radius (~17m). Each zoom out doubles the radius.
+  return 0.00015 * Math.pow(2, 21 - zoom);
+}
+
+// ── Parcel Data Fetch ─────────────────────────────────────────────────────────
+
+interface NearbyParcel {
+  prop_id: number;
+  owner: string | null;
+  address: string | null;
+  lot: string | null;
+  block: string | null;
+  acreage: number | null;
+}
+
+/**
+ * Query the Bell CAD FeatureServer for parcels within the map's bounding box.
+ * Returns basic parcel info (no geometry) so we can annotate map images
+ * with lot numbers and owners for AI cross-referencing.
+ */
+async function fetchParcelDataNearby(queryUrl: string): Promise<NearbyParcel[]> {
+  try {
+    const res = await fetch(queryUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data.features || !Array.isArray(data.features)) return [];
+
+    return data.features.map((f: Record<string, Record<string, unknown>>) => ({
+      prop_id: Number(f.attributes?.PROP_ID ?? 0),
+      owner: f.attributes?.FILE_AS_NAME ? String(f.attributes.FILE_AS_NAME) : null,
+      address: f.attributes?.SITUS_ADDR ? String(f.attributes.SITUS_ADDR) : null,
+      lot: f.attributes?.TRACT_OR_LOT ? String(f.attributes.TRACT_OR_LOT) : null,
+      block: f.attributes?.BLOCK ? String(f.attributes.BLOCK) : null,
+      acreage: f.attributes?.LEGAL_ACREAGE ? Number(f.attributes.LEGAL_ACREAGE) : null,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 // ── Main Capture Functions ───────────────────────────────────────────────────
@@ -292,12 +374,14 @@ export async function captureParcelMaps(
   const cadGisUrl = buildArcGisParcelExportUrl(coords.lat, coords.lon, radiusDeg);
   const usgsSatUrl = buildUsgsSatelliteUrl(coords.lat, coords.lon, radiusDeg);
 
-  // Step 3: Fetch all images in parallel
-  const [googleStreetBuf, googleSatBuf, cadGisBuf, usgsSatBuf] = await Promise.all([
+  // Step 3: Fetch all images in parallel + query nearby parcels
+  const parcelQueryUrl = buildParcelQueryUrl(coords.lat, coords.lon, radiusDeg);
+  const [googleStreetBuf, googleSatBuf, cadGisBuf, usgsSatBuf, parcelQueryResult] = await Promise.all([
     googleStreetUrl ? fetchImage(googleStreetUrl) : Promise.resolve(null),
     googleSatUrl ? fetchImage(googleSatUrl) : Promise.resolve(null),
     fetchImage(cadGisUrl),
     fetchImage(usgsSatUrl),
+    fetchParcelDataNearby(parcelQueryUrl),
   ]);
 
   if (!googleStreetUrl) steps.push('Google Maps API key not configured — skipping pin maps');
@@ -353,27 +437,37 @@ export async function captureParcelMaps(
 
   if (cadGisBuf) {
     storeOps.push((async () => {
+      // Build a rich description including nearby parcel data for AI cross-referencing
+      const nearbyInfo = parcelQueryResult.length > 0
+        ? `\n\nPARCELS IN VIEW (from Bell CAD ArcGIS query):\n` +
+          parcelQueryResult.slice(0, 15).map((p, i) =>
+            `  ${i + 1}. PropID=${p.prop_id} | Lot=${p.lot || '?'} | Block=${p.block || '?'} | ` +
+            `${p.acreage ? p.acreage.toFixed(3) + ' ac' : '?'} | ${p.address || 'No address'} | ${p.owner || '?'}`
+          ).join('\n')
+        : '\n\nNo parcel data returned from ArcGIS query for this area.';
+
       const desc = [
-        `Bell CAD GIS parcel boundaries overlaid on aerial imagery at: ${address}`,
+        `Esri World Imagery aerial at: ${address}`,
         `\nCoordinates: ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`,
         `\nZoom: ${zoom} (${zoomLabel})`,
-        `\nLayers shown: Parcels (layer 0) + Lot Lines (layer 5)`,
-        `\n\nPURPOSE: This shows the official CAD parcel boundaries.`,
-        ` Compare the parcel outlines here with the pin location from the Google Maps`,
-        ` captures to determine which specific lot the address falls on.`,
-        `\n\nLook for: parcel boundary lines (yellow), lot lines (cyan), the parcel`,
-        ` that contains the geocoded address point, neighboring parcel shapes and sizes,`,
-        ` and how the parcels align with visible physical features (roads, buildings).`,
-        `\n\nCRITICAL: Identify which parcel polygon the address pin would fall inside.`,
-        ` This parcel is the target property for the survey.`,
+        `\n\nPURPOSE: High-resolution aerial imagery of the parcel area.`,
+        ` The AI should compare physical features visible (buildings, driveways,`,
+        ` fence lines) with the Google Maps pin position and the parcel data below`,
+        ` to determine which specific lot/parcel the address falls on.`,
+        `\n\nINSTRUCTIONS: Match the building footprints and physical features you see`,
+        ` in this image to the parcels listed below. Determine which parcel the address`,
+        ` "${address}" would fall on based on building position, lot size, and context.`,
+        nearbyInfo,
+        `\n\nCRITICAL: Identify which parcel from the list above corresponds to the`,
+        ` address being searched. Use lot sizes, building positions, and street layout.`,
       ].join('');
       const id = await storeMapImage(
         projectId, cadGisBuf,
-        `CAD GIS Parcel Map — ${address} (zoom ${zoom})`,
-        'plat', cadGisUrl, desc,
+        `Aerial + Parcel Data — ${address} (zoom ${zoom})`,
+        'aerial_photo', cadGisUrl, desc,
       );
       if (id) { result.cadGisDocId = id; result.documentIds.push(id); }
-      steps.push(id ? `Stored CAD GIS parcel map (${cadGisBuf.byteLength} bytes)` : 'Failed to store CAD GIS map');
+      steps.push(id ? `Stored aerial + parcel data map (${cadGisBuf.byteLength} bytes, ${parcelQueryResult.length} nearby parcels)` : 'Failed to store aerial map');
     })());
   }
 
@@ -405,7 +499,10 @@ export async function captureParcelMaps(
 
 /**
  * Capture maps at multiple zoom levels for comprehensive lot identification.
- * Lot-level for precise lot identification, block-level for context.
+ * - Zoom 20: Tightest — individual lot fills frame, see exact pin position
+ * - Zoom 18: Block level — full block visible with lot numbers and street names
+ * Both levels are critical: zoom 20 shows which lot the pin is on,
+ * zoom 18 provides context for lot numbering patterns within the block.
  */
 export async function captureMultiZoomMaps(
   projectId: string,
