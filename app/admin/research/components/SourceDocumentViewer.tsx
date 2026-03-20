@@ -98,6 +98,12 @@ export default function SourceDocumentViewer({
 
   const typeInfo = doc.document_type ? DOCUMENT_TYPE_LABELS[doc.document_type] : null;
   const text = doc.extracted_text || '';
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  // Auto-focus the modal on mount so arrow keys work immediately
+  useEffect(() => {
+    overlayRef.current?.focus();
+  }, []);
 
   // Reset zoom/pan when page changes
   useEffect(() => {
@@ -382,9 +388,14 @@ export default function SourceDocumentViewer({
             </div>
           </div>
 
-          {/* Image caption */}
+          {/* Image caption + keyboard hint */}
           <div className="research-viewer__img-caption">
             {summary}
+            {pageImageUrls.length > 1 && (
+              <span className="research-viewer__key-hint">
+                Use <kbd>&larr;</kbd> <kbd>&rarr;</kbd> arrow keys to navigate pages
+              </span>
+            )}
           </div>
 
           {/* Image display area with zoom/pan/draw */}
@@ -523,11 +534,14 @@ export default function SourceDocumentViewer({
 
   return (
     <div
+      ref={overlayRef}
       className="research-viewer-overlay"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={doc.document_label || doc.original_filename || 'Document Viewer'}
+      tabIndex={-1}
+      style={{ outline: 'none' }}
     >
       <div
         className={`research-viewer${expanded ? ' research-viewer--expanded' : ''}${hasImages ? ' research-viewer--with-pdf' : ''}`}
