@@ -240,7 +240,7 @@ async function analyzeMapImage(
     cad_gis: [
       `You are a Texas Registered Professional Land Surveyor analyzing an AERIAL IMAGE`,
       `of the parcel area. Below the image description, you will find a list of parcels`,
-      `from the Bell County Appraisal District GIS database that are within this view.`,
+      `from the County Appraisal District GIS database that are within this view.`,
       ``,
       `The address being researched is: "${address}"`,
       ``,

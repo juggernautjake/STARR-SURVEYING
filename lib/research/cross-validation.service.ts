@@ -47,6 +47,22 @@ export type AtomCategory =
   | 'lot_identification' // Which lot the address is on (from visual comparison)
   | 'pin_location'       // Geocoded pin coordinates
   | 'parcel_geometry'    // Parcel boundary geometry
+  // ── New categories for comprehensive extraction ──
+  | 'curve_data'         // Arc, radius, chord, central angle
+  | 'right_of_way'       // Road ROW width and extent
+  | 'setback_line'       // Building setback line
+  | 'grantor'            // Deed grantor (seller)
+  | 'grantee'            // Deed grantee (buyer)
+  | 'deed_date'          // Deed execution/recording date
+  | 'deed_type'          // Type of deed instrument
+  | 'plat_date'          // Plat recording date
+  | 'surveyor_name'      // Surveyor name and RPLS number
+  | 'street_name'        // Bordering street name
+  | 'adjacent_lot'       // Adjacent/neighboring lot info
+  | 'restriction'        // Deed restriction or covenant
+  | 'encumbrance'        // Lien, mortgage, or other encumbrance
+  | 'coordinate'         // GPS/state plane coordinate
+  | 'elevation'          // Elevation or BFE data
   | 'other';
 
 /** Source method that produced this atom */
@@ -58,14 +74,20 @@ export type AtomSource =
   | 'plat_text'          // Extracted from plat document text
   | 'plat_image'         // Extracted from plat image via OCR/Vision
   | 'survey_text'        // Extracted from survey document
+  | 'field_notes'        // Extracted from surveyor field notes
+  | 'title_document'     // Extracted from title commitment/policy
+  | 'county_clerk'       // County clerk record
   | 'google_maps'        // Google Maps geocoding/imagery
   | 'nominatim'          // Nominatim geocoding
   | 'usgs_imagery'       // USGS satellite/topo
   | 'fema_service'       // FEMA flood zone service
+  | 'txdot'              // TxDOT right-of-way data
+  | 'gis_viewer'         // Live GIS viewer screenshot
   | 'ai_vision'          // AI visual analysis of images
   | 'ai_extraction'      // AI text extraction/parsing
   | 'ai_comparison'      // AI cross-comparison analysis
   | 'user_input'         // User-provided data
+  | 'user_upload'        // User-uploaded document
   | 'manual_entry';      // Manually entered by researcher
 
 /** Validation state of a DataAtom */
@@ -302,7 +324,10 @@ function assessConflictSeverity(
   }
 
   // Numeric categories: check tolerance
-  const numericCategories: AtomCategory[] = ['acreage', 'market_value', 'land_value', 'improvement_value'];
+  const numericCategories: AtomCategory[] = [
+    'acreage', 'market_value', 'land_value', 'improvement_value',
+    'elevation', 'coordinate',
+  ];
   if (numericCategories.includes(category)) {
     const { match, diff } = numericMatch(atomA.value, atomB.value);
     if (match) {
@@ -314,10 +339,43 @@ function assessConflictSeverity(
     return { severity: 'major', description: `Numeric values differ by ${diff.toFixed(2)}% — significant discrepancy` };
   }
 
-  // Identity categories: any difference is significant
-  const identityCategories: AtomCategory[] = ['property_id', 'lot_number', 'block_number', 'lot_identification'];
+  // Identity categories: any difference is critical — must be resolved
+  const identityCategories: AtomCategory[] = [
+    'property_id', 'lot_number', 'block_number', 'lot_identification',
+    'grantor', 'grantee',
+  ];
   if (identityCategories.includes(category)) {
     return { severity: 'critical', description: `${category} values differ: "${atomA.value}" vs "${atomB.value}" — must be resolved` };
+  }
+
+  // Date categories: normalize and compare
+  const dateCategories: AtomCategory[] = ['deed_date', 'plat_date'];
+  if (dateCategories.includes(category)) {
+    const dateA = new Date(atomA.value).getTime();
+    const dateB = new Date(atomB.value).getTime();
+    if (!isNaN(dateA) && !isNaN(dateB)) {
+      const daysDiff = Math.abs(dateA - dateB) / (1000 * 60 * 60 * 24);
+      if (daysDiff === 0) return { severity: 'trivial', description: 'Dates match exactly' };
+      if (daysDiff <= 3) return { severity: 'minor', description: `Dates differ by ${daysDiff} day(s) — likely formatting difference` };
+      return { severity: 'major', description: `Dates differ by ${Math.round(daysDiff)} days` };
+    }
+    // Fall through to text comparison if date parsing fails
+  }
+
+  // Name categories: use case-insensitive word matching
+  const nameCategories: AtomCategory[] = ['surveyor_name', 'street_name', 'deed_type'];
+  if (nameCategories.includes(category)) {
+    if (normA.includes(normB) || normB.includes(normA)) {
+      return { severity: 'trivial', description: 'Values match (one contains the other)' };
+    }
+    // Word overlap check
+    const wordsA = new Set(normA.split(/\s+/));
+    const wordsB = new Set(normB.split(/\s+/));
+    const overlap = [...wordsA].filter(w => wordsB.has(w)).length;
+    const maxWords = Math.max(wordsA.size, wordsB.size);
+    if (maxWords > 0 && overlap / maxWords >= 0.5) {
+      return { severity: 'minor', description: `${Math.round((overlap / maxWords) * 100)}% word overlap — likely same entity` };
+    }
   }
 
   // Substring match — moderate
