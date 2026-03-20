@@ -9,7 +9,7 @@ import GoogleAdsScript from './GoogleAdsScript';
 // Footer CSS
 import '../styles/Footer.css';
 
-const GOOGLE_REVIEW_URL = 'https://g.page/r/CWAIbfLLIz0BEAI/review';
+const GOOGLE_REVIEW_URL = 'https://search.google.com/local/writereview?placeid=ChIJV77ibdAVRYYRYCVt8suXPQE';
 
 // Office address - Professional format
 const OFFICE_ADDRESS = '3779 W FM 436, Belton, TX 76513';
