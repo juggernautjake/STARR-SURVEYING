@@ -118,15 +118,42 @@ export interface BellCadParcel {
   deed_reference: string;
   owner_tax_yr: number | null;
   next_appraisal_dt: string | null;
+  /** Computed geometry area in square feet (from Shape__Area) */
+  shape_area_sqft: number | null;
+  /** Computed geometry perimeter in feet (from Shape__Length) */
+  shape_length_ft: number | null;
   geometry: ArcGisGeometry | null;
+
+  // ── Derived URLs (constructed from prop_id) ────────────────────
+  /** Direct link to eSearch property detail page */
+  esearch_url: string;
+  /** Direct link to BIS interactive GIS map centered on this parcel */
+  gis_map_url: string;
+  /** Direct link to ArcGIS Market Analysis map for this parcel */
+  market_analysis_url: string;
+  /** Direct link to tax statement PDF for current year */
+  tax_statement_url: string;
 }
 
 /** Bell CAD abstract record */
 export interface BellCadAbstract {
   anum: string | null;
+  /** Primary survey name (L1SURNAM) */
   survey_name: string | null;
+  /** Block within abstract (L2BLOCK) */
   block: string | null;
+  /** Survey number (L3SURNUM) */
   survey_number: string | null;
+  /** Alternate survey name (L4SURNAM) */
+  survey_name_alt: string | null;
+  /** Survey form flag (L5SFORMF) */
+  survey_form: string | null;
+  /** Problem flag (PROBFLAG) */
+  problem_flag: string | null;
+  /** Control number (CONTROL_NU) */
+  control_number: string | null;
+  /** Computed area in square feet */
+  area_sqft: number | null;
   geometry: ArcGisGeometry | null;
 }
 
@@ -162,11 +189,33 @@ export interface BellCadParcelContext {
   abstract: BellCadAbstract | null;
   subdivision: BellCadSubdivision | null;
   lot_lines: BellCadLotLine[];
+  /** Streets that border or are near this parcel */
+  streets: Array<{ full_name: string | null; road_class: string | null }>;
   city_name: string | null;
   school_district: string | null;
   flood_zones: FemaFloodZone[];
   /** Whether the parcel intersects the military (Fort Cavazos) boundary */
   near_military: boolean;
+  /** Extraction log: what was queried, what returned, confirmations & issues */
+  extraction_log: ExtractionLogEntry[];
+}
+
+/** Structured log entry for extraction tracking */
+export interface ExtractionLogEntry {
+  /** What was being queried */
+  objective: string;
+  /** Which layer or service was queried */
+  source: string;
+  /** Whether the query returned results */
+  success: boolean;
+  /** Number of features returned */
+  result_count: number;
+  /** What key data was extracted */
+  extracted: string;
+  /** Any issues or notes */
+  notes: string | null;
+  /** Timestamp */
+  timestamp: string;
 }
 
 // ── Internal Helpers ─────────────────────────────────────────────────────────
@@ -388,13 +437,7 @@ export async function queryAbstractByGeometry(
     spatialRel: 'esriSpatialRelIntersects',
     resultRecordCount: 10,
   });
-  return features.map(f => ({
-    anum: str(f.attributes, 'ANUM'),
-    survey_name: str(f.attributes, 'L1SURNAM') || str(f.attributes, 'L4SURNAM'),
-    block: str(f.attributes, 'L2BLOCK'),
-    survey_number: str(f.attributes, 'L3SURNUM'),
-    geometry: f.geometry ?? null,
-  }));
+  return features.map(parseAbstractFeature);
 }
 
 /**
@@ -407,13 +450,7 @@ export async function queryAbstractByNumber(
   if (!safe) return [];
   const where = `UPPER(ANUM) = UPPER('${safe}')`;
   const features = await queryLayer(layerUrl(BELL_CAD_LAYERS.ABSTRACTS), where);
-  return features.map(f => ({
-    anum: str(f.attributes, 'ANUM'),
-    survey_name: str(f.attributes, 'L1SURNAM') || str(f.attributes, 'L4SURNAM'),
-    block: str(f.attributes, 'L2BLOCK'),
-    survey_number: str(f.attributes, 'L3SURNUM'),
-    geometry: f.geometry ?? null,
-  }));
+  return features.map(parseAbstractFeature);
 }
 
 /**
@@ -590,9 +627,24 @@ export async function fetchParcelContext(
   propId: string | number,
   includeFlood = true,
 ): Promise<BellCadParcelContext> {
+  const log: ExtractionLogEntry[] = [];
+  const ts = () => new Date().toISOString();
+
   // Step 1: Get the parcel record with geometry
   const parcels = await queryParcelByPropId(propId, true);
   const parcel = parcels[0] ?? null;
+
+  log.push({
+    objective: 'Fetch primary parcel record by prop_id',
+    source: `FeatureServer/${BELL_CAD_LAYERS.PARCELS} (Parcels)`,
+    success: !!parcel,
+    result_count: parcels.length,
+    extracted: parcel
+      ? `prop_id=${parcel.prop_id}, owner="${parcel.file_as_name}", lot="${parcel.tract_or_lot}", block="${parcel.block}", acreage=${parcel.legal_acreage}`
+      : 'No parcel found',
+    notes: parcel?.geometry ? `Geometry with ${parcel.geometry.rings?.length ?? 0} ring(s)` : 'No geometry returned',
+    timestamp: ts(),
+  });
 
   if (!parcel || !parcel.geometry) {
     return {
@@ -600,10 +652,12 @@ export async function fetchParcelContext(
       abstract: null,
       subdivision: null,
       lot_lines: [],
+      streets: [],
       city_name: null,
       school_district: null,
       flood_zones: [],
       near_military: false,
+      extraction_log: log,
     };
   }
 
@@ -614,6 +668,7 @@ export async function fetchParcelContext(
     abstracts,
     subdivisions,
     lotLines,
+    streets,
     cityName,
     schoolDistrict,
     nearMilitary,
@@ -622,21 +677,113 @@ export async function fetchParcelContext(
     queryAbstractByGeometry(geom).catch(() => [] as BellCadAbstract[]),
     querySubdivisionByGeometry(geom).catch(() => [] as BellCadSubdivision[]),
     queryLotLinesByGeometry(geom).catch(() => [] as BellCadLotLine[]),
+    queryStreetsByGeometry(geom).catch(() => [] as Array<{ full_name: string | null; road_class: string | null; geometry: ArcGisGeometry | null }>),
     queryCityByGeometry(geom).catch(() => null),
     querySchoolDistrictByGeometry(geom).catch(() => null),
     queryMilitaryIntersection(geom).catch(() => false),
     includeFlood ? queryFloodZoneByGeometry(geom).catch(() => [] as FemaFloodZone[]) : Promise.resolve([]),
   ]);
 
+  // Log each spatial query result
+  log.push({
+    objective: 'Find abstract survey containing parcel',
+    source: `FeatureServer/${BELL_CAD_LAYERS.ABSTRACTS} (Abstracts)`,
+    success: abstracts.length > 0,
+    result_count: abstracts.length,
+    extracted: abstracts[0] ? `Abstract #${abstracts[0].anum}, survey="${abstracts[0].survey_name}"` : 'None',
+    notes: null,
+    timestamp: ts(),
+  });
+
+  log.push({
+    objective: 'Find subdivision containing parcel',
+    source: `FeatureServer/${BELL_CAD_LAYERS.SUBDIVISIONS} (Subdivisions)`,
+    success: subdivisions.length > 0,
+    result_count: subdivisions.length,
+    extracted: subdivisions[0] ? `Code="${subdivisions[0].code}", desc="${subdivisions[0].description}"` : 'None',
+    notes: null,
+    timestamp: ts(),
+  });
+
+  log.push({
+    objective: 'Find platted lot lines intersecting parcel',
+    source: `FeatureServer/${BELL_CAD_LAYERS.LOT_LINES} (Lot Lines)`,
+    success: lotLines.length > 0,
+    result_count: lotLines.length,
+    extracted: lotLines.length > 0
+      ? `${lotLines.length} lot line(s), dimensions: ${lotLines.filter(l => l.plat_dim).map(l => l.plat_dim).join(', ') || 'none recorded'}`
+      : 'No lot lines found',
+    notes: null,
+    timestamp: ts(),
+  });
+
+  log.push({
+    objective: 'Find streets bordering parcel',
+    source: `FeatureServer/${BELL_CAD_LAYERS.STREETS} (Streets)`,
+    success: streets.length > 0,
+    result_count: streets.length,
+    extracted: streets.length > 0
+      ? `Streets: ${[...new Set(streets.map(s => s.full_name).filter(Boolean))].join(', ')}`
+      : 'No streets found',
+    notes: null,
+    timestamp: ts(),
+  });
+
+  log.push({
+    objective: 'Identify city jurisdiction',
+    source: `FeatureServer/${BELL_CAD_LAYERS.CITY_LIMITS} (City Limits)`,
+    success: !!cityName,
+    result_count: cityName ? 1 : 0,
+    extracted: cityName ?? 'Outside city limits',
+    notes: null,
+    timestamp: ts(),
+  });
+
+  log.push({
+    objective: 'Identify school district',
+    source: `FeatureServer/${BELL_CAD_LAYERS.SCHOOL_DISTRICTS} (School Districts)`,
+    success: !!schoolDistrict,
+    result_count: schoolDistrict ? 1 : 0,
+    extracted: schoolDistrict ?? 'None',
+    notes: null,
+    timestamp: ts(),
+  });
+
+  if (includeFlood) {
+    log.push({
+      objective: 'Query FEMA flood hazard zones',
+      source: 'FEMA NFHL REST Service',
+      success: floodZones.length > 0,
+      result_count: floodZones.length,
+      extracted: floodZones.length > 0
+        ? `Zone(s): ${floodZones.map(z => z.fld_zone).join(', ')}, SFHA: ${floodZones.some(z => z.sfha_tf === 'T') ? 'YES' : 'NO'}`
+        : 'No flood zones (Zone X presumed)',
+      notes: null,
+      timestamp: ts(),
+    });
+  }
+
+  log.push({
+    objective: 'Check military boundary intersection',
+    source: `FeatureServer/${BELL_CAD_LAYERS.MILITARY_BOUNDARY} (Military Boundary)`,
+    success: true,
+    result_count: nearMilitary ? 1 : 0,
+    extracted: nearMilitary ? 'INTERSECTS Fort Cavazos boundary' : 'Not near military boundary',
+    notes: null,
+    timestamp: ts(),
+  });
+
   return {
     parcel,
     abstract: abstracts[0] ?? null,
     subdivision: subdivisions[0] ?? null,
     lot_lines: lotLines,
+    streets: streets.map(s => ({ full_name: s.full_name, road_class: s.road_class })),
     city_name: cityName,
     school_district: schoolDistrict,
     flood_zones: floodZones,
     near_military: nearMilitary,
+    extraction_log: log,
   };
 }
 
@@ -695,10 +842,20 @@ export async function searchAndFetchParcelContext(
         abstract: null,
         subdivision: null,
         lot_lines: [],
+        streets: [],
         city_name: null,
         school_district: null,
         flood_zones: [],
         near_military: false,
+        extraction_log: [{
+          objective: 'Search for parcel using available identifiers',
+          source: `FeatureServer/${BELL_CAD_LAYERS.PARCELS} (Parcels)`,
+          success: false,
+          result_count: 0,
+          extracted: 'No parcels found by any search method',
+          notes: `Tried method: ${method}`,
+          timestamp: new Date().toISOString(),
+        }],
       },
       search_method: method,
     };
@@ -765,6 +922,22 @@ export function parcelToGeoJSON(parcel: BellCadParcel): { type: 'Feature'; prope
 }
 
 // ── Internal Parser ──────────────────────────────────────────────────────────
+
+function parseAbstractFeature(feature: ArcGisFeature): BellCadAbstract {
+  const a = feature.attributes;
+  return {
+    anum: str(a, 'ANUM'),
+    survey_name: str(a, 'L1SURNAM') || str(a, 'L4SURNAM'),
+    block: str(a, 'L2BLOCK'),
+    survey_number: str(a, 'L3SURNUM'),
+    survey_name_alt: str(a, 'L4SURNAM'),
+    survey_form: str(a, 'L5SFORMF'),
+    problem_flag: str(a, 'PROBFLAG'),
+    control_number: str(a, 'CONTROL_NU'),
+    area_sqft: num(a, 'Shape__Area'),
+    geometry: feature.geometry ?? null,
+  };
+}
 
 function parseParcelFeature(feature: ArcGisFeature): BellCadParcel {
   const a = feature.attributes;
@@ -847,8 +1020,16 @@ function parseParcelFeature(feature: ArcGisFeature): BellCadParcel {
     page,
     number: deedNumber,
     deed_reference: deedRef,
+    shape_area_sqft: num(a, 'Shape__Area'),
+    shape_length_ft: num(a, 'Shape__Length'),
     owner_tax_yr: num(a, 'owner_tax_yr'),
     next_appraisal_dt: str(a, 'next_appraisal_dt'),
     geometry: feature.geometry ?? null,
+
+    // ── Derived URLs ──────────────────────────────────────────────
+    esearch_url: `https://esearch.bellcad.org/Property/View/${num(a, 'prop_id') ?? 0}`,
+    gis_map_url: `https://gis.bisclient.com/bellcad/`,
+    market_analysis_url: `https://experience.arcgis.com/experience/f705a15fea9a45bab86f27bdb8087caf/?zoom_to_selection=true#data_s=where:dataSource_1-1961cfd0bc2-layer-14-1961cfd0ebc-layer-16:PROP_ID=${num(a, 'prop_id') ?? 0}`,
+    tax_statement_url: `https://bisfiles.co/fileapi/tax-statement/download/BellCad/${new Date().getFullYear()}/${num(a, 'prop_id') ?? 0}.pdf`,
   };
 }
