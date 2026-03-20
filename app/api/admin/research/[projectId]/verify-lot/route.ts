@@ -2,15 +2,18 @@
 // Parcel-level lot verification pipeline.
 //
 // POST — Runs the full lot identification and cross-validation pipeline:
-//   1. Query Bell CAD ArcGIS for parcel data + adjacent lots
-//   2. Add user-provided address as a data atom
-//   3. Capture map images at multiple zoom levels (Google Maps pin + ArcGIS overlay)
-//   4. Find existing plat/survey/deed document images for the project
-//   5. Use AI Vision to compare map pins against CAD GIS and plat images
-//   6. Search existing extracted data for the identified lot + adjacent lots
-//   7. Final cross-validation with structured logging
-//   8. AI conflict analysis for unresolved issues
-//   9. Optionally save results
+//   1.  Query Bell CAD ArcGIS for parcel data + adjacent lots (strongest baseline)
+//   2.  Add user-provided address as a data atom
+//   3.  Progressive zoom capture — zoom from neighborhood down to individual lot
+//   3b. Standard multi-zoom map capture (lot + block level with pin)
+//   4.  Find existing plat/survey/deed documents
+//   5.  AI Vision lot identification — compare pin screenshots vs CAD/GIS/plat
+//   6.  Cross-check against previously extracted data + existing documents
+//   6b. Verify ArcGIS lot vs AI-identified lot
+//   7.  Run analysis triggers — criteria-based cross-validation checks
+//   8.  Final cross-validation pass with structured logging
+//   9.  AI conflict analysis for unresolved issues
+//   10. Optionally save results
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -26,6 +29,10 @@ import {
   type MultiZoomCapture,
 } from '@/lib/research/parcel-map-capture.service';
 import {
+  captureProgressiveZoom,
+  type ProgressiveZoomResult,
+} from '@/lib/research/progressive-zoom.service';
+import {
   createValidationGraph,
   createAtom,
   atomsFromArcGisParcel,
@@ -38,6 +45,13 @@ import {
   identifyLotFromImages,
   type LotIdentificationResult,
 } from '@/lib/research/visual-lot-identifier.service';
+import {
+  evaluateTriggers,
+  buildTriggerReviewPrompt,
+  type TriggerResult,
+} from '@/lib/research/analysis-triggers';
+import { callAI } from '@/lib/research/ai-client';
+import type { PromptKey } from '@/lib/research/prompts';
 
 function extractProjectId(req: NextRequest): string | null {
   const parts = req.nextUrl.pathname.split('/research/')[1]?.split('/');
@@ -62,6 +76,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     prop_id?: string;
     owner?: string;
     save_to_project?: boolean;
+    /** Enable progressive zoom capture (zoom 16→21) */
+    progressive_zoom?: boolean;
+    /** Enable trigger-based AI reviews */
+    trigger_reviews?: boolean;
   };
 
   if (!body.address) {
@@ -186,24 +204,82 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  // ── Step 3: Capture map images at multiple zoom levels ───────────────────
+  // ── Step 3: Progressive zoom capture — zoom from neighborhood to lot ────
 
-  steps.push('[Step 3] Capturing map images at lot-level and block-level zoom...');
-
+  let progressiveZoomResult: ProgressiveZoomResult | null = null;
   let mapCapture: MultiZoomCapture | null = null;
+
+  if (body.progressive_zoom !== false) {
+    steps.push('[Step 3] Starting progressive zoom capture (zoom 16→21)...');
+    try {
+      progressiveZoomResult = await captureProgressiveZoom(
+        projectId,
+        body.address,
+        project.county ?? undefined,
+      );
+      steps.push(`[Step 3] Progressive zoom: ${progressiveZoomResult.all_document_ids.length} images across ${progressiveZoomResult.zoom_captures.length} zoom levels`);
+      steps.push(`[Step 3] Lot lines first visible at zoom ${progressiveZoomResult.lot_lines_first_visible_at ?? 'unknown'}`);
+      steps.push(`[Step 3] Best zoom for lot ID: ${progressiveZoomResult.best_zoom_for_lot_id}`);
+      steps.push(`[Step 3] Total parcels found in view: ${progressiveZoomResult.total_parcels_found}`);
+      steps.push(...progressiveZoomResult.pipeline_log);
+
+      // Add pin location atom from the progressive zoom geocoding
+      if (progressiveZoomResult.geocoded) {
+        const pinAtom = createAtom({
+          category: 'pin_location',
+          value: `${progressiveZoomResult.geocoded.lat},${progressiveZoomResult.geocoded.lon}`,
+          normalized: {
+            lat: progressiveZoomResult.geocoded.lat,
+            lon: progressiveZoomResult.geocoded.lon,
+          },
+          source: 'google_maps',
+          extraction_method: 'geocoding via progressive zoom capture',
+          confidence: 85,
+          confidence_reasoning: 'Geocoded address via Nominatim — pin location for lot comparison',
+          pipeline_step: 'verify-lot:progressive-zoom',
+        });
+        addAtomAndValidate(graph, pinAtom);
+      }
+
+      // Add adjacent lot atoms from progressive zoom parcel queries
+      for (const zc of progressiveZoomResult.zoom_captures) {
+        for (const parcel of zc.parcels_in_view) {
+          if (parcel.lot && parcel.prop_id !== (targetParcel?.prop_id ?? 0)) {
+            const adjAtom = createAtom({
+              category: 'adjacent_lot',
+              value: `Lot ${parcel.lot}${parcel.block ? ', Block ' + parcel.block : ''} (PropID ${parcel.prop_id}) — ${parcel.address || 'no address'}`,
+              normalized: { lot: parcel.lot, block: parcel.block, prop_id: parcel.prop_id, address: parcel.address },
+              source: 'arcgis_query',
+              extraction_method: `Progressive zoom parcel query at zoom ${zc.zoom}`,
+              confidence: 82,
+              confidence_reasoning: 'Adjacent parcel from CAD spatial query during progressive zoom',
+              pipeline_step: `verify-lot:progressive-zoom:z${zc.zoom}`,
+            });
+            addAtomAndValidate(graph, adjAtom);
+          }
+        }
+      }
+    } catch (err) {
+      steps.push(`[Step 3] Progressive zoom failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ── Step 3b: Standard multi-zoom map capture (lot + block level with pin) ─
+
+  steps.push('[Step 3b] Capturing standard lot-level and block-level pin maps...');
   try {
     mapCapture = await captureMultiZoomMaps(
       projectId,
       body.address,
-      null, // ArcGIS geometry is state plane coords — let Nominatim geocode
+      progressiveZoomResult?.geocoded ?? null,
       project.county ?? undefined,
     );
     steps.push(
-      `[Step 3] Captured ${mapCapture.allDocumentIds.length} map images (lot + block level)`,
+      `[Step 3b] Captured ${mapCapture.allDocumentIds.length} standard map images (lot + block level)`,
     );
 
-    // Add pin location atom if geocoded
-    if (mapCapture.lotLevel.geocoded) {
+    // Add pin location atom if not already added from progressive zoom
+    if (mapCapture.lotLevel.geocoded && !progressiveZoomResult?.geocoded) {
       const pinAtom = createAtom({
         category: 'pin_location',
         value: `${mapCapture.lotLevel.geocoded.lat},${mapCapture.lotLevel.geocoded.lon}`,
@@ -220,7 +296,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       addAtomAndValidate(graph, pinAtom);
     }
   } catch (err) {
-    steps.push(`[Step 3] Map capture failed: ${err instanceof Error ? err.message : String(err)}`);
+    steps.push(`[Step 3b] Map capture failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // ── Step 4: Find existing plat/survey/deed documents ─────────────────────
@@ -375,47 +451,108 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  // ── Step 7: Final cross-validation pass with structured logging ──────────
+  // ── Step 7: Run analysis triggers — criteria-based cross-validation ──────
 
-  steps.push('[Step 7] Running final cross-validation across all data atoms...');
+  steps.push('[Step 7] Evaluating analysis triggers based on discovered data...');
+
+  const firedTriggerIds = new Set<string>();
+  let triggerResults: TriggerResult[] = [];
+  let triggerReviewText: string | null = null;
+
+  try {
+    triggerResults = evaluateTriggers(graph, firedTriggerIds);
+    for (const t of triggerResults) {
+      firedTriggerIds.add(t.trigger_id);
+      steps.push(`[Step 7] TRIGGER FIRED: ${t.trigger_id} — ${t.description}`);
+      for (const f of t.findings) {
+        steps.push(`[Step 7]   Finding: ${f}`);
+      }
+      if (t.halt_recommended) {
+        steps.push(`[Step 7]   ⚠ HALT RECOMMENDED — critical issue found by ${t.trigger_id}`);
+      }
+    }
+    steps.push(`[Step 7] ${triggerResults.length} triggers fired out of total evaluated`);
+
+    // Run AI trigger review if enabled and triggers fired
+    if (body.trigger_reviews !== false && triggerResults.length > 0) {
+      steps.push('[Step 7] Running AI review of triggered cross-checks...');
+      const reviewPrompt = buildTriggerReviewPrompt(triggerResults, graph);
+      try {
+        const reviewResult = await callAI({
+          promptKey: 'CROSS_REFERENCE_ANALYZER' as PromptKey,
+          userContent: [
+            'You are a Texas Registered Professional Land Surveyor reviewing triggered analysis checks.',
+            'Based on the data discovered during this research pipeline, evaluate each trigger.',
+            'Provide specific findings and recommendations for each triggered check.',
+            '',
+            reviewPrompt,
+            '',
+            'For each trigger, provide:',
+            '1. Your analysis of the current data state',
+            '2. Whether the data is consistent or has issues',
+            '3. Any specific actions needed to resolve issues',
+            '4. Confidence assessment for the lot identification given these findings',
+            '',
+            'Respond in plain text organized by trigger. Be specific and cite actual values.',
+          ].join('\n'),
+          maxTokens: 6144,
+          timeoutMs: 120_000,
+        });
+        triggerReviewText = typeof reviewResult.response === 'string'
+          ? reviewResult.response
+          : reviewResult.raw || null;
+        if (triggerReviewText) {
+          steps.push(`[Step 7] AI trigger review complete (${triggerReviewText.length} chars)`);
+        }
+      } catch (err) {
+        steps.push(`[Step 7] AI trigger review failed (non-critical): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  } catch (err) {
+    steps.push(`[Step 7] Trigger evaluation failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // ── Step 8: Final cross-validation pass with structured logging ──────────
+
+  steps.push('[Step 8] Running final cross-validation across all data atoms...');
   const finalLogs = crossValidateAtoms(graph);
   validationLogs.push(...finalLogs);
 
   // Add human-readable validation log entries to steps
   for (const log of finalLogs) {
     if (log.type === 'confirmation') {
-      steps.push(`[Step 7] ${log.message}`);
+      steps.push(`[Step 8] ${log.message}`);
     } else if (log.type === 'conflict') {
-      steps.push(`[Step 7] ${log.message}`);
+      steps.push(`[Step 8] ${log.message}`);
     } else if (log.type === 'summary') {
-      steps.push(`[Step 7] ${log.message}`);
+      steps.push(`[Step 8] ${log.message}`);
     }
   }
 
-  // ── Step 8: AI conflict analysis for unresolved issues ───────────────────
+  // ── Step 9: AI conflict analysis for unresolved issues ───────────────────
 
   const unresolvedConflicts = graph.conflicts.filter(
     (c) => !c.resolved && (c.severity === 'moderate' || c.severity === 'major' || c.severity === 'critical'),
   );
 
   if (unresolvedConflicts.length > 0) {
-    steps.push(`[Step 8] Analyzing ${unresolvedConflicts.length} unresolved conflicts with AI...`);
+    steps.push(`[Step 9] Analyzing ${unresolvedConflicts.length} unresolved conflicts with AI...`);
     try {
       await analyzeConflictsWithAI(graph);
-      steps.push('[Step 8] AI conflict analysis complete');
+      steps.push('[Step 9] AI conflict analysis complete');
 
       // Log AI recommendations
       for (const conflict of graph.conflicts.filter(c => c.recommendation)) {
-        steps.push(`[Step 8] AI recommendation for ${conflict.category}: ${conflict.recommendation}`);
+        steps.push(`[Step 9] AI recommendation for ${conflict.category}: ${conflict.recommendation}`);
       }
     } catch (err) {
-      steps.push(`[Step 8] AI conflict analysis failed: ${err instanceof Error ? err.message : String(err)}`);
+      steps.push(`[Step 9] AI conflict analysis failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   } else {
-    steps.push('[Step 8] No unresolved moderate+ conflicts — skipping AI analysis');
+    steps.push('[Step 9] No unresolved moderate+ conflicts — skipping AI analysis');
   }
 
-  // ── Step 9: Optionally save results to project metadata ──────────────────
+  // ── Step 10: Optionally save results to project metadata ─────────────────
 
   if (body.save_to_project) {
     try {
@@ -427,10 +564,28 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         subdivision_name: lotResult?.subdivision_name ?? null,
         confidence: lotResult?.confidence ?? 0,
         reasoning: lotResult?.reasoning ?? null,
-        map_document_ids: mapCapture?.allDocumentIds ?? [],
+        map_document_ids: [
+          ...(mapCapture?.allDocumentIds ?? []),
+          ...(progressiveZoomResult?.all_document_ids ?? []),
+        ],
+        progressive_zoom: progressiveZoomResult ? {
+          zoom_levels_captured: progressiveZoomResult.zoom_captures.length,
+          total_images: progressiveZoomResult.all_document_ids.length,
+          lot_lines_first_visible_at: progressiveZoomResult.lot_lines_first_visible_at,
+          best_zoom_for_lot_id: progressiveZoomResult.best_zoom_for_lot_id,
+          total_parcels_found: progressiveZoomResult.total_parcels_found,
+        } : null,
+        triggers_fired: triggerResults.map(t => ({
+          id: t.trigger_id,
+          condition: t.condition,
+          description: t.description,
+          halt_recommended: t.halt_recommended,
+        })),
+        trigger_review: triggerReviewText,
         atom_count: graph.summary.total_atoms,
         conflict_count: graph.summary.critical_conflicts,
         confirmed_count: graph.summary.confirmed_count,
+        overall_confidence: graph.summary.overall_confidence,
         adjacent_parcels: adjacentParcels.slice(0, 10).map(p => ({
           prop_id: p.prop_id,
           address: p.situs_address,
@@ -445,9 +600,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         .from('research_projects')
         .update({ analysis_metadata: metadata })
         .eq('id', projectId);
-      steps.push('[Step 9] Saved verification results to project metadata');
+      steps.push('[Step 10] Saved verification results to project metadata');
     } catch (err) {
-      steps.push(`[Step 9] Failed to save to project: ${err instanceof Error ? err.message : String(err)}`);
+      steps.push(`[Step 10] Failed to save to project: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -503,7 +658,37 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     map_images: {
       lot_level: mapCapture?.lotLevel.documentIds ?? [],
       block_level: mapCapture?.blockLevel.documentIds ?? [],
-      total: mapCapture?.allDocumentIds.length ?? 0,
+      total: (mapCapture?.allDocumentIds.length ?? 0) + (progressiveZoomResult?.all_document_ids.length ?? 0),
+    },
+
+    // Progressive zoom capture results
+    progressive_zoom: progressiveZoomResult
+      ? {
+          zoom_levels: progressiveZoomResult.zoom_captures.map(zc => ({
+            zoom: zc.zoom,
+            label: zc.label,
+            images: zc.document_ids.length,
+            parcels_in_view: zc.parcels_in_view.length,
+            lot_lines_visible: zc.lot_lines_likely_visible,
+          })),
+          lot_lines_first_visible_at: progressiveZoomResult.lot_lines_first_visible_at,
+          best_zoom_for_lot_id: progressiveZoomResult.best_zoom_for_lot_id,
+          total_images: progressiveZoomResult.all_document_ids.length,
+          total_parcels_found: progressiveZoomResult.total_parcels_found,
+        }
+      : null,
+
+    // Analysis triggers fired
+    triggers: {
+      fired: triggerResults.map(t => ({
+        id: t.trigger_id,
+        condition: t.condition,
+        description: t.description,
+        halt_recommended: t.halt_recommended,
+        findings: t.findings,
+      })),
+      total_fired: triggerResults.length,
+      ai_review: triggerReviewText,
     },
 
     // Documents used in analysis
