@@ -18,6 +18,7 @@
 import { PipelineLogger } from './pipeline-logger';
 import { callAI } from './ai-client';
 import { loadDocumentImage, type LoadedImage } from './image-loader';
+import { iterativeImageAnalysis, type IterativeAnalysisResult } from './iterative-image-analyzer.service';
 import {
   createAtom,
   addAtomAndValidate,
@@ -167,14 +168,72 @@ export async function runVisualComparison(
 
   logger.info('visual_compare', `Loaded ${loadedImages.size}/${imagesToLoad.length} images for comparison`);
 
+  // ── Deep-analyze each image iteratively before comparison ──────────────
+  // Each image gets tile-based analysis to extract maximum detail.
+  // The deep analysis findings are then fed into the comparison prompt.
+
+  const deepAnalyses: Map<string, IterativeAnalysisResult> = new Map();
+
+  for (const [docId, entry] of loadedImages) {
+    const imgType = entry.image.image_type;
+    // Plats always get forced tiling; other types tile when confidence is low
+    const forceTiling = imgType === 'plat' || imgType === 'deed';
+    const maxGrid = (imgType === 'plat' || imgType === 'deed') ? '3x3' as const : '2x2' as const;
+
+    const prompt = [
+      `Analyze this ${imgType.replace(/_/g, ' ')} image thoroughly.`,
+      `The address being researched is: "${address}"`,
+      `Read ALL text, lot numbers, street names, and features visible.`,
+    ].join('\n');
+
+    try {
+      const deepResult = await iterativeImageAnalysis(
+        entry.loaded.base64,
+        entry.loaded.mediaType,
+        { prompt, imageType: imgType, address, forceTiling, maxTileGrid: maxGrid },
+        logger,
+      );
+      deepAnalyses.set(docId, deepResult);
+      logger.info('visual_compare',
+        `Deep analysis of ${imgType}: ${deepResult.total_passes} passes, ` +
+        `confidence=${deepResult.final_confidence}%, ` +
+        `lots=[${deepResult.merged.lot_numbers.join(', ')}]`,
+      );
+    } catch (err) {
+      logger.warn('visual_compare', `Deep analysis of ${imgType} failed (using basic description): ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   // ── Build the multi-image comparison prompt ───────────────────────────
 
-  // Collect descriptions from loaded images (extracted_text already available from the shared loader)
+  // Collect descriptions from loaded images — combine stored extracted_text
+  // with the detailed findings from iterative deep analysis.
   const imageDescriptions: string[] = [];
-  for (const [, entry] of loadedImages) {
+  for (const [docId, entry] of loadedImages) {
+    const parts: string[] = [];
+    parts.push(`--- ${entry.image.image_type.toUpperCase()} (${entry.loaded.documentLabel || entry.image.label}) ---`);
+
     if (entry.loaded.extractedText) {
-      imageDescriptions.push(`--- ${entry.image.image_type.toUpperCase()} (${entry.loaded.documentLabel || entry.image.label}) ---\n${entry.loaded.extractedText}`);
+      parts.push(entry.loaded.extractedText);
     }
+
+    // Append deep analysis findings (these come from iterative tile analysis)
+    const deep = deepAnalyses.get(docId);
+    if (deep && deep.merged.lot_numbers.length > 0) {
+      parts.push(`\nDEEP ANALYSIS FINDINGS (${deep.total_passes} passes, tiling=${deep.used_tiling}):`);
+      if (deep.merged.lot_numbers.length > 0) parts.push(`  Lot numbers found: ${deep.merged.lot_numbers.join(', ')}`);
+      if (deep.merged.block_numbers.length > 0) parts.push(`  Block numbers found: ${deep.merged.block_numbers.join(', ')}`);
+      if (deep.merged.street_names.length > 0) parts.push(`  Street names: ${deep.merged.street_names.join(', ')}`);
+      if (deep.merged.subdivision_names.length > 0) parts.push(`  Subdivisions: ${deep.merged.subdivision_names.join(', ')}`);
+      if (deep.merged.pin_position) parts.push(`  Pin position: ${deep.merged.pin_position}`);
+      if (deep.merged.buildings.length > 0) parts.push(`  Buildings: ${deep.merged.buildings.join(', ')}`);
+      if (deep.merged.features.length > 0) parts.push(`  Features: ${deep.merged.features.join(', ')}`);
+      if (deep.merged.bearings.length > 0) parts.push(`  Bearings: ${deep.merged.bearings.join(', ')}`);
+      if (deep.merged.distances.length > 0) parts.push(`  Distances: ${deep.merged.distances.join(', ')}`);
+      if (deep.final_synthesis) parts.push(`  Synthesis: ${deep.final_synthesis}`);
+    }
+
+    imageDescriptions.push(parts.join('\n'));
   }
 
   // Run the AI comparison

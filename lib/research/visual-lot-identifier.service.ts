@@ -14,8 +14,9 @@
 //
 // Each step produces DataAtoms that are fed into the cross-validation graph.
 
-import { callVision, callAI } from './ai-client';
+import { callAI } from './ai-client';
 import { loadDocumentImage } from './image-loader';
+import { iterativeImageAnalysis, type IterativeAnalysisResult } from './iterative-image-analyzer.service';
 import type { PipelineLogger } from './pipeline-logger';
 import {
   createAtom,
@@ -88,16 +89,13 @@ export interface LotIdentificationResult {
 // ── Single Image Analysis ────────────────────────────────────────────────────
 
 /**
- * Analyze a single map image to extract visible features.
- * Uses a detailed prompt that instructs the AI to take its time
- * and thoroughly examine every detail in the image.
+ * Build the analysis prompt for a specific image type.
+ * These prompts instruct the AI on exactly what to look for.
  */
-async function analyzeMapImage(
-  imageBase64: string,
-  mediaType: 'image/png' | 'image/jpeg',
+function buildAnalysisPrompt(
   imageType: 'street_pin' | 'satellite_pin' | 'cad_gis' | 'plat',
   address: string,
-): Promise<MapImageAnalysis> {
+): string {
   const typePrompts: Record<string, string> = {
     street_pin: [
       `You are a Texas Registered Professional Land Surveyor analyzing a Google Maps`,
@@ -267,30 +265,79 @@ async function analyzeMapImage(
     ].join('\n'),
   };
 
-  const prompt = typePrompts[imageType] || typePrompts.street_pin;
+  return typePrompts[imageType] || typePrompts.street_pin;
+}
+
+/**
+ * Convert iterative analysis merged data into the MapImageAnalysis interface.
+ */
+function iterativeResultToMapAnalysis(
+  iterResult: IterativeAnalysisResult,
+): MapImageAnalysis {
+  const m = iterResult.merged;
+  return {
+    description: [
+      m.notes,
+      iterResult.final_synthesis || '',
+      `[${iterResult.total_passes} passes, tiling=${iterResult.used_tiling}]`,
+    ].filter(Boolean).join(' | '),
+    streets_visible: m.street_names,
+    lot_numbers_visible: m.lot_numbers,
+    block_numbers_visible: m.block_numbers,
+    subdivision_names_visible: m.subdivision_names,
+    pin_position: m.pin_position,
+    features_near_pin: m.features,
+    buildings_near_pin: m.buildings,
+    confidence: iterResult.final_confidence,
+    raw_response: {
+      passes: iterResult.passes,
+      used_tiling: iterResult.used_tiling,
+      used_deep_tiling: iterResult.used_deep_tiling,
+      tile_count: iterResult.tile_analyses.length,
+      merged: iterResult.merged,
+    },
+  };
+}
+
+/**
+ * Analyze a single map image using iterative deep analysis.
+ *
+ * First analyzes the full image, then tiles into smaller sections for
+ * detailed examination, and optionally re-analyzes with accumulated context.
+ * This catches small text (lot numbers, bearings, addresses) that might be
+ * missed in a single full-image pass.
+ */
+async function analyzeMapImage(
+  imageBase64: string,
+  mediaType: 'image/png' | 'image/jpeg',
+  imageType: 'street_pin' | 'satellite_pin' | 'cad_gis' | 'plat',
+  address: string,
+  logger?: PipelineLogger,
+): Promise<MapImageAnalysis> {
+  const prompt = buildAnalysisPrompt(imageType, address);
+
+  // Plats are the most text-dense and benefit most from forced tiling.
+  // CAD GIS maps have parcel data overlaid that also benefits from detail.
+  // Pin maps can usually be read in one pass but we still tile if confidence is low.
+  const forceTiling = imageType === 'plat';
+  const maxTileGrid = imageType === 'plat' ? '3x3' as const : '2x2' as const;
 
   try {
-    const result = await callVision(
+    const iterResult = await iterativeImageAnalysis(
       imageBase64,
       mediaType,
-      'AERIAL_IMAGE_ANALYZER' as PromptKey,
-      prompt,
+      {
+        prompt,
+        imageType,
+        address,
+        forceTiling,
+        maxTileGrid,
+        skipFinalSynthesis: imageType === 'satellite_pin', // Satellite has fewer text details
+      },
+      logger,
     );
 
-    const data = result.response as Record<string, unknown>;
-
-    return {
-      description: String(data.description || ''),
-      streets_visible: Array.isArray(data.streets_visible) ? data.streets_visible.map(String) : [],
-      lot_numbers_visible: Array.isArray(data.lot_numbers_visible) ? data.lot_numbers_visible.map(String) : [],
-      block_numbers_visible: Array.isArray(data.block_numbers_visible) ? data.block_numbers_visible.map(String) : [],
-      subdivision_names_visible: Array.isArray(data.subdivision_names_visible) ? data.subdivision_names_visible.map(String) : [],
-      pin_position: data.pin_position ? String(data.pin_position) : null,
-      features_near_pin: Array.isArray(data.features_near_pin) ? data.features_near_pin.map(String) : [],
-      buildings_near_pin: Array.isArray(data.buildings_near_pin) ? data.buildings_near_pin.map(String) : [],
-      confidence: typeof data.confidence === 'number' ? data.confidence : 50,
-      raw_response: data,
-    };
+    return iterativeResultToMapAnalysis(iterResult);
   } catch {
     return {
       description: 'Analysis failed',
@@ -358,7 +405,7 @@ export async function identifyLotFromImages(
       log('[Step 1a] Analyzing Google street pin map…');
       const img = await loadDocumentImage(documentIds.streetPinDocId!, logger);
       if (img) {
-        const analysis = await analyzeMapImage(img.base64, img.mediaType, 'street_pin', address);
+        const analysis = await analyzeMapImage(img.base64, img.mediaType, 'street_pin', address, logger);
         imageAnalyses.street_pin = analysis;
         log(`[Step 1a] Found: ${analysis.streets_visible.length} streets, ${analysis.lot_numbers_visible.length} lots, pin: ${analysis.pin_position || 'not detected'}`);
 
@@ -412,7 +459,7 @@ export async function identifyLotFromImages(
       log('[Step 1b] Analyzing Google satellite pin map…');
       const img = await loadDocumentImage(documentIds.satellitePinDocId!, logger);
       if (img) {
-        const analysis = await analyzeMapImage(img.base64, img.mediaType, 'satellite_pin', address);
+        const analysis = await analyzeMapImage(img.base64, img.mediaType, 'satellite_pin', address, logger);
         imageAnalyses.satellite_pin = analysis;
         log(`[Step 1b] Found: ${analysis.buildings_near_pin.length} buildings, ${analysis.features_near_pin.length} features near pin`);
       } else {
@@ -426,7 +473,7 @@ export async function identifyLotFromImages(
       log('[Step 1c] Analyzing CAD GIS parcel map…');
       const img = await loadDocumentImage(documentIds.cadGisDocId!, logger);
       if (img) {
-        const analysis = await analyzeMapImage(img.base64, img.mediaType, 'cad_gis', address);
+        const analysis = await analyzeMapImage(img.base64, img.mediaType, 'cad_gis', address, logger);
         imageAnalyses.cad_gis = analysis;
         log(`[Step 1c] Found: ${analysis.lot_numbers_visible.length} lots, ${analysis.block_numbers_visible.length} blocks, ${analysis.streets_visible.length} streets`);
 
@@ -469,7 +516,7 @@ export async function identifyLotFromImages(
         log(`[Step 1d] Analyzing plat document ${platDocId}…`);
         const img = await loadDocumentImage(platDocId, logger);
         if (img) {
-          const analysis = await analyzeMapImage(img.base64, img.mediaType, 'plat', address);
+          const analysis = await analyzeMapImage(img.base64, img.mediaType, 'plat', address, logger);
           imageAnalyses.plat = analysis; // Last plat wins (usually the most relevant)
           log(`[Step 1d] Found: ${analysis.lot_numbers_visible.length} lots, ${analysis.block_numbers_visible.length} blocks, ${analysis.subdivision_names_visible.length} subdivisions`);
 
