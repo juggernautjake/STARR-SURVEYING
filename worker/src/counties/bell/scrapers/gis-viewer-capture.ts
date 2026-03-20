@@ -201,6 +201,93 @@ export async function captureGisViewerScreenshots(
       }
     }
 
+    // ── Screenshot F: Layer combination views ─────────────────────
+    // Cycle through different layer combinations to extract maximum info
+    progress('Capturing layer combination views...');
+    await zoomToParcel(page, input, progress);
+    await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+    const layerCombinations: Array<{
+      label: string;
+      basemap: 'streets' | 'aerial';
+      parcels: boolean;
+      lotLines: boolean;
+      zoomDelta: number; // Relative zoom adjustment from parcel view
+    }> = [
+      // Lot lines only (no parcel fills) on streets — shows dimensions
+      { label: 'Lot lines only (dimensions)', basemap: 'streets', parcels: false, lotLines: true, zoomDelta: 1 },
+      // Tight zoom on aerial with lot lines — for dimension readability
+      { label: 'Aerial tight zoom with lot lines', basemap: 'aerial', parcels: false, lotLines: true, zoomDelta: 2 },
+      // Wide context view with all layers — for surrounding lots
+      { label: 'Wide context — surrounding lots', basemap: 'streets', parcels: true, lotLines: true, zoomDelta: -3 },
+      // Aerial wide for neighborhood context
+      { label: 'Aerial wide — neighborhood', basemap: 'aerial', parcels: true, lotLines: true, zoomDelta: -4 },
+    ];
+
+    for (const combo of layerCombinations) {
+      try {
+        progress(`  Layer view: ${combo.label}...`);
+
+        // Set basemap
+        if (combo.basemap === 'aerial') {
+          await switchToAerialBasemap(page);
+        } else {
+          await switchToStreetsBasemap(page);
+        }
+
+        // Set layer visibility
+        await toggleParcelLayer(page, combo.parcels);
+        await toggleLotLineLayer(page, combo.lotLines);
+
+        // Zoom to parcel and adjust
+        await zoomToParcel(page, input, progress);
+        if (combo.zoomDelta > 0) {
+          await zoomIn(page, combo.zoomDelta);
+        } else if (combo.zoomDelta < 0) {
+          await zoomOut(page, -combo.zoomDelta);
+        }
+        await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+        const ssCombo = await takeScreenshot(page, 'GIS Viewer',
+          `Layer view: ${combo.label} — ${input.propertyId ?? ''} ${input.situsAddress ?? ''}`);
+        if (ssCombo) results.push(ssCombo);
+      } catch {
+        // Skip this combination if it fails
+      }
+    }
+
+    // Restore defaults
+    await switchToStreetsBasemap(page);
+    await toggleParcelLayer(page, true);
+    await toggleLotLineLayer(page, true);
+
+    // ── Screenshot G: Multi-zoom detail series ────────────────────
+    // Capture at multiple zoom levels for complete context
+    progress('Capturing multi-zoom detail series...');
+    const zoomLevels: Array<{ label: string; zoomDelta: number }> = [
+      { label: 'Maximum detail (lot boundaries)', zoomDelta: 3 },
+      { label: 'Lot + immediate neighbors', zoomDelta: 0 },
+      { label: 'Block level context', zoomDelta: -2 },
+    ];
+
+    for (const zl of zoomLevels) {
+      try {
+        await zoomToParcel(page, input, progress);
+        if (zl.zoomDelta > 0) {
+          await zoomIn(page, zl.zoomDelta);
+        } else if (zl.zoomDelta < 0) {
+          await zoomOut(page, -zl.zoomDelta);
+        }
+        await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+        const ssZoom = await takeScreenshot(page, 'GIS Viewer',
+          `Zoom: ${zl.label} — ${input.propertyId ?? ''}`);
+        if (ssZoom) results.push(ssZoom);
+      } catch {
+        // Skip on failure
+      }
+    }
+
     await context.close();
     progress(`✓ Captured ${results.length} GIS viewer screenshot(s)`);
 

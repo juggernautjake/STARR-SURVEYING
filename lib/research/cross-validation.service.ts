@@ -47,6 +47,22 @@ export type AtomCategory =
   | 'lot_identification' // Which lot the address is on (from visual comparison)
   | 'pin_location'       // Geocoded pin coordinates
   | 'parcel_geometry'    // Parcel boundary geometry
+  // ── New categories for comprehensive extraction ──
+  | 'curve_data'         // Arc, radius, chord, central angle
+  | 'right_of_way'       // Road ROW width and extent
+  | 'setback_line'       // Building setback line
+  | 'grantor'            // Deed grantor (seller)
+  | 'grantee'            // Deed grantee (buyer)
+  | 'deed_date'          // Deed execution/recording date
+  | 'deed_type'          // Type of deed instrument
+  | 'plat_date'          // Plat recording date
+  | 'surveyor_name'      // Surveyor name and RPLS number
+  | 'street_name'        // Bordering street name
+  | 'adjacent_lot'       // Adjacent/neighboring lot info
+  | 'restriction'        // Deed restriction or covenant
+  | 'encumbrance'        // Lien, mortgage, or other encumbrance
+  | 'coordinate'         // GPS/state plane coordinate
+  | 'elevation'          // Elevation or BFE data
   | 'other';
 
 /** Source method that produced this atom */
@@ -58,14 +74,20 @@ export type AtomSource =
   | 'plat_text'          // Extracted from plat document text
   | 'plat_image'         // Extracted from plat image via OCR/Vision
   | 'survey_text'        // Extracted from survey document
+  | 'field_notes'        // Extracted from surveyor field notes
+  | 'title_document'     // Extracted from title commitment/policy
+  | 'county_clerk'       // County clerk record
   | 'google_maps'        // Google Maps geocoding/imagery
   | 'nominatim'          // Nominatim geocoding
   | 'usgs_imagery'       // USGS satellite/topo
   | 'fema_service'       // FEMA flood zone service
+  | 'txdot'              // TxDOT right-of-way data
+  | 'gis_viewer'         // Live GIS viewer screenshot
   | 'ai_vision'          // AI visual analysis of images
   | 'ai_extraction'      // AI text extraction/parsing
   | 'ai_comparison'      // AI cross-comparison analysis
   | 'user_input'         // User-provided data
+  | 'user_upload'        // User-uploaded document
   | 'manual_entry';      // Manually entered by researcher
 
 /** Validation state of a DataAtom */
