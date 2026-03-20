@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { PipelineLogger } from '@/lib/research/pipeline-logger';
 import {
   searchAndFetchParcelContext,
   queryParcelByAddress,
@@ -30,6 +31,7 @@ import {
   createAtom,
   atomsFromArcGisParcel,
   addAtomAndValidate,
+  addAtomsBatch,
   crossValidateAtoms,
   analyzeConflictsWithAI,
   type ValidationLog,
@@ -94,6 +96,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const steps: string[] = [];
   const validationLogs: ValidationLog[] = [];
   const graph = createValidationGraph();
+  const logger = new PipelineLogger(projectId);
 
   // ── Step 1: Query Bell CAD ArcGIS for parcel context ─────────────────────
 
@@ -117,7 +120,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     targetParcel = arcgisContext.parcel;
     steps.push(`[Step 1] ArcGIS search succeeded via ${searchMethod}`);
 
-    // Create DataAtoms from ArcGIS parcel data
+    // Create DataAtoms from ArcGIS parcel data (batch add for performance)
     if (targetParcel) {
       const arcgisAtoms = atomsFromArcGisParcel(targetParcel, {
         abstract: arcgisContext.abstract,
@@ -126,10 +129,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         school_district: arcgisContext.school_district,
         flood_zones: arcgisContext.flood_zones,
       });
-      for (const atom of arcgisAtoms) {
-        const logs = addAtomAndValidate(graph, atom);
-        validationLogs.push(...logs.filter(l => l.type === 'confirmation' || l.type === 'conflict'));
-      }
+      addAtomsBatch(graph, arcgisAtoms);
       steps.push(`[Step 1] Created ${arcgisAtoms.length} data atoms from ArcGIS`);
       steps.push(`[Step 1] Target parcel: prop_id=${targetParcel.prop_id}, lot=${targetParcel.tract_or_lot || '?'}, block=${targetParcel.block || '?'}`);
     }
@@ -271,6 +271,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         platDocIds: platDocIds.length > 0 ? platDocIds.slice(0, 3) : undefined,
       },
       graph,
+      logger,
     );
     steps.push(
       `[Step 5] Lot identification complete: lot=${lotResult.lot_number || 'unknown'}, ` +
@@ -324,11 +325,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         ['recording_reference', 'deed_reference'],
       ]);
 
-      let atomsAdded = 0;
+      const batchAtoms: Parameters<typeof addAtomsBatch>[1] = [];
       for (const point of points) {
         const atomCategory = relevantCategories.get(point.data_category);
         if (atomCategory && point.extracted_value) {
-          const atom = createAtom({
+          batchAtoms.push(createAtom({
             category: atomCategory as Parameters<typeof createAtom>[0]['category'],
             value: point.extracted_value,
             source: 'ai_extraction',
@@ -337,13 +338,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
             confidence: point.confidence ?? 70,
             confidence_reasoning: 'Extracted from document during pipeline analysis',
             pipeline_step: 'verify-lot:existing-data',
-          });
-          const logs = addAtomAndValidate(graph, atom);
-          validationLogs.push(...logs.filter(l => l.type === 'confirmation' || l.type === 'conflict'));
-          atomsAdded++;
+          }));
         }
       }
-      steps.push(`[Step 6] Added ${atomsAdded} atoms from existing extracted data for cross-validation`);
+      if (batchAtoms.length > 0) {
+        addAtomsBatch(graph, batchAtoms);
+      }
+      steps.push(`[Step 6] Added ${batchAtoms.length} atoms from existing extracted data for cross-validation`);
     } else {
       steps.push('[Step 6] No previously extracted data points found');
     }

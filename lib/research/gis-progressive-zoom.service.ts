@@ -23,6 +23,7 @@
 
 import { PipelineLogger } from './pipeline-logger';
 import { geocodeAddress, type GeoPoint } from './map-image.service';
+import { BELL_CAD_FEATURE_SERVER } from './bell-cad-arcgis.service';
 import {
   captureParcelMaps,
   type ParcelMapSet,
@@ -89,9 +90,6 @@ const PROGRESSIVE_ZOOM_LEVELS = [
   { zoom: 20, label: 'lot', radius_m: 33 },
   { zoom: 21, label: 'max-detail', radius_m: 17 },
 ];
-
-const BELL_CAD_FEATURE_SERVER =
-  'https://services7.arcgis.com/EHW2HuuyZNO7DZct/arcgis/rest/services/BellCADWebService/FeatureServer';
 
 const FETCH_TIMEOUT_MS = 30_000;
 

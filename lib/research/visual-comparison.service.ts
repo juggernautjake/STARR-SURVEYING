@@ -17,7 +17,7 @@
 
 import { PipelineLogger } from './pipeline-logger';
 import { callAI } from './ai-client';
-import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET } from '@/lib/supabase';
+import { loadDocumentImage, type LoadedImage } from './image-loader';
 import {
   createAtom,
   addAtomAndValidate,
@@ -91,60 +91,9 @@ export interface PairComparison {
 }
 
 // ── Image Loading ────────────────────────────────────────────────────────────
-
-async function loadImageBase64(documentId: string, logger: PipelineLogger): Promise<{
-  base64: string;
-  mediaType: 'image/png' | 'image/jpeg';
-} | null> {
-  try {
-    const { data: doc } = await supabaseAdmin
-      .from('research_documents')
-      .select('storage_path, storage_url, file_type, extracted_text')
-      .eq('id', documentId)
-      .single();
-
-    if (!doc) {
-      logger.warn('visual_compare', `Document ${documentId} not found in database`);
-      return null;
-    }
-
-    // Try public URL first
-    if (doc.storage_url) {
-      try {
-        const res = await fetch(doc.storage_url, { signal: AbortSignal.timeout(30_000) });
-        if (res.ok) {
-          const buf = Buffer.from(await res.arrayBuffer());
-          const mediaType = (doc.file_type === 'jpeg' || doc.file_type === 'jpg')
-            ? 'image/jpeg' as const
-            : 'image/png' as const;
-          logger.debug('visual_compare', `Loaded image ${documentId} from public URL (${buf.byteLength} bytes)`);
-          return { base64: buf.toString('base64'), mediaType };
-        }
-      } catch { /* fall through */ }
-    }
-
-    // Download from storage
-    if (doc.storage_path) {
-      const { data: fileData } = await supabaseAdmin.storage
-        .from(RESEARCH_DOCUMENTS_BUCKET)
-        .download(doc.storage_path);
-      if (fileData) {
-        const buf = Buffer.from(await fileData.arrayBuffer());
-        const mediaType = (doc.file_type === 'jpeg' || doc.file_type === 'jpg')
-          ? 'image/jpeg' as const
-          : 'image/png' as const;
-        logger.debug('visual_compare', `Loaded image ${documentId} from storage (${buf.byteLength} bytes)`);
-        return { base64: buf.toString('base64'), mediaType };
-      }
-    }
-
-    logger.warn('visual_compare', `Could not load image for document ${documentId}`);
-    return null;
-  } catch (err) {
-    logger.error('visual_compare', `Image load error for ${documentId}: ${err instanceof Error ? err.message : String(err)}`);
-    return null;
-  }
-}
+// Uses shared image-loader.ts to avoid duplicating Supabase fetch logic.
+// The shared loader also returns extracted_text and document_label in a single
+// DB query, eliminating the redundant second query that was here before.
 
 // ── Core Comparison Function ─────────────────────────────────────────────────
 
@@ -181,7 +130,7 @@ export async function runVisualComparison(
   };
 
   // Load images that we'll need
-  const loadedImages: Map<string, { base64: string; mediaType: 'image/png' | 'image/jpeg'; image: ImageForComparison }> = new Map();
+  const loadedImages: Map<string, { loaded: LoadedImage; image: ImageForComparison }> = new Map();
 
   const pinImages = images.filter(i => i.image_type === 'street_pin' || i.image_type === 'satellite_pin');
   const gisImages = images.filter(i => i.image_type === 'cad_gis' || i.image_type === 'gis_screenshot');
@@ -198,16 +147,21 @@ export async function runVisualComparison(
     ...satelliteImages.slice(0, 1),
   ];
 
-  for (const img of imagesToLoad) {
-    const loaded = await loadImageBase64(img.document_id, logger);
+  // Load all images in parallel using the shared loader
+  // The shared loader returns extracted_text and document_label in a single
+  // DB query — no need for a second round-trip per image.
+  const loadPromises = imagesToLoad.map(async (img) => {
+    const loaded = await loadDocumentImage(img.document_id, logger);
     if (loaded) {
-      loadedImages.set(img.document_id, { ...loaded, image: img });
+      loadedImages.set(img.document_id, { loaded, image: img });
     }
-  }
+  });
+  await Promise.all(loadPromises);
 
   if (loadedImages.size === 0) {
     logger.warn('visual_compare', 'No images could be loaded — cannot perform visual comparison');
     result.reasoning = 'No images available for visual comparison';
+    logger.endPhase('visual_compare', 'Aborted — no images loaded');
     return result;
   }
 
@@ -215,17 +169,11 @@ export async function runVisualComparison(
 
   // ── Build the multi-image comparison prompt ───────────────────────────
 
-  // Collect descriptions from all loaded images
+  // Collect descriptions from loaded images (extracted_text already available from the shared loader)
   const imageDescriptions: string[] = [];
-  for (const [docId, loaded] of loadedImages) {
-    const { data: doc } = await supabaseAdmin
-      .from('research_documents')
-      .select('extracted_text, document_label')
-      .eq('id', docId)
-      .single();
-
-    if (doc?.extracted_text) {
-      imageDescriptions.push(`--- ${loaded.image.image_type.toUpperCase()} (${doc.document_label || loaded.image.label}) ---\n${doc.extracted_text}`);
+  for (const [, entry] of loadedImages) {
+    if (entry.loaded.extractedText) {
+      imageDescriptions.push(`--- ${entry.image.image_type.toUpperCase()} (${entry.loaded.documentLabel || entry.image.label}) ---\n${entry.loaded.extractedText}`);
     }
   }
 
@@ -361,6 +309,8 @@ export async function runVisualComparison(
   }
 
   // ── Create atoms from the comparison result ─────────────────────────────
+  // Each identified value becomes a DataAtom with 'ai_comparison' as the source,
+  // which will be cross-validated against atoms from other sources (ArcGIS, deed, plat).
 
   if (result.identified_lot) {
     const lotAtom = createAtom({
@@ -374,6 +324,7 @@ export async function runVisualComparison(
     });
     result.atoms_created.push(lotAtom);
     addAtomAndValidate(graph, lotAtom);
+    logger.info('visual_compare', `Created lot_number atom: "${result.identified_lot}" (confidence: ${result.confidence}%)`);
   }
 
   if (result.identified_block) {
@@ -388,6 +339,7 @@ export async function runVisualComparison(
     });
     result.atoms_created.push(blockAtom);
     addAtomAndValidate(graph, blockAtom);
+    logger.info('visual_compare', `Created block_number atom: "${result.identified_block}"`);
   }
 
   if (result.identified_subdivision) {
@@ -402,6 +354,7 @@ export async function runVisualComparison(
     });
     result.atoms_created.push(subdivAtom);
     addAtomAndValidate(graph, subdivAtom);
+    logger.info('visual_compare', `Created subdivision_name atom: "${result.identified_subdivision}"`);
   }
 
   if (result.identified_prop_id) {
@@ -416,9 +369,12 @@ export async function runVisualComparison(
     });
     result.atoms_created.push(propAtom);
     addAtomAndValidate(graph, propAtom);
+    logger.info('visual_compare', `Created property_id atom: "${result.identified_prop_id}"`);
   }
 
-  logger.info('visual_compare', `Created ${result.atoms_created.length} atoms from visual comparison`);
+  logger.info('visual_compare', `Created ${result.atoms_created.length} atoms from visual comparison`, {
+    atoms: result.atoms_created.map(a => ({ category: a.category, value: a.value, confidence: a.confidence })),
+  });
 
   // ── Evaluate triggers ──────────────────────────────────────────────────
 

@@ -603,6 +603,10 @@ export function createValidationGraph(): ValidationGraph {
  * Add an atom to the graph and immediately cross-validate it
  * against all existing atoms of the same category.
  * Returns validation logs showing any new confirmations/conflicts.
+ *
+ * NOTE: This resets and re-runs full cross-validation. For adding multiple
+ * atoms at once, use `addAtomsBatch` followed by `crossValidateAtoms` to
+ * avoid O(n³) overhead.
  */
 export function addAtomAndValidate(graph: ValidationGraph, atom: DataAtom): ValidationLog[] {
   graph.atoms.push(atom);
@@ -615,6 +619,22 @@ export function addAtomAndValidate(graph: ValidationGraph, atom: DataAtom): Vali
     a.validation_state = 'unvalidated';
   }
   return crossValidateAtoms(graph);
+}
+
+/**
+ * Add multiple atoms to the graph WITHOUT running cross-validation after each one.
+ * Call `crossValidateAtoms(graph)` once after all atoms are added.
+ *
+ * This is dramatically faster than calling `addAtomAndValidate` in a loop:
+ *   - addAtomAndValidate × N = O(N × N²) = O(N³)
+ *   - addAtomsBatch + crossValidateAtoms = O(N²) (single validation pass)
+ *
+ * Use this when adding atoms from a single source (e.g., ArcGIS parcel, zoom capture).
+ */
+export function addAtomsBatch(graph: ValidationGraph, atoms: DataAtom[]): void {
+  for (const atom of atoms) {
+    graph.atoms.push(atom);
+  }
 }
 
 // ── AI-Powered Conflict Analysis ─────────────────────────────────────────────
