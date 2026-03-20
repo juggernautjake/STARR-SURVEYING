@@ -386,6 +386,150 @@ export async function queryParcelByAddress(
   return features.map(parseParcelFeature);
 }
 
+// ── Address Match Scoring ──────────────────────────────────────────────────
+
+/**
+ * Score how well a parcel's situs address matches a search address.
+ *
+ * Returns 0–100 where 100 is a perfect match.
+ *
+ * Scoring breakdown:
+ *   - House number exact match: +50 points (CRITICAL — wrong number = wrong lot)
+ *   - Street name exact match: +30 points
+ *   - Street name contains: +15 points (partial credit for abbreviations)
+ *   - Street suffix match: +10 points (St vs Street, etc.)
+ *   - Street prefix match: +10 points (N, S, E, W direction)
+ *
+ * A score < 50 means the house number doesn't match — almost certainly wrong lot.
+ */
+export function scoreAddressMatch(searchAddress: string, parcel: BellCadParcel): number {
+  const normalize = (s: string | null | undefined) =>
+    (s ?? '').toUpperCase().replace(/[.,#\-]/g, '').replace(/\s+/g, ' ').trim();
+
+  const search = normalize(searchAddress);
+  const parcelAddr = normalize(parcel.situs_address);
+
+  // Perfect match
+  if (search === parcelAddr) return 100;
+
+  // Parse search address into components
+  const searchParts = search.match(/^(\d+)\s+(.+)/);
+  if (!searchParts) {
+    // No house number in search — do basic string comparison
+    if (parcelAddr.includes(search) || search.includes(parcelAddr)) return 40;
+    return 0;
+  }
+
+  const searchNum = searchParts[1];
+  const searchStreet = searchParts[2];
+
+  let score = 0;
+
+  // House number match (most important — wrong number = wrong lot)
+  const parcelNum = normalize(parcel.situs_num);
+  if (parcelNum === searchNum) {
+    score += 50;
+  } else if (parcelAddr.startsWith(searchNum + ' ')) {
+    score += 50; // Fallback: check the combined address starts with the number
+  } else {
+    // House number doesn't match — this is almost certainly the wrong parcel
+    return Math.min(10, score);
+  }
+
+  // Street name match
+  const parcelStreet = normalize(parcel.situs_street);
+  const parcelPrefix = normalize(parcel.situs_street_prefx);
+  const parcelSuffix = normalize(parcel.situs_street_sufix);
+
+  // Build the full parcel street for comparison
+  const parcelFullStreet = [parcelPrefix, parcelStreet, parcelSuffix]
+    .filter(Boolean).join(' ');
+
+  // Normalize common abbreviations for comparison
+  const streetAbbrevs: Record<string, string[]> = {
+    ST: ['STREET', 'ST'], DR: ['DRIVE', 'DR'], AVE: ['AVENUE', 'AVE'],
+    BLVD: ['BOULEVARD', 'BLVD'], LN: ['LANE', 'LN'], CT: ['COURT', 'CT'],
+    CIR: ['CIRCLE', 'CIR'], RD: ['ROAD', 'RD'], PL: ['PLACE', 'PL'],
+    WAY: ['WAY'], TRL: ['TRAIL', 'TRL'], PKWY: ['PARKWAY', 'PKWY'],
+    HWY: ['HIGHWAY', 'HWY'], N: ['NORTH', 'N'], S: ['SOUTH', 'S'],
+    E: ['EAST', 'E'], W: ['WEST', 'W'],
+  };
+
+  const expandAbbreviations = (s: string) => {
+    let expanded = s;
+    for (const [, variants] of Object.entries(streetAbbrevs)) {
+      for (const v of variants) {
+        // Replace whole word only
+        expanded = expanded.replace(new RegExp(`\\b${v}\\b`, 'g'), variants[0]);
+      }
+    }
+    return expanded;
+  };
+
+  const normalizedSearch = expandAbbreviations(searchStreet);
+  const normalizedParcel = expandAbbreviations(parcelFullStreet);
+
+  if (normalizedSearch === normalizedParcel) {
+    score += 30 + 10; // Exact street + suffix match
+  } else if (normalizedParcel.includes(normalizedSearch) || normalizedSearch.includes(normalizedParcel)) {
+    score += 25; // Contains match
+  } else {
+    // Try matching just the core street name (without prefix/suffix)
+    const expandedParcelStreet = expandAbbreviations(parcelStreet);
+    if (normalizedSearch.includes(expandedParcelStreet) || expandedParcelStreet.includes(normalizedSearch)) {
+      score += 20;
+    }
+  }
+
+  // Direction prefix bonus
+  if (parcelPrefix) {
+    const searchHasPrefix = /^(N|S|E|W|NORTH|SOUTH|EAST|WEST)\s/.test(searchStreet);
+    if (searchHasPrefix) {
+      const searchPrefix = searchStreet.split(/\s/)[0];
+      if (expandAbbreviations(searchPrefix) === expandAbbreviations(parcelPrefix)) {
+        score += 10;
+      }
+    }
+  }
+
+  return Math.min(100, score);
+}
+
+/**
+ * Find the best-matching parcel from a list for a given address.
+ * Returns the parcel with the highest address match score, or null if no good match.
+ */
+export function bestMatchParcel(
+  searchAddress: string,
+  parcels: BellCadParcel[],
+): { parcel: BellCadParcel; score: number; allScores: { prop_id: number; address: string; score: number }[] } | null {
+  if (parcels.length === 0) return null;
+
+  const scored = parcels.map(p => ({
+    parcel: p,
+    score: scoreAddressMatch(searchAddress, p),
+    address: p.situs_address,
+  }));
+
+  // Sort by score descending
+  scored.sort((a, b) => b.score - a.score);
+
+  const allScores = scored.map(s => ({
+    prop_id: s.parcel.prop_id,
+    address: s.address,
+    score: s.score,
+  }));
+
+  // Require at least a house number match (score >= 50)
+  if (scored[0].score < 50) return null;
+
+  return {
+    parcel: scored[0].parcel,
+    score: scored[0].score,
+    allScores,
+  };
+}
+
 /**
  * Search for parcels by geographic point (lat/lon).
  * Finds parcels that contain the given coordinate.
@@ -861,8 +1005,18 @@ export async function searchAndFetchParcelContext(
     };
   }
 
-  // Use the first matching parcel's prop_id to fetch full context
-  const context = await fetchParcelContext(parcels[0].prop_id, includeFlood);
+  // Use the BEST-matching parcel (by address score), not just the first result.
+  // This prevents selecting an adjacent lot that happens to appear first in ArcGIS results.
+  let selectedParcel = parcels[0];
+
+  if (method === 'address' && query.address && parcels.length > 1) {
+    const bestMatch = bestMatchParcel(query.address, parcels);
+    if (bestMatch) {
+      selectedParcel = bestMatch.parcel;
+    }
+  }
+
+  const context = await fetchParcelContext(selectedParcel.prop_id, includeFlood);
   return { context, search_method: method };
 }
 

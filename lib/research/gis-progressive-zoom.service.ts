@@ -93,6 +93,132 @@ const PROGRESSIVE_ZOOM_LEVELS = [
 
 const FETCH_TIMEOUT_MS = 30_000;
 
+// ── Address Match Scoring (simplified for NearbyParcelData) ──────────────────
+
+/**
+ * Score how well a parcel address matches the search address.
+ * Uses the simplified NearbyParcelData (address string only, no situs components).
+ *
+ * Returns 0–100 where:
+ *   100 = exact match
+ *   80+ = house number + street name match
+ *   50  = house number match only
+ *   <50 = no house number match (almost certainly wrong lot)
+ */
+function scoreParcelAddress(searchAddress: string, parcelAddress: string | null): number {
+  if (!parcelAddress) return 0;
+
+  const normalize = (s: string) =>
+    s.toUpperCase().replace(/[.,#\-]/g, '').replace(/\s+/g, ' ').trim();
+
+  const search = normalize(searchAddress);
+  const parcel = normalize(parcelAddress);
+
+  if (search === parcel) return 100;
+
+  // Parse house numbers
+  const searchMatch = search.match(/^(\d+)\s+(.+)/);
+  const parcelMatch = parcel.match(/^(\d+)\s+(.+)/);
+
+  if (!searchMatch) {
+    // No house number in search — basic string match
+    return parcel.includes(search) || search.includes(parcel) ? 40 : 0;
+  }
+
+  const searchNum = searchMatch[1];
+  const searchStreet = searchMatch[2];
+
+  // Check house number
+  const parcelNum = parcelMatch ? parcelMatch[1] : null;
+  if (parcelNum !== searchNum) {
+    // House number mismatch — almost certainly wrong lot
+    return 5;
+  }
+
+  let score = 50; // House number matches
+
+  // Street name comparison
+  const parcelStreet = parcelMatch ? parcelMatch[2] : parcel;
+
+  // Normalize common abbreviations
+  const abbrevs: [RegExp, string][] = [
+    [/\bSTREET\b/g, 'ST'], [/\bDRIVE\b/g, 'DR'], [/\bAVENUE\b/g, 'AVE'],
+    [/\bBOULEVARD\b/g, 'BLVD'], [/\bLANE\b/g, 'LN'], [/\bCOURT\b/g, 'CT'],
+    [/\bCIRCLE\b/g, 'CIR'], [/\bROAD\b/g, 'RD'], [/\bPLACE\b/g, 'PL'],
+    [/\bTRAIL\b/g, 'TRL'], [/\bPARKWAY\b/g, 'PKWY'], [/\bHIGHWAY\b/g, 'HWY'],
+    [/\bNORTH\b/g, 'N'], [/\bSOUTH\b/g, 'S'], [/\bEAST\b/g, 'E'], [/\bWEST\b/g, 'W'],
+  ];
+
+  let normSearch = searchStreet;
+  let normParcel = parcelStreet;
+  for (const [re, replacement] of abbrevs) {
+    normSearch = normSearch.replace(re, replacement);
+    normParcel = normParcel.replace(re, replacement);
+  }
+
+  if (normSearch === normParcel) {
+    score += 40; // Full street match
+  } else if (normParcel.includes(normSearch) || normSearch.includes(normParcel)) {
+    score += 25; // Partial street match
+  } else {
+    // Try core street name only (strip suffix words like ST, DR, AVE)
+    const suffixes = /\b(ST|DR|AVE|BLVD|LN|CT|CIR|RD|PL|TRL|PKWY|HWY|WAY)\b/g;
+    const coreSearch = normSearch.replace(suffixes, '').trim();
+    const coreParcel = normParcel.replace(suffixes, '').trim();
+    if (coreSearch === coreParcel || coreParcel.includes(coreSearch) || coreSearch.includes(coreParcel)) {
+      score += 20;
+    }
+  }
+
+  return Math.min(100, score);
+}
+
+/**
+ * Find the best-matching parcel from a list for a given address.
+ * Uses scored matching instead of `.find()` to avoid picking adjacent lots.
+ */
+function findBestParcelMatch(
+  searchAddress: string,
+  parcels: NearbyParcelData[],
+  logger: PipelineLogger,
+): NearbyParcelData | null {
+  if (parcels.length === 0) return null;
+
+  const scored = parcels.map(p => ({
+    parcel: p,
+    score: scoreParcelAddress(searchAddress, p.address),
+  }));
+
+  // Sort by score descending
+  scored.sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+
+  // Log all scored matches for debugging
+  if (scored.length > 1 && best.score >= 50) {
+    const topMatches = scored.slice(0, 5).map(s =>
+      `  prop_id=${s.parcel.prop_id} "${s.parcel.address}" score=${s.score}`,
+    ).join('\n');
+    logger.info('gis_zoom', `Address match scores (top ${Math.min(5, scored.length)}):\n${topMatches}`);
+  }
+
+  // Require house number match (score >= 50)
+  if (best.score < 50) {
+    logger.warn('gis_zoom', `No strong address match found (best score=${best.score} for "${best.parcel.address}")`);
+    return null;
+  }
+
+  // Warn if the top two scores are very close (ambiguous match)
+  if (scored.length > 1 && scored[1].score >= 50 && best.score - scored[1].score < 10) {
+    logger.warn('gis_zoom',
+      `AMBIGUOUS match: "${best.parcel.address}" (score=${best.score}) vs ` +
+      `"${scored[1].parcel.address}" (score=${scored[1].score}) — verify manually`,
+    );
+  }
+
+  return best.parcel;
+}
+
 // ── Parcel Query ─────────────────────────────────────────────────────────────
 
 /**
@@ -320,14 +446,10 @@ export async function progressiveZoomCapture(
 
     result.zoom_captures.push(capture);
 
-    // Find target parcel (matching address)
+    // Find target parcel (matching address) — use scored matching to avoid
+    // picking an adjacent lot that happens to substring-match.
     if (!result.target_parcel) {
-      const normalizedAddress = address.toUpperCase().replace(/[.,#]/g, '').trim();
-      const target = parcels.find(p => {
-        if (!p.address) return false;
-        const pAddr = p.address.toUpperCase().replace(/[.,#]/g, '').trim();
-        return pAddr === normalizedAddress || pAddr.includes(normalizedAddress) || normalizedAddress.includes(pAddr);
-      });
+      const target = findBestParcelMatch(address, parcels, logger);
 
       if (target) {
         result.target_parcel = target;

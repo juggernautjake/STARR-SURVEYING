@@ -67,9 +67,23 @@ export interface MapTileData {
   street_names: string[];
   /** Subdivision names found */
   subdivision_names: string[];
+  /** Addresses visible (e.g., "123 Oak St" — critical for lot-to-address mapping) */
+  addresses_visible: string[];
+  /** Property IDs visible */
+  property_ids: string[];
+  /** Owner names visible */
+  owner_names: string[];
   /** Bearings and distances (for plats) */
   bearings: string[];
   distances: string[];
+  /** Curve data (delta, radius, arc length, chord) */
+  curve_data: string[];
+  /** Area/acreage values */
+  acreage_values: string[];
+  /** Legal description fragments */
+  legal_description_fragments: string[];
+  /** Recording references (Volume/Page, Cabinet/Slide, Instrument #) */
+  recording_references: string[];
   /** Physical features described */
   features: string[];
   /** Pin position (if visible in this tile) */
@@ -222,7 +236,7 @@ async function tileImage(
 
 const TILE_ANALYSIS_PROMPT = (tilePosition: string, address: string, contextHint: string) => [
   `You are a Texas Registered Professional Land Surveyor performing a ZOOMED-IN analysis`,
-  `of a specific section of a map or document image.`,
+  `of a specific section of a map, plat, deed, or document image.`,
   ``,
   `This is the ${tilePosition} section of the full image.`,
   `The address being researched is: "${address}"`,
@@ -234,8 +248,12 @@ const TILE_ANALYSIS_PROMPT = (tilePosition: string, address: string, contextHint
   `  2. If you see lot numbers, list EVERY one. Don't skip any.`,
   `  3. If you see bearings (e.g., N 45° 30' 15" E), transcribe them EXACTLY.`,
   `  4. If you see distances (e.g., 150.00'), transcribe them EXACTLY.`,
-  `  5. Note any pin markers, symbols, or highlights.`,
-  `  6. Describe any physical features: buildings, fences, roads, boundaries.`,
+  `  5. If you see curve data (delta angles, radii, arc lengths, chord bearings), transcribe it ALL.`,
+  `  6. If you see addresses (e.g., "123 Oak St"), list every one — these are CRITICAL for matching lots to addresses.`,
+  `  7. If you see property IDs, owner names, acreage/area values, or recording references, capture them.`,
+  `  8. If this appears to be a deed, extract ALL legal description fragments (metes & bounds calls, lot/block references).`,
+  `  9. Note any pin markers, symbols, or highlights.`,
+  `  10. Describe any physical features: buildings, fences, roads, boundaries.`,
   ``,
   `Because this is a zoomed-in section, you should be able to read text that might be`,
   `too small to read in the full image. Take advantage of this and read EVERYTHING.`,
@@ -247,8 +265,15 @@ const TILE_ANALYSIS_PROMPT = (tilePosition: string, address: string, contextHint
   `  "block_numbers": ["2"],`,
   `  "street_names": ["Oak Street"],`,
   `  "subdivision_names": ["Belton Heights"],`,
+  `  "addresses_visible": ["123 Oak Street", "125 Oak Street"],`,
+  `  "property_ids": ["R12345"],`,
+  `  "owner_names": ["John Smith", "Jane Doe"],`,
   `  "bearings": ["N 45° 30' 15\" E"],`,
   `  "distances": ["150.00'"],`,
+  `  "curve_data": ["Delta=12°30'00\", R=300.00', L=65.45', CB=N 51°45'15\" E"],`,
+  `  "acreage_values": ["0.250 acres", "10,890 sq ft"],`,
+  `  "legal_description_fragments": ["Being Lot 7, Block 2 of Belton Heights, a subdivision in Bell County, Texas"],`,
+  `  "recording_references": ["Vol. 1234, Pg. 567", "Cabinet A, Slide 23", "Instrument #2020-12345"],`,
   `  "features": ["fence line along south boundary", "driveway on east side"],`,
   `  "pin_position": "Red pin visible in upper-left of this section" or null,`,
   `  "buildings": ["single-family residence, L-shaped, roof color brown"],`,
@@ -285,8 +310,15 @@ async function analyzeTile(
         block_numbers: toStringArray(data.block_numbers),
         street_names: toStringArray(data.street_names),
         subdivision_names: toStringArray(data.subdivision_names),
+        addresses_visible: toStringArray(data.addresses_visible),
+        property_ids: toStringArray(data.property_ids),
+        owner_names: toStringArray(data.owner_names),
         bearings: toStringArray(data.bearings),
         distances: toStringArray(data.distances),
+        curve_data: toStringArray(data.curve_data),
+        acreage_values: toStringArray(data.acreage_values),
+        legal_description_fragments: toStringArray(data.legal_description_fragments),
+        recording_references: toStringArray(data.recording_references),
         features: toStringArray(data.features),
         pin_position: data.pin_position ? String(data.pin_position) : null,
         buildings: toStringArray(data.buildings),
@@ -324,15 +356,8 @@ function dedup(arr: string[]): string[] {
 }
 
 function mergeTileData(base: MapTileData, additions: MapTileData[]): MapTileData {
-  const allTextVisible = [base.text_visible, ...additions.map(a => a.text_visible)].flat();
-  const allLots = [base.lot_numbers, ...additions.map(a => a.lot_numbers)].flat();
-  const allBlocks = [base.block_numbers, ...additions.map(a => a.block_numbers)].flat();
-  const allStreets = [base.street_names, ...additions.map(a => a.street_names)].flat();
-  const allSubdivs = [base.subdivision_names, ...additions.map(a => a.subdivision_names)].flat();
-  const allBearings = [base.bearings, ...additions.map(a => a.bearings)].flat();
-  const allDistances = [base.distances, ...additions.map(a => a.distances)].flat();
-  const allFeatures = [base.features, ...additions.map(a => a.features)].flat();
-  const allBuildings = [base.buildings, ...additions.map(a => a.buildings)].flat();
+  const collect = (field: keyof MapTileData) =>
+    [base[field] as string[], ...additions.map(a => a[field] as string[])].flat();
 
   // Use the most specific pin position (prefer tile analyses that found one)
   let pinPosition = base.pin_position;
@@ -345,16 +370,23 @@ function mergeTileData(base: MapTileData, additions: MapTileData[]): MapTileData
   const allNotes = [base.notes, ...additions.map(a => a.notes)].filter(Boolean);
 
   return {
-    text_visible: dedup(allTextVisible),
-    lot_numbers: dedup(allLots),
-    block_numbers: dedup(allBlocks),
-    street_names: dedup(allStreets),
-    subdivision_names: dedup(allSubdivs),
-    bearings: dedup(allBearings),
-    distances: dedup(allDistances),
-    features: dedup(allFeatures),
+    text_visible: dedup(collect('text_visible')),
+    lot_numbers: dedup(collect('lot_numbers')),
+    block_numbers: dedup(collect('block_numbers')),
+    street_names: dedup(collect('street_names')),
+    subdivision_names: dedup(collect('subdivision_names')),
+    addresses_visible: dedup(collect('addresses_visible')),
+    property_ids: dedup(collect('property_ids')),
+    owner_names: dedup(collect('owner_names')),
+    bearings: dedup(collect('bearings')),
+    distances: dedup(collect('distances')),
+    curve_data: dedup(collect('curve_data')),
+    acreage_values: dedup(collect('acreage_values')),
+    legal_description_fragments: dedup(collect('legal_description_fragments')),
+    recording_references: dedup(collect('recording_references')),
+    features: dedup(collect('features')),
     pin_position: pinPosition,
-    buildings: dedup(allBuildings),
+    buildings: dedup(collect('buildings')),
     notes: allNotes.join(' | '),
   };
 }
@@ -362,17 +394,30 @@ function mergeTileData(base: MapTileData, additions: MapTileData[]): MapTileData
 /** Count new items found by additions that weren't in the base */
 function countNewFindings(base: MapTileData, merged: MapTileData): string[] {
   const findings: string[] = [];
-  const newLots = merged.lot_numbers.filter(l => !base.lot_numbers.map(b => b.toUpperCase()).includes(l.toUpperCase()));
-  const newBlocks = merged.block_numbers.filter(b => !base.block_numbers.map(x => x.toUpperCase()).includes(b.toUpperCase()));
-  const newStreets = merged.street_names.filter(s => !base.street_names.map(x => x.toUpperCase()).includes(s.toUpperCase()));
-  const newSubdivs = merged.subdivision_names.filter(s => !base.subdivision_names.map(x => x.toUpperCase()).includes(s.toUpperCase()));
-  const newBearings = merged.bearings.filter(b => !base.bearings.includes(b));
 
-  if (newLots.length > 0) findings.push(`${newLots.length} new lot numbers: ${newLots.join(', ')}`);
-  if (newBlocks.length > 0) findings.push(`${newBlocks.length} new block numbers: ${newBlocks.join(', ')}`);
-  if (newStreets.length > 0) findings.push(`${newStreets.length} new street names: ${newStreets.join(', ')}`);
-  if (newSubdivs.length > 0) findings.push(`${newSubdivs.length} new subdivisions: ${newSubdivs.join(', ')}`);
-  if (newBearings.length > 0) findings.push(`${newBearings.length} new bearings found`);
+  const diffCount = (field: keyof MapTileData, label: string, showValues = true) => {
+    const baseSet = new Set((base[field] as string[]).map(v => v.toUpperCase()));
+    const newItems = (merged[field] as string[]).filter(v => !baseSet.has(v.toUpperCase()));
+    if (newItems.length > 0) {
+      findings.push(showValues
+        ? `${newItems.length} new ${label}: ${newItems.join(', ')}`
+        : `${newItems.length} new ${label}`);
+    }
+  };
+
+  diffCount('lot_numbers', 'lot numbers');
+  diffCount('block_numbers', 'block numbers');
+  diffCount('street_names', 'street names');
+  diffCount('subdivision_names', 'subdivisions');
+  diffCount('addresses_visible', 'addresses');
+  diffCount('property_ids', 'property IDs');
+  diffCount('owner_names', 'owner names');
+  diffCount('bearings', 'bearings', false);
+  diffCount('distances', 'distances', false);
+  diffCount('curve_data', 'curve data entries', false);
+  diffCount('acreage_values', 'acreage values');
+  diffCount('legal_description_fragments', 'legal description fragments', false);
+  diffCount('recording_references', 'recording references');
   if (merged.pin_position && !base.pin_position) findings.push(`Pin position found: ${merged.pin_position}`);
 
   return findings;
@@ -410,15 +455,20 @@ export async function iterativeImageAnalysis(
 
   const fullResult = await analyzeFullImage(imageBase64, mediaType, options.prompt);
 
+  const p1Findings = [
+    `${fullResult.data.lot_numbers.length} lots`,
+    `${fullResult.data.street_names.length} streets`,
+    `${fullResult.data.block_numbers.length} blocks`,
+    fullResult.data.addresses_visible.length > 0 ? `${fullResult.data.addresses_visible.length} addresses` : '',
+    fullResult.data.bearings.length > 0 ? `${fullResult.data.bearings.length} bearings` : '',
+    fullResult.data.legal_description_fragments.length > 0 ? `${fullResult.data.legal_description_fragments.length} legal desc fragments` : '',
+  ].filter(Boolean);
+
   passes.push({
     type: 'full_image',
     api_calls: 1,
     confidence: fullResult.confidence,
-    new_findings: [
-      `${fullResult.data.lot_numbers.length} lots`,
-      `${fullResult.data.street_names.length} streets`,
-      `${fullResult.data.block_numbers.length} blocks`,
-    ],
+    new_findings: p1Findings,
   });
 
   let currentMerged = fullResult.data;
@@ -427,7 +477,8 @@ export async function iterativeImageAnalysis(
   logger?.info('lot_identify',
     `[Iterative] Pass 1 result: confidence=${fullResult.confidence}%, ` +
     `lots=${fullResult.data.lot_numbers.join(',') || 'none'}, ` +
-    `blocks=${fullResult.data.block_numbers.join(',') || 'none'}`,
+    `blocks=${fullResult.data.block_numbers.join(',') || 'none'}, ` +
+    `addresses=${fullResult.data.addresses_visible.join(',') || 'none'}`,
   );
 
   // ── Pass 2: 2×2 tile analysis (if needed) ──────────────────────────────
@@ -558,35 +609,53 @@ export async function iterativeImageAnalysis(
 
     try {
       const contextPrompt = [
-        `You are re-examining this image with the benefit of detailed tile analysis.`,
-        `The address being researched is: "${options.address}"`,
+        `You are a Texas Registered Professional Land Surveyor re-examining this image`,
+        `with the benefit of detailed zoomed tile analysis. Your PRIMARY GOAL is to determine`,
+        `which specific lot/parcel the address "${options.address}" belongs to.`,
         ``,
         `FINDINGS FROM ZOOMED TILE ANALYSIS:`,
         `  Lot numbers found: ${currentMerged.lot_numbers.join(', ') || 'none'}`,
         `  Block numbers found: ${currentMerged.block_numbers.join(', ') || 'none'}`,
         `  Street names found: ${currentMerged.street_names.join(', ') || 'none'}`,
         `  Subdivision names: ${currentMerged.subdivision_names.join(', ') || 'none'}`,
+        `  Addresses visible: ${currentMerged.addresses_visible.join(', ') || 'none'}`,
+        `  Property IDs: ${currentMerged.property_ids.join(', ') || 'none'}`,
+        `  Owner names: ${currentMerged.owner_names.join(', ') || 'none'}`,
         `  Pin position: ${currentMerged.pin_position || 'not detected'}`,
         `  Buildings: ${currentMerged.buildings.join(', ') || 'none'}`,
         `  Physical features: ${currentMerged.features.join(', ') || 'none'}`,
         currentMerged.bearings.length > 0 ? `  Bearings: ${currentMerged.bearings.join(', ')}` : '',
         currentMerged.distances.length > 0 ? `  Distances: ${currentMerged.distances.join(', ')}` : '',
+        currentMerged.curve_data.length > 0 ? `  Curve data: ${currentMerged.curve_data.join(', ')}` : '',
+        currentMerged.acreage_values.length > 0 ? `  Acreage values: ${currentMerged.acreage_values.join(', ')}` : '',
+        currentMerged.legal_description_fragments.length > 0 ? `  Legal description fragments: ${currentMerged.legal_description_fragments.join(' | ')}` : '',
+        currentMerged.recording_references.length > 0 ? `  Recording references: ${currentMerged.recording_references.join(', ')}` : '',
         ``,
-        `NOW: Re-examine the full image with this context. Do any of these findings change?`,
-        `Can you now see details you missed before? Are any of these findings WRONG?`,
+        `ADDRESS-TO-LOT MATCHING INSTRUCTIONS:`,
+        `  1. Look at the addresses visible on the image. Which one matches "${options.address}"?`,
+        `  2. The address might be on an ADJACENT lot — verify the address label is actually INSIDE the lot boundary, not just nearby.`,
+        `  3. If you can see house numbers, match them to lot boundaries precisely.`,
+        `  4. Consider: the target address might be lot N but the pin/label could appear near lot N+1 or N-1.`,
+        `  5. If this is a deed, identify EXACTLY which lot/block/subdivision the legal description references.`,
         ``,
-        `CRITICAL: Verify each lot number. Confirm the pin position relative to lots.`,
-        `If you disagree with any tile finding, explain why.`,
+        `VERIFICATION INSTRUCTIONS:`,
+        `  - Re-examine the full image with all the context above. Do any findings change?`,
+        `  - Can you now see details you missed before? Are any findings WRONG?`,
+        `  - Verify each lot number against what you can actually read in the image.`,
+        `  - Confirm the pin position relative to lot boundaries.`,
         ``,
         `Respond with JSON:`,
         `{`,
-        `  "verified_lot_numbers": ["lots you can confirm"],`,
+        `  "verified_lot_numbers": ["lots you can confirm exist in the image"],`,
         `  "verified_block_numbers": ["blocks you can confirm"],`,
-        `  "corrections": ["any corrections to the tile findings"],`,
+        `  "address_lot_mapping": {"123 Oak St": "Lot 7", "125 Oak St": "Lot 8"},`,
+        `  "target_lot_for_address": "the specific lot number that ${options.address} falls on",`,
+        `  "target_block_for_address": "the block number for the target lot",`,
+        `  "target_subdivision": "the subdivision name",`,
+        `  "corrections": ["any corrections to tile findings"],`,
         `  "additional_findings": ["anything new you now notice"],`,
-        `  "target_lot_for_address": "which specific lot the address falls on",`,
         `  "confidence": 85,`,
-        `  "synthesis": "detailed explanation of your final assessment"`,
+        `  "synthesis": "detailed explanation of how you determined which lot belongs to the target address"`,
         `}`,
       ].filter(Boolean).join('\n');
 
@@ -688,8 +757,15 @@ async function analyzeFullImage(
         block_numbers: toStringArray(data.block_numbers_visible ?? data.block_numbers),
         street_names: toStringArray(data.streets_visible ?? data.street_names),
         subdivision_names: toStringArray(data.subdivision_names_visible ?? data.subdivision_names),
+        addresses_visible: toStringArray(data.addresses_visible),
+        property_ids: toStringArray(data.property_ids),
+        owner_names: toStringArray(data.owner_names),
         bearings: toStringArray(data.bearings),
         distances: toStringArray(data.distances),
+        curve_data: toStringArray(data.curve_data),
+        acreage_values: toStringArray(data.acreage_values),
+        legal_description_fragments: toStringArray(data.legal_description_fragments),
+        recording_references: toStringArray(data.recording_references),
         features: toStringArray(data.features_near_pin ?? data.features),
         pin_position: data.pin_position ? String(data.pin_position) : null,
         buildings: toStringArray(data.buildings_near_pin ?? data.buildings),
@@ -717,8 +793,15 @@ function emptyTileData(): MapTileData {
     block_numbers: [],
     street_names: [],
     subdivision_names: [],
+    addresses_visible: [],
+    property_ids: [],
+    owner_names: [],
     bearings: [],
     distances: [],
+    curve_data: [],
+    acreage_values: [],
+    legal_description_fragments: [],
+    recording_references: [],
     features: [],
     pin_position: null,
     buildings: [],
