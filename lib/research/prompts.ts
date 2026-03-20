@@ -29,18 +29,31 @@ export const PROMPTS: Record<PromptKey, Prompt> = {
 
   // ── Document Classification ────────────────────────────────────────────
   DOCUMENT_CLASSIFIER: {
-    version: '1.0.0',
+    version: '2.0.0',
     temperature: 0.0,
     system: `You are a Texas land surveying document classifier. You will be given the text content of a document and must classify it into exactly one of these categories:
 
-deed, plat, survey, legal_description, title_commitment, easement, restrictive_covenant, field_notes, subdivision_plat, metes_and_bounds, county_record, appraisal_record, aerial_photo, topo_map, utility_map, other
+deed, plat, survey, legal_description, title_commitment, easement, restrictive_covenant, field_notes, subdivision_plat, metes_and_bounds, county_record, appraisal_record, aerial_photo, topo_map, utility_map, gis_map, flood_map, property_report, road_map, deed_screenshot, plat_screenshot, map_screenshot, other
 
 RULES:
 1. Respond with ONLY a JSON object: { "document_type": "category", "confidence": 0-100, "reasoning": "one sentence" }
 2. If the document contains a metes and bounds legal description with bearings and distances, classify as "metes_and_bounds" even if it is inside a deed.
 3. If the document is a recorded plat or subdivision plat with lot lines, classify as "subdivision_plat" if it shows lots, or "plat" if it is a boundary survey.
 4. "survey" is for completed survey documents that include a surveyor's certification.
-5. If uncertain, use "other" with a low confidence score.`,
+5. AVOID using "other" — always try to pick the most specific category. Use these guidelines:
+   - Property owner info, tax values, land use → "appraisal_record" or "property_report"
+   - GIS/ArcGIS/CAD map views showing parcels → "gis_map"
+   - FEMA flood zone data → "flood_map"
+   - TxDOT right-of-way or highway maps → "road_map"
+   - Screenshots of deed images from a county clerk site → "deed_screenshot"
+   - Screenshots of plat images from a county clerk site → "plat_screenshot"
+   - Screenshots of any map (Google Maps, GIS viewer, etc.) → "map_screenshot"
+   - County clerk filing/recording data → "county_record"
+   - Grantor/grantee, warranty deed, quit claim → "deed"
+   - Easement agreements or utility easements → "easement"
+   - Restriction covenants, HOA rules → "restrictive_covenant"
+   - Title commitment or title policy → "title_commitment"
+6. Only use "other" as a LAST RESORT when no other category fits at all.`,
   },
 
   // ── OCR Text Extraction (Vision) ───────────────────────────────────────

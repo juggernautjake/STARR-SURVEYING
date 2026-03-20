@@ -160,28 +160,54 @@ export async function uploadPipelineArtifacts(
     `[ArtifactUploader] ${projectId}: Screenshot sources: ${screenshots.map(s => `${s.source}(${s.url?.substring(0, 60) ?? 'no-url'})`).join(', ')}`,
   );
 
-  // ── Upload screenshots (classified as useful or misc) ─────────────
+  // ── Upload screenshots — group by source so multi-page docs stay together ──
+  // Screenshots from the same source (e.g., "Bell County Clerk - Deed Viewer")
+  // are grouped into a single research_documents row with multiple page images,
+  // so the viewer's arrow-key page navigation works.
   let miscCount = 0;
   let usefulCount = 0;
-  for (let i = 0; i < screenshots.length; i++) {
-    const ss = screenshots[i];
+
+  // Step 1: Classify all screenshots and group useful ones by source
+  const classified: Array<{
+    ss: ArtifactScreenshot;
+    index: number;
+    classification: 'useful' | 'misc';
+    docType: string;
+  }> = screenshots.map((ss, i) => {
+    const cls = ss.classification ?? classifyScreenshot(ss.url || '', ss.description || '', ss.pageText);
+    const docType = cls === 'misc' ? 'other' : classifyScreenshotDocType(ss.url || '', ss.description || '', ss.source || '');
+    return { ss, index: i, classification: cls, docType };
+  });
+
+  // Group useful screenshots by source name (e.g., "Bell County Clerk")
+  type ClassifiedSS = (typeof classified)[number];
+  const usefulGroups = new Map<string, ClassifiedSS[]>();
+  const miscScreenshots: ClassifiedSS[] = [];
+
+  for (const cs of classified) {
+    if (cs.classification === 'misc') {
+      miscScreenshots.push(cs);
+      miscCount++;
+    } else {
+      usefulCount++;
+      const groupKey = cs.ss.source || 'unknown';
+      if (!usefulGroups.has(groupKey)) usefulGroups.set(groupKey, []);
+      usefulGroups.get(groupKey)!.push(cs);
+    }
+  }
+
+  console.log(
+    `[ArtifactUploader] ${projectId}: Screenshots — ${usefulCount} useful (${usefulGroups.size} group(s)), ${miscCount} misc`,
+  );
+
+  // Step 2: Upload misc screenshots individually (no grouping needed)
+  for (const cs of miscScreenshots) {
     try {
-      // Use pre-classification from pipeline AI if available, otherwise fall back to regex
-      const preClassified = ss.classification != null;
-      const classification = ss.classification ?? classifyScreenshot(ss.url || '', ss.description || '', ss.pageText);
-      const safeName = sanitizeFilename(ss.source);
-      const subfolder = classification === 'misc' ? 'screenshots-misc' : 'screenshots';
-      const filename = `screenshot_${i + 1}_${safeName}.png`;
-      const storagePath = `${projectId}/artifacts/${subfolder}/${filename}`;
+      const safeName = sanitizeFilename(cs.ss.source);
+      const filename = `screenshot_${cs.index + 1}_${safeName}.png`;
+      const storagePath = `${projectId}/artifacts/screenshots-misc/${filename}`;
 
-      console.log(
-        `[ArtifactUploader] Screenshot ${i + 1}/${screenshots.length}: source="${ss.source}", url="${ss.url?.substring(0, 80) ?? 'none'}", classification=${classification}${preClassified ? ' (pre-classified)' : ' (regex)'}, folder=${subfolder}`,
-      );
-
-      if (classification === 'misc') miscCount++;
-      else usefulCount++;
-
-      const buffer = Buffer.from(ss.imageBase64, 'base64');
+      const buffer = Buffer.from(cs.ss.imageBase64, 'base64');
       const { error: uploadErr } = await (supabase.storage as any)
         .from(BUCKET)
         .upload(storagePath, buffer, {
@@ -191,14 +217,11 @@ export async function uploadPipelineArtifacts(
         });
 
       if (uploadErr) {
-        result.errors.push(`Screenshot ${i + 1}: ${uploadErr.message}`);
-        console.warn(`[ArtifactUploader] Screenshot ${i + 1} upload failed: ${uploadErr.message}`);
+        result.errors.push(`Screenshot ${cs.index + 1}: ${uploadErr.message}`);
         continue;
       }
 
-      const { data: urlData } = (supabase.storage as any)
-        .from(BUCKET)
-        .getPublicUrl(storagePath);
+      const { data: urlData } = (supabase.storage as any).from(BUCKET).getPublicUrl(storagePath);
       const publicUrl: string = urlData?.publicUrl ?? '';
 
       await (supabase as any).from('research_documents').insert({
@@ -209,22 +232,141 @@ export async function uploadPipelineArtifacts(
         file_size_bytes: buffer.length,
         storage_path: storagePath,
         storage_url: publicUrl,
-        source_url: ss.url || null,
+        source_url: cs.ss.url || null,
         document_type: 'other',
-        document_label: classification === 'misc'
-          ? `MISC Screenshot: ${ss.description || ss.source}`
-          : `Screenshot: ${ss.description || ss.source}`,
+        document_label: `MISC Screenshot: ${cs.ss.description || cs.ss.source}`,
         processing_status: 'analyzed',
-        extracted_text: `[${classification.toUpperCase()}] Screenshot captured from ${ss.source} at ${ss.url}\n${ss.description}`,
-        created_at: ss.capturedAt || new Date().toISOString(),
+        extracted_text: `[MISC] Screenshot captured from ${cs.ss.source} at ${cs.ss.url}\n${cs.ss.description}`,
+        created_at: cs.ss.capturedAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
-
       result.screenshotsUploaded++;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      result.errors.push(`Screenshot ${i + 1}: ${msg}`);
-      console.warn(`[ArtifactUploader] Screenshot ${i + 1} error: ${msg}`);
+      result.errors.push(`Screenshot ${cs.index + 1}: ${msg}`);
+    }
+  }
+
+  // Step 3: Upload useful screenshots grouped by source
+  // Multiple screenshots from the same source become pages of one document
+  for (const [groupSource, groupScreenshots] of usefulGroups) {
+    try {
+      const pageUrls: string[] = [];
+      let totalBytes = 0;
+      const safeName = sanitizeFilename(groupSource);
+      const firstSs = groupScreenshots[0];
+      const docType = firstSs.docType;
+
+      // Upload each screenshot as a page image
+      for (let pageIdx = 0; pageIdx < groupScreenshots.length; pageIdx++) {
+        const cs = groupScreenshots[pageIdx];
+        try {
+          const filename = `screenshot_${safeName}_page${pageIdx + 1}.png`;
+          const storagePath = `${projectId}/artifacts/screenshots/${filename}`;
+          const buffer = Buffer.from(cs.ss.imageBase64, 'base64');
+          totalBytes += buffer.length;
+
+          const { error: uploadErr } = await (supabase.storage as any)
+            .from(BUCKET)
+            .upload(storagePath, buffer, {
+              contentType: 'image/png',
+              upsert: true,
+              cacheControl: '86400',
+            });
+
+          if (uploadErr) {
+            result.errors.push(`Screenshot ${cs.index + 1}: ${uploadErr.message}`);
+            console.warn(`[ArtifactUploader] Screenshot page ${pageIdx + 1} upload failed: ${uploadErr.message}`);
+            continue;
+          }
+
+          const { data: urlData } = (supabase.storage as any).from(BUCKET).getPublicUrl(storagePath);
+          const url: string = urlData?.publicUrl ?? '';
+          pageUrls.push(url);
+          result.screenshotsUploaded++;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          result.errors.push(`Screenshot page ${pageIdx + 1}: ${msg}`);
+        }
+      }
+
+      if (pageUrls.length === 0) continue;
+
+      // Bundle into PDF if multiple pages
+      let pdfUrl: string | null = null;
+      if (pageUrls.length > 1) {
+        try {
+          const docPages: DocumentPage[] = groupScreenshots.map((cs, i) => ({
+            pageNumber: i + 1,
+            imageBase64: cs.ss.imageBase64,
+            imageFormat: detectFormat(cs.ss.imageBase64),
+            width: 0,
+            height: 0,
+            signedUrl: null,
+          }));
+          const pdfBuffer = await pageImagesToBuffer(docPages);
+          const pdfFilename = `screenshot_${safeName}_all_pages.pdf`;
+          const pdfPath = `${projectId}/artifacts/screenshots/${pdfFilename}`;
+
+          const { error: pdfErr } = await (supabase.storage as any)
+            .from(BUCKET)
+            .upload(pdfPath, pdfBuffer, {
+              contentType: 'application/pdf',
+              upsert: true,
+              cacheControl: '86400',
+            });
+
+          if (!pdfErr) {
+            const { data: pdfUrlData } = (supabase.storage as any).from(BUCKET).getPublicUrl(pdfPath);
+            pdfUrl = pdfUrlData?.publicUrl ?? null;
+            console.log(
+              `[ArtifactUploader] ${groupSource}: bundled ${groupScreenshots.length} screenshot(s) into PDF (${Math.round(pdfBuffer.length / 1024)}KB)`,
+            );
+          }
+        } catch (pdfErr) {
+          console.warn(
+            `[ArtifactUploader] ${groupSource}: PDF bundle failed: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`,
+          );
+        }
+      }
+
+      // Build combined extracted text from all screenshots in this group
+      const combinedText = groupScreenshots.map((cs, i) =>
+        `[Page ${i + 1}] Screenshot captured from ${cs.ss.source} at ${cs.ss.url}\n${cs.ss.description}`
+      ).join('\n\n');
+
+      // Create ONE research_documents row for the group
+      const displayLabel = groupScreenshots.length > 1
+        ? `${groupSource} (${groupScreenshots.length} pages)`
+        : `Screenshot: ${firstSs.ss.description || groupSource}`;
+
+      await (supabase as any).from('research_documents').insert({
+        research_project_id: projectId,
+        source_type: 'property_search',
+        original_filename: `screenshot_${safeName}`,
+        file_type: pageUrls.length > 1 ? 'pdf' : 'png',
+        file_size_bytes: totalBytes,
+        storage_path: `${projectId}/artifacts/screenshots/`,
+        storage_url: pageUrls[0] || null,
+        pages_pdf_url: pdfUrl,
+        source_url: firstSs.ss.url || null,
+        document_type: docType,
+        document_label: displayLabel,
+        page_count: groupScreenshots.length,
+        processing_status: 'analyzed',
+        ocr_regions: JSON.stringify({ pageUrls }),
+        extracted_text: combinedText,
+        created_at: firstSs.ss.capturedAt || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      console.log(
+        `[ArtifactUploader] ${groupSource}: created grouped document (${groupScreenshots.length} page(s), type=${docType}, PDF=${!!pdfUrl})`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      result.errors.push(`Screenshot group "${groupSource}": ${msg}`);
+      console.warn(`[ArtifactUploader] Screenshot group "${groupSource}" error: ${msg}`);
     }
   }
 
@@ -420,10 +562,66 @@ function mapCategoryToDocType(category: string): string {
     aerial: 'aerial_photo',
     topo: 'topo_map',
     tax: 'appraisal_record',
-    fema: 'other',
-    txdot: 'other',
+    fema: 'flood_map',
+    txdot: 'road_map',
+    gis: 'gis_map',
+    flood: 'flood_map',
+    road: 'road_map',
+    map: 'gis_map',
+    property: 'property_report',
+    county: 'county_record',
+    field_notes: 'field_notes',
+    metes: 'metes_and_bounds',
+    legal: 'legal_description',
+    title: 'title_commitment',
   };
   return map[category.toLowerCase()] ?? 'other';
+}
+
+/**
+ * Classify a screenshot's document_type based on its source URL and description.
+ * This replaces the blanket 'other' assignment for all screenshots.
+ */
+function classifyScreenshotDocType(url: string, description: string, source: string): string {
+  const text = `${url} ${description} ${source}`.toLowerCase();
+
+  // GIS / CAD map screenshots
+  if (/arcgis|gis|cad|parcel.*map|map.*viewer|parcel.*viewer/i.test(text)) return 'gis_map';
+
+  // Deed screenshots
+  if (/deed|instrument|conveyance|grantor|grantee|clerk.*record/i.test(text)) return 'deed_screenshot';
+
+  // Plat screenshots
+  if (/plat|subdivision.*map|lot.*map|replat/i.test(text)) return 'plat_screenshot';
+
+  // Aerial / satellite imagery
+  if (/aerial|satellite|imagery|google.*earth/i.test(text)) return 'aerial_photo';
+
+  // Flood map
+  if (/fema|flood|firm.*panel|flood.*zone|flood.*map/i.test(text)) return 'flood_map';
+
+  // TxDOT / road / ROW
+  if (/txdot|right.of.way|row.*map|road.*map|highway/i.test(text)) return 'road_map';
+
+  // Topo maps
+  if (/topo|elevation|usgs|contour/i.test(text)) return 'topo_map';
+
+  // Tax / appraisal records
+  if (/tax|apprais|esearch|property.*detail|cad.*property|market.*value/i.test(text)) return 'appraisal_record';
+
+  // County records
+  if (/county.*clerk|county.*record|public.*record|recording/i.test(text)) return 'county_record';
+
+  // Property reports
+  if (/property.*report|property.*search|property.*info/i.test(text)) return 'property_report';
+
+  // General map screenshots
+  if (/map|google.*maps|openstreetmap|street.*view/i.test(text)) return 'map_screenshot';
+
+  // Survey documents
+  if (/survey|rpls|surveyor|field.*note/i.test(text)) return 'survey';
+
+  return 'other';
 }
 
 function capitalizeFirst(s: string): string {

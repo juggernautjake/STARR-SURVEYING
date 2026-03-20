@@ -387,6 +387,47 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   logger.endPhase('visual_compare');
 
+  // ── Target re-evaluation ───────────────────────────────────────────────
+  // If visual analysis identified a different lot than ArcGIS initially chose,
+  // check if an adjacent parcel matches and update the target accordingly.
+
+  if (targetPropId && zoomResult?.adjacent_parcels && zoomResult.adjacent_parcels.length > 0) {
+    const visualLot = visualResult?.identified_lot ?? lotIdentResult?.lot_number;
+    const arcgisLot = arcgisContext?.parcel?.tract_or_lot;
+
+    if (visualLot && arcgisLot && visualLot !== arcgisLot) {
+      logger.warn('lot_identify',
+        `Visual analysis identified lot "${visualLot}" but ArcGIS selected lot "${arcgisLot}" — evaluating re-target`,
+      );
+
+      // Look for an adjacent parcel whose lot matches the visual identification
+      const betterMatch = zoomResult.adjacent_parcels.find(
+        adj => adj.lot && adj.lot.toUpperCase() === visualLot.toUpperCase(),
+      );
+
+      if (betterMatch) {
+        const oldPropId = targetPropId;
+        targetPropId = String(betterMatch.prop_id);
+        logger.info('lot_identify',
+          `RE-TARGETED: prop_id ${oldPropId} → ${targetPropId} (lot "${visualLot}", address="${betterMatch.address || 'unknown'}")`,
+        );
+
+        // Add corrected lot atom with high confidence
+        addAtomAndValidate(graph, createAtom({
+          category: 'lot_number', value: visualLot,
+          source: 'ai_vision', extraction_method: 'Visual re-evaluation of target lot',
+          confidence: 88,
+          confidence_reasoning: `Visual analysis identified lot ${visualLot} instead of initial ArcGIS lot ${arcgisLot}`,
+          pipeline_step: 'deep_lot_analysis:re_target',
+        }));
+      } else {
+        logger.warn('lot_identify',
+          `Visual lot "${visualLot}" not found among adjacent parcels — keeping original target prop_id=${targetPropId}`,
+        );
+      }
+    }
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   // PHASE 4: Cross-validate existing extracted data points
   // ════════════════════════════════════════════════════════════════════════

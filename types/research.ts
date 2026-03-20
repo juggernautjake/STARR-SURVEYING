@@ -115,7 +115,10 @@ export type DocumentType =
   | 'title_commitment' | 'easement' | 'restrictive_covenant'
   | 'field_notes' | 'subdivision_plat' | 'metes_and_bounds'
   | 'county_record' | 'appraisal_record' | 'aerial_photo'
-  | 'topo_map' | 'utility_map' | 'other';
+  | 'topo_map' | 'utility_map'
+  | 'gis_map' | 'flood_map' | 'property_report' | 'road_map'
+  | 'deed_screenshot' | 'plat_screenshot' | 'map_screenshot'
+  | 'other';
 
 export type ProcessingStatus = 'pending' | 'extracting' | 'extracted' | 'analyzing' | 'analyzed' | 'error';
 
@@ -170,6 +173,13 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, { label: string; icon: s
   aerial_photo:         { label: 'Aerial Photo', icon: '🛩️' },
   topo_map:             { label: 'Topo Map', icon: '🏔️' },
   utility_map:          { label: 'Utility Map', icon: '⚡' },
+  gis_map:              { label: 'GIS Map', icon: '🗺️' },
+  flood_map:            { label: 'Flood Map', icon: '🌊' },
+  property_report:      { label: 'Property Report', icon: '🏠' },
+  road_map:             { label: 'Road / ROW Map', icon: '🛣️' },
+  deed_screenshot:      { label: 'Deed Screenshot', icon: '📜' },
+  plat_screenshot:      { label: 'Plat Screenshot', icon: '🗺️' },
+  map_screenshot:       { label: 'Map Screenshot', icon: '🗺️' },
   other:                { label: 'Other', icon: '📎' },
 };
 
