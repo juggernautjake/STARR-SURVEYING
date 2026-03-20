@@ -82,6 +82,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
+  // County guard — this pipeline currently only supports Bell County
+  const countyName = (project.county ?? '').toLowerCase().replace(/\s+county$/i, '').trim();
+  if (countyName && countyName !== 'bell') {
+    return NextResponse.json(
+      { error: `Lot verification is currently only supported for Bell County. This project is in "${project.county}".` },
+      { status: 400 },
+    );
+  }
+
   const steps: string[] = [];
   const validationLogs: ValidationLog[] = [];
   const graph = createValidationGraph();
@@ -187,6 +196,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       projectId,
       body.address,
       null, // ArcGIS geometry is state plane coords — let Nominatim geocode
+      project.county ?? undefined,
     );
     steps.push(
       `[Step 3] Captured ${mapCapture.allDocumentIds.length} map images (lot + block level)`,

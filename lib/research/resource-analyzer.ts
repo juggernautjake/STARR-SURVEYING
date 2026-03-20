@@ -13,7 +13,7 @@ import {
   buildExtractionPrompt,
   calculateExtractionScore,
 } from './extraction-objectives';
-import type { DataAtom, AtomCategory, AtomSource, ValidationGraph } from './cross-validation.service';
+import type { DataAtom, AtomCategory, AtomSource } from './cross-validation.service';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -270,6 +270,8 @@ export function analyzeStructuredParcelData(
     city_name: { check: () => data.city ? String(data.city) : null, atom_cat: 'city_name' },
     school_district: { check: () => data.school ? String(data.school) : null, atom_cat: 'school_district' },
     flood_zone: { check: () => data.flood_zone ? String(data.flood_zone) : null, atom_cat: 'flood_zone' },
+    deed_date: { check: () => data.deed_date ? String(data.deed_date) : null, atom_cat: 'deed_date' },
+    street_names: { check: () => data.situs_street ? String(data.situs_street) : null, atom_cat: 'street_name' },
   };
 
   // Check shape data
@@ -295,6 +297,13 @@ export function analyzeStructuredParcelData(
 
   if (shapeLengthFt) {
     findings.push(`Parcel perimeter from geometry: ${shapeLengthFt.toLocaleString()} linear feet`);
+    atoms.push(createAtom('distance', `${shapeLengthFt.toFixed(2)} ft (perimeter)`, 'arcgis_query', resourceId, pipelineStep));
+  }
+
+  // Create atom for computed acreage from geometry
+  if (shapeAreaSqft) {
+    const computedAcres = (shapeAreaSqft / 43560).toFixed(4);
+    atoms.push(createAtom('acreage', `${computedAcres} acres (computed from geometry)`, 'arcgis_query', resourceId, `${pipelineStep}:geometry`));
   }
 
   // Check for derived URLs

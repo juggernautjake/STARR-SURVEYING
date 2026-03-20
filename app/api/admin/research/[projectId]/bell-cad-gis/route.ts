@@ -49,6 +49,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
+  // County guard — Bell CAD GIS only supports Bell County
+  const countyName = (project.county ?? '').toLowerCase().replace(/\s+county$/i, '').trim();
+  if (countyName && countyName !== 'bell') {
+    return NextResponse.json(
+      { error: `Bell CAD GIS is only available for Bell County projects. This project is in "${project.county}".` },
+      { status: 400 },
+    );
+  }
+
   const url = req.nextUrl;
   const propId = url.searchParams.get('prop_id');
   const address = url.searchParams.get('address');
@@ -129,12 +138,21 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Verify project ownership
   const { data: project } = await supabaseAdmin
     .from('research_projects')
-    .select('id, created_by, analysis_metadata')
+    .select('id, created_by, county, analysis_metadata')
     .eq('id', projectId)
     .single();
 
   if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  }
+
+  // County guard — Bell CAD GIS only supports Bell County
+  const postCounty = (project.county ?? '').toLowerCase().replace(/\s+county$/i, '').trim();
+  if (postCounty && postCounty !== 'bell') {
+    return NextResponse.json(
+      { error: `Bell CAD GIS is only available for Bell County projects. This project is in "${project.county}".` },
+      { status: 400 },
+    );
   }
 
   const { context, search_method } = await searchAndFetchParcelContext(

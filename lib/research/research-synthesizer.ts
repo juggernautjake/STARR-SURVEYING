@@ -147,6 +147,22 @@ const CATEGORY_LABELS: Record<string, string> = {
   lot_identification: 'Lot Identification',
   pin_location: 'Pin Location',
   parcel_geometry: 'Parcel Geometry',
+  // New categories
+  curve_data: 'Curve Data',
+  right_of_way: 'Right-of-Way',
+  setback_line: 'Building Setback Line',
+  grantor: 'Grantor (Seller)',
+  grantee: 'Grantee (Buyer)',
+  deed_date: 'Deed Date',
+  deed_type: 'Deed Type',
+  plat_date: 'Plat Date',
+  surveyor_name: 'Surveyor / RPLS',
+  street_name: 'Street Name',
+  adjacent_lot: 'Adjacent Lot',
+  restriction: 'Restriction / Covenant',
+  encumbrance: 'Lien / Encumbrance',
+  coordinate: 'Coordinate',
+  elevation: 'Elevation',
   other: 'Other',
 };
 
@@ -169,17 +185,22 @@ const SECTION_DEFINITIONS: Array<{
   {
     title: 'Area & Dimensions',
     icon: 'AREA',
-    categories: ['acreage', 'distance', 'parcel_geometry'],
+    categories: ['acreage', 'distance', 'parcel_geometry', 'coordinate', 'elevation'],
   },
   {
     title: 'Metes & Bounds',
     icon: 'M&B',
-    categories: ['bearing', 'boundary_call', 'monument', 'point_of_beginning'],
+    categories: ['bearing', 'boundary_call', 'monument', 'point_of_beginning', 'curve_data'],
   },
   {
     title: 'Deed & Recording References',
     icon: 'DEED',
-    categories: ['deed_reference', 'plat_reference'],
+    categories: ['deed_reference', 'plat_reference', 'grantor', 'grantee', 'deed_date', 'deed_type'],
+  },
+  {
+    title: 'Plat & Survey',
+    icon: 'PLAT',
+    categories: ['plat_date', 'surveyor_name'],
   },
   {
     title: 'Legal Description',
@@ -189,7 +210,12 @@ const SECTION_DEFINITIONS: Array<{
   {
     title: 'Easements & Encumbrances',
     icon: 'EASE',
-    categories: ['easement'],
+    categories: ['easement', 'right_of_way', 'setback_line', 'restriction', 'encumbrance'],
+  },
+  {
+    title: 'Surrounding Properties',
+    icon: 'ADJ',
+    categories: ['adjacent_lot', 'street_name'],
   },
   {
     title: 'Flood & Environment',

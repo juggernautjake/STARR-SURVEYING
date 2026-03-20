@@ -342,6 +342,7 @@ export async function captureParcelMaps(
   address: string,
   zoom: number = LOT_ZOOM,
   geocoded?: GeoPoint | null,
+  county?: string,
 ): Promise<ParcelMapSet> {
   const steps: string[] = [];
   const result: ParcelMapSet = {
@@ -375,13 +376,19 @@ export async function captureParcelMaps(
   const usgsSatUrl = buildUsgsSatelliteUrl(coords.lat, coords.lon, radiusDeg);
 
   // Step 3: Fetch all images in parallel + query nearby parcels
-  const parcelQueryUrl = buildParcelQueryUrl(coords.lat, coords.lon, radiusDeg);
+  // Bell CAD parcel query is only available for Bell County projects
+  const normalizedCounty = (county ?? '').toLowerCase().replace(/\s+county$/i, '').trim();
+  const isBellCounty = normalizedCounty === 'bell' || normalizedCounty === '';
+  const parcelQueryUrl = isBellCounty ? buildParcelQueryUrl(coords.lat, coords.lon, radiusDeg) : null;
+  if (!isBellCounty) {
+    steps.push(`Skipping Bell CAD parcel query — project is in ${county} (not Bell County)`);
+  }
   const [googleStreetBuf, googleSatBuf, cadGisBuf, usgsSatBuf, parcelQueryResult] = await Promise.all([
     googleStreetUrl ? fetchImage(googleStreetUrl) : Promise.resolve(null),
     googleSatUrl ? fetchImage(googleSatUrl) : Promise.resolve(null),
     fetchImage(cadGisUrl),
     fetchImage(usgsSatUrl),
-    fetchParcelDataNearby(parcelQueryUrl),
+    parcelQueryUrl ? fetchParcelDataNearby(parcelQueryUrl) : Promise.resolve([] as NearbyParcel[]),
   ]);
 
   if (!googleStreetUrl) steps.push('Google Maps API key not configured — skipping pin maps');
@@ -439,7 +446,7 @@ export async function captureParcelMaps(
     storeOps.push((async () => {
       // Build a rich description including nearby parcel data for AI cross-referencing
       const nearbyInfo = parcelQueryResult.length > 0
-        ? `\n\nPARCELS IN VIEW (from Bell CAD ArcGIS query):\n` +
+        ? `\n\nPARCELS IN VIEW (from ${isBellCounty ? 'Bell CAD ArcGIS' : 'CAD'} query):\n` +
           parcelQueryResult.slice(0, 15).map((p, i) =>
             `  ${i + 1}. PropID=${p.prop_id} | Lot=${p.lot || '?'} | Block=${p.block || '?'} | ` +
             `${p.acreage ? p.acreage.toFixed(3) + ' ac' : '?'} | ${p.address || 'No address'} | ${p.owner || '?'}`
@@ -508,13 +515,14 @@ export async function captureMultiZoomMaps(
   projectId: string,
   address: string,
   geocoded?: GeoPoint | null,
+  county?: string,
 ): Promise<MultiZoomCapture> {
   // Geocode once, share across zoom levels
   const coords = geocoded ?? await geocodeAddress(address);
 
   const [lotLevel, blockLevel] = await Promise.all([
-    captureParcelMaps(projectId, address, LOT_ZOOM, coords),
-    captureParcelMaps(projectId, address, BLOCK_ZOOM, coords),
+    captureParcelMaps(projectId, address, LOT_ZOOM, coords, county),
+    captureParcelMaps(projectId, address, BLOCK_ZOOM, coords, county),
   ]);
 
   return {
