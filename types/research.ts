@@ -418,7 +418,8 @@ export type SearchSource =
   | 'texas_glo'        // Texas General Land Office (abstract surveys)
   | 'texas_rrc'        // Texas Railroad Commission (oil/gas infrastructure)
   | 'city_records'     // City permit/plat portals
-  | 'texas_file';      // TexasFile deed/instrument search
+  | 'texas_file'       // TexasFile deed/instrument search
+  | 'bell_cad_arcgis'; // Bell CAD ArcGIS FeatureServer (parcels, abstracts, etc.)
 
 export interface PropertySearchResult {
   id: string;
@@ -577,6 +578,29 @@ export interface BoundaryFetchResult {
    * directly into `computeTraverse` / `buildElementsFromAnalysis`.
    */
   drawing_ready?: DrawingReadyCall[];
+  /**
+   * Bell CAD ArcGIS parcel context — parcel geometry, abstract, subdivision,
+   * lot lines, city, school district, flood zones, and military boundary info.
+   * Only populated for Bell County properties queried via the ArcGIS FeatureServer.
+   */
+  arcgis_context?: {
+    /** Parcel polygon geometry rings (WKID 2277 — NAD83 Texas North Central, US Feet) */
+    parcel_geometry_rings?: number[][][];
+    /** Abstract survey number and name */
+    abstract?: { anum: string | null; survey_name: string | null; block: string | null };
+    /** Subdivision code and description */
+    subdivision?: { code: string | null; description: string | null };
+    /** Platted lot line dimensions */
+    lot_line_dimensions?: string[];
+    /** City name from city limits overlay */
+    city_name?: string | null;
+    /** School district name */
+    school_district?: string | null;
+    /** FEMA flood zone designations */
+    flood_zones?: Array<{ zone: string | null; sfha: string | null }>;
+    /** Whether parcel intersects Fort Cavazos military boundary */
+    near_military?: boolean;
+  };
 }
 
 /** One structured entry in the property-research acquisition log */

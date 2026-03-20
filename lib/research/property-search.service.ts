@@ -9,6 +9,12 @@ import type {
   SearchSource,
 } from '@/types/research';
 import { callAI } from './ai-client';
+import {
+  queryParcelByPropId,
+  queryParcelByAddress,
+  queryParcelByOwner,
+  type BellCadParcel,
+} from './bell-cad-arcgis.service';
 
 // ── Rate Limiting & Cache ────────────────────────────────────────────────────
 
@@ -145,6 +151,7 @@ export async function searchPropertyRecords(
     searchTexasRRC(req, county),
     searchCityRecords(req),
     searchTexasFile(req, county),
+    searchBellCadArcGIS(req, county),
   ]);
 
   const normData: AddressNormalization = normResult.status === 'fulfilled' ? normResult.value : {};
@@ -1444,4 +1451,109 @@ async function searchCityRecords(req: PropertySearchRequest): Promise<ProviderRe
     ],
     source: { source: 'city_records', name: matchedCity.name, status: 'success' },
   };
+}
+
+// ── Bell CAD ArcGIS FeatureServer ────────────────────────────────────────────
+// Queries the Bell CAD public ArcGIS REST FeatureServer for live parcel data.
+// Returns property-specific results with owner, legal description, values, and deed info.
+
+async function searchBellCadArcGIS(
+  req: PropertySearchRequest,
+  county: string,
+): Promise<ProviderResult> {
+  const isBellCounty = !county || county.toLowerCase() === 'bell';
+  if (!isBellCounty) {
+    return {
+      results: [],
+      source: { source: 'bell_cad_arcgis', name: 'Bell CAD ArcGIS', status: 'no_results', message: 'Not Bell County' },
+    };
+  }
+
+  const hasParcelId = !!req.parcel_id;
+  const hasAddress = !!req.address;
+  const hasOwner = !!req.owner_name;
+
+  if (!hasParcelId && !hasAddress && !hasOwner) {
+    return {
+      results: [],
+      source: { source: 'bell_cad_arcgis', name: 'Bell CAD ArcGIS', status: 'no_results', message: 'No search criteria' },
+    };
+  }
+
+  try {
+    let parcels: BellCadParcel[] = [];
+
+    if (hasParcelId) {
+      parcels = await queryParcelByPropId(req.parcel_id!);
+    } else if (hasAddress) {
+      parcels = await queryParcelByAddress(req.address!);
+    } else if (hasOwner) {
+      parcels = await queryParcelByOwner(req.owner_name!);
+    }
+
+    if (parcels.length === 0) {
+      return {
+        results: [],
+        source: { source: 'bell_cad_arcgis', name: 'Bell CAD ArcGIS FeatureServer', status: 'no_results' },
+      };
+    }
+
+    const results: PropertySearchResult[] = parcels.slice(0, 5).map((parcel, i) => {
+      const propId = String(parcel.prop_id);
+      const year = new Date().getFullYear();
+      const esearchUrl = `https://esearch.bellcad.org/Property/View/${encodeURIComponent(propId)}?year=${year}`;
+
+      const details: string[] = [];
+      if (parcel.file_as_name) details.push(`Owner: ${parcel.file_as_name}`);
+      if (parcel.situs_address) details.push(`Address: ${parcel.situs_address}`);
+      if (parcel.legal_acreage) details.push(`Acreage: ${parcel.legal_acreage}`);
+      if (parcel.market) details.push(`Market Value: $${parcel.market.toLocaleString()}`);
+      if (parcel.deed_reference) details.push(`Deed: ${parcel.deed_reference}`);
+      if (parcel.full_legal_description) {
+        const desc = parcel.full_legal_description;
+        details.push(`Legal: ${desc.length > 100 ? desc.substring(0, 100) + '…' : desc}`);
+      }
+
+      return {
+        id: generateResultId('bell_cad_arcgis', i),
+        source: 'bell_cad_arcgis' as SearchSource,
+        source_name: 'Bell CAD ArcGIS — Live Parcel Data',
+        title: `Bell CAD Property ${propId} — ${parcel.file_as_name || 'Unknown Owner'}`,
+        url: esearchUrl,
+        document_type: 'appraisal_record' as const,
+        relevance: scoreRelevance(hasParcelId ? 0.99 : 0.95, { hasParcelId, hasAddress }),
+        is_property_specific: true,
+        description: [
+          `Live data from Bell CAD ArcGIS FeatureServer for Property ID ${propId}.`,
+          details.length > 0 ? ` ${details.join(' | ')}` : '',
+          ` This data is queried directly from Bell County's GIS system and includes parcel geometry, legal description, values, and deed references.`,
+        ].join(''),
+        has_cost: false,
+        metadata: {
+          platform: 'arcgis_featureserver',
+          prop_id: propId,
+          owner: parcel.file_as_name,
+          acreage: parcel.legal_acreage,
+          market_value: parcel.market,
+          has_geometry: !!parcel.geometry,
+          situs_address: parcel.situs_address,
+        },
+      };
+    });
+
+    return {
+      results,
+      source: { source: 'bell_cad_arcgis', name: 'Bell CAD ArcGIS FeatureServer', status: 'success' },
+    };
+  } catch (err) {
+    return {
+      results: [],
+      source: {
+        source: 'bell_cad_arcgis',
+        name: 'Bell CAD ArcGIS FeatureServer',
+        status: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      },
+    };
+  }
 }

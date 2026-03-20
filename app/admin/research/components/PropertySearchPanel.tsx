@@ -118,6 +118,7 @@ const SOURCE_LABELS: Record<SearchSource, { label: string; icon: string }> = {
   texas_rrc:       { label: 'Texas Railroad Commission', icon: '⛽' },
   city_records:    { label: 'City Records', icon: '🏙️' },
   texas_file:      { label: 'TexasFile Deed Search', icon: '📋' },
+  bell_cad_arcgis: { label: 'Bell CAD ArcGIS', icon: '🗺️' },
 };
 
 // ── Bell County Auto-Detection ──────────────────────────────────────────────

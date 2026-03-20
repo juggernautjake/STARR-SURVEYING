@@ -3,6 +3,13 @@
 // extracts the legal description, and uses AI to parse the metes-and-bounds boundary calls.
 
 import { callAI } from './ai-client';
+import {
+  queryParcelByPropId,
+  queryParcelByAddress,
+  fetchParcelContext,
+  type BellCadParcel,
+  type BellCadParcelContext,
+} from './bell-cad-arcgis.service';
 import type {
   BoundaryFetchRequest,
   BoundaryFetchResult,
@@ -2062,6 +2069,90 @@ export async function fetchBoundaryCalls(
     }
   }
 
+  // ── Step 5c: Bell CAD ArcGIS enrichment ──────────────────────────────────
+  // For Bell County, query the public ArcGIS FeatureServer to get parcel geometry,
+  // abstract survey, subdivision, lot lines, flood zone, and city/school info.
+  // Also provides a fallback for legal description and property ID.
+  let arcGisContext: BellCadParcelContext | null = null;
+  if (countyKey === 'bell') {
+    try {
+      if (propId) {
+        steps.push(`[Step 5c] Querying Bell CAD ArcGIS FeatureServer for property ID ${propId}…`);
+        arcGisContext = await fetchParcelContext(propId, true);
+      } else if (req.address) {
+        steps.push(`[Step 5c] Querying Bell CAD ArcGIS FeatureServer by address: ${req.address}`);
+        const parcels = await queryParcelByAddress(req.address);
+        if (parcels.length > 0) {
+          const arcParcel = parcels[0];
+          propId = String(arcParcel.prop_id);
+          steps.push(`[Step 5c] ArcGIS found property ID ${propId} (${arcParcel.file_as_name})`);
+          arcGisContext = await fetchParcelContext(propId, true);
+        }
+      }
+
+      if (arcGisContext?.parcel) {
+        const p = arcGisContext.parcel;
+        steps.push(`[Step 5c] ArcGIS parcel data: ${p.file_as_name}, ${p.situs_address}, ${p.legal_acreage ?? '?'} acres`);
+
+        // Use ArcGIS legal description as fallback if we don't have one yet
+        if (!legalDesc && p.full_legal_description) {
+          legalDesc = p.full_legal_description;
+          steps.push(`[Step 5c] Legal description from ArcGIS (${legalDesc.length} chars): "${legalDesc.substring(0, 120)}${legalDesc.length > 120 ? '…' : ''}"`);
+        }
+
+        // Enrich propDetail with ArcGIS data if missing
+        if (!propDetail) {
+          propDetail = {
+            owner_name: p.file_as_name,
+            situs_num: p.situs_num ?? undefined,
+            situs_street: p.situs_street ?? undefined,
+            situs_city: p.situs_city ?? undefined,
+            situs_state: p.situs_state ?? undefined,
+            land_acres: p.legal_acreage ?? undefined,
+            market_value: p.market ?? undefined,
+            land_value: p.land_val ?? undefined,
+            improvement_value: p.imprv_val ?? undefined,
+            deed_vol: p.volume ?? undefined,
+            deed_pg: p.page ?? undefined,
+            legal_desc: p.full_legal_description || undefined,
+            geo_id: p.geo_id ?? undefined,
+            blk: p.block ?? undefined,
+            lot: p.tract_or_lot ?? undefined,
+          } as TrueAutoPropDetail;
+        }
+
+        // Log related layer data
+        if (arcGisContext.abstract) {
+          steps.push(`[Step 5c] Abstract: ${arcGisContext.abstract.anum} — ${arcGisContext.abstract.survey_name ?? 'unknown survey'}`);
+        }
+        if (arcGisContext.subdivision) {
+          steps.push(`[Step 5c] Subdivision: ${arcGisContext.subdivision.description ?? arcGisContext.subdivision.code}`);
+        }
+        if (arcGisContext.lot_lines.length > 0) {
+          const dims = arcGisContext.lot_lines.filter(l => l.plat_dim).map(l => l.plat_dim);
+          steps.push(`[Step 5c] ${arcGisContext.lot_lines.length} lot lines found${dims.length > 0 ? ` (dims: ${dims.slice(0, 5).join(', ')})` : ''}`);
+        }
+        if (arcGisContext.city_name) {
+          steps.push(`[Step 5c] City: ${arcGisContext.city_name}`);
+        }
+        if (arcGisContext.school_district) {
+          steps.push(`[Step 5c] School District: ${arcGisContext.school_district}`);
+        }
+        if (arcGisContext.flood_zones.length > 0) {
+          const zones = arcGisContext.flood_zones.map(z => z.fld_zone).filter(Boolean);
+          steps.push(`[Step 5c] FEMA Flood Zone(s): ${zones.join(', ')}`);
+        }
+        if (arcGisContext.near_military) {
+          steps.push(`[Step 5c] ⚠️ Parcel intersects Fort Cavazos military boundary`);
+        }
+      } else {
+        steps.push('[Step 5c] Bell CAD ArcGIS returned no matching parcel.');
+      }
+    } catch (err) {
+      steps.push(`[Step 5c] Bell CAD ArcGIS error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   if (!legalDesc) {
     if (propDetail) {
       steps.push('Property record found but no legal description text was returned.');
@@ -2085,6 +2176,7 @@ export async function fetchBoundaryCalls(
       deed_search_url: deedSearchUrl,
       geocoded_lat: geocodedOut.lat,
       geocoded_lon: geocodedOut.lon,
+      arcgis_context: buildArcGisContextPayload(arcGisContext),
       error: 'No legal description available to parse boundary calls.',
       search_steps: steps,
     };
@@ -2125,9 +2217,35 @@ export async function fetchBoundaryCalls(
     deed_search_url: deedSearchUrl,
     geocoded_lat: geocodedOut.lat,
     geocoded_lon: geocodedOut.lon,
+    arcgis_context: buildArcGisContextPayload(arcGisContext),
     error: calls.length === 0
       ? 'Legal description was found but no metes-and-bounds calls could be extracted.'
       : undefined,
     search_steps: steps,
+  };
+}
+
+/**
+ * Convert the Bell CAD ArcGIS context to the serializable payload shape
+ * defined in BoundaryFetchResult.arcgis_context.
+ */
+function buildArcGisContextPayload(ctx: BellCadParcelContext | null): BoundaryFetchResult['arcgis_context'] {
+  if (!ctx?.parcel) return undefined;
+
+  return {
+    parcel_geometry_rings: ctx.parcel.geometry?.rings ?? undefined,
+    abstract: ctx.abstract
+      ? { anum: ctx.abstract.anum, survey_name: ctx.abstract.survey_name, block: ctx.abstract.block }
+      : undefined,
+    subdivision: ctx.subdivision
+      ? { code: ctx.subdivision.code, description: ctx.subdivision.description }
+      : undefined,
+    lot_line_dimensions: ctx.lot_lines
+      .map(l => l.plat_dim)
+      .filter((d): d is string => d != null),
+    city_name: ctx.city_name,
+    school_district: ctx.school_district,
+    flood_zones: ctx.flood_zones.map(z => ({ zone: z.fld_zone, sfha: z.sfha_tf })),
+    near_military: ctx.near_military || undefined,
   };
 }
