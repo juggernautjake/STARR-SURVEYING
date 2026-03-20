@@ -15,6 +15,8 @@
 import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET, ensureStorageBucket } from '@/lib/supabase';
 import type { DocumentType } from '@/types/research';
 import { geocodeAddress, type GeoPoint } from './map-image.service';
+import { BELL_CAD_FEATURE_SERVER } from './bell-cad-arcgis.service';
+import type { PipelineLogger } from './pipeline-logger';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -26,9 +28,6 @@ const MAP_HEIGHT = 960;
 const LOT_ZOOM = 20;        // Tightest lot level — see individual lot clearly
 const BLOCK_ZOOM = 18;      // Block level — see full block with lot numbers
 const NEIGHBORHOOD_ZOOM = 16; // Neighborhood context
-
-const BELL_CAD_FEATURE_SERVER =
-  'https://services7.arcgis.com/EHW2HuuyZNO7DZct/arcgis/rest/services/BellCADWebService/FeatureServer';
 
 const USGS_SATELLITE_SVC =
   'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/export';
@@ -343,6 +342,7 @@ export async function captureParcelMaps(
   zoom: number = LOT_ZOOM,
   geocoded?: GeoPoint | null,
   county?: string,
+  logger?: PipelineLogger,
 ): Promise<ParcelMapSet> {
   const steps: string[] = [];
   const result: ParcelMapSet = {
@@ -356,18 +356,23 @@ export async function captureParcelMaps(
     steps,
   };
 
+  // Helper: log to both steps[] and PipelineLogger
+  const log = (msg: string) => { steps.push(msg); logger?.info('map_capture', msg); };
+  const logWarn = (msg: string) => { steps.push(msg); logger?.warn('map_capture', msg); };
+  const logError = (msg: string) => { steps.push(msg); logger?.error('map_capture', msg); };
+
   // Step 1: Geocode if not provided
   const coords = geocoded ?? await geocodeAddress(address);
   if (!coords) {
-    steps.push(`Geocoding failed for: ${address}`);
+    logError(`Geocoding failed for: ${address}`);
     return result;
   }
   result.geocoded = coords;
-  steps.push(`Geocoded to ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)} — ${coords.display_name}`);
+  log(`Geocoded to ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)} — ${coords.display_name}`);
 
   const radiusDeg = zoomToRadiusDeg(zoom);
   const zoomLabel = zoom >= 19 ? 'lot-level' : zoom >= 17 ? 'block-level' : 'neighborhood';
-  steps.push(`Capturing at zoom ${zoom} (${zoomLabel}, ~${Math.round(radiusDeg * 111000)}m radius)`);
+  log(`Capturing at zoom ${zoom} (${zoomLabel}, ~${Math.round(radiusDeg * 111000)}m radius)`);
 
   // Step 2: Build all URLs
   const googleStreetUrl = buildGoogleStaticMapUrl(coords.lat, coords.lon, zoom, 'roadmap');
@@ -381,7 +386,7 @@ export async function captureParcelMaps(
   const isBellCounty = normalizedCounty === 'bell' || normalizedCounty === '';
   const parcelQueryUrl = isBellCounty ? buildParcelQueryUrl(coords.lat, coords.lon, radiusDeg) : null;
   if (!isBellCounty) {
-    steps.push(`Skipping Bell CAD parcel query — project is in ${county} (not Bell County)`);
+    log(`Skipping Bell CAD parcel query — project is in ${county} (not Bell County)`);
   }
   const [googleStreetBuf, googleSatBuf, cadGisBuf, usgsSatBuf, parcelQueryResult] = await Promise.all([
     googleStreetUrl ? fetchImage(googleStreetUrl) : Promise.resolve(null),
@@ -391,7 +396,7 @@ export async function captureParcelMaps(
     parcelQueryUrl ? fetchParcelDataNearby(parcelQueryUrl) : Promise.resolve([] as NearbyParcel[]),
   ]);
 
-  if (!googleStreetUrl) steps.push('Google Maps API key not configured — skipping pin maps');
+  if (!googleStreetUrl) logWarn('Google Maps API key not configured — skipping pin maps');
 
   // Step 4: Store images as documents with rich descriptions
   const storeOps: Promise<void>[] = [];
@@ -415,7 +420,7 @@ export async function captureParcelMaps(
         'plat', googleStreetUrl!, desc,
       );
       if (id) { result.streetPinDocId = id; result.documentIds.push(id); }
-      steps.push(id ? `Stored Google street pin map (${googleStreetBuf.byteLength} bytes)` : 'Failed to store street pin map');
+      (id ? log : logWarn)(id ? `Stored Google street pin map (${googleStreetBuf.byteLength} bytes)` : 'Failed to store street pin map');
     })());
   }
 
@@ -438,7 +443,7 @@ export async function captureParcelMaps(
         'aerial_photo', googleSatUrl!, desc,
       );
       if (id) { result.satellitePinDocId = id; result.documentIds.push(id); }
-      steps.push(id ? `Stored Google satellite pin map (${googleSatBuf.byteLength} bytes)` : 'Failed to store satellite pin map');
+      (id ? log : logWarn)(id ? `Stored Google satellite pin map (${googleSatBuf.byteLength} bytes)` : 'Failed to store satellite pin map');
     })());
   }
 
@@ -474,7 +479,7 @@ export async function captureParcelMaps(
         'aerial_photo', cadGisUrl, desc,
       );
       if (id) { result.cadGisDocId = id; result.documentIds.push(id); }
-      steps.push(id ? `Stored aerial + parcel data map (${cadGisBuf.byteLength} bytes, ${parcelQueryResult.length} nearby parcels)` : 'Failed to store aerial map');
+      (id ? log : logWarn)(id ? `Stored aerial + parcel data map (${cadGisBuf.byteLength} bytes, ${parcelQueryResult.length} nearby parcels)` : 'Failed to store aerial map');
     })());
   }
 
@@ -494,12 +499,12 @@ export async function captureParcelMaps(
         'aerial_photo', usgsSatUrl, desc,
       );
       if (id) { result.usgsSatelliteDocId = id; result.documentIds.push(id); }
-      steps.push(id ? `Stored USGS satellite image (${usgsSatBuf.byteLength} bytes)` : 'Failed to store USGS satellite');
+      (id ? log : logWarn)(id ? `Stored USGS satellite image (${usgsSatBuf.byteLength} bytes)` : 'Failed to store USGS satellite');
     })());
   }
 
   await Promise.all(storeOps);
-  steps.push(`Capture complete: ${result.documentIds.length} images stored`);
+  log(`Capture complete: ${result.documentIds.length} images stored`);
 
   return result;
 }
@@ -516,13 +521,14 @@ export async function captureMultiZoomMaps(
   address: string,
   geocoded?: GeoPoint | null,
   county?: string,
+  logger?: PipelineLogger,
 ): Promise<MultiZoomCapture> {
   // Geocode once, share across zoom levels
   const coords = geocoded ?? await geocodeAddress(address);
 
   const [lotLevel, blockLevel] = await Promise.all([
-    captureParcelMaps(projectId, address, LOT_ZOOM, coords, county),
-    captureParcelMaps(projectId, address, BLOCK_ZOOM, coords, county),
+    captureParcelMaps(projectId, address, LOT_ZOOM, coords, county, logger),
+    captureParcelMaps(projectId, address, BLOCK_ZOOM, coords, county, logger),
   ]);
 
   return {

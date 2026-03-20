@@ -25,7 +25,7 @@
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const BELL_CAD_FEATURE_SERVER =
+export const BELL_CAD_FEATURE_SERVER =
   'https://services7.arcgis.com/EHW2HuuyZNO7DZct/arcgis/rest/services/BellCADWebService/FeatureServer';
 
 /** Layer IDs in the Bell CAD FeatureServer */

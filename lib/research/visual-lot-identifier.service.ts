@@ -15,7 +15,8 @@
 // Each step produces DataAtoms that are fed into the cross-validation graph.
 
 import { callVision, callAI } from './ai-client';
-import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET } from '@/lib/supabase';
+import { loadDocumentImage } from './image-loader';
+import type { PipelineLogger } from './pipeline-logger';
 import {
   createAtom,
   addAtomAndValidate,
@@ -82,60 +83,7 @@ export interface LotIdentificationResult {
 }
 
 // ── Image Loading ────────────────────────────────────────────────────────────
-
-/**
- * Load a research document image as base64 for Vision API.
- * Tries storage_url first, falls back to reading from Supabase Storage.
- */
-async function loadDocumentImageBase64(documentId: string): Promise<{
-  base64: string;
-  mediaType: 'image/png' | 'image/jpeg';
-} | null> {
-  try {
-    const { data: doc } = await supabaseAdmin
-      .from('research_documents')
-      .select('storage_path, storage_url, file_type')
-      .eq('id', documentId)
-      .single();
-
-    if (!doc) return null;
-
-    // Try fetching from public URL
-    if (doc.storage_url) {
-      try {
-        const res = await fetch(doc.storage_url, {
-          signal: AbortSignal.timeout(30_000),
-        });
-        if (res.ok) {
-          const buf = Buffer.from(await res.arrayBuffer());
-          const mediaType = doc.file_type === 'jpeg' || doc.file_type === 'jpg'
-            ? 'image/jpeg' as const
-            : 'image/png' as const;
-          return { base64: buf.toString('base64'), mediaType };
-        }
-      } catch { /* fall through to storage download */ }
-    }
-
-    // Download from Supabase Storage
-    if (doc.storage_path) {
-      const { data: fileData } = await supabaseAdmin.storage
-        .from(RESEARCH_DOCUMENTS_BUCKET)
-        .download(doc.storage_path);
-
-      if (fileData) {
-        const buf = Buffer.from(await fileData.arrayBuffer());
-        const mediaType = doc.file_type === 'jpeg' || doc.file_type === 'jpg'
-          ? 'image/jpeg' as const
-          : 'image/png' as const;
-        return { base64: buf.toString('base64'), mediaType };
-      }
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
+// Uses shared image-loader.ts — see loadDocumentImage() in image-loader.ts
 
 // ── Single Image Analysis ────────────────────────────────────────────────────
 
@@ -378,25 +326,41 @@ export async function identifyLotFromImages(
     platDocIds?: string[];
   },
   validationGraph: ValidationGraph,
+  logger?: PipelineLogger,
 ): Promise<LotIdentificationResult> {
   const steps: string[] = [];
   const atomsCreated: DataAtom[] = [];
   const imageAnalyses: LotIdentificationResult['image_analyses'] = {};
 
-  steps.push(`Starting lot identification for: ${address}`);
-  steps.push(`Available images: street_pin=${!!documentIds.streetPinDocId}, satellite_pin=${!!documentIds.satellitePinDocId}, cad_gis=${!!documentIds.cadGisDocId}, plats=${documentIds.platDocIds?.length ?? 0}`);
+  const log = (msg: string) => {
+    steps.push(msg);
+    logger?.info('lot_identify', msg);
+  };
+
+  const logWarn = (msg: string) => {
+    steps.push(msg);
+    logger?.warn('lot_identify', msg);
+  };
+
+  const logError = (msg: string) => {
+    steps.push(msg);
+    logger?.error('lot_identify', msg);
+  };
+
+  log(`Starting lot identification for: ${address}`);
+  log(`Available images: street_pin=${!!documentIds.streetPinDocId}, satellite_pin=${!!documentIds.satellitePinDocId}, cad_gis=${!!documentIds.cadGisDocId}, plats=${documentIds.platDocIds?.length ?? 0}`);
 
   // ── Step 1: Analyze each image individually ──────────────────────────────
   const analysisTasks: Promise<void>[] = [];
 
   if (documentIds.streetPinDocId) {
     analysisTasks.push((async () => {
-      steps.push('[Step 1a] Analyzing Google street pin map…');
-      const img = await loadDocumentImageBase64(documentIds.streetPinDocId!);
+      log('[Step 1a] Analyzing Google street pin map…');
+      const img = await loadDocumentImage(documentIds.streetPinDocId!, logger);
       if (img) {
         const analysis = await analyzeMapImage(img.base64, img.mediaType, 'street_pin', address);
         imageAnalyses.street_pin = analysis;
-        steps.push(`[Step 1a] Found: ${analysis.streets_visible.length} streets, ${analysis.lot_numbers_visible.length} lots, pin: ${analysis.pin_position || 'not detected'}`);
+        log(`[Step 1a] Found: ${analysis.streets_visible.length} streets, ${analysis.lot_numbers_visible.length} lots, pin: ${analysis.pin_position || 'not detected'}`);
 
         // Create atoms from street pin analysis
         if (analysis.pin_position) {
@@ -438,33 +402,33 @@ export async function identifyLotFromImages(
           addAtomAndValidate(validationGraph, atom);
         }
       } else {
-        steps.push('[Step 1a] Could not load street pin image');
+        logWarn('[Step 1a] Could not load street pin image');
       }
     })());
   }
 
   if (documentIds.satellitePinDocId) {
     analysisTasks.push((async () => {
-      steps.push('[Step 1b] Analyzing Google satellite pin map…');
-      const img = await loadDocumentImageBase64(documentIds.satellitePinDocId!);
+      log('[Step 1b] Analyzing Google satellite pin map…');
+      const img = await loadDocumentImage(documentIds.satellitePinDocId!, logger);
       if (img) {
         const analysis = await analyzeMapImage(img.base64, img.mediaType, 'satellite_pin', address);
         imageAnalyses.satellite_pin = analysis;
-        steps.push(`[Step 1b] Found: ${analysis.buildings_near_pin.length} buildings, ${analysis.features_near_pin.length} features near pin`);
+        log(`[Step 1b] Found: ${analysis.buildings_near_pin.length} buildings, ${analysis.features_near_pin.length} features near pin`);
       } else {
-        steps.push('[Step 1b] Could not load satellite pin image');
+        logWarn('[Step 1b] Could not load satellite pin image');
       }
     })());
   }
 
   if (documentIds.cadGisDocId) {
     analysisTasks.push((async () => {
-      steps.push('[Step 1c] Analyzing CAD GIS parcel map…');
-      const img = await loadDocumentImageBase64(documentIds.cadGisDocId!);
+      log('[Step 1c] Analyzing CAD GIS parcel map…');
+      const img = await loadDocumentImage(documentIds.cadGisDocId!, logger);
       if (img) {
         const analysis = await analyzeMapImage(img.base64, img.mediaType, 'cad_gis', address);
         imageAnalyses.cad_gis = analysis;
-        steps.push(`[Step 1c] Found: ${analysis.lot_numbers_visible.length} lots, ${analysis.block_numbers_visible.length} blocks, ${analysis.streets_visible.length} streets`);
+        log(`[Step 1c] Found: ${analysis.lot_numbers_visible.length} lots, ${analysis.block_numbers_visible.length} blocks, ${analysis.streets_visible.length} streets`);
 
         // CAD GIS lot numbers are more authoritative than map labels
         for (const lotNum of analysis.lot_numbers_visible) {
@@ -493,7 +457,7 @@ export async function identifyLotFromImages(
           addAtomAndValidate(validationGraph, atom);
         }
       } else {
-        steps.push('[Step 1c] Could not load CAD GIS image');
+        logWarn('[Step 1c] Could not load CAD GIS image');
       }
     })());
   }
@@ -502,12 +466,12 @@ export async function identifyLotFromImages(
   if (documentIds.platDocIds && documentIds.platDocIds.length > 0) {
     for (const platDocId of documentIds.platDocIds.slice(0, 3)) { // Max 3 plats
       analysisTasks.push((async () => {
-        steps.push(`[Step 1d] Analyzing plat document ${platDocId}…`);
-        const img = await loadDocumentImageBase64(platDocId);
+        log(`[Step 1d] Analyzing plat document ${platDocId}…`);
+        const img = await loadDocumentImage(platDocId, logger);
         if (img) {
           const analysis = await analyzeMapImage(img.base64, img.mediaType, 'plat', address);
           imageAnalyses.plat = analysis; // Last plat wins (usually the most relevant)
-          steps.push(`[Step 1d] Found: ${analysis.lot_numbers_visible.length} lots, ${analysis.block_numbers_visible.length} blocks, ${analysis.subdivision_names_visible.length} subdivisions`);
+          log(`[Step 1d] Found: ${analysis.lot_numbers_visible.length} lots, ${analysis.block_numbers_visible.length} blocks, ${analysis.subdivision_names_visible.length} subdivisions`);
 
           // Plat lot numbers are the most authoritative visual source
           for (const lotNum of analysis.lot_numbers_visible) {
@@ -523,7 +487,7 @@ export async function identifyLotFromImages(
             addAtomAndValidate(validationGraph, atom);
           }
         } else {
-          steps.push(`[Step 1d] Could not load plat image ${platDocId}`);
+          logWarn(`[Step 1d] Could not load plat image ${platDocId}`);
         }
       })());
     }
@@ -533,7 +497,7 @@ export async function identifyLotFromImages(
   await Promise.all(analysisTasks);
 
   // ── Step 2: AI comparison — synthesize all findings ──────────────────────
-  steps.push('[Step 2] Running AI synthesis to identify the specific lot…');
+  log('[Step 2] Running AI synthesis to identify the specific lot…');
 
   const synthesisInput = {
     address,
@@ -662,12 +626,12 @@ export async function identifyLotFromImages(
     conflictsDetected = Array.isArray(data.conflicts_detected) ? data.conflicts_detected.map(String) : [];
     recommendations = Array.isArray(data.recommendations) ? data.recommendations.map(String) : [];
 
-    steps.push(`[Step 2] AI identified: Lot ${lotNumber}, Block ${blockNumber}, ${subdivisionName} (confidence: ${overallConfidence}%)`);
+    log(`[Step 2] AI identified: Lot ${lotNumber}, Block ${blockNumber}, ${subdivisionName} (confidence: ${overallConfidence}%)`);
     if (conflictsDetected.length > 0) {
-      steps.push(`[Step 2] Conflicts: ${conflictsDetected.join('; ')}`);
+      logWarn(`[Step 2] Conflicts: ${conflictsDetected.join('; ')}`);
     }
   } catch (err) {
-    steps.push(`[Step 2] AI synthesis failed: ${err instanceof Error ? err.message : String(err)}`);
+    logError(`[Step 2] AI synthesis failed: ${err instanceof Error ? err.message : String(err)}`);
     reasoning = 'AI synthesis failed — using best available data from individual analyses';
 
     // Fallback: use the most common lot number across all analyses
@@ -744,8 +708,8 @@ export async function identifyLotFromImages(
     }
   }
 
-  steps.push(`[Step 3] Created ${atomsCreated.length} data atoms from visual analysis`);
-  steps.push(`[Step 3] Validation graph: ${validationGraph.summary.total_atoms} atoms, ${validationGraph.summary.confirmed_count} confirmed, ${validationGraph.summary.conflicted_count} conflicted`);
+  log(`[Step 3] Created ${atomsCreated.length} data atoms from visual analysis`);
+  log(`[Step 3] Validation graph: ${validationGraph.summary.total_atoms} atoms, ${validationGraph.summary.confirmed_count} confirmed, ${validationGraph.summary.conflicted_count} conflicted`);
 
   return {
     lot_number: lotNumber,
