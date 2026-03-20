@@ -1379,7 +1379,10 @@ export default function ResearchProjectPage() {
     }
   }
 
-  if (!session?.user || loading) {
+  // Show skeleton only on the very first load. Once we have a project loaded,
+  // never unmount the page — this prevents ResearchRunPanel from losing its
+  // timer, logs, and polling state when useSession re-validates on window focus.
+  if ((sessionStatus === 'loading' || loading) && !project) {
     return (
       <div className="research-page">
         <div className="research-card research-card--skeleton" style={{ maxWidth: 600, margin: '2rem auto' }}>

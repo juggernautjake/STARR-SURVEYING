@@ -139,10 +139,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     `[pipeline/route] POST ${projectId}: worker accepted — status=${workerData.status ?? 'running'} (Frontend → Backend → Worker handshake complete)`,
   );
 
+  // Persist pipeline start time so the frontend timer can survive page refreshes
+  const startedAt = new Date().toISOString();
+  await supabaseAdmin
+    .from('research_projects')
+    .update({ pipeline_started_at: startedAt, research_status: 'running' })
+    .eq('id', projectId);
+
   return NextResponse.json({
     message: 'Deep research pipeline started',
     projectId,
     status: 'running',
+    startedAt,
     pollUrl: `/api/admin/research/${projectId}/pipeline`,
     worker: workerData,
   }, { status: 202 });
@@ -218,7 +226,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   if (workerRes && workerRes.ok) {
-    const data = await workerRes.json() as { status?: string; log?: unknown[]; message?: string; currentStage?: string };
+    const data = await workerRes.json() as { status?: string; log?: unknown[]; message?: string; currentStage?: string; startedAt?: string };
 
     // Log non-trivial status changes (not on every poll to avoid noise)
     if (data.status && data.status !== 'running') {
@@ -232,6 +240,34 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         console.log(
           `[pipeline/route] GET ${projectId}: forwarding live data — status=${data.status ?? 'running'} logEntries=${logCount} stage="${data.currentStage ?? data.message?.slice(0, 40) ?? 'unknown'}"`,
         );
+      }
+    }
+
+    // Persist logs and status to DB so they survive worker restarts and page refreshes
+    const dbUpdate: Record<string, unknown> = {};
+    if (data.log && data.log.length > 0) dbUpdate.research_logs = data.log;
+    if (data.message) dbUpdate.research_message = data.message;
+    if (data.status) dbUpdate.research_status = data.status;
+    if (Object.keys(dbUpdate).length > 0) {
+      // Fire-and-forget — don't block the response
+      supabaseAdmin
+        .from('research_projects')
+        .update(dbUpdate)
+        .eq('id', projectId)
+        .then(({ error: dbErr }: { error: { message: string } | null }) => {
+          if (dbErr) console.warn(`[pipeline/route] GET ${projectId}: failed to persist logs/status — ${dbErr.message}`);
+        });
+    }
+
+    // If the worker didn't include startedAt, fetch it from the DB
+    if (!data.startedAt) {
+      const { data: proj } = await supabaseAdmin
+        .from('research_projects')
+        .select('pipeline_started_at')
+        .eq('id', projectId)
+        .single();
+      if (proj?.pipeline_started_at) {
+        data.startedAt = proj.pipeline_started_at;
       }
     }
 
@@ -249,7 +285,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data: dbProject, error: dbError } = await supabaseAdmin
     .from('research_projects')
-    .select('status, research_status, research_message, research_logs, analysis_metadata')
+    .select('status, research_status, research_message, research_logs, analysis_metadata, pipeline_started_at')
     .eq('id', projectId)
     .single();
 
@@ -267,6 +303,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       projectId,
       status: 'complete',
       message: (dbProject.research_message as string) ?? 'Pipeline completed',
+      startedAt: (dbProject.pipeline_started_at as string) ?? undefined,
       result,
       log: (dbProject.research_logs as unknown[]) ?? [],
       fromDatabase: true,
@@ -284,6 +321,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         projectId,
         status: 'running',
         message: (dbProject.research_message as string) ?? 'Pipeline running (reconnecting…)',
+        startedAt: (dbProject.pipeline_started_at as string) ?? undefined,
         log: (dbProject.research_logs as unknown[]) ?? [],
         fromDatabase: true,
       });
