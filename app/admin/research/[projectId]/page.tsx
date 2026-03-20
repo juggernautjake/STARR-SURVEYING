@@ -2477,43 +2477,12 @@ export default function ResearchProjectPage() {
                   })}
                 </div>
 
-                {/* ── MISC Documents — collapsed toggle at the bottom ── */}
+                {/* MISC documents are excluded from display — they are error pages,
+                   empty results, auth walls, and other non-useful captures */}
                 {miscDocs.length > 0 && (
-                  <details className="misc-docs-toggle">
-                    <summary className="misc-docs-toggle__summary">
-                      <span className="misc-docs-toggle__icon">🗑️</span>
-                      <span className="misc-docs-toggle__label">MISC / Unclassified Screenshots</span>
-                      <span className="misc-docs-toggle__count">{miscDocs.length}</span>
-                      <span className="misc-docs-toggle__hint">
-                        Error pages, empty results, auth walls, and other non-useful captures
-                      </span>
-                    </summary>
-                    <div className="misc-docs-toggle__body">
-                      {miscDocs.map(doc => {
-                        const title = doc.document_label || doc.original_filename || 'MISC Screenshot';
-                        const hasViewable = !!(doc.pages_pdf_url || doc.storage_url);
-                        const excerpt = doc.extracted_text
-                          ? doc.extracted_text.slice(0, 280) + (doc.extracted_text.length > 280 ? '…' : '')
-                          : null;
-                        return (
-                          <ReviewDocCard
-                            key={doc.id}
-                            typeIcon="🗑️"
-                            title={title}
-                            typeName="MISC"
-                            doc={doc}
-                            excerpt={excerpt}
-                            hasViewable={hasViewable}
-                            onView={() => {
-                              setViewerDoc(doc);
-                              setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
-                              setViewerHighlight(undefined);
-                            }}
-                          />
-                        );
-                      })}
-                    </div>
-                  </details>
+                  <div className="misc-docs-toggle__hint" style={{ textAlign: 'center', padding: '0.5rem', fontSize: '0.75rem', color: '#9CA3AF' }}>
+                    {miscDocs.length} non-useful screenshot{miscDocs.length !== 1 ? 's' : ''} filtered out (error pages, empty results, etc.)
+                  </div>
                 )}
               </>
             );
