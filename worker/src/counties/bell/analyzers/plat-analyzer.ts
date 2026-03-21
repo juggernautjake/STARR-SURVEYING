@@ -121,10 +121,112 @@ export async function analyzeBellPlats(
   };
 }
 
-// ── Internal: Image resize utility ───────────────────────────────────
+// ── Image splitting & resize utilities ────────────────────────────────
 
 const MAX_PLAT_DIMENSION = 7_900; // leave 100px margin below the hard 8000 limit
 const MAX_PLAT_IMAGE_BYTES = 4_718_592; // 4.5 MiB safety margin
+
+interface PlatImageRegion {
+  data: string;        // base64
+  mediaType: 'image/png' | 'image/jpeg';
+  label: string;
+  regionIndex: number;
+  totalRegions: number;
+}
+
+/**
+ * Split a plat image into overlapping regions for thorough OCR analysis.
+ * Plats are typically large, detailed drawings — splitting extracts fine detail
+ * that would be lost when the image is downsized to fit API limits.
+ *
+ * Strategy: full image + 2 halves + 4 quadrants = up to 7 regions with 15% overlap.
+ */
+async function splitPlatImageIntoRegions(base64Img: string): Promise<PlatImageRegion[]> {
+  try {
+    const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
+    const buf = Buffer.from(base64Img, 'base64');
+    const meta = await sharp(buf).metadata();
+    const { width, height } = meta;
+    if (!width || !height) return [];
+
+    const OVERLAP = 0.15;
+    const regions: PlatImageRegion[] = [];
+
+    async function cropRegion(
+      left: number, top: number, w: number, h: number, label: string,
+    ): Promise<PlatImageRegion | null> {
+      try {
+        const cl = Math.max(0, Math.round(left));
+        const ct = Math.max(0, Math.round(top));
+        const cw = Math.min(Math.round(w), width! - cl);
+        const ch = Math.min(Math.round(h), height! - ct);
+        if (cw < 50 || ch < 50) return null;
+
+        let cropped = await sharp(buf).extract({ left: cl, top: ct, width: cw, height: ch }).toBuffer();
+        const cropMeta = await sharp(cropped).metadata();
+        let mediaType: 'image/png' | 'image/jpeg' = 'image/png';
+
+        if ((cropMeta.width ?? 0) > MAX_PLAT_DIMENSION || (cropMeta.height ?? 0) > MAX_PLAT_DIMENSION) {
+          const scale = MAX_PLAT_DIMENSION / Math.max(cropMeta.width ?? 1, cropMeta.height ?? 1);
+          cropped = await sharp(cropped)
+            .resize(Math.round((cropMeta.width ?? 1) * scale), Math.round((cropMeta.height ?? 1) * scale), { fit: 'inside', withoutEnlargement: true })
+            .png().toBuffer();
+        }
+        if (cropped.length > MAX_PLAT_IMAGE_BYTES) {
+          cropped = await sharp(cropped).jpeg({ quality: 80 }).toBuffer();
+          mediaType = 'image/jpeg';
+        }
+        if (cropped.length > MAX_PLAT_IMAGE_BYTES) {
+          cropped = await sharp(cropped).jpeg({ quality: 60 }).toBuffer();
+          mediaType = 'image/jpeg';
+        }
+        if (cropped.length > MAX_PLAT_IMAGE_BYTES) return null;
+
+        return { data: cropped.toString('base64'), mediaType, label, regionIndex: 0, totalRegions: 0 };
+      } catch { return null; }
+    }
+
+    const halfH = height / 2;
+    const halfW = width / 2;
+    const overlapH = height * OVERLAP;
+    const overlapW = width * OVERLAP;
+
+    // Full image (resized)
+    const fullResized = await resizePlatImage(base64Img);
+    if (fullResized) {
+      regions.push({ ...fullResized, label: 'full image (overview)', regionIndex: 0, totalRegions: 0 });
+    }
+
+    // Halves
+    const topHalf = await cropRegion(0, 0, width, halfH + overlapH, 'top half');
+    if (topHalf) regions.push(topHalf);
+    const bottomHalf = await cropRegion(0, halfH - overlapH, width, halfH + overlapH, 'bottom half');
+    if (bottomHalf) regions.push(bottomHalf);
+
+    // Quadrants
+    const quadrants = [
+      { left: 0, top: 0, w: halfW + overlapW, h: halfH + overlapH, label: 'top-left quadrant' },
+      { left: halfW - overlapW, top: 0, w: halfW + overlapW, h: halfH + overlapH, label: 'top-right quadrant' },
+      { left: 0, top: halfH - overlapH, w: halfW + overlapW, h: halfH + overlapH, label: 'bottom-left quadrant' },
+      { left: halfW - overlapW, top: halfH - overlapH, w: halfW + overlapW, h: halfH + overlapH, label: 'bottom-right quadrant' },
+    ];
+    for (const q of quadrants) {
+      const region = await cropRegion(q.left, q.top, q.w, q.h, q.label);
+      if (region) regions.push(region);
+    }
+
+    for (let i = 0; i < regions.length; i++) {
+      regions[i].regionIndex = i + 1;
+      regions[i].totalRegions = regions.length;
+    }
+
+    console.log(`[plat-analyzer] Split ${width}x${height} plat image into ${regions.length} regions`);
+    return regions;
+  } catch (err) {
+    console.warn(`[plat-analyzer] Image splitting failed: ${err instanceof Error ? err.message : String(err)}`);
+    return [];
+  }
+}
 
 /**
  * Resizes a base64-encoded image so neither dimension exceeds 7 900 px
@@ -174,44 +276,10 @@ async function resizePlatImage(base64Img: string): Promise<{ data: string; media
   }
 }
 
-// ── Internal: AI Plat Image Analysis ─────────────────────────────────
+// ── Internal: AI Plat Image Analysis (multi-region) ──────────────────
 
-async function analyzePlatImage(
-  images: string[],
-  apiKey: string,
-): Promise<{ analysis: PlatAnalysis | null; usage: Partial<AiUsageSummary> }> {
-  if (!apiKey || images.length === 0) return { analysis: null, usage: {} };
-
-  try {
-    const { default: Anthropic } = await import('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey });
-
-    // Resize images to fit within Claude Vision API limits (max 8000px per dimension)
-    const resizeResults = await Promise.all(images.slice(0, 3).map(img => resizePlatImage(img)));
-    const resized = resizeResults.filter((r): r is NonNullable<typeof r> => r !== null);
-    if (resized.length === 0) {
-      console.warn('[plat-analyzer] All plat images failed resize — skipping AI analysis');
-      return { analysis: null, usage: {} };
-    }
-    const imageContent = resized.map(({ data, mediaType }) => ({
-      type: 'image' as const,
-      source: {
-        type: 'base64' as const,
-        media_type: mediaType,
-        data,
-      },
-    }));
-
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
-      messages: [{
-        role: 'user',
-        content: [
-          ...imageContent,
-          {
-            type: 'text',
-            text: `You are an expert Texas Registered Professional Land Surveyor (RPLS) analyzing a property survey plat from Bell County, Texas. This analysis will be used directly by a field surveyor. Be exhaustive — every dimension, call, monument, and note matters.
+/** Prompt for analyzing a single plat region */
+const PLAT_REGION_PROMPT = `You are an expert Texas Registered Professional Land Surveyor (RPLS) analyzing a property survey plat from Bell County, Texas. This analysis will be used directly by a field surveyor. Be exhaustive — every dimension, call, monument, and note matters.
 
 Extract ALL of the following information in JSON format:
 
@@ -223,8 +291,8 @@ Extract ALL of the following information in JSON format:
   ],
   "bearingsAndDistances": [
     "List EVERY bearing and distance call on the plat, going clockwise from the POB for each boundary",
-    "Format exactly as shown: 'N 45°30'15\" E, 200.50 ft'",
-    "Include the lot or boundary line each call belongs to: 'Lot 3 North line: S 89°59'30\" W, 150.00 ft'",
+    "Format exactly as shown: 'N 45°30'15\\" E, 200.50 ft'",
+    "Include the lot or boundary line each call belongs to: 'Lot 3 North line: S 89°59'30\\" W, 150.00 ft'",
     "Transcribe calls along ROW, common lot lines, and outer boundary separately"
   ],
   "monuments": [
@@ -242,7 +310,7 @@ Extract ALL of the following information in JSON format:
   ],
   "curves": [
     "List ALL curve data with complete parameters",
-    "Format: 'Curve C1: Radius=500.00 ft, Arc=125.50 ft, Chord=N 45°15'00\" E 124.80 ft, Delta=14°22'30\", Direction=Right'",
+    "Format: 'Curve C1: Radius=500.00 ft, Arc=125.50 ft, Chord=N 45°15'00\\" E 124.80 ft, Delta=14°22'30\\", Direction=Right'",
     "Include the associated lot line or ROW each curve belongs to"
   ],
   "rowWidths": [
@@ -266,63 +334,208 @@ Extract ALL of the following information in JSON format:
   "narrative": "Write a detailed 5-10 sentence summary for a field surveyor who will be staking this property. Include: (1) the subdivision name and filing info, (2) total number of lots and reserves, (3) overall dimensions and area, (4) key monuments to search for (what type, where), (5) any unusual features (flag lots, irregular shapes, cul-de-sacs), (6) the surveyor of record (name and RPLS number), (7) the datum and coordinate system used, (8) any notes or certifications shown on the plat, (9) drainage patterns or detention areas, (10) setback or building line requirements. This narrative should give the surveyor a complete picture before going to the field."
 }
 
-IMPORTANT: Be exhaustive. A missing dimension or monument could cause the field surveyor to miss a property corner. Transcribe every number exactly as shown on the plat. If a value is partially illegible, include it with [?] notation.`,
-          },
-        ],
-      }],
-    });
+IMPORTANT: Be exhaustive. A missing dimension or monument could cause the field surveyor to miss a property corner. Transcribe every number exactly as shown on the plat. If a value is partially illegible, include it with [?] notation.`;
 
-    const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
-    const callUsage = buildUsageFromTokens(
-      response.usage?.input_tokens ?? 0,
-      response.usage?.output_tokens ?? 0,
-    );
+/**
+ * Analyze a single plat image region.
+ */
+async function analyzePlatRegion(
+  client: InstanceType<typeof import('@anthropic-ai/sdk').default>,
+  region: PlatImageRegion,
+  imageLabel: string,
+): Promise<{ text: string; usage: Partial<AiUsageSummary> }> {
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 10000,
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'image' as const,
+          source: { type: 'base64' as const, media_type: region.mediaType, data: region.data },
+        },
+        {
+          type: 'text',
+          text: `You are analyzing REGION ${region.regionIndex} of ${region.totalRegions} (${region.label}) from ${imageLabel}.
 
-    if (!textBlock) return { analysis: null, usage: callUsage };
+${PLAT_REGION_PROMPT}
 
-    // Try to parse JSON response
-    const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return {
-          analysis: {
-            lotDimensions: parsed.lotDimensions ?? [],
-            bearingsAndDistances: parsed.bearingsAndDistances ?? [],
-            monuments: parsed.monuments ?? [],
-            easements: parsed.easements ?? [],
-            curves: parsed.curves ?? [],
-            rowWidths: parsed.rowWidths ?? [],
-            adjacentReferences: parsed.adjacentReferences ?? [],
-            changesFromPrevious: parsed.changesFromPrevious ?? [],
-            narrative: parsed.narrative ?? '',
-          },
-          usage: callUsage,
-        };
-      } catch {
-        // JSON parse failed — fall back to extracting a narrative from the raw text
-        console.warn('[plat-analyzer] AI response was not valid JSON; extracting narrative as partial analysis');
-        const narrativeMatch = textBlock.text.match(/"narrative"\s*:\s*"([^"]+)"/);
-        const rawNarrative = narrativeMatch
-          ? narrativeMatch[1]
-          : textBlock.text.replace(/\{[\s\S]*/, '').trim().slice(0, 500);
-        return {
-          analysis: {
-            lotDimensions: [],
-            bearingsAndDistances: [],
-            monuments: [],
-            easements: [],
-            curves: [],
-            rowWidths: [],
-            adjacentReferences: [],
-            changesFromPrevious: [],
-            narrative: `[Partial — JSON parse failed] ${rawNarrative}`,
-          },
-          usage: callUsage,
-        };
+IMPORTANT: This is a cropped region of a larger plat. Extract everything visible — lot dimensions, monuments, bearings, curves, text labels, notes, certification blocks. If anything is cut off at the edges, note where it is cut off so adjacent overlapping regions can complete the data.`,
+        },
+      ],
+    }],
+  });
+
+  const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
+  return {
+    text: textBlock?.text ?? '',
+    usage: buildUsageFromTokens(response.usage?.input_tokens ?? 0, response.usage?.output_tokens ?? 0),
+  };
+}
+
+/**
+ * Deep reconciliation: merge all region analyses into one authoritative plat analysis.
+ */
+async function reconcilePlatRegionAnalyses(
+  client: InstanceType<typeof import('@anthropic-ai/sdk').default>,
+  regionResults: { label: string; text: string }[],
+): Promise<{ text: string; usage: Partial<AiUsageSummary> }> {
+  const regionTexts = regionResults
+    .map((r, i) => `══════ REGION ${i + 1}: ${r.label} ══════\n${r.text}`)
+    .join('\n\n');
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 16000,
+    messages: [{
+      role: 'user',
+      content: `You are a senior Texas Registered Professional Land Surveyor (RPLS) performing a DEEP RECONCILIATION of multiple OCR analyses of the same plat document.
+
+The plat was split into overlapping regions and each region was analyzed independently. Your job is to:
+
+1. **MERGE** all region analyses into ONE comprehensive, authoritative JSON result
+2. **DEDUPLICATE** — the same lot, monument, or call may appear in multiple overlapping regions. Merge them into single entries.
+3. **CROSS-REFERENCE** — where two regions captured the same dimension or bearing, verify they agree. Use the higher-confidence reading for conflicts.
+4. **RECONSTRUCT** — reassemble any labels, dimensions, or notes split across region boundaries
+5. **COMPLETE** — ensure every lot has complete dimensions (north, south, east, west lines). If a dimension appears in only one region, include it. If a lot has partial data from multiple regions, merge them.
+6. **VERIFY** — check that all lots form a consistent layout:
+   - Do shared lot lines have matching dimensions?
+   - Do adjacent lot bearings agree where they share a common line?
+   - Is the overall boundary closed?
+7. **DEEP ANALYSIS** — with the complete picture:
+   - Identify any lot dimension inconsistencies
+   - Flag any missing monuments at critical corners
+   - Note any easements that affect multiple lots
+   - Check that curve data is complete (all 5 parameters)
+   - Verify ROW widths are consistent with road classifications
+
+Take all the space needed. This is the FINAL authoritative analysis.
+
+${regionTexts}
+
+Produce the final merged result as a single JSON object with the same schema: lotDimensions, bearingsAndDistances, monuments, easements, curves, rowWidths, adjacentReferences, changesFromPrevious, narrative. The narrative should be a comprehensive 10-15 sentence summary incorporating insights from all regions. Include a final paragraph noting what the multi-region analysis revealed that a single-pass review would have missed.`,
+    }],
+  });
+
+  const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
+  return {
+    text: textBlock?.text ?? '',
+    usage: buildUsageFromTokens(response.usage?.input_tokens ?? 0, response.usage?.output_tokens ?? 0),
+  };
+}
+
+/**
+ * Parse a plat AI response (JSON or raw text) into a PlatAnalysis object.
+ */
+function parsePlatResponse(text: string): PlatAnalysis | null {
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        lotDimensions: parsed.lotDimensions ?? [],
+        bearingsAndDistances: parsed.bearingsAndDistances ?? [],
+        monuments: parsed.monuments ?? [],
+        easements: parsed.easements ?? [],
+        curves: parsed.curves ?? [],
+        rowWidths: parsed.rowWidths ?? [],
+        adjacentReferences: parsed.adjacentReferences ?? [],
+        changesFromPrevious: parsed.changesFromPrevious ?? [],
+        narrative: parsed.narrative ?? '',
+      };
+    } catch {
+      console.warn('[plat-analyzer] JSON parse failed in reconciled response');
+    }
+  }
+  // Fall back to narrative extraction
+  const narrativeMatch = text.match(/"narrative"\s*:\s*"([^"]+)"/);
+  const rawNarrative = narrativeMatch
+    ? narrativeMatch[1]
+    : text.replace(/\{[\s\S]*/, '').trim().slice(0, 1000);
+  if (rawNarrative.length > 0) {
+    return {
+      lotDimensions: [],
+      bearingsAndDistances: [],
+      monuments: [],
+      easements: [],
+      curves: [],
+      rowWidths: [],
+      adjacentReferences: [],
+      changesFromPrevious: [],
+      narrative: `[Partial — JSON parse failed] ${rawNarrative}`,
+    };
+  }
+  return null;
+}
+
+async function analyzePlatImage(
+  images: string[],
+  apiKey: string,
+): Promise<{ analysis: PlatAnalysis | null; usage: Partial<AiUsageSummary> }> {
+  if (!apiKey || images.length === 0) return { analysis: null, usage: {} };
+
+  try {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+
+    const totalUsage = zeroUsage();
+    const allRegionResults: { label: string; text: string }[] = [];
+
+    // Process each plat image with region splitting
+    for (let imgIdx = 0; imgIdx < Math.min(images.length, 3); imgIdx++) {
+      const img = images[imgIdx];
+      const imageLabel = `plat image ${imgIdx + 1} of ${Math.min(images.length, 3)}`;
+
+      console.log(`[plat-analyzer] Splitting ${imageLabel} into regions for deep analysis...`);
+      const regions = await splitPlatImageIntoRegions(img);
+
+      if (regions.length === 0) {
+        // Fallback: analyze full image without splitting
+        const resized = await resizePlatImage(img);
+        if (!resized) continue;
+        regions.push({
+          data: resized.data,
+          mediaType: resized.mediaType,
+          label: 'full image (unsplit)',
+          regionIndex: 1,
+          totalRegions: 1,
+        });
+      }
+
+      console.log(`[plat-analyzer] Analyzing ${regions.length} regions for ${imageLabel}...`);
+
+      for (const region of regions) {
+        console.log(`[plat-analyzer]   → Region ${region.regionIndex}/${region.totalRegions}: ${region.label}`);
+        const { text, usage } = await analyzePlatRegion(client, region, imageLabel);
+        accumulateUsage(totalUsage, usage);
+        if (text.length > 0) {
+          allRegionResults.push({ label: `${imageLabel} — ${region.label}`, text });
+        }
       }
     }
-    return { analysis: null, usage: callUsage };
+
+    if (allRegionResults.length === 0) {
+      console.warn('[plat-analyzer] No region analyses produced results');
+      return { analysis: null, usage: totalUsage };
+    }
+
+    // Single region — parse directly
+    if (allRegionResults.length === 1) {
+      return { analysis: parsePlatResponse(allRegionResults[0].text), usage: totalUsage };
+    }
+
+    // Deep reconciliation across all regions
+    console.log(`[plat-analyzer] Running deep reconciliation across ${allRegionResults.length} region analyses...`);
+    const { text: reconciledText, usage: reconUsage } = await reconcilePlatRegionAnalyses(
+      client, allRegionResults,
+    );
+    accumulateUsage(totalUsage, reconUsage);
+
+    const analysis = parsePlatResponse(reconciledText);
+    if (analysis) return { analysis, usage: totalUsage };
+
+    // Last resort: try to parse from first region
+    return { analysis: parsePlatResponse(allRegionResults[0].text), usage: totalUsage };
   } catch (err) {
     console.warn(
       `[plat-analyzer] AI plat image analysis failed: ` +

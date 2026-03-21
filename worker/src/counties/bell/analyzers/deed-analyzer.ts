@@ -152,10 +152,119 @@ function buildFallbackDeedSummary(record: DeedRecord): string {
   return parts.join(' | ') + '. (AI image analysis was not available for this document.)';
 }
 
-// ── Image resize utility ─────────────────────────────────────────────
+// ── Image splitting & resize utilities ────────────────────────────────
 
 const MAX_DEED_DIMENSION = 7_900;
 const MAX_DEED_IMAGE_BYTES = 4_718_592; // 4.5 MiB
+
+interface ImageRegion {
+  data: string;        // base64
+  mediaType: 'image/png' | 'image/jpeg';
+  label: string;       // e.g. "top-left quadrant", "top half"
+  regionIndex: number;
+  totalRegions: number;
+}
+
+/**
+ * Split a base64 image into overlapping regions for thorough OCR analysis.
+ * Strategy:
+ *  - 2 horizontal halves (top/bottom) with 15% overlap
+ *  - 4 quadrants (top-left, top-right, bottom-left, bottom-right) with 15% overlap
+ *  - Full image as context
+ * Total: up to 7 regions per image for maximum coverage.
+ */
+async function splitImageIntoRegions(base64Img: string): Promise<ImageRegion[]> {
+  try {
+    const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
+    const buf = Buffer.from(base64Img, 'base64');
+    const meta = await sharp(buf).metadata();
+    const { width, height } = meta;
+    if (!width || !height) return [];
+
+    const OVERLAP = 0.15; // 15% overlap between regions
+    const regions: ImageRegion[] = [];
+
+    // Helper to crop, resize to fit API limits, and encode
+    async function cropRegion(
+      left: number, top: number, w: number, h: number, label: string,
+    ): Promise<ImageRegion | null> {
+      try {
+        // Clamp to image bounds
+        const cl = Math.max(0, Math.round(left));
+        const ct = Math.max(0, Math.round(top));
+        const cw = Math.min(Math.round(w), width! - cl);
+        const ch = Math.min(Math.round(h), height! - ct);
+        if (cw < 50 || ch < 50) return null;
+
+        let cropped = await sharp(buf).extract({ left: cl, top: ct, width: cw, height: ch }).toBuffer();
+
+        // Resize if needed
+        const cropMeta = await sharp(cropped).metadata();
+        let mediaType: 'image/png' | 'image/jpeg' = 'image/png';
+        if ((cropMeta.width ?? 0) > MAX_DEED_DIMENSION || (cropMeta.height ?? 0) > MAX_DEED_DIMENSION) {
+          const scale = MAX_DEED_DIMENSION / Math.max(cropMeta.width ?? 1, cropMeta.height ?? 1);
+          cropped = await sharp(cropped)
+            .resize(Math.round((cropMeta.width ?? 1) * scale), Math.round((cropMeta.height ?? 1) * scale), { fit: 'inside', withoutEnlargement: true })
+            .png().toBuffer();
+        }
+        if (cropped.length > MAX_DEED_IMAGE_BYTES) {
+          cropped = await sharp(cropped).jpeg({ quality: 80 }).toBuffer();
+          mediaType = 'image/jpeg';
+        }
+        if (cropped.length > MAX_DEED_IMAGE_BYTES) {
+          cropped = await sharp(cropped).jpeg({ quality: 60 }).toBuffer();
+          mediaType = 'image/jpeg';
+        }
+        if (cropped.length > MAX_DEED_IMAGE_BYTES) return null; // still too big
+
+        return { data: cropped.toString('base64'), mediaType, label, regionIndex: 0, totalRegions: 0 };
+      } catch { return null; }
+    }
+
+    const halfH = height / 2;
+    const halfW = width / 2;
+    const overlapH = height * OVERLAP;
+    const overlapW = width * OVERLAP;
+
+    // Full image (resized)
+    const fullResized = await resizeDeedImage(base64Img);
+    if (fullResized) {
+      regions.push({ ...fullResized, label: 'full image (overview)', regionIndex: 0, totalRegions: 0 });
+    }
+
+    // Top half (with overlap into bottom)
+    const topHalf = await cropRegion(0, 0, width, halfH + overlapH, 'top half');
+    if (topHalf) regions.push(topHalf);
+
+    // Bottom half (with overlap into top)
+    const bottomHalf = await cropRegion(0, halfH - overlapH, width, halfH + overlapH, 'bottom half');
+    if (bottomHalf) regions.push(bottomHalf);
+
+    // 4 quadrants with overlap
+    const quadrants = [
+      { left: 0, top: 0, w: halfW + overlapW, h: halfH + overlapH, label: 'top-left quadrant' },
+      { left: halfW - overlapW, top: 0, w: halfW + overlapW, h: halfH + overlapH, label: 'top-right quadrant' },
+      { left: 0, top: halfH - overlapH, w: halfW + overlapW, h: halfH + overlapH, label: 'bottom-left quadrant' },
+      { left: halfW - overlapW, top: halfH - overlapH, w: halfW + overlapW, h: halfH + overlapH, label: 'bottom-right quadrant' },
+    ];
+    for (const q of quadrants) {
+      const region = await cropRegion(q.left, q.top, q.w, q.h, q.label);
+      if (region) regions.push(region);
+    }
+
+    // Assign indices
+    for (let i = 0; i < regions.length; i++) {
+      regions[i].regionIndex = i + 1;
+      regions[i].totalRegions = regions.length;
+    }
+
+    console.log(`[deed-analyzer] Split ${width}x${height} image into ${regions.length} regions`);
+    return regions;
+  } catch (err) {
+    console.warn(`[deed-analyzer] Image splitting failed: ${err instanceof Error ? err.message : String(err)}`);
+    return [];
+  }
+}
 
 async function resizeDeedImage(base64Img: string): Promise<{ data: string; mediaType: 'image/png' | 'image/jpeg' } | null> {
   try {
@@ -193,42 +302,8 @@ async function resizeDeedImage(base64Img: string): Promise<{ data: string; media
   }
 }
 
-async function analyzeDeedException(
-  record: DeedRecord,
-  apiKey: string,
-): Promise<{ summary: string; usage: Partial<AiUsageSummary> }> {
-  if (!apiKey || record.pageImages.length === 0) return { summary: '', usage: {} };
-
-  try {
-    const { default: Anthropic } = await import('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey });
-
-    // Resize images to fit within Claude Vision API limits (max 8000px per dimension)
-    const resizeResults = await Promise.all(record.pageImages.slice(0, 5).map(img => resizeDeedImage(img)));
-    const resized = resizeResults.filter((r): r is NonNullable<typeof r> => r !== null);
-    if (resized.length === 0) {
-      // All deed images failed resize — fall back to metadata-only summary
-      return { summary: buildFallbackDeedSummary(record), usage: {} };
-    }
-    const imageContent = resized.map(({ data, mediaType }) => ({
-      type: 'image' as const,
-      source: {
-        type: 'base64' as const,
-        media_type: mediaType,
-        data,
-      },
-    }));
-
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 12000,
-      messages: [{
-        role: 'user',
-        content: [
-          ...imageContent,
-          {
-            type: 'text',
-            text: `You are an expert Texas Registered Professional Land Surveyor (RPLS) and title examiner analyzing a deed document from Bell County, Texas. Extract ALL information with maximum thoroughness and precision. This analysis will be used directly by a field surveyor to locate property corners and boundaries.
+/** Prompt for analyzing a single deed region or full image */
+const DEED_REGION_PROMPT = `You are an expert Texas Registered Professional Land Surveyor (RPLS) and title examiner analyzing a deed document from Bell County, Texas. Extract ALL information with maximum thoroughness and precision. This analysis will be used directly by a field surveyor to locate property corners and boundaries.
 
 REQUIRED EXTRACTION — do not skip any section. Be exhaustive.
 
@@ -277,18 +352,163 @@ REQUIRED EXTRACTION — do not skip any section. Be exhaustive.
     - LOW: partially illegible, marked with [?]
     Note any portions of the document that are cut off, obscured, or illegible.
 
-FORMAT your response as a detailed narrative summary suitable for a field surveyor preparing to stake this property. Start with document identification, then systematic description of the boundary (going around the tract clockwise from the POB), then all references and encumbrances. Group related information together. Mark uncertain readings with [?] and note why they are uncertain.`,
-          },
-        ],
-      }],
-    });
+FORMAT your response as a detailed narrative summary suitable for a field surveyor preparing to stake this property. Start with document identification, then systematic description of the boundary (going around the tract clockwise from the POB), then all references and encumbrances. Group related information together. Mark uncertain readings with [?] and note why they are uncertain.`;
 
-    const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
-    const inputTokens = response.usage?.input_tokens ?? 0;
-    const outputTokens = response.usage?.output_tokens ?? 0;
+/**
+ * Analyze a single image region with the AI.
+ */
+async function analyzeRegion(
+  client: InstanceType<typeof import('@anthropic-ai/sdk').default>,
+  region: ImageRegion,
+  pageLabel: string,
+): Promise<{ text: string; usage: Partial<AiUsageSummary> }> {
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 12000,
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'image' as const,
+          source: { type: 'base64' as const, media_type: region.mediaType, data: region.data },
+        },
+        {
+          type: 'text',
+          text: `You are analyzing REGION ${region.regionIndex} of ${region.totalRegions} (${region.label}) from ${pageLabel}.
+
+${DEED_REGION_PROMPT}
+
+IMPORTANT: This is a cropped region of a larger document. Extract everything visible in this region. If text is cut off at the edges, note exactly where it is cut off so the reconciliation pass can match it with adjacent regions. Transcribe partial words/numbers at boundaries — they will be matched with overlapping regions.`,
+        },
+      ],
+    }],
+  });
+
+  const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
+  return {
+    text: textBlock?.text ?? '',
+    usage: buildUsageFromTokens(response.usage?.input_tokens ?? 0, response.usage?.output_tokens ?? 0),
+  };
+}
+
+/**
+ * Deep reconciliation pass: merges all region analyses into one authoritative summary.
+ */
+async function reconcileDeedRegionAnalyses(
+  client: InstanceType<typeof import('@anthropic-ai/sdk').default>,
+  regionResults: { label: string; text: string }[],
+  record: DeedRecord,
+): Promise<{ text: string; usage: Partial<AiUsageSummary> }> {
+  const regionTexts = regionResults
+    .map((r, i) => `══════ REGION ${i + 1}: ${r.label} ══════\n${r.text}`)
+    .join('\n\n');
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 16000,
+    messages: [{
+      role: 'user',
+      content: `You are a senior Texas Registered Professional Land Surveyor (RPLS) performing a DEEP RECONCILIATION of multiple OCR analyses of the same deed document.
+
+The document (${record.documentType}, Instrument #${record.instrumentNumber ?? 'unknown'}, recorded ${record.recordingDate ?? 'unknown'}) was split into overlapping regions and each region was analyzed independently. Your job is to:
+
+1. **MERGE** all region analyses into ONE comprehensive, authoritative analysis
+2. **CROSS-REFERENCE** overlapping regions — where two regions captured the same text, verify they agree. If they disagree, note the discrepancy and use the higher-confidence reading.
+3. **RECONSTRUCT** any text that was split across region boundaries — match partial words/numbers from one region's edge with the continuation in the overlapping region
+4. **VERIFY** the complete legal description — ensure all bearing/distance calls form a continuous, closed traverse. If calls are missing (gap in the traverse), flag it.
+5. **RESOLVE CONFLICTS** — if different regions give different values for the same field (e.g., two different bearings for the same call), compare confidence levels and select the most reliable reading. Document the conflict.
+6. **QUALITY CHECK** — after merging, verify:
+   - Do all parties' names match across regions?
+   - Is the legal description complete from POB back to POB?
+   - Are all instrument numbers and recording references consistent?
+   - Are there any duplicate entries that should be consolidated?
+7. **DEEP ANALYSIS** — now that you have the complete document:
+   - Identify any surveying red flags (inadequate closure, ambiguous calls, missing monuments)
+   - Note any title concerns (unreleased liens, incomplete conveyances, capacity issues)
+   - Cross-reference prior deed citations with the document dates for consistency
+   - Assess overall document quality and reliability
+
+Take as much space as needed. This reconciliation is the FINAL authoritative analysis that a field surveyor will rely on.
+
+${regionTexts}
+
+Produce the final merged analysis following the 13-section format. Be exhaustive. Include a final section summarizing what was learned from the multi-region analysis that would have been missed in a single-pass review.`,
+    }],
+  });
+
+  const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
+  return {
+    text: textBlock?.text ?? '',
+    usage: buildUsageFromTokens(response.usage?.input_tokens ?? 0, response.usage?.output_tokens ?? 0),
+  };
+}
+
+async function analyzeDeedException(
+  record: DeedRecord,
+  apiKey: string,
+): Promise<{ summary: string; usage: Partial<AiUsageSummary> }> {
+  if (!apiKey || record.pageImages.length === 0) return { summary: '', usage: {} };
+
+  try {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+
+    const totalUsage = zeroUsage();
+    const allRegionResults: { label: string; text: string }[] = [];
+
+    // Process each page image with region splitting
+    for (let pageIdx = 0; pageIdx < Math.min(record.pageImages.length, 5); pageIdx++) {
+      const pageImg = record.pageImages[pageIdx];
+      const pageLabel = `page ${pageIdx + 1} of ${Math.min(record.pageImages.length, 5)}`;
+
+      console.log(`[deed-analyzer] Splitting ${pageLabel} into regions for deep analysis...`);
+      const regions = await splitImageIntoRegions(pageImg);
+
+      if (regions.length === 0) {
+        // Fallback: analyze full image without splitting
+        const resized = await resizeDeedImage(pageImg);
+        if (!resized) continue;
+        regions.push({
+          data: resized.data,
+          mediaType: resized.mediaType,
+          label: 'full image (unsplit)',
+          regionIndex: 1,
+          totalRegions: 1,
+        });
+      }
+
+      console.log(`[deed-analyzer] Analyzing ${regions.length} regions for ${pageLabel}...`);
+
+      // Analyze each region independently
+      for (const region of regions) {
+        console.log(`[deed-analyzer]   → Region ${region.regionIndex}/${region.totalRegions}: ${region.label}`);
+        const { text, usage } = await analyzeRegion(client, region, pageLabel);
+        accumulateUsage(totalUsage, usage);
+        if (text.length > 0) {
+          allRegionResults.push({ label: `${pageLabel} — ${region.label}`, text });
+        }
+      }
+    }
+
+    if (allRegionResults.length === 0) {
+      return { summary: buildFallbackDeedSummary(record), usage: totalUsage };
+    }
+
+    // If only 1 region result, use it directly — no reconciliation needed
+    if (allRegionResults.length === 1) {
+      return { summary: allRegionResults[0].text, usage: totalUsage };
+    }
+
+    // Deep reconciliation pass — merge all region analyses
+    console.log(`[deed-analyzer] Running deep reconciliation across ${allRegionResults.length} region analyses...`);
+    const { text: reconciledSummary, usage: reconUsage } = await reconcileDeedRegionAnalyses(
+      client, allRegionResults, record,
+    );
+    accumulateUsage(totalUsage, reconUsage);
+
     return {
-      summary: textBlock ? textBlock.text : buildFallbackDeedSummary(record),
-      usage: buildUsageFromTokens(inputTokens, outputTokens),
+      summary: reconciledSummary || allRegionResults.map(r => r.text).join('\n\n---\n\n'),
+      usage: totalUsage,
     };
   } catch (err) {
     console.warn(
