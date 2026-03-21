@@ -54,11 +54,26 @@ const VIEWER_LOAD_TIMEOUT = 60_000;
 const MAP_SETTLE_WAIT = 4_000;
 const LAYER_TOGGLE_WAIT = 2_500;
 
+// ── Zoom Strategy Result Type ────────────────────────────────────────
+
+interface ZoomStrategyResult {
+  strategy: string;
+  success: boolean;
+  duration: number;
+  details: string;
+  screenshot?: ScreenshotCapture;
+}
+
 // ── Main Export ──────────────────────────────────────────────────────
 
 /**
  * Capture multiple targeted screenshots from the Bell County GIS viewer.
  * Returns an array of labeled screenshots for the artifact gallery.
+ *
+ * On the first call, runs a full diagnostic of ALL zoom strategies,
+ * capturing a screenshot after each attempt. The diagnostic results
+ * are included as labeled screenshots so you can review which strategies
+ * actually work on the Bell County Experience Builder viewer.
  */
 export async function captureGisViewerScreenshots(
   input: GisViewerCaptureInput,
@@ -97,9 +112,6 @@ export async function captureGisViewerScreenshots(
     });
 
     // ── Step 1.5: Dismiss the Bell CAD disclaimer dialog ────────
-    // The GIS viewer always shows a disclaimer popup from BIS Consultants
-    // on first load with "OK" and "Cancel" buttons. We must click OK
-    // before we can interact with the map.
     progress('Looking for disclaimer dialog...');
     await dismissDisclaimerDialog(page, progress);
 
@@ -108,7 +120,6 @@ export async function captureGisViewerScreenshots(
     const mapReady = await waitForMapReady(page, progress);
     if (!mapReady) {
       progress('⚠ Map did not initialize — falling back to static screenshots');
-      // Take a screenshot of whatever loaded
       const fallback = await takeScreenshot(page, 'GIS Viewer', 'GIS Viewer — map initialization timeout');
       if (fallback) results.push(fallback);
       await context.close();
@@ -117,8 +128,54 @@ export async function captureGisViewerScreenshots(
 
     progress('✓ GIS viewer loaded and map initialized');
 
-    // ── Step 2: Zoom to target parcel area ───────────────────────
-    progress('Zooming to target parcel...');
+    // ── Step 1.75: DOM Inventory (diagnostic) ────────────────────
+    // Log everything we can see on the page to understand what UI
+    // elements are available for interaction.
+    progress('Running DOM inventory diagnostic...');
+    const domInventory = await runDomInventory(page);
+    progress(`DOM INVENTORY:\n${domInventory}`);
+
+    // ── Step 2: Run ALL zoom strategies as diagnostics ───────────
+    // Each strategy gets tried, logged, and a screenshot captured.
+    // This tells us exactly which approaches work on this viewer.
+    progress('═══════════════════════════════════════════════════════');
+    progress('STARTING ZOOM STRATEGY DIAGNOSTICS — Testing ALL approaches');
+    progress('═══════════════════════════════════════════════════════');
+
+    const diagnosticResults = await runAllZoomStrategies(page, input, progress);
+
+    // Log summary
+    progress('═══════════════════════════════════════════════════════');
+    progress('ZOOM STRATEGY DIAGNOSTIC RESULTS SUMMARY:');
+    progress('═══════════════════════════════════════════════════════');
+    for (const r of diagnosticResults) {
+      const icon = r.success ? '✅' : '❌';
+      progress(`  ${icon} [${r.duration}ms] ${r.strategy}: ${r.details}`);
+    }
+
+    const successfulStrategies = diagnosticResults.filter(r => r.success);
+    progress(`  TOTAL: ${successfulStrategies.length}/${diagnosticResults.length} strategies succeeded`);
+    progress('═══════════════════════════════════════════════════════');
+
+    // Add all diagnostic screenshots to results (labeled as diagnostics)
+    for (const r of diagnosticResults) {
+      if (r.screenshot) {
+        results.push(r.screenshot);
+      }
+    }
+
+    // ── Step 2.5: Use the best working strategy for remaining captures ──
+    // Find the first strategy that succeeded and remember it for subsequent zooms
+    const bestStrategy = successfulStrategies[0]?.strategy ?? 'mouse-wheel';
+    progress(`Using best strategy for remaining captures: ${bestStrategy}`);
+
+    // Reload the page fresh for the actual capture series
+    progress('Reloading viewer for actual capture series...');
+    await page.goto(GIS_VIEWER_URL, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
+    await dismissDisclaimerDialog(page, progress);
+    await waitForMapReady(page, progress);
+
+    // Zoom using the best strategy
     const zoomed = await zoomToParcel(page, input, progress);
     if (!zoomed) {
       progress('⚠ Could not zoom to parcel — capturing current view');
@@ -128,7 +185,7 @@ export async function captureGisViewerScreenshots(
 
     // ── Screenshot A: Subdivision overview (all lots with IDs) ───
     progress('Capturing subdivision overview with property IDs...');
-    await zoomOut(page, 2); // Zoom out to show full subdivision
+    await zoomOut(page, 2);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
     const ssSubdiv = await takeScreenshot(page, 'GIS Viewer',
       `Subdivision overview — ${input.subdivisionName ?? 'area'} — all lots with property IDs`);
@@ -136,8 +193,8 @@ export async function captureGisViewerScreenshots(
 
     // ── Screenshot B: Target parcel detail ───────────────────────
     progress('Capturing target parcel detail view...');
-    await zoomToParcel(page, input, progress); // Zoom back to parcel
-    await zoomIn(page, 2); // Zoom in closer for detail
+    await zoomToParcel(page, input, progress);
+    await zoomIn(page, 2);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
     const ssDetail = await takeScreenshot(page, 'GIS Viewer',
       `Target parcel detail — ${input.propertyId ?? 'unknown'} — ${input.situsAddress ?? ''} Lot ${input.lotNumber ?? '?'}`);
@@ -148,7 +205,6 @@ export async function captureGisViewerScreenshots(
     await switchToAerialBasemap(page);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
 
-    // Zoom to show parcel in context
     await zoomToParcel(page, input, progress);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
     const ssAerialLines = await takeScreenshot(page, 'GIS Viewer',
@@ -164,7 +220,6 @@ export async function captureGisViewerScreenshots(
       `Aerial view WITHOUT property lines — ${input.situsAddress ?? ''}`);
     if (ssAerialClean) results.push(ssAerialClean);
 
-    // Restore parcel layer
     await toggleParcelLayer(page, true);
     await toggleLotLineLayer(page, true);
 
@@ -470,6 +525,722 @@ async function tryGetMapView(page: any): Promise<boolean> {
       return false;
     });
   } catch { return false; }
+}
+
+// ── Internal: DOM Inventory (Diagnostic) ─────────────────────────────
+// Logs all visible UI elements, widgets, buttons, and inputs on the page
+// so we can understand what the Experience Builder app exposes.
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function runDomInventory(page: any): Promise<string> {
+  try {
+    return await page.evaluate(() => {
+      const lines: string[] = [];
+
+      // 1. Check for ArcGIS JS API availability
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any;
+      lines.push('=== ArcGIS JS API Availability ===');
+      lines.push(`  window._mapViewManager: ${typeof w._mapViewManager}`);
+      if (w._mapViewManager) {
+        lines.push(`  jimuMapViews keys: ${w._mapViewManager.jimuMapViews ? Object.keys(w._mapViewManager.jimuMapViews).join(', ') : 'NONE'}`);
+        if (w._mapViewManager.jimuMapViews) {
+          const views = Object.entries(w._mapViewManager.jimuMapViews);
+          for (const [key, val] of views) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const v = val as any;
+            lines.push(`    ${key}: view=${!!v?.view}, ready=${v?.view?.ready}, zoom=${v?.view?.zoom}`);
+          }
+        }
+      }
+      lines.push(`  arcgis-map element: ${!!document.querySelector('arcgis-map')}`);
+      lines.push(`  esri-view: ${!!document.querySelector('.esri-view')}`);
+      lines.push(`  esri-view-surface canvas: ${!!document.querySelector('.esri-view-surface canvas')}`);
+
+      // 2. Esri require function
+      lines.push(`  window.require (esri): ${typeof w.require}`);
+      if (typeof w.require === 'function') {
+        try {
+          const Point = w.require('esri/geometry/Point');
+          lines.push(`    esri/geometry/Point: ${typeof Point}`);
+        } catch (e) {
+          lines.push(`    esri/geometry/Point: FAILED (${e})`);
+        }
+      }
+
+      // 3. Experience Builder (Jimu) state
+      lines.push('=== Experience Builder / Jimu ===');
+      lines.push(`  window.jimuConfig: ${typeof w.jimuConfig}`);
+      lines.push(`  window._appState: ${typeof w._appState}`);
+      if (w._appState?.appConfig) {
+        lines.push(`    widgets: ${Object.keys(w._appState.appConfig.widgets || {}).join(', ')}`);
+      }
+      // Check for jimu store (Redux)
+      lines.push(`  window._store: ${typeof w._store}`);
+      if (w._store?.getState) {
+        try {
+          const state = w._store.getState();
+          const mapWidgets = Object.keys(state?.mapWidgets || {});
+          lines.push(`    mapWidgets: ${mapWidgets.join(', ') || 'NONE'}`);
+          lines.push(`    widgetsState keys: ${Object.keys(state?.widgetsState || {}).join(', ')}`);
+        } catch { lines.push('    getState() failed'); }
+      }
+
+      // 4. All iframes
+      lines.push('=== Iframes ===');
+      const iframes = document.querySelectorAll('iframe');
+      lines.push(`  Count: ${iframes.length}`);
+      for (let i = 0; i < iframes.length; i++) {
+        lines.push(`    [${i}] src=${iframes[i].src}, id=${iframes[i].id}`);
+      }
+
+      // 5. All buttons visible on page
+      lines.push('=== Buttons ===');
+      const buttons = document.querySelectorAll('button');
+      let visibleBtnCount = 0;
+      for (let i = 0; i < buttons.length; i++) {
+        const btn = buttons[i];
+        const rect = btn.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          visibleBtnCount++;
+          const title = btn.title || btn.getAttribute('aria-label') || '';
+          const text = (btn.textContent || '').trim().substring(0, 50);
+          const classes = btn.className.substring(0, 80);
+          lines.push(`    [${visibleBtnCount}] title="${title}" text="${text}" class="${classes}"`);
+        }
+      }
+      lines.push(`  Visible buttons: ${visibleBtnCount}/${buttons.length}`);
+
+      // 6. All input elements
+      lines.push('=== Inputs ===');
+      const inputs = document.querySelectorAll('input, [role="textbox"], [role="searchbox"], [contenteditable]');
+      for (let i = 0; i < inputs.length; i++) {
+        const inp = inputs[i] as HTMLInputElement;
+        const rect = inp.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          const placeholder = inp.placeholder || inp.getAttribute('aria-label') || '';
+          const type = inp.type || inp.tagName;
+          lines.push(`    type="${type}" placeholder="${placeholder}" class="${inp.className.substring(0, 60)}"`);
+        }
+      }
+
+      // 7. Esri widgets
+      lines.push('=== Esri Widgets ===');
+      const widgets = document.querySelectorAll('[class*="esri-"]');
+      const widgetClasses = new Set<string>();
+      for (let i = 0; i < widgets.length; i++) {
+        const cls = widgets[i].className;
+        // Extract esri-xxx class names
+        const matches = cls.match(/esri-[\w-]+/g);
+        if (matches) {
+          for (const m of matches) {
+            if (!m.includes('__') && !m.includes('--')) widgetClasses.add(m);
+          }
+        }
+      }
+      const sortedWidgets = Array.from(widgetClasses).sort();
+      lines.push(`  Widget classes: ${sortedWidgets.join(', ')}`);
+
+      // 8. Search-related elements
+      lines.push('=== Search Elements ===');
+      const searchEls = document.querySelectorAll(
+        '[class*="search"], [data-widget*="search"], [placeholder*="search" i], ' +
+        '[placeholder*="find" i], [placeholder*="address" i]'
+      );
+      for (let i = 0; i < searchEls.length; i++) {
+        const el = searchEls[i];
+        const rect = el.getBoundingClientRect();
+        lines.push(`    tag=${el.tagName} visible=${rect.width > 0} class="${el.className.substring(0, 80)}"`);
+      }
+
+      // 9. Zoom-related elements
+      lines.push('=== Zoom Elements ===');
+      const zoomEls = document.querySelectorAll(
+        '.esri-zoom, [class*="zoom"], button[title*="Zoom" i], button[title*="zoom" i]'
+      );
+      for (let i = 0; i < zoomEls.length; i++) {
+        const el = zoomEls[i];
+        const rect = el.getBoundingClientRect();
+        lines.push(`    tag=${el.tagName} visible=${rect.width > 0} title="${(el as HTMLElement).title || ''}" class="${el.className.substring(0, 60)}"`);
+      }
+
+      // 10. Jimu widgets (Experience Builder specific)
+      lines.push('=== Jimu Widgets ===');
+      const jimuEls = document.querySelectorAll('[data-widgetid], [class*="jimu-widget"]');
+      for (let i = 0; i < jimuEls.length; i++) {
+        const el = jimuEls[i];
+        const wid = el.getAttribute('data-widgetid') || '';
+        lines.push(`    widgetid="${wid}" class="${el.className.substring(0, 80)}"`);
+      }
+
+      // 11. Basemap-related elements
+      lines.push('=== Basemap Elements ===');
+      const basemapEls = document.querySelectorAll(
+        '[class*="basemap"], [data-widget*="basemap"], [title*="basemap" i]'
+      );
+      for (let i = 0; i < basemapEls.length; i++) {
+        const el = basemapEls[i];
+        const rect = el.getBoundingClientRect();
+        lines.push(`    tag=${el.tagName} visible=${rect.width > 0} class="${el.className.substring(0, 60)}"`);
+      }
+
+      // 12. Layer-related elements
+      lines.push('=== Layer Elements ===');
+      const layerEls = document.querySelectorAll(
+        '[class*="layer-list"], [data-widget*="layer"], [title*="layer" i]'
+      );
+      for (let i = 0; i < layerEls.length; i++) {
+        const el = layerEls[i];
+        lines.push(`    tag=${el.tagName} class="${el.className.substring(0, 60)}"`);
+      }
+
+      return lines.join('\n');
+    });
+  } catch (err) {
+    return `DOM inventory failed: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+// ── Internal: Run ALL Zoom Strategies (Diagnostic) ───────────────────
+// Tests every possible zoom approach and captures a screenshot after each.
+// Returns detailed results so we can determine which strategies work.
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function runAllZoomStrategies(page: any, input: GisViewerCaptureInput, progress: (msg: string) => void): Promise<ZoomStrategyResult[]> {
+  const results: ZoomStrategyResult[] = [];
+
+  // Compute center coordinates once
+  let centerLon = input.lon;
+  let centerLat = input.lat;
+  if (input.parcelBoundary && input.parcelBoundary.length > 0) {
+    const ring = input.parcelBoundary[0];
+    let sumLon = 0, sumLat = 0;
+    for (const [lon, lat] of ring) { sumLon += lon; sumLat += lat; }
+    centerLon = sumLon / ring.length;
+    centerLat = sumLat / ring.length;
+  }
+
+  // Helper to capture a diagnostic screenshot
+  const captureDiag = async (label: string): Promise<ScreenshotCapture | undefined> => {
+    const ss = await takeScreenshot(page, 'GIS Viewer', `DIAGNOSTIC: ${label}`);
+    return ss ?? undefined;
+  };
+
+  // Helper to reload the viewer fresh for each strategy test
+  const reloadFresh = async (): Promise<boolean> => {
+    try {
+      await page.goto(GIS_VIEWER_URL, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
+      await dismissDisclaimerDialog(page, progress);
+      return await waitForMapReady(page, progress);
+    } catch { return false; }
+  };
+
+  // ═══ STRATEGY 1: JS API — jimuMapViews ═══
+  progress('--- Strategy 1/12: JS API via _mapViewManager.jimuMapViews ---');
+  {
+    const t0 = Date.now();
+    try {
+      const result = await page.evaluate(async (params: { lon: number; lat: number }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const w = window as any;
+        if (!w._mapViewManager?.jimuMapViews) return { success: false, detail: '_mapViewManager or jimuMapViews not found' };
+
+        const views = Object.values(w._mapViewManager.jimuMapViews);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const found = views.find((v: any) => v?.view?.ready);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (!found) return { success: false, detail: `No ready view found (${views.length} views exist, keys: ${Object.keys(w._mapViewManager.jimuMapViews).join(',')})` };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const view = (found as any).view;
+        await view.goTo({ center: [params.lon, params.lat], zoom: 17 }, { duration: 1000 });
+        return { success: true, detail: `Zoomed to [${params.lon}, ${params.lat}] zoom=17, current zoom=${view.zoom}` };
+      }, { lon: centerLon, lat: centerLat });
+
+      await page.waitForTimeout(MAP_SETTLE_WAIT);
+      const ss = await captureDiag('Strategy 1 — JS API jimuMapViews');
+      results.push({ strategy: '1-js-jimuMapViews', success: result.success, duration: Date.now() - t0, details: result.detail, screenshot: ss });
+      progress(`  Result: ${result.success ? 'SUCCESS' : 'FAIL'} — ${result.detail}`);
+    } catch (err) {
+      results.push({ strategy: '1-js-jimuMapViews', success: false, duration: Date.now() - t0, details: `Exception: ${err instanceof Error ? err.message : String(err)}` });
+      progress(`  Result: EXCEPTION — ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ═══ STRATEGY 2: JS API — arcgis-map element ═══
+  progress('--- Strategy 2/12: JS API via arcgis-map element ---');
+  {
+    const t0 = Date.now();
+    try {
+      const result = await page.evaluate(async (params: { lon: number; lat: number }) => {
+        const mapEl = document.querySelector('arcgis-map');
+        if (!mapEl) return { success: false, detail: 'No arcgis-map element found in DOM' };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const view = (mapEl as any).view;
+        if (!view) return { success: false, detail: 'arcgis-map exists but .view is null/undefined' };
+        if (!view.ready) return { success: false, detail: 'arcgis-map.view exists but not ready' };
+
+        await view.goTo({ center: [params.lon, params.lat], zoom: 17 }, { duration: 1000 });
+        return { success: true, detail: `Zoomed via arcgis-map.view, zoom=${view.zoom}` };
+      }, { lon: centerLon, lat: centerLat });
+
+      await page.waitForTimeout(MAP_SETTLE_WAIT);
+      const ss = await captureDiag('Strategy 2 — JS API arcgis-map');
+      results.push({ strategy: '2-js-arcgis-map', success: result.success, duration: Date.now() - t0, details: result.detail, screenshot: ss });
+      progress(`  Result: ${result.success ? 'SUCCESS' : 'FAIL'} — ${result.detail}`);
+    } catch (err) {
+      results.push({ strategy: '2-js-arcgis-map', success: false, duration: Date.now() - t0, details: `Exception: ${err instanceof Error ? err.message : String(err)}` });
+      progress(`  Result: EXCEPTION — ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ═══ STRATEGY 3: JS API — Deep window traversal to find MapView ═══
+  progress('--- Strategy 3/12: JS API via deep window property scan ---');
+  {
+    const t0 = Date.now();
+    try {
+      const result = await page.evaluate(async (params: { lon: number; lat: number }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const w = window as any;
+        const checked: string[] = [];
+        let foundPath = '';
+
+        // Search common hiding spots for MapView
+        const paths = [
+          '_mapViewManager.jimuMapViews',
+          '_storeManager',
+          '__NEXT_DATA__',
+          'dojo',
+          'esri',
+          'jimuConfig',
+          '_appState',
+          '_store',
+        ];
+
+        for (const p of paths) {
+          try {
+            const parts = p.split('.');
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let obj: any = w;
+            for (const part of parts) {
+              obj = obj?.[part];
+            }
+            if (obj && typeof obj === 'object') {
+              checked.push(`${p}: ${typeof obj} (keys: ${Object.keys(obj).slice(0, 10).join(',')})`);
+
+              // If it's jimuMapViews, iterate to find view
+              if (p.endsWith('jimuMapViews')) {
+                for (const [k, v] of Object.entries(obj)) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const jv = v as any;
+                  if (jv?.view?.ready) {
+                    foundPath = `${p}.${k}.view`;
+                    await jv.view.goTo({ center: [params.lon, params.lat], zoom: 17 }, { duration: 1000 });
+                    return { success: true, detail: `Found at ${foundPath}, zoomed successfully` };
+                  }
+                }
+              }
+            } else {
+              checked.push(`${p}: ${obj === null ? 'null' : typeof obj}`);
+            }
+          } catch (e) {
+            checked.push(`${p}: ERROR ${e}`);
+          }
+        }
+
+        // Try to find any object with goTo method by scanning esri-view DOM
+        const viewContainer = document.querySelector('.esri-view-root');
+        if (viewContainer) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const viewObj = (viewContainer as any).__view || (viewContainer as any)._view;
+          if (viewObj?.goTo) {
+            await viewObj.goTo({ center: [params.lon, params.lat], zoom: 17 }, { duration: 1000 });
+            return { success: true, detail: `Found via .esri-view-root.__view` };
+          }
+          checked.push(`esri-view-root: __view=${typeof (viewContainer as any).__view}, _view=${typeof (viewContainer as any)._view}`);
+        }
+
+        // Try to find view via internal widget manager
+        if (w._widgetManager?.widgets) {
+          for (const [wk, wv] of Object.entries(w._widgetManager.widgets)) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const wid = wv as any;
+            if (wid?.mapView?.goTo) {
+              await wid.mapView.goTo({ center: [params.lon, params.lat], zoom: 17 }, { duration: 1000 });
+              return { success: true, detail: `Found via _widgetManager.widgets.${wk}.mapView` };
+            }
+          }
+        }
+
+        return { success: false, detail: `Scanned paths: ${checked.join(' | ')}` };
+      }, { lon: centerLon, lat: centerLat });
+
+      await page.waitForTimeout(MAP_SETTLE_WAIT);
+      const ss = await captureDiag('Strategy 3 — Deep JS scan');
+      results.push({ strategy: '3-js-deep-scan', success: result.success, duration: Date.now() - t0, details: result.detail, screenshot: ss });
+      progress(`  Result: ${result.success ? 'SUCCESS' : 'FAIL'} — ${result.detail}`);
+    } catch (err) {
+      results.push({ strategy: '3-js-deep-scan', success: false, duration: Date.now() - t0, details: `Exception: ${err instanceof Error ? err.message : String(err)}` });
+      progress(`  Result: EXCEPTION — ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ═══ STRATEGY 4: JS API — Redux store dispatch ═══
+  progress('--- Strategy 4/12: JS API via Redux store dispatch ---');
+  {
+    const t0 = Date.now();
+    try {
+      const result = await page.evaluate(async (params: { lon: number; lat: number }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const w = window as any;
+
+        // Experience Builder uses Redux. Try to find and dispatch map actions.
+        const store = w._store || w.store || w.__store;
+        if (!store?.dispatch) return { success: false, detail: `No Redux store found (window._store=${typeof w._store}, window.store=${typeof w.store})` };
+
+        try {
+          const state = store.getState();
+          const mapKeys = Object.keys(state?.mapWidgets || {});
+          const widgetKeys = Object.keys(state?.widgetsState || {});
+          const info = `mapWidgets=[${mapKeys.join(',')}], widgetsState=[${widgetKeys.join(',')}]`;
+
+          // Try dispatching a map extent change action
+          // Experience Builder uses jimu-core actions
+          if (w.jimuCoreActions?.mapZoomTo) {
+            w.jimuCoreActions.mapZoomTo(mapKeys[0], { center: [params.lon, params.lat], zoom: 17 });
+            return { success: true, detail: `Dispatched jimuCoreActions.mapZoomTo — ${info}` };
+          }
+
+          return { success: false, detail: `Store found but no jimuCoreActions.mapZoomTo. ${info}` };
+        } catch (e) {
+          return { success: false, detail: `Store error: ${e}` };
+        }
+      }, { lon: centerLon, lat: centerLat });
+
+      await page.waitForTimeout(MAP_SETTLE_WAIT);
+      const ss = await captureDiag('Strategy 4 — Redux store');
+      results.push({ strategy: '4-js-redux-store', success: result.success, duration: Date.now() - t0, details: result.detail, screenshot: ss });
+      progress(`  Result: ${result.success ? 'SUCCESS' : 'FAIL'} — ${result.detail}`);
+    } catch (err) {
+      results.push({ strategy: '4-js-redux-store', success: false, duration: Date.now() - t0, details: `Exception: ${err instanceof Error ? err.message : String(err)}` });
+      progress(`  Result: EXCEPTION — ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ═══ STRATEGY 5: Search widget — type address ═══
+  progress('--- Strategy 5/12: Search widget — type address ---');
+  {
+    const t0 = Date.now();
+    let detail = 'No search widget found';
+    let success = false;
+
+    if (input.situsAddress) {
+      try {
+        // First, inventory all search-like inputs
+        const searchInfo = await page.evaluate(() => {
+          const results: string[] = [];
+          const allInputs = document.querySelectorAll('input');
+          for (let i = 0; i < allInputs.length; i++) {
+            const inp = allInputs[i];
+            const rect = inp.getBoundingClientRect();
+            results.push(`  input: type=${inp.type} placeholder="${inp.placeholder}" visible=${rect.width > 0 && rect.height > 0} class="${inp.className.substring(0, 60)}"`);
+          }
+          return results.join('\n');
+        });
+        progress(`  Search widget inventory:\n${searchInfo}`);
+
+        const searchSelectors = [
+          '.esri-search__input',
+          '.jimu-widget--search input[type="text"]',
+          '[class*="search-module"] input',
+          '.esri-search input',
+          'input[placeholder*="Find" i]',
+          'input[placeholder*="Search" i]',
+          'input[placeholder*="address" i]',
+          'input[placeholder*="parcel" i]',
+          'input[placeholder*="location" i]',
+          'input[type="search"]',
+          '[role="searchbox"]',
+        ];
+
+        for (const sel of searchSelectors) {
+          try {
+            const inp = page.locator(sel).first();
+            if (await inp.count() > 0 && await inp.isVisible()) {
+              progress(`  Found search input: ${sel}`);
+              await inp.click();
+              await inp.fill('');
+              await page.waitForTimeout(500);
+              await inp.fill(input.situsAddress);
+              progress(`  Typed: "${input.situsAddress}"`);
+              await page.waitForTimeout(2000);
+
+              // Log suggestions that appeared
+              const suggestions = await page.evaluate(() => {
+                const items: string[] = [];
+                const sels = document.querySelectorAll(
+                  '.esri-search__suggestions-list li, [role="option"], [class*="suggestion"], .esri-menu__list-item'
+                );
+                for (let i = 0; i < sels.length; i++) {
+                  items.push((sels[i].textContent || '').trim().substring(0, 100));
+                }
+                return items;
+              });
+              progress(`  Suggestions found: ${suggestions.length} — ${suggestions.slice(0, 5).join(' | ')}`);
+
+              // Try clicking first suggestion
+              let clickedSug = false;
+              const sugSelectors = [
+                '.esri-search__suggestions-list li:first-child',
+                '.esri-menu__list-item:first-child',
+                '[role="option"]:first-child',
+                '[class*="suggestion"]:first-child',
+              ];
+              for (const ss of sugSelectors) {
+                try {
+                  const sug = page.locator(ss).first();
+                  if (await sug.count() > 0 && await sug.isVisible()) {
+                    await sug.click();
+                    clickedSug = true;
+                    progress(`  Clicked suggestion via ${ss}`);
+                    break;
+                  }
+                } catch { /* next */ }
+              }
+              if (!clickedSug) {
+                await inp.press('Enter');
+                progress('  No suggestion visible — pressed Enter');
+              }
+
+              await page.waitForTimeout(MAP_SETTLE_WAIT + 2000);
+              detail = `Search widget found (${sel}), typed "${input.situsAddress}", ${clickedSug ? 'clicked suggestion' : 'pressed Enter'}`;
+              success = true;
+              break;
+            }
+          } catch { /* try next */ }
+        }
+      } catch (err) {
+        detail = `Exception: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    } else {
+      detail = 'No situs address available';
+    }
+
+    const ss = await captureDiag('Strategy 5 — Search widget');
+    results.push({ strategy: '5-search-widget', success, duration: Date.now() - t0, details: detail, screenshot: ss });
+    progress(`  Result: ${success ? 'SUCCESS' : 'FAIL'} — ${detail}`);
+  }
+
+  // Reload for next tests
+  await reloadFresh();
+
+  // ═══ STRATEGY 6: URL hash params — #center=lon,lat&level=N ═══
+  progress('--- Strategy 6/12: URL hash params #center=lon,lat&level=17 ---');
+  {
+    const t0 = Date.now();
+    const url = `${GIS_VIEWER_URL}#center=${centerLon},${centerLat}&level=17`;
+    try {
+      progress(`  Navigating to: ${url}`);
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
+      await dismissDisclaimerDialog(page, progress);
+      await waitForMapReady(page, progress);
+      await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+      const currentUrl = page.url();
+      const detail = `Loaded URL: ${currentUrl}`;
+      const ss = await captureDiag('Strategy 6 — URL hash #center');
+      results.push({ strategy: '6-url-hash-center', success: true, duration: Date.now() - t0, details: detail, screenshot: ss });
+      progress(`  Result: LOADED — ${detail}`);
+    } catch (err) {
+      results.push({ strategy: '6-url-hash-center', success: false, duration: Date.now() - t0, details: `Exception: ${err instanceof Error ? err.message : String(err)}` });
+      progress(`  Result: EXCEPTION — ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ═══ STRATEGY 7: URL query params — ?center=lon,lat&level=N ═══
+  progress('--- Strategy 7/12: URL query params ?center=lon,lat&level=17 ---');
+  {
+    const t0 = Date.now();
+    const url = `${GIS_VIEWER_URL}?center=${centerLon},${centerLat}&level=17`;
+    try {
+      progress(`  Navigating to: ${url}`);
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
+      await dismissDisclaimerDialog(page, progress);
+      await waitForMapReady(page, progress);
+      await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+      const currentUrl = page.url();
+      const ss = await captureDiag('Strategy 7 — URL query ?center');
+      results.push({ strategy: '7-url-query-center', success: true, duration: Date.now() - t0, details: `Loaded URL: ${currentUrl}`, screenshot: ss });
+      progress(`  Result: LOADED — ${currentUrl}`);
+    } catch (err) {
+      results.push({ strategy: '7-url-query-center', success: false, duration: Date.now() - t0, details: `Exception: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  }
+
+  // ═══ STRATEGY 8: URL with extent bbox ═══
+  progress('--- Strategy 8/12: URL with extent bbox ---');
+  {
+    const t0 = Date.now();
+    const pad = 0.003;
+    const url = `${GIS_VIEWER_URL}#extent=${centerLon - pad},${centerLat - pad},${centerLon + pad},${centerLat + pad}`;
+    try {
+      progress(`  Navigating to: ${url}`);
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
+      await dismissDisclaimerDialog(page, progress);
+      await waitForMapReady(page, progress);
+      await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+      const ss = await captureDiag('Strategy 8 — URL extent bbox');
+      results.push({ strategy: '8-url-extent-bbox', success: true, duration: Date.now() - t0, details: `Loaded URL: ${page.url()}`, screenshot: ss });
+      progress(`  Result: LOADED — ${page.url()}`);
+    } catch (err) {
+      results.push({ strategy: '8-url-extent-bbox', success: false, duration: Date.now() - t0, details: `Exception: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  }
+
+  // Reload fresh for UI-based strategies
+  await reloadFresh();
+  await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+  // ═══ STRATEGY 9: Click zoom-in UI button ═══
+  progress('--- Strategy 9/12: Click zoom-in UI button ---');
+  {
+    const t0 = Date.now();
+    let detail = 'No zoom button found';
+    let success = false;
+
+    const selectors = [
+      '.esri-zoom .esri-widget--button:first-child',
+      'button[title="Zoom in"]',
+      'button[title="Zoom In"]',
+      '.esri-zoom__zoom-in-button',
+      '.esri-icon-plus',
+      'button[aria-label="Zoom in"]',
+      'button[aria-label="Zoom In"]',
+      'calcite-button[icon-start="plus"]',
+      '.esri-zoom button:first-of-type',
+    ];
+
+    for (const sel of selectors) {
+      try {
+        const btn = page.locator(sel).first();
+        if (await btn.count() > 0 && await btn.isVisible()) {
+          progress(`  Found zoom-in button: ${sel}`);
+          // Click 5 times to zoom in significantly
+          for (let i = 0; i < 5; i++) {
+            await btn.click();
+            await page.waitForTimeout(600);
+          }
+          detail = `Clicked zoom-in 5x via ${sel}`;
+          success = true;
+          break;
+        }
+      } catch { /* next */ }
+    }
+
+    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    const ss = await captureDiag('Strategy 9 — Zoom-in button');
+    results.push({ strategy: '9-ui-zoom-button', success, duration: Date.now() - t0, details: detail, screenshot: ss });
+    progress(`  Result: ${success ? 'SUCCESS' : 'FAIL'} — ${detail}`);
+  }
+
+  // Reload for next
+  await reloadFresh();
+  await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+  // ═══ STRATEGY 10: Mouse wheel zoom ═══
+  progress('--- Strategy 10/12: Mouse wheel zoom ---');
+  {
+    const t0 = Date.now();
+    try {
+      // Take screenshot BEFORE wheel zoom
+      const ssBefore = await captureDiag('Strategy 10 — BEFORE mouse wheel');
+
+      await page.mouse.move(960, 540);
+      await page.waitForTimeout(300);
+      // Zoom in with 15 scroll events
+      for (let i = 0; i < 15; i++) {
+        await page.mouse.wheel(0, -120);
+        await page.waitForTimeout(200);
+      }
+      await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+      const ssAfter = await captureDiag('Strategy 10 — AFTER mouse wheel');
+      results.push({ strategy: '10-mouse-wheel', success: true, duration: Date.now() - t0, details: 'Sent 15 wheel events (deltaY=-120 each)', screenshot: ssAfter });
+      // Also include the "before" screenshot for comparison
+      if (ssBefore) {
+        ssBefore.description = 'DIAGNOSTIC: Strategy 10 — BEFORE mouse wheel (baseline)';
+        results.push({ strategy: '10-mouse-wheel-before', success: true, duration: 0, details: 'Baseline before wheel zoom', screenshot: ssBefore });
+      }
+      progress('  Result: SUCCESS — Sent 15 wheel zoom events');
+    } catch (err) {
+      results.push({ strategy: '10-mouse-wheel', success: false, duration: Date.now() - t0, details: `Exception: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  }
+
+  // Reload for next
+  await reloadFresh();
+  await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+  // ═══ STRATEGY 11: Keyboard zoom (+/- keys) ═══
+  progress('--- Strategy 11/12: Keyboard zoom (+/= and - keys) ---');
+  {
+    const t0 = Date.now();
+    try {
+      // Click the map first to give it focus
+      await page.click('.esri-view-surface, .esri-view, canvas', { timeout: 5000 }).catch(() => {
+        // fallback — click center of viewport
+        return page.mouse.click(960, 540);
+      });
+      await page.waitForTimeout(500);
+
+      // Press + key multiple times to zoom in
+      for (let i = 0; i < 8; i++) {
+        await page.keyboard.press('Equal'); // + key (= without shift, but some apps treat as +)
+        await page.waitForTimeout(300);
+      }
+      for (let i = 0; i < 8; i++) {
+        await page.keyboard.press('NumpadAdd');
+        await page.waitForTimeout(300);
+      }
+      await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+      const ss = await captureDiag('Strategy 11 — Keyboard zoom');
+      results.push({ strategy: '11-keyboard-zoom', success: true, duration: Date.now() - t0, details: 'Pressed Equal x8 + NumpadAdd x8', screenshot: ss });
+      progress('  Result: SUCCESS — Pressed keyboard zoom keys');
+    } catch (err) {
+      results.push({ strategy: '11-keyboard-zoom', success: false, duration: Date.now() - t0, details: `Exception: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  }
+
+  // Reload for next
+  await reloadFresh();
+  await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+  // ═══ STRATEGY 12: Double-click zoom ═══
+  progress('--- Strategy 12/12: Double-click zoom on map center ---');
+  {
+    const t0 = Date.now();
+    try {
+      // Double-click multiple times at the center to zoom in
+      for (let i = 0; i < 5; i++) {
+        await page.dblclick('.esri-view-surface, canvas', { timeout: 3000 }).catch(async () => {
+          await page.mouse.dblclick(960, 540);
+        });
+        await page.waitForTimeout(1000);
+      }
+      await page.waitForTimeout(MAP_SETTLE_WAIT);
+
+      const ss = await captureDiag('Strategy 12 — Double-click zoom');
+      results.push({ strategy: '12-double-click', success: true, duration: Date.now() - t0, details: 'Double-clicked center 5x', screenshot: ss });
+      progress('  Result: SUCCESS — Double-clicked map center 5x');
+    } catch (err) {
+      results.push({ strategy: '12-double-click', success: false, duration: Date.now() - t0, details: `Exception: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  }
+
+  return results;
 }
 
 // ── Internal: Zoom to Parcel ─────────────────────────────────────────
