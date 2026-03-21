@@ -224,7 +224,7 @@ export async function uploadPipelineArtifacts(
       const { data: urlData } = (supabase.storage as any).from(BUCKET).getPublicUrl(storagePath);
       const publicUrl: string = urlData?.publicUrl ?? '';
 
-      await (supabase as any).from('research_documents').insert({
+      const { error: insertErr } = await resilientInsertDocument(supabase, {
         research_project_id: projectId,
         source_type: 'property_search',
         original_filename: filename,
@@ -240,6 +240,7 @@ export async function uploadPipelineArtifacts(
         created_at: cs.ss.capturedAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
+      if (insertErr) { result.errors.push(`Screenshot ${cs.index + 1} insert: ${insertErr}`); continue; }
       result.screenshotsUploaded++;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -340,7 +341,7 @@ export async function uploadPipelineArtifacts(
         ? `${groupSource} (${groupScreenshots.length} pages)`
         : `Screenshot: ${firstSs.ss.description || groupSource}`;
 
-      await (supabase as any).from('research_documents').insert({
+      const { error: grpInsertErr } = await resilientInsertDocument(supabase, {
         research_project_id: projectId,
         source_type: 'property_search',
         original_filename: `screenshot_${safeName}`,
@@ -359,6 +360,10 @@ export async function uploadPipelineArtifacts(
         created_at: firstSs.ss.capturedAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
+      if (grpInsertErr) {
+        result.errors.push(`Screenshot group "${groupSource}" insert: ${grpInsertErr}`);
+        continue;
+      }
 
       console.log(
         `[ArtifactUploader] ${groupSource}: created grouped document (${groupScreenshots.length} page(s), type=${docType}, PDF=${!!pdfUrl})`,
@@ -490,7 +495,7 @@ export async function uploadPipelineArtifacts(
         ? `${capitalizeFirst(category)}: ${label} (${pages.length} pages)`
         : `${capitalizeFirst(category)}: ${label}`;
 
-      await (supabase as any).from('research_documents').insert({
+      const { error: docInsertErr } = await resilientInsertDocument(supabase, {
         research_project_id: projectId,
         source_type: 'property_search',
         original_filename: `${category}_${safeLabel}`,
@@ -509,6 +514,10 @@ export async function uploadPipelineArtifacts(
         updated_at: new Date().toISOString(),
       });
 
+      if (docInsertErr) {
+        result.errors.push(`Document ${label} insert: ${docInsertErr}`);
+        continue;
+      }
       result.documentsUploaded++;
       console.log(
         `[ArtifactUploader] ${label}: created document record (${pages.length} page(s), PDF=${!!pdfUrl})`,
@@ -626,4 +635,45 @@ function classifyScreenshotDocType(url: string, description: string, source: str
 
 function capitalizeFirst(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Original document_type values from seed 090 (before migration 106). */
+const ORIGINAL_DOC_TYPES = new Set([
+  'deed', 'plat', 'survey', 'legal_description', 'title_commitment',
+  'easement', 'restrictive_covenant', 'field_notes', 'subdivision_plat',
+  'metes_and_bounds', 'county_record', 'appraisal_record', 'aerial_photo',
+  'topo_map', 'utility_map', 'other',
+]);
+
+/**
+ * Insert a research_documents row with automatic fallback:
+ * 1. Try full insert (with pages_pdf_url and expanded doc types).
+ * 2. If it fails (missing column or CHECK constraint), retry without
+ *    pages_pdf_url and with document_type='other'.
+ */
+async function resilientInsertDocument(
+  supabase: SupabaseClient,
+  row: Record<string, unknown>,
+): Promise<{ error: string | null }> {
+  // First attempt — full insert
+  const { error: err1 } = await (supabase as any).from('research_documents').insert(row);
+  if (!err1) return { error: null };
+
+  const msg1 = err1.message || String(err1);
+  console.warn(`[ArtifactUploader] Insert failed (attempt 1): ${msg1}`);
+
+  // Second attempt — remove pages_pdf_url, fall back doc type to 'other'
+  const fallbackRow = { ...row };
+  delete fallbackRow.pages_pdf_url;
+  if (fallbackRow.document_type && !ORIGINAL_DOC_TYPES.has(fallbackRow.document_type as string)) {
+    fallbackRow.document_type = 'other';
+  }
+
+  const { error: err2 } = await (supabase as any).from('research_documents').insert(fallbackRow);
+  if (!err2) {
+    console.log(`[ArtifactUploader] Fallback insert succeeded (without pages_pdf_url, type=${fallbackRow.document_type})`);
+    return { error: null };
+  }
+
+  return { error: `${msg1} → fallback also failed: ${err2.message || String(err2)}` };
 }

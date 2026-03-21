@@ -93,9 +93,11 @@ export const TIMEOUTS = {
   playwrightAction: 15_000,
   screenshotCapture: 10_000,
   /** AI analysis per-call timeout — vision OCR on large plat images needs time */
-  aiAnalysis: 300_000,
+  aiAnalysis: 600_000,
   /** AI analysis for deed chain history — recursive lookups take longer */
-  aiDeedChain: 180_000,
-  /** Maximum total research time — increased to accommodate deep deed chain tracing */
-  maxResearch: 45 * 60 * 1000,
+  aiDeedChain: 300_000,
+  /** AI reconciliation — deep merge pass across all image regions */
+  aiReconciliation: 600_000,
+  /** Maximum total research time — increased to accommodate multi-region image analysis */
+  maxResearch: 90 * 60 * 1000,
 } as const;
