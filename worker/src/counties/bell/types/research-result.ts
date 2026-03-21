@@ -31,6 +31,18 @@ export interface BellResearchResult {
   discrepancies: DiscrepancyItem[];
   adjacentProperties: AdjacentProperty[];
   siteIntelligence: SiteIntelligenceNote[];
+  /** GIS screenshot quality analysis report */
+  gisQualityReport?: {
+    summary: string;
+    checks: Array<{
+      label: string;
+      qualityScore: number;
+      zoomAssessment: string;
+      whatIsShown: string;
+      recommendations: string[];
+    }>;
+    actionableAdjustments: string[];
+  } | null;
 
   // ── Metadata ───────────────────────────────────────────────────────
   /** All screenshots captured during research */
