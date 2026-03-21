@@ -123,7 +123,7 @@ export interface ArtifactPageImage {
   /** Rich display label for the document (e.g. "WARRANTY DEED — Smith to Jones (Instr. 123)") */
   documentLabel?: string;
   /** Recording info (e.g. "Instrument No. 123 — Vol. 4, Pg. 56") */
-  recordingInfo?: string;
+  recordingInfo?: string | null;
   /** Recording date */
   recordedDate?: string | null;
   /** AI analysis text / extracted text to persist */
