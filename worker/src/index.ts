@@ -415,8 +415,10 @@ async function persistCountyResults(
     console.log(`[Worker] ${projectId}: saved county analysis_metadata to Supabase`);
   }
 
-  // ── 2. Save deed records to research_documents ─────────────────────
-  // Delete previous property_search rows, then insert fresh ones.
+  // ── 2. Delete previous property_search document rows ─────────────────
+  // The artifact uploader (step 4) creates fresh rows with page images,
+  // PDF URLs, AND the rich metadata (labels, recording info, AI text).
+  // We no longer create separate text-only rows here — that caused duplicates.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any)
     .from('research_documents')
@@ -424,9 +426,13 @@ async function persistCountyResults(
     .eq('research_project_id', projectId)
     .eq('source_type', 'property_search');
 
-  const docInserts: Record<string, unknown>[] = [];
+  // ── 3. Insert documents that have NO page images (metadata-only) ─────
+  // Deeds/plats with page images are handled by the artifact uploader.
+  // Only insert here if a deed/plat has zero page images.
+  const metadataOnlyInserts: Record<string, unknown>[] = [];
 
   for (const deed of r.deedsAndRecords.records) {
+    if (deed.pageImages.length > 0) continue; // Artifact uploader will handle
     const instr = deed.instrumentNumber;
     const volPage = deed.volume && deed.page ? `Vol. ${deed.volume}, Pg. ${deed.page}` : null;
     const recordingInfo = [instr ? `Instrument No. ${instr}` : null, volPage].filter(Boolean).join(' — ') || null;
@@ -438,13 +444,13 @@ async function persistCountyResults(
     const rawText = deed.legalDescription ?? deed.aiSummary ?? null;
     const extractedText = rawText ? rawText.slice(0, MAX_EXTRACTED_TEXT_LENGTH) : null;
 
-    docInserts.push({
+    metadataOnlyInserts.push({
       research_project_id: projectId,
       source_type: 'property_search',
       original_filename: docLabel,
       file_type: 'pdf',
       document_type: normDocType(deed.documentType),
-      document_label: deed.documentType || 'Deed',
+      document_label: docLabel,
       recording_info: recordingInfo,
       recorded_date: deed.recordingDate ?? null,
       extracted_text: extractedText,
@@ -455,20 +461,20 @@ async function persistCountyResults(
     });
   }
 
-  // ── 3. Save plat records to research_documents ─────────────────────
   for (const plat of r.plats.plats) {
+    if (plat.images.length > 0) continue; // Artifact uploader will handle
     const instr = plat.instrumentNumber;
     const instrStr = instr ? ` (Instr. ${instr})` : '';
-    const docLabel = `Plat: ${plat.name}${instrStr}`;
+    const docLabel = `Subdivision Plat: ${plat.name}${instrStr}`;
     const rawText = plat.aiAnalysis ? JSON.stringify(plat.aiAnalysis).slice(0, MAX_EXTRACTED_TEXT_LENGTH) : null;
 
-    docInserts.push({
+    metadataOnlyInserts.push({
       research_project_id: projectId,
       source_type: 'property_search',
       original_filename: docLabel,
       file_type: 'pdf',
       document_type: normDocType('plat'),
-      document_label: 'Subdivision Plat',
+      document_label: docLabel,
       recording_info: instr ? `Instrument No. ${instr}` : null,
       recorded_date: plat.date ?? null,
       extracted_text: rawText,
@@ -479,15 +485,15 @@ async function persistCountyResults(
     });
   }
 
-  if (docInserts.length > 0) {
+  if (metadataOnlyInserts.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: docsErr } = await (supabase as any)
       .from('research_documents')
-      .insert(docInserts);
+      .insert(metadataOnlyInserts);
     if (docsErr) {
-      console.warn(`[Worker] ${projectId}: failed to save county documents: ${docsErr.message}`);
+      console.warn(`[Worker] ${projectId}: failed to save metadata-only documents: ${docsErr.message}`);
     } else {
-      console.log(`[Worker] ${projectId}: saved ${docInserts.length} county document(s) to Supabase`);
+      console.log(`[Worker] ${projectId}: saved ${metadataOnlyInserts.length} metadata-only document(s) to Supabase`);
     }
   }
 
@@ -517,6 +523,17 @@ async function persistCountyResults(
       if (deed.pageImages.length > 0) {
         console.log(`[Worker] ${projectId}: Deed artifact: inst#${deed.instrumentNumber ?? '?'}, type=${deed.documentType}, pages=${deed.pageImages.length}, sourceUrl=${deed.sourceUrl ?? 'NONE'}`);
       }
+      // Build rich metadata for the artifact uploader
+      const instr = deed.instrumentNumber;
+      const volPage = deed.volume && deed.page ? `Vol. ${deed.volume}, Pg. ${deed.page}` : null;
+      const recordingInfo = [instr ? `Instrument No. ${instr}` : null, volPage].filter(Boolean).join(' — ') || null;
+      const grantorStr = deed.grantor ?? null;
+      const granteeStr = deed.grantee ?? null;
+      const partyStr = grantorStr && granteeStr ? ` — ${grantorStr} to ${granteeStr}` : (grantorStr ? ` — ${grantorStr}` : '');
+      const instrStr = instr ? ` (Instr. ${instr})` : '';
+      const deedDocLabel = `${deed.documentType || 'Deed'}${partyStr}${instrStr}`;
+      const deedText = deed.aiSummary ?? deed.legalDescription ?? null;
+
       for (let pi = 0; pi < deed.pageImages.length; pi++) {
         artifactPageImages.push({
           category: 'deed',
@@ -524,6 +541,14 @@ async function persistCountyResults(
           pageNumber: pi + 1,
           imageBase64: deed.pageImages[pi],
           sourceUrl: deed.sourceUrl,
+          // Rich metadata — only set on first page (artifact uploader uses firstPage)
+          ...(pi === 0 ? {
+            documentLabel: deedDocLabel,
+            recordingInfo,
+            recordedDate: deed.recordingDate ?? null,
+            extractedText: deedText?.slice(0, MAX_EXTRACTED_TEXT_LENGTH) ?? null,
+            documentType: normDocType(deed.documentType),
+          } : {}),
         });
       }
     }
@@ -532,6 +557,11 @@ async function persistCountyResults(
       if (plat.images.length > 0) {
         console.log(`[Worker] ${projectId}: Plat artifact: inst#${plat.instrumentNumber ?? '?'}, name="${plat.name}", pages=${plat.images.length}, sourceUrl=${plat.sourceUrl ?? 'NONE'}`);
       }
+      const platInstr = plat.instrumentNumber;
+      const platInstrStr = platInstr ? ` (Instr. ${platInstr})` : '';
+      const platDocLabel = `Subdivision Plat: ${plat.name}${platInstrStr}`;
+      const platText = plat.aiAnalysis ? JSON.stringify(plat.aiAnalysis) : null;
+
       for (let pi = 0; pi < plat.images.length; pi++) {
         artifactPageImages.push({
           category: 'plat',
@@ -539,6 +569,13 @@ async function persistCountyResults(
           pageNumber: pi + 1,
           imageBase64: plat.images[pi],
           sourceUrl: plat.sourceUrl,
+          ...(pi === 0 ? {
+            documentLabel: platDocLabel,
+            recordingInfo: platInstr ? `Instrument No. ${platInstr}` : null,
+            recordedDate: plat.date ?? null,
+            extractedText: platText?.slice(0, MAX_EXTRACTED_TEXT_LENGTH) ?? null,
+            documentType: normDocType('plat'),
+          } : {}),
         });
       }
     }

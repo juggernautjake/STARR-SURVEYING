@@ -148,53 +148,87 @@ export async function captureGisViewerScreenshots(
 
     await page.waitForTimeout(MAP_SETTLE_WAIT);
 
-    // ── Screenshot A: Subdivision overview (all lots with IDs) ───
-    progress('Capturing subdivision overview with property IDs...');
-    await zoomOut(page, 2);
+    // ── Screenshot A: Target parcel detail — highest zoom ─────────
+    // Start with the tightest zoom (lot-level) since we're already zoomed in
+    progress('Capturing target parcel at maximum detail...');
+    await zoomIn(page, 3);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
-    const ssSubdiv = await takeScreenshot(page, 'GIS Viewer',
-      `Subdivision overview — ${input.subdivisionName ?? 'area'} — all lots with property IDs`);
-    if (ssSubdiv) results.push(ssSubdiv);
+    const ssMaxDetail = await takeScreenshot(page, 'GIS Viewer',
+      `Maximum detail — ${input.propertyId ?? 'unknown'} — ${input.situsAddress ?? ''} Lot ${input.lotNumber ?? '?'}`);
+    if (ssMaxDetail) results.push(ssMaxDetail);
 
-    // ── Screenshot B: Target parcel detail ───────────────────────
-    progress('Capturing target parcel detail view...');
+    // ── Screenshot B: Target parcel with lot lines visible ──────
+    progress('Capturing target parcel with lot lines...');
     await zoomToParcel(page, input, progress);
-    await zoomIn(page, 2);
+    await zoomIn(page, 1);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
     const ssDetail = await takeScreenshot(page, 'GIS Viewer',
       `Target parcel detail — ${input.propertyId ?? 'unknown'} — ${input.situsAddress ?? ''} Lot ${input.lotNumber ?? '?'}`);
     if (ssDetail) results.push(ssDetail);
 
-    // ── Screenshot C: Aerial with property lines ─────────────────
-    progress('Switching to aerial/satellite basemap...');
+    // ── Screenshot C: Lot + immediate neighbors ─────────────────
+    progress('Capturing lot with immediate neighbors...');
+    await zoomToParcel(page, input, progress);
+    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    const ssNeighbors = await takeScreenshot(page, 'GIS Viewer',
+      `Lot with neighbors — ${input.propertyId ?? 'unknown'} — ${input.subdivisionName ?? 'area'}`);
+    if (ssNeighbors) results.push(ssNeighbors);
+
+    // ── Screenshot D: Subdivision overview (zoom out) ───────────
+    progress('Capturing subdivision overview...');
+    await zoomToParcel(page, input, progress);
+    await zoomOut(page, 3);
+    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    const ssSubdiv = await takeScreenshot(page, 'GIS Viewer',
+      `Subdivision overview — ${input.subdivisionName ?? 'area'} — all lots with property IDs`);
+    if (ssSubdiv) results.push(ssSubdiv);
+
+    // ── Screenshot E: Aerial/satellite at lot-level (eagle view) ─
+    progress('Switching to aerial/satellite basemap for eagle view...');
     await switchToAerialBasemap(page);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
 
+    // Aerial at lot level — tight zoom
+    await zoomToParcel(page, input, progress);
+    await zoomIn(page, 2);
+    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    const ssAerialTight = await takeScreenshot(page, 'GIS Viewer',
+      `Aerial eagle view (tight) WITH property lines — ${input.propertyId ?? ''} — ${input.situsAddress ?? ''}`);
+    if (ssAerialTight) results.push(ssAerialTight);
+
+    // Aerial at parcel level — with lines
     await zoomToParcel(page, input, progress);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
     const ssAerialLines = await takeScreenshot(page, 'GIS Viewer',
-      `Aerial view WITH property lines — ${input.propertyId ?? ''} — ${input.situsAddress ?? ''}`);
+      `Aerial eagle view WITH property lines — ${input.propertyId ?? ''} — ${input.situsAddress ?? ''}`);
     if (ssAerialLines) results.push(ssAerialLines);
 
-    // ── Screenshot D: Aerial without property lines ──────────────
-    progress('Hiding parcel boundaries for clean aerial...');
+    // Aerial at subdivision level
+    await zoomOut(page, 3);
+    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    const ssAerialSubdiv = await takeScreenshot(page, 'GIS Viewer',
+      `Aerial eagle view — subdivision — ${input.subdivisionName ?? ''} — ${input.situsAddress ?? ''}`);
+    if (ssAerialSubdiv) results.push(ssAerialSubdiv);
+
+    // ── Screenshot F: Clean aerial (no lines) ───────────────────
+    progress('Capturing clean aerial view (no property lines)...');
     await toggleParcelLayer(page, false);
     await toggleLotLineLayer(page, false);
+    await zoomToParcel(page, input, progress);
+    await zoomIn(page, 1);
     await page.waitForTimeout(LAYER_TOGGLE_WAIT);
     const ssAerialClean = await takeScreenshot(page, 'GIS Viewer',
-      `Aerial view WITHOUT property lines — ${input.situsAddress ?? ''}`);
+      `Aerial eagle view WITHOUT property lines — ${input.situsAddress ?? ''}`);
     if (ssAerialClean) results.push(ssAerialClean);
 
     await toggleParcelLayer(page, true);
     await toggleLotLineLayer(page, true);
 
-    // ── Screenshot E: Adjacent lots ──────────────────────────────
-    // Switch back to streets basemap for clearer lot identification
+    // ── Screenshot G: Adjacent lots (4 directions) ──────────────
     progress('Capturing adjacent lot views...');
     await switchToStreetsBasemap(page);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
 
-    // Pan to each cardinal direction to capture neighboring lots
     const directions: Array<{ name: string; dx: number; dy: number }> = [
       { name: 'North', dx: 0, dy: -300 },
       { name: 'East', dx: 400, dy: 0 },
@@ -202,7 +236,6 @@ export async function captureGisViewerScreenshots(
       { name: 'West', dx: -400, dy: 0 },
     ];
 
-    // First center on the parcel
     await zoomToParcel(page, input, progress);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
 
@@ -213,7 +246,6 @@ export async function captureGisViewerScreenshots(
         const ssAdj = await takeScreenshot(page, 'GIS Viewer',
           `Adjacent lot — ${dir.name} of ${input.propertyId ?? 'target'}`);
         if (ssAdj) results.push(ssAdj);
-        // Pan back to center for next direction
         await panMap(page, -dir.dx, -dir.dy);
         await page.waitForTimeout(1000);
       } catch {
@@ -221,8 +253,7 @@ export async function captureGisViewerScreenshots(
       }
     }
 
-    // ── Screenshot F: Layer combination views ─────────────────────
-    // Cycle through different layer combinations to extract maximum info
+    // ── Screenshot H: Layer combination views ─────────────────────
     progress('Capturing layer combination views...');
     await zoomToParcel(page, input, progress);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
@@ -232,34 +263,28 @@ export async function captureGisViewerScreenshots(
       basemap: 'streets' | 'aerial';
       parcels: boolean;
       lotLines: boolean;
-      zoomDelta: number; // Relative zoom adjustment from parcel view
+      zoomDelta: number;
     }> = [
-      // Lot lines only (no parcel fills) on streets — shows dimensions
-      { label: 'Lot lines only (dimensions)', basemap: 'streets', parcels: false, lotLines: true, zoomDelta: 1 },
-      // Tight zoom on aerial with lot lines — for dimension readability
-      { label: 'Aerial tight zoom with lot lines', basemap: 'aerial', parcels: false, lotLines: true, zoomDelta: 2 },
-      // Wide context view with all layers — for surrounding lots
-      { label: 'Wide context — surrounding lots', basemap: 'streets', parcels: true, lotLines: true, zoomDelta: -3 },
-      // Aerial wide for neighborhood context
-      { label: 'Aerial wide — neighborhood', basemap: 'aerial', parcels: true, lotLines: true, zoomDelta: -4 },
+      // Lot lines only — for reading dimension labels
+      { label: 'Lot lines only (dimensions)', basemap: 'streets', parcels: false, lotLines: true, zoomDelta: 2 },
+      // Maximum zoom aerial with lot lines — for dimension readability on satellite
+      { label: 'Aerial max zoom with lot lines', basemap: 'aerial', parcels: false, lotLines: true, zoomDelta: 3 },
+      // Wider context
+      { label: 'Neighborhood context — streets', basemap: 'streets', parcels: true, lotLines: true, zoomDelta: -4 },
+      // Aerial neighborhood
+      { label: 'Aerial neighborhood context', basemap: 'aerial', parcels: true, lotLines: true, zoomDelta: -4 },
     ];
 
     for (const combo of layerCombinations) {
       try {
         progress(`  Layer view: ${combo.label}...`);
-
-        // Set basemap
         if (combo.basemap === 'aerial') {
           await switchToAerialBasemap(page);
         } else {
           await switchToStreetsBasemap(page);
         }
-
-        // Set layer visibility
         await toggleParcelLayer(page, combo.parcels);
         await toggleLotLineLayer(page, combo.lotLines);
-
-        // Zoom to parcel and adjust
         await zoomToParcel(page, input, progress);
         if (combo.zoomDelta > 0) {
           await zoomIn(page, combo.zoomDelta);
@@ -280,33 +305,6 @@ export async function captureGisViewerScreenshots(
     await switchToStreetsBasemap(page);
     await toggleParcelLayer(page, true);
     await toggleLotLineLayer(page, true);
-
-    // ── Screenshot G: Multi-zoom detail series ────────────────────
-    // Capture at multiple zoom levels for complete context
-    progress('Capturing multi-zoom detail series...');
-    const zoomLevels: Array<{ label: string; zoomDelta: number }> = [
-      { label: 'Maximum detail (lot boundaries)', zoomDelta: 3 },
-      { label: 'Lot + immediate neighbors', zoomDelta: 0 },
-      { label: 'Block level context', zoomDelta: -2 },
-    ];
-
-    for (const zl of zoomLevels) {
-      try {
-        await zoomToParcel(page, input, progress);
-        if (zl.zoomDelta > 0) {
-          await zoomIn(page, zl.zoomDelta);
-        } else if (zl.zoomDelta < 0) {
-          await zoomOut(page, -zl.zoomDelta);
-        }
-        await page.waitForTimeout(MAP_SETTLE_WAIT);
-
-        const ssZoom = await takeScreenshot(page, 'GIS Viewer',
-          `Zoom: ${zl.label} — ${input.propertyId ?? ''}`);
-        if (ssZoom) results.push(ssZoom);
-      } catch {
-        // Skip on failure
-      }
-    }
 
     await context.close();
     progress(`✓ Captured ${results.length} GIS viewer screenshot(s)`);
@@ -550,10 +548,17 @@ async function zoomToParcel(page: any, input: GisViewerCaptureInput, progress: (
   }
 
   // ── Strategy 3: Mouse wheel zoom — approximate positioning ──
-  progress('[zoom] Strategy 3: Using mouse wheel zoom (approximate)...');
-  await zoomViaMouseWheel(page, 18);
+  // Bell County GIS starts at state/county level. We need ~25-30 zoom clicks
+  // to get from county level down to lot-level detail.
+  progress('[zoom] Strategy 3: Using mouse wheel zoom (approximate) — zooming deep to lot level...');
+  await zoomViaMouseWheel(page, 30);
+  await page.waitForTimeout(3000);
+  // Verify we're zoomed in enough — if the map still looks county-level,
+  // try additional zoom clicks
+  progress('[zoom] Applying additional zoom refinement...');
+  await zoomViaMouseWheel(page, 8);
   await page.waitForTimeout(2000);
-  progress('[zoom] Applied mouse-wheel zoom — position is approximate');
+  progress('[zoom] Applied deep mouse-wheel zoom — position is approximate');
   _zoomCached = true;
   return true;
 }
@@ -657,12 +662,17 @@ async function zoomViaUrlParams(page: any, lon: number, lat: number, progress: (
   try {
     const baseUrl = GIS_VIEWER_URL.replace(/[#?].*$/, '');
 
-    // Experience Builder typically uses hash params for map state
-    // Try multiple URL formats
+    // Experience Builder typically uses hash params for map state.
+    // Level 17 = city scale — too far out.
+    // Level 19 = subdivision scale — can see lot boundaries.
+    // Level 20 = individual lot scale — can read dimensions.
+    // Use level 20 to start at lot-level detail, then zoom in/out from there.
+    // The extent format uses a very tight bbox (±0.0003° ≈ 30m) to force lot-level zoom.
     const urlFormats = [
-      `${baseUrl}#center=${lon},${lat}&level=17`,
-      `${baseUrl}?center=${lon},${lat}&level=17`,
-      `${baseUrl}#extent=${lon - 0.002},${lat - 0.002},${lon + 0.002},${lat + 0.002}`,
+      `${baseUrl}#center=${lon},${lat}&level=20`,
+      `${baseUrl}?center=${lon},${lat}&level=20`,
+      `${baseUrl}#extent=${lon - 0.0003},${lat - 0.0003},${lon + 0.0003},${lat + 0.0003}`,
+      `${baseUrl}#center=${lon},${lat}&level=19`,
     ];
 
     for (let fi = 0; fi < urlFormats.length; fi++) {
