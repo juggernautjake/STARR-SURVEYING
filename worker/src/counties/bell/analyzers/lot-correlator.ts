@@ -427,12 +427,16 @@ async function aiLotCorrelation(
     });
   }
 
-  const prompt = `You are a property surveyor in Bell County, Texas. I need you to identify which specific lot on this plat corresponds to the target property.
+  // Parse street number from situs address for frontage matching
+  const streetNumber = input.situsAddress?.match(/^(\d+)\s/)?.[1] ?? null;
+  const streetName = input.situsAddress?.replace(/^\d+\s+/, '').replace(/,.*$/, '') ?? null;
+
+  const prompt = `You are an expert property surveyor in Bell County, Texas. Your task is to identify EXACTLY which specific lot on this plat corresponds to the target property. Getting the wrong lot is a serious error — be precise.
 
 TARGET PROPERTY:
 - Property ID: ${input.propertyId ?? 'unknown'}
 - Owner: ${input.ownerName ?? 'unknown'}
-- Address: ${input.situsAddress ?? 'unknown'}
+- Situs Address: ${input.situsAddress ?? 'unknown'}${streetNumber ? `\n  → Street Number: ${streetNumber} (look for this number on the plat or determine which lot has this address based on lot numbering patterns)` : ''}${streetName ? `\n  → Street Name: "${streetName}" (the lot must front on or be accessed from this street)` : ''}
 - Lot: ${input.lotNumber ?? 'unknown'}, Block: ${input.blockNumber ?? 'unknown'}
 - Subdivision: ${input.subdivisionName ?? 'unknown'}
 - Acreage: ${input.acreage ?? 'unknown'}
@@ -440,28 +444,48 @@ TARGET PROPERTY:
 
 PLAT: "${platName}"
 ${platAnalysis?.narrative ? `Plat narrative: ${platAnalysis.narrative}` : ''}
-${platAnalysis?.lotDimensions?.length ? `Lot dimensions found: ${platAnalysis.lotDimensions.join('; ')}` : ''}
+${platAnalysis?.lotDimensions?.length ? `Lot dimensions from AI analysis:\n${platAnalysis.lotDimensions.map(d => `  - ${d}`).join('\n')}` : ''}
 ${neighborContext}
 
-${parcelMapImage ? 'I have included the plat image(s) AND a generated map showing the target parcel boundary from GIS coordinates. Use the parcel shape, size, and position to match it to a lot on the plat.' : 'I have included the plat image(s). Use the lot number, acreage, and address to identify the target lot.'}
+${parcelMapImage ? 'I have included the plat image(s) AND a generated map showing the target parcel boundary from GIS coordinates (red outline with label). Use the parcel shape, size, and position to match it to a lot on the plat.' : 'I have included the plat image(s). Use ALL available data to identify the target lot.'}
 
-TASK: Determine which lot on this plat is the target property. Consider:
-1. Lot number match (if the plat labels lots)
-2. Acreage match (compare stated acreage to lot sizes shown)
-3. Shape/position match (if parcel map is provided, compare its shape to lots on the plat)
-4. Address/street frontage (which lot faces the street matching the address?)
-5. Owner name (does the plat mention the property owner?)
+CRITICAL: Determine which lot on this plat is the target property using this priority order:
+
+1. **ADDRESS MATCHING (highest priority)**:
+   - If the plat shows street addresses or lot addresses, match the target address "${input.situsAddress ?? '?'}" directly.
+   - If addresses aren't shown, determine which lot FACES the street "${streetName ?? '?'}". Lots on a plat are typically numbered sequentially along a street — if address ${streetNumber ?? '?'} is between addresses of neighboring lots, it's likely the lot in that position.
+   - Consider the address numbering pattern: odd numbers on one side, even on the other. ${streetNumber ? `Address ${streetNumber} is ${parseInt(streetNumber) % 2 === 0 ? 'even (typically south/west side)' : 'odd (typically north/east side)'}.` : ''}
+
+2. **PROPERTY ID MATCHING**:
+   - Property ID "${input.propertyId ?? '?'}" from Bell CAD often encodes lot information. Look for this ID or its lot portion on the plat.
+
+3. **LOT NUMBER MATCHING**:
+   - CAD/GIS indicates Lot ${input.lotNumber ?? '?'}. Verify this matches by checking acreage and position, not just the number.
+   - WARNING: The CAD lot number may not always match the plat lot number if the subdivision was replatted or lots were renumbered.
+
+4. **ACREAGE MATCHING**:
+   - Target property is ${input.acreage ?? '?'} acres. Compare to each lot's area shown on the plat.
+   - If only one lot has this acreage, that's a strong signal.
+
+5. **SPATIAL POSITION**:
+   - If the parcel map is provided, compare the target parcel shape and position to lots on the plat.
+   - Consider relative position within the subdivision (corner lot, interior lot, cul-de-sac).
+
+6. **OWNER NAME**:
+   - Check if "${input.ownerName ?? '?'}" appears on the plat or in adjacent references.
+
+IMPORTANT: Do NOT simply default to the CAD lot number. Verify it using at least 2 independent signals (address, acreage, position, etc.). If the evidence suggests a DIFFERENT lot than the CAD record says, report the lot the evidence supports and explain the discrepancy.
 
 Respond in JSON:
 {
   "identifiedLot": "<lot number/label that matches, or null if cannot determine>",
   "confidence": <0-100>,
-  "reasoning": "<detailed explanation of how you identified the lot, including which signals matched>"
+  "reasoning": "<detailed explanation including: which signals matched, which conflicted, which lot faces the target street, acreage comparison for each candidate lot, and why you chose this lot over alternatives>"
 }`;
 
   const response = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 600,
+    max_tokens: 2000,
     messages: [{
       role: 'user',
       content: [

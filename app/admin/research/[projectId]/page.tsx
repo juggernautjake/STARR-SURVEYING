@@ -73,16 +73,38 @@ interface ReviewDocCardProps {
     page_count?: number | null;
     ocr_confidence?: number | null;
     file_size_bytes?: number | null;
+    file_type?: string | null;
     created_at?: string | null;
     source_url?: string | null;
+    storage_url?: string | null;
+    pages_pdf_url?: string | null;
+    document_type?: string | null;
+    original_filename?: string | null;
+    ocr_regions?: unknown;
   };
   excerpt: string | null;
   hasViewable: boolean;
   onView: () => void;
 }
 
+/** Parse page image URLs from ocr_regions JSON (stored by artifact uploader) */
+function getCardPageUrls(ocrRegions: unknown): string[] {
+  if (!ocrRegions) return [];
+  try {
+    const parsed = typeof ocrRegions === 'string' ? JSON.parse(ocrRegions) : ocrRegions;
+    if (parsed?.pageUrls && Array.isArray(parsed.pageUrls)) {
+      return parsed.pageUrls.filter(Boolean) as string[];
+    }
+  } catch { /* ignore */ }
+  return [];
+}
+
 function ReviewDocCard({ typeIcon, title, typeName, doc, excerpt, hasViewable, onView }: ReviewDocCardProps) {
   const [open, setOpen] = useState(false);
+  const pageUrls = getCardPageUrls(doc.ocr_regions);
+  const thumbnailUrl = doc.storage_url || (pageUrls.length > 0 ? pageUrls[0] : null);
+  const isImage = !!(thumbnailUrl && /\.(png|jpe?g|gif|webp|tiff?)/i.test(thumbnailUrl));
+
   return (
     <div className={`review-doc-card${open ? ' review-doc-card--open' : ''}`}>
       <div className="review-doc-card__header" onClick={() => setOpen(o => !o)}>
@@ -90,48 +112,77 @@ function ReviewDocCard({ typeIcon, title, typeName, doc, excerpt, hasViewable, o
         <span className="review-doc-card__title">{title}</span>
         <span className="review-doc-card__type">{typeName}</span>
         {doc.processing_status === 'analyzed' && (
-          <span className="review-doc-card__badge review-doc-card__badge--ok">✓ Analyzed</span>
+          <span className="review-doc-card__badge review-doc-card__badge--ok">Analyzed</span>
         )}
         {doc.processing_status === 'error' && (
-          <span className="review-doc-card__badge review-doc-card__badge--err">⚠ Error</span>
+          <span className="review-doc-card__badge review-doc-card__badge--err">Error</span>
+        )}
+        {doc.page_count != null && doc.page_count > 1 && (
+          <span className="review-doc-card__badge review-doc-card__badge--pages">{doc.page_count} pg</span>
         )}
         {hasViewable && (
-          <span className="review-doc-card__badge review-doc-card__badge--img">📸 Images Available</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onView(); }}
+            className="review-doc-card__view-btn"
+            title="Open in document viewer"
+          >
+            View
+          </button>
         )}
-        <span className="review-doc-card__chevron">{open ? '▲' : '▼'}</span>
+        <span className="review-doc-card__chevron">{open ? '\u25B2' : '\u25BC'}</span>
       </div>
       {open && (
         <div className="review-doc-card__body">
-          {excerpt && (
-            <div className="review-doc-card__excerpt">{excerpt}</div>
-          )}
-          <div className="review-doc-card__meta">
-            {doc.recorded_date && <span>📅 {doc.recorded_date}</span>}
-            {doc.recording_info && <span>📋 {doc.recording_info}</span>}
-            {doc.page_count != null && <span>📄 {doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span>}
-            {doc.ocr_confidence != null && <span>🔬 OCR {Math.round(doc.ocr_confidence * 100)}%</span>}
-            {doc.file_size_bytes != null && <span>{(doc.file_size_bytes / 1024).toFixed(0)} KB</span>}
-            {doc.created_at && <span title={doc.created_at}>Added {new Date(doc.created_at).toLocaleDateString()}</span>}
-          </div>
-          <div className="review-doc-card__actions">
-            {doc.source_url && (
-              <a
-                href={doc.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="review-doc-card__action review-doc-card__action--link"
-              >
-                🔗 Open Source ↗
-              </a>
+          <div className="review-doc-card__content-row">
+            {/* Thumbnail preview for images */}
+            {isImage && thumbnailUrl && (
+              <div className="review-doc-card__thumbnail" onClick={onView} role="button" tabIndex={0}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={thumbnailUrl} alt={title} loading="lazy" />
+                {pageUrls.length > 1 && (
+                  <span className="review-doc-card__thumb-pages">+{pageUrls.length - 1}</span>
+                )}
+              </div>
             )}
-            {hasViewable && (
-              <button
-                onClick={onView}
-                className="review-doc-card__action review-doc-card__action--view"
-              >
-                🖼️ View Pages / PDF
-              </button>
-            )}
+            <div className="review-doc-card__details">
+              {excerpt && (
+                <div className="review-doc-card__excerpt">{excerpt}</div>
+              )}
+              <div className="review-doc-card__meta">
+                {doc.recorded_date && <span>Recorded: {doc.recorded_date}</span>}
+                {doc.recording_info && <span>{doc.recording_info}</span>}
+                {doc.page_count != null && <span>{doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span>}
+                {doc.file_type && <span>{doc.file_type.toUpperCase()}</span>}
+                {doc.file_size_bytes != null && (
+                  <span>{doc.file_size_bytes >= 1024 * 1024
+                    ? `${(doc.file_size_bytes / (1024 * 1024)).toFixed(1)} MB`
+                    : `${(doc.file_size_bytes / 1024).toFixed(0)} KB`
+                  }</span>
+                )}
+                {doc.ocr_confidence != null && <span>OCR {Math.round(doc.ocr_confidence * 100)}%</span>}
+                {doc.created_at && <span title={doc.created_at}>Added {new Date(doc.created_at).toLocaleDateString()}</span>}
+              </div>
+              <div className="review-doc-card__actions">
+                {hasViewable && (
+                  <button
+                    onClick={onView}
+                    className="review-doc-card__action review-doc-card__action--view"
+                  >
+                    Open in Viewer
+                  </button>
+                )}
+                {doc.source_url && (
+                  <a
+                    href={doc.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="review-doc-card__action review-doc-card__action--link"
+                  >
+                    Open Source
+                  </a>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

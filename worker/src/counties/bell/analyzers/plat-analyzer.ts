@@ -204,29 +204,69 @@ async function analyzePlatImage(
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 3000,
+      max_tokens: 8000,
       messages: [{
         role: 'user',
         content: [
           ...imageContent,
           {
             type: 'text',
-            text: `You are analyzing a property survey plat from Bell County, Texas.
+            text: `You are an expert Texas Registered Professional Land Surveyor (RPLS) analyzing a property survey plat from Bell County, Texas. This analysis will be used directly by a field surveyor. Be exhaustive — every dimension, call, monument, and note matters.
+
 Extract ALL of the following information in JSON format:
 
 {
-  "lotDimensions": ["list every dimension shown, e.g., 'North line: 150.00 ft'"],
-  "bearingsAndDistances": ["list every bearing and distance call, e.g., 'N 45°30'15\" E, 200.50 ft'"],
-  "monuments": ["list all monuments called: iron rods, pipes, concrete, stones, etc."],
-  "easements": ["list all easements shown: utility, drainage, access, etc. with widths"],
-  "curves": ["list all curve data: radius, arc length, chord, delta angle"],
-  "rowWidths": ["list all right-of-way widths shown"],
-  "adjacentReferences": ["list all adjacent lot/tract/owner references"],
-  "changesFromPrevious": ["note any replat or amendment indicators"],
-  "narrative": "A 3-5 sentence summary of the plat for a field surveyor, noting key dimensions, monuments to look for, and any unusual features"
+  "lotDimensions": [
+    "For EVERY lot shown on the plat, list all dimensions. Format: 'Lot X: North line: 150.00 ft, South line: 148.50 ft, East line: 200.00 ft, West line: 200.00 ft, Area: 0.689 acres'",
+    "Include area calculations for each lot if shown (acres or square feet)",
+    "Note any irregular lot shapes or flag lots"
+  ],
+  "bearingsAndDistances": [
+    "List EVERY bearing and distance call on the plat, going clockwise from the POB for each boundary",
+    "Format exactly as shown: 'N 45°30'15\" E, 200.50 ft'",
+    "Include the lot or boundary line each call belongs to: 'Lot 3 North line: S 89°59'30\" W, 150.00 ft'",
+    "Transcribe calls along ROW, common lot lines, and outer boundary separately"
+  ],
+  "monuments": [
+    "List ALL monuments shown: iron rods (IRF = iron rod found, IRS = iron rod set), iron pipes, concrete monuments, PK nails, railroad spikes, caps",
+    "Include the RPLS number stamped on any caps: 'IRF w/ cap RPLS 5432'",
+    "Note 'found' vs 'set' for each monument",
+    "Include the location: 'IRS at NE corner of Lot 5'"
+  ],
+  "easements": [
+    "List ALL easements shown with FULL details",
+    "Format: 'Type: 10-ft utility easement along east line of Lots 1-5, beneficiary: Oncor Electric'",
+    "Include: utility (electric, gas, water, sewer, telecom), drainage, access, pipeline, conservation",
+    "Note centerline vs. edge-of-lot easements",
+    "Include any blanket easements, building setback lines, and no-build zones"
+  ],
+  "curves": [
+    "List ALL curve data with complete parameters",
+    "Format: 'Curve C1: Radius=500.00 ft, Arc=125.50 ft, Chord=N 45°15'00\" E 124.80 ft, Delta=14°22'30\", Direction=Right'",
+    "Include the associated lot line or ROW each curve belongs to"
+  ],
+  "rowWidths": [
+    "List ALL right-of-way widths shown",
+    "Format: 'FM 436: 100 ft ROW (50 ft from centerline)', 'Local Road: 60 ft ROW'",
+    "Note variable-width ROW sections",
+    "Include any ROW dedication notes"
+  ],
+  "adjacentReferences": [
+    "List ALL adjacent lot, tract, owner, and survey references",
+    "Format: 'North: Lot 12, Block A, Smith Addition (Vol. 200, Pg. 15)'",
+    "Include abstract/survey references for adjacent tracts",
+    "Note any called-for adjacent owners by name"
+  ],
+  "changesFromPrevious": [
+    "Note any replat or amendment indicators",
+    "Reference to the original plat being amended",
+    "Lot line adjustments, new lot configurations",
+    "Any notes about variances or exceptions granted"
+  ],
+  "narrative": "Write a detailed 5-10 sentence summary for a field surveyor who will be staking this property. Include: (1) the subdivision name and filing info, (2) total number of lots and reserves, (3) overall dimensions and area, (4) key monuments to search for (what type, where), (5) any unusual features (flag lots, irregular shapes, cul-de-sacs), (6) the surveyor of record (name and RPLS number), (7) the datum and coordinate system used, (8) any notes or certifications shown on the plat, (9) drainage patterns or detention areas, (10) setback or building line requirements. This narrative should give the surveyor a complete picture before going to the field."
 }
 
-Be thorough — every dimension, call, and monument matters for the survey.`,
+IMPORTANT: Be exhaustive. A missing dimension or monument could cause the field surveyor to miss a property corner. Transcribe every number exactly as shown on the plat. If a value is partially illegible, include it with [?] notation.`,
           },
         ],
       }],

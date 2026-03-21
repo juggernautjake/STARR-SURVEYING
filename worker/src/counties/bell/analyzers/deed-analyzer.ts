@@ -221,33 +221,35 @@ async function analyzeDeedException(
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
+      max_tokens: 12000,
       messages: [{
         role: 'user',
         content: [
           ...imageContent,
           {
             type: 'text',
-            text: `You are an expert Texas Registered Professional Land Surveyor (RPLS) and title examiner analyzing a deed document from Bell County, Texas. Extract ALL information with maximum thoroughness and precision.
+            text: `You are an expert Texas Registered Professional Land Surveyor (RPLS) and title examiner analyzing a deed document from Bell County, Texas. Extract ALL information with maximum thoroughness and precision. This analysis will be used directly by a field surveyor to locate property corners and boundaries.
 
-REQUIRED EXTRACTION — do not skip any section:
+REQUIRED EXTRACTION — do not skip any section. Be exhaustive.
 
-1. **Document Type**: warranty deed, deed of trust, special warranty deed, quitclaim, easement, right-of-way, restrictive covenant, etc.
+1. **Document Type**: warranty deed, deed of trust, special warranty deed, quitclaim, easement, right-of-way, restrictive covenant, correction deed, etc. Note if this is a correction or amendment to a prior instrument.
 
-2. **Parties**: Full legal names of Grantor (seller/from) and Grantee (buyer/to). Include middle names, suffixes (Jr., Sr., III), entity types (LLC, LP, Inc.), and trustee designations.
+2. **Parties**: Full legal names of Grantor (seller/from) and Grantee (buyer/to). Include middle names, suffixes (Jr., Sr., III), entity types (LLC, LP, Inc.), and trustee designations. If married couples, note "husband and wife" or "as their community property."
 
-3. **Recording Information**: Recording date, instrument number, volume/page (if older deed), county clerk file number, any cross-references.
+3. **Recording Information**: Recording date, instrument number, volume/page (if older deed), county clerk file number, any cross-references to other instruments. Note the county of recording and state.
 
-4. **Legal Description — TRANSCRIBE IN FULL**:
-   - Point of Beginning (POB): full description including reference monument, distance, and bearing from a known point
-   - ALL bearing/distance calls: transcribe EXACTLY as written (e.g., "N 45°30'15" E, 200.50 feet" or "S 89°59'30" W, 461.81 ft")
-   - ALL curve data: radius, arc length, chord bearing, chord distance, delta angle, direction (left/right)
-   - ALL monument descriptions at each call point: iron rod, iron pin, concrete monument, PK nail, railroad spike, etc. with "found" or "set"
-   - Along lines: "along the south line of Lot 12", "along the north R.O.W. line of FM 436"
-   - Texas vara measurements: note if varas are used (1 vara = 33⅓ inches = 2.7778 feet)
-   - Closure: does the description close back to the POB?
+4. **Legal Description — TRANSCRIBE IN FULL WITH EXACT PRECISION**:
+   - Point of Beginning (POB): full description including reference monument, distance, and bearing from a known point. If the POB references a survey corner, name the survey.
+   - ALL bearing/distance calls: transcribe EXACTLY as written (e.g., "N 45°30'15" E, 200.50 feet" or "S 89°59'30" W, 461.81 ft"). Do not paraphrase or approximate — copy each call verbatim.
+   - ALL curve data: radius, arc length, chord bearing, chord distance, delta angle, direction (left/right), center point if given
+   - ALL monument descriptions at each call point: iron rod, iron pin, concrete monument, PK nail, railroad spike, cap stamped "RPLS #XXXX", etc. Note "found" vs "set" for each monument.
+   - Along lines: "along the south line of Lot 12", "along the north R.O.W. line of FM 436" — note which boundary each call runs along
+   - Texas vara measurements: note if varas are used (1 vara = 33⅓ inches = 2.7778 feet). Convert to feet if possible.
+   - Closure: does the description close back to the POB? Note closure distance and bearing if stated.
+   - If the legal description references a survey or field notes by book and page, transcribe that reference exactly.
+   - If the description says "more or less" or "approximately", note it — this affects boundary precision.
 
-5. **Lot/Block/Subdivision**: Lot number, block number, subdivision/addition name, phase, abstract/survey name and number (e.g., "A-488")
+5. **Lot/Block/Subdivision**: Lot number, block number, subdivision/addition name, phase/section, filing information, abstract/survey name and number (e.g., "Abstract No. 488, William Hartrick Survey"). Note any replat or amended plat references.
 
 6. **Prior Deed References — CRITICAL FOR DEED CHAIN HISTORY**:
    - ALL references to prior deeds: "being the same property conveyed in Vol. 465, Pg. 96" or "Instrument No. 2010043440"
@@ -255,20 +257,27 @@ REQUIRED EXTRACTION — do not skip any section:
    - Survey/abstract references: "situated in the William Hartrick Survey, Abstract No. 488"
    - Any "called from" references mentioning adjacent owners by name
    - Previous instrument numbers or recording references in the body of the deed
+   - Plat recording references: "as shown on plat recorded in Cabinet X, Slide Y" or "Plat Cabinet A, Page B"
 
-7. **Easements & Encumbrances**: ALL easements created, referenced, or reserved — utility, drainage, access, conservation. Include width, location, and beneficiary.
+7. **Easements & Encumbrances**: ALL easements created, referenced, or reserved — utility (electric, gas, water, sewer, telecom), drainage, access/ingress-egress, conservation, pipeline. Include width (e.g., "10-foot utility easement"), location description, and beneficiary entity. Note if easements run along specific boundary lines.
 
-8. **Right-of-Way**: Any ROW dedications or references to existing ROW (TxDOT, county road, FM road)
+8. **Right-of-Way**: Any ROW dedications or references to existing ROW (TxDOT, county road, FM road). Note the ROW width and which side of centerline. Reference any condemnation or acquisition instruments.
 
-9. **Financial**: Consideration (price), liens, deed of trust references
+9. **Financial**: Consideration (price), liens, deed of trust references, assumption clauses
 
-10. **Area**: Acreage or square footage as stated, "more or less" qualifier
+10. **Area**: Acreage or square footage as stated. Note "more or less" qualifier. If both are given, note any discrepancy. If the area is computed from calls vs. stated area, note the difference.
 
-11. **Special Provisions**: Restrictions, covenants, mineral reservations, timber rights, water rights, homestead disclaimers
+11. **Special Provisions**: Restrictions, covenants, mineral reservations (surface only? ½ minerals?), timber rights, water rights, homestead disclaimers, subordination agreements, conditions of conveyance
 
-12. **Adjacent Owners**: Any neighboring property owners mentioned by name in the boundary description
+12. **Adjacent Owners & Properties**: Any neighboring property owners mentioned by name in the boundary description. Note the relationship (e.g., "along the east line of a tract owned by Smith")
 
-FORMAT your response as a detailed narrative summary suitable for a field surveyor. Start with document identification, then systematic description of the boundary, then all references and encumbrances. Mark uncertain readings with [?].`,
+13. **Confidence Assessment**: For each major section, rate your confidence:
+    - HIGH: clearly readable, unambiguous
+    - MEDIUM: some characters unclear but context makes meaning obvious
+    - LOW: partially illegible, marked with [?]
+    Note any portions of the document that are cut off, obscured, or illegible.
+
+FORMAT your response as a detailed narrative summary suitable for a field surveyor preparing to stake this property. Start with document identification, then systematic description of the boundary (going around the tract clockwise from the POB), then all references and encumbrances. Group related information together. Mark uncertain readings with [?] and note why they are uncertain.`,
           },
         ],
       }],
@@ -387,7 +396,7 @@ async function generateDeedSummary(
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
+      max_tokens: 4000,
       messages: [{
         role: 'user',
         content: `You are a senior Texas RPLS and title examiner. Synthesize a comprehensive property ownership history for a Bell County, Texas surveyor.
