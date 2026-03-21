@@ -115,13 +115,17 @@ function categorizeDocument(
   if (storagePath?.includes('/artifacts/tax/')) return 'tax';
 
   // Fall back to document type
-  if (docType === 'deed') return 'deeds';
-  if (docType === 'plat' || docType === 'subdivision_plat') return 'plats';
-  if (docType === 'survey') return 'surveys';
+  if (docType === 'deed' || docType === 'deed_screenshot') return 'deeds';
+  if (docType === 'plat' || docType === 'subdivision_plat' || docType === 'plat_screenshot') return 'plats';
+  if (docType === 'survey' || docType === 'field_notes' || docType === 'metes_and_bounds') return 'surveys';
   if (docType === 'easement') return 'easements';
   if (docType === 'aerial_photo') return 'aerial';
   if (docType === 'topo_map') return 'topo';
-  if (docType === 'appraisal_record') return 'tax';
+  if (docType === 'appraisal_record' || docType === 'property_report') return 'tax';
+  if (docType === 'flood_map') return 'fema';
+  if (docType === 'road_map' || docType === 'utility_map') return 'txdot';
+  if (docType === 'gis_map' || docType === 'map_screenshot') return 'screenshots';
+  if (docType === 'county_record' || docType === 'legal_description') return 'other';
 
   // Check label
   if (label?.toLowerCase().includes('misc screenshot')) return 'screenshots-misc';

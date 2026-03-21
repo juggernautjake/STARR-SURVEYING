@@ -167,6 +167,11 @@ export default function ResearchProjectPage() {
   // Set to true the moment any pipeline run begins (deep or lite).
   // Used to hide the intro title/description once research is underway.
   const [pipelineHasStarted, setPipelineHasStarted] = useState(false);
+  // When the pipeline completes, the worker sets status='review' in the DB.
+  // But we want the user to stay on the research stage and click the green
+  // "Continue to Review" button before navigating. This flag holds the user
+  // on the research stage until they explicitly click through.
+  const [holdOnResearchStage, setHoldOnResearchStage] = useState(false);
 
   // Review state
   const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'discrepancies' | 'artifacts'>('summary');
@@ -1396,8 +1401,11 @@ export default function ResearchProjectPage() {
 
   if (!project) return null;
 
-  // Derive the current pipeline stage from the underlying DB status
-  const currentStage = workflowStepToStage(project.status);
+  // Derive the current pipeline stage from the underlying DB status.
+  // When holdOnResearchStage is true, the user stays on Stage 2 even though
+  // the DB status may already be 'review' — until they click "Continue to Review".
+  const dbStage = workflowStepToStage(project.status);
+  const currentStage = (holdOnResearchStage && dbStage === 'review') ? 'research' : dbStage;
   // Count only manually uploaded documents (excludes internet-sourced pipeline imports)
   const uploadedDocumentCount = documents.filter(d => d.source_type === 'user_upload').length;
 
@@ -1560,6 +1568,7 @@ export default function ResearchProjectPage() {
               autoStart={shouldAutoStartPipeline}
               onPipelineStart={() => {
                 setPipelineHasStarted(true);
+                setHoldOnResearchStage(true);
               }}
               onPipelineComplete={(status) => {
                 setShouldAutoStartPipeline(false);
@@ -1571,9 +1580,15 @@ export default function ResearchProjectPage() {
                 handleRevertToStep('upload');
               }}
               onContinueToReview={() => {
+                setHoldOnResearchStage(false);
                 loadDocuments();
                 loadProject();
                 handleStatusUpdate('review');
+                // The worker persists artifacts asynchronously after reporting
+                // completion, so documents may still be writing to the DB.
+                // Retry loading after short delays to catch late arrivals.
+                setTimeout(() => loadDocuments(), 3000);
+                setTimeout(() => loadDocuments(), 8000);
               }}
             />
           </div>
@@ -2390,7 +2405,10 @@ export default function ResearchProjectPage() {
               title_commitment: '📋', easement: '🛤️', restrictive_covenant: '📄',
               field_notes: '📓', subdivision_plat: '🏘️', metes_and_bounds: '📏',
               county_record: '🏛️', appraisal_record: '💰', aerial_photo: '🛰️',
-              topo_map: '🗻', utility_map: '🔌', other: '📎',
+              topo_map: '🗻', utility_map: '🔌',
+              gis_map: '🗺️', flood_map: '🌊', property_report: '🏠', road_map: '🛣️',
+              deed_screenshot: '📜', plat_screenshot: '🗺️', map_screenshot: '🗺️',
+              other: '📎',
             };
             const sourceTypeLabels: Record<string, { label: string; icon: string }> = {
               property_search:  { label: 'Research — Web Sources', icon: '🔍' },
