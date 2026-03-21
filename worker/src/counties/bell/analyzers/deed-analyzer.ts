@@ -168,10 +168,9 @@ interface ImageRegion {
 /**
  * Split a base64 image into overlapping regions for thorough OCR analysis.
  * Strategy:
- *  - 2 horizontal halves (top/bottom) with 15% overlap
- *  - 4 quadrants (top-left, top-right, bottom-left, bottom-right) with 15% overlap
  *  - Full image as context
- * Total: up to 7 regions per image for maximum coverage.
+ *  - 2 horizontal halves (top/bottom) with 15% overlap
+ * Total: up to 3 regions per image — balances coverage with API call count.
  */
 async function splitImageIntoRegions(base64Img: string): Promise<ImageRegion[]> {
   try {
@@ -222,9 +221,7 @@ async function splitImageIntoRegions(base64Img: string): Promise<ImageRegion[]> 
     }
 
     const halfH = height / 2;
-    const halfW = width / 2;
     const overlapH = height * OVERLAP;
-    const overlapW = width * OVERLAP;
 
     // Full image (resized)
     const fullResized = await resizeDeedImage(base64Img);
@@ -239,18 +236,6 @@ async function splitImageIntoRegions(base64Img: string): Promise<ImageRegion[]> 
     // Bottom half (with overlap into top)
     const bottomHalf = await cropRegion(0, halfH - overlapH, width, halfH + overlapH, 'bottom half');
     if (bottomHalf) regions.push(bottomHalf);
-
-    // 4 quadrants with overlap
-    const quadrants = [
-      { left: 0, top: 0, w: halfW + overlapW, h: halfH + overlapH, label: 'top-left quadrant' },
-      { left: halfW - overlapW, top: 0, w: halfW + overlapW, h: halfH + overlapH, label: 'top-right quadrant' },
-      { left: 0, top: halfH - overlapH, w: halfW + overlapW, h: halfH + overlapH, label: 'bottom-left quadrant' },
-      { left: halfW - overlapW, top: halfH - overlapH, w: halfW + overlapW, h: halfH + overlapH, label: 'bottom-right quadrant' },
-    ];
-    for (const q of quadrants) {
-      const region = await cropRegion(q.left, q.top, q.w, q.h, q.label);
-      if (region) regions.push(region);
-    }
 
     // Assign indices
     for (let i = 0; i < regions.length; i++) {

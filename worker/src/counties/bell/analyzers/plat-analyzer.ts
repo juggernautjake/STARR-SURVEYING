@@ -139,7 +139,7 @@ interface PlatImageRegion {
  * Plats are typically large, detailed drawings — splitting extracts fine detail
  * that would be lost when the image is downsized to fit API limits.
  *
- * Strategy: full image + 2 halves + 4 quadrants = up to 7 regions with 15% overlap.
+ * Strategy: full image + 2 halves = up to 3 regions with 15% overlap.
  */
 async function splitPlatImageIntoRegions(base64Img: string): Promise<PlatImageRegion[]> {
   try {
@@ -187,9 +187,7 @@ async function splitPlatImageIntoRegions(base64Img: string): Promise<PlatImageRe
     }
 
     const halfH = height / 2;
-    const halfW = width / 2;
     const overlapH = height * OVERLAP;
-    const overlapW = width * OVERLAP;
 
     // Full image (resized)
     const fullResized = await resizePlatImage(base64Img);
@@ -197,23 +195,13 @@ async function splitPlatImageIntoRegions(base64Img: string): Promise<PlatImageRe
       regions.push({ ...fullResized, label: 'full image (overview)', regionIndex: 0, totalRegions: 0 });
     }
 
-    // Halves
+    // Top half (with overlap into bottom)
     const topHalf = await cropRegion(0, 0, width, halfH + overlapH, 'top half');
     if (topHalf) regions.push(topHalf);
+
+    // Bottom half (with overlap into top)
     const bottomHalf = await cropRegion(0, halfH - overlapH, width, halfH + overlapH, 'bottom half');
     if (bottomHalf) regions.push(bottomHalf);
-
-    // Quadrants
-    const quadrants = [
-      { left: 0, top: 0, w: halfW + overlapW, h: halfH + overlapH, label: 'top-left quadrant' },
-      { left: halfW - overlapW, top: 0, w: halfW + overlapW, h: halfH + overlapH, label: 'top-right quadrant' },
-      { left: 0, top: halfH - overlapH, w: halfW + overlapW, h: halfH + overlapH, label: 'bottom-left quadrant' },
-      { left: halfW - overlapW, top: halfH - overlapH, w: halfW + overlapW, h: halfH + overlapH, label: 'bottom-right quadrant' },
-    ];
-    for (const q of quadrants) {
-      const region = await cropRegion(q.left, q.top, q.w, q.h, q.label);
-      if (region) regions.push(region);
-    }
 
     for (let i = 0; i < regions.length; i++) {
       regions[i].regionIndex = i + 1;
