@@ -120,6 +120,16 @@ export interface ArtifactPageImage {
   imageBase64: string;
   /** Source URL from scraper */
   sourceUrl: string | null;
+  /** Rich display label for the document (e.g. "WARRANTY DEED — Smith to Jones (Instr. 123)") */
+  documentLabel?: string;
+  /** Recording info (e.g. "Instrument No. 123 — Vol. 4, Pg. 56") */
+  recordingInfo?: string;
+  /** Recording date */
+  recordedDate?: string | null;
+  /** AI analysis text / extracted text to persist */
+  extractedText?: string | null;
+  /** Document type override (e.g. 'deed', 'subdivision_plat') */
+  documentType?: string | null;
 }
 
 export interface ArtifactUploadResult {
@@ -490,10 +500,15 @@ export async function uploadPipelineArtifacts(
       }
 
       // 3. Create ONE research_documents row for this document
-      //    with the PDF URL for viewing and page URLs stored in ocr_regions JSON
-      const displayLabel = pages.length > 1
-        ? `${capitalizeFirst(category)}: ${label} (${pages.length} pages)`
-        : `${capitalizeFirst(category)}: ${label}`;
+      //    with the PDF URL for viewing and page URLs stored in ocr_regions JSON.
+      //    Use rich metadata from the pipeline when available (documentLabel, extractedText, etc.)
+      const richLabel = firstPage.documentLabel;
+      const displayLabel = richLabel
+        ? (pages.length > 1 ? `${richLabel} (${pages.length} pages)` : richLabel)
+        : (pages.length > 1
+          ? `${capitalizeFirst(category)}: ${label} (${pages.length} pages)`
+          : `${capitalizeFirst(category)}: ${label}`);
+      const finalDocType = firstPage.documentType || docType;
 
       const { error: docInsertErr } = await resilientInsertDocument(supabase, {
         research_project_id: projectId,
@@ -505,11 +520,14 @@ export async function uploadPipelineArtifacts(
         storage_url: pageUrls[0] || null,         // First page image for thumbnail
         pages_pdf_url: pdfUrl,                      // Bundled PDF for inline viewing
         source_url: firstPage.sourceUrl,
-        document_type: docType,
+        document_type: finalDocType,
         document_label: displayLabel,
         page_count: pages.length,
-        processing_status: 'analyzed',
+        processing_status: firstPage.extractedText ? 'analyzed' : 'analyzed',
         ocr_regions: JSON.stringify({ pageUrls }),  // Store all page URLs for gallery
+        extracted_text: firstPage.extractedText?.slice(0, 50_000) || null,
+        recording_info: firstPage.recordingInfo || null,
+        recorded_date: firstPage.recordedDate || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
