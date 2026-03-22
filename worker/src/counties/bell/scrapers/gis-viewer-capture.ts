@@ -426,15 +426,16 @@ export async function captureGisViewerScreenshots(
     progress('[Screenshot E1] Navigating to level 26 for aerial tight view...');
     await navigateToParcelAtLevel(page, input, 26, progress);
     await switchToAerialBasemap(page); // Re-apply after navigation (page reload resets basemap)
+    await toggleEagleViewLayer(page, true);
     await toggleParcelLayer(page, true);
     await toggleLotLineLayer(page, true);
     await page.waitForTimeout(POST_NAV_RENDER_WAIT);
     const ssAerialTight = await takeScreenshot(page, 'GIS Viewer',
-      `Aerial eagle view (tight) WITH property lines — ${input.propertyId ?? ''} — ${input.situsAddress ?? ''}`);
+      `Aerial eagle view (tight) WITH property lines + 2026 EagleView — ${input.propertyId ?? ''} — ${input.situsAddress ?? ''}`);
     if (ssAerialTight) {
       results.push(ssAerialTight);
       logDetail('screenshot-E1', `Aerial tight captured: ${ssAerialTight.imageBase64.length} base64 chars`, { level: 26 });
-      progress(`[Screenshot E1] ✓ Aerial tight + property lines — ${Math.round(ssAerialTight.imageBase64.length / 1024)}KB`);
+      progress(`[Screenshot E1] ✓ Aerial tight + property lines + EagleView — ${Math.round(ssAerialTight.imageBase64.length / 1024)}KB`);
     } else {
       logDetail('screenshot-E1', 'Aerial tight FAILED');
       progress('[Screenshot E1] ✗ FAILED — aerial tight screenshot returned null');
@@ -445,15 +446,16 @@ export async function captureGisViewerScreenshots(
     progress('[Screenshot E2] Navigating to level 24 for aerial parcel view...');
     await navigateToParcelAtLevel(page, input, 24, progress);
     await switchToAerialBasemap(page);
+    await toggleEagleViewLayer(page, true);
     await toggleParcelLayer(page, true);
     await toggleLotLineLayer(page, true);
     await page.waitForTimeout(POST_NAV_RENDER_WAIT);
     const ssAerialLines = await takeScreenshot(page, 'GIS Viewer',
-      `Aerial eagle view WITH property lines — ${input.propertyId ?? ''} — ${input.situsAddress ?? ''}`);
+      `Aerial eagle view WITH property lines + 2026 EagleView — ${input.propertyId ?? ''} — ${input.situsAddress ?? ''}`);
     if (ssAerialLines) {
       results.push(ssAerialLines);
       logDetail('screenshot-E2', `Aerial with lines captured: ${ssAerialLines.imageBase64.length} base64 chars`, { level: 24 });
-      progress(`[Screenshot E2] ✓ Aerial + property lines — ${Math.round(ssAerialLines.imageBase64.length / 1024)}KB`);
+      progress(`[Screenshot E2] ✓ Aerial + property lines + EagleView — ${Math.round(ssAerialLines.imageBase64.length / 1024)}KB`);
     } else {
       logDetail('screenshot-E2', 'Aerial with lines FAILED');
       progress('[Screenshot E2] ✗ FAILED — aerial + property lines screenshot returned null');
@@ -464,30 +466,32 @@ export async function captureGisViewerScreenshots(
     progress('[Screenshot E3] Navigating to level 22 for aerial subdivision overview...');
     await navigateToParcelAtLevel(page, input, 22, progress);
     await switchToAerialBasemap(page);
+    await toggleEagleViewLayer(page, true);
     await toggleParcelLayer(page, true);
     await toggleLotLineLayer(page, true);
     await page.waitForTimeout(POST_NAV_RENDER_WAIT);
     const ssAerialSubdiv = await takeScreenshot(page, 'GIS Viewer',
-      `Aerial eagle view — subdivision — ${input.subdivisionName ?? ''} — ${input.situsAddress ?? ''}`);
+      `Aerial eagle view — subdivision + 2026 EagleView — ${input.subdivisionName ?? ''} — ${input.situsAddress ?? ''}`);
     if (ssAerialSubdiv) {
       results.push(ssAerialSubdiv);
       logDetail('screenshot-E3', `Aerial subdivision captured: ${ssAerialSubdiv.imageBase64.length} base64 chars`, { level: 22 });
-      progress(`[Screenshot E3] ✓ Aerial subdivision overview — ${Math.round(ssAerialSubdiv.imageBase64.length / 1024)}KB`);
+      progress(`[Screenshot E3] ✓ Aerial subdivision overview + EagleView — ${Math.round(ssAerialSubdiv.imageBase64.length / 1024)}KB`);
     } else {
       logDetail('screenshot-E3', 'Aerial subdivision FAILED');
       progress('[Screenshot E3] ✗ FAILED — aerial subdivision screenshot returned null');
     }
 
-    // ── Screenshot F: Clean aerial (no lines) ───────────────────
-    logDetail('screenshot-F', 'Capturing clean aerial (toggling off parcel + lot line layers)');
-    progress('[Screenshot F] Navigating to level 25 and toggling off property lines...');
+    // ── Screenshot F: Clean aerial (no lines) — 2026 EagleView only ──
+    logDetail('screenshot-F', 'Capturing clean aerial (toggling off parcel + lot line layers, EagleView on)');
+    progress('[Screenshot F] Navigating to level 25, EagleView on, property lines off...');
     await navigateToParcelAtLevel(page, input, 25, progress);
     await switchToAerialBasemap(page);
+    await toggleEagleViewLayer(page, true);
     await toggleParcelLayer(page, false);
     await toggleLotLineLayer(page, false);
     await page.waitForTimeout(POST_NAV_RENDER_WAIT);
     const ssAerialClean = await takeScreenshot(page, 'GIS Viewer',
-      `Aerial eagle view WITHOUT property lines — ${input.situsAddress ?? ''}`);
+      `Aerial 2026 EagleView WITHOUT property lines — ${input.situsAddress ?? ''}`);
     if (ssAerialClean) {
       results.push(ssAerialClean);
       logDetail('screenshot-F', `Clean aerial captured: ${ssAerialClean.imageBase64.length} base64 chars`, { level: 25 });
@@ -545,12 +549,13 @@ export async function captureGisViewerScreenshots(
       basemap: 'streets' | 'aerial';
       parcels: boolean;
       lotLines: boolean;
+      eagleView: boolean;
       level: number; // Absolute zoom level
     }> = [
-      { label: 'Lot lines only (dimensions)', basemap: 'streets', parcels: false, lotLines: true, level: 26 },
-      { label: 'Aerial max zoom with lot lines', basemap: 'aerial', parcels: false, lotLines: true, level: 26 },
-      { label: 'Neighborhood context — streets', basemap: 'streets', parcels: true, lotLines: true, level: 20 },
-      { label: 'Aerial neighborhood context', basemap: 'aerial', parcels: true, lotLines: true, level: 20 },
+      { label: 'Lot lines only (dimensions)', basemap: 'streets', parcels: false, lotLines: true, eagleView: false, level: 26 },
+      { label: 'Aerial max zoom + lot lines + EagleView', basemap: 'aerial', parcels: false, lotLines: true, eagleView: true, level: 26 },
+      { label: 'Neighborhood context — streets', basemap: 'streets', parcels: true, lotLines: true, eagleView: false, level: 20 },
+      { label: 'Aerial neighborhood + EagleView', basemap: 'aerial', parcels: true, lotLines: true, eagleView: true, level: 20 },
     ];
 
     for (const combo of layerCombinations) {
@@ -564,6 +569,7 @@ export async function captureGisViewerScreenshots(
         } else {
           await switchToStreetsBasemap(page);
         }
+        await toggleEagleViewLayer(page, combo.eagleView);
         await toggleParcelLayer(page, combo.parcels);
         await toggleLotLineLayer(page, combo.lotLines);
         await page.waitForTimeout(POST_NAV_RENDER_WAIT);
@@ -1341,6 +1347,15 @@ async function toggleParcelLayer(page: any, visible: boolean): Promise<void> {
 async function toggleLotLineLayer(page: any, visible: boolean): Promise<void> {
   gisLog('layer-toggle', `Toggling lot line layer: visible=${visible}`);
   await toggleLayerByTitle(page, ['Lot Lines', 'lot lines', 'LOT LINES', 'LotLines'], visible);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function toggleEagleViewLayer(page: any, visible: boolean): Promise<void> {
+  gisLog('layer-toggle', `Toggling 2026 EagleView Mosaic layer: visible=${visible}`);
+  await toggleLayerByTitle(page, [
+    '2026 EagleView Mosiac', '2026 EagleView Mosaic',  // Note: Bell CAD spells it "Mosiac" (typo)
+    '2026 eagleview mosiac', '2026 eagleview mosaic',
+  ], visible);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
