@@ -344,7 +344,13 @@ function Lightbox({
     function onWheel(e: WheelEvent) {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.15 : 0.15;
-      setZoom(prev => Math.min(Math.max(prev + delta, 0.1), 10));
+      setZoom(prev => {
+        const next = Math.min(Math.max(prev + delta, 0.1), 10);
+        console.log(`[ArtifactGallery] Scroll zoom: ${(prev * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`, {
+          artifact: artifact?.label, deltaY: e.deltaY,
+        });
+        return next;
+      });
     }
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -366,6 +372,7 @@ function Lightbox({
   const handleMouseUp = useCallback(() => setDragging(false), []);
 
   function resetView() {
+    console.log(`[ArtifactGallery] Reset view — zoom: ${(zoom * 100).toFixed(0)}% → 100%`, { artifact: artifact?.label });
     setZoom(1);
     setPosition({ x: 0, y: 0 });
   }
@@ -385,9 +392,9 @@ function Lightbox({
         <div className="artifact-lightbox__controls">
           {isImage && (
             <>
-              <button onClick={() => setZoom(z => Math.max(z - 0.25, 0.1))} title="Zoom out">−</button>
+              <button onClick={() => setZoom(z => { const next = Math.max(z - 0.25, 0.1); console.log(`[ArtifactGallery] Zoom OUT: ${(z * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`); return next; })} title="Zoom out">−</button>
               <span className="artifact-lightbox__zoom">{Math.round(zoom * 100)}%</span>
-              <button onClick={() => setZoom(z => Math.min(z + 0.25, 10))} title="Zoom in">+</button>
+              <button onClick={() => setZoom(z => { const next = Math.min(z + 0.25, 10); console.log(`[ArtifactGallery] Zoom IN: ${(z * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`); return next; })} title="Zoom in">+</button>
               <button onClick={resetView} title="Reset view">⟲</button>
             </>
           )}

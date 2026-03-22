@@ -67,8 +67,29 @@ export async function captureGisViewerScreenshots(
   onProgress: (p: GisViewerCaptureProgress) => void,
 ): Promise<ScreenshotCapture[]> {
   const results: ScreenshotCapture[] = [];
+  const captureStart = Date.now();
+  const captureLog: string[] = [];
+
+  const logDetail = (phase: string, msg: string, data?: Record<string, unknown>) => {
+    const ts = new Date().toISOString();
+    const elapsed = Date.now() - captureStart;
+    const entry = `[GIS-CAPTURE][${phase}][+${elapsed}ms] ${msg}`;
+    captureLog.push(entry);
+    console.log(entry, data ? JSON.stringify(data).slice(0, 500) : '');
+  };
+
+  logDetail('init', `Starting GIS viewer capture`, {
+    has_boundary: !!input.parcelBoundary,
+    lat: input.lat, lon: input.lon,
+    property_id: input.propertyId,
+    situs_address: input.situsAddress,
+    lot_number: input.lotNumber,
+    subdivision: input.subdivisionName,
+    boundary_points: input.parcelBoundary?.[0]?.length ?? 0,
+  });
 
   if (!input.parcelBoundary && !input.lat) {
+    logDetail('init', 'ABORT: No parcel boundary and no lat/lon — cannot proceed');
     return results;
   }
 
@@ -97,6 +118,8 @@ export async function captureGisViewerScreenshots(
 
   let browser;
   try {
+    logDetail('browser', 'Importing Playwright and launching Chromium...');
+    const browserLaunchStart = Date.now();
     const pw = await import('playwright');
     log('Launching Chromium browser...');
     browser = await pw.chromium.launch({
@@ -306,6 +329,7 @@ export async function captureGisViewerScreenshots(
     log(`FATAL: Browser-level error: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     if (browser) {
+      logDetail('cleanup', 'Closing browser');
       await browser.close().catch(() => {});
       log('Browser closed');
     }

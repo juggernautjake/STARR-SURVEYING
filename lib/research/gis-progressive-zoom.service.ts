@@ -307,48 +307,65 @@ async function queryParcelsAtZoom(
 function assessLotVisibility(
   parcels: NearbyParcelData[],
   zoom: number,
+  logger?: PipelineLogger,
 ): { lots_visible: boolean; lot_labels_readable: boolean; reason: string } {
+  logger?.debug('gis_zoom', `Assessing lot visibility at zoom ${zoom} with ${parcels.length} parcels`);
+
   if (parcels.length === 0) {
+    logger?.debug('gis_zoom', `Zoom ${zoom}: No parcels — lot visibility FALSE`);
     return { lots_visible: false, lot_labels_readable: false, reason: 'No parcels returned' };
   }
 
   const withLots = parcels.filter(p => p.lot != null && p.lot !== '');
   const withAddresses = parcels.filter(p => p.address != null && p.address !== '');
+  logger?.debug('gis_zoom', `Zoom ${zoom} parcel breakdown: ${withLots.length} with lots, ${withAddresses.length} with addresses, ${parcels.length} total`, {
+    with_lots: withLots.length, with_addresses: withAddresses.length, total: parcels.length,
+    sample_lots: withLots.slice(0, 3).map(p => ({ prop_id: p.prop_id, lot: p.lot, block: p.block })),
+  });
 
   // At neighborhood zoom (16), we expect many parcels but individual lots may not be distinguishable
   if (zoom <= 16) {
     if (parcels.length > 50) {
-      return { lots_visible: false, lot_labels_readable: false, reason: `Too many parcels (${parcels.length}) at zoom ${zoom} — lots not individually distinguishable` };
+      const result = { lots_visible: false, lot_labels_readable: false, reason: `Too many parcels (${parcels.length}) at zoom ${zoom} — lots not individually distinguishable` };
+      logger?.info('gis_zoom', `Zoom ${zoom} assessment: ${result.reason}`, { ...result, zoom });
+      return result;
     }
   }
 
   // At block zoom (18), we should see individual lots starting to appear
   if (zoom >= 18 && withLots.length > 0) {
     const lotRatio = withLots.length / parcels.length;
+    logger?.debug('gis_zoom', `Zoom ${zoom} lot ratio: ${(lotRatio * 100).toFixed(1)}% (${withLots.length}/${parcels.length})`, { lot_ratio: lotRatio });
     if (lotRatio >= 0.5) {
-      return {
+      const result = {
         lots_visible: true,
         lot_labels_readable: zoom >= 19,
         reason: `${withLots.length}/${parcels.length} parcels have lot data at zoom ${zoom}`,
       };
+      logger?.info('gis_zoom', `Zoom ${zoom} assessment: LOTS VISIBLE — ${result.reason}, labels ${result.lot_labels_readable ? 'READABLE' : 'not readable'}`, { ...result, zoom, lot_ratio: lotRatio });
+      return result;
     }
   }
 
   // At lot zoom (20+), we should definitely see individual lots
   if (zoom >= 20 && parcels.length > 0 && parcels.length <= 20) {
-    return {
+    const result = {
       lots_visible: true,
       lot_labels_readable: true,
       reason: `${parcels.length} parcels visible at lot-level zoom ${zoom}`,
     };
+    logger?.info('gis_zoom', `Zoom ${zoom} assessment: LOT-LEVEL DETAIL — ${result.reason}`, { ...result, zoom });
+    return result;
   }
 
   // Default assessment
-  return {
+  const result = {
     lots_visible: withLots.length > 0 && parcels.length <= 30,
     lot_labels_readable: withLots.length > 0 && zoom >= 19,
     reason: `${withLots.length} lots among ${parcels.length} parcels at zoom ${zoom}`,
   };
+  logger?.info('gis_zoom', `Zoom ${zoom} assessment (default): lots_visible=${result.lots_visible}, labels_readable=${result.lot_labels_readable} — ${result.reason}`, { ...result, zoom });
+  return result;
 }
 
 // ── Main Progressive Zoom Function ───────────────────────────────────────────
@@ -402,7 +419,7 @@ export async function progressiveZoomCapture(
     const zoomStart = Date.now();
 
     const parcels = await queryParcelsAtZoom(coords.lat, coords.lon, level.zoom, logger);
-    const visibility = assessLotVisibility(parcels, level.zoom);
+    const visibility = assessLotVisibility(parcels, level.zoom, logger);
 
     logger.info('gis_zoom', `Zoom ${level.zoom} (${level.label}): ${parcels.length} parcels, lots_visible=${visibility.lots_visible}`, {
       zoom: level.zoom,
