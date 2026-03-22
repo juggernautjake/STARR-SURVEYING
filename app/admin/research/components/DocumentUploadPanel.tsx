@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ResearchDocument, DocumentType } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
+import SourceDocumentViewer from './SourceDocumentViewer';
 
 interface DocumentUploadPanelProps {
   projectId: string;
@@ -584,8 +585,8 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
         </div>
       )}
       {viewingDoc && (
-        <DocumentViewerModal
-          doc={viewingDoc}
+        <SourceDocumentViewer
+          document={viewingDoc}
           onClose={() => setViewingDoc(null)}
         />
       )}
