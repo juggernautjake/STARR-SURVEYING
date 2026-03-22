@@ -267,15 +267,11 @@ describe('GIS Viewer Capture — screenshot logging', () => {
     consoleSpy.mockRestore();
   });
 
-  it('3-1. captureGisViewerScreenshots logs init with input details', async () => {
-    // We can't fully run the Playwright-based function without a browser,
-    // but we can verify the logging pattern by checking that the function
-    // starts with proper logging when given null boundary and lat=0.
+  it('3-1. captureGisViewerScreenshots logs init and abort on missing coords', async () => {
     const { captureGisViewerScreenshots } = await import(
       '../../worker/src/counties/bell/scrapers/gis-viewer-capture'
     );
 
-    const progressLogs: string[] = [];
     const results = await captureGisViewerScreenshots(
       {
         parcelBoundary: null,
@@ -286,22 +282,24 @@ describe('GIS Viewer Capture — screenshot logging', () => {
         lotNumber: null,
         subdivisionName: null,
       },
-      (p) => progressLogs.push(p.message),
+      () => {},
     );
 
     expect(results).toEqual([]);
-    // The function should have logged the ABORT via console.log
+    // The function logs [GIS-CAPTURE][init] entries — both the startup and abort
     expect(consoleSpy).toHaveBeenCalled();
     const logArgs = consoleSpy.mock.calls.map((c: unknown[]) => String(c[0]));
-    expect(logArgs.some((l: string) => l.includes('[GIS-CAPTURE]'))).toBe(true);
+    const gisCaptureEntries = logArgs.filter((l: string) => l.includes('[GIS-CAPTURE]'));
+    expect(gisCaptureEntries.length).toBeGreaterThanOrEqual(2); // init + abort
+    expect(gisCaptureEntries.some((l: string) => l.includes('[init]'))).toBe(true);
+    expect(gisCaptureEntries.some((l: string) => l.includes('ABORT'))).toBe(true);
   });
 
-  it('3-2. progress callback receives timestamped messages', async () => {
+  it('3-2. captureGisViewerScreenshots logs structured input data on init', async () => {
     const { captureGisViewerScreenshots } = await import(
       '../../worker/src/counties/bell/scrapers/gis-viewer-capture'
     );
 
-    const progressMessages: Array<{ phase: string; message: string; timestamp: string }> = [];
     await captureGisViewerScreenshots(
       {
         parcelBoundary: null,
@@ -312,14 +310,16 @@ describe('GIS Viewer Capture — screenshot logging', () => {
         lotNumber: '5',
         subdivisionName: 'Test Subdivision',
       },
-      (p) => progressMessages.push(p),
+      () => {},
     );
 
-    // Even with early return (lat=0), we should get some progress messages
-    // because the logging fires before the early return check
-    // Actually with lat=0 (falsy), the function returns immediately
-    // so no progress messages. That's fine — the test verifies the interface.
-    expect(Array.isArray(progressMessages)).toBe(true);
+    // Verify the init log includes the structured input data
+    const logArgs = consoleSpy.mock.calls.map((c: unknown[]) => String(c.join(' ')));
+    const initLog = logArgs.find((l: string) => l.includes('[init]') && l.includes('Starting'));
+    expect(initLog).toBeDefined();
+    // The structured data JSON should include our input values
+    expect(initLog).toContain('TEST-123');
+    expect(initLog).toContain('123 Test St');
   });
 });
 
@@ -520,7 +520,37 @@ describe('Zoom logging integration', () => {
     expect(messages.some(m => m.includes('complete'))).toBe(true);
   });
 
-  it('5-2. error during zoom produces actionable error trail', async () => {
+  it('5-2. GIS capture log entries use unified format with phase and elapsed time', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { captureGisViewerScreenshots } = await import(
+      '../../worker/src/counties/bell/scrapers/gis-viewer-capture'
+    );
+
+    await captureGisViewerScreenshots(
+      {
+        parcelBoundary: null,
+        lat: 0,
+        lon: 0,
+        propertyId: 'UNIFIED-001',
+        situsAddress: null,
+        lotNumber: null,
+        subdivisionName: null,
+      },
+      () => {},
+    );
+
+    const logArgs = consoleSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    const gisCaptureEntries = logArgs.filter((l: string) => l.includes('[GIS-CAPTURE]'));
+
+    // All GIS-CAPTURE entries should follow the unified format: [GIS-CAPTURE][phase][+Nms] message
+    for (const entry of gisCaptureEntries) {
+      expect(entry).toMatch(/\[GIS-CAPTURE\]\[\w[^\]]*\]\[\+\d+ms\]/);
+    }
+
+    consoleSpy.mockRestore();
+  });
+
+  it('5-3. error during zoom produces actionable error trail', async () => {
     const { PipelineLogger } = await import('../../lib/research/pipeline-logger');
     const logger = new PipelineLogger('integration-test-002');
 
