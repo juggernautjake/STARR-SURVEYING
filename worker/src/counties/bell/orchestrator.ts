@@ -45,6 +45,8 @@ import { computeConfidence, SOURCE_RELIABILITY } from './types/confidence.js';
 
 import { TIMEOUTS } from './config/endpoints.js';
 import { resolveAddressToLot, validateAddressParcelMatch } from '../../services/address-lot-resolver.js';
+import { getSupabase } from '../../services/pipeline.js';
+import { uploadDocumentIncremental, uploadScreenshotsIncremental, type ArtifactPageImage, type ArtifactScreenshot } from '../../services/artifact-uploader.js';
 import type { GisFeatureForMatching } from '../../services/address-lot-resolver.js';
 import {
   resetCreditGuard,
@@ -523,6 +525,45 @@ export async function orchestrateBellResearch(
       `images=${clerk.stats.imagesCaptured}`,
       32,
     );
+
+    // ── Incremental upload: deed + plat page images from clerk ──────
+    // Upload captured document pages NOW so they appear in the frontend
+    // gallery immediately, even if the user cancels later.
+    if (clerk.documents.length > 0 && input.projectId) {
+      const supabase = await getSupabase();
+      if (supabase) {
+        // First: delete any stale artifacts from previous runs
+        try {
+          await (supabase as any)
+            .from('research_documents')
+            .delete()
+            .eq('research_project_id', input.projectId)
+            .eq('source_type', 'property_search');
+        } catch { /* ignore cleanup errors */ }
+
+        for (const doc of clerk.documents) {
+          if (doc.pageImages.length === 0) continue;
+          const category = (doc.documentType || '').toLowerCase().includes('plat') ? 'plat' : 'deed';
+          const instr = doc.instrumentNumber;
+          const volPage = doc.volume && doc.page ? `Vol. ${doc.volume}, Pg. ${doc.page}` : null;
+          const recordingInfo = [instr ? `Instrument No. ${instr}` : null, volPage].filter(Boolean).join(' — ') || null;
+          const partyStr = doc.grantor && doc.grantee ? ` — ${doc.grantor} to ${doc.grantee}` : (doc.grantor ? ` — ${doc.grantor}` : '');
+          const instrStr = instr ? ` (Instr. ${instr})` : '';
+          const docLabel = `${doc.documentType || 'Document'}${partyStr}${instrStr}`;
+
+          const pages: ArtifactPageImage[] = doc.pageImages.map((img, pi) => ({
+            category,
+            label: instr ?? doc.documentType ?? 'unknown',
+            pageNumber: pi + 1,
+            imageBase64: img,
+            sourceUrl: doc.sourceUrl,
+            ...(pi === 0 ? { documentLabel: docLabel, recordingInfo, recordedDate: doc.recordingDate ?? null, documentType: category } : {}),
+          }));
+          await uploadDocumentIncremental(supabase as any, input.projectId, pages);
+        }
+        progress('Phase 2', `  ✓ ${clerk.documents.length} document(s) uploaded for live preview`);
+      }
+    }
   } catch (err) {
     recordError('Phase 2', 'Clerk', err);
   }
@@ -553,6 +594,35 @@ export async function orchestrateBellResearch(
       `repository=${plats.stats.repositoryFound} | clerk=${plats.stats.clerkFound}`,
       42,
     );
+
+    // ── Incremental upload: plat images ──────────────────────────────
+    if (plats.plats.length > 0 && input.projectId) {
+      const supabase = await getSupabase();
+      if (supabase) {
+        for (const plat of plats.plats) {
+          if (plat.images.length === 0) continue;
+          const platInstr = plat.instrumentNumber;
+          const platInstrStr = platInstr ? ` (Instr. ${platInstr})` : '';
+          const platDocLabel = `Subdivision Plat: ${plat.name}${platInstrStr}`;
+
+          const pages: ArtifactPageImage[] = plat.images.map((img, pi) => ({
+            category: 'plat',
+            label: platInstr ?? plat.name ?? 'unknown',
+            pageNumber: pi + 1,
+            imageBase64: img,
+            sourceUrl: plat.sourceUrl,
+            ...(pi === 0 ? {
+              documentLabel: platDocLabel,
+              recordingInfo: platInstr ? `Instrument No. ${platInstr}` : null,
+              recordedDate: plat.date ?? null,
+              documentType: 'plat',
+            } : {}),
+          }));
+          await uploadDocumentIncremental(supabase as any, input.projectId, pages);
+        }
+        progress('Phase 2', `  ✓ ${plats.plats.length} plat(s) uploaded for live preview`);
+      }
+    }
   } catch (err) {
     recordError('Phase 2', 'Plats', err);
   }
@@ -628,6 +698,23 @@ export async function orchestrateBellResearch(
       );
       allScreenshots.push(...pageScreenshots);
       progress('Phase 2', `✓ ${pageScreenshots.length} screenshot(s) captured`);
+
+      // ── Incremental upload: supplemental screenshots ─────────────
+      if (pageScreenshots.length > 0 && input.projectId) {
+        const supabase = await getSupabase();
+        if (supabase) {
+          const ssForUpload: ArtifactScreenshot[] = pageScreenshots.map(ss => ({
+            source: ss.source,
+            url: ss.url,
+            imageBase64: ss.imageBase64,
+            capturedAt: ss.capturedAt,
+            description: ss.description,
+            pageText: ss.pageText,
+            classification: ss.classification,
+          }));
+          await uploadScreenshotsIncremental(supabase as any, input.projectId, ssForUpload);
+        }
+      }
     } catch (err) {
       recordError('Phase 2', 'Screenshots', err);
     }
@@ -655,6 +742,24 @@ export async function orchestrateBellResearch(
       );
       allScreenshots.push(...gisViewerScreenshots);
       progress('Phase 2', `✓ ${gisViewerScreenshots.length} GIS viewer screenshot(s) captured`);
+
+      // ── Incremental upload: GIS screenshots ───────────────────────
+      if (gisViewerScreenshots.length > 0 && input.projectId) {
+        const supabase = await getSupabase();
+        if (supabase) {
+          const ssForUpload: ArtifactScreenshot[] = gisViewerScreenshots.map(ss => ({
+            source: ss.source,
+            url: ss.url,
+            imageBase64: ss.imageBase64,
+            capturedAt: ss.capturedAt,
+            description: ss.description,
+            pageText: ss.pageText,
+            classification: ss.classification,
+          }));
+          await uploadScreenshotsIncremental(supabase as any, input.projectId, ssForUpload);
+          progress('Phase 2', `  ✓ GIS screenshots uploaded for live preview`);
+        }
+      }
     } catch (err) {
       recordError('Phase 2', 'GIS Viewer Screenshots', err);
     }

@@ -318,25 +318,19 @@ export async function captureGisViewerScreenshots(
     //   20 = neighborhood context
     //   18 = city/county context
 
-    const zoomStart = Date.now();
-    logDetail('zoom', 'Navigating to parcel at base level 24 (parcel-level detail)', {
-      has_boundary: !!input.parcelBoundary, lat: input.lat, lon: input.lon,
-      situs_address: input.situsAddress,
-    });
-
-    // Initial zoom — establishes the parcel centroid cache
-    const zoomed = await navigateToParcelAtLevel(page, input, 24, progress);
-    if (!zoomed) {
-      // Fall back to the old cascade approach
-      logDetail('zoom', 'URL navigation failed — falling back to zoomToParcel cascade');
-      const fallbackZoomed = await zoomToParcel(page, input, progress);
-      if (!fallbackZoomed) {
-        progress('Could not zoom to parcel — capturing current view');
-      }
+    // Pre-compute parcel centroid (used by navigateToParcelAtLevel)
+    if (input.parcelBoundary && input.parcelBoundary.length > 0) {
+      const ring = input.parcelBoundary[0];
+      let sumLon = 0, sumLat = 0;
+      for (const [lon, lat] of ring) { sumLon += lon; sumLat += lat; }
+      _parcelCenterLon = sumLon / ring.length;
+      _parcelCenterLat = sumLat / ring.length;
+      logDetail('zoom', `Parcel centroid computed: (${_parcelCenterLon.toFixed(4)}, ${_parcelCenterLat.toFixed(4)}) from ${ring.length}-point boundary`);
+    } else {
+      _parcelCenterLon = input.lon;
+      _parcelCenterLat = input.lat;
+      logDetail('zoom', `Using WGS84 coords as centroid: (${_parcelCenterLon}, ${_parcelCenterLat})`);
     }
-    logDetail('zoom', `Zoom-to-parcel completed in ${Date.now() - zoomStart}ms`, {
-      success: zoomed, duration_ms: Date.now() - zoomStart,
-    });
 
     // ── Systematic Screenshot Matrix ──────────────────────────────
     // Each screenshot is a unique combination of zoom level, basemap,
@@ -384,57 +378,85 @@ export async function captureGisViewerScreenshots(
       { id: '17', level: 22, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
     ];
 
-    logDetail('matrix', `Starting capture matrix: ${captureMatrix.length} screenshots`, {
+    // Group by zoom level so we only do a full page reload when level changes.
+    // Within each zoom level, we just toggle basemap/layers (no reload needed).
+    // Sort descending so we start at highest zoom (most detail) first.
+    const sortedMatrix = [...captureMatrix].sort((a, b) => b.level - a.level);
+
+    // Build zoom level groups
+    const zoomGroups = new Map<number, CaptureSpec[]>();
+    for (const spec of sortedMatrix) {
+      if (!zoomGroups.has(spec.level)) zoomGroups.set(spec.level, []);
+      zoomGroups.get(spec.level)!.push(spec);
+    }
+
+    const zoomLevels = [...zoomGroups.keys()]; // already sorted desc from sortedMatrix
+    logDetail('matrix', `Starting capture matrix: ${captureMatrix.length} screenshots across ${zoomLevels.length} zoom levels`, {
       total: captureMatrix.length,
-      specs: captureMatrix.map(s => `${s.id}:L${s.level}/${s.basemap}/P${s.parcels ? 1 : 0}L${s.lotLines ? 1 : 0}E${s.eagleView ? 1 : 0}`),
+      zoomLevels,
+      specs: sortedMatrix.map(s => `${s.id}:L${s.level}/${s.basemap}/P${s.parcels ? 1 : 0}L${s.lotLines ? 1 : 0}E${s.eagleView ? 1 : 0}`),
     });
 
-    for (const spec of captureMatrix) {
-      const layerState =
-        `Parcels=${spec.parcels ? 'ON' : 'OFF'}, ` +
-        `LotLines=${spec.lotLines ? 'ON' : 'OFF'}, ` +
-        `EagleView2026=${spec.eagleView ? 'ON' : 'OFF'}`;
-      const descLine =
-        `[${spec.id}] Zoom=${spec.level} | Basemap=${spec.basemap} | ${layerState}` +
-        ` | Property ${propLabel} — ${addrLabel} Lot ${lotLabel}`;
+    for (const level of zoomLevels) {
+      const specs = zoomGroups.get(level)!;
+      logDetail('zoom-group', `=== Zoom level ${level}: ${specs.length} screenshots ===`);
+      progress(`Navigating to zoom level ${level} (${specs.length} screenshots at this level)...`);
 
-      try {
-        progress(`[Screenshot ${spec.id}] level=${spec.level}, basemap=${spec.basemap}, ${layerState}...`);
-        logDetail(`screenshot-${spec.id}`, `Capturing: ${descLine}`);
-
-        // Navigate to zoom level (page reload each time for clean state)
-        await navigateToParcelAtLevel(page, input, spec.level, progress);
-
-        // Apply basemap
-        if (spec.basemap === 'aerial') {
-          await switchToAerialBasemap(page);
-        } else {
-          await switchToStreetsBasemap(page);
+      // Navigate ONCE per zoom level (forces full page reload via cache-buster)
+      const navOk = await navigateToParcelAtLevel(page, input, level, progress);
+      if (!navOk) {
+        logDetail('zoom-group', `Navigation to level ${level} FAILED — trying fallback`);
+        const fallback = await zoomToParcel(page, input, progress);
+        if (!fallback) {
+          logDetail('zoom-group', `All zoom strategies failed for level ${level} — capturing current view`);
         }
+      }
 
-        // Apply layer visibility
-        await toggleEagleViewLayer(page, spec.eagleView);
-        await toggleParcelLayer(page, spec.parcels);
-        await toggleLotLineLayer(page, spec.lotLines);
+      // Capture each screenshot at this zoom level (just toggle basemap + layers)
+      for (const spec of specs) {
+        const layerState =
+          `Parcels=${spec.parcels ? 'ON' : 'OFF'}, ` +
+          `LotLines=${spec.lotLines ? 'ON' : 'OFF'}, ` +
+          `EagleView2026=${spec.eagleView ? 'ON' : 'OFF'}`;
+        const descLine =
+          `[${spec.id}] Zoom=${spec.level} | Basemap=${spec.basemap} | ${layerState}` +
+          ` | Property ${propLabel} — ${addrLabel} Lot ${lotLabel}`;
 
-        // Wait for tiles + layers to fully render
-        await page.waitForTimeout(POST_NAV_RENDER_WAIT);
+        try {
+          progress(`[Screenshot ${spec.id}] basemap=${spec.basemap}, ${layerState}...`);
+          logDetail(`screenshot-${spec.id}`, `Capturing: ${descLine}`);
 
-        const ss = await takeScreenshot(page, 'GIS Viewer', descLine);
-        if (ss) {
-          results.push(ss);
-          logDetail(`screenshot-${spec.id}`, `Captured: ${ss.imageBase64.length} base64 chars`, {
-            id: spec.id, level: spec.level, basemap: spec.basemap,
-            parcels: spec.parcels, lotLines: spec.lotLines, eagleView: spec.eagleView,
-          });
-          progress(`[Screenshot ${spec.id}] ✓ ${Math.round(ss.imageBase64.length / 1024)}KB — ${descLine}`);
-        } else {
-          logDetail(`screenshot-${spec.id}`, 'FAILED — null returned');
-          progress(`[Screenshot ${spec.id}] ✗ FAILED`);
+          // Apply basemap (no page reload — just API/UI toggle)
+          if (spec.basemap === 'aerial') {
+            await switchToAerialBasemap(page);
+          } else {
+            await switchToStreetsBasemap(page);
+          }
+
+          // Apply layer visibility
+          await toggleEagleViewLayer(page, spec.eagleView);
+          await toggleParcelLayer(page, spec.parcels);
+          await toggleLotLineLayer(page, spec.lotLines);
+
+          // Wait for tiles + layers to fully render
+          await page.waitForTimeout(POST_NAV_RENDER_WAIT);
+
+          const ss = await takeScreenshot(page, 'GIS Viewer', descLine);
+          if (ss) {
+            results.push(ss);
+            logDetail(`screenshot-${spec.id}`, `Captured: ${ss.imageBase64.length} base64 chars`, {
+              id: spec.id, level: spec.level, basemap: spec.basemap,
+              parcels: spec.parcels, lotLines: spec.lotLines, eagleView: spec.eagleView,
+            });
+            progress(`[Screenshot ${spec.id}] ✓ ${Math.round(ss.imageBase64.length / 1024)}KB — ${descLine}`);
+          } else {
+            logDetail(`screenshot-${spec.id}`, 'FAILED — null returned');
+            progress(`[Screenshot ${spec.id}] ✗ FAILED`);
+          }
+        } catch (err) {
+          logDetail(`screenshot-${spec.id}`, `SKIPPED — ${err instanceof Error ? err.message : String(err)}`);
+          progress(`[Screenshot ${spec.id}] ✗ SKIPPED — ${err instanceof Error ? err.message : String(err)}`);
         }
-      } catch (err) {
-        logDetail(`screenshot-${spec.id}`, `SKIPPED — ${err instanceof Error ? err.message : String(err)}`);
-        progress(`[Screenshot ${spec.id}] ✗ SKIPPED — ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
@@ -660,11 +682,20 @@ async function navigateToParcelAtLevel(
     }
   }
 
-  gisLog('zoom-nav', `Navigating to parcel at level ${targetLevel} (center=${_parcelCenterLon.toFixed(1)}, ${_parcelCenterLat.toFixed(1)})`, { targetLevel });
+  gisLog('zoom-nav', `Navigating to parcel at level ${targetLevel} (center=${_parcelCenterLon.toFixed(4)}, ${_parcelCenterLat.toFixed(4)})`, { targetLevel });
   const baseUrl = GIS_VIEWER_URL.replace(/[#?].*$/, '');
-  const url = `${baseUrl}#center=${_parcelCenterLon},${_parcelCenterLat}&level=${targetLevel}`;
+
+  // CRITICAL: Changing only the URL hash fragment does NOT trigger a real page
+  // reload in Chrome/Playwright — the browser fires hashchange but doesn't
+  // reload the document. ArcGIS Experience Builder only reads URL params on
+  // initial load, so hash-only changes are silently ignored.
+  //
+  // Fix: Add a cache-busting query parameter so the URL before the hash is
+  // always different, forcing a genuine page navigation every time.
+  const url = `${baseUrl}?_cb=${Date.now()}#center=${_parcelCenterLon},${_parcelCenterLat}&level=${targetLevel}`;
 
   try {
+    gisLog('zoom-nav', `Full URL: ${url}`);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
     await dismissDisclaimerDialog(page, progress);
     const ready = await waitForMapReady(page, progress);
@@ -849,11 +880,14 @@ async function zoomViaUrlParams(page: any, lon: number, lat: number, progress: (
     // Level 20 = individual lot scale — can read dimensions.
     // Use level 20 to start at lot-level detail, then zoom in/out from there.
     // The extent format uses a very tight bbox (±0.0003° ≈ 30m) to force lot-level zoom.
+    // Use cache-busting query param to force real page reload (hash-only
+    // changes don't trigger navigation in Chrome/Playwright)
+    const cb = Date.now();
     const urlFormats = [
-      `${baseUrl}#center=${lon},${lat}&level=20`,
-      `${baseUrl}?center=${lon},${lat}&level=20`,
-      `${baseUrl}#extent=${lon - 0.0003},${lat - 0.0003},${lon + 0.0003},${lat + 0.0003}`,
-      `${baseUrl}#center=${lon},${lat}&level=19`,
+      `${baseUrl}?_cb=${cb}#center=${lon},${lat}&level=20`,
+      `${baseUrl}?_cb=${cb}&center=${lon},${lat}&level=20`,
+      `${baseUrl}?_cb=${cb}#extent=${lon - 0.0003},${lat - 0.0003},${lon + 0.0003},${lat + 0.0003}`,
+      `${baseUrl}?_cb=${cb + 1}#center=${lon},${lat}&level=19`,
     ];
 
     for (let fi = 0; fi < urlFormats.length; fi++) {

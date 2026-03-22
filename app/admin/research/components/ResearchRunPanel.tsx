@@ -14,6 +14,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
+
+const ArtifactGallery = dynamic(() => import('./ArtifactGallery'), { ssr: false });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -802,8 +805,9 @@ export default function ResearchRunPanel({
             <div className="rrp__confirm-dialog" onClick={e => e.stopPropagation()}>
               <div className="rrp__confirm-title">Stop Research Pipeline?</div>
               <p className="rrp__confirm-text">
-                This will cancel the running research. Any partial results collected so far will be lost.
-                You can restart the research later from the property information page.
+                This will cancel the running research. Screenshots and documents captured so far
+                will still be available for review below. You can restart the research later from
+                the property information page.
               </p>
               <div className="rrp__confirm-actions">
                 <button
@@ -959,6 +963,14 @@ export default function ResearchRunPanel({
             </div>
           </>
         )}
+      </div>
+
+      {/* ── Live Artifact Gallery — shows captured images/docs as they arrive ── */}
+      <div className="rrp__artifacts">
+        <ArtifactGallery
+          projectId={projectId}
+          refreshInterval={isRunning ? 8_000 : undefined}
+        />
       </div>
       </>)}
 
@@ -1344,6 +1356,11 @@ export default function ResearchRunPanel({
 .rrp__log-detail-row code { background: #f3f4f6; padding: 0 4px; border-radius: 3px; word-break: break-all; overflow-wrap: break-word; }
 .rrp__log-detail-row--error { color: #dc2626; }
 .rrp__log-detail-row--step { color: #6b7280; padding-left: 0.5rem; }
+
+/* ── Live Artifact Gallery ────────────────────────────────────── */
+.rrp__artifacts {
+  margin-top: 1rem;
+}
 
 /* ── Live Activity Stream ────────────────────────────────────── */
 /* (activity stream removed — unified into Pipeline Activity Log above) */

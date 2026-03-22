@@ -95,6 +95,7 @@ export async function scrapeBellGis(
         where: `${field}='${input.propertyId}'`,
         outFields: '*',
         returnGeometry: 'true',
+        outSR: '4326',
       }, urlsVisited);
 
       if (result && result.features.length > 0) {
@@ -152,6 +153,7 @@ export async function scrapeBellGis(
           where,
           outFields: '*',
           returnGeometry: 'true',
+          outSR: '4326',
         }, urlsVisited);
 
         if (result && result.features.length > 0) {
@@ -174,6 +176,7 @@ export async function scrapeBellGis(
       geometryType: 'esriGeometryEnvelope',
       spatialRel: 'esriSpatialRelIntersects',
       inSR: '4326',
+      outSR: '4326',
       outFields: '*',
       returnGeometry: 'true',
     }, urlsVisited);
@@ -194,6 +197,7 @@ export async function scrapeBellGis(
       geometryType: 'esriGeometryEnvelope',
       spatialRel: 'esriSpatialRelIntersects',
       inSR: '4326',
+      outSR: '4326',
       outFields: '*',
       returnGeometry: 'true',
     }, urlsVisited);
@@ -215,6 +219,7 @@ export async function scrapeBellGis(
         where: `UPPER(${field}) LIKE '${safeName}%'`,
         outFields: '*',
         returnGeometry: 'true',
+        outSR: '4326',
       }, urlsVisited);
 
       if (result && result.features.length > 0 && result.features.length <= 50) {
@@ -261,6 +266,7 @@ export async function findAdjacentParcels(
     geometryType: 'esriGeometryEnvelope',
     spatialRel: 'esriSpatialRelIntersects',
     inSR: '4326',
+    outSR: '4326',
     outFields: '*',
     returnGeometry: 'true',
   }, urlsVisited);
