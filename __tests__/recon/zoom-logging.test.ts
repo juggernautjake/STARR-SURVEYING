@@ -292,8 +292,8 @@ describe('GIS Viewer Capture — screenshot logging', () => {
     expect(results).toEqual([]);
     // The function should have logged the ABORT via console.log
     expect(consoleSpy).toHaveBeenCalled();
-    const logArgs = consoleSpy.mock.calls.map(c => String(c[0]));
-    expect(logArgs.some(l => l.includes('[GIS-CAPTURE]'))).toBe(true);
+    const logArgs = consoleSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(logArgs.some((l: string) => l.includes('[GIS-CAPTURE]'))).toBe(true);
   });
 
   it('3-2. progress callback receives timestamped messages', async () => {

@@ -2542,7 +2542,57 @@ export default function ResearchProjectPage() {
 
               {/* ── Tab: Artifacts — Screenshots, page images, plat images ── */}
               {reviewTab === 'artifacts' && (
-                <ArtifactGallery projectId={projectId} />
+                <>
+                  {/* GIS Quality Report (if available) */}
+                  {(() => {
+                    const meta = project.analysis_metadata as Record<string, unknown> | null;
+                    const result = meta?.result as Record<string, unknown> | null;
+                    const qr = result?.gisQualityReport as {
+                      summary?: string;
+                      checks?: Array<{ label: string; qualityScore: number; zoomAssessment: string; whatIsShown: string; recommendations: string[] }>;
+                      actionableAdjustments?: string[];
+                    } | null;
+                    if (!qr || !qr.checks?.length) return null;
+                    return (
+                      <div className="gis-quality-report" style={{ marginBottom: '1.5rem' }}>
+                        <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>GIS Screenshot Quality Analysis</h4>
+                        <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary, #666)' }}>{qr.summary}</p>
+                        <div style={{ display: 'grid', gap: '0.5rem' }}>
+                          {qr.checks.map((c, i) => {
+                            const color = c.qualityScore >= 70 ? '#22c55e' : c.qualityScore >= 40 ? '#eab308' : '#ef4444';
+                            const icon = c.qualityScore >= 70 ? '✓' : c.qualityScore >= 40 ? '⚠' : '✗';
+                            return (
+                              <div key={i} style={{ padding: '0.5rem 0.75rem', borderRadius: '6px', background: 'var(--bg-elevated, #f9fafb)', border: '1px solid var(--border, #e5e7eb)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                  <span style={{ color, fontWeight: 600 }}>{icon} {c.qualityScore}/100</span>
+                                  <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{c.label}</span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary, #999)', marginLeft: 'auto' }}>
+                                    zoom: {c.zoomAssessment}
+                                  </span>
+                                </div>
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary, #666)' }}>{c.whatIsShown}</p>
+                                {c.recommendations.length > 0 && (
+                                  <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem', fontSize: '0.75rem', color: 'var(--text-tertiary, #999)' }}>
+                                    {c.recommendations.map((r, j) => <li key={j}>{r}</li>)}
+                                  </ul>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {qr.actionableAdjustments && qr.actionableAdjustments.length > 0 && (
+                          <div style={{ marginTop: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: '6px', background: '#fef3c7', border: '1px solid #fcd34d', fontSize: '0.8rem' }}>
+                            <strong>Recommended adjustments:</strong>
+                            <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem' }}>
+                              {qr.actionableAdjustments.map((adj, k) => <li key={k}>{adj}</li>)}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  <ArtifactGallery projectId={projectId} />
+                </>
               )}
             </div>
           </div>
