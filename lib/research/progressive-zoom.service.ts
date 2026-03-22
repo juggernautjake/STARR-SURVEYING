@@ -15,6 +15,7 @@
 import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET, ensureStorageBucket } from '@/lib/supabase';
 import type { DocumentType } from '@/types/research';
 import { geocodeAddress, type GeoPoint } from './map-image.service';
+import { PipelineLogger } from './pipeline-logger';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -81,17 +82,35 @@ interface NearbyParcel {
 
 // ── Image Fetching ──────────────────────────────────────────────────────────
 
-async function fetchImage(url: string): Promise<Buffer | null> {
+async function fetchImage(url: string, logger?: PipelineLogger, label?: string): Promise<Buffer | null> {
+  const start = Date.now();
+  const shortUrl = url.substring(0, 120);
   try {
+    logger?.debug('map_capture', `Fetching image: ${label ?? shortUrl}`, { url: shortUrl });
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      logger?.warn('map_capture', `Image fetch failed: HTTP ${res.status} for ${label ?? shortUrl}`, { status: res.status, url: shortUrl });
+      return null;
+    }
     const ct = res.headers.get('content-type') || '';
-    if (!ct.startsWith('image/')) return null;
-    return Buffer.from(await res.arrayBuffer());
-  } catch {
+    if (!ct.startsWith('image/')) {
+      logger?.warn('map_capture', `Non-image content-type "${ct}" for ${label ?? shortUrl}`, { content_type: ct });
+      return null;
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    const elapsed = Date.now() - start;
+    logger?.debug('map_capture', `Fetched image: ${label ?? shortUrl} — ${buf.byteLength} bytes in ${elapsed}ms`, {
+      bytes: buf.byteLength, elapsed_ms: elapsed, content_type: ct,
+    });
+    return buf;
+  } catch (err) {
+    const elapsed = Date.now() - start;
+    logger?.error('map_capture', `Image fetch error for ${label ?? shortUrl} after ${elapsed}ms: ${err instanceof Error ? err.message : String(err)}`, {
+      elapsed_ms: elapsed, error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }
@@ -142,16 +161,25 @@ function buildBellCadParcelQueryUrl(lat: number, lon: number, radiusDeg: number)
   return `${BELL_CAD_FEATURE_SERVER}/0/query?${params}`;
 }
 
-async function fetchParcelData(queryUrl: string): Promise<NearbyParcel[]> {
+async function fetchParcelData(queryUrl: string, logger?: PipelineLogger, zoom?: number): Promise<NearbyParcel[]> {
+  const start = Date.now();
+  const zoomLabel = zoom != null ? `zoom=${zoom}` : 'unknown-zoom';
   try {
+    logger?.debug('gis_zoom', `Querying parcel data at ${zoomLabel}`, { url: queryUrl.substring(0, 150) });
     const res = await fetch(queryUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      logger?.warn('gis_zoom', `Parcel query failed at ${zoomLabel}: HTTP ${res.status}`, { status: res.status });
+      return [];
+    }
     const data = await res.json();
-    if (!data.features || !Array.isArray(data.features)) return [];
-    return data.features.map((f: Record<string, Record<string, unknown>>) => ({
+    if (!data.features || !Array.isArray(data.features)) {
+      logger?.warn('gis_zoom', `No features array in parcel response at ${zoomLabel}`, { response_keys: Object.keys(data) });
+      return [];
+    }
+    const parcels = data.features.map((f: Record<string, Record<string, unknown>>) => ({
       prop_id: Number(f.attributes?.PROP_ID ?? 0),
       owner: f.attributes?.FILE_AS_NAME ? String(f.attributes.FILE_AS_NAME) : null,
       address: f.attributes?.SITUS_ADDR ? String(f.attributes.SITUS_ADDR) : null,
@@ -159,7 +187,18 @@ async function fetchParcelData(queryUrl: string): Promise<NearbyParcel[]> {
       block: f.attributes?.BLOCK ? String(f.attributes.BLOCK) : null,
       acreage: f.attributes?.LEGAL_ACREAGE ? Number(f.attributes.LEGAL_ACREAGE) : null,
     }));
-  } catch {
+    const elapsed = Date.now() - start;
+    const withLots = parcels.filter((p: NearbyParcel) => p.lot != null).length;
+    const withAddresses = parcels.filter((p: NearbyParcel) => p.address != null).length;
+    logger?.info('gis_zoom', `Parcel query at ${zoomLabel}: ${parcels.length} parcels (${withLots} with lot data, ${withAddresses} with addresses) in ${elapsed}ms`, {
+      parcels_count: parcels.length, with_lots: withLots, with_addresses: withAddresses, elapsed_ms: elapsed,
+    });
+    return parcels;
+  } catch (err) {
+    const elapsed = Date.now() - start;
+    logger?.error('gis_zoom', `Parcel query error at ${zoomLabel} after ${elapsed}ms: ${err instanceof Error ? err.message : String(err)}`, {
+      elapsed_ms: elapsed, error: err instanceof Error ? err.message : String(err),
+    });
     return [];
   }
 }
@@ -250,18 +289,29 @@ export async function captureProgressiveZoom(
   county?: string,
   zoomRange?: { minZoom?: number; maxZoom?: number },
 ): Promise<ProgressiveZoomResult> {
+  const logger = new PipelineLogger(projectId);
   const log: string[] = [];
   const allDocIds: string[] = [];
   const zoomCaptures: ZoomLevelCapture[] = [];
   let lotLinesFirstVisible: number | null = null;
   let totalParcels = 0;
 
+  logger.startPhase('gis_zoom', `Progressive zoom capture starting for: ${address}`);
+  logger.info('gis_zoom', `Configuration — county: ${county || 'not specified'}, zoomRange: ${zoomRange ? `${zoomRange.minZoom ?? 16}-${zoomRange.maxZoom ?? 21}` : '16-21 (full)'}`, {
+    address, county: county || null, min_zoom: zoomRange?.minZoom ?? 16, max_zoom: zoomRange?.maxZoom ?? 21,
+  });
   log.push(`[progressive-zoom] Starting progressive zoom capture for: ${address}`);
   log.push(`[progressive-zoom] County: ${county || 'not specified'}`);
 
   // Geocode the address
+  logger.info('geocode', `Geocoding address: "${address}"`);
+  const geocodeStart = Date.now();
   const coords = await geocodeAddress(address);
+  const geocodeDuration = Date.now() - geocodeStart;
   if (!coords) {
+    logger.error('geocode', `Geocoding FAILED for "${address}" after ${geocodeDuration}ms — aborting progressive zoom`, {
+      address, elapsed_ms: geocodeDuration,
+    });
     log.push(`[progressive-zoom] FAILED: Could not geocode address "${address}"`);
     return {
       zoom_captures: [], lot_lines_first_visible_at: null,
@@ -270,6 +320,9 @@ export async function captureProgressiveZoom(
     };
   }
 
+  logger.info('geocode', `Geocoded "${address}" to ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)} in ${geocodeDuration}ms`, {
+    lat: coords.lat, lon: coords.lon, display_name: coords.display_name, elapsed_ms: geocodeDuration,
+  });
   log.push(`[progressive-zoom] Geocoded to ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)} — ${coords.display_name}`);
 
   // Determine county for CAD queries
@@ -281,6 +334,9 @@ export async function captureProgressiveZoom(
   const maxZoom = zoomRange?.maxZoom ?? 21;
   const levels = ZOOM_LEVELS.filter(l => l.zoom >= minZoom && l.zoom <= maxZoom);
 
+  logger.info('gis_zoom', `Capturing ${levels.length} zoom levels: ${levels.map(l => `z${l.zoom}(${l.label})`).join(', ')}`, {
+    zoom_levels: levels.map(l => l.zoom), level_labels: levels.map(l => l.label),
+  });
   log.push(`[progressive-zoom] Capturing ${levels.length} zoom levels: ${levels.map(l => `z${l.zoom}(${l.label})`).join(', ')}`);
 
   // Capture each zoom level
@@ -289,6 +345,10 @@ export async function captureProgressiveZoom(
     const stepLog: string[] = [];
     const docIds: string[] = [];
 
+    logger.info('gis_zoom', `──── ZOOM LEVEL ${level.zoom} (${level.label}) ────`, {
+      zoom: level.zoom, label: level.label, description: level.description,
+      radius_deg: level.radiusDeg, radius_meters: Math.round(level.radiusDeg * 111000),
+    });
     stepLog.push(`Zoom ${level.zoom} (${level.label}): ${level.description}`);
     log.push(`\n[progressive-zoom] ─── Zoom ${level.zoom}: ${level.label} ───`);
 
@@ -297,25 +357,53 @@ export async function captureProgressiveZoom(
     const googleRoadUrl = buildGoogleStaticUrl(coords.lat, coords.lon, level.zoom, 'roadmap');
     const esriUrl = buildEsriImageryUrl(coords.lat, coords.lon, level.radiusDeg);
 
+    logger.debug('gis_zoom', `URL construction for zoom ${level.zoom}`, {
+      has_google_hybrid: !!googleHybridUrl,
+      has_google_road: !!googleRoadUrl,
+      esri_url: esriUrl.substring(0, 100),
+      has_google_api_key: !!(process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY),
+    });
+
     // Fetch images + parcel data in parallel
     const parcelQueryUrl = isBellCounty
       ? buildBellCadParcelQueryUrl(coords.lat, coords.lon, level.radiusDeg)
       : null;
 
+    logger.debug('gis_zoom', `Starting parallel fetch: images + parcel query at zoom ${level.zoom}`, {
+      is_bell_county: isBellCounty, has_parcel_query: !!parcelQueryUrl,
+    });
+
+    const fetchStart = Date.now();
     const [hybridBuf, roadBuf, esriBuf, parcels] = await Promise.all([
-      googleHybridUrl ? fetchImage(googleHybridUrl) : Promise.resolve(null),
-      googleRoadUrl ? fetchImage(googleRoadUrl) : Promise.resolve(null),
-      fetchImage(esriUrl),
-      parcelQueryUrl ? fetchParcelData(parcelQueryUrl) : Promise.resolve([] as NearbyParcel[]),
+      googleHybridUrl ? fetchImage(googleHybridUrl, logger, `Google Hybrid z${level.zoom}`) : Promise.resolve(null),
+      googleRoadUrl ? fetchImage(googleRoadUrl, logger, `Google Road z${level.zoom}`) : Promise.resolve(null),
+      fetchImage(esriUrl, logger, `Esri Aerial z${level.zoom}`),
+      parcelQueryUrl ? fetchParcelData(parcelQueryUrl, logger, level.zoom) : Promise.resolve([] as NearbyParcel[]),
     ]);
+    const fetchElapsed = Date.now() - fetchStart;
+
+    logger.info('gis_zoom', `Parallel fetch complete for zoom ${level.zoom} in ${fetchElapsed}ms`, {
+      hybrid_bytes: hybridBuf?.byteLength ?? 0,
+      road_bytes: roadBuf?.byteLength ?? 0,
+      esri_bytes: esriBuf?.byteLength ?? 0,
+      parcels_count: parcels.length,
+      fetch_duration_ms: fetchElapsed,
+    });
 
     // Determine if lot lines are likely visible at this zoom
     // At zoom 18+, individual lots should be distinguishable
     // More parcels in view at tighter zoom = we can see individual lots
     const lotLinesVisible = level.zoom >= 18 && (parcels.length > 0 || !isBellCounty);
 
+    logger.info('gis_zoom', `Lot visibility at zoom ${level.zoom}: ${lotLinesVisible ? 'VISIBLE' : 'NOT VISIBLE'} — ${parcels.length} parcels, zoom >= 18: ${level.zoom >= 18}`, {
+      lot_lines_visible: lotLinesVisible, parcels_count: parcels.length, zoom: level.zoom,
+      parcels_with_lot_data: parcels.filter(p => p.lot != null).length,
+      parcels_with_address: parcels.filter(p => p.address != null).length,
+    });
+
     if (lotLinesVisible && lotLinesFirstVisible === null) {
       lotLinesFirstVisible = level.zoom;
+      logger.info('gis_zoom', `MILESTONE: Lot lines first visible at zoom ${level.zoom}`, { first_visible_zoom: level.zoom });
       log.push(`[progressive-zoom] Lot lines first visible at zoom ${level.zoom}`);
     }
 
@@ -331,6 +419,8 @@ export async function captureProgressiveZoom(
 
     // Store captures
     const storeOps: Promise<void>[] = [];
+
+    logger.debug('gis_zoom', `Storing images for zoom ${level.zoom}: hybrid=${!!hybridBuf}, road=${!!roadBuf}, esri=${!!esriBuf}`);
 
     if (hybridBuf) {
       storeOps.push((async () => {
@@ -400,6 +490,11 @@ export async function captureProgressiveZoom(
     await Promise.all(storeOps);
 
     const duration = Date.now() - zoomStart;
+    logger.info('gis_zoom', `Zoom ${level.zoom} COMPLETE: ${docIds.length} images stored, ${parcels.length} parcels found in ${duration}ms`, {
+      zoom: level.zoom, label: level.label, images_stored: docIds.length,
+      parcels_count: parcels.length, lot_lines_visible: lotLinesVisible,
+      duration_ms: duration, document_ids: docIds,
+    });
     stepLog.push(`Captured ${docIds.length} images, ${parcels.length} parcels in ${duration}ms`);
     log.push(`[progressive-zoom] z${level.zoom}: ${docIds.length} images, ${parcels.length} parcels, ${duration}ms`);
 
@@ -421,9 +516,33 @@ export async function captureProgressiveZoom(
     ? Math.min(lotLinesFirstVisible + 2, 21) // Go 2 levels tighter than first visible
     : 20; // Default to zoom 20 if we couldn't determine
 
+  const totalDuration = logger.endPhase('gis_zoom', `Progressive zoom capture complete for: ${address}`);
+
+  logger.info('gis_zoom', 'Progressive zoom FINAL SUMMARY', {
+    address,
+    county: county || null,
+    total_images: allDocIds.length,
+    zoom_levels_captured: zoomCaptures.length,
+    best_zoom_for_lot_id: bestZoom,
+    lot_lines_first_visible_at: lotLinesFirstVisible,
+    total_parcels_found: totalParcels,
+    total_duration_ms: totalDuration,
+    geocoded_lat: coords.lat,
+    geocoded_lon: coords.lon,
+    zoom_level_summary: zoomCaptures.map(z => ({
+      zoom: z.zoom, label: z.label, images: z.document_ids.length,
+      parcels: z.parcels_in_view.length, lot_lines: z.lot_lines_likely_visible,
+    })),
+  });
+
   log.push(`\n[progressive-zoom] Complete: ${allDocIds.length} total images across ${zoomCaptures.length} zoom levels`);
   log.push(`[progressive-zoom] Best zoom for lot ID: ${bestZoom}`);
   log.push(`[progressive-zoom] Total unique parcels found: ${totalParcels}`);
+
+  // Append structured log entries to the pipeline log for API consumers
+  for (const entry of logger.getSteps()) {
+    log.push(entry);
+  }
 
   return {
     zoom_captures: zoomCaptures,

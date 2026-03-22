@@ -224,13 +224,22 @@ export default function SourceDocumentViewer({
       if (drawMode) return;
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.15 : 0.15;
-      setZoom(prev => Math.min(Math.max(prev + delta, 0.1), 10));
+      setZoom(prev => {
+        const next = Math.min(Math.max(prev + delta, 0.1), 10);
+        console.log(`[SourceDocumentViewer] Scroll zoom: ${(prev * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`, {
+          page: currentPage, deltaY: e.deltaY, doc_label: doc.document_label,
+        });
+        return next;
+      });
     }
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [activeTab, drawMode]);
 
   function resetView() {
+    console.log(`[SourceDocumentViewer] Reset view — zoom: ${(zoom * 100).toFixed(0)}% → 100%, position: (${position.x}, ${position.y}) → (0, 0)`, {
+      page: currentPage, doc_label: doc.document_label,
+    });
     setZoom(1);
     setPosition({ x: 0, y: 0 });
   }
@@ -360,9 +369,9 @@ export default function SourceDocumentViewer({
             </div>
             <div className="research-viewer__img-toolbar-right">
               {/* Zoom controls */}
-              <button onClick={() => setZoom(z => Math.max(z - 0.25, 0.1))} title="Zoom out">−</button>
+              <button onClick={() => setZoom(z => { const next = Math.max(z - 0.25, 0.1); console.log(`[SourceDocumentViewer] Zoom OUT button: ${(z * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`); return next; })} title="Zoom out">−</button>
               <span className="research-viewer__img-zoom-info">{Math.round(zoom * 100)}%</span>
-              <button onClick={() => setZoom(z => Math.min(z + 0.25, 10))} title="Zoom in">+</button>
+              <button onClick={() => setZoom(z => { const next = Math.min(z + 0.25, 10); console.log(`[SourceDocumentViewer] Zoom IN button: ${(z * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`); return next; })} title="Zoom in">+</button>
               <button onClick={resetView} title="Reset view">⟲</button>
 
               {/* Draw controls */}
