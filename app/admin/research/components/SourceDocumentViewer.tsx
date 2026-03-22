@@ -79,7 +79,7 @@ export default function SourceDocumentViewer({
   const defaultTab: ViewTab = hasImages ? 'images' : 'text';
   const [activeTab, setActiveTab] = useState<ViewTab>(defaultTab);
   const [pdfLoadError, setPdfLoadError] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   // Image viewer state
   const [currentPage, setCurrentPage] = useState(0);
@@ -91,7 +91,9 @@ export default function SourceDocumentViewer({
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawMode, setDrawMode] = useState(false);
-  const [drawPaths, setDrawPaths] = useState<Map<number, Array<{ x: number; y: number }[]>>>(new Map());
+  const [drawColor, setDrawColor] = useState('#ff3333');
+  const [drawWidth, setDrawWidth] = useState(3);
+  const [drawPaths, setDrawPaths] = useState<Map<number, Array<{ points: { x: number; y: number }[]; color: string; width: number }>>>(new Map());
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -129,17 +131,17 @@ export default function SourceDocumentViewer({
     const pagePaths = drawPaths.get(currentPage);
     if (!pagePaths || pagePaths.length === 0) return;
 
-    ctx.strokeStyle = '#ff3333';
-    ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
     for (const path of pagePaths) {
-      if (path.length < 2) continue;
+      if (path.points.length < 2) continue;
+      ctx.strokeStyle = path.color;
+      ctx.lineWidth = path.width;
       ctx.beginPath();
-      ctx.moveTo(path[0].x, path[0].y);
-      for (let i = 1; i < path.length; i++) {
-        ctx.lineTo(path[i].x, path[i].y);
+      ctx.moveTo(path.points[0].x, path.points[0].y);
+      for (let i = 1; i < path.points.length; i++) {
+        ctx.lineTo(path.points[i].x, path.points[i].y);
       }
       ctx.stroke();
     }
@@ -161,7 +163,7 @@ export default function SourceDocumentViewer({
     setDrawPaths(prev => {
       const next = new Map(prev);
       const existing = next.get(currentPage) || [];
-      next.set(currentPage, [...existing, [{ x, y }]]);
+      next.set(currentPage, [...existing, { points: [{ x, y }], color: drawColor, width: drawWidth }]);
       return next;
     });
   }
@@ -178,8 +180,9 @@ export default function SourceDocumentViewer({
       const next = new Map(prev);
       const paths = next.get(currentPage) || [];
       if (paths.length === 0) return next;
-      const lastPath = [...paths[paths.length - 1], { x, y }];
-      next.set(currentPage, [...paths.slice(0, -1), lastPath]);
+      const last = paths[paths.length - 1];
+      const updatedLast = { ...last, points: [...last.points, { x, y }] };
+      next.set(currentPage, [...paths.slice(0, -1), updatedLast]);
       return next;
     });
     redrawCanvas();
@@ -374,6 +377,36 @@ export default function SourceDocumentViewer({
               >
                 {drawMode ? '✏ Drawing' : '✏ Draw'}
               </button>
+              {drawMode && (
+                <>
+                  {/* Color picker */}
+                  {['#ff3333', '#3366ff', '#33cc33', '#ff9900', '#9933ff', '#000000'].map(c => (
+                    <button
+                      key={c}
+                      onClick={() => setDrawColor(c)}
+                      title={`Draw color: ${c}`}
+                      className="research-viewer__color-swatch"
+                      style={{
+                        background: c,
+                        outline: drawColor === c ? '2px solid #fff' : 'none',
+                        boxShadow: drawColor === c ? `0 0 0 3px ${c}` : 'none',
+                      }}
+                    />
+                  ))}
+                  {/* Line width */}
+                  <select
+                    value={drawWidth}
+                    onChange={e => setDrawWidth(Number(e.target.value))}
+                    className="research-viewer__line-width-select"
+                    title="Line width"
+                  >
+                    <option value={2}>Thin</option>
+                    <option value={3}>Medium</option>
+                    <option value={5}>Thick</option>
+                    <option value={8}>Extra Thick</option>
+                  </select>
+                </>
+              )}
               {drawPaths.has(currentPage) && (
                 <button onClick={clearDrawings} title="Clear drawings on this page">
                   🗑 Clear

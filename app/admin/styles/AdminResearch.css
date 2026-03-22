@@ -2501,6 +2501,30 @@
   width: 95vw;
 }
 
+/* ── Color swatch buttons for drawing ──────────────────────────────── */
+.research-viewer__color-swatch {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s ease;
+}
+.research-viewer__color-swatch:hover {
+  transform: scale(1.2);
+}
+
+.research-viewer__line-width-select {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+
 /* ── Image viewer ─────────────────────────────────────────────────────── */
 
 .research-viewer__img-viewer {
