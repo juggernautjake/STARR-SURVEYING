@@ -348,19 +348,24 @@ function heuristicRelevanceCheck(deed: DeedRecord, property: PropertyIdentifiers
   }
 
   // ── Check 2: Acreage match (STRONG signal) ─────────────────────
+  let possibleParentTract = false;
   if (property.acreage && deedText) {
     const acreageMatches = [...deedText.matchAll(/(\d+\.?\d*)\s*(?:ACRE|AC\b)/gi)];
     if (acreageMatches.length > 0) {
       // Check ALL acreage values found in the deed
       let bestMatch = false;
       let worstMismatch = false;
+      let largerTract = false;
       for (const m of acreageMatches) {
         const deedAcreage = parseFloat(m[1]);
         if (deedAcreage < 0.01) continue; // skip noise
         const tolerance = Math.max(property.acreage * 0.20, 0.5); // 20% or 0.5ac
         if (Math.abs(deedAcreage - property.acreage) <= tolerance) {
           bestMatch = true;
-        } else if (deedAcreage > property.acreage * 2.5 || deedAcreage < property.acreage * 0.1) {
+        } else if (deedAcreage > property.acreage * 2.5) {
+          // Deed is for a LARGER tract — could be a parent tract that was subdivided
+          largerTract = true;
+        } else if (deedAcreage < property.acreage * 0.1) {
           worstMismatch = true;
         }
       }
@@ -368,6 +373,20 @@ function heuristicRelevanceCheck(deed: DeedRecord, property: PropertyIdentifiers
       if (bestMatch) {
         score += 15;
         reasons.push(`acreage consistent with ${property.acreage}ac`);
+      } else if (largerTract && !worstMismatch) {
+        // Larger tract: reduced penalty — could be parent tract that was later subdivided
+        // If abstract/survey already matched, this is very likely a parent tract
+        const abstractMatched = reasons.some(r => r.startsWith('abstract matches'));
+        const surveyMatched = reasons.some(r => r.startsWith('survey name matches'));
+        const vals = acreageMatches.map(m => parseFloat(m[1])).filter(v => v > 0.01);
+        if (abstractMatched || surveyMatched) {
+          possibleParentTract = true;
+          score += 5;
+          reasons.push(`possible PARENT TRACT (${vals.join(', ')}ac > target ${property.acreage}ac, same abstract/survey)`);
+        } else {
+          score -= 10;
+          reasons.push(`larger tract (${vals.join(', ')}ac vs ${property.acreage}ac) — unknown relation`);
+        }
       } else if (worstMismatch) {
         const vals = acreageMatches.map(m => parseFloat(m[1])).filter(v => v > 0.01);
         score -= 25;
@@ -433,6 +452,14 @@ function heuristicRelevanceCheck(deed: DeedRecord, property: PropertyIdentifiers
       score += 5;
       reasons.push('street number found in deed');
     }
+  }
+
+  // ── Parent-tract safety net ──────────────────────────────────────
+  // If this looks like a parent tract (larger acreage + same abstract/survey),
+  // ensure minimum score of 30 so it goes to AI for review rather than auto-reject
+  if (possibleParentTract && score < 30) {
+    reasons.push(`parent-tract safety net: score raised from ${score} to 30 for AI review`);
+    score = 30;
   }
 
   score = Math.max(0, Math.min(100, score));
@@ -585,13 +612,13 @@ DEED DOCUMENT:
 
 DECISION CRITERIA (in order of importance):
 1. SURVEY/ABSTRACT: Does the deed reference the same survey and abstract number? Different abstract = almost certainly wrong property.
-2. ACREAGE: Is the acreage consistent? A 46-acre deed for a 12-acre property is likely wrong.
-3. SUBDIVISION: Does it reference the same subdivision or addition?
-4. LOT/BLOCK: Does it reference the same lot and block?
-5. NAMES: Do the grantor/grantee names connect to the property's chain of title?
-6. Could this be a PARENT TRACT that was later subdivided to create the target property? (In that case, keep=true)
+2. PARENT TRACT CHECK: If the deed's acreage is LARGER than the target property but references the SAME survey/abstract, this is very likely a PARENT TRACT deed — a larger parcel that was later subdivided to create the target lot. Parent tract deeds are RELEVANT and should be KEPT (keep=true). Example: a 46-acre deed in the same abstract that was later subdivided into the target 2.9-acre lot.
+3. ACREAGE: Is the acreage consistent? Only penalize if the deed is for a SMALLER unrelated parcel or a larger parcel in a DIFFERENT survey/abstract.
+4. SUBDIVISION: Does it reference the same subdivision or addition?
+5. LOT/BLOCK: Does it reference the same lot and block?
+6. NAMES: Do the grantor/grantee names connect to the property's chain of title?
 
-Be STRICT: if the deed clearly describes a different property (different survey, wildly different acreage, different subdivision), mark keep=false even if the owner name matches.
+Be STRICT about different surveys/abstracts, but be LENIENT about larger acreage when the survey/abstract matches — parent tracts are critical chain-of-title documents.
 
 Respond in JSON:
 {

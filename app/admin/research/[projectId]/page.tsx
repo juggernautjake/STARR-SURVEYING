@@ -224,6 +224,9 @@ export default function ResearchProjectPage() {
   // on the research stage until they explicitly click through.
   const [holdOnResearchStage, setHoldOnResearchStage] = useState(false);
 
+  // Re-run research confirmation dialog
+  const [showRerunConfirm, setShowRerunConfirm] = useState(false);
+
   // Review state
   const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'discrepancies' | 'artifacts'>('summary');
   const [showBriefing, setShowBriefing] = useState(true);
@@ -554,6 +557,72 @@ export default function ResearchProjectPage() {
       } else {
         const err = await res.json().catch(() => ({ error: 'Failed to update status' }));
         showToast(err.error || 'Failed to go back. Please try again.', 'error');
+      }
+    } catch {
+      showToast('Unable to connect. Check your internet connection and try again.', 'error');
+    }
+  }
+
+  // ── Re-run research ─────────────────────────────────────────────────────
+  // Clears all pipeline data (analysis, documents, logs) and returns to
+  // either Stage 1 (update params) or Stage 2 (same params, auto-start).
+  async function handleRerunResearch(mode: 'same' | 'update') {
+    if (!project) return;
+    setShowRerunConfirm(false);
+
+    try {
+      const targetStep: WorkflowStep = mode === 'same' ? 'configure' : 'upload';
+      const res = await fetch('/api/admin/research', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: projectId,
+          status: targetStep,
+          clear_analysis_data: true,
+          clear_pipeline_documents: true,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setProject(data.project);
+
+        // Clear all analysis-derived state
+        setComparisonResult(null);
+        setActiveDrawing(null);
+        setDrawingElements([]);
+        setDrawingSvg('');
+        setSelectedElement(null);
+        setAnnotations([]);
+        setAnnotationHistory([]);
+        setAnnotationFuture([]);
+        setHasUnsavedChanges(false);
+        setStats(prev => ({ ...prev, data_point_count: 0, discrepancy_count: 0, resolved_count: 0 }));
+        loadDocuments();
+        loadProject();
+
+        if (mode === 'same') {
+          // Go straight to Stage 2 and auto-start with existing params
+          setPendingSearchParams({
+            address: project.property_address || '',
+            county: project.county || '',
+            parcelId: project.parcel_id || '',
+            ownerName: (project as unknown as { owner_name?: string }).owner_name || '',
+          });
+          setShouldAutoStartPipeline(true);
+          setHoldOnResearchStage(true);
+          setPipelineHasStarted(false);
+        }
+
+        showToast(
+          mode === 'same'
+            ? 'Starting fresh research run with same parameters…'
+            : 'Returned to Property Information — update your parameters and re-run.',
+          'success',
+        );
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Failed to reset' }));
+        showToast(err.error || 'Failed to reset project. Please try again.', 'error');
       }
     } catch {
       showToast('Unable to connect. Check your internet connection and try again.', 'error');
@@ -1667,7 +1736,7 @@ export default function ResearchProjectPage() {
           </div>
 
           {/* ── Navigation ── */}
-          <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="research-back-btn" style={{ margin: 0 }} onClick={() => handleRevertToStep('configure')}>
               ← Back to Research &amp; Analysis
             </button>
@@ -1677,7 +1746,78 @@ export default function ResearchProjectPage() {
             >
               Continue to Job Prep →
             </button>
+            <div style={{ flex: 1 }} />
+            <button
+              onClick={() => setShowRerunConfirm(true)}
+              style={{
+                background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6,
+                padding: '0.5rem 1rem', fontSize: '0.85rem', fontWeight: 600,
+                cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              Re-run Research
+            </button>
           </div>
+
+          {/* ── Re-run confirmation dialog ── */}
+          {showRerunConfirm && (
+            <div style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+            }}>
+              <div style={{
+                background: '#fff', borderRadius: 12, padding: '1.5rem 2rem', maxWidth: 480,
+                width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              }}>
+                <h3 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', color: '#DC2626' }}>
+                  Re-run Research &amp; Analysis
+                </h3>
+                <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: '#374151', lineHeight: 1.5 }}>
+                  <strong>Warning:</strong> All data from the previous run will be permanently deleted, including:
+                </p>
+                <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem', fontSize: '0.85rem', color: '#374151', lineHeight: 1.7 }}>
+                  <li>Extracted data points and analysis results</li>
+                  <li>Discrepancies found during analysis</li>
+                  <li>Pipeline-fetched documents and screenshots</li>
+                  <li>Research logs</li>
+                </ul>
+                <p style={{ margin: '0 0 1.25rem', fontSize: '0.85rem', color: '#6B7280' }}>
+                  Your manually uploaded documents and job notes will be preserved.
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => setShowRerunConfirm(false)}
+                    style={{
+                      padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #D1D5DB',
+                      background: '#fff', color: '#374151', fontSize: '0.85rem', cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleRerunResearch('update')}
+                    style={{
+                      padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #2563EB',
+                      background: '#EFF6FF', color: '#2563EB', fontSize: '0.85rem', fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Update Parameters First
+                  </button>
+                  <button
+                    onClick={() => handleRerunResearch('same')}
+                    style={{
+                      padding: '0.5rem 1rem', borderRadius: 6, border: 'none',
+                      background: '#DC2626', color: '#fff', fontSize: '0.85rem', fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Re-run with Same Parameters
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ══════════════════════════════════════════════════════════
               SECTION 1 — Summary Panel with Tabs

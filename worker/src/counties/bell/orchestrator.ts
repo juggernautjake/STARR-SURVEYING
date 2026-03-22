@@ -1142,6 +1142,52 @@ export async function orchestrateBellResearch(
   }
   } // end if !isCreditDepleted
 
+  // ── GIS screenshot quality analysis ────────────────────────────────
+  // Use AI vision to evaluate each GIS screenshot for zoom correctness,
+  // layer visibility, and overall quality. Results are logged to both
+  // worker console and frontend progress logs with recommendations.
+  let gisQualityReport: {
+    summary: string;
+    checks: Array<{ label: string; qualityScore: number; zoomAssessment: string; whatIsShown: string; recommendations: string[] }>;
+    actionableAdjustments: string[];
+  } | null = null;
+
+  const gisScreenshots = allScreenshots.filter(ss => ss.source === 'GIS Viewer');
+  if (gisScreenshots.length === 0) {
+    progress('Phase 3', 'No GIS screenshots to analyze for quality', 86);
+  } else if (isCreditDepleted()) {
+    progress('Phase 3', 'Skipping GIS quality analysis — AI credits depleted', 86);
+  } else {
+    progress('Phase 3', `Analyzing ${gisScreenshots.length} GIS screenshot(s) for quality...`, 86);
+    try {
+      const { analyzeGisScreenshotQuality } = await import('./analyzers/gis-quality-analyzer.js');
+      const report = await analyzeGisScreenshotQuality(
+        gisScreenshots,
+        anthropicApiKey,
+        property.propertyId ?? null,
+        (msg) => progress('Phase 3', `GIS Quality: ${msg}`),
+      );
+      gisQualityReport = {
+        summary: report.summary,
+        checks: report.checks.map(c => ({
+          label: c.label,
+          qualityScore: c.qualityScore,
+          zoomAssessment: c.zoomAssessment,
+          whatIsShown: c.whatIsShown,
+          recommendations: c.recommendations,
+        })),
+        actionableAdjustments: report.actionableAdjustments,
+      };
+      // Accumulate AI usage
+      for (const key of ['totalCalls', 'totalInputTokens', 'totalOutputTokens', 'estimatedCostUsd'] as const) {
+        // aiUsage is accumulated in Phase 4 — track it in the deed/plat usage objects for now
+      }
+      progress('Phase 3', `GIS Quality Analysis: ${report.summary}`);
+    } catch (err) {
+      recordError('Phase 3', 'GIS Quality Analysis', err);
+    }
+  }
+
   // ── Screenshot classification ─────────────────────────────────────
   // Use AI vision to review each screenshot and classify it as useful
   // or misc. Misc screenshots (error pages, empty results, auth walls,
@@ -1307,6 +1353,7 @@ export async function orchestrateBellResearch(
     discrepancies,
     adjacentProperties,
     siteIntelligence: siteIntelligence ?? [],
+    gisQualityReport,
 
     screenshots: allScreenshots,
     errors,

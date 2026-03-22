@@ -114,7 +114,7 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { id, clear_analysis_data, ...updates } = body;
+  const { id, clear_analysis_data, clear_pipeline_documents, ...updates } = body;
 
   if (!id) return NextResponse.json({ error: 'Project id is required' }, { status: 400 });
 
@@ -166,17 +166,36 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     // Keep only user-authored job_notes; discard all AI-generated analysis data
     const preservedNotes = (currentMeta.job_notes as string | undefined) ?? '';
     allowed.analysis_metadata = preservedNotes ? { job_notes: preservedNotes } : {};
-    await Promise.all([
+    const cleanupOps: Promise<unknown>[] = [
       supabaseAdmin.from('extracted_data_points').delete().eq('research_project_id', id),
       supabaseAdmin.from('discrepancies').delete().eq('research_project_id', id),
-      // Reset document processing_status from 'analyzed'/'analyzing' back to 'extracted'
-      // so they are available for re-analysis without requiring re-upload.
-      supabaseAdmin
-        .from('research_documents')
-        .update({ processing_status: 'extracted', processing_error: null, updated_at: new Date().toISOString() })
-        .eq('research_project_id', id)
-        .in('processing_status', ['analyzed', 'analyzing']),
-    ]);
+    ];
+
+    if (clear_pipeline_documents) {
+      // Full re-run: delete all pipeline-fetched documents (keep user uploads)
+      cleanupOps.push(
+        supabaseAdmin
+          .from('research_documents')
+          .delete()
+          .eq('research_project_id', id)
+          .neq('source_type', 'user_upload'),
+      );
+      // Clear pipeline logs and status
+      allowed.research_logs = null;
+      allowed.research_status = null;
+      allowed.research_message = null;
+      allowed.pipeline_started_at = null;
+    } else {
+      // Partial revert: just reset document processing status
+      cleanupOps.push(
+        supabaseAdmin
+          .from('research_documents')
+          .update({ processing_status: 'extracted', processing_error: null, updated_at: new Date().toISOString() })
+          .eq('research_project_id', id)
+          .in('processing_status', ['analyzed', 'analyzing']),
+      );
+    }
+    await Promise.all(cleanupOps);
   }
 
   const { data, error } = await supabaseAdmin
