@@ -347,7 +347,7 @@ function Lightbox({
       setZoom(prev => {
         const next = Math.min(Math.max(prev + delta, 0.1), 10);
         console.log(`[ArtifactGallery] Scroll zoom: ${(prev * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`, {
-          artifact: lightboxArtifact?.label, deltaY: e.deltaY,
+          artifact: artifact?.label, deltaY: e.deltaY,
         });
         return next;
       });
@@ -372,7 +372,7 @@ function Lightbox({
   const handleMouseUp = useCallback(() => setDragging(false), []);
 
   function resetView() {
-    console.log(`[ArtifactGallery] Reset view — zoom: ${(zoom * 100).toFixed(0)}% → 100%`, { artifact: lightboxArtifact?.label });
+    console.log(`[ArtifactGallery] Reset view — zoom: ${(zoom * 100).toFixed(0)}% → 100%`, { artifact: artifact?.label });
     setZoom(1);
     setPosition({ x: 0, y: 0 });
   }
