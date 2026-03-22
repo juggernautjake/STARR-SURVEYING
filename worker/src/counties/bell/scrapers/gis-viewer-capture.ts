@@ -1,12 +1,34 @@
 // worker/src/counties/bell/scrapers/gis-viewer-capture.ts
-// Full diagnostic GIS viewer capture — tests every zoom method × zoom level × layer combo.
+// Captures multiple targeted screenshots from the Bell County GIS viewer.
 //
-// Matrix:
-//   Phase A: Zoom Method Tests — 11 methods, each with fresh page load + 6s render wait
-//   Phase B: Layer × Zoom Matrix — 8 layer combos × 5 zoom levels = 40 screenshots
-//   Total: ~51 screenshots, all returned every time
+// The GIS viewer (https://gis.bisclient.com/bellcad/) is an ArcGIS
+// Experience Builder app using ArcGIS JS API 4.33. Since there's no
+// MapServer export endpoint, we use Playwright to:
+//   1. Load the viewer
+//   2. Zoom to the target parcel (URL params → search widget → mouse wheel)
+//   3. Toggle layers on/off for different views
+//   4. Switch between street map and aerial/satellite basemaps
+//   5. Capture screenshots at each view
 //
-// Every screenshot is labeled: [DIAG-NN] METHOD: ... | ZOOM: ... | LAYERS: ...
+// Normal mode (default): 9-14 targeted screenshots (A–H) per run.
+//
+// Diagnostics mode (input.diagnosticsMode = true): adds Phase A before
+// the normal screenshots — tests every URL-based zoom method at each of
+// the configured ZOOM_LEVELS (11 total methods) and captures a labeled
+// screenshot after each attempt so you can see which strategies work.
+//
+// Screenshots captured (normal):
+//   A. Maximum detail (zoom in +3)
+//   B. Target parcel detail (zoom in +1)
+//   C. Lot with immediate neighbors
+//   D. Subdivision overview (zoom out -3)
+//   E1-E3. Aerial eagle views (tight, parcel, subdivision)
+//   F. Clean aerial without property lines
+//   G. Adjacent lots (N/E/S/W)
+//   H. Layer combination views (4 combos)
+//
+// Coordinate system: The GIS uses WKID 2277 (NAD 1983 StatePlane Texas
+// Central FIPS 4203 Feet). We convert from WGS84 (lat/lon) to state plane.
 
 import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
@@ -14,13 +36,25 @@ import type { ScreenshotCapture } from '../types/research-result.js';
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface GisViewerCaptureInput {
+  /** Parcel boundary polygon as [lon, lat] rings from GIS query */
   parcelBoundary: number[][][] | null;
+  /** WGS84 centroid */
   lat: number;
   lon: number;
+  /** Property ID for labeling */
   propertyId: string | null;
+  /** Situs address for labeling */
   situsAddress: string | null;
+  /** Lot number */
   lotNumber: string | null;
+  /** Subdivision name */
   subdivisionName: string | null;
+  /**
+   * When true, runs Phase A before normal screenshots: tests every
+   * URL-based zoom method at each ZOOM_LEVEL and captures a labeled
+   * screenshot so you can verify which strategies work on the viewer.
+   */
+  diagnosticsMode?: boolean;
 }
 
 export interface GisViewerCaptureProgress {
@@ -35,6 +69,9 @@ const GIS_VIEWER_URL = BELL_ENDPOINTS.gis.viewer;
 const VIEWER_LOAD_TIMEOUT = 60_000;
 const MAP_SETTLE_WAIT = 4_000;
 const LAYER_TOGGLE_WAIT = 2_500;
+
+// Zoom levels to test in diagnostics mode (low → high detail)
+const ZOOM_LEVELS = [15, 17, 19, 20, 22];
 
 // ── Zoom Strategy Result Type (kept for reference) ───────────────────
 // Diagnostic testing (commit 86d95d0, 12 approaches) confirmed these work:
@@ -59,6 +96,18 @@ interface ZoomStrategyResult {
 
 // ── Main Export ──────────────────────────────────────────────────────
 
+/**
+ * Capture multiple targeted screenshots from the Bell County GIS viewer.
+ * Returns an array of labeled screenshots for the artifact gallery.
+ *
+ * Normal mode: 9–14 targeted screenshots (A–H) of the parcel and its context.
+ *
+ * Diagnostics mode (input.diagnosticsMode = true): prepends Phase A — tests
+ * every URL-based zoom method at each ZOOM_LEVEL, capturing a labeled
+ * screenshot after each attempt so you can verify which strategies work on
+ * the Bell County Experience Builder viewer. Useful during development or
+ * when debugging zoom/map alignment issues.
+ */
 export async function captureGisViewerScreenshots(
   input: GisViewerCaptureInput,
   onProgress: (p: GisViewerCaptureProgress) => void,
@@ -90,83 +139,175 @@ export async function captureGisViewerScreenshots(
     return results;
   }
 
-  const log = (msg: string) => {
-    const ts = new Date().toISOString();
-    console.log(`[GIS-DIAG ${ts}] ${msg}`);
-    onProgress({ phase: 'GIS Diagnostic', message: msg, timestamp: ts });
+  // Reset zoom cache for this capture run
+  _zoomCached = false;
+
+  const progress = (msg: string) => {
+    logDetail('progress', msg);
+    onProgress({ phase: 'GIS Viewer', message: msg, timestamp: new Date().toISOString() });
   };
-
-  // Compute center coordinates
-  let centerLon = input.lon;
-  let centerLat = input.lat;
-  if (input.parcelBoundary && input.parcelBoundary.length > 0) {
-    const ring = input.parcelBoundary[0];
-    let sumLon = 0, sumLat = 0;
-    for (const [lon, lat] of ring) { sumLon += lon; sumLat += lat; }
-    centerLon = sumLon / ring.length;
-    centerLat = sumLat / ring.length;
-    log(`Computed parcel centroid: (${centerLon.toFixed(4)}, ${centerLat.toFixed(4)}) from ${ring.length}-point boundary`);
-  } else {
-    log(`Using WGS84 coordinates: (${centerLon}, ${centerLat}) — no parcel boundary`);
-  }
-
-  const propLabel = `${input.propertyId ?? 'unknown'} ${input.situsAddress ?? ''}`.trim();
-  let diagIndex = 0;
 
   let browser;
   try {
     logDetail('browser', 'Importing Playwright and launching Chromium...');
     const browserLaunchStart = Date.now();
     const pw = await import('playwright');
-    log('Launching Chromium browser...');
     browser = await pw.chromium.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'],
     });
-    log('Browser launched successfully');
+    logDetail('browser', `Chromium launched in ${Date.now() - browserLaunchStart}ms`);
 
-    // ================================================================
-    // PHASE A: ZOOM METHOD TESTS — fresh page load for each method
-    // ================================================================
-    log('═══════════════════════════════════════════════════════════');
-    log('PHASE A: ZOOM METHOD DIAGNOSTICS — Testing each zoom method');
-    log('═══════════════════════════════════════════════════════════');
+    const context = await browser.newContext({
+      viewport: { width: 1920, height: 1080 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const zoomMethods: Array<{ name: string; run: (page: any) => Promise<void> }> = [
-      // URL hash at each zoom level
-      ...ZOOM_LEVELS.map(level => ({
-        name: `URL-Hash level=${level}`,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        run: async (page: any) => {
-          const url = `${GIS_VIEWER_URL}#center=${centerLon},${centerLat}&level=${level}`;
-          log(`  Navigating to: ${url}`);
-          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
+    const page = await context.newPage();
+    logDetail('browser', 'Browser context and page created (1920x1080 viewport)');
+
+    // ── Step 1: Load the GIS viewer ──────────────────────────────
+    progress('Loading Bell County GIS viewer...');
+    const pageLoadStart = Date.now();
+    logDetail('load', `Navigating to GIS viewer: ${GIS_VIEWER_URL}`, { timeout: VIEWER_LOAD_TIMEOUT });
+    await page.goto(GIS_VIEWER_URL, {
+      waitUntil: 'domcontentloaded',
+      timeout: VIEWER_LOAD_TIMEOUT,
+    });
+    logDetail('load', `Page loaded (domcontentloaded) in ${Date.now() - pageLoadStart}ms`);
+
+    // ── Step 1.5: Dismiss the Bell CAD disclaimer dialog ────────
+    progress('Looking for disclaimer dialog...');
+    const disclaimerStart = Date.now();
+    await dismissDisclaimerDialog(page, progress);
+    logDetail('disclaimer', `Disclaimer handling completed in ${Date.now() - disclaimerStart}ms`);
+
+    // Wait for the ArcGIS map to initialize
+    progress('Waiting for map to initialize...');
+    const mapReadyStart = Date.now();
+    const mapReady = await waitForMapReady(page, progress);
+    const mapReadyDuration = Date.now() - mapReadyStart;
+    logDetail('map-init', `Map ready check: ${mapReady ? 'SUCCESS' : 'FAILED'} in ${mapReadyDuration}ms`);
+
+    if (!mapReady) {
+      logDetail('map-init', 'Map did not initialize — capturing fallback screenshot');
+      progress('⚠ Map did not initialize — falling back to static screenshots');
+      const fallback = await takeScreenshot(page, 'GIS Viewer', 'GIS Viewer — map initialization timeout');
+      if (fallback) {
+        results.push(fallback);
+        logDetail('screenshot', `Fallback screenshot captured: ${fallback.imageBase64.length} base64 chars`);
+      }
+      await context.close();
+      logDetail('summary', `GIS capture ABORTED (map init failed) — ${results.length} fallback screenshots in ${Date.now() - captureStart}ms`);
+      return results;
+    }
+
+    progress('GIS viewer loaded and map initialized');
+    logDetail('map-init', `GIS viewer fully initialized — total load time: ${Date.now() - pageLoadStart}ms`);
+
+    // ── Phase A (optional): Zoom Method Diagnostics ──────────────
+    // Only runs when input.diagnosticsMode = true. Tests each URL-based
+    // zoom method at each ZOOM_LEVEL and captures a labeled screenshot.
+    // Use this to verify which strategies work on the Bell County viewer.
+    if (input.diagnosticsMode) {
+      // Compute parcel centroid for URL params
+      let diagLon = input.lon;
+      let diagLat = input.lat;
+      if (input.parcelBoundary && input.parcelBoundary.length > 0) {
+        const ring = input.parcelBoundary[0];
+        let sumLon = 0, sumLat = 0;
+        for (const [lon, lat] of ring) { sumLon += lon; sumLat += lat; }
+        diagLon = sumLon / ring.length;
+        diagLat = sumLat / ring.length;
+      }
+
+      progress('PHASE A: Starting zoom method diagnostics...');
+      logDetail('diag', `Phase A: testing ${ZOOM_LEVELS.length * 2 + 1} URL zoom methods at (${diagLon.toFixed(4)}, ${diagLat.toFixed(4)})`);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const diagMethods: Array<{ name: string; run: (p: any) => Promise<void> }> = [
+        // URL hash at each zoom level
+        ...ZOOM_LEVELS.map(level => ({
+          name: `URL-Hash level=${level}`,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          run: async (p: any) => {
+            const url = `${GIS_VIEWER_URL}#center=${diagLon},${diagLat}&level=${level}`;
+            logDetail('diag', `  Navigating to: ${url}`);
+            await p.goto(url, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
+          },
+        })),
+        // URL query string at each zoom level
+        ...ZOOM_LEVELS.map(level => ({
+          name: `URL-Query level=${level}`,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          run: async (p: any) => {
+            const base = GIS_VIEWER_URL.replace(/[#?].*$/, '');
+            const url = `${base}?center=${diagLon},${diagLat}&level=${level}`;
+            logDetail('diag', `  Navigating to: ${url}`);
+            await p.goto(url, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
+          },
+        })),
+        // URL extent (tight bounding box)
+        {
+          name: 'URL-Extent tight-bbox',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          run: async (p: any) => {
+            const d = 0.0003;
+            const url = `${GIS_VIEWER_URL}#extent=${diagLon - d},${diagLat - d},${diagLon + d},${diagLat + d}`;
+            logDetail('diag', `  Navigating to: ${url}`);
+            await p.goto(url, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
+          },
         },
-      })),
-      // URL query at each zoom level
-      ...ZOOM_LEVELS.map(level => ({
-        name: `URL-Query level=${level}`,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        run: async (page: any) => {
-          const base = GIS_VIEWER_URL.replace(/[#?].*$/, '');
-          const url = `${base}?center=${centerLon},${centerLat}&level=${level}`;
-          log(`  Navigating to: ${url}`);
-          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
-        },
-      })),
-      // URL extent (tight bbox)
-      {
-        name: 'URL-Extent tight-bbox',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        run: async (page: any) => {
-          const d = 0.0003;
-          const url = `${GIS_VIEWER_URL}#extent=${centerLon - d},${centerLat - d},${centerLon + d},${centerLat + d}`;
-          log(`  Navigating to: ${url}`);
-          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
-        },
-      },
-    ];
+      ];
+
+      let diagIndex = 0;
+      for (const method of diagMethods) {
+        diagIndex++;
+        progress(`[DIAG-${String(diagIndex).padStart(2, '0')}] Testing: ${method.name}`);
+        try {
+          await method.run(page);
+          await dismissDisclaimerDialog(page, progress);
+          await page.waitForTimeout(MAP_SETTLE_WAIT);
+          const ss = await takeScreenshot(page, 'GIS Viewer',
+            `[DIAG-${String(diagIndex).padStart(2, '0')}] ${method.name} — ${input.propertyId ?? ''} ${input.situsAddress ?? ''}`);
+          if (ss) {
+            results.push(ss);
+            logDetail('diag', `  ✓ Screenshot captured for ${method.name}: ${Math.round(ss.imageBase64.length / 1024)}KB`);
+            progress(`[DIAG-${String(diagIndex).padStart(2, '0')}] ✓ ${method.name} — ${Math.round(ss.imageBase64.length / 1024)}KB`);
+          } else {
+            logDetail('diag', `  ✗ Screenshot FAILED for ${method.name}`);
+            progress(`[DIAG-${String(diagIndex).padStart(2, '0')}] ✗ ${method.name} — screenshot returned null`);
+          }
+        } catch (err) {
+          logDetail('diag', `  ✗ ${method.name} SKIPPED — ${err instanceof Error ? err.message : String(err)}`);
+          progress(`[DIAG-${String(diagIndex).padStart(2, '0')}] ✗ ${method.name} SKIPPED — ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+
+      progress(`PHASE A complete — ${diagIndex} methods tested`);
+      logDetail('diag', `Phase A complete — tested ${diagIndex} zoom methods`);
+
+      // Return to the base URL and reinitialize for Phase B screenshots
+      _zoomCached = false;
+      await page.goto(GIS_VIEWER_URL, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
+      await dismissDisclaimerDialog(page, progress);
+      await waitForMapReady(page, progress);
+    }
+
+    // ── Step 2: Zoom to the target parcel ────────────────────────
+    // Strategy cascade: URL params (fastest) → search widget → mouse wheel
+    const zoomStart = Date.now();
+    logDetail('zoom', 'Beginning zoom-to-parcel strategy cascade (URL params → search → mouse wheel)', {
+      has_boundary: !!input.parcelBoundary, lat: input.lat, lon: input.lon,
+      situs_address: input.situsAddress,
+    });
+    const zoomed = await zoomToParcel(page, input, progress);
+    logDetail('zoom', `Zoom-to-parcel result: ${zoomed ? 'SUCCESS' : 'FAILED'} in ${Date.now() - zoomStart}ms`, {
+      success: zoomed, duration_ms: Date.now() - zoomStart,
+    });
+    if (!zoomed) {
+      progress('Could not zoom to parcel — capturing current view');
+    }
 
     logDetail('zoom', `Waiting ${MAP_SETTLE_WAIT}ms for map to settle after zoom`);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
@@ -334,6 +475,7 @@ export async function captureGisViewerScreenshots(
     await zoomToParcel(page, input, progress);
     await page.waitForTimeout(MAP_SETTLE_WAIT);
 
+    for (const dir of directions) {
       try {
         logDetail('screenshot-G', `Panning ${dir.name} (dx=${dir.dx}, dy=${dir.dy})`);
         progress(`[Screenshot G] Panning ${dir.name} to capture adjacent lot...`);
@@ -384,6 +526,15 @@ export async function captureGisViewerScreenshots(
         } else {
           await switchToStreetsBasemap(page);
         }
+        await toggleParcelLayer(page, combo.parcels);
+        await toggleLotLineLayer(page, combo.lotLines);
+        await zoomToParcel(page, input, progress);
+        if (combo.zoomDelta > 0) {
+          await zoomIn(page, combo.zoomDelta);
+        } else if (combo.zoomDelta < 0) {
+          await zoomOut(page, -combo.zoomDelta);
+        }
+        await page.waitForTimeout(MAP_SETTLE_WAIT);
 
         const ssCombo = await takeScreenshot(page, 'GIS Viewer',
           `Layer view: ${combo.label} — ${input.propertyId ?? ''} ${input.situsAddress ?? ''}`);
@@ -399,9 +550,6 @@ export async function captureGisViewerScreenshots(
         logDetail('screenshot-H', `Layer combo "${combo.label}" SKIPPED — error: ${err instanceof Error ? err.message : String(err)}`);
         progress(`[Screenshot H] ✗ ${combo.label} SKIPPED — ${err instanceof Error ? err.message : String(err)}`);
       }
-
-      await context.close();
-      log(`  Closed context for zoom ${zoomLevel}`);
     }
 
     // Restore defaults
@@ -421,39 +569,64 @@ export async function captureGisViewerScreenshots(
     progress(`✓ GIS capture complete — ${results.length} screenshots in ${Math.round(totalDuration / 1000)}s (${totalSizeKB}KB total)`);
 
   } catch (err) {
-    log(`FATAL: Browser-level error: ${err instanceof Error ? err.message : String(err)}`);
+    const totalDuration = Date.now() - captureStart;
+    logDetail('error', `GIS viewer capture FAILED after ${totalDuration}ms: ${err instanceof Error ? err.message : String(err)}`, {
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack?.split('\n').slice(0, 5).join('\n') : undefined,
+      screenshots_before_error: results.length,
+    });
+    progress(`GIS viewer capture error: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     if (browser) {
       logDetail('cleanup', 'Closing browser');
       await browser.close().catch(() => {});
-      log('Browser closed');
+      logDetail('cleanup', 'Browser closed');
+    }
+    // Log full capture timeline
+    logDetail('timeline', `Full capture log (${captureLog.length} entries):`);
+    for (const entry of captureLog) {
+      console.log(entry);
     }
   }
 
   return results;
 }
 
-// ── Dismiss Disclaimer Dialog ────────────────────────────────────────
+// ── Internal: Dismiss Disclaimer Dialog ──────────────────────────────
 
+/**
+ * The Bell CAD GIS viewer (BIS Consultants) shows a disclaimer dialog on
+ * every page load. It has an "OK" button and a "Cancel" button. The dialog
+ * must be dismissed before the map can be interacted with.
+ *
+ * Dialog content: "Bell Central Appraisal District" disclaimer about
+ * informational purposes only, with OK/Cancel buttons at the bottom.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function dismissDisclaimerDialog(page: any, log: (msg: string) => void): Promise<void> {
+async function dismissDisclaimerDialog(page: any, progress: (msg: string) => void): Promise<void> {
   const maxWait = 15_000;
   const pollInterval = 1_000;
   let waited = 0;
 
   while (waited < maxWait) {
     try {
+      // Try multiple selectors for the OK button in the disclaimer dialog
       const okSelectors = [
+        // Button with text "OK" — most reliable
         'button:has-text("OK")',
+        // Calcite/Esri modal buttons
         'calcite-button:has-text("OK")',
+        // Generic button matching
         'button.btn-primary',
         'button.esri-button',
         '.modal-footer button:first-child',
         '.dialog-footer button:first-child',
+        // ArcGIS Experience Builder dialog buttons
         '.jimu-btn:has-text("OK")',
         '[class*="modal"] button:has-text("OK")',
         '[class*="dialog"] button:has-text("OK")',
         '[class*="popup"] button:has-text("OK")',
+        // Generic overlay/dialog patterns
         '[role="dialog"] button',
         '[role="alertdialog"] button',
       ];
@@ -463,22 +636,27 @@ async function dismissDisclaimerDialog(page: any, log: (msg: string) => void): P
           const btn = page.locator(sel).first();
           if (await btn.count() > 0) {
             const btnText = await btn.textContent().catch(() => '');
+            // Only click buttons that contain "OK" or are the primary action
             if (btnText?.trim().toUpperCase() === 'OK' || btnText?.trim().toUpperCase() === 'ACCEPT' || sel.includes('primary')) {
               await btn.click({ timeout: 3000 });
-              log(`    ✓ Dismissed disclaimer (clicked "${btnText?.trim()}" via ${sel})`);
+              progress(`  ✓ Dismissed disclaimer dialog (clicked: "${btnText?.trim()}" via ${sel})`);
+              // Wait a moment for the dialog to close
               await page.waitForTimeout(1500);
               return;
             }
           }
-        } catch { /* try next */ }
+        } catch {
+          // Selector not found or click failed — try next
+        }
       }
 
-      // DOM evaluate fallback
+      // Also try clicking any visible button that says exactly "OK"
       const clicked = await page.evaluate(() => {
         const buttons = Array.from(document.querySelectorAll('button'));
         for (const btn of buttons) {
           const text = btn.textContent?.trim();
           if (text === 'OK' || text === 'Accept' || text === 'I Agree') {
+            // Check if the button is visible
             const rect = btn.getBoundingClientRect();
             if (rect.width > 0 && rect.height > 0) {
               btn.click();
@@ -486,6 +664,7 @@ async function dismissDisclaimerDialog(page: any, log: (msg: string) => void): P
             }
           }
         }
+        // Also check for anchor tags styled as buttons
         const anchors = Array.from(document.querySelectorAll('a'));
         for (const a of anchors) {
           const text = a.textContent?.trim();
@@ -501,26 +680,32 @@ async function dismissDisclaimerDialog(page: any, log: (msg: string) => void): P
       });
 
       if (clicked) {
-        log(`    ✓ Dismissed disclaimer (clicked "${clicked}" via DOM evaluate)`);
+        progress(`  ✓ Dismissed disclaimer dialog (clicked: "${clicked}" via DOM evaluate)`);
         await page.waitForTimeout(1500);
         return;
       }
-    } catch { /* retry */ }
+
+    } catch (err) {
+      // Evaluation may fail during page load — retry
+    }
 
     await page.waitForTimeout(pollInterval);
     waited += pollInterval;
-    if (waited < maxWait && waited % 3000 === 0) {
-      log(`    Waiting for disclaimer... (${Math.round(waited / 1000)}s)`);
+    if (waited < maxWait) {
+      progress(`  Waiting for disclaimer dialog... (${Math.round(waited / 1000)}s)`);
     }
   }
 
-  log('    No disclaimer dialog found (may not be present)');
+  progress('  No disclaimer dialog found (may have been auto-dismissed or not present)');
 }
 
-// ── Wait for Map Ready ───────────────────────────────────────────────
+// ── Internal: Wait for Map Ready ─────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function waitForMapReady(page: any, log: (msg: string) => void): Promise<boolean> {
+async function waitForMapReady(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  page: any,
+  progress: (msg: string) => void,
+): Promise<boolean> {
   const maxWait = 45_000;
   const pollInterval = 3_000;
   let waited = 0;
@@ -528,57 +713,65 @@ async function waitForMapReady(page: any, log: (msg: string) => void): Promise<b
   while (waited < maxWait) {
     try {
       const ready = await page.evaluate(() => {
+        // Check for canvas element (map tiles rendered) — most reliable
+        // indicator that the map is visually loaded, regardless of whether
+        // the ArcGIS JS API is accessible.
         const canvas = document.querySelector('.esri-view-surface canvas');
-        if (canvas) return 'canvas';
+        if (canvas) return true;
+
+        // Check for Esri view container
         const viewDiv = document.querySelector('.esri-view');
-        if (viewDiv) return 'esri-view';
+        if (viewDiv) return true;
+
+        // Check for ArcGIS Experience Builder map widget
         const jimuMap = document.querySelector('[data-widgetid*="map"], .jimu-widget--map');
-        if (jimuMap) return 'jimu-map';
-        return null;
+        if (jimuMap) return true;
+
+        return false;
       });
 
-      if (ready) {
-        log(`    Map ready (detected via: ${ready})`);
-        return true;
-      }
-    } catch { /* evaluate may fail during load */ }
+      if (ready) return true;
+    } catch { /* evaluate may fail during page load */ }
 
     await page.waitForTimeout(pollInterval);
     waited += pollInterval;
-    log(`    Waiting for map... (${Math.round(waited / 1000)}s/${Math.round(maxWait / 1000)}s)`);
+    progress(`  Waiting for map... (${Math.round(waited / 1000)}s)`);
   }
 
-  log('    ✗ Map did NOT become ready within timeout');
   return false;
 }
 
-// ── Get Current Zoom Level ───────────────────────────────────────────
+// ── Internal: Find the MapView via JS API (best-effort) ──────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getCurrentZoomLevel(page: any): Promise<number | null> {
+async function tryGetMapView(page: any): Promise<boolean> {
   try {
     return await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any;
-      // Try jimuMapViews
       if (w._mapViewManager?.jimuMapViews) {
         const views = Object.values(w._mapViewManager.jimuMapViews);
-        for (const v of views) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const view = (v as any)?.view;
-          if (view?.ready && typeof view.zoom === 'number') return view.zoom;
-        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return views.some((v: any) => v?.view?.ready);
       }
-      // Try arcgis-map element
       const mapEl = document.querySelector('arcgis-map');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (mapEl && (mapEl as any).view?.ready) return (mapEl as any).view.zoom;
-      return null;
+      if (mapEl && (mapEl as any).view?.ready) return true;
+      return false;
     });
-  } catch { return null; }
+  } catch { return false; }
 }
 
-// ── Switch Basemaps ──────────────────────────────────────────────────
+
+// ── Internal: Zoom to Parcel ─────────────────────────────────────────
+// Cascading strategies (proven via diagnostic testing):
+//   1. URL hash params with State Plane coordinates (fastest, no UI interaction)
+//   2. Search widget — type address, select suggestion, viewer zooms itself
+//   3. Mouse-wheel zoom — approximate but always works
+// JS API (goTo) was removed — it never works on this Experience Builder app.
+
+// Track whether we've already zoomed (avoid redundant re-zooms during capture series)
+let _zoomCached = false;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function zoomToParcel(page: any, input: GisViewerCaptureInput, progress: (msg: string) => void): Promise<boolean> {
@@ -963,22 +1156,23 @@ async function switchToAerialBasemap(page: any): Promise<void> {
       if (mapEl) view = (mapEl as any).view;
     }
     if (!view?.map) return false;
-    try { view.map.basemap = 'hybrid'; return true; }
-    catch { try { view.map.basemap = 'satellite'; return true; } catch { return false; } }
+
+    try {
+      view.map.basemap = 'hybrid';
+      return true;
+    } catch {
+      try { view.map.basemap = 'satellite'; return true; } catch { return false; }
+    }
   }).catch(() => false);
 
-  if (jsWorked) {
-    log('      Basemap → aerial (via JS API)');
-    return;
-  }
+  if (jsWorked) return;
 
-  // Strategy 2: UI gallery
-  log('      JS API basemap switch failed, trying UI gallery...');
-  await clickBasemapGalleryItem(page, ['imagery', 'satellite', 'aerial', 'hybrid', 'world imagery'], log);
+  // Strategy 2: Click basemap gallery item in the Experience Builder UI
+  await clickBasemapGalleryItem(page, ['imagery', 'satellite', 'aerial', 'hybrid', 'world imagery']);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function switchToStreetsBasemap(page: any, log: (msg: string) => void): Promise<void> {
+async function switchToStreetsBasemap(page: any): Promise<void> {
   const jsWorked = await page.evaluate(async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
@@ -996,22 +1190,21 @@ async function switchToStreetsBasemap(page: any, log: (msg: string) => void): Pr
       if (mapEl) view = (mapEl as any).view;
     }
     if (!view?.map) return false;
+
     try { view.map.basemap = 'streets-vector'; return true; }
     catch { try { view.map.basemap = 'streets'; return true; } catch { return false; } }
   }).catch(() => false);
 
-  if (jsWorked) {
-    log('      Basemap → streets (via JS API)');
-    return;
-  }
+  if (jsWorked) return;
 
-  log('      JS API basemap switch failed, trying UI gallery...');
-  await clickBasemapGalleryItem(page, ['streets', 'topographic', 'topo', 'street map'], log);
+  await clickBasemapGalleryItem(page, ['streets', 'topographic', 'topo', 'street map']);
 }
 
+// Click a basemap gallery item by matching title text
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function clickBasemapGalleryItem(page: any, keywords: string[], log: (msg: string) => void): Promise<void> {
+async function clickBasemapGalleryItem(page: any, keywords: string[]): Promise<void> {
   try {
+    // First, try to open the basemap gallery widget if it's collapsed
     const galleryOpeners = [
       '.esri-basemap-gallery-widget__button',
       '[data-widgetid*="basemap"]',
@@ -1025,61 +1218,60 @@ async function clickBasemapGalleryItem(page: any, keywords: string[], log: (msg:
         const opener = page.locator(sel).first();
         if (await opener.count() > 0 && await opener.isVisible()) {
           await opener.click();
-          log(`      Opened basemap gallery via ${sel}`);
           await page.waitForTimeout(1000);
           break;
         }
       } catch { /* try next */ }
     }
 
+    // Now find and click the basemap item by its label
     const clicked = await page.evaluate((kws: string[]) => {
+      // Check basemap gallery items
       const items = document.querySelectorAll(
-        '.esri-basemap-gallery__item, [class*="basemap-gallery"] [class*="item"], .esri-basemap-gallery__item-container li'
+        '.esri-basemap-gallery__item, [class*="basemap-gallery"] [class*="item"], ' +
+        '.esri-basemap-gallery__item-container li'
       );
       for (let i = 0; i < items.length; i++) {
         const title = (items[i].textContent || '').toLowerCase();
         if (kws.some(kw => title.includes(kw))) {
           (items[i] as HTMLElement).click();
-          return title.trim().substring(0, 40);
+          return true;
         }
       }
+      // Broader search — any element with basemap-related text
       const allEls = document.querySelectorAll('[class*="basemap"] *');
       for (let j = 0; j < allEls.length; j++) {
         const el = allEls[j];
         const title = (el.textContent || '').toLowerCase().trim();
         if (title && kws.some(kw => title.includes(kw)) && title.length < 50) {
           (el as HTMLElement).click();
-          return title.substring(0, 40);
+          return true;
         }
       }
-      return null;
+      return false;
     }, keywords);
 
     if (clicked) {
-      log(`      Clicked basemap gallery item: "${clicked}"`);
-      await page.waitForTimeout(2000);
-    } else {
-      log('      ✗ Could not find basemap gallery item');
+      await page.waitForTimeout(LAYER_TOGGLE_WAIT);
     }
-  } catch (err) {
-    log(`      ✗ Basemap gallery error: ${err instanceof Error ? err.message : String(err)}`);
-  }
+  } catch { /* basemap switch is best-effort */ }
 }
 
-// ── Toggle Layers ────────────────────────────────────────────────────
+// ── Internal: Toggle Layers ──────────────────────────────────────────
+// Uses two strategies: JS API → UI layer list checkbox clicks
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function toggleParcelLayer(page: any, visible: boolean, log: (msg: string) => void): Promise<void> {
-  await toggleLayerByTitle(page, ['Parcels', 'parcels', 'PARCELS'], visible, log);
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function toggleLotLineLayer(page: any, visible: boolean, log: (msg: string) => void): Promise<void> {
-  await toggleLayerByTitle(page, ['Lot Lines', 'lot lines', 'LOT LINES', 'LotLines'], visible, log);
+async function toggleParcelLayer(page: any, visible: boolean): Promise<void> {
+  await toggleLayerByTitle(page, ['Parcels', 'parcels', 'PARCELS'], visible);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function toggleLayerByTitle(page: any, titles: string[], visible: boolean, log: (msg: string) => void): Promise<void> {
+async function toggleLotLineLayer(page: any, visible: boolean): Promise<void> {
+  await toggleLayerByTitle(page, ['Lot Lines', 'lot lines', 'LOT LINES', 'LotLines'], visible);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function toggleLayerByTitle(page: any, titles: string[], visible: boolean): Promise<void> {
   // Strategy 1: JS API
   const jsWorked = await page.evaluate((params: { titles: string[]; visible: boolean }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1098,6 +1290,7 @@ async function toggleLayerByTitle(page: any, titles: string[], visible: boolean,
       if (mapEl) view = (mapEl as any).view;
     }
     if (!view?.map?.layers) return false;
+
     let toggled = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     view.map.layers.forEach((layer: any) => {
@@ -1109,29 +1302,32 @@ async function toggleLayerByTitle(page: any, titles: string[], visible: boolean,
     return toggled;
   }, { titles, visible }).catch(() => false);
 
-  if (jsWorked) {
-    log(`      Layer "${titles[0]}" → ${visible ? 'ON' : 'OFF'} (via JS API)`);
-    return;
-  }
+  if (jsWorked) return;
 
-  // Strategy 2: UI layer list
-  log(`      JS API layer toggle failed for "${titles[0]}", trying UI...`);
+  // Strategy 2: Click layer list checkboxes in the UI
   try {
+    // Find layer list items matching our titles and toggle their checkboxes
     await page.evaluate((params: { titles: string[]; visible: boolean }) => {
+      // Look for layer list widget items
       const listItems = document.querySelectorAll(
-        '.esri-layer-list__item, [class*="layer-list"] [class*="item"], .jimu-widget--layer-list [class*="item"]'
+        '.esri-layer-list__item, [class*="layer-list"] [class*="item"], ' +
+        '.jimu-widget--layer-list [class*="item"]'
       );
+
       for (let i = 0; i < listItems.length; i++) {
         const item = listItems[i];
         const label = (item.textContent || '').trim().toLowerCase();
         if (params.titles.some(t => label.includes(t.toLowerCase()))) {
+          // Find the visibility checkbox/toggle within this item
           const toggle = item.querySelector(
-            'input[type="checkbox"], calcite-checkbox, .esri-layer-list__item-toggle, [class*="visibility"], [role="switch"]'
+            'input[type="checkbox"], calcite-checkbox, .esri-layer-list__item-toggle, ' +
+            '[class*="visibility"], [role="switch"]'
           );
           if (toggle) {
             const isChecked = (toggle as HTMLInputElement).checked ||
               toggle.getAttribute('aria-checked') === 'true' ||
               toggle.classList.contains('checked');
+
             if (isChecked !== params.visible) {
               (toggle as HTMLElement).click();
             }
@@ -1139,10 +1335,9 @@ async function toggleLayerByTitle(page: any, titles: string[], visible: boolean,
         }
       }
     }, { titles, visible });
-    log(`      Layer "${titles[0]}" → ${visible ? 'ON' : 'OFF'} (via UI)`);
-  } catch (err) {
-    log(`      ✗ Layer toggle failed for "${titles[0]}": ${err instanceof Error ? err.message : String(err)}`);
-  }
+
+    await page.waitForTimeout(LAYER_TOGGLE_WAIT);
+  } catch { /* layer toggle is best-effort */ }
 }
 
 // ── Internal: Canvas Stability Verification ──────────────────────────
@@ -1221,7 +1416,7 @@ async function takeScreenshot(page: any, source: string, description: string): P
     await waitForMapRender(page);
 
     const buffer = await page.screenshot({
-      fullPage: false,
+      fullPage: false, // Viewport only — we set it to 1920x1080
       type: 'png',
       timeout: TIMEOUTS.screenshotCapture,
     });
@@ -1232,7 +1427,7 @@ async function takeScreenshot(page: any, source: string, description: string): P
       imageBase64: buffer.toString('base64'),
       capturedAt: new Date().toISOString(),
       description,
-      classification: 'useful',
+      classification: 'useful', // GIS viewer screenshots are always useful
     };
   } catch {
     return null;
