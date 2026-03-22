@@ -1150,6 +1150,7 @@ export async function orchestrateBellResearch(
     summary: string;
     checks: Array<{ label: string; qualityScore: number; zoomAssessment: string; whatIsShown: string; recommendations: string[] }>;
     actionableAdjustments: string[];
+    aiUsage?: AiUsageSummary;
   } | null = null;
 
   const gisScreenshots = allScreenshots.filter(ss => ss.source === 'GIS Viewer');
@@ -1177,11 +1178,8 @@ export async function orchestrateBellResearch(
           recommendations: c.recommendations,
         })),
         actionableAdjustments: report.actionableAdjustments,
+        aiUsage: report.aiUsage,
       };
-      // Accumulate AI usage
-      for (const key of ['totalCalls', 'totalInputTokens', 'totalOutputTokens', 'estimatedCostUsd'] as const) {
-        // aiUsage is accumulated in Phase 4 — track it in the deed/plat usage objects for now
-      }
       progress('Phase 3', `GIS Quality Analysis: ${report.summary}`);
     } catch (err) {
       recordError('Phase 3', 'GIS Quality Analysis', err);
@@ -1241,7 +1239,7 @@ export async function orchestrateBellResearch(
     totalOutputTokens: 0,
     estimatedCostUsd: 0,
   };
-  for (const u of [deedResult?.aiUsage, platResult?.aiUsage]) {
+  for (const u of [deedResult?.aiUsage, platResult?.aiUsage, gisQualityReport?.aiUsage]) {
     if (u) {
       aiUsage.totalCalls += u.totalCalls;
       aiUsage.totalInputTokens += u.totalInputTokens;
