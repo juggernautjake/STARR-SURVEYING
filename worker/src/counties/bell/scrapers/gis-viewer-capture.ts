@@ -67,8 +67,10 @@ export interface GisViewerCaptureProgress {
 
 const GIS_VIEWER_URL = BELL_ENDPOINTS.gis.viewer;
 const VIEWER_LOAD_TIMEOUT = 60_000;
-const MAP_SETTLE_WAIT = 4_000;
-const LAYER_TOGGLE_WAIT = 2_500;
+const MAP_SETTLE_WAIT = 6_000;
+const LAYER_TOGGLE_WAIT = 4_000;
+// Extra wait after full page navigation to let ArcGIS tiles + layers fully render
+const POST_NAV_RENDER_WAIT = 8_000;
 
 // ── Module-level logging ─────────────────────────────────────────────
 // All helper functions use gisLog() so every log entry is captured in the
@@ -120,9 +122,12 @@ export async function captureGisViewerScreenshots(
   onProgress: (p: GisViewerCaptureProgress) => void,
 ): Promise<ScreenshotCapture[]> {
   const results: ScreenshotCapture[] = [];
-  // Reset module-level log state for this capture run
+  // Reset module-level state for this capture run
   _captureStart = Date.now();
   _captureLog.length = 0;
+  _zoomCached = false;
+  _parcelCenterLon = 0;
+  _parcelCenterLat = 0;
 
   // logDetail delegates to gisLog — kept for readability in the main function
   const logDetail = gisLog;
@@ -298,141 +303,175 @@ export async function captureGisViewerScreenshots(
     }
 
     // ── Step 2: Zoom to the target parcel ────────────────────────
-    // Strategy cascade: URL params (fastest) → search widget → mouse wheel
+    // Use absolute URL navigation for each screenshot to avoid cumulative zoom drift.
+    // The Bell County GIS viewer accepts #center=x,y&level=N hash params.
+    //
+    // Zoom level mapping (Bell County GIS / ArcGIS Experience Builder):
+    //   The Bell CAD GIS viewer uses very high zoom levels. From testing,
+    //   level 20 still shows ~1,000m scale (too far for lots). Levels need
+    //   to be much higher to see individual parcels and lot lines.
+    //
+    //   26 = maximum detail (lot dimensions, building footprints)
+    //   25 = lot-level detail with lot lines
+    //   24 = target parcel with immediate neighbors
+    //   22 = block-level / subdivision overview
+    //   20 = neighborhood context
+    //   18 = city/county context
+
     const zoomStart = Date.now();
-    logDetail('zoom', 'Beginning zoom-to-parcel strategy cascade (URL params → search → mouse wheel)', {
+    logDetail('zoom', 'Navigating to parcel at base level 24 (parcel-level detail)', {
       has_boundary: !!input.parcelBoundary, lat: input.lat, lon: input.lon,
       situs_address: input.situsAddress,
     });
-    const zoomed = await zoomToParcel(page, input, progress);
-    logDetail('zoom', `Zoom-to-parcel result: ${zoomed ? 'SUCCESS' : 'FAILED'} in ${Date.now() - zoomStart}ms`, {
+
+    // Initial zoom — establishes the parcel centroid cache
+    const zoomed = await navigateToParcelAtLevel(page, input, 24, progress);
+    if (!zoomed) {
+      // Fall back to the old cascade approach
+      logDetail('zoom', 'URL navigation failed — falling back to zoomToParcel cascade');
+      const fallbackZoomed = await zoomToParcel(page, input, progress);
+      if (!fallbackZoomed) {
+        progress('Could not zoom to parcel — capturing current view');
+      }
+    }
+    logDetail('zoom', `Zoom-to-parcel completed in ${Date.now() - zoomStart}ms`, {
       success: zoomed, duration_ms: Date.now() - zoomStart,
     });
-    if (!zoomed) {
-      progress('Could not zoom to parcel — capturing current view');
-    }
 
-    logDetail('zoom', `Waiting ${MAP_SETTLE_WAIT}ms for map to settle after zoom`);
-    await page.waitForTimeout(MAP_SETTLE_WAIT);
-
-    // ── Screenshot A: Target parcel detail — highest zoom ─────────
-    // Start with the tightest zoom (lot-level) since we're already zoomed in
-    logDetail('screenshot-A', 'Capturing Screenshot A: Maximum detail (zoom in +3)');
-    progress('[Screenshot A] Zooming in +3 levels for maximum detail capture...');
-    await zoomIn(page, 3);
-    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    // ── Screenshot A: Maximum detail — absolute level 26 ─────────
+    logDetail('screenshot-A', 'Capturing Screenshot A: Maximum detail (absolute level 26)');
+    progress('[Screenshot A] Navigating to level 26 for maximum detail...');
+    await navigateToParcelAtLevel(page, input, 26, progress);
+    // Ensure parcel + lot line layers are on for detail screenshots
+    await toggleParcelLayer(page, true);
+    await toggleLotLineLayer(page, true);
+    await page.waitForTimeout(POST_NAV_RENDER_WAIT);
     const ssMaxDetail = await takeScreenshot(page, 'GIS Viewer',
       `Maximum detail — ${input.propertyId ?? 'unknown'} — ${input.situsAddress ?? ''} Lot ${input.lotNumber ?? '?'}`);
     if (ssMaxDetail) {
       results.push(ssMaxDetail);
-      logDetail('screenshot-A', `Screenshot A captured: ${ssMaxDetail.imageBase64.length} base64 chars`, { description: ssMaxDetail.description });
+      logDetail('screenshot-A', `Screenshot A captured: ${ssMaxDetail.imageBase64.length} base64 chars`, { description: ssMaxDetail.description, level: 26 });
       progress(`[Screenshot A] ✓ Maximum detail captured — ${Math.round(ssMaxDetail.imageBase64.length / 1024)}KB`);
     } else {
       logDetail('screenshot-A', 'Screenshot A FAILED — null returned from takeScreenshot');
       progress('[Screenshot A] ✗ FAILED — screenshot returned null');
     }
 
-    // ── Screenshot B: Target parcel with lot lines visible ──────
-    logDetail('screenshot-B', 'Capturing Screenshot B: Target parcel detail (re-zoom + zoom in +1)');
-    progress('[Screenshot B] Re-zooming to parcel + zoom in +1 for lot line detail...');
-    await zoomToParcel(page, input, progress);
-    await zoomIn(page, 1);
-    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    // ── Screenshot B: Target parcel detail — absolute level 25 ──
+    logDetail('screenshot-B', 'Capturing Screenshot B: Target parcel detail (absolute level 25)');
+    progress('[Screenshot B] Navigating to level 25 for parcel detail...');
+    await navigateToParcelAtLevel(page, input, 25, progress);
+    await toggleParcelLayer(page, true);
+    await toggleLotLineLayer(page, true);
+    await page.waitForTimeout(POST_NAV_RENDER_WAIT);
     const ssDetail = await takeScreenshot(page, 'GIS Viewer',
       `Target parcel detail — ${input.propertyId ?? 'unknown'} — ${input.situsAddress ?? ''} Lot ${input.lotNumber ?? '?'}`);
     if (ssDetail) {
       results.push(ssDetail);
-      logDetail('screenshot-B', `Screenshot B captured: ${ssDetail.imageBase64.length} base64 chars`, { description: ssDetail.description });
+      logDetail('screenshot-B', `Screenshot B captured: ${ssDetail.imageBase64.length} base64 chars`, { description: ssDetail.description, level: 25 });
       progress(`[Screenshot B] ✓ Target parcel detail captured — ${Math.round(ssDetail.imageBase64.length / 1024)}KB`);
     } else {
       logDetail('screenshot-B', 'Screenshot B FAILED');
       progress('[Screenshot B] ✗ FAILED — target parcel detail screenshot returned null');
     }
 
-    // ── Screenshot C: Lot + immediate neighbors ─────────────────
-    logDetail('screenshot-C', 'Capturing Screenshot C: Lot with immediate neighbors (default zoom)');
-    progress('[Screenshot C] Zooming to parcel for lot + neighbors view...');
-    await zoomToParcel(page, input, progress);
-    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    // ── Screenshot C: Lot + immediate neighbors — absolute level 24 ─
+    logDetail('screenshot-C', 'Capturing Screenshot C: Lot with immediate neighbors (absolute level 24)');
+    progress('[Screenshot C] Navigating to level 24 for lot + neighbors...');
+    await navigateToParcelAtLevel(page, input, 24, progress);
+    await toggleParcelLayer(page, true);
+    await toggleLotLineLayer(page, true);
+    await page.waitForTimeout(POST_NAV_RENDER_WAIT);
     const ssNeighbors = await takeScreenshot(page, 'GIS Viewer',
       `Lot with neighbors — ${input.propertyId ?? 'unknown'} — ${input.subdivisionName ?? 'area'}`);
     if (ssNeighbors) {
       results.push(ssNeighbors);
-      logDetail('screenshot-C', `Screenshot C captured: ${ssNeighbors.imageBase64.length} base64 chars`);
+      logDetail('screenshot-C', `Screenshot C captured: ${ssNeighbors.imageBase64.length} base64 chars`, { level: 24 });
       progress(`[Screenshot C] ✓ Lot + neighbors captured — ${Math.round(ssNeighbors.imageBase64.length / 1024)}KB`);
     } else {
       logDetail('screenshot-C', 'Screenshot C FAILED');
       progress('[Screenshot C] ✗ FAILED — lot + neighbors screenshot returned null');
     }
 
-    // ── Screenshot D: Subdivision overview (zoom out) ───────────
-    logDetail('screenshot-D', 'Capturing Screenshot D: Subdivision overview (zoom out -3)');
-    progress('[Screenshot D] Zooming out -3 for subdivision overview...');
-    await zoomToParcel(page, input, progress);
-    await zoomOut(page, 3);
-    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    // ── Screenshot D: Subdivision overview — absolute level 22 ──
+    logDetail('screenshot-D', 'Capturing Screenshot D: Subdivision overview (absolute level 22)');
+    progress('[Screenshot D] Navigating to level 22 for subdivision overview...');
+    await navigateToParcelAtLevel(page, input, 22, progress);
+    await toggleParcelLayer(page, true);
+    await toggleLotLineLayer(page, true);
+    await page.waitForTimeout(POST_NAV_RENDER_WAIT);
     const ssSubdiv = await takeScreenshot(page, 'GIS Viewer',
       `Subdivision overview — ${input.subdivisionName ?? 'area'} — all lots with property IDs`);
     if (ssSubdiv) {
       results.push(ssSubdiv);
-      logDetail('screenshot-D', `Screenshot D captured: ${ssSubdiv.imageBase64.length} base64 chars`);
+      logDetail('screenshot-D', `Screenshot D captured: ${ssSubdiv.imageBase64.length} base64 chars`, { level: 22 });
       progress(`[Screenshot D] ✓ Subdivision overview captured — ${Math.round(ssSubdiv.imageBase64.length / 1024)}KB`);
     } else {
       logDetail('screenshot-D', 'Screenshot D FAILED');
       progress('[Screenshot D] ✗ FAILED — subdivision overview screenshot returned null');
     }
 
-    // ── Screenshot E: Aerial/satellite at lot-level (eagle view) ─
-    logDetail('screenshot-E', 'Switching to aerial/satellite basemap for eagle view screenshots');
+    // ── Screenshot E: Aerial/satellite at multiple zoom levels ───
+    // Switch to aerial basemap, then navigate to each zoom level
+    logDetail('screenshot-E', 'Switching to aerial basemap for eagle view screenshots');
     progress('[Screenshot E] Switching to aerial/satellite basemap...');
     const aerialSwitchStart = Date.now();
     await switchToAerialBasemap(page);
-    logDetail('screenshot-E', `Aerial basemap switch completed in ${Date.now() - aerialSwitchStart}ms`);
+    const aerialSwitchDuration = Date.now() - aerialSwitchStart;
+    logDetail('screenshot-E', `Aerial basemap switch completed in ${aerialSwitchDuration}ms`, { duration_ms: aerialSwitchDuration });
     await page.waitForTimeout(MAP_SETTLE_WAIT);
 
-    // Aerial at lot level — tight zoom
-    logDetail('screenshot-E', 'Capturing aerial eagle view (tight, zoom in +2)');
-    progress('[Screenshot E1] Zoom in +2 for aerial tight view with property lines...');
-    await zoomToParcel(page, input, progress);
-    await zoomIn(page, 2);
-    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    // E1: Aerial tight — level 26
+    logDetail('screenshot-E1', 'Capturing aerial eagle view (tight, level 26)');
+    progress('[Screenshot E1] Navigating to level 26 for aerial tight view...');
+    await navigateToParcelAtLevel(page, input, 26, progress);
+    await switchToAerialBasemap(page); // Re-apply after navigation (page reload resets basemap)
+    await toggleParcelLayer(page, true);
+    await toggleLotLineLayer(page, true);
+    await page.waitForTimeout(POST_NAV_RENDER_WAIT);
     const ssAerialTight = await takeScreenshot(page, 'GIS Viewer',
       `Aerial eagle view (tight) WITH property lines — ${input.propertyId ?? ''} — ${input.situsAddress ?? ''}`);
     if (ssAerialTight) {
       results.push(ssAerialTight);
-      logDetail('screenshot-E', `Aerial tight screenshot captured: ${ssAerialTight.imageBase64.length} base64 chars`);
+      logDetail('screenshot-E1', `Aerial tight captured: ${ssAerialTight.imageBase64.length} base64 chars`, { level: 26 });
       progress(`[Screenshot E1] ✓ Aerial tight + property lines — ${Math.round(ssAerialTight.imageBase64.length / 1024)}KB`);
     } else {
-      logDetail('screenshot-E', 'Aerial tight screenshot FAILED');
+      logDetail('screenshot-E1', 'Aerial tight FAILED');
       progress('[Screenshot E1] ✗ FAILED — aerial tight screenshot returned null');
     }
 
-    // Aerial at parcel level — with lines
-    logDetail('screenshot-E2', 'Capturing aerial eagle view at parcel level with property lines');
-    progress('[Screenshot E2] Aerial at parcel level with property lines...');
-    await zoomToParcel(page, input, progress);
-    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    // E2: Aerial parcel level — level 24
+    logDetail('screenshot-E2', 'Capturing aerial eagle view at parcel level (level 24)');
+    progress('[Screenshot E2] Navigating to level 24 for aerial parcel view...');
+    await navigateToParcelAtLevel(page, input, 24, progress);
+    await switchToAerialBasemap(page);
+    await toggleParcelLayer(page, true);
+    await toggleLotLineLayer(page, true);
+    await page.waitForTimeout(POST_NAV_RENDER_WAIT);
     const ssAerialLines = await takeScreenshot(page, 'GIS Viewer',
       `Aerial eagle view WITH property lines — ${input.propertyId ?? ''} — ${input.situsAddress ?? ''}`);
     if (ssAerialLines) {
       results.push(ssAerialLines);
-      logDetail('screenshot-E2', `Aerial with lines captured: ${ssAerialLines.imageBase64.length} base64 chars`);
+      logDetail('screenshot-E2', `Aerial with lines captured: ${ssAerialLines.imageBase64.length} base64 chars`, { level: 24 });
       progress(`[Screenshot E2] ✓ Aerial + property lines — ${Math.round(ssAerialLines.imageBase64.length / 1024)}KB`);
     } else {
       logDetail('screenshot-E2', 'Aerial with lines FAILED');
       progress('[Screenshot E2] ✗ FAILED — aerial + property lines screenshot returned null');
     }
 
-    // Aerial at subdivision level
-    logDetail('screenshot-E3', 'Capturing aerial subdivision overview (zoom out -3)');
-    progress('[Screenshot E3] Zoom out -3 for aerial subdivision overview...');
-    await zoomOut(page, 3);
-    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    // E3: Aerial subdivision — level 22
+    logDetail('screenshot-E3', 'Capturing aerial subdivision overview (level 22)');
+    progress('[Screenshot E3] Navigating to level 22 for aerial subdivision overview...');
+    await navigateToParcelAtLevel(page, input, 22, progress);
+    await switchToAerialBasemap(page);
+    await toggleParcelLayer(page, true);
+    await toggleLotLineLayer(page, true);
+    await page.waitForTimeout(POST_NAV_RENDER_WAIT);
     const ssAerialSubdiv = await takeScreenshot(page, 'GIS Viewer',
       `Aerial eagle view — subdivision — ${input.subdivisionName ?? ''} — ${input.situsAddress ?? ''}`);
     if (ssAerialSubdiv) {
       results.push(ssAerialSubdiv);
-      logDetail('screenshot-E3', `Aerial subdivision captured: ${ssAerialSubdiv.imageBase64.length} base64 chars`);
+      logDetail('screenshot-E3', `Aerial subdivision captured: ${ssAerialSubdiv.imageBase64.length} base64 chars`, { level: 22 });
       progress(`[Screenshot E3] ✓ Aerial subdivision overview — ${Math.round(ssAerialSubdiv.imageBase64.length / 1024)}KB`);
     } else {
       logDetail('screenshot-E3', 'Aerial subdivision FAILED');
@@ -441,32 +480,27 @@ export async function captureGisViewerScreenshots(
 
     // ── Screenshot F: Clean aerial (no lines) ───────────────────
     logDetail('screenshot-F', 'Capturing clean aerial (toggling off parcel + lot line layers)');
-    progress('[Screenshot F] Toggling off parcel + lot lines for clean aerial...');
+    progress('[Screenshot F] Navigating to level 25 and toggling off property lines...');
+    await navigateToParcelAtLevel(page, input, 25, progress);
+    await switchToAerialBasemap(page);
     await toggleParcelLayer(page, false);
     await toggleLotLineLayer(page, false);
-    await zoomToParcel(page, input, progress);
-    await zoomIn(page, 1);
-    await page.waitForTimeout(LAYER_TOGGLE_WAIT);
+    await page.waitForTimeout(POST_NAV_RENDER_WAIT);
     const ssAerialClean = await takeScreenshot(page, 'GIS Viewer',
       `Aerial eagle view WITHOUT property lines — ${input.situsAddress ?? ''}`);
     if (ssAerialClean) {
       results.push(ssAerialClean);
-      logDetail('screenshot-F', `Clean aerial captured: ${ssAerialClean.imageBase64.length} base64 chars`);
+      logDetail('screenshot-F', `Clean aerial captured: ${ssAerialClean.imageBase64.length} base64 chars`, { level: 25 });
       progress(`[Screenshot F] ✓ Clean aerial (no lines) — ${Math.round(ssAerialClean.imageBase64.length / 1024)}KB`);
     } else {
       logDetail('screenshot-F', 'Clean aerial FAILED');
       progress('[Screenshot F] ✗ FAILED — clean aerial screenshot returned null');
     }
 
-    logDetail('screenshot-F', 'Restoring parcel + lot line layers');
-    await toggleParcelLayer(page, true);
-    await toggleLotLineLayer(page, true);
-
     // ── Screenshot G: Adjacent lots (4 directions) ──────────────
+    // Navigate fresh to level 20 (streets basemap) before each pan
     logDetail('screenshot-G', 'Starting adjacent lot captures (4 cardinal directions)');
     progress('[Screenshot G] Capturing adjacent lots (N/E/S/W)...');
-    await switchToStreetsBasemap(page);
-    await page.waitForTimeout(MAP_SETTLE_WAIT);
 
     const directions: Array<{ name: string; dx: number; dy: number }> = [
       { name: 'North', dx: 0, dy: -300 },
@@ -475,27 +509,26 @@ export async function captureGisViewerScreenshots(
       { name: 'West', dx: -400, dy: 0 },
     ];
 
-    await zoomToParcel(page, input, progress);
-    await page.waitForTimeout(MAP_SETTLE_WAIT);
-
     for (const dir of directions) {
       try {
-        logDetail('screenshot-G', `Panning ${dir.name} (dx=${dir.dx}, dy=${dir.dy})`);
-        progress(`[Screenshot G] Panning ${dir.name} to capture adjacent lot...`);
+        logDetail('screenshot-G', `Navigating to level 24 + panning ${dir.name} (dx=${dir.dx}, dy=${dir.dy})`);
+        progress(`[Screenshot G] Navigating to parcel + panning ${dir.name}...`);
+        // Fresh navigation for each direction to avoid cumulative drift
+        await navigateToParcelAtLevel(page, input, 24, progress);
+        await toggleParcelLayer(page, true);
+        await toggleLotLineLayer(page, true);
         await panMap(page, dir.dx, dir.dy);
-        await page.waitForTimeout(LAYER_TOGGLE_WAIT);
+        await page.waitForTimeout(POST_NAV_RENDER_WAIT);
         const ssAdj = await takeScreenshot(page, 'GIS Viewer',
           `Adjacent lot — ${dir.name} of ${input.propertyId ?? 'target'}`);
         if (ssAdj) {
           results.push(ssAdj);
-          logDetail('screenshot-G', `Adjacent ${dir.name} captured: ${ssAdj.imageBase64.length} base64 chars`);
+          logDetail('screenshot-G', `Adjacent ${dir.name} captured: ${ssAdj.imageBase64.length} base64 chars`, { direction: dir.name, level: 20 });
           progress(`[Screenshot G] ✓ Adjacent ${dir.name} — ${Math.round(ssAdj.imageBase64.length / 1024)}KB`);
         } else {
           logDetail('screenshot-G', `Adjacent ${dir.name} screenshot FAILED`);
           progress(`[Screenshot G] ✗ Adjacent ${dir.name} FAILED`);
         }
-        await panMap(page, -dir.dx, -dir.dy);
-        await page.waitForTimeout(1000);
       } catch (err) {
         logDetail('screenshot-G', `Adjacent ${dir.name} SKIPPED — error: ${err instanceof Error ? err.message : String(err)}`);
         progress(`[Screenshot G] ✗ Adjacent ${dir.name} SKIPPED — ${err instanceof Error ? err.message : String(err)}`);
@@ -503,27 +536,29 @@ export async function captureGisViewerScreenshots(
     }
 
     // ── Screenshot H: Layer combination views ─────────────────────
-    logDetail('screenshot-H', `Starting layer combination captures (4 combinations)`);
+    // Each combination navigates fresh to the exact level needed
+    logDetail('screenshot-H', 'Starting layer combination captures (4 combinations)');
     progress('[Screenshot H] Capturing 4 layer combination views...');
-    await zoomToParcel(page, input, progress);
-    await page.waitForTimeout(MAP_SETTLE_WAIT);
 
     const layerCombinations: Array<{
       label: string;
       basemap: 'streets' | 'aerial';
       parcels: boolean;
       lotLines: boolean;
-      zoomDelta: number;
+      level: number; // Absolute zoom level
     }> = [
-      { label: 'Lot lines only (dimensions)', basemap: 'streets', parcels: false, lotLines: true, zoomDelta: 2 },
-      { label: 'Aerial max zoom with lot lines', basemap: 'aerial', parcels: false, lotLines: true, zoomDelta: 3 },
-      { label: 'Neighborhood context — streets', basemap: 'streets', parcels: true, lotLines: true, zoomDelta: -4 },
-      { label: 'Aerial neighborhood context', basemap: 'aerial', parcels: true, lotLines: true, zoomDelta: -4 },
+      { label: 'Lot lines only (dimensions)', basemap: 'streets', parcels: false, lotLines: true, level: 26 },
+      { label: 'Aerial max zoom with lot lines', basemap: 'aerial', parcels: false, lotLines: true, level: 26 },
+      { label: 'Neighborhood context — streets', basemap: 'streets', parcels: true, lotLines: true, level: 20 },
+      { label: 'Aerial neighborhood context', basemap: 'aerial', parcels: true, lotLines: true, level: 20 },
     ];
 
     for (const combo of layerCombinations) {
       try {
-        progress(`[Screenshot H] ${combo.label}: basemap=${combo.basemap}, zoom=${combo.zoomDelta > 0 ? '+' : ''}${combo.zoomDelta}...`);
+        progress(`[Screenshot H] ${combo.label}: basemap=${combo.basemap}, level=${combo.level}...`);
+        // Navigate to the exact zoom level first
+        await navigateToParcelAtLevel(page, input, combo.level, progress);
+        // Apply basemap and layer settings after navigation
         if (combo.basemap === 'aerial') {
           await switchToAerialBasemap(page);
         } else {
@@ -531,19 +566,13 @@ export async function captureGisViewerScreenshots(
         }
         await toggleParcelLayer(page, combo.parcels);
         await toggleLotLineLayer(page, combo.lotLines);
-        await zoomToParcel(page, input, progress);
-        if (combo.zoomDelta > 0) {
-          await zoomIn(page, combo.zoomDelta);
-        } else if (combo.zoomDelta < 0) {
-          await zoomOut(page, -combo.zoomDelta);
-        }
-        await page.waitForTimeout(MAP_SETTLE_WAIT);
+        await page.waitForTimeout(POST_NAV_RENDER_WAIT);
 
         const ssCombo = await takeScreenshot(page, 'GIS Viewer',
           `Layer view: ${combo.label} — ${input.propertyId ?? ''} ${input.situsAddress ?? ''}`);
         if (ssCombo) {
           results.push(ssCombo);
-          logDetail('screenshot-H', `Layer combo "${combo.label}" captured: ${ssCombo.imageBase64.length} base64 chars`);
+          logDetail('screenshot-H', `Layer combo "${combo.label}" captured: ${ssCombo.imageBase64.length} base64 chars`, { label: combo.label, level: combo.level });
           progress(`[Screenshot H] ✓ ${combo.label} — ${Math.round(ssCombo.imageBase64.length / 1024)}KB`);
         } else {
           logDetail('screenshot-H', `Layer combo "${combo.label}" FAILED`);
@@ -554,11 +583,6 @@ export async function captureGisViewerScreenshots(
         progress(`[Screenshot H] ✗ ${combo.label} SKIPPED — ${err instanceof Error ? err.message : String(err)}`);
       }
     }
-
-    // Restore defaults
-    await switchToStreetsBasemap(page);
-    await toggleParcelLayer(page, true);
-    await toggleLotLineLayer(page, true);
 
     await context.close();
     const totalDuration = Date.now() - _captureStart;
@@ -754,6 +778,55 @@ async function waitForMapReady(
 
 // Track whether we've already zoomed (avoid redundant re-zooms during capture series)
 let _zoomCached = false;
+// Cached parcel centroid for re-navigation (State Plane or WGS84 coords)
+let _parcelCenterLon = 0;
+let _parcelCenterLat = 0;
+
+/**
+ * Navigate to the parcel at a specific absolute zoom level using URL params.
+ * This is the most reliable approach — avoids cumulative drift from relative zoom.
+ * Falls back to zoomToParcel() + relative zoomIn/Out if URL nav fails.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function navigateToParcelAtLevel(
+  page: any, input: GisViewerCaptureInput,
+  targetLevel: number, progress: (msg: string) => void,
+): Promise<boolean> {
+  // Compute centroid if not yet cached
+  if (_parcelCenterLon === 0 && _parcelCenterLat === 0) {
+    if (input.parcelBoundary && input.parcelBoundary.length > 0) {
+      const ring = input.parcelBoundary[0];
+      let sumLon = 0, sumLat = 0;
+      for (const [lon, lat] of ring) { sumLon += lon; sumLat += lat; }
+      _parcelCenterLon = sumLon / ring.length;
+      _parcelCenterLat = sumLat / ring.length;
+    } else {
+      _parcelCenterLon = input.lon;
+      _parcelCenterLat = input.lat;
+    }
+  }
+
+  gisLog('zoom-nav', `Navigating to parcel at level ${targetLevel} (center=${_parcelCenterLon.toFixed(1)}, ${_parcelCenterLat.toFixed(1)})`, { targetLevel });
+  const baseUrl = GIS_VIEWER_URL.replace(/[#?].*$/, '');
+  const url = `${baseUrl}#center=${_parcelCenterLon},${_parcelCenterLat}&level=${targetLevel}`;
+
+  try {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
+    await dismissDisclaimerDialog(page, progress);
+    const ready = await waitForMapReady(page, progress);
+    if (!ready) {
+      gisLog('zoom-nav', `Map not ready after navigation to level ${targetLevel}`);
+      return false;
+    }
+    await page.waitForTimeout(MAP_SETTLE_WAIT);
+    _zoomCached = true;
+    gisLog('zoom-nav', `Successfully navigated to level ${targetLevel}`, { targetLevel });
+    return true;
+  } catch (err) {
+    gisLog('zoom-nav', `Navigation to level ${targetLevel} failed: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function zoomToParcel(page: any, input: GisViewerCaptureInput, progress: (msg: string) => void): Promise<boolean> {
@@ -1122,6 +1195,8 @@ async function panMap(page: any, dx: number, dy: number): Promise<void> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function switchToAerialBasemap(page: any): Promise<void> {
+  const start = Date.now();
+  gisLog('basemap', 'Switching to aerial basemap — trying JS API first');
   // Strategy 1: JS API
   const jsWorked = await page.evaluate(async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1149,14 +1224,21 @@ async function switchToAerialBasemap(page: any): Promise<void> {
     }
   }).catch(() => false);
 
-  if (jsWorked) return;
+  if (jsWorked) {
+    gisLog('basemap', `Aerial basemap set via JS API in ${Date.now() - start}ms`, { strategy: 'js-api' });
+    return;
+  }
+  gisLog('basemap', 'JS API failed for aerial — trying basemap gallery UI');
 
   // Strategy 2: Click basemap gallery item in the Experience Builder UI
   await clickBasemapGalleryItem(page, ['imagery', 'satellite', 'aerial', 'hybrid', 'world imagery']);
+  gisLog('basemap', `Aerial basemap gallery click attempted in ${Date.now() - start}ms`, { strategy: 'gallery-click' });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function switchToStreetsBasemap(page: any): Promise<void> {
+  const start = Date.now();
+  gisLog('basemap', 'Switching to streets basemap — trying JS API first');
   const jsWorked = await page.evaluate(async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
@@ -1179,9 +1261,14 @@ async function switchToStreetsBasemap(page: any): Promise<void> {
     catch { try { view.map.basemap = 'streets'; return true; } catch { return false; } }
   }).catch(() => false);
 
-  if (jsWorked) return;
+  if (jsWorked) {
+    gisLog('basemap', `Streets basemap set via JS API in ${Date.now() - start}ms`, { strategy: 'js-api' });
+    return;
+  }
+  gisLog('basemap', 'JS API failed for streets — trying basemap gallery UI');
 
   await clickBasemapGalleryItem(page, ['streets', 'topographic', 'topo', 'street map']);
+  gisLog('basemap', `Streets basemap gallery click attempted in ${Date.now() - start}ms`, { strategy: 'gallery-click' });
 }
 
 // Click a basemap gallery item by matching title text
@@ -1246,16 +1333,19 @@ async function clickBasemapGalleryItem(page: any, keywords: string[]): Promise<v
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function toggleParcelLayer(page: any, visible: boolean): Promise<void> {
+  gisLog('layer-toggle', `Toggling parcel layer: visible=${visible}`);
   await toggleLayerByTitle(page, ['Parcels', 'parcels', 'PARCELS'], visible);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function toggleLotLineLayer(page: any, visible: boolean): Promise<void> {
+  gisLog('layer-toggle', `Toggling lot line layer: visible=${visible}`);
   await toggleLayerByTitle(page, ['Lot Lines', 'lot lines', 'LOT LINES', 'LotLines'], visible);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function toggleLayerByTitle(page: any, titles: string[], visible: boolean): Promise<void> {
+  const start = Date.now();
   // Strategy 1: JS API
   const jsWorked = await page.evaluate((params: { titles: string[]; visible: boolean }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1286,7 +1376,11 @@ async function toggleLayerByTitle(page: any, titles: string[], visible: boolean)
     return toggled;
   }, { titles, visible }).catch(() => false);
 
-  if (jsWorked) return;
+  if (jsWorked) {
+    gisLog('layer-toggle', `Layer "${titles[0]}" set to ${visible} via JS API in ${Date.now() - start}ms`, { titles, visible, strategy: 'js-api' });
+    return;
+  }
+  gisLog('layer-toggle', `JS API failed for "${titles[0]}" — trying UI layer list`);
 
   // Strategy 2: Click layer list checkboxes in the UI
   try {
@@ -1321,7 +1415,10 @@ async function toggleLayerByTitle(page: any, titles: string[], visible: boolean)
     }, { titles, visible });
 
     await page.waitForTimeout(LAYER_TOGGLE_WAIT);
-  } catch { /* layer toggle is best-effort */ }
+    gisLog('layer-toggle', `Layer "${titles[0]}" UI toggle attempted in ${Date.now() - start}ms`, { titles, visible, strategy: 'ui-checkbox' });
+  } catch {
+    gisLog('layer-toggle', `Layer "${titles[0]}" UI toggle FAILED — both strategies exhausted`, { titles, visible });
+  }
 }
 
 // ── Internal: Canvas Stability Verification ──────────────────────────
@@ -1331,9 +1428,9 @@ async function toggleLayerByTitle(page: any, titles: string[], visible: boolean)
 // differ significantly, tiles are still loading.
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function waitForCanvasStability(page: any, maxWait = 8_000): Promise<boolean> {
+async function waitForCanvasStability(page: any, maxWait = 12_000): Promise<boolean> {
   const start = Date.now();
-  const pollInterval = 1_500;
+  const pollInterval = 2_000;
   let prevSize = 0;
   let stableCount = 0;
 
@@ -1341,10 +1438,10 @@ async function waitForCanvasStability(page: any, maxWait = 8_000): Promise<boole
     try {
       const buf = await page.screenshot({ fullPage: false, type: 'png', timeout: 5000 });
       const size = buf.length;
-      // Consider stable if size is within 2% of previous capture
-      if (prevSize > 0 && Math.abs(size - prevSize) / prevSize < 0.02) {
+      // Consider stable if size is within 3% of previous capture (tiles render progressively)
+      if (prevSize > 0 && Math.abs(size - prevSize) / prevSize < 0.03) {
         stableCount++;
-        if (stableCount >= 2) {
+        if (stableCount >= 3) {
           gisLog('canvas-stability', `Canvas stable after ${Date.now() - start}ms (${stableCount} consistent frames, ${size} bytes)`, { duration_ms: Date.now() - start, stableCount, size });
           return true;
         }
@@ -1386,9 +1483,9 @@ async function waitForNetworkIdle(page: any, idleTime = 2_000, maxWait = 10_000)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function waitForMapRender(page: any): Promise<void> {
   // First wait for network idle (tile downloads complete)
-  await waitForNetworkIdle(page, 2_000, 8_000);
+  await waitForNetworkIdle(page, 3_000, 15_000);
   // Then verify canvas is stable (tiles have been painted)
-  await waitForCanvasStability(page, 6_000);
+  await waitForCanvasStability(page, 12_000);
 }
 
 // ── Internal: Take Screenshot ────────────────────────────────────────
