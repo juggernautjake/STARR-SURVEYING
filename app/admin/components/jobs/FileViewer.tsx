@@ -54,7 +54,11 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
       if (!e.ctrlKey) return;
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setScale(prev => Math.min(Math.max(prev + delta, 0.05), 3));
+      setScale(prev => {
+        const next = Math.min(Math.max(prev + delta, 0.05), 3);
+        console.log(`[FileViewer] Ctrl+scroll zoom: ${(prev * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`, { deltaY: e.deltaY });
+        return next;
+      });
     }
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -76,16 +80,25 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
   }, []);
 
   function resetView() {
+    console.log(`[FileViewer] Reset view — scale: ${scale.toFixed(2)} → 1.00, position: (${position.x}, ${position.y}) → (0, 0)`, { file: file.file_name });
     setScale(1);
     setPosition({ x: 0, y: 0 });
   }
 
   function zoomIn() {
-    setScale(prev => Math.min(prev + 0.1, 3));
+    setScale(prev => {
+      const next = Math.min(prev + 0.1, 3);
+      console.log(`[FileViewer] Zoom IN: ${(prev * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`, { file: file.file_name });
+      return next;
+    });
   }
 
   function zoomOut() {
-    setScale(prev => Math.max(prev - 0.1, 0.05));
+    setScale(prev => {
+      const next = Math.max(prev - 0.1, 0.05);
+      console.log(`[FileViewer] Zoom OUT: ${(prev * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`, { file: file.file_name });
+      return next;
+    });
   }
 
   function handleZoomInputChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -96,8 +109,10 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
   function handleZoomInputCommit() {
     const val = parseInt(zoomInput, 10);
     if (!isNaN(val) && val >= 5 && val <= 300) {
+      console.log(`[FileViewer] Zoom input commit: ${(scale * 100).toFixed(0)}% → ${val}%`, { file: file.file_name, typed_value: zoomInput });
       setScale(val / 100);
     } else {
+      console.log(`[FileViewer] Zoom input rejected (invalid): "${zoomInput}" — reverting to ${(scale * 100).toFixed(0)}%`);
       setZoomInput(String(Math.round(scale * 100)));
     }
   }
