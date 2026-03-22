@@ -1180,6 +1180,28 @@ export async function orchestrateBellResearch(
         actionableAdjustments: report.actionableAdjustments,
         aiUsage: report.aiUsage,
       };
+
+      // Emit detailed per-screenshot quality log entries so each assessment
+      // appears as a distinct item in the pipeline log viewer
+      for (const check of report.checks) {
+        const scoreIcon = check.qualityScore >= 70 ? '✓' : check.qualityScore >= 40 ? '⚠' : '✗';
+        const layers = [
+          check.parcelLinesVisible === 'visible' ? 'parcels' : null,
+          check.lotLinesVisible === 'visible' ? 'lot-lines' : null,
+          check.aerialBasemapActive === 'visible' ? 'aerial' : null,
+        ].filter(Boolean).join(', ') || 'none detected';
+        const detail = `${scoreIcon} Score: ${check.qualityScore}/100 | Zoom: ${check.zoomAssessment} | Layers: ${layers} | ${check.whatIsShown}`;
+        const recsText = check.recommendations.length > 0
+          ? ` | Recommendations: ${check.recommendations.join('; ')}`
+          : '';
+        progress('GIS Quality', `[Screenshot ${check.index + 1}] ${check.label}: ${detail}${recsText}`);
+      }
+
+      // Emit actionable adjustments as distinct warnings
+      for (const adj of report.actionableAdjustments) {
+        progress('GIS Quality', `⚠ Adjustment needed: ${adj}`);
+      }
+
       progress('Phase 3', `GIS Quality Analysis: ${report.summary}`);
     } catch (err) {
       recordError('Phase 3', 'GIS Quality Analysis', err);
