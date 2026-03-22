@@ -70,10 +70,25 @@ const VIEWER_LOAD_TIMEOUT = 60_000;
 const MAP_SETTLE_WAIT = 4_000;
 const LAYER_TOGGLE_WAIT = 2_500;
 
+// ── Module-level logging ─────────────────────────────────────────────
+// All helper functions use gisLog() so every log entry is captured in the
+// structured captureLog array AND emitted to console with a consistent
+// prefix. The main function resets _captureLog at the start of each run
+// and dumps it in the finally block.
+
+let _captureStart = 0;
+const _captureLog: string[] = [];
+
+function gisLog(phase: string, msg: string, data?: Record<string, unknown>): void {
+  const elapsed = _captureStart ? Date.now() - _captureStart : 0;
+  const entry = `[GIS-CAPTURE][${phase}][+${elapsed}ms] ${msg}`;
+  _captureLog.push(entry);
+  console.log(entry, data ? JSON.stringify(data).slice(0, 500) : '');
+}
+
 // Zoom levels to test in diagnostics mode (low → high detail)
 const ZOOM_LEVELS = [15, 17, 19, 20, 22];
 
-// ── Zoom Strategy Result Type (kept for reference) ───────────────────
 // Diagnostic testing (commit 86d95d0, 12 approaches) confirmed these work:
 //   - URL hash params (#center=x,y&level=17) with State Plane coords
 //   - Search widget (address geocoding)
@@ -85,14 +100,6 @@ const ZOOM_LEVELS = [15, 17, 19, 20, 22];
 //
 // zoomIn() cascade: JS API → UI buttons → keyboard → double-click → mouse wheel
 // zoomToParcel() cascade: URL params → search widget → mouse wheel
-
-interface ZoomStrategyResult {
-  strategy: string;
-  success: boolean;
-  duration: number;
-  details: string;
-  screenshot?: ScreenshotCapture;
-}
 
 // ── Main Export ──────────────────────────────────────────────────────
 
@@ -113,16 +120,12 @@ export async function captureGisViewerScreenshots(
   onProgress: (p: GisViewerCaptureProgress) => void,
 ): Promise<ScreenshotCapture[]> {
   const results: ScreenshotCapture[] = [];
-  const captureStart = Date.now();
-  const captureLog: string[] = [];
+  // Reset module-level log state for this capture run
+  _captureStart = Date.now();
+  _captureLog.length = 0;
 
-  const logDetail = (phase: string, msg: string, data?: Record<string, unknown>) => {
-    const ts = new Date().toISOString();
-    const elapsed = Date.now() - captureStart;
-    const entry = `[GIS-CAPTURE][${phase}][+${elapsed}ms] ${msg}`;
-    captureLog.push(entry);
-    console.log(entry, data ? JSON.stringify(data).slice(0, 500) : '');
-  };
+  // logDetail delegates to gisLog — kept for readability in the main function
+  const logDetail = gisLog;
 
   logDetail('init', `Starting GIS viewer capture`, {
     has_boundary: !!input.parcelBoundary,
@@ -198,7 +201,7 @@ export async function captureGisViewerScreenshots(
         logDetail('screenshot', `Fallback screenshot captured: ${fallback.imageBase64.length} base64 chars`);
       }
       await context.close();
-      logDetail('summary', `GIS capture ABORTED (map init failed) — ${results.length} fallback screenshots in ${Date.now() - captureStart}ms`);
+      logDetail('summary', `GIS capture ABORTED (map init failed) — ${results.length} fallback screenshots in ${Date.now() - _captureStart}ms`);
       return results;
     }
 
@@ -558,7 +561,7 @@ export async function captureGisViewerScreenshots(
     await toggleLotLineLayer(page, true);
 
     await context.close();
-    const totalDuration = Date.now() - captureStart;
+    const totalDuration = Date.now() - _captureStart;
     const totalSizeKB = Math.round(results.reduce((sum, r) => sum + r.imageBase64.length, 0) / 1024);
     logDetail('summary', `GIS viewer capture COMPLETE — ${results.length} screenshots in ${totalDuration}ms`, {
       total_screenshots: results.length,
@@ -569,7 +572,7 @@ export async function captureGisViewerScreenshots(
     progress(`✓ GIS capture complete — ${results.length} screenshots in ${Math.round(totalDuration / 1000)}s (${totalSizeKB}KB total)`);
 
   } catch (err) {
-    const totalDuration = Date.now() - captureStart;
+    const totalDuration = Date.now() - _captureStart;
     logDetail('error', `GIS viewer capture FAILED after ${totalDuration}ms: ${err instanceof Error ? err.message : String(err)}`, {
       error: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack?.split('\n').slice(0, 5).join('\n') : undefined,
@@ -583,8 +586,8 @@ export async function captureGisViewerScreenshots(
       logDetail('cleanup', 'Browser closed');
     }
     // Log full capture timeline
-    logDetail('timeline', `Full capture log (${captureLog.length} entries):`);
-    for (const entry of captureLog) {
+    logDetail('timeline', `Full capture log (${_captureLog.length} entries):`);
+    for (const entry of _captureLog) {
       console.log(entry);
     }
   }
@@ -739,27 +742,6 @@ async function waitForMapReady(
   }
 
   return false;
-}
-
-// ── Internal: Find the MapView via JS API (best-effort) ──────────────
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function tryGetMapView(page: any): Promise<boolean> {
-  try {
-    return await page.evaluate(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const w = window as any;
-      if (w._mapViewManager?.jimuMapViews) {
-        const views = Object.values(w._mapViewManager.jimuMapViews);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return views.some((v: any) => v?.view?.ready);
-      }
-      const mapEl = document.querySelector('arcgis-map');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (mapEl && (mapEl as any).view?.ready) return true;
-      return false;
-    });
-  } catch { return false; }
 }
 
 
@@ -1012,9 +994,10 @@ async function zoomViaMouseWheel(page: any, scrollClicks: number): Promise<void>
 async function zoomIn(page: any, levels: number): Promise<void> {
   const start = Date.now();
   const direction = levels > 0 ? 'in' : 'out';
+  const phase = `zoom-${direction}`;
   const isZoomIn = levels > 0;
   const clickCount = Math.abs(levels);
-  console.log(`[GIS-CAPTURE][zoom-${direction}] Zooming ${direction} ${clickCount} levels — trying JS API first`);
+  gisLog(phase, `Zooming ${direction} ${clickCount} levels — trying JS API first`, { levels, clickCount });
 
   // Strategy 1: Try JS API (goTo)
   const jsWorked = await page.evaluate(async (n: number) => {
@@ -1041,10 +1024,10 @@ async function zoomIn(page: any, levels: number): Promise<void> {
   }, levels).catch(() => false);
 
   if (jsWorked) {
-    console.log(`[GIS-CAPTURE][zoom-${direction}] JS API zoom succeeded in ${Date.now() - start}ms`);
+    gisLog(phase, `JS API zoom succeeded in ${Date.now() - start}ms`, { strategy: 'js-api', duration_ms: Date.now() - start });
     return;
   }
-  console.log(`[GIS-CAPTURE][zoom-${direction}] JS API failed — trying UI buttons`);
+  gisLog(phase, 'JS API failed — trying UI buttons');
 
   // Strategy 2: Click the zoom-in/zoom-out UI buttons
   const buttonSelectors = isZoomIn
@@ -1057,17 +1040,17 @@ async function zoomIn(page: any, levels: number): Promise<void> {
     try {
       const btn = page.locator(sel).first();
       if (await btn.count() > 0 && await btn.isVisible()) {
-        console.log(`[GIS-CAPTURE][zoom-${direction}] Found zoom button: ${sel} — clicking ${clickCount} times`);
+        gisLog(phase, `Found zoom button: ${sel} — clicking ${clickCount} times`, { strategy: 'ui-button', selector: sel });
         for (let i = 0; i < clickCount; i++) {
           await btn.click();
           await page.waitForTimeout(600);
         }
-        console.log(`[GIS-CAPTURE][zoom-${direction}] UI button zoom complete in ${Date.now() - start}ms`);
+        gisLog(phase, `UI button zoom complete in ${Date.now() - start}ms`, { strategy: 'ui-button', duration_ms: Date.now() - start });
         return;
       }
     } catch { /* try next selector */ }
   }
-  console.log(`[GIS-CAPTURE][zoom-${direction}] UI buttons not found — trying keyboard zoom`);
+  gisLog(phase, 'UI buttons not found — trying keyboard zoom');
 
   // Strategy 3: Keyboard zoom (+/- keys)
   // Proven working in diagnostic harness — uses Equal and NumpadAdd for zoom in,
@@ -1087,32 +1070,33 @@ async function zoomIn(page: any, levels: number): Promise<void> {
       await page.keyboard.press(numpadKey);
       await page.waitForTimeout(400);
     }
-    console.log(`[GIS-CAPTURE][zoom-${direction}] Keyboard zoom complete (${clickCount}x ${key} + ${numpadKey}) in ${Date.now() - start}ms`);
+    gisLog(phase, `Keyboard zoom complete (${clickCount}x ${key} + ${numpadKey}) in ${Date.now() - start}ms`, { strategy: 'keyboard', duration_ms: Date.now() - start });
     // Keyboard zoom is best-effort — we can't easily verify it worked,
     // so we also try double-click and mouse wheel as reinforcement
   } catch {
-    console.log(`[GIS-CAPTURE][zoom-${direction}] Keyboard zoom failed`);
+    gisLog(phase, 'Keyboard zoom failed', { strategy: 'keyboard' });
   }
 
   // Strategy 4: Double-click zoom (zoom in only — double-click always zooms in)
   if (isZoomIn) {
     try {
-      console.log(`[GIS-CAPTURE][zoom-${direction}] Trying double-click zoom (${clickCount} double-clicks)`);
+      gisLog(phase, `Trying double-click zoom (${clickCount} double-clicks)`, { strategy: 'dblclick' });
       for (let i = 0; i < clickCount; i++) {
         await page.mouse.dblclick(960, 540);
         await page.waitForTimeout(800); // Longer wait — double-click triggers zoom animation
       }
-      console.log(`[GIS-CAPTURE][zoom-${direction}] Double-click zoom complete in ${Date.now() - start}ms`);
+      gisLog(phase, `Double-click zoom complete in ${Date.now() - start}ms`, { strategy: 'dblclick', duration_ms: Date.now() - start });
       return;
     } catch {
-      console.log(`[GIS-CAPTURE][zoom-${direction}] Double-click zoom failed`);
+      gisLog(phase, 'Double-click zoom failed', { strategy: 'dblclick' });
     }
   }
 
   // Strategy 5: Mouse wheel (always works as last resort)
-  console.log(`[GIS-CAPTURE][zoom-${direction}] Falling back to mouse wheel (${isZoomIn ? clickCount * 3 : -(clickCount * 3)} scroll events)`);
-  await zoomViaMouseWheel(page, isZoomIn ? clickCount * 3 : -(clickCount * 3));
-  console.log(`[GIS-CAPTURE][zoom-${direction}] Mouse wheel zoom complete in ${Date.now() - start}ms`);
+  const scrollEvents = isZoomIn ? clickCount * 3 : -(clickCount * 3);
+  gisLog(phase, `Falling back to mouse wheel (${scrollEvents} scroll events)`, { strategy: 'mouse-wheel', scrollEvents });
+  await zoomViaMouseWheel(page, scrollEvents);
+  gisLog(phase, `Mouse wheel zoom complete in ${Date.now() - start}ms`, { strategy: 'mouse-wheel', duration_ms: Date.now() - start });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1361,7 +1345,7 @@ async function waitForCanvasStability(page: any, maxWait = 8_000): Promise<boole
       if (prevSize > 0 && Math.abs(size - prevSize) / prevSize < 0.02) {
         stableCount++;
         if (stableCount >= 2) {
-          console.log(`[GIS-CAPTURE][canvas-stability] Canvas stable after ${Date.now() - start}ms (${stableCount} consistent frames, ${size} bytes)`);
+          gisLog('canvas-stability', `Canvas stable after ${Date.now() - start}ms (${stableCount} consistent frames, ${size} bytes)`, { duration_ms: Date.now() - start, stableCount, size });
           return true;
         }
       } else {
@@ -1371,7 +1355,7 @@ async function waitForCanvasStability(page: any, maxWait = 8_000): Promise<boole
     } catch { /* screenshot may fail during render — retry */ }
     await page.waitForTimeout(pollInterval);
   }
-  console.log(`[GIS-CAPTURE][canvas-stability] Canvas did not stabilize within ${maxWait}ms — proceeding anyway`);
+  gisLog('canvas-stability', `Canvas did not stabilize within ${maxWait}ms — proceeding anyway`, { maxWait });
   return false;
 }
 
@@ -1385,12 +1369,12 @@ async function waitForNetworkIdle(page: any, idleTime = 2_000, maxWait = 10_000)
   try {
     // Use Playwright's waitForLoadState which monitors network activity
     await page.waitForLoadState('networkidle', { timeout: maxWait });
-    console.log(`[GIS-CAPTURE][network-idle] Network idle reached in ${Date.now() - start}ms`);
+    gisLog('network-idle', `Network idle reached in ${Date.now() - start}ms`, { duration_ms: Date.now() - start });
     return true;
   } catch {
     // networkidle may not trigger if there are persistent connections (WebSocket, polling)
     // Fall back to a short wait
-    console.log(`[GIS-CAPTURE][network-idle] Network idle timeout after ${maxWait}ms — falling back to ${idleTime}ms wait`);
+    gisLog('network-idle', `Network idle timeout after ${maxWait}ms — falling back to ${idleTime}ms wait`, { maxWait, idleTime });
     await page.waitForTimeout(idleTime);
     return false;
   }
