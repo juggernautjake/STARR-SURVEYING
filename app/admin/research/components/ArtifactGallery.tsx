@@ -32,6 +32,12 @@ interface Artifact {
 
 interface ArtifactGalleryProps {
   projectId: string;
+  /**
+   * When set, the gallery re-fetches artifacts at this interval (ms).
+   * Use during the research stage so new captures appear in real-time.
+   * Set to 0 or omit to disable polling (review stage).
+   */
+  refreshInterval?: number;
 }
 
 // ── Category Display Config ───────────────────────────────────────────────────
@@ -57,7 +63,7 @@ function getCategoryConfig(cat: string) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function ArtifactGallery({ projectId }: ArtifactGalleryProps) {
+export default function ArtifactGallery({ projectId, refreshInterval }: ArtifactGalleryProps) {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [grouped, setGrouped] = useState<Record<string, Artifact[]>>({});
   const [loading, setLoading] = useState(true);
@@ -74,29 +80,34 @@ export default function ArtifactGallery({ projectId }: ArtifactGalleryProps) {
   });
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
 
-  // ── Fetch artifacts ─────────────────────────────────────────────────
+  // ── Fetch artifacts (with optional polling) ────────────────────────
+  const fetchArtifacts = useCallback(async (isInitial: boolean) => {
+    if (isInitial) { setLoading(true); setError(null); }
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/artifacts`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setArtifacts(data.artifacts || []);
+      setGrouped(data.grouped || {});
+    } catch (err) {
+      if (isInitial) setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (isInitial) setLoading(false);
+    }
+  }, [projectId]);
+
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`/api/admin/research/${projectId}/artifacts`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!cancelled) {
-          setArtifacts(data.artifacts || []);
-          setGrouped(data.grouped || {});
-        }
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    fetchArtifacts(true);
+    // Poll for new artifacts during research stage
+    let timer: ReturnType<typeof setInterval> | null = null;
+    if (refreshInterval && refreshInterval > 0) {
+      timer = setInterval(() => {
+        if (!cancelled) fetchArtifacts(false);
+      }, refreshInterval);
     }
-    load();
-    return () => { cancelled = true; };
-  }, [projectId]);
+    return () => { cancelled = true; if (timer) clearInterval(timer); };
+  }, [fetchArtifacts, refreshInterval]);
 
   // ── Lightbox navigation ─────────────────────────────────────────────
   const viewableArtifacts = artifacts.filter(a => a.storageUrl && (a.isImage || a.isPdf));

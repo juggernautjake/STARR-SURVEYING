@@ -655,6 +655,181 @@ function capitalizeFirst(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+// ── Incremental Upload ──────────────────────────────────────────────────────
+//
+// Called mid-pipeline to upload a single document (deed, plat, screenshot set)
+// immediately rather than waiting for the full pipeline to complete.
+// This lets the frontend artifact gallery show results as they're captured.
+
+/**
+ * Upload a set of page images for a single document incrementally.
+ * Creates the storage objects + research_documents row immediately.
+ * Safe to call concurrently — each call operates on its own document.
+ */
+export async function uploadDocumentIncremental(
+  supabase: SupabaseClient,
+  projectId: string,
+  pages: ArtifactPageImage[],
+): Promise<{ ok: boolean; error?: string }> {
+  if (pages.length === 0) return { ok: true };
+  const firstPage = pages[0];
+  const category = firstPage.category;
+  const label = firstPage.label;
+  const safeLabel = sanitizeFilename(label);
+
+  try {
+    // Sort by page number
+    const sorted = [...pages].sort((a, b) => a.pageNumber - b.pageNumber);
+
+    // 1. Upload individual page images
+    const pageUrls: string[] = [];
+    let totalBytes = 0;
+    for (const img of sorted) {
+      const filename = `${category}_${safeLabel}_page${img.pageNumber}.png`;
+      const storagePath = `${projectId}/artifacts/${category}/${filename}`;
+      const buffer = Buffer.from(img.imageBase64, 'base64');
+      totalBytes += buffer.length;
+      const contentType = detectImageContentType(img.imageBase64);
+
+      const { error: uploadErr } = await (supabase.storage as any)
+        .from(BUCKET)
+        .upload(storagePath, buffer, { contentType, upsert: true, cacheControl: '86400' });
+
+      if (uploadErr) {
+        console.warn(`[ArtifactUploader:Incremental] ${label} page ${img.pageNumber} upload failed: ${uploadErr.message}`);
+        continue;
+      }
+      const { data: urlData } = (supabase.storage as any).from(BUCKET).getPublicUrl(storagePath);
+      pageUrls.push(urlData?.publicUrl ?? '');
+    }
+    if (pageUrls.length === 0) return { ok: false, error: 'All page uploads failed' };
+
+    // 2. Bundle into PDF
+    let pdfUrl: string | null = null;
+    if (sorted.length > 0) {
+      try {
+        const docPages: DocumentPage[] = sorted.map(p => ({
+          pageNumber: p.pageNumber,
+          imageBase64: p.imageBase64,
+          imageFormat: detectFormat(p.imageBase64),
+          width: 0, height: 0, signedUrl: null,
+        }));
+        const pdfBuffer = await pageImagesToBuffer(docPages);
+        const pdfFilename = `${category}_${safeLabel}_all_pages.pdf`;
+        const pdfPath = `${projectId}/artifacts/${category}/${pdfFilename}`;
+        const { error: pdfErr } = await (supabase.storage as any)
+          .from(BUCKET)
+          .upload(pdfPath, pdfBuffer, { contentType: 'application/pdf', upsert: true, cacheControl: '86400' });
+        if (!pdfErr) {
+          const { data: pdfUrlData } = (supabase.storage as any).from(BUCKET).getPublicUrl(pdfPath);
+          pdfUrl = pdfUrlData?.publicUrl ?? null;
+        }
+      } catch {
+        // PDF bundle is optional — page images still available
+      }
+    }
+
+    // 3. Create research_documents row
+    const docType = firstPage.documentType || mapCategoryToDocType(category);
+    const richLabel = firstPage.documentLabel;
+    const displayLabel = richLabel
+      ? (sorted.length > 1 ? `${richLabel} (${sorted.length} pages)` : richLabel)
+      : `${capitalizeFirst(category)}: ${label}${sorted.length > 1 ? ` (${sorted.length} pages)` : ''}`;
+
+    const { error: insertErr } = await resilientInsertDocument(supabase, {
+      research_project_id: projectId,
+      source_type: 'property_search',
+      original_filename: `${category}_${safeLabel}`,
+      file_type: pdfUrl ? 'pdf' : 'png',
+      file_size_bytes: totalBytes,
+      storage_path: `${projectId}/artifacts/${category}/`,
+      storage_url: pageUrls[0] || null,
+      pages_pdf_url: pdfUrl,
+      source_url: firstPage.sourceUrl,
+      document_type: docType,
+      document_label: displayLabel,
+      page_count: sorted.length,
+      processing_status: firstPage.extractedText ? 'analyzed' : 'extracted',
+      ocr_regions: JSON.stringify({ pageUrls }),
+      extracted_text: firstPage.extractedText?.slice(0, 50_000) || null,
+      recording_info: firstPage.recordingInfo || null,
+      recorded_date: firstPage.recordedDate || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    if (insertErr) return { ok: false, error: insertErr };
+
+    console.log(
+      `[ArtifactUploader:Incremental] ${projectId}: uploaded ${category} "${label}" — ${sorted.length} page(s), PDF=${!!pdfUrl}`,
+    );
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[ArtifactUploader:Incremental] ${projectId}: ${category} "${label}" failed: ${msg}`);
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Upload a set of screenshots incrementally (e.g., GIS screenshots).
+ * Classifies, groups by source, and uploads with DB row creation.
+ */
+export async function uploadScreenshotsIncremental(
+  supabase: SupabaseClient,
+  projectId: string,
+  screenshots: ArtifactScreenshot[],
+): Promise<{ ok: boolean; uploaded: number; error?: string }> {
+  if (screenshots.length === 0) return { ok: true, uploaded: 0 };
+  let uploaded = 0;
+  for (const ss of screenshots) {
+    try {
+      const cls = ss.classification ?? classifyScreenshot(ss.url || '', ss.description || '', ss.pageText);
+      if (cls === 'misc') continue; // Skip junk screenshots
+      const docType = classifyScreenshotDocType(ss.url || '', ss.description || '', ss.source || '');
+      const safeName = sanitizeFilename(ss.source || 'unknown');
+      const filename = `screenshot_${safeName}_${Date.now()}.png`;
+      const storagePath = `${projectId}/artifacts/screenshots/${filename}`;
+      const buffer = Buffer.from(ss.imageBase64, 'base64');
+
+      const { error: uploadErr } = await (supabase.storage as any)
+        .from(BUCKET)
+        .upload(storagePath, buffer, { contentType: 'image/png', upsert: true, cacheControl: '86400' });
+
+      if (uploadErr) {
+        console.warn(`[ArtifactUploader:Incremental] Screenshot upload failed: ${uploadErr.message}`);
+        continue;
+      }
+
+      const { data: urlData } = (supabase.storage as any).from(BUCKET).getPublicUrl(storagePath);
+      const publicUrl = urlData?.publicUrl ?? '';
+
+      const { error: insertErr } = await resilientInsertDocument(supabase, {
+        research_project_id: projectId,
+        source_type: 'property_search',
+        original_filename: filename,
+        file_type: 'png',
+        file_size_bytes: buffer.length,
+        storage_path: storagePath,
+        storage_url: publicUrl,
+        source_url: ss.url || null,
+        document_type: docType,
+        document_label: `Screenshot: ${ss.description || ss.source}`,
+        processing_status: 'analyzed',
+        extracted_text: `Screenshot captured from ${ss.source} at ${ss.url}\n${ss.description}`,
+        created_at: ss.capturedAt || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      if (!insertErr) uploaded++;
+    } catch (err) {
+      console.warn(`[ArtifactUploader:Incremental] Screenshot error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  console.log(`[ArtifactUploader:Incremental] ${projectId}: uploaded ${uploaded}/${screenshots.length} screenshots`);
+  return { ok: true, uploaded };
+}
+
 /** Original document_type values from seed 090 (before migration 106). */
 const ORIGINAL_DOC_TYPES = new Set([
   'deed', 'plat', 'survey', 'legal_description', 'title_commitment',
