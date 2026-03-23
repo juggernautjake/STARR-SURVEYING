@@ -157,7 +157,12 @@ export async function scrapeBellClerk(
     searchPaths.push('Path-A-Instruments');
     const unique = [...new Set(input.instrumentNumbers)];
     progress(`Path A: Looking up ${unique.length} instrument number(s) directly`);
+    if (input.ownerName) {
+      progress(`  Owner filter active: "${input.ownerName}" — instruments whose parties don't match will be skipped`);
+    }
 
+    let skippedCount = 0;
+    const skippedInstruments: string[] = [];
     for (const instrNum of unique) {
       if (documents.length >= maxDocs) break;
 
@@ -167,9 +172,20 @@ export async function scrapeBellClerk(
         input.projectId, input.ownerName, // Pass owner for pre-download validation
       );
       if (doc) {
-        const isNew = addDocument(doc);
-        if (isNew) {
-          progress(`  ✓ Found: ${doc.documentType} — ${instrNum} (${doc.grantor ?? '?'} → ${doc.grantee ?? '?'})`);
+        // Skip documents pre-filtered as irrelevant (owner mismatch, wrong parcel).
+        // These come back with relevanceScore=0 and empty pageImages — the metadata
+        // was retrieved but page images were NOT downloaded (saving ~2-5 minutes).
+        if (doc.relevanceScore === 0 && doc.pageImages.length === 0) {
+          skippedCount++;
+          skippedInstruments.push(instrNum);
+          progress(`  ✗ SKIPPED: ${doc.documentType} — ${instrNum}`);
+          progress(`    Reason: Parties "${doc.grantor ?? '?'}" / "${doc.grantee ?? '?'}" don't match target owner "${input.ownerName}"`);
+          progress(`    This instrument likely belongs to a neighboring parcel, not our property`);
+        } else {
+          const isNew = addDocument(doc);
+          if (isNew) {
+            progress(`  ✓ KEPT: ${doc.documentType} — ${instrNum} (${doc.grantor ?? '?'} → ${doc.grantee ?? '?'})`);
+          }
         }
       } else {
         progress(`  ✗ Not found: ${instrNum}`);
@@ -178,7 +194,11 @@ export async function scrapeBellClerk(
       await delay(RATE_LIMITS.defaultDelay);
     }
 
-    progress(`Path A complete: ${documents.length} document(s) found`);
+    if (skippedCount > 0) {
+      progress(`Path A complete: ${documents.length} document(s) kept, ${skippedCount} skipped as unrelated [${skippedInstruments.join(', ')}]`);
+    } else {
+      progress(`Path A complete: ${documents.length} document(s) found — all matched target owner`);
+    }
   }
 
   // ── Path B: Owner Name SPA Search ──────────────────────────────────
