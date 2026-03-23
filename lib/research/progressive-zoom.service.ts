@@ -17,6 +17,83 @@ import type { DocumentType } from '@/types/research';
 import { geocodeAddress, type GeoPoint } from './map-image.service';
 import { PipelineLogger } from './pipeline-logger';
 
+// ── Parcel Centroid Lookup ───────────────────────────────────────────────────
+
+/**
+ * Given a list of parcels and an address, find the best-matching parcel
+ * by house number + street name. Returns the parcel or null.
+ */
+function findBestMatch(
+  searchAddress: string,
+  parcels: NearbyParcel[],
+): NearbyParcel | null {
+  if (parcels.length === 0) return null;
+
+  const normalize = (s: string) =>
+    s.toUpperCase().replace(/[.,#\-]/g, '').replace(/\s+/g, ' ').trim();
+  const search = normalize(searchAddress);
+  const searchMatch = search.match(/^(\d+)\s+(.+)/);
+  if (!searchMatch) return null;
+
+  const searchNum = searchMatch[1];
+  let best: NearbyParcel | null = null;
+  let bestScore = 0;
+
+  for (const p of parcels) {
+    if (!p.address) continue;
+    const parcel = normalize(p.address);
+    const parcelMatch = parcel.match(/^(\d+)\s+(.+)/);
+    if (!parcelMatch || parcelMatch[1] !== searchNum) continue;
+    // House number matches — score by street similarity
+    const score = parcel.includes(searchMatch[2]) || searchMatch[2].includes(parcel) ? 90 : 50;
+    if (score > bestScore) { best = p; bestScore = score; }
+  }
+  return best;
+}
+
+/**
+ * Query Bell CAD for a parcel's actual geometry centroid in WGS84.
+ * This corrects for geocoding offsets that can be miles off.
+ */
+async function fetchParcelCentroidWgs84(
+  propId: number,
+  logger: PipelineLogger,
+): Promise<{ lat: number; lon: number } | null> {
+  const params = new URLSearchParams({
+    where: `prop_id = ${propId}`,
+    outFields: 'PROP_ID',
+    returnGeometry: 'true',
+    outSR: '4326',
+    f: 'json',
+  });
+  const url = `${BELL_CAD_FEATURE_SERVER}/0/query?${params}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const rings: number[][][] | undefined = data?.features?.[0]?.geometry?.rings;
+    if (!rings || rings.length === 0 || rings[0].length === 0) return null;
+
+    const ring = rings[0];
+    let sumLon = 0, sumLat = 0;
+    const n = (ring.length > 1 &&
+      ring[0][0] === ring[ring.length - 1][0] &&
+      ring[0][1] === ring[ring.length - 1][1])
+      ? ring.length - 1
+      : ring.length;
+    for (let i = 0; i < n; i++) { sumLon += ring[i][0]; sumLat += ring[i][1]; }
+    const centroid = { lat: sumLat / n, lon: sumLon / n };
+    logger.info('gis_zoom', `Parcel centroid for prop_id=${propId}: ${centroid.lat.toFixed(6)}, ${centroid.lon.toFixed(6)}`);
+    return centroid;
+  } catch {
+    return null;
+  }
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const MAP_WIDTH = 1280;
@@ -325,6 +402,12 @@ export async function captureProgressiveZoom(
   });
   log.push(`[progressive-zoom] Geocoded to ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)} — ${coords.display_name}`);
 
+  // Mutable center — starts at geocoded location, re-centers on actual
+  // parcel centroid once we find a matching parcel in the CAD data.
+  let centerLat = coords.lat;
+  let centerLon = coords.lon;
+  let recentered = false;
+
   // Determine county for CAD queries
   const normalizedCounty = (county ?? '').toLowerCase().replace(/\s+county$/i, '').trim();
   const isBellCounty = normalizedCounty === 'bell' || normalizedCounty === '';
@@ -352,10 +435,10 @@ export async function captureProgressiveZoom(
     stepLog.push(`Zoom ${level.zoom} (${level.label}): ${level.description}`);
     log.push(`\n[progressive-zoom] ─── Zoom ${level.zoom}: ${level.label} ───`);
 
-    // Build URLs
-    const googleHybridUrl = buildGoogleStaticUrl(coords.lat, coords.lon, level.zoom, 'hybrid');
-    const googleRoadUrl = buildGoogleStaticUrl(coords.lat, coords.lon, level.zoom, 'roadmap');
-    const esriUrl = buildEsriImageryUrl(coords.lat, coords.lon, level.radiusDeg);
+    // Build URLs using current center (may be corrected from parcel centroid)
+    const googleHybridUrl = buildGoogleStaticUrl(centerLat, centerLon, level.zoom, 'hybrid');
+    const googleRoadUrl = buildGoogleStaticUrl(centerLat, centerLon, level.zoom, 'roadmap');
+    const esriUrl = buildEsriImageryUrl(centerLat, centerLon, level.radiusDeg);
 
     logger.debug('gis_zoom', `URL construction for zoom ${level.zoom}`, {
       has_google_hybrid: !!googleHybridUrl,
@@ -364,9 +447,9 @@ export async function captureProgressiveZoom(
       has_google_api_key: !!(process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY),
     });
 
-    // Fetch images + parcel data in parallel
+    // Fetch images + parcel data in parallel (using current center)
     const parcelQueryUrl = isBellCounty
-      ? buildBellCadParcelQueryUrl(coords.lat, coords.lon, level.radiusDeg)
+      ? buildBellCadParcelQueryUrl(centerLat, centerLon, level.radiusDeg)
       : null;
 
     logger.debug('gis_zoom', `Starting parallel fetch: images + parcel query at zoom ${level.zoom}`, {
@@ -417,6 +500,36 @@ export async function captureProgressiveZoom(
 
     totalParcels = Math.max(totalParcels, parcels.length);
 
+    // ── Re-center on actual parcel coordinates if we find the target ──
+    // Nominatim geocoding can be miles off for rural FM road addresses.
+    // Once we match the target parcel, query its real geometry centroid
+    // so subsequent zoom levels capture the correct location.
+    if (!recentered && isBellCounty && parcels.length > 0) {
+      const target = findBestMatch(address, parcels);
+      if (target) {
+        const centroid = await fetchParcelCentroidWgs84(target.prop_id, logger);
+        if (centroid) {
+          const offsetMiles = Math.sqrt(
+            Math.pow((centroid.lat - centerLat) * 69, 2) +
+            Math.pow((centroid.lon - centerLon) * 54.6, 2),
+          );
+          logger.info('gis_zoom',
+            `RE-CENTERING: geocoded was ${offsetMiles.toFixed(2)} miles from parcel centroid ` +
+            `(prop_id=${target.prop_id}) — moving from (${centerLat.toFixed(6)}, ${centerLon.toFixed(6)}) → ` +
+            `(${centroid.lat.toFixed(6)}, ${centroid.lon.toFixed(6)})`, {
+              geocoded_lat: centerLat, geocoded_lon: centerLon,
+              parcel_lat: centroid.lat, parcel_lon: centroid.lon,
+              offset_miles: offsetMiles, prop_id: target.prop_id,
+            },
+          );
+          log.push(`[progressive-zoom] RE-CENTERED: ${offsetMiles.toFixed(2)} miles from geocoded to parcel centroid`);
+          centerLat = centroid.lat;
+          centerLon = centroid.lon;
+          recentered = true;
+        }
+      }
+    }
+
     // Store captures
     const storeOps: Promise<void>[] = [];
 
@@ -426,7 +539,7 @@ export async function captureProgressiveZoom(
       storeOps.push((async () => {
         const desc = [
           `Google Maps satellite/hybrid at zoom ${level.zoom} (${level.label}) for: ${address}`,
-          `\nCoordinates: ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`,
+          `\nCoordinates: ${centerLat.toFixed(6)}, ${centerLon.toFixed(6)}`,
           `\nRadius: ~${Math.round(level.radiusDeg * 111000)}m`,
           `\n\nPURPOSE: Satellite imagery with address pin at zoom ${level.zoom}.`,
           ` At this zoom level (${level.description}), look for:`,
@@ -451,7 +564,7 @@ export async function captureProgressiveZoom(
       storeOps.push((async () => {
         const desc = [
           `Google Maps roadmap at zoom ${level.zoom} (${level.label}) for: ${address}`,
-          `\nCoordinates: ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`,
+          `\nCoordinates: ${centerLat.toFixed(6)}, ${centerLon.toFixed(6)}`,
           `\nRadius: ~${Math.round(level.radiusDeg * 111000)}m`,
           `\n\nPURPOSE: Street map with pin showing address location at zoom ${level.zoom}.`,
           ` The RED PIN marks where Google Maps places this address.`,
@@ -472,7 +585,7 @@ export async function captureProgressiveZoom(
       storeOps.push((async () => {
         const desc = [
           `Esri World Imagery at zoom ${level.zoom} (${level.label}) for: ${address}`,
-          `\nCoordinates: ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`,
+          `\nCoordinates: ${centerLat.toFixed(6)}, ${centerLon.toFixed(6)}`,
           `\nRadius: ~${Math.round(level.radiusDeg * 111000)}m`,
           `\n\nPURPOSE: High-res aerial imagery without overlays for clean feature comparison.`,
           parcelAnnotation,
@@ -527,8 +640,9 @@ export async function captureProgressiveZoom(
     lot_lines_first_visible_at: lotLinesFirstVisible,
     total_parcels_found: totalParcels,
     total_duration_ms: totalDuration,
-    geocoded_lat: coords.lat,
-    geocoded_lon: coords.lon,
+    geocoded_lat: centerLat,
+    geocoded_lon: centerLon,
+    recentered_from_parcel: recentered,
     zoom_level_summary: zoomCaptures.map(z => ({
       zoom: z.zoom, label: z.label, images: z.document_ids.length,
       parcels: z.parcels_in_view.length, lot_lines: z.lot_lines_likely_visible,
@@ -549,7 +663,9 @@ export async function captureProgressiveZoom(
     lot_lines_first_visible_at: lotLinesFirstVisible,
     best_zoom_for_lot_id: bestZoom,
     all_document_ids: allDocIds,
-    geocoded: coords,
+    geocoded: recentered
+      ? { lat: centerLat, lon: centerLon, display_name: coords.display_name }
+      : coords,
     total_parcels_found: totalParcels,
     pipeline_log: log,
   };
