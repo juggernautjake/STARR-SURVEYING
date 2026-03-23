@@ -33,15 +33,26 @@ import {
 
 // ── Parcel Centroid Lookup ───────────────────────────────────────────────────
 
+/** Parcel location derived from actual CAD geometry */
+interface ParcelLocation {
+  lat: number;
+  lon: number;
+  /** Bounding box extent in degrees — used to compute appropriate zoom */
+  extentDeg: { latSpan: number; lonSpan: number };
+  /** Approximate extent in meters (at Texas latitudes) */
+  extentMeters: { latSpan: number; lonSpan: number };
+}
+
 /**
  * Query Bell CAD for a single parcel's geometry by PROP_ID and compute
- * its centroid in WGS84 (lat/lon). This gives us the exact parcel location
- * instead of relying on geocoded coordinates which can be miles off.
+ * its centroid + bounding extent in WGS84 (lat/lon). This gives us the
+ * exact parcel location and size, instead of relying on geocoded
+ * coordinates and fixed zoom levels.
  */
 async function fetchParcelCentroid(
   propId: number,
   logger: PipelineLogger,
-): Promise<{ lat: number; lon: number } | null> {
+): Promise<ParcelLocation | null> {
   const params = new URLSearchParams({
     where: `prop_id = ${propId}`,
     outFields: 'PROP_ID',
@@ -68,9 +79,10 @@ async function fetchParcelCentroid(
       return null;
     }
 
-    // Compute centroid of the first ring (outer boundary)
+    // Compute centroid + bounding extent of the first ring (outer boundary)
     const ring = rings[0];
     let sumLon = 0, sumLat = 0;
+    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
     // Exclude the closing vertex (same as first) if ring is closed
     const n = (ring.length > 1 &&
       ring[0][0] === ring[ring.length - 1][0] &&
@@ -78,15 +90,34 @@ async function fetchParcelCentroid(
       ? ring.length - 1
       : ring.length;
     for (let i = 0; i < n; i++) {
-      sumLon += ring[i][0];
-      sumLat += ring[i][1];
+      const lon = ring[i][0], lat = ring[i][1];
+      sumLon += lon;
+      sumLat += lat;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lon < minLon) minLon = lon;
+      if (lon > maxLon) maxLon = lon;
     }
-    const centroid = { lat: sumLat / n, lon: sumLon / n };
+    const latSpan = maxLat - minLat;
+    const lonSpan = maxLon - minLon;
+    const result: ParcelLocation = {
+      lat: sumLat / n,
+      lon: sumLon / n,
+      extentDeg: { latSpan, lonSpan },
+      // ~111km per degree lat, ~96.5km per degree lon at 30° N (Texas)
+      extentMeters: { latSpan: latSpan * 111_000, lonSpan: lonSpan * 96_500 },
+    };
 
-    logger.info('gis_zoom', `Parcel centroid for prop_id=${propId}: ${centroid.lat.toFixed(6)}, ${centroid.lon.toFixed(6)}`, {
-      prop_id: propId, lat: centroid.lat, lon: centroid.lon, ring_vertices: ring.length,
-    });
-    return centroid;
+    logger.info('gis_zoom',
+      `Parcel centroid for prop_id=${propId}: ${result.lat.toFixed(6)}, ${result.lon.toFixed(6)} ` +
+      `(extent: ${result.extentMeters.latSpan.toFixed(0)}m x ${result.extentMeters.lonSpan.toFixed(0)}m)`, {
+        prop_id: propId, lat: result.lat, lon: result.lon,
+        ring_vertices: ring.length,
+        extent_lat_m: result.extentMeters.latSpan,
+        extent_lon_m: result.extentMeters.lonSpan,
+      },
+    );
+    return result;
   } catch (err) {
     logger.error('gis_zoom', `Parcel centroid query error for prop_id=${propId}: ${err instanceof Error ? err.message : String(err)}`);
     return null;
@@ -144,14 +175,64 @@ export interface ProgressiveZoomResult {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-/** Zoom levels to capture, from widest to tightest */
-const PROGRESSIVE_ZOOM_LEVELS = [
+/** Default zoom levels (subdivision-sized lots). Overridden when we know parcel extent. */
+const DEFAULT_ZOOM_LEVELS = [
   { zoom: 16, label: 'neighborhood', radius_m: 550 },
   { zoom: 18, label: 'block', radius_m: 130 },
   { zoom: 19, label: 'half-block', radius_m: 65 },
   { zoom: 20, label: 'lot', radius_m: 33 },
   { zoom: 21, label: 'max-detail', radius_m: 17 },
 ];
+
+/**
+ * Compute zoom levels tailored to the actual parcel size.
+ * Large rural tracts need wider zoom; small subdivision lots need tighter zoom.
+ *
+ * The "fit" zoom is the level where the parcel fills ~60% of the frame.
+ * We then capture: 2 levels wider (context), fit level, and 1 level tighter (detail).
+ */
+function computeZoomLevelsForParcel(
+  extentMeters: { latSpan: number; lonSpan: number },
+  logger: PipelineLogger,
+): typeof DEFAULT_ZOOM_LEVELS {
+  // Use the larger dimension to determine fit zoom
+  const maxExtentM = Math.max(extentMeters.latSpan, extentMeters.lonSpan);
+
+  // At zoom Z, the visible radius ≈ 0.00015 * 2^(21-Z) degrees ≈ that * 111000 meters
+  // So visible diameter ≈ 2 * 0.00015 * 2^(21-Z) * 111000
+  // We want parcel to fill ~60% of frame: maxExtentM = 0.6 * diameter
+  // Solve for Z: 2^(21-Z) = maxExtentM / (0.6 * 2 * 0.00015 * 111000)
+  //            = maxExtentM / 19.98
+  const fitPow = maxExtentM / 20;
+  const fitZoom = Math.round(21 - Math.log2(Math.max(fitPow, 1)));
+
+  // Clamp to valid range
+  const clampedFit = Math.max(12, Math.min(21, fitZoom));
+
+  const levels = [
+    { zoom: Math.max(12, clampedFit - 3), label: 'wide-context', radius_m: 0 },
+    { zoom: Math.max(12, clampedFit - 1), label: 'context', radius_m: 0 },
+    { zoom: clampedFit, label: 'parcel-fit', radius_m: 0 },
+    { zoom: Math.min(21, clampedFit + 1), label: 'detail', radius_m: 0 },
+  ]
+    // Deduplicate (in case clamping collapsed levels)
+    .filter((l, i, arr) => i === 0 || l.zoom !== arr[i - 1].zoom)
+    // Compute radius_m for each
+    .map(l => ({
+      ...l,
+      radius_m: Math.round(0.00015 * Math.pow(2, 21 - l.zoom) * 111_000),
+    }));
+
+  logger.info('gis_zoom',
+    `Parcel extent: ${maxExtentM.toFixed(0)}m → fit zoom=${clampedFit}, ` +
+    `capturing zooms: ${levels.map(l => `z${l.zoom}(${l.label})`).join(', ')}`, {
+      parcel_extent_m: maxExtentM, fit_zoom: clampedFit,
+      zoom_levels: levels.map(l => l.zoom),
+    },
+  );
+
+  return levels;
+}
 
 const FETCH_TIMEOUT_MS = 30_000;
 
@@ -480,10 +561,63 @@ export async function progressiveZoomCapture(
   // parcel centroid once we find the target parcel.
   let centerLat = geocoded.lat;
   let centerLon = geocoded.lon;
-  let recentered = false;
 
-  // Step 2: Progressive zoom — query parcels at each level
-  for (const level of PROGRESSIVE_ZOOM_LEVELS) {
+  // Step 2: Initial wide query to find the target parcel
+  // Start at zoom 16 (neighborhood, ~550m radius) which is wide enough to
+  // find parcels even when geocoding is off by a few hundred meters.
+  logger.info('gis_zoom', 'Step 2: Initial wide parcel search at zoom 16');
+  const initialParcels = await queryParcelsAtZoom(centerLat, centerLon, 16, logger);
+  const initialTarget = findBestParcelMatch(address, initialParcels, logger);
+
+  // Step 3: If we found the target, re-center and compute zoom levels from parcel extent.
+  // If not, fall back to default zoom levels centered on geocoded coords.
+  let zoomLevels = DEFAULT_ZOOM_LEVELS;
+
+  if (initialTarget) {
+    result.target_parcel = initialTarget;
+    logger.match('gis_zoom', `Found target parcel: prop_id=${initialTarget.prop_id}, lot=${initialTarget.lot}, block=${initialTarget.block}`, {
+      prop_id: initialTarget.prop_id, address: initialTarget.address,
+      lot: initialTarget.lot, block: initialTarget.block, acreage: initialTarget.acreage,
+    });
+
+    // Fetch actual geometry to get centroid + extent
+    const parcelLoc = await fetchParcelCentroid(initialTarget.prop_id, logger);
+    if (parcelLoc) {
+      const offsetMiles = Math.sqrt(
+        Math.pow((parcelLoc.lat - centerLat) * 69, 2) +
+        Math.pow((parcelLoc.lon - centerLon) * 54.6, 2),
+      );
+      logger.info('gis_zoom',
+        `RE-CENTERING: geocoded was ${offsetMiles.toFixed(2)} miles from parcel centroid — ` +
+        `moving from (${centerLat.toFixed(6)}, ${centerLon.toFixed(6)}) → ` +
+        `(${parcelLoc.lat.toFixed(6)}, ${parcelLoc.lon.toFixed(6)})`, {
+          geocoded_lat: centerLat, geocoded_lon: centerLon,
+          parcel_lat: parcelLoc.lat, parcel_lon: parcelLoc.lon,
+          offset_miles: offsetMiles, prop_id: initialTarget.prop_id,
+        },
+      );
+      centerLat = parcelLoc.lat;
+      centerLon = parcelLoc.lon;
+      result.geocoded = { lat: parcelLoc.lat, lon: parcelLoc.lon, display_name: geocoded.display_name };
+
+      // Compute zoom levels based on actual parcel size
+      zoomLevels = computeZoomLevelsForParcel(parcelLoc.extentMeters, logger);
+    }
+
+    // Collect adjacent parcels (same block, different lot)
+    if (initialTarget.block) {
+      result.adjacent_parcels = initialParcels.filter(p =>
+        p.prop_id !== initialTarget.prop_id &&
+        p.block === initialTarget.block,
+      );
+      logger.info('gis_zoom', `Found ${result.adjacent_parcels.length} adjacent parcels in block ${initialTarget.block}`);
+    }
+  } else {
+    logger.warn('gis_zoom', 'Target parcel not found in initial search — using default zoom levels');
+  }
+
+  // Step 4: Progressive zoom — capture at each computed level
+  for (const level of zoomLevels) {
     const zoomStart = Date.now();
 
     const parcels = await queryParcelsAtZoom(centerLat, centerLon, level.zoom, logger);
@@ -502,22 +636,19 @@ export async function progressiveZoomCapture(
       logger.info('gis_zoom', `First lot visibility at zoom ${level.zoom}`);
     }
 
-    // Capture map images only at key zoom levels (block + lot)
-    // Use the current center (which may have been corrected to parcel centroid)
+    // Capture map images at every computed level (they're already tailored to parcel size)
     const captureCoords: GeoPoint = { lat: centerLat, lon: centerLon, display_name: geocoded.display_name };
     let mapSet: ParcelMapSet | null = null;
-    if (level.zoom === BLOCK_ZOOM || level.zoom === LOT_ZOOM) {
-      try {
-        logger.info('gis_zoom', `Capturing map images at zoom ${level.zoom} (${level.label})`);
-        mapSet = await captureParcelMaps(projectId, address, level.zoom, captureCoords, county);
-        result.all_document_ids.push(...mapSet.documentIds);
-        logger.info('gis_zoom', `Captured ${mapSet.documentIds.length} images at zoom ${level.zoom}`, {
-          document_ids: mapSet.documentIds,
-          steps: mapSet.steps,
-        });
-      } catch (err) {
-        logger.error('gis_zoom', `Map capture failed at zoom ${level.zoom}: ${err instanceof Error ? err.message : String(err)}`);
-      }
+    try {
+      logger.info('gis_zoom', `Capturing map images at zoom ${level.zoom} (${level.label})`);
+      mapSet = await captureParcelMaps(projectId, address, level.zoom, captureCoords, county);
+      result.all_document_ids.push(...mapSet.documentIds);
+      logger.info('gis_zoom', `Captured ${mapSet.documentIds.length} images at zoom ${level.zoom}`, {
+        document_ids: mapSet.documentIds,
+        steps: mapSet.steps,
+      });
+    } catch (err) {
+      logger.error('gis_zoom', `Map capture failed at zoom ${level.zoom}: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     const capture: ZoomLevelCapture = {
@@ -533,59 +664,15 @@ export async function progressiveZoomCapture(
 
     result.zoom_captures.push(capture);
 
-    // Find target parcel (matching address) — use scored matching to avoid
-    // picking an adjacent lot that happens to substring-match.
+    // If we didn't find the target in the initial search, try again at each level
     if (!result.target_parcel) {
       const target = findBestParcelMatch(address, parcels, logger);
-
       if (target) {
         result.target_parcel = target;
-        logger.match('gis_zoom', `Found target parcel at zoom ${level.zoom}: prop_id=${target.prop_id}, lot=${target.lot}, block=${target.block}`, {
-          prop_id: target.prop_id,
-          address: target.address,
-          lot: target.lot,
-          block: target.block,
-          acreage: target.acreage,
+        logger.match('gis_zoom', `Found target parcel at zoom ${level.zoom}: prop_id=${target.prop_id}`, {
+          prop_id: target.prop_id, address: target.address,
+          lot: target.lot, block: target.block,
         });
-
-        // ── Re-center on actual parcel coordinates ──
-        // Nominatim geocoding can be miles off for rural addresses.
-        // Query Bell CAD for the parcel's actual geometry and compute
-        // the centroid so all remaining zoom levels + map captures
-        // are centered on the real property location.
-        if (!recentered) {
-          const centroid = await fetchParcelCentroid(target.prop_id, logger);
-          if (centroid) {
-            const offsetLat = Math.abs(centroid.lat - centerLat);
-            const offsetLon = Math.abs(centroid.lon - centerLon);
-            const offsetMiles = Math.sqrt(
-              Math.pow(offsetLat * 69, 2) + Math.pow(offsetLon * 54.6, 2),
-            );
-            logger.info('gis_zoom',
-              `RE-CENTERING: geocoded was ${offsetMiles.toFixed(2)} miles from parcel centroid — ` +
-              `moving from (${centerLat.toFixed(6)}, ${centerLon.toFixed(6)}) → ` +
-              `(${centroid.lat.toFixed(6)}, ${centroid.lon.toFixed(6)})`, {
-                geocoded_lat: centerLat, geocoded_lon: centerLon,
-                parcel_lat: centroid.lat, parcel_lon: centroid.lon,
-                offset_miles: offsetMiles, prop_id: target.prop_id,
-              },
-            );
-            centerLat = centroid.lat;
-            centerLon = centroid.lon;
-            recentered = true;
-            // Update result so callers get the corrected coordinates
-            result.geocoded = { lat: centroid.lat, lon: centroid.lon, display_name: geocoded.display_name };
-          }
-        }
-
-        // Collect adjacent parcels (same block, different lot)
-        if (target.block) {
-          result.adjacent_parcels = parcels.filter(p =>
-            p.prop_id !== target.prop_id &&
-            p.block === target.block,
-          );
-          logger.info('gis_zoom', `Found ${result.adjacent_parcels.length} adjacent parcels in block ${target.block}`);
-        }
       }
     }
   }
