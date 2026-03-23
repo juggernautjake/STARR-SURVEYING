@@ -306,7 +306,9 @@
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  overflow-y: auto;
+  padding: 2rem 1rem;
   justify-content: center;
   z-index: 1000;
   padding: 1rem;
@@ -317,8 +319,11 @@
   border-radius: 16px;
   width: 100%;
   max-width: 520px;
-  padding: 1.75rem;
+  margin: auto;
+  padding: 1.5rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
 }
 
 .research-modal__title {
@@ -329,7 +334,7 @@
 }
 
 .research-modal__field {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .research-modal__label {

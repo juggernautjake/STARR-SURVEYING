@@ -458,10 +458,10 @@ export default function ResearchListPage() {
                 </label>
                 <textarea
                   className="research-modal__textarea"
-                  placeholder="e.g. Need to verify east boundary — neighbor disputes fence line. Look for any easements or ROW along FM 436. Previous survey from 1998 may be on file..."
+                  placeholder="e.g. Verify east boundary — neighbor disputes fence line. Look for easements/ROW along FM 436."
                   value={newProject.description}
                   onChange={e => setNewProject(p => ({ ...p, description: e.target.value }))}
-                  rows={4}
+                  rows={3}
                 />
               </div>
 
