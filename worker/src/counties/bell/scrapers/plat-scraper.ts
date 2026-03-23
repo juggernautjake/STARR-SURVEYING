@@ -53,6 +53,11 @@ export interface PlatSearchResult {
   plats: PlatRecord[];
   screenshots: ScreenshotCapture[];
   urlsVisited: string[];
+  /** Deed instrument numbers discovered during plat search (owner/subdivision clerk searches).
+   *  These are NOT fetched by the plat scraper — the orchestrator should fetch them separately. */
+  deedInstruments: string[];
+  /** Other document instrument numbers (dedications, easements, etc.) found during plat search. */
+  otherInstruments: string[];
   stats: {
     repositoryFound: number;
     clerkFound: number;
@@ -124,7 +129,7 @@ export async function scrapeBellPlats(
   if (searchNamesList.length === 0 && (!input.instrumentNumbers || input.instrumentNumbers.length === 0)) {
     progress('No plat search names or instrument numbers provided — skipping plat search');
     return {
-      plats, screenshots, urlsVisited,
+      plats, screenshots, urlsVisited, deedInstruments: [], otherInstruments: [],
       stats: { repositoryFound: 0, clerkFound: 0, instrumentsChecked: 0, refsExtracted: 0, searchNames: [] },
     };
   }
@@ -152,24 +157,30 @@ export async function scrapeBellPlats(
 
   // ── Layer 2: Bell County Clerk (Kofile SPA) ────────────────────────
   let clerkFound = 0;
+  const discoveredDeedInstruments: string[] = [];
+  const discoveredOtherInstruments: string[] = [];
 
   // Search by subdivision name in clerk
   for (const name of searchNamesList) {
     if (clerkFound >= 10) break; // Cap to prevent runaway searching
     progress(`  Layer 2A: Clerk search for subdivision "${name}"`);
-    const clerkPlats = await searchClerkForPlats(name, captureImages, screenshots, urlsVisited, progress, input.projectId);
-    for (const p of clerkPlats) {
+    const result = await searchClerkForPlats(name, captureImages, screenshots, urlsVisited, progress, input.projectId);
+    for (const p of result.plats) {
       if (addPlat(p)) clerkFound++;
     }
+    discoveredDeedInstruments.push(...result.deedInstruments);
+    discoveredOtherInstruments.push(...result.otherInstruments);
   }
 
   // Search by owner name in clerk (for properties without subdivision)
   if (input.ownerName && plats.length === 0) {
     progress(`  Layer 2B: Clerk search by owner "${input.ownerName}" for plats`);
-    const ownerPlats = await searchClerkForPlats(input.ownerName, captureImages, screenshots, urlsVisited, progress, input.projectId);
-    for (const p of ownerPlats) {
+    const result = await searchClerkForPlats(input.ownerName, captureImages, screenshots, urlsVisited, progress, input.projectId);
+    for (const p of result.plats) {
       if (addPlat(p)) clerkFound++;
     }
+    discoveredDeedInstruments.push(...result.deedInstruments);
+    discoveredOtherInstruments.push(...result.otherInstruments);
   }
 
   // Look up plats by cabinet/slide references from legal description
@@ -213,10 +224,22 @@ export async function scrapeBellPlats(
     `instruments checked: ${instrumentsChecked}`,
   );
 
+  // Dedup deed/other instruments
+  const uniqueDeeds = [...new Set(discoveredDeedInstruments)];
+  const uniqueOther = [...new Set(discoveredOtherInstruments)];
+  if (uniqueDeeds.length > 0) {
+    progress(`Deed instruments discovered during plat search: ${uniqueDeeds.join(', ')}`);
+  }
+  if (uniqueOther.length > 0) {
+    progress(`Other instruments discovered during plat search: ${uniqueOther.join(', ')}`);
+  }
+
   return {
     plats,
     screenshots,
     urlsVisited,
+    deedInstruments: uniqueDeeds,
+    otherInstruments: uniqueOther,
     stats: { repositoryFound, clerkFound, instrumentsChecked, refsExtracted: platRefs.length, searchNames: searchNamesList },
   };
 }
@@ -379,9 +402,18 @@ async function searchPlatRepository(
 
 // ── Internal: Layer 2 — Clerk Plat Search ────────────────────────────
 
+/** Result from searchClerkForPlats — includes deed/other instruments discovered during search */
+interface ClerkPlatSearchResult {
+  plats: PlatRecord[];
+  deedInstruments: string[];
+  otherInstruments: string[];
+}
+
 /**
  * Search Bell County Clerk for plat documents by name.
- * Uses searchBellClerkOwnerForPlatDeed() which specifically identifies plats.
+ * Uses searchBellClerkOwnerForPlatDeed() which identifies plats, deeds, and other docs.
+ * Returns plats AND passes back deed/other instrument numbers so the orchestrator
+ * can fetch them separately.
  */
 async function searchClerkForPlats(
   name: string,
@@ -390,8 +422,10 @@ async function searchClerkForPlats(
   urlsVisited: string[],
   progress: (msg: string) => void,
   projectId?: string,
-): Promise<PlatRecord[]> {
+): Promise<ClerkPlatSearchResult> {
   const plats: PlatRecord[] = [];
+  let deedInstruments: string[] = [];
+  let otherInstruments: string[] = [];
 
   try {
     const { searchBellClerkOwnerForPlatDeed, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
@@ -400,9 +434,11 @@ async function searchClerkForPlats(
 
     urlsVisited.push(`${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(name)}`);
 
-    const { platInstruments, allDocuments } = await searchBellClerkOwnerForPlatDeed(name, logger);
+    const result = await searchBellClerkOwnerForPlatDeed(name, logger);
+    deedInstruments = result.deedInstruments;
+    otherInstruments = result.otherInstruments;
 
-    for (const instrNum of platInstruments) {
+    for (const instrNum of result.platInstruments) {
       let pageImages: string[] = [];
       if (captureImages) {
         try {
@@ -416,7 +452,7 @@ async function searchClerkForPlats(
       }
 
       // Use the correct Kofile internal document URL from allDocuments (not constructed from instrument number)
-      const docRef = allDocuments.find(d => d.instrumentNumber === instrNum);
+      const docRef = result.allDocuments.find(d => d.instrumentNumber === instrNum);
       const docUrl = docRef?.url ?? BELL_ENDPOINTS.clerk.document(instrNum);
       urlsVisited.push(docUrl);
       plats.push({
@@ -435,7 +471,7 @@ async function searchClerkForPlats(
     progress(`    Clerk plat search error for "${name}": ${msg}`);
   }
 
-  return plats;
+  return { plats, deedInstruments, otherInstruments };
 }
 
 // ── Internal: Cabinet/Slide Lookup ───────────────────────────────────

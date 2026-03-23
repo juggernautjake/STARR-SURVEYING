@@ -3316,12 +3316,17 @@ export async function searchBellClerkOwnerForPlatDeed(
       if (/\bplat\b/.test(dt) || dt.includes('final plat') || dt.includes('amended plat')) {
         platInstruments.push(doc.instrumentNumber);
       } else if (
-        /\b(warranty deed|deed|conveyance|transfer|grant)\b/.test(dt) &&
+        /\b(warranty deed|deed|conveyance|transfer|grant|dedication)\b/.test(dt) &&
         !dt.includes('deed of trust')
       ) {
         deedInstruments.push(doc.instrumentNumber);
+      } else if (
+        /\b(right of way|easement|row)\b/.test(dt)
+      ) {
+        // Easements and ROW — important for surveying
+        otherInstruments.push(doc.instrumentNumber);
       } else {
-        // Easements, dedications, ROW, agreements, liens, etc.
+        // Agreements, liens, etc.
         otherInstruments.push(doc.instrumentNumber);
       }
     }
