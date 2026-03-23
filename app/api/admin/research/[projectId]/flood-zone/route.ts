@@ -37,7 +37,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Look up project coordinates
   const { data: project, error } = await supabaseAdmin
     .from('research_projects')
-    .select('id, property_address, county, state, analysis_metadata')
+    .select('id, property_address, county, state, analysis_metadata, parcel_id')
     .eq('id', projectId)
     .single();
 
@@ -47,16 +47,33 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const body = await req.json().catch(() => ({})) as { longitude?: number; latitude?: number };
 
+  // When parcel_id is available and no coordinates were provided,
+  // look up the exact parcel centroid instead of relying on geocoded coords
+  let longitude = body.longitude;
+  let latitude = body.latitude;
+  if ((!longitude || !latitude) && project.parcel_id) {
+    try {
+      const { fetchParcelCentroidWgs84 } = await import('@/lib/research/bell-cad-arcgis.service');
+      const centroid = await fetchParcelCentroidWgs84(project.parcel_id);
+      if (centroid) {
+        longitude = centroid.lon;
+        latitude = centroid.lat;
+        console.log(`[flood-zone] Using parcel centroid for prop_id=${project.parcel_id}: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+      }
+    } catch { /* continue with whatever coords we have */ }
+  }
+
   const workerRes = await fetch(`${WORKER_URL}/research/flood-zone`, {
     method: 'POST',
     headers: workerHeaders(),
     body: JSON.stringify({
       projectId,
-      longitude: body.longitude,
-      latitude: body.latitude,
+      longitude,
+      latitude,
       address: project.property_address,
       county: project.county,
       state: project.state || 'TX',
+      parcel_id: project.parcel_id || undefined,
     }),
     signal: AbortSignal.timeout(30_000),
   });

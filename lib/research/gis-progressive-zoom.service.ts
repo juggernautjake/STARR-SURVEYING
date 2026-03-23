@@ -23,106 +23,13 @@
 
 import { PipelineLogger } from './pipeline-logger';
 import { geocodeAddress, type GeoPoint } from './map-image.service';
-import { BELL_CAD_FEATURE_SERVER } from './bell-cad-arcgis.service';
+import { BELL_CAD_FEATURE_SERVER, fetchParcelCentroidWgs84, type ParcelCentroidResult } from './bell-cad-arcgis.service';
 import {
   captureParcelMaps,
   type ParcelMapSet,
   LOT_ZOOM,
   BLOCK_ZOOM,
 } from './parcel-map-capture.service';
-
-// ── Parcel Centroid Lookup ───────────────────────────────────────────────────
-
-/** Parcel location derived from actual CAD geometry */
-interface ParcelLocation {
-  lat: number;
-  lon: number;
-  /** Bounding box extent in degrees — used to compute appropriate zoom */
-  extentDeg: { latSpan: number; lonSpan: number };
-  /** Approximate extent in meters (at Texas latitudes) */
-  extentMeters: { latSpan: number; lonSpan: number };
-}
-
-/**
- * Query Bell CAD for a single parcel's geometry by PROP_ID and compute
- * its centroid + bounding extent in WGS84 (lat/lon). This gives us the
- * exact parcel location and size, instead of relying on geocoded
- * coordinates and fixed zoom levels.
- */
-async function fetchParcelCentroid(
-  propId: number,
-  logger: PipelineLogger,
-): Promise<ParcelLocation | null> {
-  const params = new URLSearchParams({
-    where: `prop_id = ${propId}`,
-    outFields: 'PROP_ID',
-    returnGeometry: 'true',
-    outSR: '4326',  // Request geometry in WGS84 lat/lon
-    f: 'json',
-  });
-  const url = `${BELL_CAD_FEATURE_SERVER}/0/query?${params}`;
-
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    if (!res.ok) {
-      logger.warn('gis_zoom', `Parcel centroid query failed: HTTP ${res.status} for prop_id=${propId}`);
-      return null;
-    }
-    const data = await res.json();
-    const feature = data?.features?.[0];
-    const rings: number[][][] | undefined = feature?.geometry?.rings;
-    if (!rings || rings.length === 0 || rings[0].length === 0) {
-      logger.warn('gis_zoom', `No geometry returned for prop_id=${propId}`);
-      return null;
-    }
-
-    // Compute centroid + bounding extent of the first ring (outer boundary)
-    const ring = rings[0];
-    let sumLon = 0, sumLat = 0;
-    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
-    // Exclude the closing vertex (same as first) if ring is closed
-    const n = (ring.length > 1 &&
-      ring[0][0] === ring[ring.length - 1][0] &&
-      ring[0][1] === ring[ring.length - 1][1])
-      ? ring.length - 1
-      : ring.length;
-    for (let i = 0; i < n; i++) {
-      const lon = ring[i][0], lat = ring[i][1];
-      sumLon += lon;
-      sumLat += lat;
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-      if (lon < minLon) minLon = lon;
-      if (lon > maxLon) maxLon = lon;
-    }
-    const latSpan = maxLat - minLat;
-    const lonSpan = maxLon - minLon;
-    const result: ParcelLocation = {
-      lat: sumLat / n,
-      lon: sumLon / n,
-      extentDeg: { latSpan, lonSpan },
-      // ~111km per degree lat, ~96.5km per degree lon at 30° N (Texas)
-      extentMeters: { latSpan: latSpan * 111_000, lonSpan: lonSpan * 96_500 },
-    };
-
-    logger.info('gis_zoom',
-      `Parcel centroid for prop_id=${propId}: ${result.lat.toFixed(6)}, ${result.lon.toFixed(6)} ` +
-      `(extent: ${result.extentMeters.latSpan.toFixed(0)}m x ${result.extentMeters.lonSpan.toFixed(0)}m)`, {
-        prop_id: propId, lat: result.lat, lon: result.lon,
-        ring_vertices: ring.length,
-        extent_lat_m: result.extentMeters.latSpan,
-        extent_lon_m: result.extentMeters.lonSpan,
-      },
-    );
-    return result;
-  } catch (err) {
-    logger.error('gis_zoom', `Parcel centroid query error for prop_id=${propId}: ${err instanceof Error ? err.message : String(err)}`);
-    return null;
-  }
-}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -551,7 +458,7 @@ export async function progressiveZoomCapture(
   if (propId) {
     // ── Direct lookup by Property ID (fast, exact) ──
     logger.info('gis_zoom', `Looking up parcel by prop_id=${propId} (skipping geocoding)`);
-    const parcelLoc = await fetchParcelCentroid(Number(propId), logger);
+    const parcelLoc = await fetchParcelCentroidWgs84(Number(propId));
     if (parcelLoc) {
       centerLat = parcelLoc.lat;
       centerLon = parcelLoc.lon;
@@ -603,7 +510,7 @@ export async function progressiveZoomCapture(
     const initialTarget = findBestParcelMatch(address, initialParcels, logger);
     if (initialTarget) {
       result.target_parcel = initialTarget;
-      const parcelLoc = await fetchParcelCentroid(initialTarget.prop_id, logger);
+      const parcelLoc = await fetchParcelCentroidWgs84(initialTarget.prop_id);
       if (parcelLoc) {
         centerLat = parcelLoc.lat;
         centerLon = parcelLoc.lon;

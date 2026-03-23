@@ -1653,6 +1653,7 @@ export default function ResearchProjectPage() {
             defaultAddress={project.property_address || ''}
             defaultCounty={project.county || ''}
             defaultParcelId={project.parcel_id || ''}
+            defaultOwnerName={((project as unknown as Record<string, unknown>).analysis_metadata as Record<string, unknown>)?.owner_name as string || ''}
             hideResultsAndProgress
             onNavigateAway={(params) => {
               setPendingSearchParams(params);

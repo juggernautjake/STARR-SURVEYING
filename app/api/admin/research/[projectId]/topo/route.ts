@@ -56,7 +56,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: project, error: projErr } = await supabaseAdmin
     .from('research_projects')
-    .select('id, property_address, county, state, analysis_metadata')
+    .select('id, property_address, county, state, analysis_metadata, parcel_id')
     .eq('id', projectId)
     .single();
 
@@ -70,14 +70,30 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     radiusM?: number;
   };
 
+  // Use parcel centroid when no coordinates are provided
+  let lat = body.latitude;
+  let lon = body.longitude;
+  if ((!lat || !lon) && project.parcel_id) {
+    try {
+      const { fetchParcelCentroidWgs84 } = await import('@/lib/research/bell-cad-arcgis.service');
+      const centroid = await fetchParcelCentroidWgs84(project.parcel_id);
+      if (centroid) {
+        lat = centroid.lat;
+        lon = centroid.lon;
+        console.log(`[topo] Using parcel centroid for prop_id=${project.parcel_id}: ${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+      }
+    } catch { /* continue with whatever coords we have */ }
+  }
+
   const workerRes = await fetch(`${WORKER_URL}/research/topo`, {
     method: 'POST',
     headers: workerHeaders(),
     body: JSON.stringify({
       projectId,
-      lat: body.latitude,
-      lon: body.longitude,
+      lat,
+      lon,
       radiusM: body.radiusM ?? 200,
+      parcel_id: project.parcel_id || undefined,
     }),
     signal: AbortSignal.timeout(45_000),
   });

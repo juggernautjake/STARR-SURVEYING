@@ -70,6 +70,7 @@ interface PropertySearchPanelProps {
   defaultAddress?: string;
   defaultCounty?: string;
   defaultParcelId?: string;
+  defaultOwnerName?: string;
   onImported?: () => void;
   /**
    * When provided the "Initiate Research & Analysis" button calls this callback
@@ -162,6 +163,7 @@ export default function PropertySearchPanel({
   defaultAddress,
   defaultCounty,
   defaultParcelId,
+  defaultOwnerName,
   onImported,
   onNavigateAway,
   hideResultsAndProgress,
@@ -175,7 +177,7 @@ export default function PropertySearchPanel({
   // Track whether the county was auto-populated (so we can clear it if address changes)
   const [countyAutoDetected, setCountyAutoDetected] = useState(false);
   const [parcelId, setParcelId] = useState(defaultParcelId || '');
-  const [ownerName, setOwnerName] = useState('');
+  const [ownerName, setOwnerName] = useState(defaultOwnerName || '');
 
   const [searching, setSearching] = useState(false);
   const [searchResponse, setSearchResponse] = useState<PropertySearchResponse | null>(null);
