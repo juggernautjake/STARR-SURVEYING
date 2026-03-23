@@ -36,7 +36,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: project, error } = await supabaseAdmin
     .from('research_projects')
-    .select('id, property_address, county, state')
+    .select('id, property_address, county, state, parcel_id')
     .eq('id', projectId)
     .single();
 
@@ -46,6 +46,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const body = await req.json().catch(() => ({})) as { grantorName?: string; depth?: number };
 
+  console.log(`[chain-of-title] Starting for prop_id=${project.parcel_id || 'none'}, address="${project.property_address || 'none'}"`);
+
   const workerRes = await fetch(`${WORKER_URL}/research/chain-of-title`, {
     method: 'POST',
     headers: workerHeaders(),
@@ -54,6 +56,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       address: project.property_address,
       county: project.county,
       state: project.state || 'TX',
+      parcel_id: project.parcel_id || undefined,
       grantorName: body.grantorName,
       depth: body.depth ?? 10,
     }),

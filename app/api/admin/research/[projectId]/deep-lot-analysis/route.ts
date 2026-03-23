@@ -72,20 +72,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   const body = (await req.json()) as {
-    address: string;
+    address?: string;
     prop_id?: string;
     owner?: string;
     save?: boolean;
   };
 
-  if (!body.address) {
-    return NextResponse.json({ error: 'address is required' }, { status: 400 });
-  }
-
   // Verify project exists and retrieve parcel_id if stored
   const { data: project } = await supabaseAdmin
     .from('research_projects')
-    .select('id, county, state, analysis_metadata, parcel_id')
+    .select('id, county, state, analysis_metadata, parcel_id, property_address')
     .eq('id', projectId)
     .single();
 
@@ -95,6 +91,23 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   // Use prop_id from body, or fall back to the stored project parcel_id
   const effectivePropId = body.prop_id || project.parcel_id || undefined;
+  let effectiveAddress = body.address || project.property_address || '';
+
+  // When parcel_id is available but address is missing, resolve from Bell CAD
+  if (effectivePropId && !effectiveAddress) {
+    try {
+      const { resolveParcelDetails } = await import('@/lib/research/bell-cad-arcgis.service');
+      const details = await resolveParcelDetails(effectivePropId);
+      if (details?.address) {
+        effectiveAddress = details.address;
+        console.log(`[deep-lot] Resolved address from prop_id=${effectivePropId}: "${effectiveAddress}"`);
+      }
+    } catch { /* continue without address */ }
+  }
+
+  if (!effectiveAddress && !effectivePropId) {
+    return NextResponse.json({ error: 'Property ID or address is required' }, { status: 400 });
+  }
 
   // If we have a prop_id and the project doesn't have it saved, persist it now
   if (effectivePropId && !project.parcel_id) {
@@ -106,9 +119,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   // Initialize logger
   const logger = new PipelineLogger(projectId);
-  logger.info('init', `Starting deep lot analysis for: ${body.address}`, {
+  logger.info('init', `Starting deep lot analysis for: ${effectiveAddress || `prop_id=${effectivePropId}`}`, {
     project_id: projectId,
-    address: body.address,
+    address: effectiveAddress,
     prop_id: effectivePropId,
     owner: body.owner,
     county: project.county,
@@ -132,7 +145,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     const { result: arcResult } = await logger.timed('resource_analyze', 'ArcGIS parcel search', async () => {
       return searchAndFetchParcelContext({
         prop_id: effectivePropId || undefined,
-        address: body.address || undefined,
+        address: effectiveAddress || undefined,
         owner_name: body.owner || undefined,
       }, true);
     });
@@ -168,12 +181,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
       // Verify user address matches ArcGIS address
       if (parcel.situs_address) {
-        const userAddr = body.address.toUpperCase().trim();
+        const userAddr = effectiveAddress.toUpperCase().trim();
         const arcAddr = parcel.situs_address.toUpperCase().trim();
         if (userAddr === arcAddr || userAddr.includes(arcAddr) || arcAddr.includes(userAddr)) {
-          logger.match('resource_analyze', `Address MATCH: user="${body.address}" ↔ ArcGIS="${parcel.situs_address}"`);
+          logger.match('resource_analyze', `Address MATCH: user="${effectiveAddress}" ↔ ArcGIS="${parcel.situs_address}"`);
         } else {
-          logger.conflict('resource_analyze', `Address MISMATCH: user="${body.address}" vs ArcGIS="${parcel.situs_address}"`);
+          logger.conflict('resource_analyze', `Address MISMATCH: user="${effectiveAddress}" vs ArcGIS="${parcel.situs_address}"`);
         }
       }
     }
@@ -183,7 +196,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   // Add user-provided address atom
   const addressAtom = createAtom({
-    category: 'situs_address', value: body.address,
+    category: 'situs_address', value: effectiveAddress,
     source: 'user_input', extraction_method: 'user_provided',
     confidence: 95, confidence_reasoning: 'User-provided search address',
     pipeline_step: 'deep_lot_analysis:input',
@@ -192,7 +205,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   // Evaluate triggers after Phase 1
   const phase1Triggers = evaluateTriggers(buildTriggerContext({
-    graph, completed_phase: 'resource_analyze', address: body.address,
+    graph, completed_phase: 'resource_analyze', address: effectiveAddress,
     resources_analyzed: resourcesAnalyzed, resource_labels: ['ArcGIS Parcel Data'],
   }), logger);
   allTriggers.push(...phase1Triggers);
@@ -208,7 +221,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   let zoomResult: Awaited<ReturnType<typeof progressiveZoomCapture>> | null = null;
   try {
     const { result: zr } = await logger.timed('gis_zoom', 'Progressive zoom capture', async () => {
-      return progressiveZoomCapture(projectId, body.address, logger, project.county ?? undefined, targetPropId ?? effectivePropId);
+      return progressiveZoomCapture(projectId, effectiveAddress, logger, project.county ?? undefined, targetPropId ?? effectivePropId);
     });
     zoomResult = zr;
     allDocumentIds.push(...zr.all_document_ids);
@@ -250,7 +263,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   // Evaluate triggers — check if we need to zoom deeper
   const phase2Triggers = evaluateTriggers(buildTriggerContext({
-    graph, completed_phase: 'gis_zoom', address: body.address,
+    graph, completed_phase: 'gis_zoom', address: effectiveAddress,
     resources_analyzed: resourcesAnalyzed,
     current_zoom_level: zoomResult?.best_lot_zoom,
     resource_labels: ['ArcGIS Parcel Data', 'Progressive GIS Zoom'],
@@ -263,7 +276,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     logger.info('gis_zoom', 'ZOOM_DEEPER trigger fired — capturing additional zoom level');
     try {
       const additionalZoom = await captureAdditionalZoom(
-        projectId, body.address,
+        projectId, effectiveAddress,
         zoomResult.best_lot_zoom,
         zoomResult.geocoded,
         logger,
@@ -357,7 +370,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (comparisonImages.length >= 2) {
     try {
       const { result: vr } = await logger.timed('visual_compare', 'AI visual comparison', async () => {
-        return runVisualComparison(body.address, comparisonImages, graph, logger);
+        return runVisualComparison(effectiveAddress, comparisonImages, graph, logger);
       });
       visualResult = vr;
       allTriggers.push(...vr.triggers_fired);
@@ -381,7 +394,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         const platDocIds = projectDocs?.filter((d: { id: string; document_type: string; document_label: string | null }) => d.document_type === 'plat' || d.document_type === 'subdivision_plat').map((d: { id: string }) => d.id) ?? [];
 
         const { result: lr } = await logger.timed('lot_identify', 'AI lot identification', async () => {
-          return identifyLotFromImages(body.address, {
+          return identifyLotFromImages(effectiveAddress, {
             streetPinDocId: bestCapture.streetPinDocId,
             satellitePinDocId: bestCapture.satellitePinDocId,
             cadGisDocId: bestCapture.cadGisDocId,
@@ -512,7 +525,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   logger.startPhase('trigger_check', 'Phase 5: Evaluating criteria triggers for review actions');
 
   const finalTriggers = evaluateTriggers(buildTriggerContext({
-    graph, completed_phase: 'cross_validate', address: body.address,
+    graph, completed_phase: 'cross_validate', address: effectiveAddress,
     resources_analyzed: resourcesAnalyzed,
     current_zoom_level: zoomResult?.best_lot_zoom,
     resource_labels: comparisonImages.map(i => i.label),
@@ -639,7 +652,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     try {
       const metadata = (project.analysis_metadata ?? {}) as Record<string, unknown>;
       metadata.deep_lot_analysis = {
-        address: body.address,
+        address: effectiveAddress,
         lot_number: bestLot,
         block_number: bestBlock,
         subdivision_name: bestSubdiv,

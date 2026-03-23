@@ -310,7 +310,7 @@ export default function ResearchListPage() {
                 <label className="research-modal__label">
                   <span className="job-form__label-row">
                     Property ID <span style={{ color: '#BD1218' }}>*</span>
-                    <Tooltip text="The county appraisal district property ID (e.g. Bell CAD prop_id). This is the primary identifier used to look up the exact parcel, retrieve deed/plat records, and center the GIS viewer. Find it on the county CAD website (e.g. esearch.bellcad.org)." position="right">
+                    <Tooltip text="The county appraisal district property ID. This is the primary identifier used to look up the exact parcel, retrieve deed/plat records, and center the GIS viewer. Find it on the county appraisal district website." position="right">
                       <span className="job-form__info-icon">?</span>
                     </Tooltip>
                   </span>
@@ -318,7 +318,7 @@ export default function ResearchListPage() {
                 <input
                   className="research-modal__input"
                   type="text"
-                  placeholder="e.g. 524311"
+                  placeholder="Property ID"
                   value={newProject.parcel_id}
                   onChange={e => setNewProject(p => ({ ...p, parcel_id: e.target.value }))}
                   autoFocus
@@ -348,7 +348,7 @@ export default function ResearchListPage() {
                     zip: details.zip || p.zip,
                   }))}
                   className="research-modal__input"
-                  placeholder="Start typing an address..."
+                  placeholder="Property address"
                   biasTexas={true}
                 />
               </div>
@@ -360,7 +360,7 @@ export default function ResearchListPage() {
                   <input
                     className="research-modal__input"
                     type="text"
-                    placeholder="Belton"
+                    placeholder="City"
                     value={newProject.city}
                     onChange={e => setNewProject(p => ({ ...p, city: e.target.value }))}
                   />
@@ -370,7 +370,7 @@ export default function ResearchListPage() {
                   <input
                     className="research-modal__input"
                     type="text"
-                    placeholder="76513"
+                    placeholder="ZIP"
                     value={newProject.zip}
                     onChange={e => setNewProject(p => ({ ...p, zip: e.target.value }))}
                   />
@@ -391,7 +391,7 @@ export default function ResearchListPage() {
                   <input
                     className="research-modal__input"
                     type="text"
-                    placeholder="Bell"
+                    placeholder="County"
                     value={newProject.county}
                     onChange={e => setNewProject(p => ({ ...p, county: e.target.value }))}
                   />
@@ -401,7 +401,7 @@ export default function ResearchListPage() {
                   <input
                     className="research-modal__input"
                     type="text"
-                    placeholder="TX"
+                    placeholder="State"
                     value={newProject.state}
                     onChange={e => setNewProject(p => ({ ...p, state: e.target.value }))}
                   />
@@ -421,7 +421,7 @@ export default function ResearchListPage() {
                 <input
                   className="research-modal__input"
                   type="text"
-                  placeholder="e.g. Smith, John & Jane"
+                  placeholder="Owner name"
                   value={newProject.owner_name}
                   onChange={e => setNewProject(p => ({ ...p, owner_name: e.target.value }))}
                 />
@@ -458,10 +458,10 @@ export default function ResearchListPage() {
                 </label>
                 <textarea
                   className="research-modal__textarea"
-                  placeholder="e.g. Need to verify east boundary — neighbor disputes fence line. Look for any easements or ROW along FM 436. Previous survey from 1998 may be on file..."
+                  placeholder="e.g. Verify east boundary — neighbor disputes fence line. Look for easements/ROW along FM 436."
                   value={newProject.description}
                   onChange={e => setNewProject(p => ({ ...p, description: e.target.value }))}
-                  rows={4}
+                  rows={3}
                 />
               </div>
 

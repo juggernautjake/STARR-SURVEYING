@@ -41,7 +41,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // Verify project access
   const { data: project } = await supabaseAdmin
     .from('research_projects')
-    .select('id, county')
+    .select('id, county, parcel_id')
     .eq('id', projectId)
     .single();
 
@@ -59,7 +59,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   const url = req.nextUrl;
-  const propId = url.searchParams.get('prop_id');
+  // Use query param prop_id, fall back to the project's stored parcel_id
+  const propId = url.searchParams.get('prop_id') || project.parcel_id || null;
   const address = url.searchParams.get('address');
   const owner = url.searchParams.get('owner');
   const lat = url.searchParams.get('lat');

@@ -52,72 +52,6 @@ function findBestMatch(
   return best;
 }
 
-/** Parcel location derived from actual CAD geometry */
-interface ParcelLocationInfo {
-  lat: number;
-  lon: number;
-  /** Approximate extent in meters */
-  extentMeters: { latSpan: number; lonSpan: number };
-}
-
-/**
- * Query Bell CAD for a parcel's actual geometry centroid + extent in WGS84.
- * This corrects for geocoding offsets that can be miles off, and gives us
- * the parcel's real size so we can compute appropriate zoom levels.
- */
-async function fetchParcelCentroidWgs84(
-  propId: number,
-  logger: PipelineLogger,
-): Promise<ParcelLocationInfo | null> {
-  const params = new URLSearchParams({
-    where: `prop_id = ${propId}`,
-    outFields: 'PROP_ID',
-    returnGeometry: 'true',
-    outSR: '4326',
-    f: 'json',
-  });
-  const url = `${BELL_CAD_FEATURE_SERVER}/0/query?${params}`;
-
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const rings: number[][][] | undefined = data?.features?.[0]?.geometry?.rings;
-    if (!rings || rings.length === 0 || rings[0].length === 0) return null;
-
-    const ring = rings[0];
-    let sumLon = 0, sumLat = 0;
-    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
-    const n = (ring.length > 1 &&
-      ring[0][0] === ring[ring.length - 1][0] &&
-      ring[0][1] === ring[ring.length - 1][1])
-      ? ring.length - 1
-      : ring.length;
-    for (let i = 0; i < n; i++) {
-      const lon = ring[i][0], lat = ring[i][1];
-      sumLon += lon; sumLat += lat;
-      if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
-      if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
-    }
-    const result: ParcelLocationInfo = {
-      lat: sumLat / n, lon: sumLon / n,
-      extentMeters: {
-        latSpan: (maxLat - minLat) * 111_000,
-        lonSpan: (maxLon - minLon) * 96_500,
-      },
-    };
-    logger.info('gis_zoom',
-      `Parcel centroid for prop_id=${propId}: ${result.lat.toFixed(6)}, ${result.lon.toFixed(6)} ` +
-      `(extent: ${result.extentMeters.latSpan.toFixed(0)}m x ${result.extentMeters.lonSpan.toFixed(0)}m)`);
-    return result;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Compute a fit zoom level from parcel extent. Returns the Google Maps zoom
  * where the parcel fills ~60% of the frame.
@@ -441,47 +375,26 @@ export async function captureProgressiveZoom(
   let lotLinesFirstVisible: number | null = null;
   let totalParcels = 0;
 
-  logger.startPhase('gis_zoom', `Progressive zoom capture starting for: ${address}`);
+  const label = address || `prop_id=${propId ?? 'unknown'}`;
+  logger.startPhase('gis_zoom', `Progressive zoom capture starting for: ${label}`);
   logger.info('gis_zoom', `Configuration — county: ${county || 'not specified'}, zoomRange: ${zoomRange ? `${zoomRange.minZoom ?? 16}-${zoomRange.maxZoom ?? 21}` : '16-21 (full)'}`, {
-    address, county: county || null, min_zoom: zoomRange?.minZoom ?? 16, max_zoom: zoomRange?.maxZoom ?? 21,
+    address: address || null, county: county || null, prop_id: propId || null, min_zoom: zoomRange?.minZoom ?? 16, max_zoom: zoomRange?.maxZoom ?? 21,
   });
-  log.push(`[progressive-zoom] Starting progressive zoom capture for: ${address}`);
+  log.push(`[progressive-zoom] Starting progressive zoom capture for: ${label}`);
   log.push(`[progressive-zoom] County: ${county || 'not specified'}`);
 
-  // Geocode the address
-  logger.info('geocode', `Geocoding address: "${address}"`);
-  const geocodeStart = Date.now();
-  const coords = await geocodeAddress(address);
-  const geocodeDuration = Date.now() - geocodeStart;
-  if (!coords) {
-    logger.error('geocode', `Geocoding FAILED for "${address}" after ${geocodeDuration}ms — aborting progressive zoom`, {
-      address, elapsed_ms: geocodeDuration,
-    });
-    log.push(`[progressive-zoom] FAILED: Could not geocode address "${address}"`);
-    return {
-      zoom_captures: [], lot_lines_first_visible_at: null,
-      best_zoom_for_lot_id: 20, all_document_ids: [], geocoded: null,
-      total_parcels_found: 0, pipeline_log: log,
-    };
-  }
-
-  logger.info('geocode', `Geocoded "${address}" to ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)} in ${geocodeDuration}ms`, {
-    lat: coords.lat, lon: coords.lon, display_name: coords.display_name, elapsed_ms: geocodeDuration,
-  });
-  log.push(`[progressive-zoom] Geocoded to ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)} — ${coords.display_name}`);
-
-  // Mutable center — starts at geocoded location, re-centers on actual
-  // parcel centroid once we find a matching parcel in the CAD data.
-  let centerLat = coords.lat;
-  let centerLon = coords.lon;
+  // Mutable center — determined by propId centroid or geocoded address
+  let centerLat = 0;
+  let centerLon = 0;
   let recentered = false;
+  let coords: GeoPoint | null = null;
 
   // Determine county for CAD queries
   const normalizedCounty = (county ?? '').toLowerCase().replace(/\s+county$/i, '').trim();
   const isBellCounty = normalizedCounty === 'bell' || normalizedCounty === '';
 
-  // Initial parcel lookup — prefer propId (direct), fall back to address search
-  let levels: typeof DEFAULT_ZOOM_LEVELS;
+  // Initial parcel lookup — prefer propId (direct), fall back to address geocoding
+  let levels: typeof DEFAULT_ZOOM_LEVELS = DEFAULT_ZOOM_LEVELS;
   if (propId && isBellCounty) {
     // Direct centroid lookup by property ID — fast, exact, no geocoding needed
     logger.info('gis_zoom', `Direct parcel lookup by prop_id=${propId}`);
@@ -490,13 +403,52 @@ export async function captureProgressiveZoom(
       centerLat = parcelLoc.lat;
       centerLon = parcelLoc.lon;
       recentered = true;
+      coords = { lat: parcelLoc.lat, lon: parcelLoc.lon, display_name: address || `Property ${propId}` };
       levels = computeZoomLevelsFromExtent(parcelLoc.extentMeters, logger);
       log.push(`[progressive-zoom] Centered on prop_id=${propId}: ${parcelLoc.lat.toFixed(6)}, ${parcelLoc.lon.toFixed(6)}`);
     } else {
-      logger.warn('gis_zoom', `prop_id=${propId} centroid lookup failed — using default zoom levels`);
+      logger.warn('gis_zoom', `prop_id=${propId} centroid lookup failed — falling back to geocoding`);
       levels = DEFAULT_ZOOM_LEVELS;
     }
-  } else if (isBellCounty) {
+  }
+
+  // Geocode address if we still don't have coordinates
+  if (!recentered && address) {
+    logger.info('geocode', `Geocoding address: "${address}"`);
+    const geocodeStart = Date.now();
+    coords = await geocodeAddress(address);
+    const geocodeDuration = Date.now() - geocodeStart;
+    if (!coords) {
+      logger.error('geocode', `Geocoding FAILED for "${address}" after ${geocodeDuration}ms — aborting progressive zoom`, {
+        address, elapsed_ms: geocodeDuration,
+      });
+      log.push(`[progressive-zoom] FAILED: Could not geocode address "${address}"`);
+      return {
+        zoom_captures: [], lot_lines_first_visible_at: null,
+        best_zoom_for_lot_id: 20, all_document_ids: [], geocoded: null,
+        total_parcels_found: 0, pipeline_log: log,
+      };
+    }
+    centerLat = coords.lat;
+    centerLon = coords.lon;
+    logger.info('geocode', `Geocoded "${address}" to ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)} in ${geocodeDuration}ms`, {
+      lat: coords.lat, lon: coords.lon, display_name: coords.display_name, elapsed_ms: geocodeDuration,
+    });
+    log.push(`[progressive-zoom] Geocoded to ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)} — ${coords.display_name}`);
+  }
+
+  // Neither propId nor geocoding gave us coordinates
+  if (!coords && !recentered) {
+    logger.error('gis_zoom', 'No property ID or address available — cannot determine location');
+    return {
+      zoom_captures: [], lot_lines_first_visible_at: null,
+      best_zoom_for_lot_id: 20, all_document_ids: [], geocoded: null,
+      total_parcels_found: 0, pipeline_log: log,
+    };
+  }
+
+  // Address-based parcel search to refine center (only when we geocoded, not when propId was used)
+  if (!recentered && isBellCounty) {
     // Address-based search fallback
     logger.info('gis_zoom', 'Initial wide parcel search at zoom 16 to determine parcel size');
     const initialParcels = await fetchParcelData(
@@ -518,8 +470,6 @@ export async function captureProgressiveZoom(
       logger.warn('gis_zoom', 'Target parcel not found in initial search — using default zoom levels');
       levels = DEFAULT_ZOOM_LEVELS;
     }
-  } else {
-    levels = DEFAULT_ZOOM_LEVELS;
   }
 
   // Filter zoom levels if caller specified a range
@@ -747,7 +697,7 @@ export async function captureProgressiveZoom(
     best_zoom_for_lot_id: bestZoom,
     all_document_ids: allDocIds,
     geocoded: recentered
-      ? { lat: centerLat, lon: centerLon, display_name: coords.display_name }
+      ? { lat: centerLat, lon: centerLon, display_name: coords?.display_name ?? (address || `Property ${propId}`) }
       : coords,
     total_parcels_found: totalParcels,
     pipeline_log: log,
