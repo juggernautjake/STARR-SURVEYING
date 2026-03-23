@@ -31,6 +31,68 @@ import {
   BLOCK_ZOOM,
 } from './parcel-map-capture.service';
 
+// ── Parcel Centroid Lookup ───────────────────────────────────────────────────
+
+/**
+ * Query Bell CAD for a single parcel's geometry by PROP_ID and compute
+ * its centroid in WGS84 (lat/lon). This gives us the exact parcel location
+ * instead of relying on geocoded coordinates which can be miles off.
+ */
+async function fetchParcelCentroid(
+  propId: number,
+  logger: PipelineLogger,
+): Promise<{ lat: number; lon: number } | null> {
+  const params = new URLSearchParams({
+    where: `prop_id = ${propId}`,
+    outFields: 'PROP_ID',
+    returnGeometry: 'true',
+    outSR: '4326',  // Request geometry in WGS84 lat/lon
+    f: 'json',
+  });
+  const url = `${BELL_CAD_FEATURE_SERVER}/0/query?${params}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      logger.warn('gis_zoom', `Parcel centroid query failed: HTTP ${res.status} for prop_id=${propId}`);
+      return null;
+    }
+    const data = await res.json();
+    const feature = data?.features?.[0];
+    const rings: number[][][] | undefined = feature?.geometry?.rings;
+    if (!rings || rings.length === 0 || rings[0].length === 0) {
+      logger.warn('gis_zoom', `No geometry returned for prop_id=${propId}`);
+      return null;
+    }
+
+    // Compute centroid of the first ring (outer boundary)
+    const ring = rings[0];
+    let sumLon = 0, sumLat = 0;
+    // Exclude the closing vertex (same as first) if ring is closed
+    const n = (ring.length > 1 &&
+      ring[0][0] === ring[ring.length - 1][0] &&
+      ring[0][1] === ring[ring.length - 1][1])
+      ? ring.length - 1
+      : ring.length;
+    for (let i = 0; i < n; i++) {
+      sumLon += ring[i][0];
+      sumLat += ring[i][1];
+    }
+    const centroid = { lat: sumLat / n, lon: sumLon / n };
+
+    logger.info('gis_zoom', `Parcel centroid for prop_id=${propId}: ${centroid.lat.toFixed(6)}, ${centroid.lon.toFixed(6)}`, {
+      prop_id: propId, lat: centroid.lat, lon: centroid.lon, ring_vertices: ring.length,
+    });
+    return centroid;
+  } catch (err) {
+    logger.error('gis_zoom', `Parcel centroid query error for prop_id=${propId}: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface ZoomLevelCapture {
@@ -403,22 +465,28 @@ export async function progressiveZoomCapture(
 
   // Step 1: Geocode
   logger.info('gis_zoom', `Geocoding address: ${address}`);
-  const coords = await geocodeAddress(address);
-  if (!coords) {
+  const geocoded = await geocodeAddress(address);
+  if (!geocoded) {
     logger.error('gis_zoom', `Geocoding failed for: ${address}`);
     result.total_duration_ms = Date.now() - totalStart;
     return result;
   }
-  result.geocoded = coords;
-  logger.info('gis_zoom', `Geocoded to ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`, {
-    lat: coords.lat, lon: coords.lon, display_name: coords.display_name,
+  result.geocoded = geocoded;
+  logger.info('gis_zoom', `Geocoded to ${geocoded.lat.toFixed(6)}, ${geocoded.lon.toFixed(6)}`, {
+    lat: geocoded.lat, lon: geocoded.lon, display_name: geocoded.display_name,
   });
+
+  // Mutable center — starts at geocoded location, re-centers on actual
+  // parcel centroid once we find the target parcel.
+  let centerLat = geocoded.lat;
+  let centerLon = geocoded.lon;
+  let recentered = false;
 
   // Step 2: Progressive zoom — query parcels at each level
   for (const level of PROGRESSIVE_ZOOM_LEVELS) {
     const zoomStart = Date.now();
 
-    const parcels = await queryParcelsAtZoom(coords.lat, coords.lon, level.zoom, logger);
+    const parcels = await queryParcelsAtZoom(centerLat, centerLon, level.zoom, logger);
     const visibility = assessLotVisibility(parcels, level.zoom, logger);
 
     logger.info('gis_zoom', `Zoom ${level.zoom} (${level.label}): ${parcels.length} parcels, lots_visible=${visibility.lots_visible}`, {
@@ -435,11 +503,13 @@ export async function progressiveZoomCapture(
     }
 
     // Capture map images only at key zoom levels (block + lot)
+    // Use the current center (which may have been corrected to parcel centroid)
+    const captureCoords: GeoPoint = { lat: centerLat, lon: centerLon, display_name: geocoded.display_name };
     let mapSet: ParcelMapSet | null = null;
     if (level.zoom === BLOCK_ZOOM || level.zoom === LOT_ZOOM) {
       try {
         logger.info('gis_zoom', `Capturing map images at zoom ${level.zoom} (${level.label})`);
-        mapSet = await captureParcelMaps(projectId, address, level.zoom, coords, county);
+        mapSet = await captureParcelMaps(projectId, address, level.zoom, captureCoords, county);
         result.all_document_ids.push(...mapSet.documentIds);
         logger.info('gis_zoom', `Captured ${mapSet.documentIds.length} images at zoom ${level.zoom}`, {
           document_ids: mapSet.documentIds,
@@ -477,6 +547,36 @@ export async function progressiveZoomCapture(
           block: target.block,
           acreage: target.acreage,
         });
+
+        // ── Re-center on actual parcel coordinates ──
+        // Nominatim geocoding can be miles off for rural addresses.
+        // Query Bell CAD for the parcel's actual geometry and compute
+        // the centroid so all remaining zoom levels + map captures
+        // are centered on the real property location.
+        if (!recentered) {
+          const centroid = await fetchParcelCentroid(target.prop_id, logger);
+          if (centroid) {
+            const offsetLat = Math.abs(centroid.lat - centerLat);
+            const offsetLon = Math.abs(centroid.lon - centerLon);
+            const offsetMiles = Math.sqrt(
+              Math.pow(offsetLat * 69, 2) + Math.pow(offsetLon * 54.6, 2),
+            );
+            logger.info('gis_zoom',
+              `RE-CENTERING: geocoded was ${offsetMiles.toFixed(2)} miles from parcel centroid — ` +
+              `moving from (${centerLat.toFixed(6)}, ${centerLon.toFixed(6)}) → ` +
+              `(${centroid.lat.toFixed(6)}, ${centroid.lon.toFixed(6)})`, {
+                geocoded_lat: centerLat, geocoded_lon: centerLon,
+                parcel_lat: centroid.lat, parcel_lon: centroid.lon,
+                offset_miles: offsetMiles, prop_id: target.prop_id,
+              },
+            );
+            centerLat = centroid.lat;
+            centerLon = centroid.lon;
+            recentered = true;
+            // Update result so callers get the corrected coordinates
+            result.geocoded = { lat: centroid.lat, lon: centroid.lon, display_name: geocoded.display_name };
+          }
+        }
 
         // Collect adjacent parcels (same block, different lot)
         if (target.block) {

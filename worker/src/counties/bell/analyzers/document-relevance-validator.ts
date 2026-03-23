@@ -349,13 +349,13 @@ function heuristicRelevanceCheck(deed: DeedRecord, property: PropertyIdentifiers
 
   // ── Check 2: Acreage match (STRONG signal) ─────────────────────
   let possibleParentTract = false;
+  let largerTract = false;
   if (property.acreage && deedText) {
     const acreageMatches = [...deedText.matchAll(/(\d+\.?\d*)\s*(?:ACRE|AC\b)/gi)];
     if (acreageMatches.length > 0) {
       // Check ALL acreage values found in the deed
       let bestMatch = false;
       let worstMismatch = false;
-      let largerTract = false;
       for (const m of acreageMatches) {
         const deedAcreage = parseFloat(m[1]);
         if (deedAcreage < 0.01) continue; // skip noise
@@ -460,6 +460,28 @@ function heuristicRelevanceCheck(deed: DeedRecord, property: PropertyIdentifiers
   if (possibleParentTract && score < 30) {
     reasons.push(`parent-tract safety net: score raised from ${score} to 30 for AI review`);
     score = 30;
+  }
+
+  // ── Owner-match safety net ──────────────────────────────────────
+  // Deeds where the target owner appears as grantor/grantee OR in the deed
+  // text (AI summary) are very likely related — even if the abstract differs
+  // (subdivisions often get new abstract numbers when carved from parent
+  // tracts, or parent tracts span multiple abstracts). If owner matches and
+  // either (a) the deed has a larger tract acreage, (b) the subdivision name
+  // matches, or (c) there is partial legal description overlap, ensure minimum
+  // score of 25 so it goes to AI review rather than being auto-rejected at ≤10.
+  const ownerInParties = ownerUpper && (containsName(grantorUpper, ownerUpper) || containsName(granteeUpper, ownerUpper));
+  const ownerInText = ownerUpper && deedText.includes(ownerUpper);
+  const ownerMatches = ownerInParties || ownerInText;
+  const subdivMatches = reasons.some(r => r.includes('subdivision name matches'));
+  const hasLegalOverlap = reasons.some(r => r.includes('legal overlap') || r.includes('legal description overlap'));
+  if (ownerMatches && score < 25) {
+    if (largerTract || subdivMatches || hasLegalOverlap) {
+      const matchType = ownerInParties ? 'grantor/grantee' : 'deed text';
+      const signal = largerTract ? 'larger tract' : subdivMatches ? 'subdivision matches' : 'legal overlap';
+      reasons.push(`owner-match safety net: score raised from ${score} to 25 (owner in ${matchType} + ${signal})`);
+      score = 25;
+    }
   }
 
   score = Math.max(0, Math.min(100, score));
