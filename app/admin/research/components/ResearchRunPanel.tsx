@@ -965,13 +965,15 @@ export default function ResearchRunPanel({
         )}
       </div>
 
-      {/* ── Live Artifact Gallery — shows captured images/docs as they arrive ── */}
+      {/* ── Documents & Sources — shows captured documents as they arrive ── */}
+      {/* Matches the review page's document list. Polls every 8s during run. */}
       <div className="rrp__artifacts">
         <ArtifactGallery
           projectId={projectId}
           refreshInterval={isRunning ? 8_000 : undefined}
         />
       </div>
+
       </>)}
 
       {/* ── Styles ── */}

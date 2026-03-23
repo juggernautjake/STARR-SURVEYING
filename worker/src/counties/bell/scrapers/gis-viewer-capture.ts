@@ -311,12 +311,15 @@ export async function captureGisViewerScreenshots(
     // The map stays loaded throughout the entire capture session — no reloads.
     //
     // Zoom level reference (Bell County GIS / ArcGIS Experience Builder):
-    //   26 = maximum detail (lot dimensions, building footprints)
-    //   25 = lot-level detail with lot lines
-    //   24 = target parcel with immediate neighbors
-    //   22 = block-level / subdivision overview
-    //   20 = neighborhood context
-    //   18 = city/county context
+    //   26 = maximum detail — WAY too close, only individual lot lines visible
+    //   24 = too close — parcels not visible, just boundary lines
+    //   22 = still too close — just a few boundary segments
+    //   20 = lot-level detail, parcels become visible with labels
+    //   19 = target parcel with immediate neighbors — BEST for lot detail
+    //   18 = block-level / subdivision overview — good context
+    //   17 = neighborhood context (search widget default zoom)
+    //   16 = wider neighborhood / rural area context
+    //   15 = city/county context
 
     progress('Zooming to target parcel via search widget...');
     const zoomStart = Date.now();
@@ -365,30 +368,37 @@ export async function captureGisViewerScreenshots(
       eagleView: boolean;   // 2026 EagleView Mosaic on/off
     }
 
-    // The matrix: each row is one screenshot with a unique config
+    // The matrix: each row is one screenshot with a unique config.
+    //
+    // IMPORTANT: Zoom levels 20-26 are WAY too close — they show just
+    // boundary lines with no parcel context. Practical levels are 15-19.
+    // The search widget typically zooms to ~17, so we capture:
+    //   19 = closest useful view (lot detail with neighbors)
+    //   18 = block/subdivision context
+    //   17 = neighborhood (search widget default)
+    //   16 = wider area context
     const captureMatrix: CaptureSpec[] = [
       // ── Streets basemap at various zoom levels ──
-      { id: '01', level: 26, basemap: 'streets', parcels: true,  lotLines: true,  eagleView: false },
-      { id: '02', level: 26, basemap: 'streets', parcels: true,  lotLines: false, eagleView: false },
-      { id: '03', level: 26, basemap: 'streets', parcels: false, lotLines: true,  eagleView: false },
-      { id: '04', level: 24, basemap: 'streets', parcels: true,  lotLines: true,  eagleView: false },
-      { id: '05', level: 24, basemap: 'streets', parcels: true,  lotLines: false, eagleView: false },
-      { id: '06', level: 22, basemap: 'streets', parcels: true,  lotLines: true,  eagleView: false },
-      { id: '07', level: 20, basemap: 'streets', parcels: true,  lotLines: false, eagleView: false },
+      { id: '01', level: 19, basemap: 'streets', parcels: true,  lotLines: true,  eagleView: false },
+      { id: '02', level: 19, basemap: 'streets', parcels: true,  lotLines: false, eagleView: false },
+      { id: '03', level: 18, basemap: 'streets', parcels: true,  lotLines: true,  eagleView: false },
+      { id: '04', level: 17, basemap: 'streets', parcels: true,  lotLines: true,  eagleView: false },
+      { id: '05', level: 16, basemap: 'streets', parcels: true,  lotLines: false, eagleView: false },
 
       // ── Aerial basemap (default Esri imagery) ──
-      { id: '08', level: 26, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: false },
-      { id: '09', level: 26, basemap: 'aerial',  parcels: true,  lotLines: false, eagleView: false },
-      { id: '10', level: 26, basemap: 'aerial',  parcels: false, lotLines: false, eagleView: false },
-      { id: '11', level: 24, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: false },
+      { id: '06', level: 19, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: false },
+      { id: '07', level: 19, basemap: 'aerial',  parcels: true,  lotLines: false, eagleView: false },
+      { id: '08', level: 19, basemap: 'aerial',  parcels: false, lotLines: false, eagleView: false },
+      { id: '09', level: 18, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: false },
+      { id: '10', level: 17, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: false },
 
       // ── 2026 EagleView Mosaic (hi-res aerial overlay) ──
-      { id: '12', level: 26, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
-      { id: '13', level: 26, basemap: 'aerial',  parcels: true,  lotLines: false, eagleView: true  },
-      { id: '14', level: 26, basemap: 'aerial',  parcels: false, lotLines: false, eagleView: true  },
-      { id: '15', level: 24, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
-      { id: '16', level: 24, basemap: 'aerial',  parcels: false, lotLines: false, eagleView: true  },
-      { id: '17', level: 22, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
+      { id: '11', level: 19, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
+      { id: '12', level: 19, basemap: 'aerial',  parcels: true,  lotLines: false, eagleView: true  },
+      { id: '13', level: 19, basemap: 'aerial',  parcels: false, lotLines: false, eagleView: true  },
+      { id: '14', level: 18, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
+      { id: '15', level: 17, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
+      { id: '16', level: 16, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
     ];
 
     // Group by zoom level so we only zoom when the level changes.
@@ -411,44 +421,42 @@ export async function captureGisViewerScreenshots(
       specs: sortedMatrix.map(s => `${s.id}:L${s.level}/${s.basemap}/P${s.parcels ? 1 : 0}L${s.lotLines ? 1 : 0}E${s.eagleView ? 1 : 0}`),
     });
 
-    // First, zoom in to the highest level (most detail)
-    const highestLevel = zoomLevels[0]; // e.g. 26
-    const zoomDelta = highestLevel - currentZoom;
-    if (zoomDelta > 0) {
-      logDetail('zoom', `=== Zooming IN ${zoomDelta} levels (from ${currentZoom} → ${highestLevel}) ===`);
-      progress(`Zooming in to level ${highestLevel} (${zoomDelta} clicks from current ${currentZoom})...`);
-      await zoomIn(page, zoomDelta);
-      await page.waitForTimeout(MAP_SETTLE_WAIT);
-      // Verify zoom actually changed
-      const verifiedZoom = await getCurrentZoomLevel(page);
-      logDetail('zoom', `After zoom-in: target=${highestLevel}, actual=${verifiedZoom ?? 'unknown'}`, { target: highestLevel, actual: verifiedZoom });
-      currentZoom = verifiedZoom ?? highestLevel;
-    } else if (zoomDelta < 0) {
-      logDetail('zoom', `=== Zooming OUT ${-zoomDelta} levels (from ${currentZoom} → ${highestLevel}) ===`);
-      await zoomOut(page, -zoomDelta);
-      await page.waitForTimeout(MAP_SETTLE_WAIT);
-      const verifiedZoom = await getCurrentZoomLevel(page);
-      logDetail('zoom', `After zoom-out: target=${highestLevel}, actual=${verifiedZoom ?? 'unknown'}`, { target: highestLevel, actual: verifiedZoom });
-      currentZoom = verifiedZoom ?? highestLevel;
-    } else {
-      logDetail('zoom', `Already at target level ${highestLevel} — no zoom change needed`);
-    }
+    // Navigate to each zoom level, re-centering on the parcel each time.
+    //
+    // CRITICAL: We DON'T use incremental zoom (zoomIn/zoomOut) because it
+    // zooms from the VIEWPORT center, not the PARCEL center. This causes
+    // drift — each zoom level pushes the property further off-screen.
+    //
+    // Instead, we use centerAndZoomToLevel() which re-centers on the parcel
+    // at each target level (via JS API or URL navigation with full reload).
 
     for (const level of zoomLevels) {
       const specs = zoomGroups.get(level)!;
       logDetail('zoom-group', `=== Zoom level ${level}: ${specs.length} screenshots ===`);
 
-      // Zoom out from current level to target level (levels are descending)
-      const delta = currentZoom - level;
-      if (delta > 0) {
-        progress(`Zooming out ${delta} levels (from ${currentZoom} → ${level})...`);
-        logDetail('zoom', `Zooming out ${delta} levels (${currentZoom} → ${level})`);
-        await zoomOut(page, delta);
-        await page.waitForTimeout(MAP_SETTLE_WAIT);
-        // Verify
-        const verifiedZoom = await getCurrentZoomLevel(page);
-        logDetail('zoom', `After zoom-out: target=${level}, actual=${verifiedZoom ?? 'unknown'}`, { target: level, actual: verifiedZoom });
-        currentZoom = verifiedZoom ?? level;
+      // Re-center on parcel at this zoom level
+      if (level !== currentZoom) {
+        progress(`Centering on parcel at zoom level ${level}...`);
+        logDetail('zoom', `Centering on parcel at level ${level} (current=${currentZoom})`);
+
+        const centered = await centerAndZoomToLevel(page, input, level, progress);
+        if (centered) {
+          logDetail('zoom', `✓ Centered on parcel at level ${level}`);
+          const verifiedZoom = await getCurrentZoomLevel(page);
+          currentZoom = verifiedZoom ?? level;
+        } else {
+          // Fallback: incremental zoom (may drift but better than skipping)
+          logDetail('zoom', `Center+zoom failed — falling back to incremental zoom`);
+          const delta = currentZoom - level;
+          if (delta > 0) {
+            await zoomOut(page, delta);
+          } else if (delta < 0) {
+            await zoomIn(page, -delta);
+          }
+          await page.waitForTimeout(MAP_SETTLE_WAIT);
+          const verifiedZoom = await getCurrentZoomLevel(page);
+          currentZoom = verifiedZoom ?? level;
+        }
       } else {
         logDetail('zoom-group', `Already at level ${level} (current=${currentZoom})`);
       }
@@ -784,6 +792,84 @@ async function navigateToParcelAtLevel(
     gisLog('zoom-nav', `Navigation to level ${targetLevel} failed: ${err instanceof Error ? err.message : String(err)}`);
     return false;
   }
+}
+
+/**
+ * Center the map on the parcel and set a specific zoom level.
+ *
+ * Unlike zoomIn()/zoomOut() which zoom from the VIEWPORT center (causing
+ * drift away from the property), this re-centers on the parcel centroid.
+ *
+ * Strategy cascade:
+ *   1. JS API view.goTo({ center, zoom }) — fast, no reload
+ *   2. URL navigation with cache-busting — forces full page reload
+ *   3. Search widget re-search + incremental zoom — slow but reliable
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function centerAndZoomToLevel(
+  page: any, input: GisViewerCaptureInput,
+  targetLevel: number, progress: (msg: string) => void,
+): Promise<boolean> {
+  // Compute centroid if not cached
+  if (_parcelCenterLon === 0 && _parcelCenterLat === 0) {
+    if (input.parcelBoundary && input.parcelBoundary.length > 0) {
+      const ring = input.parcelBoundary[0];
+      let sumLon = 0, sumLat = 0;
+      for (const [lon, lat] of ring) { sumLon += lon; sumLat += lat; }
+      _parcelCenterLon = sumLon / ring.length;
+      _parcelCenterLat = sumLat / ring.length;
+    } else {
+      _parcelCenterLon = input.lon;
+      _parcelCenterLat = input.lat;
+    }
+  }
+
+  const cLon = _parcelCenterLon;
+  const cLat = _parcelCenterLat;
+
+  gisLog('center-zoom', `Centering on parcel (${cLon.toFixed(5)}, ${cLat.toFixed(5)}) at level ${targetLevel}`);
+
+  // Strategy 1: JS API — center AND zoom in one call
+  const jsWorked = await page.evaluate(async (opts: { lon: number; lat: number; zoom: number }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    let view = null;
+    if (w._mapViewManager?.jimuMapViews) {
+      const views = Object.values(w._mapViewManager.jimuMapViews);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const found = views.find((v: any) => v?.view?.ready);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (found) view = (found as any).view;
+    }
+    if (!view) {
+      const mapEl = document.querySelector('arcgis-map');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (mapEl) view = (mapEl as any).view;
+    }
+    if (view) {
+      await view.goTo({ center: [opts.lon, opts.lat], zoom: opts.zoom }, { duration: 800 });
+      return true;
+    }
+    return false;
+  }, { lon: cLon, lat: cLat, zoom: targetLevel }).catch(() => false);
+
+  if (jsWorked) {
+    gisLog('center-zoom', `JS API center+zoom to level ${targetLevel} SUCCESS`);
+    await page.waitForTimeout(2000); // Let tiles settle
+    return true;
+  }
+  gisLog('center-zoom', 'JS API center+zoom failed — trying URL navigation');
+
+  // Strategy 2: URL navigation with center+level (forces full page reload)
+  const urlWorked = await navigateToParcelAtLevel(page, input, targetLevel, progress);
+  if (urlWorked) {
+    gisLog('center-zoom', `URL navigation to level ${targetLevel} SUCCESS`);
+    return true;
+  }
+  gisLog('center-zoom', 'URL navigation failed — falling back to incremental zoom');
+
+  // Strategy 3: Fallback — incremental zoom (may drift, but better than nothing)
+  return false;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -184,9 +184,20 @@ export default function ArtifactGallery({ projectId, refreshInterval }: Artifact
   }
 
   if (artifacts.length === 0) {
+    // During polling (refreshInterval is set), show a subtle loading state
+    // instead of a "no artifacts" message — documents may appear soon.
+    if (refreshInterval && refreshInterval > 0) {
+      return (
+        <div className="artifact-gallery artifact-gallery--empty">
+          <p style={{ color: '#6B7280', fontSize: '0.85rem' }}>
+            Waiting for documents &amp; screenshots to be captured...
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="artifact-gallery artifact-gallery--empty">
-        <p>No artifacts found. Run the research pipeline to capture screenshots and documents.</p>
+        <p>No documents found. Run the research pipeline to capture screenshots and documents.</p>
       </div>
     );
   }
@@ -196,7 +207,7 @@ export default function ArtifactGallery({ projectId, refreshInterval }: Artifact
       {/* ── Header & Filter ───────────────────────────────────── */}
       <div className="artifact-gallery__header">
         <h3 className="artifact-gallery__title">
-          Pipeline Artifacts ({artifacts.length})
+          Documents &amp; Sources ({artifacts.length})
         </h3>
         <div className="artifact-gallery__filters">
           <button
@@ -247,7 +258,7 @@ export default function ArtifactGallery({ projectId, refreshInterval }: Artifact
             </div>
 
             {!collapsed && (
-              <div className="artifact-gallery__grid">
+              <div className="artifact-gallery__list">
                 {items.map(artifact => (
                   <ArtifactCard
                     key={artifact.id}
@@ -276,9 +287,127 @@ export default function ArtifactGallery({ projectId, refreshInterval }: Artifact
   );
 }
 
-// ── Artifact Card ─────────────────────────────────────────────────────────────
+// ── Document type icons (same as review page) ──────────────────────────────────
+
+const DOC_TYPE_ICONS: Record<string, string> = {
+  deed: '\uD83D\uDCDC', plat: '\uD83D\uDDFA\uFE0F', survey: '\uD83D\uDCD0',
+  legal_description: '\u2696\uFE0F', title_commitment: '\uD83D\uDCCB',
+  easement: '\uD83D\uDEE4\uFE0F', restrictive_covenant: '\uD83D\uDCC4',
+  field_notes: '\uD83D\uDCD3', subdivision_plat: '\uD83C\uDFD8\uFE0F',
+  metes_and_bounds: '\uD83D\uDCCF', county_record: '\uD83C\uDFDB\uFE0F',
+  appraisal_record: '\uD83D\uDCB0', aerial_photo: '\uD83D\uDEF0\uFE0F',
+  topo_map: '\uD83C\uDFBB', utility_map: '\uD83D\uDD0C',
+  gis_map: '\uD83D\uDDFA\uFE0F', flood_map: '\uD83C\uDF0A', property_report: '\uD83C\uDFE0',
+  road_map: '\uD83D\uDEE3\uFE0F', deed_screenshot: '\uD83D\uDCDC',
+  plat_screenshot: '\uD83D\uDDFA\uFE0F', map_screenshot: '\uD83D\uDDFA\uFE0F',
+};
+
+function getDocTypeIcon(docType: string | null): string {
+  return (docType && DOC_TYPE_ICONS[docType]) || '\uD83D\uDCCE';
+}
+
+function formatDocType(docType: string | null): string {
+  if (!docType) return 'Document';
+  return docType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ── Artifact Card (expandable list item — reuses review-doc-card CSS) ────────
+// Uses the exact same CSS classes as the review page's ReviewDocCard component
+// so the documents look identical in both research and review stages.
 
 function ArtifactCard({ artifact, onView }: { artifact: Artifact; onView: () => void }) {
+  const [open, setOpen] = useState(false);
+  const viewUrl = artifact.storageUrl || artifact.pagesPdfUrl;
+  const canView = !!viewUrl;
+  const isImage = artifact.isImage && !!artifact.storageUrl;
+  const typeIcon = getDocTypeIcon(artifact.documentType);
+  const typeName = formatDocType(artifact.documentType);
+  const excerpt = artifact.extractedText
+    ? artifact.extractedText.slice(0, 280) + (artifact.extractedText.length > 280 ? '\u2026' : '')
+    : null;
+
+  return (
+    <div className={`review-doc-card${open ? ' review-doc-card--open' : ''}`}>
+      {/* Header row — always visible */}
+      <div className="review-doc-card__header" onClick={() => setOpen(o => !o)}>
+        <span className="review-doc-card__icon">{typeIcon}</span>
+        <span className="review-doc-card__title" title={artifact.label}>
+          {artifact.label}
+        </span>
+        <span className="review-doc-card__type">{typeName}</span>
+        {artifact.status === 'analyzed' && (
+          <span className="review-doc-card__badge review-doc-card__badge--ok">Analyzed</span>
+        )}
+        {artifact.status === 'error' && (
+          <span className="review-doc-card__badge review-doc-card__badge--err">Error</span>
+        )}
+        {artifact.pageCount != null && artifact.pageCount > 1 && (
+          <span className="review-doc-card__badge review-doc-card__badge--pages">{artifact.pageCount} pg</span>
+        )}
+        {canView && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onView(); }}
+            className="review-doc-card__view-btn"
+            title="Open in viewer"
+          >
+            View
+          </button>
+        )}
+        <span className="review-doc-card__chevron">{open ? '\u25B2' : '\u25BC'}</span>
+      </div>
+
+      {/* Expanded body */}
+      {open && (
+        <div className="review-doc-card__body">
+          <div className="review-doc-card__content-row">
+            {/* Thumbnail preview */}
+            {isImage && (
+              <div className="review-doc-card__thumbnail" onClick={canView ? onView : undefined} role="button" tabIndex={0}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={artifact.storageUrl!} alt={artifact.label} loading="lazy" />
+                {artifact.pageCount != null && artifact.pageCount > 1 && (
+                  <span className="review-doc-card__thumb-pages">+{artifact.pageCount - 1}</span>
+                )}
+              </div>
+            )}
+            <div className="review-doc-card__details">
+              {excerpt && (
+                <div className="review-doc-card__excerpt">{excerpt}</div>
+              )}
+              <div className="review-doc-card__meta">
+                {artifact.pageCount != null && <span>{artifact.pageCount} page{artifact.pageCount !== 1 ? 's' : ''}</span>}
+                {artifact.fileType && <span>{artifact.fileType.toUpperCase()}</span>}
+                {artifact.fileSize != null && <span>{formatFileSize(artifact.fileSize)}</span>}
+                {artifact.ocrConfidence != null && <span>OCR {Math.round(artifact.ocrConfidence * 100)}%</span>}
+                {artifact.createdAt && <span title={artifact.createdAt}>Added {new Date(artifact.createdAt).toLocaleDateString()}</span>}
+              </div>
+              <div className="review-doc-card__actions">
+                {canView && (
+                  <button onClick={onView} className="review-doc-card__action review-doc-card__action--view">
+                    Open in Viewer
+                  </button>
+                )}
+                {artifact.sourceUrl && (
+                  <a
+                    href={artifact.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="review-doc-card__action review-doc-card__action--link"
+                  >
+                    Open Source
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Keep old grid-based ArtifactCard as ArtifactCardGrid for potential future use
+function ArtifactCardGrid({ artifact, onView }: { artifact: Artifact; onView: () => void }) {
   const viewUrl = artifact.storageUrl || artifact.pagesPdfUrl;
   const canView = !!viewUrl;
 
