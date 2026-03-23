@@ -1109,6 +1109,70 @@ export async function fetchParcelCentroidWgs84(
   }
 }
 
+// ── Resolve All Details from Parcel ID ───────────────────────────────────────
+
+/** Fields that can be resolved from a Bell CAD parcel lookup */
+export interface ResolvedParcelDetails {
+  address: string | null;
+  city: string | null;
+  county: string;
+  state: string;
+  ownerName: string | null;
+  legalDescription: string | null;
+  lat: number | null;
+  lon: number | null;
+}
+
+/**
+ * Given only a parcel_id (prop_id), look up all available property details
+ * from Bell CAD ArcGIS: address, county, owner, legal description, centroid.
+ * Returns null if the parcel cannot be found.
+ */
+export async function resolveParcelDetails(
+  propId: string | number,
+): Promise<ResolvedParcelDetails | null> {
+  try {
+    const parcels = await queryParcelByPropId(propId, true);
+    if (parcels.length === 0) return null;
+
+    const p = parcels[0];
+
+    // Compute centroid from geometry if available
+    let lat: number | null = null;
+    let lon: number | null = null;
+    const rings = p.geometry?.rings;
+    if (rings && rings.length > 0 && rings[0].length > 0) {
+      const ring = rings[0];
+      let sumLon = 0, sumLat = 0;
+      const n = (ring.length > 1 &&
+        ring[0][0] === ring[ring.length - 1][0] &&
+        ring[0][1] === ring[ring.length - 1][1])
+        ? ring.length - 1
+        : ring.length;
+      for (let i = 0; i < n; i++) {
+        sumLon += ring[i][0];
+        sumLat += ring[i][1];
+      }
+      lon = sumLon / n;
+      lat = sumLat / n;
+    }
+
+    return {
+      address: p.situs_address || null,
+      city: p.situs_city || null,
+      county: 'Bell',  // Bell CAD always means Bell County
+      state: p.situs_state || 'TX',
+      ownerName: p.file_as_name || null,
+      legalDescription: p.full_legal_description || null,
+      lat,
+      lon,
+    };
+  } catch (err) {
+    console.error(`[BellCAD] resolveParcelDetails error for prop_id=${propId}:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 // ── Export Helpers ────────────────────────────────────────────────────────────
 
 /**

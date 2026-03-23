@@ -56,10 +56,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       error: 'Property ID is required. You can find it on the county CAD website (e.g. Bell CAD eSearch).',
     }, { status: 400 });
   }
+
+  // When parcel_id is present but address/county are missing, resolve from Bell CAD
   if (!searchReq.address && !searchReq.county) {
-    return NextResponse.json({
-      error: 'Enter a property address or county along with the Property ID.',
-    }, { status: 400 });
+    try {
+      const { resolveParcelDetails } = await import('@/lib/research/bell-cad-arcgis.service');
+      const details = await resolveParcelDetails(searchReq.parcel_id);
+      if (details) {
+        if (!searchReq.address && details.address) searchReq.address = details.address;
+        if (!searchReq.county && details.county) searchReq.county = details.county;
+        if (!searchReq.owner_name && details.ownerName) searchReq.owner_name = details.ownerName;
+        console.log(`[search] Resolved from prop_id=${searchReq.parcel_id}: address="${details.address}", county="${details.county}"`);
+      }
+    } catch { /* continue with what we have */ }
   }
 
   console.log(`[search] Starting property search: parcel_id=${searchReq.parcel_id}, address="${searchReq.address ?? 'none'}", county=${searchReq.county ?? 'none'}`);

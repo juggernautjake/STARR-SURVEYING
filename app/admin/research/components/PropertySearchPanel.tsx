@@ -310,11 +310,7 @@ export default function PropertySearchPanel({
     const anyRunning = liteRunning || searching || pipelineRunning;
     if (anyRunning) return;
     if (!parcelId.trim()) {
-      setSearchError('Property ID is required. You can find it on the county CAD website (e.g. Bell CAD eSearch).');
-      return;
-    }
-    if (!address.trim() && !county.trim()) {
-      setSearchError('Enter a property address or county along with the Property ID.');
+      setSearchError('Property ID is required.');
       return;
     }
 
@@ -657,7 +653,7 @@ export default function PropertySearchPanel({
               id="ps-address"
               className="research-search__input"
               type="text"
-              placeholder="e.g. 1234 Main St, Belton, TX 76513"
+              placeholder="Property address"
               value={address}
               onChange={e => {
                 const val = e.target.value;
@@ -687,7 +683,7 @@ export default function PropertySearchPanel({
                 id="ps-county"
                 className="research-search__input"
                 type="text"
-                placeholder="e.g. Bell"
+                placeholder="County"
                 value={county}
                 onChange={e => {
                   setCounty(e.target.value);
@@ -704,7 +700,7 @@ export default function PropertySearchPanel({
                 id="ps-parcel"
                 className="research-search__input"
                 type="text"
-                placeholder="e.g. 524311"
+                placeholder="Property ID"
                 value={parcelId}
                 onChange={e => setParcelId(e.target.value)}
                 required
@@ -720,7 +716,7 @@ export default function PropertySearchPanel({
               id="ps-owner"
               className="research-search__input"
               type="text"
-              placeholder="e.g. John Smith"
+              placeholder="Owner name"
               value={ownerName}
               onChange={e => setOwnerName(e.target.value)}
             />

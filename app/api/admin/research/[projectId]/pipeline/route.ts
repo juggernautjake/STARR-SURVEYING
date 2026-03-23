@@ -74,7 +74,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Verify project exists
   const { data: project, error: projError } = await supabaseAdmin
     .from('research_projects')
-    .select('id, property_address, county, state')
+    .select('id, property_address, county, state, parcel_id')
     .eq('id', projectId)
     .single();
 
@@ -90,8 +90,25 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     ownerName?: string;
   };
 
-  const rawCounty = body.county || project.county || '';
-  const rawAddress = body.address || project.property_address || '';
+  let rawCounty = body.county || project.county || '';
+  let rawAddress = body.address || project.property_address || '';
+  const parcelId = body.propertyId || project.parcel_id || '';
+
+  // When parcel_id is available but address/county are missing,
+  // look up property details from Bell CAD
+  if (parcelId && (!rawAddress || !rawCounty)) {
+    try {
+      const { resolveParcelDetails } = await import('@/lib/research/bell-cad-arcgis.service');
+      const details = await resolveParcelDetails(parcelId);
+      if (details) {
+        if (!rawAddress && details.address) rawAddress = details.address;
+        if (!rawCounty && details.county) rawCounty = details.county;
+        console.log(`[pipeline/route] Resolved from prop_id=${parcelId}: address="${details.address}", county="${details.county}"`);
+      }
+    } catch (err) {
+      console.warn(`[pipeline/route] resolveParcelDetails failed for prop_id=${parcelId}:`, err instanceof Error ? err.message : err);
+    }
+  }
 
   // Auto-detect Bell County from address when county is not explicitly set
   const autoCounty = !rawCounty && rawAddress ? (detectBellCountyFromAddress(rawAddress) ? 'Bell' : '') : '';
@@ -101,13 +118,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     address: rawAddress,
     county: rawCounty || autoCounty,
     state: project.state || 'TX',
-    propertyId: body.propertyId || undefined,
+    propertyId: parcelId || undefined,
     ownerName: body.ownerName || undefined,
   };
 
   if (!payload.county) {
-    console.warn(`[pipeline/route] POST ${projectId}: county missing — address="${rawAddress}"`);
-    return NextResponse.json({ error: 'County is required for deep research' }, { status: 400 });
+    console.warn(`[pipeline/route] POST ${projectId}: county missing — address="${rawAddress}" parcelId="${parcelId}"`);
+    return NextResponse.json({ error: 'County is required for deep research. Could not resolve county from property ID.' }, { status: 400 });
   }
 
   console.log(

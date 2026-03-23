@@ -462,13 +462,13 @@ export async function progressiveZoomCapture(
     if (parcelLoc) {
       centerLat = parcelLoc.lat;
       centerLon = parcelLoc.lon;
-      result.geocoded = { lat: parcelLoc.lat, lon: parcelLoc.lon, display_name: address };
+      result.geocoded = { lat: parcelLoc.lat, lon: parcelLoc.lon, display_name: address || `Property ${propId}` };
       zoomLevels = computeZoomLevelsForParcel(parcelLoc.extentMeters, logger);
 
       // Query nearby parcels to populate target + adjacent data
       const nearby = await queryParcelsAtZoom(centerLat, centerLon, 16, logger);
       const target = nearby.find(p => p.prop_id === Number(propId))
-        ?? findBestParcelMatch(address, nearby, logger);
+        ?? (address ? findBestParcelMatch(address, nearby, logger) : null);
       if (target) {
         result.target_parcel = target;
         logger.match('gis_zoom', `Target parcel from prop_id: prop_id=${target.prop_id}, lot=${target.lot}`, {
@@ -479,8 +479,13 @@ export async function progressiveZoomCapture(
         }
       }
     } else {
-      // propId lookup failed — fall back to geocoding
+      // propId lookup failed — fall back to geocoding if address is available
       logger.warn('gis_zoom', `Parcel geometry lookup failed for prop_id=${propId} — falling back to address geocoding`);
+      if (!address) {
+        logger.error('gis_zoom', `Parcel lookup failed for prop_id=${propId} and no address to fall back on`);
+        result.total_duration_ms = Date.now() - totalStart;
+        return result;
+      }
       const geocoded = await geocodeAddress(address);
       if (!geocoded) {
         logger.error('gis_zoom', `Both prop_id lookup and geocoding failed for: ${address}`);
@@ -491,7 +496,7 @@ export async function progressiveZoomCapture(
       centerLon = geocoded.lon;
       result.geocoded = geocoded;
     }
-  } else {
+  } else if (address) {
     // ── Address geocoding fallback (slower, may be inaccurate) ──
     logger.info('gis_zoom', `No prop_id provided — geocoding address: ${address}`);
     const geocoded = await geocodeAddress(address);
@@ -522,6 +527,11 @@ export async function progressiveZoomCapture(
           p.prop_id !== initialTarget.prop_id && p.block === initialTarget.block);
       }
     }
+  } else {
+    // Neither propId nor address — cannot proceed
+    logger.error('gis_zoom', 'No property ID or address provided — cannot determine location');
+    result.total_duration_ms = Date.now() - totalStart;
+    return result;
   }
 
   // Step 4: Progressive zoom — capture at each computed level

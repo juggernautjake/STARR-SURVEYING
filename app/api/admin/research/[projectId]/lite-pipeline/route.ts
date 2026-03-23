@@ -197,7 +197,7 @@ async function runLitePipeline(
           const { fetchParcelCentroidWgs84 } = await import('@/lib/research/bell-cad-arcgis.service');
           const centroid = await fetchParcelCentroidWgs84(parcelId);
           if (centroid) {
-            geo = { lat: centroid.lat, lon: centroid.lon, display_name: `Property ${parcelId} — ${address}` };
+            geo = { lat: centroid.lat, lon: centroid.lon, display_name: address ? `Property ${parcelId} — ${address}` : `Property ${parcelId}` };
             console.info(`[LitePipeline] Using parcel centroid for prop_id=${parcelId}: ${geo.lat.toFixed(6)}, ${geo.lon.toFixed(6)}`);
           }
         } catch (err) {
@@ -205,8 +205,8 @@ async function runLitePipeline(
         }
       }
 
-      // Fall back to address geocoding if parcel lookup didn't work
-      if (!geo) {
+      // Fall back to address geocoding if parcel lookup didn't work and address is available
+      if (!geo && address) {
         geo = await geocodeAddress(address);
       }
 
@@ -514,7 +514,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: project, error: projError } = await supabaseAdmin
     .from('research_projects')
-    .select('id, property_address, county, state, analysis_metadata')
+    .select('id, property_address, county, state, analysis_metadata, parcel_id')
     .eq('id', projectId)
     .single();
 
@@ -539,13 +539,30 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     parcel_id?: string;
   };
 
-  const address = body.address || project.property_address || '';
-  const county  = body.county  || project.county  || '';
+  let address = body.address || project.property_address || '';
+  let county  = body.county  || project.county  || '';
   const state   = project.state || 'TX';
+  const parcelId = body.parcel_id || project.parcel_id || '';
 
-  if (!address && !county) {
+  // When parcel_id is available but address/county are missing,
+  // resolve from Bell CAD
+  if (parcelId && !address && !county) {
+    try {
+      const { resolveParcelDetails } = await import('@/lib/research/bell-cad-arcgis.service');
+      const details = await resolveParcelDetails(parcelId);
+      if (details) {
+        if (!address && details.address) address = details.address;
+        if (!county && details.county) county = details.county;
+        console.log(`[lite-pipeline] Resolved from prop_id=${parcelId}: address="${details.address}", county="${details.county}"`);
+      }
+    } catch (err) {
+      console.warn(`[lite-pipeline] resolveParcelDetails failed for prop_id=${parcelId}:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  if (!address && !county && !parcelId) {
     return NextResponse.json({
-      error: 'Property address or county is required to start research',
+      error: 'Property ID, address, or county is required to start research',
     }, { status: 400 });
   }
 
@@ -556,7 +573,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     county,
     state,
     body.owner_name || undefined,
-    body.parcel_id || undefined,
+    parcelId || undefined,
   ).catch(err => {
     console.error('[LitePipeline] Unexpected top-level error for', projectId, ':', err instanceof Error ? err.message : err);
   });
