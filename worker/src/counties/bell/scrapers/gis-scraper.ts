@@ -408,22 +408,28 @@ function buildResult(
   const primary = features[0];
   const attrs = primary.attributes;
 
-  // Collect instrument numbers from all features
+  // Only collect instrument numbers from the PRIMARY parcel (features[0]).
+  // Collecting from all spatial query results causes unrelated instruments
+  // from neighboring parcels to pollute the research pipeline.
   const allInstrumentNumbers = new Set<string>();
   const allDeedHistory: GisDeedEntry[] = [];
   const allFeatures: GisFeatureSummary[] = [];
 
+  // Primary parcel instruments
+  const primaryInstr = getField(attrs, [...GIS_FIELD_MAP.instrumentNumber]);
+  const primaryVol = getField(attrs, [...GIS_FIELD_MAP.volume]);
+  const primaryPage = getField(attrs, [...GIS_FIELD_MAP.page]);
+  const primaryDeedDate = getField(attrs, [...GIS_FIELD_MAP.deedDate]);
+  if (primaryInstr) allInstrumentNumbers.add(primaryInstr);
+  if (primaryInstr || primaryVol || primaryDeedDate) {
+    allDeedHistory.push({ instrumentNumber: primaryInstr ?? undefined, volume: primaryVol ?? undefined, page: primaryPage ?? undefined, deedDate: primaryDeedDate ?? undefined });
+  }
+
+  // Build feature summaries from all features (for context), but DON'T
+  // add their instruments to the lookup set
   for (const feat of features) {
     const a = feat.attributes;
-    const instrNum = getField(a, [...GIS_FIELD_MAP.instrumentNumber]);
-    const volume = getField(a, [...GIS_FIELD_MAP.volume]);
-    const page = getField(a, [...GIS_FIELD_MAP.page]);
-    const deedDate = getField(a, [...GIS_FIELD_MAP.deedDate]);
-
-    if (instrNum) allInstrumentNumbers.add(instrNum);
-    if (instrNum || volume || deedDate) {
-      allDeedHistory.push({ instrumentNumber: instrNum ?? undefined, volume: volume ?? undefined, page: page ?? undefined, deedDate: deedDate ?? undefined });
-    }
+    const featInstr = getField(a, [...GIS_FIELD_MAP.instrumentNumber]);
 
     const featLegal1 = getField(a, ['legal_desc']) ?? '';
     const featLegal2 = getField(a, ['legal_desc2']) ?? '';
@@ -433,7 +439,7 @@ function buildResult(
       propertyId: getField(a, [...GIS_FIELD_MAP.propertyId]),
       ownerName: getField(a, [...GIS_FIELD_MAP.ownerName]),
       acreage: getNumericField(a, [...GIS_FIELD_MAP.acreage]),
-      instrumentNumber: instrNum,
+      instrumentNumber: featInstr,
       situsAddress: composeSitusAddress(a),
       legalDescription: featLegal,
     });
