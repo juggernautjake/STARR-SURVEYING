@@ -327,11 +327,19 @@ export async function queryParcelByPropId(
   propId: string | number,
   returnGeometry = true,
 ): Promise<BellCadParcel[]> {
+  console.log(`[BellCAD] queryParcelByPropId: prop_id=${propId}, returnGeometry=${returnGeometry}`);
   const where = `prop_id = ${Number(propId)}`;
   const features = await queryLayer(layerUrl(BELL_CAD_LAYERS.PARCELS), where, {
     returnGeometry,
   });
-  return features.map(parseParcelFeature);
+  const parcels = features.map(parseParcelFeature);
+  if (parcels.length > 0) {
+    const p = parcels[0];
+    console.log(`[BellCAD] prop_id=${propId} found: owner="${p.file_as_name}", address="${p.situs_address}", lot=${p.tract_or_lot}, block=${p.block}, acreage=${p.legal_acreage}, deed=${p.deed_reference}`);
+  } else {
+    console.warn(`[BellCAD] prop_id=${propId}: NO PARCEL FOUND`);
+  }
+  return parcels;
 }
 
 /**
@@ -949,14 +957,18 @@ export async function searchAndFetchParcelContext(
   let parcels: BellCadParcel[] = [];
   let method = 'none';
 
+  console.log(`[BellCAD] searchAndFetchParcelContext: prop_id=${query.prop_id ?? 'none'}, address="${query.address ?? 'none'}", owner="${query.owner_name ?? 'none'}"`);
+
   // Try prop_id first (exact match — fastest)
   if (query.prop_id) {
+    console.log(`[BellCAD] Searching by prop_id=${query.prop_id} (primary, exact match)`);
     parcels = await queryParcelByPropId(query.prop_id);
     method = 'prop_id';
   }
 
   // Try address
   if (parcels.length === 0 && query.address) {
+    console.log(`[BellCAD] prop_id search returned 0 results — falling back to address: "${query.address}"`);
     parcels = await queryParcelByAddress(query.address);
     method = 'address';
   }

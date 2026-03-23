@@ -82,11 +82,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { name, description, property_address, county, state, job_id } = body;
+  const { name, description, property_address, city, county, state, zip, owner_name, parcel_id, job_id } = body;
 
   if (!name || !name.trim()) {
     return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
   }
+
+  // Build full address string from components if individual fields provided
+  const fullAddress = property_address?.trim()
+    ? [property_address.trim(), city?.trim(), state?.trim(), zip?.trim()].filter(Boolean).join(', ')
+    : null;
 
   const { data, error } = await supabaseAdmin
     .from('research_projects')
@@ -94,14 +99,24 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       created_by: session.user.email,
       name: name.trim(),
       description: description?.trim() || null,
-      property_address: property_address?.trim() || null,
+      property_address: fullAddress,
       county: county?.trim() || null,
       state: state?.trim() || 'TX',
+      parcel_id: parcel_id?.trim() || null,
       job_id: job_id || null,
       status: 'upload',
+      // Store owner_name and notes in analysis_metadata for AI context
+      analysis_metadata: {
+        owner_name: owner_name?.trim() || null,
+        user_notes: description?.trim() || null,
+        city: city?.trim() || null,
+        zip: zip?.trim() || null,
+      },
     })
     .select()
     .single();
+
+  console.log(`[research/create] New project: name="${name.trim()}", parcel_id=${parcel_id || 'none'}, address="${fullAddress || 'none'}", owner="${owner_name || 'none'}", county=${county || 'none'}`);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

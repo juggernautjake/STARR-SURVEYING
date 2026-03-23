@@ -625,9 +625,25 @@ export async function analyzeProject(
     // Load the project's county key for chain-of-title following (Layer 2E)
     const { data: projectRow } = await supabaseAdmin
       .from('research_projects')
-      .select('county, property_address, parcel_id')
+      .select('county, property_address, parcel_id, description, analysis_metadata')
       .eq('id', projectId)
       .single();
+
+    // Extract user notes and owner from project for AI context
+    const userNotes = (projectRow as Record<string, unknown>)?.description as string | null
+      ?? ((projectRow as Record<string, unknown>)?.analysis_metadata as Record<string, unknown>)?.user_notes as string | null
+      ?? null;
+    const ownerName = ((projectRow as Record<string, unknown>)?.analysis_metadata as Record<string, unknown>)?.owner_name as string | null ?? null;
+
+    if (projectRow?.parcel_id) {
+      addLog('info', `[Context] Property ID: ${projectRow.parcel_id}`);
+    }
+    if (ownerName) {
+      addLog('info', `[Context] Owner: ${ownerName}`);
+    }
+    if (userNotes) {
+      addLog('info', `[Context] User notes: ${userNotes.substring(0, 200)}${userNotes.length > 200 ? '…' : ''}`);
+    }
     const countyKey = (projectRow?.county ?? '')
       .toLowerCase()
       .replace(/\s+county\s*$/i, '')
@@ -950,7 +966,12 @@ export async function analyzeProject(
       try {
         const extracted = await raceWithAbort(
           withDocumentTimeout(
-            extractFromDocument(doc, extractCategories, accumulateTokens),
+            extractFromDocument(doc, extractCategories, accumulateTokens, {
+              parcel_id: projectRow?.parcel_id,
+              address: projectRow?.property_address,
+              owner: ownerName,
+              notes: userNotes,
+            }),
             docLabel
           )
         );
@@ -1365,7 +1386,8 @@ export async function analyzeProject(
 async function extractFromDocument(
   doc: ResearchDocument,
   extractCategories: Record<string, boolean>,
-  onTokens?: (used: { input: number; output: number }) => void
+  onTokens?: (used: { input: number; output: number }) => void,
+  propertyContext?: { parcel_id?: string | null; address?: string | null; owner?: string | null; notes?: string | null },
 ): Promise<Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[]> {
 
   // ── Build enabled-categories description ──────────────────────────────────
@@ -1447,11 +1469,19 @@ async function extractFromDocument(
   if (!textForExtraction || textForExtraction.trim().length < 20) return [];
 
   // ── Text extraction via DATA_EXTRACTOR ────────────────────────────────────
+  const contextLines: string[] = [];
+  if (propertyContext?.parcel_id) contextLines.push(`Property ID: ${propertyContext.parcel_id}`);
+  if (propertyContext?.address) contextLines.push(`Property Address: ${propertyContext.address}`);
+  if (propertyContext?.owner) contextLines.push(`Owner Name: ${propertyContext.owner}`);
+  if (propertyContext?.notes) contextLines.push(`Surveyor Notes: ${propertyContext.notes}`);
+  const contextBlock = contextLines.length > 0
+    ? `\nPROPERTY CONTEXT (use this to identify the correct property in the document):\n${contextLines.join('\n')}\n`
+    : '';
+
   const userContent = `Document type: ${doc.document_type || 'unknown'}
 Document label: ${doc.document_label || doc.original_filename || 'Untitled'}
 Extract these categories: ${enabledCategories}
-${isImage ? 'NOTE: This document was processed via Claude Vision OCR — treat the extracted text as the full document content.' : ''}
-
+${isImage ? 'NOTE: This document was processed via Claude Vision OCR — treat the extracted text as the full document content.' : ''}${contextBlock}
 DOCUMENT TEXT:
 ${textForExtraction.substring(0, 18000)}`;
 

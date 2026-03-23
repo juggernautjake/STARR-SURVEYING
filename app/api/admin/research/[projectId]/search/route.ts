@@ -61,6 +61,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }, { status: 400 });
   }
 
+  console.log(`[search] Starting property search: parcel_id=${searchReq.parcel_id}, address="${searchReq.address ?? 'none'}", county=${searchReq.county ?? 'none'}`);
+
   // Run property search + location lookup in parallel (location is non-fatal).
   // When parcel_id is available, use Bell CAD centroid (exact) instead of Nominatim geocoding.
   const [results, geo] = await Promise.all([
@@ -68,6 +70,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     (async () => {
       // Try parcel centroid first
       if (searchReq.parcel_id) {
+        console.log(`[search] Looking up parcel centroid for prop_id=${searchReq.parcel_id} via Bell CAD`);
         try {
           const params = new URLSearchParams({
             where: `prop_id = ${Number(searchReq.parcel_id)}`,

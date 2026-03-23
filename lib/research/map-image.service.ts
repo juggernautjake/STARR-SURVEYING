@@ -52,6 +52,7 @@ const BELL_CAD_FEATURE_SERVER =
  * Returns WGS84 coordinates or null if lookup fails.
  */
 async function fetchParcelCentroidForCapture(propId: number): Promise<{ lat: number; lon: number } | null> {
+  console.log(`[MapImage] fetchParcelCentroidForCapture: prop_id=${propId}`);
   try {
     const params = new URLSearchParams({
       where: `prop_id = ${propId}`,
@@ -64,17 +65,20 @@ async function fetchParcelCentroidForCapture(propId: number): Promise<{ lat: num
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
       signal: AbortSignal.timeout(15_000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) { console.warn(`[MapImage] Parcel centroid query failed: HTTP ${res.status} for prop_id=${propId}`); return null; }
     const data = await res.json();
     const rings: number[][][] | undefined = data?.features?.[0]?.geometry?.rings;
-    if (!rings || rings.length === 0 || rings[0].length === 0) return null;
+    if (!rings || rings.length === 0 || rings[0].length === 0) { console.warn(`[MapImage] No geometry returned for prop_id=${propId}`); return null; }
     const ring = rings[0];
     let sumLon = 0, sumLat = 0;
     const n = (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1])
       ? ring.length - 1 : ring.length;
     for (let i = 0; i < n; i++) { sumLon += ring[i][0]; sumLat += ring[i][1]; }
-    return { lat: sumLat / n, lon: sumLon / n };
-  } catch {
+    const result = { lat: sumLat / n, lon: sumLon / n };
+    console.log(`[MapImage] Parcel centroid for prop_id=${propId}: ${result.lat.toFixed(6)}, ${result.lon.toFixed(6)} (${n} vertices)`);
+    return result;
+  } catch (err) {
+    console.error(`[MapImage] Parcel centroid error for prop_id=${propId}:`, err instanceof Error ? err.message : err);
     return null;
   }
 }
