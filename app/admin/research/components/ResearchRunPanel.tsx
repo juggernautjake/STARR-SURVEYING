@@ -843,16 +843,6 @@ export default function ResearchRunPanel({
         )}
       </div>
 
-      {/* ── Live Artifact Gallery — shows captured images/docs as they arrive ── */}
-      {/* Positioned between progress indicator and log so users can see    */}
-      {/* resources being captured during the research & analysis phase.    */}
-      <div className="rrp__artifacts">
-        <ArtifactGallery
-          projectId={projectId}
-          refreshInterval={isRunning ? 8_000 : undefined}
-        />
-      </div>
-
       {/* ── Element 2: Unified Pipeline Activity Log ── */}
       {/* Replaces the separate "Live Activity" + "Technical Logs" pair.        */}
       {/* [Pipeline Phase] handshake entries are excluded (see visibleLogs).    */}
@@ -973,6 +963,15 @@ export default function ResearchRunPanel({
             </div>
           </>
         )}
+      </div>
+
+      {/* ── Documents & Sources — shows captured documents as they arrive ── */}
+      {/* Matches the review page's document list. Polls every 8s during run. */}
+      <div className="rrp__artifacts">
+        <ArtifactGallery
+          projectId={projectId}
+          refreshInterval={isRunning ? 8_000 : undefined}
+        />
       </div>
 
       </>)}
