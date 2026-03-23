@@ -53,13 +53,43 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }, { status: 400 });
   }
 
-  // Run property search + geocoding in parallel (geocoding is non-fatal)
+  // Run property search + location lookup in parallel (location is non-fatal).
+  // When parcel_id is available, use Bell CAD centroid (exact) instead of Nominatim geocoding.
   const [results, geo] = await Promise.all([
     searchPropertyRecords(searchReq),
-    searchReq.address ? geocodeAddress(searchReq.address) : Promise.resolve(null),
+    (async () => {
+      // Try parcel centroid first
+      if (searchReq.parcel_id) {
+        try {
+          const params = new URLSearchParams({
+            where: `prop_id = ${Number(searchReq.parcel_id)}`,
+            outFields: 'PROP_ID',
+            returnGeometry: 'true',
+            outSR: '4326',
+            f: 'json',
+          });
+          const res = await fetch(
+            `https://services7.arcgis.com/EHW2HuuyZNO7DZct/arcgis/rest/services/BellCADWebService/FeatureServer/0/query?${params}`,
+            { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' }, signal: AbortSignal.timeout(15_000) },
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const ring = data?.features?.[0]?.geometry?.rings?.[0];
+            if (ring && ring.length > 0) {
+              let sLon = 0, sLat = 0;
+              const n = (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0]) ? ring.length - 1 : ring.length;
+              for (let i = 0; i < n; i++) { sLon += ring[i][0]; sLat += ring[i][1]; }
+              return { lat: sLat / n, lon: sLon / n, display_name: `Property ${searchReq.parcel_id}` };
+            }
+          }
+        } catch { /* fall through to geocoding */ }
+      }
+      // Fall back to address geocoding
+      return searchReq.address ? geocodeAddress(searchReq.address) : null;
+    })(),
   ]);
 
-  // Attach geocoded location and preview URL to the response
+  // Attach location and preview URL to the response
   if (geo) {
     results.geocoded_lat = geo.lat;
     results.geocoded_lon = geo.lon;

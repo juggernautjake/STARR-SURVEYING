@@ -514,21 +514,20 @@ function assessLotVisibility(
 // ── Main Progressive Zoom Function ───────────────────────────────────────────
 
 /**
- * Perform progressive zoom capture from neighborhood level down to lot level.
- * At each zoom level:
- *   1. Query ArcGIS for parcel data visible at this scale
- *   2. Assess whether individual lots are distinguishable
- *   3. Capture map images at key zoom levels (block and lot)
- *   4. Find the target parcel matching the search address
+ * Perform progressive zoom capture centered on the actual parcel.
  *
- * Images are only captured at block (18) and lot (20) zoom levels to avoid
- * excessive API calls. Parcel data queries are run at all levels.
+ * When propId is provided (preferred), we skip address geocoding entirely
+ * and go straight to Bell CAD to get the parcel's real geometry, centroid,
+ * and extent. This avoids the 4-mile-off geocoding problem for rural addresses.
+ *
+ * When propId is NOT provided, falls back to address geocoding + address matching.
  */
 export async function progressiveZoomCapture(
   projectId: string,
   address: string,
   logger: PipelineLogger,
   county?: string,
+  propId?: string | number,
 ): Promise<ProgressiveZoomResult> {
   const totalStart = Date.now();
   logger.startPhase('gis_zoom', `Progressive zoom capture for: ${address}`);
@@ -544,76 +543,78 @@ export async function progressiveZoomCapture(
     total_duration_ms: 0,
   };
 
-  // Step 1: Geocode
-  logger.info('gis_zoom', `Geocoding address: ${address}`);
-  const geocoded = await geocodeAddress(address);
-  if (!geocoded) {
-    logger.error('gis_zoom', `Geocoding failed for: ${address}`);
-    result.total_duration_ms = Date.now() - totalStart;
-    return result;
-  }
-  result.geocoded = geocoded;
-  logger.info('gis_zoom', `Geocoded to ${geocoded.lat.toFixed(6)}, ${geocoded.lon.toFixed(6)}`, {
-    lat: geocoded.lat, lon: geocoded.lon, display_name: geocoded.display_name,
-  });
-
-  // Mutable center — starts at geocoded location, re-centers on actual
-  // parcel centroid once we find the target parcel.
-  let centerLat = geocoded.lat;
-  let centerLon = geocoded.lon;
-
-  // Step 2: Initial wide query to find the target parcel
-  // Start at zoom 16 (neighborhood, ~550m radius) which is wide enough to
-  // find parcels even when geocoding is off by a few hundred meters.
-  logger.info('gis_zoom', 'Step 2: Initial wide parcel search at zoom 16');
-  const initialParcels = await queryParcelsAtZoom(centerLat, centerLon, 16, logger);
-  const initialTarget = findBestParcelMatch(address, initialParcels, logger);
-
-  // Step 3: If we found the target, re-center and compute zoom levels from parcel extent.
-  // If not, fall back to default zoom levels centered on geocoded coords.
+  // Step 1: Get parcel location — prefer propId (exact), fall back to geocoding.
+  let centerLat: number;
+  let centerLon: number;
   let zoomLevels = DEFAULT_ZOOM_LEVELS;
 
-  if (initialTarget) {
-    result.target_parcel = initialTarget;
-    logger.match('gis_zoom', `Found target parcel: prop_id=${initialTarget.prop_id}, lot=${initialTarget.lot}, block=${initialTarget.block}`, {
-      prop_id: initialTarget.prop_id, address: initialTarget.address,
-      lot: initialTarget.lot, block: initialTarget.block, acreage: initialTarget.acreage,
-    });
-
-    // Fetch actual geometry to get centroid + extent
-    const parcelLoc = await fetchParcelCentroid(initialTarget.prop_id, logger);
+  if (propId) {
+    // ── Direct lookup by Property ID (fast, exact) ──
+    logger.info('gis_zoom', `Looking up parcel by prop_id=${propId} (skipping geocoding)`);
+    const parcelLoc = await fetchParcelCentroid(Number(propId), logger);
     if (parcelLoc) {
-      const offsetMiles = Math.sqrt(
-        Math.pow((parcelLoc.lat - centerLat) * 69, 2) +
-        Math.pow((parcelLoc.lon - centerLon) * 54.6, 2),
-      );
-      logger.info('gis_zoom',
-        `RE-CENTERING: geocoded was ${offsetMiles.toFixed(2)} miles from parcel centroid — ` +
-        `moving from (${centerLat.toFixed(6)}, ${centerLon.toFixed(6)}) → ` +
-        `(${parcelLoc.lat.toFixed(6)}, ${parcelLoc.lon.toFixed(6)})`, {
-          geocoded_lat: centerLat, geocoded_lon: centerLon,
-          parcel_lat: parcelLoc.lat, parcel_lon: parcelLoc.lon,
-          offset_miles: offsetMiles, prop_id: initialTarget.prop_id,
-        },
-      );
       centerLat = parcelLoc.lat;
       centerLon = parcelLoc.lon;
-      result.geocoded = { lat: parcelLoc.lat, lon: parcelLoc.lon, display_name: geocoded.display_name };
-
-      // Compute zoom levels based on actual parcel size
+      result.geocoded = { lat: parcelLoc.lat, lon: parcelLoc.lon, display_name: address };
       zoomLevels = computeZoomLevelsForParcel(parcelLoc.extentMeters, logger);
-    }
 
-    // Collect adjacent parcels (same block, different lot)
-    if (initialTarget.block) {
-      result.adjacent_parcels = initialParcels.filter(p =>
-        p.prop_id !== initialTarget.prop_id &&
-        p.block === initialTarget.block,
-      );
-      logger.info('gis_zoom', `Found ${result.adjacent_parcels.length} adjacent parcels in block ${initialTarget.block}`);
+      // Query nearby parcels to populate target + adjacent data
+      const nearby = await queryParcelsAtZoom(centerLat, centerLon, 16, logger);
+      const target = nearby.find(p => p.prop_id === Number(propId))
+        ?? findBestParcelMatch(address, nearby, logger);
+      if (target) {
+        result.target_parcel = target;
+        logger.match('gis_zoom', `Target parcel from prop_id: prop_id=${target.prop_id}, lot=${target.lot}`, {
+          prop_id: target.prop_id, address: target.address, lot: target.lot, block: target.block,
+        });
+        if (target.block) {
+          result.adjacent_parcels = nearby.filter(p => p.prop_id !== target.prop_id && p.block === target.block);
+        }
+      }
+    } else {
+      // propId lookup failed — fall back to geocoding
+      logger.warn('gis_zoom', `Parcel geometry lookup failed for prop_id=${propId} — falling back to address geocoding`);
+      const geocoded = await geocodeAddress(address);
+      if (!geocoded) {
+        logger.error('gis_zoom', `Both prop_id lookup and geocoding failed for: ${address}`);
+        result.total_duration_ms = Date.now() - totalStart;
+        return result;
+      }
+      centerLat = geocoded.lat;
+      centerLon = geocoded.lon;
+      result.geocoded = geocoded;
     }
   } else {
-    logger.warn('gis_zoom', 'Target parcel not found in initial search — using default zoom levels');
+    // ── Address geocoding fallback (slower, may be inaccurate) ──
+    logger.info('gis_zoom', `No prop_id provided — geocoding address: ${address}`);
+    const geocoded = await geocodeAddress(address);
+    if (!geocoded) {
+      logger.error('gis_zoom', `Geocoding failed for: ${address}`);
+      result.total_duration_ms = Date.now() - totalStart;
+      return result;
+    }
+    result.geocoded = geocoded;
+    centerLat = geocoded.lat;
+    centerLon = geocoded.lon;
+    logger.info('gis_zoom', `Geocoded to ${geocoded.lat.toFixed(6)}, ${geocoded.lon.toFixed(6)}`);
+
+    // Try to find the parcel and re-center
+    const initialParcels = await queryParcelsAtZoom(centerLat, centerLon, 16, logger);
+    const initialTarget = findBestParcelMatch(address, initialParcels, logger);
+    if (initialTarget) {
+      result.target_parcel = initialTarget;
+      const parcelLoc = await fetchParcelCentroid(initialTarget.prop_id, logger);
+      if (parcelLoc) {
+        centerLat = parcelLoc.lat;
+        centerLon = parcelLoc.lon;
+        result.geocoded = { lat: parcelLoc.lat, lon: parcelLoc.lon, display_name: geocoded.display_name };
+        zoomLevels = computeZoomLevelsForParcel(parcelLoc.extentMeters, logger);
+      }
+      if (initialTarget.block) {
+        result.adjacent_parcels = initialParcels.filter(p =>
+          p.prop_id !== initialTarget.prop_id && p.block === initialTarget.block);
+      }
+    }
   }
 
   // Step 4: Progressive zoom — capture at each computed level
@@ -637,7 +638,7 @@ export async function progressiveZoomCapture(
     }
 
     // Capture map images at every computed level (they're already tailored to parcel size)
-    const captureCoords: GeoPoint = { lat: centerLat, lon: centerLon, display_name: geocoded.display_name };
+    const captureCoords: GeoPoint = { lat: centerLat, lon: centerLon, display_name: address };
     let mapSet: ParcelMapSet | null = null;
     try {
       logger.info('gis_zoom', `Capturing map images at zoom ${level.zoom} (${level.label})`);

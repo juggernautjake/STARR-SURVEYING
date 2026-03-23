@@ -197,7 +197,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   let zoomResult: Awaited<ReturnType<typeof progressiveZoomCapture>> | null = null;
   try {
     const { result: zr } = await logger.timed('gis_zoom', 'Progressive zoom capture', async () => {
-      return progressiveZoomCapture(projectId, body.address, logger, project.county ?? undefined);
+      return progressiveZoomCapture(projectId, body.address, logger, project.county ?? undefined, targetPropId ?? body.prop_id);
     });
     zoomResult = zr;
     allDocumentIds.push(...zr.all_document_ids);
