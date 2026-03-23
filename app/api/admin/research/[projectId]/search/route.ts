@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { searchPropertyRecords } from '@/lib/research/property-search.service';
 import { geocodeAddress, buildPreviewUrl, captureLocationImages, type GeoCandidate } from '@/lib/research/map-image.service';
+import { fetchParcelCentroidWgs84 } from '@/lib/research/bell-cad-arcgis.service';
 import type { PropertySearchRequest } from '@/types/research';
 
 function extractProjectId(req: NextRequest): string | null {
@@ -68,30 +69,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const [results, geo] = await Promise.all([
     searchPropertyRecords(searchReq),
     (async () => {
-      // Try parcel centroid first
+      // Try parcel centroid first (uses shared utility — no duplicate code)
       if (searchReq.parcel_id) {
-        console.log(`[search] Looking up parcel centroid for prop_id=${searchReq.parcel_id} via Bell CAD`);
         try {
-          const params = new URLSearchParams({
-            where: `prop_id = ${Number(searchReq.parcel_id)}`,
-            outFields: 'PROP_ID',
-            returnGeometry: 'true',
-            outSR: '4326',
-            f: 'json',
-          });
-          const res = await fetch(
-            `https://services7.arcgis.com/EHW2HuuyZNO7DZct/arcgis/rest/services/BellCADWebService/FeatureServer/0/query?${params}`,
-            { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' }, signal: AbortSignal.timeout(15_000) },
-          );
-          if (res.ok) {
-            const data = await res.json();
-            const ring = data?.features?.[0]?.geometry?.rings?.[0];
-            if (ring && ring.length > 0) {
-              let sLon = 0, sLat = 0;
-              const n = (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0]) ? ring.length - 1 : ring.length;
-              for (let i = 0; i < n; i++) { sLon += ring[i][0]; sLat += ring[i][1]; }
-              return { lat: sLat / n, lon: sLon / n, display_name: `Property ${searchReq.parcel_id}` };
-            }
+          const centroid = await fetchParcelCentroidWgs84(searchReq.parcel_id);
+          if (centroid) {
+            return { lat: centroid.lat, lon: centroid.lon, display_name: `Property ${searchReq.parcel_id}` };
           }
         } catch { /* fall through to geocoding */ }
       }

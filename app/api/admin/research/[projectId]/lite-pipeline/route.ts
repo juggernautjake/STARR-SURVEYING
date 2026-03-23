@@ -191,38 +191,14 @@ async function runLitePipeline(
     try {
       let geo: { lat: number; lon: number; display_name: string } | null = null;
 
-      // Try direct parcel lookup first when we have a property ID
+      // Try direct parcel centroid lookup (uses shared utility)
       if (parcelId) {
         try {
-          const { queryParcelByPropId } = await import('@/lib/research/bell-cad-arcgis.service');
-          const parcels = await queryParcelByPropId(parcelId, true);
-          if (parcels.length > 0 && parcels[0].geometry?.rings) {
-            const ring = parcels[0].geometry.rings[0];
-            if (ring && ring.length > 0) {
-              // Geometry is in state plane — query with outSR=4326 for WGS84
-              const params = new URLSearchParams({
-                where: `prop_id = ${Number(parcelId)}`,
-                outFields: 'PROP_ID',
-                returnGeometry: 'true',
-                outSR: '4326',
-                f: 'json',
-              });
-              const centroidRes = await fetch(
-                `https://services7.arcgis.com/EHW2HuuyZNO7DZct/arcgis/rest/services/BellCADWebService/FeatureServer/0/query?${params}`,
-                { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' }, signal: AbortSignal.timeout(15_000) },
-              );
-              if (centroidRes.ok) {
-                const data = await centroidRes.json();
-                const wgsRing = data?.features?.[0]?.geometry?.rings?.[0];
-                if (wgsRing && wgsRing.length > 0) {
-                  let sumLon = 0, sumLat = 0;
-                  const n = (wgsRing.length > 1 && wgsRing[0][0] === wgsRing[wgsRing.length - 1][0]) ? wgsRing.length - 1 : wgsRing.length;
-                  for (let i = 0; i < n; i++) { sumLon += wgsRing[i][0]; sumLat += wgsRing[i][1]; }
-                  geo = { lat: sumLat / n, lon: sumLon / n, display_name: `Property ${parcelId} — ${address}` };
-                  console.info(`[LitePipeline] Using parcel centroid for prop_id=${parcelId}: ${geo.lat.toFixed(6)}, ${geo.lon.toFixed(6)}`);
-                }
-              }
-            }
+          const { fetchParcelCentroidWgs84 } = await import('@/lib/research/bell-cad-arcgis.service');
+          const centroid = await fetchParcelCentroidWgs84(parcelId);
+          if (centroid) {
+            geo = { lat: centroid.lat, lon: centroid.lon, display_name: `Property ${parcelId} — ${address}` };
+            console.info(`[LitePipeline] Using parcel centroid for prop_id=${parcelId}: ${geo.lat.toFixed(6)}, ${geo.lon.toFixed(6)}`);
           }
         } catch (err) {
           console.warn(`[LitePipeline] Parcel centroid lookup failed for prop_id=${parcelId}:`, err instanceof Error ? err.message : err);

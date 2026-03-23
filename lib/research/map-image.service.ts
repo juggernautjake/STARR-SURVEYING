@@ -15,6 +15,7 @@
 
 import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET, ensureStorageBucket } from '@/lib/supabase';
 import type { DocumentType } from '@/types/research';
+import { fetchParcelCentroidWgs84 as fetchSharedParcelCentroid } from './bell-cad-arcgis.service';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -43,44 +44,13 @@ const MAX_CANDIDATES = 3;
 // Minimum distance (in degrees, ~1.1km) between candidates to be considered distinct
 const MIN_CANDIDATE_DISTANCE_DEG = 0.01;
 
-// Bell CAD FeatureServer for direct parcel geometry lookup
-const BELL_CAD_FEATURE_SERVER =
-  'https://services7.arcgis.com/EHW2HuuyZNO7DZct/arcgis/rest/services/BellCADWebService/FeatureServer';
-
 /**
  * Fetch a parcel's centroid directly from Bell CAD by property ID.
- * Returns WGS84 coordinates or null if lookup fails.
+ * Delegates to the shared utility in bell-cad-arcgis.service.ts.
  */
 async function fetchParcelCentroidForCapture(propId: number): Promise<{ lat: number; lon: number } | null> {
-  console.log(`[MapImage] fetchParcelCentroidForCapture: prop_id=${propId}`);
-  try {
-    const params = new URLSearchParams({
-      where: `prop_id = ${propId}`,
-      outFields: 'PROP_ID',
-      returnGeometry: 'true',
-      outSR: '4326',
-      f: 'json',
-    });
-    const res = await fetch(`${BELL_CAD_FEATURE_SERVER}/0/query?${params}`, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) { console.warn(`[MapImage] Parcel centroid query failed: HTTP ${res.status} for prop_id=${propId}`); return null; }
-    const data = await res.json();
-    const rings: number[][][] | undefined = data?.features?.[0]?.geometry?.rings;
-    if (!rings || rings.length === 0 || rings[0].length === 0) { console.warn(`[MapImage] No geometry returned for prop_id=${propId}`); return null; }
-    const ring = rings[0];
-    let sumLon = 0, sumLat = 0;
-    const n = (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1])
-      ? ring.length - 1 : ring.length;
-    for (let i = 0; i < n; i++) { sumLon += ring[i][0]; sumLat += ring[i][1]; }
-    const result = { lat: sumLat / n, lon: sumLon / n };
-    console.log(`[MapImage] Parcel centroid for prop_id=${propId}: ${result.lat.toFixed(6)}, ${result.lon.toFixed(6)} (${n} vertices)`);
-    return result;
-  } catch (err) {
-    console.error(`[MapImage] Parcel centroid error for prop_id=${propId}:`, err instanceof Error ? err.message : err);
-    return null;
-  }
+  const result = await fetchSharedParcelCentroid(propId);
+  return result ? { lat: result.lat, lon: result.lon } : null;
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────

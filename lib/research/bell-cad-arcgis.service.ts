@@ -1032,6 +1032,83 @@ export async function searchAndFetchParcelContext(
   return { context, search_method: method };
 }
 
+// ── Parcel Centroid Utility ──────────────────────────────────────────────────
+
+/** Result from a parcel centroid lookup */
+export interface ParcelCentroidResult {
+  lat: number;
+  lon: number;
+  /** Bounding extent in meters — used to compute appropriate zoom levels */
+  extentMeters: { latSpan: number; lonSpan: number };
+}
+
+/**
+ * Query Bell CAD for a parcel's centroid and bounding extent in WGS84.
+ * This is the single source of truth for "where is this parcel on the map?"
+ * Used by search routes, zoom services, and map capture to avoid duplicating
+ * the centroid computation logic.
+ *
+ * Returns null if the parcel is not found or has no geometry.
+ */
+export async function fetchParcelCentroidWgs84(
+  propId: string | number,
+): Promise<ParcelCentroidResult | null> {
+  const numericId = Number(propId);
+  if (isNaN(numericId)) {
+    console.warn(`[BellCAD] fetchParcelCentroidWgs84: invalid prop_id="${propId}" (not numeric)`);
+    return null;
+  }
+  console.log(`[BellCAD] fetchParcelCentroidWgs84: prop_id=${numericId}`);
+  try {
+    const params = new URLSearchParams({
+      where: `prop_id = ${numericId}`,
+      outFields: 'PROP_ID',
+      returnGeometry: 'true',
+      outSR: '4326',
+      f: 'json',
+    });
+    const res = await fetch(`${BELL_CAD_FEATURE_SERVER}/0/query?${params}`, {
+      headers: makeFetchHeaders(),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      console.warn(`[BellCAD] Parcel centroid query failed: HTTP ${res.status} for prop_id=${numericId}`);
+      return null;
+    }
+    const data = await res.json();
+    const rings: number[][][] | undefined = data?.features?.[0]?.geometry?.rings;
+    if (!rings || rings.length === 0 || rings[0].length === 0) {
+      console.warn(`[BellCAD] No geometry returned for prop_id=${numericId}`);
+      return null;
+    }
+
+    const ring = rings[0];
+    let sumLon = 0, sumLat = 0;
+    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    const n = (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1])
+      ? ring.length - 1 : ring.length;
+    for (let i = 0; i < n; i++) {
+      const lon = ring[i][0], lat = ring[i][1];
+      sumLon += lon; sumLat += lat;
+      if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+      if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
+    }
+    const result: ParcelCentroidResult = {
+      lat: sumLat / n,
+      lon: sumLon / n,
+      extentMeters: {
+        latSpan: (maxLat - minLat) * 111_000,
+        lonSpan: (maxLon - minLon) * 96_500,
+      },
+    };
+    console.log(`[BellCAD] Parcel centroid for prop_id=${numericId}: ${result.lat.toFixed(6)}, ${result.lon.toFixed(6)} (extent: ${result.extentMeters.latSpan.toFixed(0)}m x ${result.extentMeters.lonSpan.toFixed(0)}m)`);
+    return result;
+  } catch (err) {
+    console.error(`[BellCAD] Parcel centroid error for prop_id=${numericId}:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 // ── Export Helpers ────────────────────────────────────────────────────────────
 
 /**
