@@ -559,6 +559,9 @@ export async function captureProgressiveZoom(
       is_bell_county: isBellCounty, has_parcel_query: !!parcelQueryUrl,
     });
 
+    // Brief pause to let map tile services render at the new zoom level
+    await new Promise(r => setTimeout(r, 1_500));
+
     const fetchStart = Date.now();
     const [hybridBuf, roadBuf, esriBuf, parcels] = await Promise.all([
       googleHybridUrl ? fetchImage(googleHybridUrl, logger, `Google Hybrid z${level.zoom}`) : Promise.resolve(null),

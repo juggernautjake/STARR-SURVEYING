@@ -434,6 +434,9 @@ export async function captureLocationImages(
   // Also fetch topo for the primary location
   const topoUrl = buildUSGSExportUrl(primaryLat, primaryLon, USGS_TOPO_SVC);
 
+  // Brief pause to let map tile services render before capturing
+  await new Promise(r => setTimeout(r, 1_500));
+
   const fetchPromises: Promise<Buffer | null>[] = [
     ...satFetches.map(f => fetchMapImage(f.url)),
     fetchMapImage(topoUrl),

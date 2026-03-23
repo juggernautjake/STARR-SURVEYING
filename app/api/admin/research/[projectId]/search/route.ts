@@ -23,7 +23,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Verify project exists and belongs to valid scope
   const { data: project, error: projError } = await supabaseAdmin
     .from('research_projects')
-    .select('id, property_address, county, state')
+    .select('id, property_address, county, state, parcel_id')
     .eq('id', projectId)
     .single();
 
@@ -32,6 +32,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   const body = await req.json() as PropertySearchRequest;
+
+  // Save parcel_id to project if provided and not already stored
+  if (body.parcel_id && !project.parcel_id) {
+    await supabaseAdmin
+      .from('research_projects')
+      .update({ parcel_id: body.parcel_id, updated_at: new Date().toISOString() })
+      .eq('id', projectId);
+  }
 
   // Merge project data with search request (request fields take priority)
   const searchReq: PropertySearchRequest = {
