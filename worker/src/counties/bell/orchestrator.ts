@@ -629,6 +629,90 @@ export async function orchestrateBellResearch(
 
   checkAborted();
 
+  // ── 2B½: Fetch deeds discovered during plat search ────────────────
+  // The plat search (2B) often finds deeds + dedications in the same
+  // clerk search results, but only downloads plat page images. Here we
+  // fetch those deed/dedication instruments so they're available for
+  // AI analysis in Phase 3.
+  if (plats && (plats.deedInstruments.length > 0 || plats.otherInstruments.length > 0)) {
+    const allNewInstruments = [...plats.deedInstruments, ...plats.otherInstruments];
+    // Filter out instruments already fetched by the clerk scraper (2A)
+    const existingInstruments = new Set(
+      (clerk?.documents ?? []).map(d => d.instrumentNumber).filter(Boolean),
+    );
+    const newInstruments = allNewInstruments.filter(i => !existingInstruments.has(i));
+
+    if (newInstruments.length > 0) {
+      progress('Phase 2',
+        `2B½ — Fetching ${newInstruments.length} deed/dedication instrument(s) discovered during plat search...`,
+        43,
+      );
+
+      try {
+        // Re-use the clerk scraper's fetchInstrumentDocument via scrapeBellClerk
+        // by passing only the deed instrument numbers as known instruments.
+        const deedClerk = await scrapeBellClerk(
+          {
+            instrumentNumbers: newInstruments,
+            ownerName: uniqueOwnerNames[0] ?? property.ownerName ?? undefined,
+            projectId: input.projectId,
+            captureImages: true,
+          },
+          (p) => progress('Phase 2', `Deeds: ${p.message}`, 43),
+        );
+
+        // Merge deed documents into the existing clerk result
+        if (clerk) {
+          for (const doc of deedClerk.documents) {
+            if (doc.instrumentNumber && !existingInstruments.has(doc.instrumentNumber)) {
+              clerk.documents.push(doc);
+              existingInstruments.add(doc.instrumentNumber);
+              knownIds.instrumentNumbers.add(doc.instrumentNumber);
+              progress('Phase 2', `  ← Deed fetched: ${doc.documentType} — ${doc.instrumentNumber} (${doc.grantor ?? '?'} → ${doc.grantee ?? '?'})`);
+            }
+          }
+        }
+
+        progress('Phase 2',
+          `2B½ complete: ${deedClerk.documents.length} deed/dedication(s) fetched | ` +
+          `images=${deedClerk.stats.imagesCaptured}`,
+          44,
+        );
+
+        // Upload deed images for live preview
+        if (deedClerk.documents.length > 0 && input.projectId) {
+          const supabase = await getSupabase();
+          if (supabase) {
+            for (const doc of deedClerk.documents) {
+              if (doc.pageImages.length === 0) continue;
+              const instr = doc.instrumentNumber;
+              const volPage = doc.volume && doc.page ? `Vol. ${doc.volume}, Pg. ${doc.page}` : null;
+              const recordingInfo = [instr ? `Instrument No. ${instr}` : null, volPage].filter(Boolean).join(' — ') || null;
+              const partyStr = doc.grantor && doc.grantee ? ` — ${doc.grantor} to ${doc.grantee}` : (doc.grantor ? ` — ${doc.grantor}` : '');
+              const instrStr = instr ? ` (Instr. ${instr})` : '';
+              const docLabel = `${doc.documentType || 'Document'}${partyStr}${instrStr}`;
+
+              const pages: ArtifactPageImage[] = doc.pageImages.map((img, pi) => ({
+                category: 'deed',
+                label: instr ?? doc.documentType ?? 'unknown',
+                pageNumber: pi + 1,
+                imageBase64: img,
+                sourceUrl: doc.sourceUrl,
+                ...(pi === 0 ? { documentLabel: docLabel, recordingInfo, recordedDate: doc.recordingDate ?? null, documentType: 'deed' } : {}),
+              }));
+              await uploadDocumentIncremental(supabase as any, input.projectId, pages);
+            }
+            progress('Phase 2', `  ✓ ${deedClerk.documents.length} deed/dedication(s) uploaded for live preview`);
+          }
+        }
+      } catch (err) {
+        recordError('Phase 2', 'Deed-Fetch', err);
+      }
+    }
+  }
+
+  checkAborted();
+
   // ── 2C/2D/2E: FEMA, TxDOT, Tax (parallel) ────────────────────────
   progress('Phase 2', '2C/D/E — FEMA + TxDOT + Tax (parallel)...', 45);
 
