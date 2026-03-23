@@ -586,12 +586,99 @@ Respond in JSON:
 // ── Google Maps Location Image ───────────────────────────────────────
 
 /**
- * Fetch a Google Maps Static API satellite image with a red pin at the
- * geocoded address. This gives the AI a real-world aerial view showing
- * exactly where the address is located — critical for matching the pin
- * position to the correct lot/parcel on the plat.
+ * Normalize an address into the format Google Maps handles best.
+ * Google is good with Texas road formats, but we ensure consistency:
+ *   "3779 W FM 436, Belton, TX 76513" → "3779 W FM 436, Belton, TX 76513"
+ *   "3779 w fm 436 belton tx"         → "3779 W FM 436, Belton, TX"
  *
- * Returns base64 PNG or null if no API key is configured.
+ * Also handles common variant issues:
+ *   - "FM436" (no space) → "FM 436"
+ *   - "Farm to Market 436" → "FM 436"
+ *   - "F.M. 436" → "FM 436"
+ *   - Missing commas between city/state
+ */
+function normalizeAddressForGoogleMaps(address: string): string {
+  let normalized = address.trim();
+
+  // Expand abbreviated/collapsed road types
+  // "FM436" → "FM 436", "CR142" → "CR 142"
+  normalized = normalized.replace(/\b(FM|CR|SH|US|IH|RR|RM|PR|HWY)(\d)/gi, '$1 $2');
+
+  // "F.M." → "FM", "C.R." → "CR", "S.H." → "SH"
+  normalized = normalized.replace(/\bF\.?\s*M\.?\s*/gi, 'FM ');
+  normalized = normalized.replace(/\bC\.?\s*R\.?\s*/gi, 'CR ');
+  normalized = normalized.replace(/\bS\.?\s*H\.?\s*/gi, 'SH ');
+  normalized = normalized.replace(/\bR\.?\s*R\.?\s*/gi, 'RR ');
+  normalized = normalized.replace(/\bR\.?\s*M\.?\s*/gi, 'RM ');
+  normalized = normalized.replace(/\bI\.?\s*H\.?\s*/gi, 'IH ');
+
+  // "Farm to Market Road 436" / "Farm-to-Market 436" → "FM 436"
+  normalized = normalized.replace(/\bFarm[\s-]+to[\s-]+Market(?:\s+(?:Road|Rd))?\s*/gi, 'FM ');
+  // "Ranch to Market Road" → "RM"
+  normalized = normalized.replace(/\bRanch[\s-]+to[\s-]+Market(?:\s+(?:Road|Rd))?\s*/gi, 'RM ');
+  // "Ranch Road" → "RR"
+  normalized = normalized.replace(/\bRanch\s+(?:Road|Rd)\s*/gi, 'RR ');
+  // "County Road" → "CR"
+  normalized = normalized.replace(/\bCounty\s+(?:Road|Rd)\s*/gi, 'CR ');
+  // "State Highway" → "SH"
+  normalized = normalized.replace(/\bState\s+(?:Highway|Hwy)\s*/gi, 'SH ');
+  // "Interstate" → "IH"
+  normalized = normalized.replace(/\bInterstate(?:\s+Highway)?\s*/gi, 'IH ');
+
+  // Normalize directional abbreviations
+  normalized = normalized.replace(/\bNorth\b/gi, 'N');
+  normalized = normalized.replace(/\bSouth\b/gi, 'S');
+  normalized = normalized.replace(/\bEast\b/gi, 'E');
+  normalized = normalized.replace(/\bWest\b/gi, 'W');
+  normalized = normalized.replace(/\bNortheast\b/gi, 'NE');
+  normalized = normalized.replace(/\bNorthwest\b/gi, 'NW');
+  normalized = normalized.replace(/\bSoutheast\b/gi, 'SE');
+  normalized = normalized.replace(/\bSouthwest\b/gi, 'SW');
+
+  // Normalize whitespace
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+
+  // Ensure comma between street and city if missing
+  // Pattern: "436 Belton" or "436 BELTON" where a city name follows the street
+  // This is a best-effort heuristic — only add comma if no comma exists
+  if (!normalized.includes(',')) {
+    // Try to insert comma before Texas city names
+    const txCities = /\b(Belton|Temple|Killeen|Salado|Nolanville|Troy|Holland|Rogers|Moody|Harker Heights|Copperas Cove|Georgetown|Round Rock|Austin|Waco|Bryan|College Station)\b/i;
+    const cityMatch = normalized.match(txCities);
+    if (cityMatch && cityMatch.index) {
+      const beforeCity = normalized.substring(0, cityMatch.index).trimEnd();
+      const afterCity = normalized.substring(cityMatch.index);
+      // Only add comma if the part before the city looks like a street address
+      if (/\d/.test(beforeCity)) {
+        normalized = `${beforeCity}, ${afterCity}`;
+      }
+    }
+  }
+
+  // Ensure state abbreviation after city if missing
+  if (normalized.includes(',') && !/\bTX\b/i.test(normalized) && !/\bTexas\b/i.test(normalized)) {
+    normalized = normalized.replace(/,\s*$/, '') + ', TX';
+  }
+
+  return normalized;
+}
+
+/**
+ * Fetch Google Maps Static API images with address pin for location verification.
+ *
+ * Pin placement strategy (critical for accuracy):
+ *   1. PRIMARY: Use the address string as the marker location. Google's geocoder
+ *      handles Texas road formats (FM, CR, SH) natively and places the pin at
+ *      the rooftop/parcel-level, not just the road centerline.
+ *   2. FALLBACK: Use lat/lon coordinates if no address is available.
+ *   3. CENTER: Always use lat/lon for map centering (guarantees correct area
+ *      even if address geocoding is slightly off).
+ *
+ * This approach is more reliable than using our Census/Nominatim geocoded
+ * coordinates for the pin because:
+ *   - Google has the best address database (especially for rural TX addresses)
+ *   - Google handles "3779 FM 436" and "3779 FM436" and "3779 W FM 436" equivalently
+ *   - Census geocoder sometimes returns road centerline, not lot-level precision
  */
 async function fetchGoogleMapsLocationImage(
   lat: number,
@@ -605,21 +692,36 @@ async function fetchGoogleMapsLocationImage(
     return { satellite: null, street: null };
   }
 
+  // Normalize the address for Google Maps if available
+  const normalizedAddress = address ? normalizeAddressForGoogleMaps(address) : null;
+  if (normalizedAddress) {
+    onProgress(`Google Maps pin address: "${normalizedAddress}"${normalizedAddress !== address ? ` (normalized from "${address}")` : ''}`);
+  }
+
+  // Build marker parameter: prefer address-based (Google geocodes the pin)
+  // over coordinate-based (uses our potentially imprecise geocoding).
+  // Google's geocoder handles "FM 436", "CR 101", etc. natively.
+  const markerLocation = normalizedAddress
+    ? encodeURIComponent(normalizedAddress)
+    : `${lat},${lon}`;
+  const markerParam = `color:red|label:P|${markerLocation}`;
+
   const results: { satellite: string | null; street: string | null } = { satellite: null, street: null };
 
-  // Capture satellite view with pin (zoom 19 = tight lot-level view)
   for (const maptype of ['satellite', 'roadmap'] as const) {
     const zoom = maptype === 'satellite' ? 19 : 18;
     const label = maptype === 'satellite' ? 'satellite' : 'street';
 
     const params = new URLSearchParams({
+      // Center on our geocoded coordinates (guarantees correct general area)
       center: `${lat},${lon}`,
       zoom: String(zoom),
       size: '1280x960',
       maptype,
-      markers: `color:red|label:P|${lat},${lon}`,
+      // Pin placed by Google's geocoder using the address string
+      markers: markerParam,
       key: apiKey,
-      scale: '2', // High-DPI for legibility
+      scale: '2',
     });
     const url = `https://maps.googleapis.com/maps/api/staticmap?${params}`;
 
@@ -627,10 +729,44 @@ async function fetchGoogleMapsLocationImage(
       const resp = await fetch(url, { signal: AbortSignal.timeout(15_000) });
       if (resp.ok) {
         const buf = Buffer.from(await resp.arrayBuffer());
-        const b64 = buf.toString('base64');
-        if (maptype === 'satellite') results.satellite = b64;
-        else results.street = b64;
-        onProgress(`✓ Google Maps ${label} image captured (${(buf.length / 1024).toFixed(0)} KB)`);
+        // Sanity check: Google Maps returns a small error tile (~5 KB) when
+        // the address can't be geocoded or the API key is invalid.
+        // Valid map images are typically 50-500 KB.
+        if (buf.length < 10_000) {
+          onProgress(`⚠ Google Maps ${label}: response too small (${buf.length} bytes) — may be an error tile`);
+          // Fall back to coordinate-based pin if address-based failed
+          if (normalizedAddress) {
+            onProgress(`  Retrying with coordinate-based pin...`);
+            const fallbackParams = new URLSearchParams({
+              center: `${lat},${lon}`,
+              zoom: String(zoom),
+              size: '1280x960',
+              maptype,
+              markers: `color:red|label:P|${lat},${lon}`,
+              key: apiKey,
+              scale: '2',
+            });
+            const fallbackResp = await fetch(
+              `https://maps.googleapis.com/maps/api/staticmap?${fallbackParams}`,
+              { signal: AbortSignal.timeout(15_000) },
+            );
+            if (fallbackResp.ok) {
+              const fallbackBuf = Buffer.from(await fallbackResp.arrayBuffer());
+              if (fallbackBuf.length >= 10_000) {
+                const b64 = fallbackBuf.toString('base64');
+                if (maptype === 'satellite') results.satellite = b64;
+                else results.street = b64;
+                onProgress(`✓ Google Maps ${label} captured via coordinate fallback (${(fallbackBuf.length / 1024).toFixed(0)} KB)`);
+                continue;
+              }
+            }
+          }
+        } else {
+          const b64 = buf.toString('base64');
+          if (maptype === 'satellite') results.satellite = b64;
+          else results.street = b64;
+          onProgress(`✓ Google Maps ${label} image captured (${(buf.length / 1024).toFixed(0)} KB)${normalizedAddress ? ' — pin placed by Google geocoder' : ''}`);
+        }
       } else {
         onProgress(`⚠ Google Maps ${label} failed: HTTP ${resp.status}`);
       }
