@@ -889,25 +889,46 @@ async function zoomToParcel(page: any, input: GisViewerCaptureInput, progress: (
   // Experience Builder instance. Diagnostic testing confirmed they are
   // silently ignored. Skip straight to the search widget.
 
-  // ── Strategy 1: Search widget — type address and let the app zoom ──
-  // This is the most reliable approach — the viewer's built-in search
-  // geocodes the address and zooms the map to the result automatically.
-  if (input.situsAddress) {
-    gisLog('zoom-cascade', `Strategy 1: Search widget — address="${input.situsAddress}"`);
-    progress(`[zoom] Strategy 1: Searching for address "${input.situsAddress}"...`);
-    const searchSuccess = await zoomViaSearchWidget(page, input.situsAddress, progress);
-    if (searchSuccess) {
+  // ── Strategy 1: JS API goTo — center directly on parcel coordinates ──
+  // Use the parcel boundary centroid (from GIS spatial query) for precise
+  // positioning. The search widget geocodes addresses and can place the
+  // map miles away from the actual parcel (e.g. "FM 436" resolves to I-35
+  // instead of the correct location on W FM 436).
+  if (input.parcelBoundary || (input.lat && input.lon)) {
+    gisLog('zoom-cascade', `Strategy 1: JS API goTo — centering on parcel coordinates`);
+    progress(`[zoom] Strategy 1: Centering on parcel via JS API (lat=${input.lat}, lon=${input.lon})...`);
+    const jsSuccess = await centerAndZoomToLevel(page, input, 17, progress);
+    if (jsSuccess) {
       const afterZoom = await getCurrentZoomLevel(page);
-      gisLog('zoom-cascade', `Strategy 1 SUCCESS — search widget zoomed to level ${afterZoom ?? 'unknown'}`);
-      progress(`[zoom] ✓ Strategy 1 SUCCESS — search widget zoomed to level ${afterZoom ?? '?'}`);
+      gisLog('zoom-cascade', `Strategy 1 SUCCESS — JS API centered on parcel at level ${afterZoom ?? 'unknown'}`);
+      progress(`[zoom] ✓ Strategy 1 SUCCESS — centered on parcel at level ${afterZoom ?? '?'}`);
       _zoomCached = true;
       return true;
     }
-    gisLog('zoom-cascade', 'Strategy 1 FAILED — search widget did not zoom');
-    progress('[zoom] ✗ Strategy 1 failed — search widget did not zoom');
+    gisLog('zoom-cascade', 'Strategy 1 FAILED — JS API could not center on parcel');
+    progress('[zoom] ✗ Strategy 1 failed — JS API could not center');
+  }
+
+  // ── Strategy 1B: Search widget fallback — type address and let the app zoom ──
+  // If JS API failed, try the search widget. Note: this may zoom to the wrong
+  // location for addresses on numbered roads (FM, CR, etc.) because the
+  // geocoder resolves to a generic point on the road.
+  if (input.situsAddress) {
+    gisLog('zoom-cascade', `Strategy 1B: Search widget — address="${input.situsAddress}"`);
+    progress(`[zoom] Strategy 1B: Searching for address "${input.situsAddress}"...`);
+    const searchSuccess = await zoomViaSearchWidget(page, input.situsAddress, progress);
+    if (searchSuccess) {
+      const afterZoom = await getCurrentZoomLevel(page);
+      gisLog('zoom-cascade', `Strategy 1B SUCCESS — search widget zoomed to level ${afterZoom ?? 'unknown'}`);
+      progress(`[zoom] ✓ Strategy 1B SUCCESS — search widget zoomed to level ${afterZoom ?? '?'}`);
+      _zoomCached = true;
+      return true;
+    }
+    gisLog('zoom-cascade', 'Strategy 1B FAILED — search widget did not zoom');
+    progress('[zoom] ✗ Strategy 1B failed — search widget did not zoom');
   } else {
-    gisLog('zoom-cascade', 'Strategy 1 SKIPPED — no situs address available');
-    progress('[zoom] Strategy 1 skipped — no address available for search');
+    gisLog('zoom-cascade', 'Strategy 1B SKIPPED — no situs address available');
+    progress('[zoom] Strategy 1B skipped — no address available for search');
   }
 
   // ── Strategy 2: Mouse wheel zoom — approximate positioning ──
@@ -1411,11 +1432,12 @@ async function toggleEagleViewLayer(page: any, visible: boolean): Promise<void> 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function toggleLayerByTitle(page: any, titles: string[], visible: boolean): Promise<void> {
   const start = Date.now();
-  // Strategy 1: JS API
+  // Strategy 1: JS API — try to toggle layer visibility programmatically
   const jsWorked = await page.evaluate((params: { titles: string[]; visible: boolean }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
     let view = null;
+    // Try JiMU map view manager (Experience Builder)
     if (w._mapViewManager?.jimuMapViews) {
       const views = Object.values(w._mapViewManager.jimuMapViews);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1428,16 +1450,30 @@ async function toggleLayerByTitle(page: any, titles: string[], visible: boolean)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (mapEl) view = (mapEl as any).view;
     }
-    if (!view?.map?.layers) return false;
+    if (!view?.map) return false;
 
     let toggled = false;
+    const titles = params.titles.map(t => t.toLowerCase());
+
+    // Recursive search through all layers including group layers
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    view.map.layers.forEach((layer: any) => {
-      if (params.titles.some(t => layer.title?.toLowerCase() === t.toLowerCase())) {
-        layer.visible = params.visible;
-        toggled = true;
-      }
-    });
+    function searchLayers(layers: any): void {
+      if (!layers?.forEach) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      layers.forEach((layer: any) => {
+        if (layer.title && titles.includes(layer.title.toLowerCase())) {
+          layer.visible = params.visible;
+          toggled = true;
+        }
+        // Search sublayers (group layers, map image layers, etc.)
+        if (layer.layers) searchLayers(layer.layers);
+        if (layer.sublayers) searchLayers(layer.sublayers);
+        if (layer.allSublayers) searchLayers(layer.allSublayers);
+      });
+    }
+    searchLayers(view.map.layers);
+    // Also check operational layers
+    if (view.map.allLayers) searchLayers(view.map.allLayers);
     return toggled;
   }, { titles, visible }).catch(() => false);
 
@@ -1447,40 +1483,84 @@ async function toggleLayerByTitle(page: any, titles: string[], visible: boolean)
   }
   gisLog('layer-toggle', `JS API failed for "${titles[0]}" — trying UI layer list`);
 
-  // Strategy 2: Click layer list checkboxes in the UI
+  // Strategy 2: Click layer visibility toggle in the UI (eye icon, checkbox, etc.)
   try {
-    // Find layer list items matching our titles and toggle their checkboxes
-    await page.evaluate((params: { titles: string[]; visible: boolean }) => {
-      // Look for layer list widget items
+    const uiResult = await page.evaluate((params: { titles: string[]; visible: boolean }) => {
+      // Look for layer list widget items in Experience Builder / ESRI layer list
       const listItems = document.querySelectorAll(
         '.esri-layer-list__item, [class*="layer-list"] [class*="item"], ' +
-        '.jimu-widget--layer-list [class*="item"]'
+        '.jimu-widget--layer-list [class*="item"], [class*="layer-item"]'
       );
 
       for (let i = 0; i < listItems.length; i++) {
         const item = listItems[i];
         const label = (item.textContent || '').trim().toLowerCase();
-        if (params.titles.some(t => label.includes(t.toLowerCase()))) {
-          // Find the visibility checkbox/toggle within this item
-          const toggle = item.querySelector(
-            'input[type="checkbox"], calcite-checkbox, .esri-layer-list__item-toggle, ' +
-            '[class*="visibility"], [role="switch"]'
-          );
-          if (toggle) {
-            const isChecked = (toggle as HTMLInputElement).checked ||
-              toggle.getAttribute('aria-checked') === 'true' ||
-              toggle.classList.contains('checked');
+        if (!params.titles.some(t => label.includes(t.toLowerCase()))) continue;
 
-            if (isChecked !== params.visible) {
-              (toggle as HTMLElement).click();
-            }
+        // Try multiple toggle patterns used by different ESRI widget versions:
+        // 1. Eye icon button (Experience Builder / JiMU layer list)
+        // 2. Calcite action with view-visible/view-hide icon
+        // 3. Standard checkbox/switch
+        const toggleSelectors = [
+          // Experience Builder eye icon — typically an SVG inside a clickable element
+          'button[class*="eye"], [class*="eye-icon"], [class*="visibility-icon"]',
+          'button[aria-label*="visibility"], button[aria-label*="Visibility"]',
+          'button[title*="visibility"], button[title*="Visibility"]',
+          // Calcite UI actions used in newer ESRI widgets
+          'calcite-action[icon="view-visible"], calcite-action[icon="view-hide"]',
+          'calcite-action[icon="visibility"], calcite-action[text*="visibility"]',
+          // SVG-based eye icons (common in JiMU layer list)
+          '[class*="visibility"] button, [class*="visibility"] [role="button"]',
+          '[class*="layer-item-toggle"], [class*="toggle-visibility"]',
+          // Standard ESRI layer list toggle
+          '.esri-layer-list__item-toggle',
+          'input[type="checkbox"]', 'calcite-checkbox',
+          '[class*="visibility"]', '[role="switch"]',
+        ];
+
+        for (const sel of toggleSelectors) {
+          const toggle = item.querySelector(sel);
+          if (!toggle) continue;
+
+          // Check current visibility state from multiple indicators
+          const isVisible =
+            (toggle as HTMLInputElement).checked === true ||
+            toggle.getAttribute('aria-checked') === 'true' ||
+            toggle.getAttribute('aria-pressed') === 'true' ||
+            toggle.classList.contains('checked') ||
+            toggle.classList.contains('visible') ||
+            toggle.classList.contains('active') ||
+            // Calcite action: icon="view-visible" means currently visible
+            toggle.getAttribute('icon') === 'view-visible';
+
+          if (isVisible !== params.visible) {
+            (toggle as HTMLElement).click();
+            return { found: true, selector: sel };
+          }
+          return { found: true, selector: sel, alreadyCorrect: true };
+        }
+
+        // Last resort: if no specific toggle found, look for ANY clickable
+        // element with an SVG (likely the eye icon) near the layer label
+        const svgButtons = item.querySelectorAll('button, [role="button"]');
+        for (let j = 0; j < svgButtons.length; j++) {
+          const btn = svgButtons[j];
+          if (btn.querySelector('svg') || btn.querySelector('calcite-icon')) {
+            // This is likely the eye icon toggle
+            (btn as HTMLElement).click();
+            return { found: true, selector: 'svg-button-fallback' };
           }
         }
       }
+      return { found: false };
     }, { titles, visible });
 
+    if (uiResult?.found) {
+      gisLog('layer-toggle', `Layer "${titles[0]}" UI toggle via ${uiResult.selector ?? 'unknown'}${uiResult.alreadyCorrect ? ' (already correct)' : ''}`, { titles, visible });
+    }
+
     await page.waitForTimeout(LAYER_TOGGLE_WAIT);
-    gisLog('layer-toggle', `Layer "${titles[0]}" UI toggle attempted in ${Date.now() - start}ms`, { titles, visible, strategy: 'ui-checkbox' });
+    gisLog('layer-toggle', `Layer "${titles[0]}" UI toggle attempted in ${Date.now() - start}ms`, { titles, visible, strategy: 'ui-eye-icon' });
   } catch {
     gisLog('layer-toggle', `Layer "${titles[0]}" UI toggle FAILED — both strategies exhausted`, { titles, visible });
   }
