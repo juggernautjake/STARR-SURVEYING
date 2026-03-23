@@ -162,6 +162,17 @@ async function runLitePipeline(
   parcelId?: string,
 ): Promise<void> {
   const startedAt = new Date().toISOString();
+
+  // Save the parcel_id to the project upfront so all downstream services can use it
+  if (parcelId) {
+    try {
+      await supabaseAdmin
+        .from('research_projects')
+        .update({ parcel_id: parcelId, updated_at: new Date().toISOString() })
+        .eq('id', projectId);
+    } catch { /* non-fatal */ }
+  }
+
   const summary: LitePipelineSummary = {
     links_found: 0,
     map_images_captured: 0,
@@ -173,11 +184,32 @@ async function runLitePipeline(
   };
 
   try {
-    // ── Stage 1: Geocode ─────────────────────────────────────────────────
-    await setStatus(projectId, { status: 'running', stage: 'Geocoding address…', started_at: startedAt });
+    // ── Stage 1: Get property coordinates ──────────────────────────────
+    // Prefer parcel centroid from Bell CAD (exact), fall back to address geocoding.
+    await setStatus(projectId, { status: 'running', stage: parcelId ? 'Looking up parcel coordinates…' : 'Geocoding address…', started_at: startedAt });
 
     try {
-      const geo = await geocodeAddress(address);
+      let geo: { lat: number; lon: number; display_name: string } | null = null;
+
+      // Try direct parcel centroid lookup (uses shared utility)
+      if (parcelId) {
+        try {
+          const { fetchParcelCentroidWgs84 } = await import('@/lib/research/bell-cad-arcgis.service');
+          const centroid = await fetchParcelCentroidWgs84(parcelId);
+          if (centroid) {
+            geo = { lat: centroid.lat, lon: centroid.lon, display_name: `Property ${parcelId} — ${address}` };
+            console.info(`[LitePipeline] Using parcel centroid for prop_id=${parcelId}: ${geo.lat.toFixed(6)}, ${geo.lon.toFixed(6)}`);
+          }
+        } catch (err) {
+          console.warn(`[LitePipeline] Parcel centroid lookup failed for prop_id=${parcelId}:`, err instanceof Error ? err.message : err);
+        }
+      }
+
+      // Fall back to address geocoding if parcel lookup didn't work
+      if (!geo) {
+        geo = await geocodeAddress(address);
+      }
+
       if (geo) {
         summary.geocoded_address = geo.display_name;
         summary.geocoded_lat = geo.lat;
@@ -248,10 +280,79 @@ async function runLitePipeline(
       console.warn('[LitePipeline] Stage 3 import failed (continuing):', stageErr instanceof Error ? stageErr.message : stageErr);
     }
 
+    // ── Stage 3b: Fetch CAD parcel context using property ID ────────────
+    // When parcelId is available, query Bell CAD ArcGIS for the full parcel
+    // context: deed references, legal description, plat info, adjacent parcels,
+    // abstracts, flood zones, etc. This gives us structured property data
+    // before the AI analysis even starts.
+    if (parcelId) {
+      await setStatus(projectId, { stage: 'Fetching CAD parcel data, deed & plat references…' });
+      try {
+        const { fetchBoundaryCalls } = await import('@/lib/research/boundary-fetch.service');
+        const boundaryResult = await fetchBoundaryCalls({
+          address,
+          county: county || undefined,
+          parcel_id: parcelId,
+        });
+
+        if (boundaryResult.success || boundaryResult.property_id) {
+          // Store the boundary data as a research document for AI analysis
+          const boundaryText = [
+            `Property ID: ${boundaryResult.property_id ?? parcelId}`,
+            boundaryResult.property?.owner_name ? `Owner: ${boundaryResult.property.owner_name}` : '',
+            boundaryResult.legal_description ? `Legal Description: ${boundaryResult.legal_description}` : '',
+            boundaryResult.property?.acreage ? `Acreage: ${boundaryResult.property.acreage}` : '',
+            boundaryResult.cad_property_url ? `CAD URL: ${boundaryResult.cad_property_url}` : '',
+            boundaryResult.deed_search_url ? `Deed Search: ${boundaryResult.deed_search_url}` : '',
+            boundaryResult.boundary_calls?.length
+              ? `\nBoundary Calls (${boundaryResult.boundary_calls.length}):\n${boundaryResult.boundary_calls.map(
+                  (c, i) => `  ${i + 1}. ${c.bearing ?? ''} ${c.distance ? `${c.distance} ${c.distance_unit ?? 'ft'}` : ''} ${c.type === 'curve' ? `(curve R=${c.radius ?? '?'})` : ''}`.trim()
+                ).join('\n')}`
+              : '',
+            boundaryResult.search_steps?.length
+              ? `\nResearch Steps:\n${boundaryResult.search_steps.join('\n')}`
+              : '',
+          ].filter(Boolean).join('\n');
+
+          if (boundaryText.length > 50) {
+            const { data: doc } = await supabaseAdmin
+              .from('research_documents')
+              .insert({
+                research_project_id: projectId,
+                source_type: 'property_search',
+                document_type: 'parcel_data',
+                document_label: `CAD Property Data — ${parcelId}`,
+                source_url: boundaryResult.cad_property_url || boundaryResult.source_url || null,
+                processing_status: 'extracted',
+                extracted_text: boundaryText,
+                extracted_text_method: 'boundary_fetch',
+                recording_info: `Bell CAD parcel data for prop_id=${parcelId}`,
+              })
+              .select('id')
+              .single();
+            if (doc) summary.documents_imported++;
+          }
+
+          // Extract key summary fields
+          if (boundaryResult.property?.owner_name) {
+            summary.owner_name = boundaryResult.property.owner_name;
+          }
+          if (boundaryResult.legal_description) {
+            summary.legal_description = boundaryResult.legal_description.substring(0, 200);
+          }
+          if (boundaryResult.property?.acreage) {
+            summary.acreage = String(boundaryResult.property.acreage);
+          }
+        }
+      } catch (stageErr) {
+        console.warn('[LitePipeline] Stage 3b CAD fetch failed (continuing):', stageErr instanceof Error ? stageErr.message : stageErr);
+      }
+    }
+
     // ── Stage 4: Capture satellite + topo map images ─────────────────────
     await setStatus(projectId, { stage: 'Capturing satellite and topo map images…' });
     try {
-      const imageResult = await captureLocationImages(projectId, address);
+      const imageResult = await captureLocationImages(projectId, address, parcelId || undefined);
       summary.map_images_captured = imageResult.documentIds.length;
       summary.documents_imported += imageResult.documentIds.length;
       if (!summary.geocoded_lat && imageResult.geocoded) {

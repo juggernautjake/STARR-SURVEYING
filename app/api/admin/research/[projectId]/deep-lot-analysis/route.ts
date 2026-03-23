@@ -82,10 +82,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'address is required' }, { status: 400 });
   }
 
-  // Verify project exists
+  // Verify project exists and retrieve parcel_id if stored
   const { data: project } = await supabaseAdmin
     .from('research_projects')
-    .select('id, county, state, analysis_metadata')
+    .select('id, county, state, analysis_metadata, parcel_id')
     .eq('id', projectId)
     .single();
 
@@ -93,12 +93,23 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
+  // Use prop_id from body, or fall back to the stored project parcel_id
+  const effectivePropId = body.prop_id || project.parcel_id || undefined;
+
+  // If we have a prop_id and the project doesn't have it saved, persist it now
+  if (effectivePropId && !project.parcel_id) {
+    await supabaseAdmin
+      .from('research_projects')
+      .update({ parcel_id: effectivePropId, updated_at: new Date().toISOString() })
+      .eq('id', projectId);
+  }
+
   // Initialize logger
   const logger = new PipelineLogger(projectId);
   logger.info('init', `Starting deep lot analysis for: ${body.address}`, {
     project_id: projectId,
     address: body.address,
-    prop_id: body.prop_id,
+    prop_id: effectivePropId,
     owner: body.owner,
     county: project.county,
   });
@@ -115,12 +126,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   logger.startPhase('resource_analyze', 'Phase 1: Querying County CAD/GIS parcel data (Priority 1)');
 
   let arcgisContext: Awaited<ReturnType<typeof searchAndFetchParcelContext>>['context'] | null = null;
-  let targetPropId: string | null = body.prop_id ?? null;
+  let targetPropId: string | null = effectivePropId ?? null;
 
   try {
     const { result: arcResult } = await logger.timed('resource_analyze', 'ArcGIS parcel search', async () => {
       return searchAndFetchParcelContext({
-        prop_id: body.prop_id || undefined,
+        prop_id: effectivePropId || undefined,
         address: body.address || undefined,
         owner_name: body.owner || undefined,
       }, true);
@@ -197,7 +208,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   let zoomResult: Awaited<ReturnType<typeof progressiveZoomCapture>> | null = null;
   try {
     const { result: zr } = await logger.timed('gis_zoom', 'Progressive zoom capture', async () => {
-      return progressiveZoomCapture(projectId, body.address, logger, project.county ?? undefined);
+      return progressiveZoomCapture(projectId, body.address, logger, project.county ?? undefined, targetPropId ?? effectivePropId);
     });
     zoomResult = zr;
     allDocumentIds.push(...zr.all_document_ids);

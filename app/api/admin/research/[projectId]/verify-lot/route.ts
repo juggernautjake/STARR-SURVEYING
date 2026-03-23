@@ -94,7 +94,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Verify project exists
   const { data: project } = await supabaseAdmin
     .from('research_projects')
-    .select('id, county, analysis_metadata')
+    .select('id, county, analysis_metadata, parcel_id')
     .eq('id', projectId)
     .single();
 
@@ -212,10 +212,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (body.progressive_zoom !== false) {
     steps.push('[Step 3] Starting progressive zoom capture (zoom 16→21)...');
     try {
+      const effectivePropId = body.prop_id || project.parcel_id || undefined;
       progressiveZoomResult = await captureProgressiveZoom(
         projectId,
         body.address,
         project.county ?? undefined,
+        undefined, // zoomRange — use default
+        effectivePropId,
       );
       steps.push(`[Step 3] Progressive zoom: ${progressiveZoomResult.all_document_ids.length} images across ${progressiveZoomResult.zoom_captures.length} zoom levels`);
       steps.push(`[Step 3] Lot lines first visible at zoom ${progressiveZoomResult.lot_lines_first_visible_at ?? 'unknown'}`);

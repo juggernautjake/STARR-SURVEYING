@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { searchPropertyRecords } from '@/lib/research/property-search.service';
 import { geocodeAddress, buildPreviewUrl, captureLocationImages, type GeoCandidate } from '@/lib/research/map-image.service';
+import { fetchParcelCentroidWgs84 } from '@/lib/research/bell-cad-arcgis.service';
 import type { PropertySearchRequest } from '@/types/research';
 
 function extractProjectId(req: NextRequest): string | null {
@@ -23,7 +24,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Verify project exists and belongs to valid scope
   const { data: project, error: projError } = await supabaseAdmin
     .from('research_projects')
-    .select('id, property_address, county, state')
+    .select('id, property_address, county, state, parcel_id')
     .eq('id', projectId)
     .single();
 
@@ -32,6 +33,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   const body = await req.json() as PropertySearchRequest;
+
+  // Save parcel_id to project if provided and not already stored
+  if (body.parcel_id && !project.parcel_id) {
+    await supabaseAdmin
+      .from('research_projects')
+      .update({ parcel_id: body.parcel_id, updated_at: new Date().toISOString() })
+      .eq('id', projectId);
+  }
 
   // Merge project data with search request (request fields take priority)
   const searchReq: PropertySearchRequest = {
@@ -53,13 +62,28 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }, { status: 400 });
   }
 
-  // Run property search + geocoding in parallel (geocoding is non-fatal)
+  console.log(`[search] Starting property search: parcel_id=${searchReq.parcel_id}, address="${searchReq.address ?? 'none'}", county=${searchReq.county ?? 'none'}`);
+
+  // Run property search + location lookup in parallel (location is non-fatal).
+  // When parcel_id is available, use Bell CAD centroid (exact) instead of Nominatim geocoding.
   const [results, geo] = await Promise.all([
     searchPropertyRecords(searchReq),
-    searchReq.address ? geocodeAddress(searchReq.address) : Promise.resolve(null),
+    (async () => {
+      // Try parcel centroid first (uses shared utility — no duplicate code)
+      if (searchReq.parcel_id) {
+        try {
+          const centroid = await fetchParcelCentroidWgs84(searchReq.parcel_id);
+          if (centroid) {
+            return { lat: centroid.lat, lon: centroid.lon, display_name: `Property ${searchReq.parcel_id}` };
+          }
+        } catch { /* fall through to geocoding */ }
+      }
+      // Fall back to address geocoding
+      return searchReq.address ? geocodeAddress(searchReq.address) : null;
+    })(),
   ]);
 
-  // Attach geocoded location and preview URL to the response
+  // Attach location and preview URL to the response
   if (geo) {
     results.geocoded_lat = geo.lat;
     results.geocoded_lon = geo.lon;

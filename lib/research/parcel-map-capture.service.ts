@@ -197,6 +197,12 @@ function buildUsgsSatelliteUrl(
 
 // ── Fetch Helpers ────────────────────────────────────────────────────────────
 
+/** Brief delay to let map tile services render after zoom/position changes. */
+const RENDER_WAIT_MS = 1_500;
+function renderWait(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, RENDER_WAIT_MS));
+}
+
 async function fetchImage(url: string): Promise<Buffer | null> {
   try {
     const res = await fetch(url, {
@@ -388,6 +394,9 @@ export async function captureParcelMaps(
   if (!isBellCounty) {
     log(`Skipping Bell CAD parcel query — project is in ${county} (not Bell County)`);
   }
+  // Brief pause to allow map tile services to render at the new zoom/position
+  await renderWait();
+
   const [googleStreetBuf, googleSatBuf, cadGisBuf, usgsSatBuf, parcelQueryResult] = await Promise.all([
     googleStreetUrl ? fetchImage(googleStreetUrl) : Promise.resolve(null),
     googleSatUrl ? fetchImage(googleSatUrl) : Promise.resolve(null),

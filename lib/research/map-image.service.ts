@@ -15,6 +15,7 @@
 
 import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET, ensureStorageBucket } from '@/lib/supabase';
 import type { DocumentType } from '@/types/research';
+import { fetchParcelCentroidWgs84 as fetchSharedParcelCentroid } from './bell-cad-arcgis.service';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,15 @@ const MAX_CANDIDATES = 3;
 
 // Minimum distance (in degrees, ~1.1km) between candidates to be considered distinct
 const MIN_CANDIDATE_DISTANCE_DEG = 0.01;
+
+/**
+ * Fetch a parcel's centroid directly from Bell CAD by property ID.
+ * Delegates to the shared utility in bell-cad-arcgis.service.ts.
+ */
+async function fetchParcelCentroidForCapture(propId: number): Promise<{ lat: number; lon: number } | null> {
+  const result = await fetchSharedParcelCentroid(propId);
+  return result ? { lat: result.lat, lon: result.lon } : null;
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -306,13 +316,11 @@ async function storeImageAsDocument(
 // ── Main entry point ─────────────────────────────────────────────────────────
 
 /**
- * Geocode an address, fetch USGS satellite + topo map images, and store them as
+ * Fetch USGS satellite + topo map images for a property and store them as
  * project documents in Supabase Storage.
  *
- * When geocoding returns multiple distinct candidates (common for ambiguous rural
- * Texas addresses), satellite images are captured for EACH candidate location so
- * the AI analysis or user can identify the correct property. The best candidate
- * also gets a topo map image.
+ * When propId is provided, queries Bell CAD for the parcel centroid directly
+ * (no geocoding needed). Otherwise falls back to Nominatim address geocoding.
  *
  * - All images become `research_documents` rows ready for AI vision analysis.
  * - The satellite images use NAIP 1-metre imagery (free, public USGS service).
@@ -322,6 +330,7 @@ async function storeImageAsDocument(
 export async function captureLocationImages(
   projectId: string,
   address: string,
+  propId?: string | number,
 ): Promise<LocationImageResult> {
   const result: LocationImageResult = {
     documentIds: [],
@@ -333,31 +342,74 @@ export async function captureLocationImages(
     multipleLocations: false,
   };
 
-  // Step 1 — Geocode with multiple candidates
-  const candidates = await geocodeAddressCandidates(address);
-  if (candidates.length === 0) {
-    console.info('[MapImage] Geocoding failed for:', address);
-    return result;
+  // Step 1 — Get coordinates: prefer propId lookup, fall back to geocoding
+  let primaryLat: number;
+  let primaryLon: number;
+  let displayName: string = address;
+
+  if (propId) {
+    // Direct parcel centroid from Bell CAD — no geocoding ambiguity
+    const centroid = await fetchParcelCentroidForCapture(Number(propId));
+    if (centroid) {
+      primaryLat = centroid.lat;
+      primaryLon = centroid.lon;
+      displayName = `Property ${propId} — ${address}`;
+      console.info(`[MapImage] Using parcel centroid for prop_id=${propId}: ${primaryLat.toFixed(6)}, ${primaryLon.toFixed(6)}`);
+    } else {
+      // Fall back to geocoding if propId lookup fails
+      console.warn(`[MapImage] Parcel centroid lookup failed for prop_id=${propId}, falling back to geocoding`);
+      const candidates = await geocodeAddressCandidates(address);
+      if (candidates.length === 0) {
+        console.info('[MapImage] Geocoding also failed for:', address);
+        return result;
+      }
+      primaryLat = candidates[0].lat;
+      primaryLon = candidates[0].lon;
+      displayName = candidates[0].display_name;
+      result.candidates = candidates;
+      result.multipleLocations = candidates.length > 1;
+    }
+  } else {
+    const candidates = await geocodeAddressCandidates(address);
+    if (candidates.length === 0) {
+      console.info('[MapImage] Geocoding failed for:', address);
+      return result;
+    }
+    primaryLat = candidates[0].lat;
+    primaryLon = candidates[0].lon;
+    displayName = candidates[0].display_name;
+    result.candidates = candidates;
+    result.multipleLocations = candidates.length > 1;
   }
 
-  result.candidates = candidates;
-  result.geocoded = { lat: candidates[0].lat, lon: candidates[0].lon, display_name: candidates[0].display_name };
-  result.previewUrl = buildPreviewUrl(candidates[0].lat, candidates[0].lon);
-  result.multipleLocations = candidates.length > 1;
+  result.geocoded = { lat: primaryLat, lon: primaryLon, display_name: displayName };
+  result.previewUrl = buildPreviewUrl(primaryLat, primaryLon);
 
-  if (candidates.length > 1) {
+  // Build candidate list for image capture. If propId was used (no candidates),
+  // create a synthetic single-candidate from the parcel centroid.
+  const captureLocations: GeoCandidate[] = result.candidates.length > 0
+    ? result.candidates
+    : [{
+        lat: primaryLat, lon: primaryLon, display_name: displayName,
+        importance: 1.0, type: 'parcel_centroid', candidateIndex: 1,
+      }];
+
+  if (captureLocations.length > 1) {
     console.info(
-      `[MapImage] Found ${candidates.length} candidate locations for "${address}" — capturing satellite images for each`,
+      `[MapImage] Found ${captureLocations.length} candidate locations for "${address}" — capturing satellite images for each`,
     );
   }
 
   // Step 2 — Fetch satellite images for ALL candidates in parallel
-  const satFetches = candidates.map(c => ({
+  const satFetches = captureLocations.map(c => ({
     candidate: c,
     url: buildUSGSExportUrl(c.lat, c.lon, USGS_SATELLITE_SVC),
   }));
-  // Also fetch topo for the best candidate only
-  const topoUrl = buildUSGSExportUrl(candidates[0].lat, candidates[0].lon, USGS_TOPO_SVC);
+  // Also fetch topo for the primary location
+  const topoUrl = buildUSGSExportUrl(primaryLat, primaryLon, USGS_TOPO_SVC);
+
+  // Brief pause to let map tile services render before capturing
+  await new Promise(r => setTimeout(r, 1_500));
 
   const fetchPromises: Promise<Buffer | null>[] = [
     ...satFetches.map(f => fetchMapImage(f.url)),
@@ -365,20 +417,20 @@ export async function captureLocationImages(
   ];
   const fetchResults = await Promise.all(fetchPromises);
 
-  const satBuffers = fetchResults.slice(0, candidates.length);
-  const topoBuffer = fetchResults[candidates.length];
+  const satBuffers = fetchResults.slice(0, captureLocations.length);
+  const topoBuffer = fetchResults[captureLocations.length];
 
   // Step 3 — Store satellite images for each candidate
-  for (let i = 0; i < candidates.length; i++) {
-    const candidate = candidates[i];
+  for (let i = 0; i < captureLocations.length; i++) {
+    const candidate = captureLocations[i];
     const buffer = satBuffers[i];
     if (!buffer) continue;
 
-    const candidateLabel = candidates.length > 1
-      ? ` (Candidate ${candidate.candidateIndex} of ${candidates.length})`
+    const candidateLabel = captureLocations.length > 1
+      ? ` (Candidate ${candidate.candidateIndex} of ${captureLocations.length})`
       : '';
-    const confidenceNote = candidates.length > 1
-      ? `\n\nIMPORTANT: This is candidate location ${candidate.candidateIndex} of ${candidates.length}.`
+    const confidenceNote = captureLocations.length > 1
+      ? `\n\nIMPORTANT: This is candidate location ${candidate.candidateIndex} of ${captureLocations.length}.`
         + ` Nominatim importance score: ${candidate.importance.toFixed(3)} (type: ${candidate.type}).`
         + ` Compare all candidate satellite images to determine which shows the correct property.`
         + (i === 0 ? ' This is the highest-confidence candidate.' : '')
@@ -419,8 +471,8 @@ export async function captureLocationImages(
   if (topoBuffer) {
     const topoDesc = [
       `USGS Topographic Map captured for property at: ${address}`,
-      `\nCoordinates: ${candidates[0].lat.toFixed(6)}, ${candidates[0].lon.toFixed(6)}`,
-      `\nDisplay name: ${candidates[0].display_name}`,
+      `\nCoordinates: ${primaryLat.toFixed(6)}, ${primaryLon.toFixed(6)}`,
+      `\nDisplay name: ${displayName}`,
       `\nSource URL: ${topoUrl}`,
       `\nReview this image for: contour lines and elevation data, named roads and highways,`,
       ` named watercourses, section lines, township/range grid, benchmark locations,`,
@@ -444,7 +496,7 @@ export async function captureLocationImages(
 
   if (result.multipleLocations) {
     console.info(
-      `[MapImage] Stored ${result.documentIds.length} images for ${candidates.length} candidate locations`,
+      `[MapImage] Stored ${result.documentIds.length} images for ${captureLocations.length} candidate locations`,
     );
   }
 

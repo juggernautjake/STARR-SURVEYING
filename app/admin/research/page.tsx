@@ -36,8 +36,12 @@ export default function ResearchListPage() {
     name: '',
     description: '',
     property_address: '',
+    city: '',
     county: '',
     state: 'TX',
+    zip: '',
+    owner_name: '',
+    parcel_id: '',
   });
 
   const userRole = session?.user?.role || 'employee';
@@ -89,18 +93,21 @@ export default function ResearchListPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!newProject.name.trim() || creating) return;
+    if (!newProject.parcel_id.trim() || creating) return;
+    // Auto-generate project name from address or parcel ID if not provided
+    const projectName = newProject.name.trim()
+      || (newProject.property_address ? `${newProject.property_address}` : `Property ${newProject.parcel_id}`);
     setCreating(true);
     try {
       const res = await fetch('/api/admin/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProject),
+        body: JSON.stringify({ ...newProject, name: projectName }),
       });
       if (res.ok) {
         const data = await res.json();
         setShowCreate(false);
-        setNewProject({ name: '', description: '', property_address: '', county: '', state: 'TX' });
+        setNewProject({ name: '', description: '', property_address: '', city: '', county: '', state: 'TX', zip: '', owner_name: '', parcel_id: '' });
         router.push(`/admin/research/${data.project.id}`);
       } else {
         const err = await res.json();
@@ -298,11 +305,12 @@ export default function ResearchListPage() {
           <div className="research-modal" onClick={e => e.stopPropagation()}>
             <h2 className="research-modal__title">New Research Project</h2>
             <form onSubmit={handleCreate}>
+              {/* ── Property ID (Required) ── */}
               <div className="research-modal__field">
                 <label className="research-modal__label">
                   <span className="job-form__label-row">
-                    Project Name *
-                    <Tooltip text="A descriptive name for this research project. Usually matches the survey job name (e.g., 'Smith Property Boundary Survey'). This name appears in the project list and all exported reports." position="right">
+                    Property ID <span style={{ color: '#BD1218' }}>*</span>
+                    <Tooltip text="The county appraisal district property ID (e.g. Bell CAD prop_id). This is the primary identifier used to look up the exact parcel, retrieve deed/plat records, and center the GIS viewer. Find it on the county CAD website (e.g. esearch.bellcad.org)." position="right">
                       <span className="job-form__info-icon">?</span>
                     </Tooltip>
                   </span>
@@ -310,18 +318,20 @@ export default function ResearchListPage() {
                 <input
                   className="research-modal__input"
                   type="text"
-                  placeholder="e.g., Smith Property Boundary Survey"
-                  value={newProject.name}
-                  onChange={e => setNewProject(p => ({ ...p, name: e.target.value }))}
+                  placeholder="e.g. 524311"
+                  value={newProject.parcel_id}
+                  onChange={e => setNewProject(p => ({ ...p, parcel_id: e.target.value }))}
                   autoFocus
                   required
                 />
               </div>
+
+              {/* ── Property Address ── */}
               <div className="research-modal__field">
                 <label className="research-modal__label">
                   <span className="job-form__label-row">
                     Property Address
-                    <Tooltip text="Start typing to see address suggestions. Selecting an address will auto-fill the county and state fields. The address is used by the AI to search county records and identify relevant documents." position="right">
+                    <Tooltip text="Start typing to see address suggestions. Selecting an address will auto-fill city, county, state, and ZIP. Used alongside the Property ID for cross-referencing records." position="right">
                       <span className="job-form__info-icon">?</span>
                     </Tooltip>
                   </span>
@@ -331,21 +341,49 @@ export default function ResearchListPage() {
                   onChange={val => setNewProject(p => ({ ...p, property_address: val }))}
                   onSelect={details => setNewProject(p => ({
                     ...p,
-                    property_address: details.address ? `${details.address}, ${details.city}, ${details.state} ${details.zip}`.trim() : p.property_address,
+                    property_address: details.address || p.property_address,
+                    city: details.city || p.city,
                     county: details.county || p.county,
                     state: details.state || p.state,
+                    zip: details.zip || p.zip,
                   }))}
                   className="research-modal__input"
                   placeholder="Start typing an address..."
                   biasTexas={true}
                 />
               </div>
+
+              {/* ── City + ZIP ── */}
+              <div className="research-modal__row">
+                <div className="research-modal__field">
+                  <label className="research-modal__label">City</label>
+                  <input
+                    className="research-modal__input"
+                    type="text"
+                    placeholder="Belton"
+                    value={newProject.city}
+                    onChange={e => setNewProject(p => ({ ...p, city: e.target.value }))}
+                  />
+                </div>
+                <div className="research-modal__field">
+                  <label className="research-modal__label">ZIP</label>
+                  <input
+                    className="research-modal__input"
+                    type="text"
+                    placeholder="76513"
+                    value={newProject.zip}
+                    onChange={e => setNewProject(p => ({ ...p, zip: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* ── County + State ── */}
               <div className="research-modal__row">
                 <div className="research-modal__field">
                   <label className="research-modal__label">
                     <span className="job-form__label-row">
                       County
-                      <Tooltip text="The county where the property is located. This is critical — AI-powered property search uses the county to look up deed records, plat maps, and appraisal data from county-specific databases." position="right">
+                      <Tooltip text="The county where the property is located. Used to search county-specific deed records, plat maps, and appraisal data." position="right">
                         <span className="job-form__info-icon">?</span>
                       </Tooltip>
                     </span>
@@ -369,28 +407,69 @@ export default function ResearchListPage() {
                   />
                 </div>
               </div>
+
+              {/* ── Owner Name ── */}
               <div className="research-modal__field">
                 <label className="research-modal__label">
                   <span className="job-form__label-row">
-                    Description
-                    <Tooltip text="Optional notes about the scope of this research project. Include any specific documents to look for, known issues, or areas of concern. This context helps guide the AI analysis." position="right">
+                    Owner Name
+                    <Tooltip text="Current property owner name as recorded on the appraisal district. Helps cross-reference deed records and verify the correct property." position="right">
+                      <span className="job-form__info-icon">?</span>
+                    </Tooltip>
+                  </span>
+                </label>
+                <input
+                  className="research-modal__input"
+                  type="text"
+                  placeholder="e.g. Smith, John & Jane"
+                  value={newProject.owner_name}
+                  onChange={e => setNewProject(p => ({ ...p, owner_name: e.target.value }))}
+                />
+              </div>
+
+              {/* ── Project Name ── */}
+              <div className="research-modal__field">
+                <label className="research-modal__label">
+                  <span className="job-form__label-row">
+                    Project Name
+                    <Tooltip text="A descriptive name for this research project. If left blank, it will be auto-generated from the address or property ID." position="right">
+                      <span className="job-form__info-icon">?</span>
+                    </Tooltip>
+                  </span>
+                </label>
+                <input
+                  className="research-modal__input"
+                  type="text"
+                  placeholder="Auto-generated if blank"
+                  value={newProject.name}
+                  onChange={e => setNewProject(p => ({ ...p, name: e.target.value }))}
+                />
+              </div>
+
+              {/* ── Notes / Instructions ── */}
+              <div className="research-modal__field">
+                <label className="research-modal__label">
+                  <span className="job-form__label-row">
+                    Notes / Instructions
+                    <Tooltip text="Include any specific documents to look for, known issues, special instructions, or areas of concern. These notes are included in the AI analysis context and will be considered alongside all extracted data." position="right">
                       <span className="job-form__info-icon">?</span>
                     </Tooltip>
                   </span>
                 </label>
                 <textarea
                   className="research-modal__textarea"
-                  placeholder="Brief description of the research project..."
+                  placeholder="e.g. Need to verify east boundary — neighbor disputes fence line. Look for any easements or ROW along FM 436. Previous survey from 1998 may be on file..."
                   value={newProject.description}
                   onChange={e => setNewProject(p => ({ ...p, description: e.target.value }))}
-                  rows={3}
+                  rows={4}
                 />
               </div>
+
               <div className="research-modal__actions">
                 <button type="button" className="research-modal__cancel" onClick={() => setShowCreate(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="research-modal__submit" disabled={!newProject.name.trim() || creating}>
+                <button type="submit" className="research-modal__submit" disabled={!newProject.parcel_id.trim() || creating}>
                   {creating ? 'Creating...' : 'Create Project'}
                 </button>
               </div>

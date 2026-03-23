@@ -16,6 +16,7 @@ import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET, ensureStorageBucket } from '@
 import type { DocumentType } from '@/types/research';
 import { geocodeAddress, type GeoPoint } from './map-image.service';
 import { PipelineLogger } from './pipeline-logger';
+import { fetchParcelCentroidWgs84 as fetchSharedCentroid } from './bell-cad-arcgis.service';
 
 // ── Parcel Centroid Lookup ───────────────────────────────────────────────────
 
@@ -431,6 +432,7 @@ export async function captureProgressiveZoom(
   address: string,
   county?: string,
   zoomRange?: { minZoom?: number; maxZoom?: number },
+  propId?: string | number,
 ): Promise<ProgressiveZoomResult> {
   const logger = new PipelineLogger(projectId);
   const log: string[] = [];
@@ -478,32 +480,37 @@ export async function captureProgressiveZoom(
   const normalizedCounty = (county ?? '').toLowerCase().replace(/\s+county$/i, '').trim();
   const isBellCounty = normalizedCounty === 'bell' || normalizedCounty === '';
 
-  // Initial wide search to find the target parcel and compute appropriate zoom levels
+  // Initial parcel lookup — prefer propId (direct), fall back to address search
   let levels: typeof DEFAULT_ZOOM_LEVELS;
-  if (isBellCounty) {
+  if (propId && isBellCounty) {
+    // Direct centroid lookup by property ID — fast, exact, no geocoding needed
+    logger.info('gis_zoom', `Direct parcel lookup by prop_id=${propId}`);
+    const parcelLoc = await fetchSharedCentroid(propId);
+    if (parcelLoc) {
+      centerLat = parcelLoc.lat;
+      centerLon = parcelLoc.lon;
+      recentered = true;
+      levels = computeZoomLevelsFromExtent(parcelLoc.extentMeters, logger);
+      log.push(`[progressive-zoom] Centered on prop_id=${propId}: ${parcelLoc.lat.toFixed(6)}, ${parcelLoc.lon.toFixed(6)}`);
+    } else {
+      logger.warn('gis_zoom', `prop_id=${propId} centroid lookup failed — using default zoom levels`);
+      levels = DEFAULT_ZOOM_LEVELS;
+    }
+  } else if (isBellCounty) {
+    // Address-based search fallback
     logger.info('gis_zoom', 'Initial wide parcel search at zoom 16 to determine parcel size');
     const initialParcels = await fetchParcelData(
       buildBellCadParcelQueryUrl(centerLat, centerLon, 0.0048), logger, 16,
     );
     const target = findBestMatch(address, initialParcels);
     if (target) {
-      const parcelLoc = await fetchParcelCentroidWgs84(target.prop_id, logger);
+      const parcelLoc = await fetchSharedCentroid(target.prop_id);
       if (parcelLoc) {
-        const offsetMiles = Math.sqrt(
-          Math.pow((parcelLoc.lat - centerLat) * 69, 2) +
-          Math.pow((parcelLoc.lon - centerLon) * 54.6, 2),
-        );
-        logger.info('gis_zoom',
-          `RE-CENTERING: geocoded was ${offsetMiles.toFixed(2)} miles off — ` +
-          `moving to parcel centroid (${parcelLoc.lat.toFixed(6)}, ${parcelLoc.lon.toFixed(6)})`, {
-            offset_miles: offsetMiles, prop_id: target.prop_id,
-          },
-        );
-        log.push(`[progressive-zoom] RE-CENTERED: ${offsetMiles.toFixed(2)} miles from geocoded to parcel centroid`);
         centerLat = parcelLoc.lat;
         centerLon = parcelLoc.lon;
         recentered = true;
         levels = computeZoomLevelsFromExtent(parcelLoc.extentMeters, logger);
+        log.push(`[progressive-zoom] RE-CENTERED to prop_id=${target.prop_id}`);
       } else {
         levels = DEFAULT_ZOOM_LEVELS;
       }
@@ -558,6 +565,9 @@ export async function captureProgressiveZoom(
     logger.debug('gis_zoom', `Starting parallel fetch: images + parcel query at zoom ${level.zoom}`, {
       is_bell_county: isBellCounty, has_parcel_query: !!parcelQueryUrl,
     });
+
+    // Brief pause to let map tile services render at the new zoom level
+    await new Promise(r => setTimeout(r, 1_500));
 
     const fetchStart = Date.now();
     const [hybridBuf, roadBuf, esriBuf, parcels] = await Promise.all([
@@ -752,11 +762,12 @@ export async function captureLotDetailZoom(
   projectId: string,
   address: string,
   county?: string,
+  propId?: string | number,
 ): Promise<ProgressiveZoomResult> {
   return captureProgressiveZoom(projectId, address, county, {
     minZoom: 19,
     maxZoom: 21,
-  });
+  }, propId);
 }
 
 /**
@@ -767,6 +778,7 @@ export async function captureFullProgressiveZoom(
   projectId: string,
   address: string,
   county?: string,
+  propId?: string | number,
 ): Promise<ProgressiveZoomResult> {
   return captureProgressiveZoom(projectId, address, county, {
     minZoom: 16,
