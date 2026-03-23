@@ -697,7 +697,7 @@ export async function captureProgressiveZoom(
     best_zoom_for_lot_id: bestZoom,
     all_document_ids: allDocIds,
     geocoded: recentered
-      ? { lat: centerLat, lon: centerLon, display_name: coords?.display_name ?? address || `Property ${propId}` }
+      ? { lat: centerLat, lon: centerLon, display_name: coords?.display_name ?? (address || `Property ${propId}`) }
       : coords,
     total_parcels_found: totalParcels,
     pipeline_log: log,
