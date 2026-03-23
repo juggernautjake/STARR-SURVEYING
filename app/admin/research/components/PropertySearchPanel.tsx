@@ -307,8 +307,12 @@ export default function PropertySearchPanel({
 
     const anyRunning = liteRunning || searching || pipelineRunning;
     if (anyRunning) return;
-    if (!address.trim() && !county.trim() && !parcelId.trim()) {
-      setSearchError('Enter a property address, county, or parcel ID to start research.');
+    if (!parcelId.trim()) {
+      setSearchError('Property ID is required. You can find it on the county CAD website (e.g. Bell CAD eSearch).');
+      return;
+    }
+    if (!address.trim() && !county.trim()) {
+      setSearchError('Enter a property address or county along with the Property ID.');
       return;
     }
 
@@ -692,15 +696,16 @@ export default function PropertySearchPanel({
             </div>
             <div className="research-search__field research-search__field--half">
               <label className="research-search__label" htmlFor="ps-parcel">
-                Parcel / Property ID
+                Property ID <span style={{ color: '#BD1218' }}>*</span>
               </label>
               <input
                 id="ps-parcel"
                 className="research-search__input"
                 type="text"
-                placeholder="e.g. R12345"
+                placeholder="e.g. 524311"
                 value={parcelId}
                 onChange={e => setParcelId(e.target.value)}
+                required
               />
             </div>
           </div>

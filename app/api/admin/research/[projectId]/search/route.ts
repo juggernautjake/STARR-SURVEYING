@@ -42,9 +42,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     legal_description: body.legal_description || undefined,
   };
 
-  if (!searchReq.address && !searchReq.county && !searchReq.parcel_id) {
+  if (!searchReq.parcel_id) {
     return NextResponse.json({
-      error: 'At least one of address, county, or parcel_id is required',
+      error: 'Property ID is required. You can find it on the county CAD website (e.g. Bell CAD eSearch).',
+    }, { status: 400 });
+  }
+  if (!searchReq.address && !searchReq.county) {
+    return NextResponse.json({
+      error: 'Enter a property address or county along with the Property ID.',
     }, { status: 400 });
   }
 
