@@ -966,13 +966,17 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       await updateStatus(input.projectId, 'running',
         `Stage 2: Searching Bell County Clerk for owner "${ownerNameForPlatSearch}"…`);
       try {
-        const { platInstruments, deedInstruments } =
+        const { platInstruments, deedInstruments, otherInstruments, allDocuments: b2AllDocs } =
           await searchBellClerkOwnerForPlatDeed(ownerNameForPlatSearch, logger);
 
-        // Retrieve page images for each instrument (plats get 3 expected pages)
+        // Retrieve page images for each instrument (plats get more expected pages)
         const instrToFetch: Array<{ instrNum: string; docType: string }> = [
           ...platInstruments.slice(0, 2).map(n => ({ instrNum: n, docType: 'Final Plat' })),
           ...deedInstruments.slice(0, 3).map(n => ({ instrNum: n, docType: 'Warranty Deed' })),
+          ...otherInstruments.slice(0, 3).map(n => {
+            const ref = b2AllDocs.find(d => d.instrumentNumber === n);
+            return { instrNum: n, docType: ref?.documentType ?? 'Other Document' };
+          }),
         ];
 
         for (const { instrNum, docType } of instrToFetch) {
@@ -1038,7 +1042,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           try {
             logger.info('Stage2C',
               `Bell County Clerk search by subdivision name: "${subdivName}"`);
-            const { platInstruments, deedInstruments, allDocuments } =
+            const { platInstruments, deedInstruments, otherInstruments, allDocuments } =
               await searchBellClerkOwnerForPlatDeed(subdivName, logger);
 
             // Track which instruments we already have to avoid duplicates
@@ -1046,13 +1050,15 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
               documents.map((d) => d.ref.instrumentNumber).filter(Boolean),
             );
 
-            const newInstrNums = [...platInstruments, ...deedInstruments].filter(
+            const newInstrNums = [...platInstruments, ...deedInstruments, ...otherInstruments].filter(
               (n) => !existingInstrNums.has(n),
             );
 
             for (const instrNum of newInstrNums.slice(0, 5)) {
               const isPlat = platInstruments.includes(instrNum);
-              const docType = isPlat ? 'Final Plat' : 'Warranty Deed';
+              const isDeed = deedInstruments.includes(instrNum);
+              const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
+              const docType = isPlat ? 'Final Plat' : isDeed ? 'Warranty Deed' : (ref?.documentType ?? 'Other Document');
               await updateStatus(input.projectId, 'running',
                 `Stage 2: Downloading ${docType} ${instrNum} (${subdivName})…`);
               try {
@@ -1643,20 +1649,22 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           if (kofile && input.county.toLowerCase() === 'bell') {
             const t = logger.attempt('Discovery', 'Bell County Clerk', 'searchBellClerkOwnerForPlatDeed', subdivName);
             try {
-              const { platInstruments, deedInstruments } =
+              const { platInstruments, deedInstruments, otherInstruments, allDocuments: discAllDocs } =
                 await searchBellClerkOwnerForPlatDeed(subdivName, logger);
               const existingInstrs = new Set(
                 [...documents, ...iterationDocs].map(d => d.ref.instrumentNumber).filter(Boolean),
               );
-              const newInstrs = [...platInstruments, ...deedInstruments].filter(n => !existingInstrs.has(n));
+              const newInstrs = [...platInstruments, ...deedInstruments, ...otherInstruments].filter(n => !existingInstrs.has(n));
 
               if (newInstrs.length === 0) {
-                t.partial(0, `Found ${platInstruments.length + deedInstruments.length} instrument(s) but all already retrieved`);
+                t.partial(0, `Found ${platInstruments.length + deedInstruments.length + otherInstruments.length} instrument(s) but all already retrieved`);
               } else {
-                t.success(newInstrs.length, `${platInstruments.length} plat(s), ${deedInstruments.length} deed(s) — fetching ${newInstrs.length} new`);
+                t.success(newInstrs.length, `${platInstruments.length} plat(s), ${deedInstruments.length} deed(s), ${otherInstruments.length} other — fetching ${newInstrs.length} new`);
                 for (const instrNum of newInstrs.slice(0, 5)) {
                   const isPlat = platInstruments.includes(instrNum);
-                  const docType = isPlat ? 'Final Plat (discovery)' : 'Warranty Deed (discovery)';
+                  const isDeed = deedInstruments.includes(instrNum);
+                  const discRef = discAllDocs.find(d => d.instrumentNumber === instrNum);
+                  const docType = isPlat ? 'Final Plat (discovery)' : isDeed ? 'Warranty Deed (discovery)' : `${discRef?.documentType ?? 'Other Document'} (discovery)`;
                   const imgT = logger.attempt('Discovery', 'Bell County Clerk', 'fetchDocumentImages', instrNum);
                   try {
                     const pages = await fetchDocumentImages(instrNum, isPlat ? 10 : 4, logger, input.county);

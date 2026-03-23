@@ -157,16 +157,35 @@ export async function scrapeBellClerk(
     searchPaths.push('Path-A-Instruments');
     const unique = [...new Set(input.instrumentNumbers)];
     progress(`Path A: Looking up ${unique.length} instrument number(s) directly`);
+    if (input.ownerName) {
+      progress(`  Owner filter active: "${input.ownerName}" — instruments whose parties don't match will be skipped`);
+    }
 
+    let skippedCount = 0;
+    const skippedInstruments: string[] = [];
     for (const instrNum of unique) {
       if (documents.length >= maxDocs) break;
 
       progress(`  Fetching instrument: ${instrNum}`);
-      const doc = await fetchInstrumentDocument(instrNum, captureImages, screenshots, urlsVisited, progress, input.projectId);
+      const doc = await fetchInstrumentDocument(
+        instrNum, captureImages, screenshots, urlsVisited, progress,
+        input.projectId, input.ownerName, // Pass owner for pre-download validation
+      );
       if (doc) {
-        const isNew = addDocument(doc);
-        if (isNew) {
-          progress(`  ✓ Found: ${doc.documentType} — ${instrNum} (${doc.grantor ?? '?'} → ${doc.grantee ?? '?'})`);
+        // Skip documents pre-filtered as irrelevant (owner mismatch, wrong parcel).
+        // These come back with relevanceScore=0 and empty pageImages — the metadata
+        // was retrieved but page images were NOT downloaded (saving ~2-5 minutes).
+        if (doc.relevanceScore === 0 && doc.pageImages.length === 0) {
+          skippedCount++;
+          skippedInstruments.push(instrNum);
+          progress(`  ✗ SKIPPED: ${doc.documentType} — ${instrNum}`);
+          progress(`    Reason: Parties "${doc.grantor ?? '?'}" / "${doc.grantee ?? '?'}" don't match target owner "${input.ownerName}"`);
+          progress(`    This instrument likely belongs to a neighboring parcel, not our property`);
+        } else {
+          const isNew = addDocument(doc);
+          if (isNew) {
+            progress(`  ✓ KEPT: ${doc.documentType} — ${instrNum} (${doc.grantor ?? '?'} → ${doc.grantee ?? '?'})`);
+          }
         }
       } else {
         progress(`  ✗ Not found: ${instrNum}`);
@@ -175,7 +194,11 @@ export async function scrapeBellClerk(
       await delay(RATE_LIMITS.defaultDelay);
     }
 
-    progress(`Path A complete: ${documents.length} document(s) found`);
+    if (skippedCount > 0) {
+      progress(`Path A complete: ${documents.length} document(s) kept, ${skippedCount} skipped as unrelated [${skippedInstruments.join(', ')}]`);
+    } else {
+      progress(`Path A complete: ${documents.length} document(s) found — all matched target owner`);
+    }
   }
 
   // ── Path B: Owner Name SPA Search ──────────────────────────────────
@@ -277,6 +300,8 @@ async function fetchInstrumentDocument(
   urlsVisited: string[],
   progress: (msg: string) => void,
   projectId?: string,
+  /** If set, verify grantor/grantee matches before downloading pages */
+  expectedOwnerName?: string,
 ): Promise<ClerkDocument | null> {
   // NOTE: Do NOT push a constructed URL here — Tyler PublicSearch uses internal
   // doc IDs, not instrument numbers. We push the real URL after searchByInstrument
@@ -304,7 +329,45 @@ async function fetchInstrumentDocument(
     const realDocUrl = docRef.url ?? BELL_ENDPOINTS.clerk.document(instrumentNumber);
     urlsVisited.push(realDocUrl);
     progress(`    [fetchInstrument] Found: ${docRef.documentType} — real URL: ${realDocUrl}`);
-    console.log(`[ClerkScraper] Instrument ${instrumentNumber}: found type=${docRef.documentType}, url=${realDocUrl}, grantors=${docRef.grantors.join(',')}`)
+    console.log(`[ClerkScraper] Instrument ${instrumentNumber}: found type=${docRef.documentType}, url=${realDocUrl}, grantors=[${docRef.grantors.join(',')}], grantees=[${docRef.grantees.join(',')}]`);
+
+    // ── Pre-download owner validation ──
+    // If we know the expected owner, verify the instrument's parties match
+    // BEFORE downloading potentially 20+ page images (~2 min each).
+    // This catches unrelated instruments from neighboring GIS parcels.
+    if (expectedOwnerName && (docRef.grantors.length > 0 || docRef.grantees.length > 0)) {
+      const targetOwner = expectedOwnerName.toUpperCase().replace(/[,.\-]/g, ' ').replace(/\s+/g, ' ').trim();
+      const allParties = [...docRef.grantors, ...docRef.grantees].map(p =>
+        p.toUpperCase().replace(/[,.\-]/g, ' ').replace(/\s+/g, ' ').trim()
+      );
+      const ownerWords = targetOwner.split(' ').filter(w => w.length > 2);
+      // Check if any significant word from the target owner appears in any party
+      const matchesOwner = ownerWords.some(word =>
+        allParties.some(party => party.includes(word))
+      );
+
+      if (!matchesOwner) {
+        progress(`    [fetchInstrument] ⚠ OWNER MISMATCH — skipping page download`);
+        progress(`    [fetchInstrument]   Expected: "${expectedOwnerName}"`);
+        progress(`    [fetchInstrument]   Found: grantors=[${docRef.grantors.join(', ')}], grantees=[${docRef.grantees.join(', ')}]`);
+        console.log(`[ClerkScraper] PRE-FILTER SKIP: Instrument ${instrumentNumber} parties [${allParties.join('; ')}] do not match owner "${expectedOwnerName}"`);
+        // Return metadata-only record (no page images) so it's logged but not analyzed
+        return {
+          instrumentNumber,
+          volume: docRef.volume ?? null,
+          page: docRef.page ?? null,
+          recordingDate: docRef.recordingDate ?? null,
+          documentType: docRef.documentType ?? 'Unknown',
+          grantor: docRef.grantors[0] ?? null,
+          grantee: docRef.grantees[0] ?? null,
+          legalDescription: null,
+          pageImages: [], // No images — skipped due to owner mismatch
+          sourceUrl: realDocUrl,
+          relevanceScore: 0, // Mark as irrelevant
+        };
+      }
+      progress(`    [fetchInstrument] ✓ Owner match confirmed in parties`);
+    }
 
     // Capture page images if requested
     let pageImages: string[] = [];
@@ -495,13 +558,13 @@ async function searchClerkBySubdivision(
     const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(subdivisionName)}`;
     urlsVisited.push(searchUrl);
 
-    const { platInstruments, deedInstruments, allDocuments } = await searchBellClerkOwnerForPlatDeed(
+    const { platInstruments, deedInstruments, otherInstruments, allDocuments } = await searchBellClerkOwnerForPlatDeed(
       subdivisionName,
       logger,
     );
 
-    progress(`  [subdivSearch] "${subdivisionName}": ${allDocuments.length} docs total, ${platInstruments.length} plats, ${deedInstruments.length} deeds`);
-    console.log(`[ClerkScraper] Subdivision "${subdivisionName}": ${allDocuments.length} docs, plats=[${platInstruments.join(',')}], deeds=[${deedInstruments.join(',')}]`);
+    progress(`  [subdivSearch] "${subdivisionName}": ${allDocuments.length} docs total, ${platInstruments.length} plats, ${deedInstruments.length} deeds, ${otherInstruments.length} other`);
+    console.log(`[ClerkScraper] Subdivision "${subdivisionName}": ${allDocuments.length} docs, plats=[${platInstruments.join(',')}], deeds=[${deedInstruments.join(',')}], other=[${otherInstruments.join(',')}]`);
 
     // Helper: look up the REAL URL from allDocuments by instrument number
     // Only fall back to constructed URL if absolutely no real URL is available
@@ -581,6 +644,41 @@ async function searchClerkBySubdivision(
         pageImages,
         sourceUrl: getDocUrl(instrNum),
         relevanceScore: getDocumentRelevance(ref?.documentType ?? 'WARRANTY DEED'),
+      });
+    }
+
+    // Process other instruments (easements, dedications, ROW, agreements, etc.)
+    for (const instrNum of otherInstruments) {
+      let pageImages: string[] = [];
+      if (captureImages) {
+        try {
+          const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
+          const otherDocType = ref?.documentType ?? 'Other Document';
+          progress(`  [subdivSearch] Capturing ${otherDocType} pages for ${instrNum}...`);
+          const pages = await fetchDocumentImages(instrNum, 10, logger);
+          pageImages = pages.map(p => p.imageBase64).filter(Boolean);
+          progress(`  [subdivSearch] ✓ ${otherDocType} ${instrNum}: ${pageImages.length} pages captured`);
+          console.log(`[ClerkScraper] Subdivision ${otherDocType} ${instrNum}: ${pageImages.length} pages`);
+        } catch (imgErr) {
+          const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
+          progress(`  [subdivSearch] ✗ Other ${instrNum}: image capture failed: ${msg}`);
+          console.error(`[ClerkScraper] Subdivision other ${instrNum}: image error: ${msg}`);
+        }
+      }
+
+      const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
+      documents.push({
+        instrumentNumber: instrNum,
+        volume: ref?.volume ?? null,
+        page: ref?.page ?? null,
+        recordingDate: ref?.recordingDate ?? null,
+        documentType: ref?.documentType ?? 'OTHER',
+        grantor: ref?.grantors?.[0] ?? null,
+        grantee: ref?.grantees?.[0] ?? null,
+        legalDescription: null,
+        pageImages,
+        sourceUrl: getDocUrl(instrNum),
+        relevanceScore: getDocumentRelevance(ref?.documentType ?? 'OTHER'),
       });
     }
 

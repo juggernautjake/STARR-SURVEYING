@@ -2745,6 +2745,74 @@ export async function fetchDocumentImages(
         } catch {
           // Expand is best-effort — not all viewers have it
         }
+
+        // ── Zoom to maximum resolution for clearer plat/deed scans ──
+        // The Kofile viewer fires different signed URLs at different zoom levels.
+        // Higher zoom = higher resolution source images. This is critical for
+        // plats where fine text, bearings, and lot dimensions must be legible.
+        try {
+          const urlsBefore = imageUrls.length;
+          // Strategy 1: Use zoom dropdown to select highest available zoom
+          const zoomMaxed = await page.evaluate(() => {
+            const zoomSelect = document.querySelector(
+              'select[class*="zoom"], select[aria-label*="zoom" i], select[title*="zoom" i]'
+            ) as HTMLSelectElement | null;
+            if (zoomSelect) {
+              const options = Array.from(zoomSelect.options);
+              const maxZoom = options.reduce((max, opt) => {
+                const val = parseInt(opt.value, 10);
+                return val > max ? val : max;
+              }, 0);
+              if (maxZoom > 0) {
+                zoomSelect.value = String(maxZoom);
+                zoomSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                return `dropdown-${maxZoom}`;
+              }
+            }
+            return null;
+          });
+
+          if (zoomMaxed) {
+            await page.waitForTimeout(2000);
+            logger.info('2D-IMG', `Zoomed via ${zoomMaxed} — ${imageUrls.length - urlsBefore} new URL(s)`);
+          } else {
+            // Strategy 2: Click zoom-in button multiple times
+            const zoomInSelectors = [
+              '[aria-label*="zoom in" i]', '[title*="zoom in" i]',
+              'button[title*="Zoom In" i]', '.zoom-in', '#zoomIn',
+              '[class*="zoom-in"]', 'img[alt*="Zoom In" i]',
+              // Kofile-specific: the "+" button in the toolbar
+              'button:has(img[alt*="Zoom"])',
+            ];
+            let zoomClicked = false;
+            for (const sel of zoomInSelectors) {
+              const btn = page.locator(sel).first();
+              if (await btn.count() > 0) {
+                // Click zoom-in 5 times for maximum resolution
+                for (let i = 0; i < 5; i++) {
+                  await btn.click();
+                  await page.waitForTimeout(300);
+                }
+                zoomClicked = true;
+                logger.info('2D-IMG', `Zoomed in 5x via ${sel}`);
+                break;
+              }
+            }
+            if (zoomClicked) {
+              await page.waitForTimeout(2000);
+              logger.info('2D-IMG', `After zoom-in: ${imageUrls.length - urlsBefore} new URL(s) intercepted`);
+            }
+          }
+
+          // If zoom produced new URLs, prefer the LAST one (highest resolution)
+          // Discard pre-zoom lower-resolution URLs
+          if (imageUrls.length > urlsBefore) {
+            const preZoomCount = urlsBefore;
+            logger.info('2D-IMG', `Zoom produced higher-res URLs — will use post-zoom URL for page 1 (${imageUrls.length} total, ${preZoomCount} pre-zoom)`);
+          }
+        } catch (zoomErr: any) {
+          logger.info('2D-IMG', `Zoom attempt skipped: ${zoomErr.message?.substring(0, 80) ?? 'unknown'}`);
+        }
       } catch (e: any) {
         logger.warn('2D-IMG', `Search+click: could not click result row: ${e.message}`);
       }
@@ -2799,12 +2867,14 @@ export async function fetchDocumentImages(
       return false;
     };
 
-    // Download page 1 — use imageUrls[0] (the first intercepted URL).
-    // The Kofile viewer fires page 1's signed URL first when loading the document;
-    // using the last captured URL risks picking a pre-loaded later page if the viewer
-    // loads multiple images at once. This matches the proven grab-docs.js approach.
+    // Download page 1 — prefer the LAST intercepted URL, which is typically the
+    // highest resolution version after zoom. If zoom was applied, the viewer fires
+    // a new signed URL at the higher resolution; the first URL is the lower-res default.
+    // If zoom was NOT applied, imageUrls[0] === imageUrls[last], so this is safe.
     if (imageUrls.length > 0) {
-      await downloadPage(imageUrls[0], 1);  // first intercepted URL = page 1 (viewer fires page 1 first)
+      const page1Url = imageUrls[imageUrls.length - 1]; // Last URL = highest-res (post-zoom)
+      logger.info('2D-IMG', `Page 1: using URL index ${imageUrls.length - 1} of ${imageUrls.length} (${imageUrls.length > 1 ? 'post-zoom highest-res' : 'only URL'})`);
+      await downloadPage(page1Url, 1);
     } else {
       logger.warn('2D-IMG', `No signed image URLs captured for instrument ${instrumentNumber} — no pages to download`);
     }
@@ -2846,7 +2916,8 @@ export async function fetchDocumentImages(
       } else if (imageUrls.length > 0) {
         // No new URL intercepted — try constructing the URL from the page-1 seed.
         // Handles cases where viewer reuses auth tokens and only the page number changes.
-        const seedUrl = imageUrls[0];
+        // Use the last URL (post-zoom, highest resolution) as the seed.
+        const seedUrl = imageUrls[imageUrls.length - 1];
         const constructedUrl = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_${pageNum}.$1`);
         if (constructedUrl !== seedUrl) {
           logger.info('2D-IMG', `Page ${pageNum}: no new URL intercepted — trying constructed URL`);
@@ -3125,7 +3196,10 @@ async function _extractSearchResults(
     } catch { /* skip row */ }
   }
 
-  return documents.filter(d => /deed|warranty|plat|conveyance/i.test(d.documentType));
+  return documents.filter(d =>
+    /deed|warranty|plat|conveyance|easement|dedication|right.of.way|agreement|release|lien|assignment|affidavit|resolution|order|judgment|permit|survey|restriction|covenant|notice|map|amendment|vacate|annex|partition|right-of-way/i
+      .test(d.documentType),
+  );
 }
 
 /**
@@ -3164,6 +3238,7 @@ export async function searchBellClerkOwnerForPlatDeed(
 ): Promise<{
   platInstruments: string[];
   deedInstruments: string[];
+  otherInstruments: string[];
   allDocuments: DocumentRef[];
 }> {
   const bellBaseUrl = getKofileBaseUrl('bell') || 'https://bell.tx.publicsearch.us';
@@ -3230,9 +3305,10 @@ export async function searchBellClerkOwnerForPlatDeed(
       }
     }
 
-    // Categorise instruments: plat documents vs deed documents
+    // Categorise instruments: plat, deed, or other document types
     const platInstruments: string[] = [];
     const deedInstruments: string[] = [];
+    const otherInstruments: string[] = [];
 
     for (const doc of allDocuments) {
       if (!doc.instrumentNumber) continue;
@@ -3244,6 +3320,9 @@ export async function searchBellClerkOwnerForPlatDeed(
         !dt.includes('deed of trust')
       ) {
         deedInstruments.push(doc.instrumentNumber);
+      } else {
+        // Easements, dedications, ROW, agreements, liens, etc.
+        otherInstruments.push(doc.instrumentNumber);
       }
     }
 
@@ -3253,23 +3332,24 @@ export async function searchBellClerkOwnerForPlatDeed(
       'Stage2B',
       `"${ownerOrSubdivisionName}": ${allDocuments.length} docs — ` +
       `plats: [${platInstruments.join(', ') || 'none'}], ` +
-      `deeds: [${deedInstruments.join(', ') || 'none'}]`,
+      `deeds: [${deedInstruments.join(', ') || 'none'}], ` +
+      `other: [${otherInstruments.join(', ') || 'none'}]`,
     );
 
     if (allDocuments.length > 0) {
       attempt.success(
         allDocuments.length,
-        `${platInstruments.length} plat(s), ${deedInstruments.length} deed(s)`,
+        `${platInstruments.length} plat(s), ${deedInstruments.length} deed(s), ${otherInstruments.length} other`,
       );
     } else {
-      attempt.fail('No plat or deed records found');
+      attempt.fail('No records found');
     }
 
-    return { platInstruments, deedInstruments, allDocuments };
+    return { platInstruments, deedInstruments, otherInstruments, allDocuments };
   } catch (err: any) {
     logger.error('Stage2B', 'searchBellPlatDeeds failed', err);
     attempt.fail(err.message);
-    return { platInstruments: [], deedInstruments: [], allDocuments: [] };
+    return { platInstruments: [], deedInstruments: [], otherInstruments: [], allDocuments: [] };
   } finally {
     await safeCloseBrowser(browser, logger, 'Stage2B');
     browser = null;
