@@ -107,9 +107,25 @@ export async function correlateTargetLot(
     }
   }
 
+  // ── Strategy 3.5: Fetch Google Maps location image ────────────
+  // Captures satellite + street view with a pin at the geocoded address.
+  // This gives the AI a real-world reference for WHERE the address is,
+  // so it can match the pin to the correct lot on the plat.
+  let googleMapsImages: { satellite: string | null; street: string | null } = { satellite: null, street: null };
+  if (input.lat && input.lon) {
+    try {
+      onProgress('Fetching Google Maps location images for address pin...');
+      googleMapsImages = await fetchGoogleMapsLocationImage(
+        input.lat, input.lon, input.situsAddress, onProgress,
+      );
+    } catch (err) {
+      onProgress(`⚠ Google Maps image fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   // ── Strategy 4: Visual AI correlation ──────────────────────────
   if (anthropicApiKey && platImages.length > 0) {
-    onProgress('Running AI visual correlation: plat image + parcel map...');
+    onProgress('Running AI visual correlation: plat image + parcel map + Google Maps pin...');
     try {
       const aiResult = await aiLotCorrelation(
         input,
@@ -118,6 +134,7 @@ export async function correlateTargetLot(
         platAnalysis,
         parcelMapImage,
         neighborContext,
+        googleMapsImages,
         anthropicApiKey,
       );
       onProgress(`✓ AI lot correlation: ${aiResult.identifiedLot ? `Lot ${aiResult.identifiedLot}` : 'could not determine'} (${aiResult.confidence}% confidence) — ${aiResult.reasoning}`);
@@ -384,18 +401,41 @@ async function aiLotCorrelation(
   platAnalysis: { lotDimensions?: string[]; narrative?: string } | null,
   parcelMapImage: string | null,
   neighborContext: string,
+  googleMapsImages: { satellite: string | null; street: string | null },
   apiKey: string,
 ): Promise<LotCorrelationResult> {
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic({ apiKey });
 
-  // Build image content
+  // Build image content — ORDER MATTERS for AI reasoning:
+  // 1. Google Maps satellite (real-world aerial with pin showing exact address location)
+  // 2. Google Maps street/roadmap (road layout with pin)
+  // 3. Plat image(s) (the recorded plat to match against)
+  // 4. Generated parcel map (GIS polygon overlay)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const imageContent: any[] = [];
+  const imageLabels: string[] = [];
+
+  // Add Google Maps satellite image with address pin (most important for location)
+  if (googleMapsImages.satellite) {
+    imageContent.push({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/png' as const, data: googleMapsImages.satellite },
+    });
+    imageLabels.push('IMAGE A: Google Maps SATELLITE view with red pin at the geocoded address');
+  }
+
+  // Add Google Maps roadmap image with address pin
+  if (googleMapsImages.street) {
+    imageContent.push({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/png' as const, data: googleMapsImages.street },
+    });
+    imageLabels.push('IMAGE B: Google Maps ROADMAP view with red pin at the geocoded address');
+  }
 
   // Add plat image(s)
   for (const img of platImages.slice(0, 2)) {
-    // Resize if needed
     let imgData = img;
     let mediaType: 'image/png' | 'image/jpeg' = 'image/png';
     try {
@@ -417,6 +457,7 @@ async function aiLotCorrelation(
       type: 'image',
       source: { type: 'base64', media_type: mediaType, data: imgData },
     });
+    imageLabels.push(`IMAGE ${String.fromCharCode(65 + imageLabels.length)}: Recorded plat drawing`);
   }
 
   // Add parcel map if available
@@ -425,18 +466,24 @@ async function aiLotCorrelation(
       type: 'image',
       source: { type: 'base64', media_type: 'image/png' as const, data: parcelMapImage },
     });
+    imageLabels.push(`IMAGE ${String.fromCharCode(65 + imageLabels.length)}: Generated GIS parcel boundary map`);
   }
 
   // Parse street number from situs address for frontage matching
   const streetNumber = input.situsAddress?.match(/^(\d+)\s/)?.[1] ?? null;
   const streetName = input.situsAddress?.replace(/^\d+\s+/, '').replace(/,.*$/, '') ?? null;
 
+  const hasGoogleImages = googleMapsImages.satellite || googleMapsImages.street;
+
   const prompt = `You are an expert property surveyor in Bell County, Texas. Your task is to identify EXACTLY which specific lot on this plat corresponds to the target property. Getting the wrong lot is a serious error — be precise.
+
+IMAGES PROVIDED (in order):
+${imageLabels.map(l => `  - ${l}`).join('\n')}
 
 TARGET PROPERTY:
 - Property ID: ${input.propertyId ?? 'unknown'}
 - Owner: ${input.ownerName ?? 'unknown'}
-- Situs Address: ${input.situsAddress ?? 'unknown'}${streetNumber ? `\n  → Street Number: ${streetNumber} (look for this number on the plat or determine which lot has this address based on lot numbering patterns)` : ''}${streetName ? `\n  → Street Name: "${streetName}" (the lot must front on or be accessed from this street)` : ''}
+- Situs Address: ${input.situsAddress ?? 'unknown'}${streetNumber ? `\n  → Street Number: ${streetNumber}` : ''}${streetName ? `\n  → Street Name: "${streetName}"` : ''}
 - Lot: ${input.lotNumber ?? 'unknown'}, Block: ${input.blockNumber ?? 'unknown'}
 - Subdivision: ${input.subdivisionName ?? 'unknown'}
 - Acreage: ${input.acreage ?? 'unknown'}
@@ -447,34 +494,42 @@ ${platAnalysis?.narrative ? `Plat narrative: ${platAnalysis.narrative}` : ''}
 ${platAnalysis?.lotDimensions?.length ? `Lot dimensions from AI analysis:\n${platAnalysis.lotDimensions.map(d => `  - ${d}`).join('\n')}` : ''}
 ${neighborContext}
 
-${parcelMapImage ? 'I have included the plat image(s) AND a generated map showing the target parcel boundary from GIS coordinates (red outline with label). Use the parcel shape, size, and position to match it to a lot on the plat.' : 'I have included the plat image(s). Use ALL available data to identify the target lot.'}
+${hasGoogleImages ? `CRITICAL — GOOGLE MAPS PIN LOCATION MATCHING:
+The Google Maps satellite/street images show a RED PIN at the geocoded address (${input.situsAddress ?? '?'}). This pin shows you the REAL-WORLD location of the property.
 
-CRITICAL: Determine which lot on this plat is the target property using this priority order:
+Follow this procedure step by step:
+1. ORIENT: Identify road names on both the Google Maps image and the plat. Note which direction is north on each. The plat may need to be mentally rotated to match the Google Maps orientation.
+2. LOCATE PIN: Note the red pin's position relative to roads and intersections on the Google Maps image. What roads does it front on? Where is it relative to the nearest intersection?
+3. MATCH ROADS: Find the same roads on the plat drawing. Match the road layout (intersections, curves, road names).
+4. FIND LOT: The lot under/nearest the pin in the Google Maps image corresponds to a specific lot on the plat. Trace from the pin position through the road network to identify which lot on the plat occupies that same position.
+5. VERIFY: Confirm with acreage, shape, and any visible building footprints.
 
-1. **ADDRESS MATCHING (highest priority)**:
-   - If the plat shows street addresses or lot addresses, match the target address "${input.situsAddress ?? '?'}" directly.
-   - If addresses aren't shown, determine which lot FACES the street "${streetName ?? '?'}". Lots on a plat are typically numbered sequentially along a street — if address ${streetNumber ?? '?'} is between addresses of neighboring lots, it's likely the lot in that position.
-   - Consider the address numbering pattern: odd numbers on one side, even on the other. ${streetNumber ? `Address ${streetNumber} is ${parseInt(streetNumber) % 2 === 0 ? 'even (typically south/west side)' : 'odd (typically north/east side)'}.` : ''}
+IMPORTANT: The plat is likely rotated relative to the Google Maps view. You MUST orient the plat to match before making your determination. Look at the north arrow on the plat, road labels, and the shape of the road network to establish the correct orientation.` : `I have included the plat image(s)${parcelMapImage ? ' AND a generated map showing the target parcel boundary from GIS coordinates' : ''}. Use ALL available data to identify the target lot.`}
 
-2. **PROPERTY ID MATCHING**:
-   - Property ID "${input.propertyId ?? '?'}" from Bell CAD often encodes lot information. Look for this ID or its lot portion on the plat.
+Determine which lot on this plat is the target property using this priority order:
 
-3. **LOT NUMBER MATCHING**:
-   - CAD/GIS indicates Lot ${input.lotNumber ?? '?'}. Verify this matches by checking acreage and position, not just the number.
-   - WARNING: The CAD lot number may not always match the plat lot number if the subdivision was replatted or lots were renumbered.
+1. **GOOGLE MAPS PIN LOCATION (highest priority when available)**:
+   - The red pin on the satellite/street image shows WHERE the address physically is.
+   - Match this position to the plat by aligning road networks between the images.
+   - This is the most reliable signal because it's based on geocoded coordinates.
 
-4. **ACREAGE MATCHING**:
-   - Target property is ${input.acreage ?? '?'} acres. Compare to each lot's area shown on the plat.
+2. **SPATIAL/SHAPE MATCHING**:
+   - Compare parcel shapes on Google Maps aerial to lot shapes on the plat.
+   - Match building footprints visible on both images.
+   - Compare the lot's position relative to road intersections.
+
+3. **ACREAGE MATCHING**:
+   - Target property is ${input.acreage ?? '?'} acres. Compare to each lot's area on the plat.
    - If only one lot has this acreage, that's a strong signal.
 
-5. **SPATIAL POSITION**:
-   - If the parcel map is provided, compare the target parcel shape and position to lots on the plat.
-   - Consider relative position within the subdivision (corner lot, interior lot, cul-de-sac).
+4. **LOT NUMBER MATCHING**:
+   - CAD/GIS indicates Lot ${input.lotNumber ?? '?'}. Verify this matches by checking acreage and position, not just the number.
+   - WARNING: The CAD lot number may not always match the plat if the subdivision was replatted.
 
-6. **OWNER NAME**:
-   - Check if "${input.ownerName ?? '?'}" appears on the plat or in adjacent references.
+5. **ADDRESS / OWNER NAME**:
+   - Check for "${input.situsAddress ?? '?'}" or "${input.ownerName ?? '?'}" on the plat.
 
-IMPORTANT: Do NOT simply default to the CAD lot number. Verify it using at least 2 independent signals (address, acreage, position, etc.). If the evidence suggests a DIFFERENT lot than the CAD record says, report the lot the evidence supports and explain the discrepancy.
+IMPORTANT: Do NOT simply default to the CAD lot number. Verify it using at least 2 independent signals. If the evidence suggests a DIFFERENT lot than the CAD record says, report the lot the evidence supports and explain the discrepancy.
 
 Respond in JSON:
 {
@@ -526,6 +581,201 @@ Respond in JSON:
     parcelMapImage: null,
     aiUsage: callUsage,
   };
+}
+
+// ── Google Maps Location Image ───────────────────────────────────────
+
+/**
+ * Normalize an address into the format Google Maps handles best.
+ * Google is good with Texas road formats, but we ensure consistency:
+ *   "3779 W FM 436, Belton, TX 76513" → "3779 W FM 436, Belton, TX 76513"
+ *   "3779 w fm 436 belton tx"         → "3779 W FM 436, Belton, TX"
+ *
+ * Also handles common variant issues:
+ *   - "FM436" (no space) → "FM 436"
+ *   - "Farm to Market 436" → "FM 436"
+ *   - "F.M. 436" → "FM 436"
+ *   - Missing commas between city/state
+ */
+function normalizeAddressForGoogleMaps(address: string): string {
+  let normalized = address.trim();
+
+  // Expand abbreviated/collapsed road types
+  // "FM436" → "FM 436", "CR142" → "CR 142"
+  normalized = normalized.replace(/\b(FM|CR|SH|US|IH|RR|RM|PR|HWY)(\d)/gi, '$1 $2');
+
+  // "F.M." → "FM", "C.R." → "CR", "S.H." → "SH"
+  normalized = normalized.replace(/\bF\.?\s*M\.?\s*/gi, 'FM ');
+  normalized = normalized.replace(/\bC\.?\s*R\.?\s*/gi, 'CR ');
+  normalized = normalized.replace(/\bS\.?\s*H\.?\s*/gi, 'SH ');
+  normalized = normalized.replace(/\bR\.?\s*R\.?\s*/gi, 'RR ');
+  normalized = normalized.replace(/\bR\.?\s*M\.?\s*/gi, 'RM ');
+  normalized = normalized.replace(/\bI\.?\s*H\.?\s*/gi, 'IH ');
+
+  // "Farm to Market Road 436" / "Farm-to-Market 436" → "FM 436"
+  normalized = normalized.replace(/\bFarm[\s-]+to[\s-]+Market(?:\s+(?:Road|Rd))?\s*/gi, 'FM ');
+  // "Ranch to Market Road" → "RM"
+  normalized = normalized.replace(/\bRanch[\s-]+to[\s-]+Market(?:\s+(?:Road|Rd))?\s*/gi, 'RM ');
+  // "Ranch Road" → "RR"
+  normalized = normalized.replace(/\bRanch\s+(?:Road|Rd)\s*/gi, 'RR ');
+  // "County Road" → "CR"
+  normalized = normalized.replace(/\bCounty\s+(?:Road|Rd)\s*/gi, 'CR ');
+  // "State Highway" → "SH"
+  normalized = normalized.replace(/\bState\s+(?:Highway|Hwy)\s*/gi, 'SH ');
+  // "Interstate" → "IH"
+  normalized = normalized.replace(/\bInterstate(?:\s+Highway)?\s*/gi, 'IH ');
+
+  // Normalize directional abbreviations
+  normalized = normalized.replace(/\bNorth\b/gi, 'N');
+  normalized = normalized.replace(/\bSouth\b/gi, 'S');
+  normalized = normalized.replace(/\bEast\b/gi, 'E');
+  normalized = normalized.replace(/\bWest\b/gi, 'W');
+  normalized = normalized.replace(/\bNortheast\b/gi, 'NE');
+  normalized = normalized.replace(/\bNorthwest\b/gi, 'NW');
+  normalized = normalized.replace(/\bSoutheast\b/gi, 'SE');
+  normalized = normalized.replace(/\bSouthwest\b/gi, 'SW');
+
+  // Normalize whitespace
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+
+  // Ensure comma between street and city if missing
+  // Pattern: "436 Belton" or "436 BELTON" where a city name follows the street
+  // This is a best-effort heuristic — only add comma if no comma exists
+  if (!normalized.includes(',')) {
+    // Try to insert comma before Texas city names
+    const txCities = /\b(Belton|Temple|Killeen|Salado|Nolanville|Troy|Holland|Rogers|Moody|Harker Heights|Copperas Cove|Georgetown|Round Rock|Austin|Waco|Bryan|College Station)\b/i;
+    const cityMatch = normalized.match(txCities);
+    if (cityMatch && cityMatch.index) {
+      const beforeCity = normalized.substring(0, cityMatch.index).trimEnd();
+      const afterCity = normalized.substring(cityMatch.index);
+      // Only add comma if the part before the city looks like a street address
+      if (/\d/.test(beforeCity)) {
+        normalized = `${beforeCity}, ${afterCity}`;
+      }
+    }
+  }
+
+  // Ensure state abbreviation after city if missing
+  if (normalized.includes(',') && !/\bTX\b/i.test(normalized) && !/\bTexas\b/i.test(normalized)) {
+    normalized = normalized.replace(/,\s*$/, '') + ', TX';
+  }
+
+  return normalized;
+}
+
+/**
+ * Fetch Google Maps Static API images with address pin for location verification.
+ *
+ * Pin placement strategy (critical for accuracy):
+ *   1. PRIMARY: Use the address string as the marker location. Google's geocoder
+ *      handles Texas road formats (FM, CR, SH) natively and places the pin at
+ *      the rooftop/parcel-level, not just the road centerline.
+ *   2. FALLBACK: Use lat/lon coordinates if no address is available.
+ *   3. CENTER: Always use lat/lon for map centering (guarantees correct area
+ *      even if address geocoding is slightly off).
+ *
+ * This approach is more reliable than using our Census/Nominatim geocoded
+ * coordinates for the pin because:
+ *   - Google has the best address database (especially for rural TX addresses)
+ *   - Google handles "3779 FM 436" and "3779 FM436" and "3779 W FM 436" equivalently
+ *   - Census geocoder sometimes returns road centerline, not lot-level precision
+ */
+async function fetchGoogleMapsLocationImage(
+  lat: number,
+  lon: number,
+  address: string | null,
+  onProgress: (msg: string) => void,
+): Promise<{ satellite: string | null; street: string | null }> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    onProgress('⚠ Google Maps API key not configured — skipping location image capture');
+    return { satellite: null, street: null };
+  }
+
+  // Normalize the address for Google Maps if available
+  const normalizedAddress = address ? normalizeAddressForGoogleMaps(address) : null;
+  if (normalizedAddress) {
+    onProgress(`Google Maps pin address: "${normalizedAddress}"${normalizedAddress !== address ? ` (normalized from "${address}")` : ''}`);
+  }
+
+  // Build marker parameter: prefer address-based (Google geocodes the pin)
+  // over coordinate-based (uses our potentially imprecise geocoding).
+  // Google's geocoder handles "FM 436", "CR 101", etc. natively.
+  const markerLocation = normalizedAddress
+    ? encodeURIComponent(normalizedAddress)
+    : `${lat},${lon}`;
+  const markerParam = `color:red|label:P|${markerLocation}`;
+
+  const results: { satellite: string | null; street: string | null } = { satellite: null, street: null };
+
+  for (const maptype of ['satellite', 'roadmap'] as const) {
+    const zoom = maptype === 'satellite' ? 19 : 18;
+    const label = maptype === 'satellite' ? 'satellite' : 'street';
+
+    const params = new URLSearchParams({
+      // Center on our geocoded coordinates (guarantees correct general area)
+      center: `${lat},${lon}`,
+      zoom: String(zoom),
+      size: '1280x960',
+      maptype,
+      // Pin placed by Google's geocoder using the address string
+      markers: markerParam,
+      key: apiKey,
+      scale: '2',
+    });
+    const url = `https://maps.googleapis.com/maps/api/staticmap?${params}`;
+
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      if (resp.ok) {
+        const buf = Buffer.from(await resp.arrayBuffer());
+        // Sanity check: Google Maps returns a small error tile (~5 KB) when
+        // the address can't be geocoded or the API key is invalid.
+        // Valid map images are typically 50-500 KB.
+        if (buf.length < 10_000) {
+          onProgress(`⚠ Google Maps ${label}: response too small (${buf.length} bytes) — may be an error tile`);
+          // Fall back to coordinate-based pin if address-based failed
+          if (normalizedAddress) {
+            onProgress(`  Retrying with coordinate-based pin...`);
+            const fallbackParams = new URLSearchParams({
+              center: `${lat},${lon}`,
+              zoom: String(zoom),
+              size: '1280x960',
+              maptype,
+              markers: `color:red|label:P|${lat},${lon}`,
+              key: apiKey,
+              scale: '2',
+            });
+            const fallbackResp = await fetch(
+              `https://maps.googleapis.com/maps/api/staticmap?${fallbackParams}`,
+              { signal: AbortSignal.timeout(15_000) },
+            );
+            if (fallbackResp.ok) {
+              const fallbackBuf = Buffer.from(await fallbackResp.arrayBuffer());
+              if (fallbackBuf.length >= 10_000) {
+                const b64 = fallbackBuf.toString('base64');
+                if (maptype === 'satellite') results.satellite = b64;
+                else results.street = b64;
+                onProgress(`✓ Google Maps ${label} captured via coordinate fallback (${(fallbackBuf.length / 1024).toFixed(0)} KB)`);
+                continue;
+              }
+            }
+          }
+        } else {
+          const b64 = buf.toString('base64');
+          if (maptype === 'satellite') results.satellite = b64;
+          else results.street = b64;
+          onProgress(`✓ Google Maps ${label} image captured (${(buf.length / 1024).toFixed(0)} KB)${normalizedAddress ? ' — pin placed by Google geocoder' : ''}`);
+        }
+      } else {
+        onProgress(`⚠ Google Maps ${label} failed: HTTP ${resp.status}`);
+      }
+    } catch (err) {
+      onProgress(`⚠ Google Maps ${label} failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  return results;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────

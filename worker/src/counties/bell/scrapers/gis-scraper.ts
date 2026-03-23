@@ -183,7 +183,7 @@ export async function scrapeBellGis(
 
     if (result && result.features.length > 0) {
       progress(`Found ${result.features.length} parcel(s) by spatial query`);
-      const sorted = rankFeaturesByAddress(result.features, input.address, progress);
+      const sorted = rankFeaturesByAddress(result.features, input.address, progress, { lat: input.lat, lon: input.lon });
       return buildResult(sorted, screenshots, urlsVisited);
     }
 
@@ -204,7 +204,7 @@ export async function scrapeBellGis(
 
     if (wideResult && wideResult.features.length > 0) {
       progress(`Found ${wideResult.features.length} parcel(s) with widened search`);
-      const sorted = rankFeaturesByAddress(wideResult.features, input.address, progress);
+      const sorted = rankFeaturesByAddress(wideResult.features, input.address, progress, { lat: input.lat, lon: input.lon });
       return buildResult(sorted, screenshots, urlsVisited);
     }
   }
@@ -328,41 +328,109 @@ async function queryLayer(
 // ── Internal: Rank Features by Address Match ─────────────────────────
 
 /**
+ * Ray-casting point-in-polygon test.
+ * Returns true if point (px, py) is inside the polygon defined by ring
+ * (array of [x, y] coordinate pairs).
+ */
+function pointInPolygon(px: number, py: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/**
+ * Compute the centroid of a polygon ring.
+ * Returns [lon, lat] — simple average of vertices.
+ */
+function polygonCentroid(ring: number[][]): [number, number] {
+  let sumX = 0, sumY = 0;
+  // Skip last point if it duplicates the first (closed ring)
+  const n = (ring.length > 1 &&
+    ring[0][0] === ring[ring.length - 1][0] &&
+    ring[0][1] === ring[ring.length - 1][1])
+    ? ring.length - 1
+    : ring.length;
+  for (let i = 0; i < n; i++) {
+    sumX += ring[i][0];
+    sumY += ring[i][1];
+  }
+  return [sumX / n, sumY / n];
+}
+
+/**
+ * Squared distance between two [lon, lat] points (for comparison only).
+ */
+function distSq(a: [number, number], b: [number, number]): number {
+  const dx = a[0] - b[0];
+  const dy = a[1] - b[1];
+  return dx * dx + dy * dy;
+}
+
+/**
  * When a spatial query returns multiple parcels, rank them by how well
- * their situs address matches the input address. The best match becomes
- * features[0] so buildResult picks the correct lot.
+ * their situs address matches the input address AND how close they are
+ * to the geocoded search point.
  *
- * Scoring: street number match (+10), street name words (+2 each),
- * direction match (+1). Without an input address, original order is kept.
+ * Scoring priority (highest to lowest):
+ *   1. Point-in-polygon: if the geocoded lat/lon falls INSIDE a parcel's
+ *      polygon, that parcel gets +50 (decisive win over address-only ties)
+ *   2. Street number match: +10 exact, +5 substring
+ *   3. Street name words: +2 each
+ *   4. Direction match: +1
+ *   5. Centroid proximity: tie-breaker — closer parcel wins
  */
 function rankFeaturesByAddress(
   features: ArcGisFeature[],
   inputAddress: string | undefined,
   progress: (msg: string) => void,
+  searchPoint?: { lat: number; lon: number },
 ): ArcGisFeature[] {
-  if (!inputAddress || features.length <= 1) return features;
+  if (features.length <= 1) return features;
 
-  const upper = inputAddress.toUpperCase().replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
-  const parts = upper.split(' ');
-
-  // Parse street number and direction from input
+  // Parse address components
   let inputNum: string | null = null;
-  let idx = 0;
-  if (/^\d+$/.test(parts[0])) { inputNum = parts[0]; idx = 1; }
-  const dirs = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW'];
   let inputDir: string | null = null;
-  if (idx < parts.length && dirs.includes(parts[idx])) { inputDir = parts[idx]; idx++; }
-  // Remaining words are the street name (strip city/state/zip from end)
-  const streetWords = parts.slice(idx).filter(w =>
-    w.length > 1 && !/^(TX|TEXAS|\d{5})$/.test(w) &&
-    !/^(BELTON|KILLEEN|TEMPLE|SALADO|NOLANVILLE|TROY|HOLLAND|ROGERS|MOODY)$/.test(w)
-  );
+  let streetWords: string[] = [];
+
+  if (inputAddress) {
+    const upper = inputAddress.toUpperCase().replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+    const parts = upper.split(' ');
+    let idx = 0;
+    if (/^\d+$/.test(parts[0])) { inputNum = parts[0]; idx = 1; }
+    const dirs = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW'];
+    if (idx < parts.length && dirs.includes(parts[idx])) { inputDir = parts[idx]; idx++; }
+    streetWords = parts.slice(idx).filter(w =>
+      w.length > 1 && !/^(TX|TEXAS|\d{5})$/.test(w) &&
+      !/^(BELTON|KILLEEN|TEMPLE|SALADO|NOLANVILLE|TROY|HOLLAND|ROGERS|MOODY)$/.test(w)
+    );
+  }
 
   const scored = features.map((feat, origIdx) => {
     const situs = composeSitusAddress(feat.attributes)?.toUpperCase() ?? '';
+    const pid = getField(feat.attributes, [...GIS_FIELD_MAP.propertyId]) ?? '?';
     let score = 0;
 
-    // Street number match (most critical for correct lot)
+    // ── Point-in-polygon: does the geocoded point fall inside this parcel?
+    // This is the STRONGEST signal — if the address geocodes to a point
+    // inside parcel 524312 but not 524311, 524312 must be the correct one.
+    let containsPoint = false;
+    if (searchPoint && feat.geometry?.rings) {
+      for (const ring of feat.geometry.rings) {
+        if (pointInPolygon(searchPoint.lon, searchPoint.lat, ring)) {
+          containsPoint = true;
+          score += 50;
+          break;
+        }
+      }
+    }
+
+    // ── Address scoring (same as before)
     if (inputNum) {
       const situsNum = getField(feat.attributes, [...GIS_FIELD_MAP.situsNumber]);
       if (situsNum === inputNum) {
@@ -371,28 +439,54 @@ function rankFeaturesByAddress(
         score += 5;
       }
     }
-
-    // Street name word match
     for (const word of streetWords) {
       if (situs.includes(word)) score += 2;
     }
-
-    // Direction match
     if (inputDir) {
       const situsPfx = getField(feat.attributes, [...GIS_FIELD_MAP.situsStreetPrefx])?.toUpperCase();
       if (situsPfx === inputDir || situs.includes(inputDir)) score += 1;
     }
 
-    return { feat, score, origIdx };
+    // Compute centroid distance for tie-breaking (lower = better)
+    let centroidDist = Infinity;
+    if (searchPoint && feat.geometry?.rings && feat.geometry.rings.length > 0) {
+      const centroid = polygonCentroid(feat.geometry.rings[0]);
+      centroidDist = distSq([searchPoint.lon, searchPoint.lat], centroid);
+    }
+
+    return { feat, score, origIdx, pid, containsPoint, centroidDist, situs };
   });
 
-  // Sort by score descending, break ties by original order
-  scored.sort((a, b) => b.score - a.score || a.origIdx - b.origIdx);
+  // Sort: score descending → centroid distance ascending → original order
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.centroidDist !== b.centroidDist) return a.centroidDist - b.centroidDist;
+    return a.origIdx - b.origIdx;
+  });
 
-  if (scored.length > 1 && scored[0].score > scored[1].score) {
-    const bestSitus = composeSitusAddress(scored[0].feat.attributes) ?? '?';
-    const bestPid = getField(scored[0].feat.attributes, [...GIS_FIELD_MAP.propertyId]) ?? '?';
-    progress(`Address match: selected parcel ${bestPid} (situs: "${bestSitus}", score: ${scored[0].score}) over ${scored.length - 1} other parcel(s)`);
+  // Log ranking details for debugging
+  if (scored.length > 1) {
+    const best = scored[0];
+    const runners = scored.slice(1);
+    const tiedOnAddress = runners.filter(r => r.score === best.score && !best.containsPoint);
+
+    if (best.containsPoint) {
+      progress(`Parcel selection: ${best.pid} contains geocoded point — selected with confidence (score: ${best.score})`);
+    } else if (tiedOnAddress.length > 0) {
+      progress(`Parcel selection: ${best.pid} selected by centroid proximity (score: ${best.score}, same as ${tiedOnAddress.map(t => t.pid).join(', ')})`);
+      progress(`  Note: multiple parcels share address — using closest centroid to geocoded point as tie-breaker`);
+    } else {
+      progress(`Address match: selected parcel ${best.pid} (situs: "${best.situs}", score: ${best.score}) over ${runners.length} other parcel(s)`);
+    }
+
+    // Log all candidates for transparency
+    for (const s of scored) {
+      const flags = [
+        s.containsPoint ? 'CONTAINS_POINT' : '',
+        `dist=${s.centroidDist < Infinity ? s.centroidDist.toFixed(8) : '?'}`,
+      ].filter(Boolean).join(', ');
+      progress(`  Parcel ${s.pid}: score=${s.score} [${flags}] situs="${s.situs}"`);
+    }
   }
 
   return scored.map(s => s.feat);

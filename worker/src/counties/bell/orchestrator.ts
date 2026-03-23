@@ -1502,50 +1502,94 @@ export async function orchestrateBellResearch(
 
 // ── Internal: Geocoding ──────────────────────────────────────────────
 
+/**
+ * Normalize a Texas address for geocoding. Geocoders handle standardized
+ * formats better — "FM 436" works but "FM436" or "F.M. 436" may not.
+ */
+function normalizeAddressForGeocoding(address: string): string {
+  let normalized = address.trim();
+  // "FM436" → "FM 436", "CR142" → "CR 142"
+  normalized = normalized.replace(/\b(FM|CR|SH|US|IH|RR|RM|PR|HWY)(\d)/gi, '$1 $2');
+  // "F.M." → "FM", "C.R." → "CR"
+  normalized = normalized.replace(/\bF\.?\s*M\.?\s*/gi, 'FM ');
+  normalized = normalized.replace(/\bC\.?\s*R\.?\s*/gi, 'CR ');
+  normalized = normalized.replace(/\bS\.?\s*H\.?\s*/gi, 'SH ');
+  // "Farm to Market Road 436" → "FM 436"
+  normalized = normalized.replace(/\bFarm[\s-]+to[\s-]+Market(?:\s+(?:Road|Rd))?\s*/gi, 'FM ');
+  normalized = normalized.replace(/\bRanch[\s-]+to[\s-]+Market(?:\s+(?:Road|Rd))?\s*/gi, 'RM ');
+  normalized = normalized.replace(/\bRanch\s+(?:Road|Rd)\s*/gi, 'RR ');
+  normalized = normalized.replace(/\bCounty\s+(?:Road|Rd)\s*/gi, 'CR ');
+  normalized = normalized.replace(/\bState\s+(?:Highway|Hwy)\s*/gi, 'SH ');
+  // Clean up extra whitespace
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+  return normalized;
+}
+
 async function geocodeAddress(address: string): Promise<{ lat: number; lon: number } | null> {
-  // Try Census geocoder first
-  try {
-    const params = new URLSearchParams({
-      address,
-      benchmark: 'Public_AR_Current',
-      format: 'json',
-    });
-    const url = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${params}`;
-    const resp = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (resp.ok) {
-      const data = await resp.json() as {
-        result?: { addressMatches?: Array<{ coordinates: { y: number; x: number } }> };
-      };
-      const match = data.result?.addressMatches?.[0];
-      if (match) {
-        return { lat: match.coordinates.y, lon: match.coordinates.x };
-      }
-    }
-  } catch (err) {
-    console.warn(`[orchestrator] Census geocoder failed for "${address}": ${err instanceof Error ? err.message : String(err)}`);
+  // Normalize address for better geocoding results
+  const normalizedAddress = normalizeAddressForGeocoding(address);
+  if (normalizedAddress !== address) {
+    console.log(`[orchestrator] Normalized address for geocoding: "${address}" → "${normalizedAddress}"`);
   }
 
-  // Nominatim fallback
-  try {
-    const params = new URLSearchParams({
-      q: address,
-      format: 'json',
-      limit: '1',
-      countrycodes: 'us',
-    });
-    const url = `https://nominatim.openstreetmap.org/search?${params}`;
-    const resp = await fetch(url, {
-      headers: { 'User-Agent': 'STARR-SURVEYING/1.0' },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (resp.ok) {
-      const data = await resp.json() as Array<{ lat: string; lon: string }>;
-      if (data.length > 0) {
-        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+  // Try multiple address variants with Census geocoder
+  const addressVariants = [normalizedAddress];
+  // If address has directional prefix, also try without it
+  // "3779 W FM 436" → also try "3779 FM 436" (some geocoders choke on directionals)
+  const withoutDir = normalizedAddress.replace(/^(\d+)\s+[NSEW]\s+/i, '$1 ');
+  if (withoutDir !== normalizedAddress) addressVariants.push(withoutDir);
+  // Also try original if different from normalized
+  if (address !== normalizedAddress) addressVariants.push(address);
+
+  // Try Census geocoder first (with variants)
+  for (const addrVariant of addressVariants) {
+    try {
+      const params = new URLSearchParams({
+        address: addrVariant,
+        benchmark: 'Public_AR_Current',
+        format: 'json',
+      });
+      const url = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${params}`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+      if (resp.ok) {
+        const data = await resp.json() as {
+          result?: { addressMatches?: Array<{ coordinates: { y: number; x: number }; matchedAddress?: string }> };
+        };
+        const match = data.result?.addressMatches?.[0];
+        if (match) {
+          console.log(`[orchestrator] Census geocoded "${addrVariant}" → ${match.coordinates.y.toFixed(5)}, ${match.coordinates.x.toFixed(5)} (matched: "${match.matchedAddress ?? '?'}")`);
+          return { lat: match.coordinates.y, lon: match.coordinates.x };
+        }
       }
+    } catch (err) {
+      console.warn(`[orchestrator] Census geocoder failed for "${addrVariant}": ${err instanceof Error ? err.message : String(err)}`);
     }
-  } catch (err) {
-    console.warn(`[orchestrator] Nominatim geocoder failed for "${address}": ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Nominatim fallback (also tries variants)
+  for (const addrVariant of addressVariants) {
+    try {
+      const params = new URLSearchParams({
+        q: addrVariant,
+        format: 'json',
+        limit: '1',
+        countrycodes: 'us',
+      });
+      const url = `https://nominatim.openstreetmap.org/search?${params}`;
+      const resp = await fetch(url, {
+        headers: { 'User-Agent': 'STARR-SURVEYING/1.0' },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (resp.ok) {
+        const data = await resp.json() as Array<{ lat: string; lon: string; display_name?: string }>;
+        if (data.length > 0) {
+          console.log(`[orchestrator] Nominatim geocoded "${addrVariant}" → ${data[0].lat}, ${data[0].lon} (display: "${data[0].display_name ?? '?'}")`);
+          return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+        }
+      }
+    } catch (err) {
+      console.warn(`[orchestrator] Nominatim geocoder failed for "${addrVariant}": ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   return null;
