@@ -423,12 +423,13 @@ export async function captureGisViewerScreenshots(
 
     // Navigate to each zoom level, re-centering on the parcel each time.
     //
-    // CRITICAL: We DON'T use incremental zoom (zoomIn/zoomOut) because it
-    // zooms from the VIEWPORT center, not the PARCEL center. This causes
-    // drift — each zoom level pushes the property further off-screen.
+    // Strategy: Try JS API view.goTo() first (centers + zooms in one call).
+    // If JS API is unavailable, fall back to incremental zoom (zoomIn/zoomOut).
+    // Incremental zoom operates from viewport center which may drift slightly,
+    // but it's far better than URL navigation which resets zoom entirely.
     //
-    // Instead, we use centerAndZoomToLevel() which re-centers on the parcel
-    // at each target level (via JS API or URL navigation with full reload).
+    // NOTE: URL navigation with hash params (#center, #level) is NOT used
+    // because Experience Builder ignores them, causing a reset to county level.
 
     for (const level of zoomLevels) {
       const specs = zoomGroups.get(level)!;
@@ -441,21 +442,24 @@ export async function captureGisViewerScreenshots(
 
         const centered = await centerAndZoomToLevel(page, input, level, progress);
         if (centered) {
-          logDetail('zoom', `✓ Centered on parcel at level ${level}`);
+          logDetail('zoom', `✓ Centered on parcel at level ${level} via JS API`);
           const verifiedZoom = await getCurrentZoomLevel(page);
           currentZoom = verifiedZoom ?? level;
         } else {
-          // Fallback: incremental zoom (may drift but better than skipping)
-          logDetail('zoom', `Center+zoom failed — falling back to incremental zoom`);
+          // Fallback: incremental zoom — preserves current zoom state
+          logDetail('zoom', `JS API unavailable — using incremental zoom (current=${currentZoom} → target=${level})`);
           const delta = currentZoom - level;
           if (delta > 0) {
+            progress(`  Zooming out ${delta} level(s) (${currentZoom} → ${level})...`);
             await zoomOut(page, delta);
           } else if (delta < 0) {
+            progress(`  Zooming in ${-delta} level(s) (${currentZoom} → ${level})...`);
             await zoomIn(page, -delta);
           }
           await page.waitForTimeout(MAP_SETTLE_WAIT);
           const verifiedZoom = await getCurrentZoomLevel(page);
           currentZoom = verifiedZoom ?? level;
+          logDetail('zoom', `Incremental zoom done — now at level ${currentZoom}`);
         }
       } else {
         logDetail('zoom-group', `Already at level ${level} (current=${currentZoom})`);
@@ -802,8 +806,10 @@ async function navigateToParcelAtLevel(
  *
  * Strategy cascade:
  *   1. JS API view.goTo({ center, zoom }) — fast, no reload
- *   2. URL navigation with cache-busting — forces full page reload
- *   3. Search widget re-search + incremental zoom — slow but reliable
+ *   2. Incremental zoom from current level — may drift slightly but
+ *      preserves the zoomed-in state (URL navigation is NOT used
+ *      because Experience Builder ignores hash params, causing a
+ *      reset to county-level zoom)
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function centerAndZoomToLevel(
@@ -858,17 +864,12 @@ async function centerAndZoomToLevel(
     await page.waitForTimeout(2000); // Let tiles settle
     return true;
   }
-  gisLog('center-zoom', 'JS API center+zoom failed — trying URL navigation');
+  gisLog('center-zoom', 'JS API center+zoom failed — returning false for incremental zoom fallback');
 
-  // Strategy 2: URL navigation with center+level (forces full page reload)
-  const urlWorked = await navigateToParcelAtLevel(page, input, targetLevel, progress);
-  if (urlWorked) {
-    gisLog('center-zoom', `URL navigation to level ${targetLevel} SUCCESS`);
-    return true;
-  }
-  gisLog('center-zoom', 'URL navigation failed — falling back to incremental zoom');
-
-  // Strategy 3: Fallback — incremental zoom (may drift, but better than nothing)
+  // DO NOT use URL navigation here — Experience Builder ignores URL hash
+  // params (#center, #level), so navigating via URL reloads the page at
+  // the default county-level zoom, losing all zoom progress. Instead,
+  // return false so the caller uses incremental zoom (zoomIn/zoomOut).
   return false;
 }
 
