@@ -495,13 +495,13 @@ async function searchClerkBySubdivision(
     const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(subdivisionName)}`;
     urlsVisited.push(searchUrl);
 
-    const { platInstruments, deedInstruments, allDocuments } = await searchBellClerkOwnerForPlatDeed(
+    const { platInstruments, deedInstruments, otherInstruments, allDocuments } = await searchBellClerkOwnerForPlatDeed(
       subdivisionName,
       logger,
     );
 
-    progress(`  [subdivSearch] "${subdivisionName}": ${allDocuments.length} docs total, ${platInstruments.length} plats, ${deedInstruments.length} deeds`);
-    console.log(`[ClerkScraper] Subdivision "${subdivisionName}": ${allDocuments.length} docs, plats=[${platInstruments.join(',')}], deeds=[${deedInstruments.join(',')}]`);
+    progress(`  [subdivSearch] "${subdivisionName}": ${allDocuments.length} docs total, ${platInstruments.length} plats, ${deedInstruments.length} deeds, ${otherInstruments.length} other`);
+    console.log(`[ClerkScraper] Subdivision "${subdivisionName}": ${allDocuments.length} docs, plats=[${platInstruments.join(',')}], deeds=[${deedInstruments.join(',')}], other=[${otherInstruments.join(',')}]`);
 
     // Helper: look up the REAL URL from allDocuments by instrument number
     // Only fall back to constructed URL if absolutely no real URL is available
@@ -581,6 +581,41 @@ async function searchClerkBySubdivision(
         pageImages,
         sourceUrl: getDocUrl(instrNum),
         relevanceScore: getDocumentRelevance(ref?.documentType ?? 'WARRANTY DEED'),
+      });
+    }
+
+    // Process other instruments (easements, dedications, ROW, agreements, etc.)
+    for (const instrNum of otherInstruments) {
+      let pageImages: string[] = [];
+      if (captureImages) {
+        try {
+          const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
+          const otherDocType = ref?.documentType ?? 'Other Document';
+          progress(`  [subdivSearch] Capturing ${otherDocType} pages for ${instrNum}...`);
+          const pages = await fetchDocumentImages(instrNum, 10, logger);
+          pageImages = pages.map(p => p.imageBase64).filter(Boolean);
+          progress(`  [subdivSearch] ✓ ${otherDocType} ${instrNum}: ${pageImages.length} pages captured`);
+          console.log(`[ClerkScraper] Subdivision ${otherDocType} ${instrNum}: ${pageImages.length} pages`);
+        } catch (imgErr) {
+          const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
+          progress(`  [subdivSearch] ✗ Other ${instrNum}: image capture failed: ${msg}`);
+          console.error(`[ClerkScraper] Subdivision other ${instrNum}: image error: ${msg}`);
+        }
+      }
+
+      const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
+      documents.push({
+        instrumentNumber: instrNum,
+        volume: ref?.volume ?? null,
+        page: ref?.page ?? null,
+        recordingDate: ref?.recordingDate ?? null,
+        documentType: ref?.documentType ?? 'OTHER',
+        grantor: ref?.grantors?.[0] ?? null,
+        grantee: ref?.grantees?.[0] ?? null,
+        legalDescription: null,
+        pageImages,
+        sourceUrl: getDocUrl(instrNum),
+        relevanceScore: getDocumentRelevance(ref?.documentType ?? 'OTHER'),
       });
     }
 

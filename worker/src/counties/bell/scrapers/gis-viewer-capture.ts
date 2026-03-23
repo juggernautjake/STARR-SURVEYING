@@ -303,14 +303,14 @@ export async function captureGisViewerScreenshots(
     }
 
     // ── Step 2: Zoom to the target parcel ────────────────────────
-    // Use absolute URL navigation for each screenshot to avoid cumulative zoom drift.
-    // The Bell County GIS viewer accepts #center=x,y&level=N hash params.
+    // URL hash params (#center=x,y&level=N) do NOT work on this Experience
+    // Builder instance — they are silently ignored. Instead, use the search
+    // widget to navigate (types the address, clicks the result), then use
+    // zoom buttons/keyboard/mouse wheel to fine-tune the zoom level.
     //
-    // Zoom level mapping (Bell County GIS / ArcGIS Experience Builder):
-    //   The Bell CAD GIS viewer uses very high zoom levels. From testing,
-    //   level 20 still shows ~1,000m scale (too far for lots). Levels need
-    //   to be much higher to see individual parcels and lot lines.
+    // The map stays loaded throughout the entire capture session — no reloads.
     //
+    // Zoom level reference (Bell County GIS / ArcGIS Experience Builder):
     //   26 = maximum detail (lot dimensions, building footprints)
     //   25 = lot-level detail with lot lines
     //   24 = target parcel with immediate neighbors
@@ -318,18 +318,31 @@ export async function captureGisViewerScreenshots(
     //   20 = neighborhood context
     //   18 = city/county context
 
-    // Pre-compute parcel centroid (used by navigateToParcelAtLevel)
-    if (input.parcelBoundary && input.parcelBoundary.length > 0) {
-      const ring = input.parcelBoundary[0];
-      let sumLon = 0, sumLat = 0;
-      for (const [lon, lat] of ring) { sumLon += lon; sumLat += lat; }
-      _parcelCenterLon = sumLon / ring.length;
-      _parcelCenterLat = sumLat / ring.length;
-      logDetail('zoom', `Parcel centroid computed: (${_parcelCenterLon.toFixed(4)}, ${_parcelCenterLat.toFixed(4)}) from ${ring.length}-point boundary`);
-    } else {
-      _parcelCenterLon = input.lon;
-      _parcelCenterLat = input.lat;
-      logDetail('zoom', `Using WGS84 coords as centroid: (${_parcelCenterLon}, ${_parcelCenterLat})`);
+    progress('Zooming to target parcel via search widget...');
+    const zoomStart = Date.now();
+    logDetail('zoom', '=== ZOOM STRATEGY: search widget → zoom buttons/keyboard ===');
+    logDetail('zoom', `Input: address="${input.situsAddress}", lat=${input.lat}, lon=${input.lon}, has_boundary=${!!input.parcelBoundary}`);
+
+    const parcelZoomed = await zoomToParcel(page, input, progress);
+    const zoomDurationMs = Date.now() - zoomStart;
+    logDetail('zoom', `Initial zoomToParcel() completed in ${zoomDurationMs}ms`, { success: parcelZoomed, duration_ms: zoomDurationMs });
+
+    if (!parcelZoomed) {
+      progress('⚠ Could not zoom to parcel — all strategies failed, capturing county-level view');
+      logDetail('zoom', '⚠ ALL ZOOM STRATEGIES FAILED — screenshots will show county-level view');
+    }
+
+    // Determine the current zoom level so we can compute deltas for the matrix
+    let currentZoom = await getCurrentZoomLevel(page);
+    logDetail('zoom', `Current zoom level after zoomToParcel: ${currentZoom ?? 'UNKNOWN (JS API inaccessible)'}`, {
+      zoom: currentZoom,
+      zoomed: parcelZoomed,
+    });
+
+    // If we couldn't determine zoom, assume we're at ~17 (search widget default)
+    if (currentZoom === null) {
+      currentZoom = 17;
+      logDetail('zoom', `Assuming zoom level ${currentZoom} (search widget default — JS API could not read actual level)`);
     }
 
     // ── Systematic Screenshot Matrix ──────────────────────────────
@@ -378,9 +391,10 @@ export async function captureGisViewerScreenshots(
       { id: '17', level: 22, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
     ];
 
-    // Group by zoom level so we only do a full page reload when level changes.
-    // Within each zoom level, we just toggle basemap/layers (no reload needed).
+    // Group by zoom level so we only zoom when the level changes.
     // Sort descending so we start at highest zoom (most detail) first.
+    // The map stays loaded — no page reloads. We use zoom buttons/keyboard
+    // to change zoom levels between groups.
     const sortedMatrix = [...captureMatrix].sort((a, b) => b.level - a.level);
 
     // Build zoom level groups
@@ -397,19 +411,46 @@ export async function captureGisViewerScreenshots(
       specs: sortedMatrix.map(s => `${s.id}:L${s.level}/${s.basemap}/P${s.parcels ? 1 : 0}L${s.lotLines ? 1 : 0}E${s.eagleView ? 1 : 0}`),
     });
 
+    // First, zoom in to the highest level (most detail)
+    const highestLevel = zoomLevels[0]; // e.g. 26
+    const zoomDelta = highestLevel - currentZoom;
+    if (zoomDelta > 0) {
+      logDetail('zoom', `=== Zooming IN ${zoomDelta} levels (from ${currentZoom} → ${highestLevel}) ===`);
+      progress(`Zooming in to level ${highestLevel} (${zoomDelta} clicks from current ${currentZoom})...`);
+      await zoomIn(page, zoomDelta);
+      await page.waitForTimeout(MAP_SETTLE_WAIT);
+      // Verify zoom actually changed
+      const verifiedZoom = await getCurrentZoomLevel(page);
+      logDetail('zoom', `After zoom-in: target=${highestLevel}, actual=${verifiedZoom ?? 'unknown'}`, { target: highestLevel, actual: verifiedZoom });
+      currentZoom = verifiedZoom ?? highestLevel;
+    } else if (zoomDelta < 0) {
+      logDetail('zoom', `=== Zooming OUT ${-zoomDelta} levels (from ${currentZoom} → ${highestLevel}) ===`);
+      await zoomOut(page, -zoomDelta);
+      await page.waitForTimeout(MAP_SETTLE_WAIT);
+      const verifiedZoom = await getCurrentZoomLevel(page);
+      logDetail('zoom', `After zoom-out: target=${highestLevel}, actual=${verifiedZoom ?? 'unknown'}`, { target: highestLevel, actual: verifiedZoom });
+      currentZoom = verifiedZoom ?? highestLevel;
+    } else {
+      logDetail('zoom', `Already at target level ${highestLevel} — no zoom change needed`);
+    }
+
     for (const level of zoomLevels) {
       const specs = zoomGroups.get(level)!;
       logDetail('zoom-group', `=== Zoom level ${level}: ${specs.length} screenshots ===`);
-      progress(`Navigating to zoom level ${level} (${specs.length} screenshots at this level)...`);
 
-      // Navigate ONCE per zoom level (forces full page reload via cache-buster)
-      const navOk = await navigateToParcelAtLevel(page, input, level, progress);
-      if (!navOk) {
-        logDetail('zoom-group', `Navigation to level ${level} FAILED — trying fallback`);
-        const fallback = await zoomToParcel(page, input, progress);
-        if (!fallback) {
-          logDetail('zoom-group', `All zoom strategies failed for level ${level} — capturing current view`);
-        }
+      // Zoom out from current level to target level (levels are descending)
+      const delta = currentZoom - level;
+      if (delta > 0) {
+        progress(`Zooming out ${delta} levels (from ${currentZoom} → ${level})...`);
+        logDetail('zoom', `Zooming out ${delta} levels (${currentZoom} → ${level})`);
+        await zoomOut(page, delta);
+        await page.waitForTimeout(MAP_SETTLE_WAIT);
+        // Verify
+        const verifiedZoom = await getCurrentZoomLevel(page);
+        logDetail('zoom', `After zoom-out: target=${level}, actual=${verifiedZoom ?? 'unknown'}`, { target: level, actual: verifiedZoom });
+        currentZoom = verifiedZoom ?? level;
+      } else {
+        logDetail('zoom-group', `Already at level ${level} (current=${currentZoom})`);
       }
 
       // Capture each screenshot at this zoom level (just toggle basemap + layers)
@@ -659,6 +700,38 @@ let _parcelCenterLon = 0;
 let _parcelCenterLat = 0;
 
 /**
+ * Get the current zoom level from the ArcGIS MapView.
+ * Returns null if the zoom level can't be determined.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getCurrentZoomLevel(page: any): Promise<number | null> {
+  try {
+    const zoom = await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any;
+      // Strategy 1: jimuMapViews (Experience Builder)
+      if (w._mapViewManager?.jimuMapViews) {
+        const views = Object.values(w._mapViewManager.jimuMapViews);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const found = views.find((v: any) => v?.view?.ready);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (found) return Math.round((found as any).view.zoom);
+      }
+      // Strategy 2: arcgis-map element
+      const mapEl = document.querySelector('arcgis-map');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (mapEl && (mapEl as any).view) return Math.round((mapEl as any).view.zoom);
+      return null;
+    });
+    gisLog('zoom', `Current zoom level: ${zoom}`);
+    return zoom;
+  } catch {
+    gisLog('zoom', 'Could not determine current zoom level');
+    return null;
+  }
+}
+
+/**
  * Navigate to the parcel at a specific absolute zoom level using URL params.
  * This is the most reliable approach — avoids cumulative drift from relative zoom.
  * Falls back to zoomToParcel() + relative zoomIn/Out if URL nav fails.
@@ -721,56 +794,52 @@ async function zoomToParcel(page: any, input: GisViewerCaptureInput, progress: (
     return true;
   }
 
-  // Compute center coordinates from parcel boundary (State Plane WKID 2277)
-  // or fall back to WGS84 lat/lon from property record
-  let centerLon = input.lon;
-  let centerLat = input.lat;
-  if (input.parcelBoundary && input.parcelBoundary.length > 0) {
-    const ring = input.parcelBoundary[0];
-    let sumLon = 0, sumLat = 0;
-    for (const [lon, lat] of ring) { sumLon += lon; sumLat += lat; }
-    centerLon = sumLon / ring.length;
-    centerLat = sumLat / ring.length;
-    progress(`[zoom] Computed parcel centroid: (${centerLon.toFixed(1)}, ${centerLat.toFixed(1)}) from ${ring.length}-point boundary`);
-  } else {
-    progress(`[zoom] Using WGS84 coordinates: (${centerLon}, ${centerLat}) — no parcel boundary available`);
-  }
+  gisLog('zoom-cascade', '=== Starting zoom cascade ===');
+  gisLog('zoom-cascade', `  address="${input.situsAddress}", lat=${input.lat}, lon=${input.lon}`);
+  gisLog('zoom-cascade', `  has_boundary=${!!input.parcelBoundary}, boundary_points=${input.parcelBoundary?.[0]?.length ?? 0}`);
 
-  // ── Strategy 1: URL params (fastest — no UI interaction needed) ──
-  // The Bell County GIS viewer accepts State Plane coords via #center=x,y&level=N
-  progress('[zoom] Strategy 1: Trying URL hash parameters with State Plane coordinates...');
-  const urlSuccess = await zoomViaUrlParams(page, centerLon, centerLat, progress);
-  if (urlSuccess) {
-    progress('[zoom] SUCCESS — Zoomed via URL parameters');
-    _zoomCached = true;
-    return true;
-  }
-  progress('[zoom] URL params failed — trying search widget...');
+  // NOTE: URL hash params (#center=x,y&level=N) do NOT work on this
+  // Experience Builder instance. Diagnostic testing confirmed they are
+  // silently ignored. Skip straight to the search widget.
 
-  // ── Strategy 2: Search widget — type address and let the app zoom ──
+  // ── Strategy 1: Search widget — type address and let the app zoom ──
+  // This is the most reliable approach — the viewer's built-in search
+  // geocodes the address and zooms the map to the result automatically.
   if (input.situsAddress) {
-    progress(`[zoom] Strategy 2: Searching for address "${input.situsAddress}"...`);
+    gisLog('zoom-cascade', `Strategy 1: Search widget — address="${input.situsAddress}"`);
+    progress(`[zoom] Strategy 1: Searching for address "${input.situsAddress}"...`);
     const searchSuccess = await zoomViaSearchWidget(page, input.situsAddress, progress);
     if (searchSuccess) {
-      progress('[zoom] SUCCESS — Zoomed via search widget');
+      const afterZoom = await getCurrentZoomLevel(page);
+      gisLog('zoom-cascade', `Strategy 1 SUCCESS — search widget zoomed to level ${afterZoom ?? 'unknown'}`);
+      progress(`[zoom] ✓ Strategy 1 SUCCESS — search widget zoomed to level ${afterZoom ?? '?'}`);
       _zoomCached = true;
       return true;
     }
-    progress('[zoom] Search widget failed — falling back to mouse wheel...');
+    gisLog('zoom-cascade', 'Strategy 1 FAILED — search widget did not zoom');
+    progress('[zoom] ✗ Strategy 1 failed — search widget did not zoom');
+  } else {
+    gisLog('zoom-cascade', 'Strategy 1 SKIPPED — no situs address available');
+    progress('[zoom] Strategy 1 skipped — no address available for search');
   }
 
-  // ── Strategy 3: Mouse wheel zoom — approximate positioning ──
+  // ── Strategy 2: Mouse wheel zoom — approximate positioning ──
   // Bell County GIS starts at state/county level. We need ~25-30 zoom clicks
   // to get from county level down to lot-level detail.
-  progress('[zoom] Strategy 3: Using mouse wheel zoom (approximate) — zooming deep to lot level...');
+  // This won't center on the parcel but will at least zoom in.
+  gisLog('zoom-cascade', 'Strategy 2: Mouse wheel zoom (30+8 clicks)');
+  progress('[zoom] Strategy 2: Using mouse wheel zoom (approximate) — zooming deep...');
   await zoomViaMouseWheel(page, 30);
   await page.waitForTimeout(3000);
-  // Verify we're zoomed in enough — if the map still looks county-level,
-  // try additional zoom clicks
-  progress('[zoom] Applying additional zoom refinement...');
+  const midZoom = await getCurrentZoomLevel(page);
+  gisLog('zoom-cascade', `After 30 scroll clicks: zoom=${midZoom ?? 'unknown'}`);
+
+  progress('[zoom] Applying additional zoom refinement (+8 clicks)...');
   await zoomViaMouseWheel(page, 8);
   await page.waitForTimeout(2000);
-  progress('[zoom] Applied deep mouse-wheel zoom — position is approximate');
+  const finalZoom = await getCurrentZoomLevel(page);
+  gisLog('zoom-cascade', `After 38 total scroll clicks: zoom=${finalZoom ?? 'unknown'}`);
+  progress(`[zoom] ✓ Strategy 2 — mouse wheel zoom complete (level ${finalZoom ?? '?'}) — position is approximate`);
   _zoomCached = true;
   return true;
 }
@@ -796,15 +865,17 @@ async function zoomViaSearchWidget(page: any, address: string, progress: (msg: s
 
     for (const sel of searchSelectors) {
       try {
-        const input = page.locator(sel).first();
-        if (await input.count() > 0 && await input.isVisible()) {
+        const searchInput = page.locator(sel).first();
+        if (await searchInput.count() > 0 && await searchInput.isVisible()) {
+          gisLog('search-widget', `Found search input: ${sel}`);
           progress(`  Found search widget: ${sel}`);
 
           // Clear and type the address
-          await input.click();
-          await input.fill('');
+          await searchInput.click();
+          await searchInput.fill('');
           await page.waitForTimeout(300);
-          await input.fill(address);
+          gisLog('search-widget', `Typing address: "${address}"`);
+          await searchInput.fill(address);
           await page.waitForTimeout(1500); // Wait for autocomplete suggestions
 
           // Try to click the first suggestion
@@ -824,6 +895,7 @@ async function zoomViaSearchWidget(page: any, address: string, progress: (msg: s
               if (await sug.count() > 0 && await sug.isVisible()) {
                 await sug.click();
                 clicked = true;
+                gisLog('search-widget', `Selected suggestion via ${sugSel}`);
                 progress(`  Selected search suggestion via ${sugSel}`);
                 break;
               }
@@ -832,11 +904,13 @@ async function zoomViaSearchWidget(page: any, address: string, progress: (msg: s
 
           // If no suggestion found, press Enter to search
           if (!clicked) {
-            await input.press('Enter');
+            await searchInput.press('Enter');
+            gisLog('search-widget', 'No suggestion found — pressed Enter to submit search');
             progress('  Pressed Enter to search');
           }
 
           // Wait for the map to zoom to the result
+          gisLog('search-widget', `Waiting ${MAP_SETTLE_WAIT + 2000}ms for map to zoom to result...`);
           await page.waitForTimeout(MAP_SETTLE_WAIT + 2000);
 
           // Check if search was successful by looking for result markers
@@ -846,7 +920,10 @@ async function zoomViaSearchWidget(page: any, address: string, progress: (msg: s
             return !!marker;
           });
 
-          if (hasResult) return true;
+          if (hasResult) {
+            gisLog('search-widget', '✓ Search result marker found — zoom successful');
+            return true;
+          }
 
           // Even without a marker, the search might have zoomed — consider success
           // if the map canvas updated (search didn't produce an error)
@@ -855,7 +932,11 @@ async function zoomViaSearchWidget(page: any, address: string, progress: (msg: s
             return !!noResult;
           });
 
-          if (!hasError) return true;
+          if (!hasError) {
+            gisLog('search-widget', '✓ No error indicator — assuming search zoomed successfully');
+            return true;
+          }
+          gisLog('search-widget', '✗ Search returned no results (esri-search__no-result-text found)');
           progress('  Search returned no results');
         }
       } catch { /* try next selector */ }

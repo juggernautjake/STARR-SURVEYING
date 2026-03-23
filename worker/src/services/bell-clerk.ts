@@ -3125,7 +3125,10 @@ async function _extractSearchResults(
     } catch { /* skip row */ }
   }
 
-  return documents.filter(d => /deed|warranty|plat|conveyance/i.test(d.documentType));
+  return documents.filter(d =>
+    /deed|warranty|plat|conveyance|easement|dedication|right.of.way|agreement|release|lien|assignment|affidavit|resolution|order|judgment|permit|survey|restriction|covenant|notice|map|amendment|vacate|annex|partition|right-of-way/i
+      .test(d.documentType),
+  );
 }
 
 /**
@@ -3164,6 +3167,7 @@ export async function searchBellClerkOwnerForPlatDeed(
 ): Promise<{
   platInstruments: string[];
   deedInstruments: string[];
+  otherInstruments: string[];
   allDocuments: DocumentRef[];
 }> {
   const bellBaseUrl = getKofileBaseUrl('bell') || 'https://bell.tx.publicsearch.us';
@@ -3230,9 +3234,10 @@ export async function searchBellClerkOwnerForPlatDeed(
       }
     }
 
-    // Categorise instruments: plat documents vs deed documents
+    // Categorise instruments: plat, deed, or other document types
     const platInstruments: string[] = [];
     const deedInstruments: string[] = [];
+    const otherInstruments: string[] = [];
 
     for (const doc of allDocuments) {
       if (!doc.instrumentNumber) continue;
@@ -3244,6 +3249,9 @@ export async function searchBellClerkOwnerForPlatDeed(
         !dt.includes('deed of trust')
       ) {
         deedInstruments.push(doc.instrumentNumber);
+      } else {
+        // Easements, dedications, ROW, agreements, liens, etc.
+        otherInstruments.push(doc.instrumentNumber);
       }
     }
 
@@ -3253,23 +3261,24 @@ export async function searchBellClerkOwnerForPlatDeed(
       'Stage2B',
       `"${ownerOrSubdivisionName}": ${allDocuments.length} docs — ` +
       `plats: [${platInstruments.join(', ') || 'none'}], ` +
-      `deeds: [${deedInstruments.join(', ') || 'none'}]`,
+      `deeds: [${deedInstruments.join(', ') || 'none'}], ` +
+      `other: [${otherInstruments.join(', ') || 'none'}]`,
     );
 
     if (allDocuments.length > 0) {
       attempt.success(
         allDocuments.length,
-        `${platInstruments.length} plat(s), ${deedInstruments.length} deed(s)`,
+        `${platInstruments.length} plat(s), ${deedInstruments.length} deed(s), ${otherInstruments.length} other`,
       );
     } else {
-      attempt.fail('No plat or deed records found');
+      attempt.fail('No records found');
     }
 
-    return { platInstruments, deedInstruments, allDocuments };
+    return { platInstruments, deedInstruments, otherInstruments, allDocuments };
   } catch (err: any) {
     logger.error('Stage2B', 'searchBellPlatDeeds failed', err);
     attempt.fail(err.message);
-    return { platInstruments: [], deedInstruments: [], allDocuments: [] };
+    return { platInstruments: [], deedInstruments: [], otherInstruments: [], allDocuments: [] };
   } finally {
     await safeCloseBrowser(browser, logger, 'Stage2B');
     browser = null;
