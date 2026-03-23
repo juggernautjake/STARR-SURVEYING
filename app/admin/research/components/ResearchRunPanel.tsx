@@ -14,11 +14,30 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import dynamic from 'next/dynamic';
-
-const ArtifactGallery = dynamic(() => import('./ArtifactGallery'), { ssr: false });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+/** Lightweight document shape from /api/admin/research/{projectId}/documents */
+interface ResearchDoc {
+  id: string;
+  source_type: string | null;
+  document_type: string | null;
+  document_label: string | null;
+  original_filename: string | null;
+  file_type: string | null;
+  file_size_bytes: number | null;
+  storage_url: string | null;
+  pages_pdf_url: string | null;
+  source_url: string | null;
+  processing_status: string | null;
+  extracted_text: string | null;
+  ocr_confidence: number | null;
+  ocr_regions: string | null;
+  page_count: number | null;
+  recorded_date: string | null;
+  recording_info: string | null;
+  created_at: string | null;
+}
 
 interface PipelineLogEntry {
   layer: string;
@@ -230,6 +249,11 @@ export default function ResearchRunPanel({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [logCollapsed, setLogCollapsed] = useState(false);
+
+  // ── Documents & Sources state ──
+  const [documents, setDocuments] = useState<ResearchDoc[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const docPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoStartFiredRef = useRef(false);
@@ -658,6 +682,49 @@ export default function ResearchRunPanel({
   // Whether the component is in an idle state (no pipeline started, or page refreshed with no active run)
   const isIdle = pipelineStatus === null && !started;
 
+  // ── Document polling — fetch research_documents every 8s while running ────
+  const fetchDocuments = useCallback(async (initial: boolean) => {
+    if (initial) setDocsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/documents`);
+      if (res.ok) {
+        const data = await res.json();
+        setDocuments(data.documents || []);
+      }
+    } catch {
+      // Silently ignore — documents are supplementary
+    } finally {
+      if (initial) setDocsLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (isIdle) return;
+    // Initial fetch
+    fetchDocuments(true);
+    // Poll every 8s while running
+    if (isRunning) {
+      docPollRef.current = setInterval(() => fetchDocuments(false), 8_000);
+    }
+    return () => {
+      if (docPollRef.current) {
+        clearInterval(docPollRef.current);
+        docPollRef.current = null;
+      }
+    };
+  }, [isIdle, isRunning, fetchDocuments]);
+
+  // When pipeline completes, do one final document fetch
+  useEffect(() => {
+    if (isDone) {
+      fetchDocuments(false);
+      if (docPollRef.current) {
+        clearInterval(docPollRef.current);
+        docPollRef.current = null;
+      }
+    }
+  }, [isDone, fetchDocuments]);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -965,14 +1032,12 @@ export default function ResearchRunPanel({
         )}
       </div>
 
-      {/* ── Documents & Sources — shows captured documents as they arrive ── */}
-      {/* Matches the review page's document list. Polls every 8s during run. */}
-      <div className="rrp__artifacts">
-        <ArtifactGallery
-          projectId={projectId}
-          refreshInterval={isRunning ? 8_000 : undefined}
-        />
-      </div>
+      {/* ── Documents & Sources — inline list matching review page ── */}
+      <DocumentsSection
+        documents={documents}
+        loading={docsLoading}
+        isRunning={isRunning}
+      />
 
       </>)}
 
@@ -1359,8 +1424,8 @@ export default function ResearchRunPanel({
 .rrp__log-detail-row--error { color: #dc2626; }
 .rrp__log-detail-row--step { color: #6b7280; padding-left: 0.5rem; }
 
-/* ── Live Artifact Gallery ────────────────────────────────────── */
-.rrp__artifacts {
+/* ── Documents & Sources section ─────────────────────────────── */
+.rrp__docs-section {
   margin-top: 1rem;
 }
 
@@ -1368,5 +1433,237 @@ export default function ResearchRunPanel({
 /* (activity stream removed — unified into Pipeline Activity Log above) */
       `}</style>
     </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Documents & Sources — inline list that matches the review page layout
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const DOC_TYPE_ICONS: Record<string, string> = {
+  deed: '📜', plat: '🗺️', survey: '📐', legal_description: '⚖️',
+  title_commitment: '📋', easement: '🛤️', restrictive_covenant: '📄',
+  field_notes: '📓', subdivision_plat: '🏘️', metes_and_bounds: '📏',
+  county_record: '🏛️', appraisal_record: '💰', aerial_photo: '🛰️',
+  topo_map: '🗻', utility_map: '🔌', gis_map: '🗺️', flood_map: '🌊',
+  property_report: '🏠', road_map: '🛣️', deed_screenshot: '📜',
+  plat_screenshot: '🗺️', map_screenshot: '🗺️',
+};
+
+const SOURCE_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
+  property_search:  { label: 'Research — Web Sources', icon: '🔍' },
+  user_upload:      { label: 'User Uploaded', icon: '📤' },
+  linked_reference: { label: 'Linked References', icon: '🔗' },
+  manual_entry:     { label: 'Manual Entry', icon: '📝' },
+};
+
+function isMiscDoc(doc: ResearchDoc): boolean {
+  const label = (doc.document_label || '').toLowerCase();
+  const path = (doc.storage_url || '').toLowerCase();
+  return label.includes('misc screenshot') || label.startsWith('misc:') || path.includes('/screenshots-misc/');
+}
+
+function formatDocType(dt: string | null): string {
+  if (!dt) return 'Document';
+  return dt.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function getDocTypeIcon(dt: string | null): string {
+  return (dt && DOC_TYPE_ICONS[dt]) || '📎';
+}
+
+function getPageUrls(ocrRegions: string | null): string[] {
+  if (!ocrRegions) return [];
+  try {
+    const parsed = JSON.parse(ocrRegions);
+    return Array.isArray(parsed?.pageUrls) ? parsed.pageUrls : [];
+  } catch { return []; }
+}
+
+function DocumentsSection({ documents, loading, isRunning }: {
+  documents: ResearchDoc[];
+  loading: boolean;
+  isRunning: boolean;
+}) {
+  // Filter out MISC screenshots
+  const regularDocs = documents.filter(d => !isMiscDoc(d));
+  const miscCount = documents.length - regularDocs.length;
+
+  // Group by source_type
+  const grouped = regularDocs.reduce<Record<string, ResearchDoc[]>>((acc, doc) => {
+    const key = doc.source_type || 'other';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(doc);
+    return acc;
+  }, {});
+  const sourceOrder = ['property_search', 'user_upload', 'linked_reference', 'manual_entry'];
+  const sortedKeys = [
+    ...sourceOrder.filter(k => grouped[k]),
+    ...Object.keys(grouped).filter(k => !sourceOrder.includes(k)),
+  ];
+
+  // Empty state
+  if (loading && documents.length === 0) {
+    return (
+      <div className="rrp__docs-section">
+        <div className="review-doc-list">
+          <div className="review-doc-list__header">
+            <span className="review-doc-list__title">📂 Documents &amp; Sources</span>
+          </div>
+          <div style={{ padding: '1.5rem', textAlign: 'center', color: '#6B7280', fontSize: '0.85rem' }}>
+            Loading documents...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (regularDocs.length === 0) {
+    return (
+      <div className="rrp__docs-section">
+        <div className="review-doc-list">
+          <div className="review-doc-list__header">
+            <span className="review-doc-list__title">📂 Documents &amp; Sources</span>
+            <span className="review-doc-list__count">0</span>
+          </div>
+          <div style={{ padding: '1.5rem', textAlign: 'center', color: '#6B7280', fontSize: '0.85rem' }}>
+            {isRunning
+              ? 'Waiting for documents & screenshots to be captured...'
+              : 'No documents captured yet.'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rrp__docs-section">
+      <div className="review-doc-list">
+        <div className="review-doc-list__header">
+          <span className="review-doc-list__title">📂 Documents &amp; Sources</span>
+          <span className="review-doc-list__count">{regularDocs.length}</span>
+        </div>
+        {sortedKeys.map(sourceKey => {
+          const docs = grouped[sourceKey];
+          const { label, icon } = SOURCE_TYPE_LABELS[sourceKey] || { label: sourceKey, icon: '📎' };
+          return (
+            <div key={sourceKey} className="review-doc-group">
+              <div className="review-doc-group__header">
+                <span>{icon}</span>
+                <span className="review-doc-group__label">{label}</span>
+                <span className="review-doc-group__count">{docs.length}</span>
+              </div>
+              {docs.map(doc => (
+                <DocCard key={doc.id} doc={doc} />
+              ))}
+            </div>
+          );
+        })}
+      </div>
+      {miscCount > 0 && (
+        <div style={{ textAlign: 'center', padding: '0.5rem', fontSize: '0.75rem', color: '#9CA3AF' }}>
+          {miscCount} non-useful screenshot{miscCount !== 1 ? 's' : ''} filtered out
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DocCard({ doc }: { doc: ResearchDoc }) {
+  const [open, setOpen] = useState(false);
+  const typeIcon = getDocTypeIcon(doc.document_type);
+  const typeName = formatDocType(doc.document_type);
+  const title = doc.document_label || doc.original_filename || typeName;
+  const hasViewable = !!(doc.pages_pdf_url || doc.storage_url);
+  const pageUrls = getPageUrls(doc.ocr_regions);
+  const thumbnailUrl = doc.storage_url || (pageUrls.length > 0 ? pageUrls[0] : null);
+  const isImage = !!(thumbnailUrl && /\.(png|jpe?g|gif|webp|tiff?)/i.test(thumbnailUrl));
+  const excerpt = doc.extracted_text
+    ? doc.extracted_text.slice(0, 280) + (doc.extracted_text.length > 280 ? '…' : '')
+    : null;
+
+  const handleView = () => {
+    const url = doc.pages_pdf_url || doc.storage_url;
+    if (url) window.open(url, '_blank', 'noopener');
+  };
+
+  return (
+    <div className={`review-doc-card${open ? ' review-doc-card--open' : ''}`}>
+      <div className="review-doc-card__header" onClick={() => setOpen(o => !o)}>
+        <span className="review-doc-card__icon">{typeIcon}</span>
+        <span className="review-doc-card__title">{title}</span>
+        <span className="review-doc-card__type">{typeName}</span>
+        {doc.processing_status === 'analyzed' && (
+          <span className="review-doc-card__badge review-doc-card__badge--ok">Analyzed</span>
+        )}
+        {doc.processing_status === 'error' && (
+          <span className="review-doc-card__badge review-doc-card__badge--err">Error</span>
+        )}
+        {doc.page_count != null && doc.page_count > 1 && (
+          <span className="review-doc-card__badge review-doc-card__badge--pages">{doc.page_count} pg</span>
+        )}
+        {hasViewable && (
+          <button
+            onClick={(e) => { e.stopPropagation(); handleView(); }}
+            className="review-doc-card__view-btn"
+            title="Open in document viewer"
+          >
+            View
+          </button>
+        )}
+        <span className="review-doc-card__chevron">{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div className="review-doc-card__body">
+          <div className="review-doc-card__content-row">
+            {isImage && thumbnailUrl && (
+              <div className="review-doc-card__thumbnail" onClick={handleView} role="button" tabIndex={0}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={thumbnailUrl} alt={title} loading="lazy" />
+                {pageUrls.length > 1 && (
+                  <span className="review-doc-card__thumb-pages">+{pageUrls.length - 1}</span>
+                )}
+              </div>
+            )}
+            <div className="review-doc-card__details">
+              {excerpt && (
+                <div className="review-doc-card__excerpt">{excerpt}</div>
+              )}
+              <div className="review-doc-card__meta">
+                {doc.recorded_date && <span>Recorded: {doc.recorded_date}</span>}
+                {doc.recording_info && <span>{doc.recording_info}</span>}
+                {doc.page_count != null && <span>{doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span>}
+                {doc.file_type && <span>{doc.file_type.toUpperCase()}</span>}
+                {doc.file_size_bytes != null && (
+                  <span>{doc.file_size_bytes >= 1024 * 1024
+                    ? `${(doc.file_size_bytes / (1024 * 1024)).toFixed(1)} MB`
+                    : `${(doc.file_size_bytes / 1024).toFixed(0)} KB`
+                  }</span>
+                )}
+                {doc.ocr_confidence != null && <span>OCR {Math.round(doc.ocr_confidence * 100)}%</span>}
+                {doc.created_at && <span title={doc.created_at}>Added {new Date(doc.created_at).toLocaleDateString()}</span>}
+              </div>
+              <div className="review-doc-card__actions">
+                {hasViewable && (
+                  <button onClick={handleView} className="review-doc-card__action review-doc-card__action--view">
+                    Open in Viewer
+                  </button>
+                )}
+                {doc.source_url && (
+                  <a
+                    href={doc.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="review-doc-card__action review-doc-card__action--link"
+                  >
+                    Open Source
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
