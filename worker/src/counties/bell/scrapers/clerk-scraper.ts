@@ -584,9 +584,10 @@ async function searchClerkByOwner(
         });
       }
 
-      if (skippedByFilter > 0) {
-        progress(`  [ownerSearch] Early filter: skipped ${skippedByFilter} document(s) from different properties`);
-      }
+      // Aggregate filter summary
+      const reviewed = Math.min(docRefs.length, maxDocs - documents.length + 10 + skippedByFilter);
+      progress(`  [ownerSearch] Filter summary for "${name}": reviewed=${reviewed}, kept=${documents.length}, skipped=${skippedByFilter}` +
+        (skippedByFilter > 0 ? ' (abstract/property mismatch)' : ''));
 
       if (documents.length > 0) {
         progress(`  [ownerSearch] ✓ Owner variant "${name}" yielded ${documents.length} document(s) — stopping search`);
@@ -865,6 +866,7 @@ export async function captureDocumentPages(
 ): Promise<string[]> {
   // NOTE: We don't push a constructed URL here — fetchDocumentImages uses
   // search+click to find the correct document page with the real internal ID.
+  const t0 = Date.now();
   progress(`[capturePages] Capturing pages for document: ${instrumentId} (max ${maxPages})`);
   console.log(`[ClerkScraper] captureDocumentPages: instrument=${instrumentId}, maxPages=${maxPages}`);
 
@@ -875,8 +877,10 @@ export async function captureDocumentPages(
 
     const pages = await fetchDocumentImages(instrumentId, maxPages, logger);
     const images = pages.map(p => p.imageBase64).filter(Boolean);
-    progress(`[capturePages] ✓ Captured ${images.length}/${pages.length} page(s) for ${instrumentId}`);
-    console.log(`[ClerkScraper] captureDocumentPages ${instrumentId}: ${images.length} images captured`);
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    const totalKb = images.reduce((sum, img) => sum + Math.round(img.length * 3 / 4 / 1024), 0);
+    progress(`[capturePages] ✓ Captured ${images.length}/${pages.length} page(s) for ${instrumentId} in ${elapsed}s (${totalKb}KB)`);
+    console.log(`[ClerkScraper] captureDocumentPages ${instrumentId}: ${images.length} images, ${totalKb}KB, ${elapsed}s`);
 
     // Push the actual viewer URL if we got one from the signed URLs
     if (pages.length > 0 && pages[0].signedUrl) {

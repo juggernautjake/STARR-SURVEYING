@@ -522,15 +522,27 @@ async function analyzeDeedException(
 
     // If only 1 region result, use it directly — no reconciliation needed
     if (allRegionResults.length === 1) {
+      const instrLabel = record.instrumentNumber ?? record.documentType;
+      console.log(`[deed-analyzer] AI usage for ${instrLabel} (single region): ` +
+        `input_tokens=${totalUsage.totalInputTokens ?? 0}, output_tokens=${totalUsage.totalOutputTokens ?? 0}, ` +
+        `summary_length=${allRegionResults[0].text.length} chars`);
       return { summary: allRegionResults[0].text, usage: totalUsage };
     }
 
     // Deep reconciliation pass — merge all region analyses
-    console.log(`[deed-analyzer] Running deep reconciliation across ${allRegionResults.length} region analyses...`);
+    const contextSize = allRegionResults.reduce((n, r) => n + r.text.length, 0);
+    console.log(`[deed-analyzer] Running deep reconciliation across ${allRegionResults.length} region analyses (${contextSize} chars)...`);
     const { text: reconciledSummary, usage: reconUsage } = await reconcileDeedRegionAnalyses(
       client, allRegionResults, record,
     );
     accumulateUsage(totalUsage, reconUsage);
+
+    // Log cumulative AI token usage for this deed
+    const instrLabel = record.instrumentNumber ?? record.documentType;
+    console.log(`[deed-analyzer] AI usage for ${instrLabel}: ` +
+      `input_tokens=${totalUsage.totalInputTokens ?? 0}, output_tokens=${totalUsage.totalOutputTokens ?? 0}, ` +
+      `regions=${allRegionResults.length}, reconciled=${reconciledSummary ? 'yes' : 'no'}, ` +
+      `summary_length=${(reconciledSummary || '').length} chars`);
 
     return {
       summary: reconciledSummary || allRegionResults.map(r => r.text).join('\n\n---\n\n'),
@@ -562,7 +574,7 @@ function buildChainOfTitle(records: DeedRecord[]): ChainLink[] {
     return dateA - dateB;
   });
 
-  return conveyances.map((record, index) => ({
+  const chain = conveyances.map((record, index) => ({
     order: index + 1,
     instrumentNumber: record.instrumentNumber,
     date: record.recordingDate,
@@ -570,6 +582,18 @@ function buildChainOfTitle(records: DeedRecord[]): ChainLink[] {
     to: record.grantee ?? 'UNKNOWN',
     type: record.documentType,
   }));
+
+  // Log chain of title for audit trail
+  if (chain.length > 0) {
+    console.log(`[deed-analyzer] Chain of title: ${chain.length} link(s):`);
+    for (const link of chain) {
+      console.log(`  [deed-analyzer]   ${link.order}. ${link.date ?? '?'}: ${link.from} → ${link.to} (${link.type}, Instr# ${link.instrumentNumber ?? '?'})`);
+    }
+  } else {
+    console.log(`[deed-analyzer] Chain of title: no conveyance deeds found (filtered ${records.length} record(s) — all were DOT/release/non-deed)`);
+  }
+
+  return chain;
 }
 
 // ── Internal: Summary Generation ─────────────────────────────────────

@@ -13,7 +13,7 @@ import type { BellResearchResult, ToggleSection } from '../types/research-result
  * Build the list of toggle sections with metadata for the UI.
  */
 export function buildToggleSections(result: BellResearchResult): ToggleSection[] {
-  return [
+  const sections = [
     {
       id: 'deeds-and-records',
       title: 'Deeds & Records Analysis',
@@ -76,6 +76,19 @@ export function buildToggleSections(result: BellResearchResult): ToggleSection[]
       confidence: result.overallConfidence,
     },
   ];
+
+  // Log section inclusion/exclusion for audit trail
+  const included = sections.filter(s => s.hasData);
+  const excluded = sections.filter(s => !s.hasData);
+  console.log(`[report-builder] Toggle sections: ${included.length}/${sections.length} have data`);
+  for (const s of included) {
+    console.log(`[report-builder]   ✓ ${s.title}: ${s.itemCount} item(s), confidence=${s.confidence.tier}(${s.confidence.score})`);
+  }
+  for (const s of excluded) {
+    console.log(`[report-builder]   ✗ ${s.title}: no data`);
+  }
+
+  return sections;
 }
 
 /**

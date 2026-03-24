@@ -310,6 +310,15 @@ export async function orchestrateBellResearch(
     }
 
     progress('Phase 1', `CAD result: ID=${cad.propertyId} owner="${cad.ownerName}" type=${cad.propertyType ?? '?'} deeds=${cad.deedHistory.length}`);
+    // Log all extracted CAD fields for full audit trail
+    progress('Phase 1', `  CAD fields: acreage=${cad.acreage ?? '?'}, situs="${cad.situsAddress ?? 'none'}", ` +
+      `legal="${(cad.legalDescription ?? '').slice(0, 60)}...", mapId=${cad.mapId ?? 'none'}, ` +
+      `instruments=[${cad.instrumentNumbers.join(', ')}]`);
+    if (cad.deedHistory.length > 0) {
+      for (const dh of cad.deedHistory) {
+        progress('Phase 1', `  CAD deed: ${dh.deedDate ?? '?'} Instr#${dh.instrumentNumber} ${dh.grantor ?? '?'} → ${dh.grantee ?? '?'}`);
+      }
+    }
   } else {
     progress('Phase 1', '✗ Bell CAD: no result found');
   }
@@ -1080,6 +1089,14 @@ export async function orchestrateBellResearch(
 
     const totalDiscovered = discoveredInstruments.length + discoveredVolPages.length;
 
+    // Log all discovered references for audit trail
+    if (discoveredInstruments.length > 0) {
+      progress('Phase 3B', `Discovered instrument(s): [${discoveredInstruments.join(', ')}]`);
+    }
+    if (discoveredVolPages.length > 0) {
+      progress('Phase 3B', `Discovered vol/page ref(s): [${discoveredVolPages.map(vp => `Vol ${vp.volume} Pg ${vp.page}`).join(', ')}]`);
+    }
+
     if (totalDiscovered > 0) {
       progress('Phase 3B',
         `Found ${totalDiscovered} historical reference(s) in deed summaries: ` +
@@ -1644,6 +1661,22 @@ export async function orchestrateBellResearch(
     creditDepleted: isCreditDepleted() || undefined,
   };
 
+  // Log final report assembly — section-by-section audit
+  const sectionAudit = [
+    `deeds=${deeds ? `${deeds.records.length} records, chain=${deeds.chainOfTitle.length}` : 'SKIPPED'}`,
+    `plats=${platSection ? `${platSection.plats.length} plat(s), crossVal=${platSection.crossValidation.length}` : 'SKIPPED'}`,
+    `easements=${easementRecords.length} found, covenants=${restrictiveCovenants.length}`,
+    `fema=${fema?.result ? 'yes' : 'no'}, txdot=${txdot?.result ? 'yes' : 'no'}`,
+    `adjacent=${adjacentProperties.length} neighbor(s)`,
+    `screenshots=${allScreenshots.length}`,
+    `links=${allLinks.length}`,
+    `discrepancies=${discrepancies.length}`,
+    `errors=${errors.length} (${errors.filter(e => !e.recovered).length} fatal, ${errors.filter(e => e.recovered).length} recovered)`,
+    `AI usage: input_tokens=${aiUsage.totalInputTokens ?? 0}, output_tokens=${aiUsage.totalOutputTokens ?? 0}`,
+    `confidence=${overallConfidence.tier} (${overallConfidence.score}/100)`,
+    `completeness: ${completeness.found.length} found, ${completeness.partial.length} partial, ${completeness.notFound.length} not-found`,
+  ];
+  progress('Phase 4', 'Report assembly:\n    ' + sectionAudit.join('\n    '));
   progress('Phase 4', 'Research complete!', 100);
 
   console.log(

@@ -41,7 +41,11 @@ export function exportResearchAsJson(
         },
       };
 
-  return JSON.stringify(data, null, 2);
+  const json = JSON.stringify(data, null, 2);
+  const sizeKb = Math.round(json.length / 1024);
+  const imgSizeKb = result.screenshots.reduce((sum, s) => sum + Math.round(s.imageBase64.length * 3 / 4 / 1024), 0);
+  console.log(`[export-service] JSON export: ${sizeKb}KB (images: ${imgSizeKb}KB across ${result.screenshots.length} screenshot(s), raw=${options?.includeRawData ? 'yes' : 'no'})`);
+  return json;
 }
 
 /**
@@ -116,6 +120,12 @@ export function exportSurveyPlanStructure(
       image: img,
     });
   }
+
+  // Log document assembly
+  const imagePages = pages.filter(p => p.type === 'image').length;
+  const textPages = pages.filter(p => p.type === 'text').length;
+  const stepPages = pages.filter(p => p.type === 'steps').length;
+  console.log(`[export-service] Survey plan document: ${pages.length} page(s) (cover=1, text=${textPages}, images=${imagePages}, steps=${stepPages})`);
 
   return { pages };
 }
