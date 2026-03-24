@@ -1008,13 +1008,34 @@ export async function orchestrateBellResearch(
   // If AI credits ran out during deed/plat analysis, notify and skip remaining AI work
   notifyCreditDepleted();
 
-  progress('Phase 3',
-    `AI analysis complete: ` +
-    `deeds=${deeds ? 'analyzed' : 'skipped'} ` +
-    `plats=${platSection ? 'analyzed' : 'skipped'} ` +
-    `chainOfTitle=${deeds?.chainOfTitle.length ?? 0} links`,
-    78,
-  );
+  // Log per-deed boundary extraction results
+  if (deeds) {
+    const deedsWithCalls = deeds.records.filter(r => r.boundaryCalls && r.boundaryCalls.length > 0);
+    const totalCalls = deedsWithCalls.reduce((n, r) => n + (r.boundaryCalls?.length ?? 0), 0);
+    const deedsWithPOB = deeds.records.filter(r => r.pointOfBeginning);
+    const closedDeeds = deeds.records.filter(r => r.closureStatus === 'closed');
+    progress('Phase 3',
+      `AI analysis complete: deeds=${deeds.records.length} analyzed, ` +
+      `${deedsWithCalls.length} have boundary calls (${totalCalls} total), ` +
+      `${deedsWithPOB.length} have POB, ${closedDeeds.length} close, ` +
+      `chainOfTitle=${deeds.chainOfTitle.length} links`,
+      78,
+    );
+    // Log individual deed boundary status for audit
+    for (const rec of deeds.records) {
+      const callCount = rec.boundaryCalls?.length ?? 0;
+      const label = rec.instrumentNumber ?? rec.documentType;
+      if (callCount > 0) {
+        progress('Phase 3', `  ✓ ${label}: ${callCount} call(s), POB=${rec.pointOfBeginning ? 'yes' : 'no'}, closure=${rec.closureStatus ?? 'unknown'}, acreage=${rec.statedAcreage ?? '?'}`);
+      }
+    }
+  } else {
+    progress('Phase 3', 'AI analysis complete: deed analysis skipped', 78);
+  }
+  if (platSection) {
+    const platsWithCalls = platSection.plats.filter(p => p.aiAnalysis?.structuredCalls && p.aiAnalysis.structuredCalls.length > 0);
+    progress('Phase 3', `Plat analysis: ${platSection.plats.length} plat(s), ${platsWithCalls.length} have structured calls`);
+  }
 
   // ══════════════════════════════════════════════════════════════════
   //  PHASE 3B: RECURSIVE DEED CHAIN TRACING
@@ -1558,6 +1579,16 @@ export async function orchestrateBellResearch(
     deedRecords, property,
   );
   progress('Phase 4', `Research completeness: ${completeness.found.length} found, ${completeness.notFound.length} not found, ${completeness.partial.length} partial`);
+  // Log each completeness item for full audit trail
+  for (const item of completeness.found) {
+    progress('Phase 4', `  ✓ FOUND [${item.category}] ${item.label}: ${item.detail}`);
+  }
+  for (const item of completeness.partial) {
+    progress('Phase 4', `  ◐ PARTIAL [${item.category}] ${item.label}: ${item.detail}`);
+  }
+  for (const item of completeness.notFound) {
+    progress('Phase 4', `  ✗ NOT FOUND [${item.category}] ${item.label}: ${item.detail}`);
+  }
 
   const result: BellResearchResult = {
     researchId: `bell-${input.projectId}-${startedAt.getTime()}`,

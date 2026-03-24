@@ -55,10 +55,15 @@ export async function analyzeAdjacentProperties(
   const results: AdjacentProperty[] = neighbors.map((parcel, idx) => {
     const direction = estimateDirection(input.parcelBoundary, parcel);
     const sharedBoundary = computeSharedBoundary(input.parcelBoundary, parcel.parcelBoundary ?? undefined);
+    const pid = parcel.propertyId ?? `unknown-${idx}`;
+    const owner = parcel.ownerName ?? 'Unknown';
+
+    progress(`  ${direction}: ${owner} (ID=${pid})${sharedBoundary ? ` — ${sharedBoundary}` : ' — no shared boundary computed'}`);
+
     return {
       direction,
-      propertyId: parcel.propertyId ?? `unknown-${idx}`,
-      ownerName: parcel.ownerName ?? 'Unknown',
+      propertyId: pid,
+      ownerName: owner,
       research: null,
       sharedBoundary,
     };

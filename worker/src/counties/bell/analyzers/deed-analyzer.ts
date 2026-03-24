@@ -9,7 +9,7 @@
  *   - Detect gaps or anomalies in ownership history
  */
 
-import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary, BoundaryCall, PointOfBeginning } from '../types/research-result.js';
+import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary, BoundaryCall, PointOfBeginning, ComputedTraverse } from '../types/research-result.js';
 import type { ConfidenceRating } from '../types/confidence.js';
 import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 import {
@@ -97,6 +97,28 @@ export async function analyzeBellDeeds(
 
       // Extract structured boundary calls from the AI narrative
       const boundaryData = extractBoundaryCallsFromSummary(aiSummary);
+      const instrLabel = record.instrumentNumber ?? record.documentType;
+
+      // Compute traverse coordinates if we have 3+ boundary calls
+      let computedTraverse: ComputedTraverse | null = null;
+      if (boundaryData.calls.length >= 3) {
+        computedTraverse = computeTraverseFromCalls(boundaryData.calls);
+      }
+
+      // Log boundary extraction results for every deed
+      if (boundaryData.calls.length > 0) {
+        progress(`  ✓ ${instrLabel}: ${boundaryData.calls.length} boundary call(s) extracted` +
+          (boundaryData.pob ? `, POB found` : `, no POB`) +
+          `, closure=${boundaryData.closureStatus}` +
+          (boundaryData.acreage ? `, ${boundaryData.acreage} acres` : '') +
+          (computedTraverse ? `, computed area=${computedTraverse.computedAreaAcres.toFixed(3)}ac, closure=${computedTraverse.closureRatio}` : ''));
+      } else {
+        progress(`  ○ ${instrLabel}: no bearing/distance calls found in summary` +
+          (record.documentType && /deed of trust|release|assignment/i.test(record.documentType)
+            ? ' (expected — this document type typically has no metes & bounds)'
+            : ' — may use lot/block description only'));
+      }
+
       analyzedRecords.push({
         ...record,
         aiSummary,
@@ -104,11 +126,20 @@ export async function analyzeBellDeeds(
         pointOfBeginning: boundaryData.pob,
         statedAcreage: boundaryData.acreage,
         closureStatus: boundaryData.closureStatus,
+        computedTraverse,
       });
     } else {
+      progress(`  ○ ${record.instrumentNumber ?? record.documentType}: skipped — no page images`);
       analyzedRecords.push(record);
     }
   }
+
+  // Log boundary extraction summary
+  const withCalls = analyzedRecords.filter(r => r.boundaryCalls && r.boundaryCalls.length > 0);
+  const withPOB = analyzedRecords.filter(r => r.pointOfBeginning);
+  const closedCount = analyzedRecords.filter(r => r.closureStatus === 'closed').length;
+  progress(`Boundary extraction summary: ${withCalls.length}/${analyzedRecords.length} deed(s) have structured calls, ` +
+    `${withPOB.length} have POB, ${closedCount} close`);
 
   // ── Step 2: Reconstruct chain of title ─────────────────────────────
   progress('Reconstructing chain of title...');
@@ -775,5 +806,84 @@ function extractBoundaryCallsFromSummary(summary: string | null): BoundaryExtrac
     closureStatus = 'open';
   }
 
+  console.log(`[deed-analyzer] extractBoundaryCallsFromSummary: calls=${calls.length}, pob=${pob ? 'yes' : 'no'}, acreage=${acreage ?? 'none'}, closure=${closureStatus}` +
+    (calls.length > 0 ? `, calls=[${calls.map(c => `${c.bearingRaw} ${c.distance}${c.distanceUnit[0]}`).join(' → ')}]` : ''));
+
   return { calls, pob, acreage, closureStatus };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  TRAVERSE COMPUTATION
+//  Computes XY corner coordinates from sequential boundary calls.
+//  POB is at (0,0). Each call adds a vector: distance at bearing.
+//  The closure error is the distance from the last point back to (0,0).
+//  Area is computed via the Shoelace formula.
+//
+//  This enables procedural drawing of the property boundary.
+// ══════════════════════════════════════════════════════════════════════
+
+function computeTraverseFromCalls(calls: BoundaryCall[]): ComputedTraverse | null {
+  if (calls.length < 3) return null;
+
+  const corners: { x: number; y: number; sequence: number; monument: string | null }[] = [];
+  let x = 0, y = 0;
+  let perimeter = 0;
+
+  // POB at origin
+  corners.push({ x: 0, y: 0, sequence: 0, monument: null });
+
+  for (const call of calls) {
+    if (call.bearingDegrees === null) continue;
+
+    // Convert distance to feet
+    let distFt = call.distance;
+    if (call.distanceUnit === 'varas') distFt *= 2.7778;
+    else if (call.distanceUnit === 'meters') distFt *= 3.28084;
+    else if (call.distanceUnit === 'chains') distFt *= 66;
+
+    // Bearing is degrees from north, clockwise
+    // X = easting (positive = east), Y = northing (positive = north)
+    const bearingRad = call.bearingDegrees * Math.PI / 180;
+    const dx = distFt * Math.sin(bearingRad);
+    const dy = distFt * Math.cos(bearingRad);
+
+    x += dx;
+    y += dy;
+    perimeter += distFt;
+
+    corners.push({
+      x: Math.round(x * 100) / 100,
+      y: Math.round(y * 100) / 100,
+      sequence: call.sequence,
+      monument: call.monument,
+    });
+  }
+
+  // Closure error: distance from last point back to (0,0)
+  const closureErrorFt = Math.sqrt(x * x + y * y);
+  const closureRatio = perimeter > 0 && closureErrorFt > 0.001
+    ? `1:${Math.round(perimeter / closureErrorFt)}`
+    : closureErrorFt <= 0.001 ? '1:∞ (exact)' : 'N/A';
+
+  // Area via Shoelace formula
+  let area2 = 0;
+  for (let i = 0; i < corners.length; i++) {
+    const j = (i + 1) % corners.length;
+    area2 += corners[i].x * corners[j].y;
+    area2 -= corners[j].x * corners[i].y;
+  }
+  const areaSqFt = Math.abs(area2) / 2;
+  const areaAcres = areaSqFt / 43560;
+
+  console.log(`[deed-analyzer] computeTraverse: ${corners.length} corners, perimeter=${Math.round(perimeter)}ft, ` +
+    `area=${areaAcres.toFixed(3)}ac, closure=${closureRatio} (error=${closureErrorFt.toFixed(2)}ft)`);
+
+  return {
+    corners,
+    closureErrorFt: Math.round(closureErrorFt * 100) / 100,
+    closureRatio,
+    perimeterFt: Math.round(perimeter * 100) / 100,
+    computedAreaSqFt: Math.round(areaSqFt),
+    computedAreaAcres: Math.round(areaAcres * 1000) / 1000,
+  };
 }

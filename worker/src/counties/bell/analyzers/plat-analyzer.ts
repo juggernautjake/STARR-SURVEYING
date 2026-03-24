@@ -83,14 +83,38 @@ export async function analyzeBellPlats(
 
   for (const plat of input.platRecords) {
     if (plat.images.length > 0) {
-      progress(`Analyzing plat: ${plat.name}`);
+      progress(`Analyzing plat: ${plat.name} (${plat.images.length} image(s))`);
       const { analysis, usage: callUsage } = await analyzePlatImage(plat.images, anthropicApiKey);
       accumulateUsage(usage, callUsage);
+
+      // Log per-plat extraction results
+      if (analysis) {
+        const dims = analysis.lotDimensions.length;
+        const bearings = analysis.bearingsAndDistances.length;
+        const mons = analysis.monuments.length;
+        const eas = analysis.easements.length;
+        const crvs = analysis.curves.length;
+        const structCalls = analysis.structuredCalls?.length ?? 0;
+        progress(`  ✓ ${plat.name}: ${dims} dimension(s), ${bearings} bearing/distance call(s), ` +
+          `${mons} monument(s), ${eas} easement(s), ${crvs} curve(s), ${structCalls} structured call(s)`);
+        if (analysis.targetLot) {
+          progress(`  ✓ ${plat.name}: target lot identified — ${analysis.targetLot.lotId ?? 'unknown'} (confidence ${analysis.targetLot.confidence}%, method: ${analysis.targetLot.method})`);
+        }
+      } else {
+        progress(`  ✗ ${plat.name}: AI analysis returned no results`);
+      }
+
       analyzedPlats.push({ ...plat, aiAnalysis: analysis });
     } else {
+      progress(`  ○ ${plat.name}: skipped — no images available`);
       analyzedPlats.push(plat);
     }
   }
+
+  // Log plat analysis summary
+  const platsWithAnalysis = analyzedPlats.filter(p => p.aiAnalysis);
+  const totalStructCalls = platsWithAnalysis.reduce((n, p) => n + (p.aiAnalysis?.structuredCalls?.length ?? 0), 0);
+  progress(`Plat analysis summary: ${platsWithAnalysis.length}/${analyzedPlats.length} analyzed, ${totalStructCalls} total structured call(s)`);
 
   // ── Cross-validate plat vs deed calls ──────────────────────────────
   progress('Cross-validating plat data against deed records...');
@@ -687,6 +711,10 @@ function generatePlatSummary(plats: PlatRecord[]): string {
 // ══════════════════════════════════════════════════════════════════════
 
 function parsePlatBearingStrings(strings: string[]): BoundaryCall[] {
+  if (strings.length === 0) {
+    console.log('[plat-analyzer] parsePlatBearingStrings: 0 input strings');
+    return [];
+  }
   const calls: BoundaryCall[] = [];
   let seq = 0;
 
@@ -736,6 +764,11 @@ function parsePlatBearingStrings(strings: string[]): BoundaryCall[] {
       curve: null,
     });
   }
+
+  const unparsed = strings.length - calls.length;
+  console.log(`[plat-analyzer] parsePlatBearingStrings: ${calls.length} parsed from ${strings.length} input(s)` +
+    (unparsed > 0 ? `, ${unparsed} could not be parsed` : '') +
+    (calls.length > 0 ? `, calls=[${calls.map(c => `${c.bearingRaw} ${c.distance}${c.distanceUnit[0]}`).join(' → ')}]` : ''));
 
   return calls;
 }

@@ -131,6 +131,24 @@ export interface DeedRecord {
   statedAcreage?: number | null;
   /** Whether the boundary description closes back to POB */
   closureStatus?: 'closed' | 'open' | 'unknown';
+  /** Computed corner coordinates from POB + sequential calls (for drawing) */
+  computedTraverse?: ComputedTraverse | null;
+}
+
+/** Computed XY coordinates for each corner of the property boundary */
+export interface ComputedTraverse {
+  /** Corner coordinates in local coordinate system (feet from POB) */
+  corners: { x: number; y: number; sequence: number; monument: string | null }[];
+  /** Closure error in feet (distance from last point back to POB) */
+  closureErrorFt: number;
+  /** Closure error as ratio (1:N where N = perimeter/error) */
+  closureRatio: string;
+  /** Total perimeter in feet */
+  perimeterFt: number;
+  /** Computed area in square feet */
+  computedAreaSqFt: number;
+  /** Computed area in acres */
+  computedAreaAcres: number;
 }
 
 /** A single bearing/distance call in a metes-and-bounds description */
