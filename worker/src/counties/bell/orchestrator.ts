@@ -487,12 +487,19 @@ export async function orchestrateBellResearch(
     return { volume, page };
   });
 
+  // Extract abstract/survey from legal description early — needed for
+  // early relevance filtering in Phase 2 (before document image download).
+  const earlyAbsSurvey = extractAbstractAndSurvey(property.legalDescription ?? '');
+  const earlyAbstractNumber = earlyAbsSurvey.abstractNumber ?? null;
+  const earlySurveyName = earlyAbsSurvey.surveyName ?? null;
+
   progress('Phase 2',
     `Identifiers for Phase 2: ` +
     `${uniqueInstruments.length} instruments, ` +
     `${uniqueOwnerNames.length} owner(s), ` +
     `${uniqueSubdivisions.length} subdivision(s), ` +
-    `${uniqueVolPages.length} vol/page ref(s)`,
+    `${uniqueVolPages.length} vol/page ref(s)` +
+    (earlyAbstractNumber ? `, abstract=${earlyAbstractNumber}` : ''),
     21,
   );
 
@@ -507,6 +514,15 @@ export async function orchestrateBellResearch(
         subdivisionName: uniqueSubdivisions[0] ?? undefined,
         volumePages: uniqueVolPages,
         projectId: input.projectId,
+        propertyIdentifiers: {
+          abstractNumber: earlyAbstractNumber,
+          surveyName: earlySurveyName,
+          acreage: property.acreage ?? null,
+          subdivisionName: uniqueSubdivisions[0] ?? null,
+          lotNumber: property.lotNumber ?? knownIds.lotNumber ?? null,
+          legalDescription: property.legalDescription ?? null,
+          situsAddress: property.situsAddress ?? null,
+        },
       },
       (p) => progress('Phase 2', `Clerk: ${p.message}`, 30),
     );
@@ -651,12 +667,15 @@ export async function orchestrateBellResearch(
       try {
         // Re-use the clerk scraper's fetchInstrumentDocument via scrapeBellClerk
         // by passing only the deed instrument numbers as known instruments.
+        // IMPORTANT: skipOwnerSearch=true prevents re-running the full owner name
+        // search (Path B) which would duplicate work already done in Phase 2A.
         const deedClerk = await scrapeBellClerk(
           {
             instrumentNumbers: newInstruments,
             ownerName: uniqueOwnerNames[0] ?? property.ownerName ?? undefined,
             projectId: input.projectId,
             captureImages: true,
+            skipOwnerSearch: true,
           },
           (p) => progress('Phase 2', `Deeds: ${p.message}`, 43),
         );

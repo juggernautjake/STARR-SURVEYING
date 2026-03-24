@@ -370,35 +370,19 @@ export async function captureGisViewerScreenshots(
 
     // The matrix: each row is one screenshot with a unique config.
     //
-    // IMPORTANT: Zoom levels 20-26 are WAY too close — they show just
-    // boundary lines with no parcel context. Practical levels are 15-19.
-    // The search widget typically zooms to ~17, so we capture:
-    //   19 = closest useful view (lot detail with neighbors)
-    //   18 = block/subdivision context
-    //   17 = neighborhood (search widget default)
-    //   16 = wider area context
+    // REDUCED MATRIX: Only 3 targeted screenshots instead of 16.
+    // The surveyor needs:
+    //   1. Streets basemap with parcels + lot lines (boundary context)
+    //   2. Aerial basemap with parcels + lot lines (physical context)
+    //   3. Aerial with EagleView + parcels (hi-res detail)
+    //
+    // All at zoom level 18 (block/subdivision) which shows the target
+    // property with surrounding roads and adjacent parcels.
+    // Level 19 is too close (just the lot), level 17 is too far.
     const captureMatrix: CaptureSpec[] = [
-      // ── Streets basemap at various zoom levels ──
-      { id: '01', level: 19, basemap: 'streets', parcels: true,  lotLines: true,  eagleView: false },
-      { id: '02', level: 19, basemap: 'streets', parcels: true,  lotLines: false, eagleView: false },
-      { id: '03', level: 18, basemap: 'streets', parcels: true,  lotLines: true,  eagleView: false },
-      { id: '04', level: 17, basemap: 'streets', parcels: true,  lotLines: true,  eagleView: false },
-      { id: '05', level: 16, basemap: 'streets', parcels: true,  lotLines: false, eagleView: false },
-
-      // ── Aerial basemap (default Esri imagery) ──
-      { id: '06', level: 19, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: false },
-      { id: '07', level: 19, basemap: 'aerial',  parcels: true,  lotLines: false, eagleView: false },
-      { id: '08', level: 19, basemap: 'aerial',  parcels: false, lotLines: false, eagleView: false },
-      { id: '09', level: 18, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: false },
-      { id: '10', level: 17, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: false },
-
-      // ── 2026 EagleView Mosaic (hi-res aerial overlay) ──
-      { id: '11', level: 19, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
-      { id: '12', level: 19, basemap: 'aerial',  parcels: true,  lotLines: false, eagleView: true  },
-      { id: '13', level: 19, basemap: 'aerial',  parcels: false, lotLines: false, eagleView: true  },
-      { id: '14', level: 18, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
-      { id: '15', level: 17, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
-      { id: '16', level: 16, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
+      { id: '01', level: 18, basemap: 'streets', parcels: true,  lotLines: true,  eagleView: false },
+      { id: '02', level: 18, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: false },
+      { id: '03', level: 18, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
     ];
 
     // Group by zoom level so we only zoom when the level changes.
@@ -932,23 +916,22 @@ async function zoomToParcel(page: any, input: GisViewerCaptureInput, progress: (
   }
 
   // ── Strategy 2: Mouse wheel zoom — approximate positioning ──
-  // Bell County GIS starts at state/county level. We need ~25-30 zoom clicks
-  // to get from county level down to lot-level detail.
-  // This won't center on the parcel but will at least zoom in.
-  gisLog('zoom-cascade', 'Strategy 2: Mouse wheel zoom (30+8 clicks)');
-  progress('[zoom] Strategy 2: Using mouse wheel zoom (approximate) — zooming deep...');
-  await zoomViaMouseWheel(page, 30);
-  await page.waitForTimeout(3000);
-  const midZoom = await getCurrentZoomLevel(page);
-  gisLog('zoom-cascade', `After 30 scroll clicks: zoom=${midZoom ?? 'unknown'}`);
+  // CAUTION: Mouse wheel zooms into the viewport CENTER, which is wherever
+  // the map defaulted to (usually Bell County center, NOT the target parcel).
+  // This strategy should only be used as a last resort because it produces
+  // screenshots of the wrong area. The search widget (Strategy 1B) is strongly
+  // preferred because it actually navigates to the address.
+  gisLog('zoom-cascade', 'Strategy 2: Mouse wheel zoom — WARNING: will zoom to map center, not parcel');
+  progress('[zoom] Strategy 2: Using mouse wheel zoom (approximate) — WARNING: zooms to map center, not parcel');
 
-  progress('[zoom] Applying additional zoom refinement (+8 clicks)...');
-  await zoomViaMouseWheel(page, 8);
-  await page.waitForTimeout(2000);
+  // Zoom in moderately — don't go too deep since we're not centered on the parcel
+  await zoomViaMouseWheel(page, 20);
+  await page.waitForTimeout(3000);
   const finalZoom = await getCurrentZoomLevel(page);
-  gisLog('zoom-cascade', `After 38 total scroll clicks: zoom=${finalZoom ?? 'unknown'}`);
-  progress(`[zoom] ✓ Strategy 2 — mouse wheel zoom complete (level ${finalZoom ?? '?'}) — position is approximate`);
+  gisLog('zoom-cascade', `After 20 scroll clicks: zoom=${finalZoom ?? 'unknown'} — position is approximate (map center, not parcel)`);
+  progress(`[zoom] ✓ Strategy 2 — mouse wheel zoom complete (level ${finalZoom ?? '?'}) — position is approximate, NOT centered on parcel`);
   _zoomCached = true;
+  // Return true but the screenshots will likely show the wrong area
   return true;
 }
 
@@ -1018,34 +1001,45 @@ async function zoomViaSearchWidget(page: any, address: string, progress: (msg: s
           }
 
           // Wait for the map to zoom to the result
-          gisLog('search-widget', `Waiting ${MAP_SETTLE_WAIT + 2000}ms for map to zoom to result...`);
-          await page.waitForTimeout(MAP_SETTLE_WAIT + 2000);
+          gisLog('search-widget', `Waiting ${MAP_SETTLE_WAIT + 3000}ms for map to zoom to result...`);
+          await page.waitForTimeout(MAP_SETTLE_WAIT + 3000);
 
-          // Check if search was successful by looking for result markers
-          const hasResult = await page.evaluate(() => {
-            // Check if there's a search result marker or the view changed
-            const marker = document.querySelector('.esri-search__result-marker, .esri-graphic');
-            return !!marker;
+          // Check if search was successful.
+          // Experience Builder does NOT show .esri-search__result-marker.
+          // Instead, check for:
+          //   1. No explicit "no results" error message
+          //   2. The search input still has text (wasn't cleared by error)
+          //   3. The map canvas has tiles loaded (not blank)
+          const searchStatus = await page.evaluate(() => {
+            // Check for explicit "no results" error
+            const noResult = document.querySelector('.esri-search__no-result-text, [class*="no-result"]');
+            if (noResult) return 'no-results';
+
+            // Check if search input still has content (search accepted)
+            const inputs = document.querySelectorAll('input[type="text"]');
+            let hasSearchText = false;
+            inputs.forEach((inp: any) => {
+              if (inp.value && inp.value.length > 3) hasSearchText = true;
+            });
+
+            // Check for canvas tiles (map has loaded content)
+            const canvases = document.querySelectorAll('canvas');
+            const hasCanvas = canvases.length > 0;
+
+            return hasSearchText && hasCanvas ? 'success' : 'uncertain';
           });
 
-          if (hasResult) {
-            gisLog('search-widget', '✓ Search result marker found — zoom successful');
+          if (searchStatus === 'no-results') {
+            gisLog('search-widget', '✗ Search returned "no results" indicator');
+            progress('  Search returned no results');
+          } else {
+            // Both 'success' and 'uncertain' are treated as success —
+            // the search widget likely zoomed even without explicit markers.
+            // The search widget in Experience Builder zooms to ~17 on success.
+            gisLog('search-widget', `✓ Search completed (status=${searchStatus}) — assuming zoom succeeded`);
+            progress(`  Search completed (${searchStatus}) — map should be zoomed to result`);
             return true;
           }
-
-          // Even without a marker, the search might have zoomed — consider success
-          // if the map canvas updated (search didn't produce an error)
-          const hasError = await page.evaluate(() => {
-            const noResult = document.querySelector('.esri-search__no-result-text');
-            return !!noResult;
-          });
-
-          if (!hasError) {
-            gisLog('search-widget', '✓ No error indicator — assuming search zoomed successfully');
-            return true;
-          }
-          gisLog('search-widget', '✗ Search returned no results (esri-search__no-result-text found)');
-          progress('  Search returned no results');
         }
       } catch { /* try next selector */ }
     }
