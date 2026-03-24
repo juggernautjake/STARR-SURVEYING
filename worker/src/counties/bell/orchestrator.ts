@@ -23,6 +23,12 @@ import type {
   AiUsageSummary,
   SiteIntelligenceNote,
   EasementRecord,
+  ResearchCompleteness,
+  ResearchItem,
+  DeedRecord,
+  ChainLink,
+  PlatRecord,
+  AdjacentProperty,
 } from './types/research-result.js';
 
 import { scrapeBellCad } from './scrapers/cad-scraper.js';
@@ -1537,6 +1543,14 @@ export async function orchestrateBellResearch(
     95,
   );
 
+  // ── Build research completeness summary ──────────────────────────
+  const completeness = buildResearchCompleteness(
+    deeds, platSection, fema?.result ?? null, txdot?.result ?? null,
+    easementRecords, adjacentProperties, gisScreenshots ?? [],
+    deedRecords, property,
+  );
+  progress('Phase 4', `Research completeness: ${completeness.found.length} found, ${completeness.notFound.length} not found, ${completeness.partial.length} partial`);
+
   const result: BellResearchResult = {
     researchId: `bell-${input.projectId}-${startedAt.getTime()}`,
     projectId: input.projectId,
@@ -1582,6 +1596,7 @@ export async function orchestrateBellResearch(
     adjacentProperties,
     siteIntelligence: siteIntelligence ?? [],
     gisQualityReport,
+    researchCompleteness: completeness,
 
     screenshots: allScreenshots,
     errors,
@@ -1997,4 +2012,129 @@ export function extractDeedCallsFromLegalDescriptions(legalDescriptions: string[
     }
   }
   return [...calls];
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  RESEARCH COMPLETENESS SUMMARY
+//  Builds a clear found/not-found/partial inventory of all data items
+//  that a surveyor needs. This makes gaps obvious in the review.
+// ══════════════════════════════════════════════════════════════════════
+
+function buildResearchCompleteness(
+  deeds: { records: DeedRecord[]; chainOfTitle: ChainLink[]; summary: string } | null,
+  plats: { plats: PlatRecord[]; crossValidation: string[] } | null,
+  fema: { floodZone: string } | null,
+  txdot: { rowWidth: number | null; highwayName: string | null } | null,
+  easements: EasementRecord[],
+  adjacent: AdjacentProperty[],
+  gisScreenshots: ScreenshotCapture[],
+  rawDeedRecords: DeedRecord[],
+  property: ResolvedProperty,
+): ResearchCompleteness {
+  const found: ResearchItem[] = [];
+  const notFound: ResearchItem[] = [];
+  const partial: ResearchItem[] = [];
+
+  // ── Current deed ────────────────────────────────────────────────
+  const currentDeed = deeds?.records.find(r => /deed/i.test(r.documentType) && r.pageImages.length > 0);
+  if (currentDeed) {
+    found.push({ category: 'deed', label: 'Current deed', detail: `${currentDeed.documentType} — Inst# ${currentDeed.instrumentNumber}`, reference: currentDeed.instrumentNumber });
+  } else if (rawDeedRecords.length > 0) {
+    partial.push({ category: 'deed', label: 'Current deed', detail: `${rawDeedRecords.length} deed record(s) found but no page images captured` });
+  } else {
+    notFound.push({ category: 'deed', label: 'Current deed', detail: 'No deed records found for this property' });
+  }
+
+  // ── Boundary calls / metes and bounds ───────────────────────────
+  const deedWithCalls = deeds?.records.find(r => r.boundaryCalls && r.boundaryCalls.length > 0);
+  if (deedWithCalls) {
+    found.push({ category: 'boundary', label: 'Metes & bounds / boundary calls', detail: `${deedWithCalls.boundaryCalls!.length} boundary call(s) extracted from ${deedWithCalls.documentType}`, reference: deedWithCalls.instrumentNumber });
+    if (deedWithCalls.closureStatus === 'closed') {
+      found.push({ category: 'boundary', label: 'Closure', detail: 'Boundary description closes back to POB' });
+    } else if (deedWithCalls.closureStatus === 'open') {
+      partial.push({ category: 'boundary', label: 'Closure', detail: 'Boundary description does NOT close — verify in field' });
+    }
+    if (deedWithCalls.pointOfBeginning) {
+      found.push({ category: 'boundary', label: 'Point of Beginning', detail: deedWithCalls.pointOfBeginning.description.substring(0, 120) });
+    }
+  } else if (currentDeed?.aiSummary && /bearing|degree|thence|N\s+\d|S\s+\d/i.test(currentDeed.aiSummary)) {
+    partial.push({ category: 'boundary', label: 'Metes & bounds', detail: 'Bearing/distance calls found in deed narrative but could not be parsed into structured format' });
+  } else {
+    notFound.push({ category: 'boundary', label: 'Metes & bounds / boundary calls', detail: 'No bearing/distance calls found — property may use lot/block description only' });
+  }
+
+  // ── Chain of title ──────────────────────────────────────────────
+  const chainLen = deeds?.chainOfTitle.length ?? 0;
+  if (chainLen >= 3) {
+    found.push({ category: 'chain_of_title', label: 'Chain of title', detail: `${chainLen} links traced` });
+  } else if (chainLen > 0) {
+    partial.push({ category: 'chain_of_title', label: 'Chain of title', detail: `Only ${chainLen} link(s) — incomplete chain` });
+  } else {
+    notFound.push({ category: 'chain_of_title', label: 'Chain of title', detail: 'Could not reconstruct chain of title' });
+  }
+
+  // ── Plats ───────────────────────────────────────────────────────
+  const platCount = plats?.plats.length ?? 0;
+  if (platCount > 0) {
+    const latestPlat = plats!.plats[0];
+    found.push({ category: 'plat', label: 'Plat / subdivision plat', detail: `${platCount} plat(s) found — ${latestPlat.name || latestPlat.instrumentNumber || 'unnamed'}`, reference: latestPlat.instrumentNumber });
+    if (latestPlat.aiAnalysis?.bearingsAndDistances && latestPlat.aiAnalysis.bearingsAndDistances.length > 0) {
+      found.push({ category: 'plat', label: 'Plat bearings/distances', detail: `${latestPlat.aiAnalysis.bearingsAndDistances.length} call(s) extracted from plat` });
+    }
+  } else {
+    notFound.push({ category: 'plat', label: 'Plat / subdivision plat', detail: 'No plat records found — property may be unplatted metes-and-bounds tract' });
+  }
+
+  // ── Easements ───────────────────────────────────────────────────
+  if (easements.length > 0) {
+    found.push({ category: 'easement', label: 'Easements', detail: `${easements.length} easement(s): ${easements.map(e => e.type).join(', ')}` });
+  } else {
+    notFound.push({ category: 'easement', label: 'Easements', detail: 'No easement records found in deeds or plats' });
+  }
+
+  // ── Flood zone ──────────────────────────────────────────────────
+  if (fema) {
+    found.push({ category: 'flood', label: 'FEMA flood zone', detail: `Zone ${fema.floodZone}` });
+  } else {
+    notFound.push({ category: 'flood', label: 'FEMA flood zone', detail: 'No flood zone data returned from FEMA' });
+  }
+
+  // ── TxDOT ROW ──────────────────────────────────────────────────
+  if (txdot) {
+    const detail = txdot.rowWidth ? `${txdot.highwayName ?? 'Highway'}: ${txdot.rowWidth}ft ROW` : `${txdot.highwayName ?? 'Highway ROW detected'} (width not available)`;
+    found.push({ category: 'row', label: 'TxDOT right-of-way', detail });
+  } else {
+    notFound.push({ category: 'row', label: 'TxDOT right-of-way', detail: 'No TxDOT ROW found near property' });
+  }
+
+  // ── Adjacent properties ─────────────────────────────────────────
+  if (adjacent.length > 0) {
+    found.push({ category: 'adjacent', label: 'Adjacent properties', detail: `${adjacent.length} neighbor(s): ${adjacent.map(a => `${a.direction}: ${a.ownerName}`).join(', ')}` });
+  } else {
+    notFound.push({ category: 'adjacent', label: 'Adjacent properties', detail: 'No adjacent property data retrieved' });
+  }
+
+  // ── GIS / aerial screenshots ────────────────────────────────────
+  const goodGis = gisScreenshots.filter(s => s.imageBase64.length > 5000);
+  if (goodGis.length > 0) {
+    found.push({ category: 'gis', label: 'GIS/CAD screenshots', detail: `${goodGis.length} screenshot(s) captured` });
+  } else {
+    notFound.push({ category: 'gis', label: 'GIS/CAD screenshots', detail: 'GIS viewer screenshots failed or were blank' });
+  }
+
+  // ── GIS parcel boundary ─────────────────────────────────────────
+  if (property.parcelBoundary && property.parcelBoundary.length > 0) {
+    const pointCount = property.parcelBoundary[0]?.length ?? 0;
+    found.push({ category: 'boundary', label: 'GIS parcel boundary', detail: `${pointCount}-point polygon from county GIS` });
+  } else {
+    notFound.push({ category: 'boundary', label: 'GIS parcel boundary', detail: 'No parcel boundary polygon available from GIS' });
+  }
+
+  // ── Build summary text ──────────────────────────────────────────
+  const lines: string[] = [];
+  if (found.length > 0) lines.push(`FOUND (${found.length}): ${found.map(f => f.label).join(', ')}`);
+  if (partial.length > 0) lines.push(`PARTIAL (${partial.length}): ${partial.map(p => p.label).join(', ')}`);
+  if (notFound.length > 0) lines.push(`NOT FOUND (${notFound.length}): ${notFound.map(n => n.label).join(', ')}`);
+
+  return { found, notFound, partial, summary: lines.join(' | ') };
 }

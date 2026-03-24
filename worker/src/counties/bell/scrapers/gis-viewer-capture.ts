@@ -378,11 +378,18 @@ export async function captureGisViewerScreenshots(
     //
     // All at zoom level 18 (block/subdivision) which shows the target
     // property with surrounding roads and adjacent parcels.
-    // Level 19 is too close (just the lot), level 17 is too far.
+    // Zoom 18 = block/subdivision level — good for boundary context.
+    // Zoom 17 = wider view — shows road network and neighborhood.
     const captureMatrix: CaptureSpec[] = [
+      // GIS/CAD views (boundary context with streets basemap)
       { id: '01', level: 18, basemap: 'streets', parcels: true,  lotLines: true,  eagleView: false },
-      { id: '02', level: 18, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: false },
-      { id: '03', level: 18, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
+      { id: '02', level: 17, basemap: 'streets', parcels: true,  lotLines: true,  eagleView: false },
+      // Aerial + boundary overlay
+      { id: '03', level: 18, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: false },
+      // Hi-res EagleView aerial + parcels
+      { id: '04', level: 18, basemap: 'aerial',  parcels: true,  lotLines: true,  eagleView: true  },
+      // Clean aerial — no overlays (satellite reference image)
+      { id: '05', level: 18, basemap: 'aerial',  parcels: false, lotLines: false, eagleView: true  },
     ];
 
     // Group by zoom level so we only zoom when the level changes.

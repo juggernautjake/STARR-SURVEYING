@@ -9,7 +9,7 @@
  *   - Detect gaps or anomalies in ownership history
  */
 
-import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary } from '../types/research-result.js';
+import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary, BoundaryCall, PointOfBeginning } from '../types/research-result.js';
 import type { ConfidenceRating } from '../types/confidence.js';
 import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 import {
@@ -94,7 +94,17 @@ export async function analyzeBellDeeds(
       progress(`Analyzing: ${record.documentType} — ${record.instrumentNumber ?? 'no instrument #'}`);
       const { summary: aiSummary, usage: callUsage } = await analyzeDeedException(record, anthropicApiKey);
       accumulateUsage(usage, callUsage);
-      analyzedRecords.push({ ...record, aiSummary });
+
+      // Extract structured boundary calls from the AI narrative
+      const boundaryData = extractBoundaryCallsFromSummary(aiSummary);
+      analyzedRecords.push({
+        ...record,
+        aiSummary,
+        boundaryCalls: boundaryData.calls.length > 0 ? boundaryData.calls : undefined,
+        pointOfBeginning: boundaryData.pob,
+        statedAcreage: boundaryData.acreage,
+        closureStatus: boundaryData.closureStatus,
+      });
     } else {
       analyzedRecords.push(record);
     }
@@ -646,4 +656,124 @@ Write a thorough ownership history summary (8-15 sentences) covering:
     );
     return { summary: buildNoAiDeedSummary(records, chain, currentOwner), usage: {} };
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  STRUCTURED BOUNDARY EXTRACTION
+//  Parses bearing/distance calls from the AI narrative summary.
+//  This is regex-based extraction from text that the AI already produced.
+//  It doesn't cost extra API calls — it re-uses the narrative summary.
+// ══════════════════════════════════════════════════════════════════════
+
+interface BoundaryExtractionResult {
+  calls: BoundaryCall[];
+  pob: PointOfBeginning | null;
+  acreage: number | null;
+  closureStatus: 'closed' | 'open' | 'unknown';
+}
+
+function extractBoundaryCallsFromSummary(summary: string | null): BoundaryExtractionResult {
+  if (!summary) return { calls: [], pob: null, acreage: null, closureStatus: 'unknown' };
+
+  const calls: BoundaryCall[] = [];
+  let sequenceNum = 0;
+
+  // ── Extract Point of Beginning ──────────────────────────────────
+  let pob: PointOfBeginning | null = null;
+  const pobPatterns = [
+    /(?:point\s+of\s+beginning|POB|BEGINNING)\s*(?:is|at|being)?\s*[:—–-]?\s*(.{20,300}?)(?=\.\s*(?:thence|from|running|north|south|east|west|N\s|S\s)|\n|$)/is,
+    /(?:BEGINNING|commencing)\s+at\s+(.{20,200}?)(?=;\s*thence|\.\s*thence|,\s*thence)/is,
+  ];
+  for (const pat of pobPatterns) {
+    const m = summary.match(pat);
+    if (m) {
+      pob = {
+        description: m[1].trim(),
+        referencePoint: null,
+        bearingFromReference: null,
+        distanceFromReference: null,
+        rplsNumber: null,
+      };
+      // Try to extract reference point details
+      const refMatch = m[1].match(/(?:corner|point)\s+of\s+(?:the\s+)?(.{5,80}?)(?:\s*,|\s*;|\s*being)/i);
+      if (refMatch) pob.referencePoint = refMatch[1].trim();
+      const rplsMatch = m[1].match(/RPLS\s*#?\s*(\d+)/i);
+      if (rplsMatch) pob.rplsNumber = rplsMatch[1];
+      break;
+    }
+  }
+
+  // ── Extract bearing/distance calls ──────────────────────────────
+  // Pattern matches: N 45°30'15" E, 200.50 feet  or  S 89°59'30" W  461.81 ft
+  // Also handles: North 45 degrees 30 minutes 15 seconds East
+  const bearingDistPattern = /([NS])\s*(\d{1,3})[°\s]+(\d{1,2})?[''′\s]*(\d{1,2})?[""″\s]*\s*([EW])\s*[,\s]+(\d+(?:\.\d+)?)\s*(feet|ft|foot|varas?|meters?|chains?)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = bearingDistPattern.exec(summary)) !== null) {
+    sequenceNum++;
+    const [, ns, deg, min, sec, ew, dist, unit] = match;
+    const bearingRaw = `${ns} ${deg}°${min ?? '00'}'${sec ?? '00'}" ${ew}`;
+
+    // Convert to decimal degrees from north, clockwise
+    const decDeg = parseFloat(deg) + (parseFloat(min ?? '0') / 60) + (parseFloat(sec ?? '0') / 3600);
+    let bearingDegrees: number | null = null;
+    if (ns.toUpperCase() === 'N' && ew.toUpperCase() === 'E') bearingDegrees = decDeg;
+    else if (ns.toUpperCase() === 'N' && ew.toUpperCase() === 'W') bearingDegrees = 360 - decDeg;
+    else if (ns.toUpperCase() === 'S' && ew.toUpperCase() === 'E') bearingDegrees = 180 - decDeg;
+    else if (ns.toUpperCase() === 'S' && ew.toUpperCase() === 'W') bearingDegrees = 180 + decDeg;
+
+    // Normalize distance unit
+    const normalUnit = /vara/i.test(unit) ? 'varas' as const
+      : /meter/i.test(unit) ? 'meters' as const
+      : /chain/i.test(unit) ? 'chains' as const
+      : 'feet' as const;
+
+    // Look for monument near this call (within ~100 chars after the distance)
+    const afterMatch = summary.substring(match.index + match[0].length, match.index + match[0].length + 150);
+    let monument: string | null = null;
+    const monMatch = afterMatch.match(/(?:to\s+(?:a|an)\s+)?(\d\/\d["″]?\s*(?:iron\s+(?:rod|pin|pipe)|concrete\s+monument|PK\s+nail|railroad\s+spike|rebar|mag\s+nail)[^,;.]*(?:(?:found|set)[^,;.]*)?)/i);
+    if (monMatch) monument = monMatch[1].trim();
+
+    // Look for "along" reference
+    let along: string | null = null;
+    const alongMatch = afterMatch.match(/along\s+(?:the\s+)?(.{5,80}?)(?:\s*[,;.]|\s*to\s+(?:a|an|the))/i);
+    if (alongMatch) along = alongMatch[1].trim();
+
+    calls.push({
+      sequence: sequenceNum,
+      bearingRaw,
+      bearingDegrees,
+      distance: parseFloat(dist),
+      distanceUnit: normalUnit,
+      monument,
+      along,
+      curve: null,
+      returnsToPOB: false,
+    });
+  }
+
+  // Mark last call as returning to POB if the text mentions it
+  if (calls.length > 0) {
+    const lastCallIdx = summary.lastIndexOf(calls[calls.length - 1].bearingRaw);
+    if (lastCallIdx >= 0) {
+      const afterLast = summary.substring(lastCallIdx, lastCallIdx + 300);
+      if (/(?:to\s+the\s+)?(?:point\s+of\s+beginning|POB|place\s+of\s+beginning)/i.test(afterLast)) {
+        calls[calls.length - 1].returnsToPOB = true;
+      }
+    }
+  }
+
+  // ── Extract acreage ─────────────────────────────────────────────
+  let acreage: number | null = null;
+  const acreMatch = summary.match(/(\d+(?:\.\d+)?)\s*acres?\b/i);
+  if (acreMatch) acreage = parseFloat(acreMatch[1]);
+
+  // ── Determine closure status ────────────────────────────────────
+  let closureStatus: 'closed' | 'open' | 'unknown' = 'unknown';
+  if (calls.length > 0 && calls[calls.length - 1].returnsToPOB) {
+    closureStatus = 'closed';
+  } else if (/does\s+not\s+close|open\s+traverse|no\s+closure/i.test(summary)) {
+    closureStatus = 'open';
+  }
+
+  return { calls, pob, acreage, closureStatus };
 }
