@@ -587,6 +587,13 @@ function crossValidatePlatVsDeeds(
   // ── Structured cross-validation (BoundaryCall vs BoundaryCall) ──
   // When both plat structuredCalls and deed boundary calls are available,
   // compare numerically with tolerance for bearing (±0.1°) and distance (±0.5ft).
+  //
+  // When deed calls are missing, skip numerical comparison but note it.
+  if (!hasDeedCalls) {
+    notes.push('Cross-validation skipped — no deed bearing/distance calls available for comparison');
+    return notes;
+  }
+
   for (const plat of plats) {
     if (!plat.aiAnalysis) continue;
     const platCalls = plat.aiAnalysis.structuredCalls ?? [];
