@@ -761,12 +761,14 @@ function parsePropertyDetailHtml(
     /<label[^>]*>Owner<\/label>\s*<[^>]*>([^<]+)</i,
   ];
   let ownerName: string | null = null;
-  for (const pat of ownerPatterns) {
-    const m = html.match(pat);
+  let ownerPatternIdx = -1;
+  for (let pi = 0; pi < ownerPatterns.length; pi++) {
+    const m = html.match(ownerPatterns[pi]);
     if (m?.[1]) {
       const v = safeStr(m[1]);
       if (v.length > 2 && !/appraisal district|should be verified|legal purpose/i.test(v)) {
         ownerName = v;
+        ownerPatternIdx = pi + 1;
         break;
       }
     }
@@ -870,12 +872,19 @@ function parsePropertyDetailHtml(
     urlsVisited,
   };
 
-  progress('CAD-PARSE',
-    `Parsed: owner="${ownerName?.slice(0, 30)}" ` +
-    `type=${propertyType ?? '?'} ` +
-    `legal="${legalDescription?.slice(0, 40)}..." ` +
-    `deeds=${deedHistory.length} ` +
-    `instruments=${instrumentNumbers.length}`);
+  // Log per-field extraction results for full audit trail
+  const fields = [
+    ownerName ? `✓ owner="${ownerName.slice(0, 40)}" (pattern ${ownerPatternIdx})` : '✗ owner=MISSING',
+    legalDescription ? `✓ legal="${legalDescription.slice(0, 50)}..."` : '✗ legal=MISSING',
+    acreage != null ? `✓ acreage=${acreage}` : '✗ acreage=MISSING',
+    propertyType ? `✓ type=${propertyType}` : '○ type=unknown',
+    situsAddress ? `✓ situs="${situsAddress.slice(0, 40)}"` : '○ situs=none',
+    mapId ? `✓ mapId=${mapId}` : '○ mapId=none',
+    mailingAddress ? `✓ mail="${mailingAddress.slice(0, 40)}"` : '○ mail=none',
+    `deeds=${deedHistory.length}`,
+    `instruments=[${instrumentNumbers.join(', ')}]`,
+  ];
+  progress('CAD-PARSE', `Field extraction for ${propId}:\n    ${fields.join('\n    ')}`);
 
   return result;
 }

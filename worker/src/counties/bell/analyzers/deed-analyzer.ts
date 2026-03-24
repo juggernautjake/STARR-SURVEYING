@@ -9,7 +9,7 @@
  *   - Detect gaps or anomalies in ownership history
  */
 
-import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary } from '../types/research-result.js';
+import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary, BoundaryCall, PointOfBeginning, ComputedTraverse } from '../types/research-result.js';
 import type { ConfidenceRating } from '../types/confidence.js';
 import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 import {
@@ -94,11 +94,52 @@ export async function analyzeBellDeeds(
       progress(`Analyzing: ${record.documentType} — ${record.instrumentNumber ?? 'no instrument #'}`);
       const { summary: aiSummary, usage: callUsage } = await analyzeDeedException(record, anthropicApiKey);
       accumulateUsage(usage, callUsage);
-      analyzedRecords.push({ ...record, aiSummary });
+
+      // Extract structured boundary calls from the AI narrative
+      const boundaryData = extractBoundaryCallsFromSummary(aiSummary);
+      const instrLabel = record.instrumentNumber ?? record.documentType;
+
+      // Compute traverse coordinates if we have 3+ boundary calls
+      let computedTraverse: ComputedTraverse | null = null;
+      if (boundaryData.calls.length >= 3) {
+        computedTraverse = computeTraverseFromCalls(boundaryData.calls);
+      }
+
+      // Log boundary extraction results for every deed
+      if (boundaryData.calls.length > 0) {
+        progress(`  ✓ ${instrLabel}: ${boundaryData.calls.length} boundary call(s) extracted` +
+          (boundaryData.pob ? `, POB found` : `, no POB`) +
+          `, closure=${boundaryData.closureStatus}` +
+          (boundaryData.acreage ? `, ${boundaryData.acreage} acres` : '') +
+          (computedTraverse ? `, computed area=${computedTraverse.computedAreaAcres.toFixed(3)}ac, closure=${computedTraverse.closureRatio}` : ''));
+      } else {
+        progress(`  ○ ${instrLabel}: no bearing/distance calls found in summary` +
+          (record.documentType && /deed of trust|release|assignment/i.test(record.documentType)
+            ? ' (expected — this document type typically has no metes & bounds)'
+            : ' — may use lot/block description only'));
+      }
+
+      analyzedRecords.push({
+        ...record,
+        aiSummary,
+        boundaryCalls: boundaryData.calls.length > 0 ? boundaryData.calls : undefined,
+        pointOfBeginning: boundaryData.pob,
+        statedAcreage: boundaryData.acreage,
+        closureStatus: boundaryData.closureStatus,
+        computedTraverse,
+      });
     } else {
+      progress(`  ○ ${record.instrumentNumber ?? record.documentType}: skipped — no page images`);
       analyzedRecords.push(record);
     }
   }
+
+  // Log boundary extraction summary
+  const withCalls = analyzedRecords.filter(r => r.boundaryCalls && r.boundaryCalls.length > 0);
+  const withPOB = analyzedRecords.filter(r => r.pointOfBeginning);
+  const closedCount = analyzedRecords.filter(r => r.closureStatus === 'closed').length;
+  progress(`Boundary extraction summary: ${withCalls.length}/${analyzedRecords.length} deed(s) have structured calls, ` +
+    `${withPOB.length} have POB, ${closedCount} close`);
 
   // ── Step 2: Reconstruct chain of title ─────────────────────────────
   progress('Reconstructing chain of title...');
@@ -481,15 +522,27 @@ async function analyzeDeedException(
 
     // If only 1 region result, use it directly — no reconciliation needed
     if (allRegionResults.length === 1) {
+      const instrLabel = record.instrumentNumber ?? record.documentType;
+      console.log(`[deed-analyzer] AI usage for ${instrLabel} (single region): ` +
+        `input_tokens=${totalUsage.totalInputTokens ?? 0}, output_tokens=${totalUsage.totalOutputTokens ?? 0}, ` +
+        `summary_length=${allRegionResults[0].text.length} chars`);
       return { summary: allRegionResults[0].text, usage: totalUsage };
     }
 
     // Deep reconciliation pass — merge all region analyses
-    console.log(`[deed-analyzer] Running deep reconciliation across ${allRegionResults.length} region analyses...`);
+    const contextSize = allRegionResults.reduce((n, r) => n + r.text.length, 0);
+    console.log(`[deed-analyzer] Running deep reconciliation across ${allRegionResults.length} region analyses (${contextSize} chars)...`);
     const { text: reconciledSummary, usage: reconUsage } = await reconcileDeedRegionAnalyses(
       client, allRegionResults, record,
     );
     accumulateUsage(totalUsage, reconUsage);
+
+    // Log cumulative AI token usage for this deed
+    const instrLabel = record.instrumentNumber ?? record.documentType;
+    console.log(`[deed-analyzer] AI usage for ${instrLabel}: ` +
+      `input_tokens=${totalUsage.totalInputTokens ?? 0}, output_tokens=${totalUsage.totalOutputTokens ?? 0}, ` +
+      `regions=${allRegionResults.length}, reconciled=${reconciledSummary ? 'yes' : 'no'}, ` +
+      `summary_length=${(reconciledSummary || '').length} chars`);
 
     return {
       summary: reconciledSummary || allRegionResults.map(r => r.text).join('\n\n---\n\n'),
@@ -521,7 +574,7 @@ function buildChainOfTitle(records: DeedRecord[]): ChainLink[] {
     return dateA - dateB;
   });
 
-  return conveyances.map((record, index) => ({
+  const chain = conveyances.map((record, index) => ({
     order: index + 1,
     instrumentNumber: record.instrumentNumber,
     date: record.recordingDate,
@@ -529,6 +582,18 @@ function buildChainOfTitle(records: DeedRecord[]): ChainLink[] {
     to: record.grantee ?? 'UNKNOWN',
     type: record.documentType,
   }));
+
+  // Log chain of title for audit trail
+  if (chain.length > 0) {
+    console.log(`[deed-analyzer] Chain of title: ${chain.length} link(s):`);
+    for (const link of chain) {
+      console.log(`  [deed-analyzer]   ${link.order}. ${link.date ?? '?'}: ${link.from} → ${link.to} (${link.type}, Instr# ${link.instrumentNumber ?? '?'})`);
+    }
+  } else {
+    console.log(`[deed-analyzer] Chain of title: no conveyance deeds found (filtered ${records.length} record(s) — all were DOT/release/non-deed)`);
+  }
+
+  return chain;
 }
 
 // ── Internal: Summary Generation ─────────────────────────────────────
@@ -646,4 +711,203 @@ Write a thorough ownership history summary (8-15 sentences) covering:
     );
     return { summary: buildNoAiDeedSummary(records, chain, currentOwner), usage: {} };
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  STRUCTURED BOUNDARY EXTRACTION
+//  Parses bearing/distance calls from the AI narrative summary.
+//  This is regex-based extraction from text that the AI already produced.
+//  It doesn't cost extra API calls — it re-uses the narrative summary.
+// ══════════════════════════════════════════════════════════════════════
+
+interface BoundaryExtractionResult {
+  calls: BoundaryCall[];
+  pob: PointOfBeginning | null;
+  acreage: number | null;
+  closureStatus: 'closed' | 'open' | 'unknown';
+}
+
+function extractBoundaryCallsFromSummary(summary: string | null): BoundaryExtractionResult {
+  if (!summary) return { calls: [], pob: null, acreage: null, closureStatus: 'unknown' };
+
+  const calls: BoundaryCall[] = [];
+  let sequenceNum = 0;
+
+  // ── Extract Point of Beginning ──────────────────────────────────
+  let pob: PointOfBeginning | null = null;
+  const pobPatterns = [
+    /(?:point\s+of\s+beginning|POB|BEGINNING)\s*(?:is|at|being)?\s*[:—–-]?\s*(.{20,300}?)(?=\.\s*(?:thence|from|running|north|south|east|west|N\s|S\s)|\n|$)/is,
+    /(?:BEGINNING|commencing)\s+at\s+(.{20,200}?)(?=;\s*thence|\.\s*thence|,\s*thence)/is,
+  ];
+  for (const pat of pobPatterns) {
+    const m = summary.match(pat);
+    if (m) {
+      pob = {
+        description: m[1].trim(),
+        referencePoint: null,
+        bearingFromReference: null,
+        distanceFromReference: null,
+        rplsNumber: null,
+      };
+      // Try to extract reference point details
+      const refMatch = m[1].match(/(?:corner|point)\s+of\s+(?:the\s+)?(.{5,80}?)(?:\s*,|\s*;|\s*being)/i);
+      if (refMatch) pob.referencePoint = refMatch[1].trim();
+      const rplsMatch = m[1].match(/RPLS\s*#?\s*(\d+)/i);
+      if (rplsMatch) pob.rplsNumber = rplsMatch[1];
+      break;
+    }
+  }
+
+  // ── Extract bearing/distance calls ──────────────────────────────
+  // Pattern matches: N 45°30'15" E, 200.50 feet  or  S 89°59'30" W  461.81 ft
+  // Also handles: North 45 degrees 30 minutes 15 seconds East
+  const bearingDistPattern = /([NS])\s*(\d{1,3})[°\s]+(\d{1,2})?[''′\s]*(\d{1,2})?[""″\s]*\s*([EW])\s*[,\s]+(\d+(?:\.\d+)?)\s*(feet|ft|foot|varas?|meters?|chains?)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = bearingDistPattern.exec(summary)) !== null) {
+    sequenceNum++;
+    const [, ns, deg, min, sec, ew, dist, unit] = match;
+    const bearingRaw = `${ns} ${deg}°${min ?? '00'}'${sec ?? '00'}" ${ew}`;
+
+    // Convert to decimal degrees from north, clockwise
+    const decDeg = parseFloat(deg) + (parseFloat(min ?? '0') / 60) + (parseFloat(sec ?? '0') / 3600);
+    let bearingDegrees: number | null = null;
+    if (ns.toUpperCase() === 'N' && ew.toUpperCase() === 'E') bearingDegrees = decDeg;
+    else if (ns.toUpperCase() === 'N' && ew.toUpperCase() === 'W') bearingDegrees = 360 - decDeg;
+    else if (ns.toUpperCase() === 'S' && ew.toUpperCase() === 'E') bearingDegrees = 180 - decDeg;
+    else if (ns.toUpperCase() === 'S' && ew.toUpperCase() === 'W') bearingDegrees = 180 + decDeg;
+
+    // Normalize distance unit
+    const normalUnit = /vara/i.test(unit) ? 'varas' as const
+      : /meter/i.test(unit) ? 'meters' as const
+      : /chain/i.test(unit) ? 'chains' as const
+      : 'feet' as const;
+
+    // Look for monument near this call (within ~100 chars after the distance)
+    const afterMatch = summary.substring(match.index + match[0].length, match.index + match[0].length + 150);
+    let monument: string | null = null;
+    const monMatch = afterMatch.match(/(?:to\s+(?:a|an)\s+)?(\d\/\d["″]?\s*(?:iron\s+(?:rod|pin|pipe)|concrete\s+monument|PK\s+nail|railroad\s+spike|rebar|mag\s+nail)[^,;.]*(?:(?:found|set)[^,;.]*)?)/i);
+    if (monMatch) monument = monMatch[1].trim();
+
+    // Look for "along" reference
+    let along: string | null = null;
+    const alongMatch = afterMatch.match(/along\s+(?:the\s+)?(.{5,80}?)(?:\s*[,;.]|\s*to\s+(?:a|an|the))/i);
+    if (alongMatch) along = alongMatch[1].trim();
+
+    calls.push({
+      sequence: sequenceNum,
+      bearingRaw,
+      bearingDegrees,
+      distance: parseFloat(dist),
+      distanceUnit: normalUnit,
+      monument,
+      along,
+      curve: null,
+      returnsToPOB: false,
+    });
+  }
+
+  // Mark last call as returning to POB if the text mentions it
+  if (calls.length > 0) {
+    const lastCallIdx = summary.lastIndexOf(calls[calls.length - 1].bearingRaw);
+    if (lastCallIdx >= 0) {
+      const afterLast = summary.substring(lastCallIdx, lastCallIdx + 300);
+      if (/(?:to\s+the\s+)?(?:point\s+of\s+beginning|POB|place\s+of\s+beginning)/i.test(afterLast)) {
+        calls[calls.length - 1].returnsToPOB = true;
+      }
+    }
+  }
+
+  // ── Extract acreage ─────────────────────────────────────────────
+  let acreage: number | null = null;
+  const acreMatch = summary.match(/(\d+(?:\.\d+)?)\s*acres?\b/i);
+  if (acreMatch) acreage = parseFloat(acreMatch[1]);
+
+  // ── Determine closure status ────────────────────────────────────
+  let closureStatus: 'closed' | 'open' | 'unknown' = 'unknown';
+  if (calls.length > 0 && calls[calls.length - 1].returnsToPOB) {
+    closureStatus = 'closed';
+  } else if (/does\s+not\s+close|open\s+traverse|no\s+closure/i.test(summary)) {
+    closureStatus = 'open';
+  }
+
+  console.log(`[deed-analyzer] extractBoundaryCallsFromSummary: calls=${calls.length}, pob=${pob ? 'yes' : 'no'}, acreage=${acreage ?? 'none'}, closure=${closureStatus}` +
+    (calls.length > 0 ? `, calls=[${calls.map(c => `${c.bearingRaw} ${c.distance}${c.distanceUnit[0]}`).join(' → ')}]` : ''));
+
+  return { calls, pob, acreage, closureStatus };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  TRAVERSE COMPUTATION
+//  Computes XY corner coordinates from sequential boundary calls.
+//  POB is at (0,0). Each call adds a vector: distance at bearing.
+//  The closure error is the distance from the last point back to (0,0).
+//  Area is computed via the Shoelace formula.
+//
+//  This enables procedural drawing of the property boundary.
+// ══════════════════════════════════════════════════════════════════════
+
+function computeTraverseFromCalls(calls: BoundaryCall[]): ComputedTraverse | null {
+  if (calls.length < 3) return null;
+
+  const corners: { x: number; y: number; sequence: number; monument: string | null }[] = [];
+  let x = 0, y = 0;
+  let perimeter = 0;
+
+  // POB at origin
+  corners.push({ x: 0, y: 0, sequence: 0, monument: null });
+
+  for (const call of calls) {
+    if (call.bearingDegrees === null) continue;
+
+    // Convert distance to feet
+    let distFt = call.distance;
+    if (call.distanceUnit === 'varas') distFt *= 2.7778;
+    else if (call.distanceUnit === 'meters') distFt *= 3.28084;
+    else if (call.distanceUnit === 'chains') distFt *= 66;
+
+    // Bearing is degrees from north, clockwise
+    // X = easting (positive = east), Y = northing (positive = north)
+    const bearingRad = call.bearingDegrees * Math.PI / 180;
+    const dx = distFt * Math.sin(bearingRad);
+    const dy = distFt * Math.cos(bearingRad);
+
+    x += dx;
+    y += dy;
+    perimeter += distFt;
+
+    corners.push({
+      x: Math.round(x * 100) / 100,
+      y: Math.round(y * 100) / 100,
+      sequence: call.sequence,
+      monument: call.monument,
+    });
+  }
+
+  // Closure error: distance from last point back to (0,0)
+  const closureErrorFt = Math.sqrt(x * x + y * y);
+  const closureRatio = perimeter > 0 && closureErrorFt > 0.001
+    ? `1:${Math.round(perimeter / closureErrorFt)}`
+    : closureErrorFt <= 0.001 ? '1:∞ (exact)' : 'N/A';
+
+  // Area via Shoelace formula
+  let area2 = 0;
+  for (let i = 0; i < corners.length; i++) {
+    const j = (i + 1) % corners.length;
+    area2 += corners[i].x * corners[j].y;
+    area2 -= corners[j].x * corners[i].y;
+  }
+  const areaSqFt = Math.abs(area2) / 2;
+  const areaAcres = areaSqFt / 43560;
+
+  console.log(`[deed-analyzer] computeTraverse: ${corners.length} corners, perimeter=${Math.round(perimeter)}ft, ` +
+    `area=${areaAcres.toFixed(3)}ac, closure=${closureRatio} (error=${closureErrorFt.toFixed(2)}ft)`);
+
+  return {
+    corners,
+    closureErrorFt: Math.round(closureErrorFt * 100) / 100,
+    closureRatio,
+    perimeterFt: Math.round(perimeter * 100) / 100,
+    computedAreaSqFt: Math.round(areaSqFt),
+    computedAreaAcres: Math.round(areaAcres * 1000) / 1000,
+  };
 }

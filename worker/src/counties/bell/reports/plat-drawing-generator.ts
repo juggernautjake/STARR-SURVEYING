@@ -95,6 +95,14 @@ export async function generatePlatDrawing(
     drawingData: adjSvg,
   });
 
+  // Log layer assembly results
+  const withData = layers.filter(l => l.drawingData.length > 0);
+  const enabled = layers.filter(l => l.enabled);
+  console.log(`[plat-drawing] Generated ${layers.length} layer(s): ${withData.length} have SVG data, ${enabled.length} enabled`);
+  for (const l of layers) {
+    console.log(`[plat-drawing]   ${l.drawingData.length > 0 ? '✓' : '✗'} ${l.name}: ${l.enabled ? 'ON' : 'off'}, ${l.drawingData.length} SVG chars`);
+  }
+
   return layers;
 }
 

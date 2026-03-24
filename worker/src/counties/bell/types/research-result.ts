@@ -44,6 +44,10 @@ export interface BellResearchResult {
     actionableAdjustments: string[];
   } | null;
 
+  // ── Research Completeness Summary ──────────────────────────────────
+  /** Clear summary of what was found and what was not found */
+  researchCompleteness?: ResearchCompleteness | null;
+
   // ── Metadata ───────────────────────────────────────────────────────
   /** All screenshots captured during research */
   screenshots: ScreenshotCapture[];
@@ -117,6 +121,103 @@ export interface DeedRecord {
   /** Where this record was found */
   source: string;
   confidence: ConfidenceRating;
+
+  // ── Structured Boundary Data (for procedural drawing) ────────────
+  /** Metes and bounds calls extracted from the deed, in sequence from POB */
+  boundaryCalls?: BoundaryCall[];
+  /** Point of Beginning description */
+  pointOfBeginning?: PointOfBeginning | null;
+  /** Total acreage stated in the deed */
+  statedAcreage?: number | null;
+  /** Whether the boundary description closes back to POB */
+  closureStatus?: 'closed' | 'open' | 'unknown';
+  /** Computed corner coordinates from POB + sequential calls (for drawing) */
+  computedTraverse?: ComputedTraverse | null;
+}
+
+/** Computed XY coordinates for each corner of the property boundary */
+export interface ComputedTraverse {
+  /** Corner coordinates in local coordinate system (feet from POB) */
+  corners: { x: number; y: number; sequence: number; monument: string | null }[];
+  /** Closure error in feet (distance from last point back to POB) */
+  closureErrorFt: number;
+  /** Closure error as ratio (1:N where N = perimeter/error) */
+  closureRatio: string;
+  /** Total perimeter in feet */
+  perimeterFt: number;
+  /** Computed area in square feet */
+  computedAreaSqFt: number;
+  /** Computed area in acres */
+  computedAreaAcres: number;
+}
+
+/** A single bearing/distance call in a metes-and-bounds description */
+export interface BoundaryCall {
+  /** Sequence number (1 = first call from POB) */
+  sequence: number;
+  /** Raw bearing text exactly as written (e.g., "N 45°30'15\" E") */
+  bearingRaw: string;
+  /** Decimal degrees from north, clockwise (0-360). null if not parseable. */
+  bearingDegrees: number | null;
+  /** Distance value */
+  distance: number;
+  /** Distance unit (feet, varas, meters, chains) */
+  distanceUnit: 'feet' | 'varas' | 'meters' | 'chains';
+  /** Monument description at this corner (e.g., "1/2\" iron rod found") */
+  monument: string | null;
+  /** What the call runs along (e.g., "south line of Lot 12", "center of creek") */
+  along: string | null;
+  /** Curve data if this call is an arc */
+  curve?: CurveData | null;
+  /** Whether this call returns to POB */
+  returnsToPOB?: boolean;
+}
+
+/** Curve parameters for arc calls */
+export interface CurveData {
+  radius: number;
+  arcLength: number;
+  chordBearing: string | null;
+  chordDistance: number | null;
+  deltaAngle: string | null;
+  direction: 'left' | 'right' | null;
+}
+
+/** Point of Beginning for a metes-and-bounds description */
+export interface PointOfBeginning {
+  /** Full POB description as written in the deed */
+  description: string;
+  /** Reference monument or point (e.g., "the southeast corner of said Abstract 643") */
+  referencePoint: string | null;
+  /** Bearing from reference point to POB */
+  bearingFromReference: string | null;
+  /** Distance from reference point to POB */
+  distanceFromReference: string | null;
+  /** RPLS number if a survey monument is referenced */
+  rplsNumber: string | null;
+}
+
+/** Research completeness summary — what was found and what was not */
+export interface ResearchCompleteness {
+  /** Items that were successfully found */
+  found: ResearchItem[];
+  /** Items that were NOT found (gaps in research) */
+  notFound: ResearchItem[];
+  /** Items that were partially found (some data missing) */
+  partial: ResearchItem[];
+  /** Plain-English summary of research completeness */
+  summary: string;
+}
+
+export interface ResearchItem {
+  /** Category of the data item */
+  category: 'deed' | 'plat' | 'chain_of_title' | 'boundary' | 'easement' | 'adjacent' | 'flood' | 'row' | 'gis' | 'aerial';
+  /** What was being searched for */
+  label: string;
+  /** What was actually found (or why it wasn't) */
+  detail: string;
+  /** Instrument number or source reference */
+  reference?: string | null;
 }
 
 export interface ChainLink {
@@ -158,13 +259,13 @@ export interface PlatRecord {
 export interface PlatAnalysis {
   /** Lot dimensions extracted from plat */
   lotDimensions: string[];
-  /** Bearings and distances */
+  /** Bearings and distances (raw text strings for backward compat) */
   bearingsAndDistances: string[];
   /** Monuments called on the plat */
   monuments: string[];
   /** Easements shown on the plat */
   easements: string[];
-  /** Curves (arc data) */
+  /** Curves (arc data — raw text strings) */
   curves: string[];
   /** Right-of-way widths */
   rowWidths: string[];
@@ -185,6 +286,17 @@ export interface PlatAnalysis {
     /** Detailed reasoning */
     reasoning: string;
   } | null;
+
+  // ── Structured boundary data (compatible with DeedRecord.boundaryCalls) ──
+  /**
+   * Structured boundary calls for the TARGET LOT on this plat.
+   * Uses the same BoundaryCall format as deed records, enabling
+   * cross-validation between deed and plat boundary descriptions.
+   * Populated by parsing bearingsAndDistances[] into structured form.
+   */
+  structuredCalls?: BoundaryCall[];
+  /** Point of Beginning from plat (if identified for target lot) */
+  pointOfBeginning?: PointOfBeginning | null;
 }
 
 // ── Section: Easements & Encumbrances ────────────────────────────────

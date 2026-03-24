@@ -92,6 +92,28 @@ export interface ClerkSearchInput {
   captureImages?: boolean;
   /** Real project ID — used to bind scraper loggers to the project's live log registry */
   projectId?: string;
+  /**
+   * Property identifiers for early relevance filtering in Path B (owner search).
+   * When provided, documents from the owner search will be checked against these
+   * identifiers BEFORE downloading page images. Documents that clearly belong to
+   * a different property (different abstract, different subdivision, etc.) will be
+   * skipped entirely, saving significant time and cost.
+   */
+  propertyIdentifiers?: {
+    abstractNumber?: string | null;
+    surveyName?: string | null;
+    acreage?: number | null;
+    subdivisionName?: string | null;
+    lotNumber?: string | null;
+    legalDescription?: string | null;
+    situsAddress?: string | null;
+  };
+  /**
+   * When true, skip Path B (owner name search) entirely.
+   * Use this in Phase 2B½ to avoid re-running the full owner search
+   * when we only need to fetch specific instrument numbers.
+   */
+  skipOwnerSearch?: boolean;
 }
 
 export interface ClerkScraperProgress {
@@ -204,7 +226,7 @@ export async function scrapeBellClerk(
   // ── Path B: Owner Name SPA Search ──────────────────────────────────
   // The Kofile SPA requires Playwright for interactive search. The
   // bell-clerk.ts service layer handles all browser interaction.
-  if (input.ownerName && documents.length < maxDocs) {
+  if (input.ownerName && documents.length < maxDocs && !input.skipOwnerSearch) {
     searchPaths.push('Path-B-Owner');
     progress(`Path B: Searching clerk by owner name: "${input.ownerName}"`);
 
@@ -216,6 +238,7 @@ export async function scrapeBellClerk(
       urlsVisited,
       progress,
       input.projectId,
+      input.propertyIdentifiers,
     );
 
     let newCount = 0;
@@ -436,12 +459,21 @@ async function searchClerkByOwner(
   urlsVisited: string[],
   progress: (msg: string) => void,
   projectId?: string,
+  propertyIdentifiers?: ClerkSearchInput['propertyIdentifiers'],
 ): Promise<ClerkDocument[]> {
   const documents: ClerkDocument[] = [];
   const nameVariants = formatOwnerNameVariants(ownerName);
 
+  const hasPropertyFilter = propertyIdentifiers && (
+    propertyIdentifiers.abstractNumber || propertyIdentifiers.subdivisionName ||
+    propertyIdentifiers.lotNumber || propertyIdentifiers.legalDescription
+  );
+
   progress(`  [ownerSearch] Starting owner search for "${ownerName}" (${nameVariants.length} variant(s): ${nameVariants.join(', ')})`);
-  console.log(`[ClerkScraper] searchClerkByOwner: owner="${ownerName}", maxDocs=${maxDocs}, variants=${nameVariants.join(',')}`);
+  if (hasPropertyFilter) {
+    progress(`  [ownerSearch] Early relevance filter active: abstract=${propertyIdentifiers!.abstractNumber ?? '?'}, subdiv="${propertyIdentifiers!.subdivisionName ?? '?'}", lot=${propertyIdentifiers!.lotNumber ?? '?'}`);
+  }
+  console.log(`[ClerkScraper] searchClerkByOwner: owner="${ownerName}", maxDocs=${maxDocs}, variants=${nameVariants.join(',')}, hasPropertyFilter=${!!hasPropertyFilter}`);
 
   try {
     const { searchClerkRecords, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
@@ -464,12 +496,54 @@ async function searchClerkByOwner(
         continue;
       }
 
-      progress(`  [ownerSearch] Found ${docRefs.length} document(s) for "${name}" — fetching details...`);
+      progress(`  [ownerSearch] Found ${docRefs.length} document(s) for "${name}" — filtering before download...`);
       console.log(`[ClerkScraper] Owner variant "${name}": ${docRefs.length} results, types: ${docRefs.map(r => r.documentType).join(', ')}`);
 
-      for (const ref of docRefs.slice(0, maxDocs - documents.length)) {
+      // ── Early relevance filtering BEFORE image download ──────────
+      // When property identifiers are available, check each document's
+      // metadata (property description, grantor/grantee) against the
+      // known property identifiers. Documents that clearly belong to a
+      // different property (different abstract/OPR, different subdivision)
+      // are skipped entirely — saving 1-2 minutes per document.
+      let skippedByFilter = 0;
+      for (const ref of docRefs.slice(0, maxDocs - documents.length + 10)) { // +10 buffer for filtered docs
+        if (documents.length >= maxDocs) break;
         const instrNum = ref.instrumentNumber ?? '';
         let pageImages: string[] = [];
+
+        // ── Pre-download relevance check ──────────────────────────
+        // Use document metadata available from search results to skip
+        // documents that clearly belong to a different property.
+        // The DocumentRef has: instrumentNumber, volume, page, documentType,
+        // recordingDate, grantors, grantees, source, url.
+        // We also check any textContent from search results if available.
+        if (hasPropertyFilter) {
+          // Check the document result's textContent or any available property description
+          const docResult = docResults.find(d => d.ref === ref);
+          const textContent = docResult?.textContent ?? '';
+          const propDesc = textContent.toUpperCase();
+          const targetAbstract = propertyIdentifiers!.abstractNumber?.replace(/^[A0]*/, '') ?? null;
+
+          // Check 1: If document text content mentions a DIFFERENT abstract number, skip it
+          if (targetAbstract && propDesc.length > 10) {
+            const abstractMatch = propDesc.match(/A(?:BSTRACT\s*(?:NO\.?\s*)?)?(\d+)/i);
+            if (abstractMatch) {
+              const docAbstract = abstractMatch[1].replace(/^0+/, '');
+              if (docAbstract !== targetAbstract.replace(/^0+/, '')) {
+                skippedByFilter++;
+                progress(`  [ownerSearch] SKIP ${instrNum} (${ref.documentType}): different abstract ${docAbstract} vs target ${targetAbstract}`);
+                continue;
+              }
+            }
+          }
+
+          // Check 2: Skip documents where the owner appears as GRANTOR and GRANTEE
+          // names don't match our target owner at all (e.g., "JORDAN MICHAEL A"
+          // appearing with "SPRING EQ LLC" is likely a different JORDAN property)
+          // NOTE: We intentionally keep this conservative — only skip if we have
+          // very strong evidence of a different property. The post-AI filter (Phase 3C)
+          // handles ambiguous cases.
+        }
 
         // Use the REAL URL from the search result (has internal doc ID), not a constructed one
         const realUrl = ref.url ?? null;
@@ -509,6 +583,11 @@ async function searchClerkByOwner(
           relevanceScore: getDocumentRelevance(ref.documentType),
         });
       }
+
+      // Aggregate filter summary
+      const reviewed = Math.min(docRefs.length, maxDocs - documents.length + 10 + skippedByFilter);
+      progress(`  [ownerSearch] Filter summary for "${name}": reviewed=${reviewed}, kept=${documents.length}, skipped=${skippedByFilter}` +
+        (skippedByFilter > 0 ? ' (abstract/property mismatch)' : ''));
 
       if (documents.length > 0) {
         progress(`  [ownerSearch] ✓ Owner variant "${name}" yielded ${documents.length} document(s) — stopping search`);
@@ -787,6 +866,7 @@ export async function captureDocumentPages(
 ): Promise<string[]> {
   // NOTE: We don't push a constructed URL here — fetchDocumentImages uses
   // search+click to find the correct document page with the real internal ID.
+  const t0 = Date.now();
   progress(`[capturePages] Capturing pages for document: ${instrumentId} (max ${maxPages})`);
   console.log(`[ClerkScraper] captureDocumentPages: instrument=${instrumentId}, maxPages=${maxPages}`);
 
@@ -797,8 +877,10 @@ export async function captureDocumentPages(
 
     const pages = await fetchDocumentImages(instrumentId, maxPages, logger);
     const images = pages.map(p => p.imageBase64).filter(Boolean);
-    progress(`[capturePages] ✓ Captured ${images.length}/${pages.length} page(s) for ${instrumentId}`);
-    console.log(`[ClerkScraper] captureDocumentPages ${instrumentId}: ${images.length} images captured`);
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    const totalKb = images.reduce((sum, img) => sum + Math.round(img.length * 3 / 4 / 1024), 0);
+    progress(`[capturePages] ✓ Captured ${images.length}/${pages.length} page(s) for ${instrumentId} in ${elapsed}s (${totalKb}KB)`);
+    console.log(`[ClerkScraper] captureDocumentPages ${instrumentId}: ${images.length} images, ${totalKb}KB, ${elapsed}s`);
 
     // Push the actual viewer URL if we got one from the signed URLs
     if (pages.length > 0 && pages[0].signedUrl) {

@@ -58,19 +58,31 @@ export async function generateSurveyPlan(
 
   progress('Compiling survey plan...');
 
+  const aerial = findAerialScreenshot(research);
+  const platImage = findPlatImage(research);
+  const equipment = getRecommendedEquipment(input.surveyType);
+  const estimatedHours = estimateFieldTime(research, input.surveyType);
+  const includedScreenshots = (input.includedScreenshotIds ?? [])
+    .map(id => research.screenshots.find(s => s.capturedAt === id)?.imageBase64)
+    .filter((s): s is string => !!s);
+
+  // Log survey plan assembly for audit
+  console.log(`[survey-plan] Plan generated for ${research.property.situsAddress ?? research.property.propertyId}:`);
+  console.log(`[survey-plan]   summary=${propertySummary.length} chars, M&B=${metesAndBounds.length} chars`);
+  console.log(`[survey-plan]   field steps=${fieldSteps.length}, equipment=${equipment.length} item(s), est=${estimatedHours.toFixed(1)}hr`);
+  console.log(`[survey-plan]   aerial=${aerial ? 'yes' : 'no'}, plat=${platImage ? 'yes' : 'no'}, layers=${platLayers.length}, screenshots=${includedScreenshots.length}`);
+
   return {
     propertySummary,
     metesAndBounds,
-    aerialImage: findAerialScreenshot(research),
-    platImage: findPlatImage(research),
+    aerialImage: aerial,
+    platImage,
     platLayers,
     easementSummary: research.easementsAndEncumbrances.summary,
     fieldSteps,
-    equipment: getRecommendedEquipment(input.surveyType),
-    estimatedFieldTimeHours: estimateFieldTime(research, input.surveyType),
-    includedScreenshots: (input.includedScreenshotIds ?? [])
-      .map(id => research.screenshots.find(s => s.capturedAt === id)?.imageBase64)
-      .filter((s): s is string => !!s),
+    equipment,
+    estimatedFieldTimeHours: estimatedHours,
+    includedScreenshots,
   };
 }
 
