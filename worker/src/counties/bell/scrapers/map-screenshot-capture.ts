@@ -9,7 +9,7 @@
  * 1. **BIS Client GIS** (gis.bisclient.com/bellcad/)
  *    - Uses property ID in the URL hash params to jump straight to the parcel
  *    - Shows parcel boundaries, lot lines, dimensions, and property IDs
- *    - URL pattern: /bellcad/?page=Page#data_s=id:dataSource_1-...:{PROP_ID}&widget_27=...
+ *    - URL pattern: /bellcad/?page=Page#data_s=id:dataSource_1-...:{OBJECTID}&widget_27=searchText:{PROP_ID}
  *    - Captured at slightly zoomed-out level for surrounding context
  *
  * 2. **Google Maps**
@@ -331,14 +331,15 @@ async function captureBisGisParcel(
     // The screenshot shows "Map Layers" with Parcels, Abstracts, etc.
     // This panel takes up the right 20% of the viewport — close it.
     const layerPanelSelectors = [
-      // Experience Builder panel close buttons
+      // Experience Builder panel close buttons (specific to side panels)
       '.jimu-widget--header-close',
-      '[aria-label="Close"]',
-      // The X button on the Map Layers panel
+      // The X button on the Map Layers panel specifically
       '.panel-close-btn',
       'button.close-button',
       // ArcGIS LayerList panel close
       '.esri-layer-list__close-button',
+      // Last resort: generic close (but only within panel containers, not the whole page)
+      '.jimu-widget-panel [aria-label="Close"]',
     ];
     for (const sel of layerPanelSelectors) {
       try {
@@ -528,14 +529,22 @@ async function captureGoogleMapsPlace(
 
 // ── Utilities ────────────────────────────────────────────────────────
 
-/** Dismiss common dialog overlays on the BIS GIS viewer */
+/**
+ * Dismiss common modal/disclaimer dialog overlays on the BIS GIS viewer.
+ * Only targets actual modal dialogs — NOT side panels or search dropdowns,
+ * which are handled separately after interaction.
+ */
 async function dismissDialogs(page: any): Promise<void> {
   const selectors = [
+    // Modal dialog confirmation buttons
     'button:has-text("OK")',
     'button:has-text("Accept")',
     'button:has-text("I Agree")',
-    'button:has-text("Close")',
+    // ArcGIS popup close (info popup, not side panel)
     '.esri-popup__button--close',
+    // Overlay/modal close buttons (scoped to overlay containers)
+    '.modal button:has-text("Close")',
+    '.overlay button:has-text("Close")',
     '[data-testid="close-button"]',
   ];
 
