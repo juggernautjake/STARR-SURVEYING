@@ -909,6 +909,7 @@ export async function orchestrateBellResearch(
           lat: property.lat,
           lon: property.lon,
           ownerName: property.ownerName ?? null,
+          anthropicApiKey: anthropicApiKey || undefined,
         },
         (p) => progress('Phase 2', `Direct Maps: ${p.message}`),
       );
