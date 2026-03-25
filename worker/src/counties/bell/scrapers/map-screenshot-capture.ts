@@ -53,11 +53,11 @@ export interface MapScreenshotProgress {
 
 // ── Constants ────────────────────────────────────────────────────────
 
-/** How long to wait for the GIS map tiles and layers to render */
-const GIS_MAP_SETTLE_MS = 8_000;
+/** How long to wait for the GIS map tiles and layers to fully render before interacting */
+const GIS_MAP_SETTLE_MS = 10_000;
 
-/** How long to wait for Google Maps tiles to render */
-const GOOGLE_MAP_SETTLE_MS = 5_000;
+/** How long to wait for Google Maps tiles to fully render before screenshotting */
+const GOOGLE_MAP_SETTLE_MS = 10_000;
 
 /** Viewport dimensions for map captures */
 const VIEWPORT = { width: 1920, height: 1080 };
@@ -223,10 +223,17 @@ async function captureBisGisParcel(
       console.log('[map-capture] BIS GIS: no map container found, waiting anyway...');
     }
 
-    // Wait for the map tiles to load. The search widget auto-populates
-    // from the URL hash and zooms to the parcel.
+    // ── Wait 10 seconds for the page to fully load ──────────────────
+    // The BIS GIS viewer needs time for:
+    //   1. ArcGIS Experience Builder framework to initialize
+    //   2. Map tiles and parcel layers to render
+    //   3. Search widget to auto-populate from URL hash params
+    //   4. Map to zoom/pan to the target parcel
+    progress(`[BIS GIS] Waiting ${GIS_MAP_SETTLE_MS / 1000}s for page to fully load before scanning...`);
     await page.waitForTimeout(GIS_MAP_SETTLE_MS);
+    console.log(`[map-capture] BIS GIS: ${GIS_MAP_SETTLE_MS / 1000}s page load wait complete — now scanning page`);
 
+    // ── Scan and interact with the loaded page ────────────────────
     // Dismiss any disclaimer/popup dialogs that may block interaction
     await dismissDialogs(page);
 
@@ -420,18 +427,16 @@ async function captureGoogleMapsSatellite(
     // Accept Google cookies/consent if prompted
     await dismissGoogleConsent(page);
 
-    // Wait for the map canvas to appear first
-    progress('[Google Maps] Waiting for satellite tiles to render...');
+    // ── Wait 10 seconds for the page to fully load ──────────────────
+    progress(`[Google Maps] Waiting ${GOOGLE_MAP_SETTLE_MS / 1000}s for page to fully load before screenshot...`);
     try {
       await page.waitForSelector('canvas, #map, .widget-scene, #scene', { timeout: 15_000 });
       console.log('[map-capture] Google Maps: map canvas found');
     } catch {
       console.log('[map-capture] Google Maps: no canvas found, proceeding anyway');
     }
-
-    // Then wait for satellite tiles to fully render
-    await page.waitForTimeout(GOOGLE_MAP_SETTLE_MS + 3000);
-    console.log('[map-capture] Google Maps: satellite tile render wait complete');
+    await page.waitForTimeout(GOOGLE_MAP_SETTLE_MS);
+    console.log(`[map-capture] Google Maps: ${GOOGLE_MAP_SETTLE_MS / 1000}s page load wait complete — taking screenshot`);
 
     // Capture screenshot
     const buffer = await page.screenshot({
@@ -484,18 +489,16 @@ async function captureGoogleMapsPlace(
     // Accept Google cookies/consent if prompted
     await dismissGoogleConsent(page);
 
-    // Wait for the place info panel to appear first
-    progress('[Google Maps] Waiting for place view to render...');
+    // ── Wait 10 seconds for the page to fully load ──────────────────
+    progress(`[Google Maps] Waiting ${GOOGLE_MAP_SETTLE_MS / 1000}s for page to fully load before screenshot...`);
     try {
       await page.waitForSelector('[role="main"], .section-hero-header, #pane, #content-container', { timeout: 15_000 });
       console.log('[map-capture] Google Maps: place panel found');
     } catch {
       console.log('[map-capture] Google Maps: no place panel found, proceeding');
     }
-
-    // Then let the map tiles fully render
-    await page.waitForTimeout(GOOGLE_MAP_SETTLE_MS + 3000);
-    console.log('[map-capture] Google Maps: place view render wait complete');
+    await page.waitForTimeout(GOOGLE_MAP_SETTLE_MS);
+    console.log(`[map-capture] Google Maps: ${GOOGLE_MAP_SETTLE_MS / 1000}s page load wait complete — taking screenshot`);
 
     // Capture screenshot
     const buffer = await page.screenshot({
