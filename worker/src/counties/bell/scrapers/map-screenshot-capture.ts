@@ -28,6 +28,13 @@ import type { ScreenshotCapture } from '../types/research-result.js';
 export interface MapScreenshotInput {
   /** Bell CAD property ID (e.g. "123484") */
   propertyId: string;
+  /**
+   * ArcGIS FeatureServer OBJECTID for the parcel.
+   * Used in the BIS GIS URL `data_s` param to pre-select the parcel feature.
+   * Without this, the search widget still finds the property but it won't
+   * be pre-highlighted on the map.
+   */
+  arcgisObjectId: string | number | null;
   /** Situs address for Google Maps lookup */
   situsAddress: string | null;
   /** WGS84 latitude of parcel centroid */
@@ -191,10 +198,14 @@ async function captureBisGisParcel(
   const page = await context.newPage();
 
   try {
-    // Build the direct-lookup URL from the property ID
-    const url = BELL_ENDPOINTS.gis.viewerByPropertyId(input.propertyId);
-    console.log(`[map-capture] BIS GIS URL: ${url.substring(0, 120)}...`);
-    progress(`[BIS GIS] Loading parcel ${input.propertyId} via direct URL...`);
+    // Build the direct-lookup URL from property ID + optional OBJECTID
+    const url = BELL_ENDPOINTS.gis.viewerByPropertyId(
+      input.propertyId,
+      input.arcgisObjectId ?? undefined,
+    );
+    console.log(`[map-capture] BIS GIS URL: ${url}`);
+    console.log(`[map-capture]   propertyId=${input.propertyId}, objectId=${input.arcgisObjectId ?? 'unknown (search-only mode)'}`);
+    progress(`[BIS GIS] Loading parcel ${input.propertyId} via direct URL${input.arcgisObjectId ? ` (OBJECTID=${input.arcgisObjectId})` : ' (search-only mode)'}...`);
 
     await page.goto(url, {
       waitUntil: 'domcontentloaded',
@@ -216,74 +227,143 @@ async function captureBisGisParcel(
     // from the URL hash and zooms to the parcel.
     await page.waitForTimeout(GIS_MAP_SETTLE_MS);
 
-    // Check if search results panel appeared (confirms property was found)
-    const searchResultVisible = await page.evaluate(() => {
-      const el = document.querySelector('.search-result, .jimu-widget--search .search-result-item');
-      return !!el;
-    });
-    console.log(`[map-capture] BIS GIS: search result panel visible=${searchResultVisible}`);
-
-    // Click the search result if available to ensure parcel is selected
-    if (searchResultVisible) {
-      try {
-        await page.click('.search-result-item, .jimu-widget--search .search-result-item', { timeout: 3000 });
-        console.log('[map-capture] BIS GIS: clicked search result to select parcel');
-        await page.waitForTimeout(2000);
-      } catch {
-        console.log('[map-capture] BIS GIS: search result click skipped (not clickable)');
-      }
-    }
-
-    // Dismiss any disclaimer/popup dialogs
+    // Dismiss any disclaimer/popup dialogs that may block interaction
     await dismissDialogs(page);
 
-    // Zoom out slightly for more context (surrounding parcels, roads)
-    progress(`[BIS GIS] Zooming out ${GIS_ZOOM_OUT_CLICKS} clicks for context...`);
-    for (let i = 0; i < GIS_ZOOM_OUT_CLICKS; i++) {
+    // Check if search result dropdown appeared (confirms property was found).
+    // The BIS GIS viewer shows: "Search result" header + "123484, OWNER NAME"
+    // Using multiple selectors for the Experience Builder search widget.
+    const searchSelectors = [
+      // Experience Builder search result items
+      '.search-result-item',
+      '.jimu-widget--search .search-result-item',
+      // ArcGIS search suggestion list
+      '.esri-search__suggestions-list li',
+      '.esri-search__suggestion-item',
+      // Generic result containers
+      '[class*="search-result"]',
+    ];
+
+    let searchResultClicked = false;
+    for (const sel of searchSelectors) {
       try {
-        // Try zoom-out button first
-        const zoomOutBtn = await page.$('.esri-zoom .esri-widget--button:last-child, .esri-icon-minus-circled');
-        if (zoomOutBtn) {
-          await zoomOutBtn.click();
-          await page.waitForTimeout(1500);
-        } else {
-          // Fallback: keyboard zoom
-          await page.keyboard.press('Minus');
-          await page.waitForTimeout(1500);
+        const el = await page.$(sel);
+        if (el) {
+          console.log(`[map-capture] BIS GIS: search result found via selector "${sel}"`);
+          await el.click();
+          searchResultClicked = true;
+          console.log('[map-capture] BIS GIS: clicked search result to select parcel');
+          // Wait for the map to zoom to the selected parcel
+          await page.waitForTimeout(4000);
+          break;
         }
       } catch {
-        // Use JS API fallback
-        await page.evaluate(() => {
-          const view = (window as any)._mapView ?? (document.querySelector('.esri-view') as any)?.__view;
-          if (view?.zoom) view.zoom = view.zoom - 1;
-        });
-        await page.waitForTimeout(1500);
+        // Try next selector
       }
     }
+    if (!searchResultClicked) {
+      console.log('[map-capture] BIS GIS: no search result dropdown found — URL may have triggered auto-zoom');
+    }
 
-    // Let the tiles settle after zoom change
+    // Zoom out slightly for more context (surrounding parcels, roads, street names).
+    // The default BIS GIS view from the URL is tightly zoomed on the parcel.
+    // We zoom out a few clicks so the surveyor can see the surrounding context.
+    progress(`[BIS GIS] Zooming out ${GIS_ZOOM_OUT_CLICKS} click(s) for context...`);
+    for (let i = 0; i < GIS_ZOOM_OUT_CLICKS; i++) {
+      let zoomed = false;
+
+      // Method 1: ArcGIS JS API (most reliable)
+      try {
+        const jsZoomWorked = await page.evaluate(() => {
+          // Experience Builder stores the MapView in various places
+          const containers = Array.from(document.querySelectorAll('[data-widgetid]'));
+          for (const c of containers) {
+            const mv = (c as any)._mapView ?? (c as any).__mapView;
+            if (mv?.zoom) { mv.zoom = mv.zoom - 1; return true; }
+          }
+          // Fallback: global search
+          const view = (window as any)._mapView ??
+            (window as any).jimuMapView?.view ??
+            (document.querySelector('.esri-view') as any)?.__view;
+          if (view?.zoom) { view.zoom = view.zoom - 1; return true; }
+          return false;
+        });
+        if (jsZoomWorked) {
+          zoomed = true;
+          console.log(`[map-capture] BIS GIS: zoom out ${i + 1}/${GIS_ZOOM_OUT_CLICKS} via JS API`);
+        }
+      } catch { /* JS API not available */ }
+
+      // Method 2: Click zoom-out button
+      if (!zoomed) {
+        try {
+          // The minus button in ArcGIS zoom widget
+          const zoomOutBtn = await page.$('.esri-zoom .esri-widget--button:last-child');
+          if (zoomOutBtn) {
+            await zoomOutBtn.click();
+            zoomed = true;
+            console.log(`[map-capture] BIS GIS: zoom out ${i + 1}/${GIS_ZOOM_OUT_CLICKS} via button click`);
+          }
+        } catch { /* button not found */ }
+      }
+
+      // Method 3: Keyboard minus
+      if (!zoomed) {
+        await page.keyboard.press('Minus');
+        console.log(`[map-capture] BIS GIS: zoom out ${i + 1}/${GIS_ZOOM_OUT_CLICKS} via keyboard`);
+      }
+
+      // Wait for tiles to update
+      await page.waitForTimeout(2000);
+    }
+
+    // Let the tiles settle after zoom changes
     await page.waitForTimeout(3000);
 
-    // Close the Map Layers panel if it's open (takes up right side)
-    try {
-      const closeBtn = await page.$('.jimu-widget--header-close, [aria-label="Close"], .panel-close-btn');
-      if (closeBtn) {
-        await closeBtn.click();
-        await page.waitForTimeout(500);
-        console.log('[map-capture] BIS GIS: closed side panel');
-      }
-    } catch { /* panel may not be open */ }
+    // Close the Map Layers panel if it's open on the right side.
+    // The screenshot shows "Map Layers" with Parcels, Abstracts, etc.
+    // This panel takes up the right 20% of the viewport — close it.
+    const layerPanelSelectors = [
+      // Experience Builder panel close buttons
+      '.jimu-widget--header-close',
+      '[aria-label="Close"]',
+      // The X button on the Map Layers panel
+      '.panel-close-btn',
+      'button.close-button',
+      // ArcGIS LayerList panel close
+      '.esri-layer-list__close-button',
+    ];
+    for (const sel of layerPanelSelectors) {
+      try {
+        const btn = await page.$(sel);
+        if (btn) {
+          const isVisible = await btn.isVisible();
+          if (isVisible) {
+            await btn.click();
+            await page.waitForTimeout(500);
+            console.log(`[map-capture] BIS GIS: closed side panel via "${sel}"`);
+            break;
+          }
+        }
+      } catch { /* panel may not be open */ }
+    }
 
-    // Close the search results dropdown if still open
+    // Close the search results dropdown/panel.
+    // The screenshot shows the search dropdown with "Search result" header.
+    // Press Escape or click outside to close it without clearing the search.
     try {
-      const clearBtn = await page.$('.esri-search__clear-button, .jimu-widget--search .search-clear-btn');
-      if (clearBtn) {
-        // Press Escape instead to close the dropdown but keep the search text
-        await page.keyboard.press('Escape');
-        await page.waitForTimeout(500);
-        console.log('[map-capture] BIS GIS: closed search dropdown');
-      }
-    } catch { /* dropdown may not be open */ }
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(500);
+      // Click on the map canvas to dismiss any floating panels
+      await page.click('.esri-view-root, canvas', { timeout: 2000 });
+      await page.waitForTimeout(500);
+      console.log('[map-capture] BIS GIS: dismissed search dropdown');
+    } catch {
+      console.log('[map-capture] BIS GIS: search dropdown dismiss skipped');
+    }
+
+    // Final settle for clean screenshot
+    await page.waitForTimeout(2000);
 
     // Get current zoom level for logging
     const zoomLevel = await page.evaluate(() => {
@@ -340,20 +420,18 @@ async function captureGoogleMapsSatellite(
     // Accept Google cookies/consent if prompted
     await dismissGoogleConsent(page);
 
-    // Wait for satellite tiles to load
+    // Wait for the map canvas to appear first
     progress('[Google Maps] Waiting for satellite tiles to render...');
-    await page.waitForTimeout(GOOGLE_MAP_SETTLE_MS);
-
-    // Wait for the map canvas to appear
     try {
-      await page.waitForSelector('canvas, #map, .widget-scene', { timeout: 10_000 });
+      await page.waitForSelector('canvas, #map, .widget-scene, #scene', { timeout: 15_000 });
       console.log('[map-capture] Google Maps: map canvas found');
     } catch {
       console.log('[map-capture] Google Maps: no canvas found, proceeding anyway');
     }
 
-    // Let tiles fully render
-    await page.waitForTimeout(3000);
+    // Then wait for satellite tiles to fully render
+    await page.waitForTimeout(GOOGLE_MAP_SETTLE_MS + 3000);
+    console.log('[map-capture] Google Maps: satellite tile render wait complete');
 
     // Capture screenshot
     const buffer = await page.screenshot({
@@ -406,19 +484,18 @@ async function captureGoogleMapsPlace(
     // Accept Google cookies/consent if prompted
     await dismissGoogleConsent(page);
 
-    // Wait for the map and place panel to load
+    // Wait for the place info panel to appear first
     progress('[Google Maps] Waiting for place view to render...');
-    await page.waitForTimeout(GOOGLE_MAP_SETTLE_MS);
-
-    // Wait for the place info panel to appear
     try {
-      await page.waitForSelector('[role="main"], .section-hero-header, #pane', { timeout: 10_000 });
+      await page.waitForSelector('[role="main"], .section-hero-header, #pane, #content-container', { timeout: 15_000 });
       console.log('[map-capture] Google Maps: place panel found');
     } catch {
       console.log('[map-capture] Google Maps: no place panel found, proceeding');
     }
 
-    await page.waitForTimeout(3000);
+    // Then let the map tiles fully render
+    await page.waitForTimeout(GOOGLE_MAP_SETTLE_MS + 3000);
+    console.log('[map-capture] Google Maps: place view render wait complete');
 
     // Capture screenshot
     const buffer = await page.screenshot({

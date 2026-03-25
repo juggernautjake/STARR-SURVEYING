@@ -21,9 +21,26 @@ export const BELL_ENDPOINTS = {
   gis: {
     /** BIS GIS viewer (reference, not queried directly) */
     viewer: 'https://gis.bisclient.com/bellcad/',
-    /** BIS GIS viewer — direct property lookup URL (property ID in hash params) */
-    viewerByPropertyId: (propertyId: string) =>
-      `https://gis.bisclient.com/bellcad/?page=Page#data_s=id%3AdataSource_1-BellCADWebService_7378%3A${encodeURIComponent(propertyId)}&widget_27=search_status:%7B%22searchText%22%3A%22${encodeURIComponent(propertyId)}%22%2C%22status%22%3A%7B%22configId%22%3A%22config_1%22%7D%7D`,
+    /**
+     * BIS GIS viewer — direct property lookup URL.
+     *
+     * URL hash params decoded:
+     *   data_s = id:dataSource_1-BellCADWebService_7378:{OBJECTID}
+     *     → Pre-selects the parcel feature by ArcGIS OBJECTID
+     *   widget_27 = search_status:{"searchText":"{PROPERTY_ID}","status":{"configId":"config_1"}}
+     *     → Populates the search widget with the property ID and triggers zoom
+     *
+     * If objectId is provided, the map pre-selects + highlights the parcel.
+     * If only propertyId is provided, the search widget finds and zooms to it.
+     */
+    viewerByPropertyId: (propertyId: string, objectId?: string | number) => {
+      const searchPart = `widget_27=search_status:%7B%22searchText%22%3A%22${encodeURIComponent(propertyId)}%22%2C%22status%22%3A%7B%22configId%22%3A%22config_1%22%7D%7D`;
+      if (objectId != null) {
+        return `https://gis.bisclient.com/bellcad/?page=Page#data_s=id%3AdataSource_1-BellCADWebService_7378%3A${encodeURIComponent(String(objectId))}&${searchPart}`;
+      }
+      // Without OBJECTID, just use the search widget — it still zooms to the property
+      return `https://gis.bisclient.com/bellcad/?page=Page#${searchPart}`;
+    },
     /** Direct parcel layer — the primary query endpoint */
     parcelLayer: 'https://utility.arcgis.com/usrsvcs/servers/6efa79e05bde4b98851880b45f63ea52/rest/services/BellCADWebService/FeatureServer/0',
     /** Query suffix for ArcGIS REST */
@@ -32,10 +49,18 @@ export const BELL_ENDPOINTS = {
 
   // ── Google Maps (satellite and street view) ─────────────────────────
   googleMaps: {
-    /** Place URL with lat/lon and zoom level */
+    /**
+     * Place URL with address, lat/lon center, and zoom level.
+     * Pattern from Bell CAD "View Map → Google Maps" link:
+     *   /maps/place/718+S+Pearl+St,+Belton,+TX+76513/@31.05,-97.47,17z/data=!3m1!4b1!...
+     * Address uses + for spaces (matches Google's URL convention).
+     */
     place: (address: string, lat: number, lon: number, zoom: number) =>
-      `https://www.google.com/maps/place/${encodeURIComponent(address)}/@${lat},${lon},${zoom}z`,
-    /** Satellite/aerial view — use map type 'k' for satellite */
+      `https://www.google.com/maps/place/${address.replace(/ /g, '+')}/@${lat},${lon},${zoom}z/data=!3m1!4b1`,
+    /**
+     * Satellite/aerial view centered on lat/lon.
+     * Uses data=!3m1!1e3 to force satellite layer.
+     */
     satellite: (lat: number, lon: number, zoom: number) =>
       `https://www.google.com/maps/@${lat},${lon},${zoom}z/data=!3m1!1e3`,
   },

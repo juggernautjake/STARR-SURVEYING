@@ -893,9 +893,18 @@ export async function orchestrateBellResearch(
     progress('Phase 2', 'Capturing direct map screenshots (BIS GIS + Google Maps)...', 62);
     try {
       const { captureMapScreenshots } = await import('./scrapers/map-screenshot-capture.js');
+      // Extract the ArcGIS OBJECTID from GIS raw attributes for exact parcel selection.
+      // The FeatureServer returns OBJECTID as a number in the attributes.
+      const rawOid = gis?.rawAttributes?.OBJECTID ?? gis?.rawAttributes?.objectid ?? gis?.rawAttributes?.FID ?? null;
+      const arcgisObjectId: string | number | null = typeof rawOid === 'number' || typeof rawOid === 'string' ? rawOid : null;
+      if (arcgisObjectId) {
+        progress('Phase 2', `  Using ArcGIS OBJECTID=${arcgisObjectId} for exact parcel selection`);
+      }
+
       const mapScreenshots = await captureMapScreenshots(
         {
           propertyId: property.propertyId,
+          arcgisObjectId,
           situsAddress: property.situsAddress ?? null,
           lat: property.lat,
           lon: property.lon,
