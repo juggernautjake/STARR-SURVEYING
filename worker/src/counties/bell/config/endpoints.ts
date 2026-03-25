@@ -21,10 +21,23 @@ export const BELL_ENDPOINTS = {
   gis: {
     /** BIS GIS viewer (reference, not queried directly) */
     viewer: 'https://gis.bisclient.com/bellcad/',
+    /** BIS GIS viewer — direct property lookup URL (property ID in hash params) */
+    viewerByPropertyId: (propertyId: string) =>
+      `https://gis.bisclient.com/bellcad/?page=Page#data_s=id%3AdataSource_1-BellCADWebService_7378%3A${encodeURIComponent(propertyId)}&widget_27=search_status:%7B%22searchText%22%3A%22${encodeURIComponent(propertyId)}%22%2C%22status%22%3A%7B%22configId%22%3A%22config_1%22%7D%7D`,
     /** Direct parcel layer — the primary query endpoint */
     parcelLayer: 'https://utility.arcgis.com/usrsvcs/servers/6efa79e05bde4b98851880b45f63ea52/rest/services/BellCADWebService/FeatureServer/0',
     /** Query suffix for ArcGIS REST */
     queryPath: '/query',
+  },
+
+  // ── Google Maps (satellite and street view) ─────────────────────────
+  googleMaps: {
+    /** Place URL with lat/lon and zoom level */
+    place: (address: string, lat: number, lon: number, zoom: number) =>
+      `https://www.google.com/maps/place/${encodeURIComponent(address)}/@${lat},${lon},${zoom}z`,
+    /** Satellite/aerial view — use map type 'k' for satellite */
+    satellite: (lat: number, lon: number, zoom: number) =>
+      `https://www.google.com/maps/@${lat},${lon},${zoom}z/data=!3m1!1e3`,
   },
 
   // ── Bell County Clerk (Kofile / GovOS PublicSearch) ────────────────

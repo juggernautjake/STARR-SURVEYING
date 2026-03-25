@@ -883,6 +883,60 @@ export async function orchestrateBellResearch(
     }
   }
 
+  // ── Direct Map Screenshots (BIS GIS + Google Maps) ─────────────────
+  // Use deterministic URLs for reliable parcel screenshots:
+  //   1. BIS Client GIS: property ID → direct parcel map (zoomed out slightly)
+  //   2. Google Maps Satellite: lat/lon → close-up aerial (zoom 20)
+  //   3. Google Maps Place: address → street context with pin (zoom 19)
+  if (property.propertyId && (property.lat || property.lon)) {
+    checkAborted();
+    progress('Phase 2', 'Capturing direct map screenshots (BIS GIS + Google Maps)...', 62);
+    try {
+      const { captureMapScreenshots } = await import('./scrapers/map-screenshot-capture.js');
+      const mapScreenshots = await captureMapScreenshots(
+        {
+          propertyId: property.propertyId,
+          situsAddress: property.situsAddress ?? null,
+          lat: property.lat,
+          lon: property.lon,
+          ownerName: property.ownerName ?? null,
+        },
+        (p) => progress('Phase 2', `Direct Maps: ${p.message}`),
+      );
+      allScreenshots.push(...mapScreenshots);
+      progress('Phase 2', `✓ ${mapScreenshots.length} direct map screenshot(s) captured`);
+
+      // Log what we got for audit trail
+      for (const ss of mapScreenshots) {
+        const sizeKb = Math.round(ss.imageBase64.length * 3 / 4 / 1024);
+        progress('Phase 2', `  ✓ ${ss.source}: ${sizeKb}KB — ${ss.description}`);
+      }
+
+      // ── Incremental upload: direct map screenshots ────────────────
+      if (mapScreenshots.length > 0 && input.projectId) {
+        const supabase = await getSupabase();
+        if (supabase) {
+          const ssForUpload: ArtifactScreenshot[] = mapScreenshots.map(ss => ({
+            source: ss.source,
+            url: ss.url,
+            imageBase64: ss.imageBase64,
+            capturedAt: ss.capturedAt,
+            description: ss.description,
+            pageText: ss.pageText,
+            classification: ss.classification,
+          }));
+          await uploadScreenshotsIncremental(supabase as any, input.projectId, ssForUpload);
+          progress('Phase 2', `  ✓ Direct map screenshots uploaded for live preview`);
+        }
+      }
+    } catch (err) {
+      recordError('Phase 2', 'Direct Map Screenshots', err);
+      progress('Phase 2', `✗ Direct map screenshots failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else {
+    progress('Phase 2', 'Direct map screenshots skipped — no property ID or coordinates');
+  }
+
   // ══════════════════════════════════════════════════════════════════
   //  PHASE 3: AI ANALYSIS (~5-15 minutes)
   // ══════════════════════════════════════════════════════════════════
