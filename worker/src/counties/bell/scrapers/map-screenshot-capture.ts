@@ -86,8 +86,14 @@ export async function captureMapScreenshots(
     onProgress({ phase: 'Map Capture', message: msg, timestamp: new Date().toISOString() });
   };
 
+  if (!input.propertyId) {
+    console.log('[map-capture] Skipped — no property ID provided');
+    progress('Map capture skipped — no property ID');
+    return results;
+  }
+
   console.log(`[map-capture] Starting direct-URL map captures for property ${input.propertyId}`);
-  console.log(`[map-capture]   address="${input.situsAddress}", lat=${input.lat}, lon=${input.lon}`);
+  console.log(`[map-capture]   address="${input.situsAddress ?? 'none'}", lat=${input.lat}, lon=${input.lon}, owner="${input.ownerName ?? 'unknown'}"`);
 
   let browser: any;
   try {
@@ -118,7 +124,8 @@ export async function captureMapScreenshots(
     }
 
     // ── 2. Google Maps Satellite — Tight Zoom ──────────────────────
-    if (input.lat && input.lon) {
+    const hasCoords = input.lat != null && input.lon != null && (input.lat !== 0 || input.lon !== 0);
+    if (hasCoords) {
       progress('Capturing Google Maps satellite view (close-up)...');
       const satScreenshot = await captureGoogleMapsSatellite(context, input, progress);
       if (satScreenshot) {
@@ -144,7 +151,13 @@ export async function captureMapScreenshots(
           progress('✗ Google Maps place view capture failed');
           console.log('[map-capture] ✗ Google Place: capture failed');
         }
+      } else {
+        console.log('[map-capture] Google Place: skipped — no situs address available');
+        progress('Google Maps place view skipped — no address');
       }
+    } else {
+      console.log(`[map-capture] Google Maps: skipped — no valid coordinates (lat=${input.lat}, lon=${input.lon})`);
+      progress('Google Maps captures skipped — no coordinates');
     }
 
     await context.close();
@@ -153,7 +166,11 @@ export async function captureMapScreenshots(
     console.error(`[map-capture] Fatal error: ${msg}`);
     progress(`✗ Map capture error: ${msg}`);
   } finally {
-    if (browser) await browser.close().catch(() => {});
+    if (browser) {
+      await browser.close().catch((e: unknown) => {
+        console.warn(`[map-capture] Browser close failed: ${e instanceof Error ? e.message : String(e)}`);
+      });
+    }
   }
 
   const elapsed = ((Date.now() - captureStart) / 1000).toFixed(1);
@@ -295,7 +312,9 @@ async function captureBisGisParcel(
     console.error(`[map-capture] BIS GIS capture failed: ${msg}`);
     return null;
   } finally {
-    await page.close().catch(() => {});
+    await page.close().catch((e: unknown) => {
+      console.warn(`[map-capture] Page close failed: ${e instanceof Error ? e.message : String(e)}`);
+    });
   }
 }
 
@@ -356,7 +375,9 @@ async function captureGoogleMapsSatellite(
     console.error(`[map-capture] Google Satellite capture failed: ${msg}`);
     return null;
   } finally {
-    await page.close().catch(() => {});
+    await page.close().catch((e: unknown) => {
+      console.warn(`[map-capture] Page close failed: ${e instanceof Error ? e.message : String(e)}`);
+    });
   }
 }
 
@@ -419,7 +440,9 @@ async function captureGoogleMapsPlace(
     console.error(`[map-capture] Google Place capture failed: ${msg}`);
     return null;
   } finally {
-    await page.close().catch(() => {});
+    await page.close().catch((e: unknown) => {
+      console.warn(`[map-capture] Page close failed: ${e instanceof Error ? e.message : String(e)}`);
+    });
   }
 }
 

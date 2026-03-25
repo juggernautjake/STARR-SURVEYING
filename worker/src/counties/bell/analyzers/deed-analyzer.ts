@@ -849,15 +849,33 @@ function extractBoundaryCallsFromSummary(summary: string | null): BoundaryExtrac
 function computeTraverseFromCalls(calls: BoundaryCall[]): ComputedTraverse | null {
   if (calls.length < 3) return null;
 
+  // Count calls that actually have parseable bearings
+  const validCalls = calls.filter(c => c.bearingDegrees !== null);
+  if (validCalls.length < 3) {
+    console.log(`[deed-analyzer] computeTraverse: skipped — only ${validCalls.length} of ${calls.length} call(s) have valid bearings (need ≥3)`);
+    return null;
+  }
+
   const corners: { x: number; y: number; sequence: number; monument: string | null }[] = [];
   let x = 0, y = 0;
   let perimeter = 0;
+  let skippedCalls = 0;
 
   // POB at origin
   corners.push({ x: 0, y: 0, sequence: 0, monument: null });
 
   for (const call of calls) {
-    if (call.bearingDegrees === null) continue;
+    if (call.bearingDegrees === null) {
+      skippedCalls++;
+      continue;
+    }
+
+    // Skip zero-distance calls (degenerate edges)
+    if (call.distance <= 0) {
+      console.log(`[deed-analyzer] computeTraverse: skipping call #${call.sequence} — zero/negative distance (${call.distance})`);
+      skippedCalls++;
+      continue;
+    }
 
     // Convert distance to feet
     let distFt = call.distance;
@@ -899,7 +917,7 @@ function computeTraverseFromCalls(calls: BoundaryCall[]): ComputedTraverse | nul
   const areaSqFt = Math.abs(area2) / 2;
   const areaAcres = areaSqFt / 43560;
 
-  console.log(`[deed-analyzer] computeTraverse: ${corners.length} corners, perimeter=${Math.round(perimeter)}ft, ` +
+  console.log(`[deed-analyzer] computeTraverse: ${corners.length} corners (${skippedCalls} call(s) skipped), perimeter=${Math.round(perimeter)}ft, ` +
     `area=${areaAcres.toFixed(3)}ac, closure=${closureRatio} (error=${closureErrorFt.toFixed(2)}ft)`);
 
   return {
