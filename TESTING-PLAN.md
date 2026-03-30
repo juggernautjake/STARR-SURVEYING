@@ -1,8 +1,69 @@
 # STARR Surveying — Modular Testing Lab Plan (v2)
 
-> **Date:** 2026-03-29
-> **Branch:** `claude/modular-ui-versions-ThZu1`
-> **Status:** Implementation in progress
+> **Date:** 2026-03-29  
+> **Last Updated:** 2026-03-30  
+> **Branch:** `copilot/phase-1-infrastructure-build`  
+> **Status:** Phase 1 complete — ready for Phase 2
+
+---
+
+## Current Build Status
+
+### Phase 1 — Infrastructure ✅ Complete
+
+| File | Status | Notes |
+|------|--------|-------|
+| `testing/layout.tsx` | ✅ Done | Admin guard, unauthenticated redirect to `/admin/login` |
+| `TestingLab.css` | ✅ Done | ~1,560 lines, single canonical definition per class, CSS variables, dark debug panels / light page chrome |
+| `POST /api/admin/research/testing/run/route.ts` | ✅ Done | Per-module timeouts, input transforms (ownerName→owner, auto-derive filesystem paths), 202 async handling, branch passthrough |
+| `GET /api/admin/research/testing/stream/route.ts` | ✅ Done | SSE stream, `runId` alias, `X-Accel-Buffering: no` |
+| `GET /api/admin/research/testing/branches/route.ts` | ✅ Done | Omits `Authorization` header when no GITHUB_TOKEN |
+| `GET /api/admin/research/testing/files/route.ts` | ✅ Done | Fixed directory detection (`Array.isArray` not `data.type === 'dir'`) |
+| `POST /api/admin/research/testing/pull/route.ts` | ✅ Done | Returns sha + commit message |
+| `testing/page.tsx` | ✅ Done | 6-tab layout, branch feedback banner, PropertyContextProvider wrapper |
+
+### Phase 2 — Core Debugger Components ✅ Complete
+
+| File | Status | Notes |
+|------|--------|-------|
+| `PropertyContextBar.tsx` | ✅ Done | Shared inputs + context provider, 3 real Bell County fixtures, Load by Project ID |
+| `ExecutionTimeline.tsx` | ✅ Done | Drag scrubber, keyboard nav (space/arrows), event markers, speed presets, SSR-safe tooltip |
+| `CodeViewer.tsx` | ✅ Done | Multi-tab, lightweight syntax highlighting, edit mode with Ctrl+S, line-level highlighting |
+| `LogStream.tsx` | ✅ Done | Timeline-synced, auto-scroll, level filter, future-event dimming |
+| `BranchSelector.tsx` | ✅ Done | Branch list from GitHub API, compare mode, inline create |
+| `OutputViewer.tsx` | ✅ Done | JSON tree (collapsible), Raw, Screenshot gallery tabs |
+
+### Phase 3 — Module Cards ✅ Complete
+
+| File | Status | Notes |
+|------|--------|-------|
+| `TestCard.tsx` | ✅ Done | Interval cleanup, async 202 notice, typed result access, conditional code/log split view |
+| `ScrapersTab.tsx` | ✅ Done | 10 scrapers — correct `address` input for CAD/GIS, `projectId+ownerName` for clerk/plat |
+| `AnalyzersTab.tsx` | ✅ Done | 8 analyzers — all require `projectId` |
+| `PhasesTab.tsx` | ✅ Done | 9 phases — phase-1 requires `address` (was wrongly `propertyId`) |
+| `FullPipelineTab.tsx` | ✅ Done | Phase skip/resume, step nav, currentPhase tracking from log messages |
+| `HealthCheckTab.tsx` | ✅ Done | Worker health + external site grid, 0ms latency display fixed |
+| `LogViewerTab.tsx` | ✅ Done | Enter key to load, batch-ID for dedup, level mapping with 'success' |
+
+### Phase 4 — Integration ✅ Complete
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Link from `/admin/research` page to Testing Lab | ✅ Done | Button added to research page header |
+| Production UI unchanged | ✅ Confirmed | No changes to research/[projectId]/page.tsx or any existing components |
+
+---
+
+## Known Gaps / Phase 2+ Work
+
+| Gap | When to Address |
+|-----|-----------------|
+| `CodeViewer` is never populated with actual code traces — left panel is empty until worker emits `codeTrace` events | Phase 2: Worker instrumentation |
+| Timeline only has start/complete events — no per-file/per-function trace events | Phase 2: Worker instrumentation |
+| SSE stream (`/testing/stream`) polls worker but worker doesn't yet emit phase-level events | Phase 2: Worker event emitter |
+| `FullPipelineTab` currentPhase only updates from log parsing — not from real phase events | Phase 2: Worker phase event emitter |
+| Multi-branch side-by-side comparison UI not yet wired (BranchSelector UI is ready) | Phase 3 |
+| No test coverage (unit or e2e) for Testing Lab components | Phase 4 |
 
 ---
 

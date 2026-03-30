@@ -211,16 +211,26 @@ export default function TestCard({
 
           // Extract logs from result if present
           if (data.result?.log && Array.isArray(data.result.log)) {
-            for (const entry of data.result.log as Record<string, unknown>[]) {
+            for (const rawEntry of data.result.log) {
+              // Validate entry is a non-null object before accessing properties
+              if (!rawEntry || typeof rawEntry !== 'object') continue;
+              const entry = rawEntry as Record<string, unknown>;
+              const entryStatus = typeof entry.status === 'string' ? entry.status : '';
+              const entrySource = typeof entry.source === 'string' ? entry.source : module;
+              const entryLayer  = typeof entry.layer  === 'string' ? entry.layer  : '';
+              const entryMethod = typeof entry.method === 'string' ? entry.method : '';
+              const entryDetail = typeof entry.details === 'string' ? entry.details
+                : entryStatus;
+              const entryError  = typeof entry.error  === 'string' ? entry.error  : undefined;
               addLog(
-                entry.status === 'fail' ? 'error' : entry.status === 'warn' ? 'warn' : 'info',
-                String(entry.source ?? module),
-                `[${entry.layer ?? ''}] ${entry.method ?? ''}: ${entry.details ?? entry.status ?? ''}`,
-                entry.error as string | undefined,
+                entryStatus === 'fail' ? 'error' : entryStatus === 'warn' ? 'warn' : 'info',
+                entrySource,
+                `[${entryLayer}] ${entryMethod}: ${entryDetail}`,
+                entryError,
               );
-              const evtType: EventType = entry.status === 'fail' ? 'error' :
-                entry.status === 'warn' ? 'warning' : 'data-found';
-              addEvent(evtType, `${entry.layer ?? ''}: ${entry.method ?? ''}`, String(entry.details ?? entry.status ?? ''));
+              const evtType: EventType = entryStatus === 'fail' ? 'error' :
+                entryStatus === 'warn' ? 'warning' : 'data-found';
+              addEvent(evtType, `${entryLayer}: ${entryMethod}`, entryDetail);
             }
           }
         }
@@ -389,18 +399,38 @@ export default function TestCard({
                 onEventClick={handleEventClick}
               />
 
-              {/* Code + Logs split view */}
-              <div className="test-card__split">
-                <div className="test-card__split-left">
-                  <CodeViewer
-                    files={codeFiles}
-                    activeFileIndex={activeFileIndex}
-                    activeLine={activeLine}
-                    readOnly={status === 'running'}
-                    onFileSelect={setActiveFileIndex}
-                  />
+                  {/* Log filter + stream — full width when no code trace, split when code is available */}
+              {codeFiles.length > 0 ? (
+                <div className="test-card__split">
+                  <div className="test-card__split-left">
+                    <CodeViewer
+                      files={codeFiles}
+                      activeFileIndex={activeFileIndex}
+                      activeLine={activeLine}
+                      readOnly={status === 'running'}
+                      onFileSelect={setActiveFileIndex}
+                    />
+                  </div>
+                  <div className="test-card__split-right">
+                    <div className="test-card__log-filter">
+                      <input
+                        type="text"
+                        placeholder="Filter logs..."
+                        value={logFilter}
+                        onChange={(e) => setLogFilter(e.target.value)}
+                      />
+                    </div>
+                    <LogStream
+                      logs={logs}
+                      currentTime={currentTime}
+                      isLive={isPlaying && currentTime >= totalDuration - 500}
+                      maxHeight="300px"
+                      filter={logFilter}
+                    />
+                  </div>
                 </div>
-                <div className="test-card__split-right">
+              ) : (
+                <div>
                   <div className="test-card__log-filter">
                     <input
                       type="text"
@@ -417,7 +447,7 @@ export default function TestCard({
                     filter={logFilter}
                   />
                 </div>
-              </div>
+              )}
             </div>
           )}
 

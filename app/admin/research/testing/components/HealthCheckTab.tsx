@@ -90,7 +90,7 @@ export default function HealthCheckTab() {
           <div className={`health-check-tab__status ${workerHealth.ok ? 'health-check-tab__status--ok' : 'health-check-tab__status--down'}`}>
             <span className="health-check-tab__dot" style={{ background: workerHealth.ok ? '#059669' : '#DC2626' }} />
             <span>{workerHealth.message}</span>
-            {workerHealth.latency && (
+            {workerHealth.latency !== undefined && (
               <span className="health-check-tab__latency">{workerHealth.latency}ms</span>
             )}
           </div>

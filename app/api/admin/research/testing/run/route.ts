@@ -233,15 +233,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     // 202 Accepted = async job started; return async flag + pollUrl
     if (workerRes.status === 202) {
       const asyncResult = result as Record<string, unknown>;
+      const rawPollUrl = asyncResult?.pollUrl;
+      const pollUrl = typeof rawPollUrl === 'string' && rawPollUrl.length > 0 ? rawPollUrl : undefined;
       return NextResponse.json({
         success: true,
         async: true,
         duration,
         result,
         status: 202,
-        pollUrl: asyncResult?.pollUrl as string | undefined,
-        message: asyncResult?.message as string | undefined
-          ?? 'Job accepted and running in the background. Poll the status endpoint for completion.',
+        pollUrl,
+        message: typeof asyncResult?.message === 'string' && asyncResult.message.length > 0
+          ? asyncResult.message
+          : 'Job accepted and running in the background. Poll the status endpoint for completion.',
       });
     }
 

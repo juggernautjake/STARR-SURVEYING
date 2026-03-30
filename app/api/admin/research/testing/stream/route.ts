@@ -73,9 +73,12 @@ export async function GET(req: NextRequest) {
                 }
               }
             }
-          } catch {
-            // Network hiccup — continue polling; client heartbeat keeps the
-            // connection alive until the abort signal fires.
+          } catch (err) {
+            // Log unexpected errors; transient network errors just continue polling.
+            // AbortError is expected (timeout) and can be silently retried.
+            if (err instanceof Error && err.name !== 'AbortError') {
+              console.error('[TestingStream] poll error:', err.message);
+            }
           }
 
           await new Promise<void>((resolve) => setTimeout(resolve, 1000));

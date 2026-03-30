@@ -45,7 +45,8 @@ function TestingLabContent() {
       });
       const data = await res.json() as { success?: boolean; sha?: string; message?: string; error?: string };
       if (res.ok && data.success) {
-        showBranchMsg(`Pulled ${branch} — latest commit: ${(data.sha ?? '').slice(0, 7)} "${data.message ?? ''}"`, true);
+        const shaDisplay = data.sha ? data.sha.slice(0, 7) : 'unknown';
+        showBranchMsg(`Pulled ${branch} — latest commit: ${shaDisplay} "${data.message ?? ''}"`, true);
       } else {
         showBranchMsg(data.error ?? 'Pull failed', false);
       }

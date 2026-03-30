@@ -62,6 +62,14 @@ export default function FullPipelineTab() {
     }]);
     setCurrentTime(ts);
     setTotalDuration(ts);
+    // Update currentPhase from log messages that mention a phase name
+    const phaseMatch = message.match(/phase[- :]?\s*(\d+|discover|harvest|analyze|subdivision|adjacent|row|reconcile|confidence|purchase)/i);
+    if (phaseMatch) {
+      const phaseKey = PIPELINE_PHASES.find((p) =>
+        message.toLowerCase().includes(p.key) || message.toLowerCase().includes(p.label.toLowerCase())
+      )?.label ?? null;
+      if (phaseKey) setCurrentPhase(phaseKey);
+    }
   };
 
   const addEvent = (type: TimelineEvent['type'], label: string, desc: string) => {
@@ -75,6 +83,22 @@ export default function FullPipelineTab() {
     }]);
     setCurrentTime(ts);
     setTotalDuration(ts);
+  };
+
+  const findAdjacentEvent = (direction: 'next' | 'prev') => {
+    const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
+    if (direction === 'next') return sorted.find((e) => e.timestamp > currentTime);
+    return [...sorted].reverse().find((e) => e.timestamp < currentTime);
+  };
+
+  const handleStepForward = () => {
+    const next = findAdjacentEvent('next');
+    if (next) setCurrentTime(next.timestamp);
+  };
+
+  const handleStepBack = () => {
+    const prev = findAdjacentEvent('prev');
+    if (prev) setCurrentTime(prev.timestamp);
   };
 
   const handleRun = async () => {
@@ -115,20 +139,28 @@ export default function FullPipelineTab() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json() as {
+        success: boolean;
+        async?: boolean;
+        duration: number;
+        result: unknown;
+        error?: string;
+      };
       const elapsed = Date.now() - startTimeRef.current;
 
       if (data.success) {
+        setCurrentPhase(null);
         addEvent('phase-complete', 'Pipeline completed', `Duration: ${(data.duration / 1000).toFixed(1)}s`);
         addLog('success', `Pipeline completed in ${(data.duration / 1000).toFixed(1)}s`);
         setResult(data.result);
         setDuration(data.duration);
         setStatus('success');
       } else {
+        setCurrentPhase(null);
         addEvent('phase-failed', 'Pipeline failed', data.error || 'Unknown error');
         addLog('error', data.error || 'Pipeline failed');
         setError(data.error);
-        setResult(data.result);
+        setResult((data as Record<string, unknown>).result ?? null);
         setDuration(data.duration);
         setStatus('error');
       }
@@ -222,10 +254,10 @@ export default function FullPipelineTab() {
           speed={speed}
           onSeek={setCurrentTime}
           onTogglePlay={() => setIsPlaying(!isPlaying)}
-          onStepForward={() => {}}
-          onStepBack={() => {}}
-          onJumpForward={() => {}}
-          onJumpBack={() => {}}
+          onStepForward={handleStepForward}
+          onStepBack={handleStepBack}
+          onJumpForward={handleStepForward}
+          onJumpBack={handleStepBack}
           onSpeedChange={setSpeed}
         />
       )}

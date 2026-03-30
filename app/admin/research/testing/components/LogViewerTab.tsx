@@ -81,6 +81,7 @@ export default function LogViewerTab() {
             placeholder="Project ID to load logs..."
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && loadProjectLogs()}
           />
           <button
             className="test-card__run-btn"
