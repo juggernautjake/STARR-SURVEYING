@@ -138,6 +138,13 @@ export default function ResearchListPage() {
         <div className="research-page__header">
           <h1 className="research-page__title">Property Research</h1>
           <div className="research-page__actions">
+            <button
+              className="research-page__new-btn"
+              style={{ background: '#7C3AED' }}
+              onClick={() => router.push('/admin/research/testing')}
+            >
+              Testing Lab
+            </button>
             <button className="research-page__new-btn" onClick={() => setShowCreate(true)}>
               + New Research Project
             </button>
