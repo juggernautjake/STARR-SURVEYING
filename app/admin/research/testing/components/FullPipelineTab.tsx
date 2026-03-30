@@ -38,6 +38,10 @@ export default function FullPipelineTab() {
   const [speed, setSpeed] = useState(1);
   const [currentPhase, setCurrentPhase] = useState<string | null>(null);
 
+  let startTime = 0;
+  let logCounter = 0;
+  let evtCounter = 0;
+
   const togglePhase = (key: string) => {
     setEnabledPhases((prev) => {
       const next = new Set(prev);
@@ -47,7 +51,6 @@ export default function FullPipelineTab() {
     });
   };
 
-  let logCounter = 0;
   const addLog = (level: LogEntry['level'], message: string) => {
     const ts = Date.now() - startTime;
     setLogs((prev) => [...prev, {
@@ -61,7 +64,6 @@ export default function FullPipelineTab() {
     setTotalDuration(ts);
   };
 
-  let evtCounter = 0;
   const addEvent = (type: TimelineEvent['type'], label: string, desc: string) => {
     const ts = Date.now() - startTime;
     setEvents((prev) => [...prev, {
@@ -74,8 +76,6 @@ export default function FullPipelineTab() {
     setCurrentTime(ts);
     setTotalDuration(ts);
   };
-
-  let startTime = 0;
 
   const handleRun = async () => {
     setStatus('running');

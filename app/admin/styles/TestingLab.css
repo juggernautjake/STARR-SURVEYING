@@ -1345,3 +1345,250 @@
   font-size: 0.8rem;
   margin-top: 0.5rem;
 }
+
+/* ── Missing classes patch ──────────────────────────────────────────────────── */
+
+.testing-lab__content {
+  margin-top: 1rem;
+}
+
+.testing-lab__header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* TestCard split view (code + logs side by side) */
+.test-card__split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.test-card__split-left {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.test-card__split-right {
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .test-card__split {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* BranchSelector refresh button */
+.branch-selector__btn--refresh {
+  min-width: 2.5rem;
+  text-align: center;
+}
+
+/* FullPipelineTab */
+.full-pipeline-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.full-pipeline-tab__phases {
+  background: #1a1a2e;
+  border: 1px solid #2D2D44;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.full-pipeline-tab__phases h4 {
+  color: #E5E7EB;
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+}
+
+.full-pipeline-tab__phase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+.full-pipeline-tab__phase-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #D1D5DB;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.full-pipeline-tab__phase--critical {
+  font-weight: 600;
+  color: #F9FAFB;
+}
+
+.full-pipeline-tab__resume {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #D1D5DB;
+  font-size: 0.82rem;
+}
+
+.full-pipeline-tab__resume select {
+  background: #0F1419;
+  color: #E5E7EB;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.full-pipeline-tab__actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.full-pipeline-tab__progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.full-pipeline-tab__phase-step {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  background: #1a1a2e;
+  border: 1px solid #2D2D44;
+  border-radius: 6px;
+  color: #9CA3AF;
+  font-size: 0.78rem;
+}
+
+.full-pipeline-tab__phase-step--active {
+  border-color: #3B82F6;
+  color: #3B82F6;
+}
+
+.full-pipeline-tab__phase-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4B5563;
+}
+
+.full-pipeline-tab__phase-step--active .full-pipeline-tab__phase-dot {
+  background: #3B82F6;
+  box-shadow: 0 0 4px rgba(59, 130, 246, 0.5);
+}
+
+/* HealthCheckTab */
+.health-check-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.health-check-tab__section h4 {
+  color: #E5E7EB;
+  margin: 0 0 0.75rem 0;
+  font-size: 0.95rem;
+}
+
+.health-check-tab__actions {
+  margin-bottom: 0.75rem;
+}
+
+.health-check-tab__status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.health-check-tab__status--ok {
+  background: rgba(5, 150, 105, 0.1);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+  color: #059669;
+}
+
+.health-check-tab__status--down {
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #DC2626;
+}
+
+.health-check-tab__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.health-check-tab__latency {
+  color: #9CA3AF;
+  font-size: 0.78rem;
+  margin-left: auto;
+}
+
+.health-check-tab__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.health-check-tab__card {
+  background: #1a1a2e;
+  border: 1px solid #2D2D44;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.health-check-tab__card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.health-check-tab__vendor {
+  color: #E5E7EB;
+  flex: 1;
+}
+
+.health-check-tab__card-status {
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.health-check-tab__response-time {
+  color: #9CA3AF;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.health-check-tab__error {
+  color: #F87171;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+/* LogViewerTab root */
+.log-viewer-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* OutputViewer item */
+.output-viewer__item {
+  padding-left: 0.25rem;
+  line-height: 1.5;
+}
