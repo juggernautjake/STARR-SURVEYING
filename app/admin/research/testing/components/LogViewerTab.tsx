@@ -1,7 +1,7 @@
 // LogViewerTab.tsx — Aggregated log viewer across all test runs
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 interface AggregatedLog {
   id: string;
@@ -18,6 +18,7 @@ export default function LogViewerTab() {
   const [levelFilter, setLevelFilter] = useState<Set<string>>(new Set(['info', 'warn', 'error', 'success', 'debug']));
   const [loading, setLoading] = useState(false);
   const [projectId, setProjectId] = useState('');
+  const loadCountRef = useRef(0);
 
   const toggleLevel = (level: string) => {
     setLevelFilter((prev) => {
@@ -31,17 +32,22 @@ export default function LogViewerTab() {
   const loadProjectLogs = async () => {
     if (!projectId) return;
     setLoading(true);
+    const batchId = ++loadCountRef.current;
     try {
       const res = await fetch(`/api/admin/research/${projectId}/logs`);
       if (res.ok) {
-        const data = await res.json();
-        const entries: AggregatedLog[] = (data.logs || data.log || []).map((l: any, i: number) => ({
-          id: `alog-${i}`,
-          timestamp: l.timestamp || new Date().toISOString(),
-          module: l.source || l.layer || 'unknown',
-          level: l.status === 'fail' ? 'error' : l.status === 'warn' ? 'warn' : 'info',
-          message: `[${l.layer || ''}] ${l.method || ''}: ${l.details || l.status || ''}`,
-          details: l.error,
+        const data = await res.json() as Record<string, unknown>;
+        const rawLogs = (data.logs ?? data.log ?? []) as Record<string, unknown>[];
+        const entries: AggregatedLog[] = rawLogs.map((l, i) => ({
+          id: `alog-${batchId}-${i}`,
+          timestamp: String(l.timestamp ?? new Date().toISOString()),
+          module: String(l.source ?? l.layer ?? 'unknown'),
+          level: l.status === 'fail' ? 'error'
+            : l.status === 'warn' ? 'warn'
+            : l.status === 'success' ? 'success'
+            : (l.level ?? 'info') as AggregatedLog['level'],
+          message: `[${l.layer ?? ''}] ${l.method ?? ''}: ${l.details ?? l.status ?? ''}`,
+          details: l.error as string | undefined,
         }));
         setLogs(entries);
       }

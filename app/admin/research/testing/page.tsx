@@ -29,28 +29,46 @@ function TestingLabContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('scrapers');
   const [currentBranch, setCurrentBranch] = useState('main');
   const [compareBranch, setCompareBranch] = useState<string | null>(null);
+  const [branchMsg, setBranchMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const showBranchMsg = (text: string, ok: boolean) => {
+    setBranchMsg({ text, ok });
+    setTimeout(() => setBranchMsg(null), 4000);
+  };
 
   const handlePull = async (branch: string) => {
     try {
-      await fetch('/api/admin/research/testing/pull', {
+      const res = await fetch('/api/admin/research/testing/pull', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ branch }),
       });
-    } catch {
-      // silently fail
+      const data = await res.json() as { success?: boolean; sha?: string; message?: string; error?: string };
+      if (res.ok && data.success) {
+        showBranchMsg(`Pulled ${branch} — latest commit: ${(data.sha ?? '').slice(0, 7)} "${data.message ?? ''}"`, true);
+      } else {
+        showBranchMsg(data.error ?? 'Pull failed', false);
+      }
+    } catch (err) {
+      showBranchMsg(err instanceof Error ? err.message : 'Pull failed', false);
     }
   };
 
   const handleCreateBranch = async (name: string, from: string) => {
     try {
-      await fetch('/api/admin/research/testing/branches', {
+      const res = await fetch('/api/admin/research/testing/branches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, from }),
       });
-    } catch {
-      // silently fail
+      const data = await res.json() as { success?: boolean; branch?: string; error?: string };
+      if (res.ok && data.success) {
+        showBranchMsg(`Branch "${data.branch ?? name}" created from ${from}`, true);
+      } else {
+        showBranchMsg(data.error ?? 'Failed to create branch', false);
+      }
+    } catch (err) {
+      showBranchMsg(err instanceof Error ? err.message : 'Failed to create branch', false);
     }
   };
 
@@ -84,6 +102,13 @@ function TestingLabContent() {
         onPull={handlePull}
         onCreateBranch={handleCreateBranch}
       />
+
+      {/* Branch operation feedback */}
+      {branchMsg && (
+        <div className={`testing-lab__branch-msg ${branchMsg.ok ? 'testing-lab__branch-msg--ok' : 'testing-lab__branch-msg--err'}`}>
+          {branchMsg.ok ? '✓' : '✕'} {branchMsg.text}
+        </div>
+      )}
 
       {/* Property context */}
       <PropertyContextBar />

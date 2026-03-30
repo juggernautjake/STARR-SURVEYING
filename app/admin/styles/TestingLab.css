@@ -1608,3 +1608,49 @@
 .log-viewer-tab__entry--warn    { border-left: 2px solid #D97706; }
 .log-viewer-tab__entry--error   { border-left: 2px solid #DC2626; }
 .log-viewer-tab__entry--success { border-left: 2px solid #059669; }
+
+/* ── TestCard async job notice ───────────────────────────────────────────── */
+.test-card__async-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 6px;
+  color: #93C5FD;
+  font-size: 0.82rem;
+  padding: 0.6rem 0.8rem;
+  margin-top: 0.5rem;
+  line-height: 1.5;
+}
+
+/* ── Page-level branch operation feedback ────────────────────────────────── */
+.testing-lab__branch-msg {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  animation: fadeIn 0.2s ease;
+}
+
+.testing-lab__branch-msg--ok {
+  background: rgba(5, 150, 105, 0.1);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+  color: #6EE7B7;
+}
+
+.testing-lab__branch-msg--err {
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #FCA5A5;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Loading spinner keyframes for layout.tsx */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

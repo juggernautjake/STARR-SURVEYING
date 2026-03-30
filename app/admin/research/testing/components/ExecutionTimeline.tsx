@@ -238,7 +238,7 @@ export default function ExecutionTimeline({
         <div
           className="execution-timeline__tooltip"
           style={{
-            left: `${Math.min(tooltipPos.x, window.innerWidth - 300)}px`,
+            left: `${Math.min(tooltipPos.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 300)}px`,
             top: `${tooltipPos.y - 80}px`,
           }}
         >

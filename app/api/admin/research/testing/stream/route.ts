@@ -1,5 +1,6 @@
 // app/api/admin/research/testing/stream/route.ts
-// Server-Sent Events (SSE) stream for real-time pipeline events
+// Server-Sent Events (SSE) stream for real-time pipeline events.
+// Polls the worker's live-log registry and forwards new entries to the client.
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 
@@ -14,19 +15,30 @@ export async function GET(req: NextRequest) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const projectId = req.nextUrl.searchParams.get('projectId');
+  // Support both `projectId` (primary) and `runId` (alias) query params.
+  const projectId =
+    req.nextUrl.searchParams.get('projectId') ||
+    req.nextUrl.searchParams.get('runId');
+
   if (!projectId) {
-    return new Response('projectId is required', { status: 400 });
+    return new Response('projectId (or runId) is required', { status: 400 });
   }
 
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
     async start(controller) {
-      // Send initial connection event
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'connected', projectId })}\n\n`));
+      const send = (payload: Record<string, unknown>) => {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        } catch {
+          // Stream already closed
+        }
+      };
 
-      // Poll the worker's live log registry for events
+      // Announce connection
+      send({ type: 'connected', projectId });
+
       let running = true;
       let lastLogCount = 0;
 
@@ -35,49 +47,44 @@ export async function GET(req: NextRequest) {
           try {
             if (WORKER_URL && WORKER_API_KEY) {
               const res = await fetch(`${WORKER_URL}/research/logs/${projectId}`, {
-                headers: {
-                  'Authorization': `Bearer ${WORKER_API_KEY}`,
-                },
+                headers: { 'Authorization': `Bearer ${WORKER_API_KEY}` },
+                signal: AbortSignal.timeout(5_000),
               });
 
               if (res.ok) {
-                const data = await res.json();
-                const logs = data.logs || data.log || [];
+                const data = await res.json() as Record<string, unknown>;
+                const logs = (data.logs ?? data.log ?? []) as unknown[];
 
-                // Only send new logs
+                // Forward only new log entries since last poll
                 if (logs.length > lastLogCount) {
                   const newLogs = logs.slice(lastLogCount);
                   for (const log of newLogs) {
-                    controller.enqueue(encoder.encode(
-                      `data: ${JSON.stringify({ type: 'log', ...log })}\n\n`
-                    ));
+                    send({ type: 'log', ...(log as Record<string, unknown>) });
                   }
                   lastLogCount = logs.length;
                 }
 
-                // Check if pipeline completed
+                // Detect pipeline completion
                 if (data.status === 'complete' || data.status === 'failed') {
-                  controller.enqueue(encoder.encode(
-                    `data: ${JSON.stringify({ type: 'complete', status: data.status })}\n\n`
-                  ));
+                  send({ type: 'complete', status: data.status });
                   running = false;
-                  controller.close();
+                  try { controller.close(); } catch { /* already closed */ }
                   return;
                 }
               }
             }
           } catch {
-            // Silently continue polling
+            // Network hiccup — continue polling; client heartbeat keeps the
+            // connection alive until the abort signal fires.
           }
 
-          // Poll every 1 second
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await new Promise<void>((resolve) => setTimeout(resolve, 1000));
         }
       };
 
       poll();
 
-      // Heartbeat every 15 seconds
+      // Heartbeat comment line — keeps proxies / Vercel from closing the stream
       const heartbeat = setInterval(() => {
         if (!running) {
           clearInterval(heartbeat);
@@ -89,9 +96,9 @@ export async function GET(req: NextRequest) {
           running = false;
           clearInterval(heartbeat);
         }
-      }, 15000);
+      }, 15_000);
 
-      // Clean up on abort
+      // Clean up when the client disconnects
       req.signal.addEventListener('abort', () => {
         running = false;
         clearInterval(heartbeat);
@@ -103,8 +110,10 @@ export async function GET(req: NextRequest) {
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
+      // Disable nginx/proxy buffering so events reach the client immediately
+      'X-Accel-Buffering': 'no',
     },
   });
 }

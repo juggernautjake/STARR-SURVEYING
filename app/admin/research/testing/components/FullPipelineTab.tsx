@@ -1,7 +1,7 @@
 // FullPipelineTab.tsx — Run the full pipeline with phase skip/resume controls
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { usePropertyContext } from './PropertyContextBar';
 import ExecutionTimeline, { type TimelineEvent } from './ExecutionTimeline';
 import LogStream, { type LogEntry } from './LogStream';
@@ -38,9 +38,9 @@ export default function FullPipelineTab() {
   const [speed, setSpeed] = useState(1);
   const [currentPhase, setCurrentPhase] = useState<string | null>(null);
 
-  let startTime = 0;
-  let logCounter = 0;
-  let evtCounter = 0;
+  const startTimeRef = useRef(0);
+  const logCounterRef = useRef(0);
+  const evtCounterRef = useRef(0);
 
   const togglePhase = (key: string) => {
     setEnabledPhases((prev) => {
@@ -52,9 +52,9 @@ export default function FullPipelineTab() {
   };
 
   const addLog = (level: LogEntry['level'], message: string) => {
-    const ts = Date.now() - startTime;
+    const ts = Date.now() - startTimeRef.current;
     setLogs((prev) => [...prev, {
-      id: `plog-${++logCounter}-${Date.now()}`,
+      id: `plog-${++logCounterRef.current}-${Date.now()}`,
       timestamp: ts,
       level,
       source: 'pipeline',
@@ -65,9 +65,9 @@ export default function FullPipelineTab() {
   };
 
   const addEvent = (type: TimelineEvent['type'], label: string, desc: string) => {
-    const ts = Date.now() - startTime;
+    const ts = Date.now() - startTimeRef.current;
     setEvents((prev) => [...prev, {
-      id: `pevt-${++evtCounter}-${Date.now()}`,
+      id: `pevt-${++evtCounterRef.current}-${Date.now()}`,
       timestamp: ts,
       type,
       label,
@@ -87,7 +87,7 @@ export default function FullPipelineTab() {
     setIsPlaying(true);
     setCurrentTime(0);
     setTotalDuration(0);
-    startTime = Date.now();
+    startTimeRef.current = Date.now();
 
     addEvent('phase-start', 'Pipeline started', 'Full pipeline execution');
     addLog('info', 'Starting full pipeline...');
@@ -116,7 +116,7 @@ export default function FullPipelineTab() {
       });
 
       const data = await res.json();
-      const elapsed = Date.now() - startTime;
+      const elapsed = Date.now() - startTimeRef.current;
 
       if (data.success) {
         addEvent('phase-complete', 'Pipeline completed', `Duration: ${(data.duration / 1000).toFixed(1)}s`);

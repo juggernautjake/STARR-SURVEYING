@@ -1,7 +1,7 @@
 // TestCard.tsx — Reusable module card with full debugger (timeline, code, logs)
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ExecutionTimeline, { type TimelineEvent, type EventType } from './ExecutionTimeline';
 import CodeViewer, { type CodeFile } from './CodeViewer';
 import LogStream, { type LogEntry } from './LogStream';
@@ -59,6 +59,7 @@ export default function TestCard({
   const [error, setError] = useState<string | undefined>();
   const [duration, setDuration] = useState<number | undefined>();
   const [screenshots, setScreenshots] = useState<string[]>([]);
+  const [asyncMessage, setAsyncMessage] = useState<string | undefined>();
 
   // Timeline state
   const [currentTime, setCurrentTime] = useState(0);
@@ -71,6 +72,16 @@ export default function TestCard({
 
   const startTimeRef = useRef<number>(0);
   const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clean up interval on unmount to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (playbackRef.current) {
+        clearInterval(playbackRef.current);
+        playbackRef.current = null;
+      }
+    };
+  }, []);
 
   // ── Check inputs ───────────────────────────────────────────────────────────
 
@@ -122,6 +133,7 @@ export default function TestCard({
     setError(undefined);
     setDuration(undefined);
     setScreenshots([]);
+    setAsyncMessage(undefined);
     setIsPlaying(true);
     setCurrentTime(0);
     setTotalDuration(0);
@@ -161,34 +173,55 @@ export default function TestCard({
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json() as {
+        success: boolean;
+        async?: boolean;
+        duration: number;
+        result: Record<string, unknown> | null;
+        status?: number;
+        error?: string;
+        message?: string;
+        pollUrl?: string;
+      };
       const elapsed = Date.now() - startTimeRef.current;
 
       if (data.success) {
-        addEvent('phase-complete', `${title} completed`, `Duration: ${(data.duration / 1000).toFixed(2)}s`);
-        addLog('success', module, `Completed in ${(data.duration / 1000).toFixed(2)}s`);
-        setResult(data.result);
-        setDuration(data.duration);
-        setStatus('success');
+        if (data.async) {
+          // 202 Accepted — job started in worker background
+          const msg = data.message ?? 'Job accepted. Running in the background on the worker.';
+          addEvent('checkpoint', `${title} accepted (async)`, msg);
+          addLog('info', module, msg);
+          if (data.pollUrl) addLog('info', module, `Poll: GET ${data.pollUrl}`);
+          setAsyncMessage(msg + (data.pollUrl ? `\n\nPoll for results: GET ${data.pollUrl}` : ''));
+          setResult(data.result);
+          setDuration(data.duration);
+          setStatus('success');
+        } else {
+          addEvent('phase-complete', `${title} completed`, `Duration: ${(data.duration / 1000).toFixed(2)}s`);
+          addLog('success', module, `Completed in ${(data.duration / 1000).toFixed(2)}s`);
+          setResult(data.result);
+          setDuration(data.duration);
+          setStatus('success');
 
-        // Extract screenshots if present
-        if (data.result?.screenshots) {
-          setScreenshots(data.result.screenshots);
-          addEvent('screenshot', 'Screenshots captured', `${data.result.screenshots.length} screenshots`);
-        }
+          // Extract screenshots if present
+          if (data.result?.screenshots && Array.isArray(data.result.screenshots)) {
+            setScreenshots(data.result.screenshots as string[]);
+            addEvent('screenshot', 'Screenshots captured', `${(data.result.screenshots as unknown[]).length} screenshots`);
+          }
 
-        // Extract logs from result if present
-        if (data.result?.log && Array.isArray(data.result.log)) {
-          for (const entry of data.result.log) {
-            addLog(
-              entry.status === 'fail' ? 'error' : entry.status === 'warn' ? 'warn' : 'info',
-              entry.source || module,
-              `[${entry.layer}] ${entry.method}: ${entry.details || entry.status}`,
-              entry.error,
-            );
-            const evtType: EventType = entry.status === 'fail' ? 'error' :
-              entry.status === 'warn' ? 'warning' : 'data-found';
-            addEvent(evtType, `${entry.layer}: ${entry.method}`, entry.details || entry.status);
+          // Extract logs from result if present
+          if (data.result?.log && Array.isArray(data.result.log)) {
+            for (const entry of data.result.log as Record<string, unknown>[]) {
+              addLog(
+                entry.status === 'fail' ? 'error' : entry.status === 'warn' ? 'warn' : 'info',
+                String(entry.source ?? module),
+                `[${entry.layer ?? ''}] ${entry.method ?? ''}: ${entry.details ?? entry.status ?? ''}`,
+                entry.error as string | undefined,
+              );
+              const evtType: EventType = entry.status === 'fail' ? 'error' :
+                entry.status === 'warn' ? 'warning' : 'data-found';
+              addEvent(evtType, `${entry.layer ?? ''}: ${entry.method ?? ''}`, String(entry.details ?? entry.status ?? ''));
+            }
           }
         }
       } else {
@@ -232,6 +265,7 @@ export default function TestCard({
     setError(undefined);
     setDuration(undefined);
     setScreenshots([]);
+    setAsyncMessage(undefined);
     setCurrentTime(0);
     setTotalDuration(0);
     setIsPlaying(false);
@@ -384,6 +418,16 @@ export default function TestCard({
                   />
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Async job notice */}
+          {asyncMessage && (
+            <div className="test-card__async-notice">
+              <span style={{ marginRight: '0.4rem' }}>⏳</span>
+              {asyncMessage.split('\n\n').map((line, i) => (
+                <span key={i} style={i > 0 ? { display: 'block', marginTop: '0.3rem', fontFamily: 'monospace', fontSize: '0.78rem' } : undefined}>{line}</span>
+              ))}
             </div>
           )}
 

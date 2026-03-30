@@ -44,9 +44,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
     const data = await res.json();
 
-    if (data.type === 'dir') {
-      // Return directory listing
-      const files = data.map((f: any) => ({
+    // GitHub returns an array when the path points to a directory
+    if (Array.isArray(data)) {
+      const files = data.map((f: { name: string; path: string; type: string; size: number }) => ({
         name: f.name,
         path: f.path,
         type: f.type,
