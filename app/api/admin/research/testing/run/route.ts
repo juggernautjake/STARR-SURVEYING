@@ -50,7 +50,7 @@ const MODULE_ENDPOINTS: Record<string, { method: string; path: string }> = {
   'phase-9-purchase':    { method: 'POST', path: '/research/purchase' },
 
   // Full pipeline
-  'full-pipeline':       { method: 'POST', path: '/research/run' },
+  'full-pipeline':       { method: 'POST', path: '/research/full-pipeline' },
 
   // Supplementary
   'flood-zone':          { method: 'POST', path: '/research/flood-zone' },

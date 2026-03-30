@@ -1592,3 +1592,19 @@
   padding-left: 0.25rem;
   line-height: 1.5;
 }
+
+/* ── LogStream level variants (message color per severity) ───────────────── */
+.log-stream__entry--info .log-stream__message    { color: #D1D5DB; }
+.log-stream__entry--debug .log-stream__message   { color: #9CA3AF; }
+
+/* ── LogViewerTab level variants ─────────────────────────────────────────── */
+.log-viewer-tab__level-btn--active {
+  /* handled via inline style in the component; this class is a hook for overrides */
+  font-weight: 700;
+}
+
+.log-viewer-tab__entry--info    { border-left: 2px solid #3B82F6; }
+.log-viewer-tab__entry--debug   { border-left: 2px solid #9CA3AF; }
+.log-viewer-tab__entry--warn    { border-left: 2px solid #D97706; }
+.log-viewer-tab__entry--error   { border-left: 2px solid #DC2626; }
+.log-viewer-tab__entry--success { border-left: 2px solid #059669; }
