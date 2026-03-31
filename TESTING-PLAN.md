@@ -27,24 +27,24 @@
 
 | File | Status | Notes |
 |------|--------|-------|
-| `PropertyContextBar.tsx` | ✅ Done | Shared inputs + context provider, 3 real Bell County fixtures, Load by Project ID |
-| `ExecutionTimeline.tsx` | ✅ Done | Drag scrubber, keyboard nav (space/arrows), event markers, speed presets, SSR-safe tooltip |
+| `PropertyContextBar.tsx` | ✅ Done | Shared inputs + context provider, 3 real Bell County fixtures, controlled fixture selector, load error feedback, loads `subdivisionName` |
+| `ExecutionTimeline.tsx` | ✅ Done | Drag scrubber, keyboard nav scoped to component (tabIndex+onKeyDown — fixes multi-instance window listener stacking), SSR-safe tooltip |
 | `CodeViewer.tsx` | ✅ Done | Multi-tab, lightweight syntax highlighting, edit mode with Ctrl+S, line-level highlighting |
 | `LogStream.tsx` | ✅ Done | Timeline-synced, auto-scroll, level filter, future-event dimming |
 | `BranchSelector.tsx` | ✅ Done | Branch list from GitHub API, compare mode, inline create |
-| `OutputViewer.tsx` | ✅ Done | JSON tree (collapsible), Raw, Screenshot gallery tabs |
+| `OutputViewer.tsx` | ✅ Done | JSON tree (collapsible), Raw (JSON.stringify try/catch safe), Screenshot gallery tabs |
 
 ### Phase 3 — Module Cards ✅ Complete
 
 | File | Status | Notes |
 |------|--------|-------|
-| `TestCard.tsx` | ✅ Done | Interval cleanup, async 202 notice, type-safe log entry processing, conditional code/log split view, stable async message keys |
+| `TestCard.tsx` | ✅ Done | Interval cleanup, async 202 notice, type-safe log entry processing, conditional code/log split view, stable async message keys, contextRecord extracted |
 | `ScrapersTab.tsx` | ✅ Done | 10 scrapers — correct `address` input for CAD/GIS, `projectId+ownerName` for clerk/plat |
 | `AnalyzersTab.tsx` | ✅ Done | 8 analyzers — all require `projectId` |
 | `PhasesTab.tsx` | ✅ Done | 9 phases — phase-1 requires `address` (was wrongly `propertyId`) |
 | `FullPipelineTab.tsx` | ✅ Done | Phase skip/resume, step nav wired, currentPhase key/label bug fixed (pass 3), catch block sets duration, phase detection uses dynamic PIPELINE_PHASES lookup |
-| `HealthCheckTab.tsx` | ✅ Done | Worker health + external site grid, 0ms latency display fixed |
-| `LogViewerTab.tsx` | ✅ Done | Enter key to load, batch-ID for dedup, type-safe level validation with allowed-list check |
+| `HealthCheckTab.tsx` | ✅ Done | Worker health + external site grid, `0ms` latency display fixed (`!== undefined`), stable vendor keys |
+| `LogViewerTab.tsx` | ✅ Done | Enter key to load, batch-ID for dedup, type-safe level validation, clean message builder (no `[] : ` artifacts) |
 
 ### Phase 4 — Integration ✅ Complete
 
@@ -63,7 +63,10 @@
 | Timeline only has start/complete events — no per-file/per-function trace events | Phase 2: Worker instrumentation |
 | SSE stream (`/testing/stream`) polls worker but worker doesn't yet emit phase-level events | Phase 2: Worker event emitter |
 | `FullPipelineTab` currentPhase only updates from log parsing — not from real phase events | Phase 2: Worker phase event emitter |
+| `LogViewerTab` loads logs from the API but has no feed from active TestCard runs (no shared log store) | Phase 2: Shared log store / event bus |
 | Multi-branch side-by-side comparison UI not yet wired (BranchSelector UI is ready) | Phase 3 |
+| `BranchSelector` + `currentBranch` state not wired to tab components (no branch is sent to any tab yet) | Phase 3 |
+| `paused` CardStatus in TestCard is defined but never set (requires worker pause support) | Phase 2 |
 | No test coverage (unit or e2e) for Testing Lab components | Phase 4 |
 
 ---

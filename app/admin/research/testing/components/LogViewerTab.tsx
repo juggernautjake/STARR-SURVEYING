@@ -48,12 +48,22 @@ export default function LogViewerTab() {
           const level: AggregatedLog['level'] = VALID_LEVELS.includes(rawLevel as AggregatedLog['level'])
             ? (rawLevel as AggregatedLog['level'])
             : 'info';
+          // Build a human-readable message from whatever fields are populated
+          const parts: string[] = [];
+          if (l.layer) parts.push(`[${l.layer}]`);
+          if (l.method) parts.push(String(l.method));
+          if (l.details) parts.push(String(l.details));
+          else if (l.status) parts.push(String(l.status));
+          // Fallback: include module/source so the entry is always identifiable
+          const message = parts.length > 0
+            ? parts.join(' ')
+            : `log entry from ${String(l.source ?? l.layer ?? 'unknown')}`;
           return {
             id: `alog-${batchId}-${i}`,
             timestamp: String(l.timestamp ?? new Date().toISOString()),
             module: String(l.source ?? l.layer ?? 'unknown'),
             level,
-            message: `[${l.layer ?? ''}] ${l.method ?? ''}: ${l.details ?? l.status ?? ''}`,
+            message,
             details: typeof l.error === 'string' ? l.error : undefined,
           };
         });

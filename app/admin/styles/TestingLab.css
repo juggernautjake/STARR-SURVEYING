@@ -270,6 +270,12 @@
   cursor: not-allowed;
 }
 
+.property-context-bar__load-error {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: #DC2626;
+}
+
 /* ── Branch Selector ───────────────────────────────────────────────────────── */
 
 .branch-selector {
@@ -633,6 +639,7 @@
   border: 1px solid #E5E7EB;
   border-radius: 8px;
   padding: 0.75rem;
+  outline: none; /* keyboard focus managed via tabIndex; suppress browser outline */
 }
 
 .execution-timeline__time-labels {

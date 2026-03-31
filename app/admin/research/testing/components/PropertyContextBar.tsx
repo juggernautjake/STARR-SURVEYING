@@ -117,9 +117,13 @@ export default function PropertyContextBar() {
   const { context, setContext, updateField } = usePropertyContext();
   const [isExpanded, setIsExpanded] = useState(true);
   const [loadingProject, setLoadingProject] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [fixtureIndex, setFixtureIndex] = useState('');
 
   const handleFixture = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const fixture = TEST_FIXTURES[Number(e.target.value)];
+    const idx = e.target.value;
+    setFixtureIndex(idx);
+    const fixture = TEST_FIXTURES[Number(idx)];
     if (fixture) {
       setContext({ ...fixture } as PropertyContext);
     }
@@ -128,6 +132,7 @@ export default function PropertyContextBar() {
   const handleLoadProject = async () => {
     if (!context.projectId) return;
     setLoadingProject(true);
+    setLoadError(null);
     try {
       const res = await fetch(`/api/admin/research/${context.projectId}`);
       if (res.ok) {
@@ -142,10 +147,15 @@ export default function PropertyContextBar() {
           lat: p.lat?.toString() || '',
           lon: p.lon?.toString() || '',
           ownerName: p.owner_name || '',
+          subdivisionName: p.subdivision_name || '',
         });
+        setFixtureIndex(''); // clear fixture selection after loading a project
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setLoadError(err?.error || `Project not found (${res.status})`);
       }
     } catch {
-      // silently fail
+      setLoadError('Network error — could not load project');
     }
     setLoadingProject(false);
   };
@@ -173,7 +183,7 @@ export default function PropertyContextBar() {
           <div className="property-context-bar__row">
             <div className="property-context-bar__field property-context-bar__field--wide">
               <label>Quick Load</label>
-              <select onChange={handleFixture} defaultValue="">
+              <select value={fixtureIndex} onChange={handleFixture}>
                 <option value="" disabled>Select a test fixture...</option>
                 {TEST_FIXTURES.map((f, i) => (
                   <option key={i} value={i}>{f.label}</option>
@@ -187,7 +197,7 @@ export default function PropertyContextBar() {
                   type="text"
                   placeholder="UUID"
                   value={context.projectId}
-                  onChange={(e) => updateField('projectId', e.target.value)}
+                  onChange={(e) => { updateField('projectId', e.target.value); setLoadError(null); }}
                 />
                 <button
                   className="property-context-bar__load-btn"
@@ -197,6 +207,9 @@ export default function PropertyContextBar() {
                   {loadingProject ? '...' : 'Load'}
                 </button>
               </div>
+              {loadError && (
+                <div className="property-context-bar__load-error">{loadError}</div>
+              )}
             </div>
           </div>
 

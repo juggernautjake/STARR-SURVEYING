@@ -85,8 +85,10 @@ export default function TestCard({
 
   // ── Check inputs ───────────────────────────────────────────────────────────
 
+  const contextRecord = context as unknown as Record<string, string>;
+
   const missingInputs = requiredInputs.filter((key) => {
-    const val = (context as unknown as Record<string, string>)[key];
+    const val = contextRecord[key];
     return !val || val.trim() === '';
   });
 
@@ -155,7 +157,7 @@ export default function TestCard({
     // Build inputs from property context
     const inputs: Record<string, unknown> = {};
     for (const key of [...requiredInputs, ...optionalInputs]) {
-      const val = (context as unknown as Record<string, string>)[key];
+      const val = contextRecord[key];
       if (val && val.trim()) inputs[key] = val.trim();
     }
 

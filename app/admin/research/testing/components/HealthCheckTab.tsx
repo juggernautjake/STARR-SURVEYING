@@ -111,8 +111,8 @@ export default function HealthCheckTab() {
         </div>
         {sites.length > 0 && (
           <div className="health-check-tab__grid">
-            {sites.map((site, i) => (
-              <div key={i} className="health-check-tab__card">
+            {sites.map((site) => (
+              <div key={site.vendor} className="health-check-tab__card">
                 <div className="health-check-tab__card-header">
                   <span className="health-check-tab__dot" style={{ background: statusColor(site.status) }} />
                   <span className="health-check-tab__vendor">{site.vendor}</span>
@@ -120,7 +120,7 @@ export default function HealthCheckTab() {
                     {site.status.toUpperCase()}
                   </span>
                 </div>
-                {site.responseTime && (
+                {site.responseTime !== undefined && (
                   <div className="health-check-tab__response-time">{site.responseTime}ms</div>
                 )}
                 {site.error && (
