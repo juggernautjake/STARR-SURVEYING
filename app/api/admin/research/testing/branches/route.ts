@@ -28,7 +28,7 @@ async function githubFetch(path: string, options?: RequestInit) {
 /* GET — List all branches */
 export const GET = withErrorHandler(async () => {
   const session = await auth();
-  if (!session?.user?.email || (session.user as any).role !== 'admin') {
+  if (!session?.user?.email || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -53,7 +53,7 @@ export const GET = withErrorHandler(async () => {
 /* POST — Create a new branch */
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || (session.user as any).role !== 'admin') {
+  if (!session?.user?.email || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

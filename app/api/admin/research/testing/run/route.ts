@@ -83,6 +83,24 @@ const MODULE_TIMEOUTS: Record<string, number> = {
 };
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+// ── Module group constants ────────────────────────────────────────────────────
+// Centralised lists used by transformInputs — update here when adding modules.
+const HARVEST_MODULES = [
+  'clerk-scraper', 'plat-scraper', 'map-screenshot', 'gis-viewer',
+  'screenshot-collector', 'phase-2-harvest',
+] as const;
+
+const ANALYZE_MODULES = [
+  'deed-analyzer', 'plat-analyzer', 'lot-correlator', 'relevance',
+  'gis-quality', 'screenshot-classifier', 'discrepancy', 'phase-3-analyze',
+] as const;
+
+const INTELLIGENCE_PATH_MODULES = [
+  'phase-4-subdivision', 'phase-5-adjacent', 'txdot-scraper', 'phase-6-row',
+] as const;
+
+const CONFIDENCE_MODULES = ['confidence', 'phase-8-confidence'] as const;
+
 // ── Input field transforms ───────────────────────────────────────────────────
 // Some worker endpoints use different field names than the UI context, or
 // require filesystem paths that can be derived from projectId.
@@ -94,10 +112,7 @@ function transformInputs(
   const out: Record<string, unknown> = { ...inputs };
 
   // Harvest endpoints: worker expects `owner`, UI context sends `ownerName`
-  if (
-    ['clerk-scraper', 'plat-scraper', 'map-screenshot', 'gis-viewer',
-     'screenshot-collector', 'phase-2-harvest'].includes(module)
-  ) {
+  if ((HARVEST_MODULES as readonly string[]).includes(module)) {
     if (!out.owner && out.ownerName) {
       out.owner = out.ownerName;
     }
@@ -111,39 +126,21 @@ function transformInputs(
   if (!pid) return out;
 
   // Analyze endpoint requires harvestResultPath (Phase 2 output)
-  if (
-    ['deed-analyzer', 'plat-analyzer', 'lot-correlator', 'relevance',
-     'gis-quality', 'screenshot-classifier', 'discrepancy',
-     'phase-3-analyze'].includes(module)
-  ) {
+  if ((ANALYZE_MODULES as readonly string[]).includes(module)) {
     if (!out.harvestResultPath) {
       out.harvestResultPath = `/tmp/harvest/${pid}/harvest_result.json`;
     }
   }
 
-  // Subdivision endpoint requires intelligencePath (Phase 3 output)
-  if (['phase-4-subdivision'].includes(module)) {
-    if (!out.intelligencePath) {
-      out.intelligencePath = `/tmp/analysis/${pid}/property_intelligence.json`;
-    }
-  }
-
-  // Adjacent endpoint uses defaults from intelligencePath (Phase 3 output)
-  if (['phase-5-adjacent'].includes(module)) {
-    if (!out.intelligencePath) {
-      out.intelligencePath = `/tmp/analysis/${pid}/property_intelligence.json`;
-    }
-  }
-
-  // ROW endpoint uses intelligencePath (Phase 3 output)
-  if (['txdot-scraper', 'phase-6-row'].includes(module)) {
+  // Subdivision / adjacent / ROW endpoints require intelligencePath (Phase 3 output)
+  if ((INTELLIGENCE_PATH_MODULES as readonly string[]).includes(module)) {
     if (!out.intelligencePath) {
       out.intelligencePath = `/tmp/analysis/${pid}/property_intelligence.json`;
     }
   }
 
   // Reconcile requires phasePaths.intelligence (Phase 3 output)
-  if (['phase-7-reconcile'].includes(module)) {
+  if (module === 'phase-7-reconcile') {
     if (!out.phasePaths) {
       out.phasePaths = {
         intelligence: `/tmp/analysis/${pid}/property_intelligence.json`,
@@ -155,7 +152,7 @@ function transformInputs(
   }
 
   // Confidence endpoint requires reconciledPath (Phase 7 output)
-  if (['confidence', 'phase-8-confidence'].includes(module)) {
+  if ((CONFIDENCE_MODULES as readonly string[]).includes(module)) {
     if (!out.reconciledPath) {
       out.reconciledPath = `/tmp/analysis/${pid}/reconciled_boundary.json`;
     }
@@ -169,7 +166,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if ((session.user as any).role !== 'admin') {
+  if (session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
   if (!WORKER_URL || !WORKER_API_KEY) {
@@ -193,7 +190,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: `Unknown module: ${module}` }, { status: 400 });
   }
 
-  const resolvedProjectId = (projectId || inputs?.projectId as string | undefined) || undefined;
+  const resolvedProjectId = projectId || (typeof inputs?.projectId === 'string' ? inputs.projectId : undefined);
   const timeoutMs = MODULE_TIMEOUTS[module] ?? DEFAULT_TIMEOUT_MS;
   const startTime = Date.now();
 

@@ -38,17 +38,25 @@ export default function LogViewerTab() {
       if (res.ok) {
         const data = await res.json() as Record<string, unknown>;
         const rawLogs = (data.logs ?? data.log ?? []) as Record<string, unknown>[];
-        const entries: AggregatedLog[] = rawLogs.map((l, i) => ({
-          id: `alog-${batchId}-${i}`,
-          timestamp: String(l.timestamp ?? new Date().toISOString()),
-          module: String(l.source ?? l.layer ?? 'unknown'),
-          level: l.status === 'fail' ? 'error'
+        const VALID_LEVELS: AggregatedLog['level'][] = ['info', 'warn', 'error', 'debug', 'success'];
+        const entries: AggregatedLog[] = rawLogs.map((l, i) => {
+          const rawLevel = l.status === 'fail' ? 'error'
             : l.status === 'warn' ? 'warn'
             : l.status === 'success' ? 'success'
-            : (l.level ?? 'info') as AggregatedLog['level'],
-          message: `[${l.layer ?? ''}] ${l.method ?? ''}: ${l.details ?? l.status ?? ''}`,
-          details: l.error as string | undefined,
-        }));
+            : typeof l.level === 'string' ? l.level
+            : 'info';
+          const level: AggregatedLog['level'] = VALID_LEVELS.includes(rawLevel as AggregatedLog['level'])
+            ? (rawLevel as AggregatedLog['level'])
+            : 'info';
+          return {
+            id: `alog-${batchId}-${i}`,
+            timestamp: String(l.timestamp ?? new Date().toISOString()),
+            module: String(l.source ?? l.layer ?? 'unknown'),
+            level,
+            message: `[${l.layer ?? ''}] ${l.method ?? ''}: ${l.details ?? l.status ?? ''}`,
+            details: typeof l.error === 'string' ? l.error : undefined,
+          };
+        });
         setLogs(entries);
       }
     } catch {

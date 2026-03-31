@@ -62,14 +62,14 @@ export default function FullPipelineTab() {
     }]);
     setCurrentTime(ts);
     setTotalDuration(ts);
-    // Update currentPhase from log messages that mention a phase name
-    const phaseMatch = message.match(/phase[- :]?\s*(\d+|discover|harvest|analyze|subdivision|adjacent|row|reconcile|confidence|purchase)/i);
-    if (phaseMatch) {
-      const phaseKey = PIPELINE_PHASES.find((p) =>
-        message.toLowerCase().includes(p.key) || message.toLowerCase().includes(p.label.toLowerCase())
-      )?.label ?? null;
-      if (phaseKey) setCurrentPhase(phaseKey);
-    }
+    // Update currentPhase from log messages that mention a phase name.
+    // Build pattern dynamically from PIPELINE_PHASES so it stays in sync.
+    // Store p.key so it can be matched against p.key in the progress display.
+    const lc = message.toLowerCase();
+    const matchedKey = PIPELINE_PHASES.find((p) =>
+      lc.includes(p.key) || lc.includes(p.label.toLowerCase())
+    )?.key ?? null;
+    if (matchedKey) setCurrentPhase(matchedKey);
   };
 
   const addEvent = (type: TimelineEvent['type'], label: string, desc: string) => {
@@ -169,9 +169,14 @@ export default function FullPipelineTab() {
       setCurrentTime(elapsed);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Network error';
+      const elapsed = Date.now() - startTimeRef.current;
+      setCurrentPhase(null);
       addEvent('error', 'Request failed', msg);
       addLog('error', msg);
       setError(msg);
+      setDuration(elapsed);
+      setTotalDuration(elapsed);
+      setCurrentTime(elapsed);
       setStatus('error');
     }
 
@@ -218,7 +223,11 @@ export default function FullPipelineTab() {
           onClick={handleRun}
           disabled={status === 'running' || missingInputs}
         >
-          {status === 'running' ? `Running...${currentPhase ? ` (${currentPhase})` : ''}` : 'Run Full Pipeline'}
+          {status === 'running'
+            ? `Running...${currentPhase
+                ? ` (${PIPELINE_PHASES.find((p) => p.key === currentPhase)?.label ?? currentPhase})`
+                : ''}`
+            : 'Run Full Pipeline'}
         </button>
         {missingInputs && (
           <span className="test-card__warning" style={{ display: 'inline' }}>

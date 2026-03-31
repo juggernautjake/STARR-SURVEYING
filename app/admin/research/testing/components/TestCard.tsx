@@ -213,7 +213,7 @@ export default function TestCard({
           if (data.result?.log && Array.isArray(data.result.log)) {
             for (const rawEntry of data.result.log) {
               // Validate entry is a non-null object before accessing properties
-              if (!rawEntry || typeof rawEntry !== 'object') continue;
+              if (typeof rawEntry !== 'object' || rawEntry === null) continue;
               const entry = rawEntry as Record<string, unknown>;
               const entryStatus = typeof entry.status === 'string' ? entry.status : '';
               const entrySource = typeof entry.source === 'string' ? entry.source : module;
@@ -456,7 +456,10 @@ export default function TestCard({
             <div className="test-card__async-notice">
               <span style={{ marginRight: '0.4rem' }}>⏳</span>
               {asyncMessage.split('\n\n').map((line, i) => (
-                <span key={i} style={i > 0 ? { display: 'block', marginTop: '0.3rem', fontFamily: 'monospace', fontSize: '0.78rem' } : undefined}>{line}</span>
+                <span
+                  key={`async-line-${i}`}
+                  style={i > 0 ? { display: 'block', marginTop: '0.3rem', fontFamily: 'monospace', fontSize: '0.78rem' } : undefined}
+                >{line}</span>
               ))}
             </div>
           )}

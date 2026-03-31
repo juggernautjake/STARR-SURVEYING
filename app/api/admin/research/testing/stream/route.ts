@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.email || (session.user as any).role !== 'admin') {
+  if (!session?.user?.email || session.user.role !== 'admin') {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -53,13 +53,16 @@ export async function GET(req: NextRequest) {
 
               if (res.ok) {
                 const data = await res.json() as Record<string, unknown>;
-                const logs = (data.logs ?? data.log ?? []) as unknown[];
+                // logs can be the worker's LogEntry[] or any log array shape
+                const logs = (Array.isArray(data.logs) ? data.logs
+                  : Array.isArray(data.log) ? data.log
+                  : []) as Record<string, unknown>[];
 
                 // Forward only new log entries since last poll
                 if (logs.length > lastLogCount) {
                   const newLogs = logs.slice(lastLogCount);
                   for (const log of newLogs) {
-                    send({ type: 'log', ...(log as Record<string, unknown>) });
+                    send({ type: 'log', ...log });
                   }
                   lastLogCount = logs.length;
                 }
