@@ -37,7 +37,9 @@ interface ContactFormData {
   email: string;
   phone: string;
   company: string;
-  propertyAddress: string;
+  propertyStreet: string;
+  propertyCity: string;
+  propertyNumber: string;
   serviceType: string;
   projectDetails: string;
   preferredContact: string;
@@ -50,7 +52,9 @@ export default function HomePage(): React.ReactElement {
     email: '',
     phone: '',
     company: '',
-    propertyAddress: '',
+    propertyStreet: '',
+    propertyCity: '',
+    propertyNumber: '',
     serviceType: '',
     projectDetails: '',
     preferredContact: 'email',
@@ -155,7 +159,7 @@ export default function HomePage(): React.ReactElement {
     e.preventDefault();
     setFormState((prev) => ({ ...prev, loading: true, error: '' }));
 
-    if (!formData.name || !formData.email || !formData.phone || !formData.propertyAddress) {
+    if (!formData.name || !formData.email || !formData.phone || !formData.propertyStreet || !formData.propertyCity) {
       setFormState((prev) => ({
         ...prev,
         loading: false,
@@ -181,7 +185,9 @@ export default function HomePage(): React.ReactElement {
           email: '',
           phone: '',
           company: '',
-          propertyAddress: '',
+          propertyStreet: '',
+          propertyCity: '',
+          propertyNumber: '',
           serviceType: '',
           projectDetails: '',
           preferredContact: 'email',
@@ -209,7 +215,9 @@ export default function HomePage(): React.ReactElement {
       email: '',
       phone: '',
       company: '',
-      propertyAddress: '',
+      propertyStreet: '',
+      propertyCity: '',
+      propertyNumber: '',
       serviceType: '',
       projectDetails: '',
       preferredContact: 'email',
@@ -476,20 +484,53 @@ export default function HomePage(): React.ReactElement {
                   />
                 </div>
 
-                {/* Property Address - Required */}
+                {/* Property Street - Required */}
                 <div className="home-contact__form-group home-contact__form-group--full">
-                  <label htmlFor="propertyAddress" className="home-contact__label home-contact__label--required">
-                    Property Address / Location
+                  <label htmlFor="propertyStreet" className="home-contact__label home-contact__label--required">
+                    Property Street Address
                   </label>
                   <input
                     type="text"
-                    id="propertyAddress"
-                    name="propertyAddress"
-                    value={formData.propertyAddress}
+                    id="propertyStreet"
+                    name="propertyStreet"
+                    value={formData.propertyStreet}
                     onChange={handleInputChange}
                     className="home-contact__input"
-                    placeholder="Street address, city, or general area of property"
+                    placeholder="123 Main St"
                     required
+                  />
+                </div>
+
+                {/* Property City - Required */}
+                <div className="home-contact__form-group">
+                  <label htmlFor="propertyCity" className="home-contact__label home-contact__label--required">
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    id="propertyCity"
+                    name="propertyCity"
+                    value={formData.propertyCity}
+                    onChange={handleInputChange}
+                    className="home-contact__input"
+                    placeholder="Belton"
+                    required
+                  />
+                </div>
+
+                {/* Property Number - Optional */}
+                <div className="home-contact__form-group">
+                  <label htmlFor="propertyNumber" className="home-contact__label">
+                    Property / Account Number
+                  </label>
+                  <input
+                    type="text"
+                    id="propertyNumber"
+                    name="propertyNumber"
+                    value={formData.propertyNumber}
+                    onChange={handleInputChange}
+                    className="home-contact__input"
+                    placeholder="CAD account or parcel number (optional)"
                   />
                 </div>
 

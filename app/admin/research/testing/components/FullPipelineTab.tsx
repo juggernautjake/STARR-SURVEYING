@@ -1,7 +1,7 @@
 // FullPipelineTab.tsx — Run the full pipeline with phase skip/resume controls
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePropertyContext } from './PropertyContextBar';
 import ExecutionTimeline, { type TimelineEvent } from './ExecutionTimeline';
 import LogStream, { type LogEntry } from './LogStream';
@@ -38,9 +38,23 @@ export default function FullPipelineTab() {
   const [speed, setSpeed] = useState(1);
   const [currentPhase, setCurrentPhase] = useState<string | null>(null);
 
-  let startTime = 0;
-  let logCounter = 0;
-  let evtCounter = 0;
+  const startTimeRef = useRef(0);
+  const logCounterRef = useRef(0);
+  const evtCounterRef = useRef(0);
+  // Ticker that advances currentTime/totalDuration every 100ms while running,
+  // mirroring what TestCard does. Without this the timeline stays frozen at t=0
+  // until the entire multi-minute fetch resolves.
+  const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clean up interval on unmount
+  useEffect(() => {
+    return () => {
+      if (playbackRef.current) {
+        clearInterval(playbackRef.current);
+        playbackRef.current = null;
+      }
+    };
+  }, []);
 
   const togglePhase = (key: string) => {
     setEnabledPhases((prev) => {
@@ -52,9 +66,9 @@ export default function FullPipelineTab() {
   };
 
   const addLog = (level: LogEntry['level'], message: string) => {
-    const ts = Date.now() - startTime;
+    const ts = Date.now() - startTimeRef.current;
     setLogs((prev) => [...prev, {
-      id: `plog-${++logCounter}-${Date.now()}`,
+      id: `plog-${++logCounterRef.current}-${Date.now()}`,
       timestamp: ts,
       level,
       source: 'pipeline',
@@ -62,12 +76,20 @@ export default function FullPipelineTab() {
     }]);
     setCurrentTime(ts);
     setTotalDuration(ts);
+    // Update currentPhase from log messages that mention a phase name.
+    // Build pattern dynamically from PIPELINE_PHASES so it stays in sync.
+    // Store p.key so it can be matched against p.key in the progress display.
+    const lc = message.toLowerCase();
+    const matchedKey = PIPELINE_PHASES.find((p) =>
+      lc.includes(p.key) || lc.includes(p.label.toLowerCase())
+    )?.key ?? null;
+    if (matchedKey) setCurrentPhase(matchedKey);
   };
 
   const addEvent = (type: TimelineEvent['type'], label: string, desc: string) => {
-    const ts = Date.now() - startTime;
+    const ts = Date.now() - startTimeRef.current;
     setEvents((prev) => [...prev, {
-      id: `pevt-${++evtCounter}-${Date.now()}`,
+      id: `pevt-${++evtCounterRef.current}-${Date.now()}`,
       timestamp: ts,
       type,
       label,
@@ -75,6 +97,22 @@ export default function FullPipelineTab() {
     }]);
     setCurrentTime(ts);
     setTotalDuration(ts);
+  };
+
+  const findAdjacentEvent = (direction: 'next' | 'prev') => {
+    const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
+    if (direction === 'next') return sorted.find((e) => e.timestamp > currentTime);
+    return [...sorted].reverse().find((e) => e.timestamp < currentTime);
+  };
+
+  const handleStepForward = () => {
+    const next = findAdjacentEvent('next');
+    if (next) setCurrentTime(next.timestamp);
+  };
+
+  const handleStepBack = () => {
+    const prev = findAdjacentEvent('prev');
+    if (prev) setCurrentTime(prev.timestamp);
   };
 
   const handleRun = async () => {
@@ -87,7 +125,16 @@ export default function FullPipelineTab() {
     setIsPlaying(true);
     setCurrentTime(0);
     setTotalDuration(0);
-    startTime = Date.now();
+    startTimeRef.current = Date.now();
+
+    // Start live ticker — advances the timeline every 100ms so the scrubber
+    // moves while we wait for the (potentially 5-minute) pipeline response.
+    if (playbackRef.current) clearInterval(playbackRef.current);
+    playbackRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTimeRef.current;
+      setCurrentTime(elapsed);
+      setTotalDuration(elapsed);
+    }, 100);
 
     addEvent('phase-start', 'Pipeline started', 'Full pipeline execution');
     addLog('info', 'Starting full pipeline...');
@@ -112,23 +159,32 @@ export default function FullPipelineTab() {
           module: 'full-pipeline',
           inputs,
           projectId: context.projectId || undefined,
+          branch: context.branch || undefined,
         }),
       });
 
-      const data = await res.json();
-      const elapsed = Date.now() - startTime;
+      const data = await res.json() as {
+        success: boolean;
+        async?: boolean;
+        duration: number;
+        result: unknown;
+        error?: string;
+      };
+      const elapsed = Date.now() - startTimeRef.current;
 
       if (data.success) {
+        setCurrentPhase(null);
         addEvent('phase-complete', 'Pipeline completed', `Duration: ${(data.duration / 1000).toFixed(1)}s`);
         addLog('success', `Pipeline completed in ${(data.duration / 1000).toFixed(1)}s`);
         setResult(data.result);
         setDuration(data.duration);
         setStatus('success');
       } else {
+        setCurrentPhase(null);
         addEvent('phase-failed', 'Pipeline failed', data.error || 'Unknown error');
         addLog('error', data.error || 'Pipeline failed');
         setError(data.error);
-        setResult(data.result);
+        setResult((data as Record<string, unknown>).result ?? null);
         setDuration(data.duration);
         setStatus('error');
       }
@@ -137,16 +193,45 @@ export default function FullPipelineTab() {
       setCurrentTime(elapsed);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Network error';
+      const elapsed = Date.now() - startTimeRef.current;
+      setCurrentPhase(null);
       addEvent('error', 'Request failed', msg);
       addLog('error', msg);
       setError(msg);
+      setDuration(elapsed);
+      setTotalDuration(elapsed);
+      setCurrentTime(elapsed);
       setStatus('error');
     }
 
+    // Stop the live ticker
+    if (playbackRef.current) {
+      clearInterval(playbackRef.current);
+      playbackRef.current = null;
+    }
     setIsPlaying(false);
   };
 
-  const missingInputs = !context.propertyId;
+  const handleClear = () => {
+    setStatus('idle');
+    setEvents([]);
+    setLogs([]);
+    setResult(null);
+    setError(undefined);
+    setDuration(undefined);
+    setCurrentTime(0);
+    setTotalDuration(0);
+    setIsPlaying(false);
+    setCurrentPhase(null);
+    if (playbackRef.current) {
+      clearInterval(playbackRef.current);
+      playbackRef.current = null;
+    }
+  };
+
+  // Require at least an address or a property ID to run the pipeline.
+  // Phase 1 discovery uses address; resuming from later phases needs propertyId.
+  const missingInputs = !context.address && !context.propertyId;
 
   return (
     <div className="full-pipeline-tab">
@@ -186,11 +271,20 @@ export default function FullPipelineTab() {
           onClick={handleRun}
           disabled={status === 'running' || missingInputs}
         >
-          {status === 'running' ? `Running...${currentPhase ? ` (${currentPhase})` : ''}` : 'Run Full Pipeline'}
+          {status === 'running'
+            ? `Running...${currentPhase
+                ? ` (${PIPELINE_PHASES.find((p) => p.key === currentPhase)?.label ?? currentPhase})`
+                : ''}`
+            : 'Run Full Pipeline'}
         </button>
+        {(status === 'success' || status === 'error') && (
+          <button className="test-card__clear-btn" onClick={handleClear}>
+            Clear
+          </button>
+        )}
         {missingInputs && (
           <span className="test-card__warning" style={{ display: 'inline' }}>
-            Property ID is required
+            Address or Property ID is required
           </span>
         )}
       </div>
@@ -222,10 +316,10 @@ export default function FullPipelineTab() {
           speed={speed}
           onSeek={setCurrentTime}
           onTogglePlay={() => setIsPlaying(!isPlaying)}
-          onStepForward={() => {}}
-          onStepBack={() => {}}
-          onJumpForward={() => {}}
-          onJumpBack={() => {}}
+          onStepForward={handleStepForward}
+          onStepBack={handleStepBack}
+          onJumpForward={handleStepForward}
+          onJumpBack={handleStepBack}
           onSpeedChange={setSpeed}
         />
       )}

@@ -11,7 +11,7 @@ const REPO_NAME = 'STARR-SURVEYING';
 /* GET — Read file content from a branch */
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || (session.user as any).role !== 'admin') {
+  if (!session?.user?.email || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -28,7 +28,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   try {
     const res = await fetch(
-      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch)}`,
       {
         headers: {
           'Accept': 'application/vnd.github.v3+json',
@@ -44,9 +44,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
     const data = await res.json();
 
-    if (data.type === 'dir') {
-      // Return directory listing
-      const files = data.map((f: any) => ({
+    // GitHub returns an array when the path points to a directory
+    if (Array.isArray(data)) {
+      const files = data.map((f: { name: string; path: string; type: string; size: number }) => ({
         name: f.name,
         path: f.path,
         type: f.type,

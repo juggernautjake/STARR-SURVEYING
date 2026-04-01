@@ -1,7 +1,7 @@
 // TestCard.tsx — Reusable module card with full debugger (timeline, code, logs)
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ExecutionTimeline, { type TimelineEvent, type EventType } from './ExecutionTimeline';
 import CodeViewer, { type CodeFile } from './CodeViewer';
 import LogStream, { type LogEntry } from './LogStream';
@@ -34,6 +34,49 @@ function nextLogId(): string {
   return `log-${++eventIdCounter}-${Date.now()}`;
 }
 
+// ── Log entry parsing helper ──────────────────────────────────────────────────
+
+interface ParsedLogEntry {
+  level: LogEntry['level'];
+  source: string;
+  message: string;
+  details: string | undefined;
+  evtType: EventType;
+  evtLabel: string;
+  evtDetail: string;
+}
+
+/**
+ * Safely parse a raw log entry object from the worker result.
+ * Returns null if the entry is not a valid non-null object.
+ */
+function parseRawLogEntry(raw: unknown, fallbackSource: string): ParsedLogEntry | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const entry = raw as Record<string, unknown>;
+
+  const status     = typeof entry.status  === 'string' ? entry.status  : '';
+  const source     = typeof entry.source  === 'string' ? entry.source  : fallbackSource;
+  const layer      = typeof entry.layer   === 'string' ? entry.layer   : '';
+  const method     = typeof entry.method  === 'string' ? entry.method  : '';
+  const detailStr  = typeof entry.details === 'string' ? entry.details : status;
+  const errorStr   = typeof entry.error   === 'string' ? entry.error   : undefined;
+
+  const msgParts: string[] = [];
+  if (layer)  msgParts.push(`[${layer}]`);
+  if (method) msgParts.push(method);
+  if (detailStr) msgParts.push(detailStr);
+  else if (!layer && !method) msgParts.push(`log from ${source}`);
+  const message = msgParts.join(' ');
+
+  const evtLabel = [layer, method].filter(Boolean).join(': ') || `log from ${source}`;
+  const level: LogEntry['level'] =
+    status === 'fail' ? 'error' : status === 'warn' ? 'warn' : 'info';
+  const evtType: EventType =
+    status === 'fail' ? 'error' : status === 'warn' ? 'warning' : 'data-found';
+
+  return { level, source, message, details: errorStr, evtType, evtLabel, evtDetail: detailStr };
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function TestCard({
@@ -59,6 +102,7 @@ export default function TestCard({
   const [error, setError] = useState<string | undefined>();
   const [duration, setDuration] = useState<number | undefined>();
   const [screenshots, setScreenshots] = useState<string[]>([]);
+  const [asyncMessage, setAsyncMessage] = useState<string | undefined>();
 
   // Timeline state
   const [currentTime, setCurrentTime] = useState(0);
@@ -71,11 +115,62 @@ export default function TestCard({
 
   const startTimeRef = useRef<number>(0);
   const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref for the post-run playback ticker (separate from the live-run ticker)
+  const replayRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clean up intervals on unmount to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (playbackRef.current) {
+        clearInterval(playbackRef.current);
+        playbackRef.current = null;
+      }
+      if (replayRef.current) {
+        clearInterval(replayRef.current);
+        replayRef.current = null;
+      }
+    };
+  }, []);
+
+  // Post-run playback: when isPlaying and the run is done, advance currentTime
+  // by speed × 100 ms every 100 ms, clamped at totalDuration.
+  useEffect(() => {
+    if (replayRef.current) {
+      clearInterval(replayRef.current);
+      replayRef.current = null;
+    }
+    if (status !== 'running' && isPlaying && totalDuration > 0) {
+      replayRef.current = setInterval(() => {
+        setCurrentTime((prev) => {
+          const next = prev + 100 * speed;
+          if (next >= totalDuration) {
+            // Reached end — stop playback
+            if (replayRef.current) {
+              clearInterval(replayRef.current);
+              replayRef.current = null;
+            }
+            setIsPlaying(false);
+            return totalDuration;
+          }
+          return next;
+        });
+      }, 100);
+    }
+    return () => {
+      if (replayRef.current) {
+        clearInterval(replayRef.current);
+        replayRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, status, speed, totalDuration]);
 
   // ── Check inputs ───────────────────────────────────────────────────────────
 
+  const contextRecord = context as unknown as Record<string, string>;
+
   const missingInputs = requiredInputs.filter((key) => {
-    const val = (context as unknown as Record<string, string>)[key];
+    const val = contextRecord[key];
     return !val || val.trim() === '';
   });
 
@@ -122,11 +217,13 @@ export default function TestCard({
     setError(undefined);
     setDuration(undefined);
     setScreenshots([]);
+    setAsyncMessage(undefined);
     setIsPlaying(true);
     setCurrentTime(0);
     setTotalDuration(0);
     setIsExpanded(true);
     setShowDebugger(true);
+    setLogFilter(''); // clear any filter from the previous run so new logs are visible
     startTimeRef.current = Date.now();
 
     // Start playback timer
@@ -143,7 +240,7 @@ export default function TestCard({
     // Build inputs from property context
     const inputs: Record<string, unknown> = {};
     for (const key of [...requiredInputs, ...optionalInputs]) {
-      const val = (context as unknown as Record<string, string>)[key];
+      const val = contextRecord[key];
       if (val && val.trim()) inputs[key] = val.trim();
     }
 
@@ -158,37 +255,54 @@ export default function TestCard({
           module,
           inputs,
           projectId: context.projectId || undefined,
+          branch: contextRecord.branch || undefined,
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json() as {
+        success: boolean;
+        async?: boolean;
+        duration: number;
+        result: Record<string, unknown> | null;
+        status?: number;
+        error?: string;
+        message?: string;
+        pollUrl?: string;
+      };
       const elapsed = Date.now() - startTimeRef.current;
 
       if (data.success) {
-        addEvent('phase-complete', `${title} completed`, `Duration: ${(data.duration / 1000).toFixed(2)}s`);
-        addLog('success', module, `Completed in ${(data.duration / 1000).toFixed(2)}s`);
-        setResult(data.result);
-        setDuration(data.duration);
-        setStatus('success');
+        if (data.async) {
+          // 202 Accepted — job started in worker background
+          const msg = data.message ?? 'Job accepted. Running in the background on the worker.';
+          addEvent('checkpoint', `${title} accepted (async)`, msg);
+          addLog('info', module, msg);
+          if (data.pollUrl) addLog('info', module, `Poll: GET ${data.pollUrl}`);
+          setAsyncMessage(msg + (data.pollUrl ? `\n\nPoll for results: GET ${data.pollUrl}` : ''));
+          setResult(data.result);
+          setDuration(data.duration);
+          setStatus('success');
+        } else {
+          addEvent('phase-complete', `${title} completed`, `Duration: ${(data.duration / 1000).toFixed(2)}s`);
+          addLog('success', module, `Completed in ${(data.duration / 1000).toFixed(2)}s`);
+          setResult(data.result);
+          setDuration(data.duration);
+          setStatus('success');
 
-        // Extract screenshots if present
-        if (data.result?.screenshots) {
-          setScreenshots(data.result.screenshots);
-          addEvent('screenshot', 'Screenshots captured', `${data.result.screenshots.length} screenshots`);
-        }
+          // Extract screenshots if present
+          if (data.result?.screenshots && Array.isArray(data.result.screenshots)) {
+            setScreenshots(data.result.screenshots as string[]);
+            addEvent('screenshot', 'Screenshots captured', `${(data.result.screenshots as unknown[]).length} screenshots`);
+          }
 
-        // Extract logs from result if present
-        if (data.result?.log && Array.isArray(data.result.log)) {
-          for (const entry of data.result.log) {
-            addLog(
-              entry.status === 'fail' ? 'error' : entry.status === 'warn' ? 'warn' : 'info',
-              entry.source || module,
-              `[${entry.layer}] ${entry.method}: ${entry.details || entry.status}`,
-              entry.error,
-            );
-            const evtType: EventType = entry.status === 'fail' ? 'error' :
-              entry.status === 'warn' ? 'warning' : 'data-found';
-            addEvent(evtType, `${entry.layer}: ${entry.method}`, entry.details || entry.status);
+          // Extract logs from result if present
+          if (data.result?.log && Array.isArray(data.result.log)) {
+            for (const rawEntry of data.result.log) {
+              const parsed = parseRawLogEntry(rawEntry, module);
+              if (!parsed) continue;
+              addLog(parsed.level, parsed.source, parsed.message, parsed.details);
+              addEvent(parsed.evtType, parsed.evtLabel, parsed.evtDetail);
+            }
           }
         }
       } else {
@@ -232,10 +346,12 @@ export default function TestCard({
     setError(undefined);
     setDuration(undefined);
     setScreenshots([]);
+    setAsyncMessage(undefined);
     setCurrentTime(0);
     setTotalDuration(0);
     setIsPlaying(false);
     setShowDebugger(false);
+    setLogFilter('');
     if (playbackRef.current) {
       clearInterval(playbackRef.current);
       playbackRef.current = null;
@@ -355,18 +471,38 @@ export default function TestCard({
                 onEventClick={handleEventClick}
               />
 
-              {/* Code + Logs split view */}
-              <div className="test-card__split">
-                <div className="test-card__split-left">
-                  <CodeViewer
-                    files={codeFiles}
-                    activeFileIndex={activeFileIndex}
-                    activeLine={activeLine}
-                    readOnly={status === 'running'}
-                    onFileSelect={setActiveFileIndex}
-                  />
+                  {/* Log filter + stream — full width when no code trace, split when code is available */}
+              {codeFiles.length > 0 ? (
+                <div className="test-card__split">
+                  <div className="test-card__split-left">
+                    <CodeViewer
+                      files={codeFiles}
+                      activeFileIndex={activeFileIndex}
+                      activeLine={activeLine}
+                      readOnly={status === 'running'}
+                      onFileSelect={setActiveFileIndex}
+                    />
+                  </div>
+                  <div className="test-card__split-right">
+                    <div className="test-card__log-filter">
+                      <input
+                        type="text"
+                        placeholder="Filter logs..."
+                        value={logFilter}
+                        onChange={(e) => setLogFilter(e.target.value)}
+                      />
+                    </div>
+                    <LogStream
+                      logs={logs}
+                      currentTime={currentTime}
+                      isLive={isPlaying && currentTime >= totalDuration - 500}
+                      maxHeight="300px"
+                      filter={logFilter}
+                    />
+                  </div>
                 </div>
-                <div className="test-card__split-right">
+              ) : (
+                <div>
                   <div className="test-card__log-filter">
                     <input
                       type="text"
@@ -383,7 +519,20 @@ export default function TestCard({
                     filter={logFilter}
                   />
                 </div>
-              </div>
+              )}
+            </div>
+          )}
+
+          {/* Async job notice */}
+          {asyncMessage && (
+            <div className="test-card__async-notice">
+              <span style={{ marginRight: '0.4rem' }}>⏳</span>
+              {asyncMessage.split('\n\n').map((line, i) => (
+                <span
+                  key={`async-line-${i}`}
+                  style={i > 0 ? { display: 'block', marginTop: '0.3rem', fontFamily: 'monospace', fontSize: '0.78rem' } : undefined}
+                >{line}</span>
+              ))}
             </div>
           )}
 

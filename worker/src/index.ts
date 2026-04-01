@@ -8,7 +8,7 @@ import path from 'path';
 import express from 'express';
 import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile, LayerAttempt } from './types/index.js';
-import { runPipeline, getSupabase, getRunningMessage, setRunningMessage } from './services/pipeline.js';
+import { runPipeline, getSupabase, getRunningMessage, setRunningMessage, clearRunningMessage } from './services/pipeline.js';
 import { getLiveLogForProject, clearLiveLogForProject, PipelineLogger } from './lib/logger.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
@@ -147,12 +147,31 @@ const activePipelines = new Map<string, ActivePipeline>();
 const completedResults = new Map<string, UnifiedResearchResult>();
 /** Cached live log entries for county-specific pipelines, keyed by projectId. */
 const completedLogs = new Map<string, LayerAttempt[]>();
+/**
+ * Wall-clock timestamp (ms) when each project was added to completedResults.
+ * Used as a fallback TTL for entries that have no log timestamp or completedAt field —
+ * without this, entries with missing timestamps would never be evicted (memory leak).
+ */
+const completedResultsCachedAt = new Map<string, number>();
+
+/**
+ * Helper: set a completed result and record its insertion timestamp.
+ * Both maps MUST be updated together. Without completedResultsCachedAt,
+ * entries whose log carries no valid timestamp would never be evicted by
+ * cleanupOldResults(), causing an unbounded memory leak in long-running workers.
+ */
+function setCompletedResult(projectId: string, result: UnifiedResearchResult): void {
+  completedResults.set(projectId, result);
+  completedResultsCachedAt.set(projectId, Date.now());
+}
 
 // Keep completed results for 4 hours
 const RESULT_TTL_MS = 4 * 60 * 60 * 1000;
+const MS_PER_HOUR   = 3_600_000;
 
 function cleanupOldResults(): void {
   const cutoff = Date.now() - RESULT_TTL_MS;
+  let evicted = 0;
   for (const [key, unified] of completedResults.entries()) {
     let completedAt = 0;
     if (unified.resultType === 'generic-pipeline') {
@@ -162,10 +181,20 @@ function cleanupOldResults(): void {
     } else {
       completedAt = unified.data.completedAt ? new Date(unified.data.completedAt).getTime() : 0;
     }
+    // Fall back to the wall-clock time when the entry was cached. This prevents
+    // entries with missing/unparseable timestamps from leaking in memory forever.
+    if (completedAt === 0) {
+      completedAt = completedResultsCachedAt.get(key) ?? 0;
+    }
     if (completedAt > 0 && completedAt < cutoff) {
       completedResults.delete(key);
       completedLogs.delete(key);
+      completedResultsCachedAt.delete(key);
+      evicted++;
     }
+  }
+  if (evicted > 0) {
+    console.log(`[Worker] cleanupOldResults: evicted ${evicted} expired result(s) (TTL=${RESULT_TTL_MS / MS_PER_HOUR}h)`);
   }
 }
 
@@ -865,6 +894,10 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
   // the status endpoint returns "running" (not the old failed/complete result)
   // while this new run is in progress.
   completedResults.delete(projectId);
+  completedResultsCachedAt.delete(projectId);
+  // Also clear any stale running-message from a previous run so that a
+  // crash/abort that didn't clean up doesn't bleed into the new run's status.
+  clearRunningMessage(projectId);
   const pipelineAbortController = new AbortController();
   activePipelines.set(projectId, {
     projectId,
@@ -969,8 +1002,13 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     pipelineAbortController.signal,
   )
     .then(async (unifiedResult) => {
-      completedResults.set(projectId, unifiedResult);
+      setCompletedResult(projectId, unifiedResult);
       activePipelines.delete(projectId);
+      // Clear the running-message cache — the pipeline has finished.
+      // For generic pipelines this is already done inside runPipeline(); for
+      // county-specific pipelines (Bell etc.) the progress callback calls
+      // setRunningMessage on every event but nothing ever clears it.
+      clearRunningMessage(projectId);
       // ── Handshake: emit a pipeline-complete entry so the final poll sees it
       handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Complete',
         unifiedResult.resultType === 'generic-pipeline'
@@ -1412,9 +1450,10 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         duration_ms: 0,
         failureReason: errMessage,
       };
-      completedResults.set(projectId, { resultType: 'generic-pipeline', county, data: fallback });
+      setCompletedResult(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);
       clearLiveLogForProject(projectId);
+      clearRunningMessage(projectId);
       if (!isAborted) {
         console.error(`[Worker] ${projectId}: pipeline crash recorded — failureReason="${errMessage.slice(0, 120)}"`);
       }
@@ -1701,6 +1740,7 @@ app.delete('/research/result/:projectId', requireAuth, (req: Request, res: Respo
   const { projectId } = req.params;
   if (completedResults.has(projectId)) {
     completedResults.delete(projectId);
+    completedResultsCachedAt.delete(projectId);
     res.json({ message: `Result for ${projectId} deleted` });
   } else {
     res.status(404).json({ error: `No result found for ${projectId}` });
@@ -1970,7 +2010,7 @@ app.post('/research/reanalyze/:projectId', requireAuth, async (req: Request, res
     const result = await runReanalysis(previous, newDocs, anthropicApiKey, logger);
 
     // Store the updated result in memory
-    completedResults.set(projectId, { resultType: 'generic-pipeline', county: previousCounty, data: result.updated });
+    setCompletedResult(projectId, { resultType: 'generic-pipeline', county: previousCounty, data: result.updated });
 
     res.json({
       projectId,
@@ -2257,7 +2297,8 @@ app.get('/research/adjacent/:projectId', requireAuth, rateLimit(60, 60_000), (re
         const result = JSON.parse(fs.readFileSync(diskPath, 'utf-8')) as FullCrossValidationReport;
         res.json({ status: 'complete', result });
         return;
-      } catch {
+      } catch (parseErr) {
+        console.error(`[Worker] ${projectId}: failed to parse cross_validation_report.json —`, parseErr instanceof Error ? parseErr.message : String(parseErr));
         res.status(500).json({ error: 'Failed to parse cross_validation_report.json' });
         return;
       }
@@ -2405,7 +2446,8 @@ app.get('/research/row/:projectId', requireAuth, rateLimit(60, 60_000), (req: Re
         const result = JSON.parse(fs.readFileSync(diskPath, 'utf-8')) as ROWReport;
         res.json({ status: 'complete', result });
         return;
-      } catch {
+      } catch (parseErr) {
+        console.error(`[Worker] ${projectId}: failed to parse row_data.json —`, parseErr instanceof Error ? parseErr.message : String(parseErr));
         res.status(500).json({ error: 'Failed to parse row_data.json' });
         return;
       }

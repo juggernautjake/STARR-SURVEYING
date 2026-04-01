@@ -146,7 +146,13 @@ export default function OutputViewer({ result, screenshots, error, duration }: O
         )}
         {activeTab === 'raw' && (
           <pre className="output-viewer__raw">
-            {JSON.stringify(result, null, 2)}
+            {(() => {
+              try {
+                return JSON.stringify(result, null, 2);
+              } catch {
+                return '[Unserializable result — contains circular references or non-JSON values]';
+              }
+            })()}
           </pre>
         )}
         {activeTab === 'screenshots' && screenshots && (

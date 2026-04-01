@@ -96,25 +96,21 @@ export default function CodeViewer({
     }
   }, [activeLine]);
 
-  // Ctrl+S save
-  useEffect(() => {
-    if (readOnly) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (activeFile && onSave) {
-          onSave({ ...activeFile, content: editContent });
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [readOnly, activeFile, editContent, onSave]);
-
   const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setEditContent(e.target.value);
     onContentChange?.(activeFileIndex, e.target.value);
   }, [activeFileIndex, onContentChange]);
+
+  // Ctrl+S save — scoped to the textarea so it only fires when the user is
+  // actually typing in the editor, not when pressing Ctrl+S anywhere on the page.
+  const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      if (activeFile && onSave) {
+        onSave({ ...activeFile, content: editContent });
+      }
+    }
+  }, [activeFile, editContent, onSave]);
 
   if (files.length === 0) {
     return (
@@ -197,6 +193,7 @@ export default function CodeViewer({
               className="code-viewer__textarea"
               value={editContent}
               onChange={handleTextChange}
+              onKeyDown={handleTextareaKeyDown}
               spellCheck={false}
               wrap="off"
             />

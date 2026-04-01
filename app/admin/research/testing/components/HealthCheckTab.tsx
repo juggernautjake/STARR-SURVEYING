@@ -17,6 +17,7 @@ export default function HealthCheckTab() {
   const [sites, setSites] = useState<SiteStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [checkingAll, setCheckingAll] = useState(false);
+  const [siteError, setSiteError] = useState<string | null>(null);
 
   const checkWorker = useCallback(async () => {
     setLoading(true);
@@ -45,6 +46,7 @@ export default function HealthCheckTab() {
 
   const checkAllSites = useCallback(async () => {
     setCheckingAll(true);
+    setSiteError(null);
     try {
       const res = await fetch('/api/admin/research/testing/run', {
         method: 'POST',
@@ -56,9 +58,11 @@ export default function HealthCheckTab() {
         setSites(data.result.sites);
       } else if (data.result && Array.isArray(data.result)) {
         setSites(data.result);
+      } else {
+        setSiteError(data.error || 'Site health check failed');
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      setSiteError(err instanceof Error ? err.message : 'Network error — could not reach worker');
     }
     setCheckingAll(false);
   }, []);
@@ -90,7 +94,7 @@ export default function HealthCheckTab() {
           <div className={`health-check-tab__status ${workerHealth.ok ? 'health-check-tab__status--ok' : 'health-check-tab__status--down'}`}>
             <span className="health-check-tab__dot" style={{ background: workerHealth.ok ? '#059669' : '#DC2626' }} />
             <span>{workerHealth.message}</span>
-            {workerHealth.latency && (
+            {workerHealth.latency !== undefined && (
               <span className="health-check-tab__latency">{workerHealth.latency}ms</span>
             )}
           </div>
@@ -109,10 +113,16 @@ export default function HealthCheckTab() {
             {checkingAll ? 'Checking all sites...' : 'Check All Sites'}
           </button>
         </div>
+        {siteError && (
+          <div className="health-check-tab__status health-check-tab__status--down">
+            <span className="health-check-tab__dot" style={{ background: '#DC2626' }} />
+            <span>{siteError}</span>
+          </div>
+        )}
         {sites.length > 0 && (
           <div className="health-check-tab__grid">
-            {sites.map((site, i) => (
-              <div key={i} className="health-check-tab__card">
+            {sites.map((site) => (
+              <div key={site.vendor} className="health-check-tab__card">
                 <div className="health-check-tab__card-header">
                   <span className="health-check-tab__dot" style={{ background: statusColor(site.status) }} />
                   <span className="health-check-tab__vendor">{site.vendor}</span>
@@ -120,7 +130,7 @@ export default function HealthCheckTab() {
                     {site.status.toUpperCase()}
                   </span>
                 </div>
-                {site.responseTime && (
+                {site.responseTime !== undefined && (
                   <div className="health-check-tab__response-time">{site.responseTime}ms</div>
                 )}
                 {site.error && (

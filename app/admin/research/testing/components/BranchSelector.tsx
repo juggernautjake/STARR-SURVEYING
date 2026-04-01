@@ -9,7 +9,7 @@ interface BranchSelectorProps {
   onBranchChange: (branch: string) => void;
   onCompareBranchChange: (branch: string | null) => void;
   onPull: (branch: string) => void;
-  onCreateBranch: (name: string, from: string) => void;
+  onCreateBranch: (name: string, from: string) => Promise<void>;
 }
 
 export default function BranchSelector({
@@ -44,13 +44,20 @@ export default function BranchSelector({
     loadBranches();
   }, [loadBranches]);
 
-  const handleCreateBranch = () => {
+  const handleCreateBranch = async () => {
     if (!newBranchName.trim()) return;
-    onCreateBranch(newBranchName.trim(), currentBranch);
-    setShowCreate(false);
-    setNewBranchName('');
-    // Reload branches after a short delay
-    setTimeout(loadBranches, 1000);
+    try {
+      await onCreateBranch(newBranchName.trim(), currentBranch);
+      setShowCreate(false);
+      setNewBranchName('');
+      // Reload immediately after the creation API resolves so the new branch
+      // is guaranteed to appear in the list (the old setTimeout(1000) was a
+      // timing guess that could lose the race against GitHub's API).
+      loadBranches();
+    } catch {
+      // onCreateBranch already shows a user-visible error banner via showBranchMsg
+      // in the parent. Keep the create form open so the user can retry or edit.
+    }
   };
 
   return (
