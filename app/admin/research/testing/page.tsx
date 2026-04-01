@@ -62,6 +62,11 @@ function TestingLabContent() {
   };
 
   const handleCreateBranch = async (name: string, from: string) => {
+    // NOTE: This function must throw on failure so that BranchSelector's
+    // handleCreateBranch catch block fires and keeps the create form open for
+    // the user to retry. If we only call showBranchMsg and return normally, the
+    // BranchSelector always closes the form whether creation succeeded or not.
+    let errMsg: string | null = null;
     try {
       const res = await fetch('/api/admin/research/testing/branches', {
         method: 'POST',
@@ -71,12 +76,15 @@ function TestingLabContent() {
       const data = await res.json() as { success?: boolean; branch?: string; error?: string };
       if (res.ok && data.success) {
         showBranchMsg(`Branch "${data.branch ?? name}" created from ${from}`, true);
-      } else {
-        showBranchMsg(data.error ?? 'Failed to create branch', false);
+        return; // success — do not throw
       }
+      errMsg = data.error ?? 'Failed to create branch';
     } catch (err) {
-      showBranchMsg(err instanceof Error ? err.message : 'Failed to create branch', false);
+      errMsg = err instanceof Error ? err.message : 'Failed to create branch';
     }
+    // Show the banner AND re-throw so BranchSelector keeps the form open.
+    showBranchMsg(errMsg, false);
+    throw new Error(errMsg);
   };
 
   return (

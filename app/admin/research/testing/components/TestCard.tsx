@@ -72,16 +72,55 @@ export default function TestCard({
 
   const startTimeRef = useRef<number>(0);
   const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref for the post-run playback ticker (separate from the live-run ticker)
+  const replayRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Clean up interval on unmount to avoid memory leaks
+  // Clean up intervals on unmount to avoid memory leaks
   useEffect(() => {
     return () => {
       if (playbackRef.current) {
         clearInterval(playbackRef.current);
         playbackRef.current = null;
       }
+      if (replayRef.current) {
+        clearInterval(replayRef.current);
+        replayRef.current = null;
+      }
     };
   }, []);
+
+  // Post-run playback: when isPlaying and the run is done, advance currentTime
+  // by speed × 100 ms every 100 ms, clamped at totalDuration.
+  useEffect(() => {
+    if (replayRef.current) {
+      clearInterval(replayRef.current);
+      replayRef.current = null;
+    }
+    if (status !== 'running' && isPlaying && totalDuration > 0) {
+      replayRef.current = setInterval(() => {
+        setCurrentTime((prev) => {
+          const next = prev + 100 * speed;
+          if (next >= totalDuration) {
+            // Reached end — stop playback
+            if (replayRef.current) {
+              clearInterval(replayRef.current);
+              replayRef.current = null;
+            }
+            setIsPlaying(false);
+            return totalDuration;
+          }
+          return next;
+        });
+      }, 100);
+    }
+    return () => {
+      if (replayRef.current) {
+        clearInterval(replayRef.current);
+        replayRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, status, speed, totalDuration]);
 
   // ── Check inputs ───────────────────────────────────────────────────────────
 

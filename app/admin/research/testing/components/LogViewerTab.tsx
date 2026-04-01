@@ -2,6 +2,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { usePropertyContext } from './PropertyContextBar';
 
 interface AggregatedLog {
   id: string;
@@ -18,8 +19,15 @@ export default function LogViewerTab() {
   const [levelFilter, setLevelFilter] = useState<Set<string>>(new Set(['info', 'warn', 'error', 'success', 'debug']));
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Use the shared PropertyContextBar project ID, with a local override field so
+  // the user can still load logs for a *different* project without changing the
+  // active context.
+  const { context } = usePropertyContext();
   const [projectId, setProjectId] = useState('');
   const loadCountRef = useRef(0);
+
+  // The effective project ID: local override takes priority, then shared context.
+  const effectiveProjectId = projectId.trim() || context.projectId?.trim() || '';
 
   const toggleLevel = (level: string) => {
     setLevelFilter((prev) => {
@@ -31,12 +39,12 @@ export default function LogViewerTab() {
   };
 
   const loadProjectLogs = async () => {
-    if (!projectId) return;
+    if (!effectiveProjectId) return;
     setLoading(true);
     setLoadError(null);
     const batchId = ++loadCountRef.current;
     try {
-      const res = await fetch(`/api/admin/research/${projectId}/logs`);
+      const res = await fetch(`/api/admin/research/${effectiveProjectId}/logs`);
       // Discard stale responses — a faster subsequent request already owns the result.
       if (batchId !== loadCountRef.current) return;
       if (res.ok) {
@@ -106,7 +114,7 @@ export default function LogViewerTab() {
         <div className="log-viewer-tab__project-input">
           <input
             type="text"
-            placeholder="Project ID to load logs..."
+            placeholder={context.projectId ? `Using context: ${context.projectId}` : 'Project ID (overrides context)...'}
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && loadProjectLogs()}
@@ -114,7 +122,7 @@ export default function LogViewerTab() {
           <button
             className="test-card__run-btn"
             onClick={loadProjectLogs}
-            disabled={!projectId || loading}
+            disabled={!effectiveProjectId || loading}
           >
             {loading ? 'Loading...' : 'Load Logs'}
           </button>
