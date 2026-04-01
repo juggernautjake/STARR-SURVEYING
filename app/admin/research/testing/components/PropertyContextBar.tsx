@@ -131,7 +131,9 @@ export default function PropertyContextBar() {
     setFixtureIndex(idx);
     const fixture = TEST_FIXTURES[Number(idx)];
     if (fixture) {
-      setContext({ ...fixture } as PropertyContext);
+      // Preserve the active branch — fixtures should set property data only,
+      // not silently reset the branch the user selected in BranchSelector.
+      setContext((prev) => ({ ...fixture, branch: prev.branch } as PropertyContext));
     }
   };
 

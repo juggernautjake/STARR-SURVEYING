@@ -243,7 +243,7 @@ export default function ExecutionTimeline({
           className="execution-timeline__tooltip"
           style={{
             left: `${Math.min(tooltipPos.x, (typeof window !== 'undefined' ? window.innerWidth : SSR_VIEWPORT_WIDTH) - 300)}px`,
-            top: `${tooltipPos.y - 80}px`,
+            top: `${Math.max(8, tooltipPos.y - 80)}px`,
           }}
         >
           <div className="execution-timeline__tooltip-type" style={{ color: EVENT_COLORS[hoveredEvent.type] }}>
