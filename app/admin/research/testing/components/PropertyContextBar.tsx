@@ -1,7 +1,7 @@
 // PropertyContextBar.tsx — Shared property inputs for the Testing Lab
 'use client';
 
-import { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useState } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,7 +89,7 @@ const TEST_FIXTURES = [
 
 interface PropertyContextValue {
   context: PropertyContext;
-  setContext: (ctx: PropertyContext) => void;
+  setContext: React.Dispatch<React.SetStateAction<PropertyContext>>;
   updateField: (key: keyof PropertyContext, value: string) => void;
 }
 
