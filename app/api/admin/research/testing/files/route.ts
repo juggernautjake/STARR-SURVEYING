@@ -28,7 +28,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   try {
     const res = await fetch(
-      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch)}`,
       {
         headers: {
           'Accept': 'application/vnd.github.v3+json',

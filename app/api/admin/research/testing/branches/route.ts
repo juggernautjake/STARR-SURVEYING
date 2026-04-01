@@ -68,7 +68,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   try {
     // Get SHA of source branch
-    const refRes = await githubFetch(`/git/ref/heads/${encodeURIComponent(from)}`);
+    const refRes = await githubFetch(`/git/ref/heads/${from.split('/').map(encodeURIComponent).join('/')}`);
     if (!refRes.ok) {
       return NextResponse.json({ error: `Branch "${from}" not found` }, { status: 404 });
     }

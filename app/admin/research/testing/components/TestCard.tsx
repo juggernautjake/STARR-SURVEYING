@@ -296,6 +296,7 @@ export default function TestCard({
     setTotalDuration(0);
     setIsPlaying(false);
     setShowDebugger(false);
+    setLogFilter('');
     if (playbackRef.current) {
       clearInterval(playbackRef.current);
       playbackRef.current = null;
