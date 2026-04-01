@@ -149,6 +149,27 @@ export default function FullPipelineTab() {
     setIsPlaying(false);
   };
 
+  // ── Timeline step controls ─────────────────────────────────────────────────
+
+  const findAdjacentEvent = useCallback((direction: 'next' | 'prev') => {
+    const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
+    if (direction === 'next') {
+      return sorted.find((e) => e.timestamp > currentTime);
+    } else {
+      return [...sorted].reverse().find((e) => e.timestamp < currentTime);
+    }
+  }, [events, currentTime]);
+
+  const handleStepForward = useCallback(() => {
+    const next = findAdjacentEvent('next');
+    if (next) setCurrentTime(next.timestamp);
+  }, [findAdjacentEvent]);
+
+  const handleStepBack = useCallback(() => {
+    const prev = findAdjacentEvent('prev');
+    if (prev) setCurrentTime(prev.timestamp);
+  }, [findAdjacentEvent]);
+
   const missingInputs = !context.propertyId;
 
   return (
@@ -223,12 +244,12 @@ export default function FullPipelineTab() {
           totalDuration={totalDuration}
           isPlaying={isPlaying}
           speed={speed}
-          onSeek={setCurrentTime}
+          onSeek={(t) => { setCurrentTime(t); setIsPlaying(false); }}
           onTogglePlay={() => setIsPlaying(!isPlaying)}
-          onStepForward={() => {}}
-          onStepBack={() => {}}
-          onJumpForward={() => {}}
-          onJumpBack={() => {}}
+          onStepForward={handleStepForward}
+          onStepBack={handleStepBack}
+          onJumpForward={handleStepForward}
+          onJumpBack={handleStepBack}
           onSpeedChange={setSpeed}
         />
       )}

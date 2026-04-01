@@ -23,17 +23,6 @@ export interface TestCardProps {
 
 type CardStatus = 'idle' | 'running' | 'paused' | 'success' | 'error';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-let eventIdCounter = 0;
-function nextEventId(): string {
-  return `evt-${++eventIdCounter}-${Date.now()}`;
-}
-
-function nextLogId(): string {
-  return `log-${++eventIdCounter}-${Date.now()}`;
-}
-
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function TestCard({
@@ -73,14 +62,53 @@ export default function TestCard({
   const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sseRef = useRef<EventSource | null>(null);
   const codeFileCacheRef = useRef<Map<string, CodeFile>>(new Map());
+  const idCounterRef = useRef(0);
+  // SSE event buffer for speed-controlled playback (spec 5C)
+  const eventBufferRef = useRef<Array<{ event: TimelineEvent; log: LogEntry }>>([]);
+  const bufferTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Clean up SSE on unmount
+  const nextEventId = () => `evt-${module}-${++idCounterRef.current}-${Date.now()}`;
+  const nextLogId = () => `log-${module}-${++idCounterRef.current}-${Date.now()}`;
+
+  // Clean up SSE + buffer timer on unmount
   useEffect(() => {
     return () => {
       sseRef.current?.close();
       if (playbackRef.current) clearInterval(playbackRef.current);
+      if (bufferTimerRef.current) clearInterval(bufferTimerRef.current);
     };
   }, []);
+
+  // ── Buffer drain: release buffered SSE events at the selected speed ───────
+  // At 1x: drain every 100ms (real-time)
+  // At 0.1x: drain every 1000ms (10x slower)
+  // At 10x: drain all buffered events immediately
+  useEffect(() => {
+    if (bufferTimerRef.current) clearInterval(bufferTimerRef.current);
+
+    if (!isPlaying || status !== 'running') return;
+
+    const drainInterval = speed >= 10 ? 10 : Math.round(100 / speed);
+    const eventsPerDrain = speed >= 5 ? 10 : speed >= 2 ? 3 : 1;
+
+    bufferTimerRef.current = setInterval(() => {
+      const buf = eventBufferRef.current;
+      if (buf.length === 0) return;
+
+      const batch = buf.splice(0, eventsPerDrain);
+      for (const item of batch) {
+        setEvents((prev) => [...prev, item.event]);
+        setLogs((prev) => [...prev, item.log]);
+      }
+    }, drainInterval);
+
+    return () => {
+      if (bufferTimerRef.current) {
+        clearInterval(bufferTimerRef.current);
+        bufferTimerRef.current = null;
+      }
+    };
+  }, [isPlaying, speed, status]);
 
   // ── Check inputs ───────────────────────────────────────────────────────────
 
@@ -149,17 +177,21 @@ export default function TestCard({
 
         // Convert worker log events to timeline events + log entries
         if (data.type === 'log') {
+          const ts = Date.now() - startTimeRef.current;
+
           const level: LogEntry['level'] =
             data.status === 'fail' ? 'error' :
             data.status === 'warn' ? 'warn' :
             data.status === 'ok' ? 'success' : 'info';
 
-          addLog(
+          const logEntry: LogEntry = {
+            id: nextLogId(),
+            timestamp: ts,
             level,
-            data.source || data.layer || module,
-            `[${data.layer || ''}] ${data.method || ''}: ${data.details || data.status || ''}`,
-            data.error,
-          );
+            source: data.source || data.layer || module,
+            message: `[${data.layer || ''}] ${data.method || ''}: ${data.details || data.status || ''}`,
+            details: data.error,
+          };
 
           // Map to timeline event types
           const evtType: EventType =
@@ -171,11 +203,22 @@ export default function TestCard({
             data.type === 'screenshot' ? 'screenshot' :
             'data-found';
 
-          addEvent(evtType, `${data.layer || module}: ${data.method || ''}`, data.details || data.status || '', {
+          const evt: TimelineEvent = {
+            id: nextEventId(),
+            timestamp: ts,
+            type: evtType,
+            label: `${data.layer || module}: ${data.method || ''}`,
+            description: data.details || data.status || '',
             file: data.file,
             function: data.function,
             line: data.line,
-          });
+          };
+
+          // Buffer the event for speed-controlled playback
+          eventBufferRef.current.push({ event: evt, log: logEntry });
+
+          // Track total duration even while buffering
+          setTotalDuration(ts);
 
           // If the event has file/line info, load the code file
           if (data.file) {
@@ -190,7 +233,7 @@ export default function TestCard({
     sse.onerror = () => {
       // SSE will auto-reconnect; we don't need to log every reconnect
     };
-  }, [module, addEvent, addLog]);
+  }, [module, addEvent, addLog, loadCodeFile]);
 
   // ── Code file loading ─────────────────────────────────────────────────────
 
@@ -201,18 +244,13 @@ export default function TestCard({
       setCodeFiles((prev) => {
         const idx = prev.findIndex((f) => f.path === filePath);
         if (idx >= 0) {
-          // Update highlighted line
           const updated = [...prev];
           updated[idx] = { ...cached, highlightedLines: line ? [line] : undefined };
+          setActiveFileIndex(idx);
           return updated;
         }
+        setActiveFileIndex(prev.length);
         return [...prev, { ...cached, highlightedLines: line ? [line] : undefined }];
-      });
-      // Switch to this file tab
-      setCodeFiles((prev) => {
-        const idx = prev.findIndex((f) => f.path === filePath);
-        if (idx >= 0) setActiveFileIndex(idx);
-        return prev;
       });
       if (line) setActiveLine(line);
       return;
@@ -235,17 +273,16 @@ export default function TestCard({
           codeFileCacheRef.current.set(filePath, codeFile);
           setCodeFiles((prev) => {
             if (prev.find((f) => f.path === filePath)) return prev;
+            setActiveFileIndex(prev.length);
             return [...prev, codeFile];
           });
-          const newIdx = codeFiles.length; // will be at the end
-          setActiveFileIndex(newIdx);
           if (line) setActiveLine(line);
         }
       }
     } catch {
       // Silently fail — code viewer just won't show this file
     }
-  }, [codeFiles.length]);
+  }, []); // no deps needed — uses only refs and state setters
 
   // ── Run test ───────────────────────────────────────────────────────────────
 
@@ -256,6 +293,8 @@ export default function TestCard({
     setLogs([]);
     setCodeFiles([]);
     codeFileCacheRef.current.clear();
+    eventBufferRef.current = [];
+    idCounterRef.current = 0;
     setResult(null);
     setError(undefined);
     setDuration(undefined);
@@ -369,6 +408,13 @@ export default function TestCard({
     sseRef.current?.close();
     sseRef.current = null;
 
+    // Flush any remaining buffered SSE events
+    const remaining = eventBufferRef.current.splice(0);
+    if (remaining.length > 0) {
+      setEvents((prev) => [...prev, ...remaining.map((r) => r.event)]);
+      setLogs((prev) => [...prev, ...remaining.map((r) => r.log)]);
+    }
+
     // Stop playback timer
     if (playbackRef.current) {
       clearInterval(playbackRef.current);
@@ -395,9 +441,14 @@ export default function TestCard({
     setShowDebugger(false);
     sseRef.current?.close();
     sseRef.current = null;
+    eventBufferRef.current = [];
     if (playbackRef.current) {
       clearInterval(playbackRef.current);
       playbackRef.current = null;
+    }
+    if (bufferTimerRef.current) {
+      clearInterval(bufferTimerRef.current);
+      bufferTimerRef.current = null;
     }
   };
 
@@ -432,6 +483,28 @@ export default function TestCard({
     a.click();
     URL.revokeObjectURL(url);
   }, [module, title, status, duration, totalDuration, events, logs, result, error, screenshots, context]);
+
+  // ── Timeline ↔ CodeViewer sync (spec 3D) ───────────────────────────────────
+  // When scrubbing, auto-switch to the file/line of the most recent event at T
+
+  useEffect(() => {
+    if (events.length === 0 || codeFiles.length === 0) return;
+    // Find the most recent event at or before currentTime that has a file
+    let best: TimelineEvent | null = null;
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (events[i].timestamp <= currentTime && events[i].file) {
+        best = events[i];
+        break;
+      }
+    }
+    if (best?.file) {
+      const idx = codeFiles.findIndex((f) => f.path === best!.file);
+      if (idx >= 0 && idx !== activeFileIndex) {
+        setActiveFileIndex(idx);
+      }
+      if (best.line) setActiveLine(best.line);
+    }
+  }, [currentTime, events, codeFiles, activeFileIndex]);
 
   // ── Timeline controls ─────────────────────────────────────────────────────
 
