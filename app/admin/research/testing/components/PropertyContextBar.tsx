@@ -16,6 +16,8 @@ export interface PropertyContext {
   ownerName: string;
   subdivisionName: string;
   instrumentNumbers: string;
+  /** Active git branch — forwarded to the worker so tests run against the right code. */
+  branch: string;
 }
 
 const DEFAULT_CONTEXT: PropertyContext = {
@@ -29,6 +31,7 @@ const DEFAULT_CONTEXT: PropertyContext = {
   ownerName: '',
   subdivisionName: '',
   instrumentNumbers: '',
+  branch: 'main',
 };
 
 // ── Test fixtures ────────────────────────────────────────────────────────────
@@ -50,6 +53,7 @@ const TEST_FIXTURES = [
     ownerName: 'ASH FAMILY TRUST',
     subdivisionName: '',
     instrumentNumbers: '',
+    branch: 'main',
   },
   {
     label: 'Commercial — Temple (Main St)',
@@ -63,6 +67,7 @@ const TEST_FIXTURES = [
     ownerName: '',
     subdivisionName: '',
     instrumentNumbers: '',
+    branch: 'main',
   },
   {
     label: 'Subdivision Lot — Killeen',
@@ -76,6 +81,7 @@ const TEST_FIXTURES = [
     ownerName: '',
     subdivisionName: 'CLEAR CREEK ESTATES',
     instrumentNumbers: '',
+    branch: 'main',
   },
 ];
 

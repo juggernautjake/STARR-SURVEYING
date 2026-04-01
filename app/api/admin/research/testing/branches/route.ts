@@ -43,7 +43,7 @@ export const GET = withErrorHandler(async () => {
       return NextResponse.json({ branches: ['main'], error: 'GitHub API error' });
     }
     const data = await res.json();
-    const branches = data.map((b: any) => b.name);
+    const branches = (data as { name: string }[]).map((b) => b.name);
     return NextResponse.json({ branches });
   } catch {
     return NextResponse.json({ branches: ['main'] });

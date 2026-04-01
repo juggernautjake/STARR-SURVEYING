@@ -172,6 +172,7 @@ export default function TestCard({
           module,
           inputs,
           projectId: context.projectId || undefined,
+          branch: contextRecord.branch || undefined,
         }),
       });
 

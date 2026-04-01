@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import PropertyContextBar, { PropertyContextProvider } from './components/PropertyContextBar';
+import PropertyContextBar, { PropertyContextProvider, usePropertyContext } from './components/PropertyContextBar';
 import BranchSelector from './components/BranchSelector';
 import ScrapersTab from './components/ScrapersTab';
 import AnalyzersTab from './components/AnalyzersTab';
@@ -26,14 +26,20 @@ const TABS: { key: TabKey; label: string; description: string }[] = [
 
 function TestingLabContent() {
   const router = useRouter();
+  const { context, updateField } = usePropertyContext();
   const [activeTab, setActiveTab] = useState<TabKey>('scrapers');
-  const [currentBranch, setCurrentBranch] = useState('main');
   const [compareBranch, setCompareBranch] = useState<string | null>(null);
   const [branchMsg, setBranchMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const showBranchMsg = (text: string, ok: boolean) => {
     setBranchMsg({ text, ok });
     setTimeout(() => setBranchMsg(null), 4000);
+  };
+
+  // When the user switches the active branch, sync it into the shared PropertyContext
+  // so that all TestCard API calls automatically include the correct branch.
+  const handleBranchChange = (branch: string) => {
+    updateField('branch', branch);
   };
 
   const handlePull = async (branch: string) => {
@@ -94,11 +100,11 @@ function TestingLabContent() {
         </div>
       </div>
 
-      {/* Branch selector */}
+      {/* Branch selector — currentBranch is driven by the shared PropertyContext */}
       <BranchSelector
-        currentBranch={currentBranch}
+        currentBranch={context.branch}
         compareBranch={compareBranch}
-        onBranchChange={setCurrentBranch}
+        onBranchChange={handleBranchChange}
         onCompareBranchChange={setCompareBranch}
         onPull={handlePull}
         onCreateBranch={handleCreateBranch}

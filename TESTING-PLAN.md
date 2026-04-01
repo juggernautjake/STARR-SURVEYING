@@ -27,7 +27,7 @@
 
 | File | Status | Notes |
 |------|--------|-------|
-| `PropertyContextBar.tsx` | ✅ Done | Shared inputs + context provider, 3 real Bell County fixtures, controlled fixture selector, load error feedback, loads `subdivisionName` |
+| `PropertyContextBar.tsx` | ✅ Done | Shared inputs + context provider, 3 real Bell County fixtures, controlled fixture selector, load error feedback, loads `subdivisionName`, `branch` field added to context (drives BranchSelector + all API calls) |
 | `ExecutionTimeline.tsx` | ✅ Done | Drag scrubber, keyboard nav scoped to component (tabIndex+onKeyDown — fixes multi-instance window listener stacking), SSR-safe tooltip |
 | `CodeViewer.tsx` | ✅ Done | Multi-tab, lightweight syntax highlighting, edit mode with Ctrl+S, line-level highlighting |
 | `LogStream.tsx` | ✅ Done | Timeline-synced, auto-scroll, level filter, future-event dimming |
@@ -38,11 +38,11 @@
 
 | File | Status | Notes |
 |------|--------|-------|
-| `TestCard.tsx` | ✅ Done | Interval cleanup, async 202 notice, type-safe log entry processing, conditional code/log split view, stable async message keys, contextRecord extracted |
+| `TestCard.tsx` | ✅ Done | Interval cleanup, async 202 notice, type-safe log entry processing, conditional code/log split view, stable async message keys, contextRecord extracted, `branch` forwarded to API |
 | `ScrapersTab.tsx` | ✅ Done | 10 scrapers — correct `address` input for CAD/GIS, `projectId+ownerName` for clerk/plat |
 | `AnalyzersTab.tsx` | ✅ Done | 8 analyzers — all require `projectId` |
 | `PhasesTab.tsx` | ✅ Done | 9 phases — phase-1 requires `address` (was wrongly `propertyId`) |
-| `FullPipelineTab.tsx` | ✅ Done | Phase skip/resume, step nav wired, currentPhase key/label bug fixed (pass 3), catch block sets duration, phase detection uses dynamic PIPELINE_PHASES lookup |
+| `FullPipelineTab.tsx` | ✅ Done | Phase skip/resume, step nav, dynamic PIPELINE_PHASES lookup, live timer (`playbackRef` added — fixes frozen timeline during run), Clear button, missingInputs now checks address||propertyId, branch forwarded to API |
 | `HealthCheckTab.tsx` | ✅ Done | Worker health + external site grid, `0ms` latency display fixed (`!== undefined`), stable vendor keys |
 | `LogViewerTab.tsx` | ✅ Done | Enter key to load, batch-ID for dedup, type-safe level validation, clean message builder (no `[] : ` artifacts) |
 
@@ -64,8 +64,7 @@
 | SSE stream (`/testing/stream`) polls worker but worker doesn't yet emit phase-level events | Phase 2: Worker event emitter |
 | `FullPipelineTab` currentPhase only updates from log parsing — not from real phase events | Phase 2: Worker phase event emitter |
 | `LogViewerTab` loads logs from the API but has no feed from active TestCard runs (no shared log store) | Phase 2: Shared log store / event bus |
-| Multi-branch side-by-side comparison UI not yet wired (BranchSelector UI is ready) | Phase 3 |
-| `BranchSelector` + `currentBranch` state not wired to tab components (no branch is sent to any tab yet) | Phase 3 |
+| Multi-branch side-by-side comparison UI not yet wired (BranchSelector UI is ready, branch is now forwarded to all API calls) | Phase 3 |
 | `paused` CardStatus in TestCard is defined but never set (requires worker pause support) | Phase 2 |
 | No test coverage (unit or e2e) for Testing Lab components | Phase 4 |
 

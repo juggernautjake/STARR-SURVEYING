@@ -1,7 +1,7 @@
 // FullPipelineTab.tsx — Run the full pipeline with phase skip/resume controls
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePropertyContext } from './PropertyContextBar';
 import ExecutionTimeline, { type TimelineEvent } from './ExecutionTimeline';
 import LogStream, { type LogEntry } from './LogStream';
@@ -41,6 +41,20 @@ export default function FullPipelineTab() {
   const startTimeRef = useRef(0);
   const logCounterRef = useRef(0);
   const evtCounterRef = useRef(0);
+  // Ticker that advances currentTime/totalDuration every 100ms while running,
+  // mirroring what TestCard does. Without this the timeline stays frozen at t=0
+  // until the entire multi-minute fetch resolves.
+  const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clean up interval on unmount
+  useEffect(() => {
+    return () => {
+      if (playbackRef.current) {
+        clearInterval(playbackRef.current);
+        playbackRef.current = null;
+      }
+    };
+  }, []);
 
   const togglePhase = (key: string) => {
     setEnabledPhases((prev) => {
@@ -113,6 +127,15 @@ export default function FullPipelineTab() {
     setTotalDuration(0);
     startTimeRef.current = Date.now();
 
+    // Start live ticker — advances the timeline every 100ms so the scrubber
+    // moves while we wait for the (potentially 5-minute) pipeline response.
+    if (playbackRef.current) clearInterval(playbackRef.current);
+    playbackRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTimeRef.current;
+      setCurrentTime(elapsed);
+      setTotalDuration(elapsed);
+    }, 100);
+
     addEvent('phase-start', 'Pipeline started', 'Full pipeline execution');
     addLog('info', 'Starting full pipeline...');
 
@@ -136,6 +159,7 @@ export default function FullPipelineTab() {
           module: 'full-pipeline',
           inputs,
           projectId: context.projectId || undefined,
+          branch: context.branch || undefined,
         }),
       });
 
@@ -180,10 +204,34 @@ export default function FullPipelineTab() {
       setStatus('error');
     }
 
+    // Stop the live ticker
+    if (playbackRef.current) {
+      clearInterval(playbackRef.current);
+      playbackRef.current = null;
+    }
     setIsPlaying(false);
   };
 
-  const missingInputs = !context.propertyId;
+  const handleClear = () => {
+    setStatus('idle');
+    setEvents([]);
+    setLogs([]);
+    setResult(null);
+    setError(undefined);
+    setDuration(undefined);
+    setCurrentTime(0);
+    setTotalDuration(0);
+    setIsPlaying(false);
+    setCurrentPhase(null);
+    if (playbackRef.current) {
+      clearInterval(playbackRef.current);
+      playbackRef.current = null;
+    }
+  };
+
+  // Require at least an address or a property ID to run the pipeline.
+  // Phase 1 discovery uses address; resuming from later phases needs propertyId.
+  const missingInputs = !context.address && !context.propertyId;
 
   return (
     <div className="full-pipeline-tab">
@@ -229,9 +277,14 @@ export default function FullPipelineTab() {
                 : ''}`
             : 'Run Full Pipeline'}
         </button>
+        {(status === 'success' || status === 'error') && (
+          <button className="test-card__clear-btn" onClick={handleClear}>
+            Clear
+          </button>
+        )}
         {missingInputs && (
           <span className="test-card__warning" style={{ display: 'inline' }}>
-            Property ID is required
+            Address or Property ID is required
           </span>
         )}
       </div>

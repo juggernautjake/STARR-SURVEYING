@@ -41,6 +41,11 @@ export async function GET(req: NextRequest) {
 
       let running = true;
       let lastLogCount = 0;
+      // Safety valve: SSE streams that never receive a 'complete'/'failed' status
+      // from the worker (e.g. when the worker crashes mid-run) would otherwise
+      // run forever, consuming server resources and keeping Vercel functions alive.
+      const MAX_STREAM_MS = 10 * 60 * 1000; // 10 minutes
+      const streamStart = Date.now();
 
       const poll = async () => {
         while (running) {
@@ -75,6 +80,15 @@ export async function GET(req: NextRequest) {
                   return;
                 }
               }
+            }
+
+            // Safety valve: close the stream if it has been running too long.
+            // Prevents zombie SSE connections when the worker never terminates.
+            if (Date.now() - streamStart > MAX_STREAM_MS) {
+              send({ type: 'error', message: 'Stream exceeded maximum duration (10 min); closing.' });
+              running = false;
+              try { controller.close(); } catch { /* already closed */ }
+              return;
             }
           } catch (err) {
             // Log unexpected errors; transient network errors just continue polling.
