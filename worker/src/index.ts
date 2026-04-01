@@ -167,6 +167,7 @@ function setCompletedResult(projectId: string, result: UnifiedResearchResult): v
 
 // Keep completed results for 4 hours
 const RESULT_TTL_MS = 4 * 60 * 60 * 1000;
+const MS_PER_HOUR   = 3_600_000;
 
 function cleanupOldResults(): void {
   const cutoff = Date.now() - RESULT_TTL_MS;
@@ -193,7 +194,7 @@ function cleanupOldResults(): void {
     }
   }
   if (evicted > 0) {
-    console.log(`[Worker] cleanupOldResults: evicted ${evicted} expired result(s) (TTL=${RESULT_TTL_MS / 3600000}h)`);
+    console.log(`[Worker] cleanupOldResults: evicted ${evicted} expired result(s) (TTL=${RESULT_TTL_MS / MS_PER_HOUR}h)`);
   }
 }
 

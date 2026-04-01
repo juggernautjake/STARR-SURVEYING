@@ -34,6 +34,49 @@ function nextLogId(): string {
   return `log-${++eventIdCounter}-${Date.now()}`;
 }
 
+// ── Log entry parsing helper ──────────────────────────────────────────────────
+
+interface ParsedLogEntry {
+  level: LogEntry['level'];
+  source: string;
+  message: string;
+  details: string | undefined;
+  evtType: EventType;
+  evtLabel: string;
+  evtDetail: string;
+}
+
+/**
+ * Safely parse a raw log entry object from the worker result.
+ * Returns null if the entry is not a valid non-null object.
+ */
+function parseRawLogEntry(raw: unknown, fallbackSource: string): ParsedLogEntry | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const entry = raw as Record<string, unknown>;
+
+  const status     = typeof entry.status  === 'string' ? entry.status  : '';
+  const source     = typeof entry.source  === 'string' ? entry.source  : fallbackSource;
+  const layer      = typeof entry.layer   === 'string' ? entry.layer   : '';
+  const method     = typeof entry.method  === 'string' ? entry.method  : '';
+  const detailStr  = typeof entry.details === 'string' ? entry.details : status;
+  const errorStr   = typeof entry.error   === 'string' ? entry.error   : undefined;
+
+  const msgParts: string[] = [];
+  if (layer)  msgParts.push(`[${layer}]`);
+  if (method) msgParts.push(method);
+  if (detailStr) msgParts.push(detailStr);
+  else if (!layer && !method) msgParts.push(`log from ${source}`);
+  const message = msgParts.join(' ');
+
+  const evtLabel = [layer, method].filter(Boolean).join(': ') || `log from ${source}`;
+  const level: LogEntry['level'] =
+    status === 'fail' ? 'error' : status === 'warn' ? 'warn' : 'info';
+  const evtType: EventType =
+    status === 'fail' ? 'error' : status === 'warn' ? 'warning' : 'data-found';
+
+  return { level, source, message, details: errorStr, evtType, evtLabel, evtDetail: detailStr };
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function TestCard({
@@ -255,38 +298,10 @@ export default function TestCard({
           // Extract logs from result if present
           if (data.result?.log && Array.isArray(data.result.log)) {
             for (const rawEntry of data.result.log) {
-              // Validate entry is a non-null object before accessing properties
-              if (typeof rawEntry !== 'object' || rawEntry === null) continue;
-              const entry = rawEntry as Record<string, unknown>;
-              const entryStatus = typeof entry.status === 'string' ? entry.status : '';
-              const entrySource = typeof entry.source === 'string' ? entry.source : module;
-              const entryLayer  = typeof entry.layer  === 'string' ? entry.layer  : '';
-              const entryMethod = typeof entry.method === 'string' ? entry.method : '';
-              const entryDetail = typeof entry.details === 'string' ? entry.details
-                : entryStatus;
-              const entryError  = typeof entry.error  === 'string' ? entry.error  : undefined;
-
-              // Build human-readable message — skip empty parts to avoid "[] : " artifacts
-              const msgParts: string[] = [];
-              if (entryLayer)  msgParts.push(`[${entryLayer}]`);
-              if (entryMethod) msgParts.push(entryMethod);
-              if (entryDetail) msgParts.push(entryDetail);
-              else if (!entryLayer && !entryMethod) msgParts.push(`log from ${entrySource}`);
-              const logMessage = msgParts.join(' ');
-
-              // Build event label (layer: method, or whichever is present)
-              const evtLabel = [entryLayer, entryMethod].filter(Boolean).join(': ')
-                || `log from ${entrySource}`;
-
-              addLog(
-                entryStatus === 'fail' ? 'error' : entryStatus === 'warn' ? 'warn' : 'info',
-                entrySource,
-                logMessage,
-                entryError,
-              );
-              const evtType: EventType = entryStatus === 'fail' ? 'error' :
-                entryStatus === 'warn' ? 'warning' : 'data-found';
-              addEvent(evtType, evtLabel, entryDetail);
+              const parsed = parseRawLogEntry(rawEntry, module);
+              if (!parsed) continue;
+              addLog(parsed.level, parsed.source, parsed.message, parsed.details);
+              addEvent(parsed.evtType, parsed.evtLabel, parsed.evtDetail);
             }
           }
         }

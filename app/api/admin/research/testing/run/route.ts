@@ -84,7 +84,13 @@ const MODULE_TIMEOUTS: Record<string, number> = {
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 // ── Module group constants ────────────────────────────────────────────────────
-// Centralised lists used by transformInputs — update here when adding modules.
+// These lists drive the input-field transforms in transformInputs().
+// Add new modules to the appropriate group when extending the MODULE_ENDPOINTS map.
+//
+//   HARVEST_MODULES         → sets `owner` (from ownerName) + `propertyId` (from parcelId)
+//   ANALYZE_MODULES         → injects `harvestResultPath` (Phase 2 output file)
+//   INTELLIGENCE_PATH_MODULES → injects `intelligencePath` (Phase 3 output file)
+//   CONFIDENCE_MODULES      → injects `reconciledPath` (Phase 7 output file)
 const HARVEST_MODULES = [
   'clerk-scraper', 'plat-scraper', 'map-screenshot', 'gis-viewer',
   'screenshot-collector', 'phase-2-harvest',

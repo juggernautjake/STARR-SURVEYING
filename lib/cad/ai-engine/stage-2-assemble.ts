@@ -236,7 +236,8 @@ function buildSplineFeature(ls: LineString, finals: ClassificationResult[]): Fea
   // Convert to cubic bezier control points (Catmull-Rom → Bezier conversion)
   const controlPoints: Point2D[] = [];
   if (pts.length >= 2) {
-    // First segment: P0, P0→P1 tangent quarter-way, P1←P2 tangent quarter-way, P1
+    // For each segment i: derive Catmull-Rom cubic bezier control points
+    // using phantom neighbours (clamped) at the ends of the sequence.
     for (let i = 0; i < pts.length - 1; i++) {
       const p0 = pts[Math.max(0, i - 1)];
       const p1 = pts[i];
