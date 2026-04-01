@@ -36,6 +36,9 @@ export default function LogViewerTab() {
     try {
       const res = await fetch(`/api/admin/research/${projectId}/logs`);
       if (res.ok) {
+        // Guard against stale responses: if another request was fired after this
+        // one, its batchId will be higher — discard this response.
+        if (batchId !== loadCountRef.current) return;
         const data = await res.json() as Record<string, unknown>;
         const rawLogs = (data.logs ?? data.log ?? []) as Record<string, unknown>[];
         const VALID_LEVELS: AggregatedLog['level'][] = ['info', 'warn', 'error', 'debug', 'success'];

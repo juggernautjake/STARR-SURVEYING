@@ -144,8 +144,10 @@ export default function PropertyContextBar() {
       if (res.ok) {
         const data = await res.json();
         const p = data.project;
-        setContext({
-          ...context,
+        // Use functional form to avoid discarding field changes made while
+        // the request was in-flight (stale closure on `context`).
+        setContext((prev) => ({
+          ...prev,
           propertyId: p.parcel_id || '',
           address: p.property_address || '',
           county: p.county || 'Bell',
@@ -154,7 +156,7 @@ export default function PropertyContextBar() {
           lon: p.lon?.toString() || '',
           ownerName: p.owner_name || '',
           subdivisionName: p.subdivision_name || '',
-        });
+        }));
         setFixtureIndex(''); // clear fixture selection after loading a project
       } else {
         const err = await res.json().catch(() => ({}));

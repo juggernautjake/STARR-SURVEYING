@@ -225,15 +225,28 @@ export default function TestCard({
               const entryDetail = typeof entry.details === 'string' ? entry.details
                 : entryStatus;
               const entryError  = typeof entry.error  === 'string' ? entry.error  : undefined;
+
+              // Build human-readable message — skip empty parts to avoid "[] : " artifacts
+              const msgParts: string[] = [];
+              if (entryLayer)  msgParts.push(`[${entryLayer}]`);
+              if (entryMethod) msgParts.push(entryMethod);
+              if (entryDetail) msgParts.push(entryDetail);
+              else if (!entryLayer && !entryMethod) msgParts.push(`log from ${entrySource}`);
+              const logMessage = msgParts.join(' ');
+
+              // Build event label (layer: method, or whichever is present)
+              const evtLabel = [entryLayer, entryMethod].filter(Boolean).join(': ')
+                || `log from ${entrySource}`;
+
               addLog(
                 entryStatus === 'fail' ? 'error' : entryStatus === 'warn' ? 'warn' : 'info',
                 entrySource,
-                `[${entryLayer}] ${entryMethod}: ${entryDetail}`,
+                logMessage,
                 entryError,
               );
               const evtType: EventType = entryStatus === 'fail' ? 'error' :
                 entryStatus === 'warn' ? 'warning' : 'data-found';
-              addEvent(evtType, `${entryLayer}: ${entryMethod}`, entryDetail);
+              addEvent(evtType, evtLabel, entryDetail);
             }
           }
         }
