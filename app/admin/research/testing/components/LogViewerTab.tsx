@@ -17,6 +17,7 @@ export default function LogViewerTab() {
   const [filter, setFilter] = useState('');
   const [levelFilter, setLevelFilter] = useState<Set<string>>(new Set(['info', 'warn', 'error', 'success', 'debug']));
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState('');
   const loadCountRef = useRef(0);
 
@@ -32,13 +33,13 @@ export default function LogViewerTab() {
   const loadProjectLogs = async () => {
     if (!projectId) return;
     setLoading(true);
+    setLoadError(null);
     const batchId = ++loadCountRef.current;
     try {
       const res = await fetch(`/api/admin/research/${projectId}/logs`);
+      // Discard stale responses — a faster subsequent request already owns the result.
+      if (batchId !== loadCountRef.current) return;
       if (res.ok) {
-        // Guard against stale responses: if another request was fired after this
-        // one, its batchId will be higher — discard this response.
-        if (batchId !== loadCountRef.current) return;
         const data = await res.json() as Record<string, unknown>;
         const rawLogs = (data.logs ?? data.log ?? []) as Record<string, unknown>[];
         const VALID_LEVELS: AggregatedLog['level'][] = ['info', 'warn', 'error', 'debug', 'success'];
@@ -71,11 +72,17 @@ export default function LogViewerTab() {
           };
         });
         setLogs(entries);
+      } else {
+        const errData = await res.json().catch(() => ({})) as Record<string, unknown>;
+        setLoadError(typeof errData.error === 'string' ? errData.error : `No logs found (${res.status})`);
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      if (batchId === loadCountRef.current) {
+        setLoadError(err instanceof Error ? err.message : 'Network error — could not load logs');
+      }
+    } finally {
+      if (batchId === loadCountRef.current) setLoading(false);
     }
-    setLoading(false);
   };
 
   const filtered = logs.filter((log) => {
@@ -112,6 +119,9 @@ export default function LogViewerTab() {
             {loading ? 'Loading...' : 'Load Logs'}
           </button>
         </div>
+        {loadError && (
+          <div className="log-viewer-tab__load-error">{loadError}</div>
+        )}
         <input
           type="text"
           className="log-viewer-tab__filter"

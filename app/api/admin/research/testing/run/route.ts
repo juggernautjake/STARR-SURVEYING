@@ -251,7 +251,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       duration,
       result,
       status: workerRes.status,
-      error: workerRes.ok ? undefined : `Worker returned ${workerRes.status}`,
+      // Include the worker's own error message when available so TestCard can
+      // display it directly without the user having to open the OutputViewer.
+      error: workerRes.ok ? undefined : (() => {
+        if (result && typeof result === 'object') {
+          const r = result as Record<string, unknown>;
+          const workerMsg = typeof r.error === 'string' ? r.error
+            : typeof r.message === 'string' ? r.message
+            : undefined;
+          if (workerMsg) return `Worker error: ${workerMsg}`;
+        }
+        return `Worker returned ${workerRes.status}`;
+      })(),
     });
   } catch (err) {
     clearTimeout(timer);
