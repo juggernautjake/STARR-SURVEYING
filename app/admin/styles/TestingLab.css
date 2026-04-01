@@ -374,6 +374,18 @@
 
 .test-card__debugger-btn:hover { background: #F5F3FF; }
 
+.test-card__export-btn {
+  padding: 0.45rem 0.75rem;
+  background: none;
+  border: 1px solid #059669;
+  border-radius: 6px;
+  color: #059669;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.test-card__export-btn:hover { background: #ECFDF5; }
+
 /* ── Debugger Panel ────────────────────────────────────────────────────────── */
 
 .test-card__debugger {
@@ -1059,184 +1071,87 @@
 
 .branch-selector__compare-toggle input { cursor: pointer; }
 
-/* ── Full Pipeline Tab ─────────────────────────────────────────────────────── */
+/* ── Speed Control (standalone) ────────────────────────────────────────────── */
 
-.full-pipeline-tab__phases {
+.speed-control {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
   background: #F9FAFB;
   border: 1px solid #E5E7EB;
   border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1rem;
 }
 
-.full-pipeline-tab__phases h4 {
-  margin: 0 0 0.75rem 0;
-  font-size: 0.9rem;
-  color: #374151;
+.speed-control--compact {
+  padding: 0.35rem 0.5rem;
 }
 
-.full-pipeline-tab__phase-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.full-pipeline-tab__phase-toggle {
+.speed-control__playback {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.82rem;
+}
+
+.speed-control__btn {
+  padding: 0.3rem 0.5rem;
+  background: none;
+  border: 1px solid #D1D5DB;
+  border-radius: 4px;
   color: #374151;
+  font-size: 0.75rem;
+  cursor: pointer;
+  min-width: 28px;
+  text-align: center;
+}
+
+.speed-control__btn:hover { background: #F3F4F6; }
+
+.speed-control__btn--play {
+  background: #7C3AED;
+  color: #fff;
+  border-color: #7C3AED;
+}
+
+.speed-control__btn--play:hover { background: #6D28D9; }
+
+.speed-control__time {
+  font-size: 0.75rem;
+  color: #6B7280;
+  font-family: monospace;
+  margin-left: 0.5rem;
+}
+
+.speed-control__presets {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.speed-control__label {
+  font-size: 0.75rem;
+  color: #6B7280;
+  margin-right: 0.25rem;
+}
+
+.speed-control__preset {
+  padding: 0.2rem 0.4rem;
+  background: none;
+  border: 1px solid #E5E7EB;
+  border-radius: 4px;
+  color: #6B7280;
+  font-size: 0.7rem;
   cursor: pointer;
 }
 
-.full-pipeline-tab__phase--critical {
-  font-weight: 600;
-}
+.speed-control__preset:hover { border-color: #7C3AED; color: #7C3AED; }
 
-.full-pipeline-tab__resume {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.82rem;
-  color: #6B7280;
-}
-
-.full-pipeline-tab__resume select {
-  padding: 0.35rem 0.6rem;
-  border: 1px solid #D1D5DB;
-  border-radius: 6px;
-  font-size: 0.82rem;
-}
-
-.full-pipeline-tab__actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.full-pipeline-tab__progress {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-
-.full-pipeline-tab__phase-step {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.3rem 0.6rem;
-  background: #F3F4F6;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  color: #6B7280;
-}
-
-.full-pipeline-tab__phase-step--active {
-  background: #DBEAFE;
-  color: #1E40AF;
-  font-weight: 600;
-}
-
-.full-pipeline-tab__phase-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-/* ── Health Check Tab ──────────────────────────────────────────────────────── */
-
-.health-check-tab__section {
-  margin-bottom: 1.5rem;
-}
-
-.health-check-tab__section h4 {
-  margin: 0 0 0.75rem 0;
-  font-size: 0.95rem;
-  color: #374151;
-}
-
-.health-check-tab__actions {
-  margin-bottom: 0.75rem;
-}
-
-.health-check-tab__status {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
-}
-
-.health-check-tab__status--ok {
-  background: #ECFDF5;
-  color: #065F46;
-}
-
-.health-check-tab__status--down {
-  background: #FEF2F2;
-  color: #991B1B;
-}
-
-.health-check-tab__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.health-check-tab__latency {
-  color: #6B7280;
-  font-size: 0.75rem;
-  margin-left: auto;
-}
-
-.health-check-tab__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0.75rem;
-}
-
-.health-check-tab__card {
-  background: #fff;
-  border: 1px solid #E5E7EB;
-  border-radius: 8px;
-  padding: 0.75rem;
-}
-
-.health-check-tab__card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.health-check-tab__vendor {
-  font-weight: 600;
-  font-size: 0.85rem;
-  color: #374151;
-  flex: 1;
-}
-
-.health-check-tab__card-status {
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.health-check-tab__response-time {
-  color: #6B7280;
-  font-size: 0.75rem;
-  margin-top: 0.25rem;
-}
-
-.health-check-tab__error {
-  color: #DC2626;
-  font-size: 0.75rem;
-  margin-top: 0.25rem;
+.speed-control__preset--active {
+  background: #7C3AED;
+  color: #fff;
+  border-color: #7C3AED;
 }
 
 /* ── Log Viewer Tab ────────────────────────────────────────────────────────── */

@@ -27,8 +27,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   try {
+    // Encode each path segment individually — encodeURIComponent on the full
+    // path would turn '/' into '%2F' which the GitHub API rejects.
+    const encodedPath = path.split('/').map(encodeURIComponent).join('/');
     const res = await fetch(
-      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`,
       {
         headers: {
           'Accept': 'application/vnd.github.v3+json',
