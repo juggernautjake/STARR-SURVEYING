@@ -25,6 +25,12 @@ export default function BranchSelector({
   const [showCreate, setShowCreate] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
   const [enableCompare, setEnableCompare] = useState(!!compareBranch);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const loadBranches = useCallback(async () => {
     setLoading(true);
@@ -44,17 +50,32 @@ export default function BranchSelector({
     loadBranches();
   }, [loadBranches]);
 
-  const handleCreateBranch = () => {
+  const handleCreateBranch = async () => {
     if (!newBranchName.trim()) return;
-    onCreateBranch(newBranchName.trim(), currentBranch);
-    setShowCreate(false);
-    setNewBranchName('');
-    // Reload branches after a short delay
-    setTimeout(loadBranches, 1000);
+    try {
+      onCreateBranch(newBranchName.trim(), currentBranch);
+      showToast('success', `Branch "${newBranchName.trim()}" created from ${currentBranch}`);
+      setShowCreate(false);
+      setNewBranchName('');
+      setTimeout(loadBranches, 1000);
+    } catch {
+      showToast('error', 'Failed to create branch');
+    }
+  };
+
+  const handlePull = async (branch: string) => {
+    onPull(branch);
+    showToast('success', `Pulled latest for ${branch}`);
   };
 
   return (
     <div className="branch-selector">
+      {/* Toast notification */}
+      {toast && (
+        <div className={`branch-selector__toast branch-selector__toast--${toast.type}`}>
+          {toast.type === 'success' ? '✓' : '✕'} {toast.message}
+        </div>
+      )}
       <div className="branch-selector__row">
         <div className="branch-selector__field">
           <label className="branch-selector__label">Branch</label>
@@ -71,7 +92,7 @@ export default function BranchSelector({
         </div>
         <button
           className="branch-selector__btn"
-          onClick={() => onPull(currentBranch)}
+          onClick={() => handlePull(currentBranch)}
           title="Pull latest from remote"
         >
           Pull
@@ -141,7 +162,7 @@ export default function BranchSelector({
             </div>
             <button
               className="branch-selector__btn"
-              onClick={() => compareBranch && onPull(compareBranch)}
+              onClick={() => compareBranch && handlePull(compareBranch)}
               disabled={!compareBranch}
             >
               Pull

@@ -90,6 +90,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   const startTime = Date.now();
+  // 3 minutes default — some scrapers (GIS Viewer, full pipeline) can run 90s+
+  const timeoutMs = 180_000;
 
   try {
     const url = `${WORKER_URL}${endpoint.path}`;
@@ -100,11 +102,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       module,
     };
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
     const workerRes = await fetch(url, {
       method: endpoint.method,
       headers: workerHeaders(),
       body: endpoint.method === 'POST' ? JSON.stringify(workerBody) : undefined,
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     const duration = Date.now() - startTime;
     const contentType = workerRes.headers.get('content-type') || '';
@@ -125,11 +133,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     });
   } catch (err) {
     const duration = Date.now() - startTime;
+    const isTimeout = err instanceof DOMException && err.name === 'AbortError';
     return NextResponse.json({
       success: false,
       duration,
       result: null,
-      error: err instanceof Error ? err.message : 'Worker request failed',
-    }, { status: 502 });
+      error: isTimeout
+        ? `Worker request timed out after ${Math.round(timeoutMs / 1000)}s`
+        : (err instanceof Error ? err.message : 'Worker request failed'),
+    }, { status: isTimeout ? 504 : 502 });
   }
 });

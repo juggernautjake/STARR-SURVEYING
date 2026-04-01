@@ -171,6 +171,13 @@ export default function ExecutionTimeline({
 
   const scrubberPercent = maxTime > 0 ? (currentTime / maxTime) * 100 : 0;
 
+  // Count events by type for the legend
+  const eventCounts = events.reduce<Partial<Record<EventType, number>>>((acc, e) => {
+    acc[e.type] = (acc[e.type] || 0) + 1;
+    return acc;
+  }, {});
+  const activeTypes = (Object.keys(eventCounts) as EventType[]).filter((t) => (eventCounts[t] || 0) > 0);
+
   return (
     <div className="execution-timeline">
       {/* Time labels */}
@@ -238,7 +245,7 @@ export default function ExecutionTimeline({
         <div
           className="execution-timeline__tooltip"
           style={{
-            left: `${Math.min(tooltipPos.x, window.innerWidth - 300)}px`,
+            left: `${Math.min(tooltipPos.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 300)}px`,
             top: `${tooltipPos.y - 80}px`,
           }}
         >
@@ -293,6 +300,22 @@ export default function ExecutionTimeline({
           ))}
         </div>
       </div>
+
+      {/* Marker legend — only shows types that appear in the current run */}
+      {activeTypes.length > 0 && (
+        <div className="execution-timeline__legend">
+          {activeTypes.map((type) => (
+            <span key={type} className="execution-timeline__legend-item">
+              <span style={{ color: EVENT_COLORS[type] }}>{EVENT_SHAPES[type]}</span>
+              {' '}{type.replace(/-/g, ' ')}
+              <span className="execution-timeline__legend-count">{eventCounts[type]}</span>
+            </span>
+          ))}
+          <span className="execution-timeline__event-total">
+            {events.length} events
+          </span>
+        </div>
+      )}
     </div>
   );
 }

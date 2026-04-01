@@ -407,14 +407,77 @@
   }
 }
 
+.test-card__log-filter {
+  margin-bottom: 0.5rem;
+}
+
 .test-card__log-filter input {
   width: 100%;
   padding: 0.35rem 0.6rem;
-  border: 1px solid #D1D5DB;
+  border: 1px solid #374151;
   border-radius: 6px;
   font-size: 0.8rem;
+  background: #0F1419;
+  color: #D1D5DB;
+}
+
+.test-card__log-filter input:focus {
+  outline: none;
+  border-color: #7C3AED;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+}
+
+.test-card__log-filter input::placeholder {
+  color: #6B7280;
+}
+
+.test-card__log-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
   margin-bottom: 0.5rem;
 }
+
+.test-card__log-controls .test-card__log-filter {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.test-card__log-levels {
+  display: flex;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.test-card__log-level-btn {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid #374151;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: transparent;
+  opacity: 0.4;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.test-card__log-level-btn--active { opacity: 1; }
+
+.test-card__log-level-btn--info { color: #3B82F6; border-color: #3B82F6; }
+.test-card__log-level-btn--info.test-card__log-level-btn--active { background: rgba(59, 130, 246, 0.15); }
+
+.test-card__log-level-btn--warn { color: #D97706; border-color: #D97706; }
+.test-card__log-level-btn--warn.test-card__log-level-btn--active { background: rgba(217, 119, 6, 0.15); }
+
+.test-card__log-level-btn--error { color: #DC2626; border-color: #DC2626; }
+.test-card__log-level-btn--error.test-card__log-level-btn--active { background: rgba(220, 38, 38, 0.15); }
+
+.test-card__log-level-btn--success { color: #059669; border-color: #059669; }
+.test-card__log-level-btn--success.test-card__log-level-btn--active { background: rgba(5, 150, 105, 0.15); }
+
+.test-card__log-level-btn--debug { color: #9CA3AF; border-color: #6B7280; }
+.test-card__log-level-btn--debug.test-card__log-level-btn--active { background: rgba(156, 163, 175, 0.1); }
 
 /* ── Execution Timeline ────────────────────────────────────────────────────── */
 
@@ -606,6 +669,44 @@
   background: #7C3AED;
   color: #fff;
   border-color: #7C3AED;
+}
+
+/* Legend */
+.execution-timeline__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid #E5E7EB;
+  font-size: 0.68rem;
+  color: #6B7280;
+}
+
+.execution-timeline__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  text-transform: capitalize;
+}
+
+.execution-timeline__legend-count {
+  background: #E5E7EB;
+  color: #374151;
+  border-radius: 9999px;
+  padding: 0 0.35em;
+  font-size: 0.62rem;
+  font-weight: 600;
+  margin-left: 0.15rem;
+  min-width: 1.2em;
+  text-align: center;
+}
+
+.execution-timeline__event-total {
+  margin-left: auto;
+  font-weight: 500;
+  color: #9CA3AF;
 }
 
 /* ── Code Viewer ───────────────────────────────────────────────────────────── */
@@ -846,9 +947,11 @@
   word-break: break-word;
 }
 
+.log-stream__entry--info .log-stream__message { color: #93C5FD; }
 .log-stream__entry--error .log-stream__message { color: #FCA5A5; }
 .log-stream__entry--warn .log-stream__message { color: #FCD34D; }
 .log-stream__entry--success .log-stream__message { color: #6EE7B7; }
+.log-stream__entry--debug .log-stream__message { color: #9CA3AF; font-style: italic; }
 
 .log-stream__details {
   color: #9CA3AF;
@@ -1071,6 +1174,32 @@
 
 .branch-selector__compare-toggle input { cursor: pointer; }
 
+/* Toast */
+.branch-selector__toast {
+  padding: 0.45rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+  animation: toast-fade 3s ease-out forwards;
+}
+
+.branch-selector__toast--success {
+  background: rgba(5, 150, 105, 0.12);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+  color: #059669;
+}
+
+.branch-selector__toast--error {
+  background: rgba(220, 38, 38, 0.12);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #DC2626;
+}
+
+@keyframes toast-fade {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* ── Speed Control (standalone) ────────────────────────────────────────────── */
 
 .speed-control {
@@ -1254,6 +1383,12 @@
   padding-left: 18em;
 }
 
+.log-viewer-tab__entry--info .log-viewer-tab__message { color: #93C5FD; }
+.log-viewer-tab__entry--error .log-viewer-tab__message { color: #FCA5A5; }
+.log-viewer-tab__entry--warn .log-viewer-tab__message { color: #FCD34D; }
+.log-viewer-tab__entry--success .log-viewer-tab__message { color: #6EE7B7; }
+.log-viewer-tab__entry--debug .log-viewer-tab__message { color: #9CA3AF; font-style: italic; }
+
 .log-viewer-tab__stats {
   text-align: center;
   color: #9CA3AF;
@@ -1407,6 +1542,10 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.health-check-tab__section {
+  margin-bottom: 1.5rem;
 }
 
 .health-check-tab__section h4 {

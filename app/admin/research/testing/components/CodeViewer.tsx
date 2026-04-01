@@ -46,25 +46,47 @@ function highlightLine(line: string): string {
     return `<span class="cv-comment">${escaped}</span>`;
   }
 
-  // Strings
-  escaped = escaped.replace(
-    /(['"`])(?:(?!\1|\\).|\\.)*?\1/g,
-    (m) => `<span class="cv-string">${m}</span>`
-  );
+  // Tokenize: split line into strings and non-string segments, then only
+  // apply keyword/number highlighting to non-string parts.  This prevents
+  // matching keywords inside string literals (e.g. "return value").
+  const parts: string[] = [];
+  let remaining = escaped;
+  const stringRe = /(['"`])(?:(?!\1|\\).|\\.)*?\1/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
 
-  // Keywords
-  escaped = escaped.replace(
+  while ((match = stringRe.exec(remaining)) !== null) {
+    // Process the gap before this string
+    if (match.index > lastIndex) {
+      parts.push(highlightNonString(remaining.slice(lastIndex, match.index)));
+    }
+    // Wrap the string literal
+    parts.push(`<span class="cv-string">${match[0]}</span>`);
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Process any remaining text after the last string
+  if (lastIndex < remaining.length) {
+    parts.push(highlightNonString(remaining.slice(lastIndex)));
+  }
+
+  return parts.join('');
+}
+
+function highlightNonString(text: string): string {
+  // Keywords (only in non-string text)
+  let result = text.replace(
     /\b([a-zA-Z_$][a-zA-Z0-9_$]*)\b/g,
     (m) => TS_KEYWORDS.has(m) ? `<span class="cv-keyword">${m}</span>` : m
   );
 
   // Numbers
-  escaped = escaped.replace(
+  result = result.replace(
     /\b(\d+\.?\d*)\b/g,
     (m) => `<span class="cv-number">${m}</span>`
   );
 
-  return escaped;
+  return result;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -79,7 +101,8 @@ export default function CodeViewer({
   onContentChange,
 }: CodeViewerProps) {
   const codeRef = useRef<HTMLDivElement>(null);
-  const activeFile = files[activeFileIndex];
+  const safeIndex = Math.min(activeFileIndex, files.length - 1);
+  const activeFile = files[safeIndex];
   const [editContent, setEditContent] = useState('');
 
   // Sync edit content when file changes
@@ -116,7 +139,7 @@ export default function CodeViewer({
     onContentChange?.(activeFileIndex, e.target.value);
   }, [activeFileIndex, onContentChange]);
 
-  if (files.length === 0) {
+  if (files.length === 0 || !activeFile) {
     return (
       <div className="code-viewer code-viewer--empty">
         <div className="code-viewer__placeholder">

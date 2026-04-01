@@ -57,6 +57,18 @@ export default function TestCard({
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDebugger, setShowDebugger] = useState(false);
   const [logFilter, setLogFilter] = useState('');
+  const [logLevelFilter, setLogLevelFilter] = useState<Set<string>>(
+    new Set(['info', 'warn', 'error', 'success', 'debug'])
+  );
+
+  const toggleLogLevel = (level: string) => {
+    setLogLevelFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(level)) next.delete(level);
+      else next.add(level);
+      return next;
+    });
+  };
 
   const startTimeRef = useRef<number>(0);
   const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -643,13 +655,27 @@ export default function TestCard({
                   />
                 </div>
                 <div className="test-card__split-right">
-                  <div className="test-card__log-filter">
-                    <input
-                      type="text"
-                      placeholder="Filter logs..."
-                      value={logFilter}
-                      onChange={(e) => setLogFilter(e.target.value)}
-                    />
+                  <div className="test-card__log-controls">
+                    <div className="test-card__log-filter">
+                      <input
+                        type="text"
+                        placeholder="Filter logs..."
+                        value={logFilter}
+                        onChange={(e) => setLogFilter(e.target.value)}
+                      />
+                    </div>
+                    <div className="test-card__log-levels">
+                      {(['info', 'warn', 'error', 'success', 'debug'] as const).map((level) => (
+                        <button
+                          key={level}
+                          className={`test-card__log-level-btn test-card__log-level-btn--${level} ${logLevelFilter.has(level) ? 'test-card__log-level-btn--active' : ''}`}
+                          onClick={() => toggleLogLevel(level)}
+                          title={`Toggle ${level} logs`}
+                        >
+                          {level}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <LogStream
                     logs={logs}
@@ -657,6 +683,7 @@ export default function TestCard({
                     isLive={isPlaying && currentTime >= totalDuration - 500}
                     maxHeight="300px"
                     filter={logFilter}
+                    levelFilter={logLevelFilter}
                   />
                 </div>
               </div>
