@@ -11,7 +11,7 @@ const REPO_NAME = 'STARR-SURVEYING';
 /* POST — Commit a file change to a branch */
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || (session.user as any).role !== 'admin') {
+  if (!session?.user?.email || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

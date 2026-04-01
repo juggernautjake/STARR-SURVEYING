@@ -161,6 +161,56 @@ export default function TestCard({
     setTotalDuration(ts);
   }, []);
 
+  // ── Code file loading ─────────────────────────────────────────────────────
+  // NOTE: must be defined before connectSSE which references it
+
+  const loadCodeFile = useCallback(async (filePath: string, line?: number) => {
+    // Check cache first
+    if (codeFileCacheRef.current.has(filePath)) {
+      const cached = codeFileCacheRef.current.get(filePath)!;
+      setCodeFiles((prev) => {
+        const idx = prev.findIndex((f) => f.path === filePath);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = { ...cached, highlightedLines: line ? [line] : undefined };
+          setActiveFileIndex(idx);
+          return updated;
+        }
+        setActiveFileIndex(prev.length);
+        return [...prev, { ...cached, highlightedLines: line ? [line] : undefined }];
+      });
+      if (line) setActiveLine(line);
+      return;
+    }
+
+    // Fetch from GitHub API (current branch)
+    try {
+      const res = await fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(filePath)}&branch=main`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.type === 'file' && data.content) {
+          const ext = filePath.split('.').pop() || '';
+          const language = ['ts', 'tsx'].includes(ext) ? 'typescript' : 'javascript';
+          const codeFile: CodeFile = {
+            path: filePath,
+            content: data.content,
+            language,
+            highlightedLines: line ? [line] : undefined,
+          };
+          codeFileCacheRef.current.set(filePath, codeFile);
+          setCodeFiles((prev) => {
+            if (prev.find((f) => f.path === filePath)) return prev;
+            setActiveFileIndex(prev.length);
+            return [...prev, codeFile];
+          });
+          if (line) setActiveLine(line);
+        }
+      }
+    } catch {
+      // Silently fail — code viewer just won't show this file
+    }
+  }, []); // no deps needed — uses only refs and state setters
+
   // ── SSE stream connection ─────────────────────────────────────────────────
 
   const connectSSE = useCallback((projectId: string) => {
@@ -245,56 +295,7 @@ export default function TestCard({
     sse.onerror = () => {
       // SSE will auto-reconnect; we don't need to log every reconnect
     };
-  }, [module, addEvent, addLog, loadCodeFile]);
-
-  // ── Code file loading ─────────────────────────────────────────────────────
-
-  const loadCodeFile = useCallback(async (filePath: string, line?: number) => {
-    // Check cache first
-    if (codeFileCacheRef.current.has(filePath)) {
-      const cached = codeFileCacheRef.current.get(filePath)!;
-      setCodeFiles((prev) => {
-        const idx = prev.findIndex((f) => f.path === filePath);
-        if (idx >= 0) {
-          const updated = [...prev];
-          updated[idx] = { ...cached, highlightedLines: line ? [line] : undefined };
-          setActiveFileIndex(idx);
-          return updated;
-        }
-        setActiveFileIndex(prev.length);
-        return [...prev, { ...cached, highlightedLines: line ? [line] : undefined }];
-      });
-      if (line) setActiveLine(line);
-      return;
-    }
-
-    // Fetch from GitHub API (current branch)
-    try {
-      const res = await fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(filePath)}&branch=main`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.type === 'file' && data.content) {
-          const ext = filePath.split('.').pop() || '';
-          const language = ['ts', 'tsx'].includes(ext) ? 'typescript' : 'javascript';
-          const codeFile: CodeFile = {
-            path: filePath,
-            content: data.content,
-            language,
-            highlightedLines: line ? [line] : undefined,
-          };
-          codeFileCacheRef.current.set(filePath, codeFile);
-          setCodeFiles((prev) => {
-            if (prev.find((f) => f.path === filePath)) return prev;
-            setActiveFileIndex(prev.length);
-            return [...prev, codeFile];
-          });
-          if (line) setActiveLine(line);
-        }
-      }
-    } catch {
-      // Silently fail — code viewer just won't show this file
-    }
-  }, []); // no deps needed — uses only refs and state setters
+  }, [module, addLog, loadCodeFile]);
 
   // ── Run test ───────────────────────────────────────────────────────────────
 

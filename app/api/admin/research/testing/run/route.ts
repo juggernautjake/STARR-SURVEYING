@@ -70,7 +70,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if ((session.user as any).role !== 'admin') {
+  if (session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
   if (!WORKER_URL || !WORKER_API_KEY) {
@@ -133,7 +133,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     });
   } catch (err) {
     const duration = Date.now() - startTime;
-    const isTimeout = err instanceof DOMException && err.name === 'AbortError';
+    const isTimeout = err instanceof Error && err.name === 'AbortError';
     return NextResponse.json({
       success: false,
       duration,

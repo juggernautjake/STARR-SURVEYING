@@ -8,7 +8,7 @@ import { useEffect } from 'react';
 export default function TestingLabLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const userRole = (session?.user as any)?.role || 'employee';
+  const userRole = session?.user?.role || 'employee';
 
   useEffect(() => {
     if (status === 'authenticated' && userRole !== 'admin') {
