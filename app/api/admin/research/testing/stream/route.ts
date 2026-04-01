@@ -1,6 +1,16 @@
 // app/api/admin/research/testing/stream/route.ts
 // Server-Sent Events (SSE) stream for real-time pipeline events.
-// Polls the worker's live-log registry and forwards new entries to the client.
+// Polls the worker's /research/status endpoint and forwards new log entries
+// and stage updates to the client.
+//
+// Bug fixed (pass 10): Previously polled /research/logs which:
+//   (a) Returns 404 while the pipeline is running (no live data at all).
+//   (b) Returns { projectId, log: [...] } after completion — no `status` field,
+//       so the completion check (data.status === 'complete') was always false
+//       and the stream ran until the 10-minute safety valve every time.
+// The correct endpoint is /research/status which returns:
+//   { status: 'running', log: [...], currentStage: '...' }  — while running
+//   { status: 'complete'/'failed', log: [...] }             — when done
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 
@@ -51,7 +61,10 @@ export async function GET(req: NextRequest) {
         while (running) {
           try {
             if (WORKER_URL && WORKER_API_KEY) {
-              const res = await fetch(`${WORKER_URL}/research/logs/${projectId}`, {
+              // Poll /research/status (not /research/logs) — the status endpoint
+              // returns live log entries AND a `status` field both while running
+              // and after completion, enabling correct completion detection.
+              const res = await fetch(`${WORKER_URL}/research/status/${projectId}`, {
                 headers: { 'Authorization': `Bearer ${WORKER_API_KEY}` },
                 signal: AbortSignal.timeout(5_000),
               });
@@ -72,13 +85,27 @@ export async function GET(req: NextRequest) {
                   lastLogCount = logs.length;
                 }
 
-                // Detect pipeline completion
-                if (data.status === 'complete' || data.status === 'failed') {
-                  send({ type: 'complete', status: data.status });
+                // Forward stage update if present
+                if (typeof data.currentStage === 'string' && data.currentStage) {
+                  send({ type: 'stage', stage: data.currentStage, message: data.message ?? '' });
+                }
+
+                // Detect pipeline completion — /research/status always returns a
+                // status field: 'running', 'complete', 'failed', or 'partial'.
+                const status = typeof data.status === 'string' ? data.status : '';
+                if (status === 'complete' || status === 'failed' || status === 'partial') {
+                  send({ type: 'complete', status });
                   running = false;
                   try { controller.close(); } catch { /* already closed */ }
                   return;
                 }
+              } else if (res.status === 404) {
+                // Worker doesn't know this project — it may have been evicted from
+                // the in-memory cache. Treat as completion so we don't loop forever.
+                send({ type: 'complete', status: 'unknown', message: 'Pipeline result no longer in worker cache' });
+                running = false;
+                try { controller.close(); } catch { /* already closed */ }
+                return;
               }
             }
 

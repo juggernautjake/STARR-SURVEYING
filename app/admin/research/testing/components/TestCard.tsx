@@ -141,6 +141,7 @@ export default function TestCard({
     setTotalDuration(0);
     setIsExpanded(true);
     setShowDebugger(true);
+    setLogFilter(''); // clear any filter from the previous run so new logs are visible
     startTimeRef.current = Date.now();
 
     // Start playback timer

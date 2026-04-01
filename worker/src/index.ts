@@ -8,7 +8,7 @@ import path from 'path';
 import express from 'express';
 import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile, LayerAttempt } from './types/index.js';
-import { runPipeline, getSupabase, getRunningMessage, setRunningMessage } from './services/pipeline.js';
+import { runPipeline, getSupabase, getRunningMessage, setRunningMessage, clearRunningMessage } from './services/pipeline.js';
 import { getLiveLogForProject, clearLiveLogForProject, PipelineLogger } from './lib/logger.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
@@ -894,6 +894,9 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
   // while this new run is in progress.
   completedResults.delete(projectId);
   completedResultsCachedAt.delete(projectId);
+  // Also clear any stale running-message from a previous run so that a
+  // crash/abort that didn't clean up doesn't bleed into the new run's status.
+  clearRunningMessage(projectId);
   const pipelineAbortController = new AbortController();
   activePipelines.set(projectId, {
     projectId,
@@ -1000,6 +1003,11 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     .then(async (unifiedResult) => {
       setCompletedResult(projectId, unifiedResult);
       activePipelines.delete(projectId);
+      // Clear the running-message cache — the pipeline has finished.
+      // For generic pipelines this is already done inside runPipeline(); for
+      // county-specific pipelines (Bell etc.) the progress callback calls
+      // setRunningMessage on every event but nothing ever clears it.
+      clearRunningMessage(projectId);
       // ── Handshake: emit a pipeline-complete entry so the final poll sees it
       handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Complete',
         unifiedResult.resultType === 'generic-pipeline'
@@ -1444,6 +1452,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       setCompletedResult(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);
       clearLiveLogForProject(projectId);
+      clearRunningMessage(projectId);
       if (!isAborted) {
         console.error(`[Worker] ${projectId}: pipeline crash recorded — failureReason="${errMessage.slice(0, 120)}"`);
       }
