@@ -23,6 +23,7 @@ export interface TestCardProps {
 }
 
 type CardStatus = 'idle' | 'running' | 'paused' | 'success' | 'error';
+type ExecutionMode = 'continuous' | 'until-fail' | 'step';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -112,6 +113,7 @@ export default function TestCard({
   const [speed, setSpeed] = useState(1);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDebugger, setShowDebugger] = useState(false);
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>('continuous');
   const [logFilter, setLogFilter] = useState('');
   const [logLevelFilter, setLogLevelFilter] = useState<Set<string>>(
     new Set(['info', 'warn', 'error', 'success', 'debug'])
@@ -130,6 +132,8 @@ export default function TestCard({
   const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const replayRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sseRef = useRef<EventSource | null>(null);
+  const executionModeRef = useRef<ExecutionMode>(executionMode);
+  executionModeRef.current = executionMode; // keep ref in sync
 
   // Clean up intervals + SSE on unmount
   useEffect(() => {
@@ -287,6 +291,13 @@ export default function TestCard({
             evtType === 'phase-complete' ? 'success' : 'info';
           addLog(logLevel, module, `${data.label || ''}: ${data.description || ''}`);
 
+          // Auto-pause in "Run Until Fail" mode when an error event arrives
+          if (executionModeRef.current === 'until-fail' && evtType === 'error') {
+            setIsPlaying(false);
+            setStatus('paused');
+            addLog('warn', module, 'Auto-paused: error detected (Run Until Fail mode)');
+          }
+
           // Lazy-load source file for CodeViewer (deduplicated)
           if (data.file && typeof data.file === 'string' && !fetchedFiles.has(data.file)) {
             fetchedFiles.add(data.file);
@@ -407,6 +418,7 @@ export default function TestCard({
           inputs,
           projectId: context.projectId || undefined,
           branch: contextRecord.branch || undefined,
+          executionMode,
         }),
       });
 
@@ -687,6 +699,26 @@ export default function TestCard({
             </div>
           )}
 
+          {/* Execution mode selector */}
+          <div className="test-card__mode-selector">
+            <span className="test-card__mode-label">Mode:</span>
+            {([
+              { key: 'continuous' as const, label: 'Continuous', title: 'Run at selected speed, pause manually' },
+              { key: 'until-fail' as const, label: 'Until Fail', title: 'Run until an error occurs, then auto-pause' },
+              { key: 'step' as const, label: 'Step', title: 'Pause after each checkpoint — click Next to advance' },
+            ]).map((m) => (
+              <button
+                key={m.key}
+                className={`test-card__mode-btn ${executionMode === m.key ? 'test-card__mode-btn--active' : ''}`}
+                onClick={() => setExecutionMode(m.key)}
+                title={m.title}
+                disabled={status === 'running'}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
           {/* Action buttons */}
           <div className="test-card__actions">
             <button
@@ -694,8 +726,48 @@ export default function TestCard({
               onClick={handleRun}
               disabled={status === 'running' || missingInputs.length > 0}
             >
-              {status === 'running' ? 'Running...' : 'Run'}
+              {status === 'running'
+                ? 'Running...'
+                : executionMode === 'until-fail'
+                  ? 'Run Until Fail'
+                  : executionMode === 'step'
+                    ? 'Step Through'
+                    : 'Run'}
             </button>
+            {/* Step controls — visible during run or replay */}
+            {(status === 'running' || status === 'paused' || status === 'success' || status === 'error') && events.length > 0 && (
+              <div className="test-card__step-controls">
+                <button
+                  className="test-card__step-btn"
+                  onClick={handleStepBack}
+                  title="Previous event"
+                >
+                  ◀ Prev
+                </button>
+                <button
+                  className="test-card__step-btn test-card__step-btn--primary"
+                  onClick={() => {
+                    if (isPlaying) {
+                      setIsPlaying(false);
+                      if (status === 'running') setStatus('paused');
+                    } else {
+                      setIsPlaying(true);
+                      if (status === 'paused') setStatus('running');
+                    }
+                  }}
+                  title={isPlaying ? 'Pause' : 'Resume'}
+                >
+                  {isPlaying ? '▌▌ Pause' : '▶ Resume'}
+                </button>
+                <button
+                  className="test-card__step-btn"
+                  onClick={handleStepForward}
+                  title="Next event"
+                >
+                  Next ▶
+                </button>
+              </div>
+            )}
             <button className="test-card__clear-btn" onClick={handleClear}>
               Clear
             </button>

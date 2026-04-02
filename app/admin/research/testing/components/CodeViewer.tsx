@@ -98,34 +98,39 @@ function FileBrowser({ branch, onOpenFile }: { branch: string; onOpenFile: (path
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadDir = useCallback(async (dirPath: string) => {
+  // Load directory contents whenever the path or branch changes
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
-    try {
-      const res = await fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(dirPath)}&branch=${encodeURIComponent(branch)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.type === 'dir' && Array.isArray(data.files)) {
-          // Sort: directories first, then files, alphabetically
-          const sorted = (data.files as FileBrowserEntry[]).sort((a, b) => {
-            if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
-            return a.name.localeCompare(b.name);
-          });
-          setEntries(sorted);
-          setCurrentPath(dirPath);
-        }
-      } else {
-        setError(`Could not load: ${dirPath}`);
-      }
-    } catch {
-      setError('Failed to load files');
-    }
-    setLoading(false);
-  }, [branch]);
 
-  useEffect(() => {
-    loadDir(currentPath);
-  }, [loadDir, currentPath]);
+    fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(currentPath)}&branch=${encodeURIComponent(branch)}`)
+      .then(async (res) => {
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          if (data.type === 'dir' && Array.isArray(data.files)) {
+            const sorted = (data.files as FileBrowserEntry[]).sort((a, b) => {
+              if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+              return a.name.localeCompare(b.name);
+            });
+            setEntries(sorted);
+          } else {
+            setError(`Not a directory: ${currentPath}`);
+          }
+        } else {
+          setError(`Could not load: ${currentPath}`);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError('Failed to load files');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [currentPath, branch]);
 
   const handleClick = (entry: FileBrowserEntry) => {
     if (entry.type === 'dir') {
