@@ -55,7 +55,7 @@ export default function QuizHistoryPage() {
       }
     } catch (err) { console.error('QuizHistoryPage: failed to fetch history', err); }
     setLoading(false);
-  }, [adminEmail, role]);
+  }, [adminEmail, role, isAdminOrDev]);
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
