@@ -319,6 +319,9 @@ export default function TestCard({
     setStatus('running');
     setEvents([]);
     setLogs([]);
+    setCodeFiles([]);
+    setActiveFileIndex(0);
+    setActiveLine(undefined);
     setResult(null);
     setError(undefined);
     setDuration(undefined);
@@ -403,8 +406,9 @@ export default function TestCard({
 
           // Extract screenshots if present
           if (data.result?.screenshots && Array.isArray(data.result.screenshots)) {
-            setScreenshots(data.result.screenshots as string[]);
-            addEvent('screenshot', 'Screenshots captured', `${(data.result.screenshots as unknown[]).length} screenshots`);
+            const ssArr = data.result.screenshots as string[];
+            setScreenshots(ssArr);
+            addEvent('screenshot', 'Screenshots captured', `${ssArr.length} screenshots`);
           }
 
           // Extract logs from result if present

@@ -95,6 +95,29 @@ function JsonTree({ data, depth = 0 }: { data: unknown; depth?: number }) {
   return <span>{String(data)}</span>;
 }
 
+function ScreenshotItem({ url, index }: { url: string; index: number }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div className="output-viewer__screenshot">
+        <div className="output-viewer__img-error">
+          Failed to load: {url.split('/').pop() || `screenshot ${index + 1}`}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="output-viewer__screenshot">
+      <img
+        src={url}
+        alt={`Screenshot ${index + 1}`}
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    </div>
+  );
+}
+
 export default function OutputViewer({ result, screenshots, error, duration }: OutputViewerProps) {
   const [activeTab, setActiveTab] = useState<'json' | 'raw' | 'screenshots'>('json');
 
@@ -158,21 +181,7 @@ export default function OutputViewer({ result, screenshots, error, duration }: O
         {activeTab === 'screenshots' && screenshots && (
           <div className="output-viewer__screenshots">
             {screenshots.map((url, i) => (
-              <div key={i} className="output-viewer__screenshot">
-                <img
-                  src={url}
-                  alt={`Screenshot ${i + 1}`}
-                  loading="lazy"
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    target.style.display = 'none';
-                    const fallback = document.createElement('div');
-                    fallback.className = 'output-viewer__img-error';
-                    fallback.textContent = `Failed to load: ${url.split('/').pop() || 'image'}`;
-                    target.parentElement?.appendChild(fallback);
-                  }}
-                />
-              </div>
+              <ScreenshotItem key={i} url={url} index={i} />
             ))}
           </div>
         )}

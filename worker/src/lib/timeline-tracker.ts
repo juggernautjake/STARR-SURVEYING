@@ -202,15 +202,15 @@ export class TimelineTracker {
       entry.status === 'fail' ? 'error' :
       entry.status === 'warn' ? 'warning' :
       entry.source === 'handshake' ? 'checkpoint' :
-      entry.layer?.includes('AI') || entry.source?.includes('ai') ? 'ai-call' :
-      entry.source?.includes('playwright') || entry.source?.includes('browser') ? 'browser-action' :
-      entry.source?.includes('api') || entry.source?.includes('client') ? 'api-call' :
+      entry.layer.includes('AI') || entry.source.includes('ai') ? 'ai-call' :
+      entry.source.includes('playwright') || entry.source.includes('browser') ? 'browser-action' :
+      entry.source.includes('api') || entry.source.includes('client') ? 'api-call' :
       entry.dataPointsFound > 0 ? 'data-found' :
       'log';
 
     // Look up source file mapping
-    const sourceKey = entry.source?.toLowerCase().replace(/\s+/g, '-') || '';
-    const fileInfo = SOURCE_FILE_MAP[sourceKey] || SOURCE_FILE_MAP[entry.layer?.toLowerCase().replace(/\s+/g, '-') || ''];
+    const sourceKey = entry.source.toLowerCase().replace(/\s+/g, '-');
+    const fileInfo = SOURCE_FILE_MAP[sourceKey] || SOURCE_FILE_MAP[entry.layer.toLowerCase().replace(/\s+/g, '-')];
 
     const label = [entry.layer, entry.method].filter(Boolean).join(': ') || entry.source || 'log';
     const desc = entry.details || entry.error || entry.status;

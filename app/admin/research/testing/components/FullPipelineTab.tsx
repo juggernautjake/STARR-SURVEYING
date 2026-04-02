@@ -139,6 +139,10 @@ export default function FullPipelineTab() {
     setIsPlaying(true);
     setCurrentTime(0);
     setTotalDuration(0);
+    setCurrentPhase(null);
+    setLogFilter('');
+    logCounterRef.current = 0;
+    evtCounterRef.current = 0;
     startTimeRef.current = Date.now();
 
     // Start live ticker — advances the timeline every 100ms so the scrubber
