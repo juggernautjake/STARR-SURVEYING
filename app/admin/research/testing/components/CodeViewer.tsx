@@ -2,7 +2,7 @@
 // tracking (success/failed/executing), edit mode, and GitHub file browser.
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BROWSER_ROOT_DIRS, isPathAllowed, isPathEditable } from './allowedPaths';
 
 // ── Types ────────────────────────────────────────────────────────────────────
