@@ -152,6 +152,8 @@ export default function AdminDashboardPage() {
             ? 'Full admin access to Starr Surveying operations hub.'
             : isDevUser
             ? 'Developer access — all features available for testing.'
+            : roles.includes('tech_support')
+            ? 'Support access — view and troubleshoot across all systems.'
             : roles.includes('teacher')
             ? 'Manage content, track student progress, and continue learning.'
             : roles.includes('researcher')
@@ -217,8 +219,8 @@ export default function AdminDashboardPage() {
           <span className="dashboard-card__link">View Learning Hub &rarr;</span>
         </Link>
 
-        {/* My Jobs — visible to admin, developer, field_crew */}
-        {(isAdminOrDev || roles.includes('field_crew')) && isCompanyUser && (
+        {/* My Jobs — visible to admin, developer, field_crew, researcher */}
+        {(isAdminOrDev || roles.includes('field_crew') || roles.includes('researcher')) && isCompanyUser && (
           <Link href={isAdminOrDev ? '/admin/jobs' : '/admin/my-jobs'} className="dashboard-card dashboard-card--jobs">
             <div className="dashboard-card__header">
               <span className="dashboard-card__icon">📋</span>
@@ -365,10 +367,10 @@ export default function AdminDashboardPage() {
           {(isAdminOrDev || roles.includes('teacher')) && (
             <Link href="/admin/learn/manage" className="admin-dashboard__quick-link"><span>✏️</span>Manage Content</Link>
           )}
-          {(isAdminOrDev || roles.includes('researcher') || roles.includes('drawer')) && isCompanyUser && (
+          {(isAdminOrDev || roles.includes('researcher') || roles.includes('drawer') || roles.includes('field_crew')) && isCompanyUser && (
             <Link href="/admin/research" className="admin-dashboard__quick-link"><span>🔬</span>Research</Link>
           )}
-          {(isAdminOrDev || roles.includes('drawer')) && isCompanyUser && (
+          {(isAdminOrDev || roles.includes('drawer') || roles.includes('researcher') || roles.includes('field_crew')) && isCompanyUser && (
             <Link href="/admin/cad" className="admin-dashboard__quick-link"><span>📐</span>CAD Editor</Link>
           )}
           {isAdminUser && (

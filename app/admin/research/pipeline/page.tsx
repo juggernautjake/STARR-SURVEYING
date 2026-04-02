@@ -64,13 +64,14 @@ export default function PipelineDashboardPage() {
   // Selected job for detail view
   const [selectedJob, setSelectedJob] = useState<BatchJob | null>(null);
 
-  const userRole = (session?.user as { role?: string })?.role || 'employee';
+  const userRoles = (session?.user as { roles?: string[] })?.roles || ['employee'];
+  const canAccessPipeline = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('researcher');
 
   useEffect(() => {
-    if (sessionStatus === 'authenticated' && userRole !== 'admin') {
+    if (sessionStatus === 'authenticated' && !canAccessPipeline) {
       router.replace('/admin/dashboard');
     }
-  }, [sessionStatus, userRole, router]);
+  }, [sessionStatus, canAccessPipeline, router]);
 
   const loadBatchJobs = useCallback(async () => {
     setLoading(true);
@@ -88,10 +89,10 @@ export default function PipelineDashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (sessionStatus === 'authenticated' && userRole === 'admin') {
+    if (sessionStatus === 'authenticated' && canAccessPipeline) {
       void loadBatchJobs();
     }
-  }, [sessionStatus, userRole, loadBatchJobs]);
+  }, [sessionStatus, canAccessPipeline, loadBatchJobs]);
 
   // Auto-refresh running jobs every 10 seconds
   useEffect(() => {

@@ -313,14 +313,15 @@ export default function ResearchProjectPage() {
   const [editProjectData, setEditProjectData] = useState({ name: '', description: '', property_address: '', county: '', state: '' });
   const [savingProject, setSavingProject] = useState(false);
 
-  const userRole = session?.user?.role || 'employee';
+  const userRoles = session?.user?.roles || ['employee'];
+  const canAccessResearch = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('researcher') || userRoles.includes('drawer') || userRoles.includes('field_crew') || userRoles.includes('tech_support');
 
-  // Admin-only guard — use useEffect so hooks are never called conditionally
+  // Role guard — use useEffect so hooks are never called conditionally
   useEffect(() => {
-    if (sessionStatus === 'authenticated' && userRole !== 'admin') {
+    if (sessionStatus === 'authenticated' && !canAccessResearch) {
       router.replace('/admin/dashboard');
     }
-  }, [sessionStatus, userRole, router]);
+  }, [sessionStatus, canAccessResearch, router]);
 
   const loadProject = useCallback(async () => {
     try {

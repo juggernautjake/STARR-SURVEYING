@@ -81,8 +81,8 @@ export default function SchedulePage() {
     end_date: '', end_time: '17:00', all_day: false, location: '', notes: '',
   });
 
-  const userRole = session?.user?.role || 'employee';
-  const isAdmin = userRole === 'admin';
+  const userRoles = session?.user?.roles || ['employee'];
+  const isAdmin = userRoles.includes('admin');
 
   function navigatePrev() {
     const d = new Date(currentDate);

@@ -17,8 +17,8 @@ interface AdminSidebarProps {
   onClose: () => void;
 }
 
-// roles: which roles can see this item. If omitted, all roles can see it.
-// internalOnly: if true, only company-domain users can see this item.
+// roles: which roles can see this item. If omitted, all authenticated users see it.
+// internalOnly: if true, only company-domain (@starr-surveying.com) users see it.
 interface NavItem {
   href: string;
   label: string;
@@ -30,7 +30,6 @@ interface NavSection { label: string; items: NavItem[]; }
 
 const STORAGE_KEY = 'starr-sidebar-collapsed';
 
-// Role display labels
 const ROLE_DISPLAY: Record<UserRole, string> = {
   admin: 'Admin',
   developer: 'Developer',
@@ -44,7 +43,6 @@ const ROLE_DISPLAY: Record<UserRole, string> = {
   tech_support: 'Tech Support',
 };
 
-// Brand subtitle per primary role
 const BRAND_LABELS: Record<string, string> = {
   admin: 'Admin Panel',
   developer: 'Developer Panel',
@@ -58,23 +56,35 @@ const BRAND_LABELS: Record<string, string> = {
   guest: 'Learning Portal',
 };
 
+// ── Shorthand role groups for readability ──
+// These match the access matrix in docs/USER_ROLES_AND_ACCESS_CONTROL.md
+const WORK_ROLES: UserRole[] = ['admin', 'developer', 'field_crew'];
+const RESEARCH_ROLES: UserRole[] = ['admin', 'developer', 'researcher', 'drawer'];
+const CONTENT_MGMT_ROLES: UserRole[] = ['admin', 'developer', 'teacher'];
+const INTERNAL_COMM_ROLES: UserRole[] = ['admin', 'developer', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'];
+const PAY_ROLES: UserRole[] = ['admin', 'developer', 'field_crew'];
+
 export default function AdminSidebar({ role, roles, userName, userEmail, userImage, isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isCompanyUser = userEmail.toLowerCase().endsWith('@starr-surveying.com');
 
-  // Display label showing notable roles (skip employee base role)
   const notableRoles = roles.filter(r => r !== 'employee' && r !== 'guest');
   const roleDisplay = notableRoles.length > 0
     ? notableRoles.map(r => ROLE_DISPLAY[r]).join(' + ')
     : ROLE_DISPLAY[role];
 
+  // ── Navigation structure ──
+  // Each item's `roles` array defines who sees it. Admin always sees everything
+  // (enforced in canAccess). Items without `roles` are visible to all users.
+  // Items with `internalOnly` require @starr-surveying.com domain.
   const sections: NavSection[] = [
     { label: 'Main', items: [
       { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
-      { href: '/admin/assignments', label: 'Assignments', icon: '📋', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
-      { href: '/admin/schedule', label: 'My Schedule', icon: '📅', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
+      { href: '/admin/assignments', label: 'Assignments', icon: '📋', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/schedule', label: 'My Schedule', icon: '📅', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
     ]},
+
     { label: 'Learning', items: [
       { href: '/admin/learn', label: 'Learning Hub', icon: '🎓' },
       { href: '/admin/learn/roadmap', label: 'My Roadmap', icon: '🗺️' },
@@ -85,47 +95,56 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       { href: '/admin/learn/quiz-history', label: 'Quiz History', icon: '📊' },
       { href: '/admin/learn/fieldbook', label: 'My Fieldbook', icon: '📓' },
       { href: '/admin/learn/search', label: 'Search', icon: '🔎' },
-      { href: '/admin/learn/students', label: 'Student Progress', icon: '👨‍🎓', roles: ['admin', 'developer', 'teacher'] },
-      { href: '/admin/learn/manage', label: 'Manage Content', icon: '✏️', roles: ['admin', 'developer', 'teacher'] },
+      { href: '/admin/learn/students', label: 'Student Progress', icon: '👨‍🎓', roles: [...CONTENT_MGMT_ROLES, 'tech_support'] },
+      { href: '/admin/learn/manage', label: 'Manage Content', icon: '✏️', roles: [...CONTENT_MGMT_ROLES, 'tech_support'] },
     ]},
+
     { label: 'Work', items: [
       { href: '/admin/jobs', label: 'All Jobs', icon: '📋', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/my-jobs', label: 'My Jobs', icon: '🗂️', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
-      { href: '/admin/my-hours', label: 'My Hours', icon: '⏱️', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
+      { href: '/admin/my-jobs', label: 'My Jobs', icon: '🗂️', roles: [...WORK_ROLES, 'researcher', 'tech_support'], internalOnly: true },
+      { href: '/admin/my-hours', label: 'My Hours', icon: '⏱️', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
       { href: '/admin/jobs/new', label: 'New Job', icon: '➕', roles: ['admin'], internalOnly: true },
       { href: '/admin/jobs/import', label: 'Import Jobs', icon: '📥', roles: ['admin'], internalOnly: true },
-      { href: '/admin/leads', label: 'Leads', icon: '📨', roles: ['admin', 'developer'], internalOnly: true },
-      { href: '/admin/hours-approval', label: 'Hours Approval', icon: '✅', roles: ['admin', 'developer'], internalOnly: true },
+      { href: '/admin/leads', label: 'Leads', icon: '📨', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/hours-approval', label: 'Hours Approval', icon: '✅', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
     ]},
+
     { label: 'Research', items: [
-      { href: '/admin/research', label: 'Property Research', icon: '🔬', roles: ['admin', 'developer', 'researcher', 'drawer', 'tech_support'], internalOnly: true },
-      { href: '/admin/research/testing', label: 'Testing Lab', icon: '🧪', roles: ['admin', 'developer'], internalOnly: true },
+      { href: '/admin/research', label: 'Property Research', icon: '🔬', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true },
+      { href: '/admin/research/testing', label: 'Testing Lab', icon: '🧪', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
     ]},
+
     { label: 'CAD', items: [
-      { href: '/admin/cad', label: 'CAD Editor', icon: '📐', roles: ['admin', 'developer', 'drawer', 'researcher', 'field_crew', 'tech_support'], internalOnly: true },
+      { href: '/admin/cad', label: 'CAD Editor', icon: '📐', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true },
     ]},
+
     { label: 'Rewards & Pay', items: [
-      { href: '/admin/rewards', label: 'Rewards & Store', icon: '🏆', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
-      { href: '/admin/pay-progression', label: 'Pay Progression', icon: '📈', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
-      { href: '/admin/rewards/how-it-works', label: 'How Rewards Work', icon: '💡', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
-      { href: '/admin/rewards/admin', label: 'Manage Rewards', icon: '⚙️', roles: ['admin', 'developer'], internalOnly: true },
+      { href: '/admin/rewards', label: 'Rewards & Store', icon: '🏆', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/pay-progression', label: 'Pay Progression', icon: '📈', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/rewards/how-it-works', label: 'How Rewards Work', icon: '💡', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/rewards/admin', label: 'Manage Rewards', icon: '⚙️', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/my-pay', label: 'My Pay', icon: '💵', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/payout-log', label: 'Payout History', icon: '📒', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
     ]},
+
     { label: 'People', items: [
       { href: '/admin/employees', label: 'Employees', icon: '👥', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       { href: '/admin/users', label: 'Manage Users', icon: '🔑', roles: ['admin', 'tech_support'] },
       { href: '/admin/payroll', label: 'Payroll', icon: '💰', roles: ['admin'], internalOnly: true },
-      { href: '/admin/my-pay', label: 'My Pay', icon: '💵', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
-      { href: '/admin/payout-log', label: 'Payout History', icon: '📒', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
     ]},
+
     { label: 'Communication', items: [
-      { href: '/admin/messages', label: 'Messages', icon: '💬', roles: ['admin', 'developer', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'], internalOnly: true },
-      { href: '/admin/messages/contacts', label: 'Team Directory', icon: '📇', roles: ['admin', 'developer', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'], internalOnly: true },
+      { href: '/admin/messages', label: 'Messages', icon: '💬', roles: INTERNAL_COMM_ROLES, internalOnly: true },
+      { href: '/admin/messages/contacts', label: 'Team Directory', icon: '📇', roles: INTERNAL_COMM_ROLES, internalOnly: true },
+      { href: '/admin/discussions', label: 'Discussions', icon: '💬', roles: INTERNAL_COMM_ROLES, internalOnly: true },
     ]},
+
     { label: 'Notes & Files', items: [
       { href: '/admin/notes', label: 'Company Notes', icon: '📝', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/my-notes', label: 'My Notes', icon: '📒', internalOnly: true },
-      { href: '/admin/my-files', label: 'My Files', icon: '📁', internalOnly: true },
+      { href: '/admin/my-notes', label: 'My Notes', icon: '📒' },
+      { href: '/admin/my-files', label: 'My Files', icon: '📁' },
     ]},
+
     { label: 'Account', items: [
       { href: '/admin/profile', label: 'My Profile', icon: '👤' },
       { href: '/admin/settings', label: 'Settings', icon: '⚙️', roles: ['admin'] },
@@ -150,11 +169,9 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
     });
   };
 
-  /** Check if user's roles and domain are allowed for this nav item */
   const canAccess = (item: NavItem): boolean => {
     if (item.internalOnly && !isCompanyUser) return false;
-    if (!item.roles) return true; // no restriction = everyone
-    // Admin always sees everything
+    if (!item.roles) return true;
     if (roles.includes('admin')) return true;
     return item.roles.some(r => roles.includes(r));
   };
@@ -174,7 +191,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
   };
 
   const getInitials = (name: string) => {
-    const words = name.split(/\s+/).filter(w => /^[a-zA-Z]/.test(w));
+    const words = (name || '').split(/\s+/).filter(w => /^[a-zA-Z]/.test(w));
     if (words.length === 0) return '?';
     if (words.length === 1) return words[0][0].toUpperCase();
     return (words[0][0] + words[words.length - 1][0]).toUpperCase();

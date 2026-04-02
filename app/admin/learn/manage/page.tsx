@@ -24,9 +24,9 @@ interface Activity { id: string; user_email: string; action_type: string; entity
 export default function ManageContentPage() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
-  const userRole = session?.user?.role || 'employee';
-  const canManage = userRole === 'admin' || userRole === 'teacher';
-  const isAdmin = userRole === 'admin';
+  const userRoles = session?.user?.roles || ['employee'];
+  const canManage = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('teacher');
+  const isAdmin = userRoles.includes('admin');
   const { safeFetch } = usePageError('ManageContentPage');
   const { addToast } = useToast();
   const initialTab = (searchParams.get('tab') as Tab) || 'modules';
