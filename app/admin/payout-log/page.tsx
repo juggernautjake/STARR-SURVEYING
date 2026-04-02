@@ -64,7 +64,7 @@ const PAGE_SIZE = 25;
 export default function PayoutLogPage() {
   const { data: session } = useSession();
   const { safeFetch, reportPageError } = usePageError('PayoutLogPage');
-  const isAdmin = session?.user?.role === 'admin';
+  const isAdmin = session?.user?.roles?.includes('admin') ?? false;
   const email = session?.user?.email || '';
 
   const [entries, setEntries] = useState<PayoutEntry[]>([]);

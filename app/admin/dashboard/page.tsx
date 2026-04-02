@@ -35,6 +35,10 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   const role = session?.user?.role || 'employee';
+  const roles = session?.user?.roles || ['employee'];
+  const isAdminUser = roles.includes('admin');
+  const isDevUser = roles.includes('developer');
+  const isAdminOrDev = isAdminUser || isDevUser;
   const firstName = session?.user?.name?.split(' ')[0] || 'there';
 
   const loadData = useCallback(async () => {
@@ -76,7 +80,7 @@ export default function AdminDashboardPage() {
       }
 
       // Admin-only data
-      if (role === 'admin') {
+      if (isAdminOrDev) {
         // Activity feed
         try {
           const actRes = await fetch('/api/admin/learn/activity?limit=10');
@@ -143,14 +147,14 @@ export default function AdminDashboardPage() {
       <div className="admin-dashboard__welcome">
         <h2 className="admin-dashboard__welcome-title">Welcome back, {firstName}!</h2>
         <p className="admin-dashboard__welcome-sub">
-          {role === 'admin'
+          {isAdminOrDev
             ? 'Full admin access to Starr Surveying operations hub.'
             : 'Access your education, jobs, finances, and schedule.'}
         </p>
       </div>
 
       {/* Pending Registrations Banner (admin only) */}
-      {role === 'admin' && pendingCount > 0 && (
+      {isAdminUser && pendingCount > 0 && (
         <Link href="/admin/users" className="dashboard-pending-banner">
           <span className="dashboard-pending-banner__icon">&#x1F514;</span>
           <span className="dashboard-pending-banner__text">
@@ -201,7 +205,7 @@ export default function AdminDashboardPage() {
         </Link>
 
         {/* My Jobs */}
-        <Link href={role === 'admin' ? '/admin/jobs' : '/admin/my-jobs'} className="dashboard-card dashboard-card--jobs">
+        <Link href={isAdminOrDev ? '/admin/jobs' : '/admin/my-jobs'} className="dashboard-card dashboard-card--jobs">
           <div className="dashboard-card__header">
             <span className="dashboard-card__icon">📋</span>
             <span className="dashboard-card__badge">Work</span>
@@ -222,7 +226,7 @@ export default function AdminDashboardPage() {
         </Link>
 
         {/* My Finances */}
-        <Link href={role === 'admin' ? '/admin/payroll' : '/admin/my-pay'} className="dashboard-card dashboard-card--finances">
+        <Link href={isAdminOrDev ? '/admin/payroll' : '/admin/my-pay'} className="dashboard-card dashboard-card--finances">
           <div className="dashboard-card__header">
             <span className="dashboard-card__icon">💰</span>
             <span className="dashboard-card__badge">Finances</span>
@@ -289,7 +293,7 @@ export default function AdminDashboardPage() {
       )}
 
       {/* Admin Activity Feed */}
-      {role === 'admin' && activityFeed.length > 0 && (
+      {isAdminOrDev && activityFeed.length > 0 && (
         <div className="admin-dashboard__section">
           <h3 className="admin-dashboard__section-title">Recent Activity</h3>
           <div className="dashboard-activity-feed">
@@ -320,7 +324,7 @@ export default function AdminDashboardPage() {
           <Link href="/admin/learn/quiz-history" className="admin-dashboard__quick-link"><span>📊</span>Quiz History</Link>
           <Link href="/admin/learn/knowledge-base" className="admin-dashboard__quick-link"><span>🔍</span>Knowledge Base</Link>
           <Link href="/admin/learn/fieldbook" className="admin-dashboard__quick-link"><span>📓</span>My Fieldbook</Link>
-          {role === 'admin' && (
+          {isAdminOrDev && (
             <>
               <Link href="/admin/learn/manage" className="admin-dashboard__quick-link"><span>✏️</span>Manage Content</Link>
               <Link href="/admin/employees" className="admin-dashboard__quick-link"><span>👥</span>Employees</Link>

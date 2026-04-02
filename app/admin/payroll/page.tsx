@@ -45,7 +45,7 @@ export default function PayrollPage() {
     hire_date: '',
   });
 
-  const isAdmin = session?.user?.role === 'admin';
+  const isAdmin = session?.user?.roles?.includes('admin') ?? false;
 
   const loadEmployees = useCallback(async () => {
     try {

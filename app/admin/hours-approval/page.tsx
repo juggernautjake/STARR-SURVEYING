@@ -345,12 +345,9 @@ export default function HoursApprovalPage() {
   const pendingCount = logs.filter((l) => l.status === 'pending' || l.status === 'disputed').length;
   const pendingAdvances = advances.filter((a) => a.status === 'pending').length;
 
-  if (!session?.user?.email || session.user.role !== 'admin') {
+  if (!session?.user?.email || !session.user.roles?.includes('admin')) {
     return <div className="tl-loading">Admin access required</div>;
   }
-
-  // Admin-only page guard
-  if (session?.user && session.user.role !== 'admin') return null;
 
   return (
     <div className="tl-page">

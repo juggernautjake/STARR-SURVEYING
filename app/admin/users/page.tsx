@@ -1,7 +1,7 @@
 // app/admin/users/page.tsx — Admin user management with expanded roles
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { useSession } from 'next-auth/react';
 import type { UserRole } from '@/lib/auth';
 
@@ -403,9 +403,8 @@ export default function UsersPage() {
             </thead>
             <tbody>
               {filtered.map(user => (
-                <>
+                <Fragment key={user.id}>
                   <tr
-                    key={user.id}
                     className={`${user.is_banned ? 'um-row--banned' : !user.is_approved ? 'um-row--pending' : ''}`}
                     style={{ cursor: 'pointer' }}
                     onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}
@@ -493,7 +492,7 @@ export default function UsersPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

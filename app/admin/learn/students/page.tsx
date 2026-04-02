@@ -20,8 +20,8 @@ type SortKey = 'email' | 'lessons_completed' | 'quiz_count' | 'avg_quiz_score' |
 
 export default function StudentsPage() {
   const { data: session } = useSession();
-  const role = session?.user?.role || 'employee';
-  const canManage = role === 'admin' || role === 'teacher';
+  const roles = session?.user?.roles || ['employee'];
+  const canManage = roles.includes('admin') || roles.includes('teacher') || roles.includes('developer');
 
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);

@@ -12,7 +12,7 @@
 //   { status: 'running', log: [...], currentStage: '...' }  — while running
 //   { status: 'complete'/'failed', log: [...] }             — when done
 import { NextRequest } from 'next/server';
-import { auth } from '@/lib/auth';
+import { auth, isDeveloper } from '@/lib/auth';
 
 const WORKER_URL = process.env.WORKER_URL || '';
 const WORKER_API_KEY = process.env.WORKER_API_KEY || '';
@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.email || session.user.role !== 'admin') {
+  if (!session?.user?.email || !isDeveloper(session.user.roles)) {
     return new Response('Unauthorized', { status: 401 });
   }
 

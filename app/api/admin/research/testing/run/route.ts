@@ -1,7 +1,7 @@
 // app/api/admin/research/testing/run/route.ts
 // Proxy any scraper/analyzer/phase to the DigitalOcean worker.
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { auth, isDeveloper } from '@/lib/auth';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 const WORKER_URL = process.env.WORKER_URL || '';
@@ -186,8 +186,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (session.user.role !== 'admin') {
-    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!isDeveloper(session.user.roles)) {
+    return NextResponse.json({ error: 'Admin or Developer only' }, { status: 403 });
   }
   if (!WORKER_URL || !WORKER_API_KEY) {
     return NextResponse.json({ error: 'Worker not configured' }, { status: 503 });

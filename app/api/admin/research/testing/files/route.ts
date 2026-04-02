@@ -1,7 +1,7 @@
 // app/api/admin/research/testing/files/route.ts
 // Read a file from a specific branch via GitHub API
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { auth, isDeveloper } from '@/lib/auth';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
@@ -11,7 +11,7 @@ const REPO_NAME = 'STARR-SURVEYING';
 /* GET — Read file content from a branch */
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || session.user.role !== 'admin') {
+  if (!session?.user?.email || !isDeveloper(session.user.roles)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
