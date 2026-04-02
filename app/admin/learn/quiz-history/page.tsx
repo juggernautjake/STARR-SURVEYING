@@ -31,6 +31,8 @@ export default function QuizHistoryPage() {
   const { data: session } = useSession();
   const { safeFetch, safeAction } = usePageError('QuizHistoryPage');
   const role = session?.user?.role || 'employee';
+  const roles = session?.user?.roles || ['employee'];
+  const isAdminOrDev = roles.includes('admin') || roles.includes('developer');
   const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -43,7 +45,7 @@ export default function QuizHistoryPage() {
     setLoading(true);
     try {
       let url = '/api/admin/learn/quizzes?history=true&limit=50';
-      if (adminEmail && role === 'admin') {
+      if (adminEmail && isAdminOrDev) {
         url += `&user_email=${encodeURIComponent(adminEmail)}`;
       }
       const res = await fetch(url);
@@ -53,7 +55,7 @@ export default function QuizHistoryPage() {
       }
     } catch (err) { console.error('QuizHistoryPage: failed to fetch history', err); }
     setLoading(false);
-  }, [adminEmail, role]);
+  }, [adminEmail, role, isAdminOrDev]);
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
@@ -125,7 +127,7 @@ export default function QuizHistoryPage() {
       </div>
 
       {/* Admin: Employee selector */}
-      {role === 'admin' && (
+      {isAdminOrDev && (
         <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151' }}>View as:</label>
           <input

@@ -1,10 +1,10 @@
 // app/api/admin/users/[id]/route.ts
 // Admin user management: update roles, ban/unban, delete individual users
-import { auth, isAdmin } from '@/lib/auth';
+import { auth, isAdmin, ALL_ROLES } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 
-// PATCH - Update user (roles, ban/unban)
+// PATCH - Update user (roles, ban/unban, approve/reject)
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.roles)) {
@@ -27,15 +27,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   if (action === 'update_roles') {
-    // Validate roles array
-    const validRoles = ['admin', 'teacher', 'employee'];
+    const validRoleSet = new Set(ALL_ROLES as readonly string[]);
     if (!Array.isArray(roles) || roles.length === 0) {
       return NextResponse.json({ error: 'Roles must be a non-empty array' }, { status: 400 });
     }
-    if (!roles.every((r: string) => validRoles.includes(r))) {
-      return NextResponse.json({ error: 'Invalid role(s). Must be: admin, teacher, or employee' }, { status: 400 });
+    if (!roles.every((r: string) => validRoleSet.has(r))) {
+      return NextResponse.json({ error: `Invalid role(s). Must be one of: ${ALL_ROLES.join(', ')}` }, { status: 400 });
     }
-    // Always include employee as base role
     const finalRoles = roles.includes('employee') ? roles : ['employee', ...roles];
 
     const { error } = await supabaseAdmin
@@ -107,7 +105,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   if (action === 'reject') {
-    // Reject = delete the pending registration
     const { error } = await supabaseAdmin
       .from('registered_users')
       .delete()
@@ -133,7 +130,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
   const { id } = params;
 
-  // Validate the user exists
   const { data: user, error: fetchErr } = await supabaseAdmin
     .from('registered_users')
     .select('id, email, name')

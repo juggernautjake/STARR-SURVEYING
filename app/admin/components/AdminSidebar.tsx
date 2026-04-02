@@ -31,17 +31,31 @@ interface NavSection { label: string; items: NavItem[]; }
 const STORAGE_KEY = 'starr-sidebar-collapsed';
 
 // Role display labels
-const ROLE_LABELS: Record<UserRole, string> = {
+const ROLE_DISPLAY: Record<UserRole, string> = {
   admin: 'Admin',
+  developer: 'Developer',
   teacher: 'Teacher',
+  student: 'Student',
+  researcher: 'Researcher',
+  drawer: 'Drawer',
+  field_crew: 'Field Crew',
   employee: 'Employee',
+  guest: 'Guest',
+  tech_support: 'Tech Support',
 };
 
-// Brand subtitle per role
-const BRAND_LABELS: Record<UserRole, string> = {
+// Brand subtitle per primary role
+const BRAND_LABELS: Record<string, string> = {
   admin: 'Admin Panel',
+  developer: 'Developer Panel',
   teacher: 'Teacher Panel',
-  employee: 'Learning Portal',
+  tech_support: 'Support Panel',
+  researcher: 'Research Portal',
+  drawer: 'CAD Portal',
+  field_crew: 'Field Portal',
+  student: 'Learning Portal',
+  employee: 'Employee Portal',
+  guest: 'Learning Portal',
 };
 
 export default function AdminSidebar({ role, roles, userName, userEmail, userImage, isOpen, onClose }: AdminSidebarProps) {
@@ -49,16 +63,17 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
   const router = useRouter();
   const isCompanyUser = userEmail.toLowerCase().endsWith('@starr-surveying.com');
 
-  // Display label showing all roles
-  const roleDisplay = roles.filter(r => r !== 'employee').length > 0
-    ? roles.filter(r => r !== 'employee').map(r => ROLE_LABELS[r]).join(' + ')
-    : ROLE_LABELS.employee;
+  // Display label showing notable roles (skip employee base role)
+  const notableRoles = roles.filter(r => r !== 'employee' && r !== 'guest');
+  const roleDisplay = notableRoles.length > 0
+    ? notableRoles.map(r => ROLE_DISPLAY[r]).join(' + ')
+    : ROLE_DISPLAY[role];
 
   const sections: NavSection[] = [
     { label: 'Main', items: [
       { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
-      { href: '/admin/assignments', label: 'Assignments', icon: '📋', internalOnly: true },
-      { href: '/admin/schedule', label: 'My Schedule', icon: '📅', internalOnly: true },
+      { href: '/admin/assignments', label: 'Assignments', icon: '📋', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
+      { href: '/admin/schedule', label: 'My Schedule', icon: '📅', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
     ]},
     { label: 'Learning', items: [
       { href: '/admin/learn', label: 'Learning Hub', icon: '🎓' },
@@ -70,50 +85,51 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       { href: '/admin/learn/quiz-history', label: 'Quiz History', icon: '📊' },
       { href: '/admin/learn/fieldbook', label: 'My Fieldbook', icon: '📓' },
       { href: '/admin/learn/search', label: 'Search', icon: '🔎' },
-      { href: '/admin/learn/students', label: 'Student Progress', icon: '👨‍🎓', roles: ['admin', 'teacher'] },
-      { href: '/admin/learn/manage', label: 'Manage Content', icon: '✏️', roles: ['admin', 'teacher'] },
+      { href: '/admin/learn/students', label: 'Student Progress', icon: '👨‍🎓', roles: ['admin', 'developer', 'teacher'] },
+      { href: '/admin/learn/manage', label: 'Manage Content', icon: '✏️', roles: ['admin', 'developer', 'teacher'] },
     ]},
     { label: 'Work', items: [
-      { href: '/admin/jobs', label: 'All Jobs', icon: '📋', roles: ['admin'], internalOnly: true },
-      { href: '/admin/my-jobs', label: 'My Jobs', icon: '🗂️', internalOnly: true },
-      { href: '/admin/my-hours', label: 'My Hours', icon: '⏱️', internalOnly: true },
+      { href: '/admin/jobs', label: 'All Jobs', icon: '📋', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/my-jobs', label: 'My Jobs', icon: '🗂️', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
+      { href: '/admin/my-hours', label: 'My Hours', icon: '⏱️', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
       { href: '/admin/jobs/new', label: 'New Job', icon: '➕', roles: ['admin'], internalOnly: true },
       { href: '/admin/jobs/import', label: 'Import Jobs', icon: '📥', roles: ['admin'], internalOnly: true },
-      { href: '/admin/leads', label: 'Leads', icon: '📨', roles: ['admin'], internalOnly: true },
-      { href: '/admin/hours-approval', label: 'Hours Approval', icon: '✅', roles: ['admin'], internalOnly: true },
+      { href: '/admin/leads', label: 'Leads', icon: '📨', roles: ['admin', 'developer'], internalOnly: true },
+      { href: '/admin/hours-approval', label: 'Hours Approval', icon: '✅', roles: ['admin', 'developer'], internalOnly: true },
     ]},
     { label: 'Research', items: [
-      { href: '/admin/research', label: 'Property Research', icon: '🔬', roles: ['admin'], internalOnly: true },
+      { href: '/admin/research', label: 'Property Research', icon: '🔬', roles: ['admin', 'developer', 'researcher', 'drawer', 'tech_support'], internalOnly: true },
+      { href: '/admin/research/testing', label: 'Testing Lab', icon: '🧪', roles: ['admin', 'developer'], internalOnly: true },
     ]},
     { label: 'CAD', items: [
-      { href: '/admin/cad', label: 'CAD Editor', icon: '📐', internalOnly: true },
+      { href: '/admin/cad', label: 'CAD Editor', icon: '📐', roles: ['admin', 'developer', 'drawer', 'researcher', 'field_crew', 'tech_support'], internalOnly: true },
     ]},
     { label: 'Rewards & Pay', items: [
-      { href: '/admin/rewards', label: 'Rewards & Store', icon: '🏆', internalOnly: true },
-      { href: '/admin/pay-progression', label: 'Pay Progression', icon: '📈', internalOnly: true },
-      { href: '/admin/rewards/how-it-works', label: 'How Rewards Work', icon: '💡', internalOnly: true },
-      { href: '/admin/rewards/admin', label: 'Manage Rewards', icon: '⚙️', roles: ['admin'], internalOnly: true },
+      { href: '/admin/rewards', label: 'Rewards & Store', icon: '🏆', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
+      { href: '/admin/pay-progression', label: 'Pay Progression', icon: '📈', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
+      { href: '/admin/rewards/how-it-works', label: 'How Rewards Work', icon: '💡', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
+      { href: '/admin/rewards/admin', label: 'Manage Rewards', icon: '⚙️', roles: ['admin', 'developer'], internalOnly: true },
     ]},
     { label: 'People', items: [
-      { href: '/admin/employees', label: 'Employees', icon: '👥', roles: ['admin'], internalOnly: true },
-      { href: '/admin/users', label: 'Manage Users', icon: '🔑', roles: ['admin'] },
+      { href: '/admin/employees', label: 'Employees', icon: '👥', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/users', label: 'Manage Users', icon: '🔑', roles: ['admin', 'tech_support'] },
       { href: '/admin/payroll', label: 'Payroll', icon: '💰', roles: ['admin'], internalOnly: true },
-      { href: '/admin/my-pay', label: 'My Pay', icon: '💵', internalOnly: true },
-      { href: '/admin/payout-log', label: 'Payout History', icon: '📒', internalOnly: true },
+      { href: '/admin/my-pay', label: 'My Pay', icon: '💵', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
+      { href: '/admin/payout-log', label: 'Payout History', icon: '📒', roles: ['admin', 'developer', 'field_crew'], internalOnly: true },
     ]},
     { label: 'Communication', items: [
-      { href: '/admin/messages', label: 'Messages', icon: '💬', internalOnly: true },
-      { href: '/admin/messages/contacts', label: 'Team Directory', icon: '📇', internalOnly: true },
+      { href: '/admin/messages', label: 'Messages', icon: '💬', roles: ['admin', 'developer', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'], internalOnly: true },
+      { href: '/admin/messages/contacts', label: 'Team Directory', icon: '📇', roles: ['admin', 'developer', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'], internalOnly: true },
     ]},
     { label: 'Notes & Files', items: [
-      { href: '/admin/notes', label: 'Company Notes', icon: '📝', roles: ['admin'], internalOnly: true },
+      { href: '/admin/notes', label: 'Company Notes', icon: '📝', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       { href: '/admin/my-notes', label: 'My Notes', icon: '📒', internalOnly: true },
       { href: '/admin/my-files', label: 'My Files', icon: '📁', internalOnly: true },
     ]},
     { label: 'Account', items: [
       { href: '/admin/profile', label: 'My Profile', icon: '👤' },
       { href: '/admin/settings', label: 'Settings', icon: '⚙️', roles: ['admin'] },
-      { href: '/admin/error-log', label: 'Error Log', icon: '🐛', roles: ['admin'] },
+      { href: '/admin/error-log', label: 'Error Log', icon: '🐛', roles: ['admin', 'developer', 'tech_support'] },
     ]},
   ];
 
@@ -138,7 +154,8 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
   const canAccess = (item: NavItem): boolean => {
     if (item.internalOnly && !isCompanyUser) return false;
     if (!item.roles) return true; // no restriction = everyone
-    // Check if any of the user's roles match any of the item's required roles
+    // Admin always sees everything
+    if (roles.includes('admin')) return true;
     return item.roles.some(r => roles.includes(r));
   };
 
@@ -157,11 +174,9 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
   };
 
   const getInitials = (name: string) => {
-    // Filter to words starting with a letter (skip parenthetical nicknames, numbers, etc.)
     const words = name.split(/\s+/).filter(w => /^[a-zA-Z]/.test(w));
     if (words.length === 0) return '?';
     if (words.length === 1) return words[0][0].toUpperCase();
-    // Use first letter of first word + first letter of last word (skip middle names)
     return (words[0][0] + words[words.length - 1][0]).toUpperCase();
   };
 
@@ -179,7 +194,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
           <Image src="/logos/Starr_Surveying_Red_White_Blue_Star_With_Surveyor.png" alt="Starr Surveying" width={40} height={40} className="admin-sidebar__logo" />
           <div className="admin-sidebar__brand">
             <span className="admin-sidebar__brand-name">Starr Surveying</span>
-            <span className="admin-sidebar__brand-sub">{BRAND_LABELS[role]}</span>
+            <span className="admin-sidebar__brand-sub">{BRAND_LABELS[role] || 'Employee Portal'}</span>
           </div>
         </div>
         <nav className="admin-sidebar__nav">

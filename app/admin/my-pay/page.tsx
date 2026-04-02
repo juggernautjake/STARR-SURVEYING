@@ -44,7 +44,7 @@ export default function MyPayPage() {
   });
 
   const email = session?.user?.email || '';
-  const isAdmin = session?.user?.role === 'admin';
+  const isAdmin = session?.user?.roles?.includes('admin') ?? false;
 
   const loadProfile = useCallback(async () => {
     try {

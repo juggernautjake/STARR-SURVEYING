@@ -23,6 +23,7 @@ export default function LearnHubPage() {
   const { data: session } = useSession();
   const { safeFetch, safeAction } = usePageError('LearnHubPage');
   const role = session?.user?.role || 'employee';
+  const roles = session?.user?.roles || ['employee'];
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<any>(null);
   const [searching, setSearching] = useState(false);
@@ -126,7 +127,7 @@ export default function LearnHubPage() {
           <span className="admin-learn__section-arrow">Open Fieldbook →</span>
         </Link>
 
-        {(role === 'admin' || role === 'teacher') && (
+        {(roles.includes('admin') || roles.includes('teacher') || roles.includes('developer')) && (
           <Link href="/admin/learn/students" className="admin-learn__section-card" style={{ borderColor: '#1D3095' }}>
             <span className="admin-learn__section-icon">👨‍🎓</span>
             <h3 className="admin-learn__section-title">Student Progress</h3>
@@ -137,7 +138,7 @@ export default function LearnHubPage() {
           </Link>
         )}
 
-        {(role === 'admin' || role === 'teacher') && (
+        {(roles.includes('admin') || roles.includes('teacher') || roles.includes('developer')) && (
           <Link href="/admin/learn/manage" className="admin-learn__section-card" style={{ borderColor: '#BD1218' }}>
             <span className="admin-learn__section-icon">✏️</span>
             <h3 className="admin-learn__section-title">Manage Content</h3>

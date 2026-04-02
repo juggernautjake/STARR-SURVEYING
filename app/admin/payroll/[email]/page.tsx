@@ -46,7 +46,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
     is_active: true,
   });
 
-  const isAdmin = session?.user?.role === 'admin';
+  const isAdmin = session?.user?.roles?.includes('admin') ?? false;
   const isSelf = session?.user?.email === email;
 
   const loadProfile = useCallback(async () => {
