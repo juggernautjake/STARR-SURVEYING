@@ -108,11 +108,17 @@ const SOURCE_FILE_MAP: Record<string, { file: string; function?: string }> = {
 
 const trackers = new Map<string, TimelineTracker>();
 
+/** Get or create a tracker for a project (use during pipeline runs). */
 export function getTracker(projectId: string): TimelineTracker {
   if (!trackers.has(projectId)) {
     trackers.set(projectId, new TimelineTracker(projectId));
   }
   return trackers.get(projectId)!;
+}
+
+/** Get a tracker only if it already exists (use in read-only contexts like status endpoints). */
+export function getTrackerIfExists(projectId: string): TimelineTracker | undefined {
+  return trackers.get(projectId);
 }
 
 export function clearTracker(projectId: string): void {

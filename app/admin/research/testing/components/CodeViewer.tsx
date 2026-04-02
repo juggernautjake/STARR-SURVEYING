@@ -79,7 +79,8 @@ export default function CodeViewer({
   onContentChange,
 }: CodeViewerProps) {
   const codeRef = useRef<HTMLDivElement>(null);
-  const activeFile = files[activeFileIndex];
+  const safeIndex = Math.min(Math.max(0, activeFileIndex), Math.max(0, files.length - 1));
+  const activeFile = files[safeIndex];
   const [editContent, setEditContent] = useState('');
 
   // Sync edit content when file changes
@@ -112,7 +113,7 @@ export default function CodeViewer({
     }
   }, [activeFile, editContent, onSave]);
 
-  if (files.length === 0) {
+  if (files.length === 0 || !activeFile) {
     return (
       <div className="code-viewer code-viewer--empty">
         <div className="code-viewer__placeholder">

@@ -10,7 +10,7 @@ import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile, LayerAttempt } from './types/index.js';
 import { runPipeline, getSupabase, getRunningMessage, setRunningMessage, clearRunningMessage } from './services/pipeline.js';
 import { getLiveLogForProject, clearLiveLogForProject, PipelineLogger } from './lib/logger.js';
-import { getTracker, clearTracker } from './lib/timeline-tracker.js';
+import { getTracker, getTrackerIfExists, clearTracker } from './lib/timeline-tracker.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
@@ -1600,7 +1600,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         log: completedLogs.has(projectId)
           ? [...result.log, ...completedLogs.get(projectId)!]
           : result.log,
-        timeline: getTracker(projectId).getEntries(),
+        timeline: getTrackerIfExists(projectId)?.getEntries() ?? [],
         failureReason: result.failureReason,
         masterReportText: result.masterReportText,
       });
@@ -1650,7 +1650,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         screenshotCount: result.screenshots.length,
         aiUsage: result.aiUsage,
         log: completedLogs.get(projectId) ?? [],
-        timeline: getTracker(projectId).getEntries(),
+        timeline: getTrackerIfExists(projectId)?.getEntries() ?? [],
       });
     }
     return;
@@ -1674,7 +1674,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         address: pipeline.address,
         county: pipeline.county,
         log: liveLog,
-        timeline: getTracker(projectId).getEntries(),
+        timeline: getTrackerIfExists(projectId)?.getEntries() ?? [],
       });
       return;
     }
@@ -1706,7 +1706,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
     console.log(`[Worker] ${projectId} → Frontend: status poll — stage="${pipeline.currentStage ?? 'unknown'}" logEntries=${liveLog.length} msg="${(message ?? '').slice(0, 60)}"`);
 
     // Include timeline events for the Testing Lab's ExecutionTimeline
-    const timelineEntries = getTracker(projectId).getEntries();
+    const timelineEntries = getTrackerIfExists(projectId)?.getEntries() ?? [];
 
     res.json({
       projectId,
