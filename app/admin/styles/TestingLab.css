@@ -380,6 +380,58 @@
 
 .branch-selector__compare-toggle input { cursor: pointer; }
 
+/* Merge to main */
+.branch-selector__merge {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #E5E7EB;
+}
+
+.branch-selector__btn--merge {
+  background: #059669;
+  color: #fff;
+  border-color: #059669;
+  font-weight: 600;
+}
+
+.branch-selector__btn--merge:hover { background: #047857; border-color: #047857; }
+
+.branch-selector__btn--merge-go {
+  background: #059669;
+  color: #fff;
+  border-color: #059669;
+}
+
+.branch-selector__btn--merge-go:hover { background: #047857; }
+.branch-selector__btn--merge-go:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.branch-selector__merge-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.branch-selector__merge-msg {
+  margin-top: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+
+.branch-selector__merge-msg--ok {
+  background: #ECFDF5;
+  color: #065F46;
+  border: 1px solid #6EE7B7;
+}
+
+.branch-selector__merge-msg--err {
+  background: #FEF2F2;
+  color: #991B1B;
+  border: 1px solid #FECACA;
+}
+
 /* ── Test Card ─────────────────────────────────────────────────────────────── */
 
 .test-card {
@@ -2184,6 +2236,46 @@
   color: #6B7280;
   font-family: var(--lab-mono);
   font-size: 0.72rem;
+}
+
+.deploy-status__deploy-btn {
+  padding: 0.25rem 0.6rem;
+  background: #D97706;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.deploy-status__deploy-btn:hover { background: #B45309; }
+.deploy-status__deploy-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.deploy-status__synced {
+  color: #059669;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.deploy-status__feedback {
+  margin-top: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+
+.deploy-status__feedback--ok {
+  background: #ECFDF5;
+  color: #065F46;
+  border: 1px solid #6EE7B7;
+}
+
+.deploy-status__feedback--err {
+  background: #FEF2F2;
+  color: #991B1B;
+  border: 1px solid #FECACA;
 }
 
 /* ── Code Browser Tab ─────────────────────────────────────────────────────── */

@@ -73,6 +73,10 @@ const MODULE_ENDPOINTS: Record<string, { method: string; path: string }> = {
   'cancel':                { method: 'POST', path: '/research/cancel/{projectId}' },
   'pause':                 { method: 'POST', path: '/research/pause/{projectId}' },
   'resume':                { method: 'POST', path: '/research/resume/{projectId}' },
+
+  // Worker deployment
+  'deploy':                { method: 'POST', path: '/admin/deploy' },
+  'deploy-status':         { method: 'GET',  path: '/admin/deploy/status' },
 };
 
 // ── Per-module fetch timeout (ms) ────────────────────────────────────────────
