@@ -68,6 +68,11 @@ const MODULE_ENDPOINTS: Record<string, { method: string; path: string }> = {
   'health':                { method: 'GET',  path: '/health' },
   'health-sites':          { method: 'GET',  path: '/admin/health/sites' },
   'health-check-all':      { method: 'POST', path: '/admin/health/check-all' },
+
+  // Pipeline control (path is a template — /{projectId} appended by transformInputs)
+  'cancel':                { method: 'POST', path: '/research/cancel/{projectId}' },
+  'pause':                 { method: 'POST', path: '/research/pause/{projectId}' },
+  'resume':                { method: 'POST', path: '/research/resume/{projectId}' },
 };
 
 // ── Per-module fetch timeout (ms) ────────────────────────────────────────────
@@ -219,7 +224,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const url = `${WORKER_URL}${endpoint.path}`;
+    // Replace {projectId} template in path for control endpoints (cancel/pause/resume)
+    const resolvedPath = endpoint.path.includes('{projectId}')
+      ? endpoint.path.replace('{projectId}', encodeURIComponent(resolvedProjectId ?? ''))
+      : endpoint.path;
+    const url = `${WORKER_URL}${resolvedPath}`;
     const workerRes = await fetch(url, {
       method: endpoint.method,
       headers: workerHeaders(endpoint.method),

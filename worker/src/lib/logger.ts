@@ -6,6 +6,7 @@
 //   Legacy style: const t = logger.startAttempt({...}); t({ status: 'success', ... })
 
 import type { LayerAttempt } from '../types/index.js';
+import { getTracker } from './timeline-tracker.js';
 
 // ── Global live-log registry ──────────────────────────────────────────────────
 // Maintains a running copy of each project's log entries so the status endpoint
@@ -195,6 +196,15 @@ export class PipelineLogger {
   addEntry(entry: LayerAttempt): void {
     this.log_.push(entry);
     this._registerLive(entry);
+
+    // Bridge to TimelineTracker — every log entry becomes a timeline event
+    // so the Testing Lab frontend can render it on the ExecutionTimeline.
+    try {
+      getTracker(this.projectId).fromLayerAttempt(entry);
+    } catch {
+      // Non-fatal: if timeline tracker fails, logging still works
+    }
+
     const icon = entry.status === 'success' ? '✓'
       : entry.status === 'partial' ? '◐'
       : entry.status === 'fail'    ? '✗'

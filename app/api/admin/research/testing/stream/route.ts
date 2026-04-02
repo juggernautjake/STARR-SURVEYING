@@ -90,6 +90,13 @@ export async function GET(req: NextRequest) {
                   send({ type: 'stage', stage: data.currentStage, message: data.message ?? '' });
                 }
 
+                // Forward timeline events if present — these include file/line
+                // metadata for the CodeViewer and per-step granularity for the
+                // ExecutionTimeline.
+                if (Array.isArray(data.timeline) && data.timeline.length > 0) {
+                  send({ type: 'timeline', entries: data.timeline });
+                }
+
                 // Detect pipeline completion — /research/status always returns a
                 // status field: 'running', 'complete', 'failed', or 'partial'.
                 const status = typeof data.status === 'string' ? data.status : '';
