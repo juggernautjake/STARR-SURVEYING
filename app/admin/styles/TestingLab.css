@@ -213,6 +213,10 @@
   transition: border-color 0.2s;
 }
 
+.test-card--idle {
+  /* default state — no special border */
+}
+
 .test-card--running {
   border-color: #3B82F6;
   box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2);
@@ -1325,8 +1329,14 @@
   border-radius: 4px;
   font-size: 0.7rem;
   font-weight: 600;
+  transition: opacity 0.15s;
   cursor: pointer;
   text-transform: uppercase;
+}
+
+/* Active state handled via inline styles for per-level colors */
+.log-viewer-tab__level-btn--active {
+  font-weight: 700;
 }
 
 .log-viewer-tab__entries {
