@@ -1,7 +1,7 @@
 // CodeViewer.tsx — Multi-tab code viewer with syntax highlighting and edit mode
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
