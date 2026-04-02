@@ -191,6 +191,7 @@ function cleanupOldResults(): void {
       completedResults.delete(key);
       completedLogs.delete(key);
       completedResultsCachedAt.delete(key);
+      clearTracker(key); // Clean up timeline tracker memory
       evicted++;
     }
   }
@@ -1320,6 +1321,15 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         if (screenshotCount > 0) {
           handshakeLogger.attempt('Results', 'info', 'Screenshots', `${screenshotCount} captured`)
             .success(screenshotCount, `${screenshotCount} screenshot(s) captured from research sources`);
+          // Emit individual screenshot timeline events so the Testing Lab can
+          // display them in the OutputViewer as they're captured.
+          for (const ss of r.screenshots) {
+            const url = typeof ss === 'string' ? ss : (ss as Record<string, unknown>)?.url;
+            const label = typeof ss === 'string' ? ss.split('/').pop() : (ss as Record<string, unknown>)?.label;
+            if (typeof url === 'string') {
+              timeline.screenshot(url, typeof label === 'string' ? label : undefined);
+            }
+          }
         }
 
         // AI analysis summary

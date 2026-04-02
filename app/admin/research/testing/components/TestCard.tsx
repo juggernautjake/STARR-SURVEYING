@@ -128,10 +128,10 @@ export default function TestCard({
 
   const startTimeRef = useRef<number>(0);
   const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Ref for the post-run playback ticker (separate from the live-run ticker)
   const replayRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sseRef = useRef<EventSource | null>(null);
 
-  // Clean up intervals on unmount to avoid memory leaks
+  // Clean up intervals + SSE on unmount
   useEffect(() => {
     return () => {
       if (playbackRef.current) {
@@ -142,6 +142,7 @@ export default function TestCard({
         clearInterval(replayRef.current);
         replayRef.current = null;
       }
+      sseRef.current?.close();
     };
   }, []);
 
@@ -219,6 +220,92 @@ export default function TestCard({
     setTotalDuration(ts);
   }, []);
 
+  // ── SSE stream for real-time worker events ──────────────────────────────────
+
+  const connectSSE = useCallback((projectId: string) => {
+    sseRef.current?.close();
+    const url = `/api/admin/research/testing/stream?projectId=${encodeURIComponent(projectId)}`;
+    const sse = new EventSource(url);
+    sseRef.current = sse;
+
+    sse.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'connected') return;
+
+        if (data.type === 'complete') {
+          sse.close();
+          sseRef.current = null;
+          return;
+        }
+
+        // Log entries from the worker's live log registry
+        if (data.type === 'log') {
+          const level: LogEntry['level'] =
+            data.status === 'fail' ? 'error' :
+            data.status === 'warn' ? 'warn' :
+            data.status === 'success' ? 'success' : 'info';
+          const parsed = parseRawLogEntry(data, module);
+          if (parsed) {
+            addLog(parsed.level, parsed.source, parsed.message, parsed.details);
+          } else {
+            addLog(level, data.source || module, data.details || data.method || 'log entry');
+          }
+        }
+
+        // Stage update — update the card's running message
+        if (data.type === 'stage') {
+          addLog('info', module, `Stage: ${data.stage}${data.message ? ` — ${data.message}` : ''}`);
+        }
+
+        // Timeline events from the worker's TimelineTracker
+        if (data.type === 'timeline-event') {
+          const evt: TimelineEvent = {
+            id: data.id || nextEventId(),
+            timestamp: typeof data.timestamp === 'number' ? data.timestamp : Date.now() - startTimeRef.current,
+            type: data.type as EventType ?? 'log',
+            label: data.label || '',
+            description: data.description || '',
+            file: data.file,
+            function: data.function,
+            line: data.line,
+            duration: data.duration,
+          };
+          // Use the event's own type field (the SSE spreads the TimelineEntry fields)
+          if (data.type) evt.type = data.type;
+          setEvents((prev) => [...prev, evt]);
+
+          // If the event has file info, load it into CodeViewer
+          if (data.file && typeof data.file === 'string') {
+            // Lazy-load the file from GitHub API for the CodeViewer
+            fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(data.file)}&branch=${encodeURIComponent(contextRecord.branch || 'main')}`)
+              .then((res) => res.ok ? res.json() : null)
+              .then((fileData) => {
+                if (fileData?.type === 'file' && fileData.content) {
+                  const ext = data.file.split('.').pop() || '';
+                  const lang = ['ts', 'tsx'].includes(ext) ? 'typescript' : 'javascript';
+                  setCodeFiles((prev) => {
+                    if (prev.find((f) => f.path === data.file)) return prev;
+                    return [...prev, { path: data.file, content: fileData.content, language: lang, highlightedLines: data.line ? [data.line] : undefined }];
+                  });
+                }
+              })
+              .catch(() => { /* non-fatal */ });
+
+            if (data.line) setActiveLine(data.line);
+          }
+        }
+      } catch {
+        // Ignore parse errors from heartbeat comments
+      }
+    };
+
+    sse.onerror = () => {
+      // EventSource auto-reconnects; no action needed
+    };
+  }, [module, addLog, contextRecord.branch]);
+
   // ── Run test ───────────────────────────────────────────────────────────────
 
   const handleRun = async () => {
@@ -259,6 +346,12 @@ export default function TestCard({
 
     addLog('info', module, `Inputs: ${JSON.stringify(inputs)}`);
     addEvent('api-call', 'API Request', `POST /api/admin/research/testing/run — module: ${module}`);
+
+    // Connect SSE stream for real-time events (only if we have a projectId
+    // — without one, the worker has no project to track)
+    if (context.projectId) {
+      connectSSE(context.projectId);
+    }
 
     try {
       const res = await fetch('/api/admin/research/testing/run', {
@@ -340,6 +433,10 @@ export default function TestCard({
       setCurrentTime(elapsed);
     }
 
+    // Close SSE stream
+    sseRef.current?.close();
+    sseRef.current = null;
+
     // Publish all logs to the shared store so LogViewerTab can see them
     setLogs((currentLogs) => {
       const runId = `${module}-${startTimeRef.current}`;
@@ -382,6 +479,8 @@ export default function TestCard({
     setIsPlaying(false);
     setShowDebugger(false);
     setLogFilter('');
+    sseRef.current?.close();
+    sseRef.current = null;
     if (playbackRef.current) {
       clearInterval(playbackRef.current);
       playbackRef.current = null;

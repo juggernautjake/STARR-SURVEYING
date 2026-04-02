@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
 
       let running = true;
       let lastLogCount = 0;
+      let lastTimelineCount = 0;
       // Safety valve: SSE streams that never receive a 'complete'/'failed' status
       // from the worker (e.g. when the worker crashes mid-run) would otherwise
       // run forever, consuming server resources and keeping Vercel functions alive.
@@ -90,11 +91,16 @@ export async function GET(req: NextRequest) {
                   send({ type: 'stage', stage: data.currentStage, message: data.message ?? '' });
                 }
 
-                // Forward timeline events if present — these include file/line
-                // metadata for the CodeViewer and per-step granularity for the
-                // ExecutionTimeline.
-                if (Array.isArray(data.timeline) && data.timeline.length > 0) {
-                  send({ type: 'timeline', entries: data.timeline });
+                // Forward only NEW timeline events since last poll — these include
+                // file/line metadata for the CodeViewer and per-step granularity
+                // for the ExecutionTimeline.
+                const timeline = Array.isArray(data.timeline) ? data.timeline as Record<string, unknown>[] : [];
+                if (timeline.length > lastTimelineCount) {
+                  const newEntries = timeline.slice(lastTimelineCount);
+                  for (const entry of newEntries) {
+                    send({ type: 'timeline-event', ...entry });
+                  }
+                  lastTimelineCount = timeline.length;
                 }
 
                 // Detect pipeline completion — /research/status always returns a
