@@ -27,6 +27,30 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }, { status: 400 });
   }
 
+  // Server-side enforcement: only allow pushing to STARR RECON paths.
+  // This prevents the Testing Lab from modifying frontend, infrastructure,
+  // or testing suite code.
+  const ALLOWED_PUSH_PREFIXES = [
+    'worker/src/services/',
+    'worker/src/adapters/',
+    'worker/src/counties/',
+    'worker/src/sources/',
+    'worker/src/orchestrator/',
+    'worker/src/ai/',
+    'worker/src/types/',
+    'worker/src/lib/',
+    'worker/src/models/',
+    'worker/src/chain-of-title/',
+    'worker/src/reports/',
+    'worker/src/exports/',
+  ];
+
+  if (!ALLOWED_PUSH_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+    return NextResponse.json({
+      error: `Access restricted: the Testing Lab can only edit STARR RECON research code (worker/src/). Path "${path}" is outside the allowed scope.`,
+    }, { status: 403 });
+  }
+
   try {
     // If no SHA provided, get current file SHA first
     let fileSha = sha;

@@ -61,7 +61,39 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'GITHUB_TOKEN not configured' }, { status: 503 });
   }
 
-  const { name, from } = await req.json();
+  const body = await req.json();
+
+  // ── Create Pull Request ────────────────────────────────────────────────
+  if (body.action === 'create-pr') {
+    const { head, base, title } = body as { head: string; base: string; title: string };
+    if (!head || !base || !title) {
+      return NextResponse.json({ error: 'head, base, and title are required' }, { status: 400 });
+    }
+    try {
+      const prRes = await githubFetch('/pulls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          head,
+          base,
+          body: `Created from STARR Testing Lab\n\nBranch: ${head} → ${base}`,
+        }),
+      });
+      if (prRes.ok) {
+        const prData = await prRes.json() as { html_url: string; number: number };
+        return NextResponse.json({ success: true, prUrl: prData.html_url, prNumber: prData.number });
+      }
+      const errData = await prRes.json() as { message?: string; errors?: { message: string }[] };
+      const errMsg = errData.errors?.[0]?.message || errData.message || 'Failed to create PR';
+      return NextResponse.json({ error: errMsg }, { status: 422 });
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed' }, { status: 500 });
+    }
+  }
+
+  // ── Create Branch ──────────────────────────────────────────────────────
+  const { name, from } = body as { name?: string; from?: string };
   if (!name || !from) {
     return NextResponse.json({ error: 'name and from are required' }, { status: 400 });
   }

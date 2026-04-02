@@ -3,6 +3,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { BROWSER_ROOT_DIRS, isPathAllowed, isPathEditable } from './allowedPaths';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ interface CodeViewerProps {
   branch?: string;
   onFileSelect?: (index: number) => void;
   onSave?: (file: CodeFile) => void;
+  /** One-click: save to branch + deploy to worker */
+  onSaveAndDeploy?: (file: CodeFile) => void;
   onContentChange?: (index: number, content: string) => void;
   /** Called when user wants to open a file from the file browser */
   onOpenFile?: (path: string) => void;
@@ -93,39 +96,64 @@ interface FileBrowserEntry {
 }
 
 function FileBrowser({ branch, onOpenFile }: { branch: string; onOpenFile: (path: string) => void }) {
-  const [currentPath, setCurrentPath] = useState('worker/src');
+  // '' = show the STARR RECON root directory listing (curated)
+  const [currentPath, setCurrentPath] = useState('');
   const [entries, setEntries] = useState<FileBrowserEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadDir = useCallback(async (dirPath: string) => {
+  // Load directory contents whenever the path or branch changes
+  useEffect(() => {
+    // Root view: show the curated STARR RECON directory listing
+    if (!currentPath) {
+      setEntries(BROWSER_ROOT_DIRS.map((d) => ({
+        name: d.name,
+        path: d.path,
+        type: 'dir' as const,
+      })));
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    // Only allow navigating into allowed directories
+    if (!isPathAllowed(currentPath + '/') && !isPathAllowed(currentPath)) {
+      setError(`Outside STARR RECON scope. The Testing Lab only allows access to research & analysis code (scrapers, adapters, counties, AI, pipeline).`);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
     setLoading(true);
     setError(null);
-    try {
-      const res = await fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(dirPath)}&branch=${encodeURIComponent(branch)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.type === 'dir' && Array.isArray(data.files)) {
-          // Sort: directories first, then files, alphabetically
-          const sorted = (data.files as FileBrowserEntry[]).sort((a, b) => {
-            if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
-            return a.name.localeCompare(b.name);
-          });
-          setEntries(sorted);
-          setCurrentPath(dirPath);
-        }
-      } else {
-        setError(`Could not load: ${dirPath}`);
-      }
-    } catch {
-      setError('Failed to load files');
-    }
-    setLoading(false);
-  }, [branch]);
 
-  useEffect(() => {
-    loadDir(currentPath);
-  }, [loadDir, currentPath]);
+    fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(currentPath)}&branch=${encodeURIComponent(branch)}`)
+      .then(async (res) => {
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          if (data.type === 'dir' && Array.isArray(data.files)) {
+            const sorted = (data.files as FileBrowserEntry[]).sort((a, b) => {
+              if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+              return a.name.localeCompare(b.name);
+            });
+            setEntries(sorted);
+          } else {
+            setError(`Not a directory: ${currentPath}`);
+          }
+        } else {
+          setError(`Could not load: ${currentPath}`);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError('Failed to load files');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [currentPath, branch]);
 
   const handleClick = (entry: FileBrowserEntry) => {
     if (entry.type === 'dir') {
@@ -136,14 +164,20 @@ function FileBrowser({ branch, onOpenFile }: { branch: string; onOpenFile: (path
   };
 
   const navigateUp = () => {
+    if (!currentPath) return;
     const parent = currentPath.includes('/') ? currentPath.split('/').slice(0, -1).join('/') : '';
-    if (parent) setCurrentPath(parent);
+    // If parent is not in allowed paths, go back to root
+    if (!parent || (!isPathAllowed(parent + '/') && !isPathAllowed(parent))) {
+      setCurrentPath('');
+    } else {
+      setCurrentPath(parent);
+    }
   };
 
   return (
     <div className="code-viewer__browser">
       <div className="code-viewer__browser-header">
-        <span className="code-viewer__browser-title">Files</span>
+        <span className="code-viewer__browser-title">STARR RECON Files</span>
         <span className="code-viewer__browser-branch">{branch}</span>
       </div>
       <div className="code-viewer__browser-path">
@@ -152,7 +186,7 @@ function FileBrowser({ branch, onOpenFile }: { branch: string; onOpenFile: (path
             ..
           </button>
         )}
-        <span className="code-viewer__browser-current">{currentPath || '/'}</span>
+        <span className="code-viewer__browser-current">{currentPath || 'STARR RECON'}</span>
       </div>
       {loading && <div className="code-viewer__browser-loading">Loading...</div>}
       {error && <div className="code-viewer__browser-error">{error}</div>}
@@ -185,6 +219,7 @@ export default function CodeViewer({
   branch = 'main',
   onFileSelect,
   onSave,
+  onSaveAndDeploy,
   onContentChange,
   onOpenFile,
 }: CodeViewerProps) {
@@ -193,6 +228,9 @@ export default function CodeViewer({
   const activeFile = files[safeIndex];
   const [editContent, setEditContent] = useState('');
   const [showBrowser, setShowBrowser] = useState(false);
+
+  // Force read-only for files outside the editable STARR RECON scope
+  const effectiveReadOnly = readOnly || (activeFile ? !isPathEditable(activeFile.path) : true);
 
   useEffect(() => {
     if (activeFile) setEditContent(activeFile.content);
@@ -245,7 +283,7 @@ export default function CodeViewer({
     );
   }
 
-  const lines = (readOnly ? activeFile.content : editContent).split('\n');
+  const lines = (effectiveReadOnly ? activeFile.content : editContent).split('\n');
   const highlighted = activeFile.highlightedLines
     ? new Set(activeFile.highlightedLines)
     : new Set<number>();
@@ -287,8 +325,20 @@ export default function CodeViewer({
       {/* File path + status bar */}
       <div className="code-viewer__filepath">
         <span className="code-viewer__filepath-text">{activeFile.path}</span>
-        {!readOnly && <span className="code-viewer__edit-badge">EDIT MODE</span>}
-        {readOnly && activeLine && (
+        <a
+          className="code-viewer__github-link"
+          href={`https://github.com/juggernautjake/STARR-SURVEYING/blob/${encodeURIComponent(branch)}/${activeFile.path}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open on GitHub"
+        >
+          GitHub
+        </a>
+        {!effectiveReadOnly && <span className="code-viewer__edit-badge">EDIT MODE</span>}
+        {effectiveReadOnly && !isPathEditable(activeFile.path) && (
+          <span className="code-viewer__readonly-badge">READ ONLY</span>
+        )}
+        {effectiveReadOnly && activeLine && (
           <span className="code-viewer__line-badge">Line {activeLine}</span>
         )}
         {lineStates.size > 0 && (
@@ -305,7 +355,7 @@ export default function CodeViewer({
 
       {/* Code area */}
       <div className="code-viewer__content" ref={codeRef}>
-        {readOnly ? (
+        {effectiveReadOnly ? (
           <div className="code-viewer__lines">
             {lines.map((line, i) => {
               const lineNum = i + 1;
@@ -354,15 +404,26 @@ export default function CodeViewer({
       </div>
 
       {/* Save bar (edit mode) */}
-      {!readOnly && onSave && (
+      {!effectiveReadOnly && onSave && (
         <div className="code-viewer__save-bar">
           <span className="code-viewer__save-hint">Ctrl+S to save to {branch}</span>
-          <button
-            className="code-viewer__save-btn"
-            onClick={() => onSave({ ...activeFile, content: editContent })}
-          >
-            Save &amp; Push
-          </button>
+          <div className="code-viewer__save-actions">
+            <button
+              className="code-viewer__save-btn"
+              onClick={() => onSave({ ...activeFile, content: editContent })}
+            >
+              Save &amp; Push
+            </button>
+            {onSaveAndDeploy && (
+              <button
+                className="code-viewer__save-btn code-viewer__save-btn--deploy"
+                onClick={() => onSaveAndDeploy({ ...activeFile, content: editContent })}
+                title="Save to branch + deploy to worker for immediate testing"
+              >
+                Save &amp; Deploy
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

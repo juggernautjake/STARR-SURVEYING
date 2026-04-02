@@ -2,6 +2,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import InfoIcon from './InfoIcon';
+import { HELP } from './helpContent';
 import { usePropertyContext } from './PropertyContextBar';
 import { useTestingLogStore } from './useTestingLogStore';
 
@@ -126,6 +128,7 @@ export default function LogViewerTab() {
     <div className="log-viewer-tab">
       {/* Controls */}
       <div className="log-viewer-tab__controls">
+        <InfoIcon title={HELP.logViewer.title} content={HELP.logViewer.content} size={14} />
         <div className="log-viewer-tab__project-input">
           <input
             type="text"

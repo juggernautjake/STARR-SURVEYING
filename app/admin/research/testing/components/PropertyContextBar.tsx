@@ -2,6 +2,8 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useState } from 'react';
+import InfoIcon from './InfoIcon';
+import { HELP } from './helpContent';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -103,12 +105,45 @@ export function usePropertyContext() {
   return useContext(PropertyCtx);
 }
 
+const STORAGE_KEY = 'starr-testing-lab-context';
+
+function loadSavedContext(): PropertyContext {
+  if (typeof window === 'undefined') return DEFAULT_CONTEXT;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Merge with defaults to handle any new fields added after the save
+      return { ...DEFAULT_CONTEXT, ...parsed };
+    }
+  } catch { /* ignore corrupt data */ }
+  return DEFAULT_CONTEXT;
+}
+
 export function PropertyContextProvider({ children }: { children: React.ReactNode }) {
-  const [context, setContext] = useState<PropertyContext>(DEFAULT_CONTEXT);
+  const [context, setContextState] = useState<PropertyContext>(DEFAULT_CONTEXT);
+  const initialized = React.useRef(false);
+
+  // Load saved context on mount (client-side only)
+  React.useEffect(() => {
+    if (!initialized.current) {
+      initialized.current = true;
+      setContextState(loadSavedContext());
+    }
+  }, []);
+
+  // Persist to localStorage on every change
+  const setContext: React.Dispatch<React.SetStateAction<PropertyContext>> = useCallback((action) => {
+    setContextState((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* quota */ }
+      return next;
+    });
+  }, []);
 
   const updateField = useCallback((key: keyof PropertyContext, value: string) => {
     setContext((prev) => ({ ...prev, [key]: value }));
-  }, []);
+  }, [setContext]);
 
   return (
     <PropertyCtx.Provider value={{ context, setContext, updateField }}>
@@ -178,6 +213,7 @@ export default function PropertyContextBar() {
       >
         <h3 className="property-context-bar__title">
           Property Context
+          <InfoIcon title={HELP.propertyContext.title} content={HELP.propertyContext.content} size={14} />
           {context.propertyId && (
             <span className="property-context-bar__summary">
               — {context.propertyId} {context.address && `| ${context.address}`}

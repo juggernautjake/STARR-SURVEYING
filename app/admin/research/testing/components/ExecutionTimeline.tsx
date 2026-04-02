@@ -1,7 +1,7 @@
 // ExecutionTimeline.tsx — Timeline bar with color-coded event markers and scrubber
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

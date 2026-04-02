@@ -1,24 +1,30 @@
-// app/admin/research/testing/layout.tsx — Admin-only guard for Testing Lab
+// app/admin/research/testing/layout.tsx — Developer guard for Testing Lab
 'use client';
 
+import React, { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+
+/** Admin or developer can access the Testing Lab */
+function hasDevAccess(roles?: string[]): boolean {
+  if (!roles) return false;
+  return roles.includes('admin') || roles.includes('developer');
+}
 
 export default function TestingLabLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const userRole = session?.user?.role || 'employee';
+  const allowed = hasDevAccess(session?.user?.roles);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.replace('/admin/login?callbackUrl=/admin/research/testing');
       return;
     }
-    if (status === 'authenticated' && userRole !== 'admin') {
+    if (status === 'authenticated' && !allowed) {
       router.replace('/admin/dashboard');
     }
-  }, [status, userRole, router]);
+  }, [status, allowed, router]);
 
   if (status === 'loading') {
     return (
@@ -44,7 +50,7 @@ export default function TestingLabLayout({ children }: { children: React.ReactNo
   }
 
   // Prevent flash of content while redirect is in progress
-  if (!session?.user || userRole !== 'admin') return null;
+  if (!session?.user || !allowed) return null;
 
   return <>{children}</>;
 }
