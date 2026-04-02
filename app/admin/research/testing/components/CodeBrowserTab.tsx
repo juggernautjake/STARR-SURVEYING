@@ -71,7 +71,12 @@ export default function CodeBrowserTab() {
   return (
     <div className="code-browser-tab">
       <div className="code-browser-tab__header">
-        <h4 className="code-browser-tab__title">Code Browser</h4>
+        <div>
+          <h4 className="code-browser-tab__title">STARR RECON Code</h4>
+          <p className="code-browser-tab__scope">
+            Research &amp; analysis code only — scrapers, adapters, counties, AI, pipeline
+          </p>
+        </div>
         <span className="code-browser-tab__branch">Branch: {branch}</span>
       </div>
 

@@ -2299,6 +2299,12 @@
   margin: 0;
 }
 
+.code-browser-tab__scope {
+  font-size: 0.75rem;
+  color: #6B7280;
+  margin: 0.15rem 0 0 0;
+}
+
 .code-browser-tab__branch {
   font-size: 0.78rem;
   color: var(--lab-accent);

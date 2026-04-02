@@ -2,7 +2,8 @@
 // tracking (success/failed/executing), edit mode, and GitHub file browser.
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { BROWSER_ROOT_DIRS, isPathAllowed, isPathEditable } from './allowedPaths';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,13 +94,33 @@ interface FileBrowserEntry {
 }
 
 function FileBrowser({ branch, onOpenFile }: { branch: string; onOpenFile: (path: string) => void }) {
-  const [currentPath, setCurrentPath] = useState('worker/src');
+  // '' = show the STARR RECON root directory listing (curated)
+  const [currentPath, setCurrentPath] = useState('');
   const [entries, setEntries] = useState<FileBrowserEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load directory contents whenever the path or branch changes
   useEffect(() => {
+    // Root view: show the curated STARR RECON directory listing
+    if (!currentPath) {
+      setEntries(BROWSER_ROOT_DIRS.map((d) => ({
+        name: d.name,
+        path: d.path,
+        type: 'dir' as const,
+      })));
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    // Only allow navigating into allowed directories
+    if (!isPathAllowed(currentPath + '/') && !isPathAllowed(currentPath)) {
+      setError(`Access restricted: ${currentPath}`);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -141,14 +162,20 @@ function FileBrowser({ branch, onOpenFile }: { branch: string; onOpenFile: (path
   };
 
   const navigateUp = () => {
+    if (!currentPath) return;
     const parent = currentPath.includes('/') ? currentPath.split('/').slice(0, -1).join('/') : '';
-    if (parent) setCurrentPath(parent);
+    // If parent is not in allowed paths, go back to root
+    if (!parent || (!isPathAllowed(parent + '/') && !isPathAllowed(parent))) {
+      setCurrentPath('');
+    } else {
+      setCurrentPath(parent);
+    }
   };
 
   return (
     <div className="code-viewer__browser">
       <div className="code-viewer__browser-header">
-        <span className="code-viewer__browser-title">Files</span>
+        <span className="code-viewer__browser-title">STARR RECON Files</span>
         <span className="code-viewer__browser-branch">{branch}</span>
       </div>
       <div className="code-viewer__browser-path">
@@ -157,7 +184,7 @@ function FileBrowser({ branch, onOpenFile }: { branch: string; onOpenFile: (path
             ..
           </button>
         )}
-        <span className="code-viewer__browser-current">{currentPath || '/'}</span>
+        <span className="code-viewer__browser-current">{currentPath || 'STARR RECON'}</span>
       </div>
       {loading && <div className="code-viewer__browser-loading">Loading...</div>}
       {error && <div className="code-viewer__browser-error">{error}</div>}
@@ -198,6 +225,9 @@ export default function CodeViewer({
   const activeFile = files[safeIndex];
   const [editContent, setEditContent] = useState('');
   const [showBrowser, setShowBrowser] = useState(false);
+
+  // Force read-only for files outside the editable STARR RECON scope
+  const effectiveReadOnly = readOnly || (activeFile ? !isPathEditable(activeFile.path) : true);
 
   useEffect(() => {
     if (activeFile) setEditContent(activeFile.content);
@@ -250,7 +280,7 @@ export default function CodeViewer({
     );
   }
 
-  const lines = (readOnly ? activeFile.content : editContent).split('\n');
+  const lines = (effectiveReadOnly ? activeFile.content : editContent).split('\n');
   const highlighted = activeFile.highlightedLines
     ? new Set(activeFile.highlightedLines)
     : new Set<number>();
@@ -292,8 +322,8 @@ export default function CodeViewer({
       {/* File path + status bar */}
       <div className="code-viewer__filepath">
         <span className="code-viewer__filepath-text">{activeFile.path}</span>
-        {!readOnly && <span className="code-viewer__edit-badge">EDIT MODE</span>}
-        {readOnly && activeLine && (
+        {!effectiveReadOnly && <span className="code-viewer__edit-badge">EDIT MODE</span>}
+        {effectiveReadOnly && activeLine && (
           <span className="code-viewer__line-badge">Line {activeLine}</span>
         )}
         {lineStates.size > 0 && (
@@ -310,7 +340,7 @@ export default function CodeViewer({
 
       {/* Code area */}
       <div className="code-viewer__content" ref={codeRef}>
-        {readOnly ? (
+        {effectiveReadOnly ? (
           <div className="code-viewer__lines">
             {lines.map((line, i) => {
               const lineNum = i + 1;
@@ -359,7 +389,7 @@ export default function CodeViewer({
       </div>
 
       {/* Save bar (edit mode) */}
-      {!readOnly && onSave && (
+      {!effectiveReadOnly && onSave && (
         <div className="code-viewer__save-bar">
           <span className="code-viewer__save-hint">Ctrl+S to save to {branch}</span>
           <button
