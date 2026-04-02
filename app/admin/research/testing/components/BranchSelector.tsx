@@ -48,12 +48,12 @@ export default function BranchSelector({
     if (!newBranchName.trim()) return;
     try {
       await onCreateBranch(newBranchName.trim(), currentBranch);
+      const createdName = newBranchName.trim();
       setShowCreate(false);
       setNewBranchName('');
-      // Reload immediately after the creation API resolves so the new branch
-      // is guaranteed to appear in the list (the old setTimeout(1000) was a
-      // timing guess that could lose the race against GitHub's API).
-      loadBranches();
+      // Reload branch list then auto-switch to the new branch
+      await loadBranches();
+      onBranchChange(createdName);
     } catch {
       // onCreateBranch already shows a user-visible error banner via showBranchMsg
       // in the parent. Keep the create form open so the user can retry or edit.
@@ -71,6 +71,10 @@ export default function BranchSelector({
             onChange={(e) => onBranchChange(e.target.value)}
             disabled={loading}
           >
+            {/* Ensure the current branch always appears even if not yet loaded */}
+            {!branches.includes(currentBranch) && (
+              <option key={currentBranch} value={currentBranch}>{currentBranch}</option>
+            )}
             {branches.map((b) => (
               <option key={b} value={b}>{b}</option>
             ))}
