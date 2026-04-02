@@ -159,7 +159,19 @@ export default function OutputViewer({ result, screenshots, error, duration }: O
           <div className="output-viewer__screenshots">
             {screenshots.map((url, i) => (
               <div key={i} className="output-viewer__screenshot">
-                <img src={url} alt={`Screenshot ${i + 1}`} loading="lazy" />
+                <img
+                  src={url}
+                  alt={`Screenshot ${i + 1}`}
+                  loading="lazy"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    target.style.display = 'none';
+                    const fallback = document.createElement('div');
+                    fallback.className = 'output-viewer__img-error';
+                    fallback.textContent = `Failed to load: ${url.split('/').pop() || 'image'}`;
+                    target.parentElement?.appendChild(fallback);
+                  }}
+                />
               </div>
             ))}
           </div>

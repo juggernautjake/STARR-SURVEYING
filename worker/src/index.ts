@@ -10,6 +10,7 @@ import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile, LayerAttempt } from './types/index.js';
 import { runPipeline, getSupabase, getRunningMessage, setRunningMessage, clearRunningMessage } from './services/pipeline.js';
 import { getLiveLogForProject, clearLiveLogForProject, PipelineLogger } from './lib/logger.js';
+import { getTracker, clearTracker } from './lib/timeline-tracker.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
@@ -190,6 +191,7 @@ function cleanupOldResults(): void {
       completedResults.delete(key);
       completedLogs.delete(key);
       completedResultsCachedAt.delete(key);
+      clearTracker(key); // Clean up timeline tracker memory
       evicted++;
     }
   }
@@ -909,6 +911,12 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     abortController: pipelineAbortController,
   });
 
+  // Initialize the timeline tracker for this pipeline run so every log entry
+  // and phase transition is captured as a granular timeline event for the
+  // Testing Lab's ExecutionTimeline + CodeViewer.
+  const timeline = getTracker(projectId);
+  timeline.add('phase-start', 'Pipeline started', `${county} County — ${researchInput.address ?? ''}`);
+
   console.log(
     `[Worker] ${projectId}: pipeline START — county="${county}" address="${researchInput.address ?? ''}" propertyId="${researchInput.propertyId ?? ''}" ownerName="${researchInput.ownerName ?? ''}" files=${parsedUserFiles?.length ?? 0}`,
   );
@@ -978,6 +986,17 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       if (typeof progress.message === 'string' && progress.message) {
         setRunningMessage(projectId, `[${progress.phase}] ${progress.message}`);
       }
+      // ── Emit timeline event for each progress update ──
+      if (typeof progress.phase === 'string' && typeof progress.message === 'string' && progress.message) {
+        const msgLower = progress.message.toLowerCase();
+        const isError = msgLower.includes('failed') || msgLower.includes('error');
+        const isComplete = msgLower.includes('complete') || msgLower.includes('finished') || msgLower.includes('done');
+        const evtType = isError ? 'phase-failed' as const
+          : isComplete ? 'phase-complete' as const
+          : 'log' as const;
+        timeline.add(evtType, progress.phase, progress.message.slice(0, 200));
+      }
+
       // ── Log each county progress event as a detailed LayerAttempt entry ──
       // These appear in the live log registry and are persisted to Supabase,
       // so the review page's log viewer shows the full pipeline activity.
@@ -1002,6 +1021,9 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     pipelineAbortController.signal,
   )
     .then(async (unifiedResult) => {
+      // Emit pipeline-complete timeline event
+      timeline.add('phase-complete', 'Pipeline complete', `${county} County research finished`);
+
       setCompletedResult(projectId, unifiedResult);
       activePipelines.delete(projectId);
       // Clear the running-message cache — the pipeline has finished.
@@ -1299,6 +1321,12 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         if (screenshotCount > 0) {
           handshakeLogger.attempt('Results', 'info', 'Screenshots', `${screenshotCount} captured`)
             .success(screenshotCount, `${screenshotCount} screenshot(s) captured from research sources`);
+          // Emit individual screenshot timeline events so the Testing Lab can
+          // display them in the OutputViewer as they're captured.
+          for (const ss of r.screenshots) {
+            const label = ss.description || ss.source || ss.url.split('/').pop();
+            timeline.screenshot(ss.url, label);
+          }
         }
 
         // AI analysis summary
@@ -1394,6 +1422,10 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       }
     })
     .catch((err) => {
+      // Emit pipeline-failed timeline event
+      const crashMsg = err instanceof Error ? err.message : String(err ?? 'Unknown error');
+      timeline.add('phase-failed', 'Pipeline failed', crashMsg.slice(0, 200));
+
       const isAborted = err instanceof DOMException && err.name === 'AbortError';
       const isCreditError = err instanceof AnthropicCreditDepletedError || isCreditDepleted();
       if (isAborted) {
@@ -1568,6 +1600,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         log: completedLogs.has(projectId)
           ? [...result.log, ...completedLogs.get(projectId)!]
           : result.log,
+        timeline: getTracker(projectId).getEntries(),
         failureReason: result.failureReason,
         masterReportText: result.masterReportText,
       });
@@ -1617,6 +1650,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         screenshotCount: result.screenshots.length,
         aiUsage: result.aiUsage,
         log: completedLogs.get(projectId) ?? [],
+        timeline: getTracker(projectId).getEntries(),
       });
     }
     return;
@@ -1640,6 +1674,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         address: pipeline.address,
         county: pipeline.county,
         log: liveLog,
+        timeline: getTracker(projectId).getEntries(),
       });
       return;
     }
@@ -1670,6 +1705,9 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
     // Log a confirmation that we're actively sending live data to the frontend
     console.log(`[Worker] ${projectId} → Frontend: status poll — stage="${pipeline.currentStage ?? 'unknown'}" logEntries=${liveLog.length} msg="${(message ?? '').slice(0, 60)}"`);
 
+    // Include timeline events for the Testing Lab's ExecutionTimeline
+    const timelineEntries = getTracker(projectId).getEntries();
+
     res.json({
       projectId,
       status: 'running',
@@ -1679,6 +1717,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
       address: pipeline.address,
       county: pipeline.county,
       log: liveLog,
+      timeline: timelineEntries,
     });
     return;
   }
@@ -1769,6 +1808,54 @@ app.post('/research/cancel/:projectId', requireAuth, (req: Request, res: Respons
     console.log(`[Worker] ${projectId}: cancel requested — no AbortController, force-removed from active`);
     res.json({ message: `Pipeline force-removed for project ${projectId}`, status: 'removed' });
   }
+});
+
+// ── POST /research/pause/:projectId ───────────────────────────────────────
+// Pause the timeline tracker for a running pipeline. Note: the pipeline
+// itself continues running (we can't pause Playwright mid-action), but the
+// timeline tracker adjusts its timestamps so the Testing Lab frontend can
+// replay the execution without the pause gap.
+
+app.post('/research/pause/:projectId', requireAuth, (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  if (!activePipelines.has(projectId)) {
+    res.status(404).json({ error: `No active pipeline for project ${projectId}` });
+    return;
+  }
+
+  const tracker = getTracker(projectId);
+  if (tracker.isPaused()) {
+    res.json({ message: 'Already paused', status: 'paused' });
+    return;
+  }
+
+  tracker.pause();
+  console.log(`[Worker] ${projectId}: timeline PAUSED by user`);
+  res.json({ message: `Timeline paused for project ${projectId}`, status: 'paused' });
+});
+
+// ── POST /research/resume/:projectId ──────────────────────────────────────
+// Resume a paused timeline tracker. Adjusts internal timestamps so the
+// paused gap is excluded from the timeline.
+
+app.post('/research/resume/:projectId', requireAuth, (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  if (!activePipelines.has(projectId)) {
+    res.status(404).json({ error: `No active pipeline for project ${projectId}` });
+    return;
+  }
+
+  const tracker = getTracker(projectId);
+  if (!tracker.isPaused()) {
+    res.json({ message: 'Not paused', status: 'running' });
+    return;
+  }
+
+  tracker.resume();
+  console.log(`[Worker] ${projectId}: timeline RESUMED by user`);
+  res.json({ message: `Timeline resumed for project ${projectId}`, status: 'running' });
 });
 
 // ── POST /research/discover ────────────────────────────────────────────────
@@ -3912,6 +3999,9 @@ app.listen(PORT, () => {
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');
   console.log('  GET    /research/result/:projectId/full');
+  console.log('  POST   /research/cancel/:projectId      ← Cancel running pipeline');
+  console.log('  POST   /research/pause/:projectId       ← Pause timeline tracking');
+  console.log('  POST   /research/resume/:projectId      ← Resume timeline tracking');
   console.log('  GET    /research/active');
   console.log('  DELETE /research/result/:projectId');
   console.log('');

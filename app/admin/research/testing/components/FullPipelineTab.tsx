@@ -1,11 +1,12 @@
 // FullPipelineTab.tsx — Run the full pipeline with phase skip/resume controls
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePropertyContext } from './PropertyContextBar';
 import ExecutionTimeline, { type TimelineEvent } from './ExecutionTimeline';
 import LogStream, { type LogEntry } from './LogStream';
 import OutputViewer from './OutputViewer';
+import { publishLogs, type SharedLogEntry } from './useTestingLogStore';
 
 const PIPELINE_PHASES = [
   { key: 'discover', label: 'Phase 1: Discovery', critical: true },
@@ -37,6 +38,19 @@ export default function FullPipelineTab() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [currentPhase, setCurrentPhase] = useState<string | null>(null);
+  const [logFilter, setLogFilter] = useState('');
+  const [logLevelFilter, setLogLevelFilter] = useState<Set<string>>(
+    new Set(['info', 'warn', 'error', 'success', 'debug'])
+  );
+
+  const toggleLogLevel = (level: string) => {
+    setLogLevelFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(level)) next.delete(level);
+      else next.add(level);
+      return next;
+    });
+  };
 
   const startTimeRef = useRef(0);
   const logCounterRef = useRef(0);
@@ -204,6 +218,23 @@ export default function FullPipelineTab() {
       setStatus('error');
     }
 
+    // Publish logs to the shared store for LogViewerTab
+    setLogs((currentLogs) => {
+      const runId = `full-pipeline-${startTimeRef.current}`;
+      const shared: SharedLogEntry[] = currentLogs.map((l) => ({
+        id: l.id,
+        timestamp: new Date(startTimeRef.current + l.timestamp).toISOString(),
+        relativeMs: l.timestamp,
+        module: 'full-pipeline',
+        level: l.level,
+        message: l.message,
+        details: undefined,
+        runId,
+      }));
+      publishLogs(shared);
+      return currentLogs;
+    });
+
     // Stop the live ticker
     if (playbackRef.current) {
       clearInterval(playbackRef.current);
@@ -228,6 +259,36 @@ export default function FullPipelineTab() {
       playbackRef.current = null;
     }
   };
+
+  const handleExportRun = useCallback(() => {
+    const exportData = {
+      module: 'full-pipeline',
+      title: 'Full Pipeline',
+      exportedAt: new Date().toISOString(),
+      status,
+      duration,
+      totalDuration,
+      events,
+      logs,
+      result,
+      error,
+      enabledPhases: Array.from(enabledPhases),
+      resumeFrom: resumeFrom || undefined,
+      inputs: {
+        projectId: context.projectId,
+        propertyId: context.propertyId,
+        address: context.address,
+        county: context.county,
+      },
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `full-pipeline-run-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [status, duration, totalDuration, events, logs, result, error, enabledPhases, resumeFrom, context]);
 
   // Require at least an address or a property ID to run the pipeline.
   // Phase 1 discovery uses address; resuming from later phases needs propertyId.
@@ -278,9 +339,18 @@ export default function FullPipelineTab() {
             : 'Run Full Pipeline'}
         </button>
         {(status === 'success' || status === 'error') && (
-          <button className="test-card__clear-btn" onClick={handleClear}>
-            Clear
-          </button>
+          <>
+            <button className="test-card__clear-btn" onClick={handleClear}>
+              Clear
+            </button>
+            <button
+              className="test-card__export-btn"
+              onClick={handleExportRun}
+              title="Export timeline + logs as JSON"
+            >
+              Export Run
+            </button>
+          </>
         )}
         {missingInputs && (
           <span className="test-card__warning" style={{ display: 'inline' }}>
@@ -314,7 +384,7 @@ export default function FullPipelineTab() {
           totalDuration={totalDuration}
           isPlaying={isPlaying}
           speed={speed}
-          onSeek={setCurrentTime}
+          onSeek={(t) => { setCurrentTime(t); setIsPlaying(false); }}
           onTogglePlay={() => setIsPlaying(!isPlaying)}
           onStepForward={handleStepForward}
           onStepBack={handleStepBack}
@@ -326,12 +396,38 @@ export default function FullPipelineTab() {
 
       {/* Logs */}
       {logs.length > 0 && (
-        <LogStream
-          logs={logs}
-          currentTime={currentTime}
-          isLive={isPlaying}
-          maxHeight="300px"
-        />
+        <div>
+          <div className="test-card__log-controls">
+            <div className="test-card__log-filter">
+              <input
+                type="text"
+                placeholder="Filter logs..."
+                value={logFilter}
+                onChange={(e) => setLogFilter(e.target.value)}
+              />
+            </div>
+            <div className="test-card__log-levels">
+              {(['info', 'warn', 'error', 'success', 'debug'] as const).map((level) => (
+                <button
+                  key={level}
+                  className={`test-card__log-level-btn test-card__log-level-btn--${level} ${logLevelFilter.has(level) ? 'test-card__log-level-btn--active' : ''}`}
+                  onClick={() => toggleLogLevel(level)}
+                  title={`Toggle ${level} logs`}
+                >
+                  {level}
+                </button>
+              ))}
+            </div>
+          </div>
+          <LogStream
+            logs={logs}
+            currentTime={currentTime}
+            isLive={isPlaying}
+            maxHeight="300px"
+            filter={logFilter}
+            levelFilter={logLevelFilter}
+          />
+        </div>
       )}
 
       {/* Output */}

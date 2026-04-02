@@ -7,6 +7,7 @@ import CodeViewer, { type CodeFile } from './CodeViewer';
 import LogStream, { type LogEntry } from './LogStream';
 import OutputViewer from './OutputViewer';
 import { usePropertyContext } from './PropertyContextBar';
+import { publishLogs, type SharedLogEntry } from './useTestingLogStore';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,13 +113,25 @@ export default function TestCard({
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDebugger, setShowDebugger] = useState(false);
   const [logFilter, setLogFilter] = useState('');
+  const [logLevelFilter, setLogLevelFilter] = useState<Set<string>>(
+    new Set(['info', 'warn', 'error', 'success', 'debug'])
+  );
+
+  const toggleLogLevel = (level: string) => {
+    setLogLevelFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(level)) next.delete(level);
+      else next.add(level);
+      return next;
+    });
+  };
 
   const startTimeRef = useRef<number>(0);
   const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Ref for the post-run playback ticker (separate from the live-run ticker)
   const replayRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sseRef = useRef<EventSource | null>(null);
 
-  // Clean up intervals on unmount to avoid memory leaks
+  // Clean up intervals + SSE on unmount
   useEffect(() => {
     return () => {
       if (playbackRef.current) {
@@ -129,6 +142,7 @@ export default function TestCard({
         clearInterval(replayRef.current);
         replayRef.current = null;
       }
+      sseRef.current?.close();
     };
   }, []);
 
@@ -206,6 +220,98 @@ export default function TestCard({
     setTotalDuration(ts);
   }, []);
 
+  // ── SSE stream for real-time worker events ──────────────────────────────────
+
+  const connectSSE = useCallback((projectId: string) => {
+    sseRef.current?.close();
+    const url = `/api/admin/research/testing/stream?projectId=${encodeURIComponent(projectId)}`;
+    const sse = new EventSource(url);
+    sseRef.current = sse;
+
+    sse.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'connected') return;
+
+        if (data.type === 'complete') {
+          sse.close();
+          sseRef.current = null;
+          return;
+        }
+
+        // Log entries from the worker's live log registry
+        if (data.type === 'log') {
+          const level: LogEntry['level'] =
+            data.status === 'fail' ? 'error' :
+            data.status === 'warn' ? 'warn' :
+            data.status === 'success' ? 'success' : 'info';
+          const parsed = parseRawLogEntry(data, module);
+          if (parsed) {
+            addLog(parsed.level, parsed.source, parsed.message, parsed.details);
+          } else {
+            addLog(level, data.source || module, data.details || data.method || 'log entry');
+          }
+        }
+
+        // Stage update — update the card's running message
+        if (data.type === 'stage') {
+          addLog('info', module, `Stage: ${data.stage}${data.message ? ` — ${data.message}` : ''}`);
+        }
+
+        // Timeline events from the worker's TimelineTracker
+        // The SSE stream uses `sseType: 'tl'` to avoid collision with the
+        // TimelineEntry's own `type` field (e.g. 'phase-start', 'ai-call').
+        if (data.sseType === 'tl') {
+          const evtType: EventType = [
+            'phase-start', 'phase-complete', 'phase-failed', 'api-call',
+            'ai-call', 'browser-action', 'data-found', 'warning', 'error',
+            'screenshot', 'log', 'checkpoint',
+          ].includes(data.type) ? data.type as EventType : 'log';
+
+          const evt: TimelineEvent = {
+            id: data.id || nextEventId(),
+            timestamp: typeof data.timestamp === 'number' ? data.timestamp : Date.now() - startTimeRef.current,
+            type: evtType,
+            label: data.label || '',
+            description: data.description || '',
+            file: data.file,
+            function: data.function,
+            line: data.line,
+            duration: data.duration,
+          };
+          setEvents((prev) => [...prev, evt]);
+
+          // If the event has file info, load it into CodeViewer
+          if (data.file && typeof data.file === 'string') {
+            // Lazy-load the file from GitHub API for the CodeViewer
+            fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(data.file)}&branch=${encodeURIComponent(contextRecord.branch || 'main')}`)
+              .then((res) => res.ok ? res.json() : null)
+              .then((fileData) => {
+                if (fileData?.type === 'file' && fileData.content) {
+                  const ext = data.file.split('.').pop() || '';
+                  const lang = ['ts', 'tsx'].includes(ext) ? 'typescript' : 'javascript';
+                  setCodeFiles((prev) => {
+                    if (prev.find((f) => f.path === data.file)) return prev;
+                    return [...prev, { path: data.file, content: fileData.content, language: lang, highlightedLines: data.line ? [data.line] : undefined }];
+                  });
+                }
+              })
+              .catch(() => { /* non-fatal */ });
+
+            if (data.line) setActiveLine(data.line);
+          }
+        }
+      } catch {
+        // Ignore parse errors from heartbeat comments
+      }
+    };
+
+    sse.onerror = () => {
+      // EventSource auto-reconnects; no action needed
+    };
+  }, [module, addLog, contextRecord.branch]);
+
   // ── Run test ───────────────────────────────────────────────────────────────
 
   const handleRun = async () => {
@@ -246,6 +352,12 @@ export default function TestCard({
 
     addLog('info', module, `Inputs: ${JSON.stringify(inputs)}`);
     addEvent('api-call', 'API Request', `POST /api/admin/research/testing/run — module: ${module}`);
+
+    // Connect SSE stream for real-time events (only if we have a projectId
+    // — without one, the worker has no project to track)
+    if (context.projectId) {
+      connectSSE(context.projectId);
+    }
 
     try {
       const res = await fetch('/api/admin/research/testing/run', {
@@ -327,6 +439,27 @@ export default function TestCard({
       setCurrentTime(elapsed);
     }
 
+    // Close SSE stream
+    sseRef.current?.close();
+    sseRef.current = null;
+
+    // Publish all logs to the shared store so LogViewerTab can see them
+    setLogs((currentLogs) => {
+      const runId = `${module}-${startTimeRef.current}`;
+      const shared: SharedLogEntry[] = currentLogs.map((l) => ({
+        id: l.id,
+        timestamp: new Date(startTimeRef.current + l.timestamp).toISOString(),
+        relativeMs: l.timestamp,
+        module,
+        level: l.level,
+        message: l.message,
+        details: l.details,
+        runId,
+      }));
+      publishLogs(shared);
+      return currentLogs; // don't modify state
+    });
+
     // Stop playback timer
     if (playbackRef.current) {
       clearInterval(playbackRef.current);
@@ -352,11 +485,45 @@ export default function TestCard({
     setIsPlaying(false);
     setShowDebugger(false);
     setLogFilter('');
+    sseRef.current?.close();
+    sseRef.current = null;
     if (playbackRef.current) {
       clearInterval(playbackRef.current);
       playbackRef.current = null;
     }
   };
+
+  // ── Export Run ─────────────────────────────────────────────────────────────
+
+  const handleExportRun = useCallback(() => {
+    const exportData = {
+      module,
+      title,
+      exportedAt: new Date().toISOString(),
+      status,
+      duration,
+      totalDuration,
+      events,
+      logs,
+      result,
+      error,
+      screenshots,
+      inputs: {
+        projectId: context.projectId,
+        propertyId: context.propertyId,
+        address: context.address,
+        county: context.county,
+      },
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `test-run-${module}-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [module, title, status, duration, totalDuration, events, logs, result, error, screenshots, context]);
 
   // ── Timeline controls ─────────────────────────────────────────────────────
 
@@ -442,12 +609,21 @@ export default function TestCard({
               Clear
             </button>
             {(status === 'success' || status === 'error') && (
-              <button
-                className="test-card__debugger-btn"
-                onClick={() => setShowDebugger(!showDebugger)}
-              >
-                {showDebugger ? 'Hide Debugger' : 'Show Debugger'}
-              </button>
+              <>
+                <button
+                  className="test-card__debugger-btn"
+                  onClick={() => setShowDebugger(!showDebugger)}
+                >
+                  {showDebugger ? 'Hide Debugger' : 'Show Debugger'}
+                </button>
+                <button
+                  className="test-card__export-btn"
+                  onClick={handleExportRun}
+                  title="Export timeline + logs as JSON"
+                >
+                  Export Run
+                </button>
+              </>
             )}
           </div>
 
@@ -484,6 +660,41 @@ export default function TestCard({
                     />
                   </div>
                   <div className="test-card__split-right">
+                    <div className="test-card__log-controls">
+                      <div className="test-card__log-filter">
+                        <input
+                          type="text"
+                          placeholder="Filter logs..."
+                          value={logFilter}
+                          onChange={(e) => setLogFilter(e.target.value)}
+                        />
+                      </div>
+                      <div className="test-card__log-levels">
+                        {(['info', 'warn', 'error', 'success', 'debug'] as const).map((level) => (
+                          <button
+                            key={level}
+                            className={`test-card__log-level-btn test-card__log-level-btn--${level} ${logLevelFilter.has(level) ? 'test-card__log-level-btn--active' : ''}`}
+                            onClick={() => toggleLogLevel(level)}
+                            title={`Toggle ${level} logs`}
+                          >
+                            {level}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <LogStream
+                      logs={logs}
+                      currentTime={currentTime}
+                      isLive={isPlaying && currentTime >= totalDuration - 500}
+                      maxHeight="300px"
+                      filter={logFilter}
+                      levelFilter={logLevelFilter}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="test-card__log-controls">
                     <div className="test-card__log-filter">
                       <input
                         type="text"
@@ -492,31 +703,26 @@ export default function TestCard({
                         onChange={(e) => setLogFilter(e.target.value)}
                       />
                     </div>
-                    <LogStream
-                      logs={logs}
-                      currentTime={currentTime}
-                      isLive={isPlaying && currentTime >= totalDuration - 500}
-                      maxHeight="300px"
-                      filter={logFilter}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <div className="test-card__log-filter">
-                    <input
-                      type="text"
-                      placeholder="Filter logs..."
-                      value={logFilter}
-                      onChange={(e) => setLogFilter(e.target.value)}
-                    />
+                    <div className="test-card__log-levels">
+                      {(['info', 'warn', 'error', 'success', 'debug'] as const).map((level) => (
+                        <button
+                          key={level}
+                          className={`test-card__log-level-btn test-card__log-level-btn--${level} ${logLevelFilter.has(level) ? 'test-card__log-level-btn--active' : ''}`}
+                          onClick={() => toggleLogLevel(level)}
+                          title={`Toggle ${level} logs`}
+                        >
+                          {level}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <LogStream
                     logs={logs}
                     currentTime={currentTime}
                     isLive={isPlaying && currentTime >= totalDuration - 500}
-                    maxHeight="300px"
+                    maxHeight="400px"
                     filter={logFilter}
+                    levelFilter={logLevelFilter}
                   />
                 </div>
               )}

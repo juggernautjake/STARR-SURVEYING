@@ -7,11 +7,16 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 const WORKER_URL = process.env.WORKER_URL || '';
 const WORKER_API_KEY = process.env.WORKER_API_KEY || '';
 
-function workerHeaders(): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
+function workerHeaders(method: string): Record<string, string> {
+  const headers: Record<string, string> = {
     'Authorization': `Bearer ${WORKER_API_KEY}`,
   };
+  // Only set Content-Type for POST — sending it on a GET with no body
+  // is non-standard and some servers reject it.
+  if (method === 'POST') {
+    headers['Content-Type'] = 'application/json';
+  }
+  return headers;
 }
 
 // ── Module → worker endpoint mapping ────────────────────────────────────────
@@ -63,6 +68,11 @@ const MODULE_ENDPOINTS: Record<string, { method: string; path: string }> = {
   'health':                { method: 'GET',  path: '/health' },
   'health-sites':          { method: 'GET',  path: '/admin/health/sites' },
   'health-check-all':      { method: 'POST', path: '/admin/health/check-all' },
+
+  // Pipeline control (path is a template — /{projectId} appended by transformInputs)
+  'cancel':                { method: 'POST', path: '/research/cancel/{projectId}' },
+  'pause':                 { method: 'POST', path: '/research/pause/{projectId}' },
+  'resume':                { method: 'POST', path: '/research/resume/{projectId}' },
 };
 
 // ── Per-module fetch timeout (ms) ────────────────────────────────────────────
@@ -214,10 +224,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const url = `${WORKER_URL}${endpoint.path}`;
+    // Replace {projectId} template in path for control endpoints (cancel/pause/resume)
+    const resolvedPath = endpoint.path.includes('{projectId}')
+      ? endpoint.path.replace('{projectId}', encodeURIComponent(resolvedProjectId ?? ''))
+      : endpoint.path;
+    const url = `${WORKER_URL}${resolvedPath}`;
     const workerRes = await fetch(url, {
       method: endpoint.method,
-      headers: workerHeaders(),
+      headers: workerHeaders(endpoint.method),
       body: endpoint.method === 'POST' ? JSON.stringify(workerBody) : undefined,
       signal: controller.signal,
     });

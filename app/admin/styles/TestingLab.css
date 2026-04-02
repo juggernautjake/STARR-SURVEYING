@@ -1581,3 +1581,246 @@
   font-size: 0.8rem;
   font-family: var(--lab-mono);
 }
+
+/* ── Timeline Legend ──────────────────────────────────────────────────────── */
+
+.execution-timeline__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid #E5E7EB;
+  font-size: 0.68rem;
+  color: #6B7280;
+}
+
+.execution-timeline__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  text-transform: capitalize;
+}
+
+.execution-timeline__legend-count {
+  background: #E5E7EB;
+  color: #374151;
+  border-radius: 9999px;
+  padding: 0 0.35em;
+  font-size: 0.62rem;
+  font-weight: 600;
+  margin-left: 0.15rem;
+  min-width: 1.2em;
+  text-align: center;
+}
+
+.execution-timeline__event-total {
+  margin-left: auto;
+  font-weight: 500;
+  color: #9CA3AF;
+}
+
+/* ── Export Run Button ────────────────────────────────────────────────────── */
+
+.test-card__export-btn {
+  padding: 0.45rem 0.75rem;
+  background: none;
+  border: 1px solid #059669;
+  border-radius: 6px;
+  color: #059669;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.test-card__export-btn:hover { background: #ECFDF5; }
+
+/* ── Log Level Filter Buttons ─────────────────────────────────────────────── */
+
+.test-card__log-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.test-card__log-controls .test-card__log-filter {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.test-card__log-levels {
+  display: flex;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.test-card__log-level-btn {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid #374151;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: transparent;
+  opacity: 0.4;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.test-card__log-level-btn--active { opacity: 1; }
+
+.test-card__log-level-btn--info { color: #3B82F6; border-color: #3B82F6; }
+.test-card__log-level-btn--info.test-card__log-level-btn--active { background: rgba(59, 130, 246, 0.15); }
+
+.test-card__log-level-btn--warn { color: #D97706; border-color: #D97706; }
+.test-card__log-level-btn--warn.test-card__log-level-btn--active { background: rgba(217, 119, 6, 0.15); }
+
+.test-card__log-level-btn--error { color: #DC2626; border-color: #DC2626; }
+.test-card__log-level-btn--error.test-card__log-level-btn--active { background: rgba(220, 38, 38, 0.15); }
+
+.test-card__log-level-btn--success { color: #059669; border-color: #059669; }
+.test-card__log-level-btn--success.test-card__log-level-btn--active { background: rgba(5, 150, 105, 0.15); }
+
+.test-card__log-level-btn--debug { color: #9CA3AF; border-color: #6B7280; }
+.test-card__log-level-btn--debug.test-card__log-level-btn--active { background: rgba(156, 163, 175, 0.1); }
+
+/* ── Broken Image Fallback ────────────────────────────────────────────────── */
+
+.output-viewer__img-error {
+  padding: 1rem;
+  text-align: center;
+  color: #DC2626;
+  font-size: 0.78rem;
+  background: #FEF2F2;
+  border: 1px dashed #FECACA;
+  border-radius: 6px;
+}
+
+/* ── Speed Control (standalone component) ─────────────────────────────────── */
+
+.speed-control {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+}
+
+.speed-control--compact {
+  padding: 0.35rem 0.5rem;
+}
+
+.speed-control__playback {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.speed-control__btn {
+  padding: 0.3rem 0.5rem;
+  background: none;
+  border: 1px solid #D1D5DB;
+  border-radius: 4px;
+  color: #374151;
+  font-size: 0.75rem;
+  cursor: pointer;
+  min-width: 28px;
+  text-align: center;
+}
+
+.speed-control__btn:hover { background: #F3F4F6; }
+
+.speed-control__btn--play {
+  background: var(--lab-accent);
+  color: #fff;
+  border-color: var(--lab-accent);
+}
+
+.speed-control__btn--play:hover { background: var(--lab-accent-dark); }
+
+.speed-control__time {
+  font-size: 0.75rem;
+  color: #6B7280;
+  font-family: var(--lab-mono);
+  margin-left: 0.5rem;
+}
+
+.speed-control__presets {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.speed-control__label {
+  font-size: 0.75rem;
+  color: #6B7280;
+  margin-right: 0.25rem;
+}
+
+.speed-control__preset {
+  padding: 0.2rem 0.4rem;
+  background: none;
+  border: 1px solid #E5E7EB;
+  border-radius: 4px;
+  color: #6B7280;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.speed-control__preset:hover { border-color: var(--lab-accent); color: var(--lab-accent); }
+
+.speed-control__preset--active {
+  background: var(--lab-accent);
+  color: #fff;
+  border-color: var(--lab-accent);
+}
+
+/* ── Running State Enhancement ────────────────────────────────────────────── */
+
+.test-card--running .test-card__body {
+  position: relative;
+}
+
+.test-card--running .test-card__body::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--lab-accent), #3B82F6, var(--lab-accent));
+  background-size: 200% 100%;
+  animation: tlab-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes tlab-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── LogViewerTab Live Toggle ─────────────────────────────────────────────── */
+
+.log-viewer-tab__live-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: #374151;
+}
+
+.log-viewer-tab__live-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.log-viewer-tab__live-toggle input[type="checkbox"] {
+  cursor: pointer;
+}
