@@ -1324,11 +1324,8 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
           // Emit individual screenshot timeline events so the Testing Lab can
           // display them in the OutputViewer as they're captured.
           for (const ss of r.screenshots) {
-            const url = typeof ss === 'string' ? ss : (ss as Record<string, unknown>)?.url;
-            const label = typeof ss === 'string' ? ss.split('/').pop() : (ss as Record<string, unknown>)?.label;
-            if (typeof url === 'string') {
-              timeline.screenshot(url, typeof label === 'string' ? label : undefined);
-            }
+            const label = ss.description || ss.source || ss.url.split('/').pop();
+            timeline.screenshot(ss.url, label);
           }
         }
 

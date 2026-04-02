@@ -260,11 +260,19 @@ export default function TestCard({
         }
 
         // Timeline events from the worker's TimelineTracker
-        if (data.type === 'timeline-event') {
+        // The SSE stream uses `sseType: 'tl'` to avoid collision with the
+        // TimelineEntry's own `type` field (e.g. 'phase-start', 'ai-call').
+        if (data.sseType === 'tl') {
+          const evtType: EventType = [
+            'phase-start', 'phase-complete', 'phase-failed', 'api-call',
+            'ai-call', 'browser-action', 'data-found', 'warning', 'error',
+            'screenshot', 'log', 'checkpoint',
+          ].includes(data.type) ? data.type as EventType : 'log';
+
           const evt: TimelineEvent = {
             id: data.id || nextEventId(),
             timestamp: typeof data.timestamp === 'number' ? data.timestamp : Date.now() - startTimeRef.current,
-            type: data.type as EventType ?? 'log',
+            type: evtType,
             label: data.label || '',
             description: data.description || '',
             file: data.file,
@@ -272,8 +280,6 @@ export default function TestCard({
             line: data.line,
             duration: data.duration,
           };
-          // Use the event's own type field (the SSE spreads the TimelineEntry fields)
-          if (data.type) evt.type = data.type;
           setEvents((prev) => [...prev, evt]);
 
           // If the event has file info, load it into CodeViewer

@@ -98,7 +98,9 @@ export async function GET(req: NextRequest) {
                 if (timeline.length > lastTimelineCount) {
                   const newEntries = timeline.slice(lastTimelineCount);
                   for (const entry of newEntries) {
-                    send({ type: 'timeline-event', ...entry });
+                    // Use 'tl' as the SSE message type to avoid collision with
+                    // the TimelineEntry's own 'type' field (which is spread in).
+                    send({ sseType: 'tl', ...entry });
                   }
                   lastTimelineCount = timeline.length;
                 }
