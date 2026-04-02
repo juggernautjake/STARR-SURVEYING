@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
         roles: ['employee'],
         is_approved: false,
         is_banned: false,
+        auth_provider: 'credentials',
       })
       .select('id, email, name')
       .single();
