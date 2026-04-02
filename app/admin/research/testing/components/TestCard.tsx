@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ExecutionTimeline, { type TimelineEvent, type EventType } from './ExecutionTimeline';
-import CodeViewer, { type CodeFile } from './CodeViewer';
+import CodeViewer, { type CodeFile, type LineState } from './CodeViewer';
 import LogStream, { type LogEntry } from './LogStream';
 import OutputViewer from './OutputViewer';
 import { usePropertyContext } from './PropertyContextBar';
@@ -305,6 +305,20 @@ export default function TestCard({
               })
               .catch(() => { /* non-fatal */ });
           }
+          // Update line state for the CodeViewer (green/red/yellow highlighting)
+          if (data.file && typeof data.line === 'number' && data.data?._traceStatus) {
+            const traceStatus = data.data._traceStatus as string;
+            const lineState: LineState =
+              traceStatus === 'failed' ? 'failed' :
+              traceStatus === 'success' ? 'success' : 'executing';
+            setCodeFiles((prev) => prev.map((f) => {
+              if (f.path !== data.file) return f;
+              const states = new Map(f.lineStates || []);
+              states.set(data.line as number, lineState);
+              return { ...f, lineStates: states };
+            }));
+          }
+
           if (data.line) setActiveLine(data.line);
           return; // Don't fall through to raw log handler
         }
@@ -592,6 +606,57 @@ export default function TestCard({
     }
   };
 
+  // ── GitHub file operations ─────────────────────────────────────────────────
+
+  const handleOpenFile = useCallback(async (filePath: string) => {
+    const branchName = contextRecord.branch || 'main';
+    try {
+      const res = await fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(filePath)}&branch=${encodeURIComponent(branchName)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.type === 'file' && data.content) {
+          const ext = filePath.split('.').pop() || '';
+          const lang = ['ts', 'tsx'].includes(ext) ? 'typescript' : 'javascript';
+          setCodeFiles((prev) => {
+            const existing = prev.findIndex((f) => f.path === filePath);
+            if (existing >= 0) {
+              setActiveFileIndex(existing);
+              return prev;
+            }
+            setActiveFileIndex(prev.length);
+            return [...prev, { path: filePath, content: data.content, language: lang }];
+          });
+        }
+      }
+    } catch {
+      // non-fatal
+    }
+  }, [contextRecord.branch]);
+
+  const handleSaveFile = useCallback(async (file: CodeFile) => {
+    const branchName = contextRecord.branch || 'main';
+    try {
+      const res = await fetch('/api/admin/research/testing/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branch: branchName,
+          path: file.path,
+          content: file.content,
+          message: `Edit ${file.path.split('/').pop()} from Testing Lab`,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addLog('success', module, `Saved ${file.path} to ${branchName} (commit: ${data.commit?.slice(0, 7)})`);
+      } else {
+        addLog('error', module, `Failed to save: ${data.error || 'unknown error'}`);
+      }
+    } catch (err) {
+      addLog('error', module, `Save failed: ${err instanceof Error ? err.message : 'network error'}`);
+    }
+  }, [contextRecord.branch, module, addLog]);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const statusClass = `test-card--${status}`;
@@ -682,7 +747,10 @@ export default function TestCard({
                       activeFileIndex={activeFileIndex}
                       activeLine={activeLine}
                       readOnly={status === 'running'}
+                      branch={contextRecord.branch || 'main'}
                       onFileSelect={setActiveFileIndex}
+                      onSave={handleSaveFile}
+                      onOpenFile={handleOpenFile}
                     />
                   </div>
                   <div className="test-card__split-right">
