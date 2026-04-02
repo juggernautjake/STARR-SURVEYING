@@ -228,6 +228,13 @@ export default function TestCard({
     const sse = new EventSource(url);
     sseRef.current = sse;
 
+    // Track files we've already requested to avoid duplicate fetches
+    const fetchedFiles = new Set<string>();
+    // Track whether we've received any timeline events — if yes, skip
+    // raw log events to avoid duplicates (both come from the same
+    // LayerAttempt entries in the worker).
+    let hasTimelineEvents = false;
+
     sse.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
@@ -240,34 +247,24 @@ export default function TestCard({
           return;
         }
 
-        // Log entries from the worker's live log registry
-        if (data.type === 'log') {
-          const level: LogEntry['level'] =
-            data.status === 'fail' ? 'error' :
-            data.status === 'warn' ? 'warn' :
-            data.status === 'success' ? 'success' : 'info';
-          const parsed = parseRawLogEntry(data, module);
-          if (parsed) {
-            addLog(parsed.level, parsed.source, parsed.message, parsed.details);
-          } else {
-            addLog(level, data.source || module, data.details || data.method || 'log entry');
-          }
-        }
-
-        // Stage update — update the card's running message
+        // Stage update — always process (not duplicated by timeline)
         if (data.type === 'stage') {
           addLog('info', module, `Stage: ${data.stage}${data.message ? ` — ${data.message}` : ''}`);
         }
 
-        // Timeline events from the worker's TimelineTracker
-        // The SSE stream uses `sseType: 'tl'` to avoid collision with the
-        // TimelineEntry's own `type` field (e.g. 'phase-start', 'ai-call').
+        // Timeline events from the worker's TimelineTracker.
+        // These are richer than raw log entries (they include file/line
+        // metadata) and come from the same LayerAttempt source, so when
+        // timeline events are flowing we skip raw log events to avoid dupes.
         if (data.sseType === 'tl') {
-          const evtType: EventType = [
+          hasTimelineEvents = true;
+
+          const VALID_TYPES = [
             'phase-start', 'phase-complete', 'phase-failed', 'api-call',
             'ai-call', 'browser-action', 'data-found', 'warning', 'error',
             'screenshot', 'log', 'checkpoint',
-          ].includes(data.type) ? data.type as EventType : 'log';
+          ];
+          const evtType: EventType = VALID_TYPES.includes(data.type) ? data.type as EventType : 'log';
 
           const evt: TimelineEvent = {
             id: data.id || nextEventId(),
@@ -282,14 +279,23 @@ export default function TestCard({
           };
           setEvents((prev) => [...prev, evt]);
 
-          // If the event has file info, load it into CodeViewer
-          if (data.file && typeof data.file === 'string') {
-            // Lazy-load the file from GitHub API for the CodeViewer
-            fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(data.file)}&branch=${encodeURIComponent(contextRecord.branch || 'main')}`)
+          // Also create a log entry from the timeline event so the LogStream
+          // shows it (timeline events are the single source of truth).
+          const logLevel: LogEntry['level'] =
+            evtType === 'error' ? 'error' :
+            evtType === 'warning' ? 'warn' :
+            evtType === 'phase-complete' ? 'success' : 'info';
+          addLog(logLevel, module, `${data.label || ''}: ${data.description || ''}`);
+
+          // Lazy-load source file for CodeViewer (deduplicated)
+          if (data.file && typeof data.file === 'string' && !fetchedFiles.has(data.file)) {
+            fetchedFiles.add(data.file);
+            const branch = contextRecord.branch || 'main';
+            fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(data.file)}&branch=${encodeURIComponent(branch)}`)
               .then((res) => res.ok ? res.json() : null)
               .then((fileData) => {
                 if (fileData?.type === 'file' && fileData.content) {
-                  const ext = data.file.split('.').pop() || '';
+                  const ext = (data.file as string).split('.').pop() || '';
                   const lang = ['ts', 'tsx'].includes(ext) ? 'typescript' : 'javascript';
                   setCodeFiles((prev) => {
                     if (prev.find((f) => f.path === data.file)) return prev;
@@ -298,8 +304,24 @@ export default function TestCard({
                 }
               })
               .catch(() => { /* non-fatal */ });
+          }
+          if (data.line) setActiveLine(data.line);
+          return; // Don't fall through to raw log handler
+        }
 
-            if (data.line) setActiveLine(data.line);
+        // Raw log entries — only process if timeline events aren't available
+        // (fallback for workers without TimelineTracker instrumentation).
+        if (data.type === 'log' && !hasTimelineEvents) {
+          const parsed = parseRawLogEntry(data, module);
+          if (parsed) {
+            addLog(parsed.level, parsed.source, parsed.message, parsed.details);
+            addEvent(parsed.evtType, parsed.evtLabel, parsed.evtDetail);
+          } else {
+            const level: LogEntry['level'] =
+              data.status === 'fail' ? 'error' :
+              data.status === 'warn' ? 'warn' :
+              data.status === 'success' ? 'success' : 'info';
+            addLog(level, data.source || module, data.details || data.method || 'log entry');
           }
         }
       } catch {
@@ -310,7 +332,7 @@ export default function TestCard({
     sse.onerror = () => {
       // EventSource auto-reconnects; no action needed
     };
-  }, [module, addLog, contextRecord.branch]);
+  }, [module, addLog, addEvent, contextRecord.branch]);
 
   // ── Run test ───────────────────────────────────────────────────────────────
 
