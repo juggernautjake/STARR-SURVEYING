@@ -226,7 +226,22 @@ export default function BranchSelector({
           )}
           {mergeMsg && (
             <div className={`branch-selector__merge-msg ${mergeMsg.ok ? 'branch-selector__merge-msg--ok' : 'branch-selector__merge-msg--err'}`}>
-              {mergeMsg.ok ? '✓' : '✕'} {mergeMsg.text}
+              {mergeMsg.ok ? '✓' : '✕'}{' '}
+              {mergeMsg.ok && mergeMsg.text.startsWith('PR created:') ? (
+                <>
+                  PR created:{' '}
+                  <a
+                    href={mergeMsg.text.replace('PR created: ', '')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="branch-selector__pr-link"
+                  >
+                    View on GitHub
+                  </a>
+                </>
+              ) : (
+                mergeMsg.text
+              )}
             </div>
           )}
         </div>

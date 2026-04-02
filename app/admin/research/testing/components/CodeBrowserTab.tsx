@@ -43,6 +43,26 @@ export default function CodeBrowserTab() {
     }
   }, [branch]);
 
+  const deployToWorker = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/research/testing/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module: 'deploy', inputs: { branch } }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const r = data.result as { commit?: string } | null;
+        setSaveStatus({ ok: true, message: `Deployed ${branch} to worker (${r?.commit?.slice(0, 7) ?? '?'}) — restarting...` });
+      } else {
+        setSaveStatus({ ok: false, message: `Deploy failed: ${data.error || 'unknown'}` });
+      }
+    } catch (err) {
+      setSaveStatus({ ok: false, message: `Deploy error: ${err instanceof Error ? err.message : 'network'}` });
+    }
+    setTimeout(() => setSaveStatus(null), 6000);
+  }, [branch]);
+
   const handleSaveFile = useCallback(async (file: CodeFile) => {
     setSaveStatus(null);
     try {
@@ -67,6 +87,13 @@ export default function CodeBrowserTab() {
     }
     setTimeout(() => setSaveStatus(null), 5000);
   }, [branch]);
+
+  const handleSaveAndDeploy = useCallback(async (file: CodeFile) => {
+    // Step 1: Save to GitHub
+    await handleSaveFile(file);
+    // Step 2: Deploy the branch to the worker
+    await deployToWorker();
+  }, [handleSaveFile, deployToWorker]);
 
   return (
     <div className="code-browser-tab">
@@ -94,6 +121,7 @@ export default function CodeBrowserTab() {
           branch={branch}
           onFileSelect={setActiveFileIndex}
           onSave={handleSaveFile}
+          onSaveAndDeploy={handleSaveAndDeploy}
           onOpenFile={handleOpenFile}
         />
       </div>

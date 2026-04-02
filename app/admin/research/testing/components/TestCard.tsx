@@ -114,6 +114,7 @@ export default function TestCard({
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDebugger, setShowDebugger] = useState(false);
   const [executionMode, setExecutionMode] = useState<ExecutionMode>('continuous');
+  const [workerBranch, setWorkerBranch] = useState<string | null>(null);
   const [logFilter, setLogFilter] = useState('');
   const [logLevelFilter, setLogLevelFilter] = useState<Set<string>>(
     new Set(['info', 'warn', 'error', 'success', 'debug'])
@@ -182,6 +183,19 @@ export default function TestCard({
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, status, speed, totalDuration]);
+
+  // ── Check worker branch on expand ──────────────────────────────────────────
+  useEffect(() => {
+    if (!isExpanded) return;
+    fetch('/api/admin/research/testing/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ module: 'deploy-status', inputs: {} }),
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.success && d.result?.branch) setWorkerBranch(d.result.branch); })
+      .catch(() => {});
+  }, [isExpanded]);
 
   // ── Check inputs ───────────────────────────────────────────────────────────
 
@@ -696,6 +710,14 @@ export default function TestCard({
           {missingInputs.length > 0 && (
             <div className="test-card__warning">
               Missing required inputs: {missingInputs.join(', ')}
+            </div>
+          )}
+
+          {/* Branch mismatch warning */}
+          {workerBranch && contextRecord.branch && workerBranch !== contextRecord.branch && (
+            <div className="test-card__warning test-card__warning--branch">
+              Worker is on <strong>{workerBranch}</strong> but Testing Lab is set to <strong>{contextRecord.branch}</strong>.
+              Tests will run against the worker&apos;s code ({workerBranch}). Deploy your branch first from the status bar above.
             </div>
           )}
 

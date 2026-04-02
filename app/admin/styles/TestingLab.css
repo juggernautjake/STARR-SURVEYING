@@ -2278,6 +2278,67 @@
   border: 1px solid #FECACA;
 }
 
+/* ── PR Link ──────────────────────────────────────────────────────────────── */
+
+.branch-selector__pr-link {
+  color: #2563EB;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.branch-selector__pr-link:hover {
+  color: #1D4ED8;
+}
+
+/* ── Branch Mismatch Warning ──────────────────────────────────────────────── */
+
+.test-card__warning--branch {
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FCD34D;
+}
+
+/* ── CodeViewer GitHub Link + Read-Only Badge ─────────────────────────────── */
+
+.code-viewer__github-link {
+  color: #6C7086;
+  font-size: 0.62rem;
+  text-decoration: none;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid #45475A;
+  border-radius: 3px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.code-viewer__github-link:hover {
+  color: #CDD6F4;
+  border-color: #CDD6F4;
+}
+
+.code-viewer__readonly-badge {
+  background: #6B7280;
+  color: #fff;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: 600;
+}
+
+/* ── Save Bar Actions ─────────────────────────────────────────────────────── */
+
+.code-viewer__save-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.code-viewer__save-btn--deploy {
+  background: #D97706;
+}
+
+.code-viewer__save-btn--deploy:hover {
+  background: #B45309;
+}
+
 /* ── Code Browser Tab ─────────────────────────────────────────────────────── */
 
 .code-browser-tab {

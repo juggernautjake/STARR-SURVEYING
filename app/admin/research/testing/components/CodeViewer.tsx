@@ -27,6 +27,8 @@ interface CodeViewerProps {
   branch?: string;
   onFileSelect?: (index: number) => void;
   onSave?: (file: CodeFile) => void;
+  /** One-click: save to branch + deploy to worker */
+  onSaveAndDeploy?: (file: CodeFile) => void;
   onContentChange?: (index: number, content: string) => void;
   /** Called when user wants to open a file from the file browser */
   onOpenFile?: (path: string) => void;
@@ -116,7 +118,7 @@ function FileBrowser({ branch, onOpenFile }: { branch: string; onOpenFile: (path
 
     // Only allow navigating into allowed directories
     if (!isPathAllowed(currentPath + '/') && !isPathAllowed(currentPath)) {
-      setError(`Access restricted: ${currentPath}`);
+      setError(`Outside STARR RECON scope. The Testing Lab only allows access to research & analysis code (scrapers, adapters, counties, AI, pipeline).`);
       setLoading(false);
       return;
     }
@@ -217,6 +219,7 @@ export default function CodeViewer({
   branch = 'main',
   onFileSelect,
   onSave,
+  onSaveAndDeploy,
   onContentChange,
   onOpenFile,
 }: CodeViewerProps) {
@@ -322,7 +325,19 @@ export default function CodeViewer({
       {/* File path + status bar */}
       <div className="code-viewer__filepath">
         <span className="code-viewer__filepath-text">{activeFile.path}</span>
+        <a
+          className="code-viewer__github-link"
+          href={`https://github.com/juggernautjake/STARR-SURVEYING/blob/${encodeURIComponent(branch)}/${activeFile.path}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open on GitHub"
+        >
+          GitHub
+        </a>
         {!effectiveReadOnly && <span className="code-viewer__edit-badge">EDIT MODE</span>}
+        {effectiveReadOnly && !isPathEditable(activeFile.path) && (
+          <span className="code-viewer__readonly-badge">READ ONLY</span>
+        )}
         {effectiveReadOnly && activeLine && (
           <span className="code-viewer__line-badge">Line {activeLine}</span>
         )}
@@ -392,12 +407,23 @@ export default function CodeViewer({
       {!effectiveReadOnly && onSave && (
         <div className="code-viewer__save-bar">
           <span className="code-viewer__save-hint">Ctrl+S to save to {branch}</span>
-          <button
-            className="code-viewer__save-btn"
-            onClick={() => onSave({ ...activeFile, content: editContent })}
-          >
-            Save &amp; Push
-          </button>
+          <div className="code-viewer__save-actions">
+            <button
+              className="code-viewer__save-btn"
+              onClick={() => onSave({ ...activeFile, content: editContent })}
+            >
+              Save &amp; Push
+            </button>
+            {onSaveAndDeploy && (
+              <button
+                className="code-viewer__save-btn code-viewer__save-btn--deploy"
+                onClick={() => onSaveAndDeploy({ ...activeFile, content: editContent })}
+                title="Save to branch + deploy to worker for immediate testing"
+              >
+                Save &amp; Deploy
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
