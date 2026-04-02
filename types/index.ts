@@ -5,7 +5,9 @@ export interface ContactFormData {
   phone: string;
   company_name?: string;
   service_type: string;
-  property_address?: string;
+  property_street: string;
+  property_city: string;
+  property_number?: string;
   project_description?: string;
   preferred_contact_method: 'email' | 'phone' | 'both';
   how_heard?: string;

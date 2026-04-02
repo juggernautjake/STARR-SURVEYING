@@ -9,7 +9,7 @@ interface BranchSelectorProps {
   onBranchChange: (branch: string) => void;
   onCompareBranchChange: (branch: string | null) => void;
   onPull: (branch: string) => void;
-  onCreateBranch: (name: string, from: string) => void;
+  onCreateBranch: (name: string, from: string) => Promise<void>;
 }
 
 export default function BranchSelector({
@@ -25,12 +25,6 @@ export default function BranchSelector({
   const [showCreate, setShowCreate] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
   const [enableCompare, setEnableCompare] = useState(!!compareBranch);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  const showToast = (type: 'success' | 'error', message: string) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const loadBranches = useCallback(async () => {
     setLoading(true);
@@ -53,54 +47,21 @@ export default function BranchSelector({
   const handleCreateBranch = async () => {
     if (!newBranchName.trim()) return;
     try {
-      const res = await fetch('/api/admin/research/testing/branches', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newBranchName.trim(), from: currentBranch }),
-      });
-      if (res.ok) {
-        showToast('success', `Branch "${newBranchName.trim()}" created from ${currentBranch}`);
-        onCreateBranch(newBranchName.trim(), currentBranch);
-        setShowCreate(false);
-        setNewBranchName('');
-        setTimeout(loadBranches, 500);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        showToast('error', data.error || 'Failed to create branch');
-      }
+      await onCreateBranch(newBranchName.trim(), currentBranch);
+      setShowCreate(false);
+      setNewBranchName('');
+      // Reload immediately after the creation API resolves so the new branch
+      // is guaranteed to appear in the list (the old setTimeout(1000) was a
+      // timing guess that could lose the race against GitHub's API).
+      loadBranches();
     } catch {
-      showToast('error', 'Network error creating branch');
-    }
-  };
-
-  const handlePull = async (branch: string) => {
-    try {
-      const res = await fetch('/api/admin/research/testing/pull', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ branch }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        showToast('success', `Pulled ${branch}: ${data.sha?.slice(0, 7) || 'latest'}`);
-        onPull(branch);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        showToast('error', data.error || `Failed to pull ${branch}`);
-      }
-    } catch {
-      showToast('error', `Network error pulling ${branch}`);
+      // onCreateBranch already shows a user-visible error banner via showBranchMsg
+      // in the parent. Keep the create form open so the user can retry or edit.
     }
   };
 
   return (
     <div className="branch-selector">
-      {/* Toast notification */}
-      {toast && (
-        <div className={`branch-selector__toast branch-selector__toast--${toast.type}`}>
-          {toast.type === 'success' ? '✓' : '✕'} {toast.message}
-        </div>
-      )}
       <div className="branch-selector__row">
         <div className="branch-selector__field">
           <label className="branch-selector__label">Branch</label>
@@ -117,7 +78,7 @@ export default function BranchSelector({
         </div>
         <button
           className="branch-selector__btn"
-          onClick={() => handlePull(currentBranch)}
+          onClick={() => onPull(currentBranch)}
           title="Pull latest from remote"
         >
           Pull
@@ -187,7 +148,7 @@ export default function BranchSelector({
             </div>
             <button
               className="branch-selector__btn"
-              onClick={() => compareBranch && handlePull(compareBranch)}
+              onClick={() => compareBranch && onPull(compareBranch)}
               disabled={!compareBranch}
             >
               Pull

@@ -1,7 +1,8 @@
 // LogViewerTab.tsx — Aggregated log viewer across all test runs
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { usePropertyContext } from './PropertyContextBar';
 
 interface AggregatedLog {
   id: string;
@@ -17,7 +18,16 @@ export default function LogViewerTab() {
   const [filter, setFilter] = useState('');
   const [levelFilter, setLevelFilter] = useState<Set<string>>(new Set(['info', 'warn', 'error', 'success', 'debug']));
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Use the shared PropertyContextBar project ID, with a local override field so
+  // the user can still load logs for a *different* project without changing the
+  // active context.
+  const { context } = usePropertyContext();
   const [projectId, setProjectId] = useState('');
+  const loadCountRef = useRef(0);
+
+  // The effective project ID: local override takes priority, then shared context.
+  const effectiveProjectId = projectId.trim() || context.projectId?.trim() || '';
 
   const toggleLevel = (level: string) => {
     setLevelFilter((prev) => {
@@ -29,26 +39,58 @@ export default function LogViewerTab() {
   };
 
   const loadProjectLogs = async () => {
-    if (!projectId) return;
+    if (!effectiveProjectId) return;
     setLoading(true);
+    setLoadError(null);
+    const batchId = ++loadCountRef.current;
     try {
-      const res = await fetch(`/api/admin/research/${projectId}/logs`);
+      const res = await fetch(`/api/admin/research/${effectiveProjectId}/logs`);
+      // Discard stale responses — a faster subsequent request already owns the result.
+      if (batchId !== loadCountRef.current) return;
       if (res.ok) {
-        const data = await res.json();
-        const entries: AggregatedLog[] = (data.logs || data.log || []).map((l: any, i: number) => ({
-          id: `alog-${i}`,
-          timestamp: l.timestamp || new Date().toISOString(),
-          module: l.source || l.layer || 'unknown',
-          level: l.status === 'fail' ? 'error' : l.status === 'warn' ? 'warn' : 'info',
-          message: `[${l.layer || ''}] ${l.method || ''}: ${l.details || l.status || ''}`,
-          details: l.error,
-        }));
+        const data = await res.json() as Record<string, unknown>;
+        const rawLogs = (data.logs ?? data.log ?? []) as Record<string, unknown>[];
+        const VALID_LEVELS: AggregatedLog['level'][] = ['info', 'warn', 'error', 'debug', 'success'];
+        const entries: AggregatedLog[] = rawLogs.map((l, i) => {
+          const rawLevel = l.status === 'fail' ? 'error'
+            : l.status === 'warn' ? 'warn'
+            : l.status === 'success' ? 'success'
+            : typeof l.level === 'string' ? l.level
+            : 'info';
+          const level: AggregatedLog['level'] = VALID_LEVELS.includes(rawLevel as AggregatedLog['level'])
+            ? (rawLevel as AggregatedLog['level'])
+            : 'info';
+          // Build a human-readable message from whatever fields are populated
+          const parts: string[] = [];
+          if (l.layer) parts.push(`[${l.layer}]`);
+          if (l.method) parts.push(String(l.method));
+          if (l.details) parts.push(String(l.details));
+          else if (l.status) parts.push(String(l.status));
+          // Fallback: include module/source so the entry is always identifiable
+          const message = parts.length > 0
+            ? parts.join(' ')
+            : `log entry from ${String(l.source ?? l.layer ?? 'unknown')}`;
+          return {
+            id: `alog-${batchId}-${i}`,
+            timestamp: String(l.timestamp ?? new Date().toISOString()),
+            module: String(l.source ?? l.layer ?? 'unknown'),
+            level,
+            message,
+            details: typeof l.error === 'string' ? l.error : undefined,
+          };
+        });
         setLogs(entries);
+      } else {
+        const errData = await res.json().catch(() => ({})) as Record<string, unknown>;
+        setLoadError(typeof errData.error === 'string' ? errData.error : `No logs found (${res.status})`);
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      if (batchId === loadCountRef.current) {
+        setLoadError(err instanceof Error ? err.message : 'Network error — could not load logs');
+      }
+    } finally {
+      if (batchId === loadCountRef.current) setLoading(false);
     }
-    setLoading(false);
   };
 
   const filtered = logs.filter((log) => {
@@ -72,18 +114,22 @@ export default function LogViewerTab() {
         <div className="log-viewer-tab__project-input">
           <input
             type="text"
-            placeholder="Project ID to load logs..."
+            placeholder={context.projectId ? `Using context: ${context.projectId}` : 'Project ID (overrides context)...'}
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && loadProjectLogs()}
           />
           <button
             className="test-card__run-btn"
             onClick={loadProjectLogs}
-            disabled={!projectId || loading}
+            disabled={!effectiveProjectId || loading}
           >
             {loading ? 'Loading...' : 'Load Logs'}
           </button>
         </div>
+        {loadError && (
+          <div className="log-viewer-tab__load-error">{loadError}</div>
+        )}
         <input
           type="text"
           className="log-viewer-tab__filter"

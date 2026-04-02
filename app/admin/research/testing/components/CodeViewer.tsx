@@ -46,47 +46,25 @@ function highlightLine(line: string): string {
     return `<span class="cv-comment">${escaped}</span>`;
   }
 
-  // Tokenize: split line into strings and non-string segments, then only
-  // apply keyword/number highlighting to non-string parts.  This prevents
-  // matching keywords inside string literals (e.g. "return value").
-  const parts: string[] = [];
-  let remaining = escaped;
-  const stringRe = /(['"`])(?:(?!\1|\\).|\\.)*?\1/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
+  // Strings
+  escaped = escaped.replace(
+    /(['"`])(?:(?!\1|\\).|\\.)*?\1/g,
+    (m) => `<span class="cv-string">${m}</span>`
+  );
 
-  while ((match = stringRe.exec(remaining)) !== null) {
-    // Process the gap before this string
-    if (match.index > lastIndex) {
-      parts.push(highlightNonString(remaining.slice(lastIndex, match.index)));
-    }
-    // Wrap the string literal
-    parts.push(`<span class="cv-string">${match[0]}</span>`);
-    lastIndex = match.index + match[0].length;
-  }
-
-  // Process any remaining text after the last string
-  if (lastIndex < remaining.length) {
-    parts.push(highlightNonString(remaining.slice(lastIndex)));
-  }
-
-  return parts.join('');
-}
-
-function highlightNonString(text: string): string {
-  // Keywords (only in non-string text)
-  let result = text.replace(
+  // Keywords
+  escaped = escaped.replace(
     /\b([a-zA-Z_$][a-zA-Z0-9_$]*)\b/g,
     (m) => TS_KEYWORDS.has(m) ? `<span class="cv-keyword">${m}</span>` : m
   );
 
   // Numbers
-  result = result.replace(
+  escaped = escaped.replace(
     /\b(\d+\.?\d*)\b/g,
     (m) => `<span class="cv-number">${m}</span>`
   );
 
-  return result;
+  return escaped;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -101,8 +79,7 @@ export default function CodeViewer({
   onContentChange,
 }: CodeViewerProps) {
   const codeRef = useRef<HTMLDivElement>(null);
-  const safeIndex = Math.min(activeFileIndex, files.length - 1);
-  const activeFile = files[safeIndex];
+  const activeFile = files[activeFileIndex];
   const [editContent, setEditContent] = useState('');
 
   // Sync edit content when file changes
@@ -119,27 +96,23 @@ export default function CodeViewer({
     }
   }, [activeLine]);
 
-  // Ctrl+S save
-  useEffect(() => {
-    if (readOnly) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (activeFile && onSave) {
-          onSave({ ...activeFile, content: editContent });
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [readOnly, activeFile, editContent, onSave]);
-
   const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setEditContent(e.target.value);
     onContentChange?.(activeFileIndex, e.target.value);
   }, [activeFileIndex, onContentChange]);
 
-  if (files.length === 0 || !activeFile) {
+  // Ctrl+S save — scoped to the textarea so it only fires when the user is
+  // actually typing in the editor, not when pressing Ctrl+S anywhere on the page.
+  const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      if (activeFile && onSave) {
+        onSave({ ...activeFile, content: editContent });
+      }
+    }
+  }, [activeFile, editContent, onSave]);
+
+  if (files.length === 0) {
     return (
       <div className="code-viewer code-viewer--empty">
         <div className="code-viewer__placeholder">
@@ -220,6 +193,7 @@ export default function CodeViewer({
               className="code-viewer__textarea"
               value={editContent}
               onChange={handleTextChange}
+              onKeyDown={handleTextareaKeyDown}
               spellCheck={false}
               wrap="off"
             />

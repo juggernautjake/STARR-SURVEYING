@@ -9,14 +9,19 @@ const REPO_OWNER = 'juggernautjake';
 const REPO_NAME = 'STARR-SURVEYING';
 
 async function githubFetch(path: string, options?: RequestInit) {
+  const headers: Record<string, string> = {
+    'Accept': 'application/vnd.github.v3+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    ...(options?.headers as Record<string, string> | undefined),
+  };
+  // Only set Authorization when a token is available — an empty header
+  // causes GitHub to return 401 even for public endpoints.
+  if (GITHUB_TOKEN) {
+    headers['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
+  }
   return fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}${path}`, {
     ...options,
-    headers: {
-      'Accept': 'application/vnd.github.v3+json',
-      'Authorization': GITHUB_TOKEN ? `Bearer ${GITHUB_TOKEN}` : '',
-      'X-GitHub-Api-Version': '2022-11-28',
-      ...options?.headers,
-    },
+    headers,
   });
 }
 
@@ -38,7 +43,7 @@ export const GET = withErrorHandler(async () => {
       return NextResponse.json({ branches: ['main'], error: 'GitHub API error' });
     }
     const data = await res.json();
-    const branches = data.map((b: any) => b.name);
+    const branches = (data as { name: string }[]).map((b) => b.name);
     return NextResponse.json({ branches });
   } catch {
     return NextResponse.json({ branches: ['main'] });
@@ -63,7 +68,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   try {
     // Get SHA of source branch
-    const refRes = await githubFetch(`/git/ref/heads/${encodeURIComponent(from)}`);
+    const refRes = await githubFetch(`/git/ref/heads/${from.split('/').map(encodeURIComponent).join('/')}`);
     if (!refRes.ok) {
       return NextResponse.json({ error: `Branch "${from}" not found` }, { status: 404 });
     }

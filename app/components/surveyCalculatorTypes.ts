@@ -39,6 +39,9 @@ export interface ContactInfo {
   name: string;
   email: string;
   phone: string;
+  propertyStreet: string;
+  propertyCity: string;
+  propertyNumber: string;
   notes: string;
 }
 

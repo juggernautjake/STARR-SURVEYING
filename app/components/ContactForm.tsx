@@ -11,7 +11,9 @@ const ContactForm = (): React.ReactElement => {
     phone: '',
     company_name: '',
     service_type: '',
-    property_address: '',
+    property_street: '',
+    property_city: '',
+    property_number: '',
     project_description: '',
     preferred_contact_method: 'email',
     how_heard: '',
@@ -55,7 +57,7 @@ const ContactForm = (): React.ReactElement => {
     e.preventDefault();
     setState(prev => ({ ...prev, loading: true, error: '' }));
 
-    if (!formData.full_name || !formData.email || !formData.phone || !formData.service_type) {
+    if (!formData.full_name || !formData.email || !formData.phone || !formData.service_type || !formData.property_street || !formData.property_city) {
       setState(prev => ({ 
         ...prev, 
         loading: false, 
@@ -82,7 +84,9 @@ const ContactForm = (): React.ReactElement => {
           phone: '',
           company_name: '',
           service_type: '',
-          property_address: '',
+          property_street: '',
+          property_city: '',
+          property_number: '',
           project_description: '',
           preferred_contact_method: 'email',
           how_heard: '',
@@ -221,17 +225,49 @@ const ContactForm = (): React.ReactElement => {
         </div>
 
         <div className="md:col-span-2">
-          <label htmlFor="property_address" className="block font-bold text-sm mb-2">
-            Property Address or Location
+          <label htmlFor="property_street" className="block font-bold text-sm mb-2">
+            Property Street Address *
           </label>
           <input
             type="text"
-            id="property_address"
-            name="property_address"
-            value={formData.property_address}
+            id="property_street"
+            name="property_street"
+            value={formData.property_street}
+            onChange={handleChange}
+            required
+            className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:border-starr-red focus:outline-none transition"
+            placeholder="123 Main St"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="property_city" className="block font-bold text-sm mb-2">
+            City *
+          </label>
+          <input
+            type="text"
+            id="property_city"
+            name="property_city"
+            value={formData.property_city}
+            onChange={handleChange}
+            required
+            className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:border-starr-red focus:outline-none transition"
+            placeholder="Belton"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="property_number" className="block font-bold text-sm mb-2">
+            Property / Account Number
+          </label>
+          <input
+            type="text"
+            id="property_number"
+            name="property_number"
+            value={formData.property_number}
             onChange={handleChange}
             className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:border-starr-red focus:outline-none transition"
-            placeholder="Street address, city, or area"
+            placeholder="CAD account or parcel number (optional)"
           />
         </div>
 

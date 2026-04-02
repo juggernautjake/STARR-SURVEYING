@@ -1,4 +1,4 @@
-// TestCard.tsx — Reusable module card with full debugger (timeline, code, logs, SSE stream)
+// TestCard.tsx — Reusable module card with full debugger (timeline, code, logs)
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -22,6 +22,60 @@ export interface TestCardProps {
 }
 
 type CardStatus = 'idle' | 'running' | 'paused' | 'success' | 'error';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+let eventIdCounter = 0;
+function nextEventId(): string {
+  return `evt-${++eventIdCounter}-${Date.now()}`;
+}
+
+function nextLogId(): string {
+  return `log-${++eventIdCounter}-${Date.now()}`;
+}
+
+// ── Log entry parsing helper ──────────────────────────────────────────────────
+
+interface ParsedLogEntry {
+  level: LogEntry['level'];
+  source: string;
+  message: string;
+  details: string | undefined;
+  evtType: EventType;
+  evtLabel: string;
+  evtDetail: string;
+}
+
+/**
+ * Safely parse a raw log entry object from the worker result.
+ * Returns null if the entry is not a valid non-null object.
+ */
+function parseRawLogEntry(raw: unknown, fallbackSource: string): ParsedLogEntry | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const entry = raw as Record<string, unknown>;
+
+  const status     = typeof entry.status  === 'string' ? entry.status  : '';
+  const source     = typeof entry.source  === 'string' ? entry.source  : fallbackSource;
+  const layer      = typeof entry.layer   === 'string' ? entry.layer   : '';
+  const method     = typeof entry.method  === 'string' ? entry.method  : '';
+  const detailStr  = typeof entry.details === 'string' ? entry.details : status;
+  const errorStr   = typeof entry.error   === 'string' ? entry.error   : undefined;
+
+  const msgParts: string[] = [];
+  if (layer)  msgParts.push(`[${layer}]`);
+  if (method) msgParts.push(method);
+  if (detailStr) msgParts.push(detailStr);
+  else if (!layer && !method) msgParts.push(`log from ${source}`);
+  const message = msgParts.join(' ');
+
+  const evtLabel = [layer, method].filter(Boolean).join(': ') || `log from ${source}`;
+  const level: LogEntry['level'] =
+    status === 'fail' ? 'error' : status === 'warn' ? 'warn' : 'info';
+  const evtType: EventType =
+    status === 'fail' ? 'error' : status === 'warn' ? 'warning' : 'data-found';
+
+  return { level, source, message, details: errorStr, evtType, evtLabel, evtDetail: detailStr };
+}
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -48,6 +102,7 @@ export default function TestCard({
   const [error, setError] = useState<string | undefined>();
   const [duration, setDuration] = useState<number | undefined>();
   const [screenshots, setScreenshots] = useState<string[]>([]);
+  const [asyncMessage, setAsyncMessage] = useState<string | undefined>();
 
   // Timeline state
   const [currentTime, setCurrentTime] = useState(0);
@@ -57,79 +112,65 @@ export default function TestCard({
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDebugger, setShowDebugger] = useState(false);
   const [logFilter, setLogFilter] = useState('');
-  const [logLevelFilter, setLogLevelFilter] = useState<Set<string>>(
-    new Set(['info', 'warn', 'error', 'success', 'debug'])
-  );
-
-  const toggleLogLevel = (level: string) => {
-    setLogLevelFilter((prev) => {
-      const next = new Set(prev);
-      if (next.has(level)) next.delete(level);
-      else next.add(level);
-      return next;
-    });
-  };
 
   const startTimeRef = useRef<number>(0);
   const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sseRef = useRef<EventSource | null>(null);
-  const codeFileCacheRef = useRef<Map<string, CodeFile>>(new Map());
-  const idCounterRef = useRef(0);
-  // SSE event buffer for speed-controlled playback (spec 5C)
-  const eventBufferRef = useRef<Array<{ event: TimelineEvent; log: LogEntry }>>([]);
-  const bufferTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref for the post-run playback ticker (separate from the live-run ticker)
+  const replayRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const nextEventId = () => `evt-${module}-${++idCounterRef.current}-${Date.now()}`;
-  const nextLogId = () => `log-${module}-${++idCounterRef.current}-${Date.now()}`;
-
-  // Clean up SSE + buffer timer on unmount
+  // Clean up intervals on unmount to avoid memory leaks
   useEffect(() => {
     return () => {
-      sseRef.current?.close();
-      if (playbackRef.current) clearInterval(playbackRef.current);
-      if (bufferTimerRef.current) clearInterval(bufferTimerRef.current);
+      if (playbackRef.current) {
+        clearInterval(playbackRef.current);
+        playbackRef.current = null;
+      }
+      if (replayRef.current) {
+        clearInterval(replayRef.current);
+        replayRef.current = null;
+      }
     };
   }, []);
 
-  // ── Buffer drain: release buffered SSE events at the selected speed ───────
-  // At 1x: drain every 100ms (real-time)
-  // At 0.1x: drain every 1000ms (10x slower)
-  // At 10x: drain all buffered events immediately
+  // Post-run playback: when isPlaying and the run is done, advance currentTime
+  // by speed × 100 ms every 100 ms, clamped at totalDuration.
   useEffect(() => {
-    // Clear any previous drain timer
-    if (bufferTimerRef.current) {
-      clearInterval(bufferTimerRef.current);
-      bufferTimerRef.current = null;
+    if (replayRef.current) {
+      clearInterval(replayRef.current);
+      replayRef.current = null;
     }
-
-    if (!isPlaying || status !== 'running') return;
-
-    const drainInterval = speed >= 10 ? 10 : Math.round(100 / speed);
-    const eventsPerDrain = speed >= 5 ? 10 : speed >= 2 ? 3 : 1;
-
-    bufferTimerRef.current = setInterval(() => {
-      const buf = eventBufferRef.current;
-      if (buf.length === 0) return;
-
-      const batch = buf.splice(0, eventsPerDrain);
-      for (const item of batch) {
-        setEvents((prev) => [...prev, item.event]);
-        setLogs((prev) => [...prev, item.log]);
-      }
-    }, drainInterval);
-
+    if (status !== 'running' && isPlaying && totalDuration > 0) {
+      replayRef.current = setInterval(() => {
+        setCurrentTime((prev) => {
+          const next = prev + 100 * speed;
+          if (next >= totalDuration) {
+            // Reached end — stop playback
+            if (replayRef.current) {
+              clearInterval(replayRef.current);
+              replayRef.current = null;
+            }
+            setIsPlaying(false);
+            return totalDuration;
+          }
+          return next;
+        });
+      }, 100);
+    }
     return () => {
-      if (bufferTimerRef.current) {
-        clearInterval(bufferTimerRef.current);
-        bufferTimerRef.current = null;
+      if (replayRef.current) {
+        clearInterval(replayRef.current);
+        replayRef.current = null;
       }
     };
-  }, [isPlaying, speed, status]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, status, speed, totalDuration]);
 
   // ── Check inputs ───────────────────────────────────────────────────────────
 
+  const contextRecord = context as unknown as Record<string, string>;
+
   const missingInputs = requiredInputs.filter((key) => {
-    const val = (context as unknown as Record<string, string>)[key];
+    const val = contextRecord[key];
     return !val || val.trim() === '';
   });
 
@@ -165,142 +206,6 @@ export default function TestCard({
     setTotalDuration(ts);
   }, []);
 
-  // ── Code file loading ─────────────────────────────────────────────────────
-  // NOTE: must be defined before connectSSE which references it
-
-  const loadCodeFile = useCallback(async (filePath: string, line?: number) => {
-    // Check cache first
-    if (codeFileCacheRef.current.has(filePath)) {
-      const cached = codeFileCacheRef.current.get(filePath)!;
-      setCodeFiles((prev) => {
-        const idx = prev.findIndex((f) => f.path === filePath);
-        if (idx >= 0) {
-          const updated = [...prev];
-          updated[idx] = { ...cached, highlightedLines: line ? [line] : undefined };
-          setActiveFileIndex(idx);
-          return updated;
-        }
-        setActiveFileIndex(prev.length);
-        return [...prev, { ...cached, highlightedLines: line ? [line] : undefined }];
-      });
-      if (line) setActiveLine(line);
-      return;
-    }
-
-    // Fetch from GitHub API (current branch)
-    try {
-      const res = await fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(filePath)}&branch=main`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.type === 'file' && data.content) {
-          const ext = filePath.split('.').pop() || '';
-          const language = ['ts', 'tsx'].includes(ext) ? 'typescript' : 'javascript';
-          const codeFile: CodeFile = {
-            path: filePath,
-            content: data.content,
-            language,
-            highlightedLines: line ? [line] : undefined,
-          };
-          codeFileCacheRef.current.set(filePath, codeFile);
-          setCodeFiles((prev) => {
-            if (prev.find((f) => f.path === filePath)) return prev;
-            setActiveFileIndex(prev.length);
-            return [...prev, codeFile];
-          });
-          if (line) setActiveLine(line);
-        }
-      }
-    } catch {
-      // Silently fail — code viewer just won't show this file
-    }
-  }, []); // no deps needed — uses only refs and state setters
-
-  // ── SSE stream connection ─────────────────────────────────────────────────
-
-  const connectSSE = useCallback((projectId: string) => {
-    // Close any existing connection
-    sseRef.current?.close();
-
-    const url = `/api/admin/research/testing/stream?projectId=${encodeURIComponent(projectId)}`;
-    const sse = new EventSource(url);
-    sseRef.current = sse;
-
-    sse.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        if (data.type === 'connected') {
-          addLog('debug', module, 'SSE stream connected');
-          return;
-        }
-
-        if (data.type === 'complete') {
-          addLog('info', module, `Stream complete: ${data.status}`);
-          sse.close();
-          sseRef.current = null;
-          return;
-        }
-
-        // Convert worker log events to timeline events + log entries
-        if (data.type === 'log') {
-          const ts = Date.now() - startTimeRef.current;
-
-          const level: LogEntry['level'] =
-            data.status === 'fail' ? 'error' :
-            data.status === 'warn' ? 'warn' :
-            data.status === 'ok' ? 'success' : 'info';
-
-          const logEntry: LogEntry = {
-            id: nextLogId(),
-            timestamp: ts,
-            level,
-            source: data.source || data.layer || module,
-            message: `[${data.layer || ''}] ${data.method || ''}: ${data.details || data.status || ''}`,
-            details: data.error,
-          };
-
-          // Map to timeline event types
-          const evtType: EventType =
-            data.status === 'fail' ? 'error' :
-            data.status === 'warn' ? 'warning' :
-            data.type === 'browser-action' ? 'browser-action' :
-            data.type === 'ai-call' ? 'ai-call' :
-            data.type === 'api-call' ? 'api-call' :
-            data.type === 'screenshot' ? 'screenshot' :
-            'data-found';
-
-          const evt: TimelineEvent = {
-            id: nextEventId(),
-            timestamp: ts,
-            type: evtType,
-            label: `${data.layer || module}: ${data.method || ''}`,
-            description: data.details || data.status || '',
-            file: data.file,
-            function: data.function,
-            line: data.line,
-          };
-
-          // Buffer the event for speed-controlled playback
-          eventBufferRef.current.push({ event: evt, log: logEntry });
-
-          // Track total duration even while buffering
-          setTotalDuration(ts);
-
-          // If the event has file/line info, load the code file
-          if (data.file) {
-            loadCodeFile(data.file, data.line);
-          }
-        }
-      } catch {
-        // Ignore parse errors (e.g., heartbeat comments)
-      }
-    };
-
-    sse.onerror = () => {
-      // SSE will auto-reconnect; we don't need to log every reconnect
-    };
-  }, [module, addLog, loadCodeFile]);
-
   // ── Run test ───────────────────────────────────────────────────────────────
 
   const handleRun = async () => {
@@ -308,19 +213,17 @@ export default function TestCard({
     setStatus('running');
     setEvents([]);
     setLogs([]);
-    setCodeFiles([]);
-    codeFileCacheRef.current.clear();
-    eventBufferRef.current = [];
-    idCounterRef.current = 0;
     setResult(null);
     setError(undefined);
     setDuration(undefined);
     setScreenshots([]);
+    setAsyncMessage(undefined);
     setIsPlaying(true);
     setCurrentTime(0);
     setTotalDuration(0);
     setIsExpanded(true);
     setShowDebugger(true);
+    setLogFilter(''); // clear any filter from the previous run so new logs are visible
     startTimeRef.current = Date.now();
 
     // Start playback timer
@@ -337,17 +240,12 @@ export default function TestCard({
     // Build inputs from property context
     const inputs: Record<string, unknown> = {};
     for (const key of [...requiredInputs, ...optionalInputs]) {
-      const val = (context as unknown as Record<string, string>)[key];
+      const val = contextRecord[key];
       if (val && val.trim()) inputs[key] = val.trim();
     }
 
     addLog('info', module, `Inputs: ${JSON.stringify(inputs)}`);
     addEvent('api-call', 'API Request', `POST /api/admin/research/testing/run — module: ${module}`);
-
-    // Connect SSE if we have a projectId (for real-time worker events)
-    if (context.projectId) {
-      connectSSE(context.projectId);
-    }
 
     try {
       const res = await fetch('/api/admin/research/testing/run', {
@@ -357,45 +255,53 @@ export default function TestCard({
           module,
           inputs,
           projectId: context.projectId || undefined,
+          branch: contextRecord.branch || undefined,
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json() as {
+        success: boolean;
+        async?: boolean;
+        duration: number;
+        result: Record<string, unknown> | null;
+        status?: number;
+        error?: string;
+        message?: string;
+        pollUrl?: string;
+      };
       const elapsed = Date.now() - startTimeRef.current;
 
       if (data.success) {
-        addEvent('phase-complete', `${title} completed`, `Duration: ${(data.duration / 1000).toFixed(2)}s`);
-        addLog('success', module, `Completed in ${(data.duration / 1000).toFixed(2)}s`);
-        setResult(data.result);
-        setDuration(data.duration);
-        setStatus('success');
+        if (data.async) {
+          // 202 Accepted — job started in worker background
+          const msg = data.message ?? 'Job accepted. Running in the background on the worker.';
+          addEvent('checkpoint', `${title} accepted (async)`, msg);
+          addLog('info', module, msg);
+          if (data.pollUrl) addLog('info', module, `Poll: GET ${data.pollUrl}`);
+          setAsyncMessage(msg + (data.pollUrl ? `\n\nPoll for results: GET ${data.pollUrl}` : ''));
+          setResult(data.result);
+          setDuration(data.duration);
+          setStatus('success');
+        } else {
+          addEvent('phase-complete', `${title} completed`, `Duration: ${(data.duration / 1000).toFixed(2)}s`);
+          addLog('success', module, `Completed in ${(data.duration / 1000).toFixed(2)}s`);
+          setResult(data.result);
+          setDuration(data.duration);
+          setStatus('success');
 
-        // Extract screenshots if present
-        if (data.result?.screenshots) {
-          setScreenshots(data.result.screenshots);
-          addEvent('screenshot', 'Screenshots captured', `${data.result.screenshots.length} screenshots`);
-        }
+          // Extract screenshots if present
+          if (data.result?.screenshots && Array.isArray(data.result.screenshots)) {
+            setScreenshots(data.result.screenshots as string[]);
+            addEvent('screenshot', 'Screenshots captured', `${(data.result.screenshots as unknown[]).length} screenshots`);
+          }
 
-        // Extract logs from result if present (for non-SSE mode)
-        if (data.result?.log && Array.isArray(data.result.log)) {
-          for (const entry of data.result.log) {
-            addLog(
-              entry.status === 'fail' ? 'error' : entry.status === 'warn' ? 'warn' : 'info',
-              entry.source || module,
-              `[${entry.layer}] ${entry.method}: ${entry.details || entry.status}`,
-              entry.error,
-            );
-            const evtType: EventType = entry.status === 'fail' ? 'error' :
-              entry.status === 'warn' ? 'warning' : 'data-found';
-            addEvent(evtType, `${entry.layer}: ${entry.method}`, entry.details || entry.status, {
-              file: entry.file,
-              function: entry.function,
-              line: entry.line,
-            });
-
-            // Load code files referenced in the log entries
-            if (entry.file) {
-              loadCodeFile(entry.file, entry.line);
+          // Extract logs from result if present
+          if (data.result?.log && Array.isArray(data.result.log)) {
+            for (const rawEntry of data.result.log) {
+              const parsed = parseRawLogEntry(rawEntry, module);
+              if (!parsed) continue;
+              addLog(parsed.level, parsed.source, parsed.message, parsed.details);
+              addEvent(parsed.evtType, parsed.evtLabel, parsed.evtDetail);
             }
           }
         }
@@ -421,17 +327,6 @@ export default function TestCard({
       setCurrentTime(elapsed);
     }
 
-    // Close SSE stream
-    sseRef.current?.close();
-    sseRef.current = null;
-
-    // Flush any remaining buffered SSE events
-    const remaining = eventBufferRef.current.splice(0);
-    if (remaining.length > 0) {
-      setEvents((prev) => [...prev, ...remaining.map((r) => r.event)]);
-      setLogs((prev) => [...prev, ...remaining.map((r) => r.log)]);
-    }
-
     // Stop playback timer
     if (playbackRef.current) {
       clearInterval(playbackRef.current);
@@ -447,81 +342,21 @@ export default function TestCard({
     setEvents([]);
     setLogs([]);
     setCodeFiles([]);
-    codeFileCacheRef.current.clear();
     setResult(null);
     setError(undefined);
     setDuration(undefined);
     setScreenshots([]);
+    setAsyncMessage(undefined);
     setCurrentTime(0);
     setTotalDuration(0);
     setIsPlaying(false);
     setShowDebugger(false);
-    sseRef.current?.close();
-    sseRef.current = null;
-    eventBufferRef.current = [];
+    setLogFilter('');
     if (playbackRef.current) {
       clearInterval(playbackRef.current);
       playbackRef.current = null;
     }
-    if (bufferTimerRef.current) {
-      clearInterval(bufferTimerRef.current);
-      bufferTimerRef.current = null;
-    }
   };
-
-  // ── Export Run ─────────────────────────────────────────────────────────────
-
-  const handleExportRun = useCallback(() => {
-    const exportData = {
-      module,
-      title,
-      exportedAt: new Date().toISOString(),
-      status,
-      duration,
-      totalDuration,
-      events,
-      logs,
-      result,
-      error,
-      screenshots,
-      inputs: {
-        projectId: context.projectId,
-        propertyId: context.propertyId,
-        address: context.address,
-        county: context.county,
-      },
-    };
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `test-run-${module}-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [module, title, status, duration, totalDuration, events, logs, result, error, screenshots, context]);
-
-  // ── Timeline ↔ CodeViewer sync (spec 3D) ───────────────────────────────────
-  // When scrubbing, auto-switch to the file/line of the most recent event at T
-
-  useEffect(() => {
-    if (events.length === 0 || codeFiles.length === 0) return;
-    // Find the most recent event at or before currentTime that has a file
-    let best: TimelineEvent | null = null;
-    for (let i = events.length - 1; i >= 0; i--) {
-      if (events[i].timestamp <= currentTime && events[i].file) {
-        best = events[i];
-        break;
-      }
-    }
-    if (best?.file) {
-      const idx = codeFiles.findIndex((f) => f.path === best!.file);
-      if (idx >= 0 && idx !== activeFileIndex) {
-        setActiveFileIndex(idx);
-      }
-      if (best.line) setActiveLine(best.line);
-    }
-  }, [currentTime, events, codeFiles, activeFileIndex]);
 
   // ── Timeline controls ─────────────────────────────────────────────────────
 
@@ -559,9 +394,6 @@ export default function TestCard({
       const existingIdx = codeFiles.findIndex((f) => f.path === evt.file);
       if (existingIdx >= 0) {
         setActiveFileIndex(existingIdx);
-      } else {
-        // Attempt to load the file on click
-        loadCodeFile(evt.file, evt.line);
       }
       if (evt.line) setActiveLine(evt.line);
     }
@@ -610,21 +442,12 @@ export default function TestCard({
               Clear
             </button>
             {(status === 'success' || status === 'error') && (
-              <>
-                <button
-                  className="test-card__debugger-btn"
-                  onClick={() => setShowDebugger(!showDebugger)}
-                >
-                  {showDebugger ? 'Hide Debugger' : 'Show Debugger'}
-                </button>
-                <button
-                  className="test-card__export-btn"
-                  onClick={handleExportRun}
-                  title="Export timeline + logs as JSON"
-                >
-                  Export Run
-                </button>
-              </>
+              <button
+                className="test-card__debugger-btn"
+                onClick={() => setShowDebugger(!showDebugger)}
+              >
+                {showDebugger ? 'Hide Debugger' : 'Show Debugger'}
+              </button>
             )}
           </div>
 
@@ -648,19 +471,19 @@ export default function TestCard({
                 onEventClick={handleEventClick}
               />
 
-              {/* Code + Logs split view */}
-              <div className="test-card__split">
-                <div className="test-card__split-left">
-                  <CodeViewer
-                    files={codeFiles}
-                    activeFileIndex={activeFileIndex}
-                    activeLine={activeLine}
-                    readOnly={status === 'running'}
-                    onFileSelect={setActiveFileIndex}
-                  />
-                </div>
-                <div className="test-card__split-right">
-                  <div className="test-card__log-controls">
+                  {/* Log filter + stream — full width when no code trace, split when code is available */}
+              {codeFiles.length > 0 ? (
+                <div className="test-card__split">
+                  <div className="test-card__split-left">
+                    <CodeViewer
+                      files={codeFiles}
+                      activeFileIndex={activeFileIndex}
+                      activeLine={activeLine}
+                      readOnly={status === 'running'}
+                      onFileSelect={setActiveFileIndex}
+                    />
+                  </div>
+                  <div className="test-card__split-right">
                     <div className="test-card__log-filter">
                       <input
                         type="text"
@@ -669,18 +492,24 @@ export default function TestCard({
                         onChange={(e) => setLogFilter(e.target.value)}
                       />
                     </div>
-                    <div className="test-card__log-levels">
-                      {(['info', 'warn', 'error', 'success', 'debug'] as const).map((level) => (
-                        <button
-                          key={level}
-                          className={`test-card__log-level-btn test-card__log-level-btn--${level} ${logLevelFilter.has(level) ? 'test-card__log-level-btn--active' : ''}`}
-                          onClick={() => toggleLogLevel(level)}
-                          title={`Toggle ${level} logs`}
-                        >
-                          {level}
-                        </button>
-                      ))}
-                    </div>
+                    <LogStream
+                      logs={logs}
+                      currentTime={currentTime}
+                      isLive={isPlaying && currentTime >= totalDuration - 500}
+                      maxHeight="300px"
+                      filter={logFilter}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="test-card__log-filter">
+                    <input
+                      type="text"
+                      placeholder="Filter logs..."
+                      value={logFilter}
+                      onChange={(e) => setLogFilter(e.target.value)}
+                    />
                   </div>
                   <LogStream
                     logs={logs}
@@ -688,10 +517,22 @@ export default function TestCard({
                     isLive={isPlaying && currentTime >= totalDuration - 500}
                     maxHeight="300px"
                     filter={logFilter}
-                    levelFilter={logLevelFilter}
                   />
                 </div>
-              </div>
+              )}
+            </div>
+          )}
+
+          {/* Async job notice */}
+          {asyncMessage && (
+            <div className="test-card__async-notice">
+              <span style={{ marginRight: '0.4rem' }}>⏳</span>
+              {asyncMessage.split('\n\n').map((line, i) => (
+                <span
+                  key={`async-line-${i}`}
+                  style={i > 0 ? { display: 'block', marginTop: '0.3rem', fontFamily: 'monospace', fontSize: '0.78rem' } : undefined}
+                >{line}</span>
+              ))}
             </div>
           )}
 

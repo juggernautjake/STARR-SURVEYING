@@ -31,9 +31,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     // If no SHA provided, get current file SHA first
     let fileSha = sha;
     if (!fileSha) {
-      const encodedPath = path.split('/').map(encodeURIComponent).join('/');
       const existingRes = await fetch(
-        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`,
+        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch)}`,
         {
           headers: {
             'Accept': 'application/vnd.github.v3+json',
@@ -49,9 +48,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
 
     // Create or update the file
-    const encodedPathForPut = path.split('/').map(encodeURIComponent).join('/');
     const res = await fetch(
-      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${encodedPathForPut}`,
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${path.split('/').map(encodeURIComponent).join('/')}`,
       {
         method: 'PUT',
         headers: {

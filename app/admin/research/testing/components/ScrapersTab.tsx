@@ -11,8 +11,8 @@ const SCRAPERS = [
     requiresBrowser: true,
     requiresApiKey: false,
     estimatedRuntime: '5-15s',
-    requiredInputs: ['propertyId'],
-    optionalInputs: ['address', 'ownerName'],
+    requiredInputs: ['address'],
+    optionalInputs: ['county', 'state'],
   },
   {
     title: 'GIS Scraper',
@@ -21,8 +21,8 @@ const SCRAPERS = [
     requiresBrowser: false,
     requiresApiKey: false,
     estimatedRuntime: '2-5s',
-    requiredInputs: ['propertyId'],
-    optionalInputs: ['lat', 'lon', 'address'],
+    requiredInputs: ['address'],
+    optionalInputs: ['county', 'state', 'lat', 'lon'],
   },
   {
     title: 'Clerk Scraper',
@@ -31,8 +31,8 @@ const SCRAPERS = [
     requiresBrowser: true,
     requiresApiKey: false,
     estimatedRuntime: '15-45s',
-    requiredInputs: ['ownerName'],
-    optionalInputs: ['instrumentNumbers', 'subdivisionName'],
+    requiredInputs: ['projectId', 'ownerName'],
+    optionalInputs: ['propertyId', 'subdivisionName', 'county'],
   },
   {
     title: 'Plat Scraper',
@@ -41,8 +41,8 @@ const SCRAPERS = [
     requiresBrowser: true,
     requiresApiKey: false,
     estimatedRuntime: '5-30s',
-    requiredInputs: ['subdivisionName'],
-    optionalInputs: ['instrumentNumbers'],
+    requiredInputs: ['projectId', 'ownerName'],
+    optionalInputs: ['subdivisionName', 'propertyId', 'county'],
   },
   {
     title: 'FEMA Scraper',
@@ -96,7 +96,8 @@ const SCRAPERS = [
     requiresBrowser: true,
     requiresApiKey: false,
     estimatedRuntime: '7s + 5-10s/ea',
-    requiredInputs: ['propertyId'],
+    requiredInputs: ['projectId', 'ownerName'],
+    optionalInputs: ['county', 'propertyId'],
   },
 ];
 

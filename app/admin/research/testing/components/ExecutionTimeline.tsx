@@ -80,6 +80,8 @@ const EVENT_SHAPES: Record<EventType, string> = {
   'checkpoint':     '◆',
 };
 
+const SSR_VIEWPORT_WIDTH = 1200; // fallback for server-side rendering
+
 const SPEED_PRESETS = [0.1, 0.25, 0.5, 1, 2, 5, 10];
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -132,28 +134,25 @@ export default function ExecutionTimeline({
     };
   }, [isDragging, getTimeFromMouseX, onSeek]);
 
-  // ── Keyboard ───────────────────────────────────────────────────────────────
+  // ── Keyboard — scoped to this component via onKeyDown + tabIndex ─────────
+  // Using window listeners caused every visible ExecutionTimeline to fire
+  // simultaneously (e.g. 10 TestCards all respond to Space/Arrow).
 
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      switch (e.key) {
-        case ' ':
-          e.preventDefault();
-          onTogglePlay();
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          onStepBack();
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          onStepForward();
-          break;
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    switch (e.key) {
+      case ' ':
+        e.preventDefault();
+        onTogglePlay();
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        onStepBack();
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        onStepForward();
+        break;
+    }
   }, [onTogglePlay, onStepBack, onStepForward]);
 
   // ── Format helpers ─────────────────────────────────────────────────────────
@@ -171,15 +170,13 @@ export default function ExecutionTimeline({
 
   const scrubberPercent = maxTime > 0 ? (currentTime / maxTime) * 100 : 0;
 
-  // Count events by type for the legend
-  const eventCounts = events.reduce<Partial<Record<EventType, number>>>((acc, e) => {
-    acc[e.type] = (acc[e.type] || 0) + 1;
-    return acc;
-  }, {});
-  const activeTypes = (Object.keys(eventCounts) as EventType[]).filter((t) => (eventCounts[t] || 0) > 0);
-
   return (
-    <div className="execution-timeline">
+    <div
+      className="execution-timeline"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      aria-label="Execution timeline — press Space to pause/resume, Arrow keys to step"
+    >
       {/* Time labels */}
       <div className="execution-timeline__time-labels">
         <span>{formatTime(0)}</span>
@@ -245,8 +242,8 @@ export default function ExecutionTimeline({
         <div
           className="execution-timeline__tooltip"
           style={{
-            left: `${Math.min(tooltipPos.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 300)}px`,
-            top: `${tooltipPos.y - 80}px`,
+            left: `${Math.min(tooltipPos.x, (typeof window !== 'undefined' ? window.innerWidth : SSR_VIEWPORT_WIDTH) - 300)}px`,
+            top: `${Math.max(8, tooltipPos.y - 80)}px`,
           }}
         >
           <div className="execution-timeline__tooltip-type" style={{ color: EVENT_COLORS[hoveredEvent.type] }}>
@@ -300,22 +297,6 @@ export default function ExecutionTimeline({
           ))}
         </div>
       </div>
-
-      {/* Marker legend — only shows types that appear in the current run */}
-      {activeTypes.length > 0 && (
-        <div className="execution-timeline__legend">
-          {activeTypes.map((type) => (
-            <span key={type} className="execution-timeline__legend-item">
-              <span style={{ color: EVENT_COLORS[type] }}>{EVENT_SHAPES[type]}</span>
-              {' '}{type.replace(/-/g, ' ')}
-              <span className="execution-timeline__legend-count">{eventCounts[type]}</span>
-            </span>
-          ))}
-          <span className="execution-timeline__event-total">
-            {events.length} events
-          </span>
-        </div>
-      )}
     </div>
   );
 }

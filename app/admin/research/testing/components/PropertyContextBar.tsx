@@ -1,7 +1,7 @@
 // PropertyContextBar.tsx — Shared property inputs for the Testing Lab
 'use client';
 
-import { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useState } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,8 @@ export interface PropertyContext {
   ownerName: string;
   subdivisionName: string;
   instrumentNumbers: string;
+  /** Active git branch — forwarded to the worker so tests run against the right code. */
+  branch: string;
 }
 
 const DEFAULT_CONTEXT: PropertyContext = {
@@ -29,6 +31,7 @@ const DEFAULT_CONTEXT: PropertyContext = {
   ownerName: '',
   subdivisionName: '',
   instrumentNumbers: '',
+  branch: 'main',
 };
 
 // ── Test fixtures ────────────────────────────────────────────────────────────
@@ -39,82 +42,46 @@ const TEST_FIXTURES = [
     ...DEFAULT_CONTEXT,
   },
   {
-    label: 'Residential — Belton (Bell Co.)',
+    label: 'Residential — Belton (FM 436)',
     projectId: '',
-    propertyId: 'R12345',
-    address: '123 Main St, Belton, TX 76513',
+    propertyId: 'R060789',
+    address: '3779 FM 436, Belton, TX 76513',
     county: 'Bell',
     state: 'TX',
     lat: '31.0561',
     lon: '-97.4642',
-    ownerName: '',
+    ownerName: 'ASH FAMILY TRUST',
     subdivisionName: '',
     instrumentNumbers: '',
+    branch: 'main',
   },
   {
-    label: 'Subdivision — Temple (Bell Co.)',
+    label: 'Commercial — Temple (Main St)',
     projectId: '',
-    propertyId: 'R67890',
-    address: '456 Oak Dr, Temple, TX 76502',
+    propertyId: 'C012345',
+    address: '2910 S 31st St, Temple, TX 76502',
     county: 'Bell',
     state: 'TX',
-    lat: '31.0982',
-    lon: '-97.3428',
-    ownerName: 'Smith, John',
-    subdivisionName: 'Western Hills Estates',
-    instrumentNumbers: '',
-  },
-  {
-    label: 'Urban — Houston (Harris Co.)',
-    projectId: '',
-    propertyId: '0422710000012',
-    address: '1000 Main St, Houston, TX 77002',
-    county: 'Harris',
-    state: 'TX',
-    lat: '29.7530',
-    lon: '-95.3631',
+    lat: '31.0891',
+    lon: '-97.3427',
     ownerName: '',
     subdivisionName: '',
     instrumentNumbers: '',
+    branch: 'main',
   },
   {
-    label: 'Suburban — Fort Worth (Tarrant Co.)',
+    label: 'Subdivision Lot — Killeen',
     projectId: '',
-    propertyId: '02344861',
-    address: '500 Elm St, Fort Worth, TX 76102',
-    county: 'Tarrant',
-    state: 'TX',
-    lat: '32.7555',
-    lon: '-97.3308',
-    ownerName: '',
-    subdivisionName: '',
-    instrumentNumbers: '',
-  },
-  {
-    label: 'Rural Acreage — Bell Co.',
-    projectId: '',
-    propertyId: 'A45678',
-    address: '2000 FM 93, Belton, TX 76513',
+    propertyId: 'R099001',
+    address: '4201 Clear Creek Rd, Killeen, TX 76549',
     county: 'Bell',
     state: 'TX',
-    lat: '31.0320',
-    lon: '-97.5100',
-    ownerName: 'Johnson, Robert',
-    subdivisionName: '',
-    instrumentNumbers: '2024-00012345,2024-00012346',
-  },
-  {
-    label: 'Flood Zone Test — Bell Co.',
-    projectId: '',
-    propertyId: 'R99001',
-    address: '100 River Rd, Belton, TX 76513',
-    county: 'Bell',
-    state: 'TX',
-    lat: '31.0480',
-    lon: '-97.4550',
+    lat: '31.1171',
+    lon: '-97.7278',
     ownerName: '',
-    subdivisionName: '',
+    subdivisionName: 'CLEAR CREEK ESTATES',
     instrumentNumbers: '',
+    branch: 'main',
   },
 ];
 
@@ -122,7 +89,7 @@ const TEST_FIXTURES = [
 
 interface PropertyContextValue {
   context: PropertyContext;
-  setContext: (ctx: PropertyContext) => void;
+  setContext: React.Dispatch<React.SetStateAction<PropertyContext>>;
   updateField: (key: keyof PropertyContext, value: string) => void;
 }
 
@@ -156,24 +123,33 @@ export default function PropertyContextBar() {
   const { context, setContext, updateField } = usePropertyContext();
   const [isExpanded, setIsExpanded] = useState(true);
   const [loadingProject, setLoadingProject] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [fixtureIndex, setFixtureIndex] = useState('');
 
   const handleFixture = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const fixture = TEST_FIXTURES[Number(e.target.value)];
+    const idx = e.target.value;
+    setFixtureIndex(idx);
+    const fixture = TEST_FIXTURES[Number(idx)];
     if (fixture) {
-      setContext({ ...fixture } as PropertyContext);
+      // Preserve the active branch — fixtures should set property data only,
+      // not silently reset the branch the user selected in BranchSelector.
+      setContext((prev) => ({ ...fixture, branch: prev.branch } as PropertyContext));
     }
   };
 
   const handleLoadProject = async () => {
     if (!context.projectId) return;
     setLoadingProject(true);
+    setLoadError(null);
     try {
       const res = await fetch(`/api/admin/research/${context.projectId}`);
       if (res.ok) {
         const data = await res.json();
         const p = data.project;
-        setContext({
-          ...context,
+        // Use functional form to avoid discarding field changes made while
+        // the request was in-flight (stale closure on `context`).
+        setContext((prev) => ({
+          ...prev,
           propertyId: p.parcel_id || '',
           address: p.property_address || '',
           county: p.county || 'Bell',
@@ -181,10 +157,15 @@ export default function PropertyContextBar() {
           lat: p.lat?.toString() || '',
           lon: p.lon?.toString() || '',
           ownerName: p.owner_name || '',
-        });
+          subdivisionName: p.subdivision_name || '',
+        }));
+        setFixtureIndex(''); // clear fixture selection after loading a project
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setLoadError(err?.error || `Project not found (${res.status})`);
       }
     } catch {
-      // silently fail
+      setLoadError('Network error — could not load project');
     }
     setLoadingProject(false);
   };
@@ -212,7 +193,7 @@ export default function PropertyContextBar() {
           <div className="property-context-bar__row">
             <div className="property-context-bar__field property-context-bar__field--wide">
               <label>Quick Load</label>
-              <select onChange={handleFixture} defaultValue="">
+              <select value={fixtureIndex} onChange={handleFixture}>
                 <option value="" disabled>Select a test fixture...</option>
                 {TEST_FIXTURES.map((f, i) => (
                   <option key={i} value={i}>{f.label}</option>
@@ -226,7 +207,7 @@ export default function PropertyContextBar() {
                   type="text"
                   placeholder="UUID"
                   value={context.projectId}
-                  onChange={(e) => updateField('projectId', e.target.value)}
+                  onChange={(e) => { updateField('projectId', e.target.value); setLoadError(null); }}
                 />
                 <button
                   className="property-context-bar__load-btn"
@@ -236,6 +217,9 @@ export default function PropertyContextBar() {
                   {loadingProject ? '...' : 'Load'}
                 </button>
               </div>
+              {loadError && (
+                <div className="property-context-bar__load-error">{loadError}</div>
+              )}
             </div>
           </div>
 

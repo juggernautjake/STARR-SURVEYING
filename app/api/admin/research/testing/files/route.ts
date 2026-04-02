@@ -27,11 +27,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   try {
-    // Encode each path segment individually — encodeURIComponent on the full
-    // path would turn '/' into '%2F' which the GitHub API rejects.
-    const encodedPath = path.split('/').map(encodeURIComponent).join('/');
     const res = await fetch(
-      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`,
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch)}`,
       {
         headers: {
           'Accept': 'application/vnd.github.v3+json',
@@ -47,9 +44,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
     const data = await res.json();
 
-    if (data.type === 'dir') {
-      // Return directory listing
-      const files = data.map((f: any) => ({
+    // GitHub returns an array when the path points to a directory
+    if (Array.isArray(data)) {
+      const files = data.map((f: { name: string; path: string; type: string; size: number }) => ({
         name: f.name,
         path: f.path,
         type: f.type,

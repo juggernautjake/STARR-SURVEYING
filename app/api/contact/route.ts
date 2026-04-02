@@ -44,6 +44,9 @@ interface IncomingFormData {
   email?: string;
   phone?: string;
   company?: string;
+  propertyStreet?: string;
+  propertyCity?: string;
+  propertyNumber?: string;
   propertyAddress?: string;
   serviceType?: string;
   projectDetails?: string;
@@ -54,6 +57,9 @@ interface IncomingFormData {
   full_name?: string;
   company_name?: string;
   service_type?: string;
+  property_street?: string;
+  property_city?: string;
+  property_number?: string;
   property_address?: string;
   project_description?: string;
   preferred_contact_method?: string;
@@ -71,6 +77,7 @@ interface NormalizedData {
   phone: string;
   company: string;
   propertyAddress: string;
+  propertyNumber: string;
   serviceType: string;
   projectDetails: string;
   preferredContact: string;
@@ -628,6 +635,12 @@ function buildContactFormEmailHtml(data: NormalizedData, referenceNumber: string
           <div class="field-value">${data.propertyAddress}</div>
         </div>
         ` : ''}
+        ${data.propertyNumber ? `
+        <div class="field">
+          <div class="field-label">Property / Account Number</div>
+          <div class="field-value">${data.propertyNumber}</div>
+        </div>
+        ` : ''}
         ${data.serviceType ? `
         <div class="field">
           <div class="field-label">Service Requested</div>
@@ -769,6 +782,12 @@ function buildCustomerConfirmationHtml(data: NormalizedData, referenceNumber: st
           <div class="field-label">Property Address</div>
           <div class="field-value">${data.propertyAddress}</div>
         </div>
+        ${data.propertyNumber ? `
+        <div class="field">
+          <div class="field-label">Property / Account Number</div>
+          <div class="field-value">${data.propertyNumber}</div>
+        </div>
+        ` : ''}
         ${data.serviceType ? `
         <div class="field">
           <div class="field-label">Service Requested</div>
@@ -876,7 +895,7 @@ Preferred Contact: ${data.preferredContact || 'Email'}
 PROPERTY & SERVICE
 ------------------
 Property Address: ${data.propertyAddress || 'Not provided'}
-Service Type: ${data.serviceType || 'Not specified'}
+${data.propertyNumber ? `Property / Account Number: ${data.propertyNumber}\n` : ''}Service Type: ${data.serviceType || 'Not specified'}
 How They Found Us: ${data.howHeard || 'Not specified'}
 
 PROJECT DETAILS
@@ -919,6 +938,7 @@ function buildCustomerPlainText(data: NormalizedData, referenceNumber: string, i
   
   if (!isCalculator) {
     if (data.propertyAddress) text += `Property: ${data.propertyAddress}\n`;
+    if (data.propertyNumber) text += `Property / Account Number: ${data.propertyNumber}\n`;
     if (data.serviceType) text += `Service: ${data.serviceType}\n`;
     if (data.projectDetails) text += `\nYour Message:\n${data.projectDetails}\n`;
   }
@@ -984,12 +1004,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const referenceNumber = generateReferenceNumber();
 
     // Normalize field names
+    const propertyStreet = body.propertyStreet || body.property_street || '';
+    const propertyCity = body.propertyCity || body.property_city || '';
+    const legacyAddress = body.propertyAddress || body.property_address || '';
+    const combinedAddress = propertyStreet && propertyCity
+      ? `${propertyStreet}, ${propertyCity}`
+      : propertyStreet || propertyCity || legacyAddress;
+
     const data: NormalizedData = {
       name: body.name || body.full_name || '',
       email: body.email || '',
       phone: body.phone || '',
       company: body.company || body.company_name || '',
-      propertyAddress: body.propertyAddress || body.property_address || '',
+      propertyAddress: combinedAddress,
+      propertyNumber: body.propertyNumber || body.property_number || '',
       serviceType: body.serviceType || body.service_type || '',
       projectDetails: body.projectDetails || body.project_description || '',
       preferredContact: body.preferredContact || body.preferred_contact_method || 'email',

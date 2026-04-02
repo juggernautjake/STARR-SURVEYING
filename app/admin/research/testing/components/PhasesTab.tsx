@@ -11,8 +11,8 @@ const PHASES = [
     requiresBrowser: true,
     requiresApiKey: false,
     estimatedRuntime: '10-30s',
-    requiredInputs: ['propertyId'],
-    optionalInputs: ['address', 'ownerName', 'lat', 'lon'],
+    requiredInputs: ['address'],
+    optionalInputs: ['propertyId', 'ownerName', 'lat', 'lon'],
   },
   {
     title: 'Phase 2: Document Harvesting',

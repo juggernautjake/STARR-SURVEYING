@@ -1,7 +1,7 @@
 // FullPipelineTab.tsx — Run the full pipeline with phase skip/resume controls
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePropertyContext } from './PropertyContextBar';
 import ExecutionTimeline, { type TimelineEvent } from './ExecutionTimeline';
 import LogStream, { type LogEntry } from './LogStream';
@@ -36,11 +36,25 @@ export default function FullPipelineTab() {
   const [totalDuration, setTotalDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [currentPhase, setCurrentPhase] = useState<string | null>(null);
 
-  // Use refs so values survive re-renders during async operations
   const startTimeRef = useRef(0);
   const logCounterRef = useRef(0);
   const evtCounterRef = useRef(0);
+  // Ticker that advances currentTime/totalDuration every 100ms while running,
+  // mirroring what TestCard does. Without this the timeline stays frozen at t=0
+  // until the entire multi-minute fetch resolves.
+  const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clean up interval on unmount
+  useEffect(() => {
+    return () => {
+      if (playbackRef.current) {
+        clearInterval(playbackRef.current);
+        playbackRef.current = null;
+      }
+    };
+  }, []);
 
   const togglePhase = (key: string) => {
     setEnabledPhases((prev) => {
@@ -51,7 +65,7 @@ export default function FullPipelineTab() {
     });
   };
 
-  const addLog = useCallback((level: LogEntry['level'], message: string) => {
+  const addLog = (level: LogEntry['level'], message: string) => {
     const ts = Date.now() - startTimeRef.current;
     setLogs((prev) => [...prev, {
       id: `plog-${++logCounterRef.current}-${Date.now()}`,
@@ -62,9 +76,17 @@ export default function FullPipelineTab() {
     }]);
     setCurrentTime(ts);
     setTotalDuration(ts);
-  }, []);
+    // Update currentPhase from log messages that mention a phase name.
+    // Build pattern dynamically from PIPELINE_PHASES so it stays in sync.
+    // Store p.key so it can be matched against p.key in the progress display.
+    const lc = message.toLowerCase();
+    const matchedKey = PIPELINE_PHASES.find((p) =>
+      lc.includes(p.key) || lc.includes(p.label.toLowerCase())
+    )?.key ?? null;
+    if (matchedKey) setCurrentPhase(matchedKey);
+  };
 
-  const addEvent = useCallback((type: TimelineEvent['type'], label: string, desc: string) => {
+  const addEvent = (type: TimelineEvent['type'], label: string, desc: string) => {
     const ts = Date.now() - startTimeRef.current;
     setEvents((prev) => [...prev, {
       id: `pevt-${++evtCounterRef.current}-${Date.now()}`,
@@ -75,7 +97,23 @@ export default function FullPipelineTab() {
     }]);
     setCurrentTime(ts);
     setTotalDuration(ts);
-  }, []);
+  };
+
+  const findAdjacentEvent = (direction: 'next' | 'prev') => {
+    const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
+    if (direction === 'next') return sorted.find((e) => e.timestamp > currentTime);
+    return [...sorted].reverse().find((e) => e.timestamp < currentTime);
+  };
+
+  const handleStepForward = () => {
+    const next = findAdjacentEvent('next');
+    if (next) setCurrentTime(next.timestamp);
+  };
+
+  const handleStepBack = () => {
+    const prev = findAdjacentEvent('prev');
+    if (prev) setCurrentTime(prev.timestamp);
+  };
 
   const handleRun = async () => {
     setStatus('running');
@@ -88,8 +126,15 @@ export default function FullPipelineTab() {
     setCurrentTime(0);
     setTotalDuration(0);
     startTimeRef.current = Date.now();
-    logCounterRef.current = 0;
-    evtCounterRef.current = 0;
+
+    // Start live ticker — advances the timeline every 100ms so the scrubber
+    // moves while we wait for the (potentially 5-minute) pipeline response.
+    if (playbackRef.current) clearInterval(playbackRef.current);
+    playbackRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTimeRef.current;
+      setCurrentTime(elapsed);
+      setTotalDuration(elapsed);
+    }, 100);
 
     addEvent('phase-start', 'Pipeline started', 'Full pipeline execution');
     addLog('info', 'Starting full pipeline...');
@@ -114,23 +159,32 @@ export default function FullPipelineTab() {
           module: 'full-pipeline',
           inputs,
           projectId: context.projectId || undefined,
+          branch: context.branch || undefined,
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json() as {
+        success: boolean;
+        async?: boolean;
+        duration: number;
+        result: unknown;
+        error?: string;
+      };
       const elapsed = Date.now() - startTimeRef.current;
 
       if (data.success) {
+        setCurrentPhase(null);
         addEvent('phase-complete', 'Pipeline completed', `Duration: ${(data.duration / 1000).toFixed(1)}s`);
         addLog('success', `Pipeline completed in ${(data.duration / 1000).toFixed(1)}s`);
         setResult(data.result);
         setDuration(data.duration);
         setStatus('success');
       } else {
+        setCurrentPhase(null);
         addEvent('phase-failed', 'Pipeline failed', data.error || 'Unknown error');
         addLog('error', data.error || 'Pipeline failed');
         setError(data.error);
-        setResult(data.result);
+        setResult((data as Record<string, unknown>).result ?? null);
         setDuration(data.duration);
         setStatus('error');
       }
@@ -139,37 +193,45 @@ export default function FullPipelineTab() {
       setCurrentTime(elapsed);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Network error';
+      const elapsed = Date.now() - startTimeRef.current;
+      setCurrentPhase(null);
       addEvent('error', 'Request failed', msg);
       addLog('error', msg);
       setError(msg);
+      setDuration(elapsed);
+      setTotalDuration(elapsed);
+      setCurrentTime(elapsed);
       setStatus('error');
     }
 
+    // Stop the live ticker
+    if (playbackRef.current) {
+      clearInterval(playbackRef.current);
+      playbackRef.current = null;
+    }
     setIsPlaying(false);
   };
 
-  // ── Timeline step controls ─────────────────────────────────────────────────
-
-  const findAdjacentEvent = useCallback((direction: 'next' | 'prev') => {
-    const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
-    if (direction === 'next') {
-      return sorted.find((e) => e.timestamp > currentTime);
-    } else {
-      return [...sorted].reverse().find((e) => e.timestamp < currentTime);
+  const handleClear = () => {
+    setStatus('idle');
+    setEvents([]);
+    setLogs([]);
+    setResult(null);
+    setError(undefined);
+    setDuration(undefined);
+    setCurrentTime(0);
+    setTotalDuration(0);
+    setIsPlaying(false);
+    setCurrentPhase(null);
+    if (playbackRef.current) {
+      clearInterval(playbackRef.current);
+      playbackRef.current = null;
     }
-  }, [events, currentTime]);
+  };
 
-  const handleStepForward = useCallback(() => {
-    const next = findAdjacentEvent('next');
-    if (next) setCurrentTime(next.timestamp);
-  }, [findAdjacentEvent]);
-
-  const handleStepBack = useCallback(() => {
-    const prev = findAdjacentEvent('prev');
-    if (prev) setCurrentTime(prev.timestamp);
-  }, [findAdjacentEvent]);
-
-  const missingInputs = !context.propertyId;
+  // Require at least an address or a property ID to run the pipeline.
+  // Phase 1 discovery uses address; resuming from later phases needs propertyId.
+  const missingInputs = !context.address && !context.propertyId;
 
   return (
     <div className="full-pipeline-tab">
@@ -209,20 +271,34 @@ export default function FullPipelineTab() {
           onClick={handleRun}
           disabled={status === 'running' || missingInputs}
         >
-          {status === 'running' ? 'Running...' : 'Run Full Pipeline'}
+          {status === 'running'
+            ? `Running...${currentPhase
+                ? ` (${PIPELINE_PHASES.find((p) => p.key === currentPhase)?.label ?? currentPhase})`
+                : ''}`
+            : 'Run Full Pipeline'}
         </button>
+        {(status === 'success' || status === 'error') && (
+          <button className="test-card__clear-btn" onClick={handleClear}>
+            Clear
+          </button>
+        )}
         {missingInputs && (
           <span className="test-card__warning" style={{ display: 'inline' }}>
-            Property ID is required
+            Address or Property ID is required
           </span>
         )}
       </div>
 
-      {/* Phase progress — shows which phases are enabled */}
+      {/* Phase progress */}
       {status !== 'idle' && (
         <div className="full-pipeline-tab__progress">
           {PIPELINE_PHASES.filter((p) => enabledPhases.has(p.key)).map((p) => (
-            <div key={p.key} className="full-pipeline-tab__phase-step">
+            <div
+              key={p.key}
+              className={`full-pipeline-tab__phase-step ${
+                currentPhase === p.key ? 'full-pipeline-tab__phase-step--active' : ''
+              }`}
+            >
               <span className="full-pipeline-tab__phase-dot" />
               {p.label}
             </div>
@@ -238,7 +314,7 @@ export default function FullPipelineTab() {
           totalDuration={totalDuration}
           isPlaying={isPlaying}
           speed={speed}
-          onSeek={(t) => { setCurrentTime(t); setIsPlaying(false); }}
+          onSeek={setCurrentTime}
           onTogglePlay={() => setIsPlaying(!isPlaying)}
           onStepForward={handleStepForward}
           onStepBack={handleStepBack}

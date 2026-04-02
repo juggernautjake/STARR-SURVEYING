@@ -105,6 +105,9 @@ export default function SurveyCalculator() {
     name: '',
     email: '',
     phone: '',
+    propertyStreet: '',
+    propertyCity: '',
+    propertyNumber: '',
     notes: '',
   });
   const [result, setResult] = useState<{
@@ -254,6 +257,14 @@ export default function SurveyCalculator() {
       alert('Please enter a valid phone number.');
       return;
     }
+    if (!contactInfo.propertyStreet.trim()) {
+      alert('Please enter the property street address.');
+      return;
+    }
+    if (!contactInfo.propertyCity.trim()) {
+      alert('Please enter the property city.');
+      return;
+    }
     if (!currentSurveyType || !result) return;
 
     setIsSubmitting(true);
@@ -265,7 +276,12 @@ export default function SurveyCalculator() {
       emailBody += `CONTACT INFORMATION:\n`;
       emailBody += `Name: ${contactInfo.name}\n`;
       emailBody += `Email: ${contactInfo.email}\n`;
-      emailBody += `Phone: ${contactInfo.phone}\n\n`;
+      emailBody += `Phone: ${contactInfo.phone}\n`;
+      emailBody += `Property Address: ${contactInfo.propertyStreet}, ${contactInfo.propertyCity}\n`;
+      if (contactInfo.propertyNumber.trim()) {
+        emailBody += `Property/Account Number: ${contactInfo.propertyNumber}\n`;
+      }
+      emailBody += `\n`;
       
       if (contactInfo.notes.trim()) {
         emailBody += `ADDITIONAL NOTES:\n${contactInfo.notes}\n\n`;
@@ -281,6 +297,9 @@ export default function SurveyCalculator() {
           name: contactInfo.name,
           email: contactInfo.email,
           phone: contactInfo.phone,
+          propertyStreet: contactInfo.propertyStreet,
+          propertyCity: contactInfo.propertyCity,
+          propertyNumber: contactInfo.propertyNumber,
           subject: `Survey Estimate Request - ${currentSurveyType.name}`,
           message: emailBody,
           source: 'pricing-calculator',
@@ -296,7 +315,10 @@ export default function SurveyCalculator() {
     } catch {
       const mailtoSubject = encodeURIComponent(`Survey Estimate Request - ${currentSurveyType.name}`);
       const mailtoBody = encodeURIComponent(
-        `Contact: ${contactInfo.name}\nEmail: ${contactInfo.email}\nPhone: ${contactInfo.phone}\n\n` +
+        `Contact: ${contactInfo.name}\nEmail: ${contactInfo.email}\nPhone: ${contactInfo.phone}\n` +
+        `Property: ${contactInfo.propertyStreet}, ${contactInfo.propertyCity}\n` +
+        (contactInfo.propertyNumber ? `Property/Account #: ${contactInfo.propertyNumber}\n` : '') +
+        `\n` +
         (contactInfo.notes ? `Notes: ${contactInfo.notes}\n\n` : '') +
         formatFormDataForEmail(currentSurveyType, formValues, result, rushJob)
       );
@@ -316,7 +338,7 @@ export default function SurveyCalculator() {
     setSubmitSuccess(false);
     setShowCallMessage(false);
     setResult(null);
-    setContactInfo({ name: '', email: '', phone: '', notes: '' });
+    setContactInfo({ name: '', email: '', phone: '', propertyStreet: '', propertyCity: '', propertyNumber: '', notes: '' });
   };
 
   const numImprovements = parseInt(formValues.numImprovements as string) || 0;
@@ -719,6 +741,43 @@ export default function SurveyCalculator() {
                         placeholder="john@example.com"
                         style={{ marginBottom: 0 }}
                       />
+                    </div>
+
+                    <div style={{ marginTop: '1rem' }}>
+                      <label className="pricing-calculator__label">Property Street Address *</label>
+                      <input
+                        type="text"
+                        className="pricing-calculator__input"
+                        value={contactInfo.propertyStreet}
+                        onChange={(e) => handleContactChange('propertyStreet', e.target.value)}
+                        placeholder="123 Main St"
+                        style={{ marginBottom: 0 }}
+                      />
+                    </div>
+
+                    <div className="pricing-calculator__contact-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                      <div>
+                        <label className="pricing-calculator__label">City *</label>
+                        <input
+                          type="text"
+                          className="pricing-calculator__input"
+                          value={contactInfo.propertyCity}
+                          onChange={(e) => handleContactChange('propertyCity', e.target.value)}
+                          placeholder="Belton"
+                          style={{ marginBottom: 0 }}
+                        />
+                      </div>
+                      <div>
+                        <label className="pricing-calculator__label">Property / Account Number</label>
+                        <input
+                          type="text"
+                          className="pricing-calculator__input"
+                          value={contactInfo.propertyNumber}
+                          onChange={(e) => handleContactChange('propertyNumber', e.target.value)}
+                          placeholder="CAD account or parcel # (optional)"
+                          style={{ marginBottom: 0 }}
+                        />
+                      </div>
                     </div>
 
                     <div style={{ marginTop: '1rem' }}>

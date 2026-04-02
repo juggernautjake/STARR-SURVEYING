@@ -1,8 +1,72 @@
 # STARR Surveying — Modular Testing Lab Plan (v2)
 
-> **Date:** 2026-03-29
-> **Branch:** `claude/modular-ui-versions-ThZu1`
-> **Status:** Implementation in progress
+> **Date:** 2026-03-29  
+> **Last Updated:** 2026-03-31  
+> **Branch:** `copilot/phase-1-infrastructure-build`  
+> **Status:** Phase 1 complete — all known bugs resolved, ready for Phase 2
+
+---
+
+## Current Build Status
+
+### Phase 1 — Infrastructure ✅ Complete
+
+| File | Status | Notes |
+|------|--------|-------|
+| `testing/layout.tsx` | ✅ Done | Admin guard, unauthenticated redirect to `/admin/login`, `as any` removed |
+| `TestingLab.css` | ✅ Done | ~1,560 lines, single canonical definition per class, CSS variables, dark debug panels / light page chrome |
+| `POST /api/admin/research/testing/run/route.ts` | ✅ Done | Per-module timeouts, module group constants (HARVEST/ANALYZE/etc.), safe projectId resolve, `as any` removed |
+| `GET /api/admin/research/testing/stream/route.ts` | ✅ Done | SSE stream, `runId` alias, `X-Accel-Buffering: no`, typed log entries, `as any` removed |
+| `GET /api/admin/research/testing/branches/route.ts` | ✅ Done | Omits `Authorization` when no GITHUB_TOKEN, `as any` removed |
+| `GET /api/admin/research/testing/files/route.ts` | ✅ Done | Directory detection via `Array.isArray`, `as any` removed |
+| `POST /api/admin/research/testing/pull/route.ts` | ✅ Done | Returns sha + commit message, `as any` removed |
+| `POST /api/admin/research/testing/push/route.ts` | ✅ Done | Commit/push via GitHub API, `as any` removed |
+| `testing/page.tsx` | ✅ Done | 6-tab layout, branch feedback banner, PropertyContextProvider wrapper, SHA guard |
+
+### Phase 2 — Core Debugger Components ✅ Complete
+
+| File | Status | Notes |
+|------|--------|-------|
+| `PropertyContextBar.tsx` | ✅ Done | Shared inputs + context provider, 3 real Bell County fixtures, controlled fixture selector, load error feedback, loads `subdivisionName`, `branch` field added to context (drives BranchSelector + all API calls) |
+| `ExecutionTimeline.tsx` | ✅ Done | Drag scrubber, keyboard nav scoped to component (tabIndex+onKeyDown — fixes multi-instance window listener stacking), SSR-safe tooltip |
+| `CodeViewer.tsx` | ✅ Done | Multi-tab, lightweight syntax highlighting, edit mode with Ctrl+S, line-level highlighting |
+| `LogStream.tsx` | ✅ Done | Timeline-synced, auto-scroll, level filter, future-event dimming |
+| `BranchSelector.tsx` | ✅ Done | Branch list from GitHub API, compare mode, inline create |
+| `OutputViewer.tsx` | ✅ Done | JSON tree (collapsible), Raw (JSON.stringify try/catch safe), Screenshot gallery tabs |
+
+### Phase 3 — Module Cards ✅ Complete
+
+| File | Status | Notes |
+|------|--------|-------|
+| `TestCard.tsx` | ✅ Done | Interval cleanup, async 202 notice, type-safe log entry processing, conditional code/log split view, stable async message keys, contextRecord extracted, `branch` forwarded to API |
+| `ScrapersTab.tsx` | ✅ Done | 10 scrapers — correct `address` input for CAD/GIS, `projectId+ownerName` for clerk/plat |
+| `AnalyzersTab.tsx` | ✅ Done | 8 analyzers — all require `projectId` |
+| `PhasesTab.tsx` | ✅ Done | 9 phases — phase-1 requires `address` (was wrongly `propertyId`) |
+| `FullPipelineTab.tsx` | ✅ Done | Phase skip/resume, step nav, dynamic PIPELINE_PHASES lookup, live timer (`playbackRef` added — fixes frozen timeline during run), Clear button, missingInputs now checks address||propertyId, branch forwarded to API |
+| `HealthCheckTab.tsx` | ✅ Done | Worker health + external site grid, `0ms` latency display fixed (`!== undefined`), stable vendor keys |
+| `LogViewerTab.tsx` | ✅ Done | Enter key to load, batch-ID for dedup, type-safe level validation, clean message builder (no `[] : ` artifacts) |
+
+### Phase 4 — Integration ✅ Complete
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Link from `/admin/research` page to Testing Lab | ✅ Done | Button added to research page header |
+| Production UI unchanged | ✅ Confirmed | No changes to research/[projectId]/page.tsx or any existing components |
+
+---
+
+## Known Gaps / Phase 2+ Work
+
+| Gap | When to Address |
+|-----|-----------------|
+| `CodeViewer` is never populated with actual code traces — left panel is empty until worker emits `codeTrace` events | Phase 2: Worker instrumentation |
+| Timeline only has start/complete events — no per-file/per-function trace events | Phase 2: Worker instrumentation |
+| SSE stream (`/testing/stream`) polls worker but worker doesn't yet emit phase-level events | Phase 2: Worker event emitter |
+| `FullPipelineTab` currentPhase only updates from log parsing — not from real phase events | Phase 2: Worker phase event emitter |
+| `LogViewerTab` loads logs from the API but has no feed from active TestCard runs (no shared log store) | Phase 2: Shared log store / event bus |
+| Multi-branch side-by-side comparison UI not yet wired (BranchSelector UI is ready, branch is now forwarded to all API calls) | Phase 3 |
+| `paused` CardStatus in TestCard is defined but never set (requires worker pause support) | Phase 2 |
+| No test coverage (unit or e2e) for Testing Lab components | Phase 4 |
 
 ---
 
