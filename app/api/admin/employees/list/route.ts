@@ -43,7 +43,7 @@ export async function GET() {
   }
 
   // Merge users with their profiles
-  const employees = (users || []).map(u => {
+  const employees = (users || []).map((u: { id: string; email: string; name: string; roles: string[]; is_approved: boolean; is_banned: boolean; avatar_url: string | null; last_sign_in: string | null; created_at: string }) => {
     const profile = profileMap.get(u.email.toLowerCase());
     return {
       id: u.id,
