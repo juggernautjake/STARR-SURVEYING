@@ -104,45 +104,86 @@ export async function ensureRegisteredUser(
   provider: string,
 ): Promise<void> {
   const lower = email.toLowerCase();
-  const { data: existing } = await supabaseAdmin
-    .from('registered_users')
-    .select('id')
-    .eq('email', lower)
-    .maybeSingle();
 
-  if (existing) {
-    // Update last_sign_in and avatar
-    await supabaseAdmin
+  try {
+    const { data: existing } = await supabaseAdmin
       .from('registered_users')
-      .update({
-        last_sign_in: new Date().toISOString(),
-        ...(image ? { avatar_url: image } : {}),
-        ...(name ? { name } : {}),
+      .select('id')
+      .eq('email', lower)
+      .maybeSingle();
+
+    if (existing) {
+      // Update last_sign_in and avatar — use try/catch since new columns may not exist yet
+      const updateFields: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
-      })
-      .eq('email', lower);
-    return;
+      };
+      if (name) updateFields.name = name;
+      // These columns may not exist if migration 110 hasn't been run yet
+      try {
+        updateFields.last_sign_in = new Date().toISOString();
+        if (image) updateFields.avatar_url = image;
+      } catch { /* ignore if columns missing */ }
+
+      const { error: updateErr } = await supabaseAdmin
+        .from('registered_users')
+        .update(updateFields)
+        .eq('email', lower);
+
+      if (updateErr) {
+        // If update fails (e.g., new columns don't exist), try minimal update
+        console.warn('ensureRegisteredUser update failed, trying minimal:', updateErr.message);
+        await supabaseAdmin
+          .from('registered_users')
+          .update({ updated_at: new Date().toISOString(), ...(name ? { name } : {}) })
+          .eq('email', lower);
+      }
+      return;
+    }
+
+    // Create new row — company users are auto-approved
+    const isCompany = lower.endsWith(`@${ALLOWED_DOMAIN}`);
+    const defaultRoles: UserRole[] = ['employee'];
+    if (ADMIN_EMAILS.includes(lower)) defaultRoles.push('admin');
+    if (TEACHER_EMAILS.includes(lower)) defaultRoles.push('teacher');
+
+    // Insert with all columns — if new columns don't exist, fall back to core fields
+    const { error: insertErr } = await supabaseAdmin
+      .from('registered_users')
+      .insert({
+        email: lower,
+        name: name || lower.split('@')[0],
+        password_hash: '',
+        roles: defaultRoles,
+        is_approved: isCompany,
+        is_banned: false,
+        auth_provider: provider,
+        avatar_url: image || null,
+        last_sign_in: new Date().toISOString(),
+      });
+
+    if (insertErr) {
+      // Fallback: insert without new columns (migration not run yet)
+      console.warn('ensureRegisteredUser insert failed, trying without new columns:', insertErr.message);
+      const { error: fallbackErr } = await supabaseAdmin
+        .from('registered_users')
+        .insert({
+          email: lower,
+          name: name || lower.split('@')[0],
+          password_hash: '',
+          roles: defaultRoles,
+          is_approved: isCompany,
+          is_banned: false,
+        });
+
+      if (fallbackErr) {
+        console.error('ensureRegisteredUser fallback insert also failed:', fallbackErr.message);
+      }
+    }
+  } catch (err) {
+    // Non-fatal — user can still sign in, they just won't have a registered_users row
+    // until they're manually added or the DB issue is resolved
+    console.error('ensureRegisteredUser threw:', err);
   }
-
-  // Create new row — company users are auto-approved
-  const isCompany = lower.endsWith(`@${ALLOWED_DOMAIN}`);
-  const defaultRoles: UserRole[] = ['employee'];
-  if (ADMIN_EMAILS.includes(lower)) defaultRoles.push('admin');
-  if (TEACHER_EMAILS.includes(lower)) defaultRoles.push('teacher');
-
-  await supabaseAdmin
-    .from('registered_users')
-    .insert({
-      email: lower,
-      name: name || lower.split('@')[0],
-      password_hash: '',
-      roles: defaultRoles,
-      is_approved: isCompany,
-      is_banned: false,
-      auth_provider: provider,
-      avatar_url: image || null,
-      last_sign_in: new Date().toISOString(),
-    });
 }
 
 /**

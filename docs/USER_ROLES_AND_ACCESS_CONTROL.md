@@ -148,7 +148,7 @@ Legend: **Full** = can use all features | **View** = read-only | **---** = no ac
 | `email` | TEXT UNIQUE | Lowercase, indexed |
 | `name` | TEXT | Display name |
 | `password_hash` | TEXT | Empty string for Google-only users |
-| `roles` | JSONB | Array of role strings, e.g. `["employee", "field_crew"]` |
+| `roles` | TEXT[] | PostgreSQL text array, e.g. `{employee,field_crew}` |
 | `is_approved` | BOOLEAN | Default `true` for company users, `false` for external |
 | `is_banned` | BOOLEAN | Default `false` |
 | `banned_at` | TIMESTAMPTZ | When ban was applied |

@@ -98,7 +98,7 @@ export default function EmployeesPage() {
   const filtered = employees.filter(e => {
     if (search) {
       const q = search.toLowerCase();
-      if (!e.name?.toLowerCase().includes(q) && !e.email.toLowerCase().includes(q)) return false;
+      if (!(e.name || '').toLowerCase().includes(q) && !e.email.toLowerCase().includes(q)) return false;
     }
     if (roleFilter !== 'all' && !(e.roles || []).includes(roleFilter)) return false;
     if (statusFilter === 'active' && e.is_banned) return false;
@@ -220,7 +220,7 @@ export default function EmployeesPage() {
                     <img src={emp.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
                   ) : (
                     <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.7rem', fontWeight: 700, color: '#6B7280' }}>
-                      {emp.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                      {(emp.name || emp.email.split('@')[0]).split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
                     </div>
                   )}
                   <h3 className="job-card__name" style={{ margin: 0 }}>{emp.name || emp.email.split('@')[0]}</h3>
@@ -228,7 +228,7 @@ export default function EmployeesPage() {
                 <p className="job-card__client">{emp.email}</p>
                 {/* Role badges */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem', marginTop: '.25rem', marginBottom: '.5rem' }}>
-                  {emp.roles.filter(r => r !== 'employee').map(r => (
+                  {(emp.roles || []).filter(r => r !== 'employee').map(r => (
                     <span key={r} style={{ fontSize: '.65rem', padding: '.1rem .35rem', borderRadius: '4px', background: (ROLE_COLORS[r] || '#6B7280') + '15', color: ROLE_COLORS[r] || '#6B7280', fontWeight: 600 }}>
                       {ROLE_LABELS[r as UserRole] || r}
                     </span>

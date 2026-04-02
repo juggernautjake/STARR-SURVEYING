@@ -1,11 +1,15 @@
--- 108_user_management_columns.sql
--- Adds columns to registered_users for tracking auth provider, avatar, and last sign-in.
--- These columns support the expanded user management and employee roster features.
--- Safe to run multiple times (IF NOT EXISTS / ADD COLUMN IF NOT EXISTS).
+-- ============================================================================
+-- 110_ensure_user_tables.sql
+-- Adds missing columns to registered_users for the expanded user management
+-- system. Safe to run multiple times (IF NOT EXISTS checks).
+--
+-- Your registered_users.roles column is TEXT[] (not JSONB) — this script
+-- respects that. No changes to existing columns or data types.
+-- ============================================================================
 
 BEGIN;
 
--- Add auth_provider column to track how user signed up (google vs credentials)
+-- Add auth_provider column: 'google' or 'credentials'
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -16,7 +20,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Add avatar_url column for Google profile images
+-- Add avatar_url column: Google profile image or uploaded avatar
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -27,7 +31,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Add last_sign_in column to track last login time
+-- Add last_sign_in column: updated each time user logs in
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -39,3 +43,8 @@ DO $$ BEGIN
 END $$;
 
 COMMIT;
+
+-- Verify
+DO $$ BEGIN
+  RAISE NOTICE 'Migration complete. Added auth_provider, avatar_url, last_sign_in to registered_users.';
+END $$;

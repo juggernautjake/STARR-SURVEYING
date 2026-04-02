@@ -119,11 +119,11 @@ export default function UsersPage() {
   // Filter users
   const filtered = users.filter(u => {
     const matchesSearch = !search ||
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
+      (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase());
     if (!matchesSearch) return false;
 
-    if (roleFilter !== 'all' && !u.roles.includes(roleFilter)) return false;
+    if (roleFilter !== 'all' && !(u.roles || []).includes(roleFilter)) return false;
 
     switch (filterTab) {
       case 'pending': return !u.is_approved && !u.is_banned;
@@ -414,11 +414,11 @@ export default function UsersPage() {
                         {user.avatar_url ? (
                           <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                         ) : (
-                          user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+                          (user.name || user.email.split('@')[0]).split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'
                         )}
                       </div>
                       <div>
-                        <div className="um-name">{user.name}</div>
+                        <div className="um-name">{user.name || user.email.split('@')[0]}</div>
                         <div className="um-email">{user.email}</div>
                       </div>
                     </td>
