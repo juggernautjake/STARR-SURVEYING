@@ -59,8 +59,8 @@ export default function StudentDetailPage() {
   const { data: session } = useSession();
   const params = useParams();
   const studentEmail = decodeURIComponent(params.studentEmail as string);
-  const role = session?.user?.role || 'employee';
-  const canManage = role === 'admin' || role === 'teacher';
+  const roles = session?.user?.roles || ['employee'];
+  const canManage = roles.includes('admin') || roles.includes('teacher') || roles.includes('developer');
 
   const [data, setData] = useState<StudentData | null>(null);
   const [loading, setLoading] = useState(true);

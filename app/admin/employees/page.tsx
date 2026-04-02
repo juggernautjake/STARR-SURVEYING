@@ -19,7 +19,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   tech_support: 'Tech Support',
 };
 
-const ROLE_COLORS: Record<string, string> = {
+const ROLE_COLORS: Record<UserRole, string> = {
   admin: '#DC2626',
   developer: '#7C3AED',
   teacher: '#2563EB',
@@ -73,7 +73,7 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<CompanyEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   const loadEmployees = useCallback(async () => {
@@ -100,7 +100,7 @@ export default function EmployeesPage() {
       const q = search.toLowerCase();
       if (!e.name?.toLowerCase().includes(q) && !e.email.toLowerCase().includes(q)) return false;
     }
-    if (roleFilter !== 'all' && !e.roles.includes(roleFilter as UserRole)) return false;
+    if (roleFilter !== 'all' && !(e.roles || []).includes(roleFilter)) return false;
     if (statusFilter === 'active' && e.is_banned) return false;
     if (statusFilter === 'inactive' && !e.is_banned && e.is_active !== false) return false;
     return true;
@@ -185,7 +185,7 @@ export default function EmployeesPage() {
       ) : (
         <div className="jobs-page__grid">
           {filtered.map(emp => {
-            const primaryRole = emp.roles.find(r => r !== 'employee') || 'employee';
+            const primaryRole = (emp.roles || []).find(r => r !== 'employee') || 'employee';
             const isActive = !emp.is_banned && emp.is_active !== false;
             return (
               <div

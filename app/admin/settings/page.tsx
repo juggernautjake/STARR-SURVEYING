@@ -11,7 +11,7 @@ export default function SettingsPage() {
   if (!session?.user) return null;
 
   // Admin-only page guard
-  if (session.user.role !== 'admin') return null;
+  if (!session.user.roles?.includes('admin')) return null;
 
   const sections = [
     { key: 'general', label: 'General', icon: '⚙️' },

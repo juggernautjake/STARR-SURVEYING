@@ -1,7 +1,7 @@
 // app/api/admin/research/testing/push/route.ts
 // Commit and push file changes to a branch via GitHub API
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { auth, isDeveloper } from '@/lib/auth';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
@@ -11,7 +11,7 @@ const REPO_NAME = 'STARR-SURVEYING';
 /* POST — Commit a file change to a branch */
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || session.user.role !== 'admin') {
+  if (!session?.user?.email || !isDeveloper(session.user.roles)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

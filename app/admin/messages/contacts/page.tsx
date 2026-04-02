@@ -20,7 +20,7 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'admin' | 'teacher' | 'employee'>('all');
+  const [filter, setFilter] = useState<string>('all');
 
   useEffect(() => {
     async function loadContacts() {
@@ -41,10 +41,13 @@ export default function ContactsPage() {
   const filtered = contacts.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.email.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = filter === 'all' ||
-      (filter === 'admin' && c.is_admin) ||
-      (filter === 'employee' && !c.is_admin);
-    return matchesSearch && matchesFilter;
+    if (filter === 'all') return matchesSearch;
+    if (filter === 'admin') return matchesSearch && c.is_admin;
+    // For other role filters, check roles array if available
+    if ((c as any).roles && Array.isArray((c as any).roles)) {
+      return matchesSearch && (c as any).roles.includes(filter);
+    }
+    return matchesSearch;
   });
 
   function startDirectMessage(email: string) {

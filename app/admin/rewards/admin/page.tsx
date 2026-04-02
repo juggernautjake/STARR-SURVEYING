@@ -297,7 +297,7 @@ export default function AdminRewardsPage() {
   ];
 
   // Admin-only page guard
-  if (session?.user && session.user.role !== 'admin') return null;
+  if (session?.user && !session.user.roles?.includes('admin')) return null;
 
   return (
     <>

@@ -102,7 +102,7 @@ export default function EmployeeManagePage() {
   };
 
   if (!email) return <div className="tl-loading">No employee email specified. Use ?email=...</div>;
-  if (!session?.user?.email || session.user.role !== 'admin') return <div className="tl-loading">Admin access required</div>;
+  if (!session?.user?.email || !session.user.roles?.includes('admin')) return <div className="tl-loading">Admin access required</div>;
   if (loading) return <div className="tl-loading">Loading employee data...</div>;
   if (!profile) return <div className="tl-loading">Employee profile not found for {email}</div>;
 

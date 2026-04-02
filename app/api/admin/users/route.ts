@@ -41,7 +41,12 @@ export async function POST(req: NextRequest) {
   if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 });
 
   const validRoleSet = new Set(ALL_ROLES as readonly string[]);
-  const finalRoles = (roles || ['employee']).filter((r: string) => validRoleSet.has(r));
+  const provided = roles || ['employee'];
+  const invalidRoles = provided.filter((r: string) => !validRoleSet.has(r));
+  if (invalidRoles.length > 0) {
+    return NextResponse.json({ error: `Invalid roles: ${invalidRoles.join(', ')}. Valid: ${ALL_ROLES.join(', ')}` }, { status: 400 });
+  }
+  const finalRoles = provided.filter((r: string) => validRoleSet.has(r));
   if (!finalRoles.includes('employee')) finalRoles.push('employee');
 
   const { data, error } = await supabaseAdmin
