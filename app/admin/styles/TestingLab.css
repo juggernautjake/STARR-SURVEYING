@@ -1824,3 +1824,205 @@
 .log-viewer-tab__live-toggle input[type="checkbox"] {
   cursor: pointer;
 }
+
+/* ── CodeViewer Line States (Phase 5) ─────────────────────────────────────── */
+
+.code-viewer__line--success {
+  border-left: 3px solid #059669;
+  background: rgba(5, 150, 105, 0.06);
+}
+
+.code-viewer__line--failed {
+  border-left: 3px solid #DC2626;
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.code-viewer__line--failed .code-viewer__line-code {
+  color: #FCA5A5;
+}
+
+.code-viewer__line--executing {
+  border-left: 3px solid #FACC15;
+  background: rgba(250, 204, 21, 0.12);
+  animation: cv-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes cv-pulse {
+  0%, 100% { background: rgba(250, 204, 21, 0.12); }
+  50% { background: rgba(250, 204, 21, 0.25); }
+}
+
+/* Trace stats in filepath bar */
+.code-viewer__trace-stats {
+  margin-left: auto;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.code-viewer__trace-stat {
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+}
+
+.code-viewer__trace-stat--success {
+  background: rgba(5, 150, 105, 0.2);
+  color: #059669;
+}
+
+.code-viewer__trace-stat--failed {
+  background: rgba(220, 38, 38, 0.2);
+  color: #DC2626;
+}
+
+.code-viewer__filepath {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  background: #181825;
+  color: #6C7086;
+  font-size: 0.7rem;
+  border-bottom: 1px solid #313244;
+}
+
+.code-viewer__filepath-text {
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── CodeViewer File Browser ──────────────────────────────────────────────── */
+
+.code-viewer__browse-btn {
+  padding: 0.45rem 1rem;
+  background: var(--lab-accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-top: 0.75rem;
+}
+
+.code-viewer__browse-btn:hover {
+  background: var(--lab-accent-dark);
+}
+
+.code-viewer__tab--browse {
+  color: var(--lab-accent) !important;
+  font-style: italic;
+}
+
+.code-viewer__browser {
+  background: #181825;
+  border-bottom: 1px solid #313244;
+  max-height: 250px;
+  overflow-y: auto;
+  font-size: 0.75rem;
+}
+
+.code-viewer__browser-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  background: #1E1E2E;
+  border-bottom: 1px solid #313244;
+}
+
+.code-viewer__browser-title {
+  color: #CDD6F4;
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.code-viewer__browser-branch {
+  color: var(--lab-accent);
+  font-size: 0.68rem;
+  font-family: var(--lab-mono);
+}
+
+.code-viewer__browser-path {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  background: #11111B;
+  border-bottom: 1px solid #313244;
+  color: #6C7086;
+  font-size: 0.68rem;
+  font-family: var(--lab-mono);
+}
+
+.code-viewer__browser-up {
+  background: none;
+  border: 1px solid #45475A;
+  border-radius: 3px;
+  color: #CDD6F4;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.68rem;
+  cursor: pointer;
+  font-family: var(--lab-mono);
+}
+
+.code-viewer__browser-up:hover {
+  border-color: var(--lab-accent);
+  color: var(--lab-accent);
+}
+
+.code-viewer__browser-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-viewer__browser-loading,
+.code-viewer__browser-error {
+  padding: 0.75rem;
+  text-align: center;
+  color: #6C7086;
+  font-size: 0.72rem;
+}
+
+.code-viewer__browser-error {
+  color: #F38BA8;
+}
+
+.code-viewer__browser-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.code-viewer__browser-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  background: none;
+  border: none;
+  color: #CDD6F4;
+  font-size: 0.72rem;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--lab-mono);
+  transition: background 0.1s;
+}
+
+.code-viewer__browser-entry:hover {
+  background: rgba(124, 58, 237, 0.1);
+}
+
+.code-viewer__browser-entry--dir {
+  color: #89B4FA;
+  font-weight: 500;
+}
+
+.code-viewer__browser-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}

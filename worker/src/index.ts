@@ -10,7 +10,8 @@ import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile, LayerAttempt } from './types/index.js';
 import { runPipeline, getSupabase, getRunningMessage, setRunningMessage, clearRunningMessage } from './services/pipeline.js';
 import { getLiveLogForProject, clearLiveLogForProject, PipelineLogger } from './lib/logger.js';
-import { getTracker, clearTracker } from './lib/timeline-tracker.js';
+import { getTracker, getTrackerIfExists, clearTracker } from './lib/timeline-tracker.js';
+import { enableTracing, disableTracing } from './lib/trace.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
@@ -917,6 +918,10 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
   const timeline = getTracker(projectId);
   timeline.add('phase-start', 'Pipeline started', `${county} County — ${researchInput.address ?? ''}`);
 
+  // Enable function-level tracing when the request came from the Testing Lab.
+  // testMode is set by the run proxy route's workerBody.
+  if ((body as Record<string, unknown>).testMode) enableTracing();
+
   console.log(
     `[Worker] ${projectId}: pipeline START — county="${county}" address="${researchInput.address ?? ''}" propertyId="${researchInput.propertyId ?? ''}" ownerName="${researchInput.ownerName ?? ''}" files=${parsedUserFiles?.length ?? 0}`,
   );
@@ -1023,6 +1028,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     .then(async (unifiedResult) => {
       // Emit pipeline-complete timeline event
       timeline.add('phase-complete', 'Pipeline complete', `${county} County research finished`);
+      disableTracing();
 
       setCompletedResult(projectId, unifiedResult);
       activePipelines.delete(projectId);
@@ -1423,6 +1429,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     })
     .catch((err) => {
       // Emit pipeline-failed timeline event
+      disableTracing();
       const crashMsg = err instanceof Error ? err.message : String(err ?? 'Unknown error');
       timeline.add('phase-failed', 'Pipeline failed', crashMsg.slice(0, 200));
 
@@ -1600,7 +1607,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         log: completedLogs.has(projectId)
           ? [...result.log, ...completedLogs.get(projectId)!]
           : result.log,
-        timeline: getTracker(projectId).getEntries(),
+        timeline: getTrackerIfExists(projectId)?.getEntries() ?? [],
         failureReason: result.failureReason,
         masterReportText: result.masterReportText,
       });
@@ -1650,7 +1657,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         screenshotCount: result.screenshots.length,
         aiUsage: result.aiUsage,
         log: completedLogs.get(projectId) ?? [],
-        timeline: getTracker(projectId).getEntries(),
+        timeline: getTrackerIfExists(projectId)?.getEntries() ?? [],
       });
     }
     return;
@@ -1674,7 +1681,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         address: pipeline.address,
         county: pipeline.county,
         log: liveLog,
-        timeline: getTracker(projectId).getEntries(),
+        timeline: getTrackerIfExists(projectId)?.getEntries() ?? [],
       });
       return;
     }
@@ -1706,7 +1713,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
     console.log(`[Worker] ${projectId} → Frontend: status poll — stage="${pipeline.currentStage ?? 'unknown'}" logEntries=${liveLog.length} msg="${(message ?? '').slice(0, 60)}"`);
 
     // Include timeline events for the Testing Lab's ExecutionTimeline
-    const timelineEntries = getTracker(projectId).getEntries();
+    const timelineEntries = getTrackerIfExists(projectId)?.getEntries() ?? [];
 
     res.json({
       projectId,
