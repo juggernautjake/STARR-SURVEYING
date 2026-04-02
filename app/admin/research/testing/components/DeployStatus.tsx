@@ -6,6 +6,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePropertyContext } from './PropertyContextBar';
+import InfoIcon from './InfoIcon';
+import { HELP } from './helpContent';
 
 interface WorkerDeployInfo {
   branch: string;
@@ -118,7 +120,9 @@ export default function DeployStatus() {
   return (
     <div className="deploy-status">
       <div className="deploy-status__header">
-        <span className="deploy-status__title">Worker Status</span>
+        <span className="deploy-status__title">
+          Worker Status <InfoIcon title={HELP.deployStatus.title} content={HELP.deployStatus.content} size={14} />
+        </span>
         <div className="deploy-status__controls">
           <label className="deploy-status__auto-label">
             <input type="checkbox" checked={autoCheck} onChange={(e) => setAutoCheck(e.target.checked)} />

@@ -2,6 +2,8 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useState } from 'react';
+import InfoIcon from './InfoIcon';
+import { HELP } from './helpContent';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -211,6 +213,7 @@ export default function PropertyContextBar() {
       >
         <h3 className="property-context-bar__title">
           Property Context
+          <InfoIcon title={HELP.propertyContext.title} content={HELP.propertyContext.content} size={14} />
           {context.propertyId && (
             <span className="property-context-bar__summary">
               — {context.propertyId} {context.address && `| ${context.address}`}

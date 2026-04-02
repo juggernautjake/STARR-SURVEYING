@@ -2,6 +2,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import InfoIcon from './InfoIcon';
+import { HELP } from './helpContent';
 
 interface BranchSelectorProps {
   currentBranch: string;
@@ -98,7 +100,9 @@ export default function BranchSelector({
     <div className="branch-selector">
       <div className="branch-selector__row">
         <div className="branch-selector__field">
-          <label className="branch-selector__label">Branch</label>
+          <label className="branch-selector__label">
+            Branch <InfoIcon title={HELP.branchSelector.title} content={HELP.branchSelector.content} size={14} />
+          </label>
           <select
             className="branch-selector__select"
             value={currentBranch}

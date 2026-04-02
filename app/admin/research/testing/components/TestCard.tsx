@@ -2,6 +2,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import InfoIcon from './InfoIcon';
+import { HELP } from './helpContent';
 import ExecutionTimeline, { type TimelineEvent, type EventType } from './ExecutionTimeline';
 import CodeViewer, { type CodeFile, type LineState } from './CodeViewer';
 import LogStream, { type LogEntry } from './LogStream';
@@ -692,7 +694,10 @@ export default function TestCard({
       {/* Header */}
       <div className="test-card__header" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="test-card__title-row">
-          <h4 className="test-card__title">{title}</h4>
+          <h4 className="test-card__title">
+            {title}
+            <InfoIcon title={HELP.testCard.title} content={HELP.testCard.content} size={13} />
+          </h4>
           <div className="test-card__badges">
             {requiresBrowser && <span className="test-card__badge test-card__badge--browser">Browser</span>}
             {requiresApiKey && <span className="test-card__badge test-card__badge--api">API Key</span>}
@@ -723,7 +728,9 @@ export default function TestCard({
 
           {/* Execution mode selector */}
           <div className="test-card__mode-selector">
-            <span className="test-card__mode-label">Mode:</span>
+            <span className="test-card__mode-label">
+              Mode: <InfoIcon title={HELP.executionModes.title} content={HELP.executionModes.content} size={13} />
+            </span>
             {([
               { key: 'continuous' as const, label: 'Continuous', title: 'Run at selected speed, pause manually' },
               { key: 'until-fail' as const, label: 'Until Fail', title: 'Run until an error occurs, then auto-pause' },

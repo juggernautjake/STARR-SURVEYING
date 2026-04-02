@@ -2397,3 +2397,109 @@
 .code-browser-tab__viewer {
   min-height: 400px;
 }
+
+/* ── Info Icon — Help Tooltips ────────────────────────────────────────────── */
+
+.info-icon-wrap {
+  display: inline-flex;
+  position: relative;
+  vertical-align: middle;
+  margin-left: 0.3rem;
+}
+
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #E5E7EB;
+  color: #6B7280;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-family: var(--lab-mono);
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.info-icon:hover {
+  background: var(--lab-accent);
+  color: #fff;
+}
+
+.info-icon__backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 998;
+}
+
+.info-icon__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999;
+  width: 380px;
+  max-width: 90vw;
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  animation: info-panel-in 0.15s ease-out;
+}
+
+@keyframes info-panel-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.info-icon__panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.85rem;
+  background: var(--lab-accent);
+  color: #fff;
+}
+
+.info-icon__panel-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.info-icon__panel-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+.info-icon__panel-close:hover {
+  color: #fff;
+}
+
+.info-icon__panel-body {
+  padding: 0.75rem 0.85rem;
+  max-height: 400px;
+  overflow-y: auto;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: #374151;
+}
+
+.info-icon__panel-body p {
+  margin: 0 0 0.6rem 0;
+}
+
+.info-icon__panel-body p:last-child {
+  margin-bottom: 0;
+}

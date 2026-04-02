@@ -13,6 +13,8 @@ import HealthCheckTab from './components/HealthCheckTab';
 import LogViewerTab from './components/LogViewerTab';
 import CodeBrowserTab from './components/CodeBrowserTab';
 import DeployStatus from './components/DeployStatus';
+import InfoIcon from './components/InfoIcon';
+import { HELP } from './components/helpContent';
 import '@/app/admin/styles/TestingLab.css';
 
 type TabKey = 'scrapers' | 'analyzers' | 'phases' | 'pipeline' | 'code' | 'health' | 'logs';
@@ -101,7 +103,10 @@ function TestingLabContent() {
           >
             &larr; Back to Research
           </button>
-          <h1 className="testing-lab__title">Research Testing Lab</h1>
+          <h1 className="testing-lab__title">
+            Research Testing Lab
+            <InfoIcon title={HELP.tabs.title} content={HELP.tabs.content} />
+          </h1>
           <p className="testing-lab__subtitle">
             Debug and test every scraper, analyzer, and pipeline phase individually.
           </p>

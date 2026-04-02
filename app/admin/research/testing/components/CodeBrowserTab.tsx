@@ -4,6 +4,8 @@
 
 import { useCallback, useState } from 'react';
 import CodeViewer, { type CodeFile } from './CodeViewer';
+import InfoIcon from './InfoIcon';
+import { HELP } from './helpContent';
 import { usePropertyContext } from './PropertyContextBar';
 
 export default function CodeBrowserTab() {
@@ -99,7 +101,10 @@ export default function CodeBrowserTab() {
     <div className="code-browser-tab">
       <div className="code-browser-tab__header">
         <div>
-          <h4 className="code-browser-tab__title">STARR RECON Code</h4>
+          <h4 className="code-browser-tab__title">
+            STARR RECON Code
+            <InfoIcon title={HELP.codeViewer.title} content={HELP.codeViewer.content} size={14} />
+          </h4>
           <p className="code-browser-tab__scope">
             Research &amp; analysis code only — scrapers, adapters, counties, AI, pipeline
           </p>
