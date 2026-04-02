@@ -1803,3 +1803,24 @@
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ── LogViewerTab Live Toggle ─────────────────────────────────────────────── */
+
+.log-viewer-tab__live-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: #374151;
+}
+
+.log-viewer-tab__live-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.log-viewer-tab__live-toggle input[type="checkbox"] {
+  cursor: pointer;
+}

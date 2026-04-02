@@ -3,6 +3,7 @@
 
 import { useRef, useState } from 'react';
 import { usePropertyContext } from './PropertyContextBar';
+import { useTestingLogStore } from './useTestingLogStore';
 
 interface AggregatedLog {
   id: string;
@@ -24,7 +25,9 @@ export default function LogViewerTab() {
   // active context.
   const { context } = usePropertyContext();
   const [projectId, setProjectId] = useState('');
+  const [showLiveLogs, setShowLiveLogs] = useState(true);
   const loadCountRef = useRef(0);
+  const { entries: liveEntries, clear: clearLiveLogs } = useTestingLogStore();
 
   // The effective project ID: local override takes priority, then shared context.
   const effectiveProjectId = projectId.trim() || context.projectId?.trim() || '';
@@ -93,7 +96,19 @@ export default function LogViewerTab() {
     }
   };
 
-  const filtered = logs.filter((log) => {
+  // Merge API-loaded logs with live logs from TestCard runs
+  const liveLogs: AggregatedLog[] = showLiveLogs ? liveEntries.map((e) => ({
+    id: e.id,
+    timestamp: e.timestamp,
+    module: e.module,
+    level: e.level,
+    message: e.message,
+    details: e.details,
+  })) : [];
+
+  const allLogs = [...logs, ...liveLogs];
+
+  const filtered = allLogs.filter((log) => {
     if (!levelFilter.has(log.level)) return false;
     if (filter && !log.message.toLowerCase().includes(filter.toLowerCase()) &&
         !log.module.toLowerCase().includes(filter.toLowerCase())) {
@@ -137,6 +152,25 @@ export default function LogViewerTab() {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
+        <div className="log-viewer-tab__live-toggle">
+          <label>
+            <input
+              type="checkbox"
+              checked={showLiveLogs}
+              onChange={(e) => setShowLiveLogs(e.target.checked)}
+            />
+            Live test logs ({liveEntries.length})
+          </label>
+          {liveEntries.length > 0 && (
+            <button
+              className="test-card__clear-btn"
+              onClick={clearLiveLogs}
+              style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+            >
+              Clear Live
+            </button>
+          )}
+        </div>
         <div className="log-viewer-tab__levels">
           {LEVELS.map((level) => (
             <button
@@ -155,8 +189,8 @@ export default function LogViewerTab() {
       <div className="log-viewer-tab__entries">
         {filtered.length === 0 && (
           <div className="log-viewer-tab__empty">
-            {logs.length === 0
-              ? 'No logs loaded. Enter a project ID and click Load Logs, or run a test.'
+            {allLogs.length === 0
+              ? 'No logs loaded. Enter a project ID and click Load Logs, or run a test from the Scrapers/Analyzers/Phases tabs.'
               : 'No logs match the current filters.'}
           </div>
         )}
@@ -174,9 +208,10 @@ export default function LogViewerTab() {
       </div>
 
       {/* Stats */}
-      {logs.length > 0 && (
+      {allLogs.length > 0 && (
         <div className="log-viewer-tab__stats">
-          Showing {filtered.length} of {logs.length} entries
+          Showing {filtered.length} of {allLogs.length} entries
+          {liveLogs.length > 0 && ` (${liveLogs.length} from live runs)`}
         </div>
       )}
     </div>

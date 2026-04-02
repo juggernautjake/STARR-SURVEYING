@@ -7,6 +7,7 @@ import CodeViewer, { type CodeFile } from './CodeViewer';
 import LogStream, { type LogEntry } from './LogStream';
 import OutputViewer from './OutputViewer';
 import { usePropertyContext } from './PropertyContextBar';
+import { publishLogs, type SharedLogEntry } from './useTestingLogStore';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -338,6 +339,23 @@ export default function TestCard({
       setTotalDuration(elapsed);
       setCurrentTime(elapsed);
     }
+
+    // Publish all logs to the shared store so LogViewerTab can see them
+    setLogs((currentLogs) => {
+      const runId = `${module}-${startTimeRef.current}`;
+      const shared: SharedLogEntry[] = currentLogs.map((l) => ({
+        id: l.id,
+        timestamp: new Date(startTimeRef.current + l.timestamp).toISOString(),
+        relativeMs: l.timestamp,
+        module,
+        level: l.level,
+        message: l.message,
+        details: l.details,
+        runId,
+      }));
+      publishLogs(shared);
+      return currentLogs; // don't modify state
+    });
 
     // Stop playback timer
     if (playbackRef.current) {

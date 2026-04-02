@@ -7,11 +7,16 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 const WORKER_URL = process.env.WORKER_URL || '';
 const WORKER_API_KEY = process.env.WORKER_API_KEY || '';
 
-function workerHeaders(): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
+function workerHeaders(method: string): Record<string, string> {
+  const headers: Record<string, string> = {
     'Authorization': `Bearer ${WORKER_API_KEY}`,
   };
+  // Only set Content-Type for POST — sending it on a GET with no body
+  // is non-standard and some servers reject it.
+  if (method === 'POST') {
+    headers['Content-Type'] = 'application/json';
+  }
+  return headers;
 }
 
 // ── Module → worker endpoint mapping ────────────────────────────────────────
@@ -217,7 +222,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     const url = `${WORKER_URL}${endpoint.path}`;
     const workerRes = await fetch(url, {
       method: endpoint.method,
-      headers: workerHeaders(),
+      headers: workerHeaders(endpoint.method),
       body: endpoint.method === 'POST' ? JSON.stringify(workerBody) : undefined,
       signal: controller.signal,
     });
