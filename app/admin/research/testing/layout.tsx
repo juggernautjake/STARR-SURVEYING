@@ -1,9 +1,9 @@
 // app/admin/research/testing/layout.tsx — Developer guard for Testing Lab
 'use client';
 
+import React, { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 /** Admin or developer can access the Testing Lab */
 function hasDevAccess(roles?: string[]): boolean {
