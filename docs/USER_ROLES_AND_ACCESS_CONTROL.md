@@ -195,12 +195,17 @@ Updated role mappings for each nav item enable fine-grained visibility.
 ## 7. Implementation Checklist
 
 - [x] Define role types and access matrix (this document)
-- [ ] Expand `UserRole` type to include all new roles
-- [ ] Update `registered_users.roles` validation in API routes
-- [ ] Auto-create `registered_users` row for Google sign-ins
-- [ ] Update Manage Users page with new role checkboxes
-- [ ] Update Employees page to show all company-domain users from `registered_users`
-- [ ] Update AdminSidebar role filtering for new roles
-- [ ] Update middleware route protection for new roles
-- [ ] Add role display labels and badge colors
-- [ ] Update promote/role-edit UI to support all roles
+- [x] Expand `UserRole` type to include all 10 roles
+- [x] Update `registered_users.roles` validation in API routes
+- [x] Auto-create `registered_users` row for Google sign-ins
+- [x] Update Manage Users page with new role checkboxes + descriptions
+- [x] Update Employees page to show all company-domain users from `registered_users`
+- [x] Update AdminSidebar role filtering for new roles
+- [x] Update middleware route protection for new roles
+- [x] Add role display labels and badge colors
+- [x] Update promote/role-edit UI to support all roles
+- [x] Migrate all frontend pages from `role === 'admin'` to `roles.includes()`
+- [x] Migrate all API routes from `session.user.role` to `isAdmin(roles)` / `isDeveloper(roles)`
+- [x] Update teacher/admin content checks to include developer role
+- [x] Add `auth_provider` field to registration flow
+- [x] SQL migration for new columns (auth_provider, avatar_url, last_sign_in)

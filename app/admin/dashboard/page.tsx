@@ -39,6 +39,7 @@ export default function AdminDashboardPage() {
   const isAdminUser = roles.includes('admin');
   const isDevUser = roles.includes('developer');
   const isAdminOrDev = isAdminUser || isDevUser;
+  const isCompanyUser = session?.user?.email?.endsWith('@starr-surveying.com') ?? false;
   const firstName = session?.user?.name?.split(' ')[0] || 'there';
 
   const loadData = useCallback(async () => {
@@ -147,9 +148,21 @@ export default function AdminDashboardPage() {
       <div className="admin-dashboard__welcome">
         <h2 className="admin-dashboard__welcome-title">Welcome back, {firstName}!</h2>
         <p className="admin-dashboard__welcome-sub">
-          {isAdminOrDev
+          {isAdminUser
             ? 'Full admin access to Starr Surveying operations hub.'
-            : 'Access your education, jobs, finances, and schedule.'}
+            : isDevUser
+            ? 'Developer access — all features available for testing.'
+            : roles.includes('teacher')
+            ? 'Manage content, track student progress, and continue learning.'
+            : roles.includes('researcher')
+            ? 'Property research, analysis tools, and your learning hub.'
+            : roles.includes('drawer')
+            ? 'CAD tools, research, and your learning hub.'
+            : roles.includes('field_crew')
+            ? 'Your jobs, hours, fieldbook, and learning hub.'
+            : roles.includes('student')
+            ? 'Your learning hub, modules, and exam prep.'
+            : 'Your Starr Surveying learning portal.'}
         </p>
       </div>
 
@@ -204,68 +217,93 @@ export default function AdminDashboardPage() {
           <span className="dashboard-card__link">View Learning Hub &rarr;</span>
         </Link>
 
-        {/* My Jobs */}
-        <Link href={isAdminOrDev ? '/admin/jobs' : '/admin/my-jobs'} className="dashboard-card dashboard-card--jobs">
-          <div className="dashboard-card__header">
-            <span className="dashboard-card__icon">📋</span>
-            <span className="dashboard-card__badge">Work</span>
-          </div>
-          <h3 className="dashboard-card__title">My Jobs</h3>
-          <div className="dashboard-card__metrics">
-            <div className="dashboard-card__metric">
-              <span className="dashboard-card__metric-value">--</span>
-              <span className="dashboard-card__metric-label">Active Jobs</span>
+        {/* My Jobs — visible to admin, developer, field_crew */}
+        {(isAdminOrDev || roles.includes('field_crew')) && isCompanyUser && (
+          <Link href={isAdminOrDev ? '/admin/jobs' : '/admin/my-jobs'} className="dashboard-card dashboard-card--jobs">
+            <div className="dashboard-card__header">
+              <span className="dashboard-card__icon">📋</span>
+              <span className="dashboard-card__badge">Work</span>
             </div>
-            <div className="dashboard-card__metric">
-              <span className="dashboard-card__metric-value">--</span>
-              <span className="dashboard-card__metric-label">Hours This Week</span>
+            <h3 className="dashboard-card__title">My Jobs</h3>
+            <div className="dashboard-card__metrics">
+              <div className="dashboard-card__metric">
+                <span className="dashboard-card__metric-value">--</span>
+                <span className="dashboard-card__metric-label">Active Jobs</span>
+              </div>
+              <div className="dashboard-card__metric">
+                <span className="dashboard-card__metric-value">--</span>
+                <span className="dashboard-card__metric-label">Hours This Week</span>
+              </div>
             </div>
-          </div>
-          <p className="dashboard-card__empty-note">Job tracking coming soon</p>
-          <span className="dashboard-card__link">View Jobs &rarr;</span>
-        </Link>
+            <p className="dashboard-card__empty-note">Job tracking coming soon</p>
+            <span className="dashboard-card__link">View Jobs &rarr;</span>
+          </Link>
+        )}
 
-        {/* My Finances */}
-        <Link href={isAdminOrDev ? '/admin/payroll' : '/admin/my-pay'} className="dashboard-card dashboard-card--finances">
-          <div className="dashboard-card__header">
-            <span className="dashboard-card__icon">💰</span>
-            <span className="dashboard-card__badge">Finances</span>
-          </div>
-          <h3 className="dashboard-card__title">My Finances</h3>
-          <div className="dashboard-card__metrics">
-            <div className="dashboard-card__metric">
-              <span className="dashboard-card__metric-value">--</span>
-              <span className="dashboard-card__metric-label">Hours This Period</span>
+        {/* Research — visible to admin, developer, researcher, drawer */}
+        {(isAdminOrDev || roles.includes('researcher') || roles.includes('drawer')) && isCompanyUser && (
+          <Link href="/admin/research" className="dashboard-card dashboard-card--jobs">
+            <div className="dashboard-card__header">
+              <span className="dashboard-card__icon">🔬</span>
+              <span className="dashboard-card__badge">Research</span>
             </div>
-            <div className="dashboard-card__metric">
-              <span className="dashboard-card__metric-value">--</span>
-              <span className="dashboard-card__metric-label">PTO Balance</span>
+            <h3 className="dashboard-card__title">Property Research</h3>
+            <div className="dashboard-card__metrics">
+              <div className="dashboard-card__metric">
+                <span className="dashboard-card__metric-value">--</span>
+                <span className="dashboard-card__metric-label">Active Projects</span>
+              </div>
             </div>
-          </div>
-          <p className="dashboard-card__empty-note">Payroll tracking coming soon</p>
-          <span className="dashboard-card__link">View Finances &rarr;</span>
-        </Link>
+            <p className="dashboard-card__empty-note">AI-powered property research</p>
+            <span className="dashboard-card__link">Open Research &rarr;</span>
+          </Link>
+        )}
 
-        {/* My Schedule */}
-        <Link href="/admin/schedule" className="dashboard-card dashboard-card--schedule">
-          <div className="dashboard-card__header">
-            <span className="dashboard-card__icon">📅</span>
-            <span className="dashboard-card__badge">Schedule</span>
-          </div>
-          <h3 className="dashboard-card__title">My Schedule</h3>
-          <div className="dashboard-card__metrics">
-            <div className="dashboard-card__metric">
-              <span className="dashboard-card__metric-value">--</span>
-              <span className="dashboard-card__metric-label">Upcoming</span>
+        {/* My Finances — visible to company users with work roles */}
+        {(isAdminOrDev || roles.includes('field_crew')) && isCompanyUser && (
+          <Link href={isAdminOrDev ? '/admin/payroll' : '/admin/my-pay'} className="dashboard-card dashboard-card--finances">
+            <div className="dashboard-card__header">
+              <span className="dashboard-card__icon">💰</span>
+              <span className="dashboard-card__badge">Finances</span>
             </div>
-            <div className="dashboard-card__metric">
-              <span className="dashboard-card__metric-value">--</span>
-              <span className="dashboard-card__metric-label">Time-Off</span>
+            <h3 className="dashboard-card__title">My Finances</h3>
+            <div className="dashboard-card__metrics">
+              <div className="dashboard-card__metric">
+                <span className="dashboard-card__metric-value">--</span>
+                <span className="dashboard-card__metric-label">Hours This Period</span>
+              </div>
+              <div className="dashboard-card__metric">
+                <span className="dashboard-card__metric-value">--</span>
+                <span className="dashboard-card__metric-label">PTO Balance</span>
+              </div>
             </div>
-          </div>
-          <p className="dashboard-card__empty-note">Scheduling coming soon</p>
-          <span className="dashboard-card__link">View Schedule &rarr;</span>
-        </Link>
+            <p className="dashboard-card__empty-note">Payroll tracking coming soon</p>
+            <span className="dashboard-card__link">View Finances &rarr;</span>
+          </Link>
+        )}
+
+        {/* My Schedule — visible to company users with work/field roles */}
+        {(isAdminOrDev || roles.includes('field_crew')) && isCompanyUser && (
+          <Link href="/admin/schedule" className="dashboard-card dashboard-card--schedule">
+            <div className="dashboard-card__header">
+              <span className="dashboard-card__icon">📅</span>
+              <span className="dashboard-card__badge">Schedule</span>
+            </div>
+            <h3 className="dashboard-card__title">My Schedule</h3>
+            <div className="dashboard-card__metrics">
+              <div className="dashboard-card__metric">
+                <span className="dashboard-card__metric-value">--</span>
+                <span className="dashboard-card__metric-label">Upcoming</span>
+              </div>
+              <div className="dashboard-card__metric">
+                <span className="dashboard-card__metric-value">--</span>
+                <span className="dashboard-card__metric-label">Time-Off</span>
+              </div>
+            </div>
+            <p className="dashboard-card__empty-note">Scheduling coming soon</p>
+            <span className="dashboard-card__link">View Schedule &rarr;</span>
+          </Link>
+        )}
       </div>
 
       {/* Recent Quiz Scores */}
@@ -324,10 +362,19 @@ export default function AdminDashboardPage() {
           <Link href="/admin/learn/quiz-history" className="admin-dashboard__quick-link"><span>📊</span>Quiz History</Link>
           <Link href="/admin/learn/knowledge-base" className="admin-dashboard__quick-link"><span>🔍</span>Knowledge Base</Link>
           <Link href="/admin/learn/fieldbook" className="admin-dashboard__quick-link"><span>📓</span>My Fieldbook</Link>
-          {isAdminOrDev && (
+          {(isAdminOrDev || roles.includes('teacher')) && (
+            <Link href="/admin/learn/manage" className="admin-dashboard__quick-link"><span>✏️</span>Manage Content</Link>
+          )}
+          {(isAdminOrDev || roles.includes('researcher') || roles.includes('drawer')) && isCompanyUser && (
+            <Link href="/admin/research" className="admin-dashboard__quick-link"><span>🔬</span>Research</Link>
+          )}
+          {(isAdminOrDev || roles.includes('drawer')) && isCompanyUser && (
+            <Link href="/admin/cad" className="admin-dashboard__quick-link"><span>📐</span>CAD Editor</Link>
+          )}
+          {isAdminUser && (
             <>
-              <Link href="/admin/learn/manage" className="admin-dashboard__quick-link"><span>✏️</span>Manage Content</Link>
               <Link href="/admin/employees" className="admin-dashboard__quick-link"><span>👥</span>Employees</Link>
+              <Link href="/admin/users" className="admin-dashboard__quick-link"><span>🔑</span>Manage Users</Link>
             </>
           )}
         </div>

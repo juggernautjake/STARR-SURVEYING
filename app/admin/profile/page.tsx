@@ -66,6 +66,7 @@ export default function ProfilePage() {
 
   if (!session?.user) return null;
   const { name, image, role } = session.user;
+  const roles = session.user.roles || ['employee'];
 
   if (loading) return <div className="tl-loading">Loading profile...</div>;
 
@@ -91,7 +92,11 @@ export default function ProfilePage() {
           <div>
             <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.2rem', fontWeight: 700, color: '#0F1419' }}>{name}</div>
             <div style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: '#6B7280' }}>{email}</div>
-            <span className={`admin-topbar__role-badge admin-topbar__role-badge--${role}`} style={{ display: 'inline-flex', marginTop: '0.25rem' }}>{role}</span>
+            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+              {roles.map(r => (
+                <span key={r} className={`admin-topbar__role-badge admin-topbar__role-badge--${r}`} style={{ display: 'inline-flex' }}>{r.replace('_', ' ')}</span>
+              ))}
+            </div>
           </div>
         </div>
         {profile && (
