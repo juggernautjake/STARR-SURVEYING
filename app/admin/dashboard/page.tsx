@@ -108,7 +108,7 @@ export default function AdminDashboardPage() {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'dashboard data load' });
     }
     setLoading(false);
-  }, [role, reportPageError]);
+  }, [role, isAdminOrDev, reportPageError]);
 
   useEffect(() => {
     if (session?.user) loadData();

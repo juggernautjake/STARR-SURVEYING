@@ -155,7 +155,7 @@ export default function EmployeesPage() {
             className="job-form__select"
             style={{ width: 'auto', minWidth: '140px' }}
             value={roleFilter}
-            onChange={e => setRoleFilter(e.target.value)}
+            onChange={e => setRoleFilter(e.target.value as UserRole | 'all')}
           >
             <option value="all">All Roles</option>
             {allEmployeeRoles.map(r => <option key={r} value={r}>{ROLE_LABELS[r as UserRole] || r}</option>)}
