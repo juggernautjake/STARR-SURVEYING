@@ -30,29 +30,10 @@ function TestingLabContent() {
   const [currentBranch, setCurrentBranch] = useState('main');
   const [compareBranch, setCompareBranch] = useState<string | null>(null);
 
-  const handlePull = async (branch: string) => {
-    try {
-      await fetch('/api/admin/research/testing/pull', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ branch }),
-      });
-    } catch {
-      // silently fail
-    }
-  };
-
-  const handleCreateBranch = async (name: string, from: string) => {
-    try {
-      await fetch('/api/admin/research/testing/branches', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, from }),
-      });
-    } catch {
-      // silently fail
-    }
-  };
+  // BranchSelector now handles its own API calls directly.
+  // These callbacks are kept for state updates if needed in the future.
+  const handlePull = (_branch: string) => {};
+  const handleCreateBranch = (_name: string, _from: string) => {};
 
   return (
     <div className="testing-lab">

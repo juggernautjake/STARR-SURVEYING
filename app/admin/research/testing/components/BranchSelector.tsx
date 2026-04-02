@@ -53,19 +53,44 @@ export default function BranchSelector({
   const handleCreateBranch = async () => {
     if (!newBranchName.trim()) return;
     try {
-      onCreateBranch(newBranchName.trim(), currentBranch);
-      showToast('success', `Branch "${newBranchName.trim()}" created from ${currentBranch}`);
-      setShowCreate(false);
-      setNewBranchName('');
-      setTimeout(loadBranches, 1000);
+      const res = await fetch('/api/admin/research/testing/branches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newBranchName.trim(), from: currentBranch }),
+      });
+      if (res.ok) {
+        showToast('success', `Branch "${newBranchName.trim()}" created from ${currentBranch}`);
+        onCreateBranch(newBranchName.trim(), currentBranch);
+        setShowCreate(false);
+        setNewBranchName('');
+        setTimeout(loadBranches, 500);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast('error', data.error || 'Failed to create branch');
+      }
     } catch {
-      showToast('error', 'Failed to create branch');
+      showToast('error', 'Network error creating branch');
     }
   };
 
   const handlePull = async (branch: string) => {
-    onPull(branch);
-    showToast('success', `Pulled latest for ${branch}`);
+    try {
+      const res = await fetch('/api/admin/research/testing/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast('success', `Pulled ${branch}: ${data.sha?.slice(0, 7) || 'latest'}`);
+        onPull(branch);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast('error', data.error || `Failed to pull ${branch}`);
+      }
+    } catch {
+      showToast('error', `Network error pulling ${branch}`);
+    }
   };
 
   return (

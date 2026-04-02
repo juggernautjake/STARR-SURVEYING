@@ -36,7 +36,6 @@ export default function FullPipelineTab() {
   const [totalDuration, setTotalDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [currentPhase, setCurrentPhase] = useState<string | null>(null);
 
   // Use refs so values survive re-renders during async operations
   const startTimeRef = useRef(0);
@@ -210,7 +209,7 @@ export default function FullPipelineTab() {
           onClick={handleRun}
           disabled={status === 'running' || missingInputs}
         >
-          {status === 'running' ? `Running...${currentPhase ? ` (${currentPhase})` : ''}` : 'Run Full Pipeline'}
+          {status === 'running' ? 'Running...' : 'Run Full Pipeline'}
         </button>
         {missingInputs && (
           <span className="test-card__warning" style={{ display: 'inline' }}>
@@ -219,16 +218,11 @@ export default function FullPipelineTab() {
         )}
       </div>
 
-      {/* Phase progress */}
+      {/* Phase progress — shows which phases are enabled */}
       {status !== 'idle' && (
         <div className="full-pipeline-tab__progress">
           {PIPELINE_PHASES.filter((p) => enabledPhases.has(p.key)).map((p) => (
-            <div
-              key={p.key}
-              className={`full-pipeline-tab__phase-step ${
-                currentPhase === p.key ? 'full-pipeline-tab__phase-step--active' : ''
-              }`}
-            >
+            <div key={p.key} className="full-pipeline-tab__phase-step">
               <span className="full-pipeline-tab__phase-dot" />
               {p.label}
             </div>

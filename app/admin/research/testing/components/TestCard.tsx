@@ -96,7 +96,11 @@ export default function TestCard({
   // At 0.1x: drain every 1000ms (10x slower)
   // At 10x: drain all buffered events immediately
   useEffect(() => {
-    if (bufferTimerRef.current) clearInterval(bufferTimerRef.current);
+    // Clear any previous drain timer
+    if (bufferTimerRef.current) {
+      clearInterval(bufferTimerRef.current);
+      bufferTimerRef.current = null;
+    }
 
     if (!isPlaying || status !== 'running') return;
 

@@ -7,13 +7,6 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 const WORKER_URL = process.env.WORKER_URL || '';
 const WORKER_API_KEY = process.env.WORKER_API_KEY || '';
 
-function workerHeaders(): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${WORKER_API_KEY}`,
-  };
-}
-
 // Module → worker endpoint mapping
 const MODULE_ENDPOINTS: Record<string, { method: string; path: string }> = {
   // Scrapers
@@ -105,9 +98,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${WORKER_API_KEY}`,
+    };
+    if (endpoint.method === 'POST') {
+      headers['Content-Type'] = 'application/json';
+    }
+
     const workerRes = await fetch(url, {
       method: endpoint.method,
-      headers: workerHeaders(),
+      headers,
       body: endpoint.method === 'POST' ? JSON.stringify(workerBody) : undefined,
       signal: controller.signal,
     });
