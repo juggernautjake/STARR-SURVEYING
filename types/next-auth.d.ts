@@ -1,25 +1,27 @@
 import 'next-auth';
 
+type UserRoleType = 'admin' | 'developer' | 'teacher' | 'student' | 'researcher' | 'drawer' | 'field_crew' | 'employee' | 'guest' | 'tech_support';
+
 declare module 'next-auth' {
   interface User {
-    role?: 'admin' | 'teacher' | 'employee';
-    roles?: Array<'admin' | 'teacher' | 'employee'>;
+    role?: UserRoleType;
+    roles?: UserRoleType[];
   }
   interface Session {
     user: {
       email: string;
       name: string;
       image?: string;
-      role: 'admin' | 'teacher' | 'employee';
-      roles: Array<'admin' | 'teacher' | 'employee'>;
+      role: UserRoleType;
+      roles: UserRoleType[];
     };
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
-    role?: 'admin' | 'teacher' | 'employee';
-    roles?: Array<'admin' | 'teacher' | 'employee'>;
+    role?: UserRoleType;
+    roles?: UserRoleType[];
     rolesLastChecked?: number;
     blocked?: boolean;
   }
