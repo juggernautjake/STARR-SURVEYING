@@ -32,9 +32,9 @@ export default function ModuleDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { data: session } = useSession();
-  const userRole = session?.user?.role || 'employee';
-  const canManage = userRole === 'admin' || userRole === 'teacher';
-  const isAdminUser = userRole === 'admin';
+  const userRoles = session?.user?.roles || ['employee'];
+  const canManage = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('teacher');
+  const isAdminUser = userRoles.includes('admin');
   const moduleId = params.id as string;
   const [mod, setMod] = useState<ModuleDetail | null>(null);
   const [lessons, setLessons] = useState<EnrichedLesson[]>([]);

@@ -93,9 +93,9 @@ export default function AssignmentsPage() {
   const [creating, setCreating] = useState(false);
   const [employees, setEmployees] = useState<string[]>([]);
 
-  const userRole = session?.user?.role || 'employee';
-  const canManage = userRole === 'admin' || userRole === 'teacher';
-  const isAdmin = userRole === 'admin';
+  const userRoles = session?.user?.roles || ['employee'];
+  const canManage = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('teacher');
+  const isAdmin = userRoles.includes('admin');
 
   const loadAssignments = useCallback(async () => {
     setLoading(true);

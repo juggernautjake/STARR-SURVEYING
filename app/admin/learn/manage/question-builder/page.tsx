@@ -139,8 +139,8 @@ const EMPTY_STEP: SolutionStepTemplate = { step_number: 1, title: '', descriptio
 
 export default function QuestionBuilderPage() {
   const { data: session } = useSession();
-  const userRole = session?.user?.role || 'employee';
-  const canManage = userRole === 'admin' || userRole === 'teacher';
+  const userRoles = session?.user?.roles || ['employee'];
+  const canManage = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('teacher');
   const { safeFetch, safeAction } = usePageError('QuestionBuilderPage');
   const { addToast } = useToast();
 

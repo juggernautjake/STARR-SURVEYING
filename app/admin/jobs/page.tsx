@@ -72,9 +72,10 @@ export default function AllJobsPage() {
     loadJobs();
   }, [stageFilter, searchTrigger, search, reportPageError]);
 
-  // Admin-only page guard (middleware handles redirect, this prevents flash)
-  const userRole = session?.user?.role || 'employee';
-  if (sessionStatus === 'authenticated' && userRole !== 'admin') {
+  // Role guard (middleware handles redirect, this prevents flash)
+  const userRoles = session?.user?.roles || ['employee'];
+  const canViewJobs = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('field_crew') || userRoles.includes('researcher') || userRoles.includes('tech_support');
+  if (sessionStatus === 'authenticated' && !canViewJobs) {
     router.replace('/admin/dashboard');
     return null;
   }

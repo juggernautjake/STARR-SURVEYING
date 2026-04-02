@@ -4,46 +4,60 @@ import type { UserRole } from '@/lib/auth';
 
 // ── Route-level role enforcement ──
 // Maps route prefixes to the roles allowed to access them.
-// Admin always has access (checked in the helper below).
+// Admin always bypasses (checked below). Developer has broad access.
 // If a route is not listed here, any authenticated user can access it.
+//
+// IMPORTANT: More specific routes MUST appear before less specific ones.
+// e.g. /admin/jobs/new before /admin/jobs, /admin/research/testing before /admin/research
 
 const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
-  // Admin-only (settings, user management, payroll)
+  // ── Admin-only ──
   { prefix: '/admin/settings', roles: ['admin'] },
   { prefix: '/admin/payroll', roles: ['admin'] },
 
-  // User management: admin + tech_support (view-only enforced in page)
+  // ── People / User Management ──
   { prefix: '/admin/users', roles: ['admin', 'tech_support'] },
-
-  // Employees page: admin, developer, tech_support
   { prefix: '/admin/employees', roles: ['admin', 'developer', 'tech_support'] },
 
-  // Error log
-  { prefix: '/admin/error-log', roles: ['admin', 'developer', 'tech_support'] },
-
-  // Work routes
+  // ── Work (specific before general) ──
   { prefix: '/admin/jobs/new', roles: ['admin'] },
   { prefix: '/admin/jobs/import', roles: ['admin'] },
-  { prefix: '/admin/jobs', roles: ['admin', 'developer', 'field_crew', 'researcher'] },
-  { prefix: '/admin/leads', roles: ['admin', 'developer'] },
-  { prefix: '/admin/hours-approval', roles: ['admin', 'developer'] },
+  { prefix: '/admin/jobs', roles: ['admin', 'developer', 'field_crew', 'researcher', 'tech_support'] },
+  { prefix: '/admin/my-jobs', roles: ['admin', 'developer', 'field_crew', 'researcher', 'tech_support'] },
+  { prefix: '/admin/my-hours', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
+  { prefix: '/admin/leads', roles: ['admin', 'developer', 'tech_support'] },
+  { prefix: '/admin/hours-approval', roles: ['admin', 'developer', 'tech_support'] },
+  { prefix: '/admin/assignments', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
+  { prefix: '/admin/schedule', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
 
-  // Teacher routes
-  { prefix: '/admin/learn/manage', roles: ['admin', 'teacher', 'developer'] },
-  { prefix: '/admin/learn/students', roles: ['admin', 'teacher', 'developer'] },
+  // ── Learning (management routes before general) ──
+  { prefix: '/admin/learn/manage', roles: ['admin', 'developer', 'teacher', 'tech_support'] },
+  { prefix: '/admin/learn/students', roles: ['admin', 'developer', 'teacher', 'tech_support'] },
+  // All other /admin/learn/* routes are open to any authenticated user
 
-  // Research
-  { prefix: '/admin/research/testing', roles: ['admin', 'developer'] },
+  // ── Research (specific before general) ──
+  { prefix: '/admin/research/testing', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/research', roles: ['admin', 'developer', 'researcher', 'drawer', 'field_crew', 'tech_support'] },
 
-  // CAD
+  // ── CAD ──
   { prefix: '/admin/cad', roles: ['admin', 'developer', 'drawer', 'researcher', 'field_crew', 'tech_support'] },
 
-  // Company Notes
+  // ── Rewards & Pay ──
+  { prefix: '/admin/rewards/admin', roles: ['admin', 'developer', 'tech_support'] },
+  { prefix: '/admin/rewards', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
+  { prefix: '/admin/pay-progression', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
+  { prefix: '/admin/my-pay', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
+  { prefix: '/admin/payout-log', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
+
+  // ── Communication ──
+  { prefix: '/admin/messages', roles: ['admin', 'developer', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'] },
+
+  // ── Notes & Files ──
   { prefix: '/admin/notes', roles: ['admin', 'developer', 'tech_support'] },
 
-  // Rewards admin
-  { prefix: '/admin/rewards/admin', roles: ['admin', 'developer'] },
+  // ── Admin tools ──
+  { prefix: '/admin/error-log', roles: ['admin', 'developer', 'tech_support'] },
+  { prefix: '/admin/discussions', roles: ['admin', 'developer', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'] },
 ];
 
 function matchesRoute(pathname: string, prefix: string): boolean {
@@ -79,7 +93,7 @@ export default auth((req) => {
   // Admin bypasses all route restrictions
   if (userRoles.includes('admin')) return NextResponse.next();
 
-  // Check route-specific role restrictions
+  // Check route-specific role restrictions (first match wins — order matters)
   for (const route of ROUTE_ROLES) {
     if (matchesRoute(pathname, route.prefix)) {
       if (!route.roles.some(r => userRoles.includes(r))) {
