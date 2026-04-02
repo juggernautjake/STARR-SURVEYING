@@ -1,18 +1,23 @@
 // app/api/admin/users/route.ts
-// Admin user management: list all registered users, promote company users
-import { auth, isAdmin } from '@/lib/auth';
+// Admin user management: list all registered users, promote/create users
+import { auth, isAdmin, ALL_ROLES } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET() {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.roles)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Tech support can also view users (read-only enforced in frontend)
+    const userRoles = (session?.user as any)?.roles || [];
+    if (!userRoles.includes('tech_support')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const { data, error } = await supabaseAdmin
     .from('registered_users')
-    .select('id, email, name, roles, is_approved, is_banned, banned_at, banned_reason, created_at, updated_at')
+    .select('id, email, name, roles, is_approved, is_banned, banned_at, banned_reason, auth_provider, avatar_url, last_sign_in, created_at, updated_at')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -25,7 +30,7 @@ export async function GET() {
   return NextResponse.json({ users, pending_count });
 }
 
-// POST - Promote a company employee to teacher (creates registered_users entry for role tracking)
+// POST - Create or promote a user (creates/upserts registered_users entry)
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.roles)) {
@@ -35,11 +40,10 @@ export async function POST(req: NextRequest) {
   const { email, name, roles } = await req.json();
   if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 });
 
-  const validRoles = ['admin', 'teacher', 'employee'];
-  const finalRoles = (roles || ['employee', 'teacher']).filter((r: string) => validRoles.includes(r));
+  const validRoleSet = new Set(ALL_ROLES as readonly string[]);
+  const finalRoles = (roles || ['employee']).filter((r: string) => validRoleSet.has(r));
   if (!finalRoles.includes('employee')) finalRoles.push('employee');
 
-  // Upsert: create if not exists, update roles if exists
   const { data, error } = await supabaseAdmin
     .from('registered_users')
     .upsert({
@@ -57,5 +61,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, user: data, message: `${email} promoted to ${finalRoles.filter((r: string) => r !== 'employee').join(', ')}` });
+  const displayRoles = finalRoles.filter((r: string) => r !== 'employee').join(', ') || 'employee';
+  return NextResponse.json({ success: true, user: data, message: `${email} assigned roles: ${displayRoles}` });
 }
