@@ -4,7 +4,7 @@
 // or goes straight to importing survey data.
 
 import { useState } from 'react';
-import { FileText, Upload } from 'lucide-react';
+import { FileText, Upload, X } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import { PHASE3_DEFAULT_LAYERS } from '@/lib/cad/styles/default-layers';
@@ -80,11 +80,20 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 animate-[fadeIn_150ms_ease-out]">
       <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg text-sm text-gray-200 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
         {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-gray-700">
-          <h1 className="text-xl font-bold text-white">STARR CAD</h1>
-          <p className="text-gray-400 text-xs mt-1">
-            Start a new drawing or import existing survey data.
-          </p>
+        <div className="px-6 pt-6 pb-4 border-b border-gray-700 flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-white">STARR CAD</h1>
+            <p className="text-gray-400 text-xs mt-1">
+              Start a new drawing or import existing survey data.
+            </p>
+          </div>
+          <button
+            onClick={handleCreate}
+            title="Done — use current settings and start drawing"
+            className="ml-4 p-1.5 rounded-lg border border-gray-600 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Body */}
