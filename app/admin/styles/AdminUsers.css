@@ -14,8 +14,8 @@
 .um-controls { display:flex; flex-wrap:wrap; gap:.75rem; align-items:center; margin-bottom:1rem; }
 .um-search-wrap { flex:1; min-width:200px; }
 .um-search { width:100%; }
-.um-filter-tabs { display:flex; gap:.35rem; flex-wrap:wrap; }
-.um-filter-tab { display:inline-flex; align-items:center; gap:.35rem; padding:.45rem .85rem; border:1px solid #E5E7EB; border-radius:6px; background:#FFF; font-family:'Inter',sans-serif; font-size:.78rem; font-weight:500; color:#6B7280; cursor:pointer; transition:all .15s; }
+.um-filter-tabs { display:flex; gap:.35rem; flex-wrap:wrap; margin-bottom:1rem; }
+.um-filter-tab { display:inline-flex; align-items:center; gap:.35rem; height:34px; padding:0 .85rem; border:1px solid #E5E7EB; border-radius:6px; background:#FFF; font-family:'Inter',sans-serif; font-size:.78rem; font-weight:500; color:#6B7280; cursor:pointer; transition:all .15s; }
 .um-filter-tab:hover { border-color:#1D3095; color:#1D3095; }
 .um-filter-tab--active { background:#1D3095; border-color:#1D3095; color:#FFF; }
 .um-filter-tab__count { font-size:.7rem; background:rgba(0,0,0,.08); border-radius:10px; padding:.1rem .4rem; min-width:1.1rem; text-align:center; }
@@ -45,7 +45,7 @@
 /* Role badges */
 .um-cell-roles { min-width:160px; }
 .um-roles-display { display:flex; flex-wrap:wrap; align-items:center; gap:.3rem; }
-.um-role-badge { display:inline-block; padding:.15rem .5rem; border-radius:12px; font-size:.7rem; font-weight:600; text-transform:capitalize; }
+.um-role-badge { display:inline-block; padding:.15rem .5rem; border-radius:12px; font-size:.68rem; font-weight:600; text-transform:capitalize; border:1px solid transparent; line-height:1.4; }
 .um-role-badge--employee { background:#F3F4F6; color:#6B7280; }
 .um-role-badge--teacher { background:#DBEAFE; color:#1D4ED8; }
 .um-role-badge--admin { background:#EDE9FE; color:#6D28D9; }
@@ -53,7 +53,7 @@
 /* Role editor */
 .um-role-editor { display:flex; flex-direction:column; gap:.35rem; }
 .um-role-toggle { display:flex; align-items:center; gap:.35rem; font-size:.78rem; color:#374151; cursor:pointer; }
-.um-role-toggle input[type="checkbox"] { accent-color:#1D3095; width:14px; height:14px; }
+.um-role-toggle input[type="checkbox"] { /* uses global checkbox styles */ }
 .um-role-editor__actions { display:flex; gap:.35rem; margin-top:.25rem; }
 
 /* Status badges */
