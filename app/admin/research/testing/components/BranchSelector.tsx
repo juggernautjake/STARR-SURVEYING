@@ -76,28 +76,42 @@ export default function BranchSelector({
             ))}
           </select>
         </div>
-        <button
-          className="branch-selector__btn"
-          onClick={() => onPull(currentBranch)}
-          title="Pull latest from remote"
-        >
-          Pull
-        </button>
-        <button
-          className="branch-selector__btn"
-          onClick={() => setShowCreate(!showCreate)}
-          title="Create new branch"
-        >
-          + Branch
-        </button>
-        <button
-          className="branch-selector__btn branch-selector__btn--refresh"
-          onClick={loadBranches}
-          disabled={loading}
-          title="Refresh branch list"
-        >
-          {loading ? '...' : '↻'}
-        </button>
+        <div className="branch-selector__actions">
+          <button
+            className="branch-selector__btn"
+            onClick={() => onPull(currentBranch)}
+            title="Pull latest from remote"
+          >
+            Pull
+          </button>
+          <button
+            className="branch-selector__btn"
+            onClick={() => setShowCreate(!showCreate)}
+            title="Create new branch"
+          >
+            + Branch
+          </button>
+          <button
+            className="branch-selector__btn branch-selector__btn--refresh"
+            onClick={loadBranches}
+            disabled={loading}
+            title="Refresh branch list"
+          >
+            {loading ? '...' : '↻'}
+          </button>
+        </div>
+        <div className="branch-selector__spacer" />
+        <label className="branch-selector__compare-toggle">
+          <input
+            type="checkbox"
+            checked={enableCompare}
+            onChange={(e) => {
+              setEnableCompare(e.target.checked);
+              if (!e.target.checked) onCompareBranchChange(null);
+            }}
+          />
+          Side-by-side comparison
+        </label>
       </div>
 
       {/* Create branch inline */}
@@ -118,34 +132,23 @@ export default function BranchSelector({
         </div>
       )}
 
-      {/* Compare toggle */}
-      <div className="branch-selector__compare">
-        <label className="branch-selector__compare-toggle">
-          <input
-            type="checkbox"
-            checked={enableCompare}
-            onChange={(e) => {
-              setEnableCompare(e.target.checked);
-              if (!e.target.checked) onCompareBranchChange(null);
-            }}
-          />
-          Side-by-side branch comparison
-        </label>
-        {enableCompare && (
-          <div className="branch-selector__row" style={{ marginTop: '0.5rem' }}>
-            <div className="branch-selector__field">
-              <label className="branch-selector__label">Compare with</label>
-              <select
-                className="branch-selector__select"
-                value={compareBranch || ''}
-                onChange={(e) => onCompareBranchChange(e.target.value || null)}
-              >
-                <option value="">Select branch...</option>
-                {branches.filter((b) => b !== currentBranch).map((b) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
-            </div>
+      {/* Compare branch selector */}
+      {enableCompare && (
+        <div className="branch-selector__compare-row">
+          <div className="branch-selector__field">
+            <label className="branch-selector__label">Compare with</label>
+            <select
+              className="branch-selector__select"
+              value={compareBranch || ''}
+              onChange={(e) => onCompareBranchChange(e.target.value || null)}
+            >
+              <option value="">Select branch...</option>
+              {branches.filter((b) => b !== currentBranch).map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
+          <div className="branch-selector__actions">
             <button
               className="branch-selector__btn"
               onClick={() => compareBranch && onPull(compareBranch)}
@@ -154,8 +157,8 @@ export default function BranchSelector({
               Pull
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

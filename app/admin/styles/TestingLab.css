@@ -297,6 +297,16 @@
   flex-wrap: wrap;
 }
 
+.branch-selector__actions {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.branch-selector__spacer {
+  flex: 1;
+}
+
 .branch-selector__field {
   display: flex;
   flex-direction: column;
@@ -377,13 +387,13 @@
   font-size: 0.75rem;
 }
 
-.branch-selector__compare {
+.branch-selector__compare-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
   margin-top: 0.6rem;
   padding-top: 0.6rem;
-  border-top: 1px solid #E5E7EB;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-top: 1px dashed #E5E7EB;
 }
 
 .branch-selector__compare-toggle {
@@ -393,6 +403,9 @@
   font-size: 0.8rem;
   color: #6B7280;
   cursor: pointer;
+  user-select: none;
+  align-self: center;
+  margin-bottom: 1px;
 }
 
 .branch-selector__compare-toggle input { cursor: pointer; }
