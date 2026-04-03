@@ -11,15 +11,20 @@ import PhasesTab from './components/PhasesTab';
 import FullPipelineTab from './components/FullPipelineTab';
 import HealthCheckTab from './components/HealthCheckTab';
 import LogViewerTab from './components/LogViewerTab';
+import CodeBrowserTab from './components/CodeBrowserTab';
+import DeployStatus from './components/DeployStatus';
+import InfoIcon from './components/InfoIcon';
+import { HELP } from './components/helpContent';
 import '@/app/admin/styles/TestingLab.css';
 
-type TabKey = 'scrapers' | 'analyzers' | 'phases' | 'pipeline' | 'health' | 'logs';
+type TabKey = 'scrapers' | 'analyzers' | 'phases' | 'pipeline' | 'code' | 'health' | 'logs';
 
 const TABS: { key: TabKey; label: string; description: string }[] = [
   { key: 'scrapers', label: 'Scrapers', description: '10 individual data scrapers' },
   { key: 'analyzers', label: 'Analyzers', description: '8 AI/logic analyzers' },
   { key: 'phases', label: 'Pipeline Phases', description: '9 phases individually' },
   { key: 'pipeline', label: 'Full Pipeline', description: 'Run all phases with controls' },
+  { key: 'code', label: 'Code', description: 'Browse, edit, and push code' },
   { key: 'health', label: 'Health Check', description: 'Worker & site status' },
   { key: 'logs', label: 'Logs', description: 'Aggregated log viewer' },
 ];
@@ -98,7 +103,10 @@ function TestingLabContent() {
           >
             &larr; Back to Research
           </button>
-          <h1 className="testing-lab__title">Research Testing Lab</h1>
+          <h1 className="testing-lab__title">
+            Research Testing Lab
+            <InfoIcon title={HELP.tabs.title} content={HELP.tabs.content} />
+          </h1>
           <p className="testing-lab__subtitle">
             Debug and test every scraper, analyzer, and pipeline phase individually.
           </p>
@@ -125,6 +133,9 @@ function TestingLabContent() {
         </div>
       )}
 
+      {/* Deploy status monitor */}
+      <DeployStatus />
+
       {/* Property context */}
       <PropertyContextBar />
 
@@ -148,6 +159,7 @@ function TestingLabContent() {
         {activeTab === 'analyzers' && <AnalyzersTab />}
         {activeTab === 'phases' && <PhasesTab />}
         {activeTab === 'pipeline' && <FullPipelineTab />}
+        {activeTab === 'code' && <CodeBrowserTab />}
         {activeTab === 'health' && <HealthCheckTab />}
         {activeTab === 'logs' && <LogViewerTab />}
       </div>

@@ -2,6 +2,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import InfoIcon from './InfoIcon';
+import { HELP } from './helpContent';
 
 interface BranchSelectorProps {
   currentBranch: string;
@@ -25,6 +27,10 @@ export default function BranchSelector({
   const [showCreate, setShowCreate] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
   const [enableCompare, setEnableCompare] = useState(!!compareBranch);
+  const [showMerge, setShowMerge] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const [prTitle, setPrTitle] = useState('');
+  const [mergeMsg, setMergeMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const loadBranches = useCallback(async () => {
     setLoading(true);
@@ -48,29 +54,61 @@ export default function BranchSelector({
     if (!newBranchName.trim()) return;
     try {
       await onCreateBranch(newBranchName.trim(), currentBranch);
+      const createdName = newBranchName.trim();
       setShowCreate(false);
       setNewBranchName('');
-      // Reload immediately after the creation API resolves so the new branch
-      // is guaranteed to appear in the list (the old setTimeout(1000) was a
-      // timing guess that could lose the race against GitHub's API).
-      loadBranches();
+      await loadBranches();
+      onBranchChange(createdName);
     } catch {
       // onCreateBranch already shows a user-visible error banner via showBranchMsg
-      // in the parent. Keep the create form open so the user can retry or edit.
     }
+  };
+
+  const handleCreatePR = async () => {
+    if (!prTitle.trim() || currentBranch === 'main') return;
+    setMerging(true);
+    setMergeMsg(null);
+    try {
+      const res = await fetch('/api/admin/research/testing/branches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create-pr',
+          head: currentBranch,
+          base: 'main',
+          title: prTitle.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.prUrl) {
+        setMergeMsg({ ok: true, text: `PR created: ${data.prUrl}` });
+        setPrTitle('');
+        setShowMerge(false);
+      } else {
+        setMergeMsg({ ok: false, text: data.error || 'Failed to create PR' });
+      }
+    } catch (err) {
+      setMergeMsg({ ok: false, text: err instanceof Error ? err.message : 'Network error' });
+    }
+    setMerging(false);
   };
 
   return (
     <div className="branch-selector">
       <div className="branch-selector__row">
         <div className="branch-selector__field">
-          <label className="branch-selector__label">Branch</label>
+          <label className="branch-selector__label">
+            Branch <InfoIcon title={HELP.branchSelector.title} content={HELP.branchSelector.content} size={14} />
+          </label>
           <select
             className="branch-selector__select"
             value={currentBranch}
             onChange={(e) => onBranchChange(e.target.value)}
             disabled={loading}
           >
+            {!branches.includes(currentBranch) && (
+              <option key={currentBranch} value={currentBranch}>{currentBranch}</option>
+            )}
             {branches.map((b) => (
               <option key={b} value={b}>{b}</option>
             ))}
@@ -157,6 +195,58 @@ export default function BranchSelector({
               Pull
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Merge to main */}
+      {currentBranch !== 'main' && (
+        <div className="branch-selector__merge">
+          <button
+            className="branch-selector__btn branch-selector__btn--merge"
+            onClick={() => setShowMerge(!showMerge)}
+          >
+            Merge to Main
+          </button>
+          {showMerge && (
+            <div className="branch-selector__merge-form">
+              <input
+                type="text"
+                className="branch-selector__input"
+                placeholder="PR title (e.g. Fix CAD scraper timeout)"
+                value={prTitle}
+                onChange={(e) => setPrTitle(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreatePR()}
+              />
+              <span className="branch-selector__from">{currentBranch} &rarr; main</span>
+              <button
+                className="branch-selector__btn branch-selector__btn--merge-go"
+                onClick={handleCreatePR}
+                disabled={merging || !prTitle.trim()}
+              >
+                {merging ? 'Creating...' : 'Create PR'}
+              </button>
+            </div>
+          )}
+          {mergeMsg && (
+            <div className={`branch-selector__merge-msg ${mergeMsg.ok ? 'branch-selector__merge-msg--ok' : 'branch-selector__merge-msg--err'}`}>
+              {mergeMsg.ok ? '\u2713' : '\u2715'}{' '}
+              {mergeMsg.ok && mergeMsg.text.startsWith('PR created:') ? (
+                <>
+                  PR created:{' '}
+                  <a
+                    href={mergeMsg.text.replace('PR created: ', '')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="branch-selector__pr-link"
+                  >
+                    View on GitHub
+                  </a>
+                </>
+              ) : (
+                mergeMsg.text
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

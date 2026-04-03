@@ -108,11 +108,17 @@ const SOURCE_FILE_MAP: Record<string, { file: string; function?: string }> = {
 
 const trackers = new Map<string, TimelineTracker>();
 
+/** Get or create a tracker for a project (use during pipeline runs). */
 export function getTracker(projectId: string): TimelineTracker {
   if (!trackers.has(projectId)) {
     trackers.set(projectId, new TimelineTracker(projectId));
   }
   return trackers.get(projectId)!;
+}
+
+/** Get a tracker only if it already exists (use in read-only contexts like status endpoints). */
+export function getTrackerIfExists(projectId: string): TimelineTracker | undefined {
+  return trackers.get(projectId);
 }
 
 export function clearTracker(projectId: string): void {
@@ -196,15 +202,15 @@ export class TimelineTracker {
       entry.status === 'fail' ? 'error' :
       entry.status === 'warn' ? 'warning' :
       entry.source === 'handshake' ? 'checkpoint' :
-      entry.layer?.includes('AI') || entry.source?.includes('ai') ? 'ai-call' :
-      entry.source?.includes('playwright') || entry.source?.includes('browser') ? 'browser-action' :
-      entry.source?.includes('api') || entry.source?.includes('client') ? 'api-call' :
+      entry.layer.includes('AI') || entry.source.includes('ai') ? 'ai-call' :
+      entry.source.includes('playwright') || entry.source.includes('browser') ? 'browser-action' :
+      entry.source.includes('api') || entry.source.includes('client') ? 'api-call' :
       entry.dataPointsFound > 0 ? 'data-found' :
       'log';
 
     // Look up source file mapping
-    const sourceKey = entry.source?.toLowerCase().replace(/\s+/g, '-') || '';
-    const fileInfo = SOURCE_FILE_MAP[sourceKey] || SOURCE_FILE_MAP[entry.layer?.toLowerCase().replace(/\s+/g, '-') || ''];
+    const sourceKey = entry.source.toLowerCase().replace(/\s+/g, '-');
+    const fileInfo = SOURCE_FILE_MAP[sourceKey] || SOURCE_FILE_MAP[entry.layer.toLowerCase().replace(/\s+/g, '-')];
 
     const label = [entry.layer, entry.method].filter(Boolean).join(': ') || entry.source || 'log';
     const desc = entry.details || entry.error || entry.status;

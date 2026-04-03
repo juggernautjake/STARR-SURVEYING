@@ -77,15 +77,6 @@ export async function GET(req: NextRequest) {
                   : Array.isArray(data.log) ? data.log
                   : []) as Record<string, unknown>[];
 
-                // Forward only new log entries since last poll
-                if (logs.length > lastLogCount) {
-                  const newLogs = logs.slice(lastLogCount);
-                  for (const log of newLogs) {
-                    send({ type: 'log', ...log });
-                  }
-                  lastLogCount = logs.length;
-                }
-
                 // Forward stage update if present
                 if (typeof data.currentStage === 'string' && data.currentStage) {
                   send({ type: 'stage', stage: data.currentStage, message: data.message ?? '' });
@@ -93,17 +84,31 @@ export async function GET(req: NextRequest) {
 
                 // Forward only NEW timeline events since last poll — these include
                 // file/line metadata for the CodeViewer and per-step granularity
-                // for the ExecutionTimeline.
+                // for the ExecutionTimeline.  Timeline events are the richer
+                // representation of the same LayerAttempt data that raw logs carry,
+                // so when timeline events are available we prefer them.
                 const timeline = Array.isArray(data.timeline) ? data.timeline as Record<string, unknown>[] : [];
-                if (timeline.length > lastTimelineCount) {
+                const hasTimeline = timeline.length > 0;
+                if (hasTimeline && timeline.length > lastTimelineCount) {
                   const newEntries = timeline.slice(lastTimelineCount);
                   for (const entry of newEntries) {
-                    // Use 'tl' as the SSE message type to avoid collision with
-                    // the TimelineEntry's own 'type' field (which is spread in).
                     send({ sseType: 'tl', ...entry });
                   }
                   lastTimelineCount = timeline.length;
                 }
+
+                // Forward raw log entries only when timeline events are NOT
+                // available (fallback for workers without TimelineTracker).
+                // When both are present, the client would receive duplicates.
+                if (!hasTimeline && logs.length > lastLogCount) {
+                  const newLogs = logs.slice(lastLogCount);
+                  for (const log of newLogs) {
+                    send({ type: 'log', ...log });
+                  }
+                }
+                // Always track lastLogCount so we don't re-send if timeline
+                // stops mid-run and we fall back to raw logs.
+                lastLogCount = logs.length;
 
                 // Detect pipeline completion — /research/status always returns a
                 // status field: 'running', 'complete', 'failed', or 'partial'.

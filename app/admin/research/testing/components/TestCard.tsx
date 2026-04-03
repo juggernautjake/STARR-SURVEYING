@@ -2,8 +2,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import InfoIcon from './InfoIcon';
+import { HELP } from './helpContent';
 import ExecutionTimeline, { type TimelineEvent, type EventType } from './ExecutionTimeline';
-import CodeViewer, { type CodeFile } from './CodeViewer';
+import CodeViewer, { type CodeFile, type LineState } from './CodeViewer';
 import LogStream, { type LogEntry } from './LogStream';
 import OutputViewer from './OutputViewer';
 import { usePropertyContext } from './PropertyContextBar';
@@ -23,6 +25,7 @@ export interface TestCardProps {
 }
 
 type CardStatus = 'idle' | 'running' | 'paused' | 'success' | 'error';
+type ExecutionMode = 'continuous' | 'until-fail' | 'step';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -112,6 +115,8 @@ export default function TestCard({
   const [speed, setSpeed] = useState(1);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDebugger, setShowDebugger] = useState(false);
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>('continuous');
+  const [workerBranch, setWorkerBranch] = useState<string | null>(null);
   const [logFilter, setLogFilter] = useState('');
   const [logLevelFilter, setLogLevelFilter] = useState<Set<string>>(
     new Set(['info', 'warn', 'error', 'success', 'debug'])
@@ -130,6 +135,8 @@ export default function TestCard({
   const playbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const replayRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sseRef = useRef<EventSource | null>(null);
+  const executionModeRef = useRef<ExecutionMode>(executionMode);
+  executionModeRef.current = executionMode; // keep ref in sync
 
   // Clean up intervals + SSE on unmount
   useEffect(() => {
@@ -178,6 +185,19 @@ export default function TestCard({
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, status, speed, totalDuration]);
+
+  // ── Check worker branch on expand ──────────────────────────────────────────
+  useEffect(() => {
+    if (!isExpanded) return;
+    fetch('/api/admin/research/testing/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ module: 'deploy-status', inputs: {} }),
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.success && d.result?.branch) setWorkerBranch(d.result.branch); })
+      .catch(() => {});
+  }, [isExpanded]);
 
   // ── Check inputs ───────────────────────────────────────────────────────────
 
@@ -228,6 +248,13 @@ export default function TestCard({
     const sse = new EventSource(url);
     sseRef.current = sse;
 
+    // Track files we've already requested to avoid duplicate fetches
+    const fetchedFiles = new Set<string>();
+    // Track whether we've received any timeline events — if yes, skip
+    // raw log events to avoid duplicates (both come from the same
+    // LayerAttempt entries in the worker).
+    let hasTimelineEvents = false;
+
     sse.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
@@ -240,34 +267,24 @@ export default function TestCard({
           return;
         }
 
-        // Log entries from the worker's live log registry
-        if (data.type === 'log') {
-          const level: LogEntry['level'] =
-            data.status === 'fail' ? 'error' :
-            data.status === 'warn' ? 'warn' :
-            data.status === 'success' ? 'success' : 'info';
-          const parsed = parseRawLogEntry(data, module);
-          if (parsed) {
-            addLog(parsed.level, parsed.source, parsed.message, parsed.details);
-          } else {
-            addLog(level, data.source || module, data.details || data.method || 'log entry');
-          }
-        }
-
-        // Stage update — update the card's running message
+        // Stage update — always process (not duplicated by timeline)
         if (data.type === 'stage') {
           addLog('info', module, `Stage: ${data.stage}${data.message ? ` — ${data.message}` : ''}`);
         }
 
-        // Timeline events from the worker's TimelineTracker
-        // The SSE stream uses `sseType: 'tl'` to avoid collision with the
-        // TimelineEntry's own `type` field (e.g. 'phase-start', 'ai-call').
+        // Timeline events from the worker's TimelineTracker.
+        // These are richer than raw log entries (they include file/line
+        // metadata) and come from the same LayerAttempt source, so when
+        // timeline events are flowing we skip raw log events to avoid dupes.
         if (data.sseType === 'tl') {
-          const evtType: EventType = [
+          hasTimelineEvents = true;
+
+          const VALID_TYPES = [
             'phase-start', 'phase-complete', 'phase-failed', 'api-call',
             'ai-call', 'browser-action', 'data-found', 'warning', 'error',
             'screenshot', 'log', 'checkpoint',
-          ].includes(data.type) ? data.type as EventType : 'log';
+          ];
+          const evtType: EventType = VALID_TYPES.includes(data.type) ? data.type as EventType : 'log';
 
           const evt: TimelineEvent = {
             id: data.id || nextEventId(),
@@ -282,14 +299,30 @@ export default function TestCard({
           };
           setEvents((prev) => [...prev, evt]);
 
-          // If the event has file info, load it into CodeViewer
-          if (data.file && typeof data.file === 'string') {
-            // Lazy-load the file from GitHub API for the CodeViewer
-            fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(data.file)}&branch=${encodeURIComponent(contextRecord.branch || 'main')}`)
+          // Also create a log entry from the timeline event so the LogStream
+          // shows it (timeline events are the single source of truth).
+          const logLevel: LogEntry['level'] =
+            evtType === 'error' ? 'error' :
+            evtType === 'warning' ? 'warn' :
+            evtType === 'phase-complete' ? 'success' : 'info';
+          addLog(logLevel, module, `${data.label || ''}: ${data.description || ''}`);
+
+          // Auto-pause in "Run Until Fail" mode when an error event arrives
+          if (executionModeRef.current === 'until-fail' && evtType === 'error') {
+            setIsPlaying(false);
+            setStatus('paused');
+            addLog('warn', module, 'Auto-paused: error detected (Run Until Fail mode)');
+          }
+
+          // Lazy-load source file for CodeViewer (deduplicated)
+          if (data.file && typeof data.file === 'string' && !fetchedFiles.has(data.file)) {
+            fetchedFiles.add(data.file);
+            const branch = contextRecord.branch || 'main';
+            fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(data.file)}&branch=${encodeURIComponent(branch)}`)
               .then((res) => res.ok ? res.json() : null)
               .then((fileData) => {
                 if (fileData?.type === 'file' && fileData.content) {
-                  const ext = data.file.split('.').pop() || '';
+                  const ext = (data.file as string).split('.').pop() || '';
                   const lang = ['ts', 'tsx'].includes(ext) ? 'typescript' : 'javascript';
                   setCodeFiles((prev) => {
                     if (prev.find((f) => f.path === data.file)) return prev;
@@ -298,8 +331,38 @@ export default function TestCard({
                 }
               })
               .catch(() => { /* non-fatal */ });
+          }
+          // Update line state for the CodeViewer (green/red/yellow highlighting)
+          if (data.file && typeof data.line === 'number' && data.data?._traceStatus) {
+            const traceStatus = data.data._traceStatus as string;
+            const lineState: LineState =
+              traceStatus === 'failed' ? 'failed' :
+              traceStatus === 'success' ? 'success' : 'executing';
+            setCodeFiles((prev) => prev.map((f) => {
+              if (f.path !== data.file) return f;
+              const states = new Map(f.lineStates || []);
+              states.set(data.line as number, lineState);
+              return { ...f, lineStates: states };
+            }));
+          }
 
-            if (data.line) setActiveLine(data.line);
+          if (data.line) setActiveLine(data.line);
+          return; // Don't fall through to raw log handler
+        }
+
+        // Raw log entries — only process if timeline events aren't available
+        // (fallback for workers without TimelineTracker instrumentation).
+        if (data.type === 'log' && !hasTimelineEvents) {
+          const parsed = parseRawLogEntry(data, module);
+          if (parsed) {
+            addLog(parsed.level, parsed.source, parsed.message, parsed.details);
+            addEvent(parsed.evtType, parsed.evtLabel, parsed.evtDetail);
+          } else {
+            const level: LogEntry['level'] =
+              data.status === 'fail' ? 'error' :
+              data.status === 'warn' ? 'warn' :
+              data.status === 'success' ? 'success' : 'info';
+            addLog(level, data.source || module, data.details || data.method || 'log entry');
           }
         }
       } catch {
@@ -310,7 +373,7 @@ export default function TestCard({
     sse.onerror = () => {
       // EventSource auto-reconnects; no action needed
     };
-  }, [module, addLog, contextRecord.branch]);
+  }, [module, addLog, addEvent, contextRecord.branch]);
 
   // ── Run test ───────────────────────────────────────────────────────────────
 
@@ -319,6 +382,9 @@ export default function TestCard({
     setStatus('running');
     setEvents([]);
     setLogs([]);
+    setCodeFiles([]);
+    setActiveFileIndex(0);
+    setActiveLine(undefined);
     setResult(null);
     setError(undefined);
     setDuration(undefined);
@@ -368,6 +434,7 @@ export default function TestCard({
           inputs,
           projectId: context.projectId || undefined,
           branch: contextRecord.branch || undefined,
+          executionMode,
         }),
       });
 
@@ -403,8 +470,9 @@ export default function TestCard({
 
           // Extract screenshots if present
           if (data.result?.screenshots && Array.isArray(data.result.screenshots)) {
-            setScreenshots(data.result.screenshots as string[]);
-            addEvent('screenshot', 'Screenshots captured', `${(data.result.screenshots as unknown[]).length} screenshots`);
+            const ssArr = data.result.screenshots as string[];
+            setScreenshots(ssArr);
+            addEvent('screenshot', 'Screenshots captured', `${ssArr.length} screenshots`);
           }
 
           // Extract logs from result if present
@@ -566,6 +634,57 @@ export default function TestCard({
     }
   };
 
+  // ── GitHub file operations ─────────────────────────────────────────────────
+
+  const handleOpenFile = useCallback(async (filePath: string) => {
+    const branchName = contextRecord.branch || 'main';
+    try {
+      const res = await fetch(`/api/admin/research/testing/files?path=${encodeURIComponent(filePath)}&branch=${encodeURIComponent(branchName)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.type === 'file' && data.content) {
+          const ext = filePath.split('.').pop() || '';
+          const lang = ['ts', 'tsx'].includes(ext) ? 'typescript' : 'javascript';
+          setCodeFiles((prev) => {
+            const existing = prev.findIndex((f) => f.path === filePath);
+            if (existing >= 0) {
+              setActiveFileIndex(existing);
+              return prev;
+            }
+            setActiveFileIndex(prev.length);
+            return [...prev, { path: filePath, content: data.content, language: lang }];
+          });
+        }
+      }
+    } catch {
+      // non-fatal
+    }
+  }, [contextRecord.branch]);
+
+  const handleSaveFile = useCallback(async (file: CodeFile) => {
+    const branchName = contextRecord.branch || 'main';
+    try {
+      const res = await fetch('/api/admin/research/testing/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branch: branchName,
+          path: file.path,
+          content: file.content,
+          message: `Edit ${file.path.split('/').pop()} from Testing Lab`,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addLog('success', module, `Saved ${file.path} to ${branchName} (commit: ${data.commit?.slice(0, 7)})`);
+      } else {
+        addLog('error', module, `Failed to save: ${data.error || 'unknown error'}`);
+      }
+    } catch (err) {
+      addLog('error', module, `Save failed: ${err instanceof Error ? err.message : 'network error'}`);
+    }
+  }, [contextRecord.branch, module, addLog]);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const statusClass = `test-card--${status}`;
@@ -575,7 +694,10 @@ export default function TestCard({
       {/* Header */}
       <div className="test-card__header" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="test-card__title-row">
-          <h4 className="test-card__title">{title}</h4>
+          <h4 className="test-card__title">
+            {title}
+            <InfoIcon title={HELP.testCard.title} content={HELP.testCard.content} size={13} />
+          </h4>
           <div className="test-card__badges">
             {requiresBrowser && <span className="test-card__badge test-card__badge--browser">Browser</span>}
             {requiresApiKey && <span className="test-card__badge test-card__badge--api">API Key</span>}
@@ -596,6 +718,36 @@ export default function TestCard({
             </div>
           )}
 
+          {/* Branch mismatch warning */}
+          {workerBranch && contextRecord.branch && workerBranch !== contextRecord.branch && (
+            <div className="test-card__warning test-card__warning--branch">
+              Worker is on <strong>{workerBranch}</strong> but Testing Lab is set to <strong>{contextRecord.branch}</strong>.
+              Tests will run against the worker&apos;s code ({workerBranch}). Deploy your branch first from the status bar above.
+            </div>
+          )}
+
+          {/* Execution mode selector */}
+          <div className="test-card__mode-selector">
+            <span className="test-card__mode-label">
+              Mode: <InfoIcon title={HELP.executionModes.title} content={HELP.executionModes.content} size={13} />
+            </span>
+            {([
+              { key: 'continuous' as const, label: 'Continuous', title: 'Run at selected speed, pause manually' },
+              { key: 'until-fail' as const, label: 'Until Fail', title: 'Run until an error occurs, then auto-pause' },
+              { key: 'step' as const, label: 'Step', title: 'Pause after each checkpoint — click Next to advance' },
+            ]).map((m) => (
+              <button
+                key={m.key}
+                className={`test-card__mode-btn ${executionMode === m.key ? 'test-card__mode-btn--active' : ''}`}
+                onClick={() => setExecutionMode(m.key)}
+                title={m.title}
+                disabled={status === 'running'}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
           {/* Action buttons */}
           <div className="test-card__actions">
             <button
@@ -603,8 +755,48 @@ export default function TestCard({
               onClick={handleRun}
               disabled={status === 'running' || missingInputs.length > 0}
             >
-              {status === 'running' ? 'Running...' : 'Run'}
+              {status === 'running'
+                ? 'Running...'
+                : executionMode === 'until-fail'
+                  ? 'Run Until Fail'
+                  : executionMode === 'step'
+                    ? 'Step Through'
+                    : 'Run'}
             </button>
+            {/* Step controls — visible during run or replay */}
+            {(status === 'running' || status === 'paused' || status === 'success' || status === 'error') && events.length > 0 && (
+              <div className="test-card__step-controls">
+                <button
+                  className="test-card__step-btn"
+                  onClick={handleStepBack}
+                  title="Previous event"
+                >
+                  ◀ Prev
+                </button>
+                <button
+                  className="test-card__step-btn test-card__step-btn--primary"
+                  onClick={() => {
+                    if (isPlaying) {
+                      setIsPlaying(false);
+                      if (status === 'running') setStatus('paused');
+                    } else {
+                      setIsPlaying(true);
+                      if (status === 'paused') setStatus('running');
+                    }
+                  }}
+                  title={isPlaying ? 'Pause' : 'Resume'}
+                >
+                  {isPlaying ? '▌▌ Pause' : '▶ Resume'}
+                </button>
+                <button
+                  className="test-card__step-btn"
+                  onClick={handleStepForward}
+                  title="Next event"
+                >
+                  Next ▶
+                </button>
+              </div>
+            )}
             <button className="test-card__clear-btn" onClick={handleClear}>
               Clear
             </button>
@@ -656,7 +848,10 @@ export default function TestCard({
                       activeFileIndex={activeFileIndex}
                       activeLine={activeLine}
                       readOnly={status === 'running'}
+                      branch={contextRecord.branch || 'main'}
                       onFileSelect={setActiveFileIndex}
+                      onSave={handleSaveFile}
+                      onOpenFile={handleOpenFile}
                     />
                   </div>
                   <div className="test-card__split-right">

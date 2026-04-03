@@ -1,9 +1,9 @@
-# STARR Surveying — Modular Testing Lab Plan (v2)
+# STARR Surveying — Modular Testing Lab Plan (v3)
 
 > **Date:** 2026-03-29  
-> **Last Updated:** 2026-03-31  
-> **Branch:** `copilot/phase-1-infrastructure-build`  
-> **Status:** Phase 1 complete — all known bugs resolved, ready for Phase 2
+> **Last Updated:** 2026-04-02  
+> **Branch:** `claude/setup-starr-backend-testing-v19py`  
+> **Status:** Phases 1-4 complete + worker instrumentation. Phase 5+ (Interactive Debugger IDE) planned below.
 
 ---
 
@@ -55,18 +55,360 @@
 
 ---
 
-## Known Gaps / Phase 2+ Work
+## Known Gaps / Completed in Worker Instrumentation
 
-| Gap | When to Address |
-|-----|-----------------|
-| `CodeViewer` is never populated with actual code traces — left panel is empty until worker emits `codeTrace` events | Phase 2: Worker instrumentation |
-| Timeline only has start/complete events — no per-file/per-function trace events | Phase 2: Worker instrumentation |
-| SSE stream (`/testing/stream`) polls worker but worker doesn't yet emit phase-level events | Phase 2: Worker event emitter |
-| `FullPipelineTab` currentPhase only updates from log parsing — not from real phase events | Phase 2: Worker phase event emitter |
-| `LogViewerTab` loads logs from the API but has no feed from active TestCard runs (no shared log store) | Phase 2: Shared log store / event bus |
-| Multi-branch side-by-side comparison UI not yet wired (BranchSelector UI is ready, branch is now forwarded to all API calls) | Phase 3 |
-| `paused` CardStatus in TestCard is defined but never set (requires worker pause support) | Phase 2 |
-| No test coverage (unit or e2e) for Testing Lab components | Phase 4 |
+| Gap | Status |
+|-----|--------|
+| `CodeViewer` is never populated with actual code traces | ✅ Resolved — `TimelineTracker` + `SOURCE_FILE_MAP` emit file/line events, SSE streams them, TestCard loads files from GitHub API |
+| Timeline only has start/complete events | ✅ Resolved — every `PipelineLogger.addEntry()` produces a timeline event via `fromLayerAttempt()` |
+| SSE stream doesn't emit phase-level events | ✅ Resolved — `stream/route.ts` forwards timeline entries with dedup |
+| `FullPipelineTab` currentPhase only updates from log parsing | ✅ Resolved (log parsing works, real phase events also flow) |
+| `LogViewerTab` has no feed from active TestCard runs | ✅ Resolved — `useTestingLogStore` shared pub/sub store |
+| `paused` CardStatus requires worker pause support | ✅ Resolved — `POST /research/pause/:projectId` + `POST /research/resume/:projectId` endpoints |
+| Multi-branch side-by-side comparison UI | Deferred to Phase 7 |
+| No test coverage for Testing Lab components | Deferred to Phase 8 |
+
+---
+
+## Phase 5 — Interactive Code Debugger (Line-Level Tracing)
+
+> **Goal:** See actual code lines fire in real time as the pipeline runs. Green highlight for success, red for failure. Lines stay highlighted after execution so you can see what worked and what failed. Slow the process down to any speed, pause at any point.
+
+### 5A. Worker Function-Level Instrumentation
+
+The worker's `PipelineLogger` already bridges to `TimelineTracker`, but we need **line-level granularity** — not just "this function ran" but "this specific line inside this function executed."
+
+**Approach:** Instrument key pipeline functions with checkpoint calls that emit file + line number. We do NOT instrument every single line (that would require AST rewriting or source maps). Instead, we instrument at **decision points** — function entry, key branches, API calls, data extraction points, and error handlers.
+
+```typescript
+// Example: worker/src/services/discovery-engine.ts
+export async function runDiscovery(input: DiscoveryInput, logger: PipelineLogger) {
+  // __trace emits a timeline event with { file, function, line }
+  __trace('discovery-engine.ts', 'runDiscovery', 45, 'entry');
+  
+  const address = normalizeAddress(input.address);
+  __trace('discovery-engine.ts', 'runDiscovery', 48, 'address-normalized');
+  
+  const cadAdapter = selectAdapter(input.county);
+  __trace('discovery-engine.ts', 'runDiscovery', 51, 'adapter-selected', { adapter: cadAdapter.name });
+  
+  try {
+    const result = await cadAdapter.search(address);
+    __trace('discovery-engine.ts', 'runDiscovery', 55, 'search-complete', { 
+      status: 'success', dataPoints: result.length 
+    });
+    return result;
+  } catch (err) {
+    __trace('discovery-engine.ts', 'runDiscovery', 60, 'search-failed', { 
+      status: 'error', error: err.message 
+    });
+    throw err;
+  }
+}
+```
+
+**Files to instrument (priority order):**
+1. `discovery-engine.ts` — Phase 1 discovery (most visible first step)
+2. `document-harvester.ts` — Phase 2 harvest
+3. `ai-extraction.ts` / `ai-document-analyzer.ts` — Phase 3 AI
+4. `master-orchestrator.ts` — Phase sequencing
+5. All CAD/clerk adapters — Phase 1-2 external calls
+6. `geometric-reconciliation-engine.ts` — Phase 7
+7. `confidence-scoring-engine.ts` — Phase 8
+
+**New helper: `worker/src/lib/trace.ts`**
+```typescript
+export function __trace(file: string, fn: string, line: number, label: string, data?: unknown) {
+  // Emits a timeline event with precise file:line info
+  // Only active when testMode=true (no overhead in production)
+}
+```
+
+### 5B. CodeViewer Line-Level Highlighting
+
+Upgrade the CodeViewer to support three highlight states per line:
+
+| State | Color | Meaning |
+|-------|-------|---------|
+| **Active** | Yellow background | Currently executing (latest trace event) |
+| **Success** | Green left border | This line executed successfully |
+| **Failed** | Red left border + red text | This line threw an error |
+| **Pending** | No highlight | Not yet reached |
+
+```typescript
+interface CodeFile {
+  path: string;
+  content: string;
+  language: string;
+  highlightedLines?: number[];           // existing: yellow highlight
+  successLines?: number[];               // NEW: green border
+  failedLines?: number[];                // NEW: red border
+  activeExecutionLine?: number;          // NEW: currently executing
+}
+```
+
+**Implementation:**
+- `code-viewer__line--success` CSS class: `border-left: 3px solid #059669`
+- `code-viewer__line--failed` CSS class: `border-left: 3px solid #DC2626; color: #FCA5A5`
+- `code-viewer__line--executing` CSS class: `background: rgba(250, 204, 21, 0.2); animation: pulse 1s`
+- Lines accumulate state — a line can be both "success" and later "failed" (shows failed)
+- Auto-scroll to the currently executing line
+
+### 5C. Execution Modes
+
+Three modes the tester can choose before or during a run:
+
+| Mode | Behavior | Button |
+|------|----------|--------|
+| **Run Until Failure** | Runs at full speed, pauses automatically when an error occurs | `▶ Run Until Fail` |
+| **Continuous at Speed** | Runs at the selected speed (0.1x–10x), pauses when user clicks Pause | `▶ Run at Speed` |
+| **Step-Through** | Pauses after every function/checkpoint. User clicks "Next" to advance. | `▶ Step` |
+
+**Worker support needed:**
+- `POST /research/step/:projectId` — Advance one checkpoint, then pause
+- Worker holds execution at each `__trace()` call when in step mode
+- Uses a Promise + resolve pattern: `await stepGate.wait()` blocks until the frontend sends the next step signal
+
+### 5D. Step Forward / Step Back with Live Editing
+
+**Step Forward:** Advance to the next `__trace` checkpoint. The CodeViewer shows the next file/line, highlights it, and waits.
+
+**Step Back:** Rewind to the previous checkpoint. This does NOT re-execute code — it replays the **recorded state** from that checkpoint:
+- CodeViewer shows the file/line from the previous checkpoint
+- LogStream scrolls to the log entry at that time
+- OutputViewer shows the data available at that point
+- The timeline scrubber moves to that timestamp
+
+**Live Edit → Re-execute:**
+1. User pauses or steps to a function
+2. User edits the code in CodeViewer (edit mode activates automatically when paused)
+3. User clicks "Save & Re-run from here"
+4. Frontend commits the edit to a temporary branch via GitHub API
+5. Worker restarts the current phase from the edited checkpoint using the new branch
+6. Results display side-by-side: original vs edited
+
+---
+
+## Phase 6 — Dependency Graph & Impact Analysis
+
+> **Goal:** When you change code, see what else it affects. Hyperlinked function calls showing the dependency chain. Warnings when a change could break downstream code.
+
+### 6A. Function Call Graph
+
+Build a static dependency graph of the worker codebase:
+
+```
+POST /api/admin/research/testing/dependencies
+  → Analyzes worker/src/ with TypeScript compiler API
+  → Returns: { 
+      functions: [{ file, name, line, calledBy: [...], calls: [...] }],
+      imports: [{ from, to, symbols: [...] }]
+    }
+```
+
+**Visualization in the Testing Lab:**
+- When you hover over a function in CodeViewer, a popup shows:
+  - "Called by: master-orchestrator.ts:runPipeline(), bell-research.ts:runBellCounty()"
+  - "Calls: bis-adapter.ts:search(), address-normalizer.ts:normalize()"
+- Clicking a caller/callee navigates the CodeViewer to that file/line
+- During a live run, the active call chain is highlighted in blue
+
+### 6B. Impact Analysis Warning System
+
+When the user edits code in the CodeViewer:
+
+1. **Immediate analysis** (< 1 second):
+   - Parse the edit to identify changed functions/exports
+   - Look up the dependency graph to find all callers
+   - Show a yellow warning banner: "This function is called by 3 other files. Changes may affect: [list]"
+
+2. **Deep analysis** (2-5 seconds, uses AI):
+   - Send the diff + dependency context to Claude
+   - Claude analyzes: "This change modifies the return type of `normalizeAddress()`. The following callers expect the old shape: [list]. Suggested fix: [code]"
+
+### 6C. Right-Click Context Menu in CodeViewer
+
+When you highlight code in the CodeViewer and right-click:
+
+| Menu Item | Action |
+|-----------|--------|
+| **View Dependencies** | Opens the dependency graph popup showing what this code calls and what calls it |
+| **AI Analysis** | Sends the highlighted code + its context to Claude for analysis. Returns: purpose, potential issues, suggestions |
+| **Chat About This Code** | Opens an inline AI chat panel scoped to the highlighted code — brainstorm fixes, improvements, alternatives |
+| **Copy** | Copy to clipboard |
+| **Paste** | Paste from clipboard (edit mode only) |
+| **Delete with Warning** | Shows impact analysis warning before deleting — "Deleting this will break: [callers]" |
+| **What Is This For?** | AI explains the purpose of this code in the context of the current test run — e.g. "This function scrapes the Bell County CAD website using Playwright to find property tax records" |
+| **Find All References** | Shows all files/lines that reference the highlighted symbol |
+
+### 6D. Implementation Files
+
+```
+testing/components/
+  DependencyGraph.tsx          ← Interactive graph visualization
+  ImpactAnalysisBanner.tsx     ← Warning banner for edits
+  CodeContextMenu.tsx          ← Right-click menu
+  AIChatPanel.tsx              ← Inline AI chat about code
+  AIAnalysisPanel.tsx          ← AI analysis results display
+
+app/api/admin/research/testing/
+  dependencies/route.ts        ← Static dependency analysis endpoint
+  ai-analyze/route.ts          ← AI code analysis endpoint
+  ai-chat/route.ts             ← AI chat endpoint (streaming)
+```
+
+---
+
+## Phase 7 — Screenshot & Data Inspector with AI
+
+> **Goal:** Right-click on screenshots and data artifacts to copy, delete, or run AI analysis (OCR, classification). View captured data alongside the code that produced it.
+
+### 7A. Enhanced OutputViewer
+
+Upgrade OutputViewer to support right-click context menus on:
+
+**Screenshots:**
+| Menu Item | Action |
+|-----------|--------|
+| **Copy Image** | Copy to clipboard |
+| **Download** | Save as PNG |
+| **Delete** | Remove from results (with confirmation) |
+| **AI OCR Analysis** | Extract text from the screenshot using Claude Vision |
+| **AI Classification** | Classify the screenshot (aerial, plat, deed, topo, etc.) |
+| **Compare with Original** | Side-by-side comparison with the source page |
+| **View Source Code** | Jump to the CodeViewer line that captured this screenshot |
+
+**Data Points (JSON tree):**
+| Menu Item | Action |
+|-----------|--------|
+| **Copy Value** | Copy the selected JSON value |
+| **Copy Path** | Copy the JSON path (e.g. `result.boundary.calls[0].bearing`) |
+| **AI Analysis** | Explain what this data means in surveying context |
+| **Find Source** | Jump to the code line that produced this data point |
+| **Validate** | Check if this value is within expected ranges |
+
+### 7B. Data ↔ Code Linking
+
+Every data point in the OutputViewer is linked back to the timeline event (and therefore the code line) that produced it. Clicking "View Source Code" on a data point navigates the CodeViewer to the exact line.
+
+### 7C. AI Analysis Endpoints
+
+```
+POST /api/admin/research/testing/ai-analyze
+  body: { type: 'ocr' | 'classify' | 'explain' | 'validate', content: string | base64 }
+  → Uses Claude Vision for images, Claude text for code/data
+  → Returns: { analysis: string, suggestions?: string[], confidence: number }
+```
+
+---
+
+## Phase 8 — AI-Integrated Development Assistant
+
+> **Goal:** Integrated AI assistance throughout the Testing Lab. Highlight code → get suggestions. Chat about issues. Get fix recommendations. Full Claude-powered development experience inside the debugger.
+
+### 8A. Inline AI Chat Panel
+
+A collapsible side panel that maintains conversation context about the current test run:
+
+- **Scoped context:** The AI knows which module is being tested, what the inputs are, what the current results are, and what errors occurred
+- **Code-aware:** When you highlight code and click "Chat About This Code", the chat receives the code + its dependencies
+- **Suggestion mode:** AI can suggest code changes that the user can apply with one click (inserts into CodeViewer in edit mode)
+- **History:** Chat history persists per test run and can be exported
+
+### 8B. Automatic Failure Analysis
+
+When a test fails:
+1. The AI automatically analyzes the failure (error message, stack trace, code context)
+2. Displays a "Suggested Fix" card below the error in the OutputViewer
+3. User can click "Apply Fix" to insert the suggestion into the CodeViewer
+4. User can click "Explain" for a deeper analysis
+
+### 8C. Code Change Suggestions
+
+When the user edits code in the CodeViewer:
+1. AI watches the edits in real-time (debounced 2s)
+2. If the edit introduces potential issues, shows an inline warning
+3. If the edit is incomplete, offers autocomplete suggestions
+4. If the edit changes a function signature, suggests updates to all callers
+
+---
+
+## Phase 9 — Multi-Branch Comparison & Side-by-Side Runs
+
+> **Goal:** Run the same test on two branches simultaneously, see results side by side, identify regressions.
+
+### 9A. Side-by-Side Test Runner
+
+When "branch comparison" is enabled in BranchSelector:
+- Two TestCards appear side by side (Branch A | Branch B)
+- Both run the same module with the same inputs
+- Timelines are synced — scrubbing one scrubs both
+- Logs are color-coded by branch
+- OutputViewer shows a diff of the results
+
+### 9B. Regression Detection
+
+Automatic comparison after both branches complete:
+- Data point diff: which values changed?
+- Performance diff: which branch was faster?
+- Error diff: did one branch fail where the other succeeded?
+- AI summary: "Branch B's change to normalizeAddress() caused 3 additional data points to be found but increased runtime by 2.5s"
+
+---
+
+## Implementation Order Summary
+
+| Phase | Name | Status | Est. Effort |
+|-------|------|--------|-------------|
+| 1 | Infrastructure | ✅ Complete | — |
+| 2 | Core Debugger Components | ✅ Complete | — |
+| 3 | Module Cards | ✅ Complete | — |
+| 4 | Integration | ✅ Complete | — |
+| 4.5 | Worker Instrumentation | ✅ Complete | — |
+| **5** | **Interactive Code Debugger** | 🔴 Not Started | 2-3 weeks |
+| **6** | **Dependency Graph & Impact Analysis** | 🔴 Not Started | 2-3 weeks |
+| **7** | **Screenshot & Data Inspector with AI** | 🔴 Not Started | 1-2 weeks |
+| **8** | **AI-Integrated Development Assistant** | 🔴 Not Started | 2-3 weeks |
+| **9** | **Multi-Branch Comparison** | 🔴 Not Started | 1-2 weeks |
+
+### Phase 5 Build Order (detailed)
+
+```
+Phase 5A: Worker trace helper + instrument 2-3 key service files
+Phase 5B: CodeViewer line-state highlighting (success/failed/executing)
+Phase 5C: Execution mode selector (run-until-fail, continuous, step-through)
+Phase 5D: Step forward/back controls with state replay
+Phase 5E: Live edit → re-execute from checkpoint
+```
+
+### Phase 6 Build Order (detailed)
+
+```
+Phase 6A: Dependency analysis API endpoint (TypeScript compiler API)
+Phase 6B: DependencyGraph.tsx visualization component
+Phase 6C: Impact analysis warning banner
+Phase 6D: CodeContextMenu.tsx right-click menu
+Phase 6E: Wire all context menu actions
+```
+
+### Phase 7 Build Order (detailed)
+
+```
+Phase 7A: OutputViewer right-click context menu
+Phase 7B: AI analysis API endpoint (Claude Vision + text)
+Phase 7C: Data ↔ Code linking (trace IDs)
+Phase 7D: Screenshot AI OCR/classification
+```
+
+### Phase 8 Build Order (detailed)
+
+```
+Phase 8A: AIChatPanel.tsx component
+Phase 8B: AI chat API endpoint (streaming)
+Phase 8C: Automatic failure analysis
+Phase 8D: Code change suggestions (real-time)
+Phase 8E: One-click fix application
+```
 
 ---
 

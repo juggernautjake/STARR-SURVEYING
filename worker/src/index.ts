@@ -10,7 +10,8 @@ import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile, LayerAttempt } from './types/index.js';
 import { runPipeline, getSupabase, getRunningMessage, setRunningMessage, clearRunningMessage } from './services/pipeline.js';
 import { getLiveLogForProject, clearLiveLogForProject, PipelineLogger } from './lib/logger.js';
-import { getTracker, clearTracker } from './lib/timeline-tracker.js';
+import { getTracker, getTrackerIfExists, clearTracker } from './lib/timeline-tracker.js';
+import { enableTracing, disableTracing } from './lib/trace.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
@@ -917,6 +918,10 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
   const timeline = getTracker(projectId);
   timeline.add('phase-start', 'Pipeline started', `${county} County — ${researchInput.address ?? ''}`);
 
+  // Enable function-level tracing when the request came from the Testing Lab.
+  // testMode is set by the run proxy route's workerBody.
+  if ((body as Record<string, unknown>).testMode) enableTracing();
+
   console.log(
     `[Worker] ${projectId}: pipeline START — county="${county}" address="${researchInput.address ?? ''}" propertyId="${researchInput.propertyId ?? ''}" ownerName="${researchInput.ownerName ?? ''}" files=${parsedUserFiles?.length ?? 0}`,
   );
@@ -1023,6 +1028,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     .then(async (unifiedResult) => {
       // Emit pipeline-complete timeline event
       timeline.add('phase-complete', 'Pipeline complete', `${county} County research finished`);
+      disableTracing();
 
       setCompletedResult(projectId, unifiedResult);
       activePipelines.delete(projectId);
@@ -1423,6 +1429,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     })
     .catch((err) => {
       // Emit pipeline-failed timeline event
+      disableTracing();
       const crashMsg = err instanceof Error ? err.message : String(err ?? 'Unknown error');
       timeline.add('phase-failed', 'Pipeline failed', crashMsg.slice(0, 200));
 
@@ -1600,7 +1607,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         log: completedLogs.has(projectId)
           ? [...result.log, ...completedLogs.get(projectId)!]
           : result.log,
-        timeline: getTracker(projectId).getEntries(),
+        timeline: getTrackerIfExists(projectId)?.getEntries() ?? [],
         failureReason: result.failureReason,
         masterReportText: result.masterReportText,
       });
@@ -1650,7 +1657,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         screenshotCount: result.screenshots.length,
         aiUsage: result.aiUsage,
         log: completedLogs.get(projectId) ?? [],
-        timeline: getTracker(projectId).getEntries(),
+        timeline: getTrackerIfExists(projectId)?.getEntries() ?? [],
       });
     }
     return;
@@ -1674,7 +1681,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         address: pipeline.address,
         county: pipeline.county,
         log: liveLog,
-        timeline: getTracker(projectId).getEntries(),
+        timeline: getTrackerIfExists(projectId)?.getEntries() ?? [],
       });
       return;
     }
@@ -1706,7 +1713,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
     console.log(`[Worker] ${projectId} → Frontend: status poll — stage="${pipeline.currentStage ?? 'unknown'}" logEntries=${liveLog.length} msg="${(message ?? '').slice(0, 60)}"`);
 
     // Include timeline events for the Testing Lab's ExecutionTimeline
-    const timelineEntries = getTracker(projectId).getEntries();
+    const timelineEntries = getTrackerIfExists(projectId)?.getEntries() ?? [];
 
     res.json({
       projectId,
@@ -3519,6 +3526,89 @@ app.delete('/admin/health/alerts', requireAuth, (_req: Request, res: Response) =
   res.json({ message: 'Alerts cleared' });
 });
 
+// ── POST /admin/deploy — Pull a branch and restart the worker ────────────
+// Used by the Testing Lab to hot-reload worker code from a feature branch.
+// Executes `git fetch && git checkout <branch> && git pull` then restarts
+// the worker via PM2 (or process.exit for Docker auto-restart).
+
+import { execSync } from 'child_process';
+
+app.post('/admin/deploy', requireAuth, (req: Request, res: Response) => {
+  const { branch } = req.body as { branch?: string };
+
+  if (!branch) {
+    res.status(400).json({ error: 'branch is required' });
+    return;
+  }
+
+  // Sanitize branch name to prevent command injection
+  if (!/^[\w.\-/]+$/.test(branch)) {
+    res.status(400).json({ error: 'Invalid branch name' });
+    return;
+  }
+
+  try {
+    // Get current branch and commit before switching
+    const currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
+    const currentCommit = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+
+    console.log(`[Deploy] Switching from ${currentBranch} (${currentCommit}) to ${branch}`);
+
+    // Fetch latest from remote
+    execSync('git fetch origin', { encoding: 'utf-8', timeout: 30000 });
+
+    // Checkout the target branch
+    execSync(`git checkout ${branch}`, { encoding: 'utf-8', timeout: 10000 });
+
+    // Pull latest changes
+    execSync(`git pull origin ${branch}`, { encoding: 'utf-8', timeout: 30000 });
+
+    // Get new commit
+    const newCommit = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+    const newMessage = execSync('git log -1 --pretty=%s', { encoding: 'utf-8' }).trim();
+
+    console.log(`[Deploy] Now on ${branch} (${newCommit}): ${newMessage}`);
+
+    res.json({
+      success: true,
+      previousBranch: currentBranch,
+      previousCommit: currentCommit,
+      branch,
+      commit: newCommit,
+      message: newMessage,
+      note: 'Worker will restart automatically. New code takes effect in ~5 seconds.',
+    });
+
+    // Schedule a restart after sending the response.
+    // PM2 will auto-restart. Docker will auto-restart if restart policy is set.
+    // Plain Node.js: process.exit(0) with a process manager will restart.
+    setTimeout(() => {
+      console.log(`[Deploy] Restarting worker to load ${branch} (${newCommit})...`);
+      process.exit(0);
+    }, 1000);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[Deploy] Failed:`, msg);
+    res.status(500).json({
+      success: false,
+      error: `Deploy failed: ${msg.split('\n')[0]}`,
+    });
+  }
+});
+
+// ── GET /admin/deploy/status — Current branch and commit ─────────────────
+app.get('/admin/deploy/status', requireAuth, (_req: Request, res: Response) => {
+  try {
+    const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
+    const commit = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+    const message = execSync('git log -1 --pretty=%s', { encoding: 'utf-8' }).trim();
+    const date = execSync('git log -1 --pretty=%ci', { encoding: 'utf-8' }).trim();
+    res.json({ branch, commit, message, date });
+  } catch {
+    res.json({ branch: 'unknown', commit: 'unknown', message: '', date: '' });
+  }
+});
+
 // ── Phase 14: Document Access Tier Routes ──────────────────────────────────
 
 /**
@@ -4002,6 +4092,8 @@ app.listen(PORT, () => {
   console.log('  POST   /research/cancel/:projectId      ← Cancel running pipeline');
   console.log('  POST   /research/pause/:projectId       ← Pause timeline tracking');
   console.log('  POST   /research/resume/:projectId      ← Resume timeline tracking');
+  console.log('  POST   /admin/deploy                    ← Pull branch + restart worker');
+  console.log('  GET    /admin/deploy/status             ← Current branch + commit');
   console.log('  GET    /research/active');
   console.log('  DELETE /research/result/:projectId');
   console.log('');

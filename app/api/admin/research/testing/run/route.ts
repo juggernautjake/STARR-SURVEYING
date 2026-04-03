@@ -73,6 +73,10 @@ const MODULE_ENDPOINTS: Record<string, { method: string; path: string }> = {
   'cancel':                { method: 'POST', path: '/research/cancel/{projectId}' },
   'pause':                 { method: 'POST', path: '/research/pause/{projectId}' },
   'resume':                { method: 'POST', path: '/research/resume/{projectId}' },
+
+  // Worker deployment
+  'deploy':                { method: 'POST', path: '/admin/deploy' },
+  'deploy-status':         { method: 'GET',  path: '/admin/deploy/status' },
 };
 
 // ── Per-module fetch timeout (ms) ────────────────────────────────────────────
@@ -225,9 +229,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   try {
     // Replace {projectId} template in path for control endpoints (cancel/pause/resume)
-    const resolvedPath = endpoint.path.includes('{projectId}')
-      ? endpoint.path.replace('{projectId}', encodeURIComponent(resolvedProjectId ?? ''))
-      : endpoint.path;
+    let resolvedPath = endpoint.path;
+    if (resolvedPath.includes('{projectId}')) {
+      if (!resolvedProjectId) {
+        clearTimeout(timer);
+        return NextResponse.json({ error: 'projectId is required for this operation' }, { status: 400 });
+      }
+      resolvedPath = resolvedPath.replace('{projectId}', encodeURIComponent(resolvedProjectId));
+    }
     const url = `${WORKER_URL}${resolvedPath}`;
     const workerRes = await fetch(url, {
       method: endpoint.method,

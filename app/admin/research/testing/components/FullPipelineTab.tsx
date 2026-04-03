@@ -139,6 +139,10 @@ export default function FullPipelineTab() {
     setIsPlaying(true);
     setCurrentTime(0);
     setTotalDuration(0);
+    setCurrentPhase(null);
+    setLogFilter('');
+    logCounterRef.current = 0;
+    evtCounterRef.current = 0;
     startTimeRef.current = Date.now();
 
     // Start live ticker — advances the timeline every 100ms so the scrubber
@@ -183,13 +187,23 @@ export default function FullPipelineTab() {
         duration: number;
         result: unknown;
         error?: string;
+        message?: string;
+        pollUrl?: string;
       };
       const elapsed = Date.now() - startTimeRef.current;
 
       if (data.success) {
         setCurrentPhase(null);
-        addEvent('phase-complete', 'Pipeline completed', `Duration: ${(data.duration / 1000).toFixed(1)}s`);
-        addLog('success', `Pipeline completed in ${(data.duration / 1000).toFixed(1)}s`);
+        if (data.async) {
+          // 202 Accepted — pipeline started in background
+          const msg = data.message ?? 'Pipeline accepted. Running in the background.';
+          addEvent('checkpoint', 'Pipeline accepted (async)', msg);
+          addLog('info', msg);
+          if (data.pollUrl) addLog('info', `Poll: GET ${data.pollUrl}`);
+        } else {
+          addEvent('phase-complete', 'Pipeline completed', `Duration: ${(data.duration / 1000).toFixed(1)}s`);
+          addLog('success', `Pipeline completed in ${(data.duration / 1000).toFixed(1)}s`);
+        }
         setResult(data.result);
         setDuration(data.duration);
         setStatus('success');
