@@ -57,12 +57,10 @@ export default function BranchSelector({
       const createdName = newBranchName.trim();
       setShowCreate(false);
       setNewBranchName('');
-      // Reload branch list then auto-switch to the new branch
       await loadBranches();
       onBranchChange(createdName);
     } catch {
       // onCreateBranch already shows a user-visible error banner via showBranchMsg
-      // in the parent. Keep the create form open so the user can retry or edit.
     }
   };
 
@@ -71,7 +69,6 @@ export default function BranchSelector({
     setMerging(true);
     setMergeMsg(null);
     try {
-      // Create a pull request via the GitHub API (through our branches route)
       const res = await fetch('/api/admin/research/testing/branches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -109,7 +106,6 @@ export default function BranchSelector({
             onChange={(e) => onBranchChange(e.target.value)}
             disabled={loading}
           >
-            {/* Ensure the current branch always appears even if not yet loaded */}
             {!branches.includes(currentBranch) && (
               <option key={currentBranch} value={currentBranch}>{currentBranch}</option>
             )}
@@ -118,28 +114,42 @@ export default function BranchSelector({
             ))}
           </select>
         </div>
-        <button
-          className="branch-selector__btn"
-          onClick={() => onPull(currentBranch)}
-          title="Pull latest from remote"
-        >
-          Pull
-        </button>
-        <button
-          className="branch-selector__btn"
-          onClick={() => setShowCreate(!showCreate)}
-          title="Create new branch"
-        >
-          + Branch
-        </button>
-        <button
-          className="branch-selector__btn branch-selector__btn--refresh"
-          onClick={loadBranches}
-          disabled={loading}
-          title="Refresh branch list"
-        >
-          {loading ? '...' : '↻'}
-        </button>
+        <div className="branch-selector__actions">
+          <button
+            className="branch-selector__btn"
+            onClick={() => onPull(currentBranch)}
+            title="Pull latest from remote"
+          >
+            Pull
+          </button>
+          <button
+            className="branch-selector__btn"
+            onClick={() => setShowCreate(!showCreate)}
+            title="Create new branch"
+          >
+            + Branch
+          </button>
+          <button
+            className="branch-selector__btn branch-selector__btn--refresh"
+            onClick={loadBranches}
+            disabled={loading}
+            title="Refresh branch list"
+          >
+            {loading ? '...' : '↻'}
+          </button>
+        </div>
+        <div className="branch-selector__spacer" />
+        <label className="branch-selector__compare-toggle">
+          <input
+            type="checkbox"
+            checked={enableCompare}
+            onChange={(e) => {
+              setEnableCompare(e.target.checked);
+              if (!e.target.checked) onCompareBranchChange(null);
+            }}
+          />
+          Side-by-side comparison
+        </label>
       </div>
 
       {/* Create branch inline */}
@@ -160,34 +170,23 @@ export default function BranchSelector({
         </div>
       )}
 
-      {/* Compare toggle */}
-      <div className="branch-selector__compare">
-        <label className="branch-selector__compare-toggle">
-          <input
-            type="checkbox"
-            checked={enableCompare}
-            onChange={(e) => {
-              setEnableCompare(e.target.checked);
-              if (!e.target.checked) onCompareBranchChange(null);
-            }}
-          />
-          Side-by-side branch comparison
-        </label>
-        {enableCompare && (
-          <div className="branch-selector__row" style={{ marginTop: '0.5rem' }}>
-            <div className="branch-selector__field">
-              <label className="branch-selector__label">Compare with</label>
-              <select
-                className="branch-selector__select"
-                value={compareBranch || ''}
-                onChange={(e) => onCompareBranchChange(e.target.value || null)}
-              >
-                <option value="">Select branch...</option>
-                {branches.filter((b) => b !== currentBranch).map((b) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
-            </div>
+      {/* Compare branch selector */}
+      {enableCompare && (
+        <div className="branch-selector__compare-row">
+          <div className="branch-selector__field">
+            <label className="branch-selector__label">Compare with</label>
+            <select
+              className="branch-selector__select"
+              value={compareBranch || ''}
+              onChange={(e) => onCompareBranchChange(e.target.value || null)}
+            >
+              <option value="">Select branch...</option>
+              {branches.filter((b) => b !== currentBranch).map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
+          <div className="branch-selector__actions">
             <button
               className="branch-selector__btn"
               onClick={() => compareBranch && onPull(compareBranch)}
@@ -196,8 +195,8 @@ export default function BranchSelector({
               Pull
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Merge to main */}
       {currentBranch !== 'main' && (
@@ -218,7 +217,7 @@ export default function BranchSelector({
                 onChange={(e) => setPrTitle(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreatePR()}
               />
-              <span className="branch-selector__from">{currentBranch} → main</span>
+              <span className="branch-selector__from">{currentBranch} &rarr; main</span>
               <button
                 className="branch-selector__btn branch-selector__btn--merge-go"
                 onClick={handleCreatePR}
@@ -230,7 +229,7 @@ export default function BranchSelector({
           )}
           {mergeMsg && (
             <div className={`branch-selector__merge-msg ${mergeMsg.ok ? 'branch-selector__merge-msg--ok' : 'branch-selector__merge-msg--err'}`}>
-              {mergeMsg.ok ? '✓' : '✕'}{' '}
+              {mergeMsg.ok ? '\u2713' : '\u2715'}{' '}
               {mergeMsg.ok && mergeMsg.text.startsWith('PR created:') ? (
                 <>
                   PR created:{' '}
