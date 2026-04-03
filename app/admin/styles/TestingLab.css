@@ -294,13 +294,12 @@
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
-  flex-wrap: wrap;
 }
 
 .branch-selector__actions {
   display: flex;
   gap: 0.35rem;
-  align-items: center;
+  align-items: stretch;
 }
 
 .branch-selector__spacer {
@@ -399,13 +398,12 @@
 .branch-selector__compare-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   font-size: 0.8rem;
   color: #6B7280;
   cursor: pointer;
   user-select: none;
-  align-self: center;
-  margin-bottom: 1px;
+  white-space: nowrap;
 }
 
 .branch-selector__compare-toggle input { cursor: pointer; }
