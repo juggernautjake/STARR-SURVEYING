@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import type { DocumentRef, DocumentResult, PageScreenshot, DocumentPage } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import type { Response as PlaywrightResponse } from 'playwright';
+import { acquireBrowser } from '../lib/browser-factory.js';
 
 // ── Kofile PublicSearch Configuration ──────────────────────────────────────
 
@@ -998,10 +999,12 @@ export async function searchClerkRecords(
   const baseUrl = `https://${config.subdomain}`;
 
   try {
-    const { chromium } = await import('playwright');
-    browser = await chromium.launch({
-      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    browser = await acquireBrowser({
+      adapterId: 'bell-clerk',
+      launchOptions: {
+        headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
 
     const context = await browser.newContext({
@@ -1932,10 +1935,12 @@ export async function searchSuperSearch(
   let browser = null;
 
   try {
-    const { chromium } = await import('playwright');
-    browser = await chromium.launch({
-      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    browser = await acquireBrowser({
+      adapterId: 'bell-clerk',
+      launchOptions: {
+        headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
 
     const context = await browser.newContext({
@@ -2134,10 +2139,12 @@ export async function searchClerkByAddress(
   let browser = null;
 
   try {
-    const { chromium } = await import('playwright');
-    browser = await chromium.launch({
-      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    browser = await acquireBrowser({
+      adapterId: 'bell-clerk',
+      launchOptions: {
+        headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
 
     const context = await browser.newContext({
@@ -2380,10 +2387,12 @@ export async function searchClerkForPlats(
   let browser = null;
 
   try {
-    const { chromium } = await import('playwright');
-    browser = await chromium.launch({
-      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    browser = await acquireBrowser({
+      adapterId: 'bell-clerk',
+      launchOptions: {
+        headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
 
     const context = await browser.newContext({
@@ -2626,8 +2635,10 @@ export async function fetchDocumentImages(
   const pages: DocumentPage[] = [];
 
   try {
-    const { chromium } = await import('playwright');
-    browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    browser = await acquireBrowser({
+      adapterId: 'bell-clerk',
+      launchOptions: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] },
+    });
 
     // Disable browser HTTP cache to ensure fresh signed URLs on every visit.
     // Without this, revisiting a document serves cached (expired) signed URLs,
@@ -3001,8 +3012,10 @@ export async function searchByInstrument(
 
   let browser: import('playwright').Browser | null = null;
   try {
-    const { chromium } = await import('playwright');
-    browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    browser = await acquireBrowser({
+      adapterId: 'bell-clerk',
+      launchOptions: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] },
+    });
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       viewport: { width: 1280, height: 900 },
@@ -3248,10 +3261,12 @@ export async function searchBellClerkOwnerForPlatDeed(
   );
 
   try {
-    const { chromium } = await import('playwright');
-    browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    browser = await acquireBrowser({
+      adapterId: 'bell-clerk',
+      launchOptions: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
 
     const context = await browser.newContext({

@@ -12,6 +12,7 @@
 
 import { TIMEOUTS } from '../config/endpoints.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
+import { acquireBrowser } from '../../../lib/browser-factory.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -56,10 +57,12 @@ export async function captureScreenshots(
   let browser;
   try {
     // Dynamic import — Playwright may not be available in all environments
-    const pw = await import('playwright');
-    browser = await pw.chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    browser = await acquireBrowser({
+      adapterId: 'bell-clerk',
+      launchOptions: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
 
     const context = await browser.newContext({

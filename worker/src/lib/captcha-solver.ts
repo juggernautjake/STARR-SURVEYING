@@ -1,39 +1,47 @@
 // worker/src/lib/captcha-solver.ts
 //
-// Provider-agnostic CAPTCHA solver. Wraps CapSolver (or a future alternative
-// like 2Captcha / AntiCaptcha) behind a single interface so we can swap
-// providers without touching adapter code.
+// Provider-agnostic CAPTCHA solver. Wraps CapSolver behind a single
+// interface so we can swap providers (or add 2Captcha / AntiCaptcha later)
+// without touching adapter code.
 //
-// CRITICAL DESIGN NOTES:
+// Architecture:
+//   - `CaptchaSolver` interface — providers implement `solve()` only.
+//   - `StubCaptchaSolver` — deterministic fake tokens for development + CI.
+//   - `CapSolverProvider` — real solver against api.capsolver.com via the
+//     small HTTP client in `captcha-solver-http.ts`.
+//   - `getCaptchaSolver()` factory — selects based on env.
 //
-// 1. IP binding. Cloudflare Turnstile and reCAPTCHA Enterprise issue tokens
-//    that are bound to the IP the solve happened on. If the browser session
-//    that submits the form is on a different IP than the one CapSolver used,
-//    the token is rejected. This solver therefore always asks the caller to
-//    pass `egressIp` (from the Browserbase session) and forwards it to the
-//    provider as proxy parameters.
+// Behavior contracts that callers can rely on:
 //
-// 2. Token caching. `cf_clearance` cookies are valid for ~30 minutes per
-//    IP+UA pair. Caching them in Redis avoids paying for solves we already
-//    have. The cache key is `captcha:cfclearance:<host>:<egressIp>:<uaHash>`.
-//    Implemented in Phase A; Phase 0 just defines the cache interface.
+// 1. Three-strike escalation lives INSIDE `solve()`. Callers do not
+//    implement their own retry counter. After 3 failed attempts (with
+//    exponential backoff between them) the solver throws
+//    `CaptchaEscalationRequired`. The caller's only branch is "got a
+//    token" vs "escalation thrown".
 //
-// 3. Cost telemetry. Every solve emits a `captcha_solve` event to
-//    billing-tracker so we can attribute cost per-county and per-job.
+// 2. `recordSolveAttempt()` is called inside `solve()` for every attempt
+//    — success or failure — before the function returns or throws. In
+//    stub mode it no-ops. In CapSolver mode it writes a row to the
+//    `captcha_solves` table (see seeds/201_captcha_solves.sql).
 //
-// 4. Three-strike escalation. Up to 3 attempts (with exponential backoff)
-//    before falling through to the manual handoff event bus. Existing
-//    `rate-limiter.ts` provides the retry mechanics; we wire into them in
-//    Phase A.
+// 3. Token caching is keyed on `(challenge type, host, egressIp, uaHash)`
+//    in Redis with a 25-minute TTL (cf_clearance is typically valid 30
+//    min; we leave a 5-minute margin). Stub mode does not touch Redis.
 //
-// Phase 0 ships:
-//   - Full TypeScript interface (`CaptchaSolver`, `SolveRequest`, `SolveResult`)
-//   - Three concrete implementations: `StubCaptchaSolver`, `CapSolverProvider`
-//     (throws until wired), and `getCaptchaSolver()` factory
-//   - Cost-tracking shape (no actual emission yet)
-//
-// Phase A replaces the throws in `CapSolverProvider` with real HTTP calls
-// against api.capsolver.com.
+// 4. IP binding. CapSolver receives the proxy URL so the resulting token
+//    is bound to the same egress as the browser session that submits it.
+//    Callers should pass `egressIp` from the BrowserSession returned by
+//    `browser-factory`.
+
+import { createHash } from 'node:crypto';
+import {
+  CapSolverHttpClient,
+  type CapSolverGetTaskResultResponse,
+  type CapSolverTaskBase,
+  type CapSolverTaskType,
+} from './captcha-solver-http.js';
+
+// ── Public types ───────────────────────────────────────────────────────────
 
 export type ChallengeType =
   | 'turnstile'              // Cloudflare Turnstile
@@ -65,6 +73,14 @@ export interface SolveRequest {
   /** User-Agent string of the browser session (used in token cache key). */
   userAgent: string;
 
+  /**
+   * Proxy URL bound to this session, in the format CapSolver expects:
+   *   http://user:pass@host:port  or  http://host:port
+   * Required by CapSolver for IP-bound challenges. The solver will strip
+   * any embedded credentials before recording the URL in `captcha_solves`.
+   */
+  proxyUrl?: string;
+
   /** Optional reCAPTCHA v3 action name (e.g. 'submit', 'login'). */
   recaptchaAction?: string;
 
@@ -94,17 +110,19 @@ export interface SolveResult {
   fromCache: boolean;
 }
 
+export type SolveErrorCategory =
+  | 'unsupported_type'
+  | 'missing_credentials'
+  | 'provider_error'
+  | 'timeout'
+  | 'no_capacity'
+  | 'invalid_request'
+  | 'manual_handoff_required';
+
 export class CaptchaSolveError extends Error {
   constructor(
     message: string,
-    public readonly category:
-      | 'unsupported_type'
-      | 'missing_credentials'
-      | 'provider_error'
-      | 'timeout'
-      | 'no_capacity'
-      | 'invalid_request'
-      | 'manual_handoff_required',
+    public readonly category: SolveErrorCategory,
     public readonly cause?: unknown,
   ) {
     super(message);
@@ -112,9 +130,147 @@ export class CaptchaSolveError extends Error {
   }
 }
 
+/**
+ * Thrown by `solve()` after the configured number of attempts have all
+ * failed. Wraps the last underlying error for diagnostics. Callers must
+ * NOT retry on this — it is the signal to escalate to the manual-handoff
+ * event bus instead.
+ */
+export class CaptchaEscalationRequired extends Error {
+  constructor(
+    message: string,
+    public readonly attempts: number,
+    public readonly lastError: unknown,
+  ) {
+    super(message);
+    this.name = 'CaptchaEscalationRequired';
+  }
+}
+
 export interface CaptchaSolver {
   readonly providerName: string;
   solve(req: SolveRequest): Promise<SolveResult>;
+}
+
+// ── Telemetry: solve-attempt recorder ──────────────────────────────────────
+
+export interface SolveAttemptRecord {
+  provider: 'capsolver' | 'stub';
+  challengeType: ChallengeType;
+  success: boolean;
+  costUsd?: number;
+  proxyUrl?: string;
+  jobId?: string;
+  adapterId?: string;
+  errorMessage?: string;
+  durationMs: number;
+}
+
+/**
+ * Sink for solve-attempt records. Default in stub mode is a no-op; default
+ * in CapSolver mode writes to the `captcha_solves` table via Supabase.
+ *
+ * Tests inject a custom sink to assert calls without touching the DB.
+ */
+export interface SolveAttemptSink {
+  record(attempt: SolveAttemptRecord): Promise<void>;
+}
+
+export const noopSolveAttemptSink: SolveAttemptSink = {
+  async record() { /* no-op */ },
+};
+
+let activeSink: SolveAttemptSink = noopSolveAttemptSink;
+
+/**
+ * Override the active sink. Production wiring calls this once at boot
+ * with a Supabase-backed sink when CAPTCHA_PROVIDER=capsolver. Tests
+ * call it to inject a spy.
+ */
+export function setSolveAttemptSink(sink: SolveAttemptSink): void {
+  activeSink = sink;
+}
+
+/** Restore the no-op sink. Convenience for tests. */
+export function resetSolveAttemptSink(): void {
+  activeSink = noopSolveAttemptSink;
+}
+
+/**
+ * Record one solve attempt. Called from inside `solve()` for every
+ * attempt — success and failure both. Errors here are swallowed so a
+ * telemetry blip never poisons a successful solve.
+ */
+export async function recordSolveAttempt(record: SolveAttemptRecord): Promise<void> {
+  try {
+    await activeSink.record(record);
+  } catch (err) {
+    console.warn('[captcha-solver] recordSolveAttempt sink failed:', err);
+  }
+}
+
+// ── Token cache (Redis-backed, optional) ───────────────────────────────────
+
+/**
+ * Minimal Redis-shaped interface so the solver does not hard-depend on
+ * any specific client. Production wiring passes an ioredis instance.
+ */
+export interface CaptchaCache {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string, ttlSeconds: number): Promise<void>;
+}
+
+const CACHE_TTL_SECONDS = 25 * 60; // 25 min — 5 min margin under cf_clearance's typical 30 min
+
+let activeCache: CaptchaCache | null = null;
+
+/** Install a token cache (e.g. ioredis). Pass null to disable caching. */
+export function setCaptchaCache(cache: CaptchaCache | null): void {
+  activeCache = cache;
+}
+
+function cacheKey(req: SolveRequest): string {
+  const host = safeHost(req.pageUrl);
+  const egress = req.egressIp ?? 'noegress';
+  const uaHash = createHash('sha1').update(req.userAgent).digest('hex').slice(0, 12);
+  return `captcha:${req.type}:${host}:${egress}:${uaHash}`;
+}
+
+function safeHost(url: string): string {
+  try { return new URL(url).host; } catch { return 'unknown-host'; }
+}
+
+interface CachedTokenPayload {
+  token: string;
+  expiresAt: number;
+  costUsd: number;
+}
+
+async function getCachedToken(req: SolveRequest): Promise<SolveResult | null> {
+  if (!activeCache) return null;
+  const raw = await activeCache.get(cacheKey(req));
+  if (!raw) return null;
+  let payload: CachedTokenPayload;
+  try { payload = JSON.parse(raw); } catch { return null; }
+  if (payload.expiresAt <= Date.now() + 30_000) return null; // expiring within 30s — refetch
+  return {
+    token: payload.token,
+    provider: 'cache',
+    durationMs: 0,
+    costUsd: 0,
+    expiresAt: new Date(payload.expiresAt),
+    fromCache: true,
+  };
+}
+
+async function putCachedToken(req: SolveRequest, result: SolveResult): Promise<void> {
+  if (!activeCache) return;
+  const payload: CachedTokenPayload = {
+    token: result.token,
+    expiresAt: result.expiresAt.getTime(),
+    costUsd: result.costUsd,
+  };
+  await activeCache.set(cacheKey(req), JSON.stringify(payload), CACHE_TTL_SECONDS);
 }
 
 // ── Factory ────────────────────────────────────────────────────────────────
@@ -126,8 +282,11 @@ export type CaptchaProvider = 'capsolver' | 'stub' | 'auto';
  *   1. options.provider override
  *   2. process.env.CAPTCHA_PROVIDER ∈ {capsolver, stub}
  *   3. CAPSOLVER_API_KEY present → 'capsolver'
- *   4. NODE_ENV === 'test' → 'stub'
- *   5. Default → 'stub' (Phase 0 — no real solver wired)
+ *   4. Default → 'stub'
+ *
+ * Note: NODE_ENV-based auto-promotion was removed in Phase A prep so
+ * test environments that happen to set CAPSOLVER_API_KEY do not silently
+ * route through the real provider.
  */
 export function getCaptchaSolver(provider: CaptchaProvider = 'auto'): CaptchaSolver {
   const resolved = resolveProvider(provider);
@@ -139,12 +298,21 @@ export function getCaptchaSolver(provider: CaptchaProvider = 'auto'): CaptchaSol
 
 function resolveProvider(explicit: CaptchaProvider): Exclude<CaptchaProvider, 'auto'> {
   if (explicit === 'capsolver' || explicit === 'stub') return explicit;
-
   const env = (process.env.CAPTCHA_PROVIDER ?? '').toLowerCase();
   if (env === 'capsolver' || env === 'stub') return env;
-
   if (process.env.CAPSOLVER_API_KEY) return 'capsolver';
   return 'stub';
+}
+
+// ── Retry config ───────────────────────────────────────────────────────────
+
+const MAX_ATTEMPTS = 3;
+
+/** Backoff between attempts: 500ms, 2000ms (only used after attempts 1 and 2). */
+const BACKOFF_MS = [500, 2000];
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ── Stub provider ──────────────────────────────────────────────────────────
@@ -155,19 +323,25 @@ function resolveProvider(explicit: CaptchaProvider): Exclude<CaptchaProvider, 'a
  * can be exercised end-to-end without a real CapSolver account.
  *
  * Set `process.env.CAPTCHA_STUB_MODE` to control behavior:
- *   - 'success' (default): returns a synthetic token
- *   - 'fail':              throws CaptchaSolveError(category='provider_error')
+ *   - 'success' (default): returns a synthetic token on the first attempt
+ *   - 'fail':              throws CaptchaSolveError(category='provider_error') —
+ *                          three-strike escalation kicks in and the caller
+ *                          eventually sees `CaptchaEscalationRequired`
  *   - 'manual':            throws CaptchaSolveError(category='manual_handoff_required')
- *   - 'timeout':           throws CaptchaSolveError(category='timeout')
+ *                          on the first attempt, no retries
+ *   - 'timeout':           throws CaptchaSolveError(category='timeout') —
+ *                          retries kick in
  */
 export class StubCaptchaSolver implements CaptchaSolver {
   readonly providerName = 'stub';
 
   async solve(req: SolveRequest): Promise<SolveResult> {
-    const mode = (process.env.CAPTCHA_STUB_MODE ?? 'success').toLowerCase();
+    return solveWithRetry(this, req, () => this.singleAttempt(req));
+  }
 
-    // Tiny delay so callers can observe non-zero durations in telemetry.
-    await new Promise<void>((resolve) => setTimeout(resolve, 25));
+  private async singleAttempt(req: SolveRequest): Promise<SolveResult> {
+    const mode = (process.env.CAPTCHA_STUB_MODE ?? 'success').toLowerCase();
+    await sleep(25);
 
     switch (mode) {
       case 'fail':
@@ -193,7 +367,7 @@ export class StubCaptchaSolver implements CaptchaSolver {
           provider: 'stub',
           durationMs: 25,
           costUsd: 0,
-          expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 min
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000),
           fromCache: false,
         };
       }
@@ -201,47 +375,41 @@ export class StubCaptchaSolver implements CaptchaSolver {
   }
 }
 
-// ── CapSolver provider (stub until Phase A) ────────────────────────────────
+// ── CapSolver provider ─────────────────────────────────────────────────────
+
+const CAPSOLVER_POLL_INTERVAL_MS = 2_000;
+const CAPSOLVER_POLL_TIMEOUT_MS  = 120_000;
 
 /**
- * Real CapSolver implementation. Phase 0 leaves the actual HTTP wiring as
- * TODO; the constructor checks for credentials and the `solve()` method
- * throws a clear error explaining what's left to do.
- *
- * Phase A wiring sketch:
- *
- *   POST https://api.capsolver.com/createTask
- *     body: {
- *       clientKey: this.apiKey,
- *       task: { type, websiteURL, websiteKey, proxy: ... },
- *     }
- *   → { taskId }
- *
- *   POST https://api.capsolver.com/getTaskResult
- *     body: { clientKey: this.apiKey, taskId }
- *   → polls every 2s for up to 120s; returns { solution: { token: ... } }
- *
- * Implementation notes for Phase A:
- *   - Map our ChallengeType → CapSolver task type ('AntiTurnstileTaskProxyless',
- *     'ReCaptchaV2TaskProxyLess', 'ReCaptchaV3EnterpriseTask', etc.).
- *   - When `egressIp` is set, route through the proxy variant of the task type
- *     (e.g. `AntiTurnstileTask` instead of `AntiTurnstileTaskProxyless`) and
- *     attach proxy credentials matching the Browserbase session's egress.
- *   - Cache successful tokens in Redis under
- *     `captcha:<type>:<host>:<egressIp>:<uaHash>` with TTL = expiresAt - 60s.
- *   - On timeout/no_capacity, throw with category so the caller can decide
- *     whether to retry or escalate to manual handoff.
+ * Real CapSolver provider. Submits a task, polls for result, returns the
+ * token. Three-strike retry is handled by `solveWithRetry()` — this class
+ * implements only the single-attempt logic.
  */
 export class CapSolverProvider implements CaptchaSolver {
   readonly providerName = 'capsolver';
   private readonly apiKey: string | undefined;
+  /** Test seam: inject a custom HTTP client. */
+  private readonly httpFactory: (apiKey: string) => CapSolverHttpClient;
 
-  constructor() {
+  constructor(httpFactory?: (apiKey: string) => CapSolverHttpClient) {
     this.apiKey = process.env.CAPSOLVER_API_KEY;
+    this.httpFactory = httpFactory ?? ((k) => new CapSolverHttpClient({ apiKey: k }));
   }
 
-  async solve(_req: SolveRequest): Promise<SolveResult> {
+  async solve(req: SolveRequest): Promise<SolveResult> {
     if (!this.apiKey) {
+      // No retries for missing creds — recordSolveAttempt + throw.
+      const start = Date.now();
+      await recordSolveAttempt({
+        provider:      'capsolver',
+        challengeType: req.type,
+        success:       false,
+        proxyUrl:      sanitizeProxy(req.proxyUrl),
+        jobId:         req.context?.jobId,
+        adapterId:     req.context?.adapterId,
+        errorMessage:  'missing CAPSOLVER_API_KEY',
+        durationMs:    Date.now() - start,
+      });
       throw new CaptchaSolveError(
         '[captcha-solver:capsolver] CAPSOLVER_API_KEY is not set. Either ' +
         'provide one or set CAPTCHA_PROVIDER=stub for development.',
@@ -249,23 +417,245 @@ export class CapSolverProvider implements CaptchaSolver {
       );
     }
 
-    throw new CaptchaSolveError(
-      '[captcha-solver:capsolver] Not yet implemented (Phase A). The wiring ' +
-      'sketch lives in the docstring of CapSolverProvider in this file. ' +
-      'Until implemented, set CAPTCHA_PROVIDER=stub to use the deterministic ' +
-      'stub solver. See docs/RECON_INVENTORY.md §6 for context.',
-      'provider_error',
-    );
+    // Cache check happens once per call, before retry loop.
+    const cached = await getCachedToken(req);
+    if (cached) {
+      await recordSolveAttempt({
+        provider:      'capsolver',
+        challengeType: req.type,
+        success:       true,
+        costUsd:       0,
+        proxyUrl:      sanitizeProxy(req.proxyUrl),
+        jobId:         req.context?.jobId,
+        adapterId:     req.context?.adapterId,
+        durationMs:    0,
+      });
+      return cached;
+    }
+
+    return solveWithRetry(this, req, () => this.singleAttempt(req));
   }
+
+  private async singleAttempt(req: SolveRequest): Promise<SolveResult> {
+    const apiKey = this.apiKey!;
+    const http = this.httpFactory(apiKey);
+    const taskType = mapChallengeToTaskType(req);
+    if (!taskType) {
+      throw new CaptchaSolveError(
+        `[captcha-solver:capsolver] unsupported challenge type: ${req.type}`,
+        'unsupported_type',
+      );
+    }
+
+    const task: CapSolverTaskBase = {
+      type:       taskType,
+      websiteURL: req.pageUrl,
+      websiteKey: req.siteKey,
+      userAgent:  req.userAgent,
+    };
+    if (req.proxyUrl)            task.proxy        = req.proxyUrl;
+    if (req.recaptchaAction)     task.pageAction   = req.recaptchaAction;
+    if (req.recaptchaScoreMin !== undefined) task.minScore = req.recaptchaScoreMin;
+
+    const start = Date.now();
+    let taskId: string;
+    try {
+      taskId = await http.createTask(task);
+    } catch (err) {
+      throw new CaptchaSolveError(
+        `[captcha-solver:capsolver] createTask failed: ${(err as Error).message}`,
+        'provider_error',
+        err,
+      );
+    }
+
+    // Poll for the result.
+    const deadline = Date.now() + CAPSOLVER_POLL_TIMEOUT_MS;
+    let lastResp: CapSolverGetTaskResultResponse | undefined;
+    while (Date.now() < deadline) {
+      let resp: CapSolverGetTaskResultResponse;
+      try {
+        resp = await http.getTaskResult(taskId);
+      } catch (err) {
+        throw new CaptchaSolveError(
+          `[captcha-solver:capsolver] getTaskResult failed: ${(err as Error).message}`,
+          'provider_error',
+          err,
+        );
+      }
+      lastResp = resp;
+      if (resp.errorId !== 0) {
+        throw new CaptchaSolveError(
+          `[captcha-solver:capsolver] task error: ${resp.errorDescription ?? resp.errorCode ?? 'unknown'}`,
+          mapCapSolverErrorCategory(resp.errorCode),
+        );
+      }
+      if (resp.status === 'ready') break;
+      await sleep(CAPSOLVER_POLL_INTERVAL_MS);
+    }
+
+    if (!lastResp || lastResp.status !== 'ready' || !lastResp.solution) {
+      throw new CaptchaSolveError(
+        `[captcha-solver:capsolver] timed out waiting for task ${taskId}`,
+        'timeout',
+      );
+    }
+
+    const token = extractToken(req.type, lastResp.solution);
+    if (!token) {
+      throw new CaptchaSolveError(
+        `[captcha-solver:capsolver] solution payload missing expected token field`,
+        'provider_error',
+      );
+    }
+
+    const costUsd = parseFloat(lastResp.cost ?? '0') || 0;
+    const result: SolveResult = {
+      token,
+      provider:  'capsolver',
+      durationMs: Date.now() - start,
+      costUsd,
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      fromCache: false,
+    };
+
+    // Best-effort cache write.
+    try { await putCachedToken(req, result); } catch { /* ignore cache failure */ }
+
+    return result;
+  }
+}
+
+// ── Retry harness ──────────────────────────────────────────────────────────
+
+/**
+ * Run the single-attempt callback up to MAX_ATTEMPTS times with backoff,
+ * recording each attempt via `recordSolveAttempt()`. On final failure
+ * throws `CaptchaEscalationRequired`. `manual_handoff_required` errors
+ * short-circuit the retry loop — we don't burn budget on something that
+ * already needs a human.
+ */
+async function solveWithRetry(
+  solver: CaptchaSolver,
+  req: SolveRequest,
+  attempt: () => Promise<SolveResult>,
+): Promise<SolveResult> {
+  let lastErr: unknown;
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    const start = Date.now();
+    try {
+      const result = await attempt();
+      await recordSolveAttempt({
+        provider:      solverProviderName(solver),
+        challengeType: req.type,
+        success:       true,
+        costUsd:       result.costUsd,
+        proxyUrl:      sanitizeProxy(req.proxyUrl),
+        jobId:         req.context?.jobId,
+        adapterId:     req.context?.adapterId,
+        durationMs:    Date.now() - start,
+      });
+      return result;
+    } catch (err) {
+      lastErr = err;
+      const cat = err instanceof CaptchaSolveError ? err.category : 'provider_error';
+      await recordSolveAttempt({
+        provider:      solverProviderName(solver),
+        challengeType: req.type,
+        success:       false,
+        proxyUrl:      sanitizeProxy(req.proxyUrl),
+        jobId:         req.context?.jobId,
+        adapterId:     req.context?.adapterId,
+        errorMessage:  err instanceof Error ? err.message : String(err),
+        durationMs:    Date.now() - start,
+      });
+
+      // Non-retriable categories — escalate immediately.
+      if (cat === 'manual_handoff_required' ||
+          cat === 'unsupported_type' ||
+          cat === 'invalid_request' ||
+          cat === 'missing_credentials') {
+        break;
+      }
+
+      // Wait before next attempt (no wait after last attempt).
+      if (i < MAX_ATTEMPTS - 1) {
+        await sleep(BACKOFF_MS[i] ?? BACKOFF_MS[BACKOFF_MS.length - 1]!);
+      }
+    }
+  }
+
+  const lastMsg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  throw new CaptchaEscalationRequired(
+    `[captcha-solver] giving up after ${MAX_ATTEMPTS} attempts: ${lastMsg}`,
+    MAX_ATTEMPTS,
+    lastErr,
+  );
+}
+
+function solverProviderName(s: CaptchaSolver): 'capsolver' | 'stub' {
+  return s.providerName === 'capsolver' ? 'capsolver' : 'stub';
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function hashShort(input: string): string {
-  // Simple deterministic short hash for stub tokens. Not cryptographic.
   let h = 0;
   for (let i = 0; i < input.length; i++) {
     h = ((h << 5) - h + input.charCodeAt(i)) | 0;
   }
   return Math.abs(h).toString(36).slice(0, 8);
+}
+
+/** Strip embedded `user:pass@` from a proxy URL before logging or persisting. */
+export function sanitizeProxy(proxy: string | undefined): string | undefined {
+  if (!proxy) return undefined;
+  try {
+    const u = new URL(proxy);
+    u.username = '';
+    u.password = '';
+    return u.toString();
+  } catch {
+    // Not a parseable URL — strip anything that looks like creds before @.
+    return proxy.replace(/\/\/[^@/]+@/, '//');
+  }
+}
+
+function mapChallengeToTaskType(req: SolveRequest): CapSolverTaskType | null {
+  const proxied = !!req.proxyUrl;
+  switch (req.type) {
+    case 'turnstile':
+      return proxied ? 'AntiTurnstileTask' : 'AntiTurnstileTaskProxyLess';
+    case 'recaptcha-v2':
+    case 'recaptcha-v2-invisible':
+      return proxied ? 'ReCaptchaV2Task' : 'ReCaptchaV2TaskProxyLess';
+    case 'recaptcha-v3':
+    case 'recaptcha-enterprise':
+      return proxied ? 'ReCaptchaV3Task' : 'ReCaptchaV3TaskProxyLess';
+    case 'hcaptcha':
+      return proxied ? 'HCaptchaTask' : 'HCaptchaTaskProxyLess';
+    case 'datadome':
+    case 'unknown':
+    default:
+      return null;
+  }
+}
+
+function extractToken(type: ChallengeType, solution: Record<string, unknown>): string | null {
+  if (type === 'turnstile') {
+    const t = solution.token;
+    return typeof t === 'string' ? t : null;
+  }
+  // reCAPTCHA + hCaptcha both return gRecaptchaResponse.
+  const t = solution.gRecaptchaResponse ?? solution.token;
+  return typeof t === 'string' ? t : null;
+}
+
+function mapCapSolverErrorCategory(code: string | undefined): SolveErrorCategory {
+  if (!code) return 'provider_error';
+  const c = code.toUpperCase();
+  if (c.includes('TIMEOUT')) return 'timeout';
+  if (c.includes('CAPACITY') || c.includes('NO_SLOT')) return 'no_capacity';
+  if (c.includes('INVALID')) return 'invalid_request';
+  return 'provider_error';
 }

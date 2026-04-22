@@ -11,7 +11,8 @@
 // Spec §15.5 — GovOS Guest Checkout Adapter
 // v1.0: Initial implementation
 
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import type { Browser, BrowserContext, Page } from 'playwright';
+import { acquireBrowser } from '../../lib/browser-factory.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { DocumentPurchaseResult, AutomatedImageQuality, GovOSDirectCredentials } from '../../types/purchase.js';
@@ -69,9 +70,12 @@ export class GovOSGuestAdapter {
   // ── Session Management ────────────────────────────────────────────────────
 
   async initSession(): Promise<void> {
-    this.browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    this.browser = await acquireBrowser({
+      adapterId: 'govos-guest',
+      launchOptions: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
     this.context = await this.browser.newContext({
       viewport: { width: 1920, height: 1080 },

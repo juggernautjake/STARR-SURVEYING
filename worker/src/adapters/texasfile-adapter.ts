@@ -16,7 +16,7 @@
 //
 // Spec §2.7 — TexasFile Universal Fallback Adapter
 
-import { chromium } from 'playwright';
+import { acquireBrowser } from '../lib/browser-factory.js';
 import {
   ClerkAdapter,
   type ClerkDocumentResult,
@@ -55,9 +55,9 @@ export class TexasFileAdapter extends ClerkAdapter {
   async initSession(): Promise<void> {
     if (this.browser) return;
 
-    this.browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    this.browser = await acquireBrowser({
+      adapterId: 'texasfile',
+      launchOptions: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] },
     });
 
     const context = await this.browser.newContext({

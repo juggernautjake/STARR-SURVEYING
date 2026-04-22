@@ -10,7 +10,8 @@
 // Spec §15.3 — iDocket Pay Purchase Adapter
 // v1.0: Initial implementation
 
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import type { Browser, BrowserContext, Page } from 'playwright';
+import { acquireBrowser } from '../../lib/browser-factory.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { DocumentPurchaseResult, AutomatedImageQuality, IDocketPayCredentials } from '../../types/purchase.js';
@@ -51,9 +52,12 @@ export class IDocketPayAdapter {
   // ── Session Management ────────────────────────────────────────────────────
 
   async initSession(): Promise<void> {
-    this.browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    this.browser = await acquireBrowser({
+      adapterId: 'idocket-pay',
+      launchOptions: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
     this.context = await this.browser.newContext({
       viewport: { width: 1920, height: 1080 },

@@ -14,6 +14,8 @@
 
 import * as path from 'path';
 import type { PipelineLogger } from '../lib/logger.js';
+import { acquireBrowser } from '../lib/browser-factory.js';
+import type { Browser } from 'playwright';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -115,9 +117,9 @@ export class TexasDigitalArchiveClient {
 
     logger?.info('TxDOT-Archive', `Searching TDA for: highway="${highway}", county="${county}"`);
 
-    let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
+    let browser: Browser | null = null;
     try {
-      browser = await chromium.launch({ headless: true });
+      browser = await acquireBrowser({ launchOptions: { headless: true } });
       const page = await browser.newPage();
 
       // Navigate to the archive with a 45-second timeout for initial load

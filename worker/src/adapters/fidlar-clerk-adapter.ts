@@ -21,7 +21,7 @@
 //
 // Spec §2.13 — Fidlar Technologies Clerk Adapter
 
-import { chromium } from 'playwright';
+import { acquireBrowser } from '../lib/browser-factory.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
@@ -338,9 +338,9 @@ export class FidlarClerkAdapter extends ClerkAdapter {
   async initSession(): Promise<void> {
     if (this.browser) return;
 
-    this.browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    this.browser = await acquireBrowser({
+      adapterId: 'fidlar-clerk',
+      launchOptions: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] },
     });
 
     const context = await this.browser.newContext({

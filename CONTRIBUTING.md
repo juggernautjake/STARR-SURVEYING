@@ -84,7 +84,35 @@ cd worker && npm test
 # Dev server
 npm run dev          # Next.js on :3000
 cd worker && npm run dev   # worker on its own port (see worker/README)
+
+# WebSocket research-progress server (Phase A integration prep — optional in dev)
+# Requires WS_TICKET_SECRET (generate: openssl rand -hex 32) and a running
+# Redis instance on REDIS_URL (defaults to localhost:6379). See
+# docs/platform/WEBSOCKET_ARCHITECTURE.md for the architecture overview.
+WS_TICKET_SECRET=$(openssl rand -hex 32) npm run ws   # serves on :3001
 ```
+
+## Local development setup (Phase A integrations)
+
+The Phase A integrations (Browserbase, CapSolver, Cloudflare R2,
+WebSocket progress) are all wired to default OFF. None of them require
+external accounts or paid services for local development:
+
+| Integration   | Default mode | What it does locally                                   |
+| ------------- | ------------ | ------------------------------------------------------ |
+| Browserbase   | `local`      | Plain Playwright; same as before                       |
+| CapSolver     | `stub`       | Returns deterministic fake tokens; no network          |
+| Cloudflare R2 | `local`      | Writes to `./storage/` on disk; no network             |
+| WebSocket     | optional     | Skip `npm run ws` entirely; the worker emit helper publishes silently to Redis when nobody subscribes |
+
+To exercise the Phase A code paths in dev without external accounts:
+
+- `CAPTCHA_STUB_MODE=fail` — make the stub solver throw to test escalation
+- `STORAGE_BACKEND=local STORAGE_LOCAL_ROOT=/tmp/starr-storage` — verify storage round-trips
+- `BROWSER_BACKEND=stub` — return a fake browser whose methods throw (CI-style)
+
+Activation paths and operator runbooks for each integration live in
+[`docs/planning/in-progress/PHASE_A_INTEGRATION_PREP.md`](./docs/planning/in-progress/PHASE_A_INTEGRATION_PREP.md).
 
 Pre-existing failures that are not your fault: at the time of writing, `__tests__/recon/phase16-worker-sync.test.ts` and `__tests__/recon/site-health-monitor.test.ts` have failures unrelated to this PR (one needs a real Supabase mock; the other requires Playwright browser binaries not installed in CI).
 
@@ -107,8 +135,12 @@ Before adding any new dependency:
 
 1. Check whether the functionality already exists somewhere in the repo (`grep` first).
 2. Check the GitHub Advisory Database for known vulnerabilities at the version you intend to pin.
-3. Pin an exact major (or, where the ecosystem prefers it, an exact minor) — no floating `^` for security-sensitive packages.
+3. **Pin the exact version — no `^`, no `~`, no ranges.** Use `npm install --save-exact <pkg>@<version>` (or `--save-exact --save-dev` for dev deps). Reason: floating ranges have caused undebuggable CI/dev-only differences in this repo before; the small loss of "automatic patches" is worth the predictability. Bumps are deliberate, one-PR-per-bump events. (Existing entries that still use `^` are tracked in `docs/platform/RECON_INVENTORY.md §9` and will be tightened in the dependency-cleanup PR — do not retroactively un-pin them in unrelated PRs.)
 4. Document why the dependency is needed in the PR description.
+
+Phase A integration prep added these exact-pinned deps; treat them as worked examples:
+- root: `ws@8.20.0`, `@types/ws@8.18.1`, `tsx@4.20.6`
+- worker: `@browserbasehq/sdk@2.10.0`, `@aws-sdk/client-s3@3.1034.0`, `@aws-sdk/s3-request-presigner@3.1034.0`
 
 ## Pull request hygiene
 

@@ -51,6 +51,7 @@ import { GovOSGuestAdapter } from './services/purchase-adapters/govos-guest-adap
 import { LandExApiAdapter } from './services/purchase-adapters/landex-api-adapter.js';
 import { NotificationService } from './services/notification-service.js';
 import { isCreditDepleted, getDepletionMessage, AnthropicCreditDepletedError } from './lib/credit-guard.js';
+import { acquireBrowser, validateAdapterFlagOnStartup } from './lib/browser-factory.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -727,7 +728,7 @@ app.get('/health', async (_req: Request, res: Response) => {
   // Check Playwright
   try {
     const { chromium } = await import('playwright');
-    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+    const browser = await acquireBrowser({ launchOptions: { headless: true, args: ['--no-sandbox'] } });
     await browser.close();
     checks.playwright = { status: 'ok' };
   } catch (err) {
@@ -4089,6 +4090,7 @@ app.get('/research/cleanup/stats', requireAuth, rateLimit(30, 60_000), async (re
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
+validateAdapterFlagOnStartup();
 
 app.listen(PORT, () => {
   console.log(`
