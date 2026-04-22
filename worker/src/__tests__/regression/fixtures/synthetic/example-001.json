@@ -1,0 +1,64 @@
+{
+  "id": "synthetic/example-001",
+  "description": "Synthetic example fixture used by Phase 0 to validate the harness wiring. Replace with real Bell County properties from Dad's filing cabinet in Phase A. This fixture intentionally has every comparison mode exercised at least once so a CI run will catch breakage in any of them.",
+  "countyFips": "48027",
+  "inputAddress": "1234 Synthetic Ln, Belton, TX 76513",
+  "expected": {
+    "owner": {
+      "mode": "exact",
+      "value": "DOE, JOHN AND JANE"
+    },
+    "acreageCalc": {
+      "mode": "numeric",
+      "value": 1.234,
+      "absTolerance": 0.005
+    },
+    "acreageDeeded": {
+      "mode": "numeric",
+      "value": 1.25,
+      "absTolerance": 0.05
+    },
+    "closureRatio": {
+      "mode": "numeric",
+      "value": 12500,
+      "relTolerance": 0.10
+    },
+    "legalDescription": {
+      "mode": "fuzzy",
+      "value": "Lot 7, Block 2, Synthetic Acres Subdivision, Bell County, Texas",
+      "minSimilarity": 0.85
+    },
+    "chainOfTitle": {
+      "mode": "chain",
+      "value": [
+        {
+          "fromDate": "2010-06-15",
+          "toDate":   "2018-03-22",
+          "grantor":  "SMITH, ROBERT",
+          "grantee":  "DOE, JOHN AND JANE",
+          "recordingRef": "Vol 412 Pg 88"
+        }
+      ],
+      "dateTolerance": 0
+    },
+    "documentsFound": {
+      "mode": "documents",
+      "value": [
+        { "recordingRef": "Vol 412 Pg 88",  "documentType": "deed" },
+        { "recordingRef": "Plat Cab A Slide 47", "documentType": "subdivision_plat" }
+      ],
+      "requireAll": true
+    },
+    "adjoiners": {
+      "mode": "set",
+      "value": ["Lot 6 Synthetic Acres", "Lot 8 Synthetic Acres", "Synthetic Ln ROW"],
+      "requireAll": true,
+      "allowExtra": false
+    }
+  },
+  "groundTruthSource": {
+    "type":      "synthetic",
+    "reference": "Phase 0 harness validation only — not a real property",
+    "capturedAt": "2026-04-22"
+  }
+}
