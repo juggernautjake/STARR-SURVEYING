@@ -52,6 +52,8 @@ import { LandExApiAdapter } from './services/purchase-adapters/landex-api-adapte
 import { NotificationService } from './services/notification-service.js';
 import { isCreditDepleted, getDepletionMessage, AnthropicCreditDepletedError } from './lib/credit-guard.js';
 import { acquireBrowser, validateAdapterFlagOnStartup } from './lib/browser-factory.js';
+import { setSolveAttemptSink } from './lib/captcha-solver.js';
+import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -4157,6 +4159,15 @@ app.get('/research/cleanup/stats', requireAuth, rateLimit(30, 60_000), async (re
 
 validateEnvironment();
 validateAdapterFlagOnStartup();
+
+// Install the PipelineLogger-aware captcha sink so every solve attempt
+// becomes a LayerAttempt entry on the active project's logger AND keeps
+// firing the default console line. Effect: captcha activity now appears
+// in the in-app Log Viewer (Research & Analysis → Logs tab) for the
+// running project, matching the visibility level of every other
+// pipeline subsystem. See worker/src/lib/pipeline-logger-sinks.ts.
+setSolveAttemptSink(makePipelineLoggerCaptchaSink());
+console.log('[startup] captcha sink → PipelineLogger bridge installed');
 
 app.listen(PORT, () => {
   console.log(`

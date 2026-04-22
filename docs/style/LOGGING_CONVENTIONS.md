@@ -151,6 +151,47 @@ A captcha solve attempt, for example, has both:
    `PipelineLogger.attempt('captcha', 'capsolver', 'recaptcha_v2', host)
    .success(1, '$0.0008')` so the timeline tracker has a node to render.
 
+### 5.1 Bridging cross-cutting subsystems into the in-app Log Viewer
+
+The in-app **Log Viewer** (`/admin/research/testing` → Logs tab and the
+per-project logs panel) reads from `/api/admin/research/{projectId}/logs`,
+which serves entries from `_liveLogRegistry` in `worker/src/lib/logger.ts`.
+That registry is populated **only** by `PipelineLogger.addEntry()`. Raw
+`console.log('[captcha-solver] ...')` calls land in worker stdout but
+never surface in the in-app viewer for a specific project.
+
+The fix is the **PipelineLogger registry + sink-adapter** pattern:
+
+1. Every `new PipelineLogger(projectId)` self-registers in
+   `_loggerInstanceRegistry`. Cross-cutting subsystems can look up the
+   active logger for a job via `getLoggerForProject(projectId)`.
+2. Each subsystem already has a pluggable sink interface — captcha-solver
+   has `SolveAttemptSink`. `worker/src/lib/pipeline-logger-sinks.ts`
+   provides factory functions (e.g. `makePipelineLoggerCaptchaSink`)
+   that return a sink which:
+   - Always invokes the original delegate sink (the console one) so the
+     worker console line is preserved regardless of registration state.
+   - Looks up the logger via `getLoggerForProject(record.jobId)`. If
+     found, emits a `LayerAttempt` entry that becomes visible in the
+     in-app viewer; if not, silently skips.
+3. Worker bootstrap installs the bridge once at startup:
+   ```ts
+   import { setSolveAttemptSink } from './lib/captcha-solver';
+   import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks';
+   setSolveAttemptSink(makePipelineLoggerCaptchaSink());
+   ```
+4. Subsystem call-sites need to thread `jobId` (= projectId) through the
+   request context they pass into the subsystem (e.g.
+   `solver.solve({ ..., context: { jobId: projectId, adapterId } })`).
+   No call-site needs to know about the registry or the sink.
+
+This is the canonical way to make a new subsystem visible in the Log
+Viewer. Adding a new bridge for storage uploads, browser-factory
+sessions, or research-events emits follows the same shape: define a
+sink interface on the subsystem (or use the one that's already there),
+then add a `make<Subsystem>Sink()` factory in `pipeline-logger-sinks.ts`,
+then install in worker bootstrap.
+
 ---
 
 ## 6. Enforcement

@@ -23,6 +23,29 @@ export function getLiveLogForProject(projectId: string): LayerAttempt[] | undefi
 /** Remove the live log entry when a pipeline finishes (success or failure). */
 export function clearLiveLogForProject(projectId: string): void {
   _liveLogRegistry.delete(projectId);
+  _loggerInstanceRegistry.delete(projectId);
+}
+
+// ── Global PipelineLogger instance registry ───────────────────────────────────
+// Lets cross-cutting subsystems (captcha-solver, storage, research-events,
+// browser-factory) find the active PipelineLogger for a job and emit
+// LayerAttempt entries through it. Without this, those subsystems can only
+// log to console — they never surface in the in-app log viewer because
+// the viewer reads from `_liveLogRegistry`, which is populated only by
+// PipelineLogger.addEntry().
+//
+// Lifecycle:
+//   - PipelineLogger constructor registers itself.
+//   - clearLiveLogForProject() unregisters when the pipeline finishes.
+//   - Subsystems call getLoggerForProject(projectId) and skip-if-null —
+//     pipelines without a registered logger still get console output.
+
+const _loggerInstanceRegistry = new Map<string, PipelineLogger>();
+
+/** Look up the active PipelineLogger for a project, if any. */
+export function getLoggerForProject(projectId: string | undefined): PipelineLogger | undefined {
+  if (!projectId) return undefined;
+  return _loggerInstanceRegistry.get(projectId);
 }
 
 // ── New-style builder returned by attempt() ────────────────────────────────
@@ -162,6 +185,13 @@ export class PipelineLogger {
 
   constructor(projectId: string) {
     this.projectId = projectId;
+    // Register so cross-cutting subsystems (captcha, storage, research-events)
+    // can route their LayerAttempt entries through this logger and reach the
+    // in-app log viewer. Idempotent: a second logger for the same projectId
+    // overwrites the first (last-writer-wins matches the existing
+    // _liveLogRegistry behavior — multiple loggers per project would
+    // already produce interleaved entries).
+    _loggerInstanceRegistry.set(projectId, this);
   }
 
   /** Returns the project ID (used internally by LayerAttemptBuilder). */
