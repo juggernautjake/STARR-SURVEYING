@@ -1550,6 +1550,9 @@ export default function ResearchProjectPage() {
         <Link href={`/admin/research/${projectId}/documents`} className="research-project-nav__link">
           📁 Documents
         </Link>
+        <Link href={`/admin/research/${projectId}/report`} className="research-project-nav__link">
+          📱 Field Report
+        </Link>
         <Link href="/admin/research/library" className="research-project-nav__link">
           📚 Library
         </Link>

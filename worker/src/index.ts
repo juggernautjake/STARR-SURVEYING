@@ -12,6 +12,7 @@ import { runPipeline, getSupabase, getRunningMessage, setRunningMessage, clearRu
 import { getLiveLogForProject, clearLiveLogForProject, PipelineLogger } from './lib/logger.js';
 import { getTracker, getTrackerIfExists, clearTracker } from './lib/timeline-tracker.js';
 import { enableTracing, disableTracing } from './lib/trace.js';
+import { globalStepGate } from './lib/step-gate.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
@@ -922,6 +923,11 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
   // testMode is set by the run proxy route's workerBody.
   if ((body as Record<string, unknown>).testMode) enableTracing();
 
+  // Enable step-through mode when executionMode='step' is set by the Testing Lab.
+  if ((body as Record<string, unknown>).executionMode === 'step') {
+    globalStepGate.enableStepMode(projectId);
+  }
+
   console.log(
     `[Worker] ${projectId}: pipeline START — county="${county}" address="${researchInput.address ?? ''}" propertyId="${researchInput.propertyId ?? ''}" ownerName="${researchInput.ownerName ?? ''}" files=${parsedUserFiles?.length ?? 0}`,
   );
@@ -1029,6 +1035,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       // Emit pipeline-complete timeline event
       timeline.add('phase-complete', 'Pipeline complete', `${county} County research finished`);
       disableTracing();
+      globalStepGate.disableStepMode(projectId);
 
       setCompletedResult(projectId, unifiedResult);
       activePipelines.delete(projectId);
@@ -1430,6 +1437,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     .catch((err) => {
       // Emit pipeline-failed timeline event
       disableTracing();
+      globalStepGate.disableStepMode(projectId);
       const crashMsg = err instanceof Error ? err.message : String(err ?? 'Unknown error');
       timeline.add('phase-failed', 'Pipeline failed', crashMsg.slice(0, 200));
 
@@ -1863,6 +1871,21 @@ app.post('/research/resume/:projectId', requireAuth, (req: Request, res: Respons
   tracker.resume();
   console.log(`[Worker] ${projectId}: timeline RESUMED by user`);
   res.json({ message: `Timeline resumed for project ${projectId}`, status: 'running' });
+});
+
+// ── POST /research/step/:projectId ────────────────────────────────────────
+// Advance one step in step-through mode. Resolves the currently waiting
+// __trace() checkpoint so the pipeline executes the next traced instruction.
+
+app.post('/research/step/:projectId', requireAuth, (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const advanced = globalStepGate.advance(projectId);
+  const currentCheckpoint = globalStepGate.getCurrentCheckpoint(projectId);
+  if (advanced) {
+    res.json({ success: true, message: 'Advanced one step', nextCheckpoint: currentCheckpoint });
+  } else {
+    res.json({ success: false, message: 'No checkpoint waiting' });
+  }
 });
 
 // ── POST /research/discover ────────────────────────────────────────────────
@@ -4023,6 +4046,46 @@ app.get('/research/cross-county/:projectId', requireAuth, rateLimit(60, 60_000),
   }
 });
 
+// ── Phase 19: Project Cleanup / Retention Policy ──────────────────────────
+
+/**
+ * POST /research/cleanup
+ * Run the retention pass (archives expired projects).
+ * Body: { projectsBaseDir?: string, dryRun?: boolean, retentionDays?: number }
+ */
+app.post('/research/cleanup', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  try {
+    const { ProjectCleanupService } = await import('./services/project-cleanup-service.js');
+    const { projectsBaseDir = '/tmp/analysis', dryRun = false, retentionDays = 90 } = req.body as {
+      projectsBaseDir?: string;
+      dryRun?: boolean;
+      retentionDays?: number;
+    };
+    const service = new ProjectCleanupService(retentionDays);
+    const report = await service.runRetentionPass(projectsBaseDir, { dryRun });
+    res.json(report);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /research/cleanup/stats
+ * Return retention stats for the projects directory.
+ * Query: ?projectsBaseDir=/tmp/analysis
+ */
+app.get('/research/cleanup/stats', requireAuth, rateLimit(30, 60_000), async (req: Request, res: Response) => {
+  try {
+    const { ProjectCleanupService } = await import('./services/project-cleanup-service.js');
+    const projectsBaseDir = (req.query.projectsBaseDir as string | undefined) ?? '/tmp/analysis';
+    const service = new ProjectCleanupService();
+    const stats = await service.getRetentionStats(projectsBaseDir);
+    res.json(stats);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -4092,6 +4155,7 @@ app.listen(PORT, () => {
   console.log('  POST   /research/cancel/:projectId      ← Cancel running pipeline');
   console.log('  POST   /research/pause/:projectId       ← Pause timeline tracking');
   console.log('  POST   /research/resume/:projectId      ← Resume timeline tracking');
+  console.log('  POST   /research/step/:projectId        ← Advance one step in step-through mode');
   console.log('  POST   /admin/deploy                    ← Pull branch + restart worker');
   console.log('  GET    /admin/deploy/status             ← Current branch + commit');
   console.log('  GET    /research/active');

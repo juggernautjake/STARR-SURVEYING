@@ -15,6 +15,7 @@
 //   }
 
 import { getTracker } from './timeline-tracker.js';
+import { globalStepGate } from './step-gate.js';
 import type { PipelineLogger } from './logger.js';
 
 // Global flag — set to true by the pipeline runner when testMode=true
@@ -38,15 +39,19 @@ export function isTracingEnabled(): boolean {
  *
  * The returned function is a no-op when tracing is disabled (production),
  * so there is zero overhead in non-test runs.
+ *
+ * When step-through mode is active for the project, each trace call also
+ * awaits the step gate — blocking pipeline execution until the developer
+ * clicks "Next Step" in the Testing Lab UI.
  */
 export function createTracer(filePath: string) {
-  return function trace(
+  return async function trace(
     logger: PipelineLogger,
     functionName: string,
     line: number,
     label: string,
     data?: Record<string, unknown>,
-  ): void {
+  ): Promise<void> {
     if (!tracingEnabled) return;
 
     const projectId = logger.getProjectId();
@@ -76,5 +81,11 @@ export function createTracer(filePath: string) {
       line,
       data: { ...data, _traceStatus: status },
     });
+
+    // In step-through mode, block execution at this checkpoint until the
+    // developer advances via POST /research/step/:projectId.
+    if (globalStepGate.isStepMode(projectId)) {
+      await globalStepGate.addCheckpoint(projectId, `${functionName}: ${label}`);
+    }
   };
 }

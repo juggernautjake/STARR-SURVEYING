@@ -1,9 +1,9 @@
 # STARR Surveying — Modular Testing Lab Plan (v3)
 
 > **Date:** 2026-03-29  
-> **Last Updated:** 2026-04-02  
+> **Last Updated:** 2026-04-22  
 > **Branch:** `claude/setup-starr-backend-testing-v19py`  
-> **Status:** Phases 1-4 complete + worker instrumentation. Phase 5+ (Interactive Debugger IDE) planned below.
+> **Status:** Phases 1-8 complete. Phase 9 (Multi-Branch Comparison) not started.
 
 ---
 
@@ -53,6 +53,43 @@
 | Link from `/admin/research` page to Testing Lab | ✅ Done | Button added to research page header |
 | Production UI unchanged | ✅ Confirmed | No changes to research/[projectId]/page.tsx or any existing components |
 
+### Phase 5 — Interactive Code Debugger ✅ Complete (April 2026)
+
+| File | Status | Notes |
+|------|--------|-------|
+| `worker/src/lib/step-gate.ts` | ✅ Done | Promise-based step gate — `addCheckpoint()` blocks until user clicks Next |
+| `worker/src/lib/trace.ts` | ✅ Updated | `createTracer` awaits step gate when step mode active |
+| `POST /research/step/:projectId` | ✅ Done | Worker advances one checkpoint |
+| `TestCard.tsx` | ✅ Updated | `handleStepForward` calls worker step endpoint in step mode |
+| Line-level highlighting (success/failed/executing) | ✅ Done | CodeViewer `lineStates` Map, `_traceStatus` from trace events |
+| Execution mode selector (continuous/until-fail/step) | ✅ Done | Three buttons in TestCard header |
+| `__tests__/recon/phase5-step-gate.test.ts` | ✅ Done | 19 unit tests |
+
+### Phase 6 — Dependency Graph & Impact Analysis ✅ Complete (April 2026)
+
+| File | Status | Notes |
+|------|--------|-------|
+| `POST /api/admin/research/testing/dependencies` | ✅ Done | Regex-based import/export analysis of worker/src/, 5-min cache |
+| `DependencyGraph.tsx` | ✅ Done | Two-panel: file list + imports/imported-by/exports |
+| `ImpactAnalysisBanner.tsx` | ✅ Done | Yellow ⚠️ banner showing callers of edited file |
+| `CodeContextMenu.tsx` | ✅ Done | Right-click: View Dependencies, AI Analysis, Chat, Explain, Copy, Find References |
+
+### Phase 7 — Screenshot & Data Inspector with AI ✅ Complete (April 2026)
+
+| File | Status | Notes |
+|------|--------|-------|
+| `POST /api/admin/research/testing/ai-analyze` | ✅ Done | Claude Vision for ocr/classify; Claude text for explain/validate; graceful without API key |
+| `OutputViewer.tsx` | ✅ Enhanced | Screenshot right-click (Download, OCR, Classify, Copy); JSON right-click (Copy Value, Copy Path, AI Explain) |
+
+### Phase 8 — AI-Integrated Development Assistant ✅ Complete (April 2026)
+
+| File | Status | Notes |
+|------|--------|-------|
+| `POST /api/admin/research/testing/ai-chat` | ✅ Done | Streaming SSE via Anthropic; STARR pipeline system prompt; 501 when key absent |
+| `AIChatPanel.tsx` | ✅ Done | Chat panel with streaming responses, Enter-to-send, context display, auto-scroll, clear |
+| `testing/page.tsx` | ✅ Updated | Floating 🤖 button (bottom-right) opens AIChatPanel with current context |
+| `TestingLab.css` | ✅ Updated | ~350 lines of new CSS for all Phase 6-8 components |
+
 ---
 
 ## Known Gaps / Completed in Worker Instrumentation
@@ -65,8 +102,8 @@
 | `FullPipelineTab` currentPhase only updates from log parsing | ✅ Resolved (log parsing works, real phase events also flow) |
 | `LogViewerTab` has no feed from active TestCard runs | ✅ Resolved — `useTestingLogStore` shared pub/sub store |
 | `paused` CardStatus requires worker pause support | ✅ Resolved — `POST /research/pause/:projectId` + `POST /research/resume/:projectId` endpoints |
-| Multi-branch side-by-side comparison UI | Deferred to Phase 7 |
-| No test coverage for Testing Lab components | Deferred to Phase 8 |
+| Multi-branch side-by-side comparison UI | Deferred to Phase 9 |
+| No test coverage for Testing Lab services | ✅ Resolved (April 2026) — `phase5-step-gate.test.ts` (19), `phase17-bis-gis.test.ts` (25), `phase-cleanup.test.ts` (25) |
 
 ---
 
@@ -365,10 +402,10 @@ Automatic comparison after both branches complete:
 | 3 | Module Cards | ✅ Complete | — |
 | 4 | Integration | ✅ Complete | — |
 | 4.5 | Worker Instrumentation | ✅ Complete | — |
-| **5** | **Interactive Code Debugger** | 🔴 Not Started | 2-3 weeks |
-| **6** | **Dependency Graph & Impact Analysis** | 🔴 Not Started | 2-3 weeks |
-| **7** | **Screenshot & Data Inspector with AI** | 🔴 Not Started | 1-2 weeks |
-| **8** | **AI-Integrated Development Assistant** | 🔴 Not Started | 2-3 weeks |
+| **5** | **Interactive Code Debugger** | ✅ Complete (April 2026) | — |
+| **6** | **Dependency Graph & Impact Analysis** | ✅ Complete (April 2026) | — |
+| **7** | **Screenshot & Data Inspector with AI** | ✅ Complete (April 2026) | — |
+| **8** | **AI-Integrated Development Assistant** | ✅ Complete (April 2026) | — |
 | **9** | **Multi-Branch Comparison** | 🔴 Not Started | 1-2 weeks |
 
 ### Phase 5 Build Order (detailed)

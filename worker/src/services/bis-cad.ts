@@ -3095,3 +3095,230 @@ export async function searchBisGis(
   logger.info('Stage1E', 'GIS: no results found across all query approaches');
   return null;
 }
+
+// ── Eagle Eye Aerial Capture ───────────────────────────────────────────────
+
+export interface EagleEyeResult {
+  screenshotBase64: string | null;
+  width: number;
+  height: number;
+  url: string;
+  error?: string;
+}
+
+/**
+ * Opens the BIS GIS viewer for a given property and captures a screenshot of
+ * the map area.  Returns gracefully with a null screenshot if the viewer is
+ * unavailable, times out, or `gisBaseUrl` is not configured.
+ */
+export async function captureEagleEyeScreenshot(
+  gisBaseUrl: string,
+  propertyId: string,
+  logger: PipelineLogger,
+): Promise<EagleEyeResult> {
+  if (!gisBaseUrl) {
+    return { screenshotBase64: null, width: 0, height: 0, url: '', error: 'gisBaseUrl not configured' };
+  }
+
+  const viewerUrl = `${gisBaseUrl.replace(/\/$/, '')}?pid=${encodeURIComponent(propertyId)}`;
+
+  let browser = null;
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({
+      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
+
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      viewport: { width: 1280, height: 800 },
+    });
+
+    const page = await context.newPage();
+    page.setDefaultTimeout(30_000);
+
+    logger.info('EagleEye', `Navigating to GIS viewer: ${viewerUrl}`);
+    await page.goto(viewerUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+    // Wait for one of the known map container selectors
+    const mapSelectors = ['#mapContainer', '.esri-view-root', '.esri-map', '#map', '.map-view'];
+    let mapFound = false;
+    for (const sel of mapSelectors) {
+      try {
+        await page.waitForSelector(sel, { timeout: 15_000 });
+        mapFound = true;
+        logger.info('EagleEye', `Map container found via selector: ${sel}`);
+        break;
+      } catch { /* try next */ }
+    }
+
+    if (!mapFound) {
+      logger.info('EagleEye', 'Map container not found — falling back to full-page capture');
+    }
+
+    // Give the map tiles a moment to render
+    await page.waitForTimeout(3_000);
+
+    // Try to locate the map element for a targeted screenshot
+    let screenshotBuffer: Buffer | null = null;
+    for (const sel of mapSelectors) {
+      try {
+        const el = page.locator(sel).first();
+        if (await el.isVisible({ timeout: 2_000 })) {
+          screenshotBuffer = await el.screenshot({ timeout: 10_000 });
+          break;
+        }
+      } catch { /* try next */ }
+    }
+
+    // Fall back to a viewport screenshot
+    if (!screenshotBuffer) {
+      screenshotBuffer = await page.screenshot({ timeout: 10_000 });
+    }
+
+    const base64 = screenshotBuffer.toString('base64');
+    const { width, height } = page.viewportSize() ?? { width: 1280, height: 800 };
+
+    logger.info('EagleEye', `Screenshot captured (${width}×${height}, ${base64.length} base64 chars)`);
+    return { screenshotBase64: base64, width, height, url: viewerUrl };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.info('EagleEye', `Screenshot failed: ${msg}`);
+    return { screenshotBase64: null, width: 0, height: 0, url: viewerUrl, error: msg };
+  } finally {
+    if (browser) {
+      try { await (browser as import('playwright').Browser).close(); } catch { /* ignore */ }
+    }
+  }
+}
+
+// ── Parcel Rings → Survey Calls ───────────────────────────────────────────
+
+export interface SurveyCall {
+  bearing: string;
+  distance: number;
+  distanceUnit: 'ft';
+  deltaLon: number;
+  deltaLat: number;
+}
+
+/** US Survey Feet per metre (exact by definition) */
+const US_SURVEY_FEET_PER_METRE = 3.280833333333333;
+
+/** Earth mean radius in metres (WGS-84 / GRS-80) */
+const EARTH_RADIUS_M = 6_378_137;
+
+/** Haversine great-circle distance between two lat/lon points (metres) */
+function haversineMetres(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a));
+}
+
+/** Convert a decimal-degree azimuth (0–360, clockwise from N) to a DMS bearing string like "N 04°07'23\" E" */
+function decimalToBearing(azimuth: number): string {
+  // Normalise to [0, 360)
+  const az = ((azimuth % 360) + 360) % 360;
+
+  // In surveyor's quadrant notation the bearing is expressed as the angle
+  // from the nearest N/S pole toward the nearest E/W direction.
+  // Only one interior angle value is needed per quadrant.
+  let interiorDeg: number;
+  let ns: string;
+  let ew: string;
+
+  if (az <= 90) {
+    ns = 'N'; ew = 'E';
+    interiorDeg = az;
+  } else if (az <= 180) {
+    ns = 'S'; ew = 'E';
+    interiorDeg = 180 - az;
+  } else if (az <= 270) {
+    ns = 'S'; ew = 'W';
+    interiorDeg = az - 180;
+  } else {
+    ns = 'N'; ew = 'W';
+    interiorDeg = 360 - az;
+  }
+
+  const totalSec = Math.round(interiorDeg * 3600);
+  const d = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  return `${ns} ${pad2(d)}°${pad2(m)}'${pad2(s)}" ${ew}`;
+}
+
+/**
+ * Converts parcel boundary rings (array of [lon, lat] pairs) into an ordered
+ * list of survey bearing/distance calls.
+ *
+ * The largest ring by vertex count is used as the parcel boundary.  Distances
+ * are computed via the Haversine formula and converted to US Survey Feet.
+ * Bearings follow the surveyor's quadrant convention: "N 45°30'00\" E".
+ *
+ * @param rings     Parcel rings — each ring is an array of [lon, lat] pairs.
+ * @param closeLoop When true (default) a closing call back to the first vertex
+ *                  is appended if the ring is not already closed.
+ */
+export function parcelRingsToSurveyCalls(
+  rings: number[][][],
+  closeLoop = true,
+): SurveyCall[] {
+  if (!rings || rings.length === 0) return [];
+
+  // Pick the largest ring by vertex count as the parcel boundary
+  const ring = rings.reduce((best, r) => (r.length > best.length ? r : best), rings[0]);
+
+  if (ring.length < 2) return [];
+
+  // Build the working point list
+  let pts = [...ring];
+
+  // Optionally close the loop (add start point at end if not already closed)
+  if (closeLoop) {
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      pts = [...pts, first];
+    }
+  }
+
+  const calls: SurveyCall[] = [];
+
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [lon1, lat1] = pts[i];
+    const [lon2, lat2] = pts[i + 1];
+
+    const deltaLon = lon2 - lon1;
+    const deltaLat = lat2 - lat1;
+
+    // Azimuth from north (clockwise).  Scale the east component by cos(lat)
+    // so that raw degree deltas map correctly to actual angular distance on
+    // the ellipsoid — otherwise bearings are skewed at higher latitudes.
+    const cosLat = Math.cos((lat1 * Math.PI) / 180);
+    const azimuthRad = Math.atan2(deltaLon * cosLat, deltaLat);
+    const azimuthDeg = (azimuthRad * 180) / Math.PI;
+    // Normalise to [0, 360)
+    const az = ((azimuthDeg % 360) + 360) % 360;
+
+    const distM = haversineMetres(lat1, lon1, lat2, lon2);
+    const distFt = distM * US_SURVEY_FEET_PER_METRE;
+
+    calls.push({
+      bearing: decimalToBearing(az),
+      distance: Math.round(distFt * 100) / 100,
+      distanceUnit: 'ft',
+      deltaLon,
+      deltaLat,
+    });
+  }
+
+  return calls;
+}

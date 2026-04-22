@@ -14,6 +14,7 @@ import LogViewerTab from './components/LogViewerTab';
 import CodeBrowserTab from './components/CodeBrowserTab';
 import DeployStatus from './components/DeployStatus';
 import InfoIcon from './components/InfoIcon';
+import AIChatPanel from './components/AIChatPanel';
 import { HELP } from './components/helpContent';
 import '@/app/admin/styles/TestingLab.css';
 
@@ -35,6 +36,7 @@ function TestingLabContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('scrapers');
   const [compareBranch, setCompareBranch] = useState<string | null>(null);
   const [branchMsg, setBranchMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [aiChatOpen, setAiChatOpen] = useState(false);
 
   const showBranchMsg = (text: string, ok: boolean) => {
     setBranchMsg({ text, ok });
@@ -163,6 +165,30 @@ function TestingLabContent() {
         {activeTab === 'health' && <HealthCheckTab />}
         {activeTab === 'logs' && <LogViewerTab />}
       </div>
+
+      {/* Floating AI button */}
+      <button
+        className="testing-lab__ai-float-btn"
+        onClick={() => setAiChatOpen((v) => !v)}
+        aria-label="Open AI assistant"
+        title="AI Assistant"
+      >
+        🤖
+      </button>
+
+      {/* AI Chat panel */}
+      <AIChatPanel
+        isOpen={aiChatOpen}
+        onClose={() => setAiChatOpen(false)}
+        context={[
+          context.address ? `Address: ${context.address}` : '',
+          context.propertyId ? `Property ID: ${context.propertyId}` : '',
+          context.branch ? `Branch: ${context.branch}` : '',
+          `Active tab: ${activeTab}`,
+        ]
+          .filter(Boolean)
+          .join('\n')}
+      />
     </div>
   );
 }
