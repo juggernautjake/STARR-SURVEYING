@@ -22,7 +22,7 @@ interface ChatRequest {
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session || !isDeveloper(session)) {
+  if (!session?.user?.email || !isDeveloper(session.user.roles)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

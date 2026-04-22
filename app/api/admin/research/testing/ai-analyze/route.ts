@@ -30,7 +30,7 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 
 async function handler(req: NextRequest): Promise<NextResponse> {
   const session = await auth();
-  if (!session || !isDeveloper(session)) {
+  if (!session?.user?.email || !isDeveloper(session.user.roles)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
