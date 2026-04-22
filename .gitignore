@@ -46,3 +46,12 @@ worker/dist/
 worker/node_modules/
 worker/.env
 worker/pnpm-lock.yaml
+
+# Build output
+/dist/
+
+# Playwright
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/

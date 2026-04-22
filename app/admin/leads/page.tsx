@@ -1,5 +1,6 @@
 // app/admin/leads/page.tsx — Leads management (admin only)
 'use client';
+import '../styles/AdminJobs.css';
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import UnderConstruction from '../components/messaging/UnderConstruction';

@@ -14,24 +14,17 @@ import ErrorProvider from './error/ErrorProvider';
 import ErrorBoundary from './error/ErrorBoundary';
 import { ToastProvider } from './Toast';
 
+// Layout-global CSS only. Route-specific stylesheets are imported from
+// the corresponding route segment layout (e.g. app/admin/research/layout.tsx)
+// or page (e.g. app/admin/users/page.tsx) so each admin route only loads
+// the CSS it actually needs. See PR 1 (Phase 0.5 cleanup) for the rationale
+// and docs/planning/in-progress/CSS_CLEANUP_REPORT.md for the dead-class
+// audit follow-up.
 import '../styles/AdminLayout.css';
-import '../styles/AdminLearn.css';
-import '../styles/AdminMessaging.css';
-import '../styles/AdminJobs.css';
-import '../styles/AdminFieldWork.css';
-import '../styles/AdminPayroll.css';
-import '../styles/AdminErrors.css';
-import '../styles/AdminAssignments.css';
-import '../styles/AdminRewards.css';
-import '../styles/AdminTimeLogs.css';
-import '../styles/AdminEmployeeManage.css';
-import '../styles/AdminSchedule.css';
-import '../styles/AdminDiscussions.css';
-import '../styles/AdminMyNotes.css';
-import '../styles/AdminArticle.css';
-import '../styles/AdminUsers.css';
-import '../styles/AdminResearch.css';
 import '../styles/AdminResponsive.css';
+// AdminFieldWork.css stays here because the Fieldbook is rendered by this
+// layout via FloatingActionMenu and is reachable from every admin page.
+import '../styles/AdminFieldWork.css';
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',

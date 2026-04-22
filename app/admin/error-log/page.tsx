@@ -1,5 +1,6 @@
 // app/admin/error-log/page.tsx — Admin error log viewer
 'use client';
+import '../styles/AdminErrors.css';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';

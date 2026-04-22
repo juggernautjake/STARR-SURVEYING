@@ -1,5 +1,6 @@
 // app/admin/my-pay/page.tsx — Employee "My Pay" page
 'use client';
+import '../styles/AdminPayroll.css';
 
 import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback } from 'react';

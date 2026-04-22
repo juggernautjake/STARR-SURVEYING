@@ -1,5 +1,6 @@
 // app/admin/my-files/page.tsx — Personal file storage
 'use client';
+import '../styles/AdminMyNotes.css';
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import UnderConstruction from '../components/messaging/UnderConstruction';

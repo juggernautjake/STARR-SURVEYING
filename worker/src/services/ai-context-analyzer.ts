@@ -12,7 +12,7 @@
 // Builds on patterns from property-validation-pipeline.ts (synthesis prompt
 // structure and cross-validation logic) but uses Phase 3 data shapes.
 //
-// Spec: STARR_RECON/PHASE_03_EXTRACTION.md §7
+// Spec: docs/planning/in-progress/STARR_RECON/PHASE_03_EXTRACTION.md §7
 
 import Anthropic from '@anthropic-ai/sdk';
 import {

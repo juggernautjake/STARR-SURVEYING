@@ -10,7 +10,7 @@
 
 We are migrating the STARR RECON property-research pipeline off a DigitalOcean droplet onto a new infrastructure footprint (Hetzner + Cloudflare R2 + Browserbase + CapSolver). Before any of that hookup happens, we need to know exactly what is in the repository today, what works, what doesn't, and where the version drift and duplication is. This document is the canonical answer.
 
-It is also the single source of truth for the multi-phase build plan that follows. Every other planning doc in `STARR_RECON/PHASE_*.md` is older and may not reflect the post-migration architecture — when in doubt, this doc wins.
+It is also the single source of truth for the multi-phase build plan that follows. Every other planning doc in `docs/planning/in-progress/STARR_RECON/PHASE_*.md` is older and may not reflect the post-migration architecture — when in doubt, this doc wins.
 
 ---
 
@@ -29,7 +29,7 @@ There are two parallel research implementations. The lite pipeline (`lib/researc
 
 ## 3. Pipeline Status — Phase Coverage
 
-Pulled from `STARR_RECON/STARR_RECON_PHASE_ROADMAP.md` and validated against actual files in `worker/src/services/`.
+Pulled from `docs/planning/in-progress/STARR_RECON/STARR_RECON_PHASE_ROADMAP.md` and validated against actual files in `worker/src/services/`.
 
 | Phase | Name | Status | Notes |
 |---|---|---|---|
@@ -50,7 +50,7 @@ Pulled from `STARR_RECON/STARR_RECON_PHASE_ROADMAP.md` and validated against act
 | 18 | Data Versioning | ✅ | `pipeline-version-store.ts`, `pipeline-diff-engine.ts` |
 | 19 | LiDAR / Cross-County | 🔨 partial | `cross-county-resolver.ts` + seed exists |
 
-**Self-described state from `STARR_RECON/CODE_REVIEW_2026_03_09.md`:** capable of property research for Central Texas; pipeline is end-to-end functional on Bell County and a handful of others; statewide adapter scaffolding exists but coverage is uneven.
+**Self-described state from `docs/planning/in-progress/STARR_RECON/CODE_REVIEW_2026_03_09.md`:** capable of property research for Central Texas; pipeline is end-to-end functional on Bell County and a handful of others; statewide adapter scaffolding exists but coverage is uneven.
 
 ---
 
@@ -142,7 +142,7 @@ This is a relational schema, not a graph. It has the *ingredients* of a graph �
 
 ## 8. Frontend State
 
-`/app/admin/research/` already exists with `[projectId]`, `billing`, `components`, `library`, `pipeline`, `testing` subroutes. `PLAN.md` describes a 7-step workflow (upload → configure → analyze → review → draw → verify → complete).
+`/app/admin/research/` already exists with `[projectId]`, `billing`, `components`, `library`, `pipeline`, `testing` subroutes. `docs/planning/in-progress/PLAN.md` describes a 7-step workflow (upload → configure → analyze → review → draw → verify → complete).
 
 Phase C of the new build adds the 16-screen UI from the multi-device design system; Phase 0 does not touch the frontend. PC-first layout will use fluid units (rem + clamp) so the Phase C mobile pass does not require a rewrite. Trimble / Carlson / Leica data-collector compatibility is Phase F+; those generally consume `.dxf`/`.kml`/`.csv` plus vendor-specific `.rw5`/`.fbk`/`.crd`. Our existing Field Plan export already produces DXF.
 
@@ -165,7 +165,7 @@ Phase C of the new build adds the 16-screen UI from the multi-device design syst
 
 ## 10. Closure Tolerance — What Standard, What We Use
 
-See `docs/CLOSURE_TOLERANCE.md` for the full reasoning. Summary:
+See `docs/platform/CLOSURE_TOLERANCE.md` for the full reasoning. Summary:
 
 | Survey class | Linear closure | Used in our pipeline as |
 |---|---|---|
@@ -202,7 +202,7 @@ A regression set is a fixed list of properties where the correct answer is known
 
 ### Phase 0 — Foundation (this PR, no external accounts needed)
 
-- Inventory + naming docs (this file, `STARR_SOFTWARE_SUITE.md`, `CLOSURE_TOLERANCE.md`)
+- Inventory + naming docs (this file, `docs/platform/STARR_SOFTWARE_SUITE.md`, `docs/platform/CLOSURE_TOLERANCE.md`)
 - Version pinning across root + worker
 - `worker/Dockerfile` for Hetzner
 - Stub `browser-factory` and `captcha-solver` modules with full interfaces
@@ -256,4 +256,4 @@ A regression set is a fixed list of properties where the correct answer is known
 ### Phase G+ — Suite expansion
 
 - Trimble / Carlson / Leica data-collector exports (`.rw5`, `.fbk`, `.crd`)
-- Additional Starr Software products (see `docs/STARR_SOFTWARE_SUITE.md`)
+- Additional Starr Software products (see `docs/platform/STARR_SOFTWARE_SUITE.md`)

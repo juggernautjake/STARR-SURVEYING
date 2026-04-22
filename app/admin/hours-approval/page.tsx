@@ -1,5 +1,6 @@
 // app/admin/hours-approval/page.tsx — Admin approval of employee time logs
 'use client';
+import '../styles/AdminTimeLogs.css';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';

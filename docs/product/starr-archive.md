@@ -3,11 +3,21 @@
 **Status:** Design sketch (no code yet)
 **Owner:** Jacob, Starr Software
 **Last Updated:** April 2026
-**Companion docs:** `docs/STARR_SOFTWARE_SUITE.md`, `docs/RECON_INVENTORY.md`
+**Companion docs:** `docs/platform/STARR_SOFTWARE_SUITE.md`, `docs/platform/RECON_INVENTORY.md`
+
+> **Document layout note (Apr 2026 PR 1 restructure):** This draft was
+> relocated from `docs/STARR_ARCHIVE_INTAKE.md` to `docs/product/starr-archive.md`
+> and its top-level sections were renamed to match the canonical sketch
+> outline (PURPOSE → INTAKE FLOW → DATA MODEL HOOKS → PRODUCT TIER FIT →
+> PHYSICAL INTAKE LOGISTICS → OPEN QUESTIONS). Every existing section is
+> preserved; sections that don't map directly to a canonical heading are
+> grouped under **ADDITIONAL NOTES** at the end with their original
+> numbering retained for traceability.
 
 ---
 
-## 1. Why Starr Archive Exists
+## PURPOSE
+### 1. Why Starr Archive Exists
 
 Starr Surveying has decades of work product sitting in three places that are not searchable, not backed up, and not feeding the Starr Recon pipeline:
 
@@ -28,7 +38,11 @@ This document sketches **the intake flow only** — the part where raw stuff (pa
 
 ---
 
-## 2. Personas
+## ADDITIONAL NOTES (sections that don't map to a canonical heading)
+
+The remaining sections — **Personas (2)**, **The Job Folder — Canonical Unit (4)**, **The Triage Queue (6)**, **Integration with Starr Recon (8)**, and **Build Sequencing (10)** — are kept inline with their original numbering for traceability. They cover supporting context that informs PURPOSE / INTAKE FLOW / DATA MODEL HOOKS but isn't a 1:1 fit for any single canonical heading. The PR 2 polish pass may further inline them under the canonical sections.
+
+### 2. Personas
 
 | Persona | Who | Primary action | Friction tolerance |
 |---|---|---|---|
@@ -40,7 +54,8 @@ The intake flow MUST optimize for Dad's experience. Office Staff and Jacob are t
 
 ---
 
-## 3. Three Intake Paths
+## INTAKE FLOW
+### 3. Three Intake Paths
 
 Different sources need different ergonomics. The Archive accepts all three, normalizes everything to the same record shape, and lets the catalog hide the source distinction from search.
 
@@ -151,7 +166,7 @@ V1 is a PWA — no app-store friction. Camera + upload + tag is a long evening's
 
 ---
 
-## 4. The Job Folder — Canonical Unit
+### 4. The Job Folder — Canonical Unit
 
 Every file lives inside a **Job Folder**, which is the unit Dad already thinks in. Roughly:
 
@@ -188,7 +203,8 @@ Heuristics 1–4 are best-effort. Triage is the safety net. The Archive never *g
 
 ---
 
-## 5. Storage Tier Strategy
+## PRODUCT TIER FIT
+### 5. Storage Tier Strategy
 
 | Tier | Where | What lives there | Why |
 |---|---|---|---|
@@ -203,7 +219,7 @@ R2 is preferred over Supabase Storage for raw because Cloudflare's egress-free p
 
 ---
 
-## 6. The Triage Queue
+### 6. The Triage Queue
 
 This is the honest answer to "what about everything the heuristics couldn't classify?"
 
@@ -240,7 +256,8 @@ This is the honest answer to "what about everything the heuristics couldn't clas
 
 ---
 
-## 7. Schema Sketch (will move to `seeds/210_archive.sql` when implementation begins)
+## DATA MODEL HOOKS
+### 7. Schema Sketch (will move to `seeds/210_archive.sql` when implementation begins)
 
 Not implemented in this PR — schema is sketched here for review.
 
@@ -310,7 +327,7 @@ Full-text search uses a `tsvector` on `archive_files.ocr_text` plus the existing
 
 ---
 
-## 8. Integration with Starr Recon
+### 8. Integration with Starr Recon
 
 Two-way wiring, both feature-flagged off until v1 ships.
 
@@ -331,11 +348,12 @@ When a Job is fully digitized and a Recon project has been run on that same prop
 3. Where Starr's known answer is authoritative (boundary calls, owner history Starr personally documented), the discrepancies become the basis for a new fixture in `worker/src/__tests__/regression/fixtures/<county>/<job_number>.json`
 4. `fixture_status` flips to `curated` then `active`
 
-This is the path by which the regression set grows from 1 (synthetic) → 5 → 15 → 50, per the Phase A/B/D plan in `docs/RECON_INVENTORY.md §11`.
+This is the path by which the regression set grows from 1 (synthetic) → 5 → 15 → 50, per the Phase A/B/D plan in `docs/platform/RECON_INVENTORY.md §11`.
 
 ---
 
-## 9. What's Out of Scope Here (separate sketches when needed)
+## PHYSICAL INTAKE LOGISTICS
+### 9. What's Out of Scope Here (separate sketches when needed)
 
 - **Search UI.** The /admin/archive/search screen design.
 - **Sharing.** Letting clients see their own historical jobs (probably uses the same `report_share_service.ts` pattern as Recon).
@@ -348,7 +366,7 @@ This is the path by which the regression set grows from 1 (synthetic) → 5 → 
 
 ---
 
-## 10. Build Sequencing (when greenlit)
+### 10. Build Sequencing (when greenlit)
 
 This is the rough sequencing **whenever Starr Archive becomes a build priority** — likely after Starr Recon Phase B (intelligence layer) is stable. Not a commitment to any timeline.
 
@@ -365,11 +383,12 @@ This is the rough sequencing **whenever Starr Archive becomes a build priority**
 
 ---
 
-## 11. Decision Log
+## OPEN QUESTIONS
+### 11. Decision Log
 
 | Date | Decision | Reason |
 |---|---|---|
-| Apr 2026 | Public name = "Starr Archive" (single-word codename, matches naming rules in `docs/STARR_SOFTWARE_SUITE.md`) | Reserves "Starr Vault" for signed-final-deliverable storage, which is a meaningfully different product. |
+| Apr 2026 | Public name = "Starr Archive" (single-word codename, matches naming rules in `docs/platform/STARR_SOFTWARE_SUITE.md`) | Reserves "Starr Vault" for signed-final-deliverable storage, which is a meaningfully different product. |
 | Apr 2026 | R2 over Supabase Storage for raw blobs | Egress-free pricing makes future re-processing affordable. |
 | Apr 2026 | Content-addressed (SHA-256) storage paths | Free dedupe across overlapping flash-drive contents; immutability for the audit log. |
 | Apr 2026 | No physical destruction in v1 | Legal / professional-records sensitivities; barcode-back-to-folder workflow is a stretch goal. |

@@ -12,7 +12,7 @@
 //   lotId:  "lot_1", "lot_2", "reserve_a", "common_b" — lower_snake_case.
 //
 // Version: 3.0
-// Spec: STARR_RECON/PHASE_03_EXTRACTION.md §4
+// Spec: docs/planning/in-progress/STARR_RECON/PHASE_03_EXTRACTION.md §4
 
 // ── Extraction Source Types ────────────────────────────────────────────────
 

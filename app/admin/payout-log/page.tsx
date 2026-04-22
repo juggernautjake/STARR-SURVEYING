@@ -1,5 +1,6 @@
 // app/admin/payout-log/page.tsx — Payout history log (employees see own, admins see all)
 'use client';
+import '../styles/AdminPayroll.css';
 
 import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback } from 'react';

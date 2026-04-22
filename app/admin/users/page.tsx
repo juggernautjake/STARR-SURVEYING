@@ -1,5 +1,6 @@
 // app/admin/users/page.tsx — Admin user management with expanded roles
 'use client';
+import '../styles/AdminUsers.css';
 
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { useSession } from 'next-auth/react';

@@ -775,7 +775,7 @@ Bottom: AI prompt input for re-processing instructions.
 | 6 | AI Drawing Engine | 8-10 wks | 35-47 wks |
 | 7 | File Export, Integration, Desktop App & Polish | 5-7 wks | 40-54 wks |
 
-Each phase has its own detailed spec file. See `STARR_CAD_PHASE_ROADMAP.md` for the full roadmap and `STARR_CAD_PHASE_1_ENGINE_CORE.md` for the first phase's complete implementation spec.
+Each phase has its own detailed spec file. See `STARR_CAD_PHASE_ROADMAP.md` for the full roadmap and `./STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md` for the first phase's complete implementation spec.
 
 ---
 

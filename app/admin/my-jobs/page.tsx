@@ -1,5 +1,6 @@
 // app/admin/my-jobs/page.tsx — Employee's assigned jobs
 'use client';
+import '../styles/AdminJobs.css';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';

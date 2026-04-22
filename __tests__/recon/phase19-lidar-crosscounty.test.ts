@@ -373,8 +373,8 @@ describe('Phase 19 — Worker Index Routes (worker/src/index.ts)', () => {
 
 // ── Module E: Spec Document ───────────────────────────────────────────────────
 
-describe('Phase 19 — Spec Document (STARR_RECON/PHASE_19_LIDAR_CROSSCOUNTY.md)', () => {
-  const SPEC_PATH = path.resolve(__dirname, '../../STARR_RECON/PHASE_19_LIDAR_CROSSCOUNTY.md');
+describe('Phase 19 — Spec Document (docs/planning/in-progress/STARR_RECON/PHASE_19_LIDAR_CROSSCOUNTY.md)', () => {
+  const SPEC_PATH = path.resolve(__dirname, '../../docs/planning/in-progress/STARR_RECON/PHASE_19_LIDAR_CROSSCOUNTY.md');
 
   it('49. PHASE_19_LIDAR_CROSSCOUNTY.md exists', () => {
     expect(fs.existsSync(SPEC_PATH)).toBe(true);

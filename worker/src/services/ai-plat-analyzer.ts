@@ -9,7 +9,7 @@
 // geometric analysis, or curve math. It only orchestrates the existing
 // services and converts their output to the Phase 3 data model.
 //
-// Spec: STARR_RECON/PHASE_03_EXTRACTION.md §5
+// Spec: docs/planning/in-progress/STARR_RECON/PHASE_03_EXTRACTION.md §5
 
 import Anthropic from '@anthropic-ai/sdk';
 import { adaptiveVisionOcr } from './adaptive-vision.js';

@@ -66,7 +66,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 **Estimated Duration:** 6-8 weeks
 
-**Spec File:** `STARR_CAD_PHASE_1_ENGINE_CORE.md`
+**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md`
 
 ---
 
@@ -94,7 +94,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 **Depends On:** Phase 1 (points rendered on canvas, selection works, undo works)
 
-**Spec File:** `STARR_CAD_PHASE_2_DATA_IMPORT.md`
+**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md`
 
 ---
 
@@ -127,7 +127,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 **Depends On:** Phase 2 (codes assigned to points, line strings built)
 
-**Spec File:** `STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`
+**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`
 
 ---
 
@@ -163,7 +163,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 **Depends On:** Phase 3 (arcs rendered with correct styling, layers assigned)
 
-**Spec File:** `STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md`
+**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md`
 
 ---
 
@@ -198,7 +198,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 **Depends On:** Phase 4 (curves have data to label, traverses have closures to display)
 
-**Spec File:** `STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md`
+**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md`
 
 ---
 
@@ -232,7 +232,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 **Estimated Duration:** 10–13 weeks
 
-**Spec File:** `STARR_CAD_PHASE_6_AI_ENGINE.md`
+**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md`
 
 ---
 
@@ -266,7 +266,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 **Estimated Duration:** 7–9 weeks
 
-**Spec File:** `STARR_CAD_PHASE_7_FINAL.md`
+**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_7_FINAL.md`
 
 ---
 
@@ -291,7 +291,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 **Estimated Duration:** 4–6 weeks
 
-**Spec File:** `STARR_CAD_PHASE_8_UX_CONTROLS.md`
+**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_8_UX_CONTROLS.md`
 
 ---
 
@@ -318,14 +318,14 @@ Part-time with AI assistance. Full-time effort could compress to 9–12 months.
 
 Each phase has its own implementation spec file:
 
-- `STARR_CAD_PHASE_1_ENGINE_CORE.md` — Built out fully
-- `STARR_CAD_PHASE_2_DATA_IMPORT.md` — Built out fully
-- `STARR_CAD_PHASE_3_STYLES_SYMBOLS.md` — Built out fully
-- `STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md` — Built out fully
-- `STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md` — Built out fully
-- `STARR_CAD_PHASE_6_AI_ENGINE.md` — Built out fully (v2.0: includes dynamic offsets, enrichment, deliberation, confidence cards, element chat)
-- `STARR_CAD_PHASE_7_FINAL.md` — Built out fully (editor integration, RPLS workflow, exports, Electron)
-- `STARR_CAD_PHASE_8_UX_CONTROLS.md` — Built out fully (hotkeys, cursors, tooltips, settings)
+- `./STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md` — Built out fully
+- `./STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md` — Built out fully
+- `./STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md` — Built out fully
+- `./STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md` — Built out fully
+- `./STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md` — Built out fully
+- `./STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md` — Built out fully (v2.0: includes dynamic offsets, enrichment, deliberation, confidence cards, element chat)
+- `./STARR_CAD/STARR_CAD_PHASE_7_FINAL.md` — Built out fully (editor integration, RPLS workflow, exports, Electron)
+- `./STARR_CAD/STARR_CAD_PHASE_8_UX_CONTROLS.md` — Built out fully (hotkeys, cursors, tooltips, settings)
 
 When starting a Copilot or Claude Code session, open the spec file for your current phase. It contains every TypeScript interface, function signature, algorithm, UI layout, and acceptance test needed to implement that phase. The master spec (`STARR_CAD_IMPLEMENTATION.md`) remains the single source of truth for the full picture — the phase specs are focused extractions optimized for implementation.
 

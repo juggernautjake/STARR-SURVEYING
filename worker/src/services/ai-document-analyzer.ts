@@ -10,7 +10,7 @@
 // Produces PropertyIntelligence saved to:
 //   /tmp/analysis/{projectId}/property_intelligence.json
 //
-// Spec: STARR_RECON/PHASE_03_EXTRACTION.md §8
+// Spec: docs/planning/in-progress/STARR_RECON/PHASE_03_EXTRACTION.md §8
 
 import fs from 'fs';
 import path from 'path';

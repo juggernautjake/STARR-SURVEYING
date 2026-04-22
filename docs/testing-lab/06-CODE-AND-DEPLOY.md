@@ -42,7 +42,7 @@ Click a directory to navigate into it. Click **..** to go up. Click a `.ts` file
 - All directories listed above except specs
 
 **Read-only** (can browse and view, cannot edit):
-- `STARR_RECON/` planning documents — shown with a "READ ONLY" badge
+- `docs/planning/in-progress/STARR_RECON/` planning documents — shown with a "READ ONLY" badge
 
 **Not accessible** (cannot browse or view):
 - Frontend code (`app/`)

@@ -8,7 +8,7 @@
 // It only orchestrates extractDocuments() and converts its output to the
 // Phase 3 data model types.
 //
-// Spec: STARR_RECON/PHASE_03_EXTRACTION.md §6
+// Spec: docs/planning/in-progress/STARR_RECON/PHASE_03_EXTRACTION.md §6
 
 import Anthropic from '@anthropic-ai/sdk';
 import { extractDocuments } from './ai-extraction.js';
