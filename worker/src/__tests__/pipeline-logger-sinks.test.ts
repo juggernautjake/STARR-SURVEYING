@@ -53,6 +53,7 @@ describe('makePipelineLoggerCaptchaSink', () => {
     expect(log![0]!.status).toBe('success');
     expect(log![0]!.dataPointsFound).toBe(1);
     expect(log![0]!.details).toMatch(/cost=\$0\.0008/);
+    expect(log![0]!.details).toMatch(/proxy=http:\/\/proxy\.example:8080/);
     expect(log![0]!.details).toMatch(/duration=1240ms/);
   });
 
