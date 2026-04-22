@@ -206,6 +206,12 @@ function resolveBackend(opts: BrowserFactoryOptions): BrowserBackend {
     const env = (process.env.BROWSER_BACKEND ?? '').toLowerCase();
     if (env === 'local' || env === 'browserbase' || env === 'stub') {
       backend = env;
+    } else if (process.env.NODE_ENV === 'test') {
+      // Belt-and-suspenders: default to stub in test environments so tests
+      // never reach launchLocal()'s dynamic import('playwright') even when
+      // BROWSER_BACKEND is unset. This prevents Chromium-not-installed
+      // failures in CI for unit tests that don't need a real browser.
+      backend = 'stub';
     } else {
       backend = 'local';
     }

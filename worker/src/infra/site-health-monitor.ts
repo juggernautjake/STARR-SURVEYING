@@ -518,7 +518,11 @@ export class SiteHealthMonitor {
 
   private async ensureBrowser(): Promise<void> {
     if (!this.browser) {
+      const backend =
+        (process.env.BROWSER_BACKEND as 'local' | 'browserbase' | 'stub' | undefined) ??
+        (process.env.NODE_ENV === 'test' ? 'stub' : 'local');
       this.browser = await acquireBrowser({
+        backend,
         launchOptions: {
           headless: true,
           args: ['--no-sandbox', '--disable-setuid-sandbox'],
