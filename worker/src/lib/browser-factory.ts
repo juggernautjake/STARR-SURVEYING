@@ -215,9 +215,10 @@ function resolveBackend(opts: BrowserFactoryOptions): BrowserBackend {
   if (backend === 'browserbase' && opts.adapterId !== undefined) {
     const enabled = parseEnabledAdapters(process.env.BROWSERBASE_ENABLED_ADAPTERS);
     if (!enabled.has(opts.adapterId)) {
-      // Fall back silently — caller asked for the default and the operator
-      // hasn't enabled this adapter yet. Most adapters will hit this path
-      // during the staged rollout.
+      // Falling back to local because operator hasn't enabled this adapter
+      // yet. Log so it's obvious why a known-Browserbase adapter is using a
+      // local browser. Most adapters hit this during staged rollout.
+      console.log(`[browser-factory] adapter "${opts.adapterId}" gated → local (add to BROWSERBASE_ENABLED_ADAPTERS to enable)`);
       return 'local';
     }
   }
@@ -296,19 +297,25 @@ async function launchLocal(opts: BrowserFactoryOptions): Promise<BrowserSession>
 async function launchBrowserbase(opts: BrowserFactoryOptions): Promise<BrowserSession> {
   const apiKey    = process.env.BROWSERBASE_API_KEY;
   const projectId = process.env.BROWSERBASE_PROJECT_ID;
+  const adapterTag = opts.adapterId ? ` adapter=${opts.adapterId}` : '';
 
   if (!apiKey) {
+    console.error(`[browser-factory] launchBrowserbase failed: BROWSERBASE_API_KEY missing${adapterTag}`);
     throw new Error(
       '[browser-factory] BROWSERBASE_API_KEY must be set to use the browserbase ' +
       'backend. Set BROWSER_BACKEND=local or =stub to bypass.',
     );
   }
   if (!projectId) {
+    console.error(`[browser-factory] launchBrowserbase failed: BROWSERBASE_PROJECT_ID missing${adapterTag}`);
     throw new Error(
       '[browser-factory] BROWSERBASE_PROJECT_ID must be set to use the browserbase ' +
       'backend. Set BROWSER_BACKEND=local or =stub to bypass.',
     );
   }
+
+  const start = Date.now();
+  console.log(`[browser-factory] launching browserbase session${adapterTag} residentialProxy=${opts.useResidentialProxy ? 'yes' : 'no'}`);
 
   // Dynamic import keeps the SDK out of the load path for local-only deploys.
   //
@@ -345,6 +352,7 @@ async function launchBrowserbase(opts: BrowserFactoryOptions): Promise<BrowserSe
   } catch (err) {
     // Try to release the session if Playwright couldn't connect; otherwise
     // we'd leak a paid session. Best-effort — don't mask the original error.
+    console.error(`[browser-factory] CDP connect failed for browserbase session ${sessionId}${adapterTag}: ${(err as Error).message}`);
     await releaseBrowserbaseSession(bb, sessionId).catch(() => { /* swallow */ });
     throw err;
   }
@@ -355,6 +363,8 @@ async function launchBrowserbase(opts: BrowserFactoryOptions): Promise<BrowserSe
     (created as { proxyIp?: string | null }).proxyIp ??
     (created as { proxy?: { ip?: string | null } | null }).proxy?.ip ??
     null;
+
+  console.log(`[browser-factory] browserbase session ready id=${sessionId}${adapterTag} egressIp=${egressIp ?? 'unknown'} (${Date.now() - start}ms)`);
 
   return {
     browser,
@@ -371,6 +381,7 @@ async function launchBrowserbase(opts: BrowserFactoryOptions): Promise<BrowserSe
           err,
         );
       });
+      console.log(`[browser-factory] browserbase session released id=${sessionId}${adapterTag}`);
     },
   };
 }

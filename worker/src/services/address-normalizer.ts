@@ -475,7 +475,7 @@ export async function geocodeAddress(address: string): Promise<GeocodedAddress |
       };
     }
   } catch (e) {
-    console.warn('Census geocoder failed:', e);
+    console.warn('[address-normalizer] Census geocoder failed:', e instanceof Error ? e.message : e);
   }
 
   // Fallback: Nominatim (OpenStreetMap)
@@ -524,7 +524,7 @@ export async function geocodeAddress(address: string): Promise<GeocodedAddress |
       };
     }
   } catch (e) {
-    console.warn('Nominatim geocoder failed:', e);
+    console.warn('[address-normalizer] Nominatim geocoder failed:', e instanceof Error ? e.message : e);
   }
 
   return null;

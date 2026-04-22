@@ -32,6 +32,7 @@ let pubClient: IORedis | null = null;
 function getPublisher(): IORedis {
   if (pubClient) return pubClient;
   const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
+  console.log(`[research-events-emit] connecting publisher → ${url.replace(/:[^/@]*@/, ':****@')}`);
   pubClient = new IORedis(url, {
     // Don't crash the worker if Redis is briefly unreachable — telemetry is
     // best-effort. Reconnect aggressively.
@@ -42,6 +43,8 @@ function getPublisher(): IORedis {
     // Single warn per connection burst; ioredis emits on every reconnect attempt.
     console.warn('[research-events-emit] redis error:', err.message);
   });
+  pubClient.on('connect', () => console.log('[research-events-emit] redis connected'));
+  pubClient.on('reconnecting', (delay: number) => console.warn(`[research-events-emit] redis reconnecting in ${delay}ms`));
   return pubClient;
 }
 
@@ -67,10 +70,11 @@ export async function emit(event: ResearchEvent): Promise<void> {
   const message = serializeResearchEvent(event);
   const channel = researchEventsChannel(event.jobId);
   try {
-    await getPublisher().publish(channel, message);
+    const subscribers = await getPublisher().publish(channel, message);
+    console.log(`[research-events-emit] ${event.type} → ${channel} (${subscribers} subscriber${subscribers === 1 ? '' : 's'})`);
   } catch (err) {
     // Telemetry is best-effort — log and move on.
-    console.warn('[research-events-emit] publish failed:', (err as Error).message);
+    console.warn(`[research-events-emit] publish failed (${event.type} → ${channel}):`, (err as Error).message);
   }
 }
 

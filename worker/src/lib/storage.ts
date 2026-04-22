@@ -34,7 +34,6 @@
 // storage.ts keys are `documents/<jobId>/<filename>`).
 
 import { promises as fs } from 'node:fs';
-import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 
@@ -123,8 +122,10 @@ export function createDocumentStorage(opts: StorageOptions = {}): DocumentStorag
   const backend = opts.backend ?? resolveBackend();
   if (backend === 'local') {
     const root = opts.localRoot ?? process.env.STORAGE_LOCAL_ROOT ?? './storage';
+    console.log(`[storage] backend=local root=${root}`);
     return new LocalDocumentStorage(root);
   }
+  console.log(`[storage] backend=r2 bucket=${process.env.R2_BUCKET ?? '(unset!)'}`);
   return new R2DocumentStorage();
 }
 
@@ -159,19 +160,26 @@ class LocalDocumentStorage implements DocumentStorage {
   async uploadDocument(jobId: string, filename: string, bytes: Buffer | Uint8Array): Promise<UploadResult> {
     const key  = buildStorageKey(jobId, filename);
     const full = this.toAbsPath(key);
+    const start = Date.now();
     await fs.mkdir(path.dirname(full), { recursive: true });
     await fs.writeFile(full, bytes);
+    console.log(`[storage:local] upload ok jobId=${jobId} key=${key} bytes=${bytes.byteLength} (${Date.now() - start}ms)`);
     return { storageKey: key, size: bytes.byteLength };
   }
 
   async downloadDocument(storageKey: string): Promise<Buffer> {
     this.assertSafeKey(storageKey);
+    const start = Date.now();
     try {
-      return await fs.readFile(this.toAbsPath(storageKey));
+      const buf = await fs.readFile(this.toAbsPath(storageKey));
+      console.log(`[storage:local] download ok key=${storageKey} bytes=${buf.byteLength} (${Date.now() - start}ms)`);
+      return buf;
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        console.warn(`[storage:local] download miss key=${storageKey}`);
         throw new StorageError(`document not found: ${storageKey}`, 'not_found', err);
       }
+      console.warn(`[storage:local] download error key=${storageKey} ${(err as Error).message}`);
       throw new StorageError(`local read failed: ${storageKey}`, 'backend_error', err);
     }
   }
@@ -186,8 +194,10 @@ class LocalDocumentStorage implements DocumentStorage {
     this.assertSafeKey(storageKey);
     try {
       await fs.unlink(this.toAbsPath(storageKey));
+      console.log(`[storage:local] delete ok key=${storageKey}`);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') return; // idempotent
+      console.warn(`[storage:local] delete error key=${storageKey} ${(err as Error).message}`);
       throw new StorageError(`local delete failed: ${storageKey}`, 'backend_error', err);
     }
   }
@@ -226,6 +236,7 @@ class R2DocumentStorage implements DocumentStorage {
     contentType: string,
   ): Promise<UploadResult> {
     const key    = buildStorageKey(jobId, filename);
+    const start  = Date.now();
     const client = await this.getClient();
     const { PutObjectCommand } = await this.loadSdk() as {
       PutObjectCommand: new (input: PutObjectCommandInput) => unknown;
@@ -238,13 +249,16 @@ class R2DocumentStorage implements DocumentStorage {
         ContentType: contentType,
       }) as Parameters<S3ClientType['send']>[0];
       await client.send(cmd);
+      console.log(`[storage:r2] upload ok jobId=${jobId} key=${key} bytes=${bytes.byteLength} contentType=${contentType} (${Date.now() - start}ms)`);
     } catch (err) {
+      console.warn(`[storage:r2] upload failed key=${key} (${Date.now() - start}ms): ${(err as Error).message}`);
       throw new StorageError(`R2 upload failed: ${key}`, 'backend_error', err);
     }
     return { storageKey: key, size: bytes.byteLength };
   }
 
   async downloadDocument(storageKey: string): Promise<Buffer> {
+    const start  = Date.now();
     const client = await this.getClient();
     const { GetObjectCommand } = await this.loadSdk() as {
       GetObjectCommand: new (input: { Bucket: string; Key: string }) => unknown;
@@ -256,12 +270,16 @@ class R2DocumentStorage implements DocumentStorage {
       if (!out.Body) {
         throw new StorageError(`R2 download returned empty body: ${storageKey}`, 'backend_error');
       }
-      return await streamToBuffer(out.Body);
+      const buf = await streamToBuffer(out.Body);
+      console.log(`[storage:r2] download ok key=${storageKey} bytes=${buf.byteLength} (${Date.now() - start}ms)`);
+      return buf;
     } catch (err) {
       if (isNotFoundError(err)) {
+        console.warn(`[storage:r2] download miss key=${storageKey}`);
         throw new StorageError(`document not found: ${storageKey}`, 'not_found', err);
       }
       if (err instanceof StorageError) throw err;
+      console.warn(`[storage:r2] download failed key=${storageKey} (${Date.now() - start}ms): ${(err as Error).message}`);
       throw new StorageError(`R2 download failed: ${storageKey}`, 'backend_error', err);
     }
   }
@@ -277,7 +295,9 @@ class R2DocumentStorage implements DocumentStorage {
       getSignedUrl: (client: S3ClientType, command: unknown, options: { expiresIn: number }) => Promise<string>;
     };
     const cmd = new GetObjectCommand({ Bucket: this.bucket(), Key: storageKey });
-    return getSignedUrl(client, cmd, { expiresIn: ttlSeconds });
+    const url = await getSignedUrl(client, cmd, { expiresIn: ttlSeconds });
+    console.log(`[storage:r2] signed url issued key=${storageKey} ttl=${ttlSeconds}s`);
+    return url;
   }
 
   async deleteDocument(storageKey: string): Promise<void> {
@@ -288,8 +308,10 @@ class R2DocumentStorage implements DocumentStorage {
     try {
       const cmd = new DeleteObjectCommand({ Bucket: this.bucket(), Key: storageKey }) as Parameters<S3ClientType['send']>[0];
       await client.send(cmd);
+      console.log(`[storage:r2] delete ok key=${storageKey}`);
     } catch (err) {
       if (isNotFoundError(err)) return; // idempotent
+      console.warn(`[storage:r2] delete failed key=${storageKey}: ${(err as Error).message}`);
       throw new StorageError(`R2 delete failed: ${storageKey}`, 'backend_error', err);
     }
   }
@@ -317,6 +339,12 @@ class R2DocumentStorage implements DocumentStorage {
       const accessKeyId     = process.env.R2_ACCESS_KEY_ID;
       const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
       if (!accountId || !accessKeyId || !secretAccessKey) {
+        const missing = [
+          !accountId && 'R2_ACCOUNT_ID',
+          !accessKeyId && 'R2_ACCESS_KEY_ID',
+          !secretAccessKey && 'R2_SECRET_ACCESS_KEY',
+        ].filter(Boolean).join(', ');
+        console.error(`[storage:r2] cannot init client — missing env vars: ${missing}`);
         throw new StorageError(
           'R2 backend requires R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY',
           'invalid_config',
@@ -325,11 +353,13 @@ class R2DocumentStorage implements DocumentStorage {
       const sdk = await this.loadSdk() as {
         S3Client: new (cfg: Record<string, unknown>) => S3ClientType;
       };
+      const endpoint = `https://${accountId}.r2.cloudflarestorage.com`;
+      console.log(`[storage:r2] S3 client initialised endpoint=${endpoint} bucket=${process.env.R2_BUCKET ?? '(unset!)'} accessKeyId=${accessKeyId.slice(0, 4)}…`);
       // R2 endpoint pattern: https://<accountId>.r2.cloudflarestorage.com
       // R2 ignores region but the SDK requires one — 'auto' is the documented value.
       return new sdk.S3Client({
         region:   'auto',
-        endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+        endpoint,
         credentials: { accessKeyId, secretAccessKey },
       });
     })();
@@ -375,6 +405,3 @@ async function streamToBuffer(body: unknown): Promise<Buffer> {
 // injected SDK importer (avoiding any real network use). NOT for
 // production callers — use createDocumentStorage() instead.
 export { R2DocumentStorage as __R2DocumentStorageForTesting };
-
-// Keep `createReadStream` referenced so it's not tree-shaken when consumers want streaming uploads later.
-void createReadStream;

@@ -83,17 +83,35 @@ export interface CapSolverHttpClientOptions {
   baseUrl?: string;
   /** Custom fetch implementation (used by tests). Defaults to global fetch. */
   fetchImpl?: typeof fetch;
+  /** Per-request timeout in ms. Defaults to 30s. */
+  requestTimeoutMs?: number;
+}
+
+/** Default per-request timeout. CapSolver responds within seconds for createTask
+ * and getTaskResult; 30s is a generous ceiling that prevents indefinite hangs. */
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
+/** Mask all but the first 4 / last 4 characters of a key for safe logging. */
+function maskKey(key: string): string {
+  if (key.length <= 8) return '****';
+  return `${key.slice(0, 4)}…${key.slice(-4)} (${key.length} chars)`;
 }
 
 export class CapSolverHttpClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly requestTimeoutMs: number;
 
   constructor(opts: CapSolverHttpClientOptions) {
     this.apiKey   = opts.apiKey;
     this.baseUrl  = opts.baseUrl  ?? DEFAULT_BASE_URL;
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
+    this.requestTimeoutMs = opts.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    if (!this.apiKey) {
+      throw new Error('[capsolver] CapSolverHttpClient requires apiKey');
+    }
+    console.log(`[capsolver-http] client initialised: baseUrl=${this.baseUrl} apiKey=${maskKey(this.apiKey)} timeoutMs=${this.requestTimeoutMs}`);
   }
 
   /**
@@ -101,17 +119,17 @@ export class CapSolverHttpClient {
    * Throws an Error with `errorCode` and `errorDescription` on API failure.
    */
   async createTask(task: CapSolverTaskBase): Promise<string> {
-    const body = JSON.stringify({ clientKey: this.apiKey, task });
-    const res = await this.fetchImpl(`${this.baseUrl}/createTask`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body,
+    const start = Date.now();
+    console.log(`[capsolver-http] createTask → type=${task.type} url=${task.websiteURL} proxied=${task.proxy ? 'yes' : 'no'}`);
+    const json = await this.postJson<CapSolverCreateTaskResponse>('/createTask', {
+      clientKey: this.apiKey, task,
     });
-    const json = (await res.json()) as CapSolverCreateTaskResponse;
     if (json.errorId !== 0 || !json.taskId) {
       const msg = json.errorDescription ?? json.errorCode ?? 'unknown CapSolver error';
+      console.warn(`[capsolver-http] createTask failed (${Date.now() - start}ms): errorId=${json.errorId} code=${json.errorCode ?? 'n/a'} ${msg}`);
       throw new Error(`[capsolver] createTask failed: ${msg}`);
     }
+    console.log(`[capsolver-http] createTask ok (${Date.now() - start}ms): taskId=${json.taskId}`);
     return json.taskId;
   }
 
@@ -120,12 +138,57 @@ export class CapSolverHttpClient {
    * whether to retry on `status='processing'`.
    */
   async getTaskResult(taskId: string): Promise<CapSolverGetTaskResultResponse> {
-    const body = JSON.stringify({ clientKey: this.apiKey, taskId });
-    const res = await this.fetchImpl(`${this.baseUrl}/getTaskResult`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body,
+    const start = Date.now();
+    const json = await this.postJson<CapSolverGetTaskResultResponse>('/getTaskResult', {
+      clientKey: this.apiKey, taskId,
     });
-    return (await res.json()) as CapSolverGetTaskResultResponse;
+    const status = json.status ?? 'unknown';
+    const elapsed = Date.now() - start;
+    if (json.errorId !== 0) {
+      console.warn(`[capsolver-http] getTaskResult error (${elapsed}ms): taskId=${taskId} errorId=${json.errorId} code=${json.errorCode ?? 'n/a'}`);
+    } else {
+      console.log(`[capsolver-http] getTaskResult ok (${elapsed}ms): taskId=${taskId} status=${status}${json.cost ? ` cost=$${json.cost}` : ''}`);
+    }
+    return json;
+  }
+
+  /**
+   * Internal: POST + JSON parse with timeout + non-2xx handling. Centralises
+   * fetch error normalisation so createTask / getTaskResult don't duplicate it.
+   */
+  private async postJson<T>(pathSegment: string, payload: unknown): Promise<T> {
+    const url = `${this.baseUrl}${pathSegment}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+    let res: Response;
+    try {
+      res = await this.fetchImpl(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      const isTimeout = (err as Error).name === 'AbortError';
+      const detail = isTimeout
+        ? `request timed out after ${this.requestTimeoutMs}ms`
+        : (err as Error).message;
+      console.warn(`[capsolver-http] POST ${pathSegment} network error: ${detail}`);
+      throw new Error(`[capsolver] ${pathSegment} ${isTimeout ? 'timeout' : 'network error'}: ${detail}`);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!res.ok) {
+      // Try to read the body as text to surface CapSolver's error page if any.
+      const text = await res.text().catch(() => '');
+      const snippet = text.length > 200 ? `${text.slice(0, 200)}…` : text;
+      console.warn(`[capsolver-http] POST ${pathSegment} HTTP ${res.status}: ${snippet || '(empty body)'}`);
+      throw new Error(`[capsolver] ${pathSegment} HTTP ${res.status}: ${snippet || res.statusText}`);
+    }
+    try {
+      return (await res.json()) as T;
+    } catch (err) {
+      throw new Error(`[capsolver] ${pathSegment} returned non-JSON response: ${(err as Error).message}`);
+    }
   }
 }
