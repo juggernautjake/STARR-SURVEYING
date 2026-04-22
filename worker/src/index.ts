@@ -4023,6 +4023,46 @@ app.get('/research/cross-county/:projectId', requireAuth, rateLimit(60, 60_000),
   }
 });
 
+// ── Phase 19: Project Cleanup / Retention Policy ──────────────────────────
+
+/**
+ * POST /research/cleanup
+ * Run the retention pass (archives expired projects).
+ * Body: { projectsBaseDir?: string, dryRun?: boolean, retentionDays?: number }
+ */
+app.post('/research/cleanup', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  try {
+    const { ProjectCleanupService } = await import('./services/project-cleanup-service.js');
+    const { projectsBaseDir = '/tmp/analysis', dryRun = false, retentionDays = 90 } = req.body as {
+      projectsBaseDir?: string;
+      dryRun?: boolean;
+      retentionDays?: number;
+    };
+    const service = new ProjectCleanupService(retentionDays);
+    const report = await service.runRetentionPass(projectsBaseDir, { dryRun });
+    res.json(report);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /research/cleanup/stats
+ * Return retention stats for the projects directory.
+ * Query: ?projectsBaseDir=/tmp/analysis
+ */
+app.get('/research/cleanup/stats', requireAuth, rateLimit(30, 60_000), async (req: Request, res: Response) => {
+  try {
+    const { ProjectCleanupService } = await import('./services/project-cleanup-service.js');
+    const projectsBaseDir = (req.query.projectsBaseDir as string | undefined) ?? '/tmp/analysis';
+    const service = new ProjectCleanupService();
+    const stats = await service.getRetentionStats(projectsBaseDir);
+    res.json(stats);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
