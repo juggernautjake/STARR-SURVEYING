@@ -311,7 +311,18 @@ async function launchBrowserbase(opts: BrowserFactoryOptions): Promise<BrowserSe
   }
 
   // Dynamic import keeps the SDK out of the load path for local-only deploys.
-  const { default: Browserbase } = await import('@browserbasehq/sdk');
+  //
+  // We deliberately route the module specifier through a variable so the
+  // root Next.js typecheck (which transitively pulls this file in via
+  // `@/worker/src/services/...` imports from API routes) does not require
+  // `@browserbasehq/sdk` to be installed at the repo root. The SDK is a
+  // worker-only runtime dependency; only `worker/package.json` declares it.
+  // TypeScript treats `import(variable)` as `any`, which is what we want
+  // for an optional runtime dep. See worker/tsconfig.json — typed access
+  // to the SDK happens inside the worker tsc context where the module
+  // resolves normally.
+  const browserbaseModuleId = '@browserbasehq/sdk';
+  const { default: Browserbase } = await import(browserbaseModuleId);
   const playwright = await import('playwright');
 
   const bb = new Browserbase({ apiKey });
