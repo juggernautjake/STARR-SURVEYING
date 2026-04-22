@@ -8,6 +8,7 @@ import type { PropertyIdResult, PropertyValidation, NormalizedAddress, AddressVa
 import { PipelineLogger } from '../lib/logger.js';
 import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 import { normalizeAddress } from './address-utils.js';
+import { acquireBrowser } from '../lib/browser-factory.js';
 
 // ── BIS Consultants eSearch Configuration ──────────────────────────────────
 
@@ -747,10 +748,12 @@ async function searchCadPlaywright(
   let screenshot: Buffer | null = null;
 
   try {
-    const { chromium } = await import('playwright');
-    browser = await chromium.launch({
-      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    browser = await acquireBrowser({
+      adapterId: 'cad',
+      launchOptions: {
+        headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      },
     });
 
     const context = await browser.newContext({
@@ -3124,10 +3127,12 @@ export async function captureEagleEyeScreenshot(
 
   let browser = null;
   try {
-    const { chromium } = await import('playwright');
-    browser = await chromium.launch({
-      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    browser = await acquireBrowser({
+      adapterId: 'cad',
+      launchOptions: {
+        headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      },
     });
 
     const context = await browser.newContext({

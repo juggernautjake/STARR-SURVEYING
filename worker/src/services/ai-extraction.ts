@@ -7,6 +7,7 @@ import type { DocumentResult, ExtractedBoundaryData, BoundaryCall, DocumentRefer
 import { PipelineLogger } from '../lib/logger.js';
 import { adaptiveVisionOcr } from './adaptive-vision.js';
 import { checkAndFlagCreditDepletion, isCreditDepleted, AnthropicCreditDepletedError as SharedCreditError } from '../lib/credit-guard.js';
+import { acquireBrowser } from '../lib/browser-factory.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -505,10 +506,11 @@ async function extractPdfViaPageRendering(
   );
 
   try {
-    const { chromium } = await import('playwright');
-    browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    browser = await acquireBrowser({
+      launchOptions: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
 
     const context = await browser.newContext({

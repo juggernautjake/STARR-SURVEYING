@@ -11,7 +11,8 @@
 //   5. "Check All" endpoint to run every probe at once
 //   6. Screenshot capture on failure for diagnostics
 
-import { chromium, type Browser, type Page } from 'playwright';
+import type { Browser, Page } from 'playwright';
+import { acquireBrowser } from '../lib/browser-factory.js';
 import { getCADConfig, listRegisteredCounties, type CADConfig } from '../services/cad-registry.js';
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -517,9 +518,11 @@ export class SiteHealthMonitor {
 
   private async ensureBrowser(): Promise<void> {
     if (!this.browser) {
-      this.browser = await chromium.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      this.browser = await acquireBrowser({
+        launchOptions: {
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        },
       });
     }
   }

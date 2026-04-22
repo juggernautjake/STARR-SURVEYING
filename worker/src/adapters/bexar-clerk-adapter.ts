@@ -17,7 +17,8 @@
 // Spec §15.7 — Bexar County Custom Clerk Adapter
 // v1.0: Initial implementation
 
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import type { Browser, BrowserContext, Page } from 'playwright';
+import { acquireBrowser } from '../lib/browser-factory.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
@@ -56,9 +57,12 @@ export class BexarClerkAdapter extends ClerkAdapter {
   // ── Session Management ─────────────────────────────────────────────────────
 
   async initSession(): Promise<void> {
-    const browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    const browser = await acquireBrowser({
+      adapterId: 'bexar-clerk',
+      launchOptions: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
     this.browser = browser;
     this.context = await browser.newContext({

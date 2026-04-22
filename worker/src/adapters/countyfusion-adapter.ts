@@ -14,7 +14,7 @@
 //
 // Spec §2.10 — CountyFusion/Cott Adapter
 
-import { chromium } from 'playwright';
+import { acquireBrowser } from '../lib/browser-factory.js';
 import {
   ClerkAdapter,
   type ClerkDocumentResult,
@@ -170,9 +170,9 @@ export class CountyFusionAdapter extends ClerkAdapter {
   async initSession(): Promise<void> {
     if (this.browser) return;
 
-    this.browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    this.browser = await acquireBrowser({
+      adapterId: 'countyfusion',
+      launchOptions: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] },
     });
 
     const context = await this.browser.newContext({

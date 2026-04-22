@@ -8,7 +8,8 @@
 //
 // Spec §1.5 — Base Adapter Interface
 
-import { chromium, type Browser, type Page } from 'playwright';
+import type { Browser, Page } from 'playwright';
+import { acquireBrowser } from '../lib/browser-factory.js';
 import type { CADConfig } from '../services/cad-registry.js';
 import type { AddressVariant } from '../services/address-normalizer.js';
 
@@ -102,9 +103,12 @@ export abstract class CADAdapter {
 
   async initBrowser(): Promise<void> {
     if (!this.browser) {
-      this.browser = await chromium.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      this.browser = await acquireBrowser({
+        adapterId: 'cad',
+        launchOptions: {
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        },
       });
       const context = await this.browser.newContext({
         userAgent:

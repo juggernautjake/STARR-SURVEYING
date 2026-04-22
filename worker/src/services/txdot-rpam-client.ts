@@ -22,6 +22,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { PipelineLogger } from '../lib/logger.js';
+import { acquireBrowser } from '../lib/browser-factory.js';
+import type { Browser } from 'playwright';
 
 // AI model — always read from environment
 const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
@@ -80,19 +82,6 @@ export class TxDOTRPAMClient {
     outputDir: string,
     roadName?: string,
   ): Promise<RPAMResult | null> {
-    // Dynamically import Playwright to avoid crashing the worker if not installed
-    let chromium: typeof import('playwright')['chromium'];
-    try {
-      const playwright = await import('playwright');
-      chromium = playwright.chromium;
-    } catch {
-      this.logger.warn(
-        'TxDOT-RPAM',
-        'Playwright is not installed. Run: npx playwright install chromium. Skipping RPAM fallback.',
-      );
-      return null;
-    }
-
     // Ensure output directory exists
     try {
       fs.mkdirSync(outputDir, { recursive: true });
@@ -122,9 +111,9 @@ export class TxDOTRPAMClient {
 
     this.logger.info('TxDOT-RPAM', `Navigating to RPAM: ${rpamUrl}`);
 
-    let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
+    let browser: Browser | null = null;
     try {
-      browser = await chromium.launch({ headless: true });
+      browser = await acquireBrowser({ launchOptions: { headless: true } });
       const page = await browser.newPage();
 
       // Navigate and wait for map to load

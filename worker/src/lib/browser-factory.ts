@@ -4,26 +4,66 @@
 // the choice between local Chromium (development), Browserbase CDP (Phase A
 // production), and a no-op stub (CI / unit tests / no credentials).
 //
-// All code in the worker MUST acquire browsers through `getBrowser()` rather
-// than calling `chromium.launch()` directly. This is what lets us swap in
-// Browserbase later without touching 37 call-sites scattered across the
-// codebase.
+// All code in the worker MUST acquire browsers through `getBrowser()` /
+// `withBrowser()` / `acquireBrowser()` rather than calling `chromium.launch()`
+// directly. This is what lets us swap in Browserbase later without touching
+// 30+ call-sites scattered across the codebase.
 //
 // Backend selection (in priority order):
-//   1. options.backend         — explicit override per call (e.g. for tests)
-//   2. process.env.BROWSER_BACKEND ∈ {local, browserbase, stub}
-//   3. process.env.BROWSERBASE_API_KEY present → 'browserbase'
-//   4. process.env.NODE_ENV === 'test' → 'stub'
-//   5. fall back to 'local'
+//   1. options.backend                    — explicit override per call (e.g. for tests)
+//   2. process.env.BROWSER_BACKEND        — 'local' | 'browserbase' | 'stub'
+//   3. fall back to 'local'
 //
-// Phase 0 ships only the `local` and `stub` backends. The `browserbase`
-// backend exists as a stub that throws a helpful error explaining how to
-// finish the wiring once a Browserbase account exists. Phase A replaces
-// that throw with a real CDP connection.
+// NOTE (Phase A): Auto-promotion rules previously inferred 'browserbase' from
+// the presence of BROWSERBASE_API_KEY and 'stub' from NODE_ENV=test. Those
+// rules were stripped intentionally — Browserbase is paid infrastructure and
+// must be opted into explicitly. See PR description and
+// docs/planning/in-progress/PHASE_A_INTEGRATION_PREP.md.
+//
+// Per-adapter Browserbase gating: even when BROWSER_BACKEND=browserbase, a
+// caller that passes `adapterId` will only be routed to Browserbase if its
+// id is present in BROWSERBASE_ENABLED_ADAPTERS (a comma-separated list of
+// filename-stem ids). This lets us roll out Browserbase one adapter at a
+// time. Calls without an adapterId always honor BROWSER_BACKEND.
 
 import type { Browser, BrowserContext, BrowserContextOptions, LaunchOptions } from 'playwright';
 
 export type BrowserBackend = 'local' | 'browserbase' | 'stub';
+
+/**
+ * Canonical filename-stem ids for adapters that may be routed to Browserbase.
+ * Read adapters live in worker/src/adapters/<stem>-adapter.ts.
+ * Purchase/pay adapters live in worker/src/services/purchase-adapters/<stem>-adapter.ts
+ * and use a `*-pay` or `*-purchase` suffix to disambiguate.
+ *
+ * Adding a new adapter: add its stem here AND make sure the adapter passes
+ * its own stem as `adapterId` to getBrowser/withBrowser/acquireBrowser.
+ */
+export const KNOWN_ADAPTER_IDS = [
+  // Read / clerk adapters
+  'bell-clerk',
+  'tyler-clerk',
+  'bexar-clerk',
+  'kofile-clerk',
+  'henschen-clerk',
+  'fidlar-clerk',
+  'idocket-clerk',
+  'texasfile',
+  'countyfusion',
+  'cad',
+  // Purchase / pay adapters (separate folder)
+  'fidlar-pay',
+  'tyler-pay',
+  'henschen-pay',
+  'idocket-pay',
+  'kofile-purchase',
+  'texasfile-purchase',
+  'govos-guest',
+] as const;
+
+export type AdapterId = (typeof KNOWN_ADAPTER_IDS)[number];
+
+const KNOWN_ADAPTER_ID_SET: ReadonlySet<string> = new Set(KNOWN_ADAPTER_IDS);
 
 export interface BrowserSession {
   /** The Playwright Browser handle (real or stub). */
@@ -37,12 +77,27 @@ export interface BrowserSession {
    * assigned this session.
    */
   egressIp: string | null;
+  /**
+   * Browserbase session id, when applicable. Used for telemetry and
+   * post-mortem debugging via the Browserbase dashboard.
+   */
+  browserbaseSessionId?: string;
   /** Best-effort cleanup; safe to call multiple times. */
   close: () => Promise<void>;
 }
 
 export interface BrowserFactoryOptions {
-  /** Force a specific backend regardless of env. */
+  /**
+   * Stable identifier for the calling adapter. Filename stem of the adapter
+   * file (e.g. 'bell-clerk' for worker/src/adapters/bell-clerk-adapter.ts).
+   * Used to:
+   *   1. Gate Browserbase routing through BROWSERBASE_ENABLED_ADAPTERS
+   *   2. Provide telemetry attribution
+   * If omitted, the call is treated as "ungated" — it honors BROWSER_BACKEND
+   * directly with no per-adapter check.
+   */
+  adapterId?: string;
+  /** Force a specific backend regardless of env or adapter gating. */
   backend?: BrowserBackend;
   /** Forwarded to Playwright `chromium.launch()` for the local backend. */
   launchOptions?: LaunchOptions;
@@ -65,7 +120,7 @@ export interface BrowserFactoryOptions {
  * (or use `withBrowser()` below for automatic cleanup).
  */
 export async function getBrowser(opts: BrowserFactoryOptions = {}): Promise<BrowserSession> {
-  const backend = resolveBackend(opts.backend);
+  const backend = resolveBackend(opts);
   switch (backend) {
     case 'local':       return launchLocal(opts);
     case 'browserbase': return launchBrowserbase(opts);
@@ -105,17 +160,103 @@ export async function getContext(
   return { context, session };
 }
 
+/**
+ * Drop-in replacement for `chromium.launch(launchOptions)` that routes
+ * through the factory. Returns a Playwright Browser whose `close()` will
+ * also release any backend-specific resources (Browserbase session, etc.).
+ *
+ * Use this from the ~30 historic `chromium.launch()` call-sites — it's the
+ * lowest-risk migration shape because callers continue to manage the
+ * Browser handle exactly as before; only the import line and the call
+ * itself change.
+ */
+export async function acquireBrowser(opts: BrowserFactoryOptions = {}): Promise<Browser> {
+  const session = await getBrowser(opts);
+  // For Browserbase we want session.close() (which may release the SDK
+  // session) to fire when the caller closes the browser. Hooking the
+  // Playwright 'disconnected' event handles that without forcing every
+  // caller to track a separate session handle.
+  if (session.backend === 'browserbase') {
+    session.browser.once('disconnected', () => {
+      session.close().catch((err) => {
+        console.warn('[browser-factory] post-disconnect cleanup failed:', err);
+      });
+    });
+  }
+  return session.browser;
+}
+
 // ── Backend resolution ─────────────────────────────────────────────────────
 
-function resolveBackend(explicit?: BrowserBackend): BrowserBackend {
-  if (explicit) return explicit;
+/**
+ * Resolve which backend to use. Rules (priority order):
+ *   1. opts.backend explicit override
+ *   2. BROWSER_BACKEND env var
+ *   3. fall back to 'local'
+ *
+ * If the resolved backend is 'browserbase' AND opts.adapterId is set,
+ * the per-adapter gate is consulted. Adapters not in
+ * BROWSERBASE_ENABLED_ADAPTERS fall back to 'local' with a debug log.
+ */
+function resolveBackend(opts: BrowserFactoryOptions): BrowserBackend {
+  let backend: BrowserBackend;
+  if (opts.backend) {
+    backend = opts.backend;
+  } else {
+    const env = (process.env.BROWSER_BACKEND ?? '').toLowerCase();
+    if (env === 'local' || env === 'browserbase' || env === 'stub') {
+      backend = env;
+    } else {
+      backend = 'local';
+    }
+  }
 
-  const env = (process.env.BROWSER_BACKEND ?? '').toLowerCase();
-  if (env === 'local' || env === 'browserbase' || env === 'stub') return env;
+  // Per-adapter gating only applies when we'd otherwise route to Browserbase.
+  if (backend === 'browserbase' && opts.adapterId !== undefined) {
+    const enabled = parseEnabledAdapters(process.env.BROWSERBASE_ENABLED_ADAPTERS);
+    if (!enabled.has(opts.adapterId)) {
+      // Fall back silently — caller asked for the default and the operator
+      // hasn't enabled this adapter yet. Most adapters will hit this path
+      // during the staged rollout.
+      return 'local';
+    }
+  }
 
-  if (process.env.BROWSERBASE_API_KEY) return 'browserbase';
-  if (process.env.NODE_ENV === 'test') return 'stub';
-  return 'local';
+  return backend;
+}
+
+// ── Adapter-flag parsing ───────────────────────────────────────────────────
+
+/**
+ * Parse BROWSERBASE_ENABLED_ADAPTERS into a Set of adapter ids. Unknown ids
+ * are warned about and dropped; the env var is treated as advisory, not
+ * authoritative. We never crash on a typo here because the consequence is
+ * "Browserbase doesn't activate", not a data integrity issue.
+ */
+export function parseEnabledAdapters(raw: string | undefined): Set<string> {
+  if (!raw) return new Set();
+  const out = new Set<string>();
+  for (const piece of raw.split(',')) {
+    const id = piece.trim();
+    if (!id) continue;
+    if (KNOWN_ADAPTER_ID_SET.has(id)) {
+      out.add(id);
+    } else {
+      console.warn(
+        `[browser-factory] BROWSERBASE_ENABLED_ADAPTERS contains unknown adapter id ` +
+        `"${id}" — ignoring. Known ids: ${KNOWN_ADAPTER_IDS.join(', ')}.`,
+      );
+    }
+  }
+  return out;
+}
+
+/**
+ * Validate the env var on startup. Call this once from worker bootstrap.
+ * Safe to call multiple times; it just re-parses + re-warns.
+ */
+export function validateAdapterFlagOnStartup(): void {
+  parseEnabledAdapters(process.env.BROWSERBASE_ENABLED_ADAPTERS);
 }
 
 // ── Local backend ──────────────────────────────────────────────────────────
@@ -135,45 +276,123 @@ async function launchLocal(opts: BrowserFactoryOptions): Promise<BrowserSession>
   };
 }
 
-// ── Browserbase backend (stub until Phase A) ───────────────────────────────
+// ── Browserbase backend ────────────────────────────────────────────────────
 
+/**
+ * Launch a Browserbase-managed Chromium session and connect to it via CDP.
+ *
+ * Connection lifecycle:
+ *   1. Create session via Browserbase SDK (with optional residential proxy).
+ *   2. `chromium.connectOverCDP(connectUrl)` — Playwright connects remotely.
+ *   3. Caller uses the Browser as if it were local.
+ *   4. On close: disconnect Playwright AND release the Browserbase session
+ *      so we don't keep paying for an idle browser.
+ *
+ * Errors:
+ *   - Missing creds → throw immediately with a clear message naming the
+ *     missing env var.
+ *   - SDK or CDP errors → propagated; caller decides whether to retry.
+ */
 async function launchBrowserbase(opts: BrowserFactoryOptions): Promise<BrowserSession> {
   const apiKey    = process.env.BROWSERBASE_API_KEY;
   const projectId = process.env.BROWSERBASE_PROJECT_ID;
 
-  if (!apiKey || !projectId) {
+  if (!apiKey) {
     throw new Error(
-      '[browser-factory] BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID must be set ' +
-      'to use the browserbase backend. Set BROWSER_BACKEND=local or =stub to bypass.',
+      '[browser-factory] BROWSERBASE_API_KEY must be set to use the browserbase ' +
+      'backend. Set BROWSER_BACKEND=local or =stub to bypass.',
+    );
+  }
+  if (!projectId) {
+    throw new Error(
+      '[browser-factory] BROWSERBASE_PROJECT_ID must be set to use the browserbase ' +
+      'backend. Set BROWSER_BACKEND=local or =stub to bypass.',
     );
   }
 
-  // Phase 0: not implemented. The full implementation lives in Phase A and
-  // looks roughly like:
-  //
-  //   const Browserbase = (await import('@browserbasehq/sdk')).default;
-  //   const bb = new Browserbase({ apiKey });
-  //   const session = await bb.sessions.create({
-  //     projectId,
-  //     proxies: opts.useResidentialProxy ? [{ type: 'browserbase' }] : undefined,
-  //     ...
-  //   });
-  //   const playwright = await import('playwright');
-  //   const browser = await playwright.chromium.connectOverCDP(session.connectUrl);
-  //   return { browser, backend: 'browserbase', egressIp: session.proxyIp ?? null, ... };
-  //
-  // For Phase 0 we throw a clear, actionable error so that anyone toggling
-  // BROWSER_BACKEND=browserbase before the Phase A wiring knows exactly what
-  // to do.
+  // Dynamic import keeps the SDK out of the load path for local-only deploys.
+  const { default: Browserbase } = await import('@browserbasehq/sdk');
+  const playwright = await import('playwright');
 
-  throw new Error(
-    '[browser-factory] The browserbase backend is not yet wired up (Phase A). ' +
-    'Install @browserbasehq/sdk, implement launchBrowserbase() in this file, ' +
-    'then remove this throw. Until then, set BROWSER_BACKEND=local for development ' +
-    'or BROWSER_BACKEND=stub for tests. See docs/RECON_INVENTORY.md §6 for the ' +
-    'full migration plan.' +
-    (opts.targetUrl ? ` (Caller targetUrl was: ${opts.targetUrl})` : ''),
-  );
+  const bb = new Browserbase({ apiKey });
+
+  // Ask the SDK for a session. We pass proxies only if the caller asked for
+  // residential routing; otherwise we let Browserbase pick its default
+  // datacenter pool (cheaper).
+  const sessionParams: Record<string, unknown> = { projectId };
+  if (opts.useResidentialProxy) {
+    sessionParams.proxies = true;
+  }
+
+  const created = await bb.sessions.create(sessionParams as Parameters<typeof bb.sessions.create>[0]);
+  const sessionId = created.id;
+  const connectUrl = created.connectUrl;
+
+  let browser: Browser;
+  try {
+    browser = await playwright.chromium.connectOverCDP(connectUrl);
+  } catch (err) {
+    // Try to release the session if Playwright couldn't connect; otherwise
+    // we'd leak a paid session. Best-effort — don't mask the original error.
+    await releaseBrowserbaseSession(bb, sessionId).catch(() => { /* swallow */ });
+    throw err;
+  }
+
+  // Browserbase exposes the egress proxy IP on the created session record.
+  // The shape varies a bit by SDK minor version; defensive lookup.
+  const egressIp =
+    (created as { proxyIp?: string | null }).proxyIp ??
+    (created as { proxy?: { ip?: string | null } | null }).proxy?.ip ??
+    null;
+
+  return {
+    browser,
+    backend: 'browserbase',
+    egressIp: egressIp ?? null,
+    browserbaseSessionId: sessionId,
+    close: async () => {
+      // Idempotent: closing the Playwright handle and releasing the SDK
+      // session can both be retried safely.
+      try { await browser.close(); } catch { /* idempotent */ }
+      await releaseBrowserbaseSession(bb, sessionId).catch((err) => {
+        console.warn(
+          `[browser-factory] failed to release Browserbase session ${sessionId}:`,
+          err,
+        );
+      });
+    },
+  };
+}
+
+/**
+ * Release a Browserbase session via the SDK. Browserbase's API surface for
+ * "end this session now" has shifted across SDK versions (`sessions.end`,
+ * `sessions.update({status: 'COMPLETED'})`, etc.), so we probe in order
+ * and accept whichever exists. Worst case the session times out on its
+ * own — Browserbase has a server-side idle timeout.
+ */
+async function releaseBrowserbaseSession(
+  bb: unknown,
+  sessionId: string,
+): Promise<void> {
+  const sessions = (bb as { sessions?: Record<string, unknown> }).sessions;
+  if (!sessions || typeof sessions !== 'object') return;
+
+  const updateFn = (sessions as { update?: (id: string, body: unknown) => Promise<unknown> }).update;
+  if (typeof updateFn === 'function') {
+    await updateFn.call(sessions, sessionId, {
+      projectId: process.env.BROWSERBASE_PROJECT_ID,
+      status: 'REQUEST_RELEASE',
+    });
+    return;
+  }
+
+  const endFn = (sessions as { end?: (id: string) => Promise<unknown> }).end;
+  if (typeof endFn === 'function') {
+    await endFn.call(sessions, sessionId);
+    return;
+  }
+  // No release method available — let the server-side idle timeout reap it.
 }
 
 // ── Stub backend ───────────────────────────────────────────────────────────

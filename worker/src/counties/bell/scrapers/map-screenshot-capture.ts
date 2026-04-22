@@ -22,6 +22,7 @@
 
 import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
+import { acquireBrowser } from '../../../lib/browser-factory.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -240,11 +241,13 @@ export async function captureMapScreenshots(
 
   let browser: any;
   try {
-    const pw = await import('playwright');
     const browserStart = Date.now();
-    browser = await pw.chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'],
+    browser = await acquireBrowser({
+      adapterId: 'bell-clerk',
+      launchOptions: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'],
+      },
     });
     console.log(`[map-capture] Chromium launched in ${Date.now() - browserStart}ms`);
 

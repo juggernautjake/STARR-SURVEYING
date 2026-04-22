@@ -32,6 +32,7 @@
 
 import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
+import { acquireBrowser } from '../../../lib/browser-factory.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -159,10 +160,12 @@ export async function captureGisViewerScreenshots(
   try {
     logDetail('browser', 'Importing Playwright and launching Chromium...');
     const browserLaunchStart = Date.now();
-    const pw = await import('playwright');
-    browser = await pw.chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'],
+    browser = await acquireBrowser({
+      adapterId: 'bell-clerk',
+      launchOptions: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
     logDetail('browser', `Chromium launched in ${Date.now() - browserLaunchStart}ms`);
 

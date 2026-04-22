@@ -13,7 +13,8 @@
 //
 // Spec §2.4 — Kofile/PublicSearch Adapter
 
-import { chromium, type BrowserContext } from 'playwright';
+import type { BrowserContext } from 'playwright';
+import { acquireBrowser } from '../lib/browser-factory.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
@@ -133,9 +134,9 @@ export class KofileClerkAdapter extends ClerkAdapter {
   async initSession(): Promise<void> {
     if (this.browser) return;
 
-    this.browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    this.browser = await acquireBrowser({
+      adapterId: 'kofile-clerk',
+      launchOptions: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] },
     });
 
     this.context = await this.browser.newContext({

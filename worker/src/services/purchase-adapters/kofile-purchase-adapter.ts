@@ -5,7 +5,8 @@
 // Spec §9.3 — Kofile Purchase Adapter
 // v1.1: PipelineLogger replaces bare console.* calls
 
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import type { Browser, BrowserContext, Page } from 'playwright';
+import { acquireBrowser } from '../../lib/browser-factory.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import type {
@@ -65,9 +66,12 @@ export class KofilePurchaseAdapter {
   // ── Session Management ──────────────────────────────────────────────────
 
   async initSession(): Promise<void> {
-    this.browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    this.browser = await acquireBrowser({
+      adapterId: 'kofile-purchase',
+      launchOptions: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
     this.context = await this.browser.newContext({
       viewport: { width: 1920, height: 1080 },
