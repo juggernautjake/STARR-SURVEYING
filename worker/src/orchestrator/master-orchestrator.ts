@@ -171,29 +171,32 @@ export class MasterOrchestrator {
     );
 
     // ── Save version snapshot (non-blocking — failure must not break pipeline) ─
-    try {
-      const isFirstRun = !checkpoint.completedPhases.length;
-      const trigger = isFirstRun ? 'initial_run' : 'manual_rerun';
-      const overallConfidence = manifest.metadata?.overallConfidence ?? null;
-      const overallGrade = manifest.metadata?.overallGrade ?? null;
-      const closureError_ft: number | null = null;
-      const callCount = manifest.metadata?.totalCalls ?? 0;
-      const documentCount = (manifest.sourceDocuments ?? []).length;
-      const label = isFirstRun
-        ? `Initial Run — ${new Date().toLocaleDateString()}`
-        : `Re-run — ${new Date().toLocaleDateString()}`;
+    const isFirstRun = !checkpoint.completedPhases.length;
+    const trigger = isFirstRun ? 'initial_run' : 'manual_rerun';
+    const overallConfidence = manifest.metadata?.overallConfidence ?? null;
+    const overallGrade = manifest.metadata?.overallGrade ?? null;
+    // closureError_ft: derive from reconciliation data when available
+    const reconData = (manifest as any)._reconciliation;
+    const closureError_ft: number | null =
+      typeof reconData?.closureError?.distance_ft === 'number'
+        ? reconData.closureError.distance_ft
+        : null;
+    const callCount = manifest.metadata?.totalCalls ?? 0;
+    const documentCount = (manifest.sourceDocuments ?? []).length;
+    const label = isFirstRun
+      ? `Initial Run — ${new Date().toLocaleDateString()}`
+      : `Re-run — ${new Date().toLocaleDateString()}`;
 
-      const store = new PipelineVersionStore();
-      await store.saveVersion(
+    const store = new PipelineVersionStore();
+    store
+      .saveVersion(
         projectId,
         trigger,
         label,
         manifest as unknown as Record<string, unknown>,
         { overallConfidence, overallGrade, closureError_ft, callCount, documentCount },
-      ).catch((err: Error) => logger.warn('Versioning', `Failed to save version: ${err.message}`));
-    } catch (err: any) {
-      logger.warn('Versioning', `Failed to save version: ${err.message}`);
-    }
+      )
+      .catch((err: Error) => logger.warn('Versioning', `Failed to save version: ${err.message}`));
 
     return manifest;
   }
