@@ -1,0 +1,28 @@
+# Files excluded from the worker Docker build context.
+node_modules
+dist
+logs
+*.log
+.env
+.env.*
+!.env.example
+
+# Dev / IDE artifacts
+.vscode
+.idea
+*.swp
+.DS_Store
+
+# Tests are not needed at runtime
+src/__tests__
+**/*.test.ts
+**/*.spec.ts
+vitest.config.ts
+
+# Git metadata isn't needed in the image
+.git
+.gitignore
+
+# Misc
+README.md
+CHANGELOG.md

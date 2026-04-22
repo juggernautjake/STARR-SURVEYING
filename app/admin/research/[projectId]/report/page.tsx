@@ -418,7 +418,7 @@ export default function FieldReportPage() {
         {/* Footer */}
         <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
           <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>
-            Powered by <strong style={{ color: '#2563eb' }}>Starr Compass</strong> — Starr Surveying Company, Belton, TX
+            Powered by <strong style={{ color: '#2563eb' }}>Starr Recon</strong> — Starr Surveying Company, Belton, TX
           </p>
           <Link
             href={`/admin/research/${projectId}`}
