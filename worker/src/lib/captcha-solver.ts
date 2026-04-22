@@ -176,11 +176,38 @@ export interface SolveAttemptSink {
   record(attempt: SolveAttemptRecord): Promise<void>;
 }
 
+/**
+ * Default sink that mirrors every solve attempt to the worker console with
+ * the same `[captcha-solver]` prefix used everywhere else. This is what the
+ * "log viewer" surfaces to operators in the Research & Analysis tab when no
+ * persisted sink (Supabase) has been wired up.
+ *
+ * Production callers may override with `setSolveAttemptSink()` to ALSO
+ * persist to `captcha_solves` — the override should still call this default
+ * (or replicate the log line) to keep operator visibility.
+ */
+export const consoleSolveAttemptSink: SolveAttemptSink = {
+  async record(a: SolveAttemptRecord) {
+    const icon   = a.success ? '✓' : '✗';
+    const cost   = a.costUsd != null ? ` cost=$${a.costUsd.toFixed(4)}` : '';
+    const proxy  = a.proxyUrl ? ` proxy=${a.proxyUrl}` : '';
+    const ctx    = [
+      a.jobId    ? `job=${a.jobId}`         : null,
+      a.adapterId ? `adapter=${a.adapterId}` : null,
+    ].filter(Boolean).join(' ');
+    const ctxFmt = ctx ? ` (${ctx})` : '';
+    const err    = a.errorMessage ? ` — ${a.errorMessage}` : '';
+    const line = `[captcha-solver] ${icon} ${a.provider} ${a.challengeType} ${a.durationMs}ms${cost}${proxy}${ctxFmt}${err}`;
+    if (a.success) console.log(line); else console.warn(line);
+  },
+};
+
+/** No-op sink. Use only in tests where you assert against a spy. */
 export const noopSolveAttemptSink: SolveAttemptSink = {
   async record() { /* no-op */ },
 };
 
-let activeSink: SolveAttemptSink = noopSolveAttemptSink;
+let activeSink: SolveAttemptSink = consoleSolveAttemptSink;
 
 /**
  * Override the active sink. Production wiring calls this once at boot
@@ -191,9 +218,9 @@ export function setSolveAttemptSink(sink: SolveAttemptSink): void {
   activeSink = sink;
 }
 
-/** Restore the no-op sink. Convenience for tests. */
+/** Restore the default console-logging sink. Convenience for tests. */
 export function resetSolveAttemptSink(): void {
-  activeSink = noopSolveAttemptSink;
+  activeSink = consoleSolveAttemptSink;
 }
 
 /**
@@ -227,6 +254,7 @@ let activeCache: CaptchaCache | null = null;
 /** Install a token cache (e.g. ioredis). Pass null to disable caching. */
 export function setCaptchaCache(cache: CaptchaCache | null): void {
   activeCache = cache;
+  console.log(`[captcha-solver] cache ${cache ? 'enabled' : 'disabled'} (ttl=${CACHE_TTL_SECONDS}s)`);
 }
 
 function cacheKey(req: SolveRequest): string {
@@ -248,11 +276,22 @@ interface CachedTokenPayload {
 
 async function getCachedToken(req: SolveRequest): Promise<SolveResult | null> {
   if (!activeCache) return null;
-  const raw = await activeCache.get(cacheKey(req));
-  if (!raw) return null;
+  const key = cacheKey(req);
+  const raw = await activeCache.get(key);
+  if (!raw) {
+    console.log(`[captcha-solver] cache miss key=${key}`);
+    return null;
+  }
   let payload: CachedTokenPayload;
-  try { payload = JSON.parse(raw); } catch { return null; }
-  if (payload.expiresAt <= Date.now() + 30_000) return null; // expiring within 30s — refetch
+  try { payload = JSON.parse(raw); } catch {
+    console.warn(`[captcha-solver] cache key ${key} returned malformed payload — ignoring`);
+    return null;
+  }
+  if (payload.expiresAt <= Date.now() + 30_000) {
+    console.log(`[captcha-solver] cache stale key=${key} (expires in <30s) — refetching`);
+    return null;
+  }
+  console.log(`[captcha-solver] cache hit key=${key} expiresAt=${new Date(payload.expiresAt).toISOString()}`);
   return {
     token: payload.token,
     provider: 'cache',
@@ -265,12 +304,14 @@ async function getCachedToken(req: SolveRequest): Promise<SolveResult | null> {
 
 async function putCachedToken(req: SolveRequest, result: SolveResult): Promise<void> {
   if (!activeCache) return;
+  const key = cacheKey(req);
   const payload: CachedTokenPayload = {
     token: result.token,
     expiresAt: result.expiresAt.getTime(),
     costUsd: result.costUsd,
   };
-  await activeCache.set(cacheKey(req), JSON.stringify(payload), CACHE_TTL_SECONDS);
+  await activeCache.set(key, JSON.stringify(payload), CACHE_TTL_SECONDS);
+  console.log(`[captcha-solver] cache set key=${key} ttl=${CACHE_TTL_SECONDS}s`);
 }
 
 // ── Factory ────────────────────────────────────────────────────────────────
@@ -290,6 +331,7 @@ export type CaptchaProvider = 'capsolver' | 'stub' | 'auto';
  */
 export function getCaptchaSolver(provider: CaptchaProvider = 'auto'): CaptchaSolver {
   const resolved = resolveProvider(provider);
+  console.log(`[captcha-solver] factory selected provider=${resolved} (requested=${provider})`);
   switch (resolved) {
     case 'capsolver': return new CapSolverProvider();
     case 'stub':      return new StubCaptchaSolver();
@@ -472,31 +514,36 @@ export class CapSolverProvider implements CaptchaSolver {
     // Poll for the result.
     const deadline = Date.now() + CAPSOLVER_POLL_TIMEOUT_MS;
     let lastResp: CapSolverGetTaskResultResponse | undefined;
+    let polls = 0;
     while (Date.now() < deadline) {
       let resp: CapSolverGetTaskResultResponse;
       try {
         resp = await http.getTaskResult(taskId);
       } catch (err) {
         throw new CaptchaSolveError(
-          `[captcha-solver:capsolver] getTaskResult failed: ${(err as Error).message}`,
+          `[captcha-solver:capsolver] getTaskResult failed after ${polls} poll${polls === 1 ? '' : 's'}: ${(err as Error).message}`,
           'provider_error',
           err,
         );
       }
+      polls++;
       lastResp = resp;
       if (resp.errorId !== 0) {
         throw new CaptchaSolveError(
-          `[captcha-solver:capsolver] task error: ${resp.errorDescription ?? resp.errorCode ?? 'unknown'}`,
+          `[captcha-solver:capsolver] task error after ${polls} poll${polls === 1 ? '' : 's'}: ${resp.errorDescription ?? resp.errorCode ?? 'unknown'}`,
           mapCapSolverErrorCategory(resp.errorCode),
         );
       }
-      if (resp.status === 'ready') break;
+      if (resp.status === 'ready') {
+        console.log(`[captcha-solver:capsolver] task ${taskId} ready after ${polls} poll${polls === 1 ? '' : 's'} (${Date.now() - start}ms)`);
+        break;
+      }
       await sleep(CAPSOLVER_POLL_INTERVAL_MS);
     }
 
     if (!lastResp || lastResp.status !== 'ready' || !lastResp.solution) {
       throw new CaptchaSolveError(
-        `[captcha-solver:capsolver] timed out waiting for task ${taskId}`,
+        `[captcha-solver:capsolver] timed out waiting for task ${taskId} after ${polls} poll${polls === 1 ? '' : 's'} (${Math.round((Date.now() - start) / 1000)}s, max ${CAPSOLVER_POLL_TIMEOUT_MS / 1000}s)`,
         'timeout',
       );
     }
@@ -540,6 +587,8 @@ async function solveWithRetry(
   req: SolveRequest,
   attempt: () => Promise<SolveResult>,
 ): Promise<SolveResult> {
+  const ctx = req.context?.adapterId ? ` adapter=${req.context.adapterId}` : '';
+  console.log(`[captcha-solver] solving type=${req.type} host=${safeHost(req.pageUrl)} provider=${solver.providerName}${ctx}`);
   let lastErr: unknown;
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
     const start = Date.now();
@@ -575,17 +624,23 @@ async function solveWithRetry(
           cat === 'unsupported_type' ||
           cat === 'invalid_request' ||
           cat === 'missing_credentials') {
+        console.warn(`[captcha-solver] non-retriable failure category=${cat} — escalating after attempt ${i + 1}/${MAX_ATTEMPTS}`);
         break;
       }
 
       // Wait before next attempt (no wait after last attempt).
       if (i < MAX_ATTEMPTS - 1) {
-        await sleep(BACKOFF_MS[i] ?? BACKOFF_MS[BACKOFF_MS.length - 1]!);
+        const backoff = BACKOFF_MS[i] ?? BACKOFF_MS[BACKOFF_MS.length - 1]!;
+        console.log(`[captcha-solver] attempt ${i + 1}/${MAX_ATTEMPTS} failed (${cat}) — backing off ${backoff}ms`);
+        await sleep(backoff);
+      } else {
+        console.warn(`[captcha-solver] attempt ${i + 1}/${MAX_ATTEMPTS} failed (${cat}) — exhausted`);
       }
     }
   }
 
   const lastMsg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  console.error(`[captcha-solver] ESCALATION REQUIRED type=${req.type} host=${safeHost(req.pageUrl)}${ctx}: ${lastMsg}`);
   throw new CaptchaEscalationRequired(
     `[captcha-solver] giving up after ${MAX_ATTEMPTS} attempts: ${lastMsg}`,
     MAX_ATTEMPTS,

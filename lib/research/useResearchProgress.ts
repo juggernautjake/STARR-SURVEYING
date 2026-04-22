@@ -84,30 +84,42 @@ export function useResearchProgress(
       setStatus('idle');
       return;
     }
+    const jobList = joinKey.split(',');
 
     let socket:    WebSocket | null = null;
     let cancelled  = false;
     let backoffIdx = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let refreshTimer:   ReturnType<typeof setTimeout> | null = null;
 
     async function connect(): Promise<void> {
       if (cancelled) return;
       setStatus('connecting');
       setLastError(null);
+      console.log(`[useResearchProgress] connecting jobs=${jobList.length} url=${wsUrl}`);
 
-      let ticket: string;
+      let ticket:     string;
+      let expiresAt:  number | undefined;
+      let ttlSeconds: number | undefined;
       try {
         const resp = await fetch('/api/ws/ticket', {
           method:  'POST',
           headers: { 'content-type': 'application/json' },
-          body:    JSON.stringify({ jobIds }),
+          body:    JSON.stringify({ jobIds: jobList }),
         });
-        if (!resp.ok) throw new Error(`ticket fetch failed: ${resp.status}`);
-        const json = (await resp.json()) as { ticket: string };
-        ticket = json.ticket;
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          throw new Error(`ticket fetch failed: ${resp.status} ${text || resp.statusText}`);
+        }
+        const json = (await resp.json()) as { ticket: string; expiresAt?: number; ttlSeconds?: number };
+        ticket     = json.ticket;
+        expiresAt  = json.expiresAt;
+        ttlSeconds = json.ttlSeconds;
       } catch (err) {
         if (cancelled) return;
-        setLastError((err as Error).message);
+        const msg = (err as Error).message;
+        console.warn(`[useResearchProgress] ticket fetch error: ${msg}`);
+        setLastError(msg);
         setStatus('error');
         scheduleReconnect();
         return;
@@ -116,7 +128,9 @@ export function useResearchProgress(
       try {
         socket = new WebSocket(`${wsUrl}/?ticket=${encodeURIComponent(ticket)}`);
       } catch (err) {
-        setLastError((err as Error).message);
+        const msg = (err as Error).message;
+        console.warn(`[useResearchProgress] socket construction failed: ${msg}`);
+        setLastError(msg);
         setStatus('error');
         scheduleReconnect();
         return;
@@ -124,8 +138,21 @@ export function useResearchProgress(
 
       socket.onopen = () => {
         if (!aliveRef.current) return;
+        console.log(`[useResearchProgress] connected jobs=${jobList.length}${ttlSeconds ? ` ticketTtl=${ttlSeconds}s` : ''}`);
         setStatus('open');
         backoffIdx = 0; // reset on successful connection
+
+        // Proactively refresh the ticket 30s before expiry by closing the
+        // socket; onclose will trigger scheduleReconnect → new ticket.
+        // Without this, the server kicks us with code 4001 mid-stream.
+        if (expiresAt) {
+          const msUntilRefresh = Math.max(5_000, expiresAt * 1000 - Date.now() - 30_000);
+          refreshTimer = setTimeout(() => {
+            if (cancelled) return;
+            console.log('[useResearchProgress] proactive ticket refresh — closing socket');
+            try { socket?.close(1000, 'ticket refresh'); } catch { /* ignore */ }
+          }, msUntilRefresh);
+        }
       };
 
       socket.onmessage = (msg) => {
@@ -138,7 +165,11 @@ export function useResearchProgress(
           return;
         }
         let event: ResearchEvent;
-        try { event = parseResearchEvent(parsed); } catch { return; }
+        try { event = parseResearchEvent(parsed); }
+        catch (err) {
+          console.warn('[useResearchProgress] dropping malformed event:', (err as Error).message);
+          return;
+        }
         setEvents((prev) => {
           const next = [...prev, event];
           if (next.length > bufferSize) next.splice(0, next.length - bufferSize);
@@ -148,11 +179,14 @@ export function useResearchProgress(
 
       socket.onerror = () => {
         if (!aliveRef.current) return;
+        console.warn('[useResearchProgress] socket error');
         setStatus('error');
       };
 
-      socket.onclose = () => {
+      socket.onclose = (ev) => {
+        if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
         if (!aliveRef.current || cancelled) return;
+        console.log(`[useResearchProgress] socket closed code=${ev.code}${ev.reason ? ` reason=${ev.reason}` : ''} — scheduling reconnect`);
         setStatus('closed');
         scheduleReconnect();
       };
@@ -162,6 +196,7 @@ export function useResearchProgress(
       if (cancelled) return;
       const delay = RECONNECT_BACKOFF_MS[Math.min(backoffIdx, RECONNECT_BACKOFF_MS.length - 1)] ?? 8000;
       backoffIdx++;
+      console.log(`[useResearchProgress] reconnect in ${delay}ms (attempt #${backoffIdx})`);
       reconnectTimer = setTimeout(() => { void connect(); }, delay);
     }
 
@@ -170,13 +205,15 @@ export function useResearchProgress(
     return () => {
       cancelled = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (refreshTimer)   clearTimeout(refreshTimer);
       if (socket) {
         try { socket.close(); } catch { /* ignore */ }
       }
     };
-  // joinKey changes when the set of jobIds changes; reconnectTick lets
-  // callers force a reconnect on demand.
-  }, [enabled, joinKey, wsUrl, bufferSize, reconnectTick, jobIds]);
+  // joinKey is a stable serialization of jobIds — using it as the dep
+  // avoids re-running on every parent render that passes a new array
+  // literal. reconnectTick lets callers force a reconnect on demand.
+  }, [enabled, joinKey, wsUrl, bufferSize, reconnectTick]);
 
   return {
     events,

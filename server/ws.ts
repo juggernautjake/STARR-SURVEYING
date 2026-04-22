@@ -73,6 +73,10 @@ export function startWsServer(opts: StartOptions = {}): WsServerHandles {
 
   // ── Authenticate on the upgrade handshake (before WS protocol switch) ──
   httpServer.on('upgrade', (req, socket, head) => {
+    // socket is a Duplex (the underlying TCP socket). Cast for the
+    // remote-address fields we use only for log lines.
+    const tcp = socket as { remoteAddress?: string; remotePort?: number };
+    const remote = `${tcp.remoteAddress ?? 'unknown'}:${tcp.remotePort ?? '?'}`;
     try {
       const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
       const ticket = url.searchParams.get('ticket');
@@ -85,7 +89,11 @@ export function startWsServer(opts: StartOptions = {}): WsServerHandles {
           socket: ws,
         };
         clients.add(state);
-        ws.on('close', () => { clients.delete(state); });
+        console.log(`[ws-server] client connected from ${remote} userId=${payload.userId} jobs=${payload.jobIds.length} (total clients: ${clients.size})`);
+        ws.on('close', (code, reason) => {
+          clients.delete(state);
+          console.log(`[ws-server] client disconnected ${remote} userId=${payload.userId} code=${code}${reason.length ? ` reason=${reason.toString()}` : ''} (total clients: ${clients.size})`);
+        });
         // Initial hello so clients can confirm auth without sending anything first.
         ws.send(JSON.stringify({
           type: 'hello',
@@ -95,7 +103,7 @@ export function startWsServer(opts: StartOptions = {}): WsServerHandles {
       });
     } catch (err) {
       // Operator log only; the client just sees the connection rejected.
-      console.warn('[ws] upgrade rejected:', (err as Error).message);
+      console.warn(`[ws-server] upgrade rejected from ${remote}: ${(err as Error).message}`);
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
     }
@@ -103,42 +111,57 @@ export function startWsServer(opts: StartOptions = {}): WsServerHandles {
 
   // ── Subscribe to all research-events channels and fan out ──
   const subRedis = new IORedis(redisUrl, { lazyConnect: opts.noListen ?? false });
+  subRedis.on('error', (err) => console.warn(`[ws-server] redis error: ${err.message}`));
+  subRedis.on('connect', () => console.log('[ws-server] redis connected'));
+  subRedis.on('reconnecting', (delay: number) => console.warn(`[ws-server] redis reconnecting in ${delay}ms`));
 
   if (!opts.noListen) {
-    subRedis.psubscribe(RESEARCH_EVENTS_CHANNEL_PATTERN).catch((err) => {
-      console.error('[ws] psubscribe failed:', err);
+    subRedis.psubscribe(RESEARCH_EVENTS_CHANNEL_PATTERN).then((count) => {
+      console.log(`[ws-server] psubscribed to ${RESEARCH_EVENTS_CHANNEL_PATTERN} (${count} pattern${count === 1 ? '' : 's'})`);
+    }).catch((err) => {
+      console.error('[ws-server] psubscribe failed:', err);
     });
   }
 
   subRedis.on('pmessage', (_pattern, channel, message) => {
     const jobId = jobIdFromChannel(channel);
-    if (!jobId) return;
-    // Validate before fan-out so a malformed publish does not crash clients.
-    let payloadStr: string;
-    try {
-      const parsed = parseResearchEvent(JSON.parse(message));
-      payloadStr = JSON.stringify(parsed);
-    } catch (err) {
-      console.warn(`[ws] dropping malformed event on ${channel}:`, (err as Error).message);
+    if (!jobId) {
+      console.warn(`[ws-server] received pmessage on unparseable channel: ${channel}`);
       return;
     }
+    // Validate before fan-out so a malformed publish does not crash clients.
+    let payloadStr: string;
+    let eventType: string;
+    try {
+      const parsed = parseResearchEvent(JSON.parse(message));
+      payloadStr  = JSON.stringify(parsed);
+      eventType   = parsed.type;
+    } catch (err) {
+      console.warn(`[ws-server] dropping malformed event on ${channel}:`, (err as Error).message);
+      return;
+    }
+    let delivered = 0;
+    let expired   = 0;
     for (const client of clients) {
       if (!client.jobIdSet.has(jobId)) continue;
       // Ticket may have expired mid-connection; close in that case.
       if (client.payload.exp <= Math.floor(Date.now() / 1000)) {
         client.socket.close(4001, 'ticket expired');
         clients.delete(client);
+        expired++;
         continue;
       }
       if (client.socket.readyState === WS.OPEN) {
         client.socket.send(payloadStr);
+        delivered++;
       }
     }
+    console.log(`[ws-server] fan-out ${eventType} job=${jobId} → delivered=${delivered}${expired ? ` expired=${expired}` : ''}`);
   });
 
   if (!opts.noListen) {
     httpServer.listen(port, () => {
-      console.log(`[ws] listening on :${port}, redis ${redisUrl}`);
+      console.log(`[ws-server] listening on :${port}, redis ${redisUrl.replace(/:[^/@]*@/, ':****@')}`);
     });
   }
 

@@ -52,6 +52,8 @@ import { LandExApiAdapter } from './services/purchase-adapters/landex-api-adapte
 import { NotificationService } from './services/notification-service.js';
 import { isCreditDepleted, getDepletionMessage, AnthropicCreditDepletedError } from './lib/credit-guard.js';
 import { acquireBrowser, validateAdapterFlagOnStartup } from './lib/browser-factory.js';
+import { setSolveAttemptSink } from './lib/captcha-solver.js';
+import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -68,6 +70,21 @@ function validateEnvironment(): void {
     { key: 'ANTHROPIC_API_KEY', critical: true },
     { key: 'SUPABASE_URL', critical: false },
     { key: 'SUPABASE_SERVICE_ROLE_KEY', critical: false },
+    // Phase A integrations — all optional. The worker boots fine without
+    // them, but specific code paths gate on them. Operators should see a
+    // single-line warning per missing key on every boot so misconfiguration
+    // is loud rather than silent.
+    { key: 'REDIS_URL',                  critical: false }, // research-events publisher
+    { key: 'WS_TICKET_SECRET',           critical: false }, // ticket signing (matches server/ws.ts)
+    { key: 'CAPSOLVER_API_KEY',          critical: false }, // captcha-solver real provider
+    { key: 'BROWSERBASE_API_KEY',        critical: false }, // browser-factory cloud backend
+    { key: 'BROWSERBASE_PROJECT_ID',     critical: false },
+    { key: 'BROWSERBASE_ENABLED_ADAPTERS', critical: false },
+    { key: 'STORAGE_BACKEND',            critical: false }, // 'local' | 'r2'
+    { key: 'R2_ACCOUNT_ID',              critical: false }, // only required when STORAGE_BACKEND=r2
+    { key: 'R2_ACCESS_KEY_ID',           critical: false },
+    { key: 'R2_SECRET_ACCESS_KEY',       critical: false },
+    { key: 'R2_BUCKET',                  critical: false },
   ];
 
   let hasErrors = false;
@@ -81,6 +98,19 @@ function validateEnvironment(): void {
       }
     }
   }
+
+  // Phase A: log effective integration backend selections so the operator
+  // can confirm at-a-glance which providers are active in this boot.
+  const captchaProvider = process.env.CAPTCHA_PROVIDER
+    ?? (process.env.CAPSOLVER_API_KEY ? 'capsolver (auto)' : 'stub (default)');
+  const browserBackend  = process.env.BROWSER_BACKEND ?? 'local (default)';
+  const storageBackend  = process.env.STORAGE_BACKEND ?? 'local (default)';
+  const wsConfigured    = process.env.WS_TICKET_SECRET ? 'configured' : 'MISSING (POST /api/ws/ticket will return 503)';
+  const redisConfigured = process.env.REDIS_URL        ? 'configured' : 'MISSING (defaulting to redis://localhost:6379)';
+  console.log(
+    `[startup] Phase A: captcha=${captchaProvider} browser=${browserBackend} storage=${storageBackend} ` +
+    `ws-ticket=${wsConfigured} redis=${redisConfigured}`,
+  );
 
   if (hasErrors) {
     console.error('[FATAL] Server cannot start without required environment variables.');
@@ -757,6 +787,44 @@ app.get('/health', async (_req: Request, res: Response) => {
   checks.anthropic = apiKey
     ? { status: apiKey.startsWith('sk-') ? 'ok' : 'warning', detail: 'Key present' }
     : { status: 'unconfigured' };
+
+  // ── Phase A integrations ──
+  // Each check is config-only (does NOT make an outbound call) so /health
+  // stays cheap and never times out on a flaky third party. The Testing
+  // Lab "Phase A Integrations" section surfaces these statuses.
+  checks.captcha_solver = process.env.CAPSOLVER_API_KEY
+    ? { status: 'ok',           detail: `provider=${process.env.CAPTCHA_PROVIDER ?? 'capsolver (auto)'}` }
+    : { status: 'unconfigured', detail: `provider=${process.env.CAPTCHA_PROVIDER ?? 'stub (no API key)'}` };
+
+  const browserBackend = process.env.BROWSER_BACKEND ?? 'local';
+  if (browserBackend === 'browserbase') {
+    const ok = !!(process.env.BROWSERBASE_API_KEY && process.env.BROWSERBASE_PROJECT_ID);
+    const enabled = process.env.BROWSERBASE_ENABLED_ADAPTERS ?? '';
+    checks.browser_factory = ok
+      ? { status: 'ok',      detail: `backend=browserbase enabled=${enabled || '(none — gates all callers to local)'}` }
+      : { status: 'warning', detail: 'backend=browserbase but BROWSERBASE_API_KEY or BROWSERBASE_PROJECT_ID missing' };
+  } else {
+    checks.browser_factory = { status: 'ok', detail: `backend=${browserBackend}` };
+  }
+
+  const storageBackend = process.env.STORAGE_BACKEND ?? 'local';
+  if (storageBackend === 'r2') {
+    const haveAll = process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID
+      && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET;
+    checks.document_storage = haveAll
+      ? { status: 'ok',      detail: `backend=r2 bucket=${process.env.R2_BUCKET}` }
+      : { status: 'warning', detail: 'backend=r2 but R2_ACCOUNT_ID/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_BUCKET missing' };
+  } else {
+    checks.document_storage = { status: 'ok', detail: `backend=${storageBackend}` };
+  }
+
+  checks.research_events = process.env.REDIS_URL
+    ? { status: 'ok', detail: 'REDIS_URL configured' }
+    : { status: 'warning', detail: 'REDIS_URL missing — falling back to redis://localhost:6379' };
+
+  checks.websocket_auth = process.env.WS_TICKET_SECRET
+    ? { status: 'ok', detail: 'WS_TICKET_SECRET configured' }
+    : { status: 'unconfigured', detail: 'WS_TICKET_SECRET missing — /api/ws/ticket will return 503' };
 
   const allOk = Object.values(checks).every((c) => c.status === 'ok' || c.status === 'unconfigured');
 
@@ -4091,6 +4159,15 @@ app.get('/research/cleanup/stats', requireAuth, rateLimit(30, 60_000), async (re
 
 validateEnvironment();
 validateAdapterFlagOnStartup();
+
+// Install the PipelineLogger-aware captcha sink so every solve attempt
+// becomes a LayerAttempt entry on the active project's logger AND keeps
+// firing the default console line. Effect: captcha activity now appears
+// in the in-app Log Viewer (Research & Analysis → Logs tab) for the
+// running project, matching the visibility level of every other
+// pipeline subsystem. See worker/src/lib/pipeline-logger-sinks.ts.
+setSolveAttemptSink(makePipelineLoggerCaptchaSink());
+console.log('[startup] captcha sink → PipelineLogger bridge installed');
 
 app.listen(PORT, () => {
   console.log(`

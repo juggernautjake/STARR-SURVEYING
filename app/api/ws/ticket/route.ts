@@ -28,12 +28,14 @@ export const runtime = 'nodejs';
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.email) {
+    console.warn('[ws-ticket] 401: unauthenticated ticket request');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const secret = process.env.WS_TICKET_SECRET;
   if (!secret) {
     // Fail closed in prod; never serve unsigned tickets.
+    console.error('[ws-ticket] 503: WS_TICKET_SECRET is not configured — refusing to issue ticket');
     return NextResponse.json(
       { error: 'WebSocket auth is not configured (WS_TICKET_SECRET missing)' },
       { status: 503 },
@@ -48,10 +50,12 @@ export async function POST(req: NextRequest) {
     : [];
 
   if (requested.length === 0) {
+    console.warn(`[ws-ticket] 400: ${session.user.email} requested ticket with no jobIds`);
     return NextResponse.json({ error: 'jobIds (string[]) is required' }, { status: 400 });
   }
   if (requested.length > 50) {
     // Clients shouldn't be subscribing to many jobs from one tab.
+    console.warn(`[ws-ticket] 400: ${session.user.email} requested ${requested.length} jobIds (max 50)`);
     return NextResponse.json({ error: 'Too many jobIds (max 50)' }, { status: 400 });
   }
 
@@ -65,13 +69,14 @@ export async function POST(req: NextRequest) {
     .eq('created_by', session.user.email);
 
   if (error) {
-    console.error('[ws/ticket] supabase lookup failed:', error);
+    console.error('[ws-ticket] supabase lookup failed:', error);
     return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 });
   }
 
   const owned = new Set((data ?? []).map((r: { id: string }) => r.id));
   const denied = requested.filter((id) => !owned.has(id));
   if (denied.length > 0) {
+    console.warn(`[ws-ticket] 403: ${session.user.email} denied ${denied.length}/${requested.length} jobIds: ${denied.join(', ')}`);
     return NextResponse.json(
       { error: 'Forbidden', deniedJobIds: denied },
       { status: 403 },
@@ -84,6 +89,7 @@ export async function POST(req: NextRequest) {
     secret,
     WS_TICKET_DEFAULT_TTL_SECONDS,
   );
+  console.log(`[ws-ticket] issued for ${session.user.email} jobs=${requested.length} ttl=${WS_TICKET_DEFAULT_TTL_SECONDS}s`);
 
   return NextResponse.json({
     ticket,
