@@ -15,7 +15,7 @@ interface SiteStatus {
 
 interface IntegrationCheck {
   key: string;
-  status: 'ok' | 'warning' | 'error' | 'unconfigured';
+  status: 'ok' | 'warning' | 'error' | 'unconfigured' | 'unknown';
   detail?: string;
 }
 
@@ -64,7 +64,7 @@ export default function HealthCheckTab() {
           .filter(([k]) => PHASE_A_KEYS.has(k))
           .map(([k, v]) => ({
             key: k,
-            status: (v?.status as IntegrationCheck['status']) ?? 'unknown' as IntegrationCheck['status'],
+            status: (v?.status as IntegrationCheck['status']) ?? 'unknown',
             detail: v?.detail,
           }));
         setIntegrations(phaseA);

@@ -103,11 +103,11 @@ function validateEnvironment(): void {
     ?? (process.env.CAPSOLVER_API_KEY ? 'capsolver (auto)' : 'stub (default)');
   const browserBackend  = process.env.BROWSER_BACKEND ?? 'local (default)';
   const storageBackend  = process.env.STORAGE_BACKEND ?? 'local (default)';
-  const wsConfigured    = !!process.env.WS_TICKET_SECRET;
-  const redisConfigured = !!process.env.REDIS_URL;
+  const wsConfigured    = process.env.WS_TICKET_SECRET ? 'configured' : 'MISSING (POST /api/ws/ticket will return 503)';
+  const redisConfigured = process.env.REDIS_URL        ? 'configured' : 'MISSING (defaulting to redis://localhost:6379)';
   console.log(
     `[startup] Phase A: captcha=${captchaProvider} browser=${browserBackend} storage=${storageBackend} ` +
-    `ws-ticket=${wsConfigured ? 'configured' : 'MISSING'} redis=${redisConfigured ? 'configured' : 'default-localhost'}`,
+    `ws-ticket=${wsConfigured} redis=${redisConfigured}`,
   );
 
   if (hasErrors) {
