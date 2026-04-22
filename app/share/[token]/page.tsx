@@ -5,7 +5,7 @@
 //
 // No authentication required — this page is accessed via a share link.
 // Renders a permission-filtered view of a research project report with
-// optional password prompt and "Powered by Starr Compass" branding.
+// optional password prompt and "Powered by Starr Recon" branding.
 
 import { useState, useEffect } from 'react';
 
@@ -47,7 +47,7 @@ function PoweredBy() {
   return (
     <footer className="mt-12 pt-6 border-t border-gray-200 text-center text-xs text-gray-400">
       Powered by{' '}
-      <span className="font-semibold text-blue-600">Starr Compass</span> —
+      <span className="font-semibold text-blue-600">Starr Recon</span> —
       AI Property Research by Starr Surveying Company, Belton, TX
     </footer>
   );

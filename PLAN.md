@@ -2520,7 +2520,7 @@ To sell this as a standalone product to other surveying firms, civil engineering
 interface WhiteLabelConfig {
     // Branding
     companyName: string;           // "Starr Surveying" → "Acme Engineering"
-    productName: string;           // "Starr Compass" → "Acme Research Tool"
+    productName: string;           // "Starr Recon" → "Acme Research Tool"
     logoUrl: string;
     primaryColor: string;
     

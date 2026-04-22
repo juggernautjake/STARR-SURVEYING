@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 200_recon_graph.sql
--- STARR RECON / Starr Compass — Document Graph Schema
+-- STARR RECON / Starr Recon — Document Graph Schema
 --
 -- Adds a property-research graph layer ALONGSIDE the existing relational
 -- tables in 090_research_tables.sql. Nothing here drops or alters the
