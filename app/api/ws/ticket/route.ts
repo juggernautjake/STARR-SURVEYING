@@ -1,8 +1,8 @@
 // app/api/ws/ticket/route.ts
 //
 // Issues short-lived HMAC tickets that authorize a browser to open a
-// WebSocket connection to server/ws.ts. See lib/shared/ws-ticket.ts for
-// the format and lib/shared/research-events.ts for the events delivered
+// WebSocket connection to server/ws.ts. See worker/src/shared/ws-ticket.ts for
+// the format and worker/src/shared/research-events.ts for the events delivered
 // over that connection.
 //
 // Request:  POST /api/ws/ticket

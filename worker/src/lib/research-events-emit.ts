@@ -1,7 +1,7 @@
 // worker/src/lib/research-events-emit.ts
 //
 // Worker-side helper for publishing research events into Redis. Consumed
-// by `server/ws.ts` (see lib/shared/research-events.ts for the catalog).
+// by `server/ws.ts` (see worker/src/shared/research-events.ts for the catalog).
 //
 // Architecture rationale (per Phase A spec, answer D): the worker MUST
 // publish via Redis pub/sub rather than connect directly to the WS
