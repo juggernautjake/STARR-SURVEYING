@@ -2,16 +2,21 @@
 
 **Status:** Design sketch (no code yet)
 **Owner:** Jacob, Starr Software
-**Last Updated:** April 2026
+**Last Updated:** April 2026 (deepened in PR 2)
 **Companion docs:** `docs/platform/STARR_SOFTWARE_SUITE.md`, `docs/platform/RECON_INVENTORY.md`
 
-> **Document layout note (Apr 2026 PR 1 restructure):** This draft was
-> relocated from `docs/STARR_ARCHIVE_INTAKE.md` to `docs/product/starr-archive.md`
-> and its top-level sections were renamed to match the canonical sketch
-> outline (PURPOSE → INTAKE FLOW → DATA MODEL HOOKS → PRODUCT TIER FIT →
-> PHYSICAL INTAKE LOGISTICS → OPEN QUESTIONS). Every existing section is
-> preserved; sections that don't map directly to a canonical heading are
-> grouped under **ADDITIONAL NOTES** at the end with their original
+> **Document layout note (Apr 2026):** PR 1 relocated this draft from
+> `docs/STARR_ARCHIVE_INTAKE.md` to `docs/product/starr-archive.md` and
+> renamed its top-level sections to match the canonical sketch outline
+> (PURPOSE → INTAKE FLOW → DATA MODEL HOOKS → PRODUCT TIER FIT →
+> PHYSICAL INTAKE LOGISTICS → OPEN QUESTIONS). PR 2 deepened each
+> canonical section with the spec detail described in the round-2
+> prompt: a 7-step canonical intake walk-through, concrete graph-node
+> schema additions (`archive_origin`, `ARCHIVED_FROM`, `PhysicalArtifact`),
+> a tier-fit sketch, expanded scanner/OCR logistics, a Starr-Recon
+> integration section, and four added open questions. Every existing
+> section is preserved; sections that don't map 1:1 to a canonical
+> heading are grouped under **ADDITIONAL NOTES** with original
 > numbering retained for traceability.
 
 ---
@@ -55,6 +60,27 @@ The intake flow MUST optimize for Dad's experience. Office Staff and Jacob are t
 ---
 
 ## INTAKE FLOW
+
+### 3.0. Canonical 7-Step Walk-Through
+
+The three intake paths below (A bulk, B scan-station, C mobile) all funnel into the same seven-step canonical pipeline. This is the spec the implementation should map to one-to-one. Whether a file arrives via flash-drive walker, scanner watch directory, or PWA upload, by the time it leaves Step 7 it has the same shape and the same provenance.
+
+**Step 1 — Ingest.** A file lands on the platform. The ingest worker assigns it a SHA-256 content hash, stages the raw bytes into the R2 cold bucket at a content-addressed path (`archive-raw/<sha256[0:2]>/<sha256>.<ext>`), and writes an `archive_files` row with `ocr_status = 'pending'` and `job_id = NULL`. Re-ingesting the same bytes is a no-op (dedupe by hash). Source provenance — which scanner, which drive, which device — is captured in `source_drive_id` and `archive_origin` (see §7) so we can always answer "where did this file come from."
+
+**Step 2 — Auto-classification.** A classifier assigns the file one of nine categories: `deed`, `plat`, `survey`, `field_notes`, `sketch`, `photo`, `correspondence`, `invoice`, or `miscellaneous`. The classifier is a small ensemble: filename + path heuristics first (cheap), then PDF text-content fingerprints (medium), then a Claude-Vision call on the first page for stubborn cases (expensive, batched). Confidence below the configured threshold drops to `miscellaneous`. **`miscellaneous` is the safety valve and is never an error — a document classified as `miscellaneous` is still indexed, still searchable, and still appears in triage.** The Archive never forces a classification it doesn't trust; doing so silently corrupts every downstream query.
+
+**Step 3 — Metadata extraction.** From the text content, OCR result, EXIF / PDF / DXF embedded metadata, and the parent path, the extractor pulls **all of**: `date`, `county`, `surveyor_name`, `client_name`, `project_number`, `instrument_number` (if a recorded document), `recording_reference` (volume/page or document number), `address`, `parcel_id`. **Every one of these is optional.** Archive's defining property — the thing that distinguishes it from Recon's structured intake — is that it accepts documents which may have *none* of these fields populated and still be useful. A field-notes scrap with only "Smith Job, 1987" written on the corner is still a record. The extractor records what it found, marks the rest `null`, and moves on.
+
+**Step 4 — Suggested links.** The linker proposes connections from the new file to existing graph entities (jobs, properties, parties, prior documents) using a tiered confidence model. The tiers, in descending strength: **exact `parcel_id` match → high confidence**; **fuzzy address match (normalized via `worker/src/services/address-normalizer.ts`, Levenshtein under threshold) → medium**; **fuzzy owner-name match (token-set ratio) → low**; **`(date ± 6 months) AND county` overlap → very low**. Every suggestion carries a numeric `confidence ∈ [0, 1]` and an `evidence` blob explaining which signals fired. The user accepts or rejects each link individually in Step 5. **The linker never auto-applies high-confidence matches** — the cost of a wrong auto-link in a legal-records system is far higher than the cost of one extra click.
+
+**Step 5 — User review.** Every classification, every extracted metadata field, and every suggested link from Steps 2–4 surfaces in the triage UI as a proposal awaiting user confirmation. Archive is **"user-confirmed by default"** — the inverse of Recon's posture, which is "auto-extracted and user-flagged for inconsistencies." The reasoning: Recon's source documents are public-record documents whose structure is highly regular and whose quality is high; Archive's source documents are decades of mixed-quality material from filing cabinets. Auto-applying classifications and links here would propagate noise into the graph forever. The triage UI is therefore not optional; it's the thing that makes Archive trustworthy. (The triage UI is sketched in §6.)
+
+**Step 6 — Graph integration.** Once the user confirms, the file becomes a first-class node in the property-intelligence graph with a **`source: "starr_archive"`** provenance flag set on the node and on every edge it participates in. The graph layer treats Archive nodes identically to Recon-discovered nodes for traversal, scoring, and query — same `Document` table, same edge types, same indexes. The only difference is the provenance flag, which the UI uses to render Archive nodes with a distinct visual indicator (an archive-folder icon, a subtle background tint, or a corner badge — to be locked in the screen-build round). This means a single property's graph can mix Recon and Archive evidence freely; users always know which is which.
+
+**Step 7 — Search integration.** Archive documents and Recon documents share a single unified search index (Postgres `tsvector` over `ocr_text` + JSONB structured-field index, mirroring `seeds/200_recon_graph.sql`). Default search returns hits from both sources interleaved by relevance; a single facet filter (`source: [archive, recon, both]`) lets the user scope results. The default is "both" because the whole point of integrating Archive into the platform is that prior Starr work surfaces in the same query as new public-record discovery, without the user having to remember to look in two places.
+
+---
+
 ### 3. Three Intake Paths
 
 Different sources need different ergonomics. The Archive accepts all three, normalizes everything to the same record shape, and lets the catalog hide the source distinction from search.
@@ -217,6 +243,18 @@ R2 is preferred over Supabase Storage for raw because Cloudflare's egress-free p
 
 **No physical destruction.** Even after a job is fully digitized and indexed, the physical filing-cabinet folder stays put — for legal/professional-records reasons and because Dad isn't ready for that yet. Archive includes a `physical_location` field on each Job (e.g. "Cabinet 3, Drawer B, folder labeled SMITH 2018") so the digital record points back at the paper. Stretch goal: a labeling step that prints/writes a barcode sticker for the physical folder so a future "scan to find paper" UX is possible.
 
+### 5.1. Commercial Tier Fit (sketch — no commitments)
+
+| Phase | Tier exposure | Notes |
+|---|---|---|
+| **Phase 1** | **Free for Starr Surveying internal use only.** | Starr is the dogfooding customer. No external pricing model required to ship. |
+| **Phase 2** | **Paid add-on for Crew + Enterprise tiers** of the existing Starr Software pricing structure (see `docs/platform/STARR_SOFTWARE_SUITE.md`). Not bundled into Surveyor Pro. | Solo surveyors generally don't have the filing-cabinet backlog problem at the scale that justifies the storage / OCR cost. Crew + Enterprise customers do. |
+| **Phase 2 (cont.)** | **Storage cost model is separate from Recon's storage cap.** | An Archive is by definition a large, slowly-growing pool. Counting it against the Recon storage cap would penalize firms with rich archives — exactly the firms whose archives produce the most regression-set value. Treat Archive storage as its own metered line item with its own pricing curve. |
+| **Phase 2 (cont.)** | **Pricing TBD.** | Two plausible models on the table: (i) per-GB stored per month with a generous bundled allowance; (ii) per-active-job per month with unlimited storage per job. The choice depends on how customers actually use the system; defer until we have real usage data from Phase 1 dogfooding. **Flagged for the pricing-decisions doc when that doc exists.** |
+| **Phase 3+** | Possible higher tier ("Records Vault") that adds the `PhysicalArtifact` node type, barcode-printing workflow, and signed-deliverable retention. | Not a commitment; just a placeholder so we don't accidentally name something else "Vault." Reserved name per `docs/platform/STARR_SOFTWARE_SUITE.md`. |
+
+This whole subsection is a **sketch** — no pricing decisions are being locked here. The point is to capture the constraints (Archive ≠ Recon storage cap, Solo tier doesn't get it, pricing model is TBD) so they don't get lost between now and the Phase 2 build.
+
 ---
 
 ### 6. The Triage Queue
@@ -325,6 +363,77 @@ archive_audit_log
 
 Full-text search uses a `tsvector` on `archive_files.ocr_text` plus the existing JSONB pattern. Index strategy lifts from `seeds/200_recon_graph.sql`.
 
+### 7.1. Graph-Node Schema Additions (the part that touches Recon's existing `Document` table)
+
+The tables above (`archive_jobs`, `archive_files`, …) are Archive's *own* persistence. But Step 6 of the canonical intake flow promotes confirmed files into the **property-intelligence graph**, which is the same `Document`/`Party`/`Property` graph Recon writes to. Three additions to that graph land alongside the Archive build:
+
+**(a) `Document.archive_origin` — JSONB attribute, nullable**
+
+Added to the existing `Document` node table. Populated only on nodes whose `source = 'starr_archive'`. Captures the physical-world provenance the rest of the graph doesn't know about.
+
+```jsonc
+{
+  "scanner_id": "office-fujitsu-01",      // which scanner ingested this; null for Path A bulk imports
+  "scan_date": "2026-04-15T14:22:00Z",    // when the scan happened (ingest time, not document creation)
+  "original_location": "Cabinet 3, Drawer B, folder 'SMITH 2018-447'",
+                                           // human-readable filing-cabinet pointer; free-text
+  "physical_status": "filed",             // 'filed' | 'lost' | 'returned-to-client' | 'destroyed' |
+                                           //   'transferred' | 'unknown'
+  "scan_quality": "good"                   // 'good' | 'partial' | 'illegible'
+}
+```
+
+`physical_status` defaults to `'filed'` and is only updated when the operator records a custody event (the paper got returned to a client, the folder went missing, etc.). `scan_quality` is set by the OCR step or by an operator override during triage; queries that demand high-fidelity inputs (e.g. a regression-fixture harvest) filter to `scan_quality = 'good'`.
+
+**(b) `ARCHIVED_FROM` edge — `Document → Document`, new edge type**
+
+Used when a digitized document is known to have a specific physical original *and that physical original is also tracked as a node* (typically a `PhysicalArtifact` node — see (c)). The digitized `Document` is the source of the edge; the physical original is the target. Examples:
+
+- A scanned PDF of a recorded plat → ARCHIVED_FROM → the physical plat sheet stored in Cabinet 3.
+- A photo of a hand-drawn field-note page → ARCHIVED_FROM → the field-book the page came from.
+
+The edge carries no attributes beyond the standard provenance trio (`created_at`, `created_by`, `confidence`). It's mostly a navigation primitive: "show me the physical custody history of this document I'm looking at."
+
+`ARCHIVED_FROM` is distinct from the existing `DERIVED_FROM` edge (which expresses "this document was extracted/cropped/reprocessed from another digital document"). The two can coexist on the same node.
+
+**(c) `PhysicalArtifact` node — new node type — Phase 2, sketch only, not in initial build**
+
+Optional. For firms that want to track the physical items themselves rather than only the digital scans of them. Most users will never need this; the Belton office almost certainly will (the filing-cabinet inventory is the long-tail problem we keep gesturing at).
+
+```jsonc
+{
+  "id": "uuid",
+  "artifact_type": "field_book",        // 'plat_sheet' | 'field_book' | 'job_folder' |
+                                         //   'cad_plot' | 'photo_print' | 'flash_drive' |
+                                         //   'cassette' | 'other'
+  "location": "Cabinet 3, Drawer B, folder 'SMITH 2018-447'",
+  "condition": "good",                  // 'good' | 'fragile' | 'damaged' | 'missing'
+  "last_seen": "2026-04-15T14:22:00Z",
+  "custody_history": [                  // append-only; oldest first
+    {
+      "at": "1987-06-12T00:00:00Z",
+      "actor": "Wayne Starr (PLS)",
+      "action": "filed",
+      "location": "Cabinet 3, Drawer B"
+    },
+    {
+      "at": "2024-09-03T11:00:00Z",
+      "actor": "Jacob Starr",
+      "action": "removed-for-scanning",
+      "location": "Office workstation"
+    },
+    {
+      "at": "2024-09-03T16:30:00Z",
+      "actor": "Jacob Starr",
+      "action": "refiled",
+      "location": "Cabinet 3, Drawer B"
+    }
+  ]
+}
+```
+
+**`PhysicalArtifact` is explicitly Phase 2 of Archive — sketch only, not in the initial build.** The reason: every firm's filing-cabinet ontology is different. Trying to lock the schema before we've ingested even one real cabinet's worth of paper is premature optimization. v1 ships with `Document.archive_origin.original_location` as a free-text pointer; that's enough to find the paper without committing to a schema for tracking it as its own first-class entity. When/if a customer actually needs cabinet-level inventory and barcode-scan workflows, the `PhysicalArtifact` node type lifts out of this section into its own spec doc.
+
 ---
 
 ### 8. Integration with Starr Recon
@@ -350,9 +459,55 @@ When a Job is fully digitized and a Recon project has been run on that same prop
 
 This is the path by which the regression set grows from 1 (synthetic) → 5 → 15 → 50, per the Phase A/B/D plan in `docs/platform/RECON_INVENTORY.md §11`.
 
+### 8.1. Active Research View — Archive Surfacing UX
+
+The two-way wiring above is the data pipe; this section is what the user actually sees.
+
+**When a Recon project is opened on a property and Archive contains documents matching that property** (matched via the same parcel-id / fuzzy-address heuristics used in Step 4 of the canonical intake flow), the active-research view changes in three specific ways:
+
+1. **A "Prior Starr Work at this Address" banner** appears at the top of the project intake screen, listing the matched archive jobs (by job number + year + client name). Clicking through opens the job folder in a side panel without leaving the Recon project.
+
+2. **Archive matches appear in the Document Viewer panel alongside the public-record documents Recon discovers.** They render with a distinct visual indicator — an **archive-folder icon in the corner** of the document tile (the exact glyph and color get locked in the screen-build round; for now, "visually distinct from public-record documents at a glance" is the requirement). Hovering reveals "From Starr Archive — Job 2018-447" tooltip. The visual treatment is a corner badge rather than a wholesale color change because the user needs to see Archive matches as a peer source, not as a second-class one.
+
+3. **Archive matches are opt-in to the report.** This is the load-bearing requirement of this section. **Archive documents do NOT auto-flow into the generated report.** The user must explicitly include each Archive document the same way they explicitly include any other discovered document. The reasoning: a Recon report is a deliverable a customer pays for; including Starr's prior internal work in it without an explicit "yes, include this" gesture risks (a) embedding stale information, (b) confusing the report's evidentiary base, and (c) violating the implicit trust contract that says "the report contains only what you confirmed should be in the report." The rule is the same one Recon already follows for low-confidence public-record discoveries: nothing enters the report without a click.
+
+These three behaviors map cleanly to existing affordances in `app/admin/research/`, so the build cost is low — a new banner component, an icon-overlay variant of the existing document tile, and an `is_archive_source` flag on the report-inclusion picker.
+
 ---
 
 ## PHYSICAL INTAKE LOGISTICS
+
+### 9.0. Hardware, OCR, and Operations
+
+This section is the operational counterpart to Path B (scan-station) and Path C (mobile) above — what equipment, what software, what workflow.
+
+**Bulk scanner recommendations.** The choice depends on the document mix.
+
+| Scenario | Recommended | Why |
+|---|---|---|
+| **Loose-leaf bulk batch** (job folders pulled apart for scanning) | **Fujitsu ScanSnap iX1600** | Sheet-fed duplex, ~40 ppm color, automatic blank-page detection, cheap per page, lives next to the office workstation. The de-facto choice for paper-heavy small offices and the option Dad will tolerate. |
+| **Bound documents** (field books with stitched bindings, recorded-document binders that can't be separated) | **Czur ET24 Pro** (or Czur Aura X for portability) | Overhead camera with curve-flattening firmware. Doesn't require unbinding the source. ~10× slower per page than a sheet-fed but doesn't damage the binding. |
+| **One-off field captures** (a wall-mounted plat at a courthouse, a hand-drawn sketch on the hood of a truck) | **Phone camera fallback via the PWA** | No dedicated hardware; perspective-correction in the PWA before upload (see Path C). Quality is "good enough for OCR if the lighting is reasonable." |
+| **Microfilm or microfiche** (if any decade-old courthouse rolls turn up) | **Out of scope for v1.** Note for the future. | Microform scanners are expensive and rarely needed; vendor-out when it comes up. |
+
+**OCR workflow.** Tiered by document type and content.
+
+| Source | Engine | Notes |
+|---|---|---|
+| **Typed text** (recorded deeds, plats with engraved labels, modern surveyor reports, invoices, correspondence) | **Tesseract 5** | Open-source, runs on the worker pool, free. Good enough for clean typed text. Layout-aware mode (`--psm 6`) for mixed-content pages. |
+| **Mixed typed-and-handwritten** (forms with handwritten fill-ins, marked-up plats, annotated drawings) | **Tesseract for the typed regions, Anthropic Claude Vision for the handwritten regions.** | The classifier in Step 2 of the canonical flow sets a `has_handwriting` flag; downstream OCR routes accordingly. Claude Vision is paid per call, so it's only used when needed. |
+| **Pure handwritten field notes** (Dad's notebook pages, hand-drawn sketches with measurements, pencilled closures) | **Claude Vision** with a survey-domain prompt. | Tesseract handwriting is unusable for survey field notes. Claude is the only option that gets close enough to be useful, and even it requires user-confirmation on extracted measurements before they enter the graph. |
+| **Photo of paper** (a phone snap of a wall plat, low light, perspective-skewed) | **PWA-side perspective correction → Claude Vision.** | The PWA does the geometric rectification before upload; the worker doesn't try to undo bad camera angles. |
+| **Already-OCR'd PDFs** (the text layer is embedded) | **Skip OCR; use the embedded text directly.** | Saves cost and is more accurate than re-OCR. Detected by checking for a non-empty PDF text layer at ingest time. |
+
+OCR runs in a **separate worker queue** from Recon. Reasons in §11.4 (added below).
+
+**Filing-cabinet tracking.** Out of scope for v1 — the `PhysicalArtifact` node type sketched in §7.1(c) is the hook for it when the time comes. v1 ships with `Document.archive_origin.original_location` as a free-text field; that's enough to write "Cabinet 3, Drawer B" into the record without committing to a structured cabinet inventory.
+
+**Vendor scanning services.** For firms that don't want to do scanning in-house — or for backlogs too large to chew through with the office scanner — third-party document-scanning vendors (e.g. Iron Mountain, local records-management firms) are a viable option. The Archive workflow accepts vendor output the same way it accepts in-house Path A bulk imports: the vendor returns a directory of files (typically named PDFs with a manifest CSV), the operator points the bulk-importer CLI at it, and the canonical 7-step pipeline takes over. **Note this only as an option in the customer-facing material; do not build vendor-specific integrations in v1.** If a customer with a giant backlog needs help, they ship a USB drive to a vendor and the vendor ships back a USB drive — that's a workflow problem, not an integration problem.
+
+---
+
 ### 9. What's Out of Scope Here (separate sketches when needed)
 
 - **Search UI.** The /admin/archive/search screen design.
@@ -384,7 +539,44 @@ This is the rough sequencing **whenever Starr Archive becomes a build priority**
 ---
 
 ## OPEN QUESTIONS
-### 11. Decision Log
+
+### 11.1. Worker Queue Topology — Archive vs Recon
+
+Should Archive ingest run on the **same worker pool** as Recon, or get its **own background queue**?
+
+**Recommendation: separate queue, lower priority.** Archive ingest is bursty (a Path-A bulk import can dump 5,000 files at once) and tolerant of latency (nobody is waiting in real time for that 1987 deed to finish OCR'ing). Recon jobs, by contrast, are interactive — the user kicked one off and is waiting on the screen. Sharing a queue means an Archive bulk-import can starve a live Recon job; that's the kind of behavior that erodes trust in the platform fast.
+
+Concretely: a separate `archive-ingest` queue with its own worker concurrency cap, run on the same worker fleet but at a lower priority than `recon-jobs`. If we ever scale to dedicated workers, Archive moves to its own pool. **Decision pending — flagged for the queue-architecture discussion when worker resourcing comes up.**
+
+### 11.2. Bulk-Import UX
+
+What's the actual user experience for a 5,000-file Path-A import?
+
+Three plausible shapes, each with a different friction profile:
+
+- **Drag a folder onto a web page.** Browser walks the folder, uploads one file at a time, shows a progress bar. Works well up to a few hundred files; falls over past that because of browser memory and connection-stability problems.
+- **Email-to-import.** User mails a zip to `archive@<their-tenant>.starr.app`; server-side worker unpacks and ingests. Works for any size; works around browser limits; loses interactive feedback.
+- **Scanner direct integration.** The office scanner POSTs straight to the Archive intake endpoint (most modern document scanners support custom HTTP destinations). Best ergonomics for the steady-state Path B workflow; doesn't help the one-shot Path A backlog.
+
+Likely answer for v1: **drag-and-drop in the browser for small batches (<500 files), CLI for large batches (`npx starr-archive import ./path`), scanner direct POST for Path B.** Email-to-import deferred unless customers specifically ask for it. **Open for input.**
+
+### 11.3. Duplicate Detection UX
+
+If a user uploads the same deed twice — same content, different filenames, different upload sessions — what should happen?
+
+Mechanically, the SHA-256 dedupe in Step 1 of the canonical flow ensures we never store the bytes twice. But the user-facing question is: should the second upload be **silently ignored**, **explicitly reported** ("we already have this — we attached your upload to the existing record"), or **prompted** ("we already have this — keep both, merge metadata, or discard the new one")?
+
+Recommendation: **explicit-report by default, prompt only when the metadata diverges.** The user uploaded it for a reason; silently ignoring violates the principle that every user action gets a visible response. But if both copies have identical metadata, there's nothing to prompt about. If the new upload has different metadata than the stored record (different `job_id`, different `category`, different `address`), the prompt offers merge / replace / keep-as-second-copy. **Pending UX review.**
+
+### 11.4. Privacy and Permission Model
+
+Which org members can see Archive contents? **Same as Recon job permissions, or Archive-specific?**
+
+Two pulls in opposite directions. (a) **Same as Recon** is simpler — fewer concepts, one permissions model to reason about. (b) **Archive-specific** acknowledges that Archive contains genuinely more sensitive material than Recon: client correspondence, internal decision notes, hand-drawn drafts that were never meant to leave the office. A junior crew member who has access to a Recon job for a specific property might reasonably *not* have access to the Archive folder for that property's prior client.
+
+Likely answer: **Archive-specific permissions layered on top of the Recon permissions model.** Default = inherit Recon permissions; opt-in to Archive-only roles for sensitive material. This requires no schema changes Recon doesn't already need (the existing role system covers it), just a new `archive_*` permission scope. **Pending decision.**
+
+### 11.5. Decision Log
 
 | Date | Decision | Reason |
 |---|---|---|
