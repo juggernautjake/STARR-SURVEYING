@@ -399,8 +399,14 @@ starr-software/                     # Turborepo monorepo root
 #### Phase 16 — COMPLETE ✅ (Working Prototype)
 `lib/research/survey-plan.service.ts` (AI-powered field survey plan generator — `generateSurveyPlan()` builds plain-English field plan from all extracted data: boundary calls, monuments, easements, flood zone, TxDOT ROW, discrepancies), `app/api/admin/research/[projectId]/survey-plan/route.ts` (GET endpoint — returns survey plan at any project stage), `app/admin/research/components/SurveyPlanPanel.tsx` (full-featured React component with 9-tab sidebar: Summary, Pre-Field Checklist, Equipment, Field Steps, Monument Recovery, Boundary Reconstruction, Discrepancies, Data Sources, Timeline), `app/api/admin/research/[projectId]/lite-pipeline/route.ts` (POST/GET inline pipeline that runs without the external worker: geocode → search 10+ sources → capture USGS map images → import records → run AI analysis → collect summary), `worker/src/services/harvest-supabase-sync.ts` (Worker Supabase integration — inserts harvested documents into `research_documents`, uploads images to Supabase Storage, back-patches storage URLs), `lib/research/prompts.ts` updated (SURVEY_PLAN_GENERATOR prompt v1.0.0), `app/admin/research/[projectId]/page.tsx` updated (Survey Plan tab added to Review step, SurveyPlanPanel added to Complete step), `app/admin/research/components/PropertySearchPanel.tsx` updated (One-Click Research button and status display for lite pipeline). **90 unit tests (50 survey plan + 40 worker sync).** 2,117 total tests pass.
 
-#### Phase 17 — PLANNED 🔴 (BIS GIS Integration)
-`worker/src/services/bis-cad.ts` — `searchBisGis()` HTTP-only ArcGIS REST query (Layer 1E) added; `GisPropertyData` interface; `FIELD_ALIASES` flexible field extraction; `gisBaseUrl` added to `BisConfig` interface and populated for 17 verified counties. Full Playwright UI scraping, parcel boundary geometry conversion, and Eagle Eye aerial capture remain as TODO items.
+#### Phase 17 — COMPLETE ✅ (BIS GIS Integration)
+`worker/src/services/bis-cad.ts` — `searchBisGis()` HTTP-only ArcGIS REST query (Layer 1E); `GisPropertyData` interface with `parcelRings`; `FIELD_ALIASES` flexible field extraction; `gisBaseUrl` populated for 17+ verified counties. **New (April 2026):** `captureEagleEyeScreenshot(gisBaseUrl, propertyId, logger)` — Playwright captures satellite/aerial screenshot of the BIS GIS viewer for a property; `parcelRingsToSurveyCalls(rings, closeLoop?)` — converts ArcGIS `parcelRings` lat/lon coordinate arrays to survey bearing/distance calls in surveyor notation (`N 04°07'23" E`), Haversine distances in US Survey Feet. 25 unit tests in `__tests__/recon/phase17-bis-gis.test.ts`.
+
+#### Phase 18 — COMPLETE ✅ (Data Versioning + Cleanup)
+`worker/src/services/pipeline-version-store.ts`, `worker/src/services/pipeline-diff-engine.ts`, `seeds/096_phase18_versions.sql`, `app/api/admin/research/[projectId]/versions/route.ts` — versioned pipeline snapshots (already built). **New (April 2026):** `worker/src/orchestrator/master-orchestrator.ts` updated to call `PipelineVersionStore.saveVersion()` after every successful run (non-blocking, failure-safe); `worker/src/services/project-cleanup-service.ts` — 90-day retention policy with `listExpiredProjects()`, `archiveProject()`, `deleteArchivedProject()`, `runRetentionPass()`, `getRetentionStats()`; `seeds/098_phase_cleanup_retention.sql` — `project_cleanup_log` table with RLS; `POST /research/cleanup` + `GET /research/cleanup/stats` worker endpoints. 25 unit tests in `__tests__/recon/phase-cleanup.test.ts`.
+
+#### Mobile-Friendly Field Report — COMPLETE ✅
+`app/admin/research/[projectId]/report/page.tsx` — new mobile-optimized field report page for surveyors: sticky dark nav, large confidence score card, scrollable boundary calls list, monument chips, severity-coded discrepancies, all tap targets ≥44px. `app/share/[token]/page.tsx` updated for mobile responsiveness (flex-wrap headers, 16px minimum data text). Linked from the main project page.
 
 ### What Still Needs External Input (Cannot Be Fully Tested Without)
 
@@ -426,10 +432,10 @@ starr-software/                     # Turborepo monorepo root
 
 1. 🔴 Live Playwright selector tuning — Tyler Pay, Henschen Pay, iDocket Pay, Fidlar Pay portal layouts need live verification and per-county selector adjustments
 2. 🔴 GovOS guest CC form fill — requires raw card data or advanced Stripe tokenization flow; currently requires pre-tokenized Stripe card token
-3. 🔴 Mobile-friendly report output — responsive web report for field use on phones/tablets
+3. ✅ Mobile-friendly report output — `/admin/research/[projectId]/report` field report + responsive share page — COMPLETE (April 2026)
 4. 🔴 AI prompt A/B testing — compare prompt versions, track accuracy metrics
-5. 🔴 Data versioning — diff pre-purchase vs post-purchase reconciliation outputs
-6. 🔴 Cleanup/retention policy — archive old projects to S3, delete local files after 90 days
+5. ✅ Data versioning — PipelineVersionStore + PipelineDiffEngine + master-orchestrator integration — COMPLETE (April 2026)
+6. ✅ Cleanup/retention policy — ProjectCleanupService (90-day archival), SQL schema, worker endpoints — COMPLETE (April 2026)
 7. 🔴 Cross-county properties — detect and handle properties straddling two county lines
 8. 🔴 TNRIS LiDAR integration — high-resolution elevation from Texas Natural Resources Information System
 9. 🔴 USPS address validation — improve rural address normalization
