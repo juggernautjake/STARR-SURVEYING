@@ -60,7 +60,7 @@ function ConfidenceBadge({ score }: { score: number }) {
     : pct >= 60 ? 'bg-yellow-100 text-yellow-800'
     : 'bg-red-100 text-red-800';
   return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${color}`}>
+    <span className={`inline-flex items-center px-3 py-1 rounded-full text-base font-bold min-h-[44px] ${color}`}>
       {pct}% confidence
     </span>
   );
@@ -83,11 +83,11 @@ function PasswordForm({ onSubmit }: { onSubmit: (pw: string) => void }) {
           onChange={(e) => setPw(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && pw && onSubmit(pw)}
           placeholder="Enter password"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+          className="w-full border border-gray-300 rounded-lg px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
         />
         <button
           onClick={() => pw && onSubmit(pw)}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+          className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-base font-medium py-3 min-h-[44px] rounded-lg transition-colors"
         >
           View Report
         </button>
@@ -185,20 +185,20 @@ export default function SharePage({ params }: SharePageProps) {
   const permission = shareRecord.permission;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gray-50 py-6 px-4 overflow-x-hidden">
+      <div className="max-w-2xl mx-auto w-full">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">
                 Property Research Report
               </p>
-              <h1 className="text-xl font-bold text-gray-900 leading-snug">
+              <h1 className="text-xl font-bold text-gray-900 leading-snug break-words">
                 {reportData.property_address ?? 'Property Report'}
               </h1>
               {(reportData.county || reportData.state) && (
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-base text-gray-500 mt-1">
                   {[reportData.county, reportData.state].filter(Boolean).join(', ')}
                 </p>
               )}
@@ -214,9 +214,9 @@ export default function SharePage({ params }: SharePageProps) {
 
         {/* Legal description — hidden for summary_only */}
         {permission !== 'summary_only' && reportData.legal_description && (
-          <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-2">Legal Description</h2>
-            <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+          <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4">
+            <h2 className="text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wide">Legal Description</h2>
+            <p className="text-base text-gray-600 whitespace-pre-wrap leading-relaxed">
               {reportData.legal_description}
             </p>
           </section>
@@ -225,9 +225,9 @@ export default function SharePage({ params }: SharePageProps) {
         {/* Boundary summary — shown for boundary_only and documents_excluded */}
         {(permission === 'boundary_only' || permission === 'full_report' || permission === 'documents_excluded') &&
           reportData.boundary_summary && (
-          <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-2">Boundary Summary</h2>
-            <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+          <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4">
+            <h2 className="text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wide">Boundary Summary</h2>
+            <p className="text-base text-gray-600 whitespace-pre-wrap leading-relaxed">
               {reportData.boundary_summary}
             </p>
           </section>
@@ -236,7 +236,7 @@ export default function SharePage({ params }: SharePageProps) {
         {/* Status pill */}
         {reportData.status && permission !== 'boundary_only' && (
           <div className="mb-4">
-            <span className="inline-block bg-gray-100 text-gray-600 text-xs font-medium px-3 py-1 rounded-full">
+            <span className="inline-block bg-gray-100 text-gray-600 text-sm font-medium px-4 py-2 min-h-[44px] flex items-center rounded-full">
               Status: {reportData.status.replace(/_/g, ' ')}
             </span>
           </div>

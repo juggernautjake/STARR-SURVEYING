@@ -613,9 +613,25 @@ export default function TestCard({
     }
   };
 
-  const handleStepForward = () => {
+  const handleStepForward = async () => {
     const next = findAdjacentEvent('next');
     if (next) setCurrentTime(next.timestamp);
+
+    // Also advance the worker step gate when in step mode so live execution
+    // proceeds to the next __trace() checkpoint.
+    if (executionMode === 'step' && context.projectId && (status === 'running' || status === 'paused')) {
+      try {
+        await fetch('/api/admin/research/testing/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            module: 'step',
+            inputs: {},
+            projectId: context.projectId,
+          }),
+        });
+      } catch { /* non-fatal — UI still scrubs locally */ }
+    }
   };
 
   const handleStepBack = () => {

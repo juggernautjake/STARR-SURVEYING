@@ -73,6 +73,7 @@ const MODULE_ENDPOINTS: Record<string, { method: string; path: string }> = {
   'cancel':                { method: 'POST', path: '/research/cancel/{projectId}' },
   'pause':                 { method: 'POST', path: '/research/pause/{projectId}' },
   'resume':                { method: 'POST', path: '/research/resume/{projectId}' },
+  'step':                  { method: 'POST', path: '/research/step/{projectId}' },
 
   // Worker deployment
   'deploy':                { method: 'POST', path: '/admin/deploy' },
@@ -194,11 +195,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   const body = await req.json();
-  const { module, inputs, projectId, branch } = body as {
+  const { module, inputs, projectId, branch, executionMode } = body as {
     module: string;
     inputs: Record<string, unknown>;
     projectId?: string;
     branch?: string;
+    executionMode?: string;
   };
 
   if (!module) {
@@ -222,6 +224,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     testMode: true,
     module,
     ...(branch ? { branch } : {}),
+    ...(executionMode ? { executionMode } : {}),
   };
 
   const controller = new AbortController();
