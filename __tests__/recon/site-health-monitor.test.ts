@@ -1,30 +1,21 @@
 // __tests__/recon/site-health-monitor.test.ts
 // Tests for the Site Health Monitor — selector validation and alert system.
+//
+// Mock strategy: mock `acquireBrowser` from browser-factory directly.
+// This is more robust than mocking 'playwright' because:
+//   1. SiteHealthMonitor imports acquireBrowser, not playwright directly.
+//   2. browser-factory uses a dynamic import('playwright') internally, which
+//      is not reliably intercepted by vi.mock('playwright') in all CI envs.
+//   3. Mocking at the acquireBrowser boundary works regardless of which
+//      backend (local/stub/browserbase) is selected by env vars.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
-// We mock Playwright so tests don't need a real browser
-vi.mock('playwright', () => {
-  const mockPage = {
-    goto: vi.fn().mockResolvedValue({ status: () => 200 }),
-    content: vi.fn().mockResolvedValue('<html><body>Normal page</body></html>'),
-    waitForTimeout: vi.fn().mockResolvedValue(undefined),
-    $$: vi.fn().mockResolvedValue([]),
-    screenshot: vi.fn().mockResolvedValue(Buffer.from('fake')),
-    close: vi.fn().mockResolvedValue(undefined),
-  };
-
-  const mockBrowser = {
-    newPage: vi.fn().mockResolvedValue(mockPage),
-    close: vi.fn().mockResolvedValue(undefined),
-  };
-
-  return {
-    chromium: {
-      launch: vi.fn().mockResolvedValue(mockBrowser),
-    },
-  };
-});
+// Mock acquireBrowser at the factory boundary — prevents any playwright
+// binary launch attempt and gives every test full control of the browser.
+vi.mock('../../worker/src/lib/browser-factory.js', () => ({
+  acquireBrowser: vi.fn(),
+}));
 
 // Mock fs for screenshot directory creation
 vi.mock('fs', async (importOriginal) => {
@@ -42,23 +33,56 @@ vi.mock('fs', async (importOriginal) => {
 });
 
 import { SiteHealthMonitor, type SiteAlert, type SiteHealthResult } from '../../worker/src/infra/site-health-monitor.js';
-import { chromium } from 'playwright';
+import { acquireBrowser } from '../../worker/src/lib/browser-factory.js';
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function makeMockPage(overrides: Partial<{
+  gotoStatus: number;
+  content: string;
+  selectorResults: object[];
+  gotoError?: Error;
+}> = {}) {
+  const {
+    gotoStatus = 200,
+    content = '<html><body>Normal page</body></html>',
+    selectorResults = [],
+    gotoError,
+  } = overrides;
+
+  return {
+    goto: gotoError
+      ? vi.fn().mockRejectedValue(gotoError)
+      : vi.fn().mockResolvedValue({ status: () => gotoStatus }),
+    content: vi.fn().mockResolvedValue(content),
+    waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    $$: vi.fn().mockResolvedValue(selectorResults),
+    screenshot: vi.fn().mockResolvedValue(Buffer.from('fake')),
+    close: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+function makeMockBrowser(page: ReturnType<typeof makeMockPage>) {
+  return {
+    newPage: vi.fn().mockResolvedValue(page),
+    close: vi.fn().mockResolvedValue(undefined),
+  };
+}
 
 describe('SiteHealthMonitor', () => {
 
   let monitor: SiteHealthMonitor;
-  let alertCallback: ReturnType<typeof vi.fn<(alert: SiteAlert) => void>>;
-  let mockPage: any;
-  let mockBrowser: any;
+  let alertCallback: Mock<(alert: SiteAlert) => void>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     alertCallback = vi.fn<(alert: SiteAlert) => void>();
     monitor = new SiteHealthMonitor({ onAlert: alertCallback });
 
-    // Get references to the mocked browser/page
-    mockBrowser = (chromium.launch as any).mock?.results?.[0]?.value;
-    // We'll re-resolve the mock for each test
+    // Default: healthy page, no selectors found (simulates real-world empty)
+    const defaultPage = makeMockPage();
+    const defaultBrowser = makeMockBrowser(defaultPage);
+    (acquireBrowser as Mock).mockResolvedValue(defaultBrowser);
   });
 
   // ── Constructor & Lifecycle ─────────────────────────────────────────────
@@ -114,23 +138,8 @@ describe('SiteHealthMonitor', () => {
   // ── Health Check Logic ──────────────────────────────────────────────────
 
   it('should run checkAll and return a summary', async () => {
-    // Re-setup the mock to return found elements for required selectors
-    const mockElements = [{ /* mock element */ }];
-    const newMockPage = {
-      goto: vi.fn().mockResolvedValue({ status: () => 200 }),
-      content: vi.fn().mockResolvedValue('<html><body>Normal page</body></html>'),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-      $$: vi.fn().mockResolvedValue(mockElements), // All selectors found
-      screenshot: vi.fn().mockResolvedValue(Buffer.from('fake')),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-
-    const newMockBrowser = {
-      newPage: vi.fn().mockResolvedValue(newMockPage),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-
-    (chromium.launch as any).mockResolvedValue(newMockBrowser);
+    const mockPage = makeMockPage({ selectorResults: [{ found: true }] });
+    (acquireBrowser as Mock).mockResolvedValue(makeMockBrowser(mockPage));
 
     const summary = await monitor.checkAll();
 
@@ -147,20 +156,8 @@ describe('SiteHealthMonitor', () => {
   });
 
   it('should mark a site as healthy when all required selectors are found', async () => {
-    const mockElements = [{ /* mock element */ }];
-    const newMockPage = {
-      goto: vi.fn().mockResolvedValue({ status: () => 200 }),
-      content: vi.fn().mockResolvedValue('<html><body>Normal</body></html>'),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-      $$: vi.fn().mockResolvedValue(mockElements),
-      screenshot: vi.fn().mockResolvedValue(Buffer.from('')),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-
-    (chromium.launch as any).mockResolvedValue({
-      newPage: vi.fn().mockResolvedValue(newMockPage),
-      close: vi.fn().mockResolvedValue(undefined),
-    });
+    const mockPage = makeMockPage({ selectorResults: [{ found: true }] });
+    (acquireBrowser as Mock).mockResolvedValue(makeMockBrowser(mockPage));
 
     const summary = await monitor.checkAll();
     const healthySites = summary.sites.filter(s => s.status === 'healthy');
@@ -168,19 +165,8 @@ describe('SiteHealthMonitor', () => {
   });
 
   it('should mark a site as down when required selectors are missing', async () => {
-    const newMockPage = {
-      goto: vi.fn().mockResolvedValue({ status: () => 200 }),
-      content: vi.fn().mockResolvedValue('<html><body>Empty page</body></html>'),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-      $$: vi.fn().mockResolvedValue([]), // No selectors found
-      screenshot: vi.fn().mockResolvedValue(Buffer.from('')),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-
-    (chromium.launch as any).mockResolvedValue({
-      newPage: vi.fn().mockResolvedValue(newMockPage),
-      close: vi.fn().mockResolvedValue(undefined),
-    });
+    const mockPage = makeMockPage({ selectorResults: [] }); // no selectors found
+    (acquireBrowser as Mock).mockResolvedValue(makeMockBrowser(mockPage));
 
     const summary = await monitor.checkAll();
     const downSites = summary.sites.filter(s => s.status === 'down');
@@ -194,19 +180,11 @@ describe('SiteHealthMonitor', () => {
   });
 
   it('should detect Cloudflare challenge pages', async () => {
-    const newMockPage = {
-      goto: vi.fn().mockResolvedValue({ status: () => 200 }),
-      content: vi.fn().mockResolvedValue('<html><body>Just a moment... cf-challenge</body></html>'),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-      $$: vi.fn().mockResolvedValue([{ /* element */ }]),
-      screenshot: vi.fn().mockResolvedValue(Buffer.from('')),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-
-    (chromium.launch as any).mockResolvedValue({
-      newPage: vi.fn().mockResolvedValue(newMockPage),
-      close: vi.fn().mockResolvedValue(undefined),
+    const mockPage = makeMockPage({
+      content: '<html><body>Just a moment... cf-challenge</body></html>',
+      selectorResults: [{ found: true }],
     });
+    (acquireBrowser as Mock).mockResolvedValue(makeMockBrowser(mockPage));
 
     const summary = await monitor.checkAll();
     const cloudflareAlerts = summary.alerts.filter(a => a.type === 'cloudflare_blocked');
@@ -214,19 +192,10 @@ describe('SiteHealthMonitor', () => {
   });
 
   it('should handle site navigation errors gracefully', async () => {
-    const newMockPage = {
-      goto: vi.fn().mockRejectedValue(new Error('net::ERR_NAME_NOT_RESOLVED')),
-      content: vi.fn().mockResolvedValue(''),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-      $$: vi.fn().mockResolvedValue([]),
-      screenshot: vi.fn().mockResolvedValue(Buffer.from('')),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-
-    (chromium.launch as any).mockResolvedValue({
-      newPage: vi.fn().mockResolvedValue(newMockPage),
-      close: vi.fn().mockResolvedValue(undefined),
+    const mockPage = makeMockPage({
+      gotoError: new Error('net::ERR_NAME_NOT_RESOLVED'),
     });
+    (acquireBrowser as Mock).mockResolvedValue(makeMockBrowser(mockPage));
 
     const summary = await monitor.checkAll();
     const downSites = summary.sites.filter(s => s.status === 'down');
@@ -238,19 +207,8 @@ describe('SiteHealthMonitor', () => {
   });
 
   it('should handle HTTP error responses', async () => {
-    const newMockPage = {
-      goto: vi.fn().mockResolvedValue({ status: () => 503 }),
-      content: vi.fn().mockResolvedValue('<html>Service Unavailable</html>'),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-      $$: vi.fn().mockResolvedValue([]),
-      screenshot: vi.fn().mockResolvedValue(Buffer.from('')),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-
-    (chromium.launch as any).mockResolvedValue({
-      newPage: vi.fn().mockResolvedValue(newMockPage),
-      close: vi.fn().mockResolvedValue(undefined),
-    });
+    const mockPage = makeMockPage({ gotoStatus: 503, selectorResults: [] });
+    (acquireBrowser as Mock).mockResolvedValue(makeMockBrowser(mockPage));
 
     const summary = await monitor.checkAll();
     const downSites = summary.sites.filter(s => s.status === 'down');
@@ -277,24 +235,9 @@ describe('SiteHealthMonitor', () => {
   // ── Selector Check Results ──────────────────────────────────────────────
 
   it('should report individual selector results for each site', async () => {
-    const foundForRequired = vi.fn()
-      .mockResolvedValueOnce([{ /* element */ }])  // first selector found
-      .mockResolvedValueOnce([])                    // second selector missing
-      .mockResolvedValue([{ /* element */ }]);      // rest found
-
-    const newMockPage = {
-      goto: vi.fn().mockResolvedValue({ status: () => 200 }),
-      content: vi.fn().mockResolvedValue('<html><body>Normal</body></html>'),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-      $$: foundForRequired,
-      screenshot: vi.fn().mockResolvedValue(Buffer.from('')),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-
-    (chromium.launch as any).mockResolvedValue({
-      newPage: vi.fn().mockResolvedValue(newMockPage),
-      close: vi.fn().mockResolvedValue(undefined),
-    });
+    // Return a found element for all selector checks
+    const mockPage = makeMockPage({ selectorResults: [{ found: true }] });
+    (acquireBrowser as Mock).mockResolvedValue(makeMockBrowser(mockPage));
 
     const summary = await monitor.checkAll();
     // At least one site should have selector check results
@@ -318,19 +261,8 @@ describe('SiteHealthMonitor', () => {
   // ── Alert callback ──────────────────────────────────────────────────────
 
   it('should invoke the onAlert callback for each alert', async () => {
-    const newMockPage = {
-      goto: vi.fn().mockResolvedValue({ status: () => 200 }),
-      content: vi.fn().mockResolvedValue('<html><body></body></html>'),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-      $$: vi.fn().mockResolvedValue([]), // all selectors missing
-      screenshot: vi.fn().mockResolvedValue(Buffer.from('')),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-
-    (chromium.launch as any).mockResolvedValue({
-      newPage: vi.fn().mockResolvedValue(newMockPage),
-      close: vi.fn().mockResolvedValue(undefined),
-    });
+    const mockPage = makeMockPage({ selectorResults: [] }); // all selectors missing
+    (acquireBrowser as Mock).mockResolvedValue(makeMockBrowser(mockPage));
 
     await monitor.checkAll();
 
@@ -347,19 +279,8 @@ describe('SiteHealthMonitor', () => {
   // ── Concurrency ─────────────────────────────────────────────────────────
 
   it('should handle concurrent checks without crashing', async () => {
-    const newMockPage = {
-      goto: vi.fn().mockResolvedValue({ status: () => 200 }),
-      content: vi.fn().mockResolvedValue('<html><body>OK</body></html>'),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-      $$: vi.fn().mockResolvedValue([{ /* mock */ }]),
-      screenshot: vi.fn().mockResolvedValue(Buffer.from('')),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-
-    (chromium.launch as any).mockResolvedValue({
-      newPage: vi.fn().mockResolvedValue(newMockPage),
-      close: vi.fn().mockResolvedValue(undefined),
-    });
+    const mockPage = makeMockPage({ selectorResults: [{ found: true }] });
+    (acquireBrowser as Mock).mockResolvedValue(makeMockBrowser(mockPage));
 
     // Run two checks simultaneously — should not deadlock or crash
     const [summary1, summary2] = await Promise.all([

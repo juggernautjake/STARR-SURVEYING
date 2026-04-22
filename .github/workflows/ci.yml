@@ -55,6 +55,7 @@ jobs:
         run: npm test
         env:
           NODE_ENV: test
+          BROWSER_BACKEND: stub
           NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co'
           NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder'
           SUPABASE_SERVICE_ROLE_KEY: 'placeholder'
@@ -82,8 +83,23 @@ jobs:
         run: npm ci
         working-directory: worker
 
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: worker
+
       - name: Build worker TypeScript
         run: npm run build
         working-directory: worker
         env:
           NODE_ENV: test
+
+      - name: Run worker tests
+        run: npm test
+        working-directory: worker
+        env:
+          NODE_ENV: test
+          BROWSER_BACKEND: stub
+          SUPABASE_URL: 'https://placeholder.supabase.co'
+          SUPABASE_SERVICE_ROLE_KEY: 'placeholder'
+          ANTHROPIC_API_KEY: 'placeholder'
+          WORKER_API_KEY: 'placeholder'
