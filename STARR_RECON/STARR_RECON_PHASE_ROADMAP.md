@@ -3,7 +3,7 @@
 
 **Product Name:** Starr Compass — AI Property Research  
 **Acronym:** STARR RECON — **S**urvey **T**itle **A**utomated **R**esearch & **R**econnaissance  
-**Version:** 1.0 | **Last Updated:** March 2026  
+**Version:** 1.0 | **Last Updated:** April 2026  
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)  
 **For:** AI Agent Consumption (Claude Code / GitHub Copilot / Claude.ai)
 
@@ -338,14 +338,19 @@ starr-software/                     # Turborepo monorepo root
 | 14 | Document Access Tiers & Paid Platform Automation | 🟢 COMPLETE | 415 | Phases 1–13 | 57–58 |
 | 15 | Full Purchase Automation, Bexar County & Notifications | 🟢 COMPLETE | 580+ | Phases 1–14 | 59–62 |
 | 16 | Working Prototype: Survey Plan Generator & Lite Pipeline | 🟢 COMPLETE | 300+ | Phases 1–15 | 63 |
-| 17 | BIS GIS Integration | 🔴 PLANNED | — | Phase 1 | TBD |
-| — | **TOTAL** | — | **18,541+** | — | — |
+| 17 | BIS GIS Full Integration (Eagle Eye + Parcel Geometry) | 🟢 COMPLETE | 200+ | Phase 1 | 64 |
+| 18 | Data Versioning (orchestrator wired) + Cleanup Retention Policy | 🟢 COMPLETE | 300+ | Phases 10–17 | 65 |
+| — | **TOTAL** | — | **19,041+** | — | — |
 
-> **Current Status (March 2026):** All 16 phases are COMPLETE. **2,117 unit tests pass.**
+> **Current Status (April 2026):** Phases 1–18 + Cleanup all COMPLETE. **2,970 unit tests pass.** Testing Lab Phases 5–8 also complete.
 >
-> - Phase 16: One-Click Research (lite pipeline without external worker), AI survey field plan generator, SurveyPlanPanel UI component with 9 tabs (summary, checklist, equipment, field steps, monuments, boundary, discrepancies, sources, timeline), Survey Plan tab added to Review step, plain-English field plan with confidence scoring
-> - Pipeline runs end-to-end for Bell, Harris, and Tarrant counties
-> - Phase 15: Full purchase automation (Tyler/Henschen/iDocket/Fidlar/GovOS/LandEx), Bexar County adapter, Notification Service (email+SMS), Stripe webhook, document_wallet_balance and document_purchase_history tables
+> - Phase 18: PipelineVersionStore wired into master-orchestrator, ProjectCleanupService (90-day retention), worker endpoints for cleanup/stats, `project_cleanup_log` SQL schema
+> - Phase 17: Eagle Eye aerial Playwright screenshot (`captureEagleEyeScreenshot`), parcel ring-to-survey-call conversion (`parcelRingsToSurveyCalls`)
+> - Testing Lab Phase 5: Worker step gate, `POST /research/step/:projectId`, live step-through execution
+> - Testing Lab Phases 6–8: Dependency graph, AI analyze/inspect, AI chat assistant (streaming SSE)
+> - Mobile field report page at `/admin/research/[projectId]/report`
+> - Phase 16: One-Click Research (lite pipeline without external worker), AI survey field plan generator, SurveyPlanPanel UI component with 9 tabs
+> - Phase 15: Full purchase automation (Tyler/Henschen/iDocket/Fidlar/GovOS/LandEx), Bexar County adapter, Notification Service (email+SMS), Stripe webhook
 
 ---
 
@@ -1821,6 +1826,6 @@ Please implement this task following the implementation rules in Section 12 of t
 ---
 
 *End of STARR RECON Master Roadmap v1.0*  
-*Starr Software / Starr Surveying Company — Belton, Texas — March 2026*  
+*Starr Software / Starr Surveying Company — Belton, Texas — April 2026*  
 *This document is the single source of truth for AI-assisted development of the STARR RECON pipeline.*  
-*Next: See individual phase spec files (`PHASE_01_DISCOVERY.md` through `PHASE_14_DOCUMENT_ACCESS.md`)*
+*Next: See individual phase spec files (`PHASE_01_DISCOVERY.md` through `PHASE_18_DATA_VERSIONING.md`)*

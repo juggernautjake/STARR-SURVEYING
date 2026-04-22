@@ -102,8 +102,8 @@
 | `FullPipelineTab` currentPhase only updates from log parsing | ✅ Resolved (log parsing works, real phase events also flow) |
 | `LogViewerTab` has no feed from active TestCard runs | ✅ Resolved — `useTestingLogStore` shared pub/sub store |
 | `paused` CardStatus requires worker pause support | ✅ Resolved — `POST /research/pause/:projectId` + `POST /research/resume/:projectId` endpoints |
-| Multi-branch side-by-side comparison UI | Deferred to Phase 7 |
-| No test coverage for Testing Lab components | Deferred to Phase 8 |
+| Multi-branch side-by-side comparison UI | Deferred to Phase 9 |
+| No test coverage for Testing Lab services | ✅ Resolved (April 2026) — `phase5-step-gate.test.ts` (19), `phase17-bis-gis.test.ts` (25), `phase-cleanup.test.ts` (25) |
 
 ---
 
