@@ -714,7 +714,7 @@ export interface DeliverableRecord {
   deliveredTo:   string;           // Client name or email
   deliveryMethod: 'DOWNLOAD' | 'EMAIL' | 'PORTAL';
   formats:       string[];         // ['PDF', 'DXF']
-  invoiceId:     string | null;    // Link to Starr Forge invoice
+  invoiceId:     string | null;    // Link to Starr Ledger invoice (renamed from Starr Forge — see CONTRIBUTING.md)
 }
 ```
 

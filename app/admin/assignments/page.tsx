@@ -1,5 +1,6 @@
 // app/admin/assignments/page.tsx — View and manage assignments
 'use client';
+import '../styles/AdminAssignments.css';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';

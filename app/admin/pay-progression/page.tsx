@@ -1,5 +1,6 @@
 // app/admin/pay-progression/page.tsx
 'use client';
+import '../styles/AdminPayroll.css';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';

@@ -1,5 +1,6 @@
 // app/admin/my-hours/page.tsx — Employee daily time logging
 'use client';
+import '../styles/AdminTimeLogs.css';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';

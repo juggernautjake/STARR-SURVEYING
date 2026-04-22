@@ -1,5 +1,6 @@
 // app/admin/schedule/page.tsx — My Schedule / Calendar
 'use client';
+import '../styles/AdminSchedule.css';
 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';

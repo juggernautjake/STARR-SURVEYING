@@ -1,6 +1,14 @@
 /** @type {import('next').NextConfig} */
+const isDev = process.env.NODE_ENV !== 'production';
+
 const nextConfig = {
   reactStrictMode: true,
+  // Page extensions: production builds use only the standard extensions, while
+  // dev builds also include `.dev.tsx`/`.dev.ts` so route group `app/(dev)/`
+  // pages (e.g. `app/(dev)/dev-test/page.dev.tsx`) are stripped from prod.
+  pageExtensions: isDev
+    ? ['tsx', 'ts', 'jsx', 'js', 'dev.tsx', 'dev.ts']
+    : ['tsx', 'ts', 'jsx', 'js'],
   images: {
     unoptimized: false,
     formats: ['image/avif', 'image/webp'],

@@ -24,13 +24,13 @@ All product names start with **Starr** to anchor the brand. Each product has a o
 
 | Codename / Public name | Status | What it does |
 |---|---|---|
-| **Starr Recon** (`STARR_RECON/` in repo) | In active build | AI property research and analysis pipeline. Takes any Texas address, autonomously researches the property + adjoiners across CAD/clerk/TxDOT/FEMA/GLO/TCEQ/RRC/NRCS, cross-validates boundaries, produces confidence-scored research report with CAD-ready exports. |
-| **Starr Forge** (`STARR_CAD/` in repo) | Planned (specs in `STARR_CAD_PHASE_*.md`) | AI-assisted CAD drafting tailored to surveyors. Imports Starr Recon output, drafts the plat, exports DXF/PDF for stamping. |
-| **Starr Archive** (`STARR_ARCHIVE/` in repo) | Sketched (`docs/STARR_ARCHIVE_INTAKE.md`) | Intake + indexing system for the existing Starr filing-cabinet / PC / flash-drive archive. Feeds digitized historical jobs back into the Starr Recon regression set and serves as a long-term records system. |
-| **Starr Orbit** (`STARR_FIELD/` in repo) | Planned | Field-data-collector companion app + sync layer. Talks to Trimble TSC7, Carlson, Leica. Pushes survey jobs to the device, pulls back observations. |
-| **Starr Academy** (`STARR_LMS/` in repo) | Existing in repo | Learning management for surveyor/CST training. Already built into the Next.js admin portal. |
-| **Starr Ledger** (`STARR_JOBS/` in repo) | Existing in repo | Job tracking, leads, hours, payroll. Already built into the Next.js admin portal. |
-| **Starr Site** (`STARR_PUBLIC/` in repo) | Existing in repo | Public marketing website + intake forms. Already built. |
+| **Starr Recon** (`docs/planning/in-progress/STARR_RECON/` in repo) | In active build | AI property research and analysis pipeline. Takes any Texas address, autonomously researches the property + adjoiners across CAD/clerk/TxDOT/FEMA/GLO/TCEQ/RRC/NRCS, cross-validates boundaries, produces confidence-scored research report with CAD-ready exports. |
+| **Starr Forge** (`app/admin/cad/` in repo) | Planned (specs in `docs/planning/in-progress/STARR_CAD/STARR_CAD_PHASE_*.md`) | AI-assisted CAD drafting tailored to surveyors. Imports Starr Recon output, drafts the plat, exports DXF/PDF for stamping. |
+| **Starr Archive** (`(future) lib/starr-archive/` in repo) | Sketched (`docs/product/starr-archive.md`) | Intake + indexing system for the existing Starr filing-cabinet / PC / flash-drive archive. Feeds digitized historical jobs back into the Starr Recon regression set and serves as a long-term records system. |
+| **Starr Orbit** (no code yet) | Planned | Field-data-collector companion app + sync layer. Talks to Trimble TSC7, Carlson, Leica. Pushes survey jobs to the device, pulls back observations. |
+| **Starr Academy** (`app/admin/learn/`) | Existing in repo | Learning management for surveyor/CST training. Already built into the Next.js admin portal. |
+| **Starr Ledger** (split across `app/admin/{jobs,payroll,hours-approval,my-hours,my-jobs,my-pay,payout-log,schedule,assignments}/` and `app/admin/components/payroll/`) | Existing in repo | Job tracking, leads, hours, payroll. Already built into the Next.js admin portal. *Renamed Apr 2026 from "Starr Forge" (in some planning docs) to avoid clash with the CAD product. Code is not yet consolidated under a `lib/starr-ledger/` namespace; rename is tracked in `CONTRIBUTING.md`.* |
+| **Starr Site** (top-level `app/` outside `app/admin/`) | Existing in repo | Public marketing website + intake forms. Already built. |
 
 ### Reserved names (no product yet — reserved so we don't have to retrofit)
 
@@ -51,7 +51,7 @@ All product names start with **Starr** to anchor the brand. Each product has a o
 
 ### Legacy doc reference
 
-The `STARR_RECON/PHASE_*.md` planning docs (pre-Phase 0) still contain the phrase "Starr Compass" — those are pre-migration history per `docs/RECON_INVENTORY.md §1` and are intentionally not retroactively rewritten. New docs and user-visible strings use **Starr Recon** only.
+The `docs/planning/in-progress/STARR_RECON/PHASE_*.md` planning docs (pre-Phase 0) still contain the phrase "Starr Compass" — those are pre-migration history per `docs/platform/RECON_INVENTORY.md §1` and are intentionally not retroactively rewritten. New docs and user-visible strings use **Starr Recon** only.
 
 ### Pricing tiers (inherited from earlier planning, applies to Starr Recon for now)
 

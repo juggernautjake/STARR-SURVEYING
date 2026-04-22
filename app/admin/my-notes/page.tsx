@@ -2,6 +2,7 @@
 // Two tabs: My Notes (personal) and Job Notes (public field notes).
 // Create lists, manage public/private visibility, full-page notebook editor.
 'use client';
+import '../styles/AdminMyNotes.css';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';

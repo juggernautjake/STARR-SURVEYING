@@ -11,7 +11,7 @@
 // where individual lot labels, bearings, and distances are too small or too
 // tightly packed for the standard grid-based OCR to reliably separate.
 //
-// Spec: STARR_RECON/PHASE_04_SUBDIVISION.md §4.6
+// Spec: docs/planning/in-progress/STARR_RECON/PHASE_04_SUBDIVISION.md §4.6
 
 import Anthropic from '@anthropic-ai/sdk';
 import type { PipelineLogger } from '../lib/logger.js';

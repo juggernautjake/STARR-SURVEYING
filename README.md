@@ -109,28 +109,44 @@ STARR-SURVEYING/
 │   └── ...
 ├── types/                       # TypeScript type definitions
 ├── seeds/                       # Database seed files (000-090)
-├── public/                      # Static assets, logos, images
-├── PLAN.md                      # Research module implementation plan
-├── IMPROVEMENT_ROADMAP.md       # Platform improvement phases (1-8)
-├── STYLE_GUIDE.md               # Brand style guide
-├── STARR_CAD_PHASE_ROADMAP.md   # STARR CAD 7-phase roadmap
-├── STARR_CAD_PHASE_1_ENGINE_CORE.md  # CAD Phase 1 detailed spec
-└── STARR_CAD_IMPLEMENTATION.md  # CAD master implementation spec
+├── public/                      # Static assets, logos, images (≈1 MB after Phase 0.5 cleanup)
+├── design-source/               # Source artwork (.xcf, _original* exports) — versioned, never served
+├── docs/
+│   ├── README.md                # Top-level docs index
+│   ├── platform/                # Cross-cutting platform specs (RECON_INVENTORY, CLOSURE_TOLERANCE, …)
+│   ├── product/                 # One file per product (Starr Recon, Starr Archive, …)
+│   ├── engine/                  # Engine subsystem specs (Texas Road Variant, …)
+│   ├── style/                   # Visual design system (STYLE_GUIDE)
+│   ├── planning/                # Time-boxed planning docs
+│   │   ├── completed/           # Work has shipped — kept for history
+│   │   ├── in-progress/         # Live specs and roadmaps
+│   │   └── obsolete/            # Pending delete after one PR cycle of grace
+│   └── testing-lab/             # Testing-lab user guide and adapters
+├── CONTRIBUTING.md              # Where new code goes, how to run tests, naming conventions
+└── README.md                    # This file
 ```
 
 ---
 
 ## Key Documentation
 
+Start at [`docs/README.md`](docs/README.md) for the full index. Highlights:
+
 | Document | Purpose |
 |----------|---------|
 | `README.md` | This file — platform overview and quickstart |
-| `PLAN.md` | AI Property Research & Plat Drawing — 15-phase implementation plan |
-| `IMPROVEMENT_ROADMAP.md` | Platform improvement phases 1-8 (phases 1-7 complete) |
-| `STYLE_GUIDE.md` | Brand colors, typography, components, responsive breakpoints |
-| `STARR_CAD_PHASE_ROADMAP.md` | STARR CAD — 7-phase development roadmap |
-| `STARR_CAD_PHASE_1_ENGINE_CORE.md` | STARR CAD Phase 1 — CAD engine core specification |
-| `STARR_CAD_IMPLEMENTATION.md` | STARR CAD — Complete master implementation specification |
+| `CONTRIBUTING.md` | Where to put new code, how to run tests, naming conventions |
+| `docs/README.md` | Top-level docs index |
+| `docs/planning/README.md` | Explains the planning folder rubric (completed / in-progress / obsolete) |
+| `docs/platform/RECON_INVENTORY.md` | Single source of truth for the Starr Recon build plan |
+| `docs/platform/STARR_SOFTWARE_SUITE.md` | Product family overview and naming |
+| `docs/style/STYLE_GUIDE.md` | Brand colors, typography, components, responsive breakpoints |
+| `docs/planning/in-progress/PLAN.md` | AI Property Research & Plat Drawing — 15-phase plan |
+| `docs/planning/in-progress/IMPROVEMENT_ROADMAP.md` | Platform improvement phases (1-8) |
+| `docs/planning/in-progress/STARR_CAD_PHASE_ROADMAP.md` | Starr Forge (CAD) — 7-phase roadmap |
+| `docs/planning/in-progress/STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md` | Starr Forge Phase 1 spec |
+| `docs/planning/in-progress/STARR_CAD_IMPLEMENTATION.md` | Starr Forge master implementation spec |
+| `docs/product/starr-archive.md` | Starr Archive sketch (filing-cabinet digitization) |
 
 ---
 
