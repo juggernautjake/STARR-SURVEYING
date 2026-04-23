@@ -169,9 +169,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_recon_edges_non_temporal
     ON recon_edges(from_node_id, to_node_id, edge_type)
     WHERE edge_type NOT IN ('owned_by');
 
+-- IMMUTABLE wrapper for casting JSONB text to date. Required because the
+-- default (text)::date cast is only STABLE (it depends on session datestyle),
+-- which Postgres rejects in index expressions. to_date() with a constant
+-- format string is IMMUTABLE, so this wrapper is safe for indexing.
+CREATE OR REPLACE FUNCTION recon_text_to_date(t text) RETURNS date
+    LANGUAGE sql
+    IMMUTABLE
+    PARALLEL SAFE
+AS $$
+    SELECT CASE
+        WHEN t IS NULL OR t = '' THEN NULL::date
+        ELSE to_date(t, 'YYYY-MM-DD')
+    END
+$$;
+
 -- For `owned_by` we want fast "what was the owner on date X" lookups.
 CREATE INDEX IF NOT EXISTS idx_recon_edges_ownership_temporal
-    ON recon_edges(from_node_id, ((attrs->>'from_date')::date), ((attrs->>'to_date')::date))
+    ON recon_edges(
+        from_node_id,
+        recon_text_to_date(attrs->>'from_date'),
+        recon_text_to_date(attrs->>'to_date')
+    )
     WHERE edge_type = 'owned_by';
 
 
