@@ -75,18 +75,43 @@ CREATE INDEX IF NOT EXISTS idx_captcha_solves_job_id
 CREATE INDEX IF NOT EXISTS idx_captcha_solves_adapter_id
   ON captcha_solves (adapter_id) WHERE adapter_id IS NOT NULL;
 
--- Validity constraints. Kept loose because future challenge types may
--- be added before this migration is updated.
-ALTER TABLE captcha_solves
-  ADD CONSTRAINT captcha_solves_provider_chk
-    CHECK (provider IN ('capsolver', 'stub'));
+-- Validity constraints. Wrapped in DO blocks because Postgres has no
+-- `ADD CONSTRAINT IF NOT EXISTS` syntax; without the guard, re-running
+-- this file against a fresh schema (CI restore drill, duplicate apply)
+-- fails with "constraint already exists" and the BEGIN/COMMIT wrapper
+-- aborts the whole migration.
 
-ALTER TABLE captcha_solves
-  ADD CONSTRAINT captcha_solves_cost_nonnegative_chk
-    CHECK (cost_estimate IS NULL OR cost_estimate >= 0);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'captcha_solves_provider_chk'
+  ) THEN
+    ALTER TABLE captcha_solves
+      ADD CONSTRAINT captcha_solves_provider_chk
+        CHECK (provider IN ('capsolver', 'stub'));
+  END IF;
+END $$;
 
-ALTER TABLE captcha_solves
-  ADD CONSTRAINT captcha_solves_duration_nonnegative_chk
-    CHECK (duration_ms IS NULL OR duration_ms >= 0);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'captcha_solves_cost_nonnegative_chk'
+  ) THEN
+    ALTER TABLE captcha_solves
+      ADD CONSTRAINT captcha_solves_cost_nonnegative_chk
+        CHECK (cost_estimate IS NULL OR cost_estimate >= 0);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'captcha_solves_duration_nonnegative_chk'
+  ) THEN
+    ALTER TABLE captcha_solves
+      ADD CONSTRAINT captcha_solves_duration_nonnegative_chk
+        CHECK (duration_ms IS NULL OR duration_ms >= 0);
+  END IF;
+END $$;
 
 COMMIT;

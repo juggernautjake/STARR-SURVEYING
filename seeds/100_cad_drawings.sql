@@ -47,24 +47,43 @@ CREATE TRIGGER cad_drawings_updated_at_trigger
 -- Row-Level Security (mirror the pattern used by other tables in this project)
 ALTER TABLE cad_drawings ENABLE ROW LEVEL SECURITY;
 
+-- Policy creation uses DROP-THEN-CREATE (idempotent) instead of the invalid
+-- `CREATE POLICY IF NOT EXISTS` syntax. Auth accessor is normalized to
+-- `auth.jwt() ->> 'email'` to match 093/095/096/210.
+
 -- Authenticated users can read their own drawings
-CREATE POLICY IF NOT EXISTS "cad_drawings_select"
+DROP POLICY IF EXISTS cad_drawings_select ON cad_drawings;
+CREATE POLICY cad_drawings_select
   ON cad_drawings FOR SELECT
-  USING (created_by = current_setting('request.jwt.claims', true)::json->>'email');
+  USING (created_by = auth.jwt() ->> 'email');
 
 -- Authenticated users can insert their own drawings
-CREATE POLICY IF NOT EXISTS "cad_drawings_insert"
+DROP POLICY IF EXISTS cad_drawings_insert ON cad_drawings;
+CREATE POLICY cad_drawings_insert
   ON cad_drawings FOR INSERT
-  WITH CHECK (created_by = current_setting('request.jwt.claims', true)::json->>'email');
+  WITH CHECK (created_by = auth.jwt() ->> 'email');
 
 -- Authenticated users can update their own drawings
-CREATE POLICY IF NOT EXISTS "cad_drawings_update"
+DROP POLICY IF EXISTS cad_drawings_update ON cad_drawings;
+CREATE POLICY cad_drawings_update
   ON cad_drawings FOR UPDATE
-  USING (created_by = current_setting('request.jwt.claims', true)::json->>'email');
+  USING (created_by = auth.jwt() ->> 'email');
 
 -- Authenticated users can delete their own drawings
-CREATE POLICY IF NOT EXISTS "cad_drawings_delete"
+DROP POLICY IF EXISTS cad_drawings_delete ON cad_drawings;
+CREATE POLICY cad_drawings_delete
   ON cad_drawings FOR DELETE
-  USING (created_by = current_setting('request.jwt.claims', true)::json->>'email');
+  USING (created_by = auth.jwt() ->> 'email');
+
+-- Service role full access (worker + admin tooling)
+DROP POLICY IF EXISTS cad_drawings_service_role ON cad_drawings;
+CREATE POLICY cad_drawings_service_role
+  ON cad_drawings FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON cad_drawings TO authenticated;
+GRANT ALL ON cad_drawings TO service_role;
 
 COMMIT;
