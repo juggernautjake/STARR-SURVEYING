@@ -1,13 +1,22 @@
 import { Redirect } from 'expo-router';
 
+import { LoadingSplash } from '@/lib/LoadingSplash';
+import { useAuth } from '@/lib/auth';
+
 /**
- * Root index route. expo-router 4 requires the app to resolve a route
- * for `/`, and our default landing surface is the Jobs tab (per
- * STARR_FIELD_MOBILE_APP_PLAN.md §7.2 information architecture, where
- * Jobs is the leftmost tab). Phase F0 #2 (auth) will wrap this with
- * a session check that redirects unauthenticated users to a sign-in
- * route instead.
+ * Root index route. Reads the session from AuthProvider and routes:
+ *   - while loading initial session  →  splash spinner
+ *   - signed in                      →  Jobs tab (default landing per §7.2)
+ *   - signed out                     →  sign-in screen
+ *
+ * The (tabs) layout and (auth) layout each have their own session
+ * guards too; this one handles the cold-start case where the user
+ * opens the app directly at `/`.
  */
 export default function Index() {
-  return <Redirect href="/jobs" />;
+  const { session, loading } = useAuth();
+
+  if (loading) return <LoadingSplash />;
+  if (!session) return <Redirect href="/(auth)/sign-in" />;
+  return <Redirect href="/(tabs)/jobs" />;
 }

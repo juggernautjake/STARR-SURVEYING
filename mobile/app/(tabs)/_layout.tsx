@@ -1,6 +1,8 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { Text, useColorScheme } from 'react-native';
 
+import { LoadingSplash } from '@/lib/LoadingSplash';
+import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
 /**
@@ -8,15 +10,24 @@ import { colors } from '@/lib/theme';
  *   [ Jobs ] [ Capture ] [ Time ] [ $ ] [ Me ]
  *
  * Capture is the floating big button (planned styling, not yet
- * implemented). All five are placeholders in Phase F0; they render
- * empty screens with a label until each feature lands in F1+.
+ * implemented). Most tabs are placeholders in Phase F0; each lands
+ * in F1+ as feature work catches up.
+ *
+ * Session guard: anyone who lands here without a session gets bounced
+ * to /(auth)/sign-in. This is belt-and-suspenders with app/index.tsx
+ * — handles deep links that target a tab directly.
  */
 export default function TabsLayout() {
+  const { session, loading } = useAuth();
+
   // Dark-mode default per plan §7.1 rule 7 (battery-aware). Matches
   // the default in lib/Placeholder.tsx so the tab bar and screen
   // backgrounds agree on first render.
   const scheme = useColorScheme() ?? 'dark';
   const palette = colors[scheme];
+
+  if (loading) return <LoadingSplash />;
+  if (!session) return <Redirect href="/(auth)/sign-in" />;
 
   return (
     <Tabs
