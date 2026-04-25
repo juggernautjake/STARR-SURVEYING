@@ -727,3 +727,195 @@ Same architecture as v1. Adds:
 - Receipt AI extraction: client uploads photo first; server runs Claude Vision; result pushed back via Supabase Realtime
 
 ---
+
+## 7. UI/UX principles
+
+### 7.1 Field-optimized design rules
+
+1. **One-handed reachable** — primary actions in bottom 40% of screen
+2. **Large tap targets** — minimum 60×60 px (glove-friendly)
+3. **Sun-readable** — high-contrast theme, 1-tap toggle in lock screen widget
+4. **Voice-driven where possible** — every text field has a mic shortcut
+5. **Predictable layout** — primary action always in the same place
+6. **Speed over decoration** — no animations >200ms, no splash after first launch
+7. **Battery-aware** — dark mode default, GPS at minimum useful frequency, in-app battery indicator
+8. **Failure-tolerant** — every action has retry / try later; offline never feels like an error
+9. **Privacy-visible** — location-tracking indicator always visible while active
+
+### 7.2 Information architecture
+
+```
+Tab bar (always visible):
+  [ Jobs ]  [ Capture ]  [ Time ]  [ $ ]  [ Me ]
+              ↑ floating big button, always reachable
+                long-press = capture without job
+```
+
+`$` is the receipts tab. `Time` is the timesheet/clock view. `Me` is settings/profile.
+
+### 7.3 Empty / error states
+
+- No signal: subtle banner, never modal
+- No GPS lock: photo still captures, GPS field stays empty
+- Storage full: banner with one-tap cleanup
+- Battery <20%: subtle banner, offer to reduce capture quality + GPS precision
+- Location permission denied: explanation + one-tap to open OS settings
+- Camera permission denied: same
+
+### 7.4 Dispatcher web view
+
+- Live crew map (top of dashboard)
+- Today's activity feed (clock-ins, captures, receipts, anomalies) as a stream
+- Per-employee timeline view (drill-down)
+- Approval queues: time edits, receipts, mileage logs
+
+---
+
+## 8. Future integrations
+
+### 8.1 Trimble Access integration (post-v1)
+
+**Path A — File exchange (simplest):** Trimble Access exports JobXML or CSV to a watched cloud folder; Starr Field auto-imports and links by name. ~80% of value with ~20% effort. **v1.5 candidate.**
+
+**Path B — Trimble Connected Community / Sync API:** polls or webhooks for job updates; bidirectional. Requires Trimble developer account. **v2 candidate.**
+
+**Path C — Real-time point streaming:** local Bluetooth/WiFi link between phone and Trimble controller; every shot appears in Starr Field within seconds. Requires Trimble SDK access. **v2.5 / v3 candidate.**
+
+### 8.2 Other future integrations
+- **QuickBooks Online direct API** — bypass CSV export for receipts and time
+- **Civil 3D round-trip** — export field-captured points + media as a Civil 3D-friendly bundle
+- **Starr CAD direct link** — open captured photo from inside Starr CAD by clicking the point
+- **Apple Watch / Wear OS companion** — clock-in/out, voice memo, view current job
+- **Fleet fuel card APIs** — Wex, Comdata, Voyager auto-reconciliation
+- **AR overlay** — point camera at property, see captured points overlaid (long-term R&D)
+- **Drone footage import** — drag folder of drone photos, GPS-match to property
+- **Weather / sun angle metadata** — auto-tag captures with conditions
+
+---
+
+## 9. Phased build plan
+
+Each phase is independently shippable.
+
+### Phase 0 — Foundation (Week 0–2)
+- [ ] Expo project scaffolded (TypeScript, ESLint, Prettier matching Next.js repo)
+- [ ] Supabase Auth wired in (sign-in, biometric unlock)
+- [ ] Local SQLite + sync queue scaffolding
+- [ ] Tab bar shell, navigation, theme
+- [ ] EAS Build configured (TestFlight + internal Android)
+- [ ] OTA updates working
+- [ ] Crash reporting (Sentry)
+
+**Exit:** team installs app, signs in, sees empty home.
+
+### Phase 1 — Jobs + basic time logging (Week 3–5)
+- [ ] Job list, create, edit, search/filter
+- [ ] Job detail with placeholder tabs
+- [ ] Clock-in / clock-out from home + lock-screen widget
+- [ ] Job auto-suggest by GPS proximity (one-shot, not continuous tracking)
+- [ ] Manual time editing with audit trail
+- [ ] "Still working?" smart prompts
+- [ ] Timesheet view + CSV export
+- [ ] Submit-for-approval workflow (web-app side)
+
+**Exit:** Jacob runs an entire week of work using the app for time. Replaces paper time cards.
+
+### Phase 2 — Receipts + AI extraction (Week 6–8)
+- [ ] Receipt capture flow (camera, edge detection, deskew)
+- [ ] Claude Vision API integration for field extraction
+- [ ] Category, job association, payment method, tax flag
+- [ ] Receipt list view, edit, approve workflow
+- [ ] Per-job and per-period rollups
+- [ ] Bookkeeper export (CSV, QuickBooks-ready)
+
+**Exit:** Jacob can replace expense reports for v1 use. Bookkeeper validates.
+
+### Phase 3 — Data points + photos (Week 9–12)
+- [ ] Create data point with name from 179-code library
+- [ ] Camera capture, multi-photo
+- [ ] Phone GPS / compass / altitude metadata
+- [ ] Photo annotation (arrow, circle, text)
+- [ ] Job-level photo upload (no point assignment)
+- [ ] Office reviewer sees points + photos in web app
+
+**Exit:** Found-monument workflow goes from minutes to <60s.
+
+### Phase 4 — Voice + video + notes (Week 13–16)
+- [ ] Voice memo + on-device transcription
+- [ ] Video capture (1080p, 5min cap)
+- [ ] Free-text notes + structured templates (offset, monument, hazard, correction)
+- [ ] Voice-to-text shortcut
+- [ ] Search across notes + transcriptions
+
+**Exit:** Field documentation fully replaces paper notes.
+
+### Phase 5 — Files + CSV (Week 17–18)
+- [ ] File upload from device, cloud, web link
+- [ ] PDF / image / CSV preview
+- [ ] Pin-to-device for offline access
+- [ ] CSV parser (P,N,E,Z,D and variants)
+- [ ] Auto-link CSV rows to phone-side data points by name
+
+**Exit:** Raw survey data and reference docs at fingertips.
+
+### Phase 6 — Location tracking + dispatcher view (Week 19–24)
+- [ ] One-time consent flow
+- [ ] Background location with battery-conscious modes (significant change → high accuracy in geofences)
+- [ ] Stop detection, geofence + AI classification
+- [ ] Daily timeline view (employee + admin)
+- [ ] Mileage log generation (IRS-format export)
+- [ ] Vehicle assignment + driver/passenger
+- [ ] Dispatcher live map (web app)
+- [ ] Day-replay scrubber (web app)
+- [ ] Missing-receipt cross-reference prompts
+- [ ] Privacy controls panel (employee-facing)
+
+**Exit:** Full location-aware feature set live; first month of data feeds dispatcher decisions.
+
+### Phase 7 — Polish + offline hardening (Week 25–28)
+- [ ] Storage management UI
+- [ ] Sync UI improvements (per-asset progress, retry surfaces)
+- [ ] High-contrast / sun-readable theme
+- [ ] Battery profile audit
+- [ ] Tablet layout (truck-mounted iPad)
+- [ ] Conflict resolution UX for multi-device
+- [ ] Stress-test: 30 days of data on 5 devices
+
+**Exit:** v1 shippable to all surveying employees with confidence.
+
+### Phase 8 — Trimble Access file exchange (Week 29–32)
+- [ ] Watched cloud folder for Trimble JobXML / CSV
+- [ ] Auto-import with preview
+- [ ] Auto-link by name with unmatched-name surfacing
+
+**Exit:** Trimble integration v1 (Path A from §8.1).
+
+### Phase 9+ — Real-time integrations, AR, watch app, fuel-card reconciliation (research)
+
+---
+
+## 10. Risk register
+
+| Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|
+| Lost data due to offline sync bug | M | H | Battle-tested sync libs; sync queue tests; "export local DB" emergency button |
+| Photo/video uploads consume cellular plan | H | M | Default WiFi-only originals; configurable; in-app data report |
+| Phone overheats / dies in 100°F sun | M | M | Battery-aware throttling; "low power mode" for app; insulated-pouch recommendation |
+| User accidentally deletes job/point/receipt | M | H | Soft delete + 30-day undo; biometric re-auth for delete |
+| Two crew edit same point simultaneously | M | M | Per-field last-write-wins; media never conflicts |
+| Glove use makes touch targets miss | M | M | 60+px targets; voice fallback; volume-key shortcut for capture |
+| Sun glare makes screen unreadable | H | M | High-contrast theme; auto-brightness boost in capture mode |
+| **Location tracking battery drain** | H | H | Significant-location-change APIs; geofence-only high accuracy; <15% target; user-visible battery panel |
+| **Employee perceives location tracking as surveillance** | M | H | Hard-coded clock-out = tracking-off; transparent timeline visible to employee; opt-in consent flow; clear privacy disclosure |
+| **Legal exposure on location tracking (state law)** | L | H | Texas-only at first; legal review before each new state; explicit consent; data retention limits |
+| **AI hallucinates receipt fields** | M | M | Confidence score per field; bookkeeper approval required before export; original photo always retained |
+| **Receipts arriving without job association during overhead time** | H | L | Default to `Overhead` job; bookkeeper can re-assign |
+| Trimble integration depends on partner SDK | H | M | Build Path A first; treat C as bonus |
+| App Store / Play Store rejection delays | L | M | TestFlight + internal track for staff; only public listing if needed |
+| Storage costs balloon with video usage | M | M | 720p default; 5-min cap; R2 archival; per-job storage report |
+| User signs out by accident, loses unsaved data | L | H | Sign-out warns if queue non-empty; local changes survive sign-out |
+| **Mileage log challenged in IRS audit** | L | H | Source data + raw segments retained 7 years; IRS-format export; vehicle + business purpose mandatory |
+| **Background location permission revoked by OS / user** | M | M | Detect and prompt; degrade gracefully to manual time entry; never silently fail |
+| iOS / Android API changes break native modules | M | M | Pin Expo SDK; staging build catches regressions |
+
+---
