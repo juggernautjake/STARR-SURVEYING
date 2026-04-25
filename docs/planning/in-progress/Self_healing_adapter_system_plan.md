@@ -32,11 +32,11 @@ The system is built in four phases, each phase delivering standalone value so we
 ## 2. Goals & non-goals
 
 ### Goals
-1. Detect adapter breakage within 1 hour of occurrence (vs. discovering it during a customer run)
+1. Detect adapter breakage within 1 hour of occurrence (vs. discovering it during a surveyor's research run)
 2. Classify the **kind** of change (selector drift, workflow change, captcha added, redesign) automatically
 3. Generate candidate fixes within a per-site budget
-4. Validate fixes against ground-truth canary properties before they touch customer traffic
-5. Always inform a human; never silently change behavior the customer relies on
+4. Validate fixes against ground-truth canary properties before they touch surveyor traffic
+5. Always inform a human; never silently change behavior the surveyor relies on
 6. Track adapter performance continuously, not just at break-time
 7. Keep total system cost predictable and capped at every layer
 
@@ -175,21 +175,21 @@ Auto-merge thresholds (only for T0/T1, `selector_drift` only, **never for vendor
 
 **Why these weights changed from the original draft:** AI self-reported confidence is the lowest-signal item in the published agentic-coding literature, so it's down-weighted from 5 to 3. The two new surveyor-specific signals (closure regression, bearing validator) are scored first-class because a patch that breaks them silently triggers downstream traverse-closure failures that look like unrelated bugs. The "abstractions respected" check is moved out of the prose and into the score so it can't be hand-waved past — and it's enforced at the AST-lint layer (§5.2) so the score reflects a real check, not the model's word.
 
-### 4.5 Customer-traffic-aware monitoring
+### 4.5 Job-traffic-aware monitoring
 
-Every customer research request flows through an adapter. We log per-attempt:
-- adapter_id + version
-- result_status (success / partial / failure / timeout)
-- field_completeness (what % of expected fields came back populated)
-- time_to_complete
-- customer_id (for blast-radius math)
+Every surveyor research request flows through one or more adapters. The worker writes one row per attempt to `adapter_telemetry` (§5.1):
+- `adapter_id` + `adapter_version`
+- `status` (success / partial / failure / timeout)
+- `field_completeness_pct` (what % of expected fields came back populated, including the surveyor-specific signals from §4.3)
+- `duration_ms`
+- `job_owner` UUID and `job_id` UUID (matches `research_projects.created_by` and the ownership check in `/api/ws/ticket`) — used for blast-radius math when an adapter degrades during an active research session
 
-Aggregations refreshed every 5 minutes feed:
-- The adapter health dashboard
-- Tier review (moves an adapter up/down by demand)
-- Anomaly detection ("adapter X completeness dropped from 94% to 71% in the last hour" → page someone, even if SiteHealth is green)
+Aggregations roll up via the materialized 5-min view (`adapter_telemetry_5m`, defined in Phase D, §6.4) and feed:
+- The internal adapter health dashboard at `/admin/adapters`
+- Tier review (moves an adapter up/down by demand; Bell County stays pinned at T0)
+- Anomaly detection ("adapter X completeness dropped from 94% to 71% in the last hour" → notify even if SiteHealth is green; emits over the existing research-events bus)
 
-This is more sensitive than SiteHealth: SiteHealth catches "adapter is broken." Telemetry catches "adapter is degrading." Both matter.
+This is more sensitive than SiteHealth: SiteHealth catches "adapter is broken." Telemetry catches "adapter is degrading." Both matter — and the surveyor-specific signals (closure-ratio drop, bearing-validator pass-rate drop) catch the degradation modes that matter for our product contract, not just generic field-presence drift.
 
 ### 4.6 Always-notify-human principle
 
@@ -202,7 +202,7 @@ Even when AI auto-merges, a human is notified with full incident packet within 6
 - Rollback command (one-click)
 - "Validate" button that pulls the fix into a local sandbox for manual replay
 
-Auto-merge ≠ auto-trust. Auto-merge means "the system is confident enough to keep customers unblocked while you double-check." A human still validates within the SLA window or the change auto-rolls-back.
+Auto-merge ≠ auto-trust. Auto-merge means "the system is confident enough to keep surveyors unblocked while you double-check." A human still validates within the SLA window or the change auto-rolls-back.
 
 ### 4.7 Auto-rollback (the safety net for auto-merge)
 
@@ -785,16 +785,16 @@ The original Scenario C math was **$300 spread over 5–7 days** because it trea
 ## 10. Alternatives considered
 
 ### Alt 1 — Buy, don't build (Skyvern, Browse AI, Apify)
-Skyvern especially does "AI-driven scraping that adapts to changes." Realistic for generic e-commerce; less proven for niche government records sites with unusual workflows. Pricing tends to be per-action, hard to predict at our volumes. **Verdict:** evaluate as a fallback for Tier 2/3 adapters only; build for Tier 0/1.
+Skyvern especially does "AI-driven scraping that adapts to changes." Realistic for generic e-commerce; less proven for niche government records sites with unusual workflows. Pricing tends to be per-action, hard to predict at our volumes. **The deeper problem:** these tools cannot meet our closure-tolerance / surveyor-specific output contract. Their output is unstructured DOM-to-JSON; we need bearing/distance/legal-description parsing that survives `validateBearing()` (`worker/src/infra/ai-guardrails.ts`) and downstream traverse-closure at 1:5,000 (`worker/src/lib/closure-tolerance.ts`). A "self-healing scraper" that returns the right owner string but corrupts the bearings has bought us nothing — it just shifts the failure mode from a hard error to a silent geometry bug. **Verdict:** evaluate as a fallback for T2/T3 adapters where the output is purely string fields (FEMA flood zone, soil survey class, RRC well status); build for T0/T1.
 
 ### Alt 2 — Replace scraping with paid data APIs (ATTOM, REGRID, CoreLogic)
-For ownership-only data, this is genuinely cheaper than maintaining adapters. But our value is the **deeper pull**: deeds, plats, surveys, county-clerk research that paid APIs don't expose at any price. **Verdict:** use paid APIs as sanity-check overlays and as fallback for Tier 2/3 ownership lookups; don't replace the deep adapters.
+For ownership-only data, this is genuinely cheaper than maintaining adapters. But our value is the **deeper pull**: deeds, plats, surveys, county-clerk research that paid APIs don't expose at any price. **Verdict:** use paid APIs as sanity-check overlays and as fallback for T2/T3 ownership lookups; don't replace the deep adapters.
 
 ### Alt 3 — Pure human SRE rotation, no AI in the loop
-Honest baseline. ~10 engineering hours/month, predictable. Fine until we have >50 customers and adapter breaks become customer-visible SLA hits. **Verdict:** this is what we're doing today; the plan is the migration off it.
+Honest baseline. ~10 engineering hours/month, predictable. Fine until we have >50 paying customers and adapter breaks become surveyor-visible SLA hits. **Verdict:** this is what we're doing today; the plan is the migration off it.
 
-### Alt 4 — Hybrid: AI generates fix, human merges always (stop at Phase 2)
-Lowest risk path. Captures most of the value (60–80% of manual time saved) without auto-merge risk. **Verdict:** legitimate stopping point. Recommend reaching Phase 2 and re-evaluating before committing to Phase 3.
+### Alt 4 — Hybrid: AI generates fix, human merges always (stop at Phase B)
+Lowest risk path. Captures most of the value (60–80% of manual time saved) without auto-merge risk. **Verdict:** legitimate stopping point. Recommend reaching Phase B and re-evaluating before committing to Phase D.
 
 ---
 
@@ -805,17 +805,26 @@ Lowest risk path. Captures most of the value (60–80% of manual time saved) wit
 | Date | Decision | Rationale | Decider |
 |---|---|---|---|
 | 2026-04-24 | Plan drafted | Initial RFC | Jacob + Claude |
+| 2026-04-25 | Plan refactored to align with STARR RECON codebase (six-batch revision) | Original draft pre-dated some Phase A scaffolding (`ai-usage-tracker.ts`, `regression-runner.ts`, `browser-factory.ts`, `captcha-solver.ts`, `storage.ts`) and used generic adapter naming. Refactor: corrected header path; rewrote §3 reality-check to reflect what's already shipped; introduced vendor-fan-out tier (§4.1.1) and surveyor-specific canary signals (§4.3); rewrote §5 SQL to project seed conventions and framed `ai_cost_ledger` as the persistence sink for `AiUsageTracker`; added §5.2.1 abstraction-respect lint as a hard precondition; mapped phases onto Phase 0/A/B/D from RECON_INVENTORY §12; corrected cost-math (Browserbase per-minute, vendor-fan-out single-incident accounting); added three high-impact risk rows; answered three open questions the codebase had already settled. | Jacob + Claude |
+| 2026-04-25 | `ai_cost_ledger` extends `AiUsageTracker`, does not replace it | Two parallel cost paths would desync and double the tagging surface. Existing `getGlobalAiTracker()` singleton provides the circuit breaker (rate, cost-per-window, consecutive-failure caps); the ledger is the persistence sink, mirroring the `SolveAttemptSink` pattern in `captcha-solver.ts`. | Jacob + Claude |
+| 2026-04-25 | Vendor-base adapters (`kofile-clerk`, `tyler-clerk`, `henschen-clerk`, `countyfusion`, `fidlar-clerk`) never auto-merge-eligible | Blast radius is 30–80 counties. Even with a high confidence score, the consequences of a wrong vendor-base patch exceed the consequences of a 4h human-review delay. Vendor-base canary requirement: must pass on ≥3 distinct counties before promote (§4.1.1). | Jacob + Claude |
+| 2026-04-25 | Canary capture artifacts live in Cloudflare R2 via `worker/src/lib/storage.ts` | Already decided in `PHASE_A_INTEGRATION_PREP.md` §6.3; namespace `canaries/<adapter_id>/<canary_id>/<iso8601_ts>/`. Lifecycle per `docs/platform/STORAGE_LIFECYCLE.md`. | Jacob + Claude |
+| 2026-04-25 | GitHub Actions for adapter PR validation | Already in use under `.github/`; Hetzner worker host runs production traffic + weekly canaries only. | Jacob + Claude |
+| 2026-04-25 | Jacob solo on-call through Phase E | Solo-developer scale; rotation is a Phase F+ concern when first non-Starr customers go live. Slack + email; SMS deferred to post-Phase-D auto-merge. | Jacob |
 
 ---
 
 ## 12. Appendix A — Sample Claude prompts
 
+All prompts default to `claude-sonnet-4-6` for diagnosis/repair rungs 1–3 and `claude-opus-4-7` for rungs 4–5 per §5.2. Token usage is recorded via `worker/src/lib/ai-usage-tracker.ts` with `{incident_id, adapter_id, phase}` tags so every call rolls up in `ai_cost_ledger`.
+
 ### A.1 Change classifier
 ```
-You are analyzing why a web scraper adapter failed.
+You are analyzing why a STARR RECON adapter failed.
 
-Adapter: {adapter_id}
-Vendor: {vendor}
+Adapter id: {adapter_id}              # one of KNOWN_ADAPTER_IDS in
+                                      # worker/src/lib/browser-factory.ts
+Vendor: {vendor}                      # 'kofile' | 'tyler' | 'henschen' | …
 Last-known-good DOM snapshot: {snapshot_html}
 Current DOM snapshot: {current_html}
 Failed selector(s): {failed_selectors}
@@ -824,23 +833,36 @@ Error log: {error_log}
 Classify the change as exactly one of:
 - selector_drift: A field/button moved or was renamed; same workflow.
 - workflow_change: Form steps, navigation, or required fields changed.
-- captcha_added: A CAPTCHA or bot-detection challenge appeared.
-- auth_required: Login/account is now required where it wasn't.
+- captcha_added: A CAPTCHA or bot-detection challenge appeared. Repair must
+                 escalate to human; do not attempt to add bypass logic.
+- auth_required: Login/account is now required where it wasn't. Same:
+                 escalate.
 - rate_limit_tightened: Requests are being throttled or blocked.
 - total_redesign: The page framework / structure is fundamentally different.
 - unknown: Cannot determine.
 
 Return JSON only:
-{"change_type": "...", "confidence": 0-100, "evidence": "...", "suggested_strategy_rung": 1-5}
+{
+  "change_type": "...",
+  "confidence": 0-100,
+  "evidence": "...",
+  "suggested_strategy_rung": 1-5,
+  "vendor_fan_out_risk": true|false   // true if this adapter is a vendor base
+                                       // (kofile-clerk, tyler-clerk, henschen-
+                                       // clerk, countyfusion, fidlar-clerk).
+                                       // When true, see §4.1.1: never auto-
+                                       // merge regardless of confidence.
+}
 ```
 
 ### A.2 Targeted code-patch repair
 ```
-You are repairing a Playwright-based scraper adapter.
+You are repairing a Playwright-based STARR RECON adapter.
 
 Adapter source code:
 {adapter_code}
 
+Adapter id: {adapter_id}              # KNOWN_ADAPTER_IDS
 Last-known-good page DOM (relevant section):
 {good_dom}
 
@@ -850,32 +872,76 @@ Current page DOM (relevant section):
 Failed operation: {operation_description}
 
 Generate a minimal patch that fixes ONLY the broken operation. Do not refactor.
-Use multi-selector fallback arrays where reasonable. Preserve all existing comments and types.
+
+# HARD CONSTRAINTS — patches that violate any of these are auto-rejected
+# before validation, regardless of confidence. The §5.2.1 AST lint enforces
+# all of them; the prompt states them up front so violations are rare.
+
+1. Browser acquisition MUST go through acquireBrowser({ adapterId }) from
+   worker/src/lib/browser-factory.js. Direct chromium.launch() is rejected.
+2. CAPTCHA solving MUST go through getCaptchaSolver() from
+   worker/src/lib/captcha-solver.js. Direct HTTP to api.capsolver.com is
+   rejected.
+3. Artifact writes MUST go through worker/src/lib/storage.js. Bare
+   fs.writeFile / fs.mkdirSync / direct Supabase Storage calls are rejected.
+4. Progress events SHOULD emit via worker/src/lib/research-events-emit.js.
+5. NO new npm dependencies. A package.json diff is automatic rejection.
+6. NO edits to: worker/src/lib/closure-tolerance.ts, worker/src/infra/
+   ai-guardrails.ts, anything under worker/src/shared/, anything under
+   worker/src/services/purchase-adapters/.
+7. Selector arrays may only be APPENDED to. Old selectors stay in place
+   as fallbacks unless the change-classifier explicitly identified them
+   as removed-by-vendor.
+8. Preserve all existing comments and type annotations.
+
+Use multi-selector fallback arrays where reasonable.
 
 Return:
-1. A unified diff
+1. A unified diff (single file, single function whenever possible)
 2. A 1-paragraph explanation
 3. Self-confidence score 0-100
-4. Estimated risk to other adapters that share base classes (low/medium/high)
+4. Estimated risk to other adapters that share base classes (low/medium/high).
+   For vendor-base adapters (kofile-clerk, tyler-clerk, etc.) this is
+   ALWAYS at least medium — see §4.1.1 vendor fan-out.
 ```
 
 ### A.3 Validation reasoning
 ```
-Compare these two extraction results for canary property {parcel_id}.
+Compare these two extraction results for canary property {parcel_id} in
+jurisdiction {jurisdiction_fips}.
 
-Expected (ground truth):
+Expected (ground truth, hand-validated by an RPLS surveyor at Starr):
 {expected_data}
 
 Actual (from candidate adapter version):
 {actual_data}
 
-Tolerance rules:
+Tolerance rules (ToleranceField shape from worker/src/__tests__/regression/
+regression-runner.ts — same comparator across canaries and offline fixtures):
 {tolerance_rules}
+
+Surveyor-specific signals — these matter more than generic field presence,
+because STARR RECON's product contract is geometry that closes, not JSON
+that parses:
+
+- expected_closure_ratio:     ≥1:5,000 per docs/platform/CLOSURE_TOLERANCE.md.
+                              Below this, the result is a HARD FAIL even if
+                              every other field matches.
+- expected_bearings:          Each bearing in `actual_data.bearings` must
+                              parse cleanly through validateBearing()
+                              from worker/src/infra/ai-guardrails.ts.
+- expected_chain_of_title_count: Range; anything outside is a regression.
+- expected_adjoiner_count:    Range; anything outside indicates a Phase 5
+                              (adjacent-research) regression upstream of
+                              the adapter.
 
 Return JSON:
 {
   "field_matches": {"owner": true, "legal": true, ...},
   "field_mismatches": [{"field": "...", "expected": "...", "actual": "...", "severity": "..."}],
+  "closure_ratio_pass": true|false,
+  "bearing_validator_pass_count": <integer, 0..N>,
+  "bearing_validator_fail_count": <integer, 0..N>,
   "overall_pass": true|false,
   "completeness_pct": 0-100,
   "explanation": "..."
@@ -884,29 +950,63 @@ Return JSON:
 
 ---
 
-## 13. Appendix B — Bootstrapping checklist (when we start Phase 0)
+## 13. Appendix B — Bootstrapping checklist
 
-- [ ] Inventory current adapters; assign tier (gut-check, refine quarterly)
-- [ ] Pick canary properties for every Tier 0 adapter (Jacob, ~30 min each)
-- [ ] Pick canary properties for every Tier 1 adapter
-- [ ] Migrate adapter list into `adapter_manifests` table
-- [ ] Wrap Anthropic SDK calls with cost-ledger middleware
-- [ ] Stand up internal-only health dashboard (Next.js page, read-only)
-- [ ] Configure Slack incoming webhook for incident notifications
-- [ ] Decide CI host (GitHub Actions vs. droplet-side runner)
-- [ ] Document rollback procedure (one-liner) and run a dry-run rollback
-- [ ] Set global daily cost cap in environment (`SELF_HEAL_DAILY_CAP_USD=50`)
+State as of 2026-04-25: Phase 0 partially complete (the Phase A scaffolding shipped earlier). Items marked `[x]` are already in `main`; do not redo.
+
+### Already shipped (do not redo)
+
+- [x] `worker/src/lib/ai-usage-tracker.ts` — circuit breaker (rate / cost / consecutive-failure), `getGlobalAiTracker()` singleton. Phase 0 self-healing extends `AiUsageEntry` with `(incidentId, adapterId, phase, model)` and adds a pluggable `CostLedgerSink` (mirrors `SolveAttemptSink` from `captcha-solver.ts`).
+- [x] `worker/src/__tests__/regression/regression-runner.ts` — fixture harness with per-field `ToleranceField` (`exact | numeric± | fuzzy | list-set`); 1 synthetic fixture under `fixtures/synthetic/`.
+- [x] `worker/src/lib/storage.ts` — R2 + local backends, namespace `documents/<jobId>/<filename>`. Self-healing reuses with `canaries/<adapter_id>/...` and `incidents/<id>/...` namespaces.
+- [x] `worker/src/infra/site-health-monitor.ts` — 30-min default cadence, vendor probes, screenshot-on-failure, WebSocket alerts.
+- [x] `worker/src/lib/browser-factory.ts` and `captcha-solver.ts` — code complete in stub-default; `KNOWN_ADAPTER_IDS` is canonical.
+- [x] `seeds/201_captcha_solves.sql` — written, **held** until CapSolver activates. Apply during Phase A activation per `PHASE_A_INTEGRATION_PREP.md` §6.2.
+- [x] GitHub Actions infrastructure (`.github/`) — used today; auto-PR jobs land here in Phase A.
+
+### Phase 0 self-healing deliverables (in progress)
+
+- [ ] **Tier-assignment audit**: assign T0/T1/T2/T3 + `vendor_tier` for every id in `KNOWN_ADAPTER_IDS`. Output: a one-page table reviewed by Jacob, committed under `docs/platform/ADAPTER_TIERS.md`.
+- [ ] **Bell-CAD canary** (one property, full surveyor-aware shape per §4.3): closure ratio, bearings, chain of title, adjoiners. Hand-reviewed by an RPLS at Starr.
+- [ ] **`seeds/202_adapter_self_healing.sql`** — author per §5.1 conventions, hold until tier audit complete. Apply at Phase A activation.
+- [ ] **Extend `AiUsageEntry`** in `ai-usage-tracker.ts` with `incidentId`, `adapterId`, `phase`, `model`. Add `CostLedgerSink` interface.
+- [ ] **Bump `RESEARCH_AI_MODEL`** in `.env.example` (root) and `worker/.env.example` from `claude-sonnet-4-5-20250929` to `claude-sonnet-4-6`.
+- [ ] **Wire global daily cap**: set `SELF_HEAL_DAILY_CAP_USD=50` in both `.env.example` files and feed it into the existing `AiUsageTracker` config (`maxCostPerWindowUsd × 24h projection`). Do **not** introduce a second budget enforcer.
+- [ ] **Read-only health dashboard** at `/admin/adapters` (Next.js page). Reads from `adapter_manifests` and `adapter_telemetry`. No write paths in Phase 0.
+- [ ] **Slack incoming webhook** configured for `#starr-recon-incidents`; secret in env, not committed.
+- [ ] **Document rollback procedure**: one-liner SQL `UPDATE adapter_manifests SET active_version = $prev WHERE adapter_id = $id;` plus dashboard "Rollback" button stub. Run a dry-run rollback against a draft `adapter_versions` row.
+- [ ] **SiteHealth alert dedup → incident orchestrator stub**: route `SiteAlert` from `site-health-monitor.ts` into a placeholder that creates one `adapter_incidents` row per `(adapter_id, change_type)` per 30-min window. No AI calls yet — holding pattern only.
+
+### Phase A activation checklist (gated on external accounts)
+
+- [ ] Apply `seeds/201_captcha_solves.sql` (CapSolver activation).
+- [ ] Apply `seeds/202_adapter_self_healing.sql` (self-healing activation).
+- [ ] Flip `CostLedgerSink` from no-op to Supabase writer.
+- [ ] Promote `BROWSER_BACKEND` from `local` to `browserbase` for the first adapter (Bell-CAD), gated by `BROWSERBASE_ENABLED_ADAPTERS=bis`.
+- [ ] Grow canary catalog 1 → 5 (Bell-CAD + Bell Clerk + Hays-CAD + Williamson-CAD + TexasFile).
 
 ---
 
 ## 14. Appendix C — Things explicitly *not* in this plan
 
-- Any change to the public-facing customer UI (separate roadmap)
-- Multi-tenancy work (separate Phase B)
-- Migration to Hetzner (separate planning doc, prerequisite)
-- New county adapters beyond what exists today
-- Changes to deed-parsing AI logic (different subsystem)
-- Anything in Starr Forge or Starr Orbit (different product)
+**Out-of-scope by product / subsystem boundary:**
+- Any change to the public-facing surveyor UI (separate roadmap; the only UI deliverable here is the internal `/admin/adapters` dashboard)
+- Multi-tenancy work (separate Phase D track in `RECON_INVENTORY.md` §12)
+- Migration to Hetzner (prerequisite; tracked in `PHASE_A_INTEGRATION_PREP.md` §6.1)
+- New county adapters beyond what exists today (Phase B's "statewide expansion" deliverable, separate from self-healing)
+- Changes to deed-parsing AI logic (`ai-deed-analyzer.ts`, `ai-plat-analyzer.ts`, `ai-document-analyzer.ts` — different subsystem)
+- Anything in Starr Forge (CAD) or Starr Orbit (different products in the suite)
+
+**Out-of-scope by AI-guardrail / safety boundary** (the §5.2.1 lint rejects patches that touch any of these):
+- Anything in `lib/research/` (the Next.js "lite" pipeline). Self-healing operates on the worker only; the lite pipeline is becoming a thin HTTP client per `RECON_INVENTORY.md` §2.
+- Changes to `worker/src/infra/ai-guardrails.ts`. Bearing/distance/curve validators are domain rules, not adapter behavior — moving them violates the closure-tolerance contract that downstream traverse-closure depends on.
+- Changes to `worker/src/lib/closure-tolerance.ts`. Constants are locked per `docs/platform/CLOSURE_TOLERANCE.md`; tightening or loosening them is a platform-level decision, not an adapter repair.
+- Anything under `worker/src/shared/` (the canonical research-events catalog and ws-ticket helper; drift here breaks the protocol the Next.js client speaks).
+- Self-healing for purchase adapters (`worker/src/services/purchase-adapters/`). Money-flow stays human-gated through Phase E. A misfiring purchase adapter charges real cards.
+- New npm dependencies. A `package.json` diff is automatic rejection by the lint.
+
+**Out-of-scope by phase commitment:**
+- Phase E+ items (DOM similarity scoring, vendor-pattern learning, multi-agent debate, synthetic fixture generation, chaos engineering) — listed in §6.5 for shape only, not as commitments.
 
 ---
 
