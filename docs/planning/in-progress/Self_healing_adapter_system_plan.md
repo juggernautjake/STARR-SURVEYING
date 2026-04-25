@@ -572,59 +572,111 @@ For each active adapter, we need a one-time human investment of ~30 min to:
 
 ## 6. Phased build plan
 
-### Phase 0 — Foundation (Week 0–2, blocking everything else)
-- [ ] Adapter manifest table + migrate existing adapters into it (assign tiers)
-- [ ] Canary property catalog: build 2–3 per Tier 0/1 adapter (~6 hours work)
-- [ ] AI cost ledger table + middleware that wraps every Anthropic API call
-- [ ] Per-incident / per-month / global budget enforcement
-- [ ] Customer telemetry aggregation (5-min rollups)
-- [ ] Adapter health dashboard v1 (read-only, internal)
+This plan maps onto the project-wide phase taxonomy in `docs/platform/RECON_INVENTORY.md` §12 — **one calendar, not two.** Each section below names its parent project phase, the activation gate (what external dependency unlocks it), and the self-healing deliverables that ship inside that phase. Time-windows are guidance only; the actual gates are the activation conditions, not weeks.
 
-**Exit criteria:** dashboard shows live success rate per adapter, canaries run weekly, every Claude call is cost-tagged.
+| Self-healing milestone | Project phase | Activation gate |
+|---|---|---|
+| Foundation (manifests, canaries, cost-ledger sink) | **Phase 0** | None — local work only |
+| AI-assisted manual repair (PR generation) | **Phase A** | Hetzner + R2 + Browserbase + CapSolver provisioned |
+| Validated AI fixes, human-merge | **Phase B** | Phase A smoke-tested; regression set grown 5 → 15 |
+| Conditional auto-merge | **Phase D** | Phase B has run 30+ days clean; canary set 15 → 50 |
+| Predictive + cross-vendor learning | **Phase E+** | Phase D has run 6 months clean |
 
-### Phase 1 — AI-assisted manual repair (Week 3–5)
-- [ ] Page capture pipeline (Browserbase → S3-equivalent → Supabase artifact URL)
-- [ ] DOM diff service (compare current capture vs. last-known-good)
-- [ ] Change classifier (Claude prompt → structured change_type)
-- [ ] Auto-PR generation: when SiteHealth flags a Tier 0/1 break, agent assembles incident packet, drafts a fix, opens PR with diff + screenshots + canary results, tags Jacob
-- [ ] Slack/email notification with incident packet
+---
 
-**Exit criteria:** when a Tier 0/1 adapter breaks, a PR with proposed fix + evidence appears within 30 min of detection. Human still merges.
+### 6.1 Phase 0 — Foundation (this PR scope, no external accounts)
+
+Lives alongside the rest of the Phase 0 deliverables in RECON_INVENTORY §12 (version pinning, Dockerfile, schema migrations, regression scaffold). All work is local — no Browserbase, CapSolver, or R2 activation.
+
+**Already shipped (do not redo):**
+- `worker/src/lib/ai-usage-tracker.ts` with circuit breaker (rate / cost / consecutive-failure caps)
+- `worker/src/__tests__/regression/regression-runner.ts` + 1 synthetic fixture
+- `worker/src/lib/storage.ts` with R2 + local backends
+- `worker/src/infra/site-health-monitor.ts` (30-min cadence, screenshot-on-failure, WebSocket alerts)
+- `worker/src/lib/browser-factory.ts` and `captcha-solver.ts` in stub-default mode
+
+**Phase 0 self-healing deliverables:**
+- [ ] `seeds/202_adapter_self_healing.sql` (held; do not apply yet)
+- [ ] Tier assignment audit: assign T0/T1/T2/T3 + `vendor_tier` for every id in `KNOWN_ADAPTER_IDS`. Output: a one-page table reviewed by Jacob and committed under `docs/platform/`.
+- [ ] Hand-built canary for **`bis` (Bell-CAD, FIPS 48027)** — one property, full surveyor-aware shape (closure ratio, bearings, chain of title, adjoiners). Serves as the template for the Phase A bulk-add.
+- [ ] Extend `AiUsageEntry` in `ai-usage-tracker.ts` with `incidentId`, `adapterId`, `phase`, `model`. Add a `CostLedgerSink` interface mirroring `SolveAttemptSink` from `captcha-solver.ts`. Default sink is no-op; the Supabase writer flips on at Phase A activation.
+- [ ] Alert dedup: route SiteHealth alerts (`SiteAlert` from `site-health-monitor.ts`) into a placeholder incident orchestrator that creates one `adapter_incidents` row per (adapter_id, change_type) inside a 30-min window. Holding pattern only — no AI calls yet.
+- [ ] Bump `RESEARCH_AI_MODEL` default in root and worker `.env.example` from `claude-sonnet-4-5-20250929` to `claude-sonnet-4-6`.
+- [ ] Read-only adapter health dashboard at `/admin/adapters` (Next.js page) — reads from `adapter_manifests` and `adapter_telemetry`. No write paths yet.
+
+**Exit criteria:** dashboard renders tier + budget + last-incident per adapter; one Bell-CAD canary record exists; every Anthropic call in the worker carries `(adapterId, phase, model)` tags; `seeds/202_*` is reviewed and held.
+
+**Estimated value:** zero functional change for users, but the foundation makes every Phase A deliverable a local edit instead of a refactor. Saves ~2 weeks once Phase A starts.
+
+---
+
+### 6.2 Phase A — AI-assisted manual repair
+
+**Activation gate:** Phase A external accounts provisioned per `PHASE_A_INTEGRATION_PREP.md` §6 runbooks (Hetzner host, Browserbase, CapSolver, R2 buckets, WS server). Browserbase paid account is the long-pole.
+
+**Self-healing deliverables:**
+- [ ] Apply `seeds/202_adapter_self_healing.sql` and flip the `CostLedgerSink` to write through to `ai_cost_ledger`.
+- [ ] Page capture pipeline: SiteHealth-triggered or on-demand. Captures HTML + full-page PNG via `acquireBrowser({ adapterId })`; writes to R2 under `incidents/<incident_id>/<iso8601>/`.
+- [ ] DOM diff service: snapshot vs. last-known-good (also stored in R2). Diff is reduced to the smallest enclosing subtree to keep token costs bounded.
+- [ ] Change classifier (Anthropic prompt → structured `change_type`, `confidence`, `evidence`, `suggested_strategy_rung`). See Appendix A.1.
+- [ ] Auto-PR generation: when SiteHealth flags a T0/T1 break and the classifier returns `selector_drift`, the orchestrator runs the strategy ladder (rungs 1–3 only, no Opus yet), assembles an incident packet, and opens a PR via GitHub Actions tagging `@juggernautjake`. Body includes diff + screenshots + canary results + `ai_cost_ledger` rollup.
+- [ ] Slack + email notification with the same packet (per §4.6).
+- [ ] Grow canary catalog: 5 properties total — Bell-CAD + Bell County Clerk (Kofile) + Hays-CAD + Williamson-CAD + TexasFile. Matches the Phase A regression-set growth gate in RECON_INVENTORY §11.
+
+**Exit criteria:** when a T0/T1 adapter breaks, a PR with proposed fix + evidence appears within 30 min of detection; reviewer is Jacob; 5 canaries are running weekly; `ai_cost_ledger` rolls up per adapter on the dashboard.
 
 **Estimated value:** cuts repair time from ~30 min hunting to ~10 min reviewing. Saves 60–70% of manual time.
 
-### Phase 2 — Validated AI fixes, human-merge (Week 6–10)
-- [ ] Fixture regression suite (snapshot HTML, expected output) — 5–15 fixtures per Tier 0/1 adapter
-- [ ] Validation layer: run fixture suite + canary live probe automatically on every PR
-- [ ] Confidence scoring (computed and posted to PR)
-- [ ] Strategy ladder implementation (start cheap, escalate)
-- [ ] Cost-cap enforcement during repair
+---
 
-**Exit criteria:** PRs from the agent now include confidence score, fixture results, canary live results, and cost spent. Reviewer mostly rubber-stamps.
+### 6.3 Phase B — Validated AI fixes, human-merge
 
-**Estimated value:** another 40–50% of repair time eliminated. Detection-to-deploy under 1h for selector drift.
+**Activation gate:** Phase A live for 30+ days; ≥5 real PRs have shipped from the Phase A pipeline; regression set has grown 5 → 15 per RECON_INVENTORY §11.
 
-### Phase 3 — Conditional auto-merge (Week 11–18)
-- [ ] Auto-merge gate (Tier 0/1, selector_drift only, confidence ≥85)
-- [ ] Adapter version pinning + progressive rollout (10% → 50% → 100%)
-- [ ] Auto-rollback on telemetry regression
-- [ ] 24h probation window with human-validate-or-revert
-- [ ] Always-notify-human packet (rich Slack message + dashboard link)
-- [ ] Blast-radius checker (shared utility changes block auto-merge)
-- [ ] Cross-adapter regression suite in CI (changing kofile-base runs all kofile-county fixtures)
+**Self-healing deliverables:**
+- [ ] Validation layer wired into the auto-PR pipeline: every candidate runs the offline fixture suite (`worker/src/__tests__/regression/`) plus the live canary probe set (≥3 adapters' canaries, parallel). Results posted as a PR comment.
+- [ ] Confidence scoring (§4.4) computed and posted to PR — first-class surveyor signals (closure ratio, bearing-validator pass rate) gated against the pre-fix baseline.
+- [ ] Strategy ladder rungs 4–5 (Opus): section rewrite and full adapter rewrite, each gated on per-incident budget and abstraction-respect lint (§5.2.1).
+- [ ] **AST lint** at `worker/src/__tests__/lint-adapter-patches.ts` — the §5.2.1 hard preconditions, run before any validation budget is spent.
+- [ ] Cost-cap enforcement: per-incident, per-site monthly, global daily caps wired to the `AiUsageTracker` config; circuit breaker triggers at any cap, escalates to human handoff.
+- [ ] Coherence integration: tie self-healing into Phase B's mid-pipeline gates 5–8 (`docs/platform/RECON_INVENTORY.md` §12). A canary that fails the closure-ratio gate now blocks the canary-pass score, not just the field-completeness score.
 
-**Exit criteria:** selector drift on Tier 0/1 sites self-heals end-to-end. Human informed but not blocking. Incident closes only after human confirmation.
+**Exit criteria:** PRs from the agent include score, fixture results, live canary results, `ai_cost_ledger` cost spent, lint output. Reviewer mostly rubber-stamps. MTTR for selector drift <1h with human in the merge path.
 
-**Estimated value:** MTTR for selector drift drops from hours to <30 min, with no human in the critical path.
+**Estimated value:** another 40–50% of repair time eliminated.
 
-### Phase 4 — Predictive + cross-vendor learning (Research, no commitment)
-- [ ] DOM similarity scoring over time (predict drift before it breaks)
-- [ ] Vendor-pattern learning (Kofile change in County A pre-applied to County B)
-- [ ] Multi-agent debate (diagnostic agent vs. critique agent)
-- [ ] Synthetic fixture generation (AI generates new edge-case fixtures from real captures)
-- [ ] Chaos engineering loop (intentionally break adapters in staging to validate the healing system itself)
+---
 
-**Reality check:** Phase 4 features are individually valuable but compound risk. Don't commit until Phase 3 has 6 months of clean operation.
+### 6.4 Phase D — Conditional auto-merge
+
+**Activation gate:** Phase B clean for 30+ days; ≥10 PRs reviewed and human-merge-rate-of-no-change >90%; canary set has grown 15 → 50 per RECON_INVENTORY §11. **No customer is on production traffic that depends on a Phase D adapter without first running through the 50-property regression suite.**
+
+**Self-healing deliverables:**
+- [ ] Auto-merge gate: T0/T1, `selector_drift` only, confidence ≥85, **never vendor-base** (§4.1.1). `adapter_manifests.auto_merge_eligible` must also be true (manual promotion list).
+- [ ] Adapter version pinning: `adapter_versions` rows written on every merge; routing reads `active_version`; reuse `pipeline-diff-engine.ts` for delta computation rather than reimplementing.
+- [ ] Progressive rollout: 10% → 50% → 100% over 4h, governed by `adapter_versions.rollout_pct`.
+- [ ] Auto-rollback on telemetry regression: if `adapter_telemetry.field_completeness_pct` drops below pre-merge baseline by >5% inside the 24h probation window, flip `active_version` back to the previous row and page on-call.
+- [ ] **Blast-radius checker**: enumerates downstream FIPS via `KOFILE_FIPS_SET` etc. and posts the explicit list to the PR. Vendor-base patches blocked from auto-merge regardless of score (§4.1.1).
+- [ ] Cross-adapter regression run: changing a vendor base (`kofile-clerk-adapter.ts`, `henschen-clerk-adapter.ts`, etc.) runs the fixture suites for **every** county under that vendor before any PR can merge.
+- [ ] Customer-facing transparency: surface `degraded` adapter status to surveyors via the existing research-events bus + `useResearchProgress` hook (no new transport).
+
+**Exit criteria:** selector drift on T0/T1 sites self-heals end-to-end. Human informed but not blocking. MTTR <30 min.
+
+**Estimated value:** human is out of the critical path. Saves an additional ~10–20 min per incident.
+
+---
+
+### 6.5 Phase E+ — Predictive + cross-vendor learning (research, no commitment)
+
+**Activation gate:** Phase D has run 6 months clean. **No commitment to ship any of these — listed for shape only.**
+
+- DOM similarity scoring over time (predict drift before it breaks)
+- Vendor-pattern learning (Kofile change in County A pre-applied to County B)
+- Multi-agent debate (diagnostic agent vs. critique agent; reuses Phase B confidence-scoring as the arbiter)
+- Synthetic fixture generation (AI generates new edge-case fixtures from real captures)
+- Chaos engineering loop (intentionally break adapters in staging to validate the healing system itself)
+
+**Reality check:** Phase E features are individually valuable but compound risk. Don't commit until Phase D has 6 months of clean operation and the canary catalog has 50+ properties.
 
 ---
 
