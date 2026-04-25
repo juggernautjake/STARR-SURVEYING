@@ -294,3 +294,109 @@ These are suggestions, never automatic. The decision to actually start/stop the 
 
 **Storage management:** configurable cap (default 10 GB). Auto-purge synced media older than N days (default 30, configurable per job). Pin-to-device option keeps a job's media local indefinitely.
 
+### 5.10 Location tracking & activity insights
+
+This feature is **opt-in, employee-facing, and bounded by clock-in state**. It exists to make payroll/billing accurate, generate IRS-compliant mileage logs, and give the dispatcher visibility — not surveillance.
+
+#### 5.10.1 Privacy & consent (non-negotiable foundation)
+
+**Hard rules baked into the architecture, not enforced by policy alone:**
+
+1. **Tracking is only active while the user is clocked in.** Clock out → all location streaming stops within 60 seconds. The OS background-location indicator (iOS blue pill, Android persistent notification) goes away. This is enforced in code; it is impossible to track an off-the-clock employee without changing the app.
+2. **One-time consent flow on first activation** — full-screen, plain-language disclosure of exactly what is tracked, how it's used, who sees it, how long it's retained, and how to disable it. Employee must accept; declining means they cannot use location-aware features (but can still use basic clock-in/out without location).
+3. **Always-visible indicator inside the app** — small icon in the header showing "📍 location tracking on" while clocked in. Tap to open a "what's being tracked right now" page.
+4. **Employee sees their own data** — full timeline of their tracked day available to them, same view the dispatcher sees.
+5. **Retention cap** — raw location pings retained for 90 days, then aggregated to stop summaries and deleted. Aggregated stop data retained per company policy (default 7 years for tax compliance).
+6. **Per-company setting** — owner can disable location tracking entirely for some or all employees (e.g., for 1099 contractors, who legally cannot be tracked the same way).
+7. **Texas-specific:** Texas is generally employer-friendly on this, but legal review before rollout is recommended (see Open Questions §12). For multi-state expansion, per-state legal review is required.
+
+#### 5.10.2 What gets tracked
+
+While clocked in, the app records:
+
+- **Stop events:** anywhere the device is stationary >5 minutes
+- **Movement segments:** between stops (start time, end time, distance, simplified path)
+- **Geofence transitions:** entering/leaving the home office, known job sites, etc.
+
+Not tracked: the user's continuous breadcrumb path. The system uses the OS's "significant location change" APIs (cheap, battery-friendly) for general tracking, only switching to high-accuracy GPS when entering a job-site geofence. Continuous breadcrumb tracking would (a) destroy battery and (b) feel surveillance-y; stop-and-segment is what the business actually needs.
+
+#### 5.10.3 Stop classification
+
+Each stop gets a category, assigned in this priority order:
+
+1. **Geofence match** — inside known geofence (office, job site) → categorized automatically
+2. **Reverse geocode + AI classifier** — Google Places category for the coordinates, fed to Claude with stop duration and time-of-day context, returns one of: `office`, `job_site`, `fuel`, `food`, `supplies`, `client_meeting`, `personal`, `other`
+3. **Manual** — user can override any classification with one tap
+
+**Classification cost:** ~$0.005–0.01 per stop. Typical day: 8–15 stops → ~$0.05–0.15/day per employee. Geofence matches are free.
+
+User-visible categories on the timeline: 🏢 office / 📍 job site / ⛽ fuel / 🍔 meal / 🛒 supplies / 🤝 meeting / 🚗 travel / ❓ other.
+
+#### 5.10.4 Daily timeline view (employee + dispatcher)
+
+A vertical timeline of the day:
+
+```
+06:54  📍 Clock in @ Home Office              0:00
+06:54  🏢 Home Office                        47 min
+07:41  🚗 Travel → Smith Boundary            38 min
+08:19  📍 Smith Boundary (Job #20260418-003) 3h 12m
+11:31  🚗 Travel → Whataburger               12 min
+11:43  🍔 Whataburger Belton                 28 min
+12:11  🚗 Travel → Smith Boundary            14 min
+12:25  📍 Smith Boundary                     2h 47m
+15:12  🚗 Travel → Lowes                     9 min
+15:21  🛒 Lowes #1234                        18 min  💳 receipt uploaded
+15:39  🚗 Travel → Home Office               21 min
+16:00  🏢 Home Office                        45 min
+16:45  📤 Clock out                           
+       ──────────────────────────────────────────
+       Total: 9:51 clocked
+       On-site Smith: 5:59  •  Travel: 1:34  •  Office: 1:32  •  Meal: 0:28
+```
+
+Tap any segment to see detail (path on map, full address, receipt if any, who else was there).
+
+#### 5.10.5 Dispatcher live map
+
+Real-time view of all active employees:
+
+- Pin per active crew, colored by status (on job site / traveling / on break / at office)
+- Tap a pin → today's timeline + current job + last seen
+- Time-of-day playback ("show me where everyone was at 2pm")
+- Day-replay ("scrub through Jacob's day")
+- Anomaly flags: "Crew at unexpected location for >30 min" (e.g., not at scheduled job)
+
+Access controlled by role — only admins see the full live map.
+
+#### 5.10.6 Mileage tracking (IRS-compliant)
+
+Auto-derived from movement segments:
+
+- Per trip: start address, end address, distance (from device or routed via Google Distance Matrix for accuracy), business purpose (job name), driver, vehicle
+- Per day: total business miles
+- Per pay period / month / year: rollup
+- Export: IRS-compliant mileage log (date, start, end, miles, business purpose, vehicle) as CSV or PDF
+
+**Why this matters financially:** at the 2026 IRS standard mileage rate (~$0.70/mile), a surveyor driving 100 mi/day is generating ~$70/day in deductible business miles. Across a year that's ~$17,500 in legitimate deductions, often missed when miles are tracked by hand.
+
+#### 5.10.7 Vehicle assignment
+
+- Crew picks the company truck/vehicle they're using at start of day (one tap)
+- Mileage attributed to that vehicle for fleet management / fuel cost allocation
+- "Driver" vs "Passenger" toggle — passenger's mileage doesn't double-count
+- Vehicle-level reports: miles per truck per month, fuel cost per truck (cross-referenced with receipts)
+
+#### 5.10.8 Battery management strategy
+
+This is the hard engineering problem:
+
+- **Default mode (90% of the day):** OS significant-location-change APIs. Wakes app every 500m of movement or every ~10 minutes. Battery cost: ~3–5%/day.
+- **Geofence approach mode:** high-accuracy GPS turned on within 200m of a known job-site or office geofence. Captures precise arrival/departure timestamps. Auto-drops back to low-power after 60 seconds stationary.
+- **Movement mode:** medium-accuracy GPS during driving (detected via OS motion APIs). Records path with simplification. Drops back to low-power on stop.
+- **Off-the-clock:** zero. No background activity. OS indicator goes away.
+
+Combined with normal phone use, target: <15% additional battery drain over an 8-hour clocked-in day.
+
+User-visible: battery indicator inside the app shows current draw; if location is being unusually battery-heavy, banner suggests checking GPS-precision settings.
+
