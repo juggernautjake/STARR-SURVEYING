@@ -28,6 +28,11 @@ GoogleService-Info.plist
 *.jks
 credentials.json
 
+# Sentry — auth token written by `npx @sentry/wizard`; uploaded to
+# EAS Secrets as SENTRY_AUTH_TOKEN, never committed.
+sentry.properties
+.sentryclirc
+
 # Misc
 *.log
 *.tsbuildinfo

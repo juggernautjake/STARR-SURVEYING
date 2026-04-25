@@ -22,19 +22,23 @@ Phase F0 scaffold. The full plan lives in
   native splash and RN tree paint
 - **EAS Build** — `eas.json` with `development` / `preview` /
   `production` profiles. See "EAS Build" section below.
+- **OTA updates** via `expo-updates` — `runtimeVersion: appVersion`
+  policy + `updates.url` in app.json. See "OTA updates" section.
+- **Sentry crash reporting** (`lib/sentry.ts`, `@sentry/react-native`
+  via the Expo config plugin) — no-op when `EXPO_PUBLIC_SENTRY_DSN`
+  is empty so dev works without an account.
 - **Theme** (`lib/theme.ts`) — dark-mode default per plan §7.1 rule 7
 - **TypeScript** strict mode, **ESLint** (`eslint-config-expo` +
   `eslint-config-prettier`), **Prettier** with single-quote / 2-space
   style matching the worker
 
-## What's NOT here yet (Phase F0 remaining)
+## What's NOT here yet (deferred to F1+)
 
-- Google native sign-in (needs GCP project + 3 client IDs from you;
-  defer to F1)
-- OTA updates via `expo-updates` (F0 #6)
-- Sentry crash reporting (F0 #7)
+- Google native sign-in (needs GCP project + 3 client IDs)
+- Floating-Capture haptic feedback + vector tab icons (cosmetic)
 
-Each lands in its own session.
+**Phase F0 is complete** — next phase is F1 (Jobs + basic time logging
+per plan §9 phased build plan).
 
 ## Quick start
 
@@ -167,10 +171,110 @@ so they need to be set on EAS for cloud builds. Two options:
 eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_URL --value 'https://xxxxx.supabase.co'
 eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value 'eyJhbGc...'
 eas secret:create --scope project --name EXPO_PUBLIC_POWERSYNC_URL --value 'https://...powersync.journeyapps.com'
+eas secret:create --scope project --name EXPO_PUBLIC_SENTRY_DSN --value 'https://...@o....ingest.sentry.io/...'
+
+# Sentry source-map upload (used by the @sentry/react-native/expo
+# plugin during EAS Build only — NOT an EXPO_PUBLIC_* var):
+eas secret:create --scope project --name SENTRY_AUTH_TOKEN --value 'sntrys_...'
 ```
 
-These are public anon keys per the comments in `.env.example` — safe
-to embed but not to commit.
+These are public anon keys / write-only DSNs per the comments in
+`.env.example` — safe to embed but not to commit.
+
+## OTA updates (`expo-updates`)
+
+After a binary build is installed on a device, JS-only changes can be
+shipped without going back through TestFlight / Play Store review. The
+app checks for updates on launch (per the configured policy) and
+applies them on next cold-start.
+
+### One-time setup
+
+```bash
+cd mobile
+eas update:configure
+```
+
+This populates `updates.url` in `app.json` with your project's update
+endpoint and verifies the channel mapping in `eas.json`. Commit the
+resulting app.json change.
+
+### Push an update
+
+```bash
+# Ship to the preview channel (used by --profile preview builds):
+eas update --branch preview --message "fix: forgot-password redirect on android"
+
+# Ship to production (used by --profile production builds):
+eas update --branch production --message "feat: timesheet copy edits"
+```
+
+Updates respect the `runtimeVersion` policy in `app.json`
+(`appVersion` — only matching app versions accept the OTA). Bumping
+the app version in `app.json` creates a new runtime; previous OTAs
+won't apply to it. Always rebuild + resubmit when bumping app version.
+
+### Limits
+
+- Native code changes (new modules, plugin config changes, version
+  bumps for native deps) **require a new binary build**, not an OTA.
+- iOS App Store and Play Store accept OTA bug fixes; substantial
+  feature changes via OTA without store review can violate ToS — if
+  in doubt, ship the binary.
+
+## Sentry crash reporting
+
+`lib/sentry.ts` initializes the JS-side Sentry SDK at module-load
+time of `app/_layout.tsx`. The `@sentry/react-native/expo` plugin in
+`app.json` handles native init + source-map upload during EAS Build.
+
+### One-time setup
+
+1. Create a Sentry account + project at <https://sentry.io>. Pick the
+   "React Native" project type so you get the right SDK template.
+2. Copy the DSN from the project settings.
+3. Set it as both a local dev value and an EAS Secret:
+
+```bash
+# Local:
+echo 'EXPO_PUBLIC_SENTRY_DSN=https://...@o....ingest.sentry.io/...' >> mobile/.env.local
+
+# EAS:
+eas secret:create --scope project --name EXPO_PUBLIC_SENTRY_DSN --value 'https://...@o....ingest.sentry.io/...'
+```
+
+4. For source-map upload during EAS Build, generate a Sentry auth
+   token (Sentry → Settings → Auth Tokens, scope: `project:write` +
+   `project:releases`). Then:
+
+```bash
+eas secret:create --scope project --name SENTRY_AUTH_TOKEN --value 'sntrys_...'
+```
+
+The plugin reads `SENTRY_AUTH_TOKEN` from the EAS build environment
+and uploads source maps automatically — no `sentry.properties` file
+in the repo. (`sentry.properties` and `.sentryclirc` are gitignored
+in case `npx @sentry/wizard` ever writes them locally.)
+
+### Verify it's working
+
+After the first build with the DSN set, trigger a fake crash from a
+dev menu or with a temporary throw:
+
+```ts
+import Sentry from '@/lib/sentry';
+// in some onPress:
+Sentry.captureException(new Error('starr-field smoke test'));
+```
+
+The event should land in your Sentry project within 30 seconds with
+a usable stack trace (provided source-map upload ran during build).
+
+### Without a DSN
+
+If `EXPO_PUBLIC_SENTRY_DSN` is empty, `initSentry()` is a no-op and
+`Sentry.wrap` is a passthrough. Local dev runs identically with or
+without a Sentry account.
 
 ## Repo layout decision
 

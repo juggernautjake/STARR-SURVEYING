@@ -7,6 +7,10 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
+    "updates": {
+      "fallbackToCacheTimeout": 0,
+      "url": "REPLACE_BY_eas_update_configure"
+    },
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -36,7 +40,8 @@
           "faceIDPermission": "Starr Field uses Face ID to unlock the app and confirm sensitive actions like deleting field data."
         }
       ],
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "@sentry/react-native/expo"
     ],
     "experiments": {
       "typedRoutes": true

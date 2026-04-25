@@ -23,5 +23,13 @@ declare namespace NodeJS {
      * only the cloud sync layer is disabled. See lib/db/connector.ts.
      */
     EXPO_PUBLIC_POWERSYNC_URL?: string;
+
+    /**
+     * Sentry DSN. Optional — when missing, lib/sentry.ts skips
+     * Sentry.init so dev runs without a Sentry account. Safe to
+     * embed in client bundles per Sentry's design (DSN is a
+     * write-only identifier, not a secret).
+     */
+    EXPO_PUBLIC_SENTRY_DSN?: string;
   }
 }
