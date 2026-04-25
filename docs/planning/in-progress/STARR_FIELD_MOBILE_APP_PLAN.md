@@ -495,3 +495,235 @@ This catches both ends of fuel-cost auditing automatically.
 - Receipts queryable, exportable, and audit-package-able by date range
 
 ---
+
+## 6. Architecture
+
+### 6.1 Tech stack recommendation
+
+**Mobile framework: React Native + Expo**
+
+| Option | Pros | Cons | Recommendation |
+|---|---|---|---|
+| **React Native + Expo** | TS reuse with Next.js, mature camera/GPS/background-location modules, OTA updates | Slight performance gap vs native | ✅ **Choose** |
+| Native iOS + Android | Best performance, best background-location reliability | 2x dev cost forever | Only if RN proves insufficient |
+| Capacitor (wrap web app) | Fastest to ship | Camera/offline/background-location feel sluggish | ❌ |
+| Flutter | Great UX | No code reuse with Next.js | ❌ |
+
+**Why Expo specifically:**
+- `expo-location` supports background location with proper iOS/Android permission flows
+- `expo-camera`, `expo-av` (audio/video), `expo-file-system`, `expo-sqlite` cover ~95% of needs
+- `expo-notifications` for the "still working?" prompts and "missing receipt?" prompts
+- EAS Build produces signed iOS + Android binaries
+- OTA updates push JS/asset changes without App Store re-review
+
+**Local database: WatermelonDB or PowerSync** — evaluate via 1-day spike.
+
+**Backend: existing Supabase + Next.js**, plus:
+- **R2** for media archival (zero egress fees for the bookkeeper pulling receipts)
+- **Anthropic API** for receipt extraction and stop classification (already in stack)
+- **Google Places API + Distance Matrix** for stop geocoding and accurate mileage
+
+### 6.2 Storage strategy
+
+| Asset type | Where | Why |
+|---|---|---|
+| Voice memos (≤5 MB) | Supabase Storage | Hot, small |
+| Receipt photos (≤5 MB) | Supabase Storage | Hot, audit-frequent |
+| Photos (compressed, ≤2 MB) | Supabase Storage | Hot |
+| Photos (originals, 5–20 MB) | R2 | Larger, cheaper |
+| Videos (10–500 MB) | R2 | Large, write-once-read-rare |
+| Files / PDFs | Supabase Storage | Reference docs |
+| Receipts older than current tax year + 1 | R2 archive class | Cold, infrequently accessed |
+
+### 6.3 New Supabase tables (additions)
+
+```sql
+-- Augment existing jobs table
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS field_state TEXT,
+                  ADD COLUMN IF NOT EXISTS pinned_for_users UUID[],
+                  ADD COLUMN IF NOT EXISTS centroid_lat NUMERIC,
+                  ADD COLUMN IF NOT EXISTS centroid_lon NUMERIC,
+                  ADD COLUMN IF NOT EXISTS geofence_radius_m INT;
+
+CREATE TABLE field_data_points (
+  id UUID PRIMARY KEY,
+  job_id UUID REFERENCES jobs ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  code_category TEXT,
+  description TEXT,
+  device_lat NUMERIC,
+  device_lon NUMERIC,
+  device_altitude_m NUMERIC,
+  device_accuracy_m NUMERIC,
+  device_compass_heading NUMERIC,
+  is_offset BOOLEAN DEFAULT false,
+  is_correction BOOLEAN DEFAULT false,
+  corrects_point_id UUID REFERENCES field_data_points,
+  created_by UUID REFERENCES auth.users,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  client_id TEXT,
+  UNIQUE(job_id, name)
+);
+
+CREATE TABLE field_media (
+  id UUID PRIMARY KEY,
+  job_id UUID REFERENCES jobs ON DELETE CASCADE,
+  data_point_id UUID REFERENCES field_data_points ON DELETE CASCADE,
+  media_type TEXT NOT NULL,
+  storage_url TEXT NOT NULL,
+  thumbnail_url TEXT,
+  original_url TEXT,
+  duration_seconds INT,
+  file_size_bytes BIGINT,
+  device_lat NUMERIC,
+  device_lon NUMERIC,
+  device_compass_heading NUMERIC,
+  captured_at TIMESTAMPTZ,
+  uploaded_at TIMESTAMPTZ,
+  transcription TEXT,
+  annotations JSONB,
+  created_by UUID REFERENCES auth.users,
+  client_id TEXT
+);
+
+CREATE TABLE field_notes (
+  id UUID PRIMARY KEY,
+  job_id UUID REFERENCES jobs ON DELETE CASCADE,
+  data_point_id UUID REFERENCES field_data_points ON DELETE CASCADE,
+  note_template TEXT,
+  body TEXT,
+  structured_data JSONB,
+  created_by UUID REFERENCES auth.users,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  client_id TEXT
+);
+
+CREATE TABLE vehicles (
+  id UUID PRIMARY KEY,
+  company_id UUID,
+  name TEXT NOT NULL,
+  license_plate TEXT,
+  vin TEXT,
+  active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE time_entries (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users,
+  job_id UUID REFERENCES jobs,
+  vehicle_id UUID REFERENCES vehicles,
+  is_driver BOOLEAN DEFAULT true,
+  clock_in TIMESTAMPTZ NOT NULL,
+  clock_out TIMESTAMPTZ,
+  break_minutes INT DEFAULT 0,
+  entry_type TEXT,                  -- 'on_site' | 'travel' | 'office' | 'overhead'
+  notes TEXT,
+  status TEXT DEFAULT 'open',       -- 'open' | 'submitted' | 'approved' | 'locked'
+  approved_at TIMESTAMPTZ,
+  approved_by UUID REFERENCES auth.users,
+  client_id TEXT
+);
+
+CREATE TABLE time_entry_edits (
+  id UUID PRIMARY KEY,
+  time_entry_id UUID REFERENCES time_entries ON DELETE CASCADE,
+  field_name TEXT NOT NULL,
+  old_value TEXT,
+  new_value TEXT,
+  reason TEXT,                      -- required if delta > 15min
+  edited_by UUID REFERENCES auth.users,
+  edited_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE location_stops (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users,
+  time_entry_id UUID REFERENCES time_entries,
+  job_id UUID REFERENCES jobs,
+  category TEXT,                    -- 'office' | 'job_site' | 'fuel' | 'food' | etc.
+  category_source TEXT,             -- 'geofence' | 'ai' | 'manual'
+  ai_confidence NUMERIC(3,2),
+  lat NUMERIC NOT NULL,
+  lon NUMERIC NOT NULL,
+  place_name TEXT,
+  place_address TEXT,
+  arrived_at TIMESTAMPTZ NOT NULL,
+  departed_at TIMESTAMPTZ,
+  duration_minutes INT,
+  user_overridden BOOLEAN DEFAULT false
+);
+
+CREATE TABLE location_segments (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users,
+  time_entry_id UUID REFERENCES time_entries,
+  vehicle_id UUID REFERENCES vehicles,
+  start_stop_id UUID REFERENCES location_stops,
+  end_stop_id UUID REFERENCES location_stops,
+  started_at TIMESTAMPTZ NOT NULL,
+  ended_at TIMESTAMPTZ,
+  distance_meters NUMERIC,
+  path_simplified GEOMETRY,         -- PostGIS, simplified to ~50 points
+  is_business BOOLEAN DEFAULT true,
+  business_purpose TEXT
+);
+
+CREATE TABLE receipts (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users,
+  job_id UUID REFERENCES jobs,
+  time_entry_id UUID REFERENCES time_entries,
+  location_stop_id UUID REFERENCES location_stops,
+  vendor_name TEXT,
+  vendor_address TEXT,
+  transaction_at TIMESTAMPTZ,
+  subtotal_cents INT,
+  tax_cents INT,
+  tip_cents INT,
+  total_cents INT,
+  payment_method TEXT,
+  payment_last4 TEXT,
+  category TEXT,
+  category_source TEXT,             -- 'ai' | 'user' | 'rule'
+  tax_deductible_flag TEXT,         -- 'full' | 'partial_50' | 'none' | 'review'
+  notes TEXT,
+  photo_url TEXT NOT NULL,
+  ai_confidence_per_field JSONB,
+  status TEXT DEFAULT 'pending',    -- 'pending' | 'approved' | 'rejected' | 'exported'
+  approved_by UUID REFERENCES auth.users,
+  approved_at TIMESTAMPTZ,
+  client_id TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE receipt_line_items (
+  id UUID PRIMARY KEY,
+  receipt_id UUID REFERENCES receipts ON DELETE CASCADE,
+  description TEXT,
+  amount_cents INT,
+  quantity NUMERIC,
+  position INT
+);
+
+CREATE TABLE point_codes (
+  code TEXT PRIMARY KEY,
+  category TEXT NOT NULL,
+  display_color TEXT,
+  description TEXT,
+  is_custom BOOLEAN DEFAULT false
+);
+```
+
+**RLS:** every table scoped by `user_id` for employees and by company for admins. Location data has stricter rules — only the user themselves and explicit admins (not all employees of the company) can read another user's location records.
+
+### 6.4 Offline sync engine
+
+Same architecture as v1. Adds:
+
+- Time entries: highest-priority sync class (payroll-critical)
+- Receipts: high-priority (small payload, high-value)
+- Location data: chunked uploads (every 10 min while online, batched to 100 pings or 5 min of motion per chunk; entirely deferrable on bad signal)
+- Receipt AI extraction: client uploads photo first; server runs Claude Vision; result pushed back via Supabase Realtime
+
+---
