@@ -2,24 +2,29 @@
 
 **Status:** Planning / RFC
 **Owner:** Jacob (Starr Software)
-**Component:** STARR RECON — adapter resilience subsystem
+**Component:** STARR RECON (Starr Compass) — adapter resilience subsystem; supplements `docs/platform/RECON_INVENTORY.md`, slots into the build phases defined there
 **Created:** 2026-04-24
-**Target repo path:** `docs/planning/SELF_HEALING_ADAPTER_SYSTEM_PLAN.md`
+**Last updated:** 2026-04-25
+**Target repo path:** `docs/planning/in-progress/Self_healing_adapter_system_plan.md`
 
 ---
 
 ## 1. Executive summary
 
-STARR RECON depends on dozens of public-records and GIS websites whose DOM structure, workflows, and access controls drift continuously. Today, drift is detected (SiteHealth runs every 6h) but remediation is fully manual. This document specifies an **AI-assisted, value-tiered, budget-bounded self-healing system** that detects adapter breakage, diagnoses the change, generates and tests a candidate fix, validates it against canary properties with known-good ground truth, and either auto-merges (within strict guardrails) or opens a PR with full evidence — always notifying a human regardless of outcome.
+STARR RECON depends on dozens of public-records and GIS websites whose DOM structure, workflows, and access controls drift continuously. Today, drift is detected (SiteHealth runs every 30 min by default) but remediation is fully manual. This document specifies an **AI-assisted, value-tiered, budget-bounded self-healing system** that detects adapter breakage, diagnoses the change, generates and tests a candidate fix, validates it against canary properties with known-good ground truth, and either auto-merges (within strict guardrails) or opens a PR with full evidence — always notifying a human regardless of outcome.
 
-The system is built in four phases, each phase delivering standalone value so we can stop at any phase if economics or risk shift.
+The system is built in four phases, each phase delivering standalone value so we can stop at any phase if economics or risk shift. Phase numbering aligns with the project-wide Phase 0/A/B/C/D/E/F/G taxonomy from `docs/platform/RECON_INVENTORY.md` §12 — see §6 below for the mapping.
 
-**Headline numbers (target steady state, ~25 active adapters):**
+**Scope.** Self-healing operates on the **worker** (`worker/src/`) only. The Next.js `lib/research/` "lite" pipeline is becoming a thin HTTP client per RECON_INVENTORY §2 and is excluded from auto-repair. The plan also explicitly excludes purchase adapters (`worker/src/services/purchase-adapters/`); money-flow stays human-gated through Phase E.
 
-- Routine drift breaks per month: 3–8
+**Adapter surface area.** The worker exposes 17 read adapters (`worker/src/adapters/`), 8 purchase adapters (`worker/src/services/purchase-adapters/`), and 10 government-source clients (`worker/src/sources/`). Per `docs/planning/in-progress/STARR_RECON/CODE_REVIEW_2026_03_09.md`, only ~5 read adapters are verified end-to-end; the rest are scaffolded. **Self-healing applies to the read-adapter surface only**, and adapters that have never run cleanly are never auto-merge-eligible regardless of tier.
+
+**Headline numbers (target steady state):**
+
+- Routine drift breaks per month: 3–8 (across ~25 verified adapter+source combinations once Phase A's statewide expansion lands)
 - AI cost per repair attempt (capped): $1–$25 depending on tier
 - Monthly AI ceiling for adapter health (all tiers combined): ~$200–$500
-- Engineer time saved vs. fully manual: 60–85% (Phase 2), 85–95% (Phase 3)
+- Engineer time saved vs. fully manual: 60–85% (Phase B), 85–95% (Phase D)
 - MTTR (mean time to repair): from current ~4–24h → target <30 min for selector drift, <4h for workflow changes
 
 ---
@@ -47,21 +52,22 @@ The system is built in four phases, each phase delivering standalone value so we
 
 | Capability | Status | Notes |
 |---|---|---|
-| Vendor-level adapter architecture | ✅ Built | kofile, tyler, henschen, idocket, fidlar, etc. |
-| SiteHealth monitor (6h cadence) | ✅ Built | Detects selector failure, no remediation |
-| Browserbase integration | 🟡 Stashed | Ready to activate |
-| CapSolver integration | ✅ Wired | Toggle-activated |
-| Anthropic API key in worker | ✅ Wired | Used for vision/extraction today |
-| Regression fixture suite | ❌ Not built | Phase A planning mentions 1→5→15 fixtures |
-| Canary test properties | ❌ Not built | Critical missing piece — see §5.3 |
-| Customer telemetry (per-adapter success rates) | 🟡 Partial | Job results in Supabase; no aggregation dashboard |
-| Per-site cost budgets | ❌ Not built | Foundational for this entire plan |
-| Auto-PR generation | ❌ Not built | |
-| Canary deployment / progressive rollout | ❌ Not built | All deploys today are 100% cutover |
-| Adapter version pinning | ❌ Not built | One adapter version live at a time |
+| Vendor-level adapter architecture | ✅ Built | 17 read adapters in `worker/src/adapters/` (kofile, tyler, henschen, idocket, fidlar, countyfusion, texasfile, bexar, bis, trueautomation, hcad, tad, generic-cad, …). Vendor↔county mapping lives in `cad-registry.ts` and `clerk-registry.ts` (`KOFILE_FIPS_SET`, `HENSCHEN_FIPS_SET`, …). Canonical adapter ids in `KNOWN_ADAPTER_IDS` (`browser-factory.ts`). |
+| SiteHealth monitor (30 min default) | ✅ Built | `worker/src/infra/site-health-monitor.ts`. Vendor probes for hcad/tad/bis/trueautomation/tyler/kofile/texasfile; captures screenshots on failure; emits alerts via WebSocket. Cadence is configurable via `startPeriodicChecks(intervalMs)`. **Detects, does not remediate.** |
+| Browserbase integration | 🟡 Code complete, stub-default | `worker/src/lib/browser-factory.ts` ships full CDP path with proxy + per-adapter gating (`BROWSERBASE_ENABLED_ADAPTERS`); 36 production call-sites already routed through `acquireBrowser`. Activation is one env-var flip pending paid account (see `PHASE_A_INTEGRATION_PREP.md` §6.1). |
+| CapSolver integration | 🟡 Code complete, stub-default | `worker/src/lib/captcha-solver.ts` + `captcha-solver-http.ts`; 3-strike retry + escalation, Redis cache, pluggable `SolveAttemptSink`, supports Turnstile / reCAPTCHA v2 / v3 / Enterprise / hCaptcha / DataDome. Activation requires applying `seeds/201_captcha_solves.sql` (currently held) and provisioning the paid account. |
+| Anthropic API key + cost tracking | ✅ Wired | Worker uses Anthropic for vision/extraction. `worker/src/lib/ai-usage-tracker.ts` already implements an in-process circuit breaker (rate, cost-per-window, consecutive-failure caps) with a `getGlobalAiTracker()` singleton. **Self-healing extends this tracker — does not replace it** (see §5.1). |
+| Regression fixture suite | 🟡 Scaffold built | `worker/src/__tests__/regression/regression-runner.ts` + 1 synthetic fixture under `fixtures/synthetic/` (Phase 0 deliverable). Per-field tolerance (exact / numeric± / fuzzy / list-set) implemented. Phase A grows to 5 real fixtures from Starr filing cabinet; Phase B → 15; Phase D → 50 (RECON_INVENTORY §11). |
+| Canary test properties | ❌ Not built | Distinct from regression fixtures: canaries probe **live** sites with known-good ground-truth; fixtures replay captured HTML offline. Critical missing piece — see §5.3. |
+| Per-job telemetry (success, completeness, duration) | 🟡 Partial | Job-level fields exist on `research_projects`; `pipeline-version-store.ts` snapshots whole pipelines; research-events bus (`worker/src/shared/research-events.ts`, zod-validated, 8 event types) pipes live progress to the UI via `useResearchProgress`. **No per-adapter aggregation, no 5-min rollups, no degradation alerting.** |
+| Per-site cost budgets | ❌ Not built | Foundational for this entire plan. Will extend `AiUsageTracker` config rather than introducing a parallel budget enforcer. |
+| Auto-PR generation | ❌ Not built | GitHub Actions already in use (`.github/`); auto-PR jobs land there in Phase A. |
+| Canary deployment / progressive rollout | ❌ Not built | All deploys today are 100% cutover. |
+| Adapter version pinning | ❌ Not built | `worker/src/services/pipeline-version-store.ts` versions whole-pipeline snapshots, not individual adapters — different granularity. New `adapter_versions` table required (§5.1); reuse `pipeline-diff-engine.ts` for delta computation rather than reimplementing. |
 | Incident timeline / post-mortem generation | ❌ Not built | |
+| Two parallel pipelines (lib/research lite + worker) | 🟡 Known | Self-healing operates on worker only. `lib/research/` becomes a thin HTTP client per RECON_INVENTORY §2; not in repair scope. |
 
-**Critical insight:** we have detection but not response. The work below is mostly *response infrastructure*, with detection improvements layered on.
+**Critical insight:** we have detection but not response. The work below is mostly *response infrastructure*, with detection improvements layered on. We also have **substantial Phase A scaffolding** already shipped (browser/captcha/storage abstractions, AI cost tracking, regression-runner) — self-healing slots into those abstractions rather than competing with them.
 
 ---
 
