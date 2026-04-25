@@ -5,73 +5,152 @@
  * Supabase Auth directly (NOT through NextAuth — that's web-only).
  * This provider:
  *   1. Reads the current session at mount (from AsyncStorage via the
- *      Supabase client config in lib/supabase.ts)
+ *      Supabase client config in lib/supabase.ts) AND the biometric
+ *      preference together, so the lock decision is made before the
+ *      UI flashes through unlocked tabs
  *   2. Subscribes to onAuthStateChange so signIn/signOut anywhere
  *      else updates state here too
- *   3. Exposes signIn / signOut / resetPassword as imperative actions
+ *   3. Tracks AppState transitions to auto-lock after configurable
+ *      idle (default 15 min) when the user returns from background
+ *   4. Exposes signIn / signOut / resetPassword AND the lock-state
+ *     management methods (setBiometricEnabled, unlock, lockNow,
+ *     requireReauth) as a single context surface
  *
- * Phase F0 #2a — email + password only. Magic link, biometric unlock,
- * auto-lock idle timer, and re-auth-on-destructive-action are F0 #2b.
+ * Phase F0 #2a wired email + password sign-in. Phase F0 #2b adds the
+ * locked-state dimension on top — the session itself is still the
+ * authoritative auth, biometric just gates UI access to it.
  */
 import type { Session } from '@supabase/supabase-js';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 
+import { LockOverlay } from './LockOverlay';
+import {
+  authenticate,
+  getBiometricCapability,
+  requireReauth as runReauthPrompt,
+} from './biometric';
+import {
+  getBiometricEnabled as readBiometricEnabled,
+  setBiometricEnabled as writeBiometricEnabled,
+  getIdleLockMinutes,
+  getLastBackgroundedTs,
+  markBackgroundedNow,
+} from './lockState';
 import { supabase } from './supabase';
 
 interface AuthContextValue {
   /** Current session, or null when signed out. */
   session: Session | null;
-  /** True until the initial session check from AsyncStorage resolves. */
+  /**
+   * True until the initial session check + biometric-pref read both
+   * resolve. Layouts that gate routes should render their splash
+   * while this is true.
+   */
   loading: boolean;
   /**
-   * Sign in with email + password. Returns an error message on failure
-   * (so screens can surface it without parsing the Supabase error
-   * shape themselves), `null` on success.
+   * True when a session exists but the user must pass biometric to
+   * proceed. False when no session exists (sign-in screen handles
+   * that case) or when biometric is disabled.
+   */
+  locked: boolean;
+  /** Has the user opted into biometric unlock from the Me tab? */
+  biometricEnabled: boolean;
+  /**
+   * Sign in with email + password. Returns an error message on failure,
+   * `null` on success.
    */
   signIn: (email: string, password: string) => Promise<string | null>;
-  /** Sign out and clear local session. */
+  /** Sign out and clear local session. Also clears the locked flag. */
   signOut: () => Promise<void>;
   /** Send a password-reset email. Returns an error message or null. */
   resetPassword: (email: string) => Promise<string | null>;
+  /** Toggle the biometric preference. Persists to AsyncStorage. */
+  setBiometricEnabled: (enabled: boolean) => Promise<void>;
+  /** Prompt biometric and clear the lock if the user authenticates. */
+  unlock: () => Promise<boolean>;
+  /** Force-lock immediately. Used by the "Lock now" button on Me. */
+  lockNow: () => void;
+  /**
+   * Re-auth helper for destructive actions (delete job, delete point,
+   * delete time entry per plan §5.1). No-ops to true when biometric
+   * is disabled or unavailable — the Supabase session is the actual
+   * auth, this is just UX.
+   */
+  requireReauth: (reason: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [biometricEnabled, setBiometricEnabledState] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // ── Initial mount: load session + biometric pref together ──────────────
   useEffect(() => {
     let mounted = true;
 
-    // Initial session read. This pulls from AsyncStorage (configured in
-    // lib/supabase.ts) so a returning user is signed-in before the UI
-    // has a chance to flicker through the sign-in screen.
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (mounted) {
-          setSession(data.session);
-          setLoading(false);
+    Promise.all([supabase.auth.getSession(), readBiometricEnabled()])
+      .then(async ([{ data }, savedBiometricEnabled]) => {
+        if (!mounted) return;
+        const hasSession = !!data.session;
+
+        // Defense: if biometric was enabled but the device no longer
+        // supports it (sensor unavailable, all biometrics removed via
+        // device settings), silently clear the pref so the user isn't
+        // locked out with no way to authenticate.
+        let effectiveBiometric = savedBiometricEnabled;
+        if (savedBiometricEnabled) {
+          const cap = await getBiometricCapability();
+          if (!cap.available) {
+            effectiveBiometric = false;
+            await writeBiometricEnabled(false);
+          }
         }
+
+        if (!mounted) return;
+        setSession(data.session);
+        setBiometricEnabledState(effectiveBiometric);
+        // Cold-start with an existing session AND biometric enabled →
+        // start locked. The LockOverlay will auto-prompt on mount.
+        setLocked(hasSession && effectiveBiometric);
+        setLoading(false);
       })
       .catch(() => {
-        // getSession failure typically means corrupted local storage.
-        // Treat as signed out; user can sign in again.
-        if (mounted) {
-          setSession(null);
-          setLoading(false);
-        }
+        // getSession or AsyncStorage failure → treat as signed out.
+        if (!mounted) return;
+        setSession(null);
+        setBiometricEnabledState(false);
+        setLocked(false);
+        setLoading(false);
       });
 
-    // Live subscription. Handles signIn from any screen, token refresh,
-    // and signOut from server-side revocation. The return shape is
-    // `{ data: { subscription } }` — destructure deep so the cleanup
-    // call site reads naturally.
+    // Live auth-state subscription. Handles signIn from any screen,
+    // token refresh, and server-side signOut.
     const {
       data: { subscription: authSubscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      if (mounted) setSession(newSession);
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (!mounted) return;
+      setSession(newSession);
+      // If the session went away (signOut, expired token), clear lock
+      // so we don't show the LockOverlay on top of the sign-in screen.
+      if (!newSession) setLocked(false);
+      // SIGNED_IN fires after a successful signInWithPassword. The
+      // user just authenticated; do NOT lock them again — they'd
+      // immediately have to do biometric on top of password, which
+      // is bad UX. Cold-start uses the locked-state from the
+      // Promise.all above; mid-session sign-in skips the lock.
+      if (event === 'SIGNED_IN') setLocked(false);
     });
 
     return () => {
@@ -80,10 +159,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // ── AppState: auto-lock after idle when returning from background ──────
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (nextState: AppStateStatus) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        await markBackgroundedNow();
+        return;
+      }
+      if (nextState !== 'active') return;
+      // Only re-lock if there's a session to lock AND user has opted in.
+      if (!session || !biometricEnabled) return;
+      const ts = await getLastBackgroundedTs();
+      if (!ts) return;
+      const idleMin = await getIdleLockMinutes();
+      const elapsedMin = (Date.now() - ts) / 60000;
+      if (elapsedMin >= idleMin) setLocked(true);
+    });
+    return () => sub.remove();
+  }, [session, biometricEnabled]);
+
+  // ── Imperative actions ─────────────────────────────────────────────────
+  const setBiometricEnabled = useCallback(async (enabled: boolean) => {
+    await writeBiometricEnabled(enabled);
+    setBiometricEnabledState(enabled);
+    // Turning biometric OFF while locked is the same as unlocking —
+    // there's no second factor left to demand.
+    if (!enabled) setLocked(false);
+  }, []);
+
+  const unlock = useCallback(async () => {
+    const ok = await authenticate('Unlock Starr Field');
+    if (ok) setLocked(false);
+    return ok;
+  }, []);
+
+  const lockNow = useCallback(() => {
+    if (biometricEnabled) setLocked(true);
+  }, [biometricEnabled]);
+
+  const requireReauth = useCallback(
+    (reason: string) => runReauthPrompt(reason, biometricEnabled),
+    [biometricEnabled]
+  );
+
+  // ── Context value ──────────────────────────────────────────────────────
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       loading,
+      locked,
+      biometricEnabled,
       signIn: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
@@ -98,17 +223,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
         return error?.message ?? null;
       },
+      setBiometricEnabled,
+      unlock,
+      lockNow,
+      requireReauth,
     }),
-    [session, loading]
+    [
+      session,
+      loading,
+      locked,
+      biometricEnabled,
+      setBiometricEnabled,
+      unlock,
+      lockNow,
+      requireReauth,
+    ]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      {locked ? (
+        <LockOverlay
+          onUnlock={() => setLocked(false)}
+          onSignOut={() => {
+            // Sign out clears the session, which clears `locked` via
+            // the onAuthStateChange handler above. Don't setLocked
+            // here — let the auth state machine drive it.
+            void supabase.auth.signOut();
+          }}
+        />
+      ) : null}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error('useAuth must be called inside <AuthProvider>. Wrap your tree in app/_layout.tsx.');
+    throw new Error(
+      'useAuth must be called inside <AuthProvider>. Wrap your tree in app/_layout.tsx.'
+    );
   }
   return ctx;
 }

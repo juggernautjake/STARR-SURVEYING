@@ -9,7 +9,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.starrsoftware.starrfield"
+      "bundleIdentifier": "com.starrsoftware.starrfield",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Starr Field uses Face ID to unlock the app and confirm sensitive actions like deleting field data."
+      }
     },
     "android": {
       "package": "com.starrsoftware.starrfield",
@@ -21,7 +24,15 @@
       "bundler": "metro",
       "output": "static"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Starr Field uses Face ID to unlock the app and confirm sensitive actions like deleting field data."
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }
