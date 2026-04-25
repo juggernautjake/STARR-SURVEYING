@@ -5,29 +5,34 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { Timesheet } from '@/lib/Timesheet';
 import { useActiveTimeEntry, useClockOut } from '@/lib/timeTracking';
 import { formatDuration } from '@/lib/timeFormat';
+import { useTimesheet } from '@/lib/timesheet';
 import { colors } from '@/lib/theme';
 
 /**
- * Time tab — F1 #4 clock-in/out.
+ * Time tab — F1 #4 clock-in/out + F1 #5 timesheet history.
  *
- * Two states:
- *   1. Not clocked in — big "Clock in" button that opens pick-job.
- *   2. Clocked in — shows job/entry-type + live duration counter +
- *      "Clock out" button.
- *
- * Timesheet history (past entries, totals by day, submit-for-
- * approval) lands in F1 #5.
+ * Layout (single scroll):
+ *   1. Status card — clocked-in vs not, with live duration counter
+ *      and clock-in/out button (F1 #4).
+ *   2. Recent entries — last 14 days, grouped by day, with daily
+ *      totals (F1 #5). Read-only; F1 #6 makes entries tappable for
+ *      manual edits with audit trail.
  */
 export default function TimeScreen() {
   const scheme = useColorScheme() ?? 'dark';
   const palette = colors[scheme];
 
   const { active, isLoading } = useActiveTimeEntry();
+  const { days, isLoading: timesheetLoading } = useTimesheet(14);
   const clockOut = useClockOut();
   const [clockingOut, setClockingOut] = useState(false);
 
+  // Only block on the active-entry query — the timesheet query can
+  // arrive a beat later and the section gracefully shows "No history
+  // yet" or the loaded data without flashing the splash.
   if (isLoading) return <LoadingSplash />;
 
   const onClockIn = () => router.push('/(tabs)/time/pick-job');
@@ -116,10 +121,20 @@ export default function TimeScreen() {
           </View>
         )}
 
+        <View style={styles.timesheetHeader}>
+          <Text style={[styles.timesheetTitle, { color: palette.text }]}>
+            Recent
+          </Text>
+          <Text style={[styles.timesheetSubtitle, { color: palette.muted }]}>
+            Last 14 days
+          </Text>
+        </View>
+
+        {timesheetLoading && days.length === 0 ? null : <Timesheet days={days} />}
+
         <View style={styles.hintRow}>
           <Text style={[styles.hint, { color: palette.muted }]}>
-            Timesheet history (today / this week / submit-for-approval) lands
-            in F1 #5.
+            Tap to edit + submit-for-approval workflow lands in F1 #6 / #9.
           </Text>
         </View>
       </ScrollView>
@@ -192,6 +207,20 @@ const styles = StyleSheet.create({
   },
   buttonSpacer: {
     height: 24,
+  },
+  timesheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginTop: 32,
+    marginBottom: 16,
+  },
+  timesheetTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  timesheetSubtitle: {
+    fontSize: 13,
   },
   hintRow: {
     paddingTop: 24,
