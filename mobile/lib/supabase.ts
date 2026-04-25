@@ -17,9 +17,13 @@
  * The actual sign-in flow lands in Phase F0 deliverable #2 (this file
  * is the wiring; the screens consuming it come next).
  */
+// Polyfill MUST load before @supabase/supabase-js (which uses URL/atob
+// internally during createClient setup and on token refresh). Side-effect
+// imports execute in declaration order, so this stays at line 1.
+import 'react-native-url-polyfill/auto';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
-import 'react-native-url-polyfill/auto';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;

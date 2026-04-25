@@ -1,5 +1,5 @@
 {
-  "extends": "expo",
+  "extends": ["expo", "prettier"],
   "ignorePatterns": ["/dist/*", ".expo/*", "node_modules/*"],
   "rules": {
     "@typescript-eslint/no-explicit-any": "off",

@@ -12,7 +12,10 @@ import { colors } from '@/lib/theme';
  * empty screens with a label until each feature lands in F1+.
  */
 export default function TabsLayout() {
-  const scheme = useColorScheme() ?? 'light';
+  // Dark-mode default per plan §7.1 rule 7 (battery-aware). Matches
+  // the default in lib/Placeholder.tsx so the tab bar and screen
+  // backgrounds agree on first render.
+  const scheme = useColorScheme() ?? 'dark';
   const palette = colors[scheme];
 
   return (
