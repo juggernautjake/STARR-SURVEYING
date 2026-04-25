@@ -4,6 +4,9 @@
     "slug": "starr-field",
     "scheme": "starr-field",
     "version": "0.0.1",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

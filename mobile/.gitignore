@@ -15,6 +15,19 @@ android/
 .env.local
 .env.*.local
 
+# EAS Build / Submit credentials — never commit. EAS stores Apple
+# certificates and Android keystores remotely; only the metadata
+# in eas.json should be tracked.
+google-play-service-account.json
+google-services.json
+GoogleService-Info.plist
+*.p8
+*.p12
+*.mobileprovision
+*.keystore
+*.jks
+credentials.json
+
 # Misc
 *.log
 *.tsbuildinfo
