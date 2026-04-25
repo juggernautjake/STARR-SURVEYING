@@ -12,13 +12,21 @@
  *      else updates state here too
  *   3. Tracks AppState transitions to auto-lock after configurable
  *      idle (default 15 min) when the user returns from background
- *   4. Exposes signIn / signOut / resetPassword AND the lock-state
- *     management methods (setBiometricEnabled, unlock, lockNow,
- *     requireReauth) as a single context surface
+ *   4. Exposes the full sign-in surface (signIn, signInWithMagicLink,
+ *      resetPassword, signOut) AND the lock-state management methods
+ *      (setBiometricEnabled, unlock, lockNow, requireReauth) via a
+ *      single useAuth() context
  *
- * Phase F0 #2a wired email + password sign-in. Phase F0 #2b adds the
- * locked-state dimension on top — the session itself is still the
- * authoritative auth, biometric just gates UI access to it.
+ * Phases shipped:
+ *   F0 #2a — email + password sign-in
+ *   F0 #2b — biometric unlock + auto-lock + re-auth helper
+ *   F0 #2c — magic-link sign-in + password-reset deep link;
+ *            Sign in with Apple lives in lib/AppleSignInButton.tsx
+ *            (it doesn't need a hook into this provider since the
+ *            session change comes through onAuthStateChange).
+ *
+ * The session itself is still the authoritative auth; biometric and
+ * lock-state are UI gates on top of it.
  */
 import type { Session } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';

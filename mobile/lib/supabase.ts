@@ -12,10 +12,15 @@
  *
  * `detectSessionInUrl: false` because mobile receives auth callbacks
  * via deep link (the `starr-field://` scheme set in app.json), not
- * through `window.location` like the web client.
+ * through `window.location` like the web client. The deep-link
+ * handlers at app/(auth)/auth-callback.tsx and reset-password.tsx
+ * parse the URL fragment and call setSession explicitly.
  *
- * The actual sign-in flow lands in Phase F0 deliverable #2 (this file
- * is the wiring; the screens consuming it come next).
+ * Consumers wrap this client through lib/auth.tsx (AuthProvider) so
+ * UI screens read session state via useAuth() rather than touching
+ * supabase.auth directly. The deep-link screens are the only
+ * exception — they need setSession before AuthProvider's listener
+ * has a session to propagate.
  */
 // Polyfill MUST load before @supabase/supabase-js (which uses URL/atob
 // internally during createClient setup and on token refresh). Side-effect

@@ -16,8 +16,17 @@
  * long-press is a stub today; the actual "quick-capture without job"
  * flow lands in F3 alongside data-point capture (§5.3).
  */
-import { Alert, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import {
+  Alert,
+  GestureResponderEvent,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme,
+} from 'react-native';
 
 import { colors } from './theme';
 
@@ -28,10 +37,10 @@ export function CaptureFab(props: BottomTabBarButtonProps) {
   const scheme = useColorScheme() ?? 'dark';
   const palette = colors[scheme];
 
-  // The Tabs navigator passes onPress as `(e) => void`. Forwarding
-  // directly preserves all default tab-press behavior.
-  const handlePress = () => {
-    props.onPress?.(undefined as never);
+  // Forward the actual GestureResponderEvent so the navigator's
+  // animation/haptic hooks see the real gesture.
+  const handlePress = (e: GestureResponderEvent) => {
+    props.onPress?.(e);
   };
 
   const handleLongPress = () => {

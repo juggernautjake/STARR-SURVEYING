@@ -25,7 +25,6 @@ import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View, useColorScheme } from 'react-native';
 
 import { supabase } from './supabase';
-import { colors } from './theme';
 
 interface AppleSignInButtonProps {
   /** Called with a user-presentable error message when sign-in fails. */
@@ -97,10 +96,6 @@ export function AppleSignInButton({ onError }: AppleSignInButtonProps) {
     </View>
   );
 }
-
-// Reference colors so this file participates in theme typing if we
-// later swap the native button for a custom one.
-void colors;
 
 const styles = StyleSheet.create({
   wrapper: {

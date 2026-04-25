@@ -18,11 +18,14 @@ import { colors } from '@/lib/theme';
 
 /**
  * Request a password-reset email. Supabase sends a deep-link to
- * `starr-field://reset-password?...`; the handler for that link
- * lands in F0 #2b alongside the magic-link callback.
+ * `starr-field://reset-password#...` (configured in lib/auth.tsx
+ * via Linking.createURL); the handler at app/(auth)/reset-password.tsx
+ * consumes the link, establishes the recovery session, and shows the
+ * new-password form.
  *
- * For Phase F0 #2a, success just shows a confirmation message —
- * the user resets in the web app and returns to mobile to sign in.
+ * On this screen, success just shows a confirmation message — the
+ * user goes to their email, taps the link, and the OS reopens the
+ * app at the reset-password screen to finish the flow.
  */
 export default function ForgotPasswordScreen() {
   const scheme = useColorScheme() ?? 'dark';
