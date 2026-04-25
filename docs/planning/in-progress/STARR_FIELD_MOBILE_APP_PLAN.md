@@ -919,3 +919,223 @@ Each phase is independently shippable.
 | iOS / Android API changes break native modules | M | M | Pin Expo SDK; staging build catches regressions |
 
 ---
+
+## 11. Cost model
+
+### Development cost (one-time)
+- Solo dev (Jacob), v1 (Phases 0–7): ~7 months
+- Outsourced equivalent: ~$80K–$160K
+- Apple Developer: $99/yr; Google Play: $25 one-time
+
+### Ongoing cost — ~5 employees daily, full feature set
+
+| Item | Monthly |
+|---|---|
+| Supabase Pro (already paid for web) | $0 incremental |
+| Supabase Storage / bandwidth | $5–20 |
+| R2 storage (originals + receipts archive) | $5–30 |
+| EAS Build + Update | $0–19 |
+| Sentry crash reporting | $0–26 |
+| Push notifications (Expo) | $0 |
+| Speech-to-text (on-device) | $0 |
+| **Anthropic API — receipt extraction** | $10–50 (5 emp × 100–200 receipts × $0.02–0.04) |
+| **Anthropic API — stop classification** | $10–25 (5 emp × ~10 stops × 22 days × $0.01) |
+| **Google Places + Distance Matrix** | $5–30 (depends on geofence cache hit rate) |
+| **Total incremental** | **~$35–200/mo** |
+
+### Per employee per month: ~$7–40
+
+### Annualized
+
+| Scenario | Cost | Value |
+|---|---|---|
+| 5 employees, full feature set | ~$1,500–$2,400/yr | Replaces paper time cards (~5h/week of admin = ~$13K/yr) + receipt re-keying (~3h/week = ~$8K/yr) + IRS-compliant mileage (~$15K/yr in deductions per active driver) |
+| **ROI** | | **5–15x** |
+
+The mileage log alone — at IRS standard rate × actual miles driven — typically pays for the entire system many times over.
+
+---
+
+## 12. Open questions
+
+1. **Single-app or per-product apps?** Recommend single Starr Field with role-based features.
+2. **Web reviewer experience** — extend existing job views or new screens?
+3. **Photo retention policy** — forever, or purge after job closes + N years?
+4. **Multi-tenant readiness** — Starr-only, or eventually offered to other firms?
+5. **Crew roles + permissions granularity** — Admin / Lead / Crew / 1099?
+6. **Equipment integration scope** — Trimble first; Topcon, Leica, Carlson next?
+7. **Pricing if external** — bundled with Starr Software, or separate per-seat?
+8. **Compliance** — TX land-survey-record retention rules?
+9. **Backup strategy** — beyond Supabase + R2, client-owned ZIP export?
+10. **Apple Watch / Wear OS** — separate phase or never?
+11. **Location tracking legal review** — which Texas-licensed employment attorney does the review before launch?
+12. **Tracking opt-out mechanics** — if an employee declines location tracking, do they still have a job? (Policy decision, not technical.)
+13. **1099 contractor location tracking** — strictly disabled by default, or opt-in available with separate consent? (Lean: strictly disabled.)
+14. **Receipt approval threshold** — auto-approve under $X, manual review over $X?
+15. **Mileage rate** — IRS standard, custom rate, or per-vehicle actual cost?
+16. **QuickBooks integration version** — QBO API direct integration vs CSV import for v1? (Lean: CSV first, API in v2.)
+17. **Per diem auto-calculation** — overnight stays trigger IRS per-diem rate by ZIP? (Nice-to-have; Phase 8+.)
+18. **Driver detection** — manual toggle vs. auto-detect via OS motion APIs? (Manual is fine for v1.)
+19. **Time-off / PTO tracking** — in-app, or stays in whatever payroll system you use?
+20. **Schedule integration** — show employees their assigned jobs for the day, with deviation alerts? (Phase 8+.)
+
+---
+
+## 13. Appendix A — sample API contracts
+
+### POST /api/field/data-points
+```json
+{
+  "client_id": "uuid",
+  "job_id": "uuid",
+  "name": "BM01",
+  "description": "Found 1/2 inch rebar with cap",
+  "device_gps": { "lat": 31.05789, "lon": -97.46512, "altitude_m": 192.4, "accuracy_m": 4.2, "heading": 273.5 },
+  "is_offset": false,
+  "captured_at": "2026-04-25T14:23:11Z"
+}
+```
+
+### POST /api/field/time-entries (clock-in)
+```json
+{
+  "client_id": "uuid",
+  "job_id": "uuid",
+  "vehicle_id": "uuid",
+  "is_driver": true,
+  "entry_type": "on_site",
+  "clock_in": "2026-04-25T06:54:00Z",
+  "clock_in_lat": 31.057,
+  "clock_in_lon": -97.465
+}
+```
+
+### PATCH /api/field/time-entries/:id (edit)
+```json
+{
+  "clock_out": "2026-04-25T16:45:00Z",
+  "edit_reason": "Forgot to clock out — actual end was 4:45pm based on memory",
+  "edited_field": "clock_out",
+  "old_value": null
+}
+```
+
+### POST /api/field/receipts (multipart)
+```
+fields:
+  client_id: uuid
+  job_id: uuid
+  time_entry_id: uuid
+  notes: string
+files:
+  photo: binary
+
+response (after AI extraction completes, via Realtime push):
+{
+  "id": "uuid",
+  "vendor_name": "Lowes #1234",
+  "transaction_at": "2026-04-25T15:21:00Z",
+  "subtotal_cents": 4287,
+  "tax_cents": 354,
+  "total_cents": 4641,
+  "category": "supplies",
+  "category_source": "ai",
+  "tax_deductible_flag": "full",
+  "ai_confidence_per_field": { "vendor_name": 0.98, "total_cents": 0.99, "category": 0.86 },
+  "line_items": [...]
+}
+```
+
+### POST /api/field/location-stops (batch)
+```json
+{
+  "stops": [
+    {
+      "client_id": "uuid",
+      "user_id": "uuid",
+      "time_entry_id": "uuid",
+      "lat": 31.057, "lon": -97.465,
+      "arrived_at": "2026-04-25T11:43:00Z",
+      "departed_at": "2026-04-25T12:11:00Z",
+      "category_hint": "food"
+    }
+  ]
+}
+```
+
+### Mileage log export
+```
+GET /api/field/mileage-log.csv?user_id=...&start=2026-01-01&end=2026-12-31
+→ CSV: date,vehicle,start_address,end_address,miles,business_purpose,job_number
+```
+
+---
+
+## 14. Appendix B — capture-flow timing budgets
+
+### Data point with photos (target 60s)
+
+| Step | Target | Notes |
+|---|---|---|
+| Lock screen → app | 2s | Face ID auto-unlock |
+| App → Quick Capture | 0.5s | Tab bar |
+| Capture → first photo | 1s | Pre-warmed camera |
+| Photo 2, 3 | 2s | Stay in capture |
+| Switch to voice | 0.5s | Bottom toolbar |
+| 20s voice memo | 20s | User-driven |
+| Point name `BM01` | 3s | Autocomplete |
+| Save | <1s | |
+| **Total** | **~30s** | Half budget |
+
+### Receipt capture (target 15s)
+
+| Step | Target | Notes |
+|---|---|---|
+| Tab `$` → Camera | 1s | |
+| Snap | 1s | Edge-detected, deskewed |
+| AI extracts in background | 3–5s | Non-blocking |
+| Confirm job (auto-filled) | 1s | |
+| Optional note | 0–10s | Skippable |
+| Save | <1s | |
+| **Total** | **~7–18s** | |
+
+### Clock-in (target 5s)
+
+| Step | Target | Notes |
+|---|---|---|
+| Lock screen widget tap | 1s | |
+| Confirm auto-suggested job | 1s | |
+| Confirm vehicle | 1s | |
+| Done | <1s | |
+| **Total** | **~3s** | |
+
+---
+
+## 15. Appendix C — bootstrapping checklist (Phase 0)
+
+- [ ] Decide app name (working title: Starr Field)
+- [ ] Apple Developer + Google Play accounts under Starr Software
+- [ ] App icon + splash screen
+- [ ] Initialize Expo: `npx create-expo-app starr-field --template`
+- [ ] Decide repo: separate vs monorepo (recommend separate)
+- [ ] PowerSync vs WatermelonDB 1-day spike
+- [ ] Reserve `app.starr.software/field` deep-link domain
+- [ ] Privacy policy + terms of service drafted (required for store submission AND for location-tracking consent flow)
+- [ ] **Texas-licensed employment attorney engagement letter for location-tracking review**
+- [ ] Internal alpha tester list (Jacob, dad, 1–2 crew)
+- [ ] MVP success metric ("Jacob does a full week using only Starr Field for time, receipts, and notes")
+- [ ] Anthropic API budget set with monthly cap alerts
+- [ ] Google Cloud project + Places/Distance Matrix billing alerts
+
+---
+
+## 16. Decision log
+
+| Date | Decision | Rationale | Decider |
+|---|---|---|---|
+| 2026-04-25 | Plan v1 drafted | Initial RFC | Jacob + Claude |
+| 2026-04-25 | Plan v2 — add time/location/receipts | Field productivity + financial tracking + dispatcher visibility | Jacob + Claude |
+
+---
+
+*End of plan.*
