@@ -222,9 +222,9 @@ Adapter version pinning is a new `adapter_versions` table (one row per `(adapter
 ┌──────────────────────────────────────────────────────────────────────┐
 │                        DETECTION LAYER                                │
 │  ┌────────────────┐  ┌────────────────┐  ┌──────────────────────┐    │
-│  │ SiteHealth     │  │ Customer       │  │ Scheduled canary     │    │
-│  │ (6h, selector  │  │ telemetry      │  │ probes (weekly)      │    │
-│  │ probe)         │  │ (5min agg)     │  │                      │    │
+│  │ SiteHealth     │  │ Per-job        │  │ Scheduled canary     │    │
+│  │ (30 min default│  │ telemetry      │  │ probes (weekly)      │    │
+│  │  selector probe│  │ (5-min view)   │  │                      │    │
 │  └────────┬───────┘  └────────┬───────┘  └──────────┬───────────┘    │
 └───────────┼───────────────────┼─────────────────────┼────────────────┘
             ▼                   ▼                     ▼
@@ -288,92 +288,232 @@ Adapter version pinning is a new `adapter_versions` table (one row per `(adapter
 
 ### 5.1 Data model (new Supabase tables)
 
+**Migration file:** `seeds/202_adapter_self_healing.sql` — `200_recon_graph.sql` and `201_captcha_solves.sql` are already in place; 202 is the next free slot. Follows the project's seed conventions: `BEGIN; … COMMIT;` wrapper, `CREATE TABLE IF NOT EXISTS`, `ADD CONSTRAINT IF NOT EXISTS` via `DO $$ … END $$` blocks (see `seeds/201_captcha_solves.sql` for the exact pattern). Re-applying the migration in CI restore drills must be idempotent.
+
 ```sql
--- Adapter manifest (or augment existing)
-CREATE TABLE adapter_manifests (
-  adapter_id TEXT PRIMARY KEY,
-  vendor TEXT NOT NULL,             -- 'kofile', 'tyler', etc.
-  jurisdictions JSONB,               -- ['bell-county-clerk', 'mclennan-county-clerk']
-  tier SMALLINT NOT NULL,            -- 0..3
-  current_version INT NOT NULL,
-  active_version INT NOT NULL,       -- could differ from current during canary
-  budget_per_incident_usd NUMERIC(6,2),
-  budget_monthly_usd NUMERIC(6,2),
-  monthly_spent_usd NUMERIC(6,2) DEFAULT 0,
-  monthly_spent_reset_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ DEFAULT now()
+-- ============================================================================
+-- 202_adapter_self_healing.sql
+-- STARR RECON — self-healing adapter system (Phase 0 foundation)
+--
+-- Tables added:
+--   adapter_manifests   — per-adapter tier, budgets, active version
+--   adapter_versions    — one row per (adapter_id, version) for pinning/rollback
+--   canary_properties   — live ground-truth probes (§4.3)
+--   adapter_incidents   — detected drift, repair lifecycle, artifacts
+--   adapter_telemetry   — per-attempt success/completeness signal (high volume)
+--   ai_cost_ledger      — persistence sink for AiUsageTracker
+--
+-- Migration is held until §6 Phase 0 ships; do NOT apply against production
+-- before the tier-assignment audit completes (see §13 bootstrapping).
+-- ============================================================================
+
+BEGIN;
+
+-- ── Adapter manifest ────────────────────────────────────────────────────────
+-- Keyed by KNOWN_ADAPTER_IDS (worker/src/lib/browser-factory.ts). Vendor↔county
+-- mapping is NOT duplicated here — it lives in cad-registry.ts and
+-- clerk-registry.ts (KOFILE_FIPS_SET, etc.). This row stores tier, budget,
+-- and version pointers only. See §4.1.
+CREATE TABLE IF NOT EXISTS adapter_manifests (
+  adapter_id              TEXT PRIMARY KEY,
+  vendor                  TEXT NOT NULL,         -- 'kofile' | 'tyler' | 'henschen' | …
+  -- Coverage hint only; canonical mapping is the FIPS sets in clerk-registry.ts.
+  -- Stored here so the dashboard can render "this adapter covers N counties"
+  -- without importing TS modules.
+  jurisdictions_hint      JSONB,                 -- ['48027','48309',…] FIPS list
+  tier                    SMALLINT NOT NULL,     -- 0..3 (§4.1)
+  -- Vendor-fan-out tier (§4.1.1). Stored separately because vendor tier may
+  -- exceed any single county's tier when the vendor covers a T0 county.
+  vendor_tier             SMALLINT NOT NULL,
+  current_version         INT NOT NULL DEFAULT 1,
+  active_version          INT NOT NULL DEFAULT 1,  -- routing reads this column
+  budget_per_incident_usd NUMERIC(6,2) NOT NULL,
+  budget_monthly_usd      NUMERIC(6,2) NOT NULL,
+  monthly_spent_usd       NUMERIC(8,4) NOT NULL DEFAULT 0,
+  monthly_spent_reset_at  TIMESTAMPTZ NOT NULL DEFAULT date_trunc('month', now()),
+  -- Auto-merge eligibility. Even when the score qualifies, this flag must be
+  -- true. Defaults false; promotions are manual + audited (§4.1, §4.7).
+  auto_merge_eligible     BOOLEAN NOT NULL DEFAULT false,
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE adapter_versions (
-  adapter_id TEXT REFERENCES adapter_manifests,
-  version INT NOT NULL,
-  code_hash TEXT NOT NULL,
-  created_by TEXT,                   -- 'human:jacob' | 'ai:incident-1234'
-  created_at TIMESTAMPTZ DEFAULT now(),
-  rollout_pct SMALLINT DEFAULT 0,
-  status TEXT,                       -- 'draft','canary','live','retired','rolled_back'
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'adapter_manifests_tier_chk') THEN
+    ALTER TABLE adapter_manifests
+      ADD CONSTRAINT adapter_manifests_tier_chk CHECK (tier BETWEEN 0 AND 3);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'adapter_manifests_vendor_tier_chk') THEN
+    ALTER TABLE adapter_manifests
+      ADD CONSTRAINT adapter_manifests_vendor_tier_chk CHECK (vendor_tier BETWEEN 0 AND 3);
+  END IF;
+END $$;
+
+-- ── Adapter versions ────────────────────────────────────────────────────────
+-- One row per (adapter_id, version). Routing reads adapter_manifests.active_version
+-- at adapter-construct time; rollback is a single UPDATE, not a code deploy.
+CREATE TABLE IF NOT EXISTS adapter_versions (
+  adapter_id   TEXT NOT NULL REFERENCES adapter_manifests(adapter_id),
+  version      INT  NOT NULL,
+  code_hash    TEXT NOT NULL,                    -- git blob hash of the adapter file
+  -- 'human:<github_login>' or 'ai:<incident_id>'. Used by the dashboard and
+  -- by §11 decision-log entries.
+  created_by   TEXT NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  rollout_pct  SMALLINT NOT NULL DEFAULT 0,      -- 0,10,50,100 per §4.7
+  status       TEXT NOT NULL,                    -- 'draft'|'canary'|'live'|'retired'|'rolled_back'
+  -- Set when status becomes 'rolled_back'. Backfilled by the rollback worker.
+  rollback_reason TEXT,
   PRIMARY KEY (adapter_id, version)
 );
 
-CREATE TABLE canary_properties (
-  id UUID PRIMARY KEY,
-  adapter_id TEXT REFERENCES adapter_manifests,
-  jurisdiction TEXT NOT NULL,
-  parcel_id TEXT NOT NULL,
-  expected_data JSONB NOT NULL,      -- structured ground truth
-  tolerance_rules JSONB,             -- per-field tolerance config
-  last_validated_at TIMESTAMPTZ,
-  last_validated_by TEXT,
-  next_revalidation_at TIMESTAMPTZ,
-  active BOOLEAN DEFAULT true
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'adapter_versions_status_chk') THEN
+    ALTER TABLE adapter_versions
+      ADD CONSTRAINT adapter_versions_status_chk
+        CHECK (status IN ('draft','canary','live','retired','rolled_back'));
+  END IF;
+END $$;
+
+-- ── Canary properties (live ground truth, §4.3) ─────────────────────────────
+CREATE TABLE IF NOT EXISTS canary_properties (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  adapter_id           TEXT NOT NULL REFERENCES adapter_manifests(adapter_id),
+  jurisdiction_fips    TEXT NOT NULL,            -- '48027' for Bell, etc.
+  parcel_id            TEXT NOT NULL,
+  -- Full surveyor-aware shape per §4.3:
+  --   { owner, legal_description, acreage, address, deed_count,
+  --     closure_ratio, bearings, chain_of_title_count, adjoiner_count, … }
+  expected_data        JSONB NOT NULL,
+  -- ToleranceField shape from worker/src/__tests__/regression/regression-runner.ts.
+  -- Same comparator across canaries and offline fixtures — no second engine.
+  tolerance_rules      JSONB NOT NULL,
+  last_validated_at    TIMESTAMPTZ,
+  last_validated_by    TEXT,
+  next_revalidation_at TIMESTAMPTZ NOT NULL,     -- default: last_validated_at + 90d
+  active               BOOLEAN NOT NULL DEFAULT true,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE adapter_incidents (
-  id UUID PRIMARY KEY,
-  adapter_id TEXT,
-  detected_at TIMESTAMPTZ DEFAULT now(),
-  detected_by TEXT,                  -- 'sitehealth' | 'telemetry' | 'canary' | 'human'
-  change_type TEXT,                  -- selector_drift | workflow_change | captcha | redesign | unknown
-  status TEXT,                       -- open | diagnosing | repairing | validating | merged | rolled_back | closed_no_fix
-  budget_cap_usd NUMERIC(6,2),
-  spent_usd NUMERIC(6,2) DEFAULT 0,
-  confidence_score SMALLINT,
-  resolution TEXT,                   -- auto_merged | pr_opened | human_only | abandoned
-  resolved_at TIMESTAMPTZ,
-  artifacts JSONB                    -- {html_capture_url, screenshot_url, diff_url, ...}
+CREATE INDEX IF NOT EXISTS idx_canary_properties_adapter
+  ON canary_properties (adapter_id) WHERE active;
+CREATE INDEX IF NOT EXISTS idx_canary_properties_revalidation
+  ON canary_properties (next_revalidation_at) WHERE active;
+
+-- ── Incidents ───────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS adapter_incidents (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  adapter_id      TEXT NOT NULL REFERENCES adapter_manifests(adapter_id),
+  -- For vendor-base incidents (§4.1.1), this lists the downstream FIPS that
+  -- the blast-radius checker enumerated. Empty for single-county incidents.
+  affected_fips   JSONB NOT NULL DEFAULT '[]'::jsonb,
+  detected_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  detected_by     TEXT NOT NULL,                 -- 'sitehealth'|'telemetry'|'canary'|'human'
+  change_type     TEXT,                          -- selector_drift|workflow_change|captcha|redesign|unknown
+  status          TEXT NOT NULL DEFAULT 'open',  -- open|diagnosing|repairing|validating|merged|rolled_back|closed_no_fix
+  budget_cap_usd  NUMERIC(6,2) NOT NULL,
+  spent_usd       NUMERIC(8,4) NOT NULL DEFAULT 0,
+  confidence_score SMALLINT,                     -- 0..100, §4.4
+  resolution      TEXT,                          -- auto_merged|pr_opened|human_only|abandoned
+  resolved_at     TIMESTAMPTZ,
+  -- { html_capture_key, screenshot_key, diff_key, … } — keys inside
+  -- worker/src/lib/storage.ts namespace (R2 in prod, local in dev).
+  artifacts       JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
-CREATE TABLE adapter_telemetry (
-  ts TIMESTAMPTZ DEFAULT now(),
-  adapter_id TEXT,
-  adapter_version INT,
-  customer_id UUID,
-  job_id UUID,
-  status TEXT,                       -- success|partial|failure|timeout
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'adapter_incidents_status_chk') THEN
+    ALTER TABLE adapter_incidents
+      ADD CONSTRAINT adapter_incidents_status_chk
+        CHECK (status IN ('open','diagnosing','repairing','validating','merged','rolled_back','closed_no_fix'));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_adapter_incidents_open
+  ON adapter_incidents (adapter_id, detected_at DESC) WHERE status NOT IN ('merged','closed_no_fix');
+
+-- ── Telemetry (highest-volume table) ────────────────────────────────────────
+-- Volume estimate: ~1k rows/day at current job volume; plan for 100k/day at
+-- 50-customer scale (Phase F). Phase B writes raw rows; Phase D adds the
+-- materialized 5-min view (adapter_telemetry_5m, defined out-of-band) and a
+-- daily roll-up. Raw rows TTL at 14 days via a scheduled DELETE — surveys
+-- never need raw per-attempt history past two weeks.
+CREATE TABLE IF NOT EXISTS adapter_telemetry (
+  id               BIGSERIAL PRIMARY KEY,
+  ts               TIMESTAMPTZ NOT NULL DEFAULT now(),
+  adapter_id       TEXT NOT NULL,
+  adapter_version  INT NOT NULL,
+  -- research_projects.created_by — the surveyor/researcher who owns the job.
+  -- See lib/research/useResearchProgress.ts and /api/ws/ticket ownership check.
+  job_owner        UUID,
+  job_id           UUID,
+  status           TEXT NOT NULL,                -- success|partial|failure|timeout
   field_completeness_pct NUMERIC(5,2),
-  duration_ms INT,
-  error_class TEXT
+  duration_ms      INT,
+  error_class      TEXT
 );
--- Index aggressively; this is the highest-volume table.
 
-CREATE TABLE ai_cost_ledger (
-  id UUID PRIMARY KEY,
-  ts TIMESTAMPTZ DEFAULT now(),
-  incident_id UUID REFERENCES adapter_incidents,
-  adapter_id TEXT,
-  phase TEXT,                        -- diagnose|repair|validate
-  model TEXT,                        -- claude-sonnet-4-7 etc.
-  input_tokens INT,
-  output_tokens INT,
-  cost_usd NUMERIC(8,4)
+CREATE INDEX IF NOT EXISTS idx_adapter_telemetry_adapter_ts
+  ON adapter_telemetry (adapter_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_adapter_telemetry_status
+  ON adapter_telemetry (adapter_id, status, ts DESC);
+
+-- ── AI cost ledger ──────────────────────────────────────────────────────────
+-- This table is the **persistence sink** for worker/src/lib/ai-usage-tracker.ts.
+-- The in-process AiUsageTracker keeps the circuit-breaker (rate, cost, failure
+-- caps) hot in memory; this table is for attribution, dashboards, and monthly
+-- budget rollups. Wiring follows the SolveAttemptSink pattern in
+-- worker/src/lib/captcha-solver.ts: pluggable interface, no-op default in
+-- stub mode, real Supabase writer when ENABLED.
+--
+-- The Phase 0 deliverable extends AiUsageEntry with (incident_id, adapter_id,
+-- phase, model) so every Anthropic call rolls up here without a separate
+-- tagging system.
+CREATE TABLE IF NOT EXISTS ai_cost_ledger (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ts            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  incident_id   UUID REFERENCES adapter_incidents(id),
+  adapter_id    TEXT,
+  phase         TEXT NOT NULL,                   -- diagnose|repair|validate|extract|other
+  model         TEXT NOT NULL,                   -- claude-sonnet-4-6, claude-opus-4-7, …
+  input_tokens  INT NOT NULL,
+  output_tokens INT NOT NULL,
+  cost_usd      NUMERIC(10,6) NOT NULL
 );
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ai_cost_ledger_phase_chk') THEN
+    ALTER TABLE ai_cost_ledger
+      ADD CONSTRAINT ai_cost_ledger_phase_chk
+        CHECK (phase IN ('diagnose','repair','validate','extract','other'));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_ai_cost_ledger_ts ON ai_cost_ledger (ts DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_cost_ledger_incident ON ai_cost_ledger (incident_id) WHERE incident_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_cost_ledger_adapter ON ai_cost_ledger (adapter_id, ts DESC) WHERE adapter_id IS NOT NULL;
+
+COMMIT;
 ```
+
+**Key extension to `worker/src/lib/ai-usage-tracker.ts`:** add `incidentId`, `adapterId`, `phase`, and `model` fields to `AiUsageEntry`, plus a pluggable `CostLedgerSink` (mirroring `SolveAttemptSink` in `captcha-solver.ts`). Default sink is a no-op (Phase 0 ships sink + DB tagging behind a flag); the Supabase writer flips on when `seeds/202_*` is applied. **Circuit-breaker logic stays in-process** — the ledger is for attribution, never for budget enforcement decisions.
 
 ### 5.2 The repair strategy ladder (detail)
 
-Always start at the cheapest rung that has a chance of working. Ladder pseudocode:
+Always start at the cheapest rung that has a chance of working. Sonnet handles rungs 2–3; Opus is reserved for rungs 4–5.
 
 ```python
+# Models follow the system-prompt's "default to latest and most capable":
+#   Sonnet 4.6 = 'claude-sonnet-4-6'    (cost: ~$0.006/1K tokens averaged,
+#                                        per SONNET_COST_PER_1K_TOKENS in
+#                                        worker/src/lib/ai-usage-tracker.ts)
+#   Opus 4.7  = 'claude-opus-4-7'       (verify current pricing via
+#                                        /mnt/skills/public/product-self-knowledge/
+#                                        before activating Phase A)
+# Action item for Phase 0: bump RESEARCH_AI_MODEL in .env.example from the
+# stale 'claude-sonnet-4-5-20250929' default to 'claude-sonnet-4-6'.
+
 budget_remaining = incident.budget_cap_usd
 strategies = [
     multi_selector_fallback,       # ~$0.00 — already in adapter code
@@ -388,6 +528,8 @@ for strategy in strategies:
         break
     candidate = strategy.run(incident)
     budget_remaining -= candidate.actual_cost
+    if not respects_abstractions(candidate):       # AST lint, see §5.2.1
+        continue                                   # do not waste validation budget
     if validate(candidate) >= confidence_threshold(adapter.tier):
         return candidate
 return abandon_with_human_handoff(incident)
@@ -395,15 +537,36 @@ return abandon_with_human_handoff(incident)
 
 Why a ladder and not "always use the best model": cost. Selector drift is 80% of breaks and the cheapest rung handles it. Reserving Opus for actual redesigns keeps monthly spend predictable.
 
+#### 5.2.1 Hard preconditions on every candidate patch
+
+The Phase A migration to Browserbase / CapSolver / R2 / structured progress events only works if every adapter routes through the four shared abstractions. An AI-generated patch that bypasses any of them silently de-features the entire stack — no proxy routing, no CDP, no telemetry, no progress UI. To prevent this, every candidate is rejected **before validation** if any of these checks fail:
+
+1. **Browser acquisition** must use `acquireBrowser({ adapterId })` from `worker/src/lib/browser-factory.ts`. Direct `chromium.launch()` calls are rejected. (36 production call-sites already comply per `PHASE_A_INTEGRATION_PREP.md` §0.)
+2. **CAPTCHA solving** must use `getCaptchaSolver()` from `worker/src/lib/captcha-solver.ts`. Direct HTTP to `api.capsolver.com` or other providers is rejected.
+3. **Artifact writes** must use `worker/src/lib/storage.ts`. Bare `fs.writeFile`, `fs.mkdirSync`, or ad-hoc Supabase Storage calls are rejected.
+4. **Progress events** must emit via `worker/src/lib/research-events-emit.ts`. Console-only logging is allowed but does not satisfy the requirement on its own.
+5. **No new npm dependencies.** A `package.json` diff is an automatic rejection.
+6. **No edits** to: `worker/src/lib/closure-tolerance.ts`, `worker/src/infra/ai-guardrails.ts`, anything under `worker/src/shared/`, or any file under `worker/src/services/purchase-adapters/` (money-flow stays human-gated through Phase E).
+7. **Selector arrays may only be appended to**, never reduced. Old selectors stay in place as fallbacks unless the change-classifier explicitly identifies them as removed-by-vendor.
+
+Enforcement is a small AST lint (`worker/src/__tests__/lint-adapter-patches.ts`, new in Phase B) that runs immediately after the model returns and before any cost is spent on validation. A rejection here is appended to the incident's `artifacts.lint_failures` and counts toward the per-incident budget at $0.00 — the patch is discarded and the next rung executes.
+
+This guardrail is also reflected in the confidence scoring (§4.4 row "abstractions respected") and in the prompts themselves (Appendix A.2) so the model rarely emits a violating patch in the first place.
+
 ### 5.3 Canary property catalog — bootstrapping
 
 For each active adapter, we need a one-time human investment of ~30 min to:
-1. Pick 2–3 real, stable properties in that jurisdiction (avoid recently-sold, avoid disputed boundaries)
-2. Run the adapter manually, copy the result into `expected_data`
-3. Hand-review for accuracy
-4. Set `next_revalidation_at = now() + 90 days`
 
-Across ~25 active adapters: ~12 hours of one-time work. **This is the single highest-leverage investment in the entire plan.** Without canaries, every AI fix is shipping into the dark.
+1. Pick 2–3 real, stable properties in that jurisdiction (avoid recently-sold, avoid disputed boundaries, prefer properties with clean closure that have been surveyed by Starr — those overlap directly with the regression-fixture growth path in `RECON_INVENTORY.md` §11).
+2. Run the adapter manually against each property; copy structured output into `canary_properties.expected_data`. Capture the **surveyor-aware** fields per §4.3: closure ratio from `traverse-closure.ts`, parsed bearings (each one runs through `validateBearing()`), chain-of-title count, adjoiner count.
+3. Hand-review for accuracy — ideally with Hank Maddux or another RPLS at Starr eyeballing the legal description and acreage.
+4. Set `next_revalidation_at = last_validated_at + 90 days`.
+
+**Artifact storage.** Canary capture artifacts (HTML snapshots, full-page screenshots, network HARs for hard cases) live in **Cloudflare R2** via `worker/src/lib/storage.ts`. Namespace: `canaries/<adapter_id>/<canary_id>/<iso8601_ts>/`. Bucket lifecycle and CORS rules are governed by `docs/platform/STORAGE_LIFECYCLE.md` — keep one capture per canary per week for 90 days, then thin to monthly. R2 backend is selected via `STORAGE_BACKEND=r2`; in dev (`STORAGE_BACKEND=local`) artifacts go to `./storage/canaries/...`. **Never write directly with `fs.writeFile`** — the §5.2.1 lint will reject it.
+
+**Bootstrap math.** Phase 0 ships canaries for the **5 verified end-to-end adapters first** (~2.5 hours work — half a day). Phase A grows to all T0/T1 adapters (~12 hours total across ~25 adapter+source combinations). Phase D adds canaries for the remaining T2/T3 adapters as they harden.
+
+**This is the single highest-leverage investment in the entire plan.** Without canaries, every AI fix is shipping into the dark — the confidence score (§4.4) collapses to noise, and the auto-merge gate (§4.7) never has a basis for trust.
 
 ---
 
