@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Starr Field",
+    "slug": "starr-field",
+    "scheme": "starr-field",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.starrsoftware.starrfield"
+    },
+    "android": {
+      "package": "com.starrsoftware.starrfield",
+      "adaptiveIcon": {
+        "backgroundColor": "#1D3095"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

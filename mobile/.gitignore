@@ -1,0 +1,20 @@
+# Expo
+.expo/
+dist/
+web-build/
+
+# Native
+ios/
+android/
+
+# Metro
+.metro-health-check*
+
+# Local env (root .gitignore covers .env.local already, but be explicit)
+.env
+.env.local
+.env.*.local
+
+# Misc
+*.log
+*.tsbuildinfo
