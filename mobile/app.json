@@ -7,10 +7,6 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "updates": {
-      "fallbackToCacheTimeout": 0,
-      "url": "REPLACE_BY_eas_update_configure"
-    },
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

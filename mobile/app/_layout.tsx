@@ -3,9 +3,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import Sentry, { initSentry } from '@/lib/sentry';
 import { AuthProvider } from '@/lib/auth';
 import { DatabaseProvider } from '@/lib/db';
+import Sentry, { initSentry } from '@/lib/sentry';
 
 // Module-load side effects (must run BEFORE any provider mounts):
 //

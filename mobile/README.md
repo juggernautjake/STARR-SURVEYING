@@ -195,9 +195,12 @@ cd mobile
 eas update:configure
 ```
 
-This populates `updates.url` in `app.json` with your project's update
+This adds an `updates` block to `app.json` with your project's update
 endpoint and verifies the channel mapping in `eas.json`. Commit the
-resulting app.json change.
+resulting `app.json` change. (The block is intentionally NOT
+pre-populated in this repo — EAS validates the URL at build time, so
+a placeholder would fail. Run `eas update:configure` before your
+first preview build.)
 
 ### Push an update
 
