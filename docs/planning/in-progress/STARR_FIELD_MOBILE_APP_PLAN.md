@@ -400,3 +400,98 @@ Combined with normal phone use, target: <15% additional battery drain over an 8-
 
 User-visible: battery indicator inside the app shows current draw; if location is being unusually battery-heavy, banner suggests checking GPS-precision settings.
 
+### 5.11 Expense & receipt management
+
+The other big-ticket v1 feature. Goal: make a $42 hardware-store receipt take 15 seconds to capture and end up correctly categorized in QuickBooks without anyone re-typing anything.
+
+#### 5.11.1 Capture flow
+
+1. Tap "+ Receipt" from anywhere (home, job, shortcut widget)
+2. Camera opens in receipt mode (high-contrast, edge-detection guides)
+3. Snap — auto-cropped, deskewed, brightness-corrected
+4. AI extraction begins immediately (parallel to user adding context)
+5. While AI runs (~3–5s), user picks/confirms job and adds optional note
+6. Save — receipt is queued for sync; AI extraction visible when done
+
+Multiple receipts in one session: tap "+ another" to keep going without leaving capture mode.
+
+#### 5.11.2 AI-extracted fields
+
+Using Claude Vision API, extract:
+
+- **Vendor name** (and address if visible)
+- **Date and time** of transaction
+- **Subtotal**, **tax**, **tip**, **total**
+- **Payment method** (card last 4 if visible, "cash", "check")
+- **Line items** (description + amount; for receipts where individual items are clear)
+- **Suggested category** (`fuel`, `meals`, `supplies`, `equipment`, `tolls`, `parking`, `lodging`, `professional_services`, `office_supplies`, `client_entertainment`, `other`)
+- **Tax-deductibility flag** (best effort; bookkeeper confirms)
+- **Confidence score** per field
+
+User can edit any extracted field. Original photo is always preserved alongside structured data.
+
+**Cost per receipt:** ~$0.01–0.04 with Claude Sonnet. At a generous 200 receipts/employee/month, that's $2–8/month per employee in AI cost. Trivial vs. the bookkeeper time saved.
+
+#### 5.11.3 Job association
+
+- Default: receipt assigned to the job the user is currently clocked into
+- If clocked into "Office" or "Travel": prompts for job pick (or `Overhead`)
+- Can be changed later
+- Bookkeeper can re-assign on web app
+
+#### 5.11.4 Categories and tax flags
+
+Categories map cleanly to QuickBooks classes (configurable per company). Each category has default tax flags:
+
+- `fuel` → fully deductible vehicle expense
+- `meals` → 50% deductible (IRS rule for 2026)
+- `equipment` → may be capitalized vs expensed depending on amount; flag for bookkeeper review if >$2,500
+- `client_entertainment` → 0% deductible since 2018
+- etc.
+
+Flags are guidance, not law. The bookkeeper has final say.
+
+#### 5.11.5 Missing-receipt detection
+
+Cross-references location data with receipt uploads:
+
+- Location shows a 12-minute stop classified as `fuel`, but no receipt uploaded that day → end-of-day prompt: "You stopped at Buc-ee's Belton at 2:15pm. Receipt?"
+- Long stop at `supplies` location with no receipt → same prompt
+- Configurable: prompt threshold (default: stops >5 min at non-job/non-office locations)
+
+This catches the receipts that fall through the cracks. Big value for bookkeeping accuracy.
+
+#### 5.11.6 Approval and export workflow
+
+- Submitted receipts go into bookkeeper's web-app queue
+- Bookkeeper reviews extraction, confirms category, approves
+- Approved receipts can be:
+  - Bulk-exported to QuickBooks (CSV import for v1, direct QBO API integration for v2)
+  - Bulk-exported to a generic accounting CSV
+  - Per-employee expense reimbursement reports (if employee paid out of pocket)
+
+#### 5.11.7 Per-job and per-period rollups
+
+- Per-job expense rollup (visible to crew + admins): how much has been spent on this job's materials, fuel, meals
+- Per-pay-period rollup per employee: useful for reimbursement
+- Per-month / per-year company-wide rollup
+- All rollups exportable
+
+#### 5.11.8 Fuel card reconciliation (post-v1)
+
+If Starr Surveying uses a fleet fuel card (Wex, Comdata, Voyager):
+
+- Card transactions ingested via API
+- Auto-matched to uploaded receipts by date + amount + location
+- Unmatched card transactions flagged for missing receipt
+- Unmatched receipts flagged for verification
+
+This catches both ends of fuel-cost auditing automatically.
+
+#### 5.11.9 IRS-compliant retention
+
+- Original photo + extracted data retained 7 years
+- Annual archival: receipts older than current tax year + 1 archived to cold storage (cheaper R2 archive class)
+- Receipts queryable, exportable, and audit-package-able by date range
+
+---
