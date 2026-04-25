@@ -202,3 +202,95 @@ A data point is a named record that aggregates everything observed about one loc
 - **Auto-link to data points** by matching name (the magic moment: instrument data + phone-side photos+notes joined automatically)
 - Unmatched names highlighted
 
+### 5.8 Time logging
+
+This is one of v1's two highest-priority features (alongside data point capture). Goal: replace paper time cards entirely while making it harder to forget to clock out and easier to fix mistakes when it happens.
+
+#### 5.8.1 Clock-in / clock-out (basic)
+
+- One tap from home screen widget, app dashboard, or lock screen shortcut
+- Auto-suggests current job based on GPS proximity to recent jobs (top suggestion + 2 alternates)
+- Manual job pick if no proximity match; "Office" and "Travel" are always available as choices
+- Timer visible on home screen so user can see they're still on the clock at a glance
+- Clock-out asks two quick questions: confirm job (auto-filled), any notes for the day (optional, can skip)
+
+#### 5.8.2 Smart "are you still working?" prompts
+
+Not random nags. Triggered by:
+- **End-of-typical-day rule:** based on the user's own historical clock-out time (rolling 30-day median ± 1h), prompts after that window with no clock-out
+- **Stationary too long:** no significant movement for 90+ minutes after typical end-of-day
+- **Left the geofence:** clocked into Job X but phone has been outside Job X's geofence for 30+ minutes (could be a real long break or a forgotten clock-out)
+- **Phone went idle for 8+ hours** while still clocked in (almost certainly a forgotten clock-out the night before)
+
+Prompt UX: silent push notification (no sound, no vibration after 7pm), single-line ("Still working at Smith Boundary?"), one-tap actions: `Yes` / `Clock out now` / `Edit time`.
+
+User can mute these per session ("don't ask again until tomorrow") or globally configure them.
+
+#### 5.8.3 Time editing with audit trail
+
+After clock-out (or at any time within 7 days), employee can edit:
+- Clock-in time
+- Clock-out time
+- Job assignment
+- Break start/end (if breaks were tracked)
+- Notes
+
+Every edit creates an `edit_history` row showing original value, new value, who edited, when, and a required reason field for any edit >15 min from the original. Office reviewer can approve or reject edits before they affect payroll exports.
+
+After 7 days (or after timesheet approval, whichever is sooner), edits are locked and require admin override.
+
+#### 5.8.4 Break tracking
+
+Two modes, configurable:
+
+- **Implicit (default):** no manual break tracking; lunch and incidental breaks roll up into total clocked time. Simplest for hourly field crews.
+- **Explicit:** manual "Start break" / "End break" buttons, or automatic detection from location (stop ≥20 min at non-work location classified as food/coffee = candidate break with one-tap confirm).
+
+Texas labor law doesn't mandate paid breaks for adult employees, so this is a company policy decision. The app supports both, controlled by a per-company setting.
+
+#### 5.8.5 Multi-day and overnight handling
+
+- Clock-in spanning midnight: handled correctly; daily totals split at midnight for reporting
+- Multi-day overnight job: optional "overnight mode" pauses tracking 10pm–6am (configurable) without requiring clock-out
+- Travel-day vs work-day distinction (per-diem implications, see §5.10)
+
+#### 5.8.6 Timesheet view
+
+- This week, last week, custom range
+- Per-job hours rollup
+- Total / billable / unbillable / travel / office / overtime
+- One-tap export to CSV / PDF
+- "Submit for approval" workflow → office reviewer signs off on the web app
+- Once approved: locked, exported to payroll system (CSV for v1, QuickBooks integration future)
+
+#### 5.8.7 Geofence-based auto-prompts (opt-in)
+
+If user opts in:
+- Arriving at the home office in the morning → "Clock in?" notification
+- Leaving the home office at end of day → "Clock out?" notification
+- Arriving at a known job site → "Switch to Job X?" notification
+
+These are suggestions, never automatic. The decision to actually start/stop the clock is always the employee's tap.
+
+### 5.9 Sync and offline-first
+
+**Local-first:** every action writes to local SQLite (WatermelonDB or PowerSync) first. Sync engine pushes to Supabase when network is healthy. UI never blocks on network.
+
+**Sync prioritization:**
+1. Time entries (smallest, highest business value — payroll depends on these)
+2. Receipts (small, high audit value)
+3. Notes and structured data
+4. Voice memo audio
+5. Compressed photos
+6. Original-resolution photos
+7. Videos (largest; default WiFi-only)
+8. Location tracking buffer (chunked uploads, see §5.10)
+
+**Conflict resolution:**
+- Notes / data points: per-field last-write-wins
+- Media: never conflicts (additive)
+- Time entries: pre-approval edits use last-write-wins; post-approval edits require admin
+- Job metadata changes: phone keeps local edits, prompts user to merge on reconnect
+
+**Storage management:** configurable cap (default 10 GB). Auto-purge synced media older than N days (default 30, configurable per job). Pin-to-device option keeps a job's media local indefinitely.
+
