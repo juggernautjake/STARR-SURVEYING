@@ -21,6 +21,7 @@
  * authoritative auth, biometric just gates UI access to it.
  */
 import type { Session } from '@supabase/supabase-js';
+import * as Linking from 'expo-linking';
 import {
   createContext,
   useCallback,
@@ -69,9 +70,21 @@ interface AuthContextValue {
    * `null` on success.
    */
   signIn: (email: string, password: string) => Promise<string | null>;
+  /**
+   * Send a magic-link email. The user taps the link in their inbox →
+   * device opens `starr-field://auth-callback#...` → the callback
+   * screen calls supabase.auth.setSession with the embedded tokens.
+   * Returns an error message or null.
+   */
+  signInWithMagicLink: (email: string) => Promise<string | null>;
   /** Sign out and clear local session. Also clears the locked flag. */
   signOut: () => Promise<void>;
-  /** Send a password-reset email. Returns an error message or null. */
+  /**
+   * Send a password-reset email. The link points at
+   * `starr-field://reset-password#...`; the reset screen establishes
+   * the recovery session and lets the user set a new password.
+   * Returns an error message or null.
+   */
   resetPassword: (email: string) => Promise<string | null>;
   /** Toggle the biometric preference. Persists to AsyncStorage. */
   setBiometricEnabled: (enabled: boolean) => Promise<void>;
@@ -216,11 +229,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         return error?.message ?? null;
       },
+      signInWithMagicLink: async (email) => {
+        // createURL respects the `scheme` set in app.json AND the dev
+        // proxy (Expo Go uses exp:// in dev, starr-field:// in prod).
+        const emailRedirectTo = Linking.createURL('auth-callback');
+        const { error } = await supabase.auth.signInWithOtp({
+          email: email.trim(),
+          options: { emailRedirectTo, shouldCreateUser: false },
+        });
+        return error?.message ?? null;
+      },
       signOut: async () => {
         await supabase.auth.signOut();
       },
       resetPassword: async (email) => {
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+        const redirectTo = Linking.createURL('reset-password');
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo,
+        });
         return error?.message ?? null;
       },
       setBiometricEnabled,
