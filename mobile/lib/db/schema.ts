@@ -348,14 +348,41 @@ const fieldbook_notes = new Table({
   client_id: column.text,
 });
 
+// time_edits — F1 #6 audit trail.
+//
+// F1 #1 left the audit destination open between three options
+// (dedicated table, superseded_by_id chain on job_time_entries, or
+// the generic activity_log table). F1 #6 pinned the dedicated-table
+// option:
+//   - cleaner queries (no WHERE-superseded filter on every read)
+//   - simpler PowerSync sync surface (append-only inserts, no
+//     destructive parent-row updates to track edit history)
+//   - direct UI rendering (one row → one history line)
+//   - direct CSV export for F1 #9 / IRS-grade audit trails
+//
+// One row per field changed per edit. Editing started_at + ended_at
+// in one save creates two rows so each field's old/new value is
+// queryable independently.
+const time_edits = new Table({
+  job_time_entry_id: column.text,
+  field_name: column.text, // 'started_at' | 'ended_at' | 'notes' | 'entry_type' | 'job_id'
+  old_value: column.text,
+  new_value: column.text,
+  // Required when a time-field edit moves the boundary by >15 min;
+  // free-text otherwise (the plan §5.8.3 spec lets surveyors leave
+  // a "rounded to nearest minute" note even on small edits).
+  reason: column.text,
+  // Computed on the client at save time for time-field edits;
+  // null for non-time fields (notes, entry_type, job_id).
+  delta_minutes: column.integer,
+  edited_by: column.text, // user_email
+  edited_at: column.text,
+  client_id: column.text,
+});
+
 /**
  * Top-level schema. Order doesn't matter for sync; alphabetical here
  * for human grep-ability.
- *
- * Note the time_entry_edits audit table from plan §6.3 is gone — we
- * write edits as new rows on job_time_entries with a
- * `superseded_by_id` pointer (or use the existing activity_log table)
- * rather than a separate audit table. F1 will pin which one.
  */
 export const AppSchema = new Schema({
   daily_time_logs,
@@ -369,6 +396,7 @@ export const AppSchema = new Schema({
   point_codes,
   receipt_line_items,
   receipts,
+  time_edits,
   vehicles,
 });
 

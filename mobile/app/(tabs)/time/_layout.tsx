@@ -28,6 +28,7 @@ export default function TimeStackLayout() {
           animation: 'slide_from_bottom',
         }}
       />
+      <Stack.Screen name="edit/[id]" />
     </Stack>
   );
 }

@@ -12,7 +12,7 @@
  * adds the manual-edit screen with audit trail; an entry tap will
  * navigate there.
  */
-import { StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
 import { formatDuration, todayLocalISODate } from './timeFormat';
 import type { TimesheetDay, TimesheetEntry } from './timesheet';
@@ -20,9 +20,11 @@ import { type Palette, colors } from './theme';
 
 interface TimesheetProps {
   days: TimesheetDay[];
+  /** Called when a row is tapped — pushed by the parent screen. */
+  onPressEntry?: (entry: TimesheetEntry) => void;
 }
 
-export function Timesheet({ days }: TimesheetProps) {
+export function Timesheet({ days, onPressEntry }: TimesheetProps) {
   const scheme = useColorScheme() ?? 'dark';
   const palette = colors[scheme];
 
@@ -43,7 +45,12 @@ export function Timesheet({ days }: TimesheetProps) {
   return (
     <View style={styles.root}>
       {days.map((day) => (
-        <DayBlock key={day.date} day={day} palette={palette} />
+        <DayBlock
+          key={day.date}
+          day={day}
+          palette={palette}
+          onPressEntry={onPressEntry}
+        />
       ))}
     </View>
   );
@@ -52,9 +59,10 @@ export function Timesheet({ days }: TimesheetProps) {
 interface DayBlockProps {
   day: TimesheetDay;
   palette: Palette;
+  onPressEntry?: (entry: TimesheetEntry) => void;
 }
 
-function DayBlock({ day, palette }: DayBlockProps) {
+function DayBlock({ day, palette, onPressEntry }: DayBlockProps) {
   return (
     <View style={styles.day}>
       <View style={styles.dayHeader}>
@@ -68,41 +76,69 @@ function DayBlock({ day, palette }: DayBlockProps) {
       </View>
 
       <View style={[styles.entryList, { borderColor: palette.border }]}>
-        {day.entries.map((entry, idx) => (
-          <View
-            key={entry.id}
-            style={[
-              styles.entryRow,
-              idx > 0 && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth },
-            ]}
-          >
-            <View style={styles.entryMain}>
+        {day.entries.map((entry, idx) => {
+          const inner = (
+            <View style={styles.entryInner}>
+              <View style={styles.entryMain}>
+                <Text
+                  style={[styles.entryTitle, { color: palette.text }]}
+                  numberOfLines={1}
+                >
+                  {entry.jobName ?? entryTypeLabel(entry.entryType)}
+                </Text>
+                <Text
+                  style={[styles.entrySubtitle, { color: palette.muted }]}
+                  numberOfLines={1}
+                >
+                  {composeRange(entry.startedAt, entry.endedAt)}
+                  {entry.jobName && entry.entryType
+                    ? ` · ${entryTypeLabel(entry.entryType)}`
+                    : ''}
+                </Text>
+              </View>
               <Text
-                style={[styles.entryTitle, { color: palette.text }]}
-                numberOfLines={1}
+                style={[
+                  styles.entryDuration,
+                  { color: entry.endedAt ? palette.text : palette.accent },
+                ]}
               >
-                {entry.jobName ?? entryTypeLabel(entry.entryType)}
-              </Text>
-              <Text
-                style={[styles.entrySubtitle, { color: palette.muted }]}
-                numberOfLines={1}
-              >
-                {composeRange(entry.startedAt, entry.endedAt)}
-                {entry.jobName && entry.entryType
-                  ? ` · ${entryTypeLabel(entry.entryType)}`
-                  : ''}
+                {formatEntryDuration(entry)}
               </Text>
             </View>
-            <Text
-              style={[
-                styles.entryDuration,
-                { color: entry.endedAt ? palette.text : palette.accent },
-              ]}
-            >
-              {formatEntryDuration(entry)}
-            </Text>
-          </View>
-        ))}
+          );
+
+          const rowStyle = [
+            styles.entryRow,
+            idx > 0 && {
+              borderTopColor: palette.border,
+              borderTopWidth: StyleSheet.hairlineWidth,
+            },
+          ];
+
+          // When onPressEntry is wired, render as Pressable; otherwise
+          // a plain View (no surprise tap targets).
+          if (onPressEntry) {
+            return (
+              <Pressable
+                key={entry.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Edit ${entry.jobName ?? entryTypeLabel(entry.entryType)}`}
+                onPress={() => onPressEntry(entry)}
+                style={({ pressed }) => [
+                  ...rowStyle,
+                  pressed ? { backgroundColor: palette.border } : null,
+                ]}
+              >
+                {inner}
+              </Pressable>
+            );
+          }
+          return (
+            <View key={entry.id} style={rowStyle}>
+              {inner}
+            </View>
+          );
+        })}
       </View>
     </View>
   );
@@ -209,11 +245,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   entryRow: {
+    minHeight: 60,
+  },
+  entryInner: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    minHeight: 60,
     gap: 12,
   },
   entryMain: {

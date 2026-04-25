@@ -130,11 +130,18 @@ export default function TimeScreen() {
           </Text>
         </View>
 
-        {timesheetLoading && days.length === 0 ? null : <Timesheet days={days} />}
+        {timesheetLoading && days.length === 0 ? null : (
+          <Timesheet
+            days={days}
+            onPressEntry={(entry) =>
+              router.push(`/(tabs)/time/edit/${entry.id}`)
+            }
+          />
+        )}
 
         <View style={styles.hintRow}>
           <Text style={[styles.hint, { color: palette.muted }]}>
-            Tap to edit + submit-for-approval workflow lands in F1 #6 / #9.
+            Submit-for-approval + CSV export land in F1 #9.
           </Text>
         </View>
       </ScrollView>
