@@ -28,23 +28,31 @@ v3 audit pass (decision deadline = end of Phase F0).
 The local SQLite is the source of truth for the UI either way — the
 sync engine is invisible from the screen layer's perspective.
 
-## Phase F0 status
+## F0 / F1 status
 
 What's wired:
-- [x] PowerSync schema for all 12 plan §6.3 tables
+- [x] PowerSync schema reconciled to real Supabase shape (F1 #1):
+      jobs (full column set per `app/api/admin/jobs/route.ts`),
+      daily_time_logs + job_time_entries (the actual time-tracking
+      pair — plan §6.3 referenced a single `time_entries` table that
+      doesn't exist), fieldbook_notes (per `seeds/099_fieldbook.sql`),
+      plus the 8 fully-owned Starr Field tables.
 - [x] SupabaseConnector with PUT/PATCH/DELETE → Supabase replay
 - [x] DatabaseProvider connects/disconnects with auth state
 - [x] Local DB works offline-only when `EXPO_PUBLIC_POWERSYNC_URL` is unset
 
 Activation gates (each blocks live sync but NOT local-only dev):
+- [ ] **Schema snapshot** (plan §15): run
+      `scripts/snapshot-existing-schema.sql` in the Supabase SQL
+      Editor; copy the output into a new
+      `seeds/214_starr_field_existing_schema_snapshot.sql` (wrap in
+      `BEGIN; … COMMIT;` per the seed convention). Validate the
+      column-list against `lib/db/schema.ts` and add any columns the
+      mobile UI references but the snapshot didn't include.
 - [ ] Apply `seeds/220_starr_field_tables.sql` to the live Supabase
-      project (per plan §15 bootstrapping).
-- [ ] **Schema-snapshot prerequisite** (plan §15): export the live
-      `jobs`, `time_entries`, and related `job_*` table schemas into
-      a tracked `seeds/214_starr_field_existing_schema_snapshot.sql`
-      before `220_*` is applied. `lib/db/schema.ts` declares minimal
-      shapes for those three tables — reconcile against the snapshot
-      when it lands and add any columns the mobile UI needs.
+      project. The plan §6.3 SQL is now superseded by the
+      reconciled shape in `lib/db/schema.ts` — author 220_* fresh
+      from that file, not from the plan text.
 - [ ] Provision PowerSync service (Cloud or self-hosted, see below).
 - [ ] Author sync rules — see "Sync rules" below.
 - [ ] Set `EXPO_PUBLIC_POWERSYNC_URL` in `mobile/.env.local` (dev) and
@@ -88,13 +96,17 @@ location records" — that translates to bucket scoping like:
 ```yaml
 bucket_definitions:
   by_user:
-    parameters: SELECT request.user_id() AS user_id
+    parameters: |
+      SELECT
+        request.user_id()  AS user_id,
+        request.jwt() ->> 'email' AS user_email
     data:
       - SELECT * FROM field_data_points WHERE created_by = bucket.user_id
-      - SELECT * FROM time_entries WHERE user_id = bucket.user_id
-      - SELECT * FROM location_stops WHERE user_id = bucket.user_id
-      - SELECT * FROM location_segments WHERE user_id = bucket.user_id
-      - SELECT * FROM receipts WHERE user_id = bucket.user_id
+      - SELECT * FROM daily_time_logs   WHERE user_email = bucket.user_email
+      - SELECT * FROM job_time_entries  WHERE user_email = bucket.user_email
+      - SELECT * FROM location_stops    WHERE user_id    = bucket.user_id
+      - SELECT * FROM location_segments WHERE user_id    = bucket.user_id
+      - SELECT * FROM receipts          WHERE user_id    = bucket.user_id
 
   by_company:
     # Jobs and reference tables — visible to all employees of the
