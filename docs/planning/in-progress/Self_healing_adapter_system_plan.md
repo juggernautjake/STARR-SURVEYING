@@ -41,7 +41,7 @@ The system is built in four phases, each phase delivering standalone value so we
 7. Keep total system cost predictable and capped at every layer
 
 ### Non-goals (for v1)
-- Fully autonomous "no human ever needed" operation (Phase 4 is research, not a v1 commitment)
+- Fully autonomous "no human ever needed" operation (Phase E+ is research, not a v1 commitment — see §6.5)
 - Cross-site agent reasoning ("Bell broke, predict Williamson is next") — nice idea, defer
 - Self-discovery of *new* adapters from scratch — out of scope
 - Anything that bypasses ToS, CAPTCHA without explicit operator approval, or rate limits
@@ -102,15 +102,15 @@ Many adapters fan out across counties: **Kofile covers ~80 counties** (`KOFILE_F
 
 This is the most important risk-management concept in the plan — without it, the cost model in §7 Scenario C double-counts every Kofile fix 80 times, and a single bad vendor patch can break property research statewide.
 
-### 4.2 Per-site cost budgets (your idea, formalized)
+### 4.2 Per-site cost budgets
 
 Three nested budgets enforce cost discipline:
 
-1. **Per-incident cap** — single repair attempt cannot exceed Tier budget (table above). If exceeded, attempt halts and human is notified.
+1. **Per-incident cap** — single repair attempt cannot exceed the tier budget (table above). If exceeded, attempt halts and human is notified.
 2. **Per-site monthly cap** — `tier_budget × 4` per adapter per calendar month. Prevents one perpetually-broken site from draining the budget.
 3. **Global daily cap** — `$50/day` hard ceiling across all adapters. Circuit breaker if breached.
 
-Every Claude API call is tagged with `adapter_id`, `incident_id`, `phase` (diagnose / repair / validate). Costs roll up in Supabase in real time. Budget enforcement happens *before* each call, not after.
+Every Anthropic API call is tagged with `adapter_id`, `incident_id`, and `phase` (one of `diagnose | repair | validate | extract | other` — see `ai_cost_ledger.phase` in §5.1) so costs roll up per adapter in real time. Budget enforcement happens *before* each call by the in-process `AiUsageTracker` circuit breaker, not after; the `ai_cost_ledger` table is the persistence sink for attribution and dashboards (§5.1).
 
 ### 4.3 Canary test properties (the ground-truth backbone)
 
@@ -120,7 +120,7 @@ A canary property record contains:
 
 **Identity**
 - `parcel_id` / `account_number`
-- `jurisdiction` (FIPS code from `clerk-registry.ts`)
+- `jurisdiction_fips` (FIPS code from `clerk-registry.ts`; canary table column name in §5.1)
 - `expected_address`
 
 **Generic extraction signals**
@@ -134,7 +134,7 @@ A canary property record contains:
 - `expected_closure_ratio` — must be ≥1:5,000 per `docs/platform/CLOSURE_TOLERANCE.md`. A patch that fixes the selector but corrupts bearing/distance parsing flunks this. Falls into the hard-fail bucket of `worker/src/lib/closure-tolerance.ts`.
 - `expected_bearings` — list of expected bearings, validated by `worker/src/infra/ai-guardrails.ts` `validateBearing()`. Catches silent format-drift (e.g., `°` lost, seconds dropped).
 - `expected_chain_of_title_count` (range) — protects deed-walking regressions.
-- `expected_adjoiner_count` (range) — protects adjacent-property pipeline regressions (Phase 5).
+- `expected_adjoiner_count` (range) — protects adjacent-property pipeline regressions (research-pipeline phase 5 in `STARR_RECON_PHASE_ROADMAP.md`; not the same numbering as the build-phase taxonomy in §6).
 
 **Provenance**
 - `last_validated_at` and `last_validated_by` (so we know when a human last confirmed the truth)
@@ -233,7 +233,7 @@ Adapter version pinning is a new `adapter_versions` table (one row per `(adapter
 │  • Dedupes signals                                                    │
 │  • Creates incident record (Supabase: adapter_incidents)              │
 │  • Looks up adapter tier + budget                                     │
-│  • Routes to Diagnosis or directly to human (Tier 2/3 = PR-only)      │
+│  • Routes to Diagnosis or directly to human (T2/T3 = PR-only)         │
 └────────────────────────────────┬─────────────────────────────────────┘
                                  ▼
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -251,12 +251,13 @@ Adapter version pinning is a new `adapter_versions` table (one row per `(adapter
 │  ┌──────────────────────────────────────────────────────────────┐    │
 │  │ Strategy ladder (cheapest → most expensive):                 │    │
 │  │  1. Try multi-selector fallbacks already in code (free)      │    │
-│  │  2. Generate new selector from screenshot (Sonnet, ~$0.10)   │    │
-│  │  3. Diff-and-patch adapter code (Sonnet, ~$1)                │    │
-│  │  4. Rewrite affected adapter section (Opus, ~$5)             │    │
-│  │  5. Full adapter rewrite from spec + page (Opus, ~$15-25)    │    │
+│  │  2. Vision selector inference (Sonnet 4.6, ~$0.10)           │    │
+│  │  3. Diff-and-patch adapter code (Sonnet 4.6, ~$1)            │    │
+│  │  4. Rewrite affected adapter section (Opus 4.7, ~$5)         │    │
+│  │  5. Full adapter rewrite from spec + page (Opus 4.7, $15-25) │    │
 │  └──────────────────────────────────────────────────────────────┘    │
-│  Each rung respects the per-incident budget; halts when exceeded.    │
+│  Each rung respects the per-incident budget AND the §5.2.1 lint;     │
+│  patches that fail the lint cost $0 and halt without consuming budget.│
 └────────────────────────────────┬─────────────────────────────────────┘
                                  ▼
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -272,16 +273,19 @@ Adapter version pinning is a new `adapter_versions` table (one row per `(adapter
 │                     DEPLOYMENT LAYER                                  │
 │  ┌──────────────────────┐    ┌──────────────────────────────────┐    │
 │  │ Auto-merge gate      │    │ PR generation                    │    │
-│  │ • Tier 0/1 + drift   │ OR │ • All other cases                │    │
+│  │ • T0/T1 + drift only │ OR │ • All other cases                │    │
 │  │ • Confidence ≥85     │    │ • Title, body, screenshots, diff │    │
-│  │ • Canary 100% pass   │    │ • Tagged for on-call             │    │
+│  │ • Never vendor-base  │    │ • Vendor-fan-out FIPS list       │    │
+│  │   (§4.1.1)           │    │   inlined for vendor patches     │    │
+│  │ • Canary ≥2/3 pass   │    │ • Tagged for Jacob (per §9 Q2)   │    │
 │  └──────────┬───────────┘    └────────────┬─────────────────────┘    │
 └─────────────┼─────────────────────────────┼──────────────────────────┘
               ▼                             ▼
 ┌──────────────────────────────────────────────────────────────────────┐
 │                  PROGRESSIVE ROLLOUT + MONITORING                     │
 │  10% → 50% → 100% over 4h, with auto-rollback on regression          │
-│  Always-notify-human (Slack/email/SMS by tier)                       │
+│  Always-notify-human via Slack + email per tier (SMS deferred to     │
+│  post-Phase-D per §9 Q2)                                             │
 │  Incident closes only when human confirms                            │
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -439,10 +443,18 @@ CREATE INDEX IF NOT EXISTS idx_adapter_incidents_open
 -- materialized 5-min view (adapter_telemetry_5m, defined out-of-band) and a
 -- daily roll-up. Raw rows TTL at 14 days via a scheduled DELETE — surveys
 -- never need raw per-attempt history past two weeks.
+--
+-- NOTE: adapter_id is intentionally NOT a FOREIGN KEY here. Telemetry is the
+-- hottest insert path in the schema (every adapter attempt writes one row);
+-- FK lock contention on adapter_manifests during the steady-state write
+-- stream measurably hurts throughput at >50k rows/day. The dashboard query
+-- joins on adapter_id for display purposes and accepts the (very rare)
+-- orphan row if a manifest is hard-deleted. Hard deletes never happen in
+-- production; soft-delete via active=false is the supported flow.
 CREATE TABLE IF NOT EXISTS adapter_telemetry (
   id               BIGSERIAL PRIMARY KEY,
   ts               TIMESTAMPTZ NOT NULL DEFAULT now(),
-  adapter_id       TEXT NOT NULL,
+  adapter_id       TEXT NOT NULL,        -- no FK; see header comment
   adapter_version  INT NOT NULL,
   -- research_projects.created_by — the surveyor/researcher who owns the job.
   -- See lib/research/useResearchProgress.ts and /api/ws/ticket ownership check.
@@ -931,9 +943,12 @@ that parses:
                               parse cleanly through validateBearing()
                               from worker/src/infra/ai-guardrails.ts.
 - expected_chain_of_title_count: Range; anything outside is a regression.
-- expected_adjoiner_count:    Range; anything outside indicates a Phase 5
-                              (adjacent-research) regression upstream of
-                              the adapter.
+- expected_adjoiner_count:    Range; anything outside indicates a regression
+                              in research-pipeline phase 5 (adjacent-property
+                              discovery) upstream of the adapter. This is the
+                              legacy 1-19 pipeline numbering from
+                              STARR_RECON_PHASE_ROADMAP.md, NOT the build
+                              phase numbering in §6.
 
 Return JSON:
 {
