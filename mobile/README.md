@@ -8,20 +8,29 @@ Phase F0 scaffold. The full plan lives in
 - **Expo Router** with file-based routing under `app/`
 - **Tab bar shell** (`app/(tabs)/_layout.tsx`) with five placeholder
   screens: Jobs, Capture, Time, $, Me — per plan §7.2
-- **Supabase client** (`lib/supabase.ts`) wired to `EXPO_PUBLIC_*`
-  env vars with `AsyncStorage` for session persistence
+- **Supabase Auth** (email + password; F0 #2a) with biometric unlock
+  + auto-lock after 15 min idle + re-auth helper for destructive
+  actions (F0 #2b) — see `lib/auth.tsx`, `lib/biometric.ts`,
+  `lib/lockState.ts`, `lib/LockOverlay.tsx`
+- **Local SQLite + sync** via PowerSync (F0 #3, plan §6.1) — schema
+  in `lib/db/schema.ts` mirrors the 12 plan §6.3 tables; the
+  `SupabaseConnector` in `lib/db/connector.ts` replays the upload
+  queue against Supabase. Local DB works fully offline; cloud sync
+  activates when `EXPO_PUBLIC_POWERSYNC_URL` is set. See
+  `lib/db/README.md` for the deployment runbook.
 - **Theme** (`lib/theme.ts`) — dark-mode default per plan §7.1 rule 7
-- **TypeScript** strict mode, **ESLint** via `eslint-config-expo`,
-  **Prettier** with single-quote / 2-space style matching the worker
+- **TypeScript** strict mode, **ESLint** via `eslint-config-expo` +
+  `eslint-config-prettier`, **Prettier** with single-quote / 2-space
+  style matching the worker
 
 ## What's NOT here yet (Phase F0 remaining)
 
-- Auth flow + biometric unlock (deliverable #2)
-- Local SQLite + sync queue (deliverable #3 — PowerSync vs WatermelonDB
-  spike pending; see plan §6.1)
-- EAS Build configured for TestFlight / internal Android (#5)
-- OTA updates (#6)
-- Sentry crash reporting (#7)
+- Reset-password deep-link handler, magic-link, Apple/Google native
+  sign-in (F0 #2c — needs Supabase Dashboard config first)
+- Tab bar polish — floating "Capture" button per plan §7.2 (F0 #4)
+- EAS Build configured for TestFlight / internal Android (F0 #5)
+- OTA updates via expo-updates (F0 #6)
+- Sentry crash reporting (F0 #7)
 
 Each lands in its own session.
 
@@ -31,7 +40,9 @@ Each lands in its own session.
 cd mobile
 npm install
 cp .env.example .env.local
-# fill in EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY
+# Required: EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY
+# Optional: EXPO_PUBLIC_POWERSYNC_URL (when empty, local SQLite still
+#           works; only the cloud sync layer is disabled)
 npm start
 ```
 

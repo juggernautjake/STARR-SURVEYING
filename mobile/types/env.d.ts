@@ -16,5 +16,12 @@ declare namespace NodeJS {
 
     /** Public Supabase anon key — JWT-shaped, safe to embed */
     EXPO_PUBLIC_SUPABASE_ANON_KEY?: string;
+
+    /**
+     * PowerSync service URL (Cloud or self-hosted). Optional —
+     * when missing the local SQLite database still works offline,
+     * only the cloud sync layer is disabled. See lib/db/connector.ts.
+     */
+    EXPO_PUBLIC_POWERSYNC_URL?: string;
   }
 }
