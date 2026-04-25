@@ -75,18 +75,32 @@ The system is built in four phases, each phase delivering standalone value so we
 
 ### 4.1 Adapter value tiers
 
-Every adapter is assigned a tier that determines its cost budget, repair urgency, and rollout caution. Tier is a function of (a) customer demand, (b) data uniqueness (can we get it elsewhere?), (c) revenue impact.
+Every adapter is assigned a tier that determines its cost budget, repair urgency, and rollout caution. Tier is a function of (a) job demand (how often surveyors hit it), (b) data uniqueness (can we get it elsewhere?), (c) revenue impact, (d) closure-blast-radius (does failure leave a Bell-area surveyor stuck?).
 
-| Tier | Label | Examples | Repair budget per incident | SLA target | Auto-merge eligible? |
+| Tier | Label | Examples (real adapter ids) | Repair budget per incident | SLA target | Auto-merge eligible? |
 |---|---|---|---|---|---|
-| T0 | **Critical** | Bell CAD, Bell County Clerk (Kofile), TxGIO parcel | $25 | 1h | Selector drift only, with 2 humans notified |
-| T1 | **High** | TexasFile, TxDOT Roadways, RRC | $10 | 4h | Selector drift only, 1 human notified |
-| T2 | **Medium** | Adjacent-county clerks, FEMA | $5 | 24h | Never — PR only |
-| T3 | **Low** | Rarely-hit adapters, optional enrichment | $1 | Best-effort | Never — PR only |
+| T0 | **Critical** | `bis` (Bell-CAD, FIPS 48027), `kofile-clerk` (Bell County Clerk, `bell.tx.publicsearch.us`), `bell-cad-arcgis` (parcel layer in `bell-cad-arcgis.service.ts`) | $25 | 1h | Selector drift only, with Jacob notified twice (Slack + email) |
+| T1 | **High** | `texasfile` (statewide fallback), `txdot-roadways-client` (TxDOT RPAM), `rrc-client` (Railroad Commission), `bis` (Hays-CAD FIPS 48209, Williamson FIPS 48491) | $10 | 4h | Selector drift only, Slack only |
+| T2 | **Medium** | Adjacent-county clerks (`countyfusion`, `henschen-clerk`, `idocket-clerk`, `fidlar-clerk` outside Bell-area FIPS), `fema-nfhl-client`, `glo-client` | $5 | 24h | Never — PR only |
+| T3 | **Low** | Source clients hit <1×/month, optional enrichment (`tceq-client`, `nrcs-soil-client`, `usgs-client`, `tnris-lidar-client`) | $1 | Best-effort | Never — PR only |
 
-Tiers are **stored in the adapter manifest** (`adapters/<name>/manifest.json`) so repair logic, cost meters, and dashboards all read from the same source of truth.
+Tiers are stored on the `adapter_manifests` Supabase table (§5.1), keyed by the adapter ids in `KNOWN_ADAPTER_IDS` (`worker/src/lib/browser-factory.ts`). Vendor↔county coverage is **not duplicated** in the DB — it is derived from `cad-registry.ts` and `clerk-registry.ts` (`KOFILE_FIPS_SET`, `HENSCHEN_FIPS_SET`, etc.). Those TS modules remain the canonical mapping; the DB row stores tier, budget, current/active version, and live counters only. This avoids a third source of truth that would drift instantly.
 
-Tiers are **reviewed quarterly** based on telemetry: an adapter no customer has hit in 90 days drops a tier; an adapter that's blocking high-revenue jobs gets promoted.
+Tiers are **reviewed quarterly** based on telemetry: an adapter no surveyor has hit in 90 days drops a tier; an adapter blocking a high-revenue job gets promoted. Bell County adapters are pinned at T0 regardless of telemetry — this is Starr's home county and must never be unavailable during business hours.
+
+#### 4.1.1 Vendor-fan-out tier (orthogonal to county tier)
+
+Many adapters fan out across counties: **Kofile covers ~80 counties** (`KOFILE_FIPS_SET` in `clerk-registry.ts`), Henschen ~40, Tyler ~30, CountyFusion ~40, Fidlar ~15. A vendor-base regression breaks every county under it simultaneously — and Kofile in particular is a single-point-of-failure for the entire Texas Hill Country and DFW clerk surface.
+
+**Vendor-tier rules:**
+
+- **Vendor tier** = `max(county_tier for every FIPS in the vendor's set)`. So `kofile-clerk` is T0 (because Bell is in `KOFILE_FIPS_SET`); `henschen-clerk` is T1 if any T1 county uses Henschen, otherwise T2.
+- **Per-incident budget for a vendor-base patch** = `min($50, sum(top-3 affected county budgets))`. Caps catastrophic spend while still funding multi-county fixes.
+- **Vendor-base patches are never auto-merge-eligible**, regardless of confidence. The blast radius is too large; PR-only with explicit human ack.
+- **Canary requirement** for vendor-base patches: must pass on **≥3 distinct counties** in the vendor's FIPS set, including at least one T0 county if the vendor covers any. Single-county canaries do not certify a vendor change.
+- The **blast-radius checker** (§5.2) enumerates downstream FIPS via `KOFILE_FIPS_SET` etc. and posts the explicit list to the PR.
+
+This is the most important risk-management concept in the plan — without it, the cost model in §7 Scenario C double-counts every Kofile fix 80 times, and a single bad vendor patch can break property research statewide.
 
 ### 4.2 Per-site cost budgets (your idea, formalized)
 
@@ -103,42 +117,63 @@ Every Claude API call is tagged with `adapter_id`, `incident_id`, `phase` (diagn
 For each adapter, we pin **2–3 real properties** in that jurisdiction whose extracted data we know to be correct. These are the "known answers" the system regression-tests against.
 
 A canary property record contains:
+
+**Identity**
 - `parcel_id` / `account_number`
+- `jurisdiction` (FIPS code from `clerk-registry.ts`)
+- `expected_address`
+
+**Generic extraction signals**
 - `expected_owner_name` (regex-tolerant)
 - `expected_legal_description` (substring match, since formatting varies)
 - `expected_acreage` (±0.01 tolerance)
-- `expected_address`
 - `expected_deed_count` (range, e.g., 3–6)
 - `expected_field_completeness_pct` (e.g., owner+legal+acreage must populate)
+
+**Surveyor-specific signals (the ones that matter for the product contract)**
+- `expected_closure_ratio` — must be ≥1:5,000 per `docs/platform/CLOSURE_TOLERANCE.md`. A patch that fixes the selector but corrupts bearing/distance parsing flunks this. Falls into the hard-fail bucket of `worker/src/lib/closure-tolerance.ts`.
+- `expected_bearings` — list of expected bearings, validated by `worker/src/infra/ai-guardrails.ts` `validateBearing()`. Catches silent format-drift (e.g., `°` lost, seconds dropped).
+- `expected_chain_of_title_count` (range) — protects deed-walking regressions.
+- `expected_adjoiner_count` (range) — protects adjacent-property pipeline regressions (Phase 5).
+
+**Provenance**
 - `last_validated_at` and `last_validated_by` (so we know when a human last confirmed the truth)
-- `validation_period_days` (default 90 — re-confirm with human eyes quarterly)
+- `next_revalidation_at` (default `last_validated_at + 90 days` — re-confirm with human eyes quarterly)
+- `tolerance_rules` (JSONB) — uses the same `ToleranceField` shape (`exact | numeric± | fuzzy | list-set`) as `worker/src/__tests__/regression/regression-runner.ts`. **One comparator across canaries and fixtures** — no second tolerance engine.
 
 **Why 2–3 per adapter, not 1:** single canaries can give false negatives (e.g., a property that happens to have an unusual deed). With 3, we require ≥2 to pass for the adapter to be considered green.
+
+**Why surveyor-specific fields matter:** STARR RECON's product contract is "geometry that closes" not "JSON that parses." A regression that returns the right owner string but feeds garbage bearings into `traverse-closure.ts` triggers the 1:5,000 hard fail downstream and looks like a different bug entirely. Catching it at the canary boundary saves hours of triage.
 
 **Canary execution:**
 - Automatically re-run on every SiteHealth tick when an adapter is flagged unhealthy
 - Re-run weekly even when healthy (catches silent regressions)
 - Re-run on demand before any auto-merge
+- Vendor-base canaries (§4.1.1) run on ≥3 distinct counties before any vendor patch promotes
 
 ### 4.4 Confidence scoring
 
-Every candidate fix gets a 0–100 confidence score, computed from:
+Every candidate fix gets a 0–100 confidence score. Surveyor-specific signals are first-class — the product contract is geometry, not strings.
 
-| Signal | Weight |
-|---|---|
-| All canary properties pass | 40 |
-| Diff scope (smaller = higher) | 15 |
-| Change type (selector_drift > workflow_change > redesign) | 15 |
-| Fixture regression suite passes | 10 |
-| Live probe latency within historical p95 | 5 |
-| No new dependencies introduced | 5 |
-| AI self-reported confidence | 5 |
-| Adapter has been stable historically | 5 |
+| Signal | Weight | Source |
+|---|---|---|
+| All canary properties pass (≥2 of 3 per §4.3) | 35 | live probe, §4.3 |
+| **Closure-ratio regression check passes** (canaries with `expected_closure_ratio` produce ratios within tolerance after the fix) | 10 | `worker/src/lib/closure-tolerance.ts` |
+| **Bearing-validator pass rate ≥ pre-fix baseline** (`validateBearing()` over canary outputs) | 5 | `worker/src/infra/ai-guardrails.ts` |
+| Diff scope (smaller = higher) | 15 | git stat |
+| Change type (selector_drift > workflow_change > redesign) | 10 | classifier (§5) |
+| Fixture regression suite passes (`worker/src/__tests__/regression/`) | 10 | offline replay |
+| Live probe latency within historical p95 | 5 | telemetry |
+| **No new npm dependencies AND patch respects `acquireBrowser` / `getCaptchaSolver` / `storage` abstractions** | 5 | AST lint (§5.2 guardrail) |
+| AI self-reported confidence | 3 | classifier |
+| Adapter historical stability (rolling 90d incident count) | 2 | telemetry |
 
-Auto-merge thresholds (only for Tier 0/1, selector_drift only):
+Auto-merge thresholds (only for T0/T1, `selector_drift` only, **never for vendor-base patches** per §4.1.1):
 - ≥85: eligible for auto-merge
 - 60–84: PR opens, human reviews with score and evidence attached
-- <60: PR opens, marked "needs_investigation," tagged on-call
+- <60: PR opens, marked `needs_investigation`, tagged for on-call
+
+**Why these weights changed from the original draft:** AI self-reported confidence is the lowest-signal item in the published agentic-coding literature, so it's down-weighted from 5 to 3. The two new surveyor-specific signals (closure regression, bearing validator) are scored first-class because a patch that breaks them silently triggers downstream traverse-closure failures that look like unrelated bugs. The "abstractions respected" check is moved out of the prose and into the score so it can't be hand-waved past — and it's enforced at the AST-lint layer (§5.2) so the score reflects a real check, not the model's word.
 
 ### 4.5 Customer-traffic-aware monitoring
 
@@ -177,7 +212,7 @@ Every auto-merged adapter version enters a 24h "probation" period:
 - Promotes to 100% after 4h
 - During the entire 24h, if completeness drops below the pre-merge baseline by >5%, instant auto-rollback to previous version + page on-call
 
-Adapter version pinning (one row per `(adapter_id, version)`) makes rollback a config change, not a code deploy.
+Adapter version pinning is a new `adapter_versions` table (one row per `(adapter_id, version)`, defined in §5.1) that makes rollback a config change, not a code deploy. Routing reads `adapter_manifests.active_version` at adapter-construct time; flipping that column reverts production traffic in <1s. **Reuse the diff/replay machinery in `worker/src/services/pipeline-diff-engine.ts`** to compute pre/post-rollback deltas — that engine already exists for whole-pipeline versioning (`pipeline-version-store.ts`); the only delta is granularity. Do not implement a second diff engine.
 
 ---
 
