@@ -32,6 +32,14 @@ export interface TimesheetEntry {
   durationMinutes: number | null;
 }
 
+export type DailyLogStatus =
+  | 'open'
+  | 'submitted'
+  | 'approved'
+  | 'rejected'
+  | 'locked'
+  | string; // future-tolerant — unknown values render as the literal
+
 export interface TimesheetDay {
   /** ISO local date (YYYY-MM-DD). */
   date: string;
@@ -40,6 +48,14 @@ export interface TimesheetDay {
   entries: TimesheetEntry[];
   /** True when at least one entry on this day is still open. */
   hasOpenEntry: boolean;
+  /**
+   * Status from daily_time_logs.status. Drives the day-header chip
+   * and gates editing — mobile blocks edits to entries on a non-'open'
+   * day (admin must edit server-side).
+   */
+  status: DailyLogStatus | null;
+  /** daily_time_logs.id for the day; needed by submit-week action. */
+  dailyTimeLogId: string | null;
 }
 
 interface RawRow {
@@ -51,6 +67,8 @@ interface RawRow {
   ended_at: string | null;
   duration_minutes: number | null;
   _log_date: string | null;
+  _log_status: string | null;
+  _log_id: string | null;
 }
 
 export function useTimesheet(daysBack: number = 14): {
@@ -71,7 +89,9 @@ export function useTimesheet(daysBack: number = 14): {
        jte.started_at      AS started_at,
        jte.ended_at        AS ended_at,
        jte.duration_minutes AS duration_minutes,
-       dtl.log_date        AS _log_date
+       dtl.log_date        AS _log_date,
+       dtl.status          AS _log_status,
+       dtl.id              AS _log_id
      FROM job_time_entries AS jte
      LEFT JOIN daily_time_logs AS dtl ON dtl.id = jte.daily_time_log_id
      LEFT JOIN jobs ON jobs.id = jte.job_id
@@ -88,11 +108,20 @@ export function useTimesheet(daysBack: number = 14): {
     // Bucket by log_date. Rows with NULL log_date (broken sync,
     // shouldn't normally happen) are bucketed under "" so they're
     // visible-but-tagged rather than silently dropped.
-    const buckets = new Map<string, TimesheetEntry[]>();
+    interface Bucket {
+      entries: TimesheetEntry[];
+      status: string | null;
+      logId: string | null;
+    }
+    const buckets = new Map<string, Bucket>();
     for (const row of data) {
       const date = row._log_date ?? '';
-      const bucket = buckets.get(date) ?? [];
-      bucket.push({
+      const bucket = buckets.get(date) ?? {
+        entries: [],
+        status: row._log_status,
+        logId: row._log_id,
+      };
+      bucket.entries.push({
         id: row.id,
         jobId: row.job_id,
         jobName: row._job_name,
@@ -101,17 +130,28 @@ export function useTimesheet(daysBack: number = 14): {
         endedAt: row.ended_at,
         durationMinutes: row.duration_minutes,
       });
+      // status / logId should be identical across rows for the same
+      // log_date; but if a stale duplicate joins, prefer the first.
+      if (!bucket.status) bucket.status = row._log_status;
+      if (!bucket.logId) bucket.logId = row._log_id;
       buckets.set(date, bucket);
     }
 
     return Array.from(buckets.entries())
-      .map(([date, entries]) => {
-        const totalMinutes = entries.reduce(
+      .map(([date, b]) => {
+        const totalMinutes = b.entries.reduce(
           (sum, e) => sum + (e.durationMinutes ?? 0),
           0
         );
-        const hasOpenEntry = entries.some((e) => !e.endedAt);
-        return { date, totalMinutes, entries, hasOpenEntry };
+        const hasOpenEntry = b.entries.some((e) => !e.endedAt);
+        return {
+          date,
+          totalMinutes,
+          entries: b.entries,
+          hasOpenEntry,
+          status: (b.status as DailyLogStatus | null) ?? null,
+          dailyTimeLogId: b.logId,
+        };
       })
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [data]);

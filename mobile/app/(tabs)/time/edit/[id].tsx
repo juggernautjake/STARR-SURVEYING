@@ -34,6 +34,8 @@ interface JobTimeEntryRow {
   notes: string | null;
   duration_minutes: number | null;
   created_at: string | null;
+  /** Daily-log status — blocks edits when not 'open' (F1 #9). */
+  _log_status: string | null;
 }
 
 /**
@@ -64,14 +66,19 @@ export default function EditTimeEntryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const { data: rows, isLoading: rowLoading } = useQuery<JobTimeEntryRow>(
-    `SELECT id, job_id, user_email, entry_type, started_at, ended_at,
-            notes, duration_minutes, created_at
-     FROM job_time_entries
-     WHERE id = ?
+    `SELECT jte.id, jte.job_id, jte.user_email, jte.entry_type,
+            jte.started_at, jte.ended_at, jte.notes,
+            jte.duration_minutes, jte.created_at,
+            dtl.status AS _log_status
+     FROM job_time_entries AS jte
+     LEFT JOIN daily_time_logs AS dtl ON dtl.id = jte.daily_time_log_id
+     WHERE jte.id = ?
      LIMIT 1`,
     id ? [id] : []
   );
   const row = rows?.[0];
+  const dayStatus = row?._log_status ?? 'open';
+  const dayLocked = dayStatus !== 'open' && dayStatus !== 'rejected';
 
   const { job } = useJob(row?.job_id);
   const { edits } = useTimeEdits(id);
@@ -125,6 +132,13 @@ export default function EditTimeEntryScreen() {
   }
 
   const onSave = async () => {
+    if (dayLocked) {
+      Alert.alert(
+        'Day already submitted',
+        'This day has been submitted to the dispatcher. Ask Henry to edit it from the web admin, or clock the time correction into a new entry.'
+      );
+      return;
+    }
     if (!validation || !validation.ok) {
       Alert.alert('Cannot save', validation?.error ?? 'Please review your edits.');
       return;
@@ -195,6 +209,30 @@ export default function EditTimeEntryScreen() {
           <Text style={[styles.subtitle, { color: palette.muted }]}>
             {entryTypeLabel(row.entry_type)} · {formatRowDuration(row)}
           </Text>
+
+          {dayLocked ? (
+            <View
+              style={[
+                styles.lockedBanner,
+                { backgroundColor: palette.surface, borderColor: palette.danger },
+              ]}
+            >
+              <Text style={[styles.lockedTitle, { color: palette.danger }]}>
+                {dayStatus === 'submitted'
+                  ? 'Submitted for approval'
+                  : dayStatus === 'approved'
+                    ? 'Approved'
+                    : dayStatus === 'locked'
+                      ? 'Locked by payroll'
+                      : 'Locked'}
+              </Text>
+              <Text style={[styles.lockedBody, { color: palette.text }]}>
+                Edits to this entry are read-only on mobile. Ask Henry to
+                edit it in the web admin, or clock a correction into a new
+                entry.
+              </Text>
+            </View>
+          ) : null}
 
           <View style={styles.section}>
             <Text style={[styles.sectionLabel, { color: palette.muted }]}>
@@ -276,7 +314,7 @@ export default function EditTimeEntryScreen() {
             label="Save"
             onPress={onSave}
             loading={submitting}
-            disabled={!validation?.ok}
+            disabled={!validation?.ok || dayLocked}
             accessibilityHint="Saves the changes and writes an audit row per changed field"
           />
 
@@ -506,5 +544,22 @@ const styles = StyleSheet.create({
   },
   historySection: {
     marginTop: 32,
+  },
+  lockedBanner: {
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  lockedTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  lockedBody: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

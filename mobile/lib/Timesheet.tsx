@@ -14,6 +14,7 @@
  */
 import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
+import { StatusChip } from './StatusChip';
 import { formatDuration, todayLocalISODate } from './timeFormat';
 import type { TimesheetDay, TimesheetEntry } from './timesheet';
 import { type Palette, colors } from './theme';
@@ -66,9 +67,12 @@ function DayBlock({ day, palette, onPressEntry }: DayBlockProps) {
   return (
     <View style={styles.day}>
       <View style={styles.dayHeader}>
-        <Text style={[styles.dayDate, { color: palette.text }]}>
-          {formatDayHeader(day.date)}
-        </Text>
+        <View style={styles.dayHeaderLeft}>
+          <Text style={[styles.dayDate, { color: palette.text }]}>
+            {formatDayHeader(day.date)}
+          </Text>
+          <StatusChip status={day.status} />
+        </View>
         <Text style={[styles.dayTotal, { color: palette.muted }]}>
           {day.hasOpenEntry ? '· in progress · ' : ''}
           {formatDayTotal(day.totalMinutes)}
@@ -230,6 +234,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
+  },
+  dayHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
   },
   dayDate: {
     fontSize: 18,
