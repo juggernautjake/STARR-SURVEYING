@@ -682,51 +682,63 @@ Lives alongside the rest of the Phase 0 deliverables in RECON_INVENTORY §12 (ve
 
 ## 7. Cost models — three scenarios
 
-All numbers assume current Anthropic pricing (verify in `/mnt/skills/public/product-self-knowledge/` before final commitment).
+All Anthropic numbers verify against `/mnt/skills/public/product-self-knowledge/` before Phase A activation. The Sonnet floor reuses `SONNET_COST_PER_1K_TOKENS = $0.006` from `worker/src/lib/ai-usage-tracker.ts`. Browserbase is **per-session-minute** (not per-capture); a typical SiteHealth-triggered capture is ~90s ≈ $0.05. CapSolver is per-solve, ~$0.001–$0.003 depending on challenge type — trivial at current break rates but worth tracking line-by-line because it persists into `captcha_solves` and rolls up on the dashboard.
 
 ### Scenario A — Quiet month (3 incidents, all selector drift)
 
 | Item | Cost |
 |---|---|
-| 3 incidents × 1 page capture (Browserbase) | $0.60 |
-| 3 incidents × diagnosis (Sonnet, ~5K tokens) | $0.30 |
-| 3 incidents × vision selector inference | $0.30 |
-| 3 incidents × validation (canary live runs) | $1.50 |
-| Weekly canary runs across 25 adapters × 4 weeks | $20 |
-| SiteHealth probes (existing baseline) | $0 |
-| Telemetry aggregation (Supabase compute) | included |
+| 3 incidents × Browserbase capture (~90s/incident) | $0.15 |
+| 3 incidents × diagnosis (Sonnet 4.6, ~5K tokens) | $0.30 |
+| 3 incidents × vision selector inference (rung 2) | $0.30 |
+| 3 incidents × validation (live canary runs through Browserbase, ~3 canaries × 60s each) | $1.50 |
+| Weekly canary runs across 25 adapter+source combos × 4 weeks (Browserbase + Sonnet validation) | $20 |
+| CapSolver solves (only when CAPTCHA-walled probes hit captcha; usually 0–5/month) | <$0.05 |
+| SiteHealth probes (existing baseline, no AI cost) | $0 |
+| Telemetry rollups (Supabase compute, materialized 5-min view) | included |
 | **Total** | **~$22/month** |
 
 ### Scenario B — Busy month (8 incidents: 5 drift, 2 workflow, 1 redesign)
 
 | Item | Cost |
 |---|---|
-| 5 selector drift fixes (cheap rung) | ~$8 |
-| 2 workflow changes (mid-rung, Sonnet code patch + extra validation) | ~$15 |
-| 1 redesign attempt (climbs to Opus rewrite, hits $25 cap) | $25 |
-| Canary suite operations | $25 |
-| Validation re-runs | $10 |
+| 5 selector drift fixes (cheap rung — vision + capture) | ~$8 |
+| 2 workflow changes (mid-rung, Sonnet code patch + extra validation runs) | ~$15 |
+| 1 redesign attempt (climbs to Opus rewrite, hits $25 per-incident cap) | $25 |
+| Weekly canary suite (4 weeks × 25 combos) | $20 |
+| Validation re-runs (3 attempts × 1 redesign) | $10 |
+| Browserbase session minutes (incidents + validation + canary cycles) | ~$5 |
+| CapSolver (0–10 solves) | <$0.05 |
 | **Total** | **~$83/month** |
 
-### Scenario C — Catastrophic month (Kofile platform-wide redesign hits 12 counties simultaneously)
+### Scenario C — Catastrophic month (Kofile vendor-base redesign hits 80 counties simultaneously)
 
-| Item | Cost |
-|---|---|
-| 1 vendor-base diagnosis (deep, Opus) | $20 |
-| 12 county-adapter validations against new base | $30 |
-| 3 attempts to fix each (avg) | ~$200 |
-| Extra canary runs and Browserbase sessions | $50 |
-| **Subtotal pre-cap** | $300 |
-| Global daily cap kicks in, throttles to 1-2 fixes per day over a week | enforced |
-| **Total realized** | **~$300, spread over 5–7 days** |
+This is the scenario the §4.1.1 vendor-fan-out tier was designed for. **Without the vendor rule, the cost model double-counts every Kofile fix 80 times — Scenario C blows past $1,000/month and the daily cap throttles every other adapter for a week.** With the rule:
+
+| Item | Cost | Notes |
+|---|---|---|
+| 1 vendor-base incident (`kofile-clerk-adapter.ts`) — diagnosis + Opus section rewrite | $25 | Vendor-incident budget = `min($50, sum top-3 county budgets)` = `min($50, $25+$10+$10)` = $45; Opus rewrite hits $25 |
+| Vendor-base canary across **3 distinct counties** before promote (Bell + Williamson + 1 DFW county) | $5 | Required by §4.1.1 |
+| Bulk validation across 80 downstream county canaries (cheap per-county at ~$0.50 each — same fix, different jurisdiction) | $40 | Each county runs its own canary set against the new vendor code |
+| Browserbase session minutes for ~85 capture-validate cycles | ~$5 | Sessions fan out, each is ~60s |
+| 2 follow-on county-specific patches (counties whose post-fix canary failed → small per-county tweaks at $1 each) | $2 | Long-tail tail of vendor fan-out |
+| Weekly canary suite (unaffected — runs in parallel) | $20 | |
+| CapSolver (no impact) | <$0.05 | |
+| **Subtotal** | **~$97** | |
+| Global daily cap ($50) | not breached | Vendor incident is ONE incident, not 80 |
+| **Total realized** | **~$97, single day** | — |
+
+The original Scenario C math was **$300 spread over 5–7 days** because it treated the 80 counties as 80 separate Tier-0 incidents at $25 each. With vendor-tier accounting, the catastrophic month costs about the same as a busy month plus a single redesign — and resolves in hours, not a week.
 
 ### Annualized planning numbers
 
-- Steady state: **$50–$150/month** in AI + Browserbase + canary cost
-- Worst-case month: **$300–$500** (with caps holding)
-- Annualized: **~$1,500–$3,000/year** for the entire self-healing system
+- Steady state: **$30–$120/month** in AI + Browserbase + CapSolver + canary cost
+- Worst-case month (Scenario C with two vendor-base incidents in the same month): **~$200**
+- Annualized: **~$700–$1,800/year** for the entire self-healing system
 
-**Compared to engineering time saved:** at ~$100/hour fully-loaded engineering cost and ~10 hours/month of manual adapter work eliminated, the system saves $12K/year while costing ~$2K/year. ROI is ~6x even before counting the SLA value (customer trust when their research jobs don't fail).
+**Compared to engineering time saved:** at ~$100/hour fully-loaded engineering cost and ~10 hours/month of manual adapter work eliminated, the system saves ~$12K/year while costing ~$1.2K/year. ROI is ~10× even before counting the SLA value (surveyor trust when their research jobs don't fail).
+
+**Cost-model sanity check (Phase A):** during Phase A's first month live, compare actual `ai_cost_ledger` rollups against this table. If actuals exceed Scenario B by >50%, halt auto-PR generation pending a budget review — the dashboard threshold lives in `adapter_manifests.budget_monthly_usd` and the existing `AiUsageTracker` circuit breaker will trip first.
 
 ---
 
@@ -735,30 +747,38 @@ All numbers assume current Anthropic pricing (verify in `/mnt/skills/public/prod
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | Silent extraction bugs (selector right, field wrong) | M | H | Canary ground-truth comparison catches; field-level tolerance rules |
-| Cost runaway on a hard-to-fix site | M | M | Three-layer budget caps; circuit breaker after 3 failed attempts |
-| AI patches that break shared utilities | L | H | Blast-radius checker; full vendor-base regression suite in CI |
+| Cost runaway on a hard-to-fix site | M | M | Three-layer budget caps; `AiUsageTracker` circuit breaker after 3 failed attempts |
+| AI patches that break shared utilities | L | H | Blast-radius checker; full vendor-base regression suite in CI; AST lint forbids edits to `worker/src/shared/` |
 | Over-fitting to fixtures (passes offline, fails live) | M | M | Mandatory live canary probe before any merge |
-| Auto-merge ships subtly wrong data; customer notices first | L | H | 24h probation + telemetry-driven rollback; always-notify-human within 60s |
-| Vendor adds CAPTCHA / login wall mid-incident | L | M | Change classifier flags this, halts repair, escalates to human |
+| Auto-merge ships subtly wrong data; surveyor notices first | L | H | 24h probation + telemetry-driven rollback; always-notify-human within 60s |
+| Vendor adds CAPTCHA / login wall mid-incident | L | M | Change classifier flags `captcha_added` / `auth_required`; halts repair, escalates to human |
 | Canary properties themselves drift (sale, subdivision) | M | L | 90-day human re-validation; multiple canaries per adapter (need ≥2 to pass) |
-| Hostile site detects scraping pattern from probe traffic | L | M | Throttle canary cadence; rotate Browserbase sessions; add jitter |
-| Repair PR ships ToS-violating logic | L | H | Prompt constraints; explicit allowlist of behaviors AI may add; legal review of auto-merge eligibility list |
-| AI hallucinates a working fix that just returns hardcoded data | L | H | Validation requires data match against canary ground truth, not just "no error" |
-| Anthropic API outage during incident | L | M | System degrades to "PR-only with empty body", human takes over |
-| Browserbase pricing change blows up budget model | M | M | Quarterly cost review; switch to self-hosted Playwright if needed |
+| Hostile site detects scraping pattern from probe traffic | L | M | Throttle canary cadence; rotate Browserbase sessions (proxy rotation built in); add jitter |
+| Repair PR ships ToS-violating logic | L | H | Prompt constraints (Appendix A); explicit allowlist of behaviors AI may add; legal review of auto-merge eligibility list |
+| AI hallucinates a working fix that just returns hardcoded data | L | H | Validation requires data match against canary ground truth, not just "no error"; closure-ratio check (§4.4) catches "right strings, wrong geometry" |
+| Anthropic API outage during incident | L | M | System degrades to "PR-only with empty body", human takes over; existing `AiUsageTracker` already half-opens on consecutive failures |
+| Browserbase pricing change blows up budget model | M | M | Quarterly cost review against `ai_cost_ledger` rollups; `BROWSER_BACKEND=local` fallback to self-hosted Playwright is one env-var flip |
+| **Patch fixes selector but breaks bearing/curve parsing → traverse-closure 1:5,000 hard fail** | M | H | Canary `expected_closure_ratio` field (§4.3); confidence score includes closure-regression check, weighted 10 (§4.4); `validateBearing()` in `worker/src/infra/ai-guardrails.ts` runs against canary outputs as a separate scored signal |
+| **AI patch bypasses `acquireBrowser` / `getCaptchaSolver` / `storage` abstractions, silently disabling Browserbase routing or cost telemetry** | M | H | AST lint at `worker/src/__tests__/lint-adapter-patches.ts` (§5.2.1) rejects pre-validation; "abstractions respected" is a scored signal in §4.4; prompt-level constraints in Appendix A.2 reduce emit-rate; rejection costs $0 against the budget so the next ladder rung executes immediately |
+| **Vendor-base patch (Kofile / Tyler / Henschen / CountyFusion) breaks 30–80 county adapters simultaneously** | L | Critical | Vendor tier (§4.1.1) caps per-incident budget at `min($50, sum top-3 county budgets)`; vendor-base patches **never auto-merge-eligible** regardless of confidence; canary requirement: must pass on ≥3 distinct counties before promote; blast-radius checker enumerates downstream FIPS via `KOFILE_FIPS_SET` etc. and posts the explicit list to the PR |
 
 ---
 
-## 9. Open questions (need decisions before Phase 1)
+## 9. Open questions (decisions needed before Phase A)
 
-1. **Notification channel matrix** — Slack only? Email + SMS for Tier 0? Page on-call?
-2. **Who is "on-call"** — solo for now (Jacob) or grow to a rotation as team scales?
-3. **Where do canary capture artifacts live** — Supabase Storage, S3, Hetzner volume?
-4. **CI provider** — keep Vercel for frontend, set up GitHub Actions for adapter PRs? Or use the worker droplet directly?
-5. **Auto-merge approval list** — start with zero adapters auto-mergeable in Phase 3 and promote individually? Or open to all Tier 0/1 at once?
-6. **Tier boundaries** — quarterly review by what process? Telemetry-driven scoring vs. judgment call?
-7. **Canary ground-truth ownership** — Jacob alone validates, or train a junior to maintain?
-8. **Customer-facing transparency** — surface "this adapter is currently degraded" in the UI? Probably yes for trust.
+### Decided
+
+2. **Who is "on-call"** — **Jacob solo through Phase E.** Revisit at Phase F when first non-Starr customers go live. All notifications fan out to one Slack channel + email; no SMS until Phase D auto-merge ships and proves out a 30-day clean run.
+3. **Where canary capture artifacts live** — **Cloudflare R2 via `worker/src/lib/storage.ts`**, namespace `canaries/<adapter_id>/<canary_id>/<iso8601_ts>/` (incident artifacts use the `incidents/<id>/` namespace, see §6.2). Bucket lifecycle, CORS, and IAM per `docs/platform/STORAGE_LIFECYCLE.md`. Toggle via `STORAGE_BACKEND=r2`; dev defaults to local under `./storage/`. Never use bare `fs.writeFile` (the §5.2.1 lint will reject it).
+4. **CI provider** — **GitHub Actions** for adapter PR validation; `.github/` already exists. The Hetzner worker host runs production traffic and weekly canaries only — it is not a CI runner. Vercel stays for the Next.js frontend.
+
+### Still open (need decisions before Phase A activation)
+
+1. **Notification channel matrix** — recommendation: Slack-only for T2/T3, Slack+email for T1, Slack+email+SMS for T0 once auto-merge is live. Pending: Jacob's Twilio account decision.
+5. **Auto-merge approval list** — recommendation: ship Phase D with `auto_merge_eligible = false` for every adapter; promote one-at-a-time (Bell-CAD first → 7-day soak → next adapter). Pending: confirm one-at-a-time vs. batch promotion.
+6. **Tier boundaries — quarterly review process** — telemetry-driven scoring (90-day demand × revenue × closure-blast-radius) feeds a recommendation; Jacob makes the call. Bell County adapters are pinned at T0 regardless. Pending: format of the quarterly report (lightweight Markdown vs. dashboard panel).
+7. **Canary ground-truth ownership** — recommendation: Jacob owns initial 5 canaries (Phase A); Hank Maddux RPLS reviews legal-description correctness; Phase D adds a junior or contractor to maintain the 50-property catalog. Pending: hiring decision.
+8. **Customer-facing transparency** — recommendation: yes, surface "this adapter is currently degraded" in the surveyor UI via the existing research-events bus + `useResearchProgress` hook (§4.5, §6.4). Pending: copy and visual treatment — does "degraded" appear as a yellow banner or as a per-source row in the active-research view?
 
 ---
 
