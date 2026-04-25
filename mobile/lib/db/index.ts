@@ -24,6 +24,7 @@
  */
 import { PowerSyncContext } from '@powersync/react';
 import { PowerSyncDatabase } from '@powersync/react-native';
+import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import 'react-native-get-random-values'; // crypto.randomUUID polyfill for RN
 
@@ -75,6 +76,15 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         // Failure to open SQLite is catastrophic — there's no useful
         // fallback. Log loudly; F1+ adds Sentry capture here.
         console.error('[DatabaseProvider] init failed:', err);
+      })
+      .finally(() => {
+        // Hand off from native splash to RN regardless of outcome —
+        // the LoadingSplash will render if init failed and ready
+        // never flips. Better than leaving the user staring at the
+        // native splash forever.
+        void SplashScreen.hideAsync().catch(() => {
+          // Already hidden — safe to ignore.
+        });
       });
     return () => {
       mounted = false;

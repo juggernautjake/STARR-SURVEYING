@@ -1,21 +1,25 @@
 import { Redirect, Tabs } from 'expo-router';
 import { Text, useColorScheme } from 'react-native';
 
+import { CaptureFab } from '@/lib/CaptureFab';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+
+const TAB_BAR_HEIGHT = 64;
 
 /**
  * Tab bar shell — five tabs per STARR_FIELD_MOBILE_APP_PLAN.md §7.2:
  *   [ Jobs ] [ Capture ] [ Time ] [ $ ] [ Me ]
  *
- * Capture is the floating big button (planned styling, not yet
- * implemented). Most tabs are placeholders in Phase F0; each lands
- * in F1+ as feature work catches up.
+ * The Capture tab renders as a floating action button (CaptureFab)
+ * that protrudes above the bar — that's the "always reachable big
+ * button" the plan calls for. Long-press on it is a stub for the
+ * F3 quick-capture flow.
  *
  * Session guard: anyone who lands here without a session gets bounced
- * to /(auth)/sign-in. This is belt-and-suspenders with app/index.tsx
- * — handles deep links that target a tab directly.
+ * to /(auth)/sign-in. Belt-and-suspenders with app/index.tsx —
+ * handles deep links that target a tab directly.
  */
 export default function TabsLayout() {
   const { session, loading } = useAuth();
@@ -37,6 +41,16 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: palette.surface,
           borderTopColor: palette.border,
+          height: TAB_BAR_HEIGHT,
+          // The FAB lifts 18px above this bar via negative margin in
+          // CaptureFab. allowFontScaling+overflow to make sure iOS
+          // doesn't clip the protruding circle.
+          paddingTop: 8,
+          paddingBottom: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '500',
         },
         headerStyle: {
           backgroundColor: palette.surface,
@@ -55,7 +69,9 @@ export default function TabsLayout() {
         name="capture"
         options={{
           title: 'Capture',
-          tabBarIcon: ({ color }) => <TabGlyph color={color} label="📍" />,
+          // Hide the default label — the FAB is the affordance.
+          tabBarLabel: () => null,
+          tabBarButton: (props) => <CaptureFab {...props} />,
         }}
       />
       <Tabs.Screen

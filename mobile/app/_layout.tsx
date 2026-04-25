@@ -1,9 +1,22 @@
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from '@/lib/auth';
 import { DatabaseProvider } from '@/lib/db';
+
+// Keep the native splash visible while AuthProvider + DatabaseProvider
+// finish their initial setup. DatabaseProvider calls
+// SplashScreen.hideAsync() the moment SQLite is open and ready, so
+// the user goes from native splash → ready UI with no empty-screen
+// flash in between. Per plan §7.1 rule 4 ("speed over decoration").
+//
+// Side-effect at module load: must be the first thing Metro evaluates
+// before any provider mount.
+void SplashScreen.preventAutoHideAsync().catch(() => {
+  // Already hidden (hot-reload, etc.) — safe to ignore.
+});
 
 /**
  * Provider stack ordering matters:
