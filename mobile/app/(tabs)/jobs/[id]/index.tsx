@@ -130,7 +130,10 @@ export default function JobDetailScreen() {
                   key={p.id ?? ''}
                   point={p}
                   onPress={() =>
-                    router.push(`/(tabs)/jobs/${id}/points/${p.id}`)
+                    router.push({
+                      pathname: '/(tabs)/jobs/[id]/points/[pointId]',
+                      params: { id: id ?? '', pointId: p.id ?? '' },
+                    })
                   }
                 />
               ))}

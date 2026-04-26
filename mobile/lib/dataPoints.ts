@@ -20,8 +20,10 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
 import { extractPrefix } from './dataPointCodes';
+import { PHOTO_BUCKET } from './fieldMedia';
 import { getCurrentPositionOrNull } from './location';
 import { logError, logInfo } from './log';
+import { removeFromBucket } from './storage/mediaUpload';
 import { randomUUID } from './uuid';
 
 export type FieldDataPoint = AppDatabase['field_data_points'];
@@ -329,7 +331,9 @@ export function useUpdateDataPoint(): (
  * Delete a data point. RLS allows owner deletion only within the
  * first 24 h (per seeds/221_*.sql); after that admin-only via the
  * service-role API. Cascade on field_data_points → field_media in
- * the seed sweeps attached photos automatically.
+ * the seed sweeps attached metadata rows automatically; this hook
+ * additionally sweeps the storage objects so the bucket doesn't
+ * accumulate orphans.
  */
 export function useDeleteDataPoint(): (pointId: string) => Promise<void> {
   const db = usePowerSync();
@@ -346,18 +350,51 @@ export function useDeleteDataPoint(): (pointId: string) => Promise<void> {
 
       logInfo('dataPoints.delete', 'attempt', { point_id: pointId });
 
+      // 1. Snapshot every storage path attached to this point BEFORE
+      //    the DELETE — the cascade fires immediately and the rows
+      //    are gone after that. We hit the local SQLite mirror so
+      //    this is a single sub-ms query.
+      const mediaPaths = await db.getAll<{
+        storage_url: string | null;
+        original_url: string | null;
+        annotated_url: string | null;
+      }>(
+        `SELECT storage_url, original_url, annotated_url
+         FROM field_media WHERE data_point_id = ?`,
+        [pointId]
+      );
+
+      // 2. DELETE the point — cascade sweeps field_media.
       try {
         await db.execute(`DELETE FROM field_data_points WHERE id = ?`, [pointId]);
       } catch (err) {
         logError('dataPoints.delete', 'db delete failed', err, { point_id: pointId });
         throw err;
       }
-      // field_media rows cascade-delete via the FK in seeds/221_*.sql;
-      // the storage objects don't — IRS-style retention archival sweeps
-      // those server-side. Phase F3 polish can wire a per-photo
-      // storage-cleanup pass if the bucket grows too quickly.
 
-      logInfo('dataPoints.delete', 'success', { point_id: pointId });
+      // 3. Best-effort storage cleanup. Failures already log inside
+      //    removeFromBucket; we await in parallel because the count
+      //    can reach into the dozens for a heavy point + each call
+      //    is a single Supabase RTT.
+      const paths = mediaPaths
+        .flatMap((row) => [row.storage_url, row.original_url, row.annotated_url])
+        .filter((p): p is string => typeof p === 'string' && p.length > 0);
+      if (paths.length > 0) {
+        await Promise.all(
+          paths.map((path) =>
+            removeFromBucket({
+              bucket: PHOTO_BUCKET,
+              path,
+              scope: 'dataPoints.delete',
+            })
+          )
+        );
+      }
+
+      logInfo('dataPoints.delete', 'success', {
+        point_id: pointId,
+        media_swept: paths.length,
+      });
     },
     [db, session]
   );

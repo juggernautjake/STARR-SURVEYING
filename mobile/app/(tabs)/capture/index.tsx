@@ -15,7 +15,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { TextField } from '@/lib/TextField';
-import { useAuth } from '@/lib/auth';
 import {
   CODE_PREFIXES,
   type CodePrefix,
@@ -171,7 +170,6 @@ interface CreatePointStepProps {
 }
 
 function CreatePointStep({ palette, jobId, onChangeJob }: CreatePointStepProps) {
-  const { session } = useAuth();
   const { job } = useJob(jobId);
   const { names: existingNames } = useJobPointNames(jobId);
   const createDataPoint = useCreateDataPoint();
@@ -238,24 +236,22 @@ function CreatePointStep({ palette, jobId, onChangeJob }: CreatePointStepProps) 
         isOffset,
         isCorrection,
       });
+      const photosRoute = {
+        pathname: '/(tabs)/capture/[pointId]/photos',
+        params: { pointId: result.id },
+      } as const;
       if (!result.hasGps) {
         // Soft-warn but don't block — the user can add coords later
-        // from a paper note. F3 #3 will let them re-shoot GPS too.
+        // from a paper note. F3 polish lets them re-shoot GPS too.
         Alert.alert(
           'No GPS fix',
           'Point saved without coordinates. Open the point detail to add coordinates manually.',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.replace(`/(tabs)/capture/${result.id}/photos`),
-            },
-          ]
+          [{ text: 'OK', onPress: () => router.replace(photosRoute) }]
         );
         return;
       }
-      // Happy path: route to photo capture (F3 #3 will replace the
-      // placeholder route with the real flow).
-      router.replace(`/(tabs)/capture/${result.id}/photos`);
+      // Happy path: route into the photo capture loop.
+      router.replace(photosRoute);
     } catch (err) {
       Alert.alert('Save failed', (err as Error).message);
       setSubmitting(false);
@@ -443,19 +439,9 @@ function CreatePointStep({ palette, jobId, onChangeJob }: CreatePointStepProps) 
           />
 
           <Text style={[styles.footer, { color: palette.muted }]}>
-            Photos / video / voice attach next (F3 #3). Until then, tap
-            Capture to save the point with GPS.
+            Photos / video / voice attach next. Tap Capture to save the
+            point with GPS — the photo loop opens automatically.
           </Text>
-
-          {/* Used to silence the no-unused-vars lint on session — the
-              session check itself happens inside useCreateDataPoint. */}
-          <View style={styles.spacer}>
-            {session ? null : (
-              <Text style={[styles.signedOutHint, { color: palette.danger }]}>
-                You&apos;re signed out — sign in to save points.
-              </Text>
-            )}
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -647,6 +633,4 @@ const styles = StyleSheet.create({
     marginTop: 16,
     lineHeight: 18,
   },
-  spacer: { marginTop: 16 },
-  signedOutHint: { fontSize: 14, fontWeight: '600' },
 });

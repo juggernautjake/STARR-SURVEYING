@@ -126,10 +126,30 @@ export default function PointPhotosScreen() {
     );
   };
 
-  const onDone = () =>
-    point.job_id
-      ? router.replace(`/(tabs)/jobs/${point.job_id}`)
-      : router.replace('/(tabs)/jobs');
+  const onDone = () => {
+    if (point.job_id) {
+      router.replace({
+        pathname: '/(tabs)/jobs/[id]',
+        params: { id: point.job_id },
+      });
+    } else {
+      router.replace('/(tabs)/jobs');
+    }
+  };
+
+  // Loop back into the capture flow with the same job pre-filled —
+  // otherwise the user lands on the Pick-Job step and has to re-select
+  // the job they were just working on.
+  const onCaptureAnother = () => {
+    if (point.job_id) {
+      router.replace({
+        pathname: '/(tabs)/capture',
+        params: { jobId: point.job_id },
+      });
+    } else {
+      router.replace('/(tabs)/capture');
+    }
+  };
 
   return (
     <SafeAreaView
@@ -219,7 +239,7 @@ export default function PointPhotosScreen() {
         <Button
           variant="secondary"
           label="Capture another point"
-          onPress={() => router.replace('/(tabs)/capture')}
+          onPress={onCaptureAnother}
           accessibilityHint="Starts a new point capture flow."
           disabled={!!busy}
         />

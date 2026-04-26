@@ -72,7 +72,7 @@ export function PointCard({ point, mediaCount, onPress }: PointCardProps) {
         >
           {point.name}
         </Text>
-        {mediaCount && mediaCount > 0 ? (
+        {(mediaCount ?? 0) > 0 ? (
           <Text style={[styles.mediaCount, { color: palette.muted }]}>
             📷 {mediaCount}
           </Text>

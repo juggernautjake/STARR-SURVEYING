@@ -151,7 +151,10 @@ function PointForm({ point, palette }: PointFormProps) {
             try {
               await deletePoint(point.id);
               if (point.job_id) {
-                router.replace(`/(tabs)/jobs/${point.job_id}`);
+                router.replace({
+                  pathname: '/(tabs)/jobs/[id]',
+                  params: { id: point.job_id },
+                });
               } else {
                 router.back();
               }
@@ -186,7 +189,10 @@ function PointForm({ point, palette }: PointFormProps) {
   };
 
   const onAddPhotos = () => {
-    router.push(`/(tabs)/capture/${point.id}/photos`);
+    router.push({
+      pathname: '/(tabs)/capture/[pointId]/photos',
+      params: { pointId: point.id },
+    });
   };
 
   return (

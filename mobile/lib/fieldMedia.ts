@@ -47,6 +47,13 @@ export const PHOTO_BUCKET = 'starr-field-photos';
 const PHOTO_MAX_DIMENSION_PX = 2400;
 const PHOTO_QUALITY = 0.85;
 
+// UUID v4 + v5 + v7 shapes — anything `gen_random_uuid()` produces on
+// the server side, plus what `randomUUID()` produces client-side.
+// Validating against this before path construction prevents '/' or
+// other path-syntax characters from sneaking into a bucket key.
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface AttachPhotoInput {
   /** Required — job the photo belongs to. */
   jobId: string;
@@ -91,6 +98,25 @@ export function useAttachPhoto(): (
       if (!userId) {
         const err = new Error('Not signed in.');
         logError('fieldMedia.attachPhoto', 'no session', err);
+        throw err;
+      }
+
+      // Defensive: refuse non-UUID-shaped ids before constructing the
+      // storage path. The bucket RLS uses (storage.foldername(name))[1]
+      // which splits on '/' — a slash slipping through here would not
+      // bypass RLS (the leading folder check still runs against the
+      // first segment), but it confuses the failure mode and could
+      // bite a future caller. Validate at the source instead.
+      if (!UUID_REGEX.test(jobId)) {
+        const err = new Error(`Invalid job id: ${jobId}`);
+        logError('fieldMedia.attachPhoto', 'invalid job id', err, { job_id: jobId });
+        throw err;
+      }
+      if (dataPointId != null && !UUID_REGEX.test(dataPointId)) {
+        const err = new Error(`Invalid data point id: ${dataPointId}`);
+        logError('fieldMedia.attachPhoto', 'invalid point id', err, {
+          data_point_id: dataPointId,
+        });
         throw err;
       }
 
@@ -139,62 +165,61 @@ export function useAttachPhoto(): (
         scope: 'fieldMedia.attachPhoto',
       });
 
-      // 5. Determine the next position on the point. Cheap because
-      //    the local SQLite mirror has every row already; we don't
-      //    need a transaction since we're appending, and F3 #3 only
-      //    captures one photo per call.
-      const positionRow = await db.getOptional<{ next_position: number }>(
-        `SELECT COALESCE(MAX(position), -1) + 1 AS next_position
-         FROM field_media
-         WHERE ${dataPointId ? 'data_point_id = ?' : 'data_point_id IS NULL AND job_id = ?'}`,
-        [dataPointId ?? jobId]
-      );
-      const position = positionRow?.next_position ?? 0;
-
-      // 6. INSERT the row. PowerSync replays against Supabase; the
-      //    media is visible in local queries immediately.
+      // 5. Compute next position + INSERT inside one writeTransaction
+      //    so concurrent attaches can't both read the same MAX and
+      //    insert at the same position. The local SQLite serialises
+      //    transactions so the second caller sees the first's row.
+      //    PowerSync's CRUD queue replays the INSERT op server-side.
       const nowIso = new Date().toISOString();
       try {
-        await db.execute(
-          `INSERT INTO field_media (
-             id, job_id, data_point_id, media_type,
-             storage_url, thumbnail_url, original_url, annotated_url,
-             upload_state, burst_group_id, position,
-             file_size_bytes,
-             device_lat, device_lon, device_compass_heading,
-             captured_at, uploaded_at,
-             created_by, created_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            mediaId,
-            jobId,
-            dataPointId,
-            'photo',
-            storagePath,
-            // Use the same path for thumbnail until F3 polish generates
-            // a real (smaller) thumbnail. Storage signed-URLs are the
-            // same either way.
-            storagePath,
-            // Original tier is for high-res WiFi-only sync (plan §5.4)
-            // — null until F3 polish wires the dual-tier upload path.
-            null,
-            // Annotated overlay — populated by F3 #6 photo annotation.
-            null,
-            'done',
-            burstGroupId ?? null,
-            position,
-            picked.fileSize ?? null,
-            pos?.latitude ?? null,
-            pos?.longitude ?? null,
-            // Compass heading needs expo-sensors' Magnetometer; F3
-            // polish item.
-            null,
-            nowIso,
-            nowIso,
-            userId,
-            nowIso,
-          ]
-        );
+        await db.writeTransaction(async (tx) => {
+          const positionRow = await tx.get<{ next_position: number }>(
+            `SELECT COALESCE(MAX(position), -1) + 1 AS next_position
+             FROM field_media
+             WHERE ${dataPointId ? 'data_point_id = ?' : 'data_point_id IS NULL AND job_id = ?'}`,
+            [dataPointId ?? jobId]
+          );
+          const position = positionRow?.next_position ?? 0;
+
+          await tx.execute(
+            `INSERT INTO field_media (
+               id, job_id, data_point_id, media_type,
+               storage_url, thumbnail_url, original_url, annotated_url,
+               upload_state, burst_group_id, position,
+               file_size_bytes,
+               device_lat, device_lon, device_compass_heading,
+               captured_at, uploaded_at,
+               created_by, created_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              mediaId,
+              jobId,
+              dataPointId,
+              'photo',
+              storagePath,
+              // Use the same path for thumbnail until F3 polish
+              // generates a real (smaller) thumbnail.
+              storagePath,
+              // Original tier is for high-res WiFi-only sync (plan
+              // §5.4) — null until F3 polish wires it.
+              null,
+              // Annotated overlay — populated by F3 #6.
+              null,
+              'done',
+              burstGroupId ?? null,
+              position,
+              picked.fileSize ?? null,
+              pos?.latitude ?? null,
+              pos?.longitude ?? null,
+              // Compass heading needs expo-sensors' Magnetometer; F3 polish.
+              null,
+              nowIso,
+              nowIso,
+              userId,
+              nowIso,
+            ]
+          );
+        });
       } catch (err) {
         logError('fieldMedia.attachPhoto', 'db insert failed', err, {
           media_id: mediaId,
@@ -214,7 +239,6 @@ export function useAttachPhoto(): (
       logInfo('fieldMedia.attachPhoto', 'success', {
         media_id: mediaId,
         point_id: dataPointId,
-        position,
         bytes: picked.fileSize ?? null,
       });
 
@@ -270,6 +294,53 @@ export function usePointMedia(
 }
 
 /**
+ * List media attached directly to a job (no data point) — F3 #5
+ * "Job-level photo upload." Same shape as usePointMedia but the
+ * WHERE clause hard-codes `data_point_id IS NULL` so reactive
+ * queries don't accidentally surface point-attached photos in the
+ * job-level gallery.
+ */
+export function useJobLevelMedia(
+  jobId: string | null | undefined,
+  mediaType?: MediaType
+): {
+  media: FieldMedia[];
+  isLoading: boolean;
+} {
+  const queryParams = useMemo(() => {
+    if (!jobId) return [];
+    return mediaType ? [jobId, mediaType] : [jobId];
+  }, [jobId, mediaType]);
+
+  // ORDER BY created_at — job-level photos don't carry a meaningful
+  // `position` (no parent point to enumerate within), so chronological
+  // is the natural order.
+  const sql = mediaType
+    ? `SELECT * FROM field_media
+       WHERE job_id = ? AND data_point_id IS NULL AND media_type = ?
+       ORDER BY COALESCE(created_at, '') DESC`
+    : `SELECT * FROM field_media
+       WHERE job_id = ? AND data_point_id IS NULL
+       ORDER BY COALESCE(created_at, '') DESC`;
+
+  const { data, isLoading, error } = useQuery<FieldMedia>(sql, queryParams);
+
+  useEffect(() => {
+    if (error) {
+      logError('fieldMedia.useJobLevelMedia', 'query failed', error, {
+        job_id: jobId ?? null,
+        media_type: mediaType ?? null,
+      });
+    }
+  }, [error, jobId, mediaType]);
+
+  return {
+    media: data ?? [],
+    isLoading: !!jobId && isLoading,
+  };
+}
+
+/**
  * Delete an attached photo. Owner-scoped — RLS allows only the
  * creator to delete (within 24 h per the seed policy). Storage
  * cleanup is best-effort.
@@ -298,16 +369,22 @@ export function useDeleteMedia(): (media: FieldMedia) => Promise<void> {
         throw err;
       }
 
-      // Storage cleanup — sweep both the display tier and (when
-      // F3 polish lands the dual upload) the original tier.
+      // Storage cleanup — sweep display + (when F3 polish lands the
+      // dual upload) original + (F3 #6) annotated tiers in parallel.
+      // Errors are already logged inside removeFromBucket; parallel
+      // is safe.
       const paths = [media.storage_url, media.original_url, media.annotated_url]
         .filter((p): p is string => typeof p === 'string' && p.length > 0);
-      for (const path of paths) {
-        await removeFromBucket({
-          bucket: PHOTO_BUCKET,
-          path,
-          scope: 'fieldMedia.delete',
-        });
+      if (paths.length > 0) {
+        await Promise.all(
+          paths.map((path) =>
+            removeFromBucket({
+              bucket: PHOTO_BUCKET,
+              path,
+              scope: 'fieldMedia.delete',
+            })
+          )
+        );
       }
 
       logInfo('fieldMedia.delete', 'success', { media_id: media.id });
