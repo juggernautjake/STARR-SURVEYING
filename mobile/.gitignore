@@ -1,0 +1,38 @@
+# Expo
+.expo/
+dist/
+web-build/
+
+# Native
+ios/
+android/
+
+# Metro
+.metro-health-check*
+
+# Local env (root .gitignore covers .env.local already, but be explicit)
+.env
+.env.local
+.env.*.local
+
+# EAS Build / Submit credentials — never commit. EAS stores Apple
+# certificates and Android keystores remotely; only the metadata
+# in eas.json should be tracked.
+google-play-service-account.json
+google-services.json
+GoogleService-Info.plist
+*.p8
+*.p12
+*.mobileprovision
+*.keystore
+*.jks
+credentials.json
+
+# Sentry — auth token written by `npx @sentry/wizard`; uploaded to
+# EAS Secrets as SENTRY_AUTH_TOKEN, never committed.
+sentry.properties
+.sentryclirc
+
+# Misc
+*.log
+*.tsbuildinfo

@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Starr Field",
+    "slug": "starr-field",
+    "scheme": "starr-field",
+    "version": "0.0.1",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.starrsoftware.starrfield",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Starr Field uses Face ID to unlock the app and confirm sensitive actions like deleting field data.",
+        "NSLocationWhenInUseUsageDescription": "Starr Field stamps your clock-in / clock-out times with GPS so timesheets and mileage logs are accurate.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Starr Field tracks location only while you're clocked in (per the privacy contract in plan §5.10.1) so the dispatcher knows where the crew is and IRS-compliant mileage logs generate automatically. Tracking stops within 60 seconds of clock-out."
+      }
+    },
+    "android": {
+      "package": "com.starrsoftware.starrfield",
+      "adaptiveIcon": {
+        "backgroundColor": "#1D3095"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Starr Field uses Face ID to unlock the app and confirm sensitive actions like deleting field data."
+        }
+      ],
+      "expo-apple-authentication",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Starr Field tracks location only while you're clocked in (per the privacy contract in plan §5.10.1) so the dispatcher knows where the crew is and IRS-compliant mileage logs generate automatically.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
+      "expo-notifications",
+      "@sentry/react-native/expo"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -41,7 +41,7 @@ The primary v1 user is Jacob (field surveyor). The primary v1 *consumer* of the 
 5. Capture rich context around survey points: photos, videos, voice, notes, GPS
 6. Manage job files (plats, deeds, prior surveys) for quick field reference
 7. Operate fully offline, sync when possible, never lose data
-8. Integrate with the existing 179-code point system as a first-class concept
+8. Integrate with the existing 179-code point system as a first-class concept (the canonical list is **not yet codified in the repo** — it currently lives offline as a printout / in Henry's head; importing it into the `point_codes` table is a Phase F0 deliverable, see §15)
 9. Generate IRS-compliant mileage logs as a free byproduct of location tracking
 10. Lay groundwork for future Trimble Access integration
 
@@ -60,21 +60,27 @@ The primary v1 user is Jacob (field surveyor). The primary v1 *consumer* of the 
 ## 3. Where this fits in the Starr Software ecosystem
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                    STARR SOFTWARE PLATFORM                        │
-├──────────────────────────────────────────────────────────────────┤
-│  Starr Compass       Starr Forge       Starr Orbit               │
-│  (pre-dev research)  (construction)    (HOA/community)           │
-├──────────────────────────────────────────────────────────────────┤
-│  Starr CAD (desktop survey CAD)                                  │
-│  Starr Surveying internal tools                                  │
-├──────────────────────────────────────────────────────────────────┤
-│  ★ STARR FIELD ★  ←  this document                               │
-│  Mobile: capture, time + location, receipts, notes               │
-├──────────────────────────────────────────────────────────────────┤
-│  Shared backend: Next.js 14 + Supabase (Postgres, Auth, Storage) │
-│  Plus: R2 (media archival), Anthropic API (receipt + stop AI)    │
-└──────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│                    STARR SOFTWARE PLATFORM                          │
+├────────────────────────────────────────────────────────────────────┤
+│  Starr Compass       Starr Forge       Starr Orbit                 │
+│  (pre-dev research)  (construction)    (HOA/community)             │
+├────────────────────────────────────────────────────────────────────┤
+│  Starr CAD (desktop survey CAD)                                    │
+├────────────────────────────────────────────────────────────────────┤
+│  Existing /admin (Next.js, in this monorepo):                      │
+│    jobs, payroll, hours-approval, my-hours, my-pay, employees,     │
+│    fieldbook (notes), leads, schedule, research, learn             │
+│    + worker (worker/) for STARR RECON pipelines                    │
+├────────────────────────────────────────────────────────────────────┤
+│  ★ STARR FIELD ★  ← this document                                  │
+│  Mobile: capture, time + location, receipts, notes                 │
+│  Reads/writes the same tables as /admin (single source of truth)   │
+├────────────────────────────────────────────────────────────────────┤
+│  Shared backend: Next.js 14 + Supabase (Postgres, Auth, Storage)   │
+│  Plus: R2 (media via worker/src/lib/storage.ts), Anthropic API     │
+│        (via worker/src/lib/ai-usage-tracker.ts)                    │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 Starr Field is a mobile client against the same Supabase database the web app uses. Jobs created on the phone show up in the web app instantly. Receipts uploaded in the field appear on the bookkeeper's screen by the time the truck pulls back to the office. Single source of truth.
@@ -119,13 +125,16 @@ Starr Field is a mobile client against the same Supabase database the web app us
 ## 5. Core feature specifications
 
 ### 5.1 Authentication & session management
-- Supabase Auth (same accounts as the web app)
+
+- **Supabase Auth directly** (email + password, magic link, OR Apple/Google native SDK) — same `auth.users` table the web app's NextAuth v5 resolves to. NextAuth itself is browser-only and is **not** used on mobile; mobile sessions are independent of NextAuth sessions but identity is unified at the `auth.users.id` UUID. API routes called from mobile must accept Supabase JWTs (not NextAuth cookies); see §13 Appendix A for the namespacing decision.
 - Biometric unlock (Face ID / fingerprint) after first sign-in
 - Auto-lock after configurable idle (default 15 min)
 - Stay-signed-in across app restarts; explicit sign-out only on demand
 - Re-auth required for destructive actions (delete job, delete point, delete time entry)
 
 ### 5.2 Jobs
+
+**Existing infrastructure (do not duplicate).** The `jobs` table already exists in the live Supabase schema along with ~11 related tables (`job_tags`, `job_team`, `job_equipment`, `job_files`, `job_research`, `job_stages_history`, …) and is wired into 9 API routes under `/api/admin/jobs/` and the admin UI under `/admin/jobs/` (`page.tsx`, `[id]/`, `new/`, `import/`). Starr Field reads through these existing structures — it does **not** introduce a parallel jobs schema. The §6.3 `ALTER TABLE jobs` adds field-state columns only. New mobile-only behavior (geofence, on-site detection) hangs off ALTER columns and join tables, never a renamed/duplicated `jobs`.
 
 **Create job (in-app, online or offline):**
 - Job name (required), job number (auto `YYYYMMDD-NNN` if blank)
@@ -181,6 +190,8 @@ A data point is a named record that aggregates everything observed about one loc
 
 ### 5.5 Notes
 
+**Existing table (extend, do not duplicate).** Notes write through to the existing `fieldbook_notes` table (`seeds/099_fieldbook.sql`) which already has `is_public`, `job_id`, `job_name`, `job_number`, `is_current`, `user_email`, `updated_at`, plus the `fieldbook_categories` + `fieldbook_entry_categories` taxonomy. The mobile app extends this table with mobile-specific columns (point-link FK, structured-template type, voice-transcript ref) via ALTER. The §6.3 `field_notes` table is **dropped** in favor of this — see edit log for rationale. Web (`/admin/my-notes/`, `/admin/notes/`) and mobile read the same table.
+
 - **Quick note:** free text attached to job or point
 - **Structured note** templates: offset shot, monument found (rebar/pipe/stone, condition, depth), hazard observed (type, severity), correction (what changed, why)
 - **Voice-to-text shortcut** for hands-free dictation
@@ -205,6 +216,8 @@ A data point is a named record that aggregates everything observed about one loc
 ### 5.8 Time logging
 
 This is one of v1's two highest-priority features (alongside data point capture). Goal: replace paper time cards entirely while making it harder to forget to clock out and easier to fix mistakes when it happens.
+
+**Existing infrastructure (extend, do not duplicate).** The live Supabase schema already has a time-tracking system feeding `/api/admin/time-logs/`, `/api/admin/time-logs/approve`, `/api/admin/time-logs/advances`, and `/api/admin/time-logs/bonuses`, surfaced in `/admin/payroll/`, `/admin/payroll/[email]/`, `/admin/hours-approval/`, `/admin/my-hours/`, and `/admin/my-pay/`. **Phase F1 of Starr Field begins with a schema audit of those tables and an ALTER-only migration** to add mobile-specific columns: location at clock-in/out, smart-prompt acknowledgement timestamps, geofence trigger flags, and edit-audit trail rows. The §6.3 `time_entries` and `time_entry_edits` tables shown below are the **target shape after the ALTER**, not greenfield additions — pre-migration column inventory is a Phase F0 deliverable. The advances/bonuses surface stays in the web admin UI and is **read-only** on mobile through Phase F4.
 
 #### 5.8.1 Clock-in / clock-out (basic)
 
@@ -297,6 +310,8 @@ These are suggestions, never automatic. The decision to actually start/stop the 
 ### 5.10 Location tracking & activity insights
 
 This feature is **opt-in, employee-facing, and bounded by clock-in state**. It exists to make payroll/billing accurate, generate IRS-compliant mileage logs, and give the dispatcher visibility — not surveillance.
+
+**Identity model.** All `user_id` columns in this section (and in `time_entries`, `location_stops`, `location_segments`, `receipts`) reference `auth.users` (Supabase Auth). The web app's NextAuth v5 sessions and the mobile app's Supabase sessions both resolve to the same `auth.users.id` UUID — the surveyor's identity is unified across clients even though session mechanics differ (§5.1).
 
 #### 5.10.1 Privacy & consent (non-negotiable foundation)
 
@@ -430,7 +445,9 @@ Using Claude Vision API, extract:
 
 User can edit any extracted field. Original photo is always preserved alongside structured data.
 
-**Cost per receipt:** ~$0.01–0.04 with Claude Sonnet. At a generous 200 receipts/employee/month, that's $2–8/month per employee in AI cost. Trivial vs. the bookkeeper time saved.
+**Anthropic SDK wrapper.** Claude Vision calls go through `worker/src/lib/ai-usage-tracker.ts` (the existing in-process circuit breaker + cost tracker, with `getGlobalAiTracker()` singleton). Tag every receipt extraction call with `(adapter_id='starr-field', phase='extract', incident_id=null)` so receipts roll into the same `ai_cost_ledger` table planned for self-healing (`seeds/202_adapter_self_healing.sql`). Reuse the existing budget-cap mechanism rather than building a parallel one — see the cost-cap discussion in §11 and the shared-cap rule in §13/§14.
+
+**Cost per receipt:** ~$0.01–0.04 with Claude Sonnet 4.6 (verify current pricing via `/mnt/skills/public/product-self-knowledge/`). At a generous 200 receipts/employee/month, that's $2–8/month per employee in AI cost. Trivial vs. the bookkeeper time saved.
 
 #### 5.11.3 Job association
 
@@ -498,6 +515,8 @@ This catches both ends of fuel-cost auditing automatically.
 
 ## 6. Architecture
 
+**Mobile code lives in this monorepo at `mobile/`** — adjacent to `app/`, `worker/`, and `lib/`. Reasoning: shared TypeScript types (especially `worker/src/shared/research-events.ts` for the realtime channel and the eventual mobile-event variants per §6.4), shared lint config, single CI pipeline, single git history for a feature spanning web admin + mobile + worker. Trade-off: monorepo build complexity (Next.js, worker, and React Native all live in one node_modules tree). **Escape hatch:** if mobile build noise becomes a real problem at end of Phase F1, split to a separate repo with the shared types extracted to a published npm package — but do not start there.
+
 ### 6.1 Tech stack recommendation
 
 **Mobile framework: React Native + Expo**
@@ -516,7 +535,7 @@ This catches both ends of fuel-cost auditing automatically.
 - EAS Build produces signed iOS + Android binaries
 - OTA updates push JS/asset changes without App Store re-review
 
-**Local database: WatermelonDB or PowerSync** — evaluate via 1-day spike.
+**Local database: PowerSync (default), WatermelonDB (fallback).** PowerSync works directly with Supabase Postgres via its sync rules, requiring less custom plumbing for our schema. WatermelonDB is more battle-tested but requires writing custom Supabase sync adapters. **Decision deadline: end of Phase F0.** A 1-day spike against `field_data_points` + `field_media` + `time_entries` deltas should settle it.
 
 **Backend: existing Supabase + Next.js**, plus:
 - **R2** for media archival (zero egress fees for the bookkeeper pulling receipts)
@@ -525,197 +544,321 @@ This catches both ends of fuel-cost auditing automatically.
 
 ### 6.2 Storage strategy
 
-| Asset type | Where | Why |
+**All storage goes through `worker/src/lib/storage.ts`**, the existing project-wide R2/local abstraction (see `seeds/102_storage_buckets.sql` and `docs/platform/STORAGE_LIFECYCLE.md`). Mobile media uses the namespace `field/<user_id>/<job_id>/<media_id>` mirroring the existing `documents/<jobId>/...` and (planned) `canaries/<adapter_id>/...` patterns. R2 backend selected via `STORAGE_BACKEND=r2`; local dev defaults to `./storage/`. **Never call AWS SDK / Supabase Storage SDK directly** — that bypasses the lifecycle rules and the local-dev fallback.
+
+| Asset type | Where (resolved by `storage.ts`) | Why |
 |---|---|---|
-| Voice memos (≤5 MB) | Supabase Storage | Hot, small |
-| Receipt photos (≤5 MB) | Supabase Storage | Hot, audit-frequent |
-| Photos (compressed, ≤2 MB) | Supabase Storage | Hot |
-| Photos (originals, 5–20 MB) | R2 | Larger, cheaper |
+| Voice memos (≤5 MB) | Supabase Storage (hot tier) | Small, audited frequently |
+| Receipt photos (≤5 MB) | Supabase Storage (hot tier) | Hot, audit-frequent |
+| Photos (compressed, ≤2 MB) | Supabase Storage (hot tier) | Hot |
+| Photos (originals, 5–20 MB) | R2 | Larger, cheaper egress |
 | Videos (10–500 MB) | R2 | Large, write-once-read-rare |
-| Files / PDFs | Supabase Storage | Reference docs |
-| Receipts older than current tax year + 1 | R2 archive class | Cold, infrequently accessed |
+| Files / PDFs | Supabase Storage (hot tier) | Reference docs |
+| Receipts older than current tax year + 1 | R2 archive class (lifecycle rule per `STORAGE_LIFECYCLE.md`) | Cold, IRS-retention only |
 
 ### 6.3 New Supabase tables (additions)
 
-```sql
--- Augment existing jobs table
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS field_state TEXT,
-                  ADD COLUMN IF NOT EXISTS pinned_for_users UUID[],
-                  ADD COLUMN IF NOT EXISTS centroid_lat NUMERIC,
-                  ADD COLUMN IF NOT EXISTS centroid_lon NUMERIC,
-                  ADD COLUMN IF NOT EXISTS geofence_radius_m INT;
+**Migration file:** `seeds/220_starr_field_tables.sql` — `213_text_to_uuid_fks.sql` is the highest currently-tracked seed; the next free slot for Starr Field is 220 (leaving 214–219 reserved for in-flight Recon and self-healing work). Follows the project's seed conventions: `BEGIN; … COMMIT;` wrapper, `CREATE TABLE IF NOT EXISTS`, `ADD CONSTRAINT IF NOT EXISTS` via `DO $$ … END $$` blocks (see `seeds/201_captcha_solves.sql` and `seeds/099_fieldbook.sql` for the exact patterns). Re-applying in CI restore drills must be idempotent.
 
-CREATE TABLE field_data_points (
-  id UUID PRIMARY KEY,
-  job_id UUID REFERENCES jobs ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  code_category TEXT,
-  description TEXT,
-  device_lat NUMERIC,
-  device_lon NUMERIC,
-  device_altitude_m NUMERIC,
-  device_accuracy_m NUMERIC,
-  device_compass_heading NUMERIC,
-  is_offset BOOLEAN DEFAULT false,
-  is_correction BOOLEAN DEFAULT false,
-  corrects_point_id UUID REFERENCES field_data_points,
-  created_by UUID REFERENCES auth.users,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  client_id TEXT,
+**PostGIS prerequisite.** `location_segments.path_simplified` uses the PostGIS `GEOMETRY` type. Verify with `SELECT extname FROM pg_extension WHERE extname='postgis'` before applying; if absent, the migration's first statement is `CREATE EXTENSION IF NOT EXISTS postgis;`. Most Supabase projects have it by default but assume nothing.
+
+**Notes table — none here.** `field_notes` does **not** appear below: per §5.5, mobile notes write through to the existing `fieldbook_notes` table. ALTER columns for `fieldbook_notes` (e.g. `data_point_id`, `note_template`, `structured_data` JSONB, `voice_transcript_media_id`) ship in the same migration but extend the existing schema rather than creating a parallel table.
+
+**`jobs` table prerequisite.** The live Supabase has `jobs` and ~11 related tables (per §5.2) but those tables are **not currently tracked in `seeds/`**. The `ALTER TABLE jobs` below assumes they exist. Phase F0 deliverable (§15): snapshot the live `jobs` schema into a tracked seed file before this migration runs against a fresh restore.
+
+```sql
+-- ============================================================================
+-- 220_starr_field_tables.sql
+-- Starr Field — mobile-app foundational schema (Phase F0)
+--
+-- Tables added:
+--   field_data_points       — surveyor data points captured on mobile
+--   field_media             — photos, videos, voice memos linked to points
+--   vehicles                — fleet for mileage and time-entry attribution
+--   time_entries (ALTER)    — extend existing time-logs (NOT a new table; see note)
+--   time_entry_edits        — audit trail for clock-in/out edits
+--   location_stops          — classified stops along a clocked-in day
+--   location_segments       — driving segments between stops (PostGIS)
+--   receipts                — receipt photos + AI-extracted fields
+--   receipt_line_items      — itemized lines from receipts
+--   point_codes             — Starr Surveying 179-code taxonomy (see §5.3)
+--
+-- Tables ALTERED, not created:
+--   jobs                    — adds field_state, pinned_for_users, geofence
+--   fieldbook_notes         — adds mobile-specific columns (per §5.5)
+--   time_entries (existing) — see §5.8 preamble; concrete shape TBD by F0 audit
+--
+-- Migration is held until Phase F0 schema audit completes — do NOT apply
+-- against production before then. See §15 bootstrapping.
+-- ============================================================================
+
+BEGIN;
+
+-- PostGIS prerequisite for location_segments.path_simplified
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- ── jobs ALTER (existing table — see §5.2) ──────────────────────────────────
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS field_state TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS pinned_for_users UUID[];
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS centroid_lat NUMERIC;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS centroid_lon NUMERIC;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS geofence_radius_m INT;
+
+-- ── Field data points ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS field_data_points (
+  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id                  UUID NOT NULL REFERENCES jobs ON DELETE CASCADE,
+  name                    TEXT NOT NULL,
+  code_category           TEXT,                              -- references point_codes.code
+  description             TEXT,
+  device_lat              NUMERIC,
+  device_lon              NUMERIC,
+  device_altitude_m       NUMERIC,
+  device_accuracy_m       NUMERIC,
+  device_compass_heading  NUMERIC,
+  is_offset               BOOLEAN NOT NULL DEFAULT false,
+  is_correction           BOOLEAN NOT NULL DEFAULT false,
+  corrects_point_id       UUID REFERENCES field_data_points,
+  created_by              UUID REFERENCES auth.users,        -- shared identity (§5.10 preamble)
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  client_id               TEXT,                              -- offline-sync dedup key
   UNIQUE(job_id, name)
 );
 
-CREATE TABLE field_media (
-  id UUID PRIMARY KEY,
-  job_id UUID REFERENCES jobs ON DELETE CASCADE,
-  data_point_id UUID REFERENCES field_data_points ON DELETE CASCADE,
-  media_type TEXT NOT NULL,
-  storage_url TEXT NOT NULL,
-  thumbnail_url TEXT,
-  original_url TEXT,
-  duration_seconds INT,
-  file_size_bytes BIGINT,
-  device_lat NUMERIC,
-  device_lon NUMERIC,
-  device_compass_heading NUMERIC,
-  captured_at TIMESTAMPTZ,
-  uploaded_at TIMESTAMPTZ,
-  transcription TEXT,
-  annotations JSONB,
-  created_by UUID REFERENCES auth.users,
-  client_id TEXT
+CREATE INDEX IF NOT EXISTS idx_field_data_points_job ON field_data_points (job_id);
+CREATE INDEX IF NOT EXISTS idx_field_data_points_created_by ON field_data_points (created_by, created_at DESC);
+
+-- ── Field media (photos, videos, voice memos) ───────────────────────────────
+CREATE TABLE IF NOT EXISTS field_media (
+  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id                  UUID NOT NULL REFERENCES jobs ON DELETE CASCADE,
+  data_point_id           UUID REFERENCES field_data_points ON DELETE CASCADE,
+  media_type              TEXT NOT NULL,                     -- 'photo'|'video'|'voice'
+  storage_url             TEXT NOT NULL,                     -- resolved by storage.ts (§6.2)
+  thumbnail_url           TEXT,
+  original_url            TEXT,
+  duration_seconds        INT,
+  file_size_bytes         BIGINT,
+  device_lat              NUMERIC,
+  device_lon              NUMERIC,
+  device_compass_heading  NUMERIC,
+  captured_at             TIMESTAMPTZ,
+  uploaded_at             TIMESTAMPTZ,
+  transcription           TEXT,
+  annotations             JSONB,
+  created_by              UUID REFERENCES auth.users,
+  client_id               TEXT
 );
 
-CREATE TABLE field_notes (
-  id UUID PRIMARY KEY,
-  job_id UUID REFERENCES jobs ON DELETE CASCADE,
-  data_point_id UUID REFERENCES field_data_points ON DELETE CASCADE,
-  note_template TEXT,
-  body TEXT,
-  structured_data JSONB,
-  created_by UUID REFERENCES auth.users,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  client_id TEXT
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'field_media_type_chk') THEN
+    ALTER TABLE field_media
+      ADD CONSTRAINT field_media_type_chk CHECK (media_type IN ('photo','video','voice'));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_field_media_job ON field_media (job_id);
+CREATE INDEX IF NOT EXISTS idx_field_media_data_point ON field_media (data_point_id) WHERE data_point_id IS NOT NULL;
+
+-- ── fieldbook_notes ALTER (existing table — see §5.5) ───────────────────────
+-- Mobile-specific columns extending the existing fieldbook_notes table from
+-- seeds/099_fieldbook.sql. The mobile app and the web's /admin/my-notes/
+-- read the same rows.
+ALTER TABLE fieldbook_notes ADD COLUMN IF NOT EXISTS data_point_id UUID
+  REFERENCES field_data_points ON DELETE CASCADE;
+ALTER TABLE fieldbook_notes ADD COLUMN IF NOT EXISTS note_template TEXT;
+ALTER TABLE fieldbook_notes ADD COLUMN IF NOT EXISTS structured_data JSONB;
+ALTER TABLE fieldbook_notes ADD COLUMN IF NOT EXISTS voice_transcript_media_id UUID
+  REFERENCES field_media ON DELETE SET NULL;
+ALTER TABLE fieldbook_notes ADD COLUMN IF NOT EXISTS client_id TEXT;
+
+-- ── Vehicles ────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS vehicles (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id      UUID,
+  name            TEXT NOT NULL,
+  license_plate   TEXT,
+  vin             TEXT,
+  active          BOOLEAN NOT NULL DEFAULT true
 );
 
-CREATE TABLE vehicles (
-  id UUID PRIMARY KEY,
-  company_id UUID,
-  name TEXT NOT NULL,
-  license_plate TEXT,
-  vin TEXT,
-  active BOOLEAN DEFAULT true
+-- ── Time entries (ALTER existing — see §5.8 preamble) ───────────────────────
+-- The shape below is the TARGET after the Phase F0 schema audit identifies
+-- the actual column set on the existing time-logs table. New columns added
+-- ONLY if missing; never DROP/RENAME existing payroll columns.
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS vehicle_id UUID REFERENCES vehicles;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS is_driver BOOLEAN DEFAULT true;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS break_minutes INT DEFAULT 0;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS entry_type TEXT;     -- 'on_site'|'travel'|'office'|'overhead'
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS clock_in_lat NUMERIC;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS clock_in_lon NUMERIC;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS clock_out_lat NUMERIC;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS clock_out_lon NUMERIC;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS prompted_continue_at TIMESTAMPTZ;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS geofence_trigger_id TEXT;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS client_id TEXT;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'time_entries_entry_type_chk') THEN
+    ALTER TABLE time_entries
+      ADD CONSTRAINT time_entries_entry_type_chk
+        CHECK (entry_type IS NULL OR entry_type IN ('on_site','travel','office','overhead'));
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS time_entry_edits (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  time_entry_id   UUID NOT NULL REFERENCES time_entries ON DELETE CASCADE,
+  field_name      TEXT NOT NULL,
+  old_value       TEXT,
+  new_value       TEXT,
+  reason          TEXT,                                       -- required if delta > 15min (enforced in API)
+  edited_by       UUID REFERENCES auth.users,
+  edited_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE time_entries (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES auth.users,
-  job_id UUID REFERENCES jobs,
-  vehicle_id UUID REFERENCES vehicles,
-  is_driver BOOLEAN DEFAULT true,
-  clock_in TIMESTAMPTZ NOT NULL,
-  clock_out TIMESTAMPTZ,
-  break_minutes INT DEFAULT 0,
-  entry_type TEXT,                  -- 'on_site' | 'travel' | 'office' | 'overhead'
-  notes TEXT,
-  status TEXT DEFAULT 'open',       -- 'open' | 'submitted' | 'approved' | 'locked'
-  approved_at TIMESTAMPTZ,
-  approved_by UUID REFERENCES auth.users,
-  client_id TEXT
+CREATE INDEX IF NOT EXISTS idx_time_entry_edits_entry ON time_entry_edits (time_entry_id, edited_at DESC);
+
+-- ── Location stops & segments (mileage IRS-compliant per §5.10.6) ───────────
+CREATE TABLE IF NOT EXISTS location_stops (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID NOT NULL REFERENCES auth.users,
+  time_entry_id     UUID REFERENCES time_entries,
+  job_id            UUID REFERENCES jobs,
+  category          TEXT,                                     -- 'office'|'job_site'|'fuel'|'food'|...
+  category_source   TEXT,                                     -- 'geofence'|'ai'|'manual'
+  ai_confidence     NUMERIC(3,2),
+  lat               NUMERIC NOT NULL,
+  lon               NUMERIC NOT NULL,
+  place_name        TEXT,
+  place_address     TEXT,
+  arrived_at        TIMESTAMPTZ NOT NULL,
+  departed_at       TIMESTAMPTZ,
+  duration_minutes  INT,
+  user_overridden   BOOLEAN NOT NULL DEFAULT false
 );
 
-CREATE TABLE time_entry_edits (
-  id UUID PRIMARY KEY,
-  time_entry_id UUID REFERENCES time_entries ON DELETE CASCADE,
-  field_name TEXT NOT NULL,
-  old_value TEXT,
-  new_value TEXT,
-  reason TEXT,                      -- required if delta > 15min
-  edited_by UUID REFERENCES auth.users,
-  edited_at TIMESTAMPTZ DEFAULT now()
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'location_stops_category_source_chk') THEN
+    ALTER TABLE location_stops
+      ADD CONSTRAINT location_stops_category_source_chk
+        CHECK (category_source IS NULL OR category_source IN ('geofence','ai','manual'));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_location_stops_user_time ON location_stops (user_id, arrived_at DESC);
+
+CREATE TABLE IF NOT EXISTS location_segments (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID NOT NULL REFERENCES auth.users,
+  time_entry_id     UUID REFERENCES time_entries,
+  vehicle_id        UUID REFERENCES vehicles,
+  start_stop_id     UUID REFERENCES location_stops,
+  end_stop_id       UUID REFERENCES location_stops,
+  started_at        TIMESTAMPTZ NOT NULL,
+  ended_at          TIMESTAMPTZ,
+  distance_meters   NUMERIC,
+  path_simplified   GEOMETRY,                                 -- PostGIS, simplified to ~50 points
+  is_business       BOOLEAN NOT NULL DEFAULT true,
+  business_purpose  TEXT
 );
 
-CREATE TABLE location_stops (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES auth.users,
-  time_entry_id UUID REFERENCES time_entries,
-  job_id UUID REFERENCES jobs,
-  category TEXT,                    -- 'office' | 'job_site' | 'fuel' | 'food' | etc.
-  category_source TEXT,             -- 'geofence' | 'ai' | 'manual'
-  ai_confidence NUMERIC(3,2),
-  lat NUMERIC NOT NULL,
-  lon NUMERIC NOT NULL,
-  place_name TEXT,
-  place_address TEXT,
-  arrived_at TIMESTAMPTZ NOT NULL,
-  departed_at TIMESTAMPTZ,
-  duration_minutes INT,
-  user_overridden BOOLEAN DEFAULT false
+CREATE INDEX IF NOT EXISTS idx_location_segments_user_time ON location_segments (user_id, started_at DESC);
+
+-- ── Receipts (AI-extracted via worker/src/lib/ai-usage-tracker.ts, §5.11) ───
+CREATE TABLE IF NOT EXISTS receipts (
+  id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id                  UUID NOT NULL REFERENCES auth.users,
+  job_id                   UUID REFERENCES jobs,
+  time_entry_id            UUID REFERENCES time_entries,
+  location_stop_id         UUID REFERENCES location_stops,
+  vendor_name              TEXT,
+  vendor_address           TEXT,
+  transaction_at           TIMESTAMPTZ,
+  subtotal_cents           INT,
+  tax_cents                INT,
+  tip_cents                INT,
+  total_cents              INT,
+  payment_method           TEXT,
+  payment_last4            TEXT,
+  category                 TEXT,
+  category_source          TEXT,                              -- 'ai'|'user'|'rule'
+  tax_deductible_flag      TEXT,                              -- 'full'|'partial_50'|'none'|'review'
+  notes                    TEXT,
+  photo_url                TEXT NOT NULL,                     -- resolved by storage.ts
+  ai_confidence_per_field  JSONB,
+  status                   TEXT NOT NULL DEFAULT 'pending',   -- 'pending'|'approved'|'rejected'|'exported'
+  approved_by              UUID REFERENCES auth.users,
+  approved_at              TIMESTAMPTZ,
+  client_id                TEXT,
+  created_at               TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE location_segments (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES auth.users,
-  time_entry_id UUID REFERENCES time_entries,
-  vehicle_id UUID REFERENCES vehicles,
-  start_stop_id UUID REFERENCES location_stops,
-  end_stop_id UUID REFERENCES location_stops,
-  started_at TIMESTAMPTZ NOT NULL,
-  ended_at TIMESTAMPTZ,
-  distance_meters NUMERIC,
-  path_simplified GEOMETRY,         -- PostGIS, simplified to ~50 points
-  is_business BOOLEAN DEFAULT true,
-  business_purpose TEXT
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'receipts_status_chk') THEN
+    ALTER TABLE receipts
+      ADD CONSTRAINT receipts_status_chk
+        CHECK (status IN ('pending','approved','rejected','exported'));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'receipts_tax_flag_chk') THEN
+    ALTER TABLE receipts
+      ADD CONSTRAINT receipts_tax_flag_chk
+        CHECK (tax_deductible_flag IS NULL OR tax_deductible_flag IN ('full','partial_50','none','review'));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_receipts_user_time ON receipts (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_receipts_job ON receipts (job_id) WHERE job_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts (status, created_at DESC) WHERE status = 'pending';
+
+CREATE TABLE IF NOT EXISTS receipt_line_items (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  receipt_id    UUID NOT NULL REFERENCES receipts ON DELETE CASCADE,
+  description   TEXT,
+  amount_cents  INT,
+  quantity      NUMERIC,
+  position      INT
 );
 
-CREATE TABLE receipts (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES auth.users,
-  job_id UUID REFERENCES jobs,
-  time_entry_id UUID REFERENCES time_entries,
-  location_stop_id UUID REFERENCES location_stops,
-  vendor_name TEXT,
-  vendor_address TEXT,
-  transaction_at TIMESTAMPTZ,
-  subtotal_cents INT,
-  tax_cents INT,
-  tip_cents INT,
-  total_cents INT,
-  payment_method TEXT,
-  payment_last4 TEXT,
-  category TEXT,
-  category_source TEXT,             -- 'ai' | 'user' | 'rule'
-  tax_deductible_flag TEXT,         -- 'full' | 'partial_50' | 'none' | 'review'
-  notes TEXT,
-  photo_url TEXT NOT NULL,
-  ai_confidence_per_field JSONB,
-  status TEXT DEFAULT 'pending',    -- 'pending' | 'approved' | 'rejected' | 'exported'
-  approved_by UUID REFERENCES auth.users,
-  approved_at TIMESTAMPTZ,
-  client_id TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
+-- ── Point codes (179-code Starr Surveying taxonomy — see §5.3) ──────────────
+-- Phase F0 deliverable: import the canonical list before this row count
+-- can grow. The list currently lives offline (Henry/dad's printout); Phase
+-- F0 inventories and codifies it.
+CREATE TABLE IF NOT EXISTS point_codes (
+  code            TEXT PRIMARY KEY,
+  category        TEXT NOT NULL,
+  display_color   TEXT,
+  description     TEXT,
+  is_custom       BOOLEAN NOT NULL DEFAULT false
 );
 
-CREATE TABLE receipt_line_items (
-  id UUID PRIMARY KEY,
-  receipt_id UUID REFERENCES receipts ON DELETE CASCADE,
-  description TEXT,
-  amount_cents INT,
-  quantity NUMERIC,
-  position INT
-);
-
-CREATE TABLE point_codes (
-  code TEXT PRIMARY KEY,
-  category TEXT NOT NULL,
-  display_color TEXT,
-  description TEXT,
-  is_custom BOOLEAN DEFAULT false
-);
+COMMIT;
 ```
 
-**RLS:** every table scoped by `user_id` for employees and by company for admins. Location data has stricter rules — only the user themselves and explicit admins (not all employees of the company) can read another user's location records.
+**RLS.** Follows the existing project pattern from `seeds/099_fieldbook.sql` and `seeds/210_hardening.sql`: explicit `service_role` full-access policies wrapped in `DO $$ ... EXCEPTION WHEN duplicate_object THEN NULL; END $$` blocks, plus authenticated-user policies scoped by `user_id` (employees) or company-membership (admins). Location data has stricter rules — only the user themselves and explicit admins (not all employees) can read another user's location records. Concrete example for `field_data_points`:
+
+```sql
+ALTER TABLE field_data_points ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY service_role_full_access_field_data_points
+    ON field_data_points FOR ALL TO service_role
+    USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY field_data_points_owner_read
+    ON field_data_points FOR SELECT TO authenticated
+    USING (created_by = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+```
+
+The same pattern repeats for every new table. For `location_stops` and `location_segments`, the SELECT policy additionally checks an `is_admin_for_company()` SECURITY DEFINER function (defined in `seeds/210_hardening.sql`) rather than allowing arbitrary `authenticated` reads — location is the most sensitive surface in the schema (§5.10.1).
 
 ### 6.4 Offline sync engine
 
@@ -724,7 +867,9 @@ Same architecture as v1. Adds:
 - Time entries: highest-priority sync class (payroll-critical)
 - Receipts: high-priority (small payload, high-value)
 - Location data: chunked uploads (every 10 min while online, batched to 100 pings or 5 min of motion per chunk; entirely deferrable on bad signal)
-- Receipt AI extraction: client uploads photo first; server runs Claude Vision; result pushed back via Supabase Realtime
+- Receipt AI extraction: client uploads photo first; server runs Claude Vision (via `worker/src/lib/ai-usage-tracker.ts` per §5.11); result pushed back via the existing Supabase Realtime channel
+
+**Realtime channel reuse.** Server-pushed updates (receipt-extraction-complete, time-edit-approved, dispatch-reassignment) ride the existing `research-events` bus defined in `worker/src/shared/research-events.ts` (zod-validated discriminated union, 8 event types). The mobile client subscribes via Supabase Realtime mirroring how the web app's `useResearchProgress` hook works (`lib/research/useResearchProgress.ts`). Phase F0 task: extend the discriminated union with mobile-specific event variants (e.g. `field.receipt.extracted`, `field.time_entry.approved`) — no second realtime channel.
 
 ---
 
@@ -764,10 +909,14 @@ Tab bar (always visible):
 
 ### 7.4 Dispatcher web view
 
-- Live crew map (top of dashboard)
-- Today's activity feed (clock-ins, captures, receipts, anomalies) as a stream
-- Per-employee timeline view (drill-down)
-- Approval queues: time edits, receipts, mileage logs
+**Lives inside the existing `/admin/` app, not a separate route tree.** Reuses the existing admin auth, layout (`app/admin/layout.tsx`), and role gating. Recommended new pages:
+
+- `/admin/dispatcher` — live crew map (top of dashboard)
+- `/admin/field/today` — today's activity feed (clock-ins, captures, receipts, anomalies) as a stream
+- `/admin/field/[user]` — per-employee timeline view (drill-down)
+- Approval queues piggyback on existing `/admin/hours-approval/` (time edits) and `/admin/payroll/` (advances/bonuses); receipts and mileage approval add `/admin/receipts/` and `/admin/mileage/` siblings.
+
+No parallel `/dispatcher/` or `/field-admin/` route tree — that would duplicate auth, layout, and the admin role gating already in place.
 
 ---
 
@@ -795,9 +944,9 @@ Tab bar (always visible):
 
 ## 9. Phased build plan
 
-Each phase is independently shippable.
+**Phase numbering note.** These phases are scoped to **Starr Field only** and use the prefix `F` (`F0`, `F1`, …) to disambiguate from the build-phase taxonomy in `docs/platform/RECON_INVENTORY.md` §12 (which uses `Phase 0/A/B/C/D/E/F/G` for STARR RECON). Starr Field is a separate product whose phases run independently — `F0` does not block on Recon's `Phase A`, and Recon's `Phase F` (public go-live) does not block on Starr Field's `F6`. Each phase below is independently shippable.
 
-### Phase 0 — Foundation (Week 0–2)
+### Phase F0 — Foundation (Week 0–2)
 - [ ] Expo project scaffolded (TypeScript, ESLint, Prettier matching Next.js repo)
 - [ ] Supabase Auth wired in (sign-in, biometric unlock)
 - [ ] Local SQLite + sync queue scaffolding
@@ -808,7 +957,7 @@ Each phase is independently shippable.
 
 **Exit:** team installs app, signs in, sees empty home.
 
-### Phase 1 — Jobs + basic time logging (Week 3–5)
+### Phase F1 — Jobs + basic time logging (Week 3–5)
 - [ ] Job list, create, edit, search/filter
 - [ ] Job detail with placeholder tabs
 - [ ] Clock-in / clock-out from home + lock-screen widget
@@ -820,7 +969,7 @@ Each phase is independently shippable.
 
 **Exit:** Jacob runs an entire week of work using the app for time. Replaces paper time cards.
 
-### Phase 2 — Receipts + AI extraction (Week 6–8)
+### Phase F2 — Receipts + AI extraction (Week 6–8)
 - [ ] Receipt capture flow (camera, edge detection, deskew)
 - [ ] Claude Vision API integration for field extraction
 - [ ] Category, job association, payment method, tax flag
@@ -830,7 +979,7 @@ Each phase is independently shippable.
 
 **Exit:** Jacob can replace expense reports for v1 use. Bookkeeper validates.
 
-### Phase 3 — Data points + photos (Week 9–12)
+### Phase F3 — Data points + photos (Week 9–12)
 - [ ] Create data point with name from 179-code library
 - [ ] Camera capture, multi-photo
 - [ ] Phone GPS / compass / altitude metadata
@@ -840,7 +989,7 @@ Each phase is independently shippable.
 
 **Exit:** Found-monument workflow goes from minutes to <60s.
 
-### Phase 4 — Voice + video + notes (Week 13–16)
+### Phase F4 — Voice + video + notes (Week 13–16)
 - [ ] Voice memo + on-device transcription
 - [ ] Video capture (1080p, 5min cap)
 - [ ] Free-text notes + structured templates (offset, monument, hazard, correction)
@@ -849,7 +998,7 @@ Each phase is independently shippable.
 
 **Exit:** Field documentation fully replaces paper notes.
 
-### Phase 5 — Files + CSV (Week 17–18)
+### Phase F5 — Files + CSV (Week 17–18)
 - [ ] File upload from device, cloud, web link
 - [ ] PDF / image / CSV preview
 - [ ] Pin-to-device for offline access
@@ -858,7 +1007,7 @@ Each phase is independently shippable.
 
 **Exit:** Raw survey data and reference docs at fingertips.
 
-### Phase 6 — Location tracking + dispatcher view (Week 19–24)
+### Phase F6 — Location tracking + dispatcher view (Week 19–24)
 - [ ] One-time consent flow
 - [ ] Background location with battery-conscious modes (significant change → high accuracy in geofences)
 - [ ] Stop detection, geofence + AI classification
@@ -872,7 +1021,7 @@ Each phase is independently shippable.
 
 **Exit:** Full location-aware feature set live; first month of data feeds dispatcher decisions.
 
-### Phase 7 — Polish + offline hardening (Week 25–28)
+### Phase F7 — Polish + offline hardening (Week 25–28)
 - [ ] Storage management UI
 - [ ] Sync UI improvements (per-asset progress, retry surfaces)
 - [ ] High-contrast / sun-readable theme
@@ -883,14 +1032,14 @@ Each phase is independently shippable.
 
 **Exit:** v1 shippable to all surveying employees with confidence.
 
-### Phase 8 — Trimble Access file exchange (Week 29–32)
+### Phase F8 — Trimble Access file exchange (Week 29–32)
 - [ ] Watched cloud folder for Trimble JobXML / CSV
 - [ ] Auto-import with preview
 - [ ] Auto-link by name with unmatched-name surfacing
 
 **Exit:** Trimble integration v1 (Path A from §8.1).
 
-### Phase 9+ — Real-time integrations, AR, watch app, fuel-card reconciliation (research)
+### Phase F9+ — Real-time integrations, AR, watch app, fuel-card reconciliation (research)
 
 ---
 
@@ -923,9 +1072,22 @@ Each phase is independently shippable.
 ## 11. Cost model
 
 ### Development cost (one-time)
-- Solo dev (Jacob), v1 (Phases 0–7): ~7 months
+- Solo dev (Jacob), v1 (Phases F0–F7): ~7 months
 - Outsourced equivalent: ~$80K–$160K
 - Apple Developer: $99/yr; Google Play: $25 one-time
+
+### Anthropic budget — shared with STARR RECON
+
+Receipt extraction and stop classification both go through `worker/src/lib/ai-usage-tracker.ts`. They share the global daily cap with STARR RECON's adapter-repair calls (`SELF_HEAL_DAILY_CAP_USD=50` per `Self_healing_adapter_system_plan.md` §13). Before Starr Field activates Phase F2 (receipts) the cap must be raised to absorb projected mobile spend:
+
+| Consumer | Projected daily | Notes |
+|---|---|---|
+| STARR RECON (self-healing) | ~$50/day worst case | Per self-healing plan §7 Scenario C |
+| Starr Field (receipts) | ~$2–5/day at 5 employees | ~10–20 receipts/day × $0.02–0.04 |
+| Starr Field (stop classification) | ~$1–2/day | ~10 stops/employee/day × $0.01 |
+| **Recommended unified cap** | **`AI_DAILY_CAP_USD=60`** | Renamed from `SELF_HEAL_DAILY_CAP_USD` to reflect shared use |
+
+The `AiUsageTracker` circuit breaker trips **before** the per-product budget allocation breaks, so a runaway Starr Field deploy cannot starve STARR RECON adapter repairs. Per-product attribution comes from the `(adapter_id, phase)` tags in `ai_cost_ledger`.
 
 ### Ongoing cost — ~5 employees daily, full feature set
 
@@ -974,16 +1136,18 @@ The mileage log alone — at IRS standard rate × actual miles driven — typica
 14. **Receipt approval threshold** — auto-approve under $X, manual review over $X?
 15. **Mileage rate** — IRS standard, custom rate, or per-vehicle actual cost?
 16. **QuickBooks integration version** — QBO API direct integration vs CSV import for v1? (Lean: CSV first, API in v2.)
-17. **Per diem auto-calculation** — overnight stays trigger IRS per-diem rate by ZIP? (Nice-to-have; Phase 8+.)
+17. **Per diem auto-calculation** — overnight stays trigger IRS per-diem rate by ZIP? (Nice-to-have; Phase F8+.)
 18. **Driver detection** — manual toggle vs. auto-detect via OS motion APIs? (Manual is fine for v1.)
 19. **Time-off / PTO tracking** — in-app, or stays in whatever payroll system you use?
-20. **Schedule integration** — show employees their assigned jobs for the day, with deviation alerts? (Phase 8+.)
+20. **Schedule integration** — show employees their assigned jobs for the day, with deviation alerts? (Phase F8+.)
 
 ---
 
 ## 13. Appendix A — sample API contracts
 
-### POST /api/field/data-points
+**Route namespace decision.** Mobile-callable routes live under **`/api/mobile/*`**, not under `/api/admin/*` (which is browser-only and gated by NextAuth cookies) and not under bare `/api/field/*` (no auth-model implication). The `/api/mobile/*` tree is gated by Supabase JWT, accepting `Authorization: Bearer <supabase_jwt>` headers. This split lets the same backend serve both the web admin (NextAuth) and the mobile client (Supabase JWT) without a session-translation layer. Examples below use the `/api/mobile/` prefix.
+
+### POST /api/mobile/data-points
 ```json
 {
   "client_id": "uuid",
@@ -996,7 +1160,7 @@ The mileage log alone — at IRS standard rate × actual miles driven — typica
 }
 ```
 
-### POST /api/field/time-entries (clock-in)
+### POST /api/mobile/time-entries (clock-in)
 ```json
 {
   "client_id": "uuid",
@@ -1010,7 +1174,7 @@ The mileage log alone — at IRS standard rate × actual miles driven — typica
 }
 ```
 
-### PATCH /api/field/time-entries/:id (edit)
+### PATCH /api/mobile/time-entries/:id (edit)
 ```json
 {
   "clock_out": "2026-04-25T16:45:00Z",
@@ -1020,7 +1184,7 @@ The mileage log alone — at IRS standard rate × actual miles driven — typica
 }
 ```
 
-### POST /api/field/receipts (multipart)
+### POST /api/mobile/receipts (multipart)
 ```
 fields:
   client_id: uuid
@@ -1046,7 +1210,7 @@ response (after AI extraction completes, via Realtime push):
 }
 ```
 
-### POST /api/field/location-stops (batch)
+### POST /api/mobile/location-stops (batch)
 ```json
 {
   "stops": [
@@ -1065,7 +1229,7 @@ response (after AI extraction completes, via Realtime push):
 
 ### Mileage log export
 ```
-GET /api/field/mileage-log.csv?user_id=...&start=2026-01-01&end=2026-12-31
+GET /api/mobile/mileage-log.csv?user_id=...&start=2026-01-01&end=2026-12-31
 → CSV: date,vehicle,start_address,end_address,miles,business_purpose,job_number
 ```
 
@@ -1111,21 +1275,24 @@ GET /api/field/mileage-log.csv?user_id=...&start=2026-01-01&end=2026-12-31
 
 ---
 
-## 15. Appendix C — bootstrapping checklist (Phase 0)
+## 15. Appendix C — bootstrapping checklist (Phase F0)
 
 - [ ] Decide app name (working title: Starr Field)
 - [ ] Apple Developer + Google Play accounts under Starr Software
 - [ ] App icon + splash screen
-- [ ] Initialize Expo: `npx create-expo-app starr-field --template`
-- [ ] Decide repo: separate vs monorepo (recommend separate)
-- [ ] PowerSync vs WatermelonDB 1-day spike
+- [ ] Initialize Expo at `mobile/` in this monorepo (`npx create-expo-app mobile --template`) — see §6 preamble
+- [ ] **Schema audit + snapshot:** export the live Supabase schema for `jobs`, `job_tags`, `job_team`, `job_equipment`, `job_files`, `job_research`, `job_stages_history` (and any other `job_*` tables) plus `time_entries` and related payroll tables, into a tracked `seeds/214_starr_field_existing_schema_snapshot.sql`. Without this, `seeds/220_starr_field_tables.sql` will fail against a fresh `./seeds/run_all.sh --reset` because `ALTER TABLE jobs` and `ALTER TABLE time_entries` reference tables not in the seed pipeline. **Blocks every other Phase F0 item that touches those tables.**
+- [ ] **Inventory the 179-code point taxonomy:** locate the canonical list (printout, spreadsheet, or interview Henry), encode as a CSV, and seed `point_codes` in the same migration. Without this, `field_data_points.code_category` is unenforceable.
+- [ ] PowerSync vs WatermelonDB 1-day spike (per §6.1)
 - [ ] Reserve `app.starr.software/field` deep-link domain
 - [ ] Privacy policy + terms of service drafted (required for store submission AND for location-tracking consent flow)
 - [ ] **Texas-licensed employment attorney engagement letter for location-tracking review**
 - [ ] Internal alpha tester list (Jacob, dad, 1–2 crew)
 - [ ] MVP success metric ("Jacob does a full week using only Starr Field for time, receipts, and notes")
-- [ ] Anthropic API budget set with monthly cap alerts
+- [ ] **Raise unified `AI_DAILY_CAP_USD` from $50 → $60** (per §11) and rename the env var across both root and worker `.env.example` files; coordinate the rename with the self-healing plan's bootstrapping
 - [ ] Google Cloud project + Places/Distance Matrix billing alerts
+- [ ] Verify PostGIS extension enabled on the live Supabase project (`SELECT extname FROM pg_extension WHERE extname='postgis'`)
+- [ ] Confirm with Hank Maddux RPLS that `fieldbook_notes` is the right home for mobile structured notes (per §5.5) — if not, decide on a parallel `field_notes` table with explicit reasons
 
 ---
 
@@ -1135,6 +1302,7 @@ GET /api/field/mileage-log.csv?user_id=...&start=2026-01-01&end=2026-12-31
 |---|---|---|---|
 | 2026-04-25 | Plan v1 drafted | Initial RFC | Jacob + Claude |
 | 2026-04-25 | Plan v2 — add time/location/receipts | Field productivity + financial tracking + dispatcher visibility | Jacob + Claude |
+| 2026-04-25 | Plan v3 — codebase-alignment audit pass (20 edits) | Initial draft introduced parallel systems for jobs / notes / time tracking even though substantial admin infrastructure already exists in `/admin/jobs/`, `/admin/payroll/`, `/admin/hours-approval/`, `/admin/my-hours/`, and `seeds/099_fieldbook.sql`. v3 rewrites §5.2 / §5.5 / §5.8 to extend those existing systems, drops the standalone `field_notes` table in favor of ALTERing `fieldbook_notes`, frames receipt AI extraction and storage as reuses of `worker/src/lib/ai-usage-tracker.ts` and `worker/src/lib/storage.ts`, converts §6.3 SQL to project seed conventions (`BEGIN/COMMIT`, `IF NOT EXISTS`, `DO $$ ... END $$` constraint guards) and pins it to `seeds/220_starr_field_tables.sql`, replaces the generic RLS paragraph with the concrete `service_role` pattern from `seeds/099_fieldbook.sql`, renames §9 phases `Phase 0/1/.../9+` → `Phase F0/F1/.../F9+` to disambiguate from the project-wide Phase 0/A/B/C/D taxonomy in `RECON_INVENTORY.md` §12, restricts §7.4 dispatcher view to the existing `/admin/` route tree, namespaces mobile-callable APIs at `/api/mobile/*` (Supabase JWT) instead of overloading `/api/admin/*` (NextAuth-cookie-only), commits to PowerSync (default) over WatermelonDB, declares the mobile code lives at `mobile/` in this monorepo, and adds the schema-snapshot prerequisite (`seeds/214_*`) and shared `AI_DAILY_CAP_USD=60` to §15 bootstrapping. Net: +380 / -212 lines vs v2 assembly. | Jacob + Claude |
 
 ---
 
