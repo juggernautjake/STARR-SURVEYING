@@ -21,6 +21,7 @@
  */
 import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
+import { categoryLabel } from './CategoryPicker';
 import { type Palette, colors } from './theme';
 import { formatCents } from './money';
 import { formatLocalShortDate } from './timeFormat';
@@ -40,15 +41,16 @@ export function ReceiptCard({ receipt, jobName, onPress }: ReceiptCardProps) {
   const palette = colors[scheme];
 
   const vendor = receipt.vendor_name?.trim() || '(awaiting AI extraction)';
-  const category = receipt.category?.trim() ?? null;
   const total = formatCents(receipt.total_cents);
   const dateLabel = formatLocalShortDate(
     (receipt.transaction_at ?? receipt.created_at ?? '').slice(0, 10)
   );
 
-  const subtitleParts = [category, jobName?.trim() || null, dateLabel || null].filter(
-    Boolean
-  );
+  const subtitleParts = [
+    receipt.category ? categoryLabel(receipt.category) : null,
+    jobName?.trim() || null,
+    dateLabel || null,
+  ].filter(Boolean);
   const subtitle = subtitleParts.join(' · ');
 
   const status = statusInfo(receipt, palette);
