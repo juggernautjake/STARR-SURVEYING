@@ -37,6 +37,11 @@ import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
 import { getCurrentPosition, type GpsFailureReason } from './location';
 import { logError, logInfo, logWarn } from './log';
+import {
+  startBackgroundTracking,
+  stopBackgroundTracking,
+  writeBoundaryPing,
+} from './locationTracker';
 import { durationMinutesBetween, todayLocalISODate } from './timeFormat';
 import {
   cancelStillWorkingPrompts,
@@ -172,7 +177,8 @@ export function useClockIn(): (params: {
   return useCallback(
     async ({ jobId, entryType }) => {
       const userEmail = session?.user.email;
-      if (!userEmail) {
+      const userId = session?.user.id;
+      if (!userEmail || !userId) {
         const err = new Error('Cannot clock in: no signed-in session.');
         logError('timeTracking.clockIn', 'no session', err);
         throw err;
@@ -250,6 +256,55 @@ export function useClockIn(): (params: {
           has_gps: !!pos,
         });
 
+        // 4a. Write a single 'clock_in' boundary ping into
+        //     location_pings. This always runs, even when background
+        //     tracking is denied — it guarantees at least the
+        //     start-of-shift coordinate lands in the new pings table.
+        //     Skip when no GPS fix is available.
+        if (pos) {
+          try {
+            await writeBoundaryPing({
+              ctx: { entryId, userId, userEmail },
+              lat: pos.latitude,
+              lon: pos.longitude,
+              accuracy_m: pos.accuracy,
+              altitude_m: pos.altitude,
+              capturedAt: pos.capturedAt,
+              source: 'clock_in',
+            });
+          } catch (err) {
+            // Boundary write failure is logged inside writeBoundaryPing;
+            // catching here is defensive — the clock-in itself succeeded.
+            logWarn('timeTracking.clockIn', 'boundary ping threw', err, {
+              entry_id: entryId,
+            });
+          }
+        }
+
+        // 4b. Start background tracking. Best-effort — permission
+        //     denial is non-fatal; the clock-in stays open and the
+        //     UI's "Tracking" badge will reflect the disabled state.
+        try {
+          const tracking = await startBackgroundTracking({
+            entryId,
+            userId,
+            userEmail,
+          });
+          logInfo('timeTracking.clockIn', 'background tracking', {
+            entry_id: entryId,
+            ok: tracking.ok,
+            has_background_permission: tracking.hasBackgroundPermission,
+            tier: tracking.tier,
+          });
+        } catch (err) {
+          logWarn(
+            'timeTracking.clockIn',
+            'startBackgroundTracking failed (clock-in still ok)',
+            err,
+            { entry_id: entryId }
+          );
+        }
+
         // 5. Schedule "still working?" reminders. Fire-and-forget;
         //    permission denial silently degrades. Notification scheduling
         //    must NOT block clock-in completion — surface as an awaited
@@ -315,7 +370,8 @@ export function useClockOut(): () => Promise<ClockOutResult> {
 
   return useCallback(async () => {
     const userEmail = session?.user.email;
-    if (!userEmail) {
+    const userId = session?.user.id;
+    if (!userEmail || !userId) {
       logInfo('timeTracking.clockOut', 'no session — no-op');
       return { ok: false, durationMinutes: null, hasGps: false, gpsReason: null };
     }
@@ -372,6 +428,40 @@ export function useClockOut(): () => Promise<ClockOutResult> {
         has_gps: !!pos,
         gps_reason: fix.reason,
       });
+
+      // Write the closing boundary ping BEFORE stopping the tracker
+      // so the final coordinate carries the entry id. Best-effort.
+      if (pos) {
+        try {
+          await writeBoundaryPing({
+            ctx: { entryId: open.id, userId, userEmail },
+            lat: pos.latitude,
+            lon: pos.longitude,
+            accuracy_m: pos.accuracy,
+            altitude_m: pos.altitude,
+            capturedAt: pos.capturedAt,
+            source: 'clock_out',
+          });
+        } catch (err) {
+          logWarn('timeTracking.clockOut', 'boundary ping threw', err, {
+            entry_id: open.id,
+          });
+        }
+      }
+
+      // Stop the background tracker. Idempotent + always runs (even
+      // when GPS at clock-out failed) so a denied / failed start
+      // doesn't leak a running task.
+      try {
+        await stopBackgroundTracking();
+      } catch (err) {
+        logWarn(
+          'timeTracking.clockOut',
+          'stopBackgroundTracking threw',
+          err,
+          { entry_id: open.id }
+        );
+      }
 
       // Cancel any scheduled "still working?" prompts for this entry.
       // Idempotent — safe to call when permission was denied at

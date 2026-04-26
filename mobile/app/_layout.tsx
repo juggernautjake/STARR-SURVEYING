@@ -6,9 +6,10 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { NotificationBanner } from '@/lib/NotificationBanner';
-import { AuthProvider } from '@/lib/auth';
+import { AuthProvider, useAuth } from '@/lib/auth';
 import { DatabaseProvider } from '@/lib/db';
 import { logInfo, logWarn } from '@/lib/log';
+import { reconcileTrackingOnLaunch } from '@/lib/locationTracker';
 import {
   type AdminPingSourceType,
   deepLinkForSourceType,
@@ -106,6 +107,55 @@ function UploadQueueDrainer() {
  */
 function AdminPingDispatcher() {
   useAdminPingDispatcher();
+  return null;
+}
+
+/**
+ * Reconcile the background-tracking task with the current clock-in
+ * state on every cold start + auth change. Handles the "phone died
+ * mid-shift, app re-launched the next morning" case from the user's
+ * resilience requirements: if there's still an open job_time_entries
+ * row, restart the task so background pings resume; if there isn't,
+ * stop any orphaned task.
+ *
+ * Lives inside the DatabaseProvider so usePowerSync resolves.
+ */
+function LocationTrackerReconciler() {
+  const db = usePowerSync();
+  const { session } = useAuth();
+  const userId = session?.user.id ?? null;
+  const userEmail = session?.user.email ?? null;
+
+  useEffect(() => {
+    if (!userId || !userEmail) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const open = await db.getOptional<{ id: string }>(
+          `SELECT id FROM job_time_entries
+            WHERE user_email = ? AND ended_at IS NULL
+            LIMIT 1`,
+          [userEmail]
+        );
+        if (cancelled) return;
+        await reconcileTrackingOnLaunch({
+          openEntry: open ?? null,
+          userId,
+          userEmail,
+        });
+      } catch (err) {
+        logWarn(
+          'locationTracker.reconciler',
+          'launch reconcile failed',
+          err
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [db, userId, userEmail]);
+
   return null;
 }
 
@@ -226,6 +276,7 @@ function RootLayout() {
           <UploadQueueDrainer />
           <AdminPingDispatcher />
           <NotificationResponseHandler />
+          <LocationTrackerReconciler />
           <Stack
             screenOptions={{
               headerShown: false,

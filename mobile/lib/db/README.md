@@ -66,6 +66,15 @@ Activation gates (each blocks live sync but NOT local-only dev):
       web admin's NotificationBell + lib/notifications.ts continue to
       work unchanged. Apply BEFORE the mobile NotificationBanner +
       admin /admin/team Ping button ships.
+- [ ] Apply `seeds/223_starr_field_location_pings.sql` (background GPS
+      tracking — adds the append-only `location_pings` table with
+      battery snapshot + RLS owner-only INSERT/SELECT). Powers the
+      mobile `lib/locationTracker.ts` background task and the "Last
+      seen" column on the dispatcher Team page. Apply BEFORE
+      `EAS build` for a release that has background tracking enabled
+      (the native config in `app.json` requests Always-On location +
+      foreground service permission, which won't make sense without
+      the table to write to).
 - [ ] Provision PowerSync service (Cloud or self-hosted, see below).
 - [ ] Author sync rules — see "Sync rules" below.
 - [ ] Set `EXPO_PUBLIC_POWERSYNC_URL` in `mobile/.env.local` (dev) and
@@ -135,6 +144,14 @@ bucket_definitions:
             )
             AND is_dismissed = false
             AND (expires_at IS NULL OR expires_at > now())
+      # Location pings — owner-only, last 24 hours. PowerSync only
+      # needs to mirror RECENT pings so the mobile UI can render
+      # "today's route." Older pings stay server-side for F6 reports.
+      # The local SQLite stays bounded; the row count grows by ~960
+      # per 8-hour shift before pruning naturally.
+      - SELECT * FROM location_pings
+          WHERE user_id = bucket.user_id
+            AND captured_at > now() - interval '24 hours'
 
   by_company:
     # Jobs and reference tables — visible to all employees of the

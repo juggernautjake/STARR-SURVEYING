@@ -50,6 +50,18 @@ interface NotificationLite {
   created_at: string;
 }
 
+interface LastPingLite {
+  id: string;
+  user_email: string;
+  lat: number;
+  lon: number;
+  accuracy_m: number | null;
+  battery_pct: number | null;
+  is_charging: boolean | null;
+  source: string;
+  captured_at: string;
+}
+
 export const GET = withErrorHandler(async () => {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.roles)) {
@@ -107,7 +119,28 @@ export const GET = withErrorHandler(async () => {
   }
   const pings = (pingsRaw ?? []) as NotificationLite[];
 
-  // 4) Index helpers for O(1) per-user join.
+  // 4) Most recent location ping per user — drives the "last seen"
+  //    column on the dispatcher Team page. Privacy contract: pings
+  //    only exist for clocked-in periods (mobile starts/stops the
+  //    background task on clock boundaries). 12-hour window keeps
+  //    the result set bounded; older rows live for F6 reporting.
+  const since12h = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+  const { data: locationPingsRaw, error: locPingsErr } = await supabaseAdmin
+    .from('location_pings')
+    .select(
+      'id, user_email, lat, lon, accuracy_m, battery_pct, is_charging, source, captured_at'
+    )
+    .gte('captured_at', since12h)
+    .order('captured_at', { ascending: false });
+  if (locPingsErr) {
+    return NextResponse.json(
+      { error: locPingsErr.message },
+      { status: 500 }
+    );
+  }
+  const locationPings = (locationPingsRaw ?? []) as LastPingLite[];
+
+  // 5) Index helpers for O(1) per-user join.
   const activeByEmail = new Map<string, ActiveEntry>();
   for (const a of active) {
     if (a.user_email && !activeByEmail.has(a.user_email)) {
@@ -120,14 +153,23 @@ export const GET = withErrorHandler(async () => {
       lastPingByEmail.set(p.user_email, p);
     }
   }
+  // Most-recent location ping per user. The query is already sorted
+  // captured_at DESC so the first hit per email wins.
+  const lastLocationByEmail = new Map<string, LastPingLite>();
+  for (const lp of locationPings) {
+    if (lp.user_email && !lastLocationByEmail.has(lp.user_email)) {
+      lastLocationByEmail.set(lp.user_email, lp);
+    }
+  }
 
-  // 5) Compose. clockedInMinutes is computed live; the row's
+  // 6) Compose. clockedInMinutes is computed live; the row's
   //    duration_minutes is null while ended_at is null, so we derive
   //    from started_at.
   const now = Date.now();
   const team = users.map((u) => {
     const open = activeByEmail.get(u.email) ?? null;
     const lastPing = lastPingByEmail.get(u.email) ?? null;
+    const lastLoc = lastLocationByEmail.get(u.email) ?? null;
     const clockedInMinutes =
       open?.started_at != null
         ? Math.floor((now - Date.parse(open.started_at)) / 60_000)
@@ -157,6 +199,23 @@ export const GET = withErrorHandler(async () => {
             created_at: lastPing.created_at,
             delivered_at: lastPing.delivered_at,
             read_at: lastPing.read_at,
+          }
+        : null,
+      // null when no location_pings in the last 12 h. Useful for the
+      // dispatcher to spot "phone died at 2pm — last seen on the
+      // Smith Job at 30%" or "still moving — currently I-35 north".
+      last_location: lastLoc
+        ? {
+            lat: lastLoc.lat,
+            lon: lastLoc.lon,
+            accuracy_m: lastLoc.accuracy_m,
+            battery_pct: lastLoc.battery_pct,
+            is_charging: lastLoc.is_charging,
+            source: lastLoc.source,
+            captured_at: lastLoc.captured_at,
+            staleness_minutes: Math.floor(
+              (now - new Date(lastLoc.captured_at).getTime()) / 60_000
+            ),
           }
         : null,
     };
