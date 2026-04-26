@@ -58,6 +58,14 @@ Activation gates (each blocks live sync but NOT local-only dev):
       buckets `starr-field-photos` / `-videos` / `-voice`, RLS, and
       column-level GRANT allowlists). Apply BEFORE the F3 mobile
       capture flow ships (F3 #2+).
+- [ ] Apply `seeds/222_starr_field_notifications.sql` (resilience batch
+      — extends the existing web `notifications` table with
+      `target_user_id` UUID + `delivered_at` / `dismissed_at` /
+      `expires_at`, enables RLS for mobile owners + column-level GRANTs,
+      and adds the `notifications_inbox` view). Non-breaking ALTER —
+      web admin's NotificationBell + lib/notifications.ts continue to
+      work unchanged. Apply BEFORE the mobile NotificationBanner +
+      admin /admin/team Ping button ships.
 - [ ] Provision PowerSync service (Cloud or self-hosted, see below).
 - [ ] Author sync rules — see "Sync rules" below.
 - [ ] Set `EXPO_PUBLIC_POWERSYNC_URL` in `mobile/.env.local` (dev) and
@@ -112,6 +120,15 @@ bucket_definitions:
       - SELECT * FROM location_stops    WHERE user_id    = bucket.user_id
       - SELECT * FROM location_segments WHERE user_id    = bucket.user_id
       - SELECT * FROM receipts          WHERE user_id    = bucket.user_id
+      # Admin → user pings (resilience batch). seeds/222 adds the
+      # target_user_id UUID column to the existing notifications
+      # table so this scoping works without an email join. The
+      # filter excludes dismissed / expired rows so old reminders
+      # don't keep replaying to the device.
+      - SELECT * FROM notifications
+          WHERE target_user_id = bucket.user_id
+            AND is_dismissed   = false
+            AND (expires_at IS NULL OR expires_at > now())
 
   by_company:
     # Jobs and reference tables — visible to all employees of the

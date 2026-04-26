@@ -441,6 +441,80 @@ const time_edits = new Table({
   client_id: column.text,
 });
 
+// ── notifications — shared web/admin + mobile inbox ─────────────────────────
+//
+// Per the user's resilience requirement: "the admin/dispatcher needs to
+// be able to notify the user that they need to log their hours."
+//
+// Mobile consumes rows from the EXISTING web-admin notifications table
+// (used by NotificationBell + lib/notifications.ts on the web side).
+// seeds/222_starr_field_notifications.sql adds Starr Field-specific
+// columns (target_user_id, delivered_at, dismissed_at, expires_at) and
+// RLS policies on top of that table — non-breaking for the web admin.
+//
+// Identity duality:
+//   - user_email     — the web admin's primary key throughout (every
+//                      web-side notify() call writes here).
+//   - target_user_id — UUID mirror added by seeds/222 so mobile sync
+//                      rules can scope by auth.uid(). A trigger
+//                      back-fills it on every insert; mobile filters
+//                      by either (RLS allows both).
+//
+// Lifecycle (matches the existing web shape, plus delivered_at):
+//   - is_read / read_at         — flipped when user taps banner.
+//   - is_dismissed / dismissed_at — flipped when user swipes away.
+//   - delivered_at              — flipped by mobile on first sight
+//                                  (admin's "delivered ✓" indicator).
+//   - expires_at                — soft-delete; sync rule excludes
+//                                  rows past their expiry.
+//
+// Column-level GRANT (seeds/222) restricts mobile writes to
+// is_read / read_at / is_dismissed / dismissed_at / delivered_at —
+// owners cannot rewrite title / body / link.
+const notifications = new Table({
+  /** Web admin's identity (TEXT). Mobile matches via session.user.email. */
+  user_email: column.text,
+  /** UUID mirror — auth.users.id. Filled by trigger on every insert. */
+  target_user_id: column.text,
+  /** Free-form category — existing values include 'reminder', 'system',
+   *  'assignment', 'payment', etc. Starr Field dispatcher pings use
+   *  'reminder' with source_type='log_hours' so existing web filters
+   *  ('non-message' check in NotificationBell) still work. */
+  type: column.text,
+  /** Sub-category that drives the mobile banner glyph + auto-route.
+   *  Values mobile recognises: 'log_hours', 'submit_week',
+   *  'admin_direct', 'hours_decision' — others render as plain
+   *  message banners. */
+  source_type: column.text,
+  /** Optional FK-ish id for the source object (e.g. job_id when
+   *  source_type='job_assignment'). Drives /jobs/{id} deep-links. */
+  source_id: column.text,
+  /** Headline shown in the OS banner + in-app banner. */
+  title: column.text,
+  /** Multi-line body; null when the headline is self-explanatory. */
+  body: column.text,
+  /** Single-glyph emoji from the web side; mobile prefers source_type
+   *  for icon mapping but falls back to this. */
+  icon: column.text,
+  /** Web URL or app deep-link string. Mobile recognises strings
+   *  starting with '/(tabs)/' or 'starr-field://' as in-app routes. */
+  link: column.text,
+  /** 'low' | 'normal' | 'high' | 'urgent' | 'critical'. Mobile elevates
+   *  the banner colour for high+, fires a sharper sound for urgent. */
+  escalation_level: column.text,
+  /** Optional thread grouping — direct-message scenarios. */
+  thread_id: column.text,
+  /** Lifecycle flags. Owner-writable per seeds/222 column GRANT. */
+  is_read: column.integer, // 0/1 boolean
+  is_dismissed: column.integer, // 0/1 boolean
+  read_at: column.text,
+  dismissed_at: column.text,
+  delivered_at: column.text,
+  /** Soft-delete: sync rule excludes rows where expires_at <= now. */
+  expires_at: column.text,
+  created_at: column.text,
+});
+
 // ── pending_uploads — local-only retry queue ────────────────────────────────
 //
 // Survives reception loss + app crashes. Captures (receipts photo,
@@ -506,6 +580,7 @@ export const AppSchema = new Schema({
   jobs,
   location_segments,
   location_stops,
+  notifications,
   pending_uploads,
   point_codes,
   receipt_line_items,
