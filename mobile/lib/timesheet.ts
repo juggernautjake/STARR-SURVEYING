@@ -16,9 +16,10 @@
  * data and the screen decides how to slice.
  */
 import { useQuery } from '@powersync/react';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { useAuth } from './auth';
+import { logError } from './log';
 import { todayLocalISODate } from './timeFormat';
 
 export interface TimesheetEntry {
@@ -80,7 +81,7 @@ export function useTimesheet(daysBack: number = 14): {
 
   const since = useMemo(() => isoDateMinusDays(todayLocalISODate(), daysBack), [daysBack]);
 
-  const { data, isLoading } = useQuery<RawRow>(
+  const { data, isLoading, error } = useQuery<RawRow>(
     `SELECT
        jte.id              AS id,
        jte.job_id          AS job_id,
@@ -101,6 +102,14 @@ export function useTimesheet(daysBack: number = 14): {
               COALESCE(jte.started_at, '') DESC`,
     userEmail ? [userEmail, since] : []
   );
+
+  useEffect(() => {
+    if (error) {
+      logError('timesheet.useTimesheet', 'query failed', error, {
+        days_back: daysBack,
+      });
+    }
+  }, [error, daysBack]);
 
   const days = useMemo<TimesheetDay[]>(() => {
     if (!data || data.length === 0) return [];

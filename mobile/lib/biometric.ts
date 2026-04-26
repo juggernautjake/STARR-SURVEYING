@@ -16,6 +16,8 @@
  */
 import * as LocalAuthentication from 'expo-local-authentication';
 
+import { logInfo, logWarn } from './log';
+
 export type BiometricKind = 'face' | 'fingerprint' | 'iris' | 'unknown';
 
 export interface BiometricCapability {
@@ -53,7 +55,8 @@ export async function getBiometricCapability(): Promise<BiometricCapability> {
     }
 
     return { available: true, kind };
-  } catch {
+  } catch (err) {
+    logWarn('biometric.getCapability', 'capability check failed', err);
     return { available: false, kind: 'unknown' };
   }
 }
@@ -89,8 +92,18 @@ export async function authenticate(reason: string): Promise<boolean> {
       cancelLabel: 'Cancel',
       disableDeviceFallback: false,
     });
+    // The non-success variant carries `error` and `warning` strings.
+    // Cast for the breadcrumb so we capture the reason in Sentry
+    // without leaking the failure into the caller's boolean contract.
+    const failure = result as { error?: string; warning?: string };
+    logInfo('biometric.authenticate', 'prompt result', {
+      success: result.success,
+      error: failure.error,
+      warning: failure.warning,
+    });
     return result.success;
-  } catch {
+  } catch (err) {
+    logWarn('biometric.authenticate', 'authenticateAsync threw', err);
     return false;
   }
 }

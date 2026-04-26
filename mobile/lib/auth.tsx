@@ -54,6 +54,7 @@ import {
   getLastBackgroundedTs,
   markBackgroundedNow,
 } from './lockState';
+import { logError, logInfo, setUserContext } from './log';
 import { supabase } from './supabase';
 
 interface AuthContextValue {
@@ -136,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!cap.available) {
             effectiveBiometric = false;
             await writeBiometricEnabled(false);
+            logInfo('auth.boot', 'cleared biometric pref — device no longer supports it');
           }
         }
 
@@ -146,9 +148,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // start locked. The LockOverlay will auto-prompt on mount.
         setLocked(hasSession && effectiveBiometric);
         setLoading(false);
+
+        // Tag Sentry events with the current user the moment we know
+        // who they are. Critical: do this BEFORE any feature code runs
+        // so a crash during DatabaseProvider init still attributes
+        // correctly.
+        if (data.session?.user) {
+          setUserContext({
+            id: data.session.user.id,
+            email: data.session.user.email,
+          });
+          logInfo('auth.boot', 'restored session', {
+            user_id: data.session.user.id,
+            biometric_enabled: effectiveBiometric,
+          });
+        } else {
+          logInfo('auth.boot', 'no saved session');
+        }
       })
-      .catch(() => {
+      .catch((err) => {
         // getSession or AsyncStorage failure → treat as signed out.
+        // This is corruption-territory; capture for diagnosis.
+        logError('auth.boot', 'failed to restore session', err);
         if (!mounted) return;
         setSession(null);
         setBiometricEnabledState(false);
@@ -172,6 +193,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // is bad UX. Cold-start uses the locked-state from the
       // Promise.all above; mid-session sign-in skips the lock.
       if (event === 'SIGNED_IN') setLocked(false);
+
+      // Sentry user-context update + breadcrumb. Visible in any
+      // crash that occurs after this transition.
+      logInfo('auth.stateChange', event, {
+        user_id: newSession?.user.id,
+        has_session: !!newSession,
+      });
+      if (newSession?.user) {
+        setUserContext({
+          id: newSession.user.id,
+          email: newSession.user.email,
+        });
+      } else {
+        setUserContext(null);
+      }
     });
 
     return () => {

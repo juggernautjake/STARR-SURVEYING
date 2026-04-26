@@ -14,7 +14,7 @@
  *   - GPS off / no fix in 8 sec    → return null (don't block the
  *                                    user — clock-in is more
  *                                    important than location)
- *   - hardware error               → return null + console.warn
+ *   - hardware error               → return null + logWarn (Sentry breadcrumb)
  *
  * Callers shape:
  *   const pos = await getCurrentPositionOrNull();
@@ -22,6 +22,8 @@
  *   else     { saveWithoutLocation(); }
  */
 import * as Location from 'expo-location';
+
+import { logInfo, logWarn } from './log';
 
 export interface CapturedPosition {
   latitude: number;
@@ -42,8 +44,14 @@ const FIX_TIMEOUT_MS = 8_000;
 export async function ensureForegroundPermission(): Promise<boolean> {
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
-    return status === Location.PermissionStatus.GRANTED;
-  } catch {
+    const granted = status === Location.PermissionStatus.GRANTED;
+    logInfo('location.ensureForegroundPermission', 'permission result', {
+      status,
+      granted,
+    });
+    return granted;
+  } catch (err) {
+    logWarn('location.ensureForegroundPermission', 'permission check failed', err);
     return false;
   }
 }
@@ -54,7 +62,10 @@ export async function ensureForegroundPermission(): Promise<boolean> {
  */
 export async function getCurrentPositionOrNull(): Promise<CapturedPosition | null> {
   const granted = await ensureForegroundPermission();
-  if (!granted) return null;
+  if (!granted) {
+    logInfo('location.getCurrentPosition', 'no permission — null fix');
+    return null;
+  }
 
   try {
     // Race the GPS fix against an explicit timeout so we don't hang
@@ -66,7 +77,12 @@ export async function getCurrentPositionOrNull(): Promise<CapturedPosition | nul
       new Promise<null>((resolve) => setTimeout(() => resolve(null), FIX_TIMEOUT_MS)),
     ]);
 
-    if (!fix) return null;
+    if (!fix) {
+      logInfo('location.getCurrentPosition', 'timeout — null fix', {
+        timeout_ms: FIX_TIMEOUT_MS,
+      });
+      return null;
+    }
 
     return {
       latitude: fix.coords.latitude,
@@ -75,7 +91,7 @@ export async function getCurrentPositionOrNull(): Promise<CapturedPosition | nul
       capturedAt: new Date(fix.timestamp).toISOString(),
     };
   } catch (err) {
-    console.warn('[location] getCurrentPosition failed:', err);
+    logWarn('location.getCurrentPosition', 'getCurrentPosition failed', err);
     return null;
   }
 }

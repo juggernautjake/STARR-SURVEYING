@@ -11,8 +11,10 @@
  * surface call sites that need updating.
  */
 import { useQuery } from '@powersync/react';
+import { useEffect } from 'react';
 
 import type { AppDatabase } from './db/schema';
+import { logError } from './log';
 
 export type Job = AppDatabase['jobs'];
 
@@ -43,6 +45,10 @@ export function useJobs(): UseJobsResult {
      LIMIT 200`
   );
 
+  useEffect(() => {
+    if (error) logError('jobs.useJobs', 'query failed', error);
+  }, [error]);
+
   return {
     jobs: data ?? [],
     isLoading,
@@ -59,10 +65,14 @@ export function useJob(id: string | null | undefined): {
   job: Job | null | undefined;
   isLoading: boolean;
 } {
-  const { data, isLoading } = useQuery<Job>(
+  const { data, isLoading, error } = useQuery<Job>(
     `SELECT * FROM jobs WHERE id = ? LIMIT 1`,
     id ? [id] : []
   );
+
+  useEffect(() => {
+    if (error) logError('jobs.useJob', 'query failed', error, { id });
+  }, [error, id]);
 
   if (!id) return { job: null, isLoading: false };
   if (isLoading) return { job: undefined, isLoading: true };

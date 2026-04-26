@@ -14,9 +14,10 @@
  * later if surveyors ask for it.
  */
 import { usePowerSync, useQuery } from '@powersync/react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import { useAuth } from './auth';
+import { logError, logInfo } from './log';
 
 export interface WeekRange {
   /** YYYY-MM-DD (local) — Monday. */
@@ -63,7 +64,7 @@ export function useThisWeekTotal(): { totalMinutes: number; isLoading: boolean }
   const userEmail = session?.user.email ?? null;
   const range = useMemo(() => thisWeekRange(), []);
 
-  const { data, isLoading } = useQuery<{ total: number | null }>(
+  const { data, isLoading, error } = useQuery<{ total: number | null }>(
     `SELECT COALESCE(SUM(jte.duration_minutes), 0) AS total
      FROM job_time_entries AS jte
      LEFT JOIN daily_time_logs AS dtl ON dtl.id = jte.daily_time_log_id
@@ -71,6 +72,15 @@ export function useThisWeekTotal(): { totalMinutes: number; isLoading: boolean }
        AND dtl.log_date BETWEEN ? AND ?`,
     userEmail ? [userEmail, range.from, range.to] : []
   );
+
+  useEffect(() => {
+    if (error) {
+      logError('timesheet.useThisWeekTotal', 'query failed', error, {
+        from: range.from,
+        to: range.to,
+      });
+    }
+  }, [error, range.from, range.to]);
 
   if (!userEmail) return { totalMinutes: 0, isLoading: false };
   return {
@@ -103,57 +113,80 @@ export function useSubmitWeek(): () => Promise<SubmitWeekResult> {
 
   return useCallback(async () => {
     const userEmail = session?.user.email;
-    if (!userEmail) throw new Error('Not signed in.');
+    if (!userEmail) {
+      const err = new Error('Not signed in.');
+      logError('timesheet.submitWeek', 'no session', err);
+      throw err;
+    }
 
     const range = thisWeekRange();
+    logInfo('timesheet.submitWeek', 'attempt', {
+      from: range.from,
+      to: range.to,
+    });
 
-    // Refuse if any entry in the window is still open. The user
-    // must clock out first — otherwise the timesheet they're
-    // submitting has an undefined-duration row.
-    const open = await db.getOptional<{ id: string }>(
-      `SELECT jte.id
-       FROM job_time_entries AS jte
-       LEFT JOIN daily_time_logs AS dtl ON dtl.id = jte.daily_time_log_id
-       WHERE jte.user_email = ?
-         AND jte.ended_at IS NULL
-         AND dtl.log_date BETWEEN ? AND ?
-       LIMIT 1`,
-      [userEmail, range.from, range.to]
-    );
-    if (open) {
-      return { flipped: 0, alreadySubmitted: false, hasOpenEntry: true };
-    }
-
-    // Find all 'open' daily logs in the window. If none, surface
-    // alreadySubmitted=true so the UI shows the right message.
-    const rows = await db.getAll<{ id: string }>(
-      `SELECT id FROM daily_time_logs
-       WHERE user_email = ?
-         AND log_date BETWEEN ? AND ?
-         AND COALESCE(status, 'open') = 'open'`,
-      [userEmail, range.from, range.to]
-    );
-
-    if (rows.length === 0) {
-      return { flipped: 0, alreadySubmitted: true, hasOpenEntry: false };
-    }
-
-    const nowIso = new Date().toISOString();
-    // Flip them. PowerSync's CRUD queue will replay each UPDATE
-    // server-side; we don't worry about a transactional batch here
-    // because PowerSync's queue is FIFO per row and individual
-    // failures retry.
-    for (const row of rows) {
-      await db.execute(
-        `UPDATE daily_time_logs
-         SET status = 'submitted',
-             submitted_at = ?,
-             updated_at = ?
-         WHERE id = ?`,
-        [nowIso, nowIso, row.id]
+    try {
+      // Refuse if any entry in the window is still open. The user
+      // must clock out first — otherwise the timesheet they're
+      // submitting has an undefined-duration row.
+      const open = await db.getOptional<{ id: string }>(
+        `SELECT jte.id
+         FROM job_time_entries AS jte
+         LEFT JOIN daily_time_logs AS dtl ON dtl.id = jte.daily_time_log_id
+         WHERE jte.user_email = ?
+           AND jte.ended_at IS NULL
+           AND dtl.log_date BETWEEN ? AND ?
+         LIMIT 1`,
+        [userEmail, range.from, range.to]
       );
-    }
+      if (open) {
+        logInfo('timesheet.submitWeek', 'blocked: open entry exists');
+        return { flipped: 0, alreadySubmitted: false, hasOpenEntry: true };
+      }
 
-    return { flipped: rows.length, alreadySubmitted: false, hasOpenEntry: false };
+      // Find all 'open' daily logs in the window. If none, surface
+      // alreadySubmitted=true so the UI shows the right message.
+      const rows = await db.getAll<{ id: string }>(
+        `SELECT id FROM daily_time_logs
+         WHERE user_email = ?
+           AND log_date BETWEEN ? AND ?
+           AND COALESCE(status, 'open') = 'open'`,
+        [userEmail, range.from, range.to]
+      );
+
+      if (rows.length === 0) {
+        logInfo('timesheet.submitWeek', 'nothing to submit', {
+          already_submitted: true,
+        });
+        return { flipped: 0, alreadySubmitted: true, hasOpenEntry: false };
+      }
+
+      const nowIso = new Date().toISOString();
+      // Flip them. PowerSync's CRUD queue will replay each UPDATE
+      // server-side; we don't worry about a transactional batch here
+      // because PowerSync's queue is FIFO per row and individual
+      // failures retry.
+      for (const row of rows) {
+        await db.execute(
+          `UPDATE daily_time_logs
+           SET status = 'submitted',
+               submitted_at = ?,
+               updated_at = ?
+           WHERE id = ?`,
+          [nowIso, nowIso, row.id]
+        );
+      }
+
+      logInfo('timesheet.submitWeek', 'success', {
+        flipped: rows.length,
+      });
+      return { flipped: rows.length, alreadySubmitted: false, hasOpenEntry: false };
+    } catch (err) {
+      logError('timesheet.submitWeek', 'unexpected failure', err, {
+        from: range.from,
+        to: range.to,
+      });
+      throw err;
+    }
   }, [db, session]);
 }

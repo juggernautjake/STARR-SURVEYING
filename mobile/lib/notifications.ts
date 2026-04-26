@@ -24,6 +24,8 @@
  */
 import * as Notifications from 'expo-notifications';
 
+import { logInfo, logWarn } from './log';
+
 let permissionPromise: Promise<boolean> | null = null;
 
 /**
@@ -36,10 +38,16 @@ export async function ensureNotificationPermission(): Promise<boolean> {
     permissionPromise = (async () => {
       try {
         const existing = await Notifications.getPermissionsAsync();
-        if (existing.status === 'granted') return true;
+        if (existing.status === 'granted') {
+          logInfo('notifications.ensurePermission', 'already granted');
+          return true;
+        }
         // canAskAgain is false when the user previously hard-denied
         // (must go to device settings). Don't badger them.
-        if (existing.status === 'denied' && !existing.canAskAgain) return false;
+        if (existing.status === 'denied' && !existing.canAskAgain) {
+          logInfo('notifications.ensurePermission', 'hard-denied; cannot re-prompt');
+          return false;
+        }
 
         const requested = await Notifications.requestPermissionsAsync({
           ios: {
@@ -48,9 +56,14 @@ export async function ensureNotificationPermission(): Promise<boolean> {
             allowSound: true,
           },
         });
-        return requested.status === 'granted';
+        const granted = requested.status === 'granted';
+        logInfo('notifications.ensurePermission', 'prompt result', {
+          status: requested.status,
+          granted,
+        });
+        return granted;
       } catch (err) {
-        console.warn('[notifications] permission check failed:', err);
+        logWarn('notifications.ensurePermission', 'permission check failed', err);
         return false;
       }
     })();
@@ -75,9 +88,20 @@ export interface ScheduleArgs {
  */
 export async function schedule(args: ScheduleArgs): Promise<boolean> {
   const granted = await ensureNotificationPermission();
-  if (!granted) return false;
+  if (!granted) {
+    logInfo('notifications.schedule', 'no permission — skip', {
+      identifier: args.identifier,
+    });
+    return false;
+  }
 
-  if (args.fireAt.getTime() <= Date.now()) return false;
+  if (args.fireAt.getTime() <= Date.now()) {
+    logInfo('notifications.schedule', 'fireAt in past — skip', {
+      identifier: args.identifier,
+      fire_at: args.fireAt.toISOString(),
+    });
+    return false;
+  }
 
   try {
     // Cancel any existing notification with this id first; otherwise
@@ -99,9 +123,16 @@ export async function schedule(args: ScheduleArgs): Promise<boolean> {
         date: args.fireAt,
       },
     });
+    logInfo('notifications.schedule', 'scheduled', {
+      identifier: args.identifier,
+      fire_at: args.fireAt.toISOString(),
+    });
     return true;
   } catch (err) {
-    console.warn('[notifications] schedule failed:', err);
+    logWarn('notifications.schedule', 'schedule failed', err, {
+      identifier: args.identifier,
+      fire_at: args.fireAt.toISOString(),
+    });
     return false;
   }
 }

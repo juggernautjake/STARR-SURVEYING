@@ -25,6 +25,7 @@ import type {
   PowerSyncCredentials,
 } from '@powersync/react-native';
 
+import { logError, logInfo, logWarn } from '../log';
 import { supabase } from '../supabase';
 
 export class SupabaseConnector implements PowerSyncBackendConnector {
@@ -40,11 +41,24 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
    */
   async fetchCredentials(): Promise<PowerSyncCredentials | null> {
     const endpoint = process.env.EXPO_PUBLIC_POWERSYNC_URL;
-    if (!endpoint) return null;
+    if (!endpoint) {
+      logInfo('db.connector.fetchCredentials', 'no EXPO_PUBLIC_POWERSYNC_URL — sync idle');
+      return null;
+    }
 
     const { data, error } = await supabase.auth.getSession();
-    if (error || !data.session?.access_token) return null;
+    if (error) {
+      logWarn('db.connector.fetchCredentials', 'getSession failed', error);
+      return null;
+    }
+    if (!data.session?.access_token) {
+      logInfo('db.connector.fetchCredentials', 'no session — sync waiting for sign-in');
+      return null;
+    }
 
+    logInfo('db.connector.fetchCredentials', 'returning credentials', {
+      user_id: data.session.user.id,
+    });
     return {
       endpoint,
       token: data.session.access_token,
@@ -77,6 +91,10 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
     const tx = await database.getNextCrudTransaction();
     if (!tx) return;
+
+    logInfo('db.connector.uploadData', 'replaying transaction', {
+      ops: tx.crud.length,
+    });
 
     try {
       for (const op of tx.crud) {
@@ -112,10 +130,16 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       }
 
       await tx.complete();
+      logInfo('db.connector.uploadData', 'transaction completed', {
+        ops: tx.crud.length,
+      });
     } catch (err) {
       // Don't acknowledge; PowerSync will retry the same transaction.
-      // Logged here so you see it in Metro / dev tools.
-      console.warn('[SupabaseConnector.uploadData] failed, will retry:', err);
+      // logError captures to Sentry so we can see persistent failures
+      // (network outage, sync-rule rejection, schema drift).
+      logError('db.connector.uploadData', 'transaction failed, will retry', err, {
+        ops: tx.crud.length,
+      });
       throw err;
     }
   }

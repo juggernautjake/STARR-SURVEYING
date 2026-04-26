@@ -22,9 +22,10 @@
  * Each row carries old_value/new_value/reason/delta_minutes/edited_*.
  */
 import { usePowerSync, useQuery } from '@powersync/react';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 
 import { useAuth } from './auth';
+import { logError, logInfo } from './log';
 import { randomUUID } from './uuid';
 
 export interface TimeEdit {
@@ -75,13 +76,21 @@ export function useTimeEdits(entryId: string | null | undefined): {
   edits: TimeEdit[];
   isLoading: boolean;
 } {
-  const { data, isLoading } = useQuery<TimeEdit>(
+  const { data, isLoading, error } = useQuery<TimeEdit>(
     `SELECT *
      FROM time_edits
      WHERE job_time_entry_id = ?
      ORDER BY edited_at DESC, id DESC`,
     entryId ? [entryId] : []
   );
+
+  useEffect(() => {
+    if (error) {
+      logError('timeEdits.useTimeEdits', 'query failed', error, {
+        entry_id: entryId ?? null,
+      });
+    }
+  }, [error, entryId]);
 
   if (!entryId) return { edits: [], isLoading: false };
   return {
@@ -175,11 +184,27 @@ export function useEditTimeEntry(): (
   return useCallback(
     async (entry, patch) => {
       const userEmail = session?.user.email;
-      if (!userEmail) throw new Error('Not signed in.');
+      if (!userEmail) {
+        const err = new Error('Not signed in.');
+        logError('timeEdits.editEntry', 'no session', err, { entry_id: entry.id });
+        throw err;
+      }
 
       const validation = validateEdit(entry, patch);
+      logInfo('timeEdits.editEntry', 'validate', {
+        entry_id: entry.id,
+        tier: validation.tier,
+        max_delta_minutes: validation.maxDeltaMinutes,
+        ok: validation.ok,
+      });
       if (!validation.ok) {
-        throw new Error(validation.error ?? 'Edit not allowed.');
+        const err = new Error(validation.error ?? 'Edit not allowed.');
+        logInfo('timeEdits.editEntry', 'rejected', {
+          entry_id: entry.id,
+          tier: validation.tier,
+          reason: validation.error,
+        });
+        throw err;
       }
 
       const newStarted = patch.started_at ?? entry.started_at;
@@ -203,53 +228,69 @@ export function useEditTimeEntry(): (
 
       const nowIso = new Date().toISOString();
 
-      await db.execute(
-        `UPDATE job_time_entries
-         SET started_at = ?,
-             ended_at = ?,
-             notes = ?,
-             duration_minutes = ?,
-             updated_at = ?
-         WHERE id = ?`,
-        [newStarted, newEnded, newNotes, durationMin, nowIso, entry.id]
-      );
+      try {
+        await db.execute(
+          `UPDATE job_time_entries
+           SET started_at = ?,
+               ended_at = ?,
+               notes = ?,
+               duration_minutes = ?,
+               updated_at = ?
+           WHERE id = ?`,
+          [newStarted, newEnded, newNotes, durationMin, nowIso, entry.id]
+        );
 
-      // One time_edits row per changed field.
-      await maybeWriteEdit(db, {
-        entryId: entry.id,
-        field: 'started_at',
-        oldValue: entry.started_at,
-        newValue: newStarted,
-        reason,
-        deltaMinutes: absDeltaMinutes(entry.started_at, newStarted ?? null),
-        userEmail,
-        editedAt: nowIso,
-      });
-      await maybeWriteEdit(db, {
-        entryId: entry.id,
-        field: 'ended_at',
-        oldValue: entry.ended_at,
-        newValue: newEnded,
-        reason,
-        deltaMinutes: absDeltaMinutes(entry.ended_at, newEnded),
-        userEmail,
-        editedAt: nowIso,
-      });
-      await maybeWriteEdit(db, {
-        entryId: entry.id,
-        field: 'notes',
-        oldValue: entry.notes,
-        newValue: newNotes,
-        reason,
-        deltaMinutes: null, // notes have no time delta
-        userEmail,
-        editedAt: nowIso,
-      });
+        // One time_edits row per changed field.
+        await maybeWriteEdit(db, {
+          entryId: entry.id,
+          field: 'started_at',
+          oldValue: entry.started_at,
+          newValue: newStarted,
+          reason,
+          deltaMinutes: absDeltaMinutes(entry.started_at, newStarted ?? null),
+          userEmail,
+          editedAt: nowIso,
+        });
+        await maybeWriteEdit(db, {
+          entryId: entry.id,
+          field: 'ended_at',
+          oldValue: entry.ended_at,
+          newValue: newEnded,
+          reason,
+          deltaMinutes: absDeltaMinutes(entry.ended_at, newEnded),
+          userEmail,
+          editedAt: nowIso,
+        });
+        await maybeWriteEdit(db, {
+          entryId: entry.id,
+          field: 'notes',
+          oldValue: entry.notes,
+          newValue: newNotes,
+          reason,
+          deltaMinutes: null, // notes have no time delta
+          userEmail,
+          editedAt: nowIso,
+        });
 
-      return {
-        tier: validation.tier,
-        deltaMinutes: validation.maxDeltaMinutes,
-      };
+        logInfo('timeEdits.editEntry', 'success', {
+          entry_id: entry.id,
+          tier: validation.tier,
+          delta_minutes: validation.maxDeltaMinutes,
+          duration_minutes: durationMin,
+        });
+
+        return {
+          tier: validation.tier,
+          deltaMinutes: validation.maxDeltaMinutes,
+        };
+      } catch (err) {
+        logError('timeEdits.editEntry', 'db write failed', err, {
+          entry_id: entry.id,
+          tier: validation.tier,
+          delta_minutes: validation.maxDeltaMinutes,
+        });
+        throw err;
+      }
     },
     [db, session]
   );

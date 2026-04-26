@@ -30,6 +30,7 @@ import 'react-native-get-random-values'; // crypto.randomUUID polyfill for RN
 
 import { LoadingSplash } from '../LoadingSplash';
 import { useAuth } from '../auth';
+import { logError, logInfo, logWarn } from '../log';
 import { SupabaseConnector } from './connector';
 import { AppSchema } from './schema';
 
@@ -68,14 +69,19 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
     const db = getDatabase();
+    logInfo('db.DatabaseProvider', 'init starting', { db_filename: DB_FILENAME });
     db.init()
       .then(() => {
-        if (mounted) setReady(true);
+        if (mounted) {
+          setReady(true);
+          logInfo('db.DatabaseProvider', 'init complete');
+        }
       })
       .catch((err) => {
         // Failure to open SQLite is catastrophic — there's no useful
-        // fallback. Log loudly; F1+ adds Sentry capture here.
-        console.error('[DatabaseProvider] init failed:', err);
+        // fallback. logError captures to Sentry so we get a real
+        // event with stack trace, not just a console line.
+        logError('db.DatabaseProvider', 'init failed', err);
       })
       .finally(() => {
         // Hand off from native splash to RN regardless of outcome —
@@ -100,6 +106,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
 
     if (!session) {
       // No session → disconnect any existing stream.
+      logInfo('db.DatabaseProvider', 'no session — disconnecting sync');
       void db.disconnect();
       connectorRef.current = null;
       return;
@@ -110,12 +117,20 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
     if (!connectorRef.current) {
       connectorRef.current = new SupabaseConnector();
     }
+    logInfo('db.DatabaseProvider', 'connecting sync', {
+      user_id: session.user.id,
+    });
     void db.connect(connectorRef.current).catch((err) => {
       // The connector returns null credentials when
       // EXPO_PUBLIC_POWERSYNC_URL is missing; that's fine, the local
       // DB works offline. Real connect failures (auth rejection,
       // bad URL) log here and PowerSync auto-retries with backoff.
-      console.warn('[DatabaseProvider] connect failed (local DB still works):', err);
+      logWarn(
+        'db.DatabaseProvider',
+        'connect failed (local DB still works)',
+        err,
+        { user_id: session.user.id }
+      );
     });
   }, [session, authLoading, ready]);
 

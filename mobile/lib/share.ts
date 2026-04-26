@@ -18,6 +18,8 @@
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
+import { logInfo, logWarn } from './log';
+
 export interface ShareTextFileOptions {
   /** Target filename including extension. */
   filename: string;
@@ -37,9 +39,19 @@ export async function shareTextFile(opts: ShareTextFileOptions): Promise<boolean
   // pre-iOS 14 and on web; surface that as a graceful no-op rather
   // than an exception.
   const available = await Sharing.isAvailableAsync();
-  if (!available) return false;
+  if (!available) {
+    logInfo('share.shareTextFile', 'sharing unavailable on this device', {
+      filename: opts.filename,
+    });
+    return false;
+  }
 
   const uri = `${FileSystem.cacheDirectory ?? ''}${opts.filename}`;
+  logInfo('share.shareTextFile', 'attempt', {
+    filename: opts.filename,
+    mime_type: mimeType,
+    bytes: opts.contents.length,
+  });
 
   try {
     await FileSystem.writeAsStringAsync(uri, opts.contents, {
@@ -50,11 +62,14 @@ export async function shareTextFile(opts: ShareTextFileOptions): Promise<boolean
       dialogTitle,
       UTI: mimeType === 'text/csv' ? 'public.comma-separated-values-text' : undefined,
     });
+    logInfo('share.shareTextFile', 'success', { filename: opts.filename });
     return true;
   } catch (err) {
     // User-dismissed share isn't an error on iOS but on Android can
     // surface as a thrown exception. Treat as a no-op.
-    console.warn('[share] shareTextFile failed:', err);
+    logWarn('share.shareTextFile', 'failed (likely user-cancel)', err, {
+      filename: opts.filename,
+    });
     return false;
   }
 }
