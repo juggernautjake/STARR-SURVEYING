@@ -39,15 +39,28 @@ import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const BUCKET = 'starr-field-receipts';
-/** Per plan §5.11.2: Claude Sonnet 4.6 for receipt extraction. */
+/** Per plan §5.11.2: Claude Sonnet 4.6 for receipt extraction.
+ *  The default below is the 4.5 model id — bump when 4.6 ships and is
+ *  available. STARR_FIELD_VISION_MODEL overrides without redeploying. */
 const VISION_MODEL = process.env.STARR_FIELD_VISION_MODEL ?? 'claude-sonnet-4-5-20250929';
 /** Cap per single extraction shot — receipts are short, no tool use. */
 const MAX_TOKENS = 2048;
 /** Default batch size when caller doesn't pass one. */
 const DEFAULT_BATCH_SIZE = 10;
-/** Sonnet 4.5/4.6 input pricing snapshot: $3/MTok in, $15/MTok out. */
+/** Sonnet 4.5/4.6 input pricing snapshot: $3/MTok in, $15/MTok out.
+ *  Used for the per-receipt `extraction_cost_cents` write. The
+ *  ai-usage-tracker singleton uses its own averaged constant for the
+ *  circuit breaker — close enough for breaker-decision purposes; the
+ *  per-row spend recorded here is the authoritative number for
+ *  bookkeeping. */
 const INPUT_PRICE_PER_MTOK = 3.0;
 const OUTPUT_PRICE_PER_MTOK = 15.0;
+
+/** Watchdog window for crashed-worker detection. A row sitting in
+ *  'running' state longer than this is considered abandoned and is
+ *  eligible for re-claim by a different worker. Five minutes is
+ *  generous — typical Vision calls complete in <10 s. */
+const STALE_RUNNING_MS = 5 * 60 * 1000;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -60,6 +73,43 @@ interface ReceiptRow {
   user_id: string;
   photo_url: string;
   extraction_status: string | null;
+}
+
+/** Fields the worker reads back before deciding what to overwrite —
+ *  see markDone(). Names match the column list in the .select() call. */
+interface ReceiptCurrentSnapshot {
+  vendor_name: string | null;
+  vendor_address: string | null;
+  transaction_at: string | null;
+  subtotal_cents: number | null;
+  tax_cents: number | null;
+  tip_cents: number | null;
+  total_cents: number | null;
+  payment_method: string | null;
+  payment_last4: string | null;
+  category: string | null;
+  category_source: string | null;
+  tax_deductible_flag: string | null;
+  notes: string | null;
+}
+
+/**
+ * Write `value` into `update[key]` only when the current row already
+ * has that field empty (NULL or empty string). Preserves any explicit
+ * edits made by the mobile owner or the bookkeeper between
+ * 'queued' and 'done'.
+ */
+function fillIfEmpty<K extends keyof ReceiptCurrentSnapshot>(
+  update: Record<string, unknown>,
+  current: Partial<ReceiptCurrentSnapshot>,
+  key: K,
+  value: ReceiptCurrentSnapshot[K] | null
+): void {
+  if (value === null || value === undefined) return;
+  const existing = current[key];
+  const isEmpty =
+    existing === null || existing === undefined || existing === '';
+  if (isEmpty) update[key] = value;
 }
 
 /** Plan §5.11.2 categories — must stay in sync with mobile RECEIPT_CATEGORIES. */
@@ -131,15 +181,16 @@ export async function processQueuedReceipts(
   const logger = options.logger ?? defaultLogger;
 
   // Pull a batch of rows that need extraction. Worth-doing-now =
-  // 'queued' OR (status='running' AND started_at older than 5 min,
-  // i.e. crashed mid-extraction). The 5-min watchdog catches workers
-  // that died before writing 'failed'.
-  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  // 'queued' OR (status='running' AND started_at older than the
+  // watchdog window, i.e. crashed mid-extraction). claimRow() repeats
+  // the same predicate atomically so two workers can't both grab the
+  // same row.
+  const staleBefore = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
   const { data: rows, error: fetchErr } = await supabase
     .from('receipts')
     .select('id, user_id, photo_url, extraction_status, extraction_started_at')
     .or(
-      `extraction_status.eq.queued,and(extraction_status.eq.running,extraction_started_at.lt.${fiveMinAgo})`
+      `extraction_status.eq.queued,and(extraction_status.eq.running,extraction_started_at.lt.${staleBefore})`
     )
     .order('created_at', { ascending: true })
     .limit(batchSize);
@@ -158,9 +209,10 @@ export async function processQueuedReceipts(
   const results: ExtractionResult[] = [];
 
   for (const row of rows as ReceiptRow[]) {
-    // Circuit breaker check — if open, leave the row queued and bail
-    // out of the batch entirely. Next poll will retry once the window
-    // resets.
+    // Coarse gate at the loop top — bail early when the breaker is
+    // already open. The fine-grained gate inside processOne re-checks
+    // immediately before the Vision call so cost ceilings are
+    // respected even after a slow photo download.
     const gate = tracker.canMakeCall();
     if (!gate.allowed) {
       logger.warn('circuit open, leaving row queued', {
@@ -188,21 +240,26 @@ async function processOne(
 ): Promise<ExtractionResult> {
   const startedAt = new Date().toISOString();
 
-  // 1. Mark 'running' so other workers (or watchdog re-runs) skip this
-  //    row. The ID is the dedup key — if two workers raced to here,
-  //    the second one's UPDATE wins but the eventual result is the
-  //    same row's extraction outcome.
-  const markRunningErr = await markRunning(supabase, row.id, startedAt);
-  if (markRunningErr) {
-    logger.warn('mark-running failed, skipping', {
+  // 1. Atomically claim the row. The UPDATE only succeeds when the
+  //    extraction_status is still 'queued' OR is a stale 'running'
+  //    older than the watchdog window. Two workers racing here: only
+  //    one's UPDATE sees a row in the eligible state; the other gets
+  //    zero rows back and bails out — preventing duplicate Vision
+  //    spend AND duplicate line_items writes.
+  const claimed = await claimRow(supabase, row.id, startedAt);
+  if (!claimed) {
+    logger.info('row already claimed by another worker — skipping', {
       receipt_id: row.id,
-      error: markRunningErr,
     });
-    return { receiptId: row.id, status: 'failed', error: markRunningErr };
+    return {
+      receiptId: row.id,
+      status: 'failed',
+      error: 'already claimed',
+    };
   }
 
-  // 2. Pull the photo via signed URL (the bucket is private — direct
-  //    .download() also works since we hold the service role key).
+  // 2. Pull the photo from the private bucket (service-role download
+  //    bypasses signed-URL machinery).
   let imageBuffer: Buffer;
   let mediaType: 'image/jpeg' | 'image/png' | 'image/webp';
   try {
@@ -210,17 +267,35 @@ async function processOne(
     imageBuffer = fetched.buffer;
     mediaType = fetched.mediaType;
   } catch (err) {
+    // Photo missing / permission denied: terminal. We do NOT record
+    // a Vision-call failure here — the breaker tracks AI spend, not
+    // storage outages. A run of bad photos shouldn't open the AI gate.
     const msg = err instanceof Error ? err.message : String(err);
     await markFailed(supabase, row.id, `photo fetch: ${msg}`);
-    tracker.record({
-      service: 'vision-ocr',
-      address: `receipt:${row.id}`,
-      success: false,
-    });
     return { receiptId: row.id, status: 'failed', error: msg };
   }
 
-  // 3. Call Claude Vision.
+  // 3. Re-check the gate immediately before the Vision call. Photo
+  //    download might have taken seconds; another row in the batch
+  //    could have just opened the breaker. Without this check, we
+  //    might spend on a call we should have skipped.
+  const gate = tracker.canMakeCall();
+  if (!gate.allowed) {
+    // Roll the row back to 'queued' so the next batch retries. Don't
+    // mark 'failed' — the breaker is a transient soft-stop.
+    await releaseClaim(supabase, row.id);
+    logger.warn('circuit open after photo fetch — releasing row', {
+      receipt_id: row.id,
+      reason: gate.reason,
+    });
+    return {
+      receiptId: row.id,
+      status: 'failed',
+      error: gate.reason ?? 'circuit open',
+    };
+  }
+
+  // 4. Call Claude Vision.
   let extracted: ExtractedReceipt;
   let inputTokens = 0;
   let outputTokens = 0;
@@ -312,19 +387,62 @@ async function processOne(
 
 // ── DB writes ─────────────────────────────────────────────────────────────────
 
-async function markRunning(
+/**
+ * Atomically claim a receipt row for extraction. Returns true when
+ * THIS worker won the race; false when another worker beat us to it
+ * (or the row state changed in some other way).
+ *
+ * The UPDATE clause is `WHERE id = ? AND (extraction_status = 'queued'
+ * OR (extraction_status = 'running' AND extraction_started_at < stale_threshold))`.
+ * Postgres serialises the UPDATE; only one transaction can flip a
+ * given row, so the .select() return shape is the source of truth.
+ */
+async function claimRow(
   supabase: SupabaseClient,
   receiptId: string,
   startedAt: string
-): Promise<string | null> {
-  const { error } = await supabase
+): Promise<boolean> {
+  const staleBefore = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
+  // The PostgREST `.or()` filter inside an UPDATE+select gives us the
+  // atomic claim semantics we need. If no row matches the predicate
+  // (because another worker already flipped it), the result data is
+  // empty and we know we lost.
+  const { data, error } = await supabase
     .from('receipts')
     .update({
       extraction_status: 'running',
       extraction_started_at: startedAt,
     })
-    .eq('id', receiptId);
-  return error ? error.message : null;
+    .eq('id', receiptId)
+    .or(`extraction_status.eq.queued,and(extraction_status.eq.running,extraction_started_at.lt.${staleBefore})`)
+    .select('id');
+
+  if (error) {
+    // Network / DB outage — treat as a lost race; the row is left in
+    // its prior state and a future poll will retry.
+    return false;
+  }
+  return Array.isArray(data) && data.length > 0;
+}
+
+/**
+ * Roll a row back to 'queued' so a future poll retries it. Used when
+ * the breaker opens after we've already claimed but before we made
+ * the Vision call — we don't want to leave the row stuck 'running'
+ * for the watchdog window.
+ */
+async function releaseClaim(
+  supabase: SupabaseClient,
+  receiptId: string
+): Promise<void> {
+  await supabase
+    .from('receipts')
+    .update({
+      extraction_status: 'queued',
+      extraction_started_at: null,
+    })
+    .eq('id', receiptId)
+    .eq('extraction_status', 'running');
 }
 
 async function markFailed(
@@ -350,30 +468,53 @@ async function markDone(
 ): Promise<string | null> {
   const completedAt = new Date().toISOString();
 
+  // Re-fetch the row before writing so we can fill ONLY fields the
+  // user (or bookkeeper) hasn't already edited. Without this, a user
+  // editing during the queued→running window has their input
+  // clobbered when extraction completes. Per-field source tracking
+  // would be cleaner; for v1 the COALESCE-on-null heuristic preserves
+  // explicit edits at the cost of overwriting empty re-extractions.
+  const { data: current, error: readErr } = await supabase
+    .from('receipts')
+    .select(
+      'vendor_name, vendor_address, transaction_at, subtotal_cents, ' +
+        'tax_cents, tip_cents, total_cents, payment_method, payment_last4, ' +
+        'category, category_source, tax_deductible_flag, notes'
+    )
+    .eq('id', row.id)
+    .single();
+  if (readErr) return `read-back failed: ${readErr.message}`;
+
+  const cur = (current ?? {}) as Partial<ReceiptCurrentSnapshot>;
+  const update: Record<string, unknown> = {
+    ai_confidence_per_field: extracted.confidence,
+    extraction_status: 'done',
+    extraction_completed_at: completedAt,
+    extraction_error: null,
+    extraction_cost_cents: costCents,
+  };
+
+  fillIfEmpty(update, cur, 'vendor_name', extracted.vendor_name);
+  fillIfEmpty(update, cur, 'vendor_address', extracted.vendor_address);
+  fillIfEmpty(update, cur, 'transaction_at', extracted.transaction_at);
+  fillIfEmpty(update, cur, 'subtotal_cents', extracted.subtotal_cents);
+  fillIfEmpty(update, cur, 'tax_cents', extracted.tax_cents);
+  fillIfEmpty(update, cur, 'tip_cents', extracted.tip_cents);
+  fillIfEmpty(update, cur, 'total_cents', extracted.total_cents);
+  fillIfEmpty(update, cur, 'payment_method', extracted.payment_method);
+  fillIfEmpty(update, cur, 'payment_last4', extracted.payment_last4);
+  fillIfEmpty(update, cur, 'tax_deductible_flag', extracted.tax_deductible_flag);
+
+  // Category is special: only fill when no human (mobile owner OR
+  // bookkeeper) has touched it. category_source tracks who set it.
+  if (extracted.category && cur.category_source !== 'user') {
+    update.category = extracted.category;
+    update.category_source = 'ai';
+  }
+
   const { error: updateErr } = await supabase
     .from('receipts')
-    .update({
-      vendor_name: extracted.vendor_name,
-      vendor_address: extracted.vendor_address,
-      transaction_at: extracted.transaction_at,
-      subtotal_cents: extracted.subtotal_cents,
-      tax_cents: extracted.tax_cents,
-      tip_cents: extracted.tip_cents,
-      total_cents: extracted.total_cents,
-      payment_method: extracted.payment_method,
-      payment_last4: extracted.payment_last4,
-      category: extracted.category,
-      // category_source='ai' so the bookkeeper can distinguish from
-      // user-edited values; an explicit user save flips it to 'user'
-      // (mobile useUpdateReceipt does this).
-      category_source: extracted.category ? 'ai' : null,
-      tax_deductible_flag: extracted.tax_deductible_flag,
-      ai_confidence_per_field: extracted.confidence,
-      extraction_status: 'done',
-      extraction_completed_at: completedAt,
-      extraction_error: null,
-      extraction_cost_cents: costCents,
-    })
+    .update(update)
     .eq('id', row.id);
 
   if (updateErr) return updateErr.message;

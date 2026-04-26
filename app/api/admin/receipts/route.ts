@@ -82,6 +82,25 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const jobId = searchParams.get('jobId');
   const limit = Math.max(1, Math.min(500, parseInt(searchParams.get('limit') ?? '100', 10)));
 
+  // When the bookkeeper filters by submitter email, resolve to the
+  // matching auth.users.id BEFORE running the Postgres query so the
+  // .limit applies to that user's receipts only. Without this, the
+  // .limit caps the org-wide result first and the email filter
+  // post-trims — which can return zero rows for valid users whose
+  // receipts are deeper than the cap.
+  let resolvedUserId: string | null | undefined = undefined;
+  if (email) {
+    resolvedUserId = await resolveUserIdByEmail(email);
+    if (!resolvedUserId) {
+      // No user with that email — return empty result but keep the
+      // counters shape so the UI doesn't blow up.
+      return NextResponse.json({
+        receipts: [],
+        counters: { pending: 0, approved: 0, rejected: 0, exported: 0, total: 0 },
+      });
+    }
+  }
+
   let query = supabaseAdmin
     .from('receipts')
     .select('*')
@@ -90,14 +109,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   if (status) query = query.eq('status', status);
   if (jobId) query = query.eq('job_id', jobId);
+  if (resolvedUserId) query = query.eq('user_id', resolvedUserId);
   if (from) {
-    // Bookkeeper "from" applies to the transaction date when present,
-    // else falls back to created_at. Postgres expression: greatest of
-    // either. PostgREST doesn't support .or-with-functions cleanly, so
-    // we filter on a single column — created_at — and then do a
-    // post-filter pass when transaction_at is set. Simpler: just
-    // filter created_at for v1; bookkeepers rarely care about a
-    // single-day boundary cliff.
+    // Date filter applies to created_at only — see the in-line note
+    // on the export route for the reasoning. Bookkeepers rarely care
+    // about a single-day boundary cliff.
     query = query.gte('created_at', `${from}T00:00:00.000Z`);
   }
   if (to) {
@@ -120,15 +136,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const jobIds = unique(receiptRows.map((r) => r.job_id).filter(isString));
   const jobMap = await buildJobLookup(jobIds);
 
-  // Optional email filter — apply post-fetch since the column lives
-  // in auth.users, not receipts.
-  let filtered = receiptRows;
-  if (email) {
-    const lower = email.toLowerCase();
-    filtered = filtered.filter(
-      (r) => userMap.get(r.user_id ?? '')?.email?.toLowerCase() === lower
-    );
-  }
+  // (No more post-filter — resolvedUserId already constrained the query.)
+  const filtered = receiptRows;
 
   // Generate signed photo URLs in parallel. Failure is non-fatal —
   // the row still renders with a "photo unavailable" placeholder.
@@ -170,6 +179,23 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     counters,
   });
 });
+
+/**
+ * Lookup a single auth.users.id by email. Returns null when no user
+ * matches. Used by the email filter so we can constrain the Postgres
+ * query BEFORE the LIMIT runs — see comment on the call site.
+ */
+async function resolveUserIdByEmail(email: string): Promise<string | null> {
+  const lower = email.trim().toLowerCase();
+  if (!lower) return null;
+  const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+  if (error || !data) return null;
+  const match = data.users.find((u) => u.email?.toLowerCase() === lower);
+  return match?.id ?? null;
+}
 
 interface UserInfo {
   email: string | null;

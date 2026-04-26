@@ -31,20 +31,5 @@ declare namespace NodeJS {
      * write-only identifier, not a secret).
      */
     EXPO_PUBLIC_SENTRY_DSN?: string;
-
-    /**
-     * Worker base URL (e.g. https://worker.starrsurveying.com or a
-     * dev tunnel). Used by retryReceiptExtraction to ask the worker
-     * to re-run AI extraction on a single receipt.
-     */
-    EXPO_PUBLIC_WORKER_URL?: string;
-
-    /**
-     * Bearer token matching the worker's WORKER_API_KEY env var.
-     * Treated as semi-secret — not as sensitive as a Supabase service
-     * key, but still scoped to one app install. Rotate via
-     * EAS Build profile if a device is lost.
-     */
-    EXPO_PUBLIC_WORKER_API_KEY?: string;
   }
 }

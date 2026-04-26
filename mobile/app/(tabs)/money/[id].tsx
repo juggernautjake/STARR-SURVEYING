@@ -68,10 +68,25 @@ export default function ReceiptDetailScreen() {
     return <NotFound palette={palette} onBack={() => router.back()} />;
   }
 
-  // Remount the form whenever the receipt id changes — initial state
-  // reads directly from `receipt` instead of mirroring it via useEffect.
-  // Same pattern used by the time-edit screen.
-  return <ReceiptForm key={receipt.id} receipt={receipt} palette={palette} />;
+  // Remount the form on two transitions:
+  //   - the receipt id changes (user navigates between rows)
+  //   - the AI pipeline reaches a terminal state ('done' / 'failed')
+  //     after starting in 'queued' / 'running'. Without the second
+  //     trigger, a user sitting on the edit screen during extraction
+  //     never sees the AI-filled vendor / total — the form state was
+  //     initialised when the row was empty.
+  const extractionPhase =
+    receipt.extraction_status === 'done' ||
+    receipt.extraction_status === 'failed'
+      ? 'final'
+      : 'pending';
+  return (
+    <ReceiptForm
+      key={`${receipt.id}:${extractionPhase}`}
+      receipt={receipt}
+      palette={palette}
+    />
+  );
 }
 
 interface ReceiptFormProps {
@@ -134,20 +149,53 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
     }
     setError(null);
 
-    const patch: ReceiptPatch = {
-      vendor_name: vendorName.trim() || null,
-      vendor_address: vendorAddress.trim() || null,
-      transaction_at: transactionAt,
-      subtotal_cents: parseCents(subtotalText),
-      tax_cents: parseCents(taxText),
-      tip_cents: parseCents(tipText),
-      total_cents: parseCents(totalText),
-      payment_method: paymentMethod.trim() || null,
-      payment_last4: paymentLast4.trim() || null,
-      category,
-      tax_deductible_flag: taxFlag,
-      notes: notes.trim() || null,
-    };
+    // Build a patch with ONLY the fields that changed. Two reasons:
+    //  1. category_source flips to 'user' whenever the patch includes
+    //     `category` — sending the AI's value back unchanged would
+    //     defeat the bookkeeper's "needs review" badge.
+    //  2. Smaller patches mean fewer writes through the PowerSync
+    //     queue, which matters on flaky LTE.
+    const patch: ReceiptPatch = {};
+    const newVendor = vendorName.trim() || null;
+    if (newVendor !== (receipt.vendor_name ?? null)) patch.vendor_name = newVendor;
+    const newVendorAddr = vendorAddress.trim() || null;
+    if (newVendorAddr !== (receipt.vendor_address ?? null)) {
+      patch.vendor_address = newVendorAddr;
+    }
+    if (transactionAt !== (receipt.transaction_at ?? null)) {
+      patch.transaction_at = transactionAt;
+    }
+    const newSubtotal = parseCents(subtotalText);
+    if (newSubtotal !== (receipt.subtotal_cents ?? null)) {
+      patch.subtotal_cents = newSubtotal;
+    }
+    const newTax = parseCents(taxText);
+    if (newTax !== (receipt.tax_cents ?? null)) patch.tax_cents = newTax;
+    const newTip = parseCents(tipText);
+    if (newTip !== (receipt.tip_cents ?? null)) patch.tip_cents = newTip;
+    const newTotal = parseCents(totalText);
+    if (newTotal !== (receipt.total_cents ?? null)) patch.total_cents = newTotal;
+    const newPayment = paymentMethod.trim() || null;
+    if (newPayment !== (receipt.payment_method ?? null)) {
+      patch.payment_method = newPayment;
+    }
+    const newLast4 = paymentLast4.trim() || null;
+    if (newLast4 !== (receipt.payment_last4 ?? null)) {
+      patch.payment_last4 = newLast4;
+    }
+    const currentCategory = (receipt.category as ReceiptCategory | null) ?? null;
+    if (category !== currentCategory) patch.category = category;
+    if (taxFlag !== (receipt.tax_deductible_flag ?? null)) {
+      patch.tax_deductible_flag = taxFlag;
+    }
+    const newNotes = notes.trim() || null;
+    if (newNotes !== (receipt.notes ?? null)) patch.notes = newNotes;
+
+    if (Object.keys(patch).length === 0) {
+      // Nothing changed — bail without a network round-trip.
+      router.back();
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -163,10 +211,12 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
   const onRetryExtraction = async () => {
     setRetrying(true);
     try {
-      await retryReceiptExtraction(receipt.id);
+      const requeued = await retryReceiptExtraction(receipt.id);
       Alert.alert(
-        'Retrying',
-        'AI extraction has been re-queued. The form will refresh in a few seconds.'
+        requeued ? 'Retrying' : 'Already queued',
+        requeued
+          ? 'AI extraction has been re-queued. The form will refresh when it completes.'
+          : 'This receipt is already pending extraction or finished. Pull down to refresh if the fields look stale.'
       );
     } catch (err) {
       Alert.alert('Retry failed', (err as Error).message);

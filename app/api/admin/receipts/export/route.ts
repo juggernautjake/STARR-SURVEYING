@@ -94,6 +94,29 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     Math.max(1, parseInt(searchParams.get('limit') ?? '5000', 10))
   );
 
+  // Resolve email filter to a user_id BEFORE the query so the LIMIT
+  // applies to that user's receipts only. Without this, the post-fetch
+  // filter could return zero rows even for valid users whose receipts
+  // are deeper in the org-wide ordering than the cap.
+  let resolvedUserId: string | null = null;
+  if (email) {
+    resolvedUserId = await resolveUserIdByEmail(email);
+    if (!resolvedUserId) {
+      // No user matches — emit a CSV with just the header so the
+      // bookkeeper sees an empty download instead of a 500.
+      const empty = HEADERS.join(',') + '\n';
+      const filename = `starr-field-receipts-${dateRangeSlug(from, to)}-empty.csv`;
+      return new NextResponse(empty, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+  }
+
   let query = supabaseAdmin
     .from('receipts')
     .select('*')
@@ -102,6 +125,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   if (status) query = query.eq('status', status);
   if (jobId) query = query.eq('job_id', jobId);
+  if (resolvedUserId) query = query.eq('user_id', resolvedUserId);
   if (from) query = query.gte('created_at', `${from}T00:00:00.000Z`);
   if (to) query = query.lte('created_at', `${to}T23:59:59.999Z`);
 
@@ -109,7 +133,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  let receiptRows = (rows ?? []) as ReceiptRow[];
+  const receiptRows = (rows ?? []) as ReceiptRow[];
 
   // Pull user + job lookups in two bulk queries so we don't N+1.
   const userIds = unique(receiptRows.map((r) => r.user_id).filter(isString));
@@ -128,13 +152,6 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // Merge — same surveyor approving their own receipts (rare) reuses
   // the userMap entry.
   for (const [k, v] of approverMap.entries()) userMap.set(k, v);
-
-  if (email) {
-    const lower = email.toLowerCase();
-    receiptRows = receiptRows.filter(
-      (r) => userMap.get(r.user_id ?? '')?.email?.toLowerCase() === lower
-    );
-  }
 
   const lines: string[] = [HEADERS.join(',')];
   for (const r of receiptRows) {
@@ -192,6 +209,18 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function resolveUserIdByEmail(email: string): Promise<string | null> {
+  const lower = email.trim().toLowerCase();
+  if (!lower) return null;
+  const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+  if (error || !data) return null;
+  const match = data.users.find((u) => u.email?.toLowerCase() === lower);
+  return match?.id ?? null;
+}
 
 interface UserInfo {
   email: string | null;

@@ -155,12 +155,20 @@ export function useCaptureReceipt(): (
       //    the worker to pick it up.
       const nowIso = new Date().toISOString();
       try {
+        // client_id is intentionally NOT set on receipts. PowerSync's
+        // CRUD queue replays the INSERT with the same `id` UUID, and
+        // Postgres' PK constraint dedups. Setting client_id = receiptId
+        // (a freshly generated UUID per call) would defeat the
+        // UNIQUE(user_id, client_id) constraint anyway since two retries
+        // of the SAME logical capture (e.g. crash mid-INSERT) would
+        // produce different client_ids. The PK-as-dedup-key approach
+        // is simpler and equivalent.
         await db.execute(
           `INSERT INTO receipts (
              id, user_id, job_id, job_time_entry_id,
              photo_url, status, extraction_status,
-             client_id, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             receiptId,
             userId,
@@ -169,7 +177,6 @@ export function useCaptureReceipt(): (
             storagePath,
             'pending',
             'queued',
-            receiptId,
             nowIso,
             nowIso,
           ]
@@ -596,52 +603,53 @@ export function useDeleteReceipt(): (receipt: Receipt) => Promise<void> {
 }
 
 /**
- * Ask the worker to (re-)run AI extraction on a single receipt. Used
- * by the "Retry AI extraction" button after a failed extraction.
+ * Re-queue a failed receipt for AI extraction. The worker's --watch
+ * loop (or the on-demand admin endpoint) will pick the row up on the
+ * next poll cycle (~30 s by default).
  *
- * The endpoint is open-ended: posting with no receiptId just flushes
- * the queue. With a receiptId, the server first re-queues that row
- * (only if currently 'failed') and then runs the batch.
+ * Implementation note: this used to call the worker's
+ * /starr-field/receipts/extract endpoint with a bundled
+ * EXPO_PUBLIC_WORKER_API_KEY bearer token. That key would have been
+ * shipped inside the JS bundle, letting anyone with the IPA/APK
+ * trigger Vision spend on arbitrary rows. Per the F2 audit we now
+ * flip extraction_status directly via the user's Supabase session,
+ * which is RLS-scoped to their own receipts. The worker poll picks
+ * up the requeue.
  *
- * Auth uses the EXPO_PUBLIC_WORKER_API_KEY bearer token that's already
- * configured for STARR RECON. EXPO_PUBLIC_WORKER_URL points at the
- * DigitalOcean droplet (or a tunnel during dev).
+ * Returns true when the row transitioned from 'failed' → 'queued',
+ * false when the row was already in another state (already queued,
+ * running, or done — caller alerts).
  */
-export async function retryReceiptExtraction(receiptId: string): Promise<void> {
-  const baseUrl = process.env.EXPO_PUBLIC_WORKER_URL;
-  const apiKey = process.env.EXPO_PUBLIC_WORKER_API_KEY;
-  if (!baseUrl || !apiKey) {
-    const err = new Error(
-      'Worker URL or API key not configured. Set EXPO_PUBLIC_WORKER_URL and EXPO_PUBLIC_WORKER_API_KEY.'
-    );
-    logError('receipts.retryExtraction', 'config missing', err);
-    throw err;
-  }
-
+export async function retryReceiptExtraction(receiptId: string): Promise<boolean> {
   logInfo('receipts.retryExtraction', 'attempt', { receipt_id: receiptId });
 
-  const response = await fetch(`${baseUrl}/starr-field/receipts/extract`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({ receiptId, batchSize: 1 }),
-  });
+  // Only flip when currently 'failed' so we don't trample an in-flight
+  // extraction. The .eq filter combined with .select makes this an
+  // atomic "claim if eligible" operation.
+  const { data, error } = await supabase
+    .from('receipts')
+    .update({
+      extraction_status: 'queued',
+      extraction_started_at: null,
+      extraction_completed_at: null,
+      extraction_error: null,
+    })
+    .eq('id', receiptId)
+    .eq('extraction_status', 'failed')
+    .select('id');
 
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    const err = new Error(
-      `Worker rejected the request (${response.status}): ${text || 'no body'}`
-    );
-    logError('receipts.retryExtraction', 'worker error', err, {
+  if (error) {
+    logError('receipts.retryExtraction', 'requeue failed', error, {
       receipt_id: receiptId,
-      status: response.status,
     });
-    throw err;
+    throw new Error(error.message);
   }
 
-  logInfo('receipts.retryExtraction', 'kicked off', { receipt_id: receiptId });
+  const flipped = Array.isArray(data) && data.length > 0;
+  logInfo('receipts.retryExtraction', flipped ? 'requeued' : 'no-op (already queued/running)', {
+    receipt_id: receiptId,
+  });
+  return flipped;
 }
 
 /**

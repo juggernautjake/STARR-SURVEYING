@@ -62,7 +62,13 @@ CREATE TABLE IF NOT EXISTS receipts (
   -- to the AI-classified stop the user was at when the receipt was
   -- snapped. Both nullable — F2 #2 only sets job_time_entry_id (the
   -- stop classifier lands in F6).
-  job_time_entry_id        UUID,
+  --
+  -- ON DELETE SET NULL because deleting a time entry shouldn't cascade-
+  -- delete the receipt — payroll still wants the expense recorded even
+  -- if the time slice was reorganised. location_stop_id intentionally
+  -- has NO FK yet; the location_stops table lands in seeds/222 (Phase
+  -- F6). Add the constraint there.
+  job_time_entry_id        UUID REFERENCES job_time_entries(id) ON DELETE SET NULL,
   location_stop_id         UUID,
 
   -- AI-extracted (writable by user as well — `category_source` records
@@ -276,9 +282,43 @@ DO $$ BEGIN
   CREATE POLICY receipts_owner_update ON receipts
     FOR UPDATE TO authenticated
     USING (user_id = auth.uid() AND status IN ('pending','rejected'))
-    WITH CHECK (user_id = auth.uid() AND status IN ('pending','rejected'));
+    WITH CHECK (
+      user_id = auth.uid()
+      AND status IN ('pending','rejected')
+      -- Defence in depth: surveyors can never spoof an approval on
+      -- their own receipt. Only the bookkeeper (via service_role) can
+      -- stamp these. RLS WITH CHECK enforces this at write time.
+      AND approved_by IS NULL
+      AND approved_at IS NULL
+    );
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- Column-level UPDATE allowlist for the `authenticated` role.
+-- RLS already restricts WHICH rows an owner can update; this layer
+-- restricts WHICH columns. Admin / bookkeeper writes go through the
+-- service_role and bypass both.
+--
+-- Columns NOT in the allowlist (owners cannot touch):
+--   - status, approved_by, approved_at, rejected_reason
+--     (workflow state — bookkeeper-only)
+--   - extraction_cost_cents, ai_confidence_per_field
+--     (worker-only outputs; surveyors could spoof "AI says $0.00 cost")
+--   - created_at (immutable)
+DO $$ BEGIN
+  REVOKE UPDATE ON receipts FROM authenticated;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+GRANT UPDATE (
+  vendor_name, vendor_address, transaction_at,
+  subtotal_cents, tax_cents, tip_cents, total_cents,
+  payment_method, payment_last4,
+  category, category_source, tax_deductible_flag,
+  notes, job_id, job_time_entry_id, location_stop_id,
+  extraction_status, extraction_started_at, extraction_completed_at,
+  extraction_error,
+  updated_at, client_id
+) ON receipts TO authenticated;
 
 -- Line items inherit access via parent receipt.
 DO $$ BEGIN
