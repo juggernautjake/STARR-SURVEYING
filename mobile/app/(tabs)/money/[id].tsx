@@ -25,6 +25,7 @@ import {
   type Receipt,
   type ReceiptCategory,
   type ReceiptPatch,
+  retryReceiptExtraction,
   useDeleteReceipt,
   useReceipt,
   useReceiptPhotoUrl,
@@ -110,6 +111,7 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
   const [notes, setNotes] = useState<string>(receipt.notes ?? '');
 
   const [submitting, setSubmitting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -155,6 +157,21 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
       Alert.alert('Save failed', (err as Error).message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const onRetryExtraction = async () => {
+    setRetrying(true);
+    try {
+      await retryReceiptExtraction(receipt.id);
+      Alert.alert(
+        'Retrying',
+        'AI extraction has been re-queued. The form will refresh in a few seconds.'
+      );
+    } catch (err) {
+      Alert.alert('Retry failed', (err as Error).message);
+    } finally {
+      setRetrying(false);
     }
   };
 
@@ -423,6 +440,21 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
             />
           </View>
 
+          {/* Retry AI extraction (only when extraction failed) */}
+          {!locked && receipt.extraction_status === 'failed' ? (
+            <>
+              <Button
+                variant="secondary"
+                label="Retry AI extraction"
+                onPress={onRetryExtraction}
+                loading={retrying}
+                disabled={submitting}
+                accessibilityHint="Re-runs Claude Vision on this receipt's photo."
+              />
+              <View style={styles.deleteSpacer} />
+            </>
+          ) : null}
+
           {/* Save / Delete */}
           {locked ? null : (
             <>
@@ -430,7 +462,7 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
                 label="Save"
                 onPress={onSave}
                 loading={submitting}
-                disabled={!totalsValid}
+                disabled={!totalsValid || retrying}
                 accessibilityHint="Saves your edits to this receipt."
               />
               <View style={styles.deleteSpacer} />
@@ -438,7 +470,7 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
                 variant="danger"
                 label="Delete receipt"
                 onPress={onDelete}
-                disabled={submitting}
+                disabled={submitting || retrying}
                 accessibilityHint="Removes the receipt and its photo. The audit trail is not preserved."
               />
             </>

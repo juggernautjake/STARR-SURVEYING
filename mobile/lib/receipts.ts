@@ -520,6 +520,55 @@ export function useDeleteReceipt(): (receipt: Receipt) => Promise<void> {
 }
 
 /**
+ * Ask the worker to (re-)run AI extraction on a single receipt. Used
+ * by the "Retry AI extraction" button after a failed extraction.
+ *
+ * The endpoint is open-ended: posting with no receiptId just flushes
+ * the queue. With a receiptId, the server first re-queues that row
+ * (only if currently 'failed') and then runs the batch.
+ *
+ * Auth uses the EXPO_PUBLIC_WORKER_API_KEY bearer token that's already
+ * configured for STARR RECON. EXPO_PUBLIC_WORKER_URL points at the
+ * DigitalOcean droplet (or a tunnel during dev).
+ */
+export async function retryReceiptExtraction(receiptId: string): Promise<void> {
+  const baseUrl = process.env.EXPO_PUBLIC_WORKER_URL;
+  const apiKey = process.env.EXPO_PUBLIC_WORKER_API_KEY;
+  if (!baseUrl || !apiKey) {
+    const err = new Error(
+      'Worker URL or API key not configured. Set EXPO_PUBLIC_WORKER_URL and EXPO_PUBLIC_WORKER_API_KEY.'
+    );
+    logError('receipts.retryExtraction', 'config missing', err);
+    throw err;
+  }
+
+  logInfo('receipts.retryExtraction', 'attempt', { receipt_id: receiptId });
+
+  const response = await fetch(`${baseUrl}/starr-field/receipts/extract`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ receiptId, batchSize: 1 }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    const err = new Error(
+      `Worker rejected the request (${response.status}): ${text || 'no body'}`
+    );
+    logError('receipts.retryExtraction', 'worker error', err, {
+      receipt_id: receiptId,
+      status: response.status,
+    });
+    throw err;
+  }
+
+  logInfo('receipts.retryExtraction', 'kicked off', { receipt_id: receiptId });
+}
+
+/**
  * Resolve a receipts.photo_url (a storage path) to a signed URL. The
  * URL is valid for 15 minutes; if it expires while the user is staring
  * at the screen, the next render generates a fresh one.

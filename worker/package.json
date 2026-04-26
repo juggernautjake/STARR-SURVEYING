@@ -10,7 +10,8 @@
     "dev": "tsc --watch & node --watch dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "extract-receipts": "node dist/cli/extract-receipts.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
