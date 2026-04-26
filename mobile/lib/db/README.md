@@ -122,12 +122,18 @@ bucket_definitions:
       - SELECT * FROM receipts          WHERE user_id    = bucket.user_id
       # Admin → user pings (resilience batch). seeds/222 adds the
       # target_user_id UUID column to the existing notifications
-      # table so this scoping works without an email join. The
-      # filter excludes dismissed / expired rows so old reminders
-      # don't keep replaying to the device.
+      # table so this scoping works without an email join. We OR on
+      # user_email as a belt-and-braces fallback for rows where the
+      # trigger hadn't yet back-filled target_user_id (a race-window
+      # of <1 ms in practice, but cheap to cover). The filter
+      # excludes dismissed / expired rows so old reminders don't
+      # keep replaying to the device.
       - SELECT * FROM notifications
-          WHERE target_user_id = bucket.user_id
-            AND is_dismissed   = false
+          WHERE (
+              target_user_id = bucket.user_id
+              OR LOWER(user_email) = LOWER(bucket.user_email)
+            )
+            AND is_dismissed = false
             AND (expires_at IS NULL OR expires_at > now())
 
   by_company:

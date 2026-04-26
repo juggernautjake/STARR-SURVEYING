@@ -16,7 +16,7 @@
 // hard reload.
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 
 interface ActiveEntry {
@@ -88,6 +88,19 @@ export default function TeamPage() {
   );
   const [pinging, setPinging] = useState<string | null>(null);
   const [pingResult, setPingResult] = useState<string>('');
+  const [pingError, setPingError] = useState<boolean>(false);
+  // Track the toast-clear timeout so we can cancel it on unmount or
+  // when a new ping replaces the previous toast (otherwise an old
+  // setTimeout could clear the new toast prematurely).
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup on unmount — clear pending timers so we don't setState
+  // on an unmounted component (React 18 warns about this).
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   const fetchTeam = useCallback(async () => {
     try {
@@ -132,8 +145,18 @@ export default function TeamPage() {
       email: string,
       kind: 'log_hours' | 'submit_week' | 'admin_direct'
     ) => {
+      // Cancel any pending toast-clear so the new toast gets its full
+      // visibility window even if the previous one hadn't expired.
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+
       setPinging(email);
       setPingResult('');
+      setPingError(false);
+      let nextResult = '';
+      let isError = false;
       try {
         const res = await fetch('/api/admin/notifications', {
           method: 'POST',
@@ -145,19 +168,28 @@ export default function TeamPage() {
         });
         const json = await res.json().catch(() => null);
         if (!res.ok) {
-          throw new Error(json?.error ?? 'Failed to send ping');
+          throw new Error(json?.error ?? `Failed to send ping (HTTP ${res.status})`);
         }
-        setPingResult(`Pinged ${email}`);
+        nextResult = json?.deduped
+          ? `Already pinged ${email} recently — refreshed the existing reminder.`
+          : `Pinged ${email}`;
         // Refresh so the "last reminded" column updates.
         await fetchTeam();
       } catch (err) {
-        setPingResult(
-          err instanceof Error ? err.message : 'Failed to send ping'
-        );
+        nextResult =
+          err instanceof Error ? err.message : 'Failed to send ping';
+        isError = true;
       } finally {
+        setPingResult(nextResult);
+        setPingError(isError);
         setPinging(null);
-        // Auto-clear the toast after 4 s.
-        setTimeout(() => setPingResult(''), 4000);
+        // Auto-clear the toast after 4 s; track the timer so unmount
+        // cleanup can cancel it.
+        toastTimerRef.current = setTimeout(() => {
+          setPingResult('');
+          setPingError(false);
+          toastTimerRef.current = null;
+        }, 4000);
       }
     },
     [fetchTeam]
@@ -211,7 +243,15 @@ export default function TeamPage() {
       </nav>
 
       {error ? <div style={styles.error}>{error}</div> : null}
-      {pingResult ? <div style={styles.toast}>{pingResult}</div> : null}
+      {pingResult ? (
+        <div
+          style={pingError ? styles.toastError : styles.toast}
+          role={pingError ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          {pingResult}
+        </div>
+      ) : null}
 
       {loading ? (
         <div style={styles.empty}>Loading…</div>
@@ -422,6 +462,15 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#ECFDF5',
     border: '1px solid #067647',
     color: '#067647',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    fontSize: 13,
+  },
+  toastError: {
+    background: '#FEF2F2',
+    border: '1px solid #B42318',
+    color: '#B42318',
     padding: 12,
     borderRadius: 8,
     marginBottom: 12,

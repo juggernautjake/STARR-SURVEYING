@@ -89,18 +89,37 @@ END $$;
 -- email changes. The web admin's notify() helper inserts rows with
 -- user_email only — this trigger fills target_user_id automatically so
 -- mobile sync rules don't need every web call site updated.
+--
+-- SECURITY DEFINER: the trigger reads auth.users.email which the
+-- 'authenticated' role can't query directly. Without DEFINER any
+-- future role with INSERT privilege but no auth.users access would
+-- fail the trigger (and thus the insert). The function only writes
+-- target_user_id — no other side effects — so the elevated read is
+-- bounded.
 CREATE OR REPLACE FUNCTION notifications_sync_target_user_id()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
 BEGIN
   IF NEW.target_user_id IS NULL AND NEW.user_email IS NOT NULL THEN
+    -- Case-insensitive match: the web admin has historically allowed
+    -- mixed-case emails, while Supabase auth.users.email is normalised
+    -- lowercase. A literal '=' would silently miss those users.
     SELECT id INTO NEW.target_user_id
       FROM auth.users
-     WHERE email = NEW.user_email
+     WHERE LOWER(email) = LOWER(NEW.user_email)
      LIMIT 1;
   END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Lock down execution so only the roles that actually insert (web
+-- admin = service_role, future dispatcher functions) can call it.
+REVOKE ALL ON FUNCTION notifications_sync_target_user_id() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION notifications_sync_target_user_id()
+  TO service_role, authenticated;
 
 DROP TRIGGER IF EXISTS notifications_sync_target_user_id_trg ON notifications;
 CREATE TRIGGER notifications_sync_target_user_id_trg

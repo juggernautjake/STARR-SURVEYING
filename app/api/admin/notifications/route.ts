@@ -164,6 +164,30 @@ const KIND_DEFAULTS: Record<
   },
 };
 
+// Validation caps — generous but bounded so a typo or paste-error
+// doesn't insert garbage. The mobile banner truncates to 1 line of
+// title + 2 lines of body anyway.
+const MAX_TITLE_LEN = 200;
+const MAX_BODY_LEN = 2000;
+const MAX_LINK_LEN = 1000;
+const VALID_ESCALATIONS = new Set([
+  'low',
+  'normal',
+  'high',
+  'urgent',
+  'critical',
+]);
+
+// Server-side dedup window for log_hours/submit_week reminders. If the
+// admin clicks Ping twice in rapid succession (or two dispatchers ping
+// the same user), we re-stamp the existing unread row's created_at +
+// expires_at instead of inserting a duplicate. Mobile then sees a
+// single banner — the user isn't bombarded with five "log your hours"
+// notifications. admin_direct messages are NEVER deduped (each one is
+// a distinct admin authored message).
+const DEDUP_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+const DEDUP_KINDS = new Set(['log_hours', 'submit_week']);
+
 export const POST = withErrorHandler(
   async (req: NextRequest) => {
     const session = await auth();
@@ -171,7 +195,16 @@ export const POST = withErrorHandler(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
+    let body: Record<string, unknown>;
+    try {
+      body = (await req.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid JSON body' },
+        { status: 400 }
+      );
+    }
+
     const targetEmail =
       typeof body.target_user_email === 'string'
         ? body.target_user_email.toLowerCase().trim()
@@ -182,35 +215,113 @@ export const POST = withErrorHandler(
         { status: 400 }
       );
     }
+    if (targetEmail.length > 320 || !/^[^\s@]+@[^\s@]+$/.test(targetEmail)) {
+      return NextResponse.json(
+        { error: 'target_user_email is malformed' },
+        { status: 400 }
+      );
+    }
 
-    const kind = body.kind as LogHoursKind | undefined;
-    const defaults =
-      kind && KIND_DEFAULTS[kind] ? KIND_DEFAULTS[kind] : null;
+    const kindRaw = body.kind;
+    const kind: LogHoursKind | undefined =
+      typeof kindRaw === 'string' && kindRaw in KIND_DEFAULTS
+        ? (kindRaw as LogHoursKind)
+        : undefined;
+    if (kindRaw && !kind) {
+      return NextResponse.json(
+        {
+          error: `Unknown kind. Allowed: ${Object.keys(KIND_DEFAULTS).join(
+            ', '
+          )}`,
+        },
+        { status: 400 }
+      );
+    }
+    const defaults = kind ? KIND_DEFAULTS[kind] : null;
 
-    // Title is required (either from kind defaults or explicit body).
-    const title: string =
+    // Title required (either from kind defaults or explicit body).
+    const titleRaw =
       typeof body.title === 'string' && body.title.trim()
         ? body.title.trim()
         : defaults?.title ?? '';
-    if (!title) {
+    if (!titleRaw) {
       return NextResponse.json(
         { error: 'title (or a known kind) is required' },
         { status: 400 }
       );
     }
+    if (titleRaw.length > MAX_TITLE_LEN) {
+      return NextResponse.json(
+        { error: `title exceeds ${MAX_TITLE_LEN} characters` },
+        { status: 400 }
+      );
+    }
+    const title = titleRaw;
 
-    const messageBody: string | null =
-      typeof body.body === 'string' ? body.body : defaults?.body ?? null;
-    const link: string | null =
-      typeof body.link === 'string'
-        ? body.link
-        : defaults?.link ?? null;
+    // Optional fields — coerce + validate each.
+    let messageBody: string | null = null;
+    if (typeof body.body === 'string') {
+      if (body.body.length > MAX_BODY_LEN) {
+        return NextResponse.json(
+          { error: `body exceeds ${MAX_BODY_LEN} characters` },
+          { status: 400 }
+        );
+      }
+      messageBody = body.body;
+    } else if (defaults) {
+      messageBody = defaults.body;
+    }
+
+    let link: string | null = null;
+    if (typeof body.link === 'string') {
+      if (body.link.length > MAX_LINK_LEN) {
+        return NextResponse.json(
+          { error: `link exceeds ${MAX_LINK_LEN} characters` },
+          { status: 400 }
+        );
+      }
+      link = body.link;
+    } else if (defaults) {
+      link = defaults.link;
+    }
+
     const escalation: string =
       typeof body.escalation_level === 'string'
         ? body.escalation_level
         : defaults?.escalation_level ?? 'normal';
-    const expiresAt: string | null =
-      typeof body.expires_at === 'string' ? body.expires_at : null;
+    if (!VALID_ESCALATIONS.has(escalation)) {
+      return NextResponse.json(
+        {
+          error: `escalation_level must be one of ${Array.from(
+            VALID_ESCALATIONS
+          ).join(', ')}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    let expiresAt: string;
+    if (typeof body.expires_at === 'string') {
+      const parsed = Date.parse(body.expires_at);
+      if (!Number.isFinite(parsed)) {
+        return NextResponse.json(
+          { error: 'expires_at is not a valid ISO timestamp' },
+          { status: 400 }
+        );
+      }
+      // Don't allow setting an expiry in the past — that would make
+      // the row invisible from the moment of insert.
+      if (parsed <= Date.now()) {
+        return NextResponse.json(
+          { error: 'expires_at must be in the future' },
+          { status: 400 }
+        );
+      }
+      expiresAt = new Date(parsed).toISOString();
+    } else {
+      // Default 24-hour expiry for ephemeral pings.
+      expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    }
 
     // Verify the target exists in registered_users so we don't insert
     // a notification for an unknown email (which would never be read).
@@ -232,6 +343,66 @@ export const POST = withErrorHandler(
       );
     }
 
+    // Server-side dedup for log_hours / submit_week. If the admin
+    // pings twice in quick succession, refresh the existing unread
+    // row's timestamps instead of inserting a dupe. We still return
+    // the row so the admin sees the same delivered/read indicators
+    // that drive the Team page UI.
+    if (kind && DEDUP_KINDS.has(kind)) {
+      const since = new Date(Date.now() - DEDUP_WINDOW_MS).toISOString();
+      const { data: existing } = await supabaseAdmin
+        .from('notifications')
+        .select(
+          'id, user_email, target_user_id, source_type, created_at'
+        )
+        .eq('user_email', targetEmail)
+        .eq('source_type', defaults?.source_type ?? '')
+        .eq('is_read', false)
+        .eq('is_dismissed', false)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existing?.id) {
+        // Bump created_at so it bubbles to the top of the user's
+        // inbox, and reset delivered_at so the device re-fires the
+        // OS banner (the dispatcher clicked Ping a second time
+        // because the first didn't get through). expires_at also
+        // refreshed so the row doesn't age out under the user.
+        const nowIso = new Date().toISOString();
+        const { data: bumped, error: bumpErr } = await supabaseAdmin
+          .from('notifications')
+          .update({
+            created_at: nowIso,
+            delivered_at: null,
+            expires_at: expiresAt,
+            // If the dispatcher tweaked title/body in a follow-up
+            // ping, take the new copy.
+            title,
+            body: messageBody,
+            link,
+            escalation_level: escalation,
+          })
+          .eq('id', existing.id)
+          .select(
+            'id, user_email, target_user_id, source_type, created_at'
+          )
+          .single();
+        if (bumpErr) {
+          return NextResponse.json(
+            { error: bumpErr.message },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json({
+          success: true,
+          notification: bumped,
+          deduped: true,
+        });
+      }
+    }
+
     const insertRow: Record<string, unknown> = {
       user_email: targetEmail,
       type: defaults?.type ?? 'system',
@@ -241,12 +412,7 @@ export const POST = withErrorHandler(
       icon: defaults?.icon ?? null,
       link,
       escalation_level: escalation,
-      // Default 24-hour expiry for ephemeral pings — caller can
-      // override. log_hours / submit_week reminders age out so the
-      // mobile inbox doesn't accumulate stale rows.
-      expires_at:
-        expiresAt ??
-        new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      expires_at: expiresAt,
     };
 
     const { data, error } = await supabaseAdmin

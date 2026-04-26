@@ -38,20 +38,40 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 /**
- * Foreground notification handler — when an admin ping (or any local
- * notification) fires while the app is in the foreground, suppress
- * the OS-level banner because the in-app NotificationBanner is
- * already showing the message. Sound + badge still fire so the user
- * gets the audible cue. When backgrounded, expo-notifications uses
- * the OS defaults (full banner + sound + badge).
+ * Foreground notification handler.
+ *
+ * Per-kind behaviour:
+ *
+ *   - admin-ping rows (data.kind === 'admin-ping'): the in-app
+ *     NotificationBanner overlay is already showing the message, so
+ *     we suppress the OS banner to avoid double-display. Sound + badge
+ *     still fire so the user gets the audible cue.
+ *
+ *   - F1 #7 still-working prompts and any other local-only schedule
+ *     (lib/notifications.ts schedule()) WITHOUT data.kind: show the
+ *     full OS banner — there's no in-app overlay for those, so
+ *     suppressing would silently swallow the prompt.
+ *
+ * This handler is module-level (per expo-notifications API) so it
+ * runs before any provider mounts. The data field is set by every
+ * call to scheduleLocalNotification, so the discriminator is reliable.
  */
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: false,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data as
+      | { kind?: string }
+      | null
+      | undefined;
+    const isAdminPing = data?.kind === 'admin-ping';
+    return {
+      // Admin pings have an in-app banner already; everything else
+      // (still-working prompts, future schedules) shows the OS banner.
+      shouldShowBanner: !isAdminPing,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    };
+  },
 });
 
 /**
@@ -91,13 +111,23 @@ function AdminPingDispatcher() {
 
 /**
  * Routes when the user taps an OS-level admin-ping notification (cold
- * start, background, or foreground). The action JSON on the row tells
- * us where to go; if missing we just mark the row read and let the
- * user land wherever they were.
+ * start, background, or foreground). Source_type → mobile route map
+ * lives in lib/notificationsInbox.ts; this component just dispatches
+ * to it after marking the row read.
+ *
+ * Dedup is process-wide (handledResponseIds) — getLastNotificationResponseAsync
+ * returns the same response on every cold start until the OS evicts
+ * it from its delivered-notifications list. Without the guard, we'd
+ * route the user to /(tabs)/time on every app launch after they
+ * once tapped a log-hours ping. The Set is scoped to this JS runtime
+ * so a fresh process gets a single re-route (and the row is already
+ * marked read by the previous run, so even that re-route is harmless).
  *
  * Lives inside the DatabaseProvider so usePowerSync resolves; we need
- * the SQLite handle to flip read_at + look up the action column.
+ * the SQLite handle to flip read_at.
  */
+const handledResponseIds = new Set<string>();
+
 function NotificationResponseHandler() {
   const db = usePowerSync();
   const router = useRouter();
@@ -140,6 +170,14 @@ function NotificationResponseHandler() {
         // F1 #7's response isn't tracked through this path.
         return;
       }
+
+      // Dedup: the same response arrives via getLastNotificationResponseAsync
+      // on every cold start until the OS evicts the notification.
+      // Skip if we've already routed for this id in this JS runtime.
+      if (handledResponseIds.has(data.notification_id)) {
+        return;
+      }
+      handledResponseIds.add(data.notification_id);
 
       logInfo('notificationsInbox.responseHandler', 'tap', {
         notification_id: data.notification_id,

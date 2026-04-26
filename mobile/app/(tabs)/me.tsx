@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
+import {
+  Alert,
+  AppState,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  Switch,
+  useColorScheme,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
-import { logError } from '@/lib/log';
+import { logError, logWarn } from '@/lib/log';
 import { useAuth } from '@/lib/auth';
 import {
   getDeviceLibraryPref,
@@ -14,6 +24,11 @@ import {
   getBiometricCapability,
   type BiometricKind,
 } from '@/lib/biometric';
+import {
+  getNotificationPermissionStatus,
+  requestNotificationPermission,
+  type NotificationPermissionState,
+} from '@/lib/notifications';
 import { colors } from '@/lib/theme';
 
 /**
@@ -38,6 +53,9 @@ export default function MeScreen() {
   const [bioPending, setBioPending] = useState(false);
   const [saveToDeviceLib, setSaveToDeviceLib] = useState(false);
   const [savePrefPending, setSavePrefPending] = useState(false);
+  const [notifStatus, setNotifStatus] =
+    useState<NotificationPermissionState>('undetermined');
+  const [notifPending, setNotifPending] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -52,10 +70,83 @@ export default function MeScreen() {
       if (!mounted) return;
       setSaveToDeviceLib(enabled);
     });
+    // Read the OS notification permission so the row reflects truth.
+    getNotificationPermissionStatus().then((s) => {
+      if (!mounted) return;
+      setNotifStatus(s);
+    });
+
+    // When the user returns from device Settings (where they may have
+    // toggled notifications), re-read the permission so the row
+    // updates without needing the user to leave + re-enter the tab.
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') {
+        getNotificationPermissionStatus().then((s) => {
+          if (mounted) setNotifStatus(s);
+        });
+      }
+    });
+
     return () => {
       mounted = false;
+      sub.remove();
     };
   }, []);
+
+  const onTapNotifications = async () => {
+    if (notifPending) return;
+    if (notifStatus === 'granted') {
+      // Already on — surface a small confirmation; otherwise the row
+      // looks "tappable but inert" which is confusing.
+      Alert.alert(
+        'Notifications enabled',
+        'You’ll receive dispatcher pings and clock-in reminders. To disable, use your device Settings.'
+      );
+      return;
+    }
+
+    setNotifPending(true);
+    try {
+      if (notifStatus === 'denied_hard') {
+        // Hard-deny means iOS/Android won't surface our prompt; the
+        // user has to flip it in Settings. Deep-link them there.
+        Alert.alert(
+          'Enable in Settings',
+          'Starr Field can’t prompt you again — open Settings to turn notifications back on.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                Linking.openSettings().catch((err) => {
+                  logWarn(
+                    'me.notifications',
+                    'openSettings failed',
+                    err
+                  );
+                });
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      // Undetermined OR denied_can_ask — fire the OS prompt.
+      const next = await requestNotificationPermission();
+      setNotifStatus(next);
+      if (next !== 'granted') {
+        // User chose deny in the prompt. Tell them how to recover so
+        // they don't think the toggle is broken.
+        Alert.alert(
+          'Notifications off',
+          'You can change this anytime in your device Settings.'
+        );
+      }
+    } finally {
+      setNotifPending(false);
+    }
+  };
 
   const onToggleSaveToDeviceLib = async (next: boolean) => {
     setSavePrefPending(true);
@@ -153,6 +244,53 @@ export default function MeScreen() {
                 : 'Disabled — enable biometric unlock first'
             }
           />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.muted }]}>
+            Notifications
+          </Text>
+
+          <View style={[styles.row, { borderColor: palette.border }]}>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: palette.text }]}>
+                {notifStatus === 'granted'
+                  ? 'Enabled'
+                  : notifStatus === 'denied_hard'
+                  ? 'Blocked'
+                  : 'Not enabled'}
+              </Text>
+              <Text style={[styles.rowCaption, { color: palette.muted }]}>
+                {notifStatus === 'granted'
+                  ? 'Dispatcher pings and clock-in reminders show on the lock screen.'
+                  : notifStatus === 'denied_hard'
+                  ? 'Open device Settings to allow notifications. You won’t see dispatcher pings without this.'
+                  : 'Tap below to allow notifications. You won’t see dispatcher pings without this.'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.spacerSm} />
+
+          {notifStatus !== 'granted' ? (
+            <Button
+              variant="secondary"
+              label={
+                notifPending
+                  ? 'Working…'
+                  : notifStatus === 'denied_hard'
+                  ? 'Open Settings'
+                  : 'Allow notifications'
+              }
+              onPress={onTapNotifications}
+              loading={notifPending}
+              accessibilityHint={
+                notifStatus === 'denied_hard'
+                  ? 'Opens iOS or Android Settings so you can re-enable notifications'
+                  : 'Prompts the OS to allow Starr Field to send notifications'
+              }
+            />
+          ) : null}
         </View>
 
         <View style={styles.section}>
