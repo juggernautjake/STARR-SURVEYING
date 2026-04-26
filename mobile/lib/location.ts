@@ -30,6 +30,10 @@ export interface CapturedPosition {
   longitude: number;
   /** Meters; null when expo-location couldn't determine. */
   accuracy: number | null;
+  /** Meters above WGS-84 ellipsoid; null on Android/iOS that didn't
+   *  report it (older / indoor devices). F3 data points carry this
+   *  through to field_data_points.device_altitude_m. */
+  altitude: number | null;
   /** ISO-8601 of when the fix was taken. */
   capturedAt: string;
 }
@@ -96,6 +100,7 @@ export async function getCurrentPositionOrNull(): Promise<CapturedPosition | nul
         latitude: fix.coords.latitude,
         longitude: fix.coords.longitude,
         accuracy: fix.coords.accuracy ?? null,
+        altitude: fix.coords.altitude ?? null,
         capturedAt: new Date(fix.timestamp).toISOString(),
       };
     } finally {

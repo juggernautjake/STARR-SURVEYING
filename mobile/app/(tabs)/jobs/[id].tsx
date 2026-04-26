@@ -70,6 +70,19 @@ export default function JobDetailScreen() {
           ) : null}
         </View>
 
+        <View style={styles.actionsRow}>
+          <Button
+            label="+ Point"
+            onPress={() =>
+              router.push({
+                pathname: '/(tabs)/capture',
+                params: { jobId: job.id ?? '' },
+              })
+            }
+            accessibilityHint="Capture a new survey data point on this job."
+          />
+        </View>
+
         <Section title="Client" palette={palette}>
           <Field label="Name" value={job.client_name} palette={palette} />
           <Field label="Company" value={job.client_company} palette={palette} />
@@ -227,6 +240,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    marginBottom: 16,
+  },
+  actionsRow: {
     marginBottom: 24,
   },
   jobNumber: {
