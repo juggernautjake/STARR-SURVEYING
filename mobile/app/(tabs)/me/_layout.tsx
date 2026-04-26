@@ -8,6 +8,10 @@ import { colors } from '@/lib/theme';
  *   - uploads.tsx — stuck-uploads triage (failed photos / receipts that
  *                   never landed; surfaces the resilience safety net so
  *                   the user can see + retry + discard).
+ *   - privacy.tsx — disclosure block + own-timeline of today's
+ *                   location_pings rows. Closes the F6 privacy
+ *                   contract: "transparent timeline visible to
+ *                   employee."
  */
 export default function MeStackLayout() {
   const scheme = useColorScheme() ?? 'dark';
@@ -23,6 +27,7 @@ export default function MeStackLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="uploads" />
+      <Stack.Screen name="privacy" />
     </Stack>
   );
 }

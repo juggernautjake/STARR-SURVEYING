@@ -47,7 +47,10 @@
 import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import { useQuery } from '@powersync/react';
+import { useEffect } from 'react';
 
+import { useAuth } from './auth';
 import { getDatabaseForHeadlessTask } from './db';
 import { logError, logInfo, logWarn } from './log';
 import { randomUUID } from './uuid';
@@ -592,4 +595,85 @@ export async function reconcileTrackingOnLaunch(
     logInfo('locationTracker.reconcile', 'no open entry but task running — stopping');
     await stopBackgroundTracking();
   }
+}
+
+// ── Privacy: own-timeline read hooks ────────────────────────────────────────
+//
+// Per plan §5.10.1 the privacy contract is "transparent timeline
+// visible to employee." These hooks expose each user's own ping
+// stream to the Me-tab Privacy panel — they read straight from the
+// PowerSync-replicated location_pings rows scoped by user_id.
+// Server-side RLS (seeds/223) already restricts SELECT to owner.
+
+export interface OwnPingRow {
+  id: string;
+  job_time_entry_id: string | null;
+  lat: number;
+  lon: number;
+  accuracy_m: number | null;
+  battery_pct: number | null;
+  is_charging: number | null; // 0/1 SQLite boolean
+  source: string;
+  captured_at: string;
+}
+
+/**
+ * Reactive list of the current user's location pings within the last
+ * `hours` (default 24). Newest first. Powers the "Today's timeline"
+ * drilldown so the surveyor can audit exactly what the dispatcher
+ * sees about their day.
+ *
+ * Returns `[]` while signed-out OR before PowerSync has replicated
+ * any rows — never throws.
+ */
+export function useOwnLocationPings(hours: number = 24): OwnPingRow[] {
+  const { session } = useAuth();
+  const userId = session?.user.id ?? null;
+
+  // strftime gives us a comparable ISO timestamp; '-{n} hours' is
+  // a valid SQLite modifier. Bind `hours` defensively as text since
+  // we can't parameterise the modifier itself.
+  const sinceClause = `'-${Math.max(0, Math.floor(hours))} hours'`;
+
+  const { data, error } = useQuery<OwnPingRow>(
+    `SELECT id, job_time_entry_id, lat, lon, accuracy_m,
+            battery_pct, is_charging, source, captured_at
+       FROM location_pings
+      WHERE user_id = ?
+        AND captured_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ${sinceClause})
+      ORDER BY captured_at DESC`,
+    userId ? [userId] : []
+  );
+
+  useEffect(() => {
+    if (error) {
+      logWarn('locationTracker.useOwnPings', 'query failed', error, {
+        hours,
+      });
+    }
+  }, [error, hours]);
+
+  return data ?? [];
+}
+
+/**
+ * Aggregate stats for the Me-tab Privacy summary row. Resolves to
+ * { count: 0, latest: null } when there's no data so the UI can
+ * render a "No tracking today" copy without flicker.
+ */
+export interface OwnPingSummary {
+  count: number;
+  /** Most-recent ping's captured_at (ISO) for "last seen 5m ago"
+   *  copy. Null when nothing has been recorded today. */
+  latest: string | null;
+}
+
+export function useOwnLocationPingSummary(
+  hours: number = 24
+): OwnPingSummary {
+  const pings = useOwnLocationPings(hours);
+  return {
+    count: pings.length,
+    latest: pings[0]?.captured_at ?? null,
+  };
 }

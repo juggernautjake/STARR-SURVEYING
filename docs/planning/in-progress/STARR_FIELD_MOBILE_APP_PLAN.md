@@ -1030,7 +1030,7 @@ Resilience additions (same offline-first pattern as F2):
 - [x] Dispatcher live map (web app, partial) — `/admin/team` shows last-known GPS + battery + staleness; full live map pending
 - [ ] Day-replay scrubber (web app)
 - [ ] Missing-receipt cross-reference prompts
-- [ ] Privacy controls panel (employee-facing) — pause-tracking + view-my-own-timeline
+- [x] Privacy controls panel (employee-facing) — `/(tabs)/me/privacy` shows what we capture, when (only between clock-in/out), cadence (battery-aware tier table), who sees it, and the storage path; plus a today's-timeline list of every `location_pings` row the user wrote in the last 24 h. **No** "pause tracking" toggle — that would violate the privacy contract from the other side (dispatcher would think the user left a job site mid-shift); the only way to stop tracking is to clock out, which does so atomically.
 
 **Exit:** Full location-aware feature set live. **Status:** background-tracking infra + dispatcher last-seen shipped; stop-detection, mileage export, day-replay remain.
 
@@ -1156,6 +1156,22 @@ under one phase.
 - [x] `StatusChip` + `lockedDayTitle` recognise the full set
       (`'pending'`, `'submitted'`, `'approved'`, `'rejected'`,
       `'adjusted'`, `'disputed'`, `'locked'`).
+
+**Batch F — privacy panel**
+- [x] `useOwnLocationPings(hours)` + `useOwnLocationPingSummary` in
+      `lib/locationTracker.ts` — reactive read of the user's own
+      `location_pings` rows scoped by `user_id`. RLS already restricts
+      SELECT to owner (seeds/223), so no additional gating needed.
+- [x] `(tabs)/me/privacy.tsx` — disclosure block (what / when /
+      cadence / who sees / storage) plus a today's-timeline list of
+      every ping with timestamp, source label, lat/lon, accuracy,
+      battery snapshot.
+- [x] Me-tab Privacy summary row showing `N pings · last Xm ago`
+      with deep-link to the panel.
+- [x] Deliberate non-feature: no pause-tracking toggle. Pausing
+      mid-shift would silently break the "tracking-while-clocked-in"
+      contract from the dispatcher's POV. The only stop path is
+      clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
 
 **Activation gates (live Supabase apply order):**
 1. `seeds/222_starr_field_notifications.sql` — before mobile

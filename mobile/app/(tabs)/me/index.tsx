@@ -31,6 +31,7 @@ import {
   requestNotificationPermission,
   type NotificationPermissionState,
 } from '@/lib/notifications';
+import { useOwnLocationPingSummary } from '@/lib/locationTracker';
 import { useUploadQueueStatus } from '@/lib/uploadQueue';
 import { colors } from '@/lib/theme';
 
@@ -64,6 +65,11 @@ export default function MeScreen() {
   // field today and 3 are still queued" before opening the drilldown.
   const { pendingCount: uploadsPending, failedCount: uploadsFailed } =
     useUploadQueueStatus();
+  // Reactive — drives the Privacy row's "X pings today" affordance
+  // and "last seen" copy. The summary reads the same location_pings
+  // rows the user can audit in the drilldown.
+  const { count: pingsToday, latest: latestPing } =
+    useOwnLocationPingSummary(24);
 
   useEffect(() => {
     let mounted = true;
@@ -365,9 +371,37 @@ export default function MeScreen() {
         </View>
 
         <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.muted }]}>
+            Privacy & tracking
+          </Text>
+
+          <Pressable
+            onPress={() => router.push('/(tabs)/me/privacy')}
+            style={[styles.row, styles.rowTappable, { borderColor: palette.border }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Privacy and tracking — ${pingsToday} pings recorded in the last 24 hours`}
+            accessibilityHint="Opens the disclosure + your own location timeline"
+          >
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: palette.text }]}>
+                Today’s tracking
+              </Text>
+              <Text style={[styles.rowCaption, { color: palette.muted }]}>
+                {pingsToday === 0
+                  ? 'No location pings recorded in the last 24 hours. Tracking only runs while you’re clocked in.'
+                  : latestPing
+                    ? `${pingsToday} ping${pingsToday === 1 ? '' : 's'} · last ${formatPingAge(latestPing)}. Tap to see exactly what the dispatcher sees.`
+                    : `${pingsToday} pings recorded.`}
+              </Text>
+            </View>
+            <Text style={[styles.rowChevron, { color: palette.muted }]}>›</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: palette.muted }]}>Coming soon</Text>
           <Text style={[styles.sectionBody, { color: palette.text }]}>
-            Profile editing, idle-timer length, and submit-for-approval workflow land in F1.
+            Profile editing and idle-timer length land in F1+.
           </Text>
         </View>
 
@@ -388,6 +422,20 @@ export default function MeScreen() {
 function capitalize(s: string): string {
   if (!s) return s;
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * "5m ago" / "2h ago" copy for the Privacy row's last-ping age. Returns
+ * 'just now' for sub-minute deltas. Defensive against bad ISO inputs —
+ * any parse failure renders 'recently' so the row still reads.
+ */
+function formatPingAge(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return 'recently';
+  const min = Math.max(0, Math.floor((Date.now() - t) / 60_000));
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  return `${Math.floor(min / 60)}h ago`;
 }
 
 const styles = StyleSheet.create({
