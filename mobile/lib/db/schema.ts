@@ -37,6 +37,21 @@
  *   superseded by this file + the snapshot output; treat the plan
  *   text as historical context.
  *
+ * F2 #1 receipts schema:
+ *
+ *   `receipts` and `receipt_line_items` are created by
+ *   seeds/220_starr_field_receipts.sql. Identity is `auth.users.id`
+ *   (UUID stored as text) — different from daily_time_logs which
+ *   uses user_email TEXT. Plan §5.10 calls out the unification
+ *   contract: both web and mobile resolve to the same auth.users row.
+ *   Mobile reads session.user.id for receipt writes.
+ *
+ *   Extraction tracking lives on the receipts row itself
+ *   (extraction_status / *_at / *_cost_cents) rather than a separate
+ *   table — the worker updates these in-place when AI extraction
+ *   completes. Mobile shows "AI working…" while extraction_status is
+ *   'queued' or 'running'.
+ *
  * Notes on column types:
  *
  *   - PowerSync supports `text`, `integer`, `real`. UUIDs land as text;
@@ -162,12 +177,21 @@ const receipts = new Table({
   tax_deductible_flag: column.text, // 'full' | 'partial_50' | 'none' | 'review'
   notes: column.text,
   photo_url: column.text,
-  ai_confidence_per_field: column.text, // JSON-encoded
+  ai_confidence_per_field: column.text, // JSON-encoded JSONB
   status: column.text, // 'pending' | 'approved' | 'rejected' | 'exported'
   approved_by: column.text,
   approved_at: column.text,
+  rejected_reason: column.text,
+  // Worker AI-extraction tracking — null until the worker queues the
+  // receipt; matches columns in seeds/220_starr_field_receipts.sql.
+  extraction_status: column.text, // 'queued' | 'running' | 'done' | 'failed'
+  extraction_started_at: column.text,
+  extraction_completed_at: column.text,
+  extraction_error: column.text,
+  extraction_cost_cents: column.integer,
   client_id: column.text,
   created_at: column.text,
+  updated_at: column.text,
 });
 
 const receipt_line_items = new Table({
@@ -176,6 +200,7 @@ const receipt_line_items = new Table({
   amount_cents: column.integer,
   quantity: column.real,
   position: column.integer,
+  created_at: column.text,
 });
 
 const point_codes = new Table({
