@@ -444,7 +444,19 @@ function ReceiptRow({ row, expanded, onToggle, onMutate }: ReceiptRowProps) {
                 <button
                   type="button"
                   disabled={!!busy}
-                  onClick={() => void wrap('approving', { status: 'approved' })}
+                  onClick={() => {
+                    // Approve is a workflow flip — confirm so a misclick
+                    // on a row with low AI confidence doesn't bake in
+                    // the wrong totals.
+                    if (
+                      typeof window !== 'undefined' &&
+                      window.confirm(
+                        `Approve ${row.vendor_name?.trim() || 'this receipt'} for ${total}? It will move to the exported queue and the surveyor can no longer edit it.`
+                      )
+                    ) {
+                      void wrap('approving', { status: 'approved' });
+                    }
+                  }}
                   style={{ ...styles.button, ...styles.buttonApprove }}
                 >
                   {busy === 'approving' ? 'Approving…' : 'Approve'}
@@ -459,12 +471,25 @@ function ReceiptRow({ row, expanded, onToggle, onMutate }: ReceiptRowProps) {
                 <button
                   type="button"
                   disabled={!!busy}
-                  onClick={() =>
-                    void wrap('rejecting', {
-                      status: 'rejected',
-                      rejected_reason: rejectReason.trim() || null,
-                    })
-                  }
+                  onClick={() => {
+                    // Reject sends the receipt back to the surveyor's
+                    // queue with the rejection reason. Confirm because
+                    // there's no automatic notification — a typo here
+                    // can leave the receipt in limbo.
+                    if (
+                      typeof window !== 'undefined' &&
+                      window.confirm(
+                        rejectReason.trim()
+                          ? `Reject this receipt with reason "${rejectReason.trim()}"? The surveyor will see this on their device.`
+                          : 'Reject this receipt with no reason? The surveyor will see a generic "Bookkeeper rejected" message — consider adding a reason first.'
+                      )
+                    ) {
+                      void wrap('rejecting', {
+                        status: 'rejected',
+                        rejected_reason: rejectReason.trim() || null,
+                      });
+                    }
+                  }}
                   style={{ ...styles.button, ...styles.buttonReject }}
                 >
                   {busy === 'rejecting' ? 'Rejecting…' : 'Reject'}
@@ -474,7 +499,20 @@ function ReceiptRow({ row, expanded, onToggle, onMutate }: ReceiptRowProps) {
               <button
                 type="button"
                 disabled={!!busy}
-                onClick={() => void wrap('reopening', { status: 'pending' })}
+                onClick={() => {
+                  // Reopen flips an approved/exported receipt back to
+                  // pending. Rare action — confirm so a misclick on a
+                  // long list doesn't accidentally undo a closed
+                  // accounting period.
+                  if (
+                    typeof window !== 'undefined' &&
+                    window.confirm(
+                      `Reopen this ${row.status} receipt? It will move back to the pending queue and the surveyor can edit it again.`
+                    )
+                  ) {
+                    void wrap('reopening', { status: 'pending' });
+                  }
+                }}
                 style={{ ...styles.button, ...styles.buttonReopen }}
               >
                 {busy === 'reopening' ? 'Reopening…' : 'Reopen'}

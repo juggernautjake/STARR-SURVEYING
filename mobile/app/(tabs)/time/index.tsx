@@ -69,7 +69,25 @@ export default function TimeScreen() {
     }
   };
 
-  const onSubmitWeek = async () => {
+  const onSubmitWeek = () => {
+    // Submit is effectively irreversible from the surveyor's side —
+    // once status flips to 'submitted', the bookkeeper has to reject
+    // for the user to edit again. Confirm before sending.
+    Alert.alert(
+      'Submit this week for approval?',
+      'Open days in this week will be sent to the dispatcher. You won’t be able to edit them on mobile until they’re approved or rejected.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Submit',
+          style: 'default',
+          onPress: () => void doSubmitWeek(),
+        },
+      ]
+    );
+  };
+
+  const doSubmitWeek = async () => {
     setSubmitting(true);
     try {
       const result = await submitWeek();
@@ -90,7 +108,10 @@ export default function TimeScreen() {
         );
       }
     } catch (err) {
-      Alert.alert('Submit failed', (err as Error).message);
+      Alert.alert(
+        'Submit failed',
+        err instanceof Error ? err.message : String(err)
+      );
     } finally {
       setSubmitting(false);
     }
