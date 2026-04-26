@@ -22,13 +22,21 @@
 -- the legacy `user_email TEXT`); receipts is greenfield and follows the
 -- plan's UUID convention.
 --
--- IMPORTANT — depends on the live `jobs` table existing. The Phase F0
--- §15 schema-snapshot deliverable (scripts/snapshot-existing-schema.sql)
--- captures `jobs` so seeds/run_all.sh against a fresh restore works
--- end-to-end. Apply that snapshot file (when it lands at
+-- IMPORTANT — depends on two live tables existing: `jobs` and
+-- `job_time_entries`. The Phase F0 §15 schema-snapshot deliverable
+-- (scripts/snapshot-existing-schema.sql) captures both so
+-- seeds/run_all.sh against a fresh restore works end-to-end. Apply
+-- that snapshot file (when it lands at
 -- seeds/214_starr_field_existing_schema_snapshot.sql) BEFORE this
--- migration. Live Supabase already has `jobs`, so applying this against
--- production directly works today.
+-- migration. Live Supabase already has both tables, so applying this
+-- against production directly works today.
+--
+-- The receipts.job_id column declares its FK inline (works against
+-- live; errors on a fresh restore until the snapshot lands). The
+-- receipts.job_time_entry_id FK is added LATER in this seed via a
+-- conditional DO block — that way the table-create succeeds even
+-- when job_time_entries hasn't loaded yet, and the constraint
+-- attaches only when both tables are present.
 --
 -- Phases that follow this seed:
 --   221_starr_field_data_points.sql   — F3 data points + media
@@ -54,8 +62,9 @@ CREATE TABLE IF NOT EXISTS receipts (
 
   -- Optional job association. Default at capture time is the job the
   -- user is currently clocked into (per §5.11.3); the bookkeeper can
-  -- re-assign on the web side.
-  job_id                   UUID REFERENCES jobs,
+  -- re-assign on the web side. FK declared in a deferred DO block
+  -- below (so this seed applies cleanly when `jobs` isn't loaded yet).
+  job_id                   UUID,
 
   -- Optional time-entry / location-stop links. job_time_entry_id ties
   -- the receipt to a specific clock-in slice; location_stop_id ties it
@@ -63,12 +72,13 @@ CREATE TABLE IF NOT EXISTS receipts (
   -- snapped. Both nullable — F2 #2 only sets job_time_entry_id (the
   -- stop classifier lands in F6).
   --
-  -- ON DELETE SET NULL because deleting a time entry shouldn't cascade-
-  -- delete the receipt — payroll still wants the expense recorded even
-  -- if the time slice was reorganised. location_stop_id intentionally
-  -- has NO FK yet; the location_stops table lands in seeds/222 (Phase
-  -- F6). Add the constraint there.
-  job_time_entry_id        UUID REFERENCES job_time_entries(id) ON DELETE SET NULL,
+  -- The FK on job_time_entry_id is added below in a conditional DO
+  -- block so this seed still applies cleanly when job_time_entries
+  -- isn't loaded yet (e.g. fresh `seeds/run_all.sh` against an empty
+  -- DB before F0 #15 lands the schema snapshot). location_stop_id
+  -- intentionally has NO FK yet; the location_stops table lands in
+  -- seeds/222 (Phase F6).
+  job_time_entry_id        UUID,
   location_stop_id         UUID,
 
   -- AI-extracted (writable by user as well — `category_source` records
@@ -182,6 +192,43 @@ DO $$ BEGIN
     ALTER TABLE receipts
       ADD CONSTRAINT receipts_user_client_uniq
         UNIQUE (user_id, client_id);
+  END IF;
+END $$;
+
+-- Deferred FKs on job_id and job_time_entry_id — only added when the
+-- referenced tables exist. Lets a fresh `run_all.sh` against an empty
+-- DB succeed at this seed even when F0 #15's schema snapshot hasn't
+-- loaded yet; on live Supabase (where the tables exist) the
+-- constraints attach normally. ON DELETE SET NULL because deleting a
+-- job or time slice shouldn't cascade-delete the receipt — payroll
+-- still wants the expense recorded even if the parent was reorganised.
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'jobs'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'receipts_job_fk'
+  ) THEN
+    ALTER TABLE receipts
+      ADD CONSTRAINT receipts_job_fk
+        FOREIGN KEY (job_id)
+        REFERENCES jobs(id)
+        ON DELETE SET NULL;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'job_time_entries'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'receipts_job_time_entry_fk'
+  ) THEN
+    ALTER TABLE receipts
+      ADD CONSTRAINT receipts_job_time_entry_fk
+        FOREIGN KEY (job_time_entry_id)
+        REFERENCES job_time_entries(id)
+        ON DELETE SET NULL;
   END IF;
 END $$;
 
@@ -305,10 +352,10 @@ END $$;
 --   - extraction_cost_cents, ai_confidence_per_field
 --     (worker-only outputs; surveyors could spoof "AI says $0.00 cost")
 --   - created_at (immutable)
-DO $$ BEGIN
-  REVOKE UPDATE ON receipts FROM authenticated;
-EXCEPTION WHEN OTHERS THEN NULL;
-END $$;
+-- REVOKE is idempotent on its own; no DO/EXCEPTION wrapper. Letting
+-- this raise on a missing role/table is correct — silent failure would
+-- have the GRANT below grant the wrong target.
+REVOKE UPDATE ON receipts FROM authenticated;
 GRANT UPDATE (
   vendor_name, vendor_address, transaction_at,
   subtotal_cents, tax_cents, tip_cents, total_cents,

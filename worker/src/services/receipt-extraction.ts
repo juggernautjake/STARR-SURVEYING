@@ -185,12 +185,18 @@ export async function processQueuedReceipts(
   // watchdog window, i.e. crashed mid-extraction). claimRow() repeats
   // the same predicate atomically so two workers can't both grab the
   // same row.
+  //
+  // The timestamp inside `.or()` MUST be wrapped in double quotes —
+  // PostgREST's logic-tree parser uses commas / parens / dots as
+  // separators and the colons in an ISO-8601 string can confuse it
+  // when nested under and(...). Quoting forces the value to be
+  // treated as a literal.
   const staleBefore = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
   const { data: rows, error: fetchErr } = await supabase
     .from('receipts')
     .select('id, user_id, photo_url, extraction_status, extraction_started_at')
     .or(
-      `extraction_status.eq.queued,and(extraction_status.eq.running,extraction_started_at.lt.${staleBefore})`
+      `extraction_status.eq.queued,and(extraction_status.eq.running,extraction_started_at.lt."${staleBefore}")`
     )
     .order('created_at', { ascending: true })
     .limit(batchSize);
@@ -246,7 +252,7 @@ async function processOne(
   //    one's UPDATE sees a row in the eligible state; the other gets
   //    zero rows back and bails out — preventing duplicate Vision
   //    spend AND duplicate line_items writes.
-  const claimed = await claimRow(supabase, row.id, startedAt);
+  const claimed = await claimRow(supabase, row.id, startedAt, logger);
   if (!claimed) {
     logger.info('row already claimed by another worker — skipping', {
       receipt_id: row.id,
@@ -400,13 +406,16 @@ async function processOne(
 async function claimRow(
   supabase: SupabaseClient,
   receiptId: string,
-  startedAt: string
+  startedAt: string,
+  logger: ProcessLogger
 ): Promise<boolean> {
   const staleBefore = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
   // The PostgREST `.or()` filter inside an UPDATE+select gives us the
   // atomic claim semantics we need. If no row matches the predicate
   // (because another worker already flipped it), the result data is
-  // empty and we know we lost.
+  // empty and we know we lost. The timestamp is wrapped in double
+  // quotes per PostgREST's logic-tree escaping (the colons in an
+  // ISO-8601 string can confuse the parser otherwise).
   const { data, error } = await supabase
     .from('receipts')
     .update({
@@ -414,12 +423,20 @@ async function claimRow(
       extraction_started_at: startedAt,
     })
     .eq('id', receiptId)
-    .or(`extraction_status.eq.queued,and(extraction_status.eq.running,extraction_started_at.lt.${staleBefore})`)
+    .or(`extraction_status.eq.queued,and(extraction_status.eq.running,extraction_started_at.lt."${staleBefore}")`)
     .select('id');
 
   if (error) {
-    // Network / DB outage — treat as a lost race; the row is left in
-    // its prior state and a future poll will retry.
+    // DB error — treat as a lost race so the worker bails for this
+    // row, but log the message so ops can distinguish a genuine
+    // outage ("row not lost — Postgres is down") from a contention
+    // loss ("another worker already grabbed it"). Without the log,
+    // a Supabase outage manifests as silent skipped batches.
+    logger.warn('claimRow error treated as lost race', {
+      receipt_id: receiptId,
+      error: error.message,
+      code: (error as { code?: string }).code ?? null,
+    });
     return false;
   }
   return Array.isArray(data) && data.length > 0;

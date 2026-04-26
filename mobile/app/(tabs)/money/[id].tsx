@@ -1,9 +1,8 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/lib/Button';
 import { CategoryPicker, categoryLabel } from '@/lib/CategoryPicker';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { RemotePhoto } from '@/lib/RemotePhoto';
 import { TextField } from '@/lib/TextField';
 import { useJob } from '@/lib/jobs';
 import { formatCents, parseCents } from '@/lib/money';
@@ -297,25 +297,13 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
             </View>
           ) : null}
 
-          {photoUrl ? (
-            <Image
-              source={{ uri: photoUrl }}
-              style={[styles.photo, { borderColor: palette.border }]}
-              resizeMode="contain"
+          <View style={styles.photoBlock}>
+            <RemotePhoto
+              signedUrl={photoUrl}
+              aspectRatio={3 / 4}
               accessibilityLabel="Receipt photo"
             />
-          ) : (
-            <View
-              style={[
-                styles.photoPlaceholder,
-                { backgroundColor: palette.surface, borderColor: palette.border },
-              ]}
-            >
-              <Text style={[styles.photoPlaceholderText, { color: palette.muted }]}>
-                Loading photo…
-              </Text>
-            </View>
-          )}
+          </View>
 
           {/* Vendor */}
           <View style={styles.section}>
@@ -552,12 +540,29 @@ function TransactionDateField({
   const valid = !Number.isNaN(date.getTime());
   const isAndroid = Platform.OS === 'android';
 
+  // The iOS inline DateTimePicker fires onChange once at mount with
+  // whatever date we hand it. When `value` is null we hand it `now`
+  // — without this guard we'd auto-set transaction_at to "now" on
+  // every screen open and the diff-only patch would treat that as a
+  // user edit. Flip the ref the first time a real user interaction
+  // produces an `event.type === 'set'`.
+  const userInteractedRef = useRef(false);
+
   const onPickerChange = (event: { type?: string }, picked?: Date) => {
     if (isAndroid) setShowPicker(false);
     if (event?.type === 'dismissed') return;
-    if (picked && !Number.isNaN(picked.getTime())) {
-      onChange(picked.toISOString());
+    if (!picked || Number.isNaN(picked.getTime())) return;
+
+    // First synthetic onChange when value was null at mount — ignore.
+    // iOS spinner picker doesn't carry event.type for these. Once the
+    // user actually drags the spinner an event arrives with type='set'
+    // and userInteractedRef stays true for subsequent changes.
+    if (!userInteractedRef.current) {
+      if (value === null && event?.type !== 'set') return;
+      userInteractedRef.current = true;
     }
+
+    onChange(picked.toISOString());
   };
 
   if (isAndroid) {
@@ -770,25 +775,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  photo: {
-    width: '100%',
-    aspectRatio: 3 / 4,
-    borderRadius: 12,
-    borderWidth: 1,
+  photoBlock: {
     marginBottom: 24,
-  },
-  photoPlaceholder: {
-    width: '100%',
-    aspectRatio: 3 / 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  photoPlaceholderText: {
-    fontSize: 14,
-    fontStyle: 'italic',
   },
   section: {
     marginBottom: 8,
