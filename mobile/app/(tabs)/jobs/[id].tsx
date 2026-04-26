@@ -6,7 +6,7 @@ import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { StageChip } from '@/lib/StageChip';
 import { useJob } from '@/lib/jobs';
-import { colors } from '@/lib/theme';
+import { colors, type Palette } from '@/lib/theme';
 
 /**
  * Job detail — F1 #2 lands a minimal read-only view (header, stage,
@@ -135,7 +135,7 @@ export default function JobDetailScreen() {
 interface SectionProps {
   title: string;
   children: React.ReactNode;
-  palette: { muted: string };
+  palette: Palette;
 }
 
 function Section({ title, children, palette }: SectionProps) {
@@ -152,7 +152,7 @@ function Section({ title, children, palette }: SectionProps) {
 interface FieldProps {
   label: string;
   value: string | null | undefined;
-  palette: { text: string; muted: string };
+  palette: Palette;
 }
 
 function Field({ label, value, palette }: FieldProps) {
