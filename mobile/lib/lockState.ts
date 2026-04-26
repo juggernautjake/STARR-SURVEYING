@@ -22,6 +22,8 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { logWarn } from './log';
+
 const KEY_BIOMETRIC_ENABLED = '@starr-field/biometric_enabled';
 const KEY_IDLE_MINUTES = '@starr-field/idle_lock_minutes';
 const KEY_LAST_ACTIVE = '@starr-field/last_active_ts';
@@ -32,7 +34,8 @@ export async function getBiometricEnabled(): Promise<boolean> {
   try {
     const raw = await AsyncStorage.getItem(KEY_BIOMETRIC_ENABLED);
     return raw === 'true';
-  } catch {
+  } catch (err) {
+    logWarn('lockState.getBiometricEnabled', 'AsyncStorage read failed', err);
     return false;
   }
 }
@@ -40,8 +43,10 @@ export async function getBiometricEnabled(): Promise<boolean> {
 export async function setBiometricEnabled(enabled: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(KEY_BIOMETRIC_ENABLED, enabled ? 'true' : 'false');
-  } catch {
-    // best-effort
+  } catch (err) {
+    logWarn('lockState.setBiometricEnabled', 'AsyncStorage write failed', err, {
+      enabled,
+    });
   }
 }
 
@@ -52,7 +57,8 @@ export async function getIdleLockMinutes(): Promise<number> {
     const n = parseInt(raw, 10);
     if (!Number.isFinite(n) || n <= 0) return DEFAULT_IDLE_MINUTES;
     return n;
-  } catch {
+  } catch (err) {
+    logWarn('lockState.getIdleLockMinutes', 'AsyncStorage read failed', err);
     return DEFAULT_IDLE_MINUTES;
   }
 }
@@ -60,8 +66,10 @@ export async function getIdleLockMinutes(): Promise<number> {
 export async function setIdleLockMinutes(minutes: number): Promise<void> {
   try {
     await AsyncStorage.setItem(KEY_IDLE_MINUTES, String(Math.max(1, Math.round(minutes))));
-  } catch {
-    // best-effort
+  } catch (err) {
+    logWarn('lockState.setIdleLockMinutes', 'AsyncStorage write failed', err, {
+      minutes,
+    });
   }
 }
 
@@ -72,8 +80,8 @@ export async function setIdleLockMinutes(minutes: number): Promise<void> {
 export async function markBackgroundedNow(): Promise<void> {
   try {
     await AsyncStorage.setItem(KEY_LAST_ACTIVE, String(Date.now()));
-  } catch {
-    // best-effort
+  } catch (err) {
+    logWarn('lockState.markBackgroundedNow', 'AsyncStorage write failed', err);
   }
 }
 
@@ -87,7 +95,8 @@ export async function getLastBackgroundedTs(): Promise<number | null> {
     if (!raw) return null;
     const n = parseInt(raw, 10);
     return Number.isFinite(n) ? n : null;
-  } catch {
+  } catch (err) {
+    logWarn('lockState.getLastBackgroundedTs', 'AsyncStorage read failed', err);
     return null;
   }
 }

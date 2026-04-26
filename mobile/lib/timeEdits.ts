@@ -287,12 +287,12 @@ export function useEditTimeEntry(): (
       ];
 
       try {
-        // Run the entry UPDATE in parallel with the audit-row INSERTs.
-        // No write depends on another's result; PowerSync's local
-        // SQLite serializes the statements internally, but the round
-        // trips overlap.
-        await Promise.all([
-          db.execute(
+        // Atomic: the entry UPDATE and per-field audit INSERTs land
+        // together or not at all. Without the transaction, a failed
+        // audit insert would leave the entry mutated but its audit
+        // trail incomplete — bad for payroll review.
+        await db.writeTransaction(async (tx) => {
+          await tx.execute(
             `UPDATE job_time_entries
              SET started_at = ?,
                  ended_at = ?,
@@ -301,17 +301,17 @@ export function useEditTimeEntry(): (
                  updated_at = ?
              WHERE id = ?`,
             [newStarted, newEnded, newNotes, durationMin, nowIso, entry.id]
-          ),
-          ...fieldChanges.map((change) =>
-            maybeWriteEdit(db, {
+          );
+          for (const change of fieldChanges) {
+            await maybeWriteEdit(tx, {
               ...change,
               entryId: entry.id,
               reason,
               userEmail,
               editedAt: nowIso,
-            })
-          ),
-        ]);
+            });
+          }
+        });
 
         logInfo('timeEdits.editEntry', 'success', {
           entry_id: entry.id,
@@ -351,8 +351,12 @@ interface MaybeWriteEditArgs extends AuditField {
   editedAt: string;
 }
 
+/** Accepts either the top-level db or a writeTransaction handle —
+ *  both expose `execute(sql, params)`. */
+type DbExecutor = { execute: (sql: string, params?: unknown[]) => Promise<unknown> };
+
 async function maybeWriteEdit(
-  db: ReturnType<typeof usePowerSync>,
+  exec: DbExecutor,
   args: MaybeWriteEditArgs
 ): Promise<void> {
   // Skip when the value didn't actually change. Compare as strings
@@ -362,7 +366,7 @@ async function maybeWriteEdit(
   if (a === b) return;
 
   const id = randomUUID();
-  await db.execute(
+  await exec.execute(
     `INSERT INTO time_edits (
        id, job_time_entry_id, field_name,
        old_value, new_value, reason, delta_minutes,

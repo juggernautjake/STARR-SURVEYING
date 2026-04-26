@@ -131,6 +131,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       { href: '/admin/employees', label: 'Employees', icon: '👥', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       { href: '/admin/users', label: 'Manage Users', icon: '🔑', roles: ['admin', 'tech_support'] },
       { href: '/admin/payroll', label: 'Payroll', icon: '💰', roles: ['admin'], internalOnly: true },
+      { href: '/admin/receipts', label: 'Receipts', icon: '🧾', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
     ]},
 
     { label: 'Communication', items: [

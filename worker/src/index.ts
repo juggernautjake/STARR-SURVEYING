@@ -3004,6 +3004,79 @@ app.get('/research/purchase/:projectId', requireAuth, rateLimit(60, 60_000), (re
 
 app.use(createReportRoutes(requireAuth));
 
+// ── Starr Field F2: Receipt Extraction ─────────────────────────────────────
+//
+// Mobile/web call POST /starr-field/receipts/extract to flush the queue
+// of pending receipts (extraction_status='queued'). The CLI at
+// src/cli/extract-receipts.ts is the cron entry point; this endpoint is
+// the on-demand trigger for "user just snapped a receipt and wants AI to
+// run RIGHT NOW" or "extraction failed and the user tapped Retry."
+//
+// Body: { batchSize?: number; receiptId?: string }
+//   - batchSize: cap on rows processed in one shot (default 10).
+//   - receiptId: when set, marks JUST that row as queued before
+//     running the batch — handy for "retry this one" buttons.
+app.post(
+  '/starr-field/receipts/extract',
+  requireAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const supabase = await getSupabase();
+      if (!supabase) {
+        res.status(500).json({ error: 'Supabase not configured' });
+        return;
+      }
+      const body = (req.body ?? {}) as { batchSize?: number; receiptId?: string };
+
+      // Optional re-queue for a specific receipt (Retry button on
+      // mobile / web admin). The retry only applies to rows currently
+      // 'failed' so we don't trample an in-flight extraction.
+      if (body.receiptId) {
+        const { error: requeueErr } = await supabase
+          .from('receipts')
+          .update({
+            extraction_status: 'queued',
+            extraction_started_at: null,
+            extraction_completed_at: null,
+            extraction_error: null,
+          })
+          .eq('id', body.receiptId)
+          .eq('extraction_status', 'failed');
+        if (requeueErr) {
+          res.status(500).json({ error: `requeue failed: ${requeueErr.message}` });
+          return;
+        }
+      }
+
+      const { processQueuedReceipts } = await import(
+        './services/receipt-extraction.js'
+      );
+      const results = await processQueuedReceipts(supabase, {
+        batchSize: body.batchSize,
+      });
+
+      const done = results.filter((r) => r.status === 'done').length;
+      const failed = results.filter((r) => r.status === 'failed').length;
+      const totalCostCents = results.reduce(
+        (sum, r) => sum + (r.costCents ?? 0),
+        0
+      );
+      res.json({
+        processed: results.length,
+        done,
+        failed,
+        totalCostCents,
+        results,
+      });
+    } catch (err) {
+      console.error('[starr-field/receipts/extract] failed:', err);
+      res.status(500).json({
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+);
+
 // ── Phase 11: Data Source Routes ────────────────────────────────────────────
 
 // Configurable paths for Phase 11 output directories

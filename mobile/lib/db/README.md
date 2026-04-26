@@ -49,10 +49,12 @@ Activation gates (each blocks live sync but NOT local-only dev):
       `BEGIN; … COMMIT;` per the seed convention). Validate the
       column-list against `lib/db/schema.ts` and add any columns the
       mobile UI references but the snapshot didn't include.
-- [ ] Apply `seeds/220_starr_field_tables.sql` to the live Supabase
-      project. The plan §6.3 SQL is now superseded by the
-      reconciled shape in `lib/db/schema.ts` — author 220_* fresh
-      from that file, not from the plan text.
+- [ ] Apply `seeds/220_starr_field_receipts.sql` to the live Supabase
+      project (Phase F2 #1 — adds `receipts` + `receipt_line_items`
+      tables, RLS, and the private `starr-field-receipts` storage
+      bucket). Subsequent Starr Field tables ship as 221_*, 222_*,
+      etc. — one phase per file rather than the original monolithic
+      `220_starr_field_tables.sql` proposed in the plan.
 - [ ] Provision PowerSync service (Cloud or self-hosted, see below).
 - [ ] Author sync rules — see "Sync rules" below.
 - [ ] Set `EXPO_PUBLIC_POWERSYNC_URL` in `mobile/.env.local` (dev) and

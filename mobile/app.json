@@ -17,7 +17,9 @@
       "infoPlist": {
         "NSFaceIDUsageDescription": "Starr Field uses Face ID to unlock the app and confirm sensitive actions like deleting field data.",
         "NSLocationWhenInUseUsageDescription": "Starr Field stamps your clock-in / clock-out times with GPS so timesheets and mileage logs are accurate.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Starr Field tracks location only while you're clocked in (per the privacy contract in plan §5.10.1) so the dispatcher knows where the crew is and IRS-compliant mileage logs generate automatically. Tracking stops within 60 seconds of clock-out."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Starr Field tracks location only while you're clocked in (per the privacy contract in plan §5.10.1) so the dispatcher knows where the crew is and IRS-compliant mileage logs generate automatically. Tracking stops within 60 seconds of clock-out.",
+        "NSCameraUsageDescription": "Starr Field uses the camera to capture receipts and field photos. Receipt photos are uploaded to your private Starr Surveying workspace for AI extraction and bookkeeping.",
+        "NSPhotoLibraryUsageDescription": "Starr Field reads photos from your library when you attach an existing receipt photo (e.g. one you snapped before opening the app)."
       }
     },
     "android": {
@@ -48,6 +50,13 @@
         }
       ],
       "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Starr Field reads photos from your library when you attach an existing receipt photo.",
+          "cameraPermission": "Starr Field uses the camera to capture receipts and field photos."
+        }
+      ],
       "@sentry/react-native/expo"
     ],
     "experiments": {

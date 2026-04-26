@@ -69,27 +69,38 @@ export async function getCurrentPositionOrNull(): Promise<CapturedPosition | nul
 
   try {
     // Race the GPS fix against an explicit timeout so we don't hang
-    // a clock-in indefinitely on a phone with poor sky view.
-    const fix = await Promise.race([
-      Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      }),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), FIX_TIMEOUT_MS)),
-    ]);
+    // a clock-in indefinitely on a phone with poor sky view. Track
+    // the timer id so we can clear it when GPS wins — otherwise the
+    // 8 s timer fires uselessly later, holding a JS reference.
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    const timeoutPromise = new Promise<null>((resolve) => {
+      timeoutHandle = setTimeout(() => resolve(null), FIX_TIMEOUT_MS);
+    });
 
-    if (!fix) {
-      logInfo('location.getCurrentPosition', 'timeout — null fix', {
-        timeout_ms: FIX_TIMEOUT_MS,
-      });
-      return null;
+    try {
+      const fix = await Promise.race([
+        Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        }),
+        timeoutPromise,
+      ]);
+
+      if (!fix) {
+        logInfo('location.getCurrentPosition', 'timeout — null fix', {
+          timeout_ms: FIX_TIMEOUT_MS,
+        });
+        return null;
+      }
+
+      return {
+        latitude: fix.coords.latitude,
+        longitude: fix.coords.longitude,
+        accuracy: fix.coords.accuracy ?? null,
+        capturedAt: new Date(fix.timestamp).toISOString(),
+      };
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
     }
-
-    return {
-      latitude: fix.coords.latitude,
-      longitude: fix.coords.longitude,
-      accuracy: fix.coords.accuracy ?? null,
-      capturedAt: new Date(fix.timestamp).toISOString(),
-    };
   } catch (err) {
     logWarn('location.getCurrentPosition', 'getCurrentPosition failed', err);
     return null;

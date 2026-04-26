@@ -143,13 +143,31 @@ export function useSubmitWeek(): () => Promise<SubmitWeekResult> {
         return { flipped: 0, alreadySubmitted: false, hasOpenEntry: true };
       }
 
+      // Find every 'open' day in the window so we can authoritatively
+      // report `flipped` to the caller. PowerSync's QueryResult shape
+      // exposes `rowsAffected`, but we don't want the UI's "submitted
+      // N days" message to depend on a field whose presence varies
+      // by adapter version. SELECT-then-UPDATE is one extra round
+      // trip and zero ambiguity.
+      const rows = await db.getAll<{ id: string }>(
+        `SELECT id FROM daily_time_logs
+         WHERE user_email = ?
+           AND log_date BETWEEN ? AND ?
+           AND COALESCE(status, 'open') = 'open'`,
+        [userEmail, range.from, range.to]
+      );
+
+      if (rows.length === 0) {
+        logInfo('timesheet.submitWeek', 'nothing to submit', {
+          already_submitted: true,
+        });
+        return { flipped: 0, alreadySubmitted: true, hasOpenEntry: false };
+      }
+
       const nowIso = new Date().toISOString();
-      // Flip every 'open' day in the window in one statement. PowerSync
-      // emits one CRUD op per matched row server-side; this just saves
-      // round-trips through the local SQLite layer. SQLite's UPDATE
-      // returns `changes` via the result envelope on every adapter we
-      // care about — we surface it as `flipped`.
-      const result = await db.execute(
+      // Single bulk UPDATE — PowerSync emits one CRUD op per matched
+      // row server-side; we just save N local round trips.
+      await db.execute(
         `UPDATE daily_time_logs
          SET status = 'submitted',
              submitted_at = ?,
@@ -160,16 +178,8 @@ export function useSubmitWeek(): () => Promise<SubmitWeekResult> {
         [nowIso, nowIso, userEmail, range.from, range.to]
       );
 
-      const flipped = result?.rowsAffected ?? 0;
-      if (flipped === 0) {
-        logInfo('timesheet.submitWeek', 'nothing to submit', {
-          already_submitted: true,
-        });
-        return { flipped: 0, alreadySubmitted: true, hasOpenEntry: false };
-      }
-
-      logInfo('timesheet.submitWeek', 'success', { flipped });
-      return { flipped, alreadySubmitted: false, hasOpenEntry: false };
+      logInfo('timesheet.submitWeek', 'success', { flipped: rows.length });
+      return { flipped: rows.length, alreadySubmitted: false, hasOpenEntry: false };
     } catch (err) {
       logError('timesheet.submitWeek', 'unexpected failure', err, {
         from: range.from,
