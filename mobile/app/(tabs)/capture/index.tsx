@@ -15,11 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { logError } from '@/lib/log';
+import { promptForSettings } from '@/lib/permissionGuard';
 import { TextField } from '@/lib/TextField';
 import {
   CODE_PREFIXES,
   type CodePrefix,
   extractPrefix,
+  isKnownPrefix,
   lookupPrefix,
   suggestNextName,
 } from '@/lib/dataPointCodes';
@@ -247,10 +249,25 @@ function CreatePointStep({ palette, jobId, onChangeJob }: CreatePointStepProps) 
       } as const;
       if (!result.hasGps) {
         // Soft-warn but don't block — the user can add coords later
-        // from a paper note. F3 polish lets them re-shoot GPS too.
+        // from a paper note. The body copy varies by reason so the
+        // user knows whether to flip a permission or move outside.
+        if (result.gpsReason === 'no_permission') {
+          // Permission specifically — offer the deep-link.
+          promptForSettings({
+            kind: 'location',
+            denialReason:
+              'Point saved without coordinates. Open the point detail to add them manually, or grant location to GPS-stamp future points.',
+          });
+          router.replace(photosRoute);
+          return;
+        }
+        const body =
+          result.gpsReason === 'timeout'
+            ? "Couldn't reach a satellite in 8 s. Point saved without coordinates — open the point detail to add them manually, or move to clearer sky and re-shoot."
+            : 'Point saved without coordinates. Open the point detail to add coordinates manually.';
         Alert.alert(
           'No GPS fix',
-          'Point saved without coordinates. Open the point detail to add coordinates manually.',
+          body,
           [{ text: 'OK', onPress: () => router.replace(photosRoute) }]
         );
         return;
@@ -372,9 +389,18 @@ function CreatePointStep({ palette, jobId, onChangeJob }: CreatePointStepProps) 
               })}
             </View>
             {prefixInfo && prefix ? (
-              <Text style={[styles.prefixHint, { color: palette.muted }]}>
-                {prefixInfo.label} — {prefixInfo.description}
-              </Text>
+              isKnownPrefix(prefix) ? (
+                <Text style={[styles.prefixHint, { color: palette.muted }]}>
+                  {prefixInfo.label} — {prefixInfo.description}
+                </Text>
+              ) : (
+                <Text style={[styles.prefixHint, { color: palette.danger }]}>
+                  Unknown prefix &quot;{prefix}&quot; — point will save as-is, but
+                  the office reviewer won&apos;t see a category color. Ask
+                  Henry to add &quot;{prefix}&quot; to the library if you use it
+                  often.
+                </Text>
+              )
             ) : null}
           </View>
 

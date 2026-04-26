@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { logError } from '@/lib/log';
 import { Timesheet } from '@/lib/Timesheet';
 import {
   entryTypeLabel,
@@ -60,12 +61,41 @@ export default function TimeScreen() {
   const onClockOut = async () => {
     setClockingOut(true);
     try {
-      const ok = await clockOut();
-      if (!ok) Alert.alert('Already clocked out', 'No open entry to close.');
+      const result = await clockOut();
+      if (!result.ok) {
+        Alert.alert('Already clocked out', 'No open entry to close.');
+        return;
+      }
+      // Tell the user when the clock-out wasn't location-stamped.
+      // Otherwise they assume the row carries GPS and only find out
+      // weeks later when mileage doesn't add up.
+      if (!result.hasGps) {
+        Alert.alert(
+          'Clocked out — no GPS fix',
+          gpsReasonClockOutCopy(result.gpsReason)
+        );
+      }
     } catch (err) {
-      Alert.alert('Clock-out failed', (err as Error).message);
+      logError('time.onClockOut', 'clock-out failed', err);
+      Alert.alert(
+        'Clock-out failed',
+        err instanceof Error ? err.message : String(err)
+      );
     } finally {
       setClockingOut(false);
+    }
+  };
+
+  const gpsReasonClockOutCopy = (
+    reason: 'no_permission' | 'timeout' | 'hardware' | null
+  ): string => {
+    switch (reason) {
+      case 'no_permission':
+        return 'Location permission is off — your clock-out is recorded but not location-stamped. Turn on location in Settings to GPS-stamp future entries.';
+      case 'timeout':
+        return "Couldn't reach a satellite in time. Your clock-out is recorded but not location-stamped. Henry can correct mileage from the web admin if needed.";
+      default:
+        return 'Your clock-out is recorded but not location-stamped. Henry can correct mileage from the web admin if needed.';
     }
   };
 
@@ -108,6 +138,7 @@ export default function TimeScreen() {
         );
       }
     } catch (err) {
+      logError('time.onSubmitWeek', 'submit failed', err);
       Alert.alert(
         'Submit failed',
         err instanceof Error ? err.message : String(err)
@@ -140,7 +171,13 @@ export default function TimeScreen() {
         );
       }
     } catch (err) {
-      Alert.alert('Export failed', (err as Error).message);
+      logError('time.onExportCsv', 'export failed', err, {
+        days: days.length,
+      });
+      Alert.alert(
+        'Export failed',
+        err instanceof Error ? err.message : String(err)
+      );
     } finally {
       setExporting(false);
     }

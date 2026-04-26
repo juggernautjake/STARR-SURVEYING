@@ -19,6 +19,7 @@ import { logError } from '@/lib/log';
 import { PhotoLightbox } from '@/lib/PhotoLightbox';
 import { TextField } from '@/lib/TextField';
 import { ThumbnailGrid } from '@/lib/ThumbnailGrid';
+import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard';
 import {
   type FieldDataPoint,
   type DataPointPatch,
@@ -98,6 +99,23 @@ function PointForm({ point, palette }: PointFormProps) {
       (n) => n.toLowerCase() === trimmed.toLowerCase() && n !== point.name
     );
   }, [name, existingNames, point.name]);
+
+  // Dirty flag for the discard-changes guard. Compare each form
+  // field against its original value on the row.
+  const dirty = useMemo(
+    () =>
+      name.trim() !== (point.name ?? '') ||
+      description !== (point.description ?? '') ||
+      isOffset !== !!point.is_offset ||
+      isCorrection !== !!point.is_correction,
+    [name, description, isOffset, isCorrection, point]
+  );
+
+  const { attemptDismiss } = useUnsavedChangesGuard({
+    dirty,
+    scope: 'pointDetail',
+    message: 'Your edits to this point haven’t been saved.',
+  });
 
   const onSave = async () => {
     if (submitting) return;
@@ -255,7 +273,7 @@ function PointForm({ point, palette }: PointFormProps) {
               </Text>
             </View>
             <Pressable
-              onPress={() => router.back()}
+              onPress={attemptDismiss}
               accessibilityRole="button"
               accessibilityLabel="Cancel"
             >

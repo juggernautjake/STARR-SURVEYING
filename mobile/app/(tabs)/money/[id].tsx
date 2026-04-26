@@ -18,6 +18,7 @@ import { Button } from '@/lib/Button';
 import { CategoryPicker, categoryLabel } from '@/lib/CategoryPicker';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { logError } from '@/lib/log';
+import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard';
 import { RemotePhoto } from '@/lib/RemotePhoto';
 import { TextField } from '@/lib/TextField';
 import { useJob } from '@/lib/jobs';
@@ -139,6 +140,46 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Dirty flag for the discard-changes guard. Recomputed cheaply on
+  // every keystroke; the hook only fires the prompt when this flag is
+  // true at navigation time.
+  const dirty = useMemo(() => {
+    return (
+      vendorName !== (receipt.vendor_name ?? '') ||
+      vendorAddress !== (receipt.vendor_address ?? '') ||
+      transactionAt !== (receipt.transaction_at ?? null) ||
+      subtotalText !== centsToInputString(receipt.subtotal_cents) ||
+      taxText !== centsToInputString(receipt.tax_cents) ||
+      tipText !== centsToInputString(receipt.tip_cents) ||
+      totalText !== centsToInputString(receipt.total_cents) ||
+      paymentMethod !== (receipt.payment_method ?? '') ||
+      paymentLast4 !== (receipt.payment_last4 ?? '') ||
+      category !== ((receipt.category as ReceiptCategory | null) ?? null) ||
+      taxFlag !== ((receipt.tax_deductible_flag as TaxFlag | null) ?? 'review') ||
+      notes !== (receipt.notes ?? '')
+    );
+  }, [
+    receipt,
+    vendorName,
+    vendorAddress,
+    transactionAt,
+    subtotalText,
+    taxText,
+    tipText,
+    totalText,
+    paymentMethod,
+    paymentLast4,
+    category,
+    taxFlag,
+    notes,
+  ]);
+
+  const { attemptDismiss } = useUnsavedChangesGuard({
+    dirty,
+    scope: 'receiptDetail',
+    message: 'Your edits to this receipt haven’t been saved.',
+  });
+
   const totalsValid = useMemo(() => {
     const t = parseCents(totalText);
     return totalText.trim() === '' || t != null;
@@ -248,9 +289,17 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
   };
 
   const onDelete = () => {
+    // Vary the body when AI is mid-flight — the user may not realise
+    // they're killing in-progress work.
+    const inFlight =
+      receipt.extraction_status === 'queued' ||
+      receipt.extraction_status === 'running';
+    const body = inFlight
+      ? 'AI extraction is still running on this receipt. Deleting now wastes the work in progress — wait a few seconds, or delete anyway?'
+      : 'The photo and any AI-extracted data will be removed. You can re-snap the receipt if you change your mind.';
     Alert.alert(
       'Delete this receipt?',
-      'The photo and any AI-extracted data will be removed. You can re-snap the receipt if you change your mind.',
+      body,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -299,7 +348,7 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
               </Text>
             </View>
             <Pressable
-              onPress={() => router.back()}
+              onPress={attemptDismiss}
               accessibilityRole="button"
               accessibilityLabel="Cancel"
             >

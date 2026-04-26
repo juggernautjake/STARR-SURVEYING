@@ -144,6 +144,17 @@ const UNKNOWN_PREFIX: CodePrefix = {
 };
 
 /**
+ * Is `prefix` registered in CODE_PREFIXES? Capture screens use this
+ * to surface a soft warning when the surveyor types a name that
+ * starts with letters we don't recognise (e.g. "FOO01") so the
+ * point still saves but doesn't get auto-categorised.
+ */
+export function isKnownPrefix(prefix: string | null | undefined): boolean {
+  if (!prefix) return false;
+  return PREFIX_LOOKUP.has(prefix.toUpperCase());
+}
+
+/**
  * Suggest the next number in sequence for a given prefix on a given
  * job. Reads existing point names matching `{prefix}{digits}` and
  * returns prefix + (highest + 1), zero-padded to 2 digits when the

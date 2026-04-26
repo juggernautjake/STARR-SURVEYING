@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { logError } from '@/lib/log';
 import { useJobs, type Job } from '@/lib/jobs';
 import { useClockIn, type EntryType } from '@/lib/timeTracking';
 import { colors } from '@/lib/theme';
@@ -45,13 +46,38 @@ export default function PickJobScreen() {
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Shared exit path — surface GPS-failure messaging when present, then
+  // dismiss back to the Time tab. Surveyors trust the on-site stamp
+  // for billing, so a silent no-GPS clock-in leads to confusing
+  // mileage gaps later.
+  const finishClockIn = (
+    result: Awaited<ReturnType<ReturnType<typeof useClockIn>>>,
+    label: string
+  ) => {
+    if (!result.hasGps) {
+      Alert.alert(
+        `Clocked into ${label} — no GPS fix`,
+        gpsReasonClockInCopy(result.gpsReason),
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+      return;
+    }
+    router.back();
+  };
+
   const onPickEntryType = async (type: EntryType) => {
     setSubmitting(true);
     try {
-      await clockIn({ jobId: null, entryType: type });
-      router.back();
+      const result = await clockIn({ jobId: null, entryType: type });
+      finishClockIn(result, type);
     } catch (err) {
-      Alert.alert('Clock-in failed', (err as Error).message);
+      logError('pickJob.onPickEntryType', 'clock-in failed', err, {
+        entry_type: type,
+      });
+      Alert.alert(
+        'Clock-in failed',
+        err instanceof Error ? err.message : String(err)
+      );
       setSubmitting(false);
     }
   };
@@ -60,11 +86,30 @@ export default function PickJobScreen() {
     if (!job.id) return;
     setSubmitting(true);
     try {
-      await clockIn({ jobId: job.id, entryType: 'on_site' });
-      router.back();
+      const result = await clockIn({ jobId: job.id, entryType: 'on_site' });
+      finishClockIn(result, job.name?.trim() || 'job');
     } catch (err) {
-      Alert.alert('Clock-in failed', (err as Error).message);
+      logError('pickJob.onPickJob', 'clock-in failed', err, {
+        job_id: job.id,
+      });
+      Alert.alert(
+        'Clock-in failed',
+        err instanceof Error ? err.message : String(err)
+      );
       setSubmitting(false);
+    }
+  };
+
+  const gpsReasonClockInCopy = (
+    reason: 'no_permission' | 'timeout' | 'hardware' | null
+  ): string => {
+    switch (reason) {
+      case 'no_permission':
+        return 'Location permission is off — your start point won’t appear on the map. Turn on location in Settings to GPS-stamp future clock-ins.';
+      case 'timeout':
+        return "Couldn't reach a satellite in time. Your clock-in is recorded but the start point won't appear on the map. Try moving outside if the fix is needed.";
+      default:
+        return 'Your start point won’t appear on the map. Henry can correct mileage from the web admin if needed.';
     }
   };
 

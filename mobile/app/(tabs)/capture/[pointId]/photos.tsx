@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { logError, logWarn } from '@/lib/log';
+import { isPermissionDeniedError, promptForSettings } from '@/lib/permissionGuard';
 import { ThumbnailGrid } from '@/lib/ThumbnailGrid';
 import { useDataPoint } from '@/lib/dataPoints';
 import { lookupPrefix } from '@/lib/dataPointCodes';
@@ -105,20 +106,34 @@ export default function PointPhotosScreen() {
       // Stay on the screen — the new photo lands in the grid via
       // PowerSync's reactive query.
     } catch (err) {
-      // Primary photo-capture path. useAttachPhoto logs DB-insert
-      // failures, but permission denial / compression / upload errors
-      // bubble from logWarn-only origins. Promote to a real Sentry
-      // event tied to the user's exact tap so ops can correlate
-      // bucket-config issues with user-visible failures.
-      logError('photosScreen.onAttach', 'attach failed', err, {
-        job_id: point.job_id,
-        point_id: pointId ?? null,
-        source,
-      });
-      Alert.alert(
-        'Capture failed',
-        err instanceof Error ? err.message : String(err)
-      );
+      // Permission denials get the Settings deep-link prompt instead
+      // of a generic "Capture failed" alert. Other failure modes
+      // (compression / upload / DB insert) keep the alert.
+      const deniedKind = isPermissionDeniedError(err);
+      if (deniedKind) {
+        logWarn('photosScreen.onAttach', 'permission denied', err, {
+          job_id: point.job_id,
+          point_id: pointId ?? null,
+          source,
+          kind: deniedKind,
+        });
+        promptForSettings({ kind: deniedKind });
+      } else {
+        // Primary photo-capture path. useAttachPhoto logs DB-insert
+        // failures, but compression / upload errors bubble from
+        // logWarn-only origins. Promote to a real Sentry event tied
+        // to the user's exact tap so ops can correlate bucket-config
+        // issues with user-visible failures.
+        logError('photosScreen.onAttach', 'attach failed', err, {
+          job_id: point.job_id,
+          point_id: pointId ?? null,
+          source,
+        });
+        Alert.alert(
+          'Capture failed',
+          err instanceof Error ? err.message : String(err)
+        );
+      }
     } finally {
       setBusy(null);
     }
@@ -152,7 +167,7 @@ export default function PointPhotosScreen() {
     );
   };
 
-  const onDone = () => {
+  const exitToJob = () => {
     if (point.job_id) {
       router.replace({
         pathname: '/(tabs)/jobs/[id]',
@@ -161,6 +176,32 @@ export default function PointPhotosScreen() {
     } else {
       router.replace('/(tabs)/jobs');
     }
+  };
+
+  const onDone = () => {
+    // Most surveyor flows expect at least one photo per point — a
+    // photo-less point is usually an accidental Done. Confirm and
+    // offer "Snap photo" inline so the recovery path is one tap.
+    if (media.length === 0) {
+      Alert.alert(
+        'Save without photos?',
+        'No photos are attached to this point. Snap one now or finish without?',
+        [
+          {
+            text: 'Snap photo',
+            onPress: () => void onAttach('camera'),
+          },
+          {
+            text: 'Finish anyway',
+            style: 'destructive',
+            onPress: exitToJob,
+          },
+        ],
+        { cancelable: true }
+      );
+      return;
+    }
+    exitToJob();
   };
 
   // Loop back into the capture flow with the same job pre-filled —

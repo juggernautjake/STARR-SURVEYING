@@ -61,14 +61,33 @@ export async function ensureForegroundPermission(): Promise<boolean> {
 }
 
 /**
- * Best-effort one-shot position fix. Returns null on any failure
- * (permission, hardware, timeout) so callers can degrade gracefully.
+ * Reason a fix attempt failed. Callers vary the user-facing copy
+ * depending on which one — "permission denied" gets a Settings link,
+ * "timeout" suggests moving outside, "hardware" is the generic
+ * fallback.
  */
-export async function getCurrentPositionOrNull(): Promise<CapturedPosition | null> {
+export type GpsFailureReason = 'no_permission' | 'timeout' | 'hardware';
+
+export interface FixResult {
+  /** The position when captured; null otherwise. */
+  pos: CapturedPosition | null;
+  /** When pos is null, why. When pos is set, null. */
+  reason: GpsFailureReason | null;
+}
+
+/**
+ * Best-effort one-shot position fix. Returns `{ pos: null, reason }`
+ * on any failure (permission, hardware, timeout) so callers can vary
+ * UX without inspecting log breadcrumbs.
+ *
+ * Existing callers using getCurrentPositionOrNull keep working —
+ * that function is now a thin compatibility wrapper around this one.
+ */
+export async function getCurrentPosition(): Promise<FixResult> {
   const granted = await ensureForegroundPermission();
   if (!granted) {
     logInfo('location.getCurrentPosition', 'no permission — null fix');
-    return null;
+    return { pos: null, reason: 'no_permission' };
   }
 
   try {
@@ -93,21 +112,35 @@ export async function getCurrentPositionOrNull(): Promise<CapturedPosition | nul
         logInfo('location.getCurrentPosition', 'timeout — null fix', {
           timeout_ms: FIX_TIMEOUT_MS,
         });
-        return null;
+        return { pos: null, reason: 'timeout' };
       }
 
       return {
-        latitude: fix.coords.latitude,
-        longitude: fix.coords.longitude,
-        accuracy: fix.coords.accuracy ?? null,
-        altitude: fix.coords.altitude ?? null,
-        capturedAt: new Date(fix.timestamp).toISOString(),
+        pos: {
+          latitude: fix.coords.latitude,
+          longitude: fix.coords.longitude,
+          accuracy: fix.coords.accuracy ?? null,
+          altitude: fix.coords.altitude ?? null,
+          capturedAt: new Date(fix.timestamp).toISOString(),
+        },
+        reason: null,
       };
     } finally {
       if (timeoutHandle) clearTimeout(timeoutHandle);
     }
   } catch (err) {
     logWarn('location.getCurrentPosition', 'getCurrentPosition failed', err);
-    return null;
+    return { pos: null, reason: 'hardware' };
   }
+}
+
+/**
+ * Compatibility wrapper — returns just the position, dropping the
+ * reason. Existing F1 clock-in/out + F2 receipt capture call this;
+ * F3 capture flows use getCurrentPosition() directly so they can
+ * tailor messaging.
+ */
+export async function getCurrentPositionOrNull(): Promise<CapturedPosition | null> {
+  const { pos } = await getCurrentPosition();
+  return pos;
 }

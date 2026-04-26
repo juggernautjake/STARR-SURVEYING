@@ -21,7 +21,7 @@ import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
 import { extractPrefix } from './dataPointCodes';
 import { PHOTO_BUCKET } from './fieldMedia';
-import { getCurrentPositionOrNull } from './location';
+import { getCurrentPosition, type GpsFailureReason } from './location';
 import { logError, logInfo } from './log';
 import { removeFromBucket } from './storage/mediaUpload';
 import { randomUUID } from './uuid';
@@ -50,6 +50,10 @@ export interface CreatedDataPoint {
    *  permission-denied / no-fix; the row is still created (the field
    *  crew may want to add coordinates later from a paper note). */
   hasGps: boolean;
+  /** When hasGps is false, why — drives the screen's user-facing
+   *  message (Settings deep-link for permission, "move outside" for
+   *  timeout, generic for hardware). null when hasGps is true. */
+  gpsReason: GpsFailureReason | null;
 }
 
 /**
@@ -92,8 +96,9 @@ export function useCreateDataPoint(): (
 
       // Best-effort GPS fix — don't block point creation on it. The
       // location helper handles permission, timeout, and hardware
-      // failure with graceful degradation.
-      const pos = await getCurrentPositionOrNull();
+      // failure with graceful degradation. We pass `reason` back to
+      // the screen so the user sees why GPS failed.
+      const { pos, reason: gpsReason } = await getCurrentPosition();
       const codeCategory = extractPrefix(cleanName);
 
       const id = randomUUID();
@@ -156,7 +161,7 @@ export function useCreateDataPoint(): (
         name: cleanName,
       });
 
-      return { id, hasGps: !!pos };
+      return { id, hasGps: !!pos, gpsReason };
     },
     [db, session]
   );

@@ -11,7 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
-import { logError } from '@/lib/log';
+import { logError, logWarn } from '@/lib/log';
+import { isPermissionDeniedError, promptForSettings } from '@/lib/permissionGuard';
 import { useActiveTimeEntry } from '@/lib/timeTracking';
 import { useCaptureReceipt } from '@/lib/receipts';
 import { colors } from '@/lib/theme';
@@ -71,20 +72,31 @@ export default function CaptureReceiptScreen() {
       // visible immediately because PowerSync wrote it locally.
       router.back();
     } catch (err) {
-      // Screen-level capture so Sentry has the full handler context
-      // even when the underlying lib already logged. Permission-denial
-      // / pickAndCompress / uploadToBucket errors land here from
-      // logWarn-only origins; this promotes them to a real event tied
-      // to the user's exact tap.
-      logError('moneyCapture.onCapture', 'capture flow failed', err, {
-        source,
-        job_id: jobId,
-        job_time_entry_id: jobTimeEntryId,
-      });
-      Alert.alert(
-        'Capture failed',
-        err instanceof Error ? err.message : String(err)
-      );
+      // Permission denials get the Settings deep-link prompt; other
+      // failures keep the generic "Capture failed" alert.
+      const deniedKind = isPermissionDeniedError(err);
+      if (deniedKind) {
+        logWarn('moneyCapture.onCapture', 'permission denied', err, {
+          source,
+          job_id: jobId,
+          kind: deniedKind,
+        });
+        promptForSettings({ kind: deniedKind });
+      } else {
+        // Screen-level capture so Sentry has the full handler context
+        // even when the underlying lib already logged. pickAndCompress
+        // / uploadToBucket errors land here from logWarn-only origins;
+        // this promotes them to a real event tied to the user's tap.
+        logError('moneyCapture.onCapture', 'capture flow failed', err, {
+          source,
+          job_id: jobId,
+          job_time_entry_id: jobTimeEntryId,
+        });
+        Alert.alert(
+          'Capture failed',
+          err instanceof Error ? err.message : String(err)
+        );
+      }
     } finally {
       setBusy(null);
     }
@@ -108,11 +120,30 @@ export default function CaptureReceiptScreen() {
       </View>
 
       <View style={styles.body}>
-        <Text style={[styles.subtitle, { color: palette.muted }]}>
-          {active
-            ? `Receipt will be linked to your active clock-in (${active.jobName ?? 'job'}).`
-            : 'You’re not clocked in — the receipt will save without a job link. Edit it on the detail screen later.'}
-        </Text>
+        {active ? (
+          <Text style={[styles.subtitle, { color: palette.muted }]}>
+            Receipt will be linked to your active clock-in (
+            {active.jobName ?? 'job'}).
+          </Text>
+        ) : (
+          <View
+            style={[
+              styles.notClockedInCallout,
+              {
+                backgroundColor: palette.surface,
+                borderColor: palette.danger,
+              },
+            ]}
+          >
+            <Text style={[styles.calloutTitle, { color: palette.danger }]}>
+              Not clocked in
+            </Text>
+            <Text style={[styles.calloutBody, { color: palette.text }]}>
+              The receipt will save without a job link. Snap it now and pick a
+              job on the detail screen, or clock in first to auto-link it.
+            </Text>
+          </View>
+        )}
 
         <View style={styles.spacer} />
 
@@ -179,6 +210,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 8,
+  },
+  notClockedInCallout: {
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  calloutTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  calloutBody: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   spacer: { flex: 1 },
   gap: { height: 12 },

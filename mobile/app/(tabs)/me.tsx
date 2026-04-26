@@ -3,6 +3,7 @@ import { Alert, ScrollView, StyleSheet, Switch, Text, View, useColorScheme } fro
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { logError } from '@/lib/log';
 import { useAuth } from '@/lib/auth';
 import {
   biometricLabel,
@@ -68,6 +69,15 @@ export default function MeScreen() {
     setSigningOut(true);
     try {
       await signOut();
+    } catch (err) {
+      // Sign-out can fail if Supabase's storage adapter throws on
+      // session-clear (rare; usually a keychain race). Surface
+      // because otherwise the button just spins forever.
+      logError('me.onSignOut', 'sign out failed', err);
+      Alert.alert(
+        'Sign-out failed',
+        err instanceof Error ? err.message : String(err)
+      );
     } finally {
       setSigningOut(false);
     }
