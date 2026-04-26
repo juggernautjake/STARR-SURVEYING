@@ -194,40 +194,88 @@ export default function TimeScreen() {
         </View>
 
         {active ? (
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: palette.surface, borderColor: palette.border },
-            ]}
-          >
-            <Text style={[styles.cardLabel, { color: palette.muted }]}>
-              Clocked into
-            </Text>
-            <Text
-              style={[styles.cardTitle, { color: palette.text }]}
-              numberOfLines={2}
+          <>
+            {/* Stale clock-in detection: phone-died-overnight scenario.
+                Anything past 16h is almost certainly a forgotten clock-
+                out (typical work day caps at 14h with the F1 #7 prompt
+                schedule). The user lands here on app re-open and sees
+                a prominent "fix this" panel before the regular clocked-
+                in card. */}
+            {active.elapsedMs > 16 * 60 * 60 * 1000 ? (
+              <View
+                style={[
+                  styles.staleBanner,
+                  {
+                    backgroundColor: palette.surface,
+                    borderColor: palette.danger,
+                  },
+                ]}
+              >
+                <Text style={[styles.staleBannerTitle, { color: palette.danger }]}>
+                  Forgot to clock out?
+                </Text>
+                <Text style={[styles.staleBannerBody, { color: palette.text }]}>
+                  You&apos;ve been clocked in for {formatDuration(active.elapsedMs)}
+                  {active.entry.started_at
+                    ? ` (since ${formatLocalTime(active.entry.started_at) ?? '—'})`
+                    : ''}
+                  . Clock out at the right time below — pay-rate
+                  calculations use the timestamps on the row, so don&apos;t
+                  let "now" become your clock-out time if you stopped
+                  working hours ago.
+                </Text>
+                <View style={styles.staleBannerActions}>
+                  <Button
+                    variant="secondary"
+                    label="Fix the time"
+                    onPress={() => {
+                      const id = active.entry.id;
+                      if (!id) return;
+                      router.push({
+                        pathname: '/(tabs)/time/edit/[id]',
+                        params: { id },
+                      });
+                    }}
+                    accessibilityHint="Opens the time editor so you can set the correct clock-out time."
+                  />
+                </View>
+              </View>
+            ) : null}
+            <View
+              style={[
+                styles.card,
+                { backgroundColor: palette.surface, borderColor: palette.border },
+              ]}
             >
-              {active.jobName ?? entryTypeLabel(active.entry.entry_type)}
-            </Text>
-            <Text style={[styles.cardSubtitle, { color: palette.muted }]}>
-              {entryTypeLabel(active.entry.entry_type)}
-              {active.entry.started_at
-                ? ` · started ${formatLocalTime(active.entry.started_at) ?? '—'}`
-                : ''}
-            </Text>
+              <Text style={[styles.cardLabel, { color: palette.muted }]}>
+                Clocked into
+              </Text>
+              <Text
+                style={[styles.cardTitle, { color: palette.text }]}
+                numberOfLines={2}
+              >
+                {active.jobName ?? entryTypeLabel(active.entry.entry_type)}
+              </Text>
+              <Text style={[styles.cardSubtitle, { color: palette.muted }]}>
+                {entryTypeLabel(active.entry.entry_type)}
+                {active.entry.started_at
+                  ? ` · started ${formatLocalTime(active.entry.started_at) ?? '—'}`
+                  : ''}
+              </Text>
 
-            <Text style={[styles.duration, { color: palette.accent }]}>
-              {formatDuration(active.elapsedMs)}
-            </Text>
+              <Text style={[styles.duration, { color: palette.accent }]}>
+                {formatDuration(active.elapsedMs)}
+              </Text>
 
-            <Button
-              variant="danger"
-              label="Clock out"
-              onPress={onClockOut}
-              loading={clockingOut}
-              accessibilityHint="Stops the active time entry and stamps your clock-out location"
-            />
-          </View>
+              <Button
+                variant="danger"
+                label="Clock out"
+                onPress={onClockOut}
+                loading={clockingOut}
+                accessibilityHint="Stops the active time entry and stamps your clock-out location"
+              />
+            </View>
+          </>
         ) : (
           <View
             style={[
@@ -355,6 +403,27 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 32,
     fontWeight: '700',
+  },
+  staleBanner: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    marginBottom: 16,
+  },
+  staleBannerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  staleBannerBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  staleBannerActions: {
+    marginTop: 4,
   },
   card: {
     padding: 20,

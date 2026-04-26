@@ -441,6 +441,58 @@ const time_edits = new Table({
   client_id: column.text,
 });
 
+// ── pending_uploads — local-only retry queue ────────────────────────────────
+//
+// Survives reception loss + app crashes. Captures (receipts photo,
+// data-point photo, future video / voice) write the bytes to
+// FileSystem.documentDirectory and INSERT a row here; the upload
+// queue (lib/uploadQueue.ts) drains rows whenever the device is
+// online. PowerSync localOnly:true keeps these rows OFF the wire —
+// they never sync to Supabase.
+//
+// Lifecycle:
+//   1. Capture writes the file → enqueueAndAttempt() inserts here
+//      with retry_count=0, last_error=null.
+//   2. uploadQueue picks it up immediately (online) or on next
+//      network restore (offline).
+//   3. On success, the parent row's upload_state flips to 'done',
+//      the local file is deleted, and this row is removed.
+//   4. On failure, retry_count++ and last_error is captured.
+//      Backoff doubles per attempt (5s, 10s, 20s, 40s, …) capped at
+//      ~5 min so a permanently-bad row doesn't burn battery.
+const pending_uploads = new Table(
+  {
+    /** 'receipts' | 'field_media' | future media types — drives the
+     *  per-table 'success' update path. */
+    parent_table: column.text,
+    /** UUID of the parent row. Composite key with parent_table to
+     *  avoid collisions across tables. */
+    parent_id: column.text,
+    /** Storage bucket id (e.g. 'starr-field-receipts'). */
+    bucket: column.text,
+    /** Final remote path inside the bucket. */
+    storage_path: column.text,
+    /** file:// URI in FileSystem.documentDirectory. Persistent
+     *  across launches; survives app kills + reboots. */
+    local_uri: column.text,
+    /** MIME type at upload time (image/jpeg etc.). */
+    content_type: column.text,
+    /** Times we've tried + failed. Drives backoff. */
+    retry_count: column.integer,
+    /** Last error message (truncated) — populated on every failed
+     *  attempt for ops triage. */
+    last_error: column.text,
+    /** Wall-clock ms timestamp of next eligible attempt. The queue
+     *  skips rows where now() < next_attempt_at. */
+    next_attempt_at: column.integer,
+    created_at: column.text,
+  },
+  // PowerSync localOnly: these rows never replay to Supabase. The
+  // upload itself goes via supabase.storage; the parent row already
+  // syncs through the regular CRUD queue.
+  { localOnly: true }
+);
+
 /**
  * Top-level schema. Order doesn't matter for sync; alphabetical here
  * for human grep-ability.
@@ -454,6 +506,7 @@ export const AppSchema = new Schema({
   jobs,
   location_segments,
   location_stops,
+  pending_uploads,
   point_codes,
   receipt_line_items,
   receipts,

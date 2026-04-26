@@ -6,6 +6,10 @@ import { Button } from '@/lib/Button';
 import { logError } from '@/lib/log';
 import { useAuth } from '@/lib/auth';
 import {
+  getDeviceLibraryPref,
+  setDeviceLibraryPref,
+} from '@/lib/deviceLibrary';
+import {
   biometricLabel,
   getBiometricCapability,
   type BiometricKind,
@@ -32,6 +36,8 @@ export default function MeScreen() {
   const [bioAvailable, setBioAvailable] = useState(false);
   const [bioKind, setBioKind] = useState<BiometricKind>('unknown');
   const [bioPending, setBioPending] = useState(false);
+  const [saveToDeviceLib, setSaveToDeviceLib] = useState(false);
+  const [savePrefPending, setSavePrefPending] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -40,10 +46,26 @@ export default function MeScreen() {
       setBioAvailable(cap.available);
       setBioKind(cap.kind);
     });
+    // Read the device-library backup pref so the switch reflects
+    // the AsyncStorage state on mount.
+    getDeviceLibraryPref().then((enabled) => {
+      if (!mounted) return;
+      setSaveToDeviceLib(enabled);
+    });
     return () => {
       mounted = false;
     };
   }, []);
+
+  const onToggleSaveToDeviceLib = async (next: boolean) => {
+    setSavePrefPending(true);
+    try {
+      await setDeviceLibraryPref(next);
+      setSaveToDeviceLib(next);
+    } finally {
+      setSavePrefPending(false);
+    }
+  };
 
   const onToggleBiometric = async (next: boolean) => {
     setBioPending(true);
@@ -131,6 +153,31 @@ export default function MeScreen() {
                 : 'Disabled — enable biometric unlock first'
             }
           />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.muted }]}>Backups</Text>
+
+          <View style={[styles.row, { borderColor: palette.border }]}>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: palette.text }]}>
+                Save copies to my Photos
+              </Text>
+              <Text style={[styles.rowCaption, { color: palette.muted }]}>
+                Keep a personal backup of every receipt and survey photo
+                in your device&apos;s Photos app under a &quot;Starr Field&quot;
+                album. The app already keeps a local copy until upload
+                succeeds; this is your fallback if the app is uninstalled.
+              </Text>
+            </View>
+            <Switch
+              value={saveToDeviceLib}
+              onValueChange={onToggleSaveToDeviceLib}
+              disabled={savePrefPending}
+              trackColor={{ true: palette.accent, false: palette.border }}
+              ios_backgroundColor={palette.border}
+            />
+          </View>
         </View>
 
         <View style={styles.section}>

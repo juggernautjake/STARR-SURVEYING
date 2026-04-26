@@ -29,10 +29,11 @@ import { logError, logInfo } from './log';
 import {
   pickAndCompress,
   removeFromBucket,
-  uploadToBucket,
   type ImageSource,
 } from './storage/mediaUpload';
 import { useSignedUrl } from './storage/useSignedUrl';
+import { saveCopyToDeviceIfEnabled } from './deviceLibrary';
+import { enqueueAndAttempt, usePendingUploadLocalUri } from './uploadQueue';
 import { randomUUID } from './uuid';
 
 export type FieldMedia = AppDatabase['field_media'];
@@ -156,20 +157,14 @@ export function useAttachPhoto(): (
       const parentTag = dataPointId ?? `job-${jobId}`;
       const storagePath = `${userId}/${parentTag}-${mediaId}.jpg`;
 
-      // 4. Upload to the photos bucket.
-      await uploadToBucket({
-        bucket: PHOTO_BUCKET,
-        path: storagePath,
-        fileUri: picked.uri,
-        contentType: picked.contentType,
-        scope: 'fieldMedia.attachPhoto',
-      });
-
-      // 5. Compute next position + INSERT inside one writeTransaction
+      // 4. Compute next position + INSERT inside one writeTransaction
       //    so concurrent attaches can't both read the same MAX and
       //    insert at the same position. The local SQLite serialises
       //    transactions so the second caller sees the first's row.
       //    PowerSync's CRUD queue replays the INSERT op server-side.
+      //    INSERT runs BEFORE the upload — if the user is offline,
+      //    the row still lands in the gallery and the upload queue
+      //    drains the photo on next network restore.
       const nowIso = new Date().toISOString();
       try {
         await db.writeTransaction(async (tx) => {
@@ -205,7 +200,10 @@ export function useAttachPhoto(): (
               null,
               // Annotated overlay — populated by F3 #6.
               null,
-              'done',
+              // 'pending' until the upload queue marks it 'done'.
+              // Was 'done' eagerly before — that lied to the UI when
+              // the synchronous upload failed offline.
+              'pending',
               burstGroupId ?? null,
               position,
               picked.fileSize ?? null,
@@ -226,20 +224,32 @@ export function useAttachPhoto(): (
           point_id: dataPointId,
           job_id: jobId,
         });
-        // Best-effort orphan cleanup so the bucket doesn't accumulate
-        // uploaded-but-unrecorded photos.
-        await removeFromBucket({
-          bucket: PHOTO_BUCKET,
-          path: storagePath,
-          scope: 'fieldMedia.attachPhoto',
-        });
         throw err;
       }
+
+      // Enqueue the upload — the queue persists the file to
+      // documentDirectory and retries on network restore. The row's
+      // upload_state stays 'pending' until the queue flips it to 'done'.
+      const enqueueResult = await enqueueAndAttempt(db, {
+        parentTable: 'field_media',
+        parentId: mediaId,
+        bucket: PHOTO_BUCKET,
+        storagePath,
+        localFileUri: picked.uri,
+        contentType: picked.contentType,
+        scope: 'fieldMedia.attachPhoto',
+      });
+
+      // Best-effort save to the device's Photos app — opt-in via the
+      // Me tab. Surveying photos are usually fine to back up, so this
+      // is more useful here than for receipts. Fire-and-forget.
+      void saveCopyToDeviceIfEnabled(picked.uri, 'fieldMedia.attachPhoto');
 
       logInfo('fieldMedia.attachPhoto', 'success', {
         media_id: mediaId,
         point_id: dataPointId,
         bytes: picked.fileSize ?? null,
+        uploaded_now: enqueueResult.uploadedNow,
       });
 
       return { id: mediaId, storagePath };
@@ -399,7 +409,11 @@ export function useDeleteMedia(): (media: FieldMedia) => Promise<void> {
  * don't need to know which bucket photos live in.
  */
 export function useFieldMediaPhotoUrl(
-  media: Pick<FieldMedia, 'storage_url'> | null | undefined
+  media: (Pick<FieldMedia, 'storage_url'> & { id?: string | null }) | null | undefined
 ): string | null {
-  return useSignedUrl(PHOTO_BUCKET, media?.storage_url ?? null);
+  // Local file takes priority while the upload is queued — surveyors
+  // can scroll through what they captured before reception returns.
+  const pendingLocal = usePendingUploadLocalUri('field_media', media?.id ?? null);
+  const signedUrl = useSignedUrl(PHOTO_BUCKET, media?.storage_url ?? null);
+  return pendingLocal ?? signedUrl;
 }

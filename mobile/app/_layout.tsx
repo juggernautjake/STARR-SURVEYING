@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '@/lib/auth';
 import { DatabaseProvider } from '@/lib/db';
 import Sentry, { initSentry } from '@/lib/sentry';
+import { useUploadQueueDrainer } from '@/lib/uploadQueue';
 
 // Module-load side effects (must run BEFORE any provider mounts):
 //
@@ -37,12 +38,24 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
  * reports. Sentry.wrap is a passthrough when initSentry no-op'd
  * (no DSN configured), so dev still works without a Sentry account.
  */
+/**
+ * Empty-fragment component that mounts useUploadQueueDrainer inside
+ * the DatabaseProvider's children — usePowerSync needs a parent
+ * <PowerSyncContext>. Drainer fires on app launch + every network
+ * restore; survives offline capture sessions.
+ */
+function UploadQueueDrainer() {
+  useUploadQueueDrainer();
+  return null;
+}
+
 function RootLayout() {
   return (
     <SafeAreaProvider>
       <StatusBar style="auto" />
       <AuthProvider>
         <DatabaseProvider>
+          <UploadQueueDrainer />
           <Stack
             screenOptions={{
               headerShown: false,

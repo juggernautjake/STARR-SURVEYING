@@ -30,10 +30,11 @@ import { logError, logInfo } from './log';
 import {
   pickAndCompress,
   removeFromBucket,
-  uploadToBucket,
 } from './storage/mediaUpload';
 import { useSignedUrl } from './storage/useSignedUrl';
 import { supabase } from './supabase';
+import { saveCopyToDeviceIfEnabled } from './deviceLibrary';
+import { enqueueAndAttempt, usePendingUploadLocalUri } from './uploadQueue';
 import { randomUUID } from './uuid';
 
 export type Receipt = AppDatabase['receipts'];
@@ -136,20 +137,12 @@ export function useCaptureReceipt(): (
       const receiptId = randomUUID();
       const storagePath = `${userId}/${receiptId}.jpg`;
 
-      // 3. Upload to the receipts bucket.
-      await uploadToBucket({
-        bucket: STORAGE_BUCKET,
-        path: storagePath,
-        fileUri: picked.uri,
-        contentType: picked.contentType,
-        scope: 'receipts.capture',
-      });
-
-      // 4. INSERT the pending row. PowerSync's CRUD queue replays the
-      //    UPSERT against Supabase. extraction_status='queued' tells
-      //    the worker to pick it up. client_id is intentionally NOT set
-      //    — PowerSync uses the row's id (PK) as the dedup key, which
-      //    is more reliable than a freshly generated client_id per call.
+      // 3. INSERT the pending row FIRST (before upload). PowerSync's
+      //    CRUD queue replays the UPSERT against Supabase. We do this
+      //    before the upload because the row is the source-of-truth:
+      //    if the user is offline at capture time, we still want
+      //    their receipt visible in the local list. The photo lands
+      //    via the upload queue on next network restore.
       const nowIso = new Date().toISOString();
       try {
         await db.execute(
@@ -174,21 +167,35 @@ export function useCaptureReceipt(): (
         logError('receipts.capture', 'db insert failed', err, {
           receipt_id: receiptId,
         });
-        // Best-effort: clean up the orphaned storage object. Failure
-        // here is non-fatal — the IRS retention archival job will
-        // catch orphans.
-        await removeFromBucket({
-          bucket: STORAGE_BUCKET,
-          path: storagePath,
-          scope: 'receipts.capture',
-        });
         throw err;
       }
+
+      // 4. Enqueue the photo upload. enqueueAndAttempt copies the
+      //    compressed file to documentDirectory (persistent through
+      //    app kills + reboots) and tries the upload synchronously.
+      //    On failure the row stays in pending_uploads and the queue
+      //    drains it on next network restore.
+      const enqueueResult = await enqueueAndAttempt(db, {
+        parentTable: 'receipts',
+        parentId: receiptId,
+        bucket: STORAGE_BUCKET,
+        storagePath,
+        localFileUri: picked.uri,
+        contentType: picked.contentType,
+        scope: 'receipts.capture',
+      });
+
+      // 5. Best-effort save to the device's Photos app — only if the
+      //    user opted in via the Me tab. Off by default for privacy
+      //    (receipts have card numbers). Fire-and-forget; failures
+      //    log but don't disrupt the capture flow.
+      void saveCopyToDeviceIfEnabled(picked.uri, 'receipts.capture');
 
       logInfo('receipts.capture', 'success', {
         receipt_id: receiptId,
         job_id: jobId,
         bytes: picked.fileSize ?? null,
+        uploaded_now: enqueueResult.uploadedNow,
       });
 
       return { id: receiptId, storagePath };
@@ -556,7 +563,12 @@ export async function retryReceiptExtraction(receiptId: string): Promise<boolean
  * defensive).
  */
 export function useReceiptPhotoUrl(
-  receipt: Pick<Receipt, 'photo_url'> | null | undefined
+  receipt: (Pick<Receipt, 'photo_url'> & { id?: string | null }) | null | undefined
 ): string | null {
-  return useSignedUrl(STORAGE_BUCKET, receipt?.photo_url ?? null);
+  // If the upload is still queued (offline / retrying), show the
+  // local file so the user sees their snap immediately. The signed
+  // URL takes over once the queue marks the upload done.
+  const pendingLocal = usePendingUploadLocalUri('receipts', receipt?.id ?? null);
+  const signedUrl = useSignedUrl(STORAGE_BUCKET, receipt?.photo_url ?? null);
+  return pendingLocal ?? signedUrl;
 }
