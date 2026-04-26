@@ -19,7 +19,7 @@ import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native'
 
 import { lookupPrefix } from './dataPointCodes';
 import type { FieldDataPoint } from './dataPoints';
-import { type Palette, colors } from './theme';
+import { colors } from './theme';
 
 interface PointCardProps {
   point: FieldDataPoint;
@@ -112,9 +112,6 @@ function formatRelative(iso: string | null | undefined): string {
   if (day < 30) return `${day}d ago`;
   return new Date(iso).toLocaleDateString();
 }
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function _palette(_p: Palette) {} // satisfies the unused-import lint
 
 const styles = StyleSheet.create({
   card: {
