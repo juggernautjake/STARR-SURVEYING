@@ -185,12 +185,18 @@ export async function processQueuedReceipts(
   // watchdog window, i.e. crashed mid-extraction). claimRow() repeats
   // the same predicate atomically so two workers can't both grab the
   // same row.
+  //
+  // The timestamp inside `.or()` MUST be wrapped in double quotes —
+  // PostgREST's logic-tree parser uses commas / parens / dots as
+  // separators and the colons in an ISO-8601 string can confuse it
+  // when nested under and(...). Quoting forces the value to be
+  // treated as a literal.
   const staleBefore = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
   const { data: rows, error: fetchErr } = await supabase
     .from('receipts')
     .select('id, user_id, photo_url, extraction_status, extraction_started_at')
     .or(
-      `extraction_status.eq.queued,and(extraction_status.eq.running,extraction_started_at.lt.${staleBefore})`
+      `extraction_status.eq.queued,and(extraction_status.eq.running,extraction_started_at.lt."${staleBefore}")`
     )
     .order('created_at', { ascending: true })
     .limit(batchSize);
@@ -246,7 +252,7 @@ async function processOne(
   //    one's UPDATE sees a row in the eligible state; the other gets
   //    zero rows back and bails out — preventing duplicate Vision
   //    spend AND duplicate line_items writes.
-  const claimed = await claimRow(supabase, row.id, startedAt);
+  const claimed = await claimRow(supabase, row.id, startedAt, logger);
   if (!claimed) {
     logger.info('row already claimed by another worker — skipping', {
       receipt_id: row.id,
@@ -271,7 +277,7 @@ async function processOne(
     // a Vision-call failure here — the breaker tracks AI spend, not
     // storage outages. A run of bad photos shouldn't open the AI gate.
     const msg = err instanceof Error ? err.message : String(err);
-    await markFailed(supabase, row.id, `photo fetch: ${msg}`);
+    await markFailed(supabase, row.id, `photo fetch: ${msg}`, logger);
     return { receiptId: row.id, status: 'failed', error: msg };
   }
 
@@ -283,7 +289,7 @@ async function processOne(
   if (!gate.allowed) {
     // Roll the row back to 'queued' so the next batch retries. Don't
     // mark 'failed' — the breaker is a transient soft-stop.
-    await releaseClaim(supabase, row.id);
+    await releaseClaim(supabase, row.id, logger);
     logger.warn('circuit open after photo fetch — releasing row', {
       receipt_id: row.id,
       reason: gate.reason,
@@ -400,13 +406,16 @@ async function processOne(
 async function claimRow(
   supabase: SupabaseClient,
   receiptId: string,
-  startedAt: string
+  startedAt: string,
+  logger: ProcessLogger
 ): Promise<boolean> {
   const staleBefore = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
   // The PostgREST `.or()` filter inside an UPDATE+select gives us the
   // atomic claim semantics we need. If no row matches the predicate
   // (because another worker already flipped it), the result data is
-  // empty and we know we lost.
+  // empty and we know we lost. The timestamp is wrapped in double
+  // quotes per PostgREST's logic-tree escaping (the colons in an
+  // ISO-8601 string can confuse the parser otherwise).
   const { data, error } = await supabase
     .from('receipts')
     .update({
@@ -414,12 +423,20 @@ async function claimRow(
       extraction_started_at: startedAt,
     })
     .eq('id', receiptId)
-    .or(`extraction_status.eq.queued,and(extraction_status.eq.running,extraction_started_at.lt.${staleBefore})`)
+    .or(`extraction_status.eq.queued,and(extraction_status.eq.running,extraction_started_at.lt."${staleBefore}")`)
     .select('id');
 
   if (error) {
-    // Network / DB outage — treat as a lost race; the row is left in
-    // its prior state and a future poll will retry.
+    // DB error — treat as a lost race so the worker bails for this
+    // row, but log the message so ops can distinguish a genuine
+    // outage ("row not lost — Postgres is down") from a contention
+    // loss ("another worker already grabbed it"). Without the log,
+    // a Supabase outage manifests as silent skipped batches.
+    logger.warn('claimRow error treated as lost race', {
+      receipt_id: receiptId,
+      error: error.message,
+      code: (error as { code?: string }).code ?? null,
+    });
     return false;
   }
   return Array.isArray(data) && data.length > 0;
@@ -433,9 +450,10 @@ async function claimRow(
  */
 async function releaseClaim(
   supabase: SupabaseClient,
-  receiptId: string
+  receiptId: string,
+  logger: ProcessLogger
 ): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from('receipts')
     .update({
       extraction_status: 'queued',
@@ -443,14 +461,24 @@ async function releaseClaim(
     })
     .eq('id', receiptId)
     .eq('extraction_status', 'running');
+  // Log but don't throw — the row stays 'running' until the watchdog
+  // picks it back up. Without this log a Supabase outage during
+  // release manifests as silently-stuck rows.
+  if (error) {
+    logger.warn('releaseClaim failed', {
+      receipt_id: receiptId,
+      error: error.message,
+    });
+  }
 }
 
 async function markFailed(
   supabase: SupabaseClient,
   receiptId: string,
-  errorMessage: string
+  errorMessage: string,
+  logger: ProcessLogger
 ): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from('receipts')
     .update({
       extraction_status: 'failed',
@@ -458,6 +486,16 @@ async function markFailed(
       extraction_error: errorMessage.slice(0, 1000),
     })
     .eq('id', receiptId);
+  // If markFailed itself fails, the row stays 'running' until the
+  // watchdog reclaims, AND the user sees no extraction error message.
+  // Log the meta-failure so ops can correlate.
+  if (error) {
+    logger.warn('markFailed write failed', {
+      receipt_id: receiptId,
+      original_error: errorMessage.slice(0, 200),
+      write_error: error.message,
+    });
+  }
 }
 
 async function markDone(

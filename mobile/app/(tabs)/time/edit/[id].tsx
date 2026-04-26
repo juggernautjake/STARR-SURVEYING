@@ -20,6 +20,7 @@ import { lockedDayTitle } from '@/lib/StatusChip';
 import { TextField } from '@/lib/TextField';
 import { TimeEditHistory } from '@/lib/TimeEditHistory';
 import { useJob } from '@/lib/jobs';
+import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard';
 import {
   durationMinutesBetween,
   formatDuration,
@@ -122,6 +123,24 @@ function EditForm({ row, palette }: EditFormProps) {
   const [reason, setReason] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Dirty flag for the discard-changes guard. The reason field counts
+  // as a change too — a user typing a justification then back-swiping
+  // shouldn't lose it without warning.
+  const dirty = useMemo(
+    () =>
+      startedAt !== row.started_at ||
+      endedAt !== row.ended_at ||
+      notes !== (row.notes ?? '') ||
+      reason.trim() !== '',
+    [startedAt, endedAt, notes, reason, row]
+  );
+
+  const { attemptDismiss } = useUnsavedChangesGuard({
+    dirty,
+    scope: 'timeEdit',
+    message: 'Your time-entry edits and the reason haven’t been saved.',
+  });
+
   // Live validation so the UI can show the tier badge as the user
   // adjusts the time pickers.
   const validation = useMemo(
@@ -209,7 +228,7 @@ function EditForm({ row, palette }: EditFormProps) {
               {job?.name ?? entryTypeLabel(row.entry_type)}
             </Text>
             <Pressable
-              onPress={() => router.back()}
+              onPress={attemptDismiss}
               accessibilityRole="button"
               accessibilityLabel="Cancel"
             >

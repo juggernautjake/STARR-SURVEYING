@@ -127,6 +127,16 @@ export const PATCH = withErrorHandler(
       .single();
 
     if (error) {
+      // A failing approval / status transition is high-signal. Log the
+      // underlying Postgres / PostgREST message + code so ops can
+      // correlate bookkeeper-visible 500s with the DB error class
+      // (RLS denial vs constraint violation vs network).
+      console.error('[admin/receipts/[id]] PATCH failed', {
+        id,
+        status: body.status,
+        error: error.message,
+        code: (error as { code?: string }).code ?? null,
+      });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -148,7 +158,14 @@ async function resolveAdminUserId(email: string): Promise<string | null> {
     });
     const match = data?.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
     return match?.id ?? null;
-  } catch {
+  } catch (err) {
+    // Audit trail will lack the approver UUID — a non-blocking issue,
+    // but worth logging so we know when it happens. The PATCH itself
+    // still succeeds with approved_by = null.
+    console.warn(
+      '[admin/receipts/[id]] approved_by resolve failed; audit trail will lack approver',
+      { email, error: err instanceof Error ? err.message : String(err) }
+    );
     return null;
   }
 }

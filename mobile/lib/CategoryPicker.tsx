@@ -18,7 +18,7 @@ import { colors } from './theme';
 
 interface CategoryPickerProps {
   value: ReceiptCategory | null | undefined;
-  onChange: (next: ReceiptCategory) => void;
+  onChange: (next: ReceiptCategory | null) => void;
   /** Disables every chip (e.g. while the form is saving). */
   disabled?: boolean;
 }
@@ -26,6 +26,13 @@ interface CategoryPickerProps {
 export function CategoryPicker({ value, onChange, disabled }: CategoryPickerProps) {
   const scheme = useColorScheme() ?? 'dark';
   const palette = colors[scheme];
+
+  // Tapping a selected chip clears the category. The bookkeeper
+  // sometimes wants to defer categorisation; without this affordance
+  // the user is stuck with whatever AI suggested.
+  const onPress = (cat: ReceiptCategory) => {
+    onChange(value === cat ? null : cat);
+  };
 
   return (
     <View style={styles.row}>
@@ -35,10 +42,10 @@ export function CategoryPicker({ value, onChange, disabled }: CategoryPickerProp
           <Pressable
             key={cat}
             disabled={disabled}
-            onPress={() => onChange(cat)}
+            onPress={() => onPress(cat)}
             accessibilityRole="button"
             accessibilityState={{ selected, disabled }}
-            accessibilityLabel={`Category ${categoryLabel(cat)}`}
+            accessibilityLabel={`Category ${categoryLabel(cat)}${selected ? ' (selected — tap to clear)' : ''}`}
             style={({ pressed }) => [
               styles.chip,
               {

@@ -4,8 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { PointCard } from '@/lib/PointCard';
 import { ReceiptRollupCard } from '@/lib/ReceiptRollupCard';
 import { StageChip } from '@/lib/StageChip';
+import { useJobDataPoints } from '@/lib/dataPoints';
 import { useJob } from '@/lib/jobs';
 import { useJobReceiptRollup } from '@/lib/receipts';
 import { colors, type Palette } from '@/lib/theme';
@@ -23,6 +25,7 @@ export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { job, isLoading } = useJob(id);
   const { rollup, isLoading: rollupLoading } = useJobReceiptRollup(id ?? null);
+  const { points } = useJobDataPoints(id ?? null);
 
   if (isLoading) return <LoadingSplash />;
 
@@ -70,6 +73,19 @@ export default function JobDetailScreen() {
           ) : null}
         </View>
 
+        <View style={styles.actionsRow}>
+          <Button
+            label="+ Point"
+            onPress={() =>
+              router.push({
+                pathname: '/(tabs)/capture',
+                params: { jobId: job.id ?? '' },
+              })
+            }
+            accessibilityHint="Capture a new survey data point on this job."
+          />
+        </View>
+
         <Section title="Client" palette={palette}>
           <Field label="Name" value={job.client_name} palette={palette} />
           <Field label="Company" value={job.client_company} palette={palette} />
@@ -99,6 +115,36 @@ export default function JobDetailScreen() {
         <View style={styles.rollupBlock}>
           <ReceiptRollupCard rollup={rollup} isLoading={rollupLoading} />
         </View>
+
+        {/* Data points — F3 #4. Shows the most recent N; expanding to
+            a full per-job list lands in F3 polish. */}
+        <Section title={`Points (${points.length})`} palette={palette}>
+          {points.length === 0 ? (
+            <Text style={[styles.pointsEmpty, { color: palette.muted }]}>
+              No points captured yet — tap +&nbsp;Point above to start.
+            </Text>
+          ) : (
+            <>
+              {points.slice(0, 8).map((p) => (
+                <PointCard
+                  key={p.id ?? ''}
+                  point={p}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(tabs)/jobs/[id]/points/[pointId]',
+                      params: { id: id ?? '', pointId: p.id ?? '' },
+                    })
+                  }
+                />
+              ))}
+              {points.length > 8 ? (
+                <Text style={[styles.pointsMore, { color: palette.muted }]}>
+                  + {points.length - 8} more — full list lands in F3 polish.
+                </Text>
+              ) : null}
+            </>
+          )}
+        </Section>
 
         <Section title="Timeline" palette={palette}>
           <Field
@@ -227,6 +273,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    marginBottom: 16,
+  },
+  actionsRow: {
     marginBottom: 24,
   },
   jobNumber: {
@@ -256,6 +305,17 @@ const styles = StyleSheet.create({
   },
   rollupBlock: {
     marginBottom: 24,
+  },
+  pointsEmpty: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    paddingVertical: 8,
+  },
+  pointsMore: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    paddingTop: 8,
+    textAlign: 'center',
   },
   title: {
     fontSize: 22,

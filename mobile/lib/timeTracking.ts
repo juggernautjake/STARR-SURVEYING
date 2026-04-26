@@ -35,7 +35,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
-import { getCurrentPositionOrNull } from './location';
+import { getCurrentPosition, type GpsFailureReason } from './location';
 import { logError, logInfo, logWarn } from './log';
 import { durationMinutesBetween, todayLocalISODate } from './timeFormat';
 import {
@@ -153,10 +153,19 @@ export function useActiveTimeEntry(): {
  * prevent that, but we want loud failure if it ever slips past the
  * UI guard.
  */
+export interface ClockInResult {
+  /** True when phone GPS landed at clock-in time. False on permission
+   *  denial / timeout / hardware fault. */
+  hasGps: boolean;
+  /** Why GPS failed when hasGps is false; null when hasGps is true.
+   *  Drives the screen's user-facing prompt. */
+  gpsReason: GpsFailureReason | null;
+}
+
 export function useClockIn(): (params: {
   jobId: string | null;
   entryType: EntryType;
-}) => Promise<void> {
+}) => Promise<ClockInResult> {
   const db = usePowerSync();
   const { session } = useAuth();
 
@@ -198,12 +207,15 @@ export function useClockIn(): (params: {
         //    GPS acquisition can take up to ~8s; the SQLite round-trip
         //    is sub-ms — running them sequentially would stall every
         //    clock-in by the full GPS window.
-        const [dailyLog, pos] = await Promise.all([
+        const [dailyLog, fix] = await Promise.all([
           ensureDailyLog(db, userEmail, today),
-          getCurrentPositionOrNull(),
+          getCurrentPosition(),
         ]);
+        const pos = fix.pos;
         if (!pos) {
-          logInfo('timeTracking.clockIn', 'no GPS fix (clock-in proceeds)');
+          logInfo('timeTracking.clockIn', 'no GPS fix (clock-in proceeds)', {
+            reason: fix.reason,
+          });
         }
 
         // 3. Insert the open job_time_entries row.
@@ -253,6 +265,8 @@ export function useClockIn(): (params: {
             { entry_id: entryId }
           );
         }
+
+        return { hasGps: !!pos, gpsReason: fix.reason };
       } catch (err) {
         // Re-throw the "Already clocked in" / "no session" cases without
         // double-logging — they're already logged above. Anything else
@@ -281,7 +295,21 @@ export function useClockIn(): (params: {
  * false) if no open entry exists — the UI shouldn't call this in
  * that state, but again, defensive.
  */
-export function useClockOut(): () => Promise<boolean> {
+export interface ClockOutResult {
+  /** True when the clock-out flipped an open entry to closed. False
+   *  on no-session or no-open-entry no-ops. */
+  ok: boolean;
+  /** Total elapsed minutes between started_at and clock-out. null
+   *  for no-op cases. */
+  durationMinutes: number | null;
+  /** True when phone GPS landed at clock-out time. False on
+   *  permission denial / timeout / hardware fault — and on no-op. */
+  hasGps: boolean;
+  /** Why GPS failed when hasGps is false; null on success or no-op. */
+  gpsReason: GpsFailureReason | null;
+}
+
+export function useClockOut(): () => Promise<ClockOutResult> {
   const db = usePowerSync();
   const { session } = useAuth();
 
@@ -289,7 +317,7 @@ export function useClockOut(): () => Promise<boolean> {
     const userEmail = session?.user.email;
     if (!userEmail) {
       logInfo('timeTracking.clockOut', 'no session — no-op');
-      return false;
+      return { ok: false, durationMinutes: null, hasGps: false, gpsReason: null };
     }
 
     try {
@@ -301,7 +329,7 @@ export function useClockOut(): () => Promise<boolean> {
       );
       if (!open || !open.started_at) {
         logInfo('timeTracking.clockOut', 'no open entry — no-op');
-        return false;
+        return { ok: false, durationMinutes: null, hasGps: false, gpsReason: null };
       }
 
       logInfo('timeTracking.clockOut', 'attempt', {
@@ -312,9 +340,12 @@ export function useClockOut(): () => Promise<boolean> {
       const nowIso = new Date().toISOString();
       const durationMin = durationMinutesBetween(open.started_at, nowIso);
 
-      const pos = await getCurrentPositionOrNull();
+      const fix = await getCurrentPosition();
+      const pos = fix.pos;
       if (!pos) {
-        logInfo('timeTracking.clockOut', 'no GPS fix (clock-out proceeds)');
+        logInfo('timeTracking.clockOut', 'no GPS fix (clock-out proceeds)', {
+          reason: fix.reason,
+        });
       }
 
       await db.execute(
@@ -339,6 +370,7 @@ export function useClockOut(): () => Promise<boolean> {
         entry_id: open.id,
         duration_minutes: durationMin,
         has_gps: !!pos,
+        gps_reason: fix.reason,
       });
 
       // Cancel any scheduled "still working?" prompts for this entry.
@@ -355,7 +387,12 @@ export function useClockOut(): () => Promise<boolean> {
         );
       }
 
-      return true;
+      return {
+        ok: true,
+        durationMinutes: durationMin,
+        hasGps: !!pos,
+        gpsReason: fix.reason,
+      };
     } catch (err) {
       logError('timeTracking.clockOut', 'unexpected failure', err);
       throw err;

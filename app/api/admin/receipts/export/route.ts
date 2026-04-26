@@ -103,7 +103,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     resolvedUserId = await resolveUserIdByEmail(email);
     if (!resolvedUserId) {
       // No user matches — emit a CSV with just the header so the
-      // bookkeeper sees an empty download instead of a 500.
+      // bookkeeper sees an empty download instead of a 500. Log so
+      // the "I exported but got nothing" question has a server-side
+      // trail (typo email vs throttled listUsers vs missing user).
+      console.warn(
+        '[admin/receipts/export] empty export — email did not resolve to a user',
+        { email, from, to }
+      );
       const empty = HEADERS.join(',') + '\n';
       const filename = `starr-field-receipts-${dateRangeSlug(from, to)}-empty.csv`;
       return new NextResponse(empty, {
@@ -131,6 +137,18 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data: rows, error } = await query;
   if (error) {
+    // Without this log, a Supabase outage during export looks like a
+    // mysterious "empty CSV" or "500 page" — ops needs the underlying
+    // PostgREST message to diagnose.
+    console.error('[admin/receipts/export] query failed', {
+      error: error.message,
+      code: (error as { code?: string }).code ?? null,
+      status,
+      from,
+      to,
+      email,
+      jobId,
+    });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   const receiptRows = (rows ?? []) as ReceiptRow[];
@@ -198,6 +216,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const csv = lines.join('\n') + '\n';
 
   const filename = `starr-field-receipts-${dateRangeSlug(from, to)}.csv`;
+  // Audit trail — every export lands here so we can answer "did the
+  // bookkeeper really get the data they expected?" weeks later.
+  console.log('[admin/receipts/export] exported', {
+    rows: receiptRows.length,
+    bytes: csv.length,
+    status,
+    from,
+    to,
+    email: email ?? null,
+    jobId: jobId ?? null,
+  });
   return new NextResponse(csv, {
     status: 200,
     headers: {

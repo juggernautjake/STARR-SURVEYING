@@ -1,9 +1,8 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,6 +17,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/lib/Button';
 import { CategoryPicker, categoryLabel } from '@/lib/CategoryPicker';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { logError } from '@/lib/log';
+import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard';
+import { RemotePhoto } from '@/lib/RemotePhoto';
 import { TextField } from '@/lib/TextField';
 import { useJob } from '@/lib/jobs';
 import { formatCents, parseCents } from '@/lib/money';
@@ -75,6 +77,14 @@ export default function ReceiptDetailScreen() {
   //     trigger, a user sitting on the edit screen during extraction
   //     never sees the AI-filled vendor / total — the form state was
   //     initialised when the row was empty.
+  //
+  // Why a remount instead of useEffect-syncing the 14 fields: the form
+  // has 14 controlled inputs each with its own useState. A useEffect
+  // that mirrors `receipt` → state would trample mid-edit user input
+  // any time extraction touches the row. Re-keying remounts cleanly,
+  // re-runs each useState's lazy initialiser, and discards in-flight
+  // edits ONLY at the precise extraction-phase boundary — matches what
+  // the user expects ("AI just finished — show me what it filled in").
   const extractionPhase =
     receipt.extraction_status === 'done' ||
     receipt.extraction_status === 'failed'
@@ -129,6 +139,46 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
   const [retrying, setRetrying] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Dirty flag for the discard-changes guard. Recomputed cheaply on
+  // every keystroke; the hook only fires the prompt when this flag is
+  // true at navigation time.
+  const dirty = useMemo(() => {
+    return (
+      vendorName !== (receipt.vendor_name ?? '') ||
+      vendorAddress !== (receipt.vendor_address ?? '') ||
+      transactionAt !== (receipt.transaction_at ?? null) ||
+      subtotalText !== centsToInputString(receipt.subtotal_cents) ||
+      taxText !== centsToInputString(receipt.tax_cents) ||
+      tipText !== centsToInputString(receipt.tip_cents) ||
+      totalText !== centsToInputString(receipt.total_cents) ||
+      paymentMethod !== (receipt.payment_method ?? '') ||
+      paymentLast4 !== (receipt.payment_last4 ?? '') ||
+      category !== ((receipt.category as ReceiptCategory | null) ?? null) ||
+      taxFlag !== ((receipt.tax_deductible_flag as TaxFlag | null) ?? 'review') ||
+      notes !== (receipt.notes ?? '')
+    );
+  }, [
+    receipt,
+    vendorName,
+    vendorAddress,
+    transactionAt,
+    subtotalText,
+    taxText,
+    tipText,
+    totalText,
+    paymentMethod,
+    paymentLast4,
+    category,
+    taxFlag,
+    notes,
+  ]);
+
+  const { attemptDismiss } = useUnsavedChangesGuard({
+    dirty,
+    scope: 'receiptDetail',
+    message: 'Your edits to this receipt haven’t been saved.',
+  });
 
   const totalsValid = useMemo(() => {
     const t = parseCents(totalText);
@@ -202,7 +252,14 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
       await updateReceipt(receipt.id, patch);
       router.back();
     } catch (err) {
-      Alert.alert('Save failed', (err as Error).message);
+      logError('receiptDetail.onSave', 'update failed', err, {
+        receipt_id: receipt.id,
+        fields: Object.keys(patch).length,
+      });
+      Alert.alert(
+        'Save failed',
+        err instanceof Error ? err.message : String(err)
+      );
     } finally {
       setSubmitting(false);
     }
@@ -219,16 +276,30 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
           : 'This receipt is already pending extraction or finished. Pull down to refresh if the fields look stale.'
       );
     } catch (err) {
-      Alert.alert('Retry failed', (err as Error).message);
+      logError('receiptDetail.onRetry', 'retry failed', err, {
+        receipt_id: receipt.id,
+      });
+      Alert.alert(
+        'Retry failed',
+        err instanceof Error ? err.message : String(err)
+      );
     } finally {
       setRetrying(false);
     }
   };
 
   const onDelete = () => {
+    // Vary the body when AI is mid-flight — the user may not realise
+    // they're killing in-progress work.
+    const inFlight =
+      receipt.extraction_status === 'queued' ||
+      receipt.extraction_status === 'running';
+    const body = inFlight
+      ? 'AI extraction is still running on this receipt. Deleting now wastes the work in progress — wait a few seconds, or delete anyway?'
+      : 'The photo and any AI-extracted data will be removed. You can re-snap the receipt if you change your mind.';
     Alert.alert(
       'Delete this receipt?',
-      'The photo and any AI-extracted data will be removed. You can re-snap the receipt if you change your mind.',
+      body,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -239,7 +310,14 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
               await deleteReceipt(receipt);
               router.back();
             } catch (err) {
-              Alert.alert('Delete failed', (err as Error).message);
+              logError('receiptDetail.onDelete', 'delete failed', err, {
+                receipt_id: receipt.id,
+                status: receipt.status,
+              });
+              Alert.alert(
+                'Delete failed',
+                err instanceof Error ? err.message : String(err)
+              );
             }
           },
         },
@@ -270,7 +348,7 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
               </Text>
             </View>
             <Pressable
-              onPress={() => router.back()}
+              onPress={attemptDismiss}
               accessibilityRole="button"
               accessibilityLabel="Cancel"
             >
@@ -297,25 +375,13 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
             </View>
           ) : null}
 
-          {photoUrl ? (
-            <Image
-              source={{ uri: photoUrl }}
-              style={[styles.photo, { borderColor: palette.border }]}
-              resizeMode="contain"
+          <View style={styles.photoBlock}>
+            <RemotePhoto
+              signedUrl={photoUrl}
+              aspectRatio={3 / 4}
               accessibilityLabel="Receipt photo"
             />
-          ) : (
-            <View
-              style={[
-                styles.photoPlaceholder,
-                { backgroundColor: palette.surface, borderColor: palette.border },
-              ]}
-            >
-              <Text style={[styles.photoPlaceholderText, { color: palette.muted }]}>
-                Loading photo…
-              </Text>
-            </View>
-          )}
+          </View>
 
           {/* Vendor */}
           <View style={styles.section}>
@@ -552,12 +618,29 @@ function TransactionDateField({
   const valid = !Number.isNaN(date.getTime());
   const isAndroid = Platform.OS === 'android';
 
+  // The iOS inline DateTimePicker fires onChange once at mount with
+  // whatever date we hand it. When `value` is null we hand it `now`
+  // — without this guard we'd auto-set transaction_at to "now" on
+  // every screen open and the diff-only patch would treat that as a
+  // user edit. Flip the ref the first time a real user interaction
+  // produces an `event.type === 'set'`.
+  const userInteractedRef = useRef(false);
+
   const onPickerChange = (event: { type?: string }, picked?: Date) => {
     if (isAndroid) setShowPicker(false);
     if (event?.type === 'dismissed') return;
-    if (picked && !Number.isNaN(picked.getTime())) {
-      onChange(picked.toISOString());
+    if (!picked || Number.isNaN(picked.getTime())) return;
+
+    // First synthetic onChange when value was null at mount — ignore.
+    // iOS spinner picker doesn't carry event.type for these. Once the
+    // user actually drags the spinner an event arrives with type='set'
+    // and userInteractedRef stays true for subsequent changes.
+    if (!userInteractedRef.current) {
+      if (value === null && event?.type !== 'set') return;
+      userInteractedRef.current = true;
     }
+
+    onChange(picked.toISOString());
   };
 
   if (isAndroid) {
@@ -770,25 +853,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  photo: {
-    width: '100%',
-    aspectRatio: 3 / 4,
-    borderRadius: 12,
-    borderWidth: 1,
+  photoBlock: {
     marginBottom: 24,
-  },
-  photoPlaceholder: {
-    width: '100%',
-    aspectRatio: 3 / 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  photoPlaceholderText: {
-    fontSize: 14,
-    fontStyle: 'italic',
   },
   section: {
     marginBottom: 8,

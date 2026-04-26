@@ -71,6 +71,54 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   return permissionPromise;
 }
 
+/**
+ * Snapshot of the OS permission state for surfacing in the Me tab.
+ * Distinct from `ensureNotificationPermission()` which prompts the
+ * user — this is a passive read.
+ *
+ * - 'granted'  → notifications will display.
+ * - 'undetermined' → user hasn't been asked yet (we'll prompt on
+ *                    first schedule call).
+ * - 'denied_can_ask' → user denied earlier but iOS/Android still
+ *                      permits a re-prompt; we'll re-prompt on next
+ *                      schedule call (rare path).
+ * - 'denied_hard' → user must enable in Settings — we prompt them
+ *                   to deep-link via Linking.openSettings().
+ */
+export type NotificationPermissionState =
+  | 'granted'
+  | 'undetermined'
+  | 'denied_can_ask'
+  | 'denied_hard';
+
+export async function getNotificationPermissionStatus(): Promise<NotificationPermissionState> {
+  try {
+    const existing = await Notifications.getPermissionsAsync();
+    if (existing.status === 'granted') return 'granted';
+    if (existing.status === 'undetermined') return 'undetermined';
+    return existing.canAskAgain ? 'denied_can_ask' : 'denied_hard';
+  } catch (err) {
+    logWarn('notifications.getStatus', 'permission read failed', err);
+    return 'undetermined';
+  }
+}
+
+/**
+ * Imperative request — fronts ensureNotificationPermission() with a
+ * cache-busting reset so the Me tab can re-prompt after the user
+ * returns from Settings (where they may have flipped the switch
+ * outside our process).
+ */
+export async function requestNotificationPermission(): Promise<NotificationPermissionState> {
+  // Bust the cached promise so a re-prompt actually re-evaluates the
+  // OS state. Without this, a user who hard-denied at install and
+  // later granted in Settings would still see "denied" because the
+  // first-call promise resolved to false.
+  permissionPromise = null;
+  await ensureNotificationPermission();
+  return getNotificationPermissionStatus();
+}
+
 export interface ScheduleArgs {
   /** Stable id so the matching cancel() targets the right notification. */
   identifier: string;

@@ -3043,6 +3043,15 @@ app.post(
           .eq('id', body.receiptId)
           .eq('extraction_status', 'failed');
         if (requeueErr) {
+          // Log the underlying Postgres / PostgREST error so ops can
+          // correlate failed retries with worker logs. The 500 body
+          // only carries the message; this gives us the full code
+          // and stack at the worker side.
+          console.error('[starr-field/receipts/extract] requeue failed', {
+            receiptId: body.receiptId,
+            error: requeueErr.message,
+            code: (requeueErr as { code?: string }).code ?? null,
+          });
           res.status(500).json({ error: `requeue failed: ${requeueErr.message}` });
           return;
         }
@@ -3061,6 +3070,16 @@ app.post(
         (sum, r) => sum + (r.costCents ?? 0),
         0
       );
+      // Audit trail: every on-demand extraction lands in worker logs
+      // alongside the CLI batch lines so ops can see the full timeline
+      // of what processed which row at what cost.
+      console.log('[starr-field/receipts/extract] processed', {
+        processed: results.length,
+        done,
+        failed,
+        totalCostCents,
+        receiptId: body.receiptId ?? null,
+      });
       res.json({
         processed: results.length,
         done,

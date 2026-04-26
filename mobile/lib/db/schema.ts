@@ -52,6 +52,29 @@
  *   completes. Mobile shows "AI working…" while extraction_status is
  *   'queued' or 'running'.
  *
+ * F3 #1 data points + media schema:
+ *
+ *   `field_data_points` and `field_media` are created by
+ *   seeds/221_starr_field_data_points.sql. Same UUID-identity
+ *   convention as receipts (created_by references auth.users.id).
+ *
+ *   Media has three storage tiers — storage_url (display, fast-sync
+ *   medium quality), thumbnail_url (list tiles), original_url (full
+ *   resolution; WiFi-only sync by default per plan §5.4). Plus an
+ *   optional annotated_url for the rendered overlay when the user
+ *   adds arrows / circles / text — the original is ALWAYS preserved
+ *   unmodified.
+ *
+ *   upload_state (pending → wifi-waiting → done) lets the UI surface
+ *   "where's my high-res?" without polling storage. Burst captures
+ *   share a burst_group_id with monotonic `position` so the admin
+ *   timeline groups a 12-shot panorama instead of flooding.
+ *
+ *   Storage buckets: starr-field-photos / -videos / -voice (separate
+ *   so each can have its own size + MIME limits per audit #17). All
+ *   three follow the F2 path convention {user_id}/{...}.{ext} so the
+ *   per-user-folder RLS pattern applies identically.
+ *
  * Notes on column types:
  *
  *   - PowerSync supports `text`, `integer`, `real`. UUIDs land as text;
@@ -97,9 +120,21 @@ const field_media = new Table({
   job_id: column.text,
   data_point_id: column.text,
   media_type: column.text, // 'photo' | 'video' | 'voice'
+  // Three storage tiers + an optional rendered-overlay layer (plan §5.4
+  // photo annotation). Original is ALWAYS preserved unmodified;
+  // annotated_url renders arrows / circles / text on top.
   storage_url: column.text,
   thumbnail_url: column.text,
   original_url: column.text,
+  annotated_url: column.text,
+  // 'pending' | 'wifi-waiting' | 'done' | 'failed' — drives the mobile
+  // "is my high-res synced yet?" indicator and the admin diagnostic.
+  upload_state: column.text,
+  // Burst / sequence support — multi-shot panoramas group under one
+  // burst_group_id; position is the order within the burst (or 0 for
+  // single captures).
+  burst_group_id: column.text,
+  position: column.integer,
   duration_seconds: column.integer,
   file_size_bytes: column.integer,
   device_lat: column.real,
@@ -108,9 +143,10 @@ const field_media = new Table({
   captured_at: column.text,
   uploaded_at: column.text,
   transcription: column.text,
-  annotations: column.text, // JSON-encoded
+  annotations: column.text, // JSON-encoded JSONB
   created_by: column.text,
   client_id: column.text,
+  created_at: column.text,
 });
 
 const vehicles = new Table({
@@ -405,6 +441,132 @@ const time_edits = new Table({
   client_id: column.text,
 });
 
+// ── notifications — shared web/admin + mobile inbox ─────────────────────────
+//
+// Per the user's resilience requirement: "the admin/dispatcher needs to
+// be able to notify the user that they need to log their hours."
+//
+// Mobile consumes rows from the EXISTING web-admin notifications table
+// (used by NotificationBell + lib/notifications.ts on the web side).
+// seeds/222_starr_field_notifications.sql adds Starr Field-specific
+// columns (target_user_id, delivered_at, dismissed_at, expires_at) and
+// RLS policies on top of that table — non-breaking for the web admin.
+//
+// Identity duality:
+//   - user_email     — the web admin's primary key throughout (every
+//                      web-side notify() call writes here).
+//   - target_user_id — UUID mirror added by seeds/222 so mobile sync
+//                      rules can scope by auth.uid(). A trigger
+//                      back-fills it on every insert; mobile filters
+//                      by either (RLS allows both).
+//
+// Lifecycle (matches the existing web shape, plus delivered_at):
+//   - is_read / read_at         — flipped when user taps banner.
+//   - is_dismissed / dismissed_at — flipped when user swipes away.
+//   - delivered_at              — flipped by mobile on first sight
+//                                  (admin's "delivered ✓" indicator).
+//   - expires_at                — soft-delete; sync rule excludes
+//                                  rows past their expiry.
+//
+// Column-level GRANT (seeds/222) restricts mobile writes to
+// is_read / read_at / is_dismissed / dismissed_at / delivered_at —
+// owners cannot rewrite title / body / link.
+const notifications = new Table({
+  /** Web admin's identity (TEXT). Mobile matches via session.user.email. */
+  user_email: column.text,
+  /** UUID mirror — auth.users.id. Filled by trigger on every insert. */
+  target_user_id: column.text,
+  /** Free-form category — existing values include 'reminder', 'system',
+   *  'assignment', 'payment', etc. Starr Field dispatcher pings use
+   *  'reminder' with source_type='log_hours' so existing web filters
+   *  ('non-message' check in NotificationBell) still work. */
+  type: column.text,
+  /** Sub-category that drives the mobile banner glyph + auto-route.
+   *  Values mobile recognises: 'log_hours', 'submit_week',
+   *  'admin_direct', 'hours_decision' — others render as plain
+   *  message banners. */
+  source_type: column.text,
+  /** Optional FK-ish id for the source object (e.g. job_id when
+   *  source_type='job_assignment'). Drives /jobs/{id} deep-links. */
+  source_id: column.text,
+  /** Headline shown in the OS banner + in-app banner. */
+  title: column.text,
+  /** Multi-line body; null when the headline is self-explanatory. */
+  body: column.text,
+  /** Single-glyph emoji from the web side; mobile prefers source_type
+   *  for icon mapping but falls back to this. */
+  icon: column.text,
+  /** Web URL or app deep-link string. Mobile recognises strings
+   *  starting with '/(tabs)/' or 'starr-field://' as in-app routes. */
+  link: column.text,
+  /** 'low' | 'normal' | 'high' | 'urgent' | 'critical'. Mobile elevates
+   *  the banner colour for high+, fires a sharper sound for urgent. */
+  escalation_level: column.text,
+  /** Optional thread grouping — direct-message scenarios. */
+  thread_id: column.text,
+  /** Lifecycle flags. Owner-writable per seeds/222 column GRANT. */
+  is_read: column.integer, // 0/1 boolean
+  is_dismissed: column.integer, // 0/1 boolean
+  read_at: column.text,
+  dismissed_at: column.text,
+  delivered_at: column.text,
+  /** Soft-delete: sync rule excludes rows where expires_at <= now. */
+  expires_at: column.text,
+  created_at: column.text,
+});
+
+// ── pending_uploads — local-only retry queue ────────────────────────────────
+//
+// Survives reception loss + app crashes. Captures (receipts photo,
+// data-point photo, future video / voice) write the bytes to
+// FileSystem.documentDirectory and INSERT a row here; the upload
+// queue (lib/uploadQueue.ts) drains rows whenever the device is
+// online. PowerSync localOnly:true keeps these rows OFF the wire —
+// they never sync to Supabase.
+//
+// Lifecycle:
+//   1. Capture writes the file → enqueueAndAttempt() inserts here
+//      with retry_count=0, last_error=null.
+//   2. uploadQueue picks it up immediately (online) or on next
+//      network restore (offline).
+//   3. On success, the parent row's upload_state flips to 'done',
+//      the local file is deleted, and this row is removed.
+//   4. On failure, retry_count++ and last_error is captured.
+//      Backoff doubles per attempt (5s, 10s, 20s, 40s, …) capped at
+//      ~5 min so a permanently-bad row doesn't burn battery.
+const pending_uploads = new Table(
+  {
+    /** 'receipts' | 'field_media' | future media types — drives the
+     *  per-table 'success' update path. */
+    parent_table: column.text,
+    /** UUID of the parent row. Composite key with parent_table to
+     *  avoid collisions across tables. */
+    parent_id: column.text,
+    /** Storage bucket id (e.g. 'starr-field-receipts'). */
+    bucket: column.text,
+    /** Final remote path inside the bucket. */
+    storage_path: column.text,
+    /** file:// URI in FileSystem.documentDirectory. Persistent
+     *  across launches; survives app kills + reboots. */
+    local_uri: column.text,
+    /** MIME type at upload time (image/jpeg etc.). */
+    content_type: column.text,
+    /** Times we've tried + failed. Drives backoff. */
+    retry_count: column.integer,
+    /** Last error message (truncated) — populated on every failed
+     *  attempt for ops triage. */
+    last_error: column.text,
+    /** Wall-clock ms timestamp of next eligible attempt. The queue
+     *  skips rows where now() < next_attempt_at. */
+    next_attempt_at: column.integer,
+    created_at: column.text,
+  },
+  // PowerSync localOnly: these rows never replay to Supabase. The
+  // upload itself goes via supabase.storage; the parent row already
+  // syncs through the regular CRUD queue.
+  { localOnly: true }
+);
+
 /**
  * Top-level schema. Order doesn't matter for sync; alphabetical here
  * for human grep-ability.
@@ -418,6 +580,8 @@ export const AppSchema = new Schema({
   jobs,
   location_segments,
   location_stops,
+  notifications,
+  pending_uploads,
   point_codes,
   receipt_line_items,
   receipts,

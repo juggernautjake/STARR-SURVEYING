@@ -33,6 +33,12 @@ export function formatCents(cents: number | null | undefined): string {
  * Tolerates: leading "$", thousands separators (",") , trailing
  * whitespace. Rejects: negatives (use a separate field for refunds),
  * scientific notation, multiple decimals.
+ *
+ * Why no Sentry telemetry on parse failure: this fires on every
+ * keystroke in the receipt-edit form ("12." is mid-typing, not an
+ * error). Logging here would flood the dashboard. The caller (e.g.
+ * the totalsValid check in onSave) is responsible for surfacing
+ * persistent invalid input to the user.
  */
 export function parseCents(input: string | null | undefined): number | null {
   if (input == null) return null;
