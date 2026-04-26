@@ -394,7 +394,13 @@ const daily_time_logs = new Table({
   total_minutes: column.integer,
   total_pay_cents: column.integer,
   // Approval:
-  status: column.text, // 'open' | 'submitted' | 'approved' | 'locked'
+  // Unified status enum — see DailyLogStatus in lib/timesheet.ts.
+  // Mobile clock-in creates rows as 'open'; useSubmitWeek flips
+  // 'open' → 'pending' so the web admin's hours-approval queue
+  // surfaces them. Approved/rejected/adjusted/disputed/locked all
+  // come from the web side. 'submitted' is a legacy alias for
+  // 'pending' kept for back-compat with rows from earlier builds.
+  status: column.text,
   submitted_at: column.text,
   approved_at: column.text,
   approved_by: column.text,

@@ -101,8 +101,9 @@ export default function TimeScreen() {
 
   const onSubmitWeek = () => {
     // Submit is effectively irreversible from the surveyor's side —
-    // once status flips to 'submitted', the bookkeeper has to reject
-    // for the user to edit again. Confirm before sending.
+    // once status flips to 'pending', the bookkeeper has to reject
+    // (or use the dispute path) for the user to edit again. Confirm
+    // before sending.
     Alert.alert(
       'Submit this week for approval?',
       'Open days in this week will be sent to the dispatcher. You won’t be able to edit them on mobile until they’re approved or rejected.',

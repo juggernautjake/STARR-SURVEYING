@@ -965,14 +965,14 @@ No parallel `/dispatcher/` or `/field-admin/` route tree — that would duplicat
 - [x] Manual time editing with audit trail — `lib/timeEdits.ts` + `time_edits` table, see `(tabs)/time/edit/[id].tsx`
 - [x] "Still working?" smart prompts — `lib/timePrompts.ts` (10h + 14h)
 - [x] Timesheet view + CSV export — `(tabs)/time/index.tsx` + `lib/csvExport.ts`
-- [ ] Submit-for-approval workflow — admin web side has `/admin/hours-approval` + `/api/admin/time-logs/approve`; mobile button pending (deferred — needs status-enum reconciliation between web's `'pending'` and mobile-declared `'submitted'`)
+- [x] Submit-for-approval workflow — `lib/timesheetActions.ts` `useSubmitWeek` flips `'open' → 'pending'` so the existing admin Hours-Approval queue surfaces mobile-submitted rows alongside web-direct ones. `DailyLogStatus` union in `lib/timesheet.ts` unifies the previously-divergent enums (web `'pending' / 'adjusted' / 'disputed'` ∪ mobile `'open' / 'submitted'`); legacy `'submitted'` preserved as alias. Status chip + lock banner copy handles every state.
 
 Resilience additions landed in F2/F3 batches but belong to F1's surface (referenced in §5.8 hardening):
 - [x] Stale clock-in detection (>16h banner with "Fix the time" route to time-edit)
 - [x] Last-known GPS fallback when live fix fails — `lib/location.ts` `getCurrentPositionWithFallback`
 - [x] GPS failure-reason routing (no_permission / timeout / hardware) drives Settings deep-link
 
-**Exit:** Jacob runs an entire week of work using the app for time. **Status:** all clocking flows live; submit-for-approval is the only remaining checkbox before the F1 exit ships.
+**Exit:** Jacob runs an entire week of work using the app for time. **Status:** F1 mobile surface complete. Lock-screen widget + EAS build/OTA flip from F0 are the only remaining infra pieces before the exit ships to TestFlight.
 
 ### Phase F2 — Receipts + AI extraction (Week 6–8)
 - [x] Receipt capture flow (camera, edge detection, deskew) — `lib/receipts.ts` + `lib/storage/mediaUpload.ts`
@@ -1133,12 +1133,29 @@ under one phase.
 - [x] PowerSync sync-rule snippet + activation gate in
       `mobile/lib/db/README.md`
 
-**Batch D — stuck-uploads triage (this batch)**
+**Batch D — stuck-uploads triage**
 - [x] `useStuckUploads` / `retryUpload` / `discardUpload` helpers in
       `lib/uploadQueue.ts`
 - [x] Me-tab Storage section showing pending + failed counts
 - [x] `/(tabs)/me/uploads` drilldown with In-flight / Failed tabs +
       per-row retry / discard (Alert-confirmed destructive action)
+
+**Batch E — submit-for-approval enum bridge**
+- [x] `DailyLogStatus` union in `lib/timesheet.ts` unifies the
+      previously-divergent web (`'pending' / 'approved' / 'rejected' /
+      'adjusted' / 'disputed'`) and mobile (`'open' / 'submitted' /
+      'approved' / 'rejected' / 'locked'`) enums. Legacy `'submitted'`
+      preserved as an alias for `'pending'`.
+- [x] `lib/timesheetActions.ts` `useSubmitWeek` flips `'open' →
+      'pending'` so the existing `/admin/hours-approval` queue (which
+      filters on `status = 'pending' OR 'disputed'`) surfaces
+      mobile-submitted rows alongside web-direct ones.
+- [x] `LOCKED_DAY_STATUSES` includes `'pending'` and `'adjusted'` so
+      mobile blocks edits the moment the row leaves the surveyor's
+      side.
+- [x] `StatusChip` + `lockedDayTitle` recognise the full set
+      (`'pending'`, `'submitted'`, `'approved'`, `'rejected'`,
+      `'adjusted'`, `'disputed'`, `'locked'`).
 
 **Activation gates (live Supabase apply order):**
 1. `seeds/222_starr_field_notifications.sql` — before mobile

@@ -1,11 +1,19 @@
 /**
  * Day-status chip shown next to each day in the timesheet.
  *
- * Sourced from daily_time_logs.status. Five statuses recognized:
- *   open      — editable on mobile (default)
- *   submitted — sent to dispatcher; mobile blocks edits
- *   approved  — Henry has approved; mobile blocks edits
- *   rejected  — flipped back to editable; user fixes and resubmits
+ * Sourced from daily_time_logs.status. The mobile + web enums share
+ * the same column but historically diverged on labels — see the
+ * DailyLogStatus union in lib/timesheet.ts for the full set.
+ * Recognized values:
+ *   open      — editable on mobile (default for mobile-created rows)
+ *   pending   — submitted, awaiting admin review (web's primary state
+ *               post-submit; mobile flips 'open' → 'pending' on
+ *               submit-week so the existing admin queue surfaces it)
+ *   submitted — legacy alias for 'pending'; rendered identically
+ *   approved  — admin approved; mobile blocks edits
+ *   rejected  — admin rejected; back to editable on mobile
+ *   adjusted  — admin tweaked hours; locked for pay
+ *   disputed  — surveyor disputed admin's decision; back in queue
  *   locked    — payroll has run; immutable, even server-side
  *
  * Unknown statuses render with the muted-label treatment so a
@@ -22,17 +30,23 @@ interface StatusInfo {
 
 const STATUS_INFO: Record<string, StatusInfo> = {
   open: { label: 'Open', fg: 'muted' },
+  pending: { label: 'Submitted', fg: 'accent' },
   submitted: { label: 'Submitted', fg: 'accent' },
   approved: { label: 'Approved', fg: 'success' },
   rejected: { label: 'Rejected', fg: 'danger' },
+  adjusted: { label: 'Adjusted', fg: 'success' },
+  disputed: { label: 'Disputed', fg: 'danger' },
   locked: { label: 'Locked', fg: 'muted' },
 };
 
 // Only locked statuses (per LOCKED_DAY_STATUSES) ever surface this
-// banner — 'rejected' is editable on mobile so it has no entry.
+// banner — 'rejected' / 'disputed' are editable on mobile so they
+// have no entry.
 const LOCK_TITLES: Record<string, string> = {
+  pending: 'Submitted for approval',
   submitted: 'Submitted for approval',
   approved: 'Approved',
+  adjusted: 'Adjusted by admin',
   locked: 'Locked by payroll',
 };
 
