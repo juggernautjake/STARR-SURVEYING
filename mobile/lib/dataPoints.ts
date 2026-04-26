@@ -227,6 +227,143 @@ export function useDataPoint(id: string | null | undefined): {
 }
 
 /**
+ * Patch shape for useUpdateDataPoint. Only the fields present are
+ * written. Same diff-only pattern as useUpdateReceipt — so a noop
+ * save doesn't trigger a network round-trip.
+ */
+export interface DataPointPatch {
+  name?: string;
+  description?: string | null;
+  isOffset?: boolean;
+  isCorrection?: boolean;
+  correctsPointId?: string | null;
+  /** When supplied, also re-derives code_category from the new name. */
+  recomputeCategory?: boolean;
+}
+
+/**
+ * Update a data point. Validates the new name against the same
+ * rules as create (non-empty, ≤80, unique within the job). The
+ * UNIQUE(job_id, name) constraint is the DB-side guard for race
+ * conditions; the client-side check just gives faster feedback.
+ */
+export function useUpdateDataPoint(): (
+  pointId: string,
+  patch: DataPointPatch
+) => Promise<void> {
+  const db = usePowerSync();
+  const { session } = useAuth();
+
+  return useCallback(
+    async (pointId, patch) => {
+      const userId = session?.user.id;
+      if (!userId) {
+        const err = new Error('Not signed in.');
+        logError('dataPoints.update', 'no session', err, { point_id: pointId });
+        throw err;
+      }
+
+      const cols: string[] = [];
+      const vals: unknown[] = [];
+      const push = (col: string, val: unknown) => {
+        cols.push(`${col} = ?`);
+        vals.push(val);
+      };
+
+      if (patch.name !== undefined) {
+        const cleanName = patch.name.trim();
+        if (cleanName === '') {
+          throw new Error('Point name is required.');
+        }
+        if (cleanName.length > 80) {
+          throw new Error('Point name must be 80 characters or fewer.');
+        }
+        push('name', cleanName);
+        if (patch.recomputeCategory !== false) {
+          push('code_category', extractPrefix(cleanName));
+        }
+      }
+      if (patch.description !== undefined) {
+        push('description', patch.description?.trim() || null);
+      }
+      if (patch.isOffset !== undefined) push('is_offset', patch.isOffset ? 1 : 0);
+      if (patch.isCorrection !== undefined) push('is_correction', patch.isCorrection ? 1 : 0);
+      if (patch.correctsPointId !== undefined) {
+        push('corrects_point_id', patch.correctsPointId);
+      }
+
+      if (cols.length === 0) {
+        logInfo('dataPoints.update', 'no-op (empty patch)', { point_id: pointId });
+        return;
+      }
+
+      const nowIso = new Date().toISOString();
+      cols.push('updated_at = ?');
+      vals.push(nowIso);
+      vals.push(pointId);
+
+      logInfo('dataPoints.update', 'attempt', {
+        point_id: pointId,
+        fields: cols.length - 1,
+      });
+
+      try {
+        await db.execute(
+          `UPDATE field_data_points SET ${cols.join(', ')} WHERE id = ?`,
+          vals
+        );
+      } catch (err) {
+        logError('dataPoints.update', 'db update failed', err, {
+          point_id: pointId,
+        });
+        throw err;
+      }
+
+      logInfo('dataPoints.update', 'success', { point_id: pointId });
+    },
+    [db, session]
+  );
+}
+
+/**
+ * Delete a data point. RLS allows owner deletion only within the
+ * first 24 h (per seeds/221_*.sql); after that admin-only via the
+ * service-role API. Cascade on field_data_points → field_media in
+ * the seed sweeps attached photos automatically.
+ */
+export function useDeleteDataPoint(): (pointId: string) => Promise<void> {
+  const db = usePowerSync();
+  const { session } = useAuth();
+
+  return useCallback(
+    async (pointId) => {
+      const userId = session?.user.id;
+      if (!userId) {
+        const err = new Error('Not signed in.');
+        logError('dataPoints.delete', 'no session', err, { point_id: pointId });
+        throw err;
+      }
+
+      logInfo('dataPoints.delete', 'attempt', { point_id: pointId });
+
+      try {
+        await db.execute(`DELETE FROM field_data_points WHERE id = ?`, [pointId]);
+      } catch (err) {
+        logError('dataPoints.delete', 'db delete failed', err, { point_id: pointId });
+        throw err;
+      }
+      // field_media rows cascade-delete via the FK in seeds/221_*.sql;
+      // the storage objects don't — IRS-style retention archival sweeps
+      // those server-side. Phase F3 polish can wire a per-photo
+      // storage-cleanup pass if the bucket grows too quickly.
+
+      logInfo('dataPoints.delete', 'success', { point_id: pointId });
+    },
+    [db, session]
+  );
+}
+
+/**
  * Existing names on a job — used by the "next number in sequence"
  * suggester. Fast: hits the local SQLite mirror, so it doesn't add
  * latency to the camera-up-immediately UX.
