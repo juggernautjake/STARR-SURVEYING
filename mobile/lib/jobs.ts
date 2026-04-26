@@ -11,7 +11,7 @@
  * surface call sites that need updating.
  */
 import { useQuery } from '@powersync/react';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import type { AppDatabase } from './db/schema';
 import { logError } from './log';
@@ -65,9 +65,10 @@ export function useJob(id: string | null | undefined): {
   job: Job | null | undefined;
   isLoading: boolean;
 } {
+  const queryParams = useMemo(() => (id ? [id] : []), [id]);
   const { data, isLoading, error } = useQuery<Job>(
     `SELECT * FROM jobs WHERE id = ? LIMIT 1`,
-    id ? [id] : []
+    queryParams
   );
 
   useEffect(() => {

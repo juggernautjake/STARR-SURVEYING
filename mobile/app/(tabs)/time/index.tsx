@@ -9,8 +9,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { Timesheet } from '@/lib/Timesheet';
-import { useActiveTimeEntry, useClockOut } from '@/lib/timeTracking';
-import { formatDuration } from '@/lib/timeFormat';
+import {
+  entryTypeLabel,
+  useActiveTimeEntry,
+  useClockOut,
+} from '@/lib/timeTracking';
+import {
+  formatDuration,
+  formatLocalShortDate,
+  formatLocalTime,
+  todayLocalISODate,
+} from '@/lib/timeFormat';
 import { useTimesheet } from '@/lib/timesheet';
 import { thisWeekRange, useSubmitWeek, useThisWeekTotal } from '@/lib/timesheetActions';
 import { colors } from '@/lib/theme';
@@ -145,7 +154,7 @@ export default function TimeScreen() {
             <Text style={[styles.cardSubtitle, { color: palette.muted }]}>
               {entryTypeLabel(active.entry.entry_type)}
               {active.entry.started_at
-                ? ` · started ${formatStartedAt(active.entry.started_at)}`
+                ? ` · started ${formatLocalTime(active.entry.started_at) ?? '—'}`
                 : ''}
             </Text>
 
@@ -259,36 +268,8 @@ export default function TimeScreen() {
   );
 }
 
-function entryTypeLabel(type: string | null | undefined): string {
-  switch (type) {
-    case 'on_site':
-      return 'On site';
-    case 'travel':
-      return 'Travel';
-    case 'office':
-      return 'Office';
-    case 'overhead':
-      return 'Overhead';
-    default:
-      return 'Time entry';
-  }
-}
-
-function formatStartedAt(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-
 function formatRangeLabel(range: { from: string; to: string }): string {
-  return `${formatShortDate(range.from)} – ${formatShortDate(range.to)}`;
-}
-
-function formatShortDate(iso: string): string {
-  const [y, m, d] = iso.split('-').map((s) => parseInt(s, 10));
-  if (!y || !m || !d) return iso;
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return `${formatLocalShortDate(range.from)} – ${formatLocalShortDate(range.to)}`;
 }
 
 /** Pick min/max log_dates from the loaded days for the CSV filename. */
@@ -296,7 +277,7 @@ function computeRangeFromDays(
   days: { date: string }[]
 ): { from: string; to: string } {
   if (days.length === 0) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocalISODate();
     return { from: today, to: today };
   }
   const sorted = days.map((d) => d.date).sort();

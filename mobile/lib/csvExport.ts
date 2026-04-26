@@ -18,6 +18,7 @@
  * newline is wrapped in double-quotes, with embedded double-quotes
  * doubled.
  */
+import { entryTypeLabel } from './timeTracking';
 import type { TimesheetDay, TimesheetEntry } from './timesheet';
 
 const HEADERS = [
@@ -60,21 +61,6 @@ function buildRow(day: TimesheetDay, entry: TimesheetEntry): string {
     '',
   ];
   return cells.map(escapeCell).join(',');
-}
-
-function entryTypeLabel(type: string | null | undefined): string {
-  switch (type) {
-    case 'on_site':
-      return 'On site';
-    case 'travel':
-      return 'Travel';
-    case 'office':
-      return 'Office';
-    case 'overhead':
-      return 'Overhead';
-    default:
-      return '';
-  }
 }
 
 function escapeCell(value: string): string {

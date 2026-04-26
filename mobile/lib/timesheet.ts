@@ -38,8 +38,22 @@ export type DailyLogStatus =
   | 'submitted'
   | 'approved'
   | 'rejected'
-  | 'locked'
-  | string; // future-tolerant — unknown values render as the literal
+  | 'locked';
+
+/**
+ * Day statuses where mobile must NOT allow edits — admin owns the
+ * day once it leaves 'open' (or 'rejected', which surveyors can
+ * still fix and resubmit).
+ */
+export const LOCKED_DAY_STATUSES: ReadonlySet<DailyLogStatus> = new Set([
+  'submitted',
+  'approved',
+  'locked',
+]);
+
+export function isDayLocked(status: DailyLogStatus | null | undefined): boolean {
+  return !!status && LOCKED_DAY_STATUSES.has(status);
+}
 
 export interface TimesheetDay {
   /** ISO local date (YYYY-MM-DD). */
@@ -80,6 +94,10 @@ export function useTimesheet(daysBack: number = 14): {
   const userEmail = session?.user.email ?? null;
 
   const since = useMemo(() => isoDateMinusDays(todayLocalISODate(), daysBack), [daysBack]);
+  const queryParams = useMemo(
+    () => (userEmail ? [userEmail, since] : []),
+    [userEmail, since]
+  );
 
   const { data, isLoading, error } = useQuery<RawRow>(
     `SELECT
@@ -100,7 +118,7 @@ export function useTimesheet(daysBack: number = 14): {
        AND COALESCE(dtl.log_date, '') >= ?
      ORDER BY COALESCE(dtl.log_date, '') DESC,
               COALESCE(jte.started_at, '') DESC`,
-    userEmail ? [userEmail, since] : []
+    queryParams
   );
 
   useEffect(() => {

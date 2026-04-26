@@ -28,6 +28,22 @@ const STATUS_INFO: Record<string, StatusInfo> = {
   locked: { label: 'Locked', fg: 'muted' },
 };
 
+const LOCK_TITLES: Record<string, string> = {
+  submitted: 'Submitted for approval',
+  approved: 'Approved',
+  rejected: 'Rejected — fix and resubmit',
+  locked: 'Locked by payroll',
+};
+
+/**
+ * Banner-style title shown on the edit screen when the day is no
+ * longer editable. Returns 'Locked' for unknown values rather than
+ * throwing or rendering an empty string.
+ */
+export function lockedDayTitle(status: string | null | undefined): string {
+  return (status && LOCK_TITLES[status]) || 'Locked';
+}
+
 interface StatusChipProps {
   status: string | null | undefined;
   /** Hide the chip when the day is plain `open` (no chip is the

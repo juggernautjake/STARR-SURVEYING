@@ -41,21 +41,22 @@ export async function scheduleStillWorkingPrompts(
   const startedMs = Date.parse(startedAtIso);
   if (!Number.isFinite(startedMs)) return;
 
-  for (const hours of PROMPT_AT_HOURS) {
-    const fireAt = new Date(startedMs + hours * HOURS_TO_MS);
-    const isLate = hours >= 14;
-    await schedule({
-      identifier: makeId(entryId, hours),
-      fireAt,
-      title: isLate
-        ? `${hours} hours clocked in — clock out?`
-        : `Still working?`,
-      body: isLate
-        ? "It's been a long shift. Open Starr Field to clock out, or fix the time if you forgot earlier."
-        : `You've been clocked in ${hours} hours. Tap to clock out or keep going.`,
-      data: { entryId, kind: 'still-working', hours },
-    });
-  }
+  await Promise.all(
+    PROMPT_AT_HOURS.map((hours) => {
+      const isLate = hours >= 14;
+      return schedule({
+        identifier: makeId(entryId, hours),
+        fireAt: new Date(startedMs + hours * HOURS_TO_MS),
+        title: isLate
+          ? `${hours} hours clocked in — clock out?`
+          : `Still working?`,
+        body: isLate
+          ? "It's been a long shift. Open Starr Field to clock out, or fix the time if you forgot earlier."
+          : `You've been clocked in ${hours} hours. Tap to clock out or keep going.`,
+        data: { entryId, kind: 'still-working', hours },
+      });
+    })
+  );
 }
 
 /**
@@ -64,7 +65,5 @@ export async function scheduleStillWorkingPrompts(
  * scheduled (permission denied at clock-in time, etc.).
  */
 export async function cancelStillWorkingPrompts(entryId: string): Promise<void> {
-  for (const hours of PROMPT_AT_HOURS) {
-    await cancel(makeId(entryId, hours));
-  }
+  await Promise.all(PROMPT_AT_HOURS.map((hours) => cancel(makeId(entryId, hours))));
 }

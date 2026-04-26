@@ -145,10 +145,10 @@ export async function cancel(identifier: string): Promise<void> {
   try {
     await Notifications.cancelScheduledNotificationAsync(identifier);
   } catch (err) {
-    // The id likely never existed (clock-out fired without an
-    // earlier clock-in's notifications having been scheduled).
-    // Silent — this happens routinely if permission was denied at
-    // clock-in time.
-    void err;
+    // Most failures here are benign — clock-out cancels a notification
+    // that never scheduled because permission was denied at clock-in.
+    // logWarn captures real native-bridge failures (Sentry) without
+    // bubbling to the caller; the cancel is best-effort UX.
+    logWarn('notifications.cancel', 'cancel failed', err, { identifier });
   }
 }

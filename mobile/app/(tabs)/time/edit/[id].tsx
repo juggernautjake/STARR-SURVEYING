@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -16,13 +16,29 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { lockedDayTitle } from '@/lib/StatusChip';
 import { TextField } from '@/lib/TextField';
 import { TimeEditHistory } from '@/lib/TimeEditHistory';
 import { useJob } from '@/lib/jobs';
-import { formatDuration } from '@/lib/timeFormat';
-import { useEditTimeEntry, useTimeEdits, validateEdit } from '@/lib/timeEdits';
+import {
+  durationMinutesBetween,
+  formatDuration,
+} from '@/lib/timeFormat';
+import {
+  TIERS_WITH_REASON,
+  tierLabel,
+  tierPaletteKey,
+  useEditTimeEntry,
+  useTimeEdits,
+  validateEdit,
+} from '@/lib/timeEdits';
+import {
+  isDayLocked,
+  type DailyLogStatus,
+} from '@/lib/timesheet';
+import { entryTypeLabel } from '@/lib/timeTracking';
 import { useQuery } from '@powersync/react';
-import { colors } from '@/lib/theme';
+import { colors, type Palette } from '@/lib/theme';
 
 interface JobTimeEntryRow {
   id: string;
@@ -35,7 +51,7 @@ interface JobTimeEntryRow {
   duration_minutes: number | null;
   created_at: string | null;
   /** Daily-log status — blocks edits when not 'open' (F1 #9). */
-  _log_status: string | null;
+  _log_status: DailyLogStatus | null;
 }
 
 /**
@@ -64,6 +80,7 @@ export default function EditTimeEntryScreen() {
   const palette = colors[scheme];
 
   const { id } = useLocalSearchParams<{ id: string }>();
+  const queryParams = useMemo(() => (id ? [id] : []), [id]);
 
   const { data: rows, isLoading: rowLoading } = useQuery<JobTimeEntryRow>(
     `SELECT jte.id, jte.job_id, jte.user_email, jte.entry_type,
@@ -74,62 +91,56 @@ export default function EditTimeEntryScreen() {
      LEFT JOIN daily_time_logs AS dtl ON dtl.id = jte.daily_time_log_id
      WHERE jte.id = ?
      LIMIT 1`,
-    id ? [id] : []
+    queryParams
   );
   const row = rows?.[0];
-  const dayStatus = row?._log_status ?? 'open';
-  const dayLocked = dayStatus !== 'open' && dayStatus !== 'rejected';
 
-  const { job } = useJob(row?.job_id);
-  const { edits } = useTimeEdits(id);
+  if (rowLoading) return <LoadingSplash />;
+  if (!row) return <NotFound palette={palette} onBack={() => router.back()} />;
+
+  // Remount the form whenever the row id changes — initial state
+  // reads directly from `row` instead of mirroring it via useEffect.
+  return <EditForm key={row.id} row={row} palette={palette} />;
+}
+
+interface EditFormProps {
+  row: JobTimeEntryRow;
+  palette: Palette;
+}
+
+function EditForm({ row, palette }: EditFormProps) {
+  const dayStatus: DailyLogStatus = row._log_status ?? 'open';
+  const dayLocked = isDayLocked(dayStatus);
+
+  const { job } = useJob(row.job_id);
+  const { edits } = useTimeEdits(row.id);
   const editEntry = useEditTimeEntry();
 
-  // Form state. Initialized lazily once the row arrives.
-  const [startedAt, setStartedAt] = useState<string | null>(null);
-  const [endedAt, setEndedAt] = useState<string | null>(null);
-  const [notes, setNotes] = useState<string>('');
+  const [startedAt, setStartedAt] = useState<string | null>(row.started_at);
+  const [endedAt, setEndedAt] = useState<string | null>(row.ended_at);
+  const [notes, setNotes] = useState<string>(row.notes ?? '');
   const [reason, setReason] = useState<string>('');
-  const [hydrated, setHydrated] = useState(false);
-
-  // Hydrate form once the row lands. State setters in useEffect
-  // (not useMemo) — useMemo runs during render, where calling setX
-  // is a hooks violation.
-  useEffect(() => {
-    if (!row || hydrated) return;
-    setStartedAt(row.started_at);
-    setEndedAt(row.ended_at);
-    setNotes(row.notes ?? '');
-    setHydrated(true);
-  }, [row, hydrated]);
-
   const [submitting, setSubmitting] = useState(false);
 
   // Live validation so the UI can show the tier badge as the user
   // adjusts the time pickers.
-  const validation = useMemo(() => {
-    if (!row) return null;
-    return validateEdit(
-      {
-        started_at: row.started_at,
-        ended_at: row.ended_at,
-        created_at: row.created_at,
-      },
-      {
-        started_at: startedAt,
-        ended_at: endedAt === null ? '' : endedAt,
-        notes,
-        reason,
-      }
-    );
-  }, [row, startedAt, endedAt, notes, reason]);
-
-  if (rowLoading || !row) {
-    return rowLoading ? (
-      <LoadingSplash />
-    ) : (
-      <NotFound palette={palette} onBack={() => router.back()} />
-    );
-  }
+  const validation = useMemo(
+    () =>
+      validateEdit(
+        {
+          started_at: row.started_at,
+          ended_at: row.ended_at,
+          created_at: row.created_at,
+        },
+        {
+          started_at: startedAt,
+          ended_at: endedAt === null ? '' : endedAt,
+          notes,
+          reason,
+        }
+      ),
+    [row.started_at, row.ended_at, row.created_at, startedAt, endedAt, notes, reason]
+  );
 
   const onSave = async () => {
     if (dayLocked) {
@@ -139,8 +150,8 @@ export default function EditTimeEntryScreen() {
       );
       return;
     }
-    if (!validation || !validation.ok) {
-      Alert.alert('Cannot save', validation?.error ?? 'Please review your edits.');
+    if (!validation.ok) {
+      Alert.alert('Cannot save', validation.error ?? 'Please review your edits.');
       return;
     }
     setSubmitting(true);
@@ -176,8 +187,9 @@ export default function EditTimeEntryScreen() {
     }
   };
 
-  const tierBadge = validation ? tierLabel(validation.tier) : null;
-  const tierColor = validation ? tierColorHex(validation.tier, palette) : palette.muted;
+  const tierBadge = tierLabel(validation.tier);
+  const tierColor = palette[tierPaletteKey(validation.tier)];
+  const showsReason = TIERS_WITH_REASON.has(validation.tier);
 
   return (
     <SafeAreaView
@@ -218,13 +230,7 @@ export default function EditTimeEntryScreen() {
               ]}
             >
               <Text style={[styles.lockedTitle, { color: palette.danger }]}>
-                {dayStatus === 'submitted'
-                  ? 'Submitted for approval'
-                  : dayStatus === 'approved'
-                    ? 'Approved'
-                    : dayStatus === 'locked'
-                      ? 'Locked by payroll'
-                      : 'Locked'}
+                {lockedDayTitle(dayStatus)}
               </Text>
               <Text style={[styles.lockedBody, { color: palette.text }]}>
                 Edits to this entry are read-only on mobile. Ask Henry to
@@ -276,45 +282,41 @@ export default function EditTimeEntryScreen() {
             />
           </View>
 
-          {tierBadge && validation ? (
-            <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: palette.muted }]}>
-                Edit summary
-              </Text>
-              <Text style={[styles.tierBadge, { color: tierColor }]}>
-                {tierBadge}
-                {validation.maxDeltaMinutes > 0
-                  ? ` · ${validation.maxDeltaMinutes} min change`
-                  : ''}
-              </Text>
-              {validation.tier === 'reason_required' ||
-              validation.tier === 'needs_approval' ||
-              validation.tier === 'reason_optional' ? (
-                <TextField
-                  label={
-                    validation.tier === 'reason_optional'
-                      ? 'Reason (optional)'
-                      : 'Reason (required)'
-                  }
-                  value={reason}
-                  onChangeText={setReason}
-                  placeholder="forgot to clock out, rounded to nearest minute, etc."
-                  multiline
-                  numberOfLines={2}
-                  autoCorrect
-                  autoCapitalize="sentences"
-                  editable={!submitting}
-                  error={validation.error}
-                />
-              ) : null}
-            </View>
-          ) : null}
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, { color: palette.muted }]}>
+              Edit summary
+            </Text>
+            <Text style={[styles.tierBadge, { color: tierColor }]}>
+              {tierBadge}
+              {validation.maxDeltaMinutes > 0
+                ? ` · ${validation.maxDeltaMinutes} min change`
+                : ''}
+            </Text>
+            {showsReason ? (
+              <TextField
+                label={
+                  validation.tier === 'reason_optional'
+                    ? 'Reason (optional)'
+                    : 'Reason (required)'
+                }
+                value={reason}
+                onChangeText={setReason}
+                placeholder="forgot to clock out, rounded to nearest minute, etc."
+                multiline
+                numberOfLines={2}
+                autoCorrect
+                autoCapitalize="sentences"
+                editable={!submitting}
+                error={validation.error}
+              />
+            ) : null}
+          </View>
 
           <Button
             label="Save"
             onPress={onSave}
             loading={submitting}
-            disabled={!validation?.ok || dayLocked}
+            disabled={!validation.ok || dayLocked}
             accessibilityHint="Saves the changes and writes an audit row per changed field"
           />
 
@@ -333,12 +335,12 @@ export default function EditTimeEntryScreen() {
 interface TimeFieldPickerProps {
   value: string | null;
   onChange: (next: string) => void;
-  palette: { surface: string; border: string; text: string; muted: string };
+  palette: Palette;
 }
 
 function TimeFieldPicker({ value, onChange, palette }: TimeFieldPickerProps) {
   const [showPicker, setShowPicker] = useState(false);
-  const date = value ? new Date(value) : new Date();
+  const date = useMemo(() => (value ? new Date(value) : new Date()), [value]);
   const valid = !Number.isNaN(date.getTime());
 
   // iOS shows inline; Android shows a modal popup that we trigger
@@ -397,7 +399,7 @@ function TimeFieldPicker({ value, onChange, palette }: TimeFieldPickerProps) {
 }
 
 interface NotFoundProps {
-  palette: { background: string; text: string; muted: string };
+  palette: Palette;
   onBack: () => void;
 }
 
@@ -421,62 +423,14 @@ function NotFound({ palette, onBack }: NotFoundProps) {
   );
 }
 
-function entryTypeLabel(type: string | null | undefined): string {
-  switch (type) {
-    case 'on_site':
-      return 'On site';
-    case 'travel':
-      return 'Travel';
-    case 'office':
-      return 'Office';
-    case 'overhead':
-      return 'Overhead';
-    default:
-      return 'Time entry';
-  }
-}
-
 function formatRowDuration(row: JobTimeEntryRow): string {
   if (row.duration_minutes != null) {
     return formatDuration(row.duration_minutes * 60_000);
   }
+  const fallback = durationMinutesBetween(row.started_at, row.ended_at);
+  if (fallback != null) return formatDuration(fallback * 60_000);
   if (row.started_at && !row.ended_at) return 'open';
   return '—';
-}
-
-function tierLabel(tier: string): string {
-  switch (tier) {
-    case 'silent':
-      return 'Small change · auto-logged';
-    case 'reason_optional':
-      return 'Edit · reason helpful';
-    case 'reason_required':
-      return 'Significant edit · reason required';
-    case 'needs_approval':
-      return 'Major edit · admin approval needed';
-    case 'blocked':
-      return 'Locked · admin must edit';
-    default:
-      return tier;
-  }
-}
-
-function tierColorHex(
-  tier: string,
-  palette: { accent: string; danger: string; muted: string; success: string }
-): string {
-  switch (tier) {
-    case 'silent':
-    case 'reason_optional':
-      return palette.success;
-    case 'reason_required':
-      return palette.accent;
-    case 'needs_approval':
-    case 'blocked':
-      return palette.danger;
-    default:
-      return palette.muted;
-  }
 }
 
 const styles = StyleSheet.create({

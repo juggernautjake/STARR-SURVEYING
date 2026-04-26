@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 
 import { useAuth } from './auth';
 import { logError, logInfo } from './log';
+import { localISODate } from './timeFormat';
 
 export interface WeekRange {
   /** YYYY-MM-DD (local) — Monday. */
@@ -47,22 +48,20 @@ export function thisWeekRange(): WeekRange {
   };
 }
 
-function localISODate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 /**
  * Returns this week's total minutes across all the user's
- * job_time_entries (Mon-Sun, local). Re-runs whenever entries or
- * daily logs change.
+ * job_time_entries (Mon-Sun, local). Recomputes the week each render
+ * — keeping the app open across midnight Sunday→Monday must roll the
+ * window forward without a remount.
  */
 export function useThisWeekTotal(): { totalMinutes: number; isLoading: boolean } {
   const { session } = useAuth();
   const userEmail = session?.user.email ?? null;
-  const range = useMemo(() => thisWeekRange(), []);
+  const range = thisWeekRange();
+  const queryParams = useMemo(
+    () => (userEmail ? [userEmail, range.from, range.to] : []),
+    [userEmail, range.from, range.to]
+  );
 
   const { data, isLoading, error } = useQuery<{ total: number | null }>(
     `SELECT COALESCE(SUM(jte.duration_minutes), 0) AS total
@@ -70,7 +69,7 @@ export function useThisWeekTotal(): { totalMinutes: number; isLoading: boolean }
      LEFT JOIN daily_time_logs AS dtl ON dtl.id = jte.daily_time_log_id
      WHERE jte.user_email = ?
        AND dtl.log_date BETWEEN ? AND ?`,
-    userEmail ? [userEmail, range.from, range.to] : []
+    queryParams
   );
 
   useEffect(() => {
@@ -144,43 +143,33 @@ export function useSubmitWeek(): () => Promise<SubmitWeekResult> {
         return { flipped: 0, alreadySubmitted: false, hasOpenEntry: true };
       }
 
-      // Find all 'open' daily logs in the window. If none, surface
-      // alreadySubmitted=true so the UI shows the right message.
-      const rows = await db.getAll<{ id: string }>(
-        `SELECT id FROM daily_time_logs
+      const nowIso = new Date().toISOString();
+      // Flip every 'open' day in the window in one statement. PowerSync
+      // emits one CRUD op per matched row server-side; this just saves
+      // round-trips through the local SQLite layer. SQLite's UPDATE
+      // returns `changes` via the result envelope on every adapter we
+      // care about — we surface it as `flipped`.
+      const result = await db.execute(
+        `UPDATE daily_time_logs
+         SET status = 'submitted',
+             submitted_at = ?,
+             updated_at = ?
          WHERE user_email = ?
            AND log_date BETWEEN ? AND ?
            AND COALESCE(status, 'open') = 'open'`,
-        [userEmail, range.from, range.to]
+        [nowIso, nowIso, userEmail, range.from, range.to]
       );
 
-      if (rows.length === 0) {
+      const flipped = result?.rowsAffected ?? 0;
+      if (flipped === 0) {
         logInfo('timesheet.submitWeek', 'nothing to submit', {
           already_submitted: true,
         });
         return { flipped: 0, alreadySubmitted: true, hasOpenEntry: false };
       }
 
-      const nowIso = new Date().toISOString();
-      // Flip them. PowerSync's CRUD queue will replay each UPDATE
-      // server-side; we don't worry about a transactional batch here
-      // because PowerSync's queue is FIFO per row and individual
-      // failures retry.
-      for (const row of rows) {
-        await db.execute(
-          `UPDATE daily_time_logs
-           SET status = 'submitted',
-               submitted_at = ?,
-               updated_at = ?
-           WHERE id = ?`,
-          [nowIso, nowIso, row.id]
-        );
-      }
-
-      logInfo('timesheet.submitWeek', 'success', {
-        flipped: rows.length,
-      });
-      return { flipped: rows.length, alreadySubmitted: false, hasOpenEntry: false };
+      logInfo('timesheet.submitWeek', 'success', { flipped });
+      return { flipped, alreadySubmitted: false, hasOpenEntry: false };
     } catch (err) {
       logError('timesheet.submitWeek', 'unexpected failure', err, {
         from: range.from,

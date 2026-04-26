@@ -39,11 +39,12 @@ const DB_FILENAME = 'starr-field.db';
 let _db: PowerSyncDatabase | null = null;
 
 /**
- * Lazy singleton. Imports of this module don't open the SQLite file;
- * the first call to getDatabase() does. Tests can swap the singleton
- * by setting `_db` before any consumer runs.
+ * Lazy singleton — module-private. Consumers MUST go through
+ * `usePowerSync()` from @powersync/react (resolved via the provider
+ * below) so the database lifecycle, lock-state, and test-swap stories
+ * stay in one place.
  */
-export function getDatabase(): PowerSyncDatabase {
+function getDatabase(): PowerSyncDatabase {
   if (!_db) {
     _db = new PowerSyncDatabase({
       schema: AppSchema,

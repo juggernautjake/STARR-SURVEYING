@@ -184,15 +184,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!mounted) return;
       setSession(newSession);
-      // If the session went away (signOut, expired token), clear lock
-      // so we don't show the LockOverlay on top of the sign-in screen.
-      if (!newSession) setLocked(false);
-      // SIGNED_IN fires after a successful signInWithPassword. The
-      // user just authenticated; do NOT lock them again — they'd
-      // immediately have to do biometric on top of password, which
-      // is bad UX. Cold-start uses the locked-state from the
-      // Promise.all above; mid-session sign-in skips the lock.
-      if (event === 'SIGNED_IN') setLocked(false);
+      // Clear the lock when the session disappears (sign-out, expired
+      // token) OR when SIGNED_IN fires from a fresh sign-in — the
+      // user just authenticated, demanding biometric on top would be
+      // bad UX. Cold-start lock decision happens in the Promise.all
+      // above, not here.
+      if (!newSession || event === 'SIGNED_IN') setLocked(false);
 
       // Sentry user-context update + breadcrumb. Visible in any
       // crash that occurs after this transition.
@@ -259,6 +256,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [biometricEnabled]
   );
 
+  // Supabase client is module-scoped (lib/supabase.ts) so these
+  // callbacks have no React-state deps and can be memoized once.
+  const signIn = useCallback(async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    return error?.message ?? null;
+  }, []);
+
+  const signInWithMagicLink = useCallback(async (email: string) => {
+    // createURL respects app.json's scheme + the dev proxy (exp:// in
+    // Expo Go, starr-field:// in prod).
+    const emailRedirectTo = Linking.createURL('auth-callback');
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo, shouldCreateUser: false },
+    });
+    return error?.message ?? null;
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+  }, []);
+
+  const resetPassword = useCallback(async (email: string) => {
+    const redirectTo = Linking.createURL('reset-password');
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo,
+    });
+    return error?.message ?? null;
+  }, []);
+
   // ── Context value ──────────────────────────────────────────────────────
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -266,33 +296,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       locked,
       biometricEnabled,
-      signIn: async (email, password) => {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
-        return error?.message ?? null;
-      },
-      signInWithMagicLink: async (email) => {
-        // createURL respects the `scheme` set in app.json AND the dev
-        // proxy (Expo Go uses exp:// in dev, starr-field:// in prod).
-        const emailRedirectTo = Linking.createURL('auth-callback');
-        const { error } = await supabase.auth.signInWithOtp({
-          email: email.trim(),
-          options: { emailRedirectTo, shouldCreateUser: false },
-        });
-        return error?.message ?? null;
-      },
-      signOut: async () => {
-        await supabase.auth.signOut();
-      },
-      resetPassword: async (email) => {
-        const redirectTo = Linking.createURL('reset-password');
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo,
-        });
-        return error?.message ?? null;
-      },
+      signIn,
+      signInWithMagicLink,
+      signOut,
+      resetPassword,
       setBiometricEnabled,
       unlock,
       lockNow,
@@ -303,6 +310,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       locked,
       biometricEnabled,
+      signIn,
+      signInWithMagicLink,
+      signOut,
+      resetPassword,
       setBiometricEnabled,
       unlock,
       lockNow,

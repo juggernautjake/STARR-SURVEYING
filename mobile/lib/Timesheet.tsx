@@ -15,7 +15,13 @@
 import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
 import { StatusChip } from './StatusChip';
-import { formatDuration, todayLocalISODate } from './timeFormat';
+import { entryTypeLabel } from './timeTracking';
+import {
+  durationMinutesBetween,
+  formatDuration,
+  formatLocalTime,
+  formatRelativeDay,
+} from './timeFormat';
 import type { TimesheetDay, TimesheetEntry } from './timesheet';
 import { type Palette, colors } from './theme';
 
@@ -69,7 +75,7 @@ function DayBlock({ day, palette, onPressEntry }: DayBlockProps) {
       <View style={styles.dayHeader}>
         <View style={styles.dayHeaderLeft}>
           <Text style={[styles.dayDate, { color: palette.text }]}>
-            {formatDayHeader(day.date)}
+            {formatRelativeDay(day.date)}
           </Text>
           <StatusChip status={day.status} />
         </View>
@@ -148,43 +154,6 @@ function DayBlock({ day, palette, onPressEntry }: DayBlockProps) {
   );
 }
 
-function entryTypeLabel(type: string | null | undefined): string {
-  switch (type) {
-    case 'on_site':
-      return 'On site';
-    case 'travel':
-      return 'Travel';
-    case 'office':
-      return 'Office';
-    case 'overhead':
-      return 'Overhead';
-    default:
-      return 'Time entry';
-  }
-}
-
-function formatDayHeader(date: string): string {
-  if (!date) return 'Unknown day';
-  const today = todayLocalISODate();
-  if (date === today) return 'Today';
-  // Yesterday: subtract one day from today and compare.
-  const [y, m, d] = today.split('-').map((s) => parseInt(s, 10));
-  const yesterday = new Date(Date.UTC(y, m - 1, d) - 24 * 60 * 60 * 1000);
-  const yyyymmdd = `${yesterday.getUTCFullYear()}-${String(
-    yesterday.getUTCMonth() + 1
-  ).padStart(2, '0')}-${String(yesterday.getUTCDate()).padStart(2, '0')}`;
-  if (date === yyyymmdd) return 'Yesterday';
-  // Otherwise, render as "Mon Apr 14"
-  const [yy, mm, dd] = date.split('-').map((s) => parseInt(s, 10));
-  if (!yy || !mm || !dd) return date;
-  const dt = new Date(yy, mm - 1, dd);
-  return dt.toLocaleDateString([], {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
 function formatDayTotal(totalMinutes: number): string {
   if (totalMinutes <= 0) return '0m';
   return formatDuration(totalMinutes * 60_000);
@@ -195,32 +164,18 @@ function formatEntryDuration(entry: TimesheetEntry): string {
   if (entry.durationMinutes != null) {
     return formatDuration(entry.durationMinutes * 60_000);
   }
-  // Fallback: compute from started/ended.
-  if (entry.startedAt) {
-    const a = Date.parse(entry.startedAt);
-    const b = Date.parse(entry.endedAt);
-    if (Number.isFinite(a) && Number.isFinite(b) && b > a) {
-      return formatDuration(b - a);
-    }
-  }
-  return '—';
+  const fallback = durationMinutesBetween(entry.startedAt, entry.endedAt);
+  return fallback != null ? formatDuration(fallback * 60_000) : '—';
 }
 
 function composeRange(
   startedAt: string | null,
   endedAt: string | null
 ): string {
-  const start = formatTime(startedAt);
-  const end = endedAt ? formatTime(endedAt) : 'now';
+  const start = formatLocalTime(startedAt);
+  const end = endedAt ? formatLocalTime(endedAt) : 'now';
   if (!start) return end ?? '';
   return `${start} → ${end}`;
-}
-
-function formatTime(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 const styles = StyleSheet.create({
