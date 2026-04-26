@@ -47,6 +47,7 @@
           "isAndroidBackgroundLocationEnabled": false
         }
       ],
+      "expo-notifications",
       "@sentry/react-native/expo"
     ],
     "experiments": {

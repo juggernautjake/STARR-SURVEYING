@@ -37,6 +37,10 @@ import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
 import { getCurrentPositionOrNull } from './location';
 import { elapsedSince, todayLocalISODate } from './timeFormat';
+import {
+  cancelStillWorkingPrompts,
+  scheduleStillWorkingPrompts,
+} from './timePrompts';
 import { randomUUID } from './uuid';
 
 export type EntryType = 'on_site' | 'travel' | 'office' | 'overhead';
@@ -195,6 +199,17 @@ export function useClockIn(): (params: {
           entryId,
         ]
       );
+
+      // 5. Schedule "still working?" reminders. Fire-and-forget;
+      //    permission denial silently degrades. Notification scheduling
+      //    must NOT block clock-in completion — surface as an awaited
+      //    call so any logged warnings are tied to this clock-in, but
+      //    never throw past this point.
+      try {
+        await scheduleStillWorkingPrompts(entryId, nowIso);
+      } catch (err) {
+        console.warn('[clockIn] schedule still-working prompts failed:', err);
+      }
     },
     [db, session]
   );
@@ -246,6 +261,16 @@ export function useClockOut(): () => Promise<boolean> {
         open.id,
       ]
     );
+
+    // Cancel any scheduled "still working?" prompts for this entry.
+    // Idempotent — safe to call when permission was denied at
+    // clock-in time and nothing was actually scheduled.
+    try {
+      await cancelStillWorkingPrompts(open.id);
+    } catch (err) {
+      console.warn('[clockOut] cancel still-working prompts failed:', err);
+    }
+
     return true;
   }, [db, session]);
 }
