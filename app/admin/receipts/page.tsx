@@ -238,6 +238,13 @@ export default function ReceiptsApprovalPage() {
         <button type="button" onClick={() => void load()} style={styles.refreshButton}>
           Refresh
         </button>
+        <a
+          href={buildExportUrl({ status: tab, from, to, email: emailFilter })}
+          style={styles.exportButton}
+          download
+        >
+          Export CSV
+        </a>
       </div>
 
       {loading ? (
@@ -482,6 +489,21 @@ function Field({ label, value }: { label: string; value: string | null | undefin
   );
 }
 
+function buildExportUrl(filters: {
+  status: string;
+  from: string;
+  to: string;
+  email: string;
+}): string {
+  const params = new URLSearchParams({
+    status: filters.status,
+    from: filters.from,
+    to: filters.to,
+  });
+  if (filters.email.trim()) params.set('email', filters.email.trim());
+  return `/api/admin/receipts/export?${params}`;
+}
+
 function todayIso(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -555,6 +577,18 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: 14,
     fontWeight: 500,
+  },
+  exportButton: {
+    padding: '8px 16px',
+    borderRadius: 6,
+    border: '1px solid #1D3095',
+    background: '#fff',
+    color: '#1D3095',
+    fontSize: 14,
+    fontWeight: 500,
+    textDecoration: 'none',
+    display: 'inline-block',
+    lineHeight: '20px',
   },
   empty: {
     padding: 32,
