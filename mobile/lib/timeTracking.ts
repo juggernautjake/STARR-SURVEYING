@@ -31,13 +31,13 @@
  * configured. Works fully offline today.
  */
 import { usePowerSync, useQuery } from '@powersync/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
 import { getCurrentPositionOrNull } from './location';
 import { logError, logInfo, logWarn } from './log';
-import { elapsedSince, todayLocalISODate } from './timeFormat';
+import { durationMinutesBetween, todayLocalISODate } from './timeFormat';
 import {
   cancelStillWorkingPrompts,
   scheduleStillWorkingPrompts,
@@ -46,22 +46,43 @@ import { randomUUID } from './uuid';
 
 export type EntryType = 'on_site' | 'travel' | 'office' | 'overhead';
 
+/**
+ * Human label for an entry-type column. Co-located with the
+ * `EntryType` union so adding a new variant forces an update here
+ * (and `default:` keeps unknown server-side values rendering safely).
+ */
+export function entryTypeLabel(type: EntryType | string | null | undefined): string {
+  switch (type) {
+    case 'on_site':
+      return 'On site';
+    case 'travel':
+      return 'Travel';
+    case 'office':
+      return 'Office';
+    case 'overhead':
+      return 'Overhead';
+    default:
+      return 'Time entry';
+  }
+}
+
 export type JobTimeEntry = AppDatabase['job_time_entries'];
 
 export interface ActiveEntry {
   entry: JobTimeEntry;
-  /** Computed at hook-render time; ticks live via the local timer. */
+  /** Recomputed every 30 s so the UI's duration counter stays fresh. */
   elapsedMs: number;
   /** Linked job name when entry.job_id is set; null for office/travel/overhead. */
   jobName: string | null;
 }
 
+const TICK_MS = 30_000;
+
 /**
  * Subscribe to "the user's currently-open clock-in entry." Returns
  * `null` when the user is clocked out, the entry + elapsed time
- * when clocked in. The `elapsedMs` value re-computes every 30
- * seconds so the UI's duration counter stays fresh without
- * thrashing renders.
+ * when clocked in. The smallest unit the UI shows is "1m", so
+ * ticking faster than 30s just burns battery.
  */
 export function useActiveTimeEntry(): {
   active: ActiveEntry | null;
@@ -70,9 +91,13 @@ export function useActiveTimeEntry(): {
   const { session } = useAuth();
   const userEmail = session?.user.email ?? null;
 
-  // The live SQL — re-runs whenever job_time_entries OR jobs changes.
-  // LEFT JOIN so entries with NULL job_id (office/travel/overhead) still
-  // come back; the joined name is null in those cases.
+  const queryParams = useMemo(
+    () => (userEmail ? [userEmail] : []),
+    [userEmail]
+  );
+
+  // LEFT JOIN so entries with NULL job_id (office/travel/overhead)
+  // still come back; the joined name is null in those cases.
   const { data, isLoading, error } = useQuery<JobTimeEntry & { _job_name: string | null }>(
     `SELECT j.*, jobs.name AS _job_name
      FROM job_time_entries AS j
@@ -81,7 +106,7 @@ export function useActiveTimeEntry(): {
        AND j.ended_at IS NULL
      ORDER BY j.started_at DESC
      LIMIT 1`,
-    userEmail ? [userEmail] : []
+    queryParams
   );
 
   useEffect(() => {
@@ -90,38 +115,34 @@ export function useActiveTimeEntry(): {
 
   const entry = data?.[0] ?? null;
 
-  // Tick the elapsed counter every 30s. We don't tick more often
-  // because the smallest unit shown in the UI is "1m"; tighter
-  // intervals just burn battery.
-  const [tick, setTick] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!entry?.started_at) return;
-    const id = setInterval(() => setTick((n) => n + 1), 30_000);
+    const id = setInterval(() => setNow(Date.now()), TICK_MS);
     return () => clearInterval(id);
   }, [entry?.started_at]);
 
-  if (!userEmail) return { active: null, isLoading: false };
-  if (isLoading) return { active: null, isLoading: true };
-  if (!entry) return { active: null, isLoading: false };
+  return useMemo(() => {
+    if (!userEmail) return { active: null, isLoading: false };
+    if (isLoading) return { active: null, isLoading: true };
+    if (!entry) return { active: null, isLoading: false };
 
-  // Reference `tick` so React's deps tracker doesn't optimize the
-  // re-render away. (elapsedSince reads Date.now(), so the value
-  // freshens automatically — we just need to trigger a re-render.)
-  void tick;
+    // Strip the JOIN-only field so consumers see a clean JobTimeEntry.
+    const { _job_name, ...rest } = entry;
+    const cleanEntry = rest as JobTimeEntry;
+    const elapsedMs = cleanEntry.started_at
+      ? Math.max(0, now - Date.parse(cleanEntry.started_at))
+      : 0;
 
-  // Strip the JOIN-only field so consumers see a clean JobTimeEntry.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { _job_name, ...rest } = entry;
-  const cleanEntry = rest as JobTimeEntry;
-
-  return {
-    active: {
-      entry: cleanEntry,
-      elapsedMs: cleanEntry.started_at ? elapsedSince(cleanEntry.started_at) : 0,
-      jobName: entry._job_name,
-    },
-    isLoading: false,
-  };
+    return {
+      active: {
+        entry: cleanEntry,
+        elapsedMs: Number.isFinite(elapsedMs) ? elapsedMs : 0,
+        jobName: _job_name,
+      },
+      isLoading: false,
+    };
+  }, [entry, isLoading, now, userEmail]);
 }
 
 /**
@@ -173,36 +194,19 @@ export function useClockIn(): (params: {
           throw err;
         }
 
-        // 2. Find-or-create today's daily log.
-        let dailyLog = await db.getOptional<{ id: string }>(
-          `SELECT id FROM daily_time_logs
-           WHERE user_email = ? AND log_date = ?
-           LIMIT 1`,
-          [userEmail, today]
-        );
-        if (!dailyLog) {
-          const dailyId = randomUUID();
-          const nowIso = new Date().toISOString();
-          await db.execute(
-            `INSERT INTO daily_time_logs
-               (id, user_email, log_date, status, created_at, updated_at, client_id)
-             VALUES (?, ?, ?, 'open', ?, ?, ?)`,
-            [dailyId, userEmail, today, nowIso, nowIso, dailyId]
-          );
-          dailyLog = { id: dailyId };
-          logInfo('timeTracking.clockIn', 'created daily_time_logs', {
-            daily_time_log_id: dailyId,
-            log_date: today,
-          });
-        }
-
-        // 3. Best-effort GPS fix. Don't block clock-in on it.
-        const pos = await getCurrentPositionOrNull();
+        // 2. Run find-or-create-daily-log AND the GPS fix in parallel.
+        //    GPS acquisition can take up to ~8s; the SQLite round-trip
+        //    is sub-ms — running them sequentially would stall every
+        //    clock-in by the full GPS window.
+        const [dailyLog, pos] = await Promise.all([
+          ensureDailyLog(db, userEmail, today),
+          getCurrentPositionOrNull(),
+        ]);
         if (!pos) {
           logInfo('timeTracking.clockIn', 'no GPS fix (clock-in proceeds)');
         }
 
-        // 4. Insert the open job_time_entries row.
+        // 3. Insert the open job_time_entries row.
         const entryId = randomUUID();
         const nowIso = new Date().toISOString();
         await db.execute(
@@ -306,10 +310,7 @@ export function useClockOut(): () => Promise<boolean> {
       });
 
       const nowIso = new Date().toISOString();
-      const startMs = Date.parse(open.started_at);
-      const durationMin = Number.isFinite(startMs)
-        ? Math.max(0, Math.round((Date.now() - startMs) / 60000))
-        : null;
+      const durationMin = durationMinutesBetween(open.started_at, nowIso);
 
       const pos = await getCurrentPositionOrNull();
       if (!pos) {
@@ -360,4 +361,32 @@ export function useClockOut(): () => Promise<boolean> {
       throw err;
     }
   }, [db, session]);
+}
+
+async function ensureDailyLog(
+  db: ReturnType<typeof usePowerSync>,
+  userEmail: string,
+  logDate: string
+): Promise<{ id: string }> {
+  const existing = await db.getOptional<{ id: string }>(
+    `SELECT id FROM daily_time_logs
+     WHERE user_email = ? AND log_date = ?
+     LIMIT 1`,
+    [userEmail, logDate]
+  );
+  if (existing) return existing;
+
+  const dailyId = randomUUID();
+  const nowIso = new Date().toISOString();
+  await db.execute(
+    `INSERT INTO daily_time_logs
+       (id, user_email, log_date, status, created_at, updated_at, client_id)
+     VALUES (?, ?, ?, 'open', ?, ?, ?)`,
+    [dailyId, userEmail, logDate, nowIso, nowIso, dailyId]
+  );
+  logInfo('timeTracking.ensureDailyLog', 'created', {
+    daily_time_log_id: dailyId,
+    log_date: logDate,
+  });
+  return { id: dailyId };
 }

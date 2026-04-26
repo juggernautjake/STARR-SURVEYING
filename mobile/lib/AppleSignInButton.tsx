@@ -24,6 +24,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View, useColorScheme } from 'react-native';
 
+import { logWarn } from './log';
 import { supabase } from './supabase';
 
 interface AppleSignInButtonProps {
@@ -42,8 +43,11 @@ export function AppleSignInButton({ onError }: AppleSignInButtonProps) {
       .then((ok) => {
         if (mounted) setAvailable(ok);
       })
-      .catch(() => {
-        // Older iOS or simulator without Apple ID configured — hide.
+      .catch((err) => {
+        // Older iOS or simulator without Apple ID — button hides.
+        // Real entitlement misconfig also lands here; surface to
+        // Sentry so it's debuggable rather than silently hidden.
+        logWarn('appleSignIn.isAvailable', 'check failed', err);
       });
     return () => {
       mounted = false;

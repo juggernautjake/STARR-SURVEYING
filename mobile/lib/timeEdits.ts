@@ -22,10 +22,11 @@
  * Each row carries old_value/new_value/reason/delta_minutes/edited_*.
  */
 import { usePowerSync, useQuery } from '@powersync/react';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import { useAuth } from './auth';
 import { logError, logInfo } from './log';
+import { durationMinutesBetween } from './timeFormat';
 import { randomUUID } from './uuid';
 
 export interface TimeEdit {
@@ -63,6 +64,45 @@ export interface EditValidation {
 
 export type EditTier = 'silent' | 'reason_optional' | 'reason_required' | 'needs_approval' | 'blocked';
 
+/** Human label for the tier badge on the edit screen. */
+export function tierLabel(tier: EditTier): string {
+  switch (tier) {
+    case 'silent':
+      return 'Small change · auto-logged';
+    case 'reason_optional':
+      return 'Edit · reason helpful';
+    case 'reason_required':
+      return 'Significant edit · reason required';
+    case 'needs_approval':
+      return 'Major edit · admin approval needed';
+    case 'blocked':
+      return 'Locked · admin must edit';
+  }
+}
+
+/** Which palette token drives the tier badge color. */
+export function tierPaletteKey(
+  tier: EditTier
+): 'success' | 'accent' | 'danger' {
+  switch (tier) {
+    case 'silent':
+    case 'reason_optional':
+      return 'success';
+    case 'reason_required':
+      return 'accent';
+    case 'needs_approval':
+    case 'blocked':
+      return 'danger';
+  }
+}
+
+/** Tiers that surface the optional/required reason field. */
+export const TIERS_WITH_REASON: ReadonlySet<EditTier> = new Set([
+  'reason_optional',
+  'reason_required',
+  'needs_approval',
+]);
+
 const DELTA_REASON_OPTIONAL_MIN = 5;
 const DELTA_REASON_REQUIRED_MIN = 15;
 const DELTA_NEEDS_APPROVAL_MIN = 60;
@@ -76,12 +116,16 @@ export function useTimeEdits(entryId: string | null | undefined): {
   edits: TimeEdit[];
   isLoading: boolean;
 } {
+  const queryParams = useMemo(
+    () => (entryId ? [entryId] : []),
+    [entryId]
+  );
   const { data, isLoading, error } = useQuery<TimeEdit>(
     `SELECT *
      FROM time_edits
      WHERE job_time_entry_id = ?
      ORDER BY edited_at DESC, id DESC`,
-    entryId ? [entryId] : []
+    queryParams
   );
 
   useEffect(() => {
@@ -217,60 +261,57 @@ export function useEditTimeEntry(): (
 
       // Recompute duration_minutes from the new boundaries; null
       // when the entry is open (ended_at not set).
-      let durationMin: number | null = null;
-      if (newStarted && newEnded) {
-        const a = Date.parse(newStarted);
-        const b = Date.parse(newEnded);
-        if (Number.isFinite(a) && Number.isFinite(b) && b >= a) {
-          durationMin = Math.max(0, Math.round((b - a) / 60_000));
-        }
-      }
+      const durationMin = durationMinutesBetween(newStarted, newEnded);
 
       const nowIso = new Date().toISOString();
 
-      try {
-        await db.execute(
-          `UPDATE job_time_entries
-           SET started_at = ?,
-               ended_at = ?,
-               notes = ?,
-               duration_minutes = ?,
-               updated_at = ?
-           WHERE id = ?`,
-          [newStarted, newEnded, newNotes, durationMin, nowIso, entry.id]
-        );
-
-        // One time_edits row per changed field.
-        await maybeWriteEdit(db, {
-          entryId: entry.id,
+      const fieldChanges: AuditField[] = [
+        {
           field: 'started_at',
           oldValue: entry.started_at,
           newValue: newStarted,
-          reason,
           deltaMinutes: absDeltaMinutes(entry.started_at, newStarted ?? null),
-          userEmail,
-          editedAt: nowIso,
-        });
-        await maybeWriteEdit(db, {
-          entryId: entry.id,
+        },
+        {
           field: 'ended_at',
           oldValue: entry.ended_at,
           newValue: newEnded,
-          reason,
           deltaMinutes: absDeltaMinutes(entry.ended_at, newEnded),
-          userEmail,
-          editedAt: nowIso,
-        });
-        await maybeWriteEdit(db, {
-          entryId: entry.id,
+        },
+        {
           field: 'notes',
           oldValue: entry.notes,
           newValue: newNotes,
-          reason,
           deltaMinutes: null, // notes have no time delta
-          userEmail,
-          editedAt: nowIso,
-        });
+        },
+      ];
+
+      try {
+        // Run the entry UPDATE in parallel with the audit-row INSERTs.
+        // No write depends on another's result; PowerSync's local
+        // SQLite serializes the statements internally, but the round
+        // trips overlap.
+        await Promise.all([
+          db.execute(
+            `UPDATE job_time_entries
+             SET started_at = ?,
+                 ended_at = ?,
+                 notes = ?,
+                 duration_minutes = ?,
+                 updated_at = ?
+             WHERE id = ?`,
+            [newStarted, newEnded, newNotes, durationMin, nowIso, entry.id]
+          ),
+          ...fieldChanges.map((change) =>
+            maybeWriteEdit(db, {
+              ...change,
+              entryId: entry.id,
+              reason,
+              userEmail,
+              editedAt: nowIso,
+            })
+          ),
+        ]);
 
         logInfo('timeEdits.editEntry', 'success', {
           entry_id: entry.id,
@@ -296,13 +337,16 @@ export function useEditTimeEntry(): (
   );
 }
 
-interface MaybeWriteEditArgs {
-  entryId: string;
+interface AuditField {
   field: 'started_at' | 'ended_at' | 'notes' | 'entry_type' | 'job_id';
   oldValue: string | null;
   newValue: string | null;
-  reason: string | null;
   deltaMinutes: number | null;
+}
+
+interface MaybeWriteEditArgs extends AuditField {
+  entryId: string;
+  reason: string | null;
   userEmail: string;
   editedAt: string;
 }
