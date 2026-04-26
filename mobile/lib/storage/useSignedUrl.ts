@@ -50,6 +50,19 @@ export function useSignedUrl(
           return;
         }
         setUrl(data?.signedUrl ?? null);
+      })
+      .catch((err) => {
+        // Network failure (LTE drop, DNS, etc.) — Supabase rejects the
+        // promise rather than returning { error }. Without this catch
+        // the JS runtime emits an "unhandled promise rejection" warning
+        // and the user sees a perpetual "Loading photo…" placeholder
+        // with no breadcrumb in Sentry.
+        if (!mounted) return;
+        logWarn('storage.useSignedUrl', 'signed URL threw', err, {
+          bucket,
+          path,
+        });
+        setUrl(null);
       });
     return () => {
       mounted = false;

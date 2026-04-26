@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { logError } from '@/lib/log';
 import { PhotoLightbox } from '@/lib/PhotoLightbox';
 import { TextField } from '@/lib/TextField';
 import { ThumbnailGrid } from '@/lib/ThumbnailGrid';
@@ -132,7 +133,14 @@ function PointForm({ point, palette }: PointFormProps) {
       await updatePoint(point.id, patch);
       router.back();
     } catch (err) {
-      Alert.alert('Save failed', (err as Error).message);
+      logError('pointDetail.onSave', 'update failed', err, {
+        point_id: point.id,
+        job_id: point.job_id,
+      });
+      Alert.alert(
+        'Save failed',
+        err instanceof Error ? err.message : String(err)
+      );
     } finally {
       setSubmitting(false);
     }
@@ -159,7 +167,15 @@ function PointForm({ point, palette }: PointFormProps) {
                 router.back();
               }
             } catch (err) {
-              Alert.alert('Delete failed', (err as Error).message);
+              logError('pointDetail.onDelete', 'delete failed', err, {
+                point_id: point.id,
+                job_id: point.job_id,
+                media_count: media.length,
+              });
+              Alert.alert(
+                'Delete failed',
+                err instanceof Error ? err.message : String(err)
+              );
             }
           },
         },
@@ -180,7 +196,14 @@ function PointForm({ point, palette }: PointFormProps) {
             try {
               await deleteMedia(item);
             } catch (err) {
-              Alert.alert('Delete failed', (err as Error).message);
+              logError('pointDetail.onDeletePhoto', 'delete failed', err, {
+                media_id: item.id,
+                point_id: point.id,
+              });
+              Alert.alert(
+                'Delete failed',
+                err instanceof Error ? err.message : String(err)
+              );
             }
           },
         },

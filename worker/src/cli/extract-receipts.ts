@@ -57,12 +57,20 @@ async function main() {
       const results = await processQueuedReceipts(supabase, {
         batchSize: opts.batchSize,
       });
+      // Always emit a summary line — even when the queue was empty.
+      // Operators rely on this log to confirm "is the worker actually
+      // running?" Silent runs make a stuck cron / pm2 process
+      // indistinguishable from a healthy idle one.
       const done = results.filter((r) => r.status === 'done').length;
       const failed = results.filter((r) => r.status === 'failed').length;
       const cost = results.reduce((sum, r) => sum + (r.costCents ?? 0), 0);
-      console.log(
-        `[extract-receipts] batch: ${done} done, ${failed} failed, ${cost / 100} USD`
-      );
+      if (results.length === 0) {
+        console.log('[extract-receipts] batch: 0 rows queued');
+      } else {
+        console.log(
+          `[extract-receipts] batch: ${done} done, ${failed} failed, ${cost / 100} USD`
+        );
+      }
     } catch (err) {
       console.error('[extract-receipts] batch failed:', err);
       // Don't kill --watch over a transient infra hiccup; one-shot

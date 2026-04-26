@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/lib/Button';
 import { CategoryPicker, categoryLabel } from '@/lib/CategoryPicker';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { logError } from '@/lib/log';
 import { RemotePhoto } from '@/lib/RemotePhoto';
 import { TextField } from '@/lib/TextField';
 import { useJob } from '@/lib/jobs';
@@ -75,6 +76,14 @@ export default function ReceiptDetailScreen() {
   //     trigger, a user sitting on the edit screen during extraction
   //     never sees the AI-filled vendor / total — the form state was
   //     initialised when the row was empty.
+  //
+  // Why a remount instead of useEffect-syncing the 14 fields: the form
+  // has 14 controlled inputs each with its own useState. A useEffect
+  // that mirrors `receipt` → state would trample mid-edit user input
+  // any time extraction touches the row. Re-keying remounts cleanly,
+  // re-runs each useState's lazy initialiser, and discards in-flight
+  // edits ONLY at the precise extraction-phase boundary — matches what
+  // the user expects ("AI just finished — show me what it filled in").
   const extractionPhase =
     receipt.extraction_status === 'done' ||
     receipt.extraction_status === 'failed'
@@ -202,7 +211,14 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
       await updateReceipt(receipt.id, patch);
       router.back();
     } catch (err) {
-      Alert.alert('Save failed', (err as Error).message);
+      logError('receiptDetail.onSave', 'update failed', err, {
+        receipt_id: receipt.id,
+        fields: Object.keys(patch).length,
+      });
+      Alert.alert(
+        'Save failed',
+        err instanceof Error ? err.message : String(err)
+      );
     } finally {
       setSubmitting(false);
     }
@@ -219,7 +235,13 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
           : 'This receipt is already pending extraction or finished. Pull down to refresh if the fields look stale.'
       );
     } catch (err) {
-      Alert.alert('Retry failed', (err as Error).message);
+      logError('receiptDetail.onRetry', 'retry failed', err, {
+        receipt_id: receipt.id,
+      });
+      Alert.alert(
+        'Retry failed',
+        err instanceof Error ? err.message : String(err)
+      );
     } finally {
       setRetrying(false);
     }
@@ -239,7 +261,14 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
               await deleteReceipt(receipt);
               router.back();
             } catch (err) {
-              Alert.alert('Delete failed', (err as Error).message);
+              logError('receiptDetail.onDelete', 'delete failed', err, {
+                receipt_id: receipt.id,
+                status: receipt.status,
+              });
+              Alert.alert(
+                'Delete failed',
+                err instanceof Error ? err.message : String(err)
+              );
             }
           },
         },

@@ -80,6 +80,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const to = searchParams.get('to');
   const email = searchParams.get('email');
   const jobId = searchParams.get('jobId');
+  // Cap at 500: bookkeeper queue rarely needs more in one page — a
+  // tighter date range is the recommended path for big exports. The
+  // client default of 100 fits ~3 screens of rows.
   const limit = Math.max(1, Math.min(500, parseInt(searchParams.get('limit') ?? '100', 10)));
 
   // When the bookkeeper filters by submitter email, resolve to the
@@ -122,6 +125,19 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data: rows, error } = await query;
   if (error) {
+    // withErrorHandler only catches throws — Supabase returning a
+    // typed error object lands here. Log it so ops can correlate
+    // bookkeeper-visible 500s with the underlying Postgres / PostgREST
+    // message + code.
+    console.error('[admin/receipts] list failed', {
+      error: error.message,
+      code: (error as { code?: string }).code ?? null,
+      status,
+      from,
+      to,
+      email,
+      jobId,
+    });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   const receiptRows = (rows ?? []) as ReceiptRow[];
@@ -140,14 +156,27 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const filtered = receiptRows;
 
   // Generate signed photo URLs in parallel. Failure is non-fatal —
-  // the row still renders with a "photo unavailable" placeholder.
+  // the row still renders with a "photo unavailable" placeholder. We
+  // log the FIRST FEW failures per request so a misconfigured bucket
+  // policy is visible in worker logs without the page-load flooding
+  // them.
+  let signFailuresLogged = 0;
   const signed = await Promise.all(
     filtered.map(async (r) => {
       if (!r.photo_url) return null;
       const { data, error: signErr } = await supabaseAdmin.storage
         .from(STORAGE_BUCKET)
         .createSignedUrl(r.photo_url, SIGNED_URL_TTL_SEC);
-      if (signErr) return null;
+      if (signErr) {
+        if (signFailuresLogged < 3) {
+          console.warn('[admin/receipts] sign failed', {
+            path: r.photo_url,
+            error: signErr.message,
+          });
+          signFailuresLogged += 1;
+        }
+        return null;
+      }
       return data?.signedUrl ?? null;
     })
   );
@@ -192,7 +221,17 @@ async function resolveUserIdByEmail(email: string): Promise<string | null> {
     page: 1,
     perPage: 1000,
   });
-  if (error || !data) return null;
+  if (error || !data) {
+    // Distinguish "user not found" (returns null naturally below) from
+    // "listUsers failed" (also returns null but for a different reason).
+    // Without this log, a throttled / outaged listUsers makes a valid
+    // bookkeeper query appear as "no receipts for this email."
+    console.error(
+      '[admin/receipts] listUsers failed during email resolve',
+      { error: error?.message ?? null, email: lower }
+    );
+    return null;
+  }
   const match = data.users.find((u) => u.email?.toLowerCase() === lower);
   return match?.id ?? null;
 }

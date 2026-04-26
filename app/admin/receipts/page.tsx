@@ -164,7 +164,14 @@ export default function ReceiptsApprovalPage() {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const text = await res.text().catch(() => '');
+        const text = await res.text().catch((e) => {
+          // safeAction captures the outer throw; this catches the rare
+          // case where reading the body itself fails (binary 500 from
+          // upstream, etc.). Without the warn, the user sees just
+          // "request failed: 500" with no clue what happened.
+          console.warn('[ReceiptsApprovalPage] body read failed', e);
+          return '';
+        });
         throw new Error(text || `request failed: ${res.status}`);
       }
       await load();

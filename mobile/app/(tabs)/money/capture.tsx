@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { logError } from '@/lib/log';
 import { useActiveTimeEntry } from '@/lib/timeTracking';
 import { useCaptureReceipt } from '@/lib/receipts';
 import { colors } from '@/lib/theme';
@@ -48,25 +49,42 @@ export default function CaptureReceiptScreen() {
   const onCapture = async (source: 'camera' | 'library') => {
     if (busy) return;
     setBusy(source);
+    const jobId = active?.entry.job_id ?? null;
+    const jobTimeEntryId = active?.entry.id ?? null;
     try {
       const result = await captureReceipt({
         source,
         // If the user is clocked in, default the receipt to that job
         // and time entry. The user can re-assign on the detail screen
         // (F2 #4) or the bookkeeper can fix it on the web side.
-        jobId: active?.entry.job_id ?? null,
-        jobTimeEntryId: active?.entry.id ?? null,
+        jobId,
+        jobTimeEntryId,
       });
       if (!result) {
-        // Cancelled — leave the user on this screen so they can pick
-        // a different source without bouncing back to the list.
+        // useCaptureReceipt() returns null only when ImagePicker's
+        // result.canceled fires — every other outcome throws. Stay on
+        // the screen so the user can pick the other source without
+        // bouncing back to the list.
         return;
       }
       // Success: dismiss back to the list. The new pending receipt is
       // visible immediately because PowerSync wrote it locally.
       router.back();
     } catch (err) {
-      Alert.alert('Capture failed', (err as Error).message);
+      // Screen-level capture so Sentry has the full handler context
+      // even when the underlying lib already logged. Permission-denial
+      // / pickAndCompress / uploadToBucket errors land here from
+      // logWarn-only origins; this promotes them to a real event tied
+      // to the user's exact tap.
+      logError('moneyCapture.onCapture', 'capture flow failed', err, {
+        source,
+        job_id: jobId,
+        job_time_entry_id: jobTimeEntryId,
+      });
+      Alert.alert(
+        'Capture failed',
+        err instanceof Error ? err.message : String(err)
+      );
     } finally {
       setBusy(null);
     }

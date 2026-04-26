@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { logError, logWarn } from '@/lib/log';
 import { ThumbnailGrid } from '@/lib/ThumbnailGrid';
 import { useDataPoint } from '@/lib/dataPoints';
 import { lookupPrefix } from '@/lib/dataPointCodes';
@@ -83,6 +84,11 @@ export default function PointPhotosScreen() {
     if (!point.job_id) {
       // Schema enforces NOT NULL — this branch is defensive against a
       // partially-synced row where the FK column hasn't landed yet.
+      // Surface as a warn breadcrumb so we know if it ever fires in
+      // production (it shouldn't).
+      logWarn('photosScreen.onAttach', 'point missing job_id — refusing capture', undefined, {
+        point_id: pointId ?? null,
+      });
       Alert.alert(
         'Job link missing',
         'This point isn’t linked to a job yet. Pull down to refresh and try again.'
@@ -99,7 +105,20 @@ export default function PointPhotosScreen() {
       // Stay on the screen — the new photo lands in the grid via
       // PowerSync's reactive query.
     } catch (err) {
-      Alert.alert('Capture failed', (err as Error).message);
+      // Primary photo-capture path. useAttachPhoto logs DB-insert
+      // failures, but permission denial / compression / upload errors
+      // bubble from logWarn-only origins. Promote to a real Sentry
+      // event tied to the user's exact tap so ops can correlate
+      // bucket-config issues with user-visible failures.
+      logError('photosScreen.onAttach', 'attach failed', err, {
+        job_id: point.job_id,
+        point_id: pointId ?? null,
+        source,
+      });
+      Alert.alert(
+        'Capture failed',
+        err instanceof Error ? err.message : String(err)
+      );
     } finally {
       setBusy(null);
     }
@@ -118,7 +137,14 @@ export default function PointPhotosScreen() {
             try {
               await deleteMedia(item);
             } catch (err) {
-              Alert.alert('Delete failed', (err as Error).message);
+              logError('photosScreen.onDelete', 'delete failed', err, {
+                media_id: item.id,
+                point_id: pointId ?? null,
+              });
+              Alert.alert(
+                'Delete failed',
+                err instanceof Error ? err.message : String(err)
+              );
             }
           },
         },

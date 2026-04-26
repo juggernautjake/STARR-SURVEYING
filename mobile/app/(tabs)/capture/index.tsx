@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { logError } from '@/lib/log';
 import { TextField } from '@/lib/TextField';
 import {
   CODE_PREFIXES,
@@ -214,6 +215,10 @@ function CreatePointStep({ palette, jobId, onChangeJob }: CreatePointStepProps) 
   const prefixInfo = useMemo(() => lookupPrefix(prefix), [prefix]);
 
   const onSave = async () => {
+    // Re-entry guard: the Button's `loading` prop only flips after this
+    // function returns control, which on a slow network is a few hundred
+    // ms. Without this, a double-tap fires two creates and the second
+    // trips UNIQUE(job_id, name).
     if (submitting) return;
     if (name.trim() === '') {
       Alert.alert('Name required', 'Tap a prefix or type a point name first.');
@@ -253,7 +258,16 @@ function CreatePointStep({ palette, jobId, onChangeJob }: CreatePointStepProps) 
       // Happy path: route into the photo capture loop.
       router.replace(photosRoute);
     } catch (err) {
-      Alert.alert('Save failed', (err as Error).message);
+      logError('captureIndex.onSave', 'create failed', err, {
+        job_id: jobId,
+        name: name.trim(),
+        is_offset: isOffset,
+        is_correction: isCorrection,
+      });
+      Alert.alert(
+        'Save failed',
+        err instanceof Error ? err.message : String(err)
+      );
       setSubmitting(false);
     }
   };

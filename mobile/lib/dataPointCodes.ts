@@ -163,6 +163,9 @@ export function suggestNextName(
 ): string {
   const upper = prefix.toUpperCase();
   let highest = 0;
+  // Default zero-pad width — produces "BM01" not "BM1" when no rows
+  // exist yet. Bumped below to match wider existing names so
+  // "BM099, BM100" → "BM101" instead of "BM01".
   let highestWidth = 2;
   let foundAny = false;
 

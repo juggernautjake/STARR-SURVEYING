@@ -277,7 +277,7 @@ async function processOne(
     // a Vision-call failure here — the breaker tracks AI spend, not
     // storage outages. A run of bad photos shouldn't open the AI gate.
     const msg = err instanceof Error ? err.message : String(err);
-    await markFailed(supabase, row.id, `photo fetch: ${msg}`);
+    await markFailed(supabase, row.id, `photo fetch: ${msg}`, logger);
     return { receiptId: row.id, status: 'failed', error: msg };
   }
 
@@ -289,7 +289,7 @@ async function processOne(
   if (!gate.allowed) {
     // Roll the row back to 'queued' so the next batch retries. Don't
     // mark 'failed' — the breaker is a transient soft-stop.
-    await releaseClaim(supabase, row.id);
+    await releaseClaim(supabase, row.id, logger);
     logger.warn('circuit open after photo fetch — releasing row', {
       receipt_id: row.id,
       reason: gate.reason,
@@ -450,9 +450,10 @@ async function claimRow(
  */
 async function releaseClaim(
   supabase: SupabaseClient,
-  receiptId: string
+  receiptId: string,
+  logger: ProcessLogger
 ): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from('receipts')
     .update({
       extraction_status: 'queued',
@@ -460,14 +461,24 @@ async function releaseClaim(
     })
     .eq('id', receiptId)
     .eq('extraction_status', 'running');
+  // Log but don't throw — the row stays 'running' until the watchdog
+  // picks it back up. Without this log a Supabase outage during
+  // release manifests as silently-stuck rows.
+  if (error) {
+    logger.warn('releaseClaim failed', {
+      receipt_id: receiptId,
+      error: error.message,
+    });
+  }
 }
 
 async function markFailed(
   supabase: SupabaseClient,
   receiptId: string,
-  errorMessage: string
+  errorMessage: string,
+  logger: ProcessLogger
 ): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from('receipts')
     .update({
       extraction_status: 'failed',
@@ -475,6 +486,16 @@ async function markFailed(
       extraction_error: errorMessage.slice(0, 1000),
     })
     .eq('id', receiptId);
+  // If markFailed itself fails, the row stays 'running' until the
+  // watchdog reclaims, AND the user sees no extraction error message.
+  // Log the meta-failure so ops can correlate.
+  if (error) {
+    logger.warn('markFailed write failed', {
+      receipt_id: receiptId,
+      original_error: errorMessage.slice(0, 200),
+      write_error: error.message,
+    });
+  }
 }
 
 async function markDone(
