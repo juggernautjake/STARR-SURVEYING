@@ -52,6 +52,29 @@
  *   completes. Mobile shows "AI working…" while extraction_status is
  *   'queued' or 'running'.
  *
+ * F3 #1 data points + media schema:
+ *
+ *   `field_data_points` and `field_media` are created by
+ *   seeds/221_starr_field_data_points.sql. Same UUID-identity
+ *   convention as receipts (created_by references auth.users.id).
+ *
+ *   Media has three storage tiers — storage_url (display, fast-sync
+ *   medium quality), thumbnail_url (list tiles), original_url (full
+ *   resolution; WiFi-only sync by default per plan §5.4). Plus an
+ *   optional annotated_url for the rendered overlay when the user
+ *   adds arrows / circles / text — the original is ALWAYS preserved
+ *   unmodified.
+ *
+ *   upload_state (pending → wifi-waiting → done) lets the UI surface
+ *   "where's my high-res?" without polling storage. Burst captures
+ *   share a burst_group_id with monotonic `position` so the admin
+ *   timeline groups a 12-shot panorama instead of flooding.
+ *
+ *   Storage buckets: starr-field-photos / -videos / -voice (separate
+ *   so each can have its own size + MIME limits per audit #17). All
+ *   three follow the F2 path convention {user_id}/{...}.{ext} so the
+ *   per-user-folder RLS pattern applies identically.
+ *
  * Notes on column types:
  *
  *   - PowerSync supports `text`, `integer`, `real`. UUIDs land as text;
@@ -97,9 +120,21 @@ const field_media = new Table({
   job_id: column.text,
   data_point_id: column.text,
   media_type: column.text, // 'photo' | 'video' | 'voice'
+  // Three storage tiers + an optional rendered-overlay layer (plan §5.4
+  // photo annotation). Original is ALWAYS preserved unmodified;
+  // annotated_url renders arrows / circles / text on top.
   storage_url: column.text,
   thumbnail_url: column.text,
   original_url: column.text,
+  annotated_url: column.text,
+  // 'pending' | 'wifi-waiting' | 'done' | 'failed' — drives the mobile
+  // "is my high-res synced yet?" indicator and the admin diagnostic.
+  upload_state: column.text,
+  // Burst / sequence support — multi-shot panoramas group under one
+  // burst_group_id; position is the order within the burst (or 0 for
+  // single captures).
+  burst_group_id: column.text,
+  position: column.integer,
   duration_seconds: column.integer,
   file_size_bytes: column.integer,
   device_lat: column.real,
@@ -108,9 +143,10 @@ const field_media = new Table({
   captured_at: column.text,
   uploaded_at: column.text,
   transcription: column.text,
-  annotations: column.text, // JSON-encoded
+  annotations: column.text, // JSON-encoded JSONB
   created_by: column.text,
   client_id: column.text,
+  created_at: column.text,
 });
 
 const vehicles = new Table({

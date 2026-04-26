@@ -52,9 +52,12 @@ Activation gates (each blocks live sync but NOT local-only dev):
 - [ ] Apply `seeds/220_starr_field_receipts.sql` to the live Supabase
       project (Phase F2 #1 — adds `receipts` + `receipt_line_items`
       tables, RLS, and the private `starr-field-receipts` storage
-      bucket). Subsequent Starr Field tables ship as 221_*, 222_*,
-      etc. — one phase per file rather than the original monolithic
-      `220_starr_field_tables.sql` proposed in the plan.
+      bucket).
+- [ ] Apply `seeds/221_starr_field_data_points.sql` (Phase F3 #1 —
+      adds `field_data_points` + `field_media`, three private storage
+      buckets `starr-field-photos` / `-videos` / `-voice`, RLS, and
+      column-level GRANT allowlists). Apply BEFORE the F3 mobile
+      capture flow ships (F3 #2+).
 - [ ] Provision PowerSync service (Cloud or self-hosted, see below).
 - [ ] Author sync rules — see "Sync rules" below.
 - [ ] Set `EXPO_PUBLIC_POWERSYNC_URL` in `mobile/.env.local` (dev) and
