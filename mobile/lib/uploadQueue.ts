@@ -485,6 +485,173 @@ export function useUploadQueueStatus(): {
   };
 }
 
+// ── Stuck-uploads triage surface ────────────────────────────────────────────
+//
+// The Me-tab "Uploads" section drills into a list of every queued or
+// failed upload so the user can see — and recover — work that didn't
+// land. Resilience contract per the user's requirement: data captured
+// offline must NEVER be silently lost. When the queue gives up after
+// MAX_RETRIES, the local file stays on disk + the row stays in the
+// queue table; this surface is how the user finds them.
+
+export interface StuckUploadRow {
+  id: string;
+  parent_table: ParentTable;
+  parent_id: string;
+  bucket: string;
+  storage_path: string;
+  local_uri: string;
+  content_type: string | null;
+  retry_count: number;
+  last_error: string | null;
+  next_attempt_at: number | null;
+  created_at: string | null;
+}
+
+/**
+ * Reactive list of every queued upload (in-flight + failed), newest
+ * first. Drives the Me → Uploads drilldown.
+ *
+ * `kind` filter:
+ *   - 'all'      — both in-flight and failed
+ *   - 'pending'  — retry_count < MAX_RETRIES (still trying)
+ *   - 'failed'   — retry_count >= MAX_RETRIES (gave up)
+ */
+export function useStuckUploads(
+  kind: 'all' | 'pending' | 'failed' = 'all'
+): StuckUploadRow[] {
+  const where =
+    kind === 'pending'
+      ? `WHERE retry_count < ${MAX_RETRIES}`
+      : kind === 'failed'
+        ? `WHERE retry_count >= ${MAX_RETRIES}`
+        : '';
+
+  const { data } = useQuery<StuckUploadRow>(
+    `SELECT id, parent_table, parent_id, bucket, storage_path, local_uri,
+            content_type, retry_count, last_error, next_attempt_at, created_at
+       FROM pending_uploads
+       ${where}
+       ORDER BY COALESCE(created_at, '') DESC`
+  );
+
+  return data ?? [];
+}
+
+/**
+ * Reset a row's retry counter so processQueue picks it back up on
+ * the next drain. The Me-tab "Try again" button calls this; the user
+ * does NOT have to wait for the periodic 60s drain — we kick a drain
+ * immediately after the reset for instant feedback.
+ *
+ * Idempotent — re-clicking is safe.
+ */
+export async function retryUpload(
+  db: AbstractPowerSyncDatabase,
+  pendingId: string
+): Promise<void> {
+  try {
+    await db.execute(
+      `UPDATE pending_uploads
+          SET retry_count = 0,
+              last_error = NULL,
+              next_attempt_at = ?
+        WHERE id = ?`,
+      [Date.now(), pendingId]
+    );
+    logInfo('uploadQueue.retry', 'reset for retry', {
+      pending_id: pendingId,
+    });
+    // Kick a drain so the user sees movement now instead of in 60 s.
+    void processQueue(db).catch((err) => {
+      logWarn('uploadQueue.retry', 'kick-drain failed', err, {
+        pending_id: pendingId,
+      });
+    });
+  } catch (err) {
+    logError('uploadQueue.retry', 'reset failed', err, {
+      pending_id: pendingId,
+    });
+    throw err;
+  }
+}
+
+/**
+ * Discard a queued upload. Deletes the queue row, the local file,
+ * and (when applicable) flips the parent row's upload_state to
+ * 'failed' so the gallery doesn't keep showing a "syncing" badge.
+ *
+ * Used when the user has decided the captured asset is no longer
+ * worth retrying (e.g. they've manually re-shot it, or the bytes
+ * are corrupt). Destructive — caller MUST confirm via Alert.alert
+ * before invoking.
+ */
+export async function discardUpload(
+  db: AbstractPowerSyncDatabase,
+  pendingId: string
+): Promise<void> {
+  // Look up the row first so we know the parent + local file path.
+  let row: StuckUploadRow | null = null;
+  try {
+    row = await db.getOptional<StuckUploadRow>(
+      `SELECT id, parent_table, parent_id, bucket, storage_path, local_uri,
+              content_type, retry_count, last_error, next_attempt_at, created_at
+         FROM pending_uploads
+        WHERE id = ?`,
+      [pendingId]
+    );
+  } catch (err) {
+    logWarn('uploadQueue.discard', 'lookup failed', err, {
+      pending_id: pendingId,
+    });
+  }
+
+  // Best-effort: flip parent's upload_state for field_media so the
+  // gallery thumb shows a 'failed' badge instead of pretending it's
+  // still pending.
+  if (row?.parent_table === 'field_media') {
+    try {
+      await db.execute(
+        `UPDATE field_media SET upload_state = 'failed' WHERE id = ?`,
+        [row.parent_id]
+      );
+    } catch (err) {
+      logWarn('uploadQueue.discard', 'parent fail-flip failed', err, {
+        pending_id: pendingId,
+      });
+    }
+  }
+
+  try {
+    await db.execute(`DELETE FROM pending_uploads WHERE id = ?`, [pendingId]);
+  } catch (err) {
+    logError('uploadQueue.discard', 'queue row delete failed', err, {
+      pending_id: pendingId,
+    });
+    throw err;
+  }
+
+  if (row?.local_uri) {
+    try {
+      await FileSystem.deleteAsync(row.local_uri, { idempotent: true });
+    } catch (err) {
+      // Already gone, or filesystem permission glitch — log + continue.
+      // The DB row is the source of truth; an orphan file is fine.
+      logWarn('uploadQueue.discard', 'local file delete failed', err, {
+        pending_id: pendingId,
+        local_uri: row.local_uri,
+      });
+    }
+  }
+
+  logInfo('uploadQueue.discard', 'discarded', {
+    pending_id: pendingId,
+    parent_table: row?.parent_table ?? 'unknown',
+    parent_id: row?.parent_id ?? null,
+    retry_count: row?.retry_count ?? null,
+  });
+}
+
 /**
  * Provider-level mount hook. Wires:
  *   - Initial drain on mount (covers app launch after offline period)

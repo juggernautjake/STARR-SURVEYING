@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
 import {
   Alert,
   AppState,
   Linking,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,6 +31,7 @@ import {
   requestNotificationPermission,
   type NotificationPermissionState,
 } from '@/lib/notifications';
+import { useUploadQueueStatus } from '@/lib/uploadQueue';
 import { colors } from '@/lib/theme';
 
 /**
@@ -56,6 +59,11 @@ export default function MeScreen() {
   const [notifStatus, setNotifStatus] =
     useState<NotificationPermissionState>('undetermined');
   const [notifPending, setNotifPending] = useState(false);
+  // Reactive — drives the Storage row's "X uploads pending, Y failed"
+  // affordance. Useful for detecting "I captured 5 photos in the
+  // field today and 3 are still queued" before opening the drilldown.
+  const { pendingCount: uploadsPending, failedCount: uploadsFailed } =
+    useUploadQueueStatus();
 
   useEffect(() => {
     let mounted = true;
@@ -319,9 +327,47 @@ export default function MeScreen() {
         </View>
 
         <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.muted }]}>
+            Storage
+          </Text>
+
+          <Pressable
+            onPress={() => router.push('/(tabs)/me/uploads')}
+            style={[styles.row, styles.rowTappable, { borderColor: palette.border }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Uploads — ${uploadsPending} in flight, ${uploadsFailed} failed`}
+            accessibilityHint="Opens the per-row upload triage screen"
+          >
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: palette.text }]}>
+                Uploads
+              </Text>
+              <Text style={[styles.rowCaption, { color: palette.muted }]}>
+                {uploadsPending === 0 && uploadsFailed === 0
+                  ? 'Everything is synced. Captured photos and receipts upload automatically when online.'
+                  : uploadsFailed > 0
+                  ? `${uploadsPending} in flight · ${uploadsFailed} failed — open to review.`
+                  : `${uploadsPending} in flight. The queue retries automatically.`}
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.rowChevron,
+                {
+                  color:
+                    uploadsFailed > 0 ? palette.danger : palette.muted,
+                },
+              ]}
+            >
+              ›
+            </Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: palette.muted }]}>Coming soon</Text>
           <Text style={[styles.sectionBody, { color: palette.text }]}>
-            Profile editing, idle-timer length, and notification settings land in F1.
+            Profile editing, idle-timer length, and submit-for-approval workflow land in F1.
           </Text>
         </View>
 
@@ -396,6 +442,14 @@ const styles = StyleSheet.create({
   rowCaption: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  rowTappable: {
+    paddingHorizontal: 0,
+  },
+  rowChevron: {
+    fontSize: 28,
+    fontWeight: '300',
+    paddingLeft: 8,
   },
   spacerSm: { height: 12 },
   spacer: {

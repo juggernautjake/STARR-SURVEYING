@@ -947,47 +947,60 @@ No parallel `/dispatcher/` or `/field-admin/` route tree — that would duplicat
 **Phase numbering note.** These phases are scoped to **Starr Field only** and use the prefix `F` (`F0`, `F1`, …) to disambiguate from the build-phase taxonomy in `docs/platform/RECON_INVENTORY.md` §12 (which uses `Phase 0/A/B/C/D/E/F/G` for STARR RECON). Starr Field is a separate product whose phases run independently — `F0` does not block on Recon's `Phase A`, and Recon's `Phase F` (public go-live) does not block on Starr Field's `F6`. Each phase below is independently shippable.
 
 ### Phase F0 — Foundation (Week 0–2)
-- [ ] Expo project scaffolded (TypeScript, ESLint, Prettier matching Next.js repo)
-- [ ] Supabase Auth wired in (sign-in, biometric unlock)
-- [ ] Local SQLite + sync queue scaffolding
-- [ ] Tab bar shell, navigation, theme
-- [ ] EAS Build configured (TestFlight + internal Android)
-- [ ] OTA updates working
-- [ ] Crash reporting (Sentry)
+- [x] Expo project scaffolded (TypeScript, ESLint, Prettier matching Next.js repo)
+- [x] Supabase Auth wired in (sign-in, biometric unlock)
+- [x] Local SQLite + sync queue scaffolding (PowerSync — `mobile/lib/db/{schema,connector,index}.tsx`)
+- [x] Tab bar shell, navigation, theme (`mobile/app/(tabs)/_layout.tsx` + `lib/theme.ts`)
+- [ ] EAS Build configured (TestFlight + internal Android) — `eas.json` exists; first TestFlight push pending
+- [ ] OTA updates working — `expo-updates` installed; channel wiring pending
+- [x] Crash reporting (Sentry) — `mobile/lib/sentry.ts` + `initSentry()` in root layout
 
-**Exit:** team installs app, signs in, sees empty home.
+**Exit:** team installs app, signs in, sees empty home. **Status:** mobile-side scaffold green; build/OTA hand-off remains.
 
 ### Phase F1 — Jobs + basic time logging (Week 3–5)
-- [ ] Job list, create, edit, search/filter
-- [ ] Job detail with placeholder tabs
-- [ ] Clock-in / clock-out from home + lock-screen widget
-- [ ] Job auto-suggest by GPS proximity (one-shot, not continuous tracking)
-- [ ] Manual time editing with audit trail
-- [ ] "Still working?" smart prompts
-- [ ] Timesheet view + CSV export
-- [ ] Submit-for-approval workflow (web-app side)
+- [x] Job list, create, edit, search/filter
+- [x] Job detail with placeholder tabs
+- [x] Clock-in / clock-out from home + lock-screen widget — clock surface in `(tabs)/time/index.tsx`; lock-screen widget pending (F1 polish)
+- [x] Job auto-suggest by GPS proximity (one-shot, not continuous tracking)
+- [x] Manual time editing with audit trail — `lib/timeEdits.ts` + `time_edits` table, see `(tabs)/time/edit/[id].tsx`
+- [x] "Still working?" smart prompts — `lib/timePrompts.ts` (10h + 14h)
+- [x] Timesheet view + CSV export — `(tabs)/time/index.tsx` + `lib/csvExport.ts`
+- [ ] Submit-for-approval workflow — admin web side has `/admin/hours-approval` + `/api/admin/time-logs/approve`; mobile button pending (deferred — needs status-enum reconciliation between web's `'pending'` and mobile-declared `'submitted'`)
 
-**Exit:** Jacob runs an entire week of work using the app for time. Replaces paper time cards.
+Resilience additions landed in F2/F3 batches but belong to F1's surface (referenced in §5.8 hardening):
+- [x] Stale clock-in detection (>16h banner with "Fix the time" route to time-edit)
+- [x] Last-known GPS fallback when live fix fails — `lib/location.ts` `getCurrentPositionWithFallback`
+- [x] GPS failure-reason routing (no_permission / timeout / hardware) drives Settings deep-link
+
+**Exit:** Jacob runs an entire week of work using the app for time. **Status:** all clocking flows live; submit-for-approval is the only remaining checkbox before the F1 exit ships.
 
 ### Phase F2 — Receipts + AI extraction (Week 6–8)
-- [ ] Receipt capture flow (camera, edge detection, deskew)
-- [ ] Claude Vision API integration for field extraction
-- [ ] Category, job association, payment method, tax flag
-- [ ] Receipt list view, edit, approve workflow
-- [ ] Per-job and per-period rollups
-- [ ] Bookkeeper export (CSV, QuickBooks-ready)
+- [x] Receipt capture flow (camera, edge detection, deskew) — `lib/receipts.ts` + `lib/storage/mediaUpload.ts`
+- [x] Claude Vision API integration for field extraction — worker-side; mobile reads `extraction_status` per row
+- [x] Category, job association, payment method, tax flag — `(tabs)/money/[id].tsx` editor
+- [x] Receipt list view, edit, approve workflow — `(tabs)/money/index.tsx`
+- [x] Per-job and per-period rollups — `useJobReceiptRollup` in `lib/receipts.ts`, surfaced on job detail
+- [x] Bookkeeper export (CSV, QuickBooks-ready) — `lib/csvExport.ts` (mobile) + web admin `/api/admin/receipts/export`
 
-**Exit:** Jacob can replace expense reports for v1 use. Bookkeeper validates.
+Resilience additions:
+- [x] Offline-first capture: row INSERT first, then `enqueueAndAttempt` via `lib/uploadQueue.ts`. Visible in list immediately when offline; photo lands when reception returns.
+- [x] Per-receipt local-fallback URL via `usePendingUploadLocalUri` so the gallery shows the snapshot without waiting for the signed URL.
+
+**Exit:** Jacob can replace expense reports for v1 use. **Status:** shipped; bookkeeper validation outstanding.
 
 ### Phase F3 — Data points + photos (Week 9–12)
-- [ ] Create data point with name from 179-code library
-- [ ] Camera capture, multi-photo
-- [ ] Phone GPS / compass / altitude metadata
-- [ ] Photo annotation (arrow, circle, text)
-- [ ] Job-level photo upload (no point assignment)
-- [ ] Office reviewer sees points + photos in web app
+- [x] Create data point with name from 179-code library — `lib/dataPoints.ts` + `lib/dataPointCodes.ts`
+- [x] Camera capture, multi-photo — `lib/fieldMedia.ts`
+- [x] Phone GPS / compass / altitude metadata — captured in `useAttachPhoto`; compass heading still pending (`expo-sensors` magnetometer not yet wired)
+- [ ] Photo annotation (arrow, circle, text) — `field_media.annotated_url` column reserved; F3 #6 in flight
+- [x] Job-level photo upload (no point assignment) — `attachPhoto({ dataPointId: null, jobId })`
+- [ ] Office reviewer sees points + photos in web app — admin viewer pending
 
-**Exit:** Found-monument workflow goes from minutes to <60s.
+Resilience additions (same offline-first pattern as F2):
+- [x] INSERT field_media first → enqueue upload; `upload_state` flips `pending → done`/`failed` via `lib/uploadQueue.ts`
+- [x] Optional device-Photos backup via `lib/deviceLibrary.ts` (opt-in toggle on Me tab)
+
+**Exit:** Found-monument workflow <60s. **Status:** core capture loop shipped; annotation overlay + admin viewer remain.
 
 ### Phase F4 — Voice + video + notes (Week 13–16)
 - [ ] Voice memo + on-device transcription
@@ -996,7 +1009,7 @@ No parallel `/dispatcher/` or `/field-admin/` route tree — that would duplicat
 - [ ] Voice-to-text shortcut
 - [ ] Search across notes + transcriptions
 
-**Exit:** Field documentation fully replaces paper notes.
+**Exit:** Field documentation fully replaces paper notes. **Status:** not started.
 
 ### Phase F5 — Files + CSV (Week 17–18)
 - [ ] File upload from device, cloud, web link
@@ -1005,32 +1018,32 @@ No parallel `/dispatcher/` or `/field-admin/` route tree — that would duplicat
 - [ ] CSV parser (P,N,E,Z,D and variants)
 - [ ] Auto-link CSV rows to phone-side data points by name
 
-**Exit:** Raw survey data and reference docs at fingertips.
+**Exit:** Raw survey data and reference docs at fingertips. **Status:** not started.
 
 ### Phase F6 — Location tracking + dispatcher view (Week 19–24)
-- [ ] One-time consent flow
-- [ ] Background location with battery-conscious modes (significant change → high accuracy in geofences)
-- [ ] Stop detection, geofence + AI classification
-- [ ] Daily timeline view (employee + admin)
-- [ ] Mileage log generation (IRS-format export)
-- [ ] Vehicle assignment + driver/passenger
-- [ ] Dispatcher live map (web app)
+- [ ] One-time consent flow — permission rationale + privacy disclosure UI
+- [x] Background location with battery-conscious modes — `lib/locationTracker.ts` (high/balanced/low tiers based on battery %), `seeds/223_starr_field_location_pings.sql`, native config in `mobile/app.json` (UIBackgroundModes + ACCESS_BACKGROUND_LOCATION + foreground service)
+- [ ] Stop detection, geofence + AI classification — derives from `location_pings` once F6 worker lands
+- [ ] Daily timeline view (employee + admin) — `location_segments` / `location_stops` tables planned in 224 seed
+- [ ] Mileage log generation (IRS-format export) — depends on stop/segment derivation
+- [ ] Vehicle assignment + driver/passenger — `vehicles` table exists; mobile picker pending
+- [x] Dispatcher live map (web app, partial) — `/admin/team` shows last-known GPS + battery + staleness; full live map pending
 - [ ] Day-replay scrubber (web app)
 - [ ] Missing-receipt cross-reference prompts
-- [ ] Privacy controls panel (employee-facing)
+- [ ] Privacy controls panel (employee-facing) — pause-tracking + view-my-own-timeline
 
-**Exit:** Full location-aware feature set live; first month of data feeds dispatcher decisions.
+**Exit:** Full location-aware feature set live. **Status:** background-tracking infra + dispatcher last-seen shipped; stop-detection, mileage export, day-replay remain.
 
 ### Phase F7 — Polish + offline hardening (Week 25–28)
-- [ ] Storage management UI
-- [ ] Sync UI improvements (per-asset progress, retry surfaces)
-- [ ] High-contrast / sun-readable theme
-- [ ] Battery profile audit
-- [ ] Tablet layout (truck-mounted iPad)
+- [x] Storage management UI — Me-tab Uploads section + drilldown (`(tabs)/me/uploads.tsx`); per-row retry/discard
+- [x] Sync UI improvements (per-asset progress, retry surfaces) — `useUploadQueueStatus` + the Uploads screen
+- [ ] High-contrast / sun-readable theme — dark mode default exists; high-contrast variant pending
+- [ ] Battery profile audit — needs real-device measurement
+- [ ] Tablet layout (truck-mounted iPad) — `supportsTablet:true` set; layout work pending
 - [ ] Conflict resolution UX for multi-device
 - [ ] Stress-test: 30 days of data on 5 devices
 
-**Exit:** v1 shippable to all surveying employees with confidence.
+**Exit:** v1 shippable to all surveying employees with confidence. **Status:** offline hardening shipped early (alongside F2/F3 capture). Other items pending.
 
 ### Phase F8 — Trimble Access file exchange (Week 29–32)
 - [ ] Watched cloud folder for Trimble JobXML / CSV
@@ -1040,6 +1053,102 @@ No parallel `/dispatcher/` or `/field-admin/` route tree — that would duplicat
 **Exit:** Trimble integration v1 (Path A from §8.1).
 
 ### Phase F9+ — Real-time integrations, AR, watch app, fuel-card reconciliation (research)
+
+---
+
+## 9.x — Resilience batches (cross-cutting, completed)
+
+These batches landed alongside F1–F3 work to satisfy the user's
+explicit resilience requirement: *"sometimes the user will lose
+reception … the application needs to be able to save images and
+videos and voice recordings to the app and the data also need to
+be able to be saved to the phone storage as well … if the gps
+signal is lost, we just need to keep track of the last known
+location of the user's phone until they get reception again …
+the admin/dispatcher needs to be able to notify the user that
+they need to log their hours."*
+
+They span multiple phases (capture from F2/F3, GPS from F6,
+notifications from F1+) so they're tracked here rather than
+under one phase.
+
+**Batch A — offline-first capture + last-known GPS + stale clock-in**
+- [x] `mobile/lib/networkState.ts` — `useIsOnline()` / `subscribeToOnline()` / `isOnlineNow()`
+- [x] `mobile/lib/uploadQueue.ts` — durable retry queue rooted at
+      `FileSystem.documentDirectory`. Backoff `[5s, 10s, 20s, 40s, 80s, 160s, 5min, 5min]`,
+      `MAX_RETRIES = 8`. Includes `usePendingUploadLocalUri` so receipts/photos
+      render the local file before the signed URL lands.
+- [x] `pending_uploads` localOnly table in `mobile/lib/db/schema.ts`
+- [x] `mobile/lib/receipts.ts` + `mobile/lib/fieldMedia.ts` refactored to
+      INSERT row first, then enqueue
+- [x] `mobile/lib/location.ts` — `rememberPosition()` /
+      `getLastKnownPosition()` / `getCurrentPositionWithFallback()`
+- [x] `mobile/lib/deviceLibrary.ts` — opt-in MediaLibrary backup to
+      "Starr Field" album (off by default for receipts privacy)
+- [x] Stale clock-in banner (`>16h`) with "Fix the time" route
+- [x] Network-restore + 60s periodic drainer mounted in `_layout.tsx`
+
+**Batch B — dispatcher → user notifications**
+- [x] `seeds/222_starr_field_notifications.sql` — non-breaking ALTER on
+      the existing web `notifications` table; adds `target_user_id` UUID +
+      `delivered_at` / `dismissed_at` / `expires_at`, RLS for mobile owners,
+      column-level GRANTs, `notifications_inbox` view, SECURITY-DEFINER trigger
+      for case-insensitive email→UUID back-fill.
+- [x] `mobile/lib/notificationsInbox.ts` — reactive inbox + dispatcher
+      hook that fires OS-level local banner + flips `delivered_at`
+- [x] `mobile/lib/NotificationBanner.tsx` — in-app banner overlay
+      with source_type → mobile route map
+- [x] `_layout.tsx` foreground handler that suppresses OS banner only
+      for `data.kind === 'admin-ping'` (F1 #7 still-working prompts
+      keep their full OS banner)
+- [x] `_layout.tsx` cold-start tap-response handler with process-scope
+      dedup
+- [x] POST `/api/admin/notifications` with input validation +
+      30-min server-side dedup for log_hours/submit_week
+- [x] `/admin/team` page + sidebar link + GET `/api/admin/team`
+      with last-known clock-in + last log_hours ping per user
+- [x] Me-tab notification permission UX (status indicator + Settings
+      deep-link)
+
+**Batch C — background GPS while clocked in**
+- [x] `seeds/223_starr_field_location_pings.sql` — append-only
+      `location_pings` with battery snapshot + RLS owner SELECT/INSERT
+      only (UPDATE/DELETE explicitly REVOKE'd)
+- [x] `mobile/lib/locationTracker.ts` — expo-task-manager headless
+      task with battery-aware accuracy tier (high >50% / balanced
+      21–50% / low ≤20%) + iOS deferred updates + Android foreground
+      service notification
+- [x] `mobile/lib/db/index.tsx` — `getDatabaseForHeadlessTask()`
+      escape hatch for the task body
+- [x] `mobile/lib/timeTracking.ts` — clock-in writes a `clock_in`
+      boundary ping + starts the task; clock-out writes `clock_out`
+      + stops the task
+- [x] `_layout.tsx` `LocationTrackerReconciler` — restarts the task
+      on cold-start when there's still an open `job_time_entries`
+      row (covers "phone died mid-shift, app reopened next day")
+- [x] `mobile/app.json` native config — `UIBackgroundModes` +
+      Android `ACCESS_BACKGROUND_LOCATION` + foreground service
+      flags + expo-battery / expo-task-manager deps
+- [x] `/admin/team` last-seen column with battery glyph and Maps link
+- [x] PowerSync sync-rule snippet + activation gate in
+      `mobile/lib/db/README.md`
+
+**Batch D — stuck-uploads triage (this batch)**
+- [x] `useStuckUploads` / `retryUpload` / `discardUpload` helpers in
+      `lib/uploadQueue.ts`
+- [x] Me-tab Storage section showing pending + failed counts
+- [x] `/(tabs)/me/uploads` drilldown with In-flight / Failed tabs +
+      per-row retry / discard (Alert-confirmed destructive action)
+
+**Activation gates (live Supabase apply order):**
+1. `seeds/222_starr_field_notifications.sql` — before mobile
+   NotificationBanner ships.
+2. `seeds/223_starr_field_location_pings.sql` — before EAS-building
+   a release with background tracking enabled.
+
+PowerSync sync rules to update: `notifications` (scoped by
+`target_user_id` OR case-insensitive `user_email`) + `location_pings`
+(scoped by `user_id` + last 24h). Snippet in `mobile/lib/db/README.md`.
 
 ---
 
