@@ -28,10 +28,11 @@ const STATUS_INFO: Record<string, StatusInfo> = {
   locked: { label: 'Locked', fg: 'muted' },
 };
 
+// Only locked statuses (per LOCKED_DAY_STATUSES) ever surface this
+// banner — 'rejected' is editable on mobile so it has no entry.
 const LOCK_TITLES: Record<string, string> = {
   submitted: 'Submitted for approval',
   approved: 'Approved',
-  rejected: 'Rejected — fix and resubmit',
   locked: 'Locked by payroll',
 };
 
