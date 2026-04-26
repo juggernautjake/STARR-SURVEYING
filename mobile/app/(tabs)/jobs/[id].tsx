@@ -4,8 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { ReceiptRollupCard } from '@/lib/ReceiptRollupCard';
 import { StageChip } from '@/lib/StageChip';
 import { useJob } from '@/lib/jobs';
+import { useJobReceiptRollup } from '@/lib/receipts';
 import { colors, type Palette } from '@/lib/theme';
 
 /**
@@ -20,6 +22,7 @@ export default function JobDetailScreen() {
 
   const { id } = useLocalSearchParams<{ id: string }>();
   const { job, isLoading } = useJob(id);
+  const { rollup, isLoading: rollupLoading } = useJobReceiptRollup(id ?? null);
 
   if (isLoading) return <LoadingSplash />;
 
@@ -92,6 +95,10 @@ export default function JobDetailScreen() {
             palette={palette}
           />
         </Section>
+
+        <View style={styles.rollupBlock}>
+          <ReceiptRollupCard rollup={rollup} isLoading={rollupLoading} />
+        </View>
 
         <Section title="Timeline" palette={palette}>
           <Field
@@ -246,6 +253,9 @@ const styles = StyleSheet.create({
   fieldValue: {
     fontSize: 16,
     lineHeight: 22,
+  },
+  rollupBlock: {
+    marginBottom: 24,
   },
   title: {
     fontSize: 22,

@@ -328,6 +328,82 @@ export function useReceipts(limit: number = 100): {
   };
 }
 
+export interface JobReceiptRollup {
+  /** Total cents across non-rejected receipts for this job. */
+  totalCents: number;
+  /** Count of non-rejected receipts. */
+  count: number;
+  /** Cents broken out by category, sorted descending by amount. */
+  byCategory: Array<{ category: ReceiptCategory | 'uncategorized'; cents: number; count: number }>;
+  /** Most recent receipt timestamp on this job, ISO string or null. */
+  lastReceiptAt: string | null;
+}
+
+/**
+ * Per-job receipt rollup for the mobile job detail screen. Sums every
+ * non-rejected receipt for the given job (across all users — the crew
+ * sees the whole job's expenses, not just their own). Excludes the
+ * 'rejected' status because those are explicitly NOT booked.
+ *
+ * Returns a stable empty rollup until the query lands so the UI can
+ * render the placeholder block without flicker.
+ */
+export function useJobReceiptRollup(jobId: string | null | undefined): {
+  rollup: JobReceiptRollup;
+  isLoading: boolean;
+} {
+  const queryParams = useMemo(() => (jobId ? [jobId] : []), [jobId]);
+
+  const { data, isLoading, error } = useQuery<{
+    category: string | null;
+    total_cents: number | null;
+    created_at: string | null;
+  }>(
+    `SELECT category, total_cents, created_at
+     FROM receipts
+     WHERE job_id = ?
+       AND COALESCE(status, 'pending') != 'rejected'`,
+    queryParams
+  );
+
+  useEffect(() => {
+    if (error) {
+      logError('receipts.useJobReceiptRollup', 'query failed', error, { job_id: jobId });
+    }
+  }, [error, jobId]);
+
+  const rollup = useMemo<JobReceiptRollup>(() => {
+    if (!jobId || !data || data.length === 0) {
+      return { totalCents: 0, count: 0, byCategory: [], lastReceiptAt: null };
+    }
+    let totalCents = 0;
+    let lastReceiptAt: string | null = null;
+    const buckets = new Map<string, { cents: number; count: number }>();
+    for (const row of data) {
+      const cents = row.total_cents ?? 0;
+      totalCents += cents;
+      const key = row.category ?? 'uncategorized';
+      const bucket = buckets.get(key) ?? { cents: 0, count: 0 };
+      bucket.cents += cents;
+      bucket.count += 1;
+      buckets.set(key, bucket);
+      if (row.created_at && (!lastReceiptAt || row.created_at > lastReceiptAt)) {
+        lastReceiptAt = row.created_at;
+      }
+    }
+    const byCategory = Array.from(buckets.entries())
+      .map(([category, b]) => ({
+        category: category as ReceiptCategory | 'uncategorized',
+        cents: b.cents,
+        count: b.count,
+      }))
+      .sort((a, b) => b.cents - a.cents);
+    return { totalCents, count: data.length, byCategory, lastReceiptAt };
+  }, [data, jobId]);
+
+  return { rollup, isLoading: !!jobId && isLoading };
+}
+
 /**
  * Single-row fetch for the detail / edit screen. Returns `null` when
  * the row genuinely doesn't exist; `undefined` while the first query
