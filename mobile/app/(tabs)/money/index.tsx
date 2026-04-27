@@ -5,7 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ReceiptCard } from '@/lib/ReceiptCard';
-import { useReceipts, type Receipt } from '@/lib/receipts';
+import {
+  useReceipts,
+  useReceiptsNeedingReview,
+  type Receipt,
+} from '@/lib/receipts';
 import {
   tabletContainerStyle,
   useResponsiveLayout,
@@ -26,6 +30,11 @@ export default function MoneyScreen() {
   const scheme = useColorScheme() ?? 'dark';
   const palette = colors[scheme];
   const { receipts, isLoading } = useReceipts();
+  // Reactive count of receipts that finished AI extraction but
+  // haven't been user-confirmed yet. Drives the amber "N to
+  // review" pill under the heading so the surveyor doesn't miss
+  // them on a busy day.
+  const reviewCount = useReceiptsNeedingReview();
   const { isTablet } = useResponsiveLayout();
   const tabletStyle = tabletContainerStyle(isTablet);
 
@@ -44,6 +53,36 @@ export default function MoneyScreen() {
           {receipts.length}
         </Text>
       </View>
+      {reviewCount > 0 ? (
+        <View style={tabletStyle}>
+          <View
+            style={{
+              marginHorizontal: 16,
+              marginBottom: 8,
+              padding: 10,
+              borderRadius: 999,
+              backgroundColor: '#FEF3C7',
+              borderWidth: 1,
+              borderColor: '#D97706',
+              alignSelf: 'flex-start',
+            }}
+            accessibilityLabel={`${reviewCount} receipts need review`}
+          >
+            <Text
+              style={{
+                color: '#92400E',
+                fontSize: 12,
+                fontWeight: '700',
+                letterSpacing: 0.3,
+              }}
+            >
+              👀 {reviewCount}{' '}
+              {reviewCount === 1 ? 'receipt needs' : 'receipts need'} your
+              review
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
       {receipts.length === 0 ? (
         <View style={styles.empty}>

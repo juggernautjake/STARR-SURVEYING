@@ -271,6 +271,18 @@ const receipts = new Table({
   extraction_completed_at: column.text,
   extraction_error: column.text,
   extraction_cost_cents: column.integer,
+  // Duplicate detection + user-review-before-save (Batch Z, seeds/229).
+  // Worker computes dedup_fingerprint after extraction completes
+  // (`{normVendor}|{cents}|{YYYY-MM-DD}`), looks for a prior matching
+  // receipt for the same user, and writes dedup_match_id when it
+  // finds one. The mobile detail screen shows a duplicate-warning
+  // card and the user picks 'keep' or 'discard'. user_reviewed_at
+  // gates the "needs review" badge on the list.
+  dedup_fingerprint: column.text,
+  dedup_match_id: column.text,
+  dedup_decision: column.text, // 'keep' | 'discard' | NULL
+  user_reviewed_at: column.text,
+  user_review_edits: column.text, // JSON-encoded JSONB
   client_id: column.text,
   created_at: column.text,
   updated_at: column.text,

@@ -28,9 +28,12 @@ import {
   type ReceiptCategory,
   type ReceiptPatch,
   retryReceiptExtraction,
+  useConfirmReceiptReview,
   useDeleteReceipt,
   useReceipt,
   useReceiptPhotoUrl,
+  useReceiptRow,
+  useResolveReceiptDuplicate,
   useUpdateReceipt,
 } from '@/lib/receipts';
 import { formatLocalShortDate, formatLocalTime } from '@/lib/timeFormat';
@@ -374,6 +377,9 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
               </Text>
             </View>
           ) : null}
+
+          <DuplicateBanner receipt={receipt} palette={palette} />
+          <ReviewBanner receipt={receipt} palette={palette} />
 
           <View style={styles.photoBlock}>
             <RemotePhoto
@@ -763,6 +769,229 @@ function TaxFlagPicker({ value, onChange, disabled, palette }: TaxFlagPickerProp
 interface NotFoundProps {
   palette: Palette;
   onBack: () => void;
+}
+
+/**
+ * Duplicate-warning banner. Renders only when the worker found a
+ * prior receipt for this user with the same `(vendor, total, date)`
+ * fingerprint AND the user hasn't decided yet (`dedup_decision IS
+ * NULL`). The user picks "Keep — different receipt" or "Discard
+ * the duplicate"; the latter flips status to 'rejected' with
+ * `rejected_reason='duplicate'`.
+ *
+ * After a decision lands, the banner stays visible in a
+ * subdued state ("You said: keep / discarded as duplicate") so
+ * the office reviewer can trace the call. We never auto-decide.
+ */
+function DuplicateBanner({
+  receipt,
+  palette,
+}: {
+  receipt: Receipt;
+  palette: Palette;
+}) {
+  const matchId = receipt.dedup_match_id ?? null;
+  const match = useReceiptRow(matchId);
+  const resolveDuplicate = useResolveReceiptDuplicate();
+  const [busy, setBusy] = useState<'keep' | 'discard' | null>(null);
+
+  if (!matchId) return null;
+
+  const decision = receipt.dedup_decision as 'keep' | 'discard' | null;
+  const decided = decision != null;
+
+  const onPick = async (kind: 'keep' | 'discard') => {
+    if (busy) return;
+    setBusy(kind);
+    try {
+      await resolveDuplicate(receipt.id, kind);
+    } catch (err) {
+      Alert.alert(
+        'Couldn’t save your decision',
+        err instanceof Error ? err.message : String(err)
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const matchVendor =
+    match?.vendor_name?.trim() ||
+    'a previously-captured receipt';
+  const matchTotal =
+    match?.total_cents != null ? formatCents(match.total_cents) : null;
+  const matchTime = match?.transaction_at
+    ? `${formatLocalShortDate(match.transaction_at)} ${formatLocalTime(match.transaction_at)}`
+    : null;
+
+  return (
+    <View
+      style={{
+        backgroundColor: decided ? palette.surface : '#FEF3C7',
+        borderColor: decided ? palette.border : '#D97706',
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 12,
+      }}
+      accessibilityLiveRegion="polite"
+    >
+      <Text
+        style={{
+          color: decided ? palette.muted : '#92400E',
+          fontSize: 12,
+          fontWeight: '700',
+          textTransform: 'uppercase',
+          letterSpacing: 0.5,
+          marginBottom: 4,
+        }}
+      >
+        {decided
+          ? `You said: ${decision === 'keep' ? 'keep both' : 'discard duplicate'}`
+          : 'Possible duplicate'}
+      </Text>
+      <Text
+        style={{
+          color: palette.text,
+          fontSize: 14,
+          lineHeight: 20,
+          marginBottom: 10,
+        }}
+      >
+        This receipt looks like {matchVendor}
+        {matchTotal ? ` for ${matchTotal}` : ''}
+        {matchTime ? ` on ${matchTime}` : ''}.{' '}
+        {decided
+          ? 'Tap below to change the call.'
+          : 'Same vendor, total, and date. Is this a real second receipt, or a duplicate of the earlier one?'}
+      </Text>
+      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+        <Button
+          variant="secondary"
+          label={
+            busy === 'keep'
+              ? 'Saving…'
+              : decided && decision === 'keep'
+                ? '✓ Kept'
+                : 'Keep — different receipt'
+          }
+          disabled={busy === 'discard'}
+          onPress={() => void onPick('keep')}
+          accessibilityHint="Keeps both receipts. Pick this when two real purchases share the same vendor, total, and date."
+        />
+        <Button
+          variant="secondary"
+          label={
+            busy === 'discard'
+              ? 'Saving…'
+              : decided && decision === 'discard'
+                ? '✓ Discarded'
+                : 'Discard duplicate'
+          }
+          disabled={busy === 'keep'}
+          onPress={() => void onPick('discard')}
+          accessibilityHint="Marks this receipt as a duplicate and rejects it."
+        />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Review banner — Batch Z. Surfaces a "review the AI-extracted
+ * fields" CTA when extraction has completed but the user hasn't
+ * confirmed yet. Tapping "Confirm receipt" stamps
+ * `user_reviewed_at = now()` so the row clears the "Tap to review"
+ * yellow badge in the list and moves to the bookkeeper queue as
+ * user-verified data.
+ *
+ * Hidden when:
+ *   - Extraction is still in flight (different banner handles that).
+ *   - The row is already user-confirmed.
+ *   - The row has been approved/rejected (locked).
+ *   - The row is a duplicate the user already discarded.
+ */
+function ReviewBanner({
+  receipt,
+  palette,
+}: {
+  receipt: Receipt;
+  palette: Palette;
+}) {
+  const confirmReview = useConfirmReceiptReview();
+  const [busy, setBusy] = useState(false);
+
+  const showBanner =
+    receipt.extraction_status === 'done' &&
+    !receipt.user_reviewed_at &&
+    receipt.status === 'pending' &&
+    receipt.dedup_decision !== 'discard';
+
+  if (!showBanner) return null;
+
+  const onConfirm = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      // We don't track per-field edits in this lightweight CTA —
+      // a richer "review wizard" would diff field-by-field, but
+      // for v1 the user has been editing inline and confirms when
+      // they're satisfied. Pass an empty edits map so
+      // user_review_edits records "reviewed, no edits noted."
+      await confirmReview(receipt.id);
+    } catch (err) {
+      Alert.alert(
+        'Couldn’t mark as reviewed',
+        err instanceof Error ? err.message : String(err)
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View
+      style={{
+        backgroundColor: palette.surface,
+        borderColor: palette.accent,
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 12,
+      }}
+    >
+      <Text
+        style={{
+          color: palette.accent,
+          fontSize: 12,
+          fontWeight: '700',
+          textTransform: 'uppercase',
+          letterSpacing: 0.5,
+          marginBottom: 4,
+        }}
+      >
+        Please review
+      </Text>
+      <Text
+        style={{
+          color: palette.text,
+          fontSize: 14,
+          lineHeight: 20,
+          marginBottom: 10,
+        }}
+      >
+        AI filled in the vendor, total, and category. Skim the fields
+        below — fix anything wrong — then tap Confirm so the
+        bookkeeper sees this as user-verified.
+      </Text>
+      <Button
+        label={busy ? 'Saving…' : '✓ Confirm receipt'}
+        onPress={onConfirm}
+        disabled={busy}
+        accessibilityHint="Marks the AI-extracted data as reviewed by you."
+      />
+    </View>
+  );
 }
 
 function NotFound({ palette, onBack }: NotFoundProps) {

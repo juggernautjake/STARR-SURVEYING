@@ -1150,7 +1150,7 @@ classifier) · 228 (voice transcription) — all present.
 
 | Area | Done | Deferred |
 |---|---|---|
-| F2 receipts | Capture, extraction, approval, CSV export | Soft-delete + IRS 7-yr retention; per-receipt admin sign-off audit |
+| F2 receipts | Capture, extraction, approval, CSV export, duplicate detection + review-before-save (Batch Z) | Soft-delete + IRS 7-yr retention; per-receipt admin sign-off audit |
 | F3 photos | Multi-photo, GPS, EXIF, annotator, compass heading (Batch V) | Arrow / circle / text annotation primitives (schema slots reserved; pen-only in v1) |
 | F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U) | Server-side FFmpeg thumbnail extraction; WiFi-only original-quality re-upload tier |
 | F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
@@ -1525,6 +1525,118 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch Z — receipt duplicate detection + review-before-save (F2 closer)**
+
+Closes the user's directive: *"We also need to make sure we are
+not uploading duplicate receipts, so AI needs to be able to
+recognize whenever there is likely a duplicate receipt and needs
+to prompt the user to ask them if they still want to save it or
+discard the duplicate. Also, whenever a receipt is uploaded, it
+needs to scan the receipt and store the data, but it needs to ask
+the user to review the information to make sure it is actually
+correct."*
+
+Two coupled features ship together because they share the same
+post-extraction lifecycle stage.
+
+Schema (`seeds/229_starr_field_receipt_review.sql`):
+- New `receipts.dedup_fingerprint TEXT` — computed by the worker:
+  `lower(alnum-only(vendor)) || '|' || total_cents || '|' ||
+  YYYY-MM-DD(transaction_at)`. Two receipts from "Lowe's #1234"
+  and "LOWES STORE 1234" both normalise to `lowes1234` and match.
+- New `receipts.dedup_match_id UUID REFERENCES receipts(id)` —
+  the prior matching row the worker found (if any).
+- New `receipts.dedup_decision TEXT 'keep' | 'discard'` — the
+  user's call.
+- New `receipts.user_reviewed_at TIMESTAMPTZ` — set the moment
+  the user taps "Confirm receipt." Until then the row shows the
+  yellow "👀 Tap to review" badge in the list.
+- New `receipts.user_review_edits JSONB` — sparse audit trail
+  of which fields the user changed during review. Empty object
+  = "reviewed, no edits noted." Distinct from null = "never
+  reviewed."
+- Two partial indexes: dedup-lookup `(user_id, dedup_fingerprint)
+  WHERE dedup_fingerprint IS NOT NULL AND status != 'rejected'`
+  for the worker's match query; needs-review
+  `(user_id, created_at DESC) WHERE user_reviewed_at IS NULL AND
+  extraction_status = 'done' AND status = 'pending'` for the
+  list-side reactive query.
+
+Worker (`worker/src/services/receipt-extraction.ts`):
+- `markDone()` now computes the fingerprint AFTER picking the
+  final values (post-COALESCE so user mid-edit values win),
+  then runs a single SELECT to find a prior non-rejected
+  receipt with the same `(user_id, dedup_fingerprint)`.
+- When a match is found, writes `dedup_match_id` on the new row.
+  We do NOT auto-discard — two $5 coffees on the same day at
+  the same shop are legit; the user makes the call.
+- Dedup query failures log + continue (worse case the warning
+  card doesn't render; the receipt still saves).
+- New exported `computeDedupFingerprint(vendor, totalCents,
+  transactionAt)` helper — pure function, easy to test, used by
+  the mobile side too if a future "instant client-side dup
+  preview" wants to call it.
+
+Mobile lib (`mobile/lib/receipts.ts`):
+- `useConfirmReceiptReview(id, edits?)` — stamps
+  `user_reviewed_at = now()` + writes `user_review_edits` JSON.
+- `useResolveReceiptDuplicate(id, 'keep' | 'discard')` — records
+  the decision; 'discard' also flips status to 'rejected' with
+  `rejected_reason = 'duplicate'`.
+- `useReceiptRow(id)` — non-loading-wrapper variant that powers
+  the duplicate-match preview card (different from the existing
+  `useReceipt(id)` which returns `{receipt, isLoading}`).
+- `useReceiptsNeedingReview()` — reactive count for the Money
+  tab header pill.
+
+Mobile UI:
+- `(tabs)/money/[id].tsx` (receipt detail):
+    - New `<DuplicateBanner>` at the top — amber when undecided,
+      flips to muted-confirmed once the user picks. Shows the
+      matching receipt's vendor / total / date.
+    - New `<ReviewBanner>` below — accent-coloured "Please
+      review" CTA with a "✓ Confirm receipt" button. Hidden
+      when extraction is in flight, when already user-confirmed,
+      when locked, or when discarded as duplicate.
+- `(tabs)/money/index.tsx` (receipts list):
+    - New "👀 N receipts need your review" pill under the
+      heading when count > 0.
+- `lib/ReceiptCard.tsx`:
+    - "⚠ Possible duplicate" amber badge on cards where
+      `dedup_match_id` is set + `dedup_decision` is null.
+      Prioritised over the regular review badge.
+    - "👀 Tap to review" accent badge on cards that finished
+      extraction without user confirmation.
+    - "Discarded as dup" label on rejected-via-dedup rows.
+- `(tabs)/money/capture.tsx`:
+    - Snap-tips block now mentions: "AI will read the vendor +
+      total + date and ask you to confirm. We'll also flag a
+      possible duplicate if it matches an earlier receipt."
+
+Logging:
+- `receipts.confirmReview` / `receipts.resolveDuplicate` log the
+  decision + edit count for ops visibility.
+- Worker dedup-query failures log a warn so a misconfigured
+  index is visible.
+
+Activation gate: apply `seeds/229_starr_field_receipt_review.sql`
+to live Supabase before the worker pushes the next image —
+without the columns the worker's UPDATE 4xx's. The mobile UI
+gracefully handles a null `dedup_match_id` / null
+`user_reviewed_at`, so the rollout order is: seed → worker →
+mobile (or mobile-first works too; the new badges hide until
+the worker writes the columns).
+
+Pending v2 polish:
+- Fuzzy matching: "near-duplicate" detection on amounts ±$0.10
+  (cashier rounding) or vendor variants the normalisation
+  doesn't catch. v1 is exact-match only.
+- Per-field review wizard that diffs AI vs user edits and
+  records each one into `user_review_edits` (currently we just
+  stamp the timestamp).
+- Photo-perceptual hash so two receipts captured from the same
+  paper but with slightly different lighting still match.
 
 **Batch Y — sun-readable theme (F7 closer)**
 

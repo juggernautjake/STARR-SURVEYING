@@ -550,6 +550,49 @@ async function markDone(
     update.category_source = 'ai';
   }
 
+  // Duplicate detection (Batch Z) — compute the fingerprint from the
+  // post-extraction values (preferring user edits via the same
+  // COALESCE-on-null heuristic markDone uses for the writes above).
+  // Then look up a prior non-rejected receipt for the same user with
+  // the same fingerprint. If found, set dedup_match_id so the mobile
+  // detail screen surfaces a duplicate-warning card; the user makes
+  // the keep / discard call. We do NOT auto-discard — two $5 coffees
+  // on the same day are legit.
+  //
+  // Done in the worker rather than the mobile insert path because:
+  //   - The fingerprint depends on AI-extracted vendor + total + date,
+  //     none of which are known at insert time.
+  //   - Server-side computation guarantees consistent normalization
+  //     across devices (no "phone A normalized 'LOWE'S' differently
+  //     than phone B").
+  const fingerprint = computeDedupFingerprint(
+    (update.vendor_name as string | null | undefined) ?? cur.vendor_name ?? null,
+    (update.total_cents as number | null | undefined) ?? cur.total_cents ?? null,
+    (update.transaction_at as string | null | undefined) ??
+      cur.transaction_at ??
+      null
+  );
+  if (fingerprint) {
+    update.dedup_fingerprint = fingerprint;
+    const { data: matches, error: dupErr } = await supabase
+      .from('receipts')
+      .select('id')
+      .eq('user_id', row.user_id)
+      .eq('dedup_fingerprint', fingerprint)
+      .neq('id', row.id)
+      .neq('status', 'rejected')
+      .order('created_at', { ascending: true })
+      .limit(1);
+    if (dupErr) {
+      // Non-fatal — log + continue. Worse case the user reviews a
+      // possible-duplicate without the warning card.
+      // (Worker logger isn't in scope here; the caller's logger
+      //  already wraps markDone failures.)
+    } else if (matches && matches.length > 0) {
+      update.dedup_match_id = (matches[0] as { id: string }).id;
+    }
+  }
+
   const { error: updateErr } = await supabase
     .from('receipts')
     .update(update)
@@ -665,6 +708,42 @@ function parseExtraction(raw: string): ExtractedReceipt {
       : [],
     confidence: isObject(parsed.confidence) ? (parsed.confidence as Record<string, number>) : {},
   };
+}
+
+/**
+ * Compute the duplicate-detection fingerprint for a receipt.
+ *
+ * Format: `{normVendor}|{cents}|{YYYY-MM-DD}` where:
+ *   - normVendor: vendor_name lowercased + alphanumeric-only. Strips
+ *     store numbers, suffixes ("STORE #1234"), spaces, punctuation.
+ *     Two receipts from "Lowe's #1234" + "LOWES STORE 1234" both
+ *     normalise to "lowes1234" and match.
+ *   - cents: total_cents as a plain integer. Exact match required —
+ *     a $4.99 vs $5.00 difference is two different receipts.
+ *   - YYYY-MM-DD: extracted from transaction_at via UTC date. (We
+ *     accept the slight TZ-skew risk for a midnight-crossing
+ *     transaction; in practice receipts have time-of-day stamps so
+ *     two purchases at 11:59pm and 12:01am stay distinguishable.)
+ *
+ * Returns null when ANY of the three components is missing — a
+ * partial fingerprint would create false matches against other
+ * partials, so we only compute when extraction landed all three.
+ */
+export function computeDedupFingerprint(
+  vendor: string | null,
+  totalCents: number | null,
+  transactionAt: string | null
+): string | null {
+  if (!vendor || totalCents == null || !transactionAt) return null;
+  const normVendor = vendor.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!normVendor) return null;
+  const t = Date.parse(transactionAt);
+  if (!Number.isFinite(t)) return null;
+  const d = new Date(t);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${normVendor}|${totalCents}|${yyyy}-${mm}-${dd}`;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {

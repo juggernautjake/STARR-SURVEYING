@@ -111,13 +111,40 @@ function statusInfo(receipt: Receipt, palette: Palette): StatusInfoView {
   if (receipt.status === 'pending' && receipt.extraction_status === 'failed') {
     return { label: 'Needs your input', color: palette.danger };
   }
+  // Possible-duplicate from the worker's dedup pass — prioritised
+  // over the regular review badge so the user sees the bigger ask
+  // first. Cleared once the user picks keep / discard.
+  if (
+    receipt.status === 'pending' &&
+    receipt.dedup_match_id &&
+    !receipt.dedup_decision
+  ) {
+    // Amber matches the detail-screen banner colour so visual
+    // continuity tells the user "same thing you saw on the list."
+    return { label: '⚠ Possible duplicate', color: '#92400E' };
+  }
+  // Extraction landed but the user hasn't confirmed yet — Batch Z
+  // "review-before-save" badge.
+  if (
+    receipt.status === 'pending' &&
+    receipt.extraction_status === 'done' &&
+    !receipt.user_reviewed_at
+  ) {
+    return { label: '👀 Tap to review', color: palette.accent };
+  }
   switch (receipt.status) {
     case 'pending':
       return { label: 'Pending review', color: palette.muted };
     case 'approved':
       return { label: 'Approved', color: palette.success };
     case 'rejected':
-      return { label: 'Rejected', color: palette.danger };
+      return {
+        label:
+          receipt.dedup_decision === 'discard'
+            ? 'Discarded as dup'
+            : 'Rejected',
+        color: palette.danger,
+      };
     case 'exported':
       return { label: 'Exported', color: palette.muted };
     default:

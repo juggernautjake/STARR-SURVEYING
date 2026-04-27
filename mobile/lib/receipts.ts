@@ -445,6 +445,147 @@ export function useUpdateReceipt(): (
 }
 
 /**
+ * Confirm a receipt's AI-extracted data after the user reviews it
+ * (Batch Z). Sets `user_reviewed_at` to now() so the "Tap to review"
+ * yellow badge clears and the row is treated as user-confirmed in
+ * the bookkeeper queue.
+ *
+ * Optional `edits` arg captures what the user changed during review
+ * for the audit trail (stored as JSON in user_review_edits). If
+ * omitted we record an empty object so the column is still
+ * non-null and "the user reviewed and made no edits" is
+ * distinguishable from "the user never reviewed."
+ */
+export function useConfirmReceiptReview(): (
+  id: string,
+  edits?: Record<string, { from: unknown; to: unknown }>
+) => Promise<void> {
+  const db = usePowerSync();
+  return useCallback(
+    async (id, edits) => {
+      const nowIso = new Date().toISOString();
+      try {
+        await db.execute(
+          `UPDATE receipts
+              SET user_reviewed_at = ?,
+                  user_review_edits = ?,
+                  updated_at = ?
+            WHERE id = ?`,
+          [nowIso, JSON.stringify(edits ?? {}), nowIso, id]
+        );
+        logInfo('receipts.confirmReview', 'success', {
+          receipt_id: id,
+          edit_count: edits ? Object.keys(edits).length : 0,
+        });
+      } catch (err) {
+        logError('receipts.confirmReview', 'failed', err, { receipt_id: id });
+        throw err;
+      }
+    },
+    [db]
+  );
+}
+
+/**
+ * Resolve a likely-duplicate receipt (Batch Z). The worker writes
+ * `dedup_match_id` when it finds a prior receipt with the same
+ * `(vendor, total, date)` fingerprint. The user makes the call:
+ *
+ *   - 'keep'    → record the decision, leave the receipt visible
+ *                 (two real receipts can legitimately match — e.g.
+ *                 two $5 coffees on the same day at the same shop).
+ *   - 'discard' → flip status to 'rejected' with rejected_reason
+ *                 'duplicate' so it leaves the bookkeeper queue
+ *                 without losing the audit trail.
+ *
+ * We DO NOT clear `dedup_match_id` after the decision — keeping it
+ * lets the office reviewer trace why a receipt was rejected as a
+ * duplicate (or confirmed not to be one) months later.
+ */
+export function useResolveReceiptDuplicate(): (
+  id: string,
+  decision: 'keep' | 'discard'
+) => Promise<void> {
+  const db = usePowerSync();
+  return useCallback(
+    async (id, decision) => {
+      const nowIso = new Date().toISOString();
+      try {
+        if (decision === 'discard') {
+          await db.execute(
+            `UPDATE receipts
+                SET dedup_decision = ?,
+                    status = 'rejected',
+                    rejected_reason = COALESCE(rejected_reason, 'duplicate'),
+                    updated_at = ?
+              WHERE id = ?`,
+            [decision, nowIso, id]
+          );
+        } else {
+          await db.execute(
+            `UPDATE receipts
+                SET dedup_decision = ?,
+                    updated_at = ?
+              WHERE id = ?`,
+            [decision, nowIso, id]
+          );
+        }
+        logInfo('receipts.resolveDuplicate', 'success', {
+          receipt_id: id,
+          decision,
+        });
+      } catch (err) {
+        logError('receipts.resolveDuplicate', 'failed', err, {
+          receipt_id: id,
+          decision,
+        });
+        throw err;
+      }
+    },
+    [db]
+  );
+}
+
+/**
+ * Reactive lookup of a single receipt by id, returning just the
+ * row (no `isLoading` wrapper — the dup-warning card is
+ * already inside the parent's loaded state). Powers the
+ * "duplicate match" preview card on the detail screen — when
+ * `dedup_match_id` is set, the page calls this with that id to
+ * fetch the suspected-prior-row.
+ */
+export function useReceiptRow(id: string | null | undefined): Receipt | null {
+  const queryParams = useMemo(() => (id ? [id] : []), [id]);
+  const { data } = useQuery<Receipt>(
+    `SELECT * FROM receipts WHERE id = ? LIMIT 1`,
+    queryParams
+  );
+  return id ? (data?.[0] ?? null) : null;
+}
+
+/**
+ * Reactive count of receipts that need review for the current user.
+ * Drives the Money tab's "N to review" badge. Receipts qualify when
+ * extraction has completed AND the user hasn't confirmed yet AND
+ * the row isn't already approved/rejected.
+ */
+export function useReceiptsNeedingReview(): number {
+  const { session } = useAuth();
+  const userId = session?.user.id ?? null;
+  const queryParams = useMemo(() => (userId ? [userId] : []), [userId]);
+  const { data } = useQuery<{ count: number }>(
+    `SELECT COUNT(*) AS count
+       FROM receipts
+      WHERE user_id = ?
+        AND user_reviewed_at IS NULL
+        AND extraction_status = 'done'
+        AND status = 'pending'`,
+    queryParams
+  );
+  return data?.[0]?.count ?? 0;
+}
+
+/**
  * Delete a receipt. Soft delete is NOT used — receipts.status='rejected'
  * is the soft state for "user wants to undo this capture without losing
  * the audit trail." Hard delete is reserved for clear-mistakes (e.g.

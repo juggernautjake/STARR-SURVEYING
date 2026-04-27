@@ -171,7 +171,10 @@ export default function CaptureReceiptScreen() {
           <Text style={[styles.tipBody, { color: palette.muted }]}>
             • Lay the receipt flat on a contrasting surface{'\n'}
             • Fill the frame {'—'} edges of the paper visible{'\n'}
-            • Direct light, no glare on the print
+            • Direct light, no glare on the print{'\n'}
+            • AI will read the vendor + total + date and ask you to
+            confirm. We{'’'}ll also flag a possible duplicate if it
+            matches an earlier receipt.
           </Text>
         </View>
       </View>
