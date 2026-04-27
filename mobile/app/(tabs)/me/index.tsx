@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import {
   Alert,
@@ -35,6 +35,12 @@ import {
   tabletContainerStyle,
   useResponsiveLayout,
 } from '@/lib/responsive';
+import {
+  type AppVersionInfo,
+  type ManualUpdateState,
+  getAppVersionInfo,
+  useManualUpdateCheck,
+} from '@/lib/otaUpdates';
 import { usePinnedStorageStats } from '@/lib/pinnedFiles';
 import {
   type ThemePreference,
@@ -503,6 +509,11 @@ export default function MeScreen() {
         </View>
 
         <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.muted }]}>About</Text>
+          <AboutRow palette={palette} />
+        </View>
+
+        <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: palette.muted }]}>Coming soon</Text>
           <Text style={[styles.sectionBody, { color: palette.text }]}>
             Profile editing and idle-timer length land in F1+.
@@ -533,6 +544,182 @@ function capitalize(s: string): string {
  * 'just now' for sub-minute deltas. Defensive against bad ISO inputs —
  * any parse failure renders 'recently' so the row still reads.
  */
+/**
+ * About row — Batch HH. Shows the app version + EAS Update channel
+ * + a "Check for updates" button that pulls a fresh JS bundle from
+ * the EAS CDN and prompts the user to restart.
+ *
+ * Hidden when expo-updates isn't enabled (dev mode, no URL set) so
+ * the row isn't a misleading dead-end. The version line still
+ * renders so the surveyor can read the binary version off the
+ * screen for support requests.
+ */
+function AboutRow({
+  palette,
+}: {
+  palette: { text: string; muted: string; accent: string; surface: string; border: string; danger: string };
+}) {
+  const info = useMemo<AppVersionInfo>(() => getAppVersionInfo(), []);
+  const { state, check, restart } = useManualUpdateCheck();
+  const [busy, setBusy] = useState(false);
+
+  const onCheck = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await check();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRestart = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await restart();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const versionLine = [
+    info.appVersion ? `v${info.appVersion}` : null,
+    info.channel ? `${info.channel} channel` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const statusLabel = formatUpdateState(state);
+
+  return (
+    <View
+      style={{
+        backgroundColor: palette.surface,
+        borderColor: palette.border,
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 14,
+      }}
+    >
+      <Text style={{ color: palette.text, fontSize: 14, fontWeight: '600' }}>
+        Starr Field
+      </Text>
+      <Text
+        style={{ color: palette.muted, fontSize: 12, marginTop: 2 }}
+        accessibilityLabel={`App version ${versionLine || 'unknown'}`}
+      >
+        {versionLine || 'Version unknown'}
+      </Text>
+      {info.updateId ? (
+        <Text style={{ color: palette.muted, fontSize: 11, marginTop: 4 }}>
+          Bundle {info.updateId.slice(0, 8)}…
+        </Text>
+      ) : null}
+      {statusLabel ? (
+        <Text
+          style={{
+            color:
+              state.kind === 'error'
+                ? palette.danger
+                : state.kind === 'ready-to-restart'
+                  ? palette.accent
+                  : palette.muted,
+            fontSize: 12,
+            marginTop: 6,
+          }}
+          accessibilityLiveRegion="polite"
+        >
+          {statusLabel}
+        </Text>
+      ) : null}
+      {info.enabled ? (
+        <View style={{ marginTop: 12, flexDirection: 'row', gap: 8 }}>
+          {state.kind === 'ready-to-restart' ? (
+            <Pressable
+              onPress={() => void onRestart()}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Restart to apply update"
+              style={({ pressed }) => ({
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: 8,
+                backgroundColor: palette.accent,
+                opacity: pressed || busy ? 0.7 : 1,
+              })}
+            >
+              <Text
+                style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '600' }}
+              >
+                Restart to apply
+              </Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => void onCheck()}
+              disabled={busy || state.kind === 'checking' || state.kind === 'downloading'}
+              accessibilityRole="button"
+              accessibilityLabel="Check for updates"
+              style={({ pressed }) => ({
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: palette.accent,
+                opacity: pressed || busy ? 0.7 : 1,
+              })}
+            >
+              <Text
+                style={{ color: palette.accent, fontSize: 13, fontWeight: '600' }}
+              >
+                {state.kind === 'checking'
+                  ? 'Checking…'
+                  : state.kind === 'downloading'
+                    ? 'Downloading…'
+                    : 'Check for updates'}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      ) : (
+        <Text
+          style={{ color: palette.muted, fontSize: 11, marginTop: 8, fontStyle: 'italic' }}
+        >
+          OTA updates aren&apos;t enabled in this build. Install the latest
+          version from the App Store / Play Store.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function formatUpdateState(state: ManualUpdateState): string | null {
+  switch (state.kind) {
+    case 'idle':
+      return null;
+    case 'checking':
+      return 'Checking for updates…';
+    case 'downloading':
+      return 'Downloading the new version…';
+    case 'no-update': {
+      const t = Date.parse(state.checkedAt);
+      const ago = Number.isFinite(t)
+        ? Math.max(0, Math.floor((Date.now() - t) / 1000))
+        : 0;
+      return ago < 60
+        ? 'You’re up to date.'
+        : `You’re up to date. (Checked ${Math.floor(ago / 60)}m ago.)`;
+    }
+    case 'ready-to-restart':
+      return 'Update ready. Tap “Restart to apply” to use it.';
+    case 'error':
+      return `Couldn’t check: ${state.message}`;
+    default:
+      return null;
+  }
+}
+
 function formatPingAge(iso: string): string {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return 'recently';

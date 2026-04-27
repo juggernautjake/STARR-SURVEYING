@@ -952,7 +952,7 @@ No parallel `/dispatcher/` or `/field-admin/` route tree — that would duplicat
 - [x] Local SQLite + sync queue scaffolding (PowerSync — `mobile/lib/db/{schema,connector,index}.tsx`); 14 tables in `AppSchema` covering jobs, time tracking, receipts, field data, location pings, notifications, plus the local-only `pending_uploads` queue.
 - [x] Tab bar shell, navigation, theme (`mobile/app/(tabs)/_layout.tsx` + `lib/theme.ts`); 5 tabs (Jobs / Capture FAB / Time / Money / Me) with nested stacks under Jobs / Time / Money / Me / Capture.
 - [/] EAS Build configured (TestFlight + internal Android) — `mobile/eas.json` defines development / preview / production channels; submit credentials still placeholders (`REPLACE_WITH_*`); first TestFlight build pending operator action.
-- [ ] OTA updates working — `expo-updates` installed but `app.json` has no `"updates"` block (no channel URL set). Need to flip on once EAS Update is provisioned.
+- [/] OTA updates working (Batch HH) — `mobile/lib/otaUpdates.ts` ships cold-start silent-update + manual-check-with-restart hooks, `<OtaUpdatesReconciler />` mounts at root, Me-tab "About" section shows app version + EAS channel + bundle ID + "Check for updates" / "Restart to apply" buttons. `app.json` now has the `updates` block (`enabled: true`, `checkAutomatically: 'ON_LOAD'`, `fallbackToCacheTimeout: 0`). **Operator step:** replace `"url": "REPLACE_WITH_EAS_UPDATE_URL"` with the real EAS Update URL after running `eas update:configure`. Until then, both hooks degrade safely — `Updates.isEnabled` is false in dev/unconfigured builds and the About row tells the user to install from the App Store / Play Store instead.
 - [x] Crash reporting (Sentry) — `mobile/lib/sentry.ts` + `initSentry()` in root layout; passthrough when DSN missing so dev still works.
 
 Audit additions:
@@ -1159,7 +1159,7 @@ classifier) · 228 (voice transcription) — all present.
 | F6 stops | Geofence classifier + idempotent re-derivation | AI classifier for ambiguous stops; reverse-geocoded `place_name`/`place_address`; PostGIS `path_simplified` for day-replay scrubber; pg_cron nightly schedule |
 | F6 dispatcher | Last-seen card; per-user mileage drilldown; per-user `/admin/team/[email]` daily drilldown (Batch X); missing-receipt prompts via worker scan (Batch DD) | Continuous live-map trace; day-replay scrubber UI |
 | F7 polish | Storage / sync UI, network-restore drainer, notification UX, sun-readable theme (Batch Y) | Battery profile audit on real devices; tablet split-pane layouts on drilldown screens; multi-device conflict-resolution UX + tests; 30-day stress test on 5 devices |
-| F0 ops | Expo scaffold, biometric, PowerSync, Sentry | Lock-screen widget (iOS WidgetKit / Android shortcut); OTA update channel URL in `app.json`; EAS submit credentials still `REPLACE_WITH_*`; first TestFlight build pending |
+| F0 ops | Expo scaffold, biometric, PowerSync, Sentry, OTA wiring (Batch HH; needs operator to fill EAS Update URL) | Lock-screen widget (iOS WidgetKit / Android shortcut); EAS submit credentials still `REPLACE_WITH_*`; first TestFlight build pending |
 
 ### C. Pending (planned but not started)
 
@@ -1525,6 +1525,84 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch HH — OTA updates wiring (F0 closer)**
+
+Closes the F0 deferral *"OTA updates working — `expo-updates`
+installed but `app.json` has no `'updates'` block (no channel URL
+set). Need to flip on once EAS Update is provisioned."* JS-only
+fixes can now ship without an EAS build + store-review delay
+(once the operator provisions the EAS Update channel).
+
+Two-channel update strategy:
+
+1. **Silent cold-start check** (`useCheckForUpdatesOnLaunch`)
+   mounts at the root layout. On every launch, in production builds
+   with reception:
+     - `Updates.checkForUpdateAsync()` against the EAS CDN
+     - On `isAvailable=true` → `fetchUpdateAsync()` →
+       `reloadAsync()` so the next paint runs the new bundle
+     - 60 s timeout caps blocked startups; offline / dev / not-
+       enabled paths skip silently
+2. **Manual "Check for updates"** (`useManualUpdateCheck`) lives
+   on the Me tab "About" row. Returns explicit state
+   (`'idle' | 'checking' | 'downloading' | 'no-update' |
+   'ready-to-restart' | 'error'`) so the UI can render captions +
+   the "Restart to apply" CTA. Surveyor finishes their current
+   task before yanking the JS context.
+
+Mobile lib (`mobile/lib/otaUpdates.ts`):
+- Both hooks wrap every async call in try/catch + log a warn
+  breadcrumb. Network failures, CDN 5xx, no-channel-configured
+  all degrade silently.
+- `getAppVersionInfo()` returns `{ appVersion, runtimeVersion,
+  channel, updateId, enabled }` for the About row.
+
+Root layout (`mobile/app/_layout.tsx`):
+- New `<OtaUpdatesReconciler />` sibling to
+  `<UploadQueueDrainer />` + `<PinnedFilesReconciler />`.
+
+Me-tab About section (`mobile/app/(tabs)/me/index.tsx`):
+- New `AboutRow` component renders inside an "About" section.
+  Shows app name + `v0.0.1 · production channel` + bundle ID
+  prefix when running an OTA. State-aware caption underneath
+  ("You're up to date." / "Update ready. Tap 'Restart to apply'
+  to use it." / "Couldn't check: No reception").
+- Primary action: "Check for updates" → "Restart to apply"
+  (state-aware) → `Updates.reloadAsync()`.
+- When `Updates.isEnabled === false`, the row tells the user to
+  install from the App Store / Play Store instead.
+
+Config (`mobile/app.json`):
+- `updates` block added: `enabled: true`,
+  `checkAutomatically: 'ON_LOAD'`, `fallbackToCacheTimeout: 0`,
+  `url: 'REPLACE_WITH_EAS_UPDATE_URL'`.
+- `runtimeVersion: { policy: 'appVersion' }` was already in
+  place.
+
+Activation gate (operator):
+1. Run `eas update:configure` to get the channel URL (e.g.
+   `https://u.expo.dev/<project-id>`).
+2. Replace the `REPLACE_WITH_EAS_UPDATE_URL` placeholder.
+3. Build + submit a binary that bakes the URL in. Subsequent
+   JS-only fixes ship via `eas update --branch=production`
+   without a new build.
+
+Logging:
+- `otaUpdates.coldStart` info/warn for the silent path.
+- `otaUpdates.manualCheck` for user-triggered checks.
+- All log lines carry `current_id` so a Sentry trace can
+  correlate stale-bundle reports.
+
+Pending v2 polish:
+- Per-environment EAS channels (dev / preview / production)
+  with auto-routing via `EAS_BUILD_PROFILE`.
+- "What's new" changelog modal that surfaces release notes from
+  the update manifest's `extra` field on first cold-start after
+  applying.
+- Forced-update gate that blocks the surveyor from continuing
+  on a known-bad bundle (rare; useful when a critical bug
+  ships).
 
 **Batch GG — server-side video thumbnail extraction (F4 closer)**
 

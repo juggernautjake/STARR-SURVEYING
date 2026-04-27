@@ -18,6 +18,7 @@ import {
   useAdminPingDispatcher,
 } from '@/lib/notificationsInbox';
 import Sentry, { initSentry } from '@/lib/sentry';
+import { useCheckForUpdatesOnLaunch } from '@/lib/otaUpdates';
 import { usePinnedFilesReconciler } from '@/lib/pinnedFiles';
 import { ThemePreferenceProvider } from '@/lib/themePreference';
 import { useUploadQueueDrainer } from '@/lib/uploadQueue';
@@ -109,6 +110,18 @@ function UploadQueueDrainer() {
  */
 function PinnedFilesReconciler() {
   usePinnedFilesReconciler();
+  return null;
+}
+
+/**
+ * Mount-once: silent OTA check on cold start (Batch HH). Skips
+ * silently in dev / when offline / when no EAS Update URL is
+ * configured. On a fresh bundle, fetches + reloadAsync — the next
+ * paint runs the new code. 60 s timeout so a stuck CDN never
+ * blocks startup.
+ */
+function OtaUpdatesReconciler() {
+  useCheckForUpdatesOnLaunch();
   return null;
 }
 
@@ -289,6 +302,7 @@ function RootLayout() {
           <DatabaseProvider>
           <UploadQueueDrainer />
           <PinnedFilesReconciler />
+          <OtaUpdatesReconciler />
           <AdminPingDispatcher />
           <NotificationResponseHandler />
           <LocationTrackerReconciler />
