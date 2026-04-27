@@ -1526,6 +1526,71 @@ Activation gates:
   never set up with an address, or where the address geocode is
   off.
 
+**Batch II — mobile per-job "Today's captures" rollup**
+
+Surveyors arriving at a job in the truck want a one-glance answer
+to *"where am I on this job today?"* — clock state, hours logged
+so far, captures by type, receipts so far. Mobile mirror of the
+admin `/admin/jobs/[id]/field` rollup.
+
+Mobile lib (`mobile/lib/jobs.ts`):
+- New `useJobTodayRollup(jobId)` hook. Reactive against PowerSync's
+  local SQLite — fully offline, updates as the surveyor captures
+  throughout the day.
+- Single SQL query joins **eleven** aggregations in one round-trip:
+    - points / photos / videos / voice / notes / files / receipts
+      counts (per current user, per job, today)
+    - receipts total in cents
+    - closed time-entries' duration_minutes sum
+    - open time-entries count + earliest open `started_at`
+- Per-user scope — every count filters by `created_by =
+  :userId` (or `user_email` for time / notes; `user_id` for
+  receipts) so two crew members on the same job each see their
+  own day. Job is the shared context; captures aren't.
+- "Today" anchored on the device-local midnight ISO so a 6 AM
+  cold-start shows the right day even if the user crossed
+  midnight in airplane mode.
+- `minutesToday` is exact: closed entries' stored
+  `duration_minutes` plus the open entry's
+  `(now − started_at)` → live ticker accurate.
+- `isClockedIn` flips to true when any open entry exists for the
+  user on this job today.
+
+UI (`mobile/lib/JobTodayRollup.tsx`):
+- New `<JobTodayRollupCard>` component with:
+    - Top row: "Today · Tue Apr 28" label + clock-state pill
+      ("🟢 Clocked in" green when active, "⚪ Off the clock"
+      neutral otherwise).
+    - Big primary number: `H:MM` worked today (36 px font;
+      drives at-a-glance orientation).
+    - Six-tile grid (3 cols × 2 rows): 📍 points · 📷 photos
+      · 🎬 videos · 🎙 memos · 📝 notes · 📎 files. Zero-counts
+      render at 55% opacity so a fresh-morning card reads
+      "fresh start" without looking empty/broken.
+    - Receipts strip (only when `receiptsToday > 0`):
+      `🧾 N receipts · $X.YZ`.
+    - Empty hint when nothing has been captured.
+    - Big "+ Capture" CTA at the bottom — tap deep-links to
+      `/(tabs)/capture?jobId=...`.
+
+Per-job screen (`mobile/app/(tabs)/jobs/[id]/index.tsx`):
+- New `<JobTodayRollupCard>` rendered between the header
+  actions row and the Client section so it's the first
+  scrollable block the surveyor sees.
+
+Logging:
+- `jobs.useJobTodayRollup` logs query failures with `job_id`
+  for ops correlation.
+
+Pending v2 polish:
+- Per-day paging — let the surveyor scrub backwards to
+  yesterday / last week to review historical days.
+- Add today's miles + stops counts when those become naturally
+  per-job (currently only the geofence-classifier-tagged stops
+  carry `job_id`).
+- Tap-into deep-links from each tile (📷 → photos screen with
+  date filter, 🧾 → receipts list filtered to this job + today).
+
 **Batch HH — OTA updates wiring (F0 closer)**
 
 Closes the F0 deferral *"OTA updates working — `expo-updates`

@@ -3,12 +3,13 @@ import { ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { JobTodayRollupCard } from '@/lib/JobTodayRollup';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { PointCard } from '@/lib/PointCard';
 import { ReceiptRollupCard } from '@/lib/ReceiptRollupCard';
 import { StageChip } from '@/lib/StageChip';
 import { useJobDataPoints } from '@/lib/dataPoints';
-import { useJob } from '@/lib/jobs';
+import { useJob, useJobTodayRollup } from '@/lib/jobs';
 import { useJobReceiptRollup } from '@/lib/receipts';
 import { colors, type Palette } from '@/lib/theme';
 
@@ -25,6 +26,9 @@ export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { job, isLoading } = useJob(id);
   const { rollup, isLoading: rollupLoading } = useJobReceiptRollup(id ?? null);
+  const { rollup: todayRollup, isLoading: todayLoading } = useJobTodayRollup(
+    id ?? null
+  );
   const { points } = useJobDataPoints(id ?? null);
 
   if (isLoading) return <LoadingSplash />;
@@ -85,6 +89,18 @@ export default function JobDetailScreen() {
             accessibilityHint="Capture a new survey data point on this job."
           />
         </View>
+
+        <JobTodayRollupCard
+          rollup={todayRollup}
+          palette={palette}
+          isLoading={todayLoading}
+          onCapture={() =>
+            router.push({
+              pathname: '/(tabs)/capture',
+              params: { jobId: job.id ?? '' },
+            })
+          }
+        />
 
         <Section title="Client" palette={palette}>
           <Field label="Name" value={job.client_name} palette={palette} />
