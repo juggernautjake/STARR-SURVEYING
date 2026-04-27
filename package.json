@@ -44,6 +44,7 @@
     "dxf-writer": "^1.18.4",
     "ioredis": "^5.10.0",
     "jspdf": "^4.2.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.576.0",
     "mammoth": "^1.11.0",
     "next": "14.2.35",

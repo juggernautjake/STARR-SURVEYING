@@ -830,3 +830,18 @@ export function useFieldMediaPhotoUrl(
   const signedUrl = useSignedUrl(PHOTO_BUCKET, media?.storage_url ?? null);
   return pendingLocal ?? signedUrl;
 }
+
+/**
+ * Resolve a field_media.storage_url (video) to a signed URL on the
+ * starr-field-videos bucket. Same pending-local fallback as the
+ * photo resolver so a freshly-captured video plays back instantly
+ * — even before the bytes have synced — by reading the queued
+ * file from `FileSystem.documentDirectory`.
+ */
+export function useFieldMediaVideoUrl(
+  media: (Pick<FieldMedia, 'storage_url'> & { id?: string | null }) | null | undefined
+): string | null {
+  const pendingLocal = usePendingUploadLocalUri('field_media', media?.id ?? null);
+  const signedUrl = useSignedUrl(VIDEO_BUCKET, media?.storage_url ?? null);
+  return pendingLocal ?? signedUrl;
+}

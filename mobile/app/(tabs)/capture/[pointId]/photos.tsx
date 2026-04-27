@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +16,7 @@ import { LoadingSplash } from '@/lib/LoadingSplash';
 import { logError, logWarn } from '@/lib/log';
 import { isPermissionDeniedError, promptForSettings } from '@/lib/permissionGuard';
 import { ThumbnailGrid } from '@/lib/ThumbnailGrid';
+import { VideoGrid } from '@/lib/VideoGrid';
 import { useDataPoint } from '@/lib/dataPoints';
 import { lookupPrefix } from '@/lib/dataPointCodes';
 import {
@@ -24,27 +26,31 @@ import {
   useDeleteMedia,
   usePointMedia,
 } from '@/lib/fieldMedia';
-import { colors } from '@/lib/theme';
+import { type Palette, colors } from '@/lib/theme';
 
 /**
- * Photo capture loop — F3 #3.
+ * Per-point capture loop — F3 #3 + F4 video review.
  *
  * Plan §5.3 step 4: "After shot: stay in capture mode with bottom
  * toolbar (more photos / video / voice / notes)." This screen lands
- * on point save and stays open until the user taps Done; each photo
- * captured appends to the grid above without leaving the screen so
- * the next shot is one tap away.
+ * on point save and stays open until the user taps Done; each
+ * capture appends to the active tab's grid without leaving the
+ * screen so the next shot is one tap away.
  *
  * Layout:
- *   - Header: point name + prefix tag + Done
- *   - Subheader: GPS coords (when captured)
- *   - Grid: 3-col thumbnails of attached photos. Long-press deletes.
- *   - Footer: large "Snap" button + "From library" secondary +
- *     "🎙 Record voice memo" (Stack-pushes /(tabs)/capture/[pointId]/voice
- *     for the audio capture flow — F4 voice memos shipped Batch I).
+ *   - Header: point name + prefix tag + GPS coords
+ *   - Photos / Videos pill toggle (counts on the labels)
+ *   - Active grid (3-col thumbnails). Tap a video tile → full-
+ *     screen player; long-press → delete.
+ *   - Capture controls: Snap photo · From library · Record video ·
+ *     Record voice memo (pushes the dedicated voice screen).
  *
- * Video + notes attach via F4 polish. The Snap-photo flow is the
- * F3 #3 deliverable; F3 #6 layers annotation on top.
+ * The Videos tab closes the F4 plan deferral
+ * ("captures land on the web admin but don't show in the mobile
+ * photos.tsx grid"). The dedicated `voice.tsx` screen still owns
+ * memo playback — voice doesn't need a third tab here because
+ * it has its own full-screen recorder + playback list one tap
+ * away via the bottom button.
  */
 export default function PointPhotosScreen() {
   const scheme = useColorScheme() ?? 'dark';
@@ -53,6 +59,7 @@ export default function PointPhotosScreen() {
   const { pointId } = useLocalSearchParams<{ pointId: string }>();
   const { point, isLoading } = useDataPoint(pointId);
   const { media } = usePointMedia(pointId, 'photo');
+  const { media: videos } = usePointMedia(pointId, 'video');
   const attachPhoto = useAttachPhoto();
   const attachVideo = useAttachVideo();
   const deleteMedia = useDeleteMedia();
@@ -60,6 +67,11 @@ export default function PointPhotosScreen() {
   const [busy, setBusy] = useState<
     'camera' | 'library' | 'video-camera' | null
   >(null);
+  // Tab toggle. Photos is the default — video review is a secondary
+  // surface that surveyors visit when reviewing a recorded
+  // walkthrough. Counts on the chip labels make it scannable
+  // ("Photos · 3" / "Videos · 1").
+  const [tab, setTab] = useState<'photos' | 'videos'>('photos');
 
   if (isLoading) return <LoadingSplash />;
 
@@ -198,9 +210,12 @@ export default function PointPhotosScreen() {
   };
 
   const onLongPress = (item: FieldMedia) => {
+    const kind = item.media_type === 'video' ? 'video' : 'photo';
     Alert.alert(
-      'Delete this photo?',
-      'The image will be removed from this point. You can re-shoot it if needed.',
+      `Delete this ${kind}?`,
+      kind === 'video'
+        ? 'The recording will be removed from this point. This cannot be undone.'
+        : 'The image will be removed from this point. You can re-shoot it if needed.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -212,6 +227,7 @@ export default function PointPhotosScreen() {
             } catch (err) {
               logError('photosScreen.onDelete', 'delete failed', err, {
                 media_id: item.id,
+                media_type: item.media_type ?? null,
                 point_id: pointId ?? null,
               });
               Alert.alert(
@@ -223,6 +239,13 @@ export default function PointPhotosScreen() {
         },
       ]
     );
+  };
+
+  const onPressVideo = (item: FieldMedia) => {
+    router.push({
+      pathname: '/(tabs)/capture/[pointId]/video-player',
+      params: { pointId: pointId ?? '', mediaId: item.id },
+    });
   };
 
   const exitToJob = () => {
@@ -237,13 +260,16 @@ export default function PointPhotosScreen() {
   };
 
   const onDone = () => {
-    // Most surveyor flows expect at least one photo per point — a
-    // photo-less point is usually an accidental Done. Confirm and
-    // offer "Snap photo" inline so the recovery path is one tap.
-    if (media.length === 0) {
+    // Most surveyor flows expect at least one capture per point —
+    // a totally empty point is usually an accidental Done. Confirm
+    // and offer "Snap photo" inline so the recovery path is one
+    // tap. A point with only videos (e.g. a walkthrough of a
+    // hazard) is still considered captured, so we count both.
+    const totalCaptures = media.length + videos.length;
+    if (totalCaptures === 0) {
       Alert.alert(
-        'Save without photos?',
-        'No photos are attached to this point. Snap one now or finish without?',
+        'Save without captures?',
+        'No photos or videos are attached to this point. Snap one now or finish without?',
         [
           {
             text: 'Snap photo',
@@ -301,8 +327,6 @@ export default function PointPhotosScreen() {
               {hasGps
                 ? ` · ${point.device_lat?.toFixed(5)}, ${point.device_lon?.toFixed(5)}`
                 : ' · no GPS fix'}
-              {' · '}
-              {media.length} {media.length === 1 ? 'photo' : 'photos'}
             </Text>
           </View>
         </View>
@@ -320,14 +344,57 @@ export default function PointPhotosScreen() {
           </View>
         ) : null}
 
-        {/* Thumbnail grid */}
+        {/* Photos / Videos tab toggle. Always visible — surveyors
+            switch tabs to review the recorded walkthrough alongside
+            the still shots without leaving the capture loop. Counts
+            on each chip mean "any captures here?" is a glance check. */}
+        <View
+          style={[
+            styles.tabRow,
+            { backgroundColor: palette.surface, borderColor: palette.border },
+          ]}
+        >
+          <TabPill
+            active={tab === 'photos'}
+            label="Photos"
+            count={media.length}
+            onPress={() => setTab('photos')}
+            palette={palette}
+          />
+          <TabPill
+            active={tab === 'videos'}
+            label="Videos"
+            count={videos.length}
+            onPress={() => setTab('videos')}
+            palette={palette}
+          />
+        </View>
+
+        {/* Thumbnail grid (branches by selected tab). */}
         <View style={styles.gridBlock}>
-          <ThumbnailGrid media={media} onLongPressMedia={onLongPress} />
-          {media.length > 0 ? (
-            <Text style={[styles.gridHint, { color: palette.muted }]}>
-              Long-press a photo to delete.
-            </Text>
-          ) : null}
+          {tab === 'photos' ? (
+            <>
+              <ThumbnailGrid media={media} onLongPressMedia={onLongPress} />
+              {media.length > 0 ? (
+                <Text style={[styles.gridHint, { color: palette.muted }]}>
+                  Long-press a photo to delete.
+                </Text>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <VideoGrid
+                media={videos}
+                onPressMedia={onPressVideo}
+                onLongPressMedia={onLongPress}
+              />
+              {videos.length > 0 ? (
+                <Text style={[styles.gridHint, { color: palette.muted }]}>
+                  Tap to play · long-press to delete.
+                </Text>
+              ) : null}
+            </>
+          )}
         </View>
 
         {/* Capture controls */}
@@ -375,7 +442,11 @@ export default function PointPhotosScreen() {
         <View style={styles.divider} />
 
         <Button
-          label={media.length === 0 ? 'Done (skip photos)' : 'Done'}
+          label={
+            media.length + videos.length === 0
+              ? 'Done (skip captures)'
+              : 'Done'
+          }
           onPress={onDone}
           accessibilityHint="Returns to the job detail page."
           disabled={!!busy}
@@ -392,11 +463,65 @@ export default function PointPhotosScreen() {
         />
 
         <Text style={[styles.footer, { color: palette.muted }]}>
-          Video, voice memos, and notes attach in F4. Photo annotation
-          (arrows / circles / text) lands in F3 #6.
+          Photos · videos · voice memos · notes all attach to this
+          point. Server-side video thumbnails + arrow / circle / text
+          annotation primitives land in F4 / F3 polish.
         </Text>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/**
+ * One pill in the Photos / Videos tab bar. Active state lifts
+ * background to the accent + flips text to a high-contrast white;
+ * inactive renders muted text on a transparent fill so the active
+ * pill is unmistakable in glove-vision.
+ */
+function TabPill({
+  active,
+  label,
+  count,
+  onPress,
+  palette,
+}: {
+  active: boolean;
+  label: string;
+  count: number;
+  onPress: () => void;
+  palette: Palette;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={`${label}, ${count}`}
+      style={({ pressed }) => [
+        styles.tabPill,
+        {
+          backgroundColor: active ? palette.accent : 'transparent',
+          opacity: pressed ? 0.8 : 1,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.tabPillText,
+          { color: active ? '#FFFFFF' : palette.text },
+        ]}
+      >
+        {label}
+      </Text>
+      <Text
+        style={[
+          styles.tabPillCount,
+          { color: active ? '#FFFFFF' : palette.muted },
+        ]}
+      >
+        {count}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -451,6 +576,34 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 4,
+  },
+  tabPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+  },
+  tabPillText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tabPillCount: {
+    fontSize: 13,
+    fontWeight: '600',
+    fontFamily: 'Menlo',
   },
   gridBlock: {
     marginBottom: 24,

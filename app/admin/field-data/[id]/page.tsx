@@ -60,6 +60,8 @@ interface MediaRow {
    *  mobile annotator. Rendered as an SVG overlay on the photo +
    *  inside the lightbox; original photo bytes never modified. */
   annotations: string | null;
+  uploaded_by_email: string | null;
+  uploaded_by_name: string | null;
 }
 
 interface NoteRow {
@@ -85,6 +87,8 @@ interface FileRow {
   upload_state: string | null;
   created_at: string;
   uploaded_at: string | null;
+  uploaded_by_email: string | null;
+  uploaded_by_name: string | null;
 }
 
 interface DetailResponse {
@@ -113,6 +117,19 @@ function formatBytes(bytes: number | null): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** "Uploaded by X · Apr 27 14:22" — shared across photo/audio/video/file
+ *  cards so author attribution is consistent everywhere. Falls back to
+ *  email when the display name is empty, then to "Unknown" when the
+ *  registered_users row was missing (legacy uploads or deleted users). */
+function uploaderLine(
+  email: string | null,
+  name: string | null,
+  iso: string | null
+): string {
+  const who = name || email || 'Unknown';
+  return `Uploaded by ${who} · ${formatTimestamp(iso)}`;
 }
 
 export default function FieldDataDetailPage() {
@@ -553,10 +570,6 @@ function Lightbox({
  *   - everything else   → download link only
  */
 function FileCardItem({ file }: { file: FileRow }) {
-  const created = new Date(file.created_at);
-  const ageLabel = Number.isFinite(created.getTime())
-    ? created.toLocaleString()
-    : '';
   const sizeLabel =
     file.file_size_bytes != null
       ? formatBytes(file.file_size_bytes)
@@ -582,7 +595,13 @@ function FileCardItem({ file }: { file: FileRow }) {
         <span style={styles.noteTemplate}>
           {isImage ? '🖼' : isPdf ? '📄' : isCsv ? '📊' : '📎'} File
         </span>
-        <span style={styles.noteMeta}>{ageLabel}</span>
+        <span style={styles.noteMeta}>
+          {uploaderLine(
+            file.uploaded_by_email,
+            file.uploaded_by_name,
+            file.uploaded_at ?? file.created_at
+          )}
+        </span>
       </header>
       <p style={styles.noteBody}>{file.name || '(unnamed)'}</p>
       {file.description ? (
@@ -894,6 +913,13 @@ function PhotoCard({
           )}
         </div>
         <div style={styles.photoMeta}>
+          <div style={styles.uploaderLine}>
+            {uploaderLine(
+              media.uploaded_by_email,
+              media.uploaded_by_name,
+              media.uploaded_at ?? media.captured_at
+            )}
+          </div>
           <div style={styles.photoMetaRow}>
             <span style={styles.fieldLabel}>Captured</span>
             <span>{formatTimestamp(media.captured_at)}</span>
@@ -970,6 +996,13 @@ function PhotoCard({
           )}
         </div>
         <div style={styles.photoMeta}>
+          <div style={styles.uploaderLine}>
+            {uploaderLine(
+              media.uploaded_by_email,
+              media.uploaded_by_name,
+              media.uploaded_at ?? media.captured_at
+            )}
+          </div>
           <div style={styles.photoMetaRow}>
             <span style={styles.fieldLabel}>Captured</span>
             <span>{formatTimestamp(media.captured_at)}</span>
@@ -1088,6 +1121,13 @@ function PhotoCard({
         </div>
       )}
       <div style={styles.photoMeta}>
+        <div style={styles.uploaderLine}>
+          {uploaderLine(
+            media.uploaded_by_email,
+            media.uploaded_by_name,
+            media.uploaded_at ?? media.captured_at
+          )}
+        </div>
         <div style={styles.photoMetaRow}>
           <span style={styles.fieldLabel}>Captured</span>
           <span>{formatTimestamp(media.captured_at)}</span>
@@ -1414,6 +1454,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#1D3095',
     marginTop: 6,
     textDecoration: 'none',
+  },
+  uploaderLine: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginBottom: 6,
+    fontStyle: 'italic',
   },
   empty: {
     padding: 32,

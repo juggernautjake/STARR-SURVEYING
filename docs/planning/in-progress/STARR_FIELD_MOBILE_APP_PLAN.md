@@ -1021,7 +1021,7 @@ Resilience additions (same offline-first pattern as F2):
 
 ### Phase F4 — Voice + video + notes (Week 13–16)
 - [x] Voice memo capture + transcription — `lib/voiceRecorder.ts` (expo-av Audio.Recording with M4A mono preset, 5-minute auto-stop cap, idempotent permission cache, mid-flight cancel + cleanup), `lib/fieldMedia.ts` `useAttachVoice` (mirrors `useAttachPhoto` — INSERT first with `transcription_status='queued'`, enqueue upload to `starr-field-voice` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup via `lib/deviceLibrary.ts`), `(tabs)/capture/[pointId]/voice.tsx` capture screen with per-memo playback row (long-press to delete). **Server-side transcription via OpenAI Whisper** lands in Batch R: `seeds/228` adds `transcription_status` / `transcription_error` / `transcription_started_at` / `transcription_completed_at` / `transcription_cost_cents` to `field_media`; `worker/src/services/voice-transcription.ts` polls `WHERE upload_state='done' AND transcription_status='queued'`, race-safe `claimRow` flips to `'running'`, fetches the M4A via signed URL, calls Whisper-1 (en hint), writes back with cost in cents (~$0.006/min). Watchdog re-queues stale `'running'` rows after 5 min. CLI at `worker/src/cli/transcribe-voice.ts` for cron; `POST /starr-field/voice/transcribe` for on-demand. Admin `/admin/field-data/[id]` shows ⏳ queued / 🎧 transcribing / ✓ done / ⚠ failed badges + the transcript text once landed.
-- [/] Video capture — `lib/storage/mediaUpload.ts` `pickVideo()` wraps `expo-image-picker.launchCameraAsync` with the Videos media type + 5-min cap (per plan §5.4), `lib/fieldMedia.ts` `useAttachVideo` mirrors the photo + voice pattern (INSERT field_media row with `media_type='video'`, enqueue upload to `starr-field-videos` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup which goes to Camera Roll). "📹 Record video" button on the photos screen footer. Admin `/admin/field-data/[id]` renders native `<video controls>` with mp4 + quicktime fallback `<source>` tags, duration in mm:ss, download link. **Pending:** server-side thumbnail extraction (FFmpeg via worker) so the gallery thumbnail isn't a placeholder; WiFi-only original-quality re-upload tier per plan §5.4; mobile-side video gallery (currently captured via OS camera + surfaced on web admin only).
+- [/] Video capture — `lib/storage/mediaUpload.ts` `pickVideo()` wraps `expo-image-picker.launchCameraAsync` with the Videos media type + 5-min cap (per plan §5.4), `lib/fieldMedia.ts` `useAttachVideo` mirrors the photo + voice pattern (INSERT field_media row with `media_type='video'`, enqueue upload to `starr-field-videos` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup which goes to Camera Roll). "📹 Record video" button on the photos screen footer. Admin `/admin/field-data/[id]` renders native `<video controls>` with mp4 + quicktime fallback `<source>` tags, duration in mm:ss, download link. **Mobile video review shipped (Batch U)**: Photos / Videos tab toggle on the per-point capture screen + a full-screen player at `(tabs)/capture/[pointId]/video-player.tsx` with native expo-av controls + delete + offline-first playback via `useFieldMediaVideoUrl` (falls back to local `documentDirectory` URI before the bytes sync). **Pending:** server-side thumbnail extraction (FFmpeg via worker) so the gallery thumbnail isn't a placeholder; WiFi-only original-quality re-upload tier per plan §5.4.
 - [x] Free-text notes + structured templates (offset, monument, hazard, correction) — `lib/fieldNotes.ts` (`useAddFieldNote` / `usePointNotes` / `useJobLevelNotes` / `useArchiveFieldNote` + `summariseStructuredPayload` + `parseStructuredPayload` helpers), per-template typed payload interfaces, body-summary derivation so the existing `/admin/notes` grep + future search-across-notes work without parsing JSON. Add-note screen at `/(tabs)/jobs/[id]/notes/new` accepts `?point_id=&template=` query params; in-app pill picker switches between Free-text / Offset shot / Monument found / Hazard / Correction with per-template form (typed inputs, choice pills for enums, severity colour-coding). Point detail screen (`(tabs)/jobs/[id]/points/[pointId].tsx`) gets a Notes section with reactive list + long-press archive + "+ Add note" button. Admin `/admin/field-data/[id]` surfaces attached notes with template tag, body, structured payload as a key/value table, author + age stamp, archived badge — `/api/admin/field-data/[id]` returns the parsed structured payload alongside the note row. Job-level note hook (`useJobLevelNotes`) is ready for a future job-detail surface.
 - [ ] Voice-to-text shortcut — bound to a hardware key for hands-free dictation. Need expo-speech-recognition or a Whisper-via-API path.
 - [ ] Search across notes + transcriptions — depends on the above + an FTS index. Need to confirm whether server-side `tsvector` columns or local SQLite FTS5 is the better path.
@@ -1077,6 +1077,167 @@ Audit additions:
 **Exit:** Trimble integration v1 (Path A from §8.1).
 
 ### Phase F9+ — Real-time integrations, AR, watch app, fuel-card reconciliation (research)
+
+---
+
+## 9.w — Inventory snapshot (state-of-the-build)
+
+*Audited at commit `f2917de` against the actual filesystem.* Plan
+claims throughout this document are spot-verified — the lists below
+are the reconciled truth, not a re-statement of the per-phase
+checkboxes. Update this section every time a Batch lands.
+
+### A. Shipped & verified in code
+
+**Mobile (Expo / `mobile/`):**
+- All five tabs wired (Jobs / Capture FAB / Time / Money / Me) with
+  nested stacks. Tab + drilldown screens listed in §9.y matrix.
+- Auth + biometric (Supabase Auth, Apple Sign-In, magic link, idle
+  re-prompt) — `lib/auth.tsx`, `lib/biometric.ts`, `lib/lockState.ts`.
+- PowerSync DB layer — `lib/db/{schema,connector,index}.tsx` with 14
+  tables incl. local-only `pending_uploads` queue.
+- Offline-first capture pipeline — `lib/uploadQueue.ts` (durable
+  retry, backoff, stuck-uploads triage at `(tabs)/me/uploads.tsx`),
+  applied to receipts / photos / voice / video / files / notes.
+- Camera + voice + video + files + notes capture surfaces
+  (Batches I, K, L, O — confirmed all `lib/*.ts` modules + `(tabs)`
+  screens present).
+- Photo annotation (Batch O) — `lib/PhotoAnnotator.tsx`,
+  `lib/photoAnnotation.ts`, originals never modified, web admin
+  renders via shared `lib/photoAnnotationRenderer.ts`.
+- Background GPS + battery-aware tiers + boundary pings (Batch C).
+- Tracking-consent modal (Batch P) — `lib/TrackingConsentModal.tsx`
+  + `lib/trackingConsent.ts`.
+- Vehicle picker on clock-in + `is_driver` toggle (Batch M).
+- Mobile timeline reader on `(tabs)/me/privacy.tsx` (Batch N) —
+  stops + segments + summary stats.
+- Notification inbox + dispatcher → user pings (Batch B).
+- Submit-for-approval bridge (Batch E) — `DailyLogStatus` enum
+  unifies web + mobile.
+- Responsive primitives (`lib/responsive.ts`) applied to four main
+  tab screens.
+
+**Web admin (`app/admin/`):**
+- `/admin/field-data` (list) + `/admin/field-data/[id]` (detail with
+  photo lightbox + annotation overlay + notes + files + voice
+  transcripts + video player).
+- `/admin/jobs/[id]/field` (per-job consolidated view, Batches S+T).
+- `/admin/timeline` (stops/segments + Recompute + "Set as job site"
+  geofence capture, Batches J+Q).
+- `/admin/mileage` (per-user + per-vehicle subtotals + IRS-grade
+  CSV, Batches G+P).
+- `/admin/vehicles` (CRUD + soft-archive, Batch M).
+- `/admin/team` (last-seen + battery + drill-downs, Batch B+G).
+
+**Admin APIs (`app/api/admin/`):** `field-data`, `field-data/[id]`,
+`jobs/[id]/field-data`, `jobs/[id]/field-data/manifest` (CSV with
+uploader columns), `jobs/[id]/field-data/zip` (server-streamed ZIP),
+`jobs/[id]/geofence`, `timeline` (GET+POST), `mileage`, `vehicles`
+(CRUD), `team`, `notifications`, `time-logs/*`, `receipts/*`.
+
+**Worker (`worker/src/services/`):**
+- `receipt-extraction.ts` + `cli/extract-receipts.ts` + endpoint at
+  `/starr-field/receipts/extract` (Phase F2).
+- `voice-transcription.ts` + `cli/transcribe-voice.ts` + endpoint at
+  `/starr-field/voice/transcribe` (Batch R).
+
+**Seeds (`seeds/`):** 220 (receipts) · 221 (data points) ·
+222 (notifications) · 223 (location pings) · 224 (location
+derivations) · 225 (vehicles) · 226 (files) · 227 (geofence
+classifier) · 228 (voice transcription) — all present.
+
+### B. Partial (started; polish deferred)
+
+| Area | Done | Deferred |
+|---|---|---|
+| F2 receipts | Capture, extraction, approval, CSV export | Soft-delete + IRS 7-yr retention; per-receipt admin sign-off audit |
+| F3 photos | Multi-photo, GPS, EXIF, annotator | Compass heading (magnetometer not wired); arrow / circle / text annotation primitives (schema slots reserved) |
+| F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U) | Server-side FFmpeg thumbnail extraction; WiFi-only original-quality re-upload tier |
+| F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
+| F4 notes | Free-text + four structured templates + admin viewer | Cross-notes search across body + structured payloads (no FTS index — server `tsvector` or local SQLite FTS5 TBD) |
+| F5 files | Document picker + admin Files block + image/PDF/CSV preview | Pin-to-device for persistent offline read; CSV parser for surveying P,N,E,Z,D; auto-link CSV rows → data points |
+| F6 stops | Geofence classifier + idempotent re-derivation | AI classifier for ambiguous stops; reverse-geocoded `place_name`/`place_address`; PostGIS `path_simplified` for day-replay scrubber; pg_cron nightly schedule |
+| F6 dispatcher | Last-seen card; per-user mileage drilldown | Continuous live-map trace; per-user `/admin/team/[email]` daily drilldown; day-replay scrubber UI; missing-receipt cross-reference worker |
+| F7 polish | Storage / sync UI, network-restore drainer, notification UX | High-contrast sun-readable theme; battery profile audit on real devices; tablet split-pane layouts on drilldown screens; multi-device conflict-resolution UX + tests; 30-day stress test on 5 devices |
+| F0 ops | Expo scaffold, biometric, PowerSync, Sentry | Lock-screen widget (iOS WidgetKit / Android shortcut); OTA update channel URL in `app.json`; EAS submit credentials still `REPLACE_WITH_*`; first TestFlight build pending |
+
+### C. Pending (planned but not started)
+
+- **Phase F8** — Trimble Access file exchange (Path A from §8.1):
+  watched cloud folder, JobXML / CSV auto-import, name-based
+  auto-link.
+- **Phase F9+** — real-time Trimble streaming (Path C); QuickBooks
+  Online direct API; Civil 3D round-trip; Apple Watch / Wear OS;
+  fleet fuel-card reconciliation; AR overlay; drone import; weather
+  metadata.
+- **Server-side UPSERT idempotency on `client_id`** — currently
+  PowerSync's CRUD queue dedupes on replay; server-side enforcement
+  per §10 risk register has not landed.
+
+### D. Architectural deviations from the plan
+
+1. **No `/api/mobile/*` REST namespace exists.** The plan §13
+   declares Supabase-JWT-gated mobile routes (data-points,
+   time-entries, receipts, location-stops). Reality: mobile uses
+   PowerSync's CRUD queue + Supabase RLS for **all** writes; REST is
+   only used for worker-triggered actions which currently route to
+   `/starr-field/*` on the worker, not `/api/mobile/*` on Next.
+   §13 contracts are aspirational documentation, not implemented
+   endpoints. **Action:** §13 should be re-framed as "PowerSync
+   table writes" rather than "REST contracts" — or the REST
+   endpoints should be added if a non-PowerSync client ever needs
+   them. No urgency until a non-PowerSync caller emerges.
+2. **Receipt AI extraction does not currently integrate with the
+   global `AiUsageTracker`** (Whisper transcription same — Batch R
+   notes this explicitly). Per-row cost lands in
+   `transcription_cost_cents` / receipt-side equivalent, but the
+   shared circuit breaker doesn't trip on Starr Field spend. v2
+   polish per the cost model in §11.
+
+### E. Outstanding bootstrapping (operator + legal prerequisites)
+
+From §15 (re-verified — see also patches below). Most items below
+are operator / legal actions, not engineering work:
+
+- [ ] App name decision (working title still "Starr Field")
+- [ ] Apple Developer + Google Play accounts under Starr Software
+- [ ] App icon + splash screen (no `mobile/assets/` directory yet)
+- [ ] `seeds/214_starr_field_existing_schema_snapshot.sql` —
+  **blocks** fresh `./seeds/run_all.sh --reset` runs because seeds
+  220+ ALTER `jobs` / `time_entries` from the live schema
+- [ ] 179-code point taxonomy import to `point_codes` (currently
+  offline, in Henry's printout)
+- [ ] Reserve `app.starr.software/field` deep-link domain
+- [ ] Privacy policy + ToS drafts (required for store submission +
+  consent flow)
+- [ ] Texas-licensed employment attorney engagement letter for
+  location-tracking review
+- [ ] Internal alpha tester list (Jacob, dad, 1–2 crew)
+- [ ] MVP success metric — *"Jacob does a full week using only
+  Starr Field for time, receipts, and notes"*
+- [ ] Raise unified `AI_DAILY_CAP_USD` $50 → $60 + rename env var
+  across root + worker `.env.example`
+- [ ] Google Cloud Places / Distance Matrix billing alerts
+- [ ] Verify PostGIS extension on live Supabase
+- [ ] Confirm with Hank Maddux RPLS that `fieldbook_notes` is the
+  right home for structured mobile notes
+
+### F. Open product / policy questions
+
+20 unresolved questions in §12 (single-app vs per-product, photo
+retention, multi-tenant, crew-role granularity, Trimble integration
+scope, pricing, TX compliance, backup strategy, watch app scope,
+1099 location-tracking policy, receipt approval threshold, mileage
+rate, QuickBooks integration phasing, per diem, driver detection,
+PTO tracking, schedule integration). These are decision-required
+items, not engineering work.
+
+### G. One-line verdict
+
+Core v1 capture loop + admin review + bundle download is
+**code-complete and offline-first**. Store submission, legal
+review, and 12 of 14 §15 bootstrapping items separate the codebase
+from a production rollout — none of which are engineering blocked.
 
 ---
 
@@ -1197,6 +1358,69 @@ under one phase.
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
 
+**Batch S — per-job consolidated field-data view (MVP)**
+
+Per the user's request: *"There needs to be a list of all of the
+points that have been logged in the app for a given job, and if
+they select a point it should open that point info and show all
+of the comments, files, or media relating to that point. They
+should also be able to download any media in any job."*
+
+Reduced-scope MVP — the per-point drilldown
+(`/admin/field-data/[id]`) already exists and renders comments +
+files + media for the selected point, so this batch only needs
+the per-job points-list + bulk download. Job-level media / notes
+/ files inline blocks deferred to the next round.
+
+API:
+- `GET /api/admin/jobs/[id]/field-data` — single round trip
+  returning `{ job, points[], job_media[], job_notes[],
+  job_files[], stats }`. Per-point summaries include a signed
+  thumbnail URL, media + note counts so the list cards render
+  without per-point fetches. Bulk-resolves creator emails via
+  one `registered_users` IN-query. Sign failures cap at 3 log
+  lines per request.
+- `GET /api/admin/jobs/[id]/field-data/manifest` — CSV with one
+  row per downloadable (`point_name, kind, filename,
+  content_type, size_bytes, duration_seconds, captured_at,
+  signed_url`). 4-hour TTL on the signed URLs (configurable via
+  `?ttl_hours=`, max 24). Audit-log line per pull so ops can
+  correlate manifest pulls with user activity. Bookkeeper
+  pipes to `xargs wget` or opens in Excel.
+
+Admin page (`/admin/jobs/[id]/field`):
+- Header: job name + number + client + address.
+- Stats bar: Points / Photos / Videos / Voice / Notes / Files
+  counts.
+- Points grid: thumbnail + name + offset/correction flag pills
+  + "code · creator · captured-at" meta + media/note counts.
+  Each card links to the existing `/admin/field-data/{point_id}`
+  drilldown.
+- "⬇ Download all media (CSV)" button hits the manifest
+  endpoint + triggers a browser download. Disabled when the
+  job has zero media + files.
+- Empty state explains how points appear ("As crew uses the
+  mobile app, points appear here within seconds of regaining
+  reception").
+- Logging + error handling: every fetch surfaces failures via
+  the visible error banner; sign-failure thumbnails fall back
+  to a placeholder.
+
+Cross-link from existing job detail:
+- `/admin/jobs/[id]/page.tsx` gets a "📍 View field captures →"
+  pill button next to the existing "Back to Jobs" link, prominently
+  visible at the top so dispatchers find it immediately.
+- Inline-styled to avoid touching the existing job-detail
+  stylesheet.
+
+Deferred for the next round (after the user reviews the MVP):
+- Job-level media block (photos / voice / video attached at job
+  level, no point assignment) inline on the new page. The API
+  already returns `job_media[]`; the UI just needs to render it.
+- Job-level notes inline on the new page (`job_notes[]`).
+- Job-level files inline on the new page (`job_files[]`).
+- ZIP-stream download (vs. CSV manifest of signed URLs).
+
 **Batch R — voice transcription via OpenAI Whisper (F4 closer)**
 
 Closes the last F4 plan deliverable — voice memos are now searchable
@@ -1301,6 +1525,135 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch U — mobile video review (Photos / Videos tab + full-screen player)**
+
+Closes the F4 deferral *"mobile-side video gallery — captures land
+on the web admin but don't show in the mobile photos.tsx grid."*
+
+Field: surveyor records a 30-second monument walkthrough → previously
+the only way to confirm the recording wasn't accidentally muted /
+shaky was to wait until the truck pulled back to the office and
+load the web admin. Now they tap **Videos** on the capture screen,
+see the tile, tap to play full-screen.
+
+UI:
+- `mobile/lib/VideoGrid.tsx` — 3-column tile grid mirroring
+  `ThumbnailGrid` for photos, with: server-thumbnail when present
+  (placeholder ▶ + 🎬 glyph until the F4 FFmpeg-thumbnail polish
+  lands), bottom-left `mm:ss` duration pill, top-right upload-state
+  badge (↑ pending / WiFi waiting / ! failed). Same vocabulary as
+  the photo grid so surveyors learn the pictograms once.
+- `mobile/app/(tabs)/capture/[pointId]/photos.tsx` — adds a
+  `Photos · N` / `Videos · M` pill toggle below the header.
+  Active pill lifts to the accent colour for glove-vision
+  contrast. Empty-state copy is type-aware ("No videos yet — tap
+  'Record video' below to capture one").
+- `mobile/app/(tabs)/capture/[pointId]/video-player.tsx` —
+  full-screen modal with native `<Video>` controls
+  (`expo-av` ResizeMode.CONTAIN), back button + Delete button in
+  the header bar, meta block underneath (Duration · Size · State
+  · Captured). On delete → `router.back()` lands back on the
+  Videos tab. Errors surface as a banner over the placeholder,
+  never a crash.
+- Stack route registered in `(tabs)/capture/_layout.tsx`.
+
+Resilience: the player resolves its source via the new
+`useFieldMediaVideoUrl` hook (parallel to the existing
+`useFieldMediaPhotoUrl`), which falls back to the local
+`documentDirectory` URI from the upload queue when the bytes
+haven't synced yet. Net: a freshly-captured walkthrough plays back
+**immediately** in airplane mode, before the upload queue even
+fires — same offline-first contract as photos and voice.
+
+Logging + error handling:
+- `videoPlayer.onError` → `logError` with `{ media_id, point_id,
+  upload_state }` so a wedged signed URL (expired TTL,
+  misconfigured bucket) is visible to ops.
+- `videoPlayer.onDelete` → mirrors the photo delete path with
+  Alert confirm + `useDeleteMedia` + Sentry on failure.
+- `photosScreen.onPressVideo` → simple navigation, no error case
+  beyond an obviously-corrupt route param.
+
+UX touches:
+- "Save without photos?" guard on Done now counts photos +
+  videos (a point with only a walkthrough is still considered
+  captured). Button label flips to "Done (skip captures)" only
+  when both grids are empty.
+- Long-press delete on either grid shares the same handler with
+  type-aware Alert copy ("Delete this video?" vs "Delete this
+  photo?").
+
+Pending v2 (still listed in §9.w):
+- Server-side FFmpeg thumbnail extraction so the placeholder tile
+  becomes a real frame.
+- WiFi-only original-quality re-upload tier (currently single-tier
+  upload at the picker's `videoQuality: 0.7`).
+
+**Batch T — author attribution everywhere + ZIP bundle download (closes Batch S follow-ups)**
+
+Closes the user's most-recent two-part request: *"any point or
+information or media that is uploaded to a job should have the name
+of who uploaded it and the timestamp ... Those reviewing the job
+should be able to download all of the media in the csv manifest or
+like a zip file. They should also be able to download single media
+files."*
+
+Per-job consolidated review surface (`/admin/jobs/[id]/field`):
+- New page lists every point captured for the job as clickable
+  thumbnail cards (each links to `/admin/field-data/{point_id}`
+  for the existing per-point detail view), plus three job-level
+  inline blocks for media / notes / files attached at the job
+  level (no `data_point_id`).
+- Stats bar at the top: points · photos · videos · voice · notes
+  · files. One round trip via `/api/admin/jobs/{id}/field-data`
+  (signs every URL once with a 1-hour TTL).
+- Pill-button entry from `/admin/jobs/[id]` ("📍 View field
+  captures →") so bookkeepers don't have to remember the URL.
+
+Author attribution — uploader name + timestamp on every uploaded
+item (per the user's directive):
+- `/api/admin/jobs/[id]/field-data` resolves `created_by` UUIDs in a
+  single bulk `IN`-query against `registered_users` for points +
+  media + files; returns `uploaded_by_email` / `uploaded_by_name`
+  on every `JobMediaRow` + `JobFileRow`.
+- `/api/admin/field-data/[id]` (per-point detail) does the same:
+  one bulk lookup covers the point creator AND every media + file
+  uploader; the response payload mirrors the per-job shape.
+- UI surfaces an "Uploaded by Lance · Apr 27 14:22" line on every
+  photo / voice / video / file card on both `/admin/jobs/[id]/field`
+  and `/admin/field-data/[id]` (italic small caps above the meta
+  rows so it's scannable without competing with capture metadata).
+
+Bundle + single-file downloads:
+- `/api/admin/jobs/[id]/field-data/manifest` (CSV) gains
+  `uploaded_by_name` + `uploaded_by_email` columns. Bookkeeper can
+  now grep the CSV for "everything Lance shot today" without
+  cross-referencing.
+- New `/api/admin/jobs/[id]/field-data/zip` endpoint streams a
+  server-side ZIP with every photo (original tier) / video / voice
+  memo / generic file in the job, organised as
+  `{job_number}/{photos|voice|videos|files}/{point-name|job-level}/{filename}`,
+  plus a `manifest.csv` at the ZIP root for offline cross-reference.
+  HEAD returns 200/404 so the UI can disable the button when there's
+  nothing to bundle. Streamed via JSZip's `generateInternalStream`
+  bridged into a Web `ReadableStream` so memory stays bounded by
+  the largest single file (no full-archive buffer). Caps at
+  5,000 objects per request — runaway jobs fall back to the CSV
+  manifest. `STORE` compression (no deflate) since photos /
+  videos are already compressed.
+- `JSZip` added to `package.json` as a direct dependency (was
+  transitive before).
+- Per-card "Download →" / "Download video →" / "Download audio →"
+  links remain (signed URLs from the JSON APIs) so a single file
+  can be grabbed without bundling the whole job.
+
+Logging + error handling: every signed-URL or fetch failure inside
+the ZIP route caps at 3 log lines per request to avoid floods;
+fallthrough is always "skip this object + keep the archive going"
+rather than 500 the whole request. The stream's `cancel()` pauses
+the underlying JSZip stream so a browser-cancel doesn't keep the
+function spinning.
 
 **Batch P — three closer items (consent + per-vehicle mileage + inline file preview)**
 
@@ -1808,6 +2161,8 @@ slice of mobile-written data?
 | Jobs (mobile read-only v1) | `jobs` | `/admin/jobs` (existing) | ✓ shipped |
 | Fieldbook notes (learning) | `fieldbook_notes` (`module_id`/`lesson_id`/etc.) | `/admin/learn/{fieldbook,notes}` (existing) | ✓ shipped |
 | Field notes (job/point) | `fieldbook_notes` (`job_id`/`data_point_id`/`note_template`/`structured_data`) | Notes block on `/admin/field-data/[id]` with template tag + structured payload table; mobile add screen at `/(tabs)/jobs/[id]/notes/new` (Batch L) | ✓ shipped |
+| Per-job consolidated review | `field_data_points` + `field_media` + `fieldbook_notes` + `job_files` (joined) | `/admin/jobs/[id]/field` — points list (Batch S) + job-level media/notes/files inline blocks + "Uploaded by X · timestamp" attribution on every item (Batch T) | ✓ shipped |
+| Job media bundle download | `field_media` + `job_files` (signed) | `/api/admin/jobs/[id]/field-data/manifest` (CSV manifest, Batch S; uploader columns added in Batch T) + `/api/admin/jobs/[id]/field-data/zip` (server-streamed ZIP, organised by media_type/point, Batch T) — single-file Download links on every card on the per-job + per-point pages | ✓ shipped |
 
 **Activation gate**: every admin surface above bypasses RLS via
 `supabaseAdmin` (service role), so the data flows even if user-JWT
@@ -2083,10 +2438,10 @@ GET /api/mobile/mileage-log.csv?user_id=...&start=2026-01-01&end=2026-12-31
 - [ ] Decide app name (working title: Starr Field)
 - [ ] Apple Developer + Google Play accounts under Starr Software
 - [ ] App icon + splash screen
-- [ ] Initialize Expo at `mobile/` in this monorepo (`npx create-expo-app mobile --template`) — see §6 preamble
+- [x] Initialize Expo at `mobile/` in this monorepo (`npx create-expo-app mobile --template`) — see §6 preamble. Done; scaffold + tab bar + auth + PowerSync wired (Phase F0).
 - [ ] **Schema audit + snapshot:** export the live Supabase schema for `jobs`, `job_tags`, `job_team`, `job_equipment`, `job_files`, `job_research`, `job_stages_history` (and any other `job_*` tables) plus `time_entries` and related payroll tables, into a tracked `seeds/214_starr_field_existing_schema_snapshot.sql`. Without this, `seeds/220_starr_field_tables.sql` will fail against a fresh `./seeds/run_all.sh --reset` because `ALTER TABLE jobs` and `ALTER TABLE time_entries` reference tables not in the seed pipeline. **Blocks every other Phase F0 item that touches those tables.**
 - [ ] **Inventory the 179-code point taxonomy:** locate the canonical list (printout, spreadsheet, or interview Henry), encode as a CSV, and seed `point_codes` in the same migration. Without this, `field_data_points.code_category` is unenforceable.
-- [ ] PowerSync vs WatermelonDB 1-day spike (per §6.1)
+- [x] PowerSync vs WatermelonDB 1-day spike (per §6.1) — committed to PowerSync; `mobile/lib/db/{schema,connector,index}.tsx` running in production.
 - [ ] Reserve `app.starr.software/field` deep-link domain
 - [ ] Privacy policy + terms of service drafted (required for store submission AND for location-tracking consent flow)
 - [ ] **Texas-licensed employment attorney engagement letter for location-tracking review**
