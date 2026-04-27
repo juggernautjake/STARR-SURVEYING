@@ -40,6 +40,12 @@ interface AdminReceiptRow {
   approved_by: string | null;
   approved_at: string | null;
   rejected_reason: string | null;
+  // Soft-delete + retention (Batch CC). Non-null deleted_at means
+  // the row is tombstoned. The bookkeeper page hides these by
+  // default but the "Show deleted" toggle (Batch FF) brings them
+  // back for audit review.
+  deleted_at: string | null;
+  deletion_reason: string | null;
   extraction_status: string | null;
   extraction_error: string | null;
   extraction_cost_cents: number | null;
@@ -133,6 +139,11 @@ export default function ReceiptsApprovalPage() {
   const [from, setFrom] = useState<string>(() => firstOfMonthIso());
   const [to, setTo] = useState<string>(() => todayIso());
   const [emailFilter, setEmailFilter] = useState<string>('');
+  // "Show deleted" toggle (Batch FF). Off by default — tombstoned
+  // rows are an audit-trail artifact, not part of the daily queue.
+  // When on, the API includes rows where `deleted_at IS NOT NULL`
+  // and we render a "Deleted" badge inline.
+  const [showDeleted, setShowDeleted] = useState<boolean>(false);
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -142,12 +153,13 @@ export default function ReceiptsApprovalPage() {
     try {
       const params = new URLSearchParams({ status: tab, from, to });
       if (emailFilter.trim()) params.set('email', emailFilter.trim());
+      if (showDeleted) params.set('include_deleted', '1');
       const res = await safeFetch<ListResponse>(`/api/admin/receipts?${params}`);
       setData(res ?? { receipts: [], counters: zeroCounters() });
     } finally {
       setLoading(false);
     }
-  }, [tab, from, to, emailFilter, safeFetch]);
+  }, [tab, from, to, emailFilter, showDeleted, safeFetch]);
 
   useEffect(() => {
     void load();
@@ -242,6 +254,22 @@ export default function ReceiptsApprovalPage() {
             style={styles.input}
           />
         </label>
+        <label
+          style={{
+            ...styles.filterLabel,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+          }}
+          title="Include soft-deleted receipts (Batch CC tombstones) in the list. Useful for IRS audit prep."
+        >
+          <input
+            type="checkbox"
+            checked={showDeleted}
+            onChange={(e) => setShowDeleted(e.target.checked)}
+          />
+          Show deleted
+        </label>
         <button type="button" onClick={() => void load()} style={styles.refreshButton}>
           Refresh
         </button>
@@ -335,6 +363,23 @@ function ReceiptRow({ row, expanded, onToggle, onMutate }: ReceiptRowProps) {
         </div>
         <div style={styles.rowRight}>
           <div style={styles.rowTotal}>{total}</div>
+          {row.deleted_at ? (
+            <span
+              style={{
+                ...styles.statusChip,
+                borderColor: '#9F0014',
+                color: '#9F0014',
+                background: '#FEE2E2',
+              }}
+              title={
+                row.deletion_reason
+                  ? `Deleted by user (${row.deletion_reason}) on ${formatDateTime(row.deleted_at)} — Batch CC tombstone`
+                  : `Deleted by user on ${formatDateTime(row.deleted_at)} — Batch CC tombstone`
+              }
+            >
+              🗑 deleted
+            </span>
+          ) : null}
           <span
             style={{
               ...styles.statusChip,

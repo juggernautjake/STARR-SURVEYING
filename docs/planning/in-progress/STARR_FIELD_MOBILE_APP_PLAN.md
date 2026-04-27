@@ -1526,6 +1526,45 @@ Activation gates:
   never set up with an address, or where the address geocode is
   off.
 
+**Batch FF — admin "Show deleted" toggle on /admin/receipts (closes Batch CC audit-trail UX)**
+
+Closes the Batch CC v2 polish item *"Admin 'Show deleted' toggle on
+`/admin/receipts` so the bookkeeper can review tombstones for audit
+prep."* Tombstoned receipts (Batch CC) are an audit-trail artifact
+— hidden from the daily queue, but the office reviewer needs them
+visible during IRS prep + dispute resolution.
+
+API (`app/api/admin/receipts/route.ts`):
+- New `?include_deleted=1` (also `true` / `yes`) query param.
+- Default behaviour is unchanged: tombstones are filtered via
+  `deleted_at IS NULL`.
+- When `include_deleted` is truthy, the filter is skipped so
+  tombstones flow through. Existing `select('*')` already pulls
+  the `deleted_at` + `deletion_reason` columns.
+
+Page (`app/admin/receipts/page.tsx`):
+- New "Show deleted" checkbox in the filter row, with a tooltip
+  explaining the audit-prep use case.
+- Reactive — toggling re-runs the load with the new query param.
+- ReceiptRow's right-side chip column now renders a "🗑 deleted"
+  red chip when `deleted_at` is set. Hover-tooltip shows the
+  deletion timestamp + reason ("user_undo" / "duplicate" /
+  "wrong_capture") so the bookkeeper has the full context
+  without expanding the row.
+- AdminReceiptRow type extended with `deleted_at` +
+  `deletion_reason` mirroring the API row shape.
+
+Pending v2 polish:
+- Bulk-approve action — checkboxes in the row + a top-of-list
+  "✓ Approve N selected" button so the bookkeeper can clear the
+  pending queue in one tap. Requires a new
+  `POST /api/admin/receipts/bulk-approve` endpoint with array
+  body + per-row error-collection.
+- "Restore" action on tombstoned rows — flips `deleted_at`
+  back to null when the bookkeeper decides a delete was
+  premature (e.g. user discarded a real-but-similar receipt as
+  duplicate).
+
 **Batch EE — missing-receipt deep-link pre-fill (closes Batch DD UX loop)**
 
 Closes the Batch DD v2 polish item *"Receipt-capture screen

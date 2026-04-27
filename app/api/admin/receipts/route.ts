@@ -80,6 +80,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const to = searchParams.get('to');
   const email = searchParams.get('email');
   const jobId = searchParams.get('jobId');
+  // Soft-deleted rows (Batch CC) are hidden by default — they're
+  // tombstones for IRS retention, not part of the day-to-day
+  // queue. The bookkeeper can flip the "Show deleted" toggle to
+  // include them when reviewing the audit trail (Batch FF). Accept
+  // any of '1', 'true', 'yes' so curl-from-the-CLI calls don't
+  // need to remember the canonical form.
+  const includeDeleted = (() => {
+    const raw = (searchParams.get('include_deleted') ?? '').toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes';
+  })();
   // Cap at 500: bookkeeper queue rarely needs more in one page — a
   // tighter date range is the recommended path for big exports. The
   // client default of 100 fits ~3 screens of rows.
@@ -113,6 +123,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (status) query = query.eq('status', status);
   if (jobId) query = query.eq('job_id', jobId);
   if (resolvedUserId) query = query.eq('user_id', resolvedUserId);
+  if (!includeDeleted) {
+    // Default path — hide tombstoned rows from the bookkeeper
+    // queue. Includes survives the entire query stack via the
+    // explicit IS NULL guard.
+    query = query.is('deleted_at', null);
+  }
   if (from) {
     // Date filter applies to created_at only — see the in-line note
     // on the export route for the reasoning. Bookkeepers rarely care
