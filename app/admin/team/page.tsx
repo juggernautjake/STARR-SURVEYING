@@ -443,6 +443,12 @@ function TeamCard({ member, pinging, onPing }: TeamCardProps) {
         >
           ✓ Submit week
         </button>
+        <a
+          href={`/admin/mileage?user_email=${encodeURIComponent(member.email)}`}
+          style={styles.linkBtn}
+        >
+          🚗 Mileage
+        </a>
       </div>
     </article>
   );
@@ -614,5 +620,18 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 500,
+  },
+  linkBtn: {
+    background: 'transparent',
+    color: '#0B0E14',
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+    textDecoration: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
   },
 };

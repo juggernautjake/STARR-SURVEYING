@@ -108,6 +108,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       { href: '/admin/leads', label: 'Leads', icon: '📨', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       { href: '/admin/hours-approval', label: 'Hours Approval', icon: '✅', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       { href: '/admin/team', label: 'Field Team', icon: '🛰️', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/mileage', label: 'Mileage', icon: '🚗', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
     ]},
 
     { label: 'Research', items: [
