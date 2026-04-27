@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -47,6 +47,37 @@ export default function CaptureReceiptScreen() {
   const captureReceipt = useCaptureReceipt();
   const [busy, setBusy] = useState<'camera' | 'library' | null>(null);
 
+  // Deep-link params from the Batch DD missing-receipt notification
+  // ("/(tabs)/money/capture?stopId=...&stopArrivedAt=..."). When the
+  // surveyor taps the inbox prompt, we pre-stamp the new receipt
+  // with the stop's arrival time so:
+  //   - AI extraction has a head-start on `transaction_at`
+  //   - the bookkeeper can trace back from the receipt to the stop
+  //     that prompted it (via location_stop_id)
+  //   - the user-facing review screen shows a reasonable default
+  //     timestamp while AI is still running
+  // Both params are optional — the regular "+ Add receipt" entry
+  // from the Money tab passes neither.
+  const params = useLocalSearchParams<{
+    stopId?: string | string[];
+    stopArrivedAt?: string | string[];
+  }>();
+  const stopIdParam =
+    typeof params.stopId === 'string' ? params.stopId : null;
+  const stopArrivedAtParam =
+    typeof params.stopArrivedAt === 'string' ? params.stopArrivedAt : null;
+  const fromStopLabel = useMemo(() => {
+    if (!stopArrivedAtParam) return null;
+    const t = Date.parse(stopArrivedAtParam);
+    if (!Number.isFinite(t)) return null;
+    const d = new Date(t);
+    return d.toLocaleString(undefined, {
+      weekday: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }, [stopArrivedAtParam]);
+
   const onCapture = async (source: 'camera' | 'library') => {
     if (busy) return;
     setBusy(source);
@@ -60,6 +91,9 @@ export default function CaptureReceiptScreen() {
         // (F2 #4) or the bookkeeper can fix it on the web side.
         jobId,
         jobTimeEntryId,
+        // Pre-fill from the deep-link when present (Batch EE).
+        transactionAt: stopArrivedAtParam,
+        locationStopId: stopIdParam,
       });
       if (!result) {
         // useCaptureReceipt() returns null only when ImagePicker's
@@ -120,6 +154,26 @@ export default function CaptureReceiptScreen() {
       </View>
 
       <View style={styles.body}>
+        {fromStopLabel ? (
+          <View
+            style={[
+              styles.fromStopCallout,
+              {
+                backgroundColor: '#FEF3C7',
+                borderColor: '#D97706',
+              },
+            ]}
+          >
+            <Text style={[styles.calloutTitle, { color: '#92400E' }]}>
+              🧾 Forget a receipt?
+            </Text>
+            <Text style={[styles.calloutBody, { color: '#1F2733' }]}>
+              We&apos;ll stamp this receipt with your stop time
+              ({fromStopLabel}) so the AI extraction has a head-start
+              and the bookkeeper can trace it back to the stop.
+            </Text>
+          </View>
+        ) : null}
         {active ? (
           <Text style={[styles.subtitle, { color: palette.muted }]}>
             Receipt will be linked to your active clock-in (
@@ -219,6 +273,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     marginBottom: 16,
+  },
+  fromStopCallout: {
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
   },
   calloutTitle: {
     fontSize: 13,

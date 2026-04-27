@@ -79,6 +79,11 @@ export type AdminPingSourceType =
   | 'task_assignment'
   | 'job_stage'
   | 'reminder'
+  // Worker-emitted (Batch DD): missing-receipt cross-reference prompt.
+  // The notification's `link` carries `?stopId=...&stopArrivedAt=...`
+  // so a tap routes to the receipt capture screen with the stop time
+  // pre-filled.
+  | 'missing_receipt'
   | (string & {});
 
 export interface AdminPing {
@@ -399,6 +404,10 @@ export function deepLinkForSourceType(
       // No specific destination — admin's free-text message stands
       // alone. Banner closes on tap; no nav.
       return null;
+    case 'missing_receipt':
+      // Fallback when the notification's `link` couldn't be parsed —
+      // route to the capture screen without the stopId pre-fill.
+      return { pathname: '/(tabs)/money/capture' };
     default:
       return null;
   }

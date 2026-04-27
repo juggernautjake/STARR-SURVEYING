@@ -84,6 +84,18 @@ export interface CaptureOptions {
   jobId?: string | null;
   /** Optional pre-fill for the time-entry link. */
   jobTimeEntryId?: string | null;
+  /** Optional pre-fill for `transaction_at` — used by the
+   *  missing-receipt deep-link flow (Batch DD/EE). When the
+   *  surveyor lands on the capture screen via a "Forget a
+   *  receipt?" notification, we pre-stamp the receipt with the
+   *  stop's arrival time so AI extraction has a head-start AND
+   *  the user-facing review screen shows a reasonable default
+   *  while AI is still running. ISO-8601 string. */
+  transactionAt?: string | null;
+  /** Optional pre-fill for `location_stop_id` — same flow as
+   *  `transactionAt`. Lets the bookkeeper trace back from the
+   *  receipt to the stop that prompted it. */
+  locationStopId?: string | null;
 }
 
 export interface CapturedReceipt {
@@ -107,7 +119,13 @@ export function useCaptureReceipt(): (
   const { session } = useAuth();
 
   return useCallback(
-    async ({ source, jobId, jobTimeEntryId }) => {
+    async ({
+      source,
+      jobId,
+      jobTimeEntryId,
+      transactionAt,
+      locationStopId,
+    }) => {
       const userId = session?.user.id;
       if (!userId) {
         const err = new Error('Not signed in.');
@@ -115,7 +133,12 @@ export function useCaptureReceipt(): (
         throw err;
       }
 
-      logInfo('receipts.capture', 'attempt', { source, job_id: jobId });
+      logInfo('receipts.capture', 'attempt', {
+        source,
+        job_id: jobId,
+        prefilled_transaction_at: !!transactionAt,
+        prefilled_stop_id: !!locationStopId,
+      });
 
       // 1. Pick + compress via the shared media-upload primitive.
       //    Receipts get the OS editor (square-up the page); 1600px is
@@ -147,15 +170,18 @@ export function useCaptureReceipt(): (
       try {
         await db.execute(
           `INSERT INTO receipts (
-             id, user_id, job_id, job_time_entry_id,
+             id, user_id, job_id, job_time_entry_id, location_stop_id,
+             transaction_at,
              photo_url, status, extraction_status,
              created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             receiptId,
             userId,
             jobId ?? null,
             jobTimeEntryId ?? null,
+            locationStopId ?? null,
+            transactionAt ?? null,
             storagePath,
             'pending',
             'queued',

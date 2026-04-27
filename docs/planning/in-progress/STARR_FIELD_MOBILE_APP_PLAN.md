@@ -1046,7 +1046,7 @@ Resilience additions (same offline-first pattern as F2):
 - [x] Vehicle assignment + driver/passenger — `seeds/225_starr_field_vehicles.sql` lands the `vehicles` table that's been declared in the mobile schema since seeds/220 + wires the FK from `job_time_entries.vehicle_id` (existing column) and `location_segments.vehicle_id` (added by seeds/224). `/admin/vehicles` page provides full CRUD (add / edit / archive / reactivate; soft-archive preserves historical refs). Mobile vehicle picker on the clock-in `pick-job` modal with optional vehicle pill row + "I'm driving" toggle (defaults true since most clock-ins are the driver themselves; passengers explicitly flip it off so mileage attribution stays clean for IRS). `useClockIn` accepts `vehicleId` + `isDriver`; persists to `job_time_entries.vehicle_id` + `is_driver`. `lib/vehicles.ts` `useVehicles` + `useVehicle` hooks back the picker. **Per-vehicle mileage breakdown** on `/admin/mileage` shipped (Batch P): each (user, date) row expands to per-vehicle subtotals with driver / passenger badges so bookkeepers see "Jacob drove Truck 3 for 28 mi AND rode passenger in Truck 1 for 12 mi" — only the driver miles are IRS-deductible. CSV export gains `vehicle_id` / `vehicle_name` / `is_driver` columns for QuickBooks pivots.
 - [x] Dispatcher live map (web app, partial) — `/admin/team` shows last-known GPS + battery + staleness, with Google-Maps deep-link per card. Full live map (continuous trace, polling) pending.
 - [ ] Day-replay scrubber (web app) — depends on the worker-derived segments above.
-- [x] Missing-receipt cross-reference prompts (Batch DD) — `worker/src/services/missing-receipt-detection.ts` + `worker/src/cli/scan-missing-receipts.ts`. Hourly cron scans `location_stops` from the last 24h that are ≥5 min long, have no `job_id` (geofence didn't match a known site), aren't user-overridden, and have NO `receipts.transaction_at` within ±30 min of the stop window. Pushes a notification with `source_type='missing_receipt'`, `link='/(tabs)/money/capture?stopId=...'` so a tap deep-links to the receipt-capture screen with the stop time pre-filled. Idempotent via stop_id encoded in the link. Per-user-per-scan cap of 5 so a forgetful surveyor isn't bombarded. Soft-deleted receipts don't count toward the "covered" check (Batch CC).
+- [x] Missing-receipt cross-reference prompts (Batch DD + EE) — `worker/src/services/missing-receipt-detection.ts` + `worker/src/cli/scan-missing-receipts.ts`. Hourly cron scans `location_stops` from the last 24h that are ≥5 min long, have no `job_id` (geofence didn't match a known site), aren't user-overridden, and have NO `receipts.transaction_at` within ±30 min of the stop window. Pushes a notification with `source_type='missing_receipt'`, `link='/(tabs)/money/capture?stopId=...&stopArrivedAt=...'`. **Batch EE** wires the capture screen to consume those query params: shows an amber "Forget a receipt?" callout with the human-readable stop time + pre-stamps the new row with `transaction_at` = stop arrival + `location_stop_id` = stop UUID so AI extraction has a head-start, dedup fingerprinting works on insert, and the bookkeeper can trace from receipt back to the stop. Idempotent via stop_id in the link. Per-user-per-scan cap of 5. Soft-deleted receipts don't count toward "covered" (Batch CC).
 - [x] Privacy controls panel (employee-facing) — `/(tabs)/me/privacy` shows what we capture, when (only between clock-in/out), cadence (battery-aware tier table), who sees it, and the storage path; plus a today's-timeline list of every `location_pings` row the user wrote in the last 24 h. **No** "pause tracking" toggle — that would violate the privacy contract from the other side (dispatcher would think the user left a job site mid-shift); the only way to stop tracking is to clock out, which does so atomically.
 
 Audit additions:
@@ -1525,6 +1525,68 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch EE — missing-receipt deep-link pre-fill (closes Batch DD UX loop)**
+
+Closes the Batch DD v2 polish item *"Receipt-capture screen
+consumes `?stopId=` + `?stopArrivedAt=` query params to pre-fill
+`transaction_at`. v1 routes to the capture screen but doesn't
+pre-fill."* Tapping a "Forget a receipt?" notification now lands
+on the capture screen with:
+  - an amber "🧾 Forget a receipt?" callout banner above the
+    capture controls, telling the surveyor we'll stamp the
+    receipt with the stop's arrival time
+  - the new receipt row pre-stamped with `transaction_at` =
+    stop arrival ISO + `location_stop_id` = stop UUID
+
+`transaction_at` pre-fill matters because:
+  - AI extraction has a head-start — Claude Vision compares
+    against the pre-filled value rather than parsing it from
+    scratch.
+  - The Batch Z dedup-fingerprint is computable on insert
+    (vendor will land later, but the date component is already
+    correct).
+  - The Batch CC review screen's "Captured" row shows a
+    sensible default while AI is still running.
+
+`location_stop_id` pre-fill matters because:
+  - The bookkeeper can trace from the receipt to the stop that
+    prompted it, useful for audit prep.
+  - The Batch DD scan auto-skips stops with already-linked
+    receipts on subsequent runs (the receipt-window check picks
+    them up via `transaction_at` proximity).
+
+Notification routing (`mobile/lib/notificationsInbox.ts`):
+- `'missing_receipt'` joins `AdminPingSourceType` so type-aware
+  consumers can branch on it.
+- `deepLinkForSourceType('missing_receipt')` returns
+  `{ pathname: '/(tabs)/money/capture' }` as a fallback when the
+  notification's `link` couldn't be parsed.
+
+Capture flow (`mobile/lib/receipts.ts`):
+- `CaptureOptions` gains `transactionAt?: string | null` +
+  `locationStopId?: string | null`.
+- INSERT carries both fields (or null) so the row is correct
+  from creation. PowerSync's CRUD queue replays the full row.
+- Success log line includes `prefilled_transaction_at` +
+  `prefilled_stop_id` flags so ops can correlate adoption.
+
+Capture screen (`mobile/app/(tabs)/money/capture.tsx`):
+- Reads `useLocalSearchParams` for `stopId` + `stopArrivedAt`.
+- Renders the amber "Forget a receipt?" callout with the human
+  readable stop time when both params are present.
+- Passes both through to `useCaptureReceipt`.
+
+Logging:
+- `receipts.capture` 'attempt' line carries
+  `prefilled_transaction_at` + `prefilled_stop_id` booleans for
+  ops visibility.
+
+Pending (still v2):
+- Per-user notification preferences for opting out of
+  missing-receipt prompts on the Me tab.
+- AI categorization that lets the prompt body say "gas station"
+  vs "restaurant" instead of generic "stop."
 
 **Batch DD — missing-receipt cross-reference prompts (F6 closer)**
 
