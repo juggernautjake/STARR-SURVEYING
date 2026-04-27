@@ -22,6 +22,7 @@ export default function JobStackLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="points/[pointId]" />
+      <Stack.Screen name="notes/new" />
     </Stack>
   );
 }

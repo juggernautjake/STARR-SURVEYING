@@ -48,10 +48,30 @@ interface MediaRow {
   annotated_signed_url: string | null;
 }
 
+interface NoteRow {
+  id: string;
+  body: string;
+  note_template: string | null;
+  structured_payload: Record<string, unknown> | null;
+  is_current: boolean;
+  user_email: string;
+  created_at: string;
+  updated_at: string | null;
+  voice_transcript_media_id: string | null;
+}
+
 interface DetailResponse {
   point: PointRow;
   media: MediaRow[];
+  notes: NoteRow[];
 }
+
+const NOTE_TEMPLATE_LABELS: Record<string, string> = {
+  offset_shot: 'Offset shot',
+  monument_found: 'Monument found',
+  hazard: 'Hazard',
+  correction: 'Correction',
+};
 
 function formatTimestamp(iso: string | null): string {
   if (!iso) return '—';
@@ -215,6 +235,20 @@ export default function FieldDataDetailPage() {
       ) : null}
 
       <h2 style={styles.h2}>
+        Notes{' '}
+        {data.notes.length > 0 ? `(${data.notes.length})` : ''}
+      </h2>
+      {data.notes.length === 0 ? (
+        <div style={styles.empty}>No notes attached to this point.</div>
+      ) : (
+        <div style={styles.noteList}>
+          {data.notes.map((n) => (
+            <NoteCardItem key={n.id} note={n} />
+          ))}
+        </div>
+      )}
+
+      <h2 style={styles.h2}>
         Photos {media.length > 0 ? `(${media.length})` : ''}
       </h2>
       {media.length === 0 ? (
@@ -271,6 +305,53 @@ function MetaCell({
       <div style={styles.fieldLabel}>{label}</div>
       <div style={styles.metaValue}>{value}</div>
     </div>
+  );
+}
+
+/**
+ * Single-row note card. Shows the per-template tag (when set), the
+ * body summary (which mobile auto-derives from the structured payload
+ * at insert time so the admin grep keeps working), the structured
+ * payload as a key/value table, and the author + age stamp.
+ */
+function NoteCardItem({ note }: { note: NoteRow }) {
+  const templateLabel = note.note_template
+    ? (NOTE_TEMPLATE_LABELS[note.note_template] ?? note.note_template)
+    : null;
+  const created = new Date(note.created_at);
+  const ageLabel = Number.isFinite(created.getTime())
+    ? created.toLocaleString()
+    : '';
+  return (
+    <article style={styles.noteCard}>
+      <header style={styles.noteHeader}>
+        {templateLabel ? (
+          <span style={styles.noteTemplate}>{templateLabel}</span>
+        ) : (
+          <span style={styles.noteTemplateNeutral}>Free-text</span>
+        )}
+        <span style={styles.noteMeta}>
+          {note.user_email ? `${note.user_email} · ` : ''}
+          {ageLabel}
+        </span>
+      </header>
+      <p style={styles.noteBody}>{note.body || '(no body)'}</p>
+      {note.structured_payload ? (
+        <dl style={styles.notePayload}>
+          {Object.entries(note.structured_payload).map(([k, v]) => (
+            <div key={k} style={styles.notePayloadRow}>
+              <dt style={styles.notePayloadKey}>{k}</dt>
+              <dd style={styles.notePayloadVal}>
+                {v === null || v === undefined ? '—' : String(v)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {!note.is_current ? (
+        <span style={styles.noteArchivedBadge}>archived</span>
+      ) : null}
+    </article>
   );
 }
 
@@ -642,6 +723,93 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     color: '#9CA3AF',
     fontSize: 13,
+  },
+  noteList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+    marginBottom: 24,
+  },
+  noteCard: {
+    border: '1px solid #E2E5EB',
+    borderRadius: 12,
+    padding: 14,
+    background: '#FFFFFF',
+  },
+  noteHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 8,
+    marginBottom: 6,
+    flexWrap: 'wrap',
+  },
+  noteTemplate: {
+    background: '#EEF2FF',
+    color: '#1D3095',
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    padding: '2px 8px',
+    borderRadius: 4,
+  },
+  noteTemplateNeutral: {
+    background: '#F3F4F6',
+    color: '#6B7280',
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    padding: '2px 8px',
+    borderRadius: 4,
+  },
+  noteMeta: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  noteBody: {
+    fontSize: 14,
+    lineHeight: 1.5,
+    margin: '0 0 8px',
+    color: '#0B0E14',
+  },
+  notePayload: {
+    margin: 0,
+    padding: 8,
+    background: '#F7F8FA',
+    borderRadius: 8,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  notePayloadRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: 12,
+  },
+  notePayloadKey: {
+    color: '#6B7280',
+    fontWeight: 500,
+    margin: 0,
+    textTransform: 'capitalize',
+  },
+  notePayloadVal: {
+    margin: 0,
+    color: '#0B0E14',
+    fontWeight: 500,
+  },
+  noteArchivedBadge: {
+    display: 'inline-block',
+    marginTop: 8,
+    background: '#F3F4F6',
+    color: '#6B7280',
+    padding: '2px 8px',
+    borderRadius: 4,
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   videoBlock: {
     width: '100%',

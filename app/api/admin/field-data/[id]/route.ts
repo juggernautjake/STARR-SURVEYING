@@ -33,6 +33,20 @@ interface DataPointRow {
   updated_at: string | null;
 }
 
+export interface AdminFieldNoteRow {
+  id: string;
+  body: string;
+  note_template: string | null;
+  /** Parsed structured_data JSON when present; null when the column
+   *  is empty or the JSON is malformed (defensive parse). */
+  structured_payload: Record<string, unknown> | null;
+  is_current: boolean;
+  user_email: string;
+  created_at: string;
+  updated_at: string | null;
+  voice_transcript_media_id: string | null;
+}
+
 export interface AdminFieldMediaRow {
   id: string;
   media_type: string;
@@ -94,30 +108,41 @@ export const GET = withErrorHandler(
     }
     const point = pointRaw as DataPointRow;
 
-    // Annotate point with job + user.
-    const [{ data: jobRaw }, { data: userRaw }, { data: mediaRaw }] =
-      await Promise.all([
-        supabaseAdmin
-          .from('jobs')
-          .select('id, name, job_number')
-          .eq('id', point.job_id)
-          .maybeSingle(),
-        point.created_by
-          ? supabaseAdmin
-              .from('registered_users')
-              .select('id, email, name')
-              .eq('id', point.created_by)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
-        supabaseAdmin
-          .from('field_media')
-          .select(
-            'id, media_type, burst_group_id, position, duration_seconds, file_size_bytes, device_lat, device_lon, device_compass_heading, captured_at, uploaded_at, upload_state, transcription, storage_url, thumbnail_url, original_url, annotated_url'
-          )
-          .eq('data_point_id', id)
-          .order('position', { ascending: true })
-          .order('captured_at', { ascending: true }),
-      ]);
+    // Annotate point with job + user + media + notes.
+    const [
+      { data: jobRaw },
+      { data: userRaw },
+      { data: mediaRaw },
+      { data: notesRaw },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from('jobs')
+        .select('id, name, job_number')
+        .eq('id', point.job_id)
+        .maybeSingle(),
+      point.created_by
+        ? supabaseAdmin
+            .from('registered_users')
+            .select('id, email, name')
+            .eq('id', point.created_by)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabaseAdmin
+        .from('field_media')
+        .select(
+          'id, media_type, burst_group_id, position, duration_seconds, file_size_bytes, device_lat, device_lon, device_compass_heading, captured_at, uploaded_at, upload_state, transcription, storage_url, thumbnail_url, original_url, annotated_url'
+        )
+        .eq('data_point_id', id)
+        .order('position', { ascending: true })
+        .order('captured_at', { ascending: true }),
+      supabaseAdmin
+        .from('fieldbook_notes')
+        .select(
+          'id, body, note_template, structured_data, is_current, user_email, created_at, updated_at, voice_transcript_media_id'
+        )
+        .eq('data_point_id', id)
+        .order('created_at', { ascending: false }),
+    ]);
 
     type RawMedia = {
       id: string;
@@ -185,6 +210,44 @@ export const GET = withErrorHandler(
       })
     );
 
+    type RawNote = {
+      id: string;
+      body: string | null;
+      note_template: string | null;
+      structured_data: string | null;
+      is_current: boolean | null;
+      user_email: string | null;
+      created_at: string;
+      updated_at: string | null;
+      voice_transcript_media_id: string | null;
+    };
+    const notes: AdminFieldNoteRow[] = ((notesRaw ?? []) as RawNote[]).map(
+      (n) => {
+        let structuredPayload: Record<string, unknown> | null = null;
+        if (n.structured_data) {
+          try {
+            const parsed = JSON.parse(n.structured_data);
+            if (parsed && typeof parsed === 'object') {
+              structuredPayload = parsed as Record<string, unknown>;
+            }
+          } catch {
+            /* malformed JSON — render the body fallback */
+          }
+        }
+        return {
+          id: n.id,
+          body: n.body ?? '',
+          note_template: n.note_template,
+          structured_payload: structuredPayload,
+          is_current: !!n.is_current,
+          user_email: n.user_email ?? '',
+          created_at: n.created_at,
+          updated_at: n.updated_at,
+          voice_transcript_media_id: n.voice_transcript_media_id,
+        };
+      }
+    );
+
     return NextResponse.json({
       point: {
         ...point,
@@ -197,6 +260,7 @@ export const GET = withErrorHandler(
           (userRaw as { name?: string } | null)?.name ?? null,
       },
       media,
+      notes,
     });
   },
   { routeName: 'admin/field-data/:id' }

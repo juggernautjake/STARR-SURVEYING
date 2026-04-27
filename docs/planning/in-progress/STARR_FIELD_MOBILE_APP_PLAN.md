@@ -1022,11 +1022,11 @@ Resilience additions (same offline-first pattern as F2):
 ### Phase F4 — Voice + video + notes (Week 13–16)
 - [/] Voice memo capture — `lib/voiceRecorder.ts` (expo-av Audio.Recording with M4A mono preset, 5-minute auto-stop cap, idempotent permission cache, mid-flight cancel + cleanup), `lib/fieldMedia.ts` `useAttachVoice` (mirrors `useAttachPhoto` — INSERT first, enqueue upload to `starr-field-voice` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup via `lib/deviceLibrary.ts`), `(tabs)/capture/[pointId]/voice.tsx` capture screen with per-memo playback row (long-press to delete). Voice button on the photos screen footer Stack-pushes the recorder. **On-device transcription pending** — `field_media.transcription` column reserved; needs `expo-speech-recognition` or a Whisper-via-API path.
 - [/] Video capture — `lib/storage/mediaUpload.ts` `pickVideo()` wraps `expo-image-picker.launchCameraAsync` with the Videos media type + 5-min cap (per plan §5.4), `lib/fieldMedia.ts` `useAttachVideo` mirrors the photo + voice pattern (INSERT field_media row with `media_type='video'`, enqueue upload to `starr-field-videos` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup which goes to Camera Roll). "📹 Record video" button on the photos screen footer. Admin `/admin/field-data/[id]` renders native `<video controls>` with mp4 + quicktime fallback `<source>` tags, duration in mm:ss, download link. **Pending:** server-side thumbnail extraction (FFmpeg via worker) so the gallery thumbnail isn't a placeholder; WiFi-only original-quality re-upload tier per plan §5.4; mobile-side video gallery (currently captured via OS camera + surfaced on web admin only).
-- [ ] Free-text notes + structured templates (offset, monument, hazard, correction) — `fieldbook_notes` table already in schema with `structured_data` JSONB column reserved.
+- [x] Free-text notes + structured templates (offset, monument, hazard, correction) — `lib/fieldNotes.ts` (`useAddFieldNote` / `usePointNotes` / `useJobLevelNotes` / `useArchiveFieldNote` + `summariseStructuredPayload` + `parseStructuredPayload` helpers), per-template typed payload interfaces, body-summary derivation so the existing `/admin/notes` grep + future search-across-notes work without parsing JSON. Add-note screen at `/(tabs)/jobs/[id]/notes/new` accepts `?point_id=&template=` query params; in-app pill picker switches between Free-text / Offset shot / Monument found / Hazard / Correction with per-template form (typed inputs, choice pills for enums, severity colour-coding). Point detail screen (`(tabs)/jobs/[id]/points/[pointId].tsx`) gets a Notes section with reactive list + long-press archive + "+ Add note" button. Admin `/admin/field-data/[id]` surfaces attached notes with template tag, body, structured payload as a key/value table, author + age stamp, archived badge — `/api/admin/field-data/[id]` returns the parsed structured payload alongside the note row. Job-level note hook (`useJobLevelNotes`) is ready for a future job-detail surface.
 - [ ] Voice-to-text shortcut — bound to a hardware key for hands-free dictation. Need expo-speech-recognition or a Whisper-via-API path.
 - [ ] Search across notes + transcriptions — depends on the above + an FTS index. Need to confirm whether server-side `tsvector` columns or local SQLite FTS5 is the better path.
 
-**Exit:** Field documentation fully replaces paper notes. **Status:** voice memo + video capture + admin audio/video players shipped (Batches I + K). Notes + transcription remain.
+**Exit:** Field documentation fully replaces paper notes. **Status:** voice memo + video capture + free-text/structured notes + admin viewers all shipped (Batches I + K + L). Voice transcription + voice-to-text shortcut + cross-notes search remain.
 
 ### Phase F5 — Files + CSV (Week 17–18)
 - [ ] File upload from device, cloud, web link
@@ -1196,6 +1196,46 @@ under one phase.
       mid-shift would silently break the "tracking-while-clocked-in"
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
+
+**Batch L — free-text + structured notes (F4 notes)**
+- [x] `mobile/lib/fieldNotes.ts` — `useAddFieldNote` /
+      `usePointNotes` / `useJobLevelNotes` / `useArchiveFieldNote`
+      reactive hooks (PowerSync-backed, scoped by data_point_id /
+      job_id with `is_current=1` filter so archived notes hide on
+      mobile but stay visible to the office reviewer). Per-template
+      typed payload interfaces (`OffsetShotPayload` /
+      `MonumentFoundPayload` / `HazardPayload` / `CorrectionPayload`)
+      + `summariseStructuredPayload(template, payload)` derives a
+      one-line body summary so the existing `/admin/notes` grep +
+      future search-across-notes feature work without parsing JSON.
+      `parseStructuredPayload(json)` is the defensive read-side
+      counterpart.
+- [x] Mobile add-note screen at `(tabs)/jobs/[id]/notes/new` —
+      accepts `?point_id=&template=` query params (so a future
+      photo-screen "+ Add hazard" deep-link could pre-pick the
+      template). In-app pill picker switches between Free-text /
+      Offset shot / Monument found / Hazard / Correction; each
+      template has its own typed form (numeric inputs for distance
+      and depth, choice pills for monument type and severity with
+      danger-tinted "high" pill). Save handler composes the JSON
+      payload + body summary; `disabled` logic per template.
+      Stack route registered in `(tabs)/jobs/[id]/_layout.tsx`.
+- [x] Point detail screen Notes section — reactive list using
+      `usePointNotes`, per-card template tag + body + relative-time
+      stamp, long-press → archive confirm Alert. "+ Add note" button
+      pushes the add-note screen with `point_id` pre-filled.
+      Tablet-friendly via the existing `tabletContainerStyle` flow.
+- [x] Admin `/api/admin/field-data/[id]` extended — bulk-fetches
+      `fieldbook_notes` for the point alongside media, returns a
+      `notes` array with `structured_payload` JSON pre-parsed
+      (defensive try/catch keeps a malformed row from breaking the
+      response). New `AdminFieldNoteRow` interface exported.
+- [x] Admin `/admin/field-data/[id]` page renders a Notes block
+      ABOVE Photos — per-note card shows template tag (Free-text
+      pill when null), body, structured payload as a key/value
+      table, author + age stamp, "archived" badge when
+      `is_current=false`. Plays nicely with the existing voice +
+      video + photo cards on the same screen.
 
 **Batch K — video capture (F4 video half)**
 - [x] `lib/storage/mediaUpload.ts` `pickVideo()` — wraps
@@ -1406,6 +1446,9 @@ PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
   gallery list shows a real thumb rather than a placeholder) +
   WiFi-only original-quality re-upload tier per plan §5.4 + a
   mobile video gallery tab on the photos screen.
+- Cross-notes search across the `body` column (free-text + summarised
+  template payloads) — needs either a server-side `tsvector` index
+  or local SQLite FTS5 wiring. F4 plan item.
 - Stop-detection v2: geofence-based category assignment (job site /
   office / home / gas station) using `jobs.centroid_lat/lon` +
   radius; AI classification via worker for ambiguous stops; reverse-
@@ -1441,7 +1484,8 @@ slice of mobile-written data?
 | Notifications (admin pings) | `notifications` | `/admin/team` Ping buttons + existing NotificationBell + POST `/api/admin/notifications` | ✓ shipped |
 | Vehicle assignments | `vehicles` | (none yet — small lookup table) | ⏳ deferred |
 | Jobs (mobile read-only v1) | `jobs` | `/admin/jobs` (existing) | ✓ shipped |
-| Fieldbook notes | `fieldbook_notes` | `/admin/learn/{fieldbook,notes}` (existing) | ✓ shipped |
+| Fieldbook notes (learning) | `fieldbook_notes` (`module_id`/`lesson_id`/etc.) | `/admin/learn/{fieldbook,notes}` (existing) | ✓ shipped |
+| Field notes (job/point) | `fieldbook_notes` (`job_id`/`data_point_id`/`note_template`/`structured_data`) | Notes block on `/admin/field-data/[id]` with template tag + structured payload table; mobile add screen at `/(tabs)/jobs/[id]/notes/new` (Batch L) | ✓ shipped |
 
 **Activation gate**: every admin surface above bypasses RLS via
 `supabaseAdmin` (service role), so the data flows even if user-JWT
