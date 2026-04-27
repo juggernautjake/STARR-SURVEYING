@@ -7,26 +7,28 @@
 // the comments, files, or media relating to that point. They should
 // also be able to download any media in any job."
 //
-// MVP scope (this batch):
+// Surfaces:
 //   - Job header + stats line ("X points · Y photos · Z videos…").
 //   - Points list as clickable thumbnail cards. Each card links to
-//     the existing /admin/field-data/{point_id} drilldown which
-//     ALREADY shows comments, files, and media for that point.
-//   - "Download all media (manifest CSV)" button that hits the
-//     manifest endpoint and triggers a download. CSV has one row
-//     per downloadable with a 4-hour signed URL — bookkeeper can
-//     `xargs wget` or open in Excel.
+//     /admin/field-data/{point_id} for the per-point detail (comments,
+//     files, media) view.
+//   - Job-level photos / voice / video inline (i.e. media attached
+//     to the job but not to any specific point — happens when the
+//     surveyor captures from the camera roll w/o picking a point).
+//   - Job-level notes + job-level files inline.
+//   - "CSV manifest" button → /api/admin/jobs/{id}/field-data/manifest
+//     returns a CSV with one row per downloadable + a 4-hour signed
+//     URL each. Useful for `xargs wget` or Excel review.
+//   - "Download ZIP" button → /api/admin/jobs/{id}/field-data/zip
+//     streams a ZIP with every photo / voice / video / file in the
+//     job. Server-side stream so the browser handles the dialog.
 //
-// Deferred for next round:
-//   - Job-level media block (photos/voice/video attached at job
-//     level, no point assignment) inline on this page.
-//   - Job-level notes inline on this page.
-//   - Job-level files inline on this page.
-//   - ZIP-stream download (F5+ polish).
+// Per the user's directive: every uploaded item shows the uploader
+// name + upload timestamp ("Uploaded by Lance · Apr 27 14:22").
 //
-// Logging + error handling: every fetch reports its outcome via
-// the visible error banner; a sign-failure surfaces as a
-// placeholder thumbnail (the API caps log lines per request).
+// Logging + error handling: every fetch reports its outcome via the
+// visible error banner; a sign-failure surfaces as a placeholder
+// thumbnail (the API caps log lines per request).
 'use client';
 
 import Link from 'next/link';
@@ -64,14 +66,55 @@ interface JobHeader {
   stage: string | null;
 }
 
+interface JobMedia {
+  id: string;
+  media_type: string;
+  storage_signed_url: string | null;
+  thumbnail_signed_url: string | null;
+  original_signed_url: string | null;
+  duration_seconds: number | null;
+  file_size_bytes: number | null;
+  device_lat: number | null;
+  device_lon: number | null;
+  captured_at: string | null;
+  uploaded_at: string | null;
+  upload_state: string | null;
+  transcription: string | null;
+  transcription_status: string | null;
+  download_name: string;
+  uploaded_by_email: string | null;
+  uploaded_by_name: string | null;
+}
+
+interface JobNote {
+  id: string;
+  body: string;
+  note_template: string | null;
+  structured_payload: Record<string, unknown> | null;
+  is_current: boolean;
+  user_email: string;
+  created_at: string;
+}
+
+interface JobFile {
+  id: string;
+  name: string;
+  description: string | null;
+  signed_url: string | null;
+  content_type: string | null;
+  file_size_bytes: number | null;
+  upload_state: string | null;
+  created_at: string;
+  uploaded_by_email: string | null;
+  uploaded_by_name: string | null;
+}
+
 interface FieldDataResponse {
   job: JobHeader;
   points: PointSummary[];
-  // Job-level surfaces returned by the API but NOT rendered in this
-  // MVP (deferred to the next round per the scoping note above).
-  job_media: unknown[];
-  job_notes: unknown[];
-  job_files: unknown[];
+  job_media: JobMedia[];
+  job_notes: JobNote[];
+  job_files: JobFile[];
   stats: {
     points: number;
     photos: number;
@@ -83,7 +126,8 @@ interface FieldDataResponse {
   };
 }
 
-function formatTimestamp(iso: string): string {
+function formatTimestamp(iso: string | null): string {
+  if (!iso) return '—';
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return iso;
   return d.toLocaleString(undefined, {
@@ -92,6 +136,22 @@ function formatTimestamp(iso: string): string {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+function formatBytes(bytes: number | null): string {
+  if (!bytes) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function uploaderLine(
+  email: string | null,
+  name: string | null,
+  iso: string | null
+): string {
+  const who = name || email || 'Unknown';
+  return `Uploaded by ${who} · ${formatTimestamp(iso)}`;
 }
 
 export default function JobFieldDataPage() {
@@ -103,6 +163,7 @@ export default function JobFieldDataPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);
+  const [zipping, setZipping] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!session?.user?.email || !jobId) return;
@@ -162,6 +223,35 @@ export default function JobFieldDataPage() {
     }
   }, [jobId, data]);
 
+  const onDownloadZip = useCallback(async () => {
+    if (!jobId) return;
+    setZipping(true);
+    setError('');
+    try {
+      // Fire the request — the route streams a ZIP back. We open it
+      // in a new tab so the browser handles the download dialog
+      // without occupying the SPA's main connection (large jobs may
+      // take several minutes to stream end-to-end).
+      const url = `/api/admin/jobs/${jobId}/field-data/zip`;
+      // Sanity-ping the endpoint so 4xx surfaces inline rather than
+      // as a blank tab. HEAD is cheap on the server and skips the
+      // streaming.
+      const head = await fetch(url, { method: 'HEAD' });
+      if (!head.ok) {
+        throw new Error(
+          head.status === 404
+            ? 'No media to ZIP.'
+            : `ZIP failed (HTTP ${head.status})`
+        );
+      }
+      window.open(url, '_blank');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ZIP failed');
+    } finally {
+      setZipping(false);
+    }
+  }, [jobId]);
+
   if (!session?.user?.email) {
     return <div style={styles.empty}>Sign in required.</div>;
   }
@@ -180,7 +270,7 @@ export default function JobFieldDataPage() {
   }
   if (!data) return null;
 
-  const { job, points, stats } = data;
+  const { job, points, stats, job_media, job_notes, job_files } = data;
   const headerSubtitle = [
     job.client_name,
     [job.address, job.city, job.state, job.zip].filter(Boolean).join(', '),
@@ -206,19 +296,34 @@ export default function JobFieldDataPage() {
             <p style={styles.subtitle}>{headerSubtitle}</p>
           ) : null}
         </div>
-        <button
-          type="button"
-          style={styles.primaryBtn}
-          onClick={() => void onDownloadManifest()}
-          disabled={downloading || stats.total_media + stats.files === 0}
-          title={
-            stats.total_media + stats.files === 0
-              ? 'No media or files attached to this job yet.'
-              : 'Downloads a CSV with one row per file + a 4-hour signed URL each.'
-          }
-        >
-          {downloading ? 'Preparing…' : '⬇ Download all media (CSV)'}
-        </button>
+        <div style={styles.btnRow}>
+          <button
+            type="button"
+            style={styles.primaryBtn}
+            onClick={() => void onDownloadManifest()}
+            disabled={downloading || stats.total_media + stats.files === 0}
+            title={
+              stats.total_media + stats.files === 0
+                ? 'No media or files attached to this job yet.'
+                : 'CSV with one row per file + a 4-hour signed URL each.'
+            }
+          >
+            {downloading ? 'Preparing…' : '⬇ CSV manifest'}
+          </button>
+          <button
+            type="button"
+            style={styles.secondaryBtn}
+            onClick={() => void onDownloadZip()}
+            disabled={zipping || stats.total_media + stats.files === 0}
+            title={
+              stats.total_media + stats.files === 0
+                ? 'No media or files attached to this job yet.'
+                : 'Streams a ZIP with every photo/voice/video/file in one bundle.'
+            }
+          >
+            {zipping ? 'Bundling…' : '📦 Download ZIP'}
+          </button>
+        </div>
       </header>
 
       <div style={styles.statsBar}>
@@ -303,7 +408,191 @@ export default function JobFieldDataPage() {
           </div>
         )}
       </section>
+
+      {/* Job-level (un-attached) media. Crew can capture a photo
+          directly against the job without picking a point — those
+          show up here so the bookkeeper isn't hunting under a
+          phantom point name. */}
+      <section style={styles.section}>
+        <h2 style={styles.h2}>
+          Job-level photos / voice / video{' '}
+          {job_media.length > 0 ? `(${job_media.length})` : ''}
+        </h2>
+        {job_media.length === 0 ? (
+          <div style={styles.empty}>
+            No media attached at the job level. (Per-point media
+            appears on each point card above.)
+          </div>
+        ) : (
+          <div style={styles.mediaGrid}>
+            {job_media.map((m) => (
+              <JobMediaCard key={m.id} media={m} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section style={styles.section}>
+        <h2 style={styles.h2}>
+          Job-level notes{' '}
+          {job_notes.length > 0 ? `(${job_notes.length})` : ''}
+        </h2>
+        {job_notes.length === 0 ? (
+          <div style={styles.empty}>
+            No notes attached at the job level.
+          </div>
+        ) : (
+          <div style={styles.noteList}>
+            {job_notes.map((n) => (
+              <article key={n.id} style={styles.noteCard}>
+                <header style={styles.noteHeader}>
+                  <span style={styles.noteTemplate}>
+                    {n.note_template ?? 'Free-text'}
+                  </span>
+                  <span style={styles.noteMeta}>
+                    {n.user_email ? `${n.user_email} · ` : ''}
+                    {formatTimestamp(n.created_at)}
+                  </span>
+                </header>
+                <p style={styles.noteBody}>{n.body || '(no body)'}</p>
+                {!n.is_current ? (
+                  <span style={styles.archivedBadge}>archived</span>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section style={styles.section}>
+        <h2 style={styles.h2}>
+          Job-level files{' '}
+          {job_files.length > 0 ? `(${job_files.length})` : ''}
+        </h2>
+        {job_files.length === 0 ? (
+          <div style={styles.empty}>
+            No files attached at the job level.
+          </div>
+        ) : (
+          <div style={styles.noteList}>
+            {job_files.map((f) => (
+              <article key={f.id} style={styles.noteCard}>
+                <header style={styles.noteHeader}>
+                  <span style={styles.noteTemplate}>📎 File</span>
+                  <span style={styles.noteMeta}>
+                    {uploaderLine(
+                      f.uploaded_by_email,
+                      f.uploaded_by_name,
+                      f.created_at
+                    )}
+                  </span>
+                </header>
+                <p style={styles.noteBody}>{f.name || '(unnamed)'}</p>
+                {f.description ? (
+                  <p style={styles.fileDesc}>{f.description}</p>
+                ) : null}
+                <div style={styles.fileMeta}>
+                  {f.content_type ? <span>{f.content_type}</span> : null}
+                  {f.file_size_bytes ? (
+                    <span>{formatBytes(f.file_size_bytes)}</span>
+                  ) : null}
+                </div>
+                {f.signed_url ? (
+                  <a
+                    href={f.signed_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={styles.dlLink}
+                  >
+                    Download →
+                  </a>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
+  );
+}
+
+/**
+ * One job-level media tile. Render branches by media_type:
+ *   - photo : thumbnail + "Open full-resolution" link
+ *   - voice : <audio controls> + transcript (if present)
+ *   - video : <video controls> with poster fallback to thumbnail
+ * Always shows uploader attribution at the top.
+ */
+function JobMediaCard({ media }: { media: JobMedia }) {
+  const downloadUrl =
+    media.original_signed_url ?? media.storage_signed_url;
+  return (
+    <article style={styles.mediaCard}>
+      <div style={styles.uploaderLineDark}>
+        {uploaderLine(
+          media.uploaded_by_email,
+          media.uploaded_by_name,
+          media.uploaded_at ?? media.captured_at
+        )}
+      </div>
+      {media.media_type === 'video' ? (
+        downloadUrl ? (
+          <video
+            controls
+            preload="metadata"
+            poster={media.thumbnail_signed_url ?? undefined}
+            style={styles.mediaPlayer}
+          >
+            <source src={downloadUrl} type="video/mp4" />
+            <source src={downloadUrl} type="video/quicktime" />
+          </video>
+        ) : (
+          <div style={styles.mediaMissing}>No video available</div>
+        )
+      ) : media.media_type === 'voice' ? (
+        downloadUrl ? (
+          <audio controls preload="metadata" style={styles.audioPlayer}>
+            <source src={downloadUrl} type="audio/mp4" />
+            <source src={downloadUrl} type="audio/mpeg" />
+          </audio>
+        ) : (
+          <div style={styles.mediaMissing}>No audio available</div>
+        )
+      ) : media.thumbnail_signed_url ?? media.storage_signed_url ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={
+            media.thumbnail_signed_url ??
+            media.storage_signed_url ??
+            undefined
+          }
+          alt=""
+          style={styles.mediaImg}
+        />
+      ) : (
+        <div style={styles.mediaMissing}>No image available</div>
+      )}
+      <div style={styles.mediaMeta}>
+        <span>{formatTimestamp(media.captured_at)}</span>
+        {media.file_size_bytes ? (
+          <span>{formatBytes(media.file_size_bytes)}</span>
+        ) : null}
+      </div>
+      {media.transcription ? (
+        <p style={styles.transcript}>“{media.transcription}”</p>
+      ) : null}
+      {downloadUrl ? (
+        <a
+          href={downloadUrl}
+          download={media.download_name}
+          target="_blank"
+          rel="noreferrer"
+          style={styles.dlLink}
+        >
+          Download →
+        </a>
+      ) : null}
+    </article>
   );
 }
 
@@ -361,6 +650,152 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 500,
+  },
+  secondaryBtn: {
+    background: '#FFFFFF',
+    color: '#1D3095',
+    border: '1px solid #1D3095',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  btnRow: {
+    display: 'flex',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  mediaGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+    gap: 16,
+  },
+  mediaCard: {
+    border: '1px solid #E2E5EB',
+    borderRadius: 12,
+    padding: 12,
+    background: '#FFFFFF',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  mediaImg: {
+    width: '100%',
+    aspectRatio: '4 / 3',
+    objectFit: 'cover',
+    borderRadius: 8,
+    background: '#F7F8FA',
+  },
+  mediaPlayer: {
+    width: '100%',
+    maxHeight: 280,
+    borderRadius: 8,
+    background: '#0B0E14',
+  },
+  audioPlayer: {
+    width: '100%',
+  },
+  mediaMissing: {
+    width: '100%',
+    aspectRatio: '4 / 3',
+    background: '#F7F8FA',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#9CA3AF',
+    fontSize: 13,
+    borderRadius: 8,
+  },
+  mediaMeta: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  uploaderLineDark: {
+    fontSize: 11,
+    color: '#0B0E14',
+    fontWeight: 500,
+  },
+  noteList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+  },
+  noteCard: {
+    border: '1px solid #E2E5EB',
+    borderRadius: 12,
+    padding: 14,
+    background: '#FFFFFF',
+  },
+  noteHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 8,
+    marginBottom: 6,
+    flexWrap: 'wrap',
+  },
+  noteTemplate: {
+    background: '#EEF2FF',
+    color: '#1D3095',
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    padding: '2px 8px',
+    borderRadius: 4,
+  },
+  noteMeta: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  noteBody: {
+    fontSize: 14,
+    lineHeight: 1.5,
+    margin: '0 0 8px',
+    color: '#0B0E14',
+  },
+  archivedBadge: {
+    display: 'inline-block',
+    marginTop: 8,
+    background: '#F3F4F6',
+    color: '#6B7280',
+    padding: '2px 8px',
+    borderRadius: 4,
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  fileDesc: {
+    fontSize: 12,
+    color: '#4B5563',
+    margin: '0 0 8px',
+  },
+  fileMeta: {
+    display: 'flex',
+    gap: 12,
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 6,
+  },
+  dlLink: {
+    fontSize: 12,
+    color: '#1D3095',
+    textDecoration: 'none',
+    fontWeight: 500,
+  },
+  transcript: {
+    fontSize: 12,
+    color: '#0B0E14',
+    fontStyle: 'italic',
+    background: '#F7F8FA',
+    padding: 8,
+    borderRadius: 8,
+    margin: 0,
+    lineHeight: 1.4,
   },
   statsBar: {
     display: 'grid',

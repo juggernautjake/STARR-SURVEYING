@@ -1365,6 +1365,71 @@ Activation gates:
   never set up with an address, or where the address geocode is
   off.
 
+**Batch T — author attribution everywhere + ZIP bundle download (closes Batch S follow-ups)**
+
+Closes the user's most-recent two-part request: *"any point or
+information or media that is uploaded to a job should have the name
+of who uploaded it and the timestamp ... Those reviewing the job
+should be able to download all of the media in the csv manifest or
+like a zip file. They should also be able to download single media
+files."*
+
+Per-job consolidated review surface (`/admin/jobs/[id]/field`):
+- New page lists every point captured for the job as clickable
+  thumbnail cards (each links to `/admin/field-data/{point_id}`
+  for the existing per-point detail view), plus three job-level
+  inline blocks for media / notes / files attached at the job
+  level (no `data_point_id`).
+- Stats bar at the top: points · photos · videos · voice · notes
+  · files. One round trip via `/api/admin/jobs/{id}/field-data`
+  (signs every URL once with a 1-hour TTL).
+- Pill-button entry from `/admin/jobs/[id]` ("📍 View field
+  captures →") so bookkeepers don't have to remember the URL.
+
+Author attribution — uploader name + timestamp on every uploaded
+item (per the user's directive):
+- `/api/admin/jobs/[id]/field-data` resolves `created_by` UUIDs in a
+  single bulk `IN`-query against `registered_users` for points +
+  media + files; returns `uploaded_by_email` / `uploaded_by_name`
+  on every `JobMediaRow` + `JobFileRow`.
+- `/api/admin/field-data/[id]` (per-point detail) does the same:
+  one bulk lookup covers the point creator AND every media + file
+  uploader; the response payload mirrors the per-job shape.
+- UI surfaces an "Uploaded by Lance · Apr 27 14:22" line on every
+  photo / voice / video / file card on both `/admin/jobs/[id]/field`
+  and `/admin/field-data/[id]` (italic small caps above the meta
+  rows so it's scannable without competing with capture metadata).
+
+Bundle + single-file downloads:
+- `/api/admin/jobs/[id]/field-data/manifest` (CSV) gains
+  `uploaded_by_name` + `uploaded_by_email` columns. Bookkeeper can
+  now grep the CSV for "everything Lance shot today" without
+  cross-referencing.
+- New `/api/admin/jobs/[id]/field-data/zip` endpoint streams a
+  server-side ZIP with every photo (original tier) / video / voice
+  memo / generic file in the job, organised as
+  `{job_number}/{photos|voice|videos|files}/{point-name|job-level}/{filename}`,
+  plus a `manifest.csv` at the ZIP root for offline cross-reference.
+  HEAD returns 200/404 so the UI can disable the button when there's
+  nothing to bundle. Streamed via JSZip's `generateInternalStream`
+  bridged into a Web `ReadableStream` so memory stays bounded by
+  the largest single file (no full-archive buffer). Caps at
+  5,000 objects per request — runaway jobs fall back to the CSV
+  manifest. `STORE` compression (no deflate) since photos /
+  videos are already compressed.
+- `JSZip` added to `package.json` as a direct dependency (was
+  transitive before).
+- Per-card "Download →" / "Download video →" / "Download audio →"
+  links remain (signed URLs from the JSON APIs) so a single file
+  can be grabbed without bundling the whole job.
+
+Logging + error handling: every signed-URL or fetch failure inside
+the ZIP route caps at 3 log lines per request to avoid floods;
+fallthrough is always "skip this object + keep the archive going"
+rather than 500 the whole request. The stream's `cancel()` pauses
+the underlying JSZip stream so a browser-cancel doesn't keep the
+function spinning.
+
 **Batch P — three closer items (consent + per-vehicle mileage + inline file preview)**
 
 Three small closer items, no native deps, that finish open loops
@@ -1871,6 +1936,8 @@ slice of mobile-written data?
 | Jobs (mobile read-only v1) | `jobs` | `/admin/jobs` (existing) | ✓ shipped |
 | Fieldbook notes (learning) | `fieldbook_notes` (`module_id`/`lesson_id`/etc.) | `/admin/learn/{fieldbook,notes}` (existing) | ✓ shipped |
 | Field notes (job/point) | `fieldbook_notes` (`job_id`/`data_point_id`/`note_template`/`structured_data`) | Notes block on `/admin/field-data/[id]` with template tag + structured payload table; mobile add screen at `/(tabs)/jobs/[id]/notes/new` (Batch L) | ✓ shipped |
+| Per-job consolidated review | `field_data_points` + `field_media` + `fieldbook_notes` + `job_files` (joined) | `/admin/jobs/[id]/field` — points list (Batch S) + job-level media/notes/files inline blocks + "Uploaded by X · timestamp" attribution on every item (Batch T) | ✓ shipped |
+| Job media bundle download | `field_media` + `job_files` (signed) | `/api/admin/jobs/[id]/field-data/manifest` (CSV manifest, Batch S; uploader columns added in Batch T) + `/api/admin/jobs/[id]/field-data/zip` (server-streamed ZIP, organised by media_type/point, Batch T) — single-file Download links on every card on the per-job + per-point pages | ✓ shipped |
 
 **Activation gate**: every admin surface above bypasses RLS via
 `supabaseAdmin` (service role), so the data flows even if user-JWT

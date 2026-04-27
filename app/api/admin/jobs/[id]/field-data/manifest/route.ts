@@ -49,6 +49,11 @@ interface ManifestRow {
   size_bytes: number | null;
   duration_seconds: number | null;
   captured_at: string | null;
+  /** Author of the upload — surfaced as a CSV column so the
+   *  bookkeeper can grep for "everything Lance shot today" without
+   *  cross-referencing. Mirrors uploaded_by_* on the JSON APIs. */
+  uploaded_by_email: string | null;
+  uploaded_by_name: string | null;
   signed_url: string | null;
 }
 
@@ -95,14 +100,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     supabaseAdmin
       .from('field_media')
       .select(
-        'id, media_type, data_point_id, storage_url, original_url, content_type:media_type, duration_seconds, file_size_bytes, captured_at'
+        'id, media_type, data_point_id, storage_url, original_url, content_type:media_type, duration_seconds, file_size_bytes, captured_at, created_by'
       )
       .eq('job_id', jobId)
       .order('captured_at', { ascending: false }),
     supabaseAdmin
       .from('job_files')
       .select(
-        'id, data_point_id, storage_path, name, content_type, file_size_bytes, created_at'
+        'id, data_point_id, storage_path, name, content_type, file_size_bytes, created_at, created_by'
       )
       .eq('job_id', jobId)
       .order('created_at', { ascending: false }),
@@ -174,6 +179,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     duration_seconds: number | null;
     file_size_bytes: number | null;
     captured_at: string | null;
+    created_by: string | null;
   };
   type RawFile = {
     id: string;
@@ -183,11 +189,46 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     content_type: string | null;
     file_size_bytes: number | null;
     created_at: string;
+    created_by: string | null;
   };
+
+  const rawMediaRows = (mediaRes.data ?? []) as RawMedia[];
+  const rawFileRows = (filesRes.data ?? []) as RawFile[];
+
+  // Bulk-resolve every uploader UUID across media + files in one
+  // IN-query so the CSV row builder is a Map lookup.
+  const userIds = [
+    ...new Set(
+      [
+        ...rawMediaRows.map((m) => m.created_by),
+        ...rawFileRows.map((f) => f.created_by),
+      ].filter((id): id is string => !!id)
+    ),
+  ];
+  const usersById = new Map<string, { email: string; name: string }>();
+  if (userIds.length > 0) {
+    const { data: usersRaw, error: usersErr } = await supabaseAdmin
+      .from('registered_users')
+      .select('id, email, name')
+      .in('id', userIds);
+    if (usersErr) {
+      console.warn('[admin/jobs/:id/manifest] user lookup failed', {
+        error: usersErr.message,
+      });
+    } else {
+      for (const u of (usersRaw ?? []) as Array<{
+        id: string;
+        email: string;
+        name: string;
+      }>) {
+        usersById.set(u.id, { email: u.email, name: u.name });
+      }
+    }
+  }
 
   const rows: ManifestRow[] = [];
 
-  for (const m of (mediaRes.data ?? []) as RawMedia[]) {
+  for (const m of rawMediaRows) {
     const bucket =
       m.media_type === 'voice'
         ? VOICE_BUCKET
@@ -202,6 +243,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       m.media_type === 'voice'
       ? m.media_type
       : 'file') as ManifestRow['kind'];
+    const u = m.created_by ? usersById.get(m.created_by) : null;
     rows.push({
       point_name: m.data_point_id
         ? (pointNames.get(m.data_point_id) ?? null)
@@ -212,12 +254,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       size_bytes: m.file_size_bytes,
       duration_seconds: m.duration_seconds,
       captured_at: m.captured_at,
+      uploaded_by_email: u?.email ?? null,
+      uploaded_by_name: u?.name ?? null,
       signed_url: signed,
     });
   }
 
-  for (const f of (filesRes.data ?? []) as RawFile[]) {
+  for (const f of rawFileRows) {
     const signed = await signOne(FILES_BUCKET, f.storage_path);
+    const u = f.created_by ? usersById.get(f.created_by) : null;
     rows.push({
       point_name: f.data_point_id
         ? (pointNames.get(f.data_point_id) ?? null)
@@ -228,6 +273,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       size_bytes: f.file_size_bytes,
       duration_seconds: null,
       captured_at: f.created_at,
+      uploaded_by_email: u?.email ?? null,
+      uploaded_by_name: u?.name ?? null,
       signed_url: signed,
     });
   }
@@ -241,6 +288,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     'size_bytes',
     'duration_seconds',
     'captured_at',
+    'uploaded_by_name',
+    'uploaded_by_email',
     'signed_url',
   ];
   const lines = [header.join(',')];
@@ -254,6 +303,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         csvEscape(r.size_bytes),
         csvEscape(r.duration_seconds),
         csvEscape(r.captured_at),
+        csvEscape(r.uploaded_by_name),
+        csvEscape(r.uploaded_by_email),
         csvEscape(r.signed_url),
       ].join(',')
     );

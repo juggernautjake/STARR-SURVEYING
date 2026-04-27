@@ -47,6 +47,9 @@ export interface AdminJobFileRow {
   created_by: string | null;
   created_at: string;
   uploaded_at: string | null;
+  /** Author attribution. Mirrors `point.created_by_email/_name`. */
+  uploaded_by_email: string | null;
+  uploaded_by_name: string | null;
 }
 
 export interface AdminFieldNoteRow {
@@ -95,6 +98,9 @@ export interface AdminFieldMediaRow {
    *  the original_signed_url image bytes are NEVER modified per
    *  plan §5.4. Null when no annotations exist. */
   annotations: string | null;
+  /** Author attribution. Mirrors `point.created_by_email/_name`. */
+  uploaded_by_email: string | null;
+  uploaded_by_name: string | null;
 }
 
 export const GET = withErrorHandler(
@@ -142,10 +148,11 @@ export const GET = withErrorHandler(
     }
     const point = pointRaw as DataPointRow;
 
-    // Annotate point with job + user + media + notes + files.
+    // Annotate point with job + media + notes + files. Users are
+    // resolved in one bulk IN-query AFTER the parallel fetch so that
+    // we can include media + file uploaders in the same round-trip.
     const [
       { data: jobRaw },
-      { data: userRaw },
       { data: mediaRaw },
       { data: notesRaw },
       { data: filesRaw },
@@ -155,17 +162,10 @@ export const GET = withErrorHandler(
         .select('id, name, job_number')
         .eq('id', point.job_id)
         .maybeSingle(),
-      point.created_by
-        ? supabaseAdmin
-            .from('registered_users')
-            .select('id, email, name')
-            .eq('id', point.created_by)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
       supabaseAdmin
         .from('field_media')
         .select(
-          'id, media_type, burst_group_id, position, duration_seconds, file_size_bytes, device_lat, device_lon, device_compass_heading, captured_at, uploaded_at, upload_state, transcription, transcription_status, transcription_error, transcription_completed_at, transcription_cost_cents, storage_url, thumbnail_url, original_url, annotated_url, annotations'
+          'id, media_type, burst_group_id, position, duration_seconds, file_size_bytes, device_lat, device_lon, device_compass_heading, captured_at, uploaded_at, upload_state, transcription, transcription_status, transcription_error, transcription_completed_at, transcription_cost_cents, storage_url, thumbnail_url, original_url, annotated_url, annotations, created_by'
         )
         .eq('data_point_id', id)
         .order('position', { ascending: true })
@@ -209,7 +209,59 @@ export const GET = withErrorHandler(
       original_url: string | null;
       annotated_url: string | null;
       annotations: string | null;
+      created_by: string | null;
     };
+
+    type RawFile = {
+      id: string;
+      name: string;
+      description: string | null;
+      storage_path: string;
+      content_type: string | null;
+      file_size_bytes: number | null;
+      upload_state: string | null;
+      created_by: string | null;
+      created_at: string;
+      uploaded_at: string | null;
+    };
+
+    const rawMedia = (mediaRaw ?? []) as RawMedia[];
+    const rawFiles = (filesRaw ?? []) as RawFile[];
+
+    // Bulk-resolve every uploader UUID across point + media + files
+    // in one IN-query. Build a lookup Map for cheap downstream reads.
+    const userIds = [
+      ...new Set(
+        [
+          point.created_by,
+          ...rawMedia.map((m) => m.created_by),
+          ...rawFiles.map((f) => f.created_by),
+        ].filter((u): u is string => !!u)
+      ),
+    ];
+    const usersById = new Map<string, { email: string | null; name: string | null }>();
+    if (userIds.length > 0) {
+      const { data: usersRaw, error: usersErr } = await supabaseAdmin
+        .from('registered_users')
+        .select('id, email, name')
+        .in('id', userIds);
+      if (usersErr) {
+        console.warn('[admin/field-data/:id] user lookup failed', {
+          error: usersErr.message,
+        });
+      } else {
+        for (const u of (usersRaw ?? []) as Array<{
+          id: string;
+          email: string | null;
+          name: string | null;
+        }>) {
+          usersById.set(u.id, { email: u.email, name: u.name });
+        }
+      }
+    }
+    const pointUser = point.created_by
+      ? usersById.get(point.created_by) ?? null
+      : null;
 
     // Sign every URL in parallel. Each path that fails signs to null.
     const signOne = async (path: string | null): Promise<string | null> => {
@@ -228,13 +280,14 @@ export const GET = withErrorHandler(
     };
 
     const media: AdminFieldMediaRow[] = await Promise.all(
-      ((mediaRaw ?? []) as RawMedia[]).map(async (m) => {
+      rawMedia.map(async (m) => {
         const [storage, thumbnail, original, annotated] = await Promise.all([
           signOne(m.storage_url),
           signOne(m.thumbnail_url),
           signOne(m.original_url),
           signOne(m.annotated_url),
         ]);
+        const u = m.created_by ? usersById.get(m.created_by) : null;
         return {
           id: m.id,
           media_type: m.media_type,
@@ -258,6 +311,8 @@ export const GET = withErrorHandler(
           original_signed_url: original,
           annotated_signed_url: annotated,
           annotations: m.annotations,
+          uploaded_by_email: u?.email ?? null,
+          uploaded_by_name: u?.name ?? null,
         };
       })
     );
@@ -300,20 +355,8 @@ export const GET = withErrorHandler(
       }
     );
 
-    type RawFile = {
-      id: string;
-      name: string;
-      description: string | null;
-      storage_path: string;
-      content_type: string | null;
-      file_size_bytes: number | null;
-      upload_state: string | null;
-      created_by: string | null;
-      created_at: string;
-      uploaded_at: string | null;
-    };
     const files: AdminJobFileRow[] = await Promise.all(
-      ((filesRaw ?? []) as RawFile[]).map(async (f) => {
+      rawFiles.map(async (f) => {
         let signedUrl: string | null = null;
         if (f.storage_path) {
           const { data, error } = await supabaseAdmin.storage
@@ -328,6 +371,7 @@ export const GET = withErrorHandler(
             signedUrl = data?.signedUrl ?? null;
           }
         }
+        const u = f.created_by ? usersById.get(f.created_by) : null;
         return {
           id: f.id,
           name: f.name,
@@ -340,6 +384,8 @@ export const GET = withErrorHandler(
           created_by: f.created_by,
           created_at: f.created_at,
           uploaded_at: f.uploaded_at,
+          uploaded_by_email: u?.email ?? null,
+          uploaded_by_name: u?.name ?? null,
         };
       })
     );
@@ -350,10 +396,8 @@ export const GET = withErrorHandler(
         job_name: (jobRaw as { name?: string } | null)?.name ?? null,
         job_number:
           (jobRaw as { job_number?: string } | null)?.job_number ?? null,
-        created_by_email:
-          (userRaw as { email?: string } | null)?.email ?? null,
-        created_by_name:
-          (userRaw as { name?: string } | null)?.name ?? null,
+        created_by_email: pointUser?.email ?? null,
+        created_by_name: pointUser?.name ?? null,
       },
       media,
       notes,

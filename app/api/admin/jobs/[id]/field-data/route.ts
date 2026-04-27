@@ -77,6 +77,11 @@ interface JobMediaRow {
   transcription_status: string | null;
   /** Best-effort filename for the download (storage_path basename). */
   download_name: string;
+  /** Author attribution — surfaced as "Uploaded by X" in the UI.
+   *  Per the user's directive: every uploaded item must show the
+   *  uploader's name + timestamp. */
+  uploaded_by_email: string | null;
+  uploaded_by_name: string | null;
 }
 
 interface JobNoteRow {
@@ -98,6 +103,8 @@ interface JobFileRow {
   file_size_bytes: number | null;
   upload_state: string | null;
   created_at: string;
+  uploaded_by_email: string | null;
+  uploaded_by_name: string | null;
 }
 
 // ── Handler ──────────────────────────────────────────────────────────────────
@@ -153,7 +160,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     supabaseAdmin
       .from('field_media')
       .select(
-        'id, media_type, data_point_id, storage_url, thumbnail_url, original_url, annotated_url, annotations, transcription, transcription_status, duration_seconds, file_size_bytes, device_lat, device_lon, captured_at, uploaded_at, upload_state'
+        'id, media_type, data_point_id, storage_url, thumbnail_url, original_url, annotated_url, annotations, transcription, transcription_status, duration_seconds, file_size_bytes, device_lat, device_lon, captured_at, uploaded_at, upload_state, created_by'
       )
       .eq('job_id', jobId)
       .order('captured_at', { ascending: false }),
@@ -167,7 +174,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     supabaseAdmin
       .from('job_files')
       .select(
-        'id, name, description, storage_path, content_type, file_size_bytes, upload_state, created_at, data_point_id'
+        'id, name, description, storage_path, content_type, file_size_bytes, upload_state, created_at, data_point_id, created_by'
       )
       .eq('job_id', jobId)
       .order('created_at', { ascending: false }),
@@ -228,6 +235,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     captured_at: string | null;
     uploaded_at: string | null;
     upload_state: string | null;
+    created_by: string | null;
   };
   type RawNote = {
     id: string;
@@ -249,19 +257,24 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     upload_state: string | null;
     created_at: string;
     data_point_id: string | null;
+    created_by: string | null;
   };
   const rawPoints = (pointsRes.data ?? []) as RawPoint[];
   const rawMedia = (mediaRes.data ?? []) as RawMedia[];
   const rawNotes = (notesRes.data ?? []) as RawNote[];
   const rawFiles = (filesRes.data ?? []) as RawFile[];
 
-  // 3. Resolve creator emails for the points list (auth.users join
-  //    via registered_users).
+  // 3. Resolve creator emails for points + media + files in a
+  //    single bulk look-up. Per the user's directive: "any point
+  //    or information or media that is uploaded to a job should
+  //    have the name of who uploaded it."
   const userIds = [
     ...new Set(
-      rawPoints
-        .map((p) => p.created_by)
-        .filter((id): id is string => !!id)
+      [
+        ...rawPoints.map((p) => p.created_by),
+        ...rawMedia.map((m) => m.created_by),
+        ...rawFiles.map((f) => f.created_by),
+      ].filter((id): id is string => !!id)
     ),
   ];
   const usersById = new Map<string, { email: string; name: string }>();
@@ -396,6 +409,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       ]);
       const path = m.original_url ?? m.storage_url ?? '';
       const download_name = path.split('/').pop() ?? `${m.id}.bin`;
+      const u = m.created_by ? usersById.get(m.created_by) : null;
       return {
         id: m.id,
         media_type: m.media_type,
@@ -412,6 +426,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         transcription: m.transcription,
         transcription_status: m.transcription_status,
         download_name,
+        uploaded_by_email: u?.email ?? null,
+        uploaded_by_name: u?.name ?? null,
       };
     })
   );
@@ -444,6 +460,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const jobFiles: JobFileRow[] = await Promise.all(
     jobLevelFiles.map(async (f) => {
       const signed = await signOne(FILES_BUCKET, f.storage_path);
+      const u = f.created_by ? usersById.get(f.created_by) : null;
       return {
         id: f.id,
         name: f.name,
@@ -453,6 +470,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         file_size_bytes: f.file_size_bytes,
         upload_state: f.upload_state,
         created_at: f.created_at,
+        uploaded_by_email: u?.email ?? null,
+        uploaded_by_name: u?.name ?? null,
       };
     })
   );
