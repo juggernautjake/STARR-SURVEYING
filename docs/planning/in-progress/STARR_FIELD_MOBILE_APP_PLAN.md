@@ -1021,12 +1021,12 @@ Resilience additions (same offline-first pattern as F2):
 
 ### Phase F4 — Voice + video + notes (Week 13–16)
 - [/] Voice memo capture — `lib/voiceRecorder.ts` (expo-av Audio.Recording with M4A mono preset, 5-minute auto-stop cap, idempotent permission cache, mid-flight cancel + cleanup), `lib/fieldMedia.ts` `useAttachVoice` (mirrors `useAttachPhoto` — INSERT first, enqueue upload to `starr-field-voice` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup via `lib/deviceLibrary.ts`), `(tabs)/capture/[pointId]/voice.tsx` capture screen with per-memo playback row (long-press to delete). Voice button on the photos screen footer Stack-pushes the recorder. **On-device transcription pending** — `field_media.transcription` column reserved; needs `expo-speech-recognition` or a Whisper-via-API path.
-- [ ] Video capture (1080p, 5 min cap) — same offline-first pattern as photos. WiFi-only originals per plan §5.4.
+- [/] Video capture — `lib/storage/mediaUpload.ts` `pickVideo()` wraps `expo-image-picker.launchCameraAsync` with the Videos media type + 5-min cap (per plan §5.4), `lib/fieldMedia.ts` `useAttachVideo` mirrors the photo + voice pattern (INSERT field_media row with `media_type='video'`, enqueue upload to `starr-field-videos` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup which goes to Camera Roll). "📹 Record video" button on the photos screen footer. Admin `/admin/field-data/[id]` renders native `<video controls>` with mp4 + quicktime fallback `<source>` tags, duration in mm:ss, download link. **Pending:** server-side thumbnail extraction (FFmpeg via worker) so the gallery thumbnail isn't a placeholder; WiFi-only original-quality re-upload tier per plan §5.4; mobile-side video gallery (currently captured via OS camera + surfaced on web admin only).
 - [ ] Free-text notes + structured templates (offset, monument, hazard, correction) — `fieldbook_notes` table already in schema with `structured_data` JSONB column reserved.
 - [ ] Voice-to-text shortcut — bound to a hardware key for hands-free dictation. Need expo-speech-recognition or a Whisper-via-API path.
 - [ ] Search across notes + transcriptions — depends on the above + an FTS index. Need to confirm whether server-side `tsvector` columns or local SQLite FTS5 is the better path.
 
-**Exit:** Field documentation fully replaces paper notes. **Status:** voice memo capture + admin audio player shipped (Batch I). Video + notes + transcription remain.
+**Exit:** Field documentation fully replaces paper notes. **Status:** voice memo + video capture + admin audio/video players shipped (Batches I + K). Notes + transcription remain.
 
 ### Phase F5 — Files + CSV (Week 17–18)
 - [ ] File upload from device, cloud, web link
@@ -1197,6 +1197,45 @@ under one phase.
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
 
+**Batch K — video capture (F4 video half)**
+- [x] `lib/storage/mediaUpload.ts` `pickVideo()` — wraps
+      `expo-image-picker.launchCameraAsync` (and the library
+      counterpart) with `mediaTypes: Videos`, `videoMaxDuration: 300`
+      (5-min cap per plan §5.4), `videoQuality: 0.7` (cellular-budget
+      sane default), defensive `getInfoAsync` fallback when the
+      picker doesn't report `fileSize`, hard-fail when the captured
+      duration exceeds the cap by 50%+ (older Android picker bug).
+      Returns `{ uri, fileSize, durationSeconds, contentType }`.
+- [x] `lib/fieldMedia.ts` `useAttachVideo` — INSERT `field_media`
+      row with `media_type='video'` + `duration_seconds` +
+      `file_size_bytes` + GPS, enqueue upload to `starr-field-videos`
+      bucket via `lib/uploadQueue.ts` (offline-first contract
+      preserved; queue's `guessExtension` already supported `.mp4` /
+      `.mov`), opt-in MediaLibrary backup goes to Camera Roll.
+      Extension inferred from picker uri + mime so iOS .mov stays
+      .mov (the bytes are HEVC-in-MOV; native players accept both
+      via the dual `<source>` tags).
+- [x] Photos screen footer "📹 Record video" button — mutually
+      exclusive with photo + library buttons via the unified `busy`
+      state machine (`'camera' | 'library' | 'video-camera'`).
+      Permission denial routes through the existing
+      `permissionGuard` Settings deep-link.
+- [x] Admin `/admin/field-data/[id]` — PhotoCard branches on
+      `media_type === 'video'`, renders `<video controls
+      preload="metadata">` with mp4 + quicktime `<source>` fallbacks
+      and a thumbnail poster (when populated by future server-side
+      extraction). Duration in mm:ss, file size, upload state badge,
+      "Download video" link to the signed URL.
+- Deliberate non-features (deferred to F4 polish):
+  - Server-side thumbnail extraction (FFmpeg via worker) so the
+    gallery list can show a real video thumb instead of a placeholder.
+  - WiFi-only original-quality re-upload tier per plan §5.4 (v1
+    uploads single-tier at the picker's `videoQuality: 0.7`).
+  - Mobile-side video gallery — captures land on the web admin but
+    don't show in the mobile photos.tsx grid (which filters
+    `media_type='photo'`). A "Videos (N)" tab on the photos screen
+    is the polish.
+
 **Batch J — stop detection + daily timeline (F6)**
 - [x] `seeds/224_starr_field_location_derivations.sql` — adds
       `location_stops` + `location_segments` (with FKs to
@@ -1363,8 +1402,10 @@ PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
 - Voice memo on-device transcription (`field_media.transcription`
   column already populated by the recorder when available; needs an
   expo-speech-recognition wiring or a server-side Whisper job).
-- Video capture (mirror of voice memo — same offline-first pattern,
-  WiFi-only original tier per plan §5.4).
+- Video polish: server-side FFmpeg thumbnail extraction (so the
+  gallery list shows a real thumb rather than a placeholder) +
+  WiFi-only original-quality re-upload tier per plan §5.4 + a
+  mobile video gallery tab on the photos screen.
 - Stop-detection v2: geofence-based category assignment (job site /
   office / home / gas station) using `jobs.centroid_lat/lon` +
   radius; AI classification via worker for ambiguous stops; reverse-
@@ -1394,7 +1435,7 @@ slice of mobile-written data?
 | Field data points | `field_data_points` | `/admin/field-data` list + `/admin/field-data/[id]` detail (this batch) | ✓ shipped |
 | Field media (photos) | `field_media` (`media_type='photo'`) | Photo gallery on `/admin/field-data/[id]` with lightbox + per-tier signed URLs | ✓ shipped |
 | Field media (voice) | `field_media` (`media_type='voice'`) | `<audio>` player on `/admin/field-data/[id]` with download link + duration display | ✓ shipped |
-| Field media (video) | `field_media` (`media_type='video'`) | (none yet — F4 video capture not built) | ⏳ deferred |
+| Field media (video) | `field_media` (`media_type='video'`) | `<video controls>` player on `/admin/field-data/[id]` with download link + duration display (Batch K) | ✓ shipped |
 | Background GPS pings | `location_pings` | `/admin/team` last-seen card + `/admin/mileage` per-day aggregates | ✓ shipped (raw + aggregate) |
 | Stops + segments | `location_stops`, `location_segments` | `/admin/timeline` (per-user / per-day) + Recompute button + sidebar entry; mobile reader pending | ✓ shipped (admin) |
 | Notifications (admin pings) | `notifications` | `/admin/team` Ping buttons + existing NotificationBell + POST `/api/admin/notifications` | ✓ shipped |

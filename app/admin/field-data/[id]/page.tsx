@@ -281,6 +281,87 @@ function PhotoCard({
   media: MediaRow;
   onOpenLightbox: (url: string) => void;
 }) {
+  // Video uses the native <video controls> element. Single-tier in
+  // v1 (no thumbnail extraction yet); poster falls back to the
+  // first storage_signed_url so the gallery shows something
+  // recognisable before play.
+  if (media.media_type === 'video') {
+    const videoUrl =
+      media.original_signed_url ?? media.storage_signed_url;
+    return (
+      <div style={styles.photoCard}>
+        <div style={styles.videoBlock}>
+          {videoUrl ? (
+            <video
+              controls
+              preload="metadata"
+              poster={media.thumbnail_signed_url ?? undefined}
+              style={styles.videoPlayer}
+            >
+              <source src={videoUrl} type="video/mp4" />
+              <source src={videoUrl} type="video/quicktime" />
+              Your browser does not support the video element.
+            </video>
+          ) : (
+            <div style={styles.photoMissing}>
+              {media.upload_state === 'pending'
+                ? 'Uploading…'
+                : 'No video available'}
+            </div>
+          )}
+        </div>
+        <div style={styles.photoMeta}>
+          <div style={styles.photoMetaRow}>
+            <span style={styles.fieldLabel}>Captured</span>
+            <span>{formatTimestamp(media.captured_at)}</span>
+          </div>
+          {media.duration_seconds ? (
+            <div style={styles.photoMetaRow}>
+              <span style={styles.fieldLabel}>Duration</span>
+              <span>
+                {Math.floor(media.duration_seconds / 60)}:
+                {(media.duration_seconds % 60)
+                  .toString()
+                  .padStart(2, '0')}
+              </span>
+            </div>
+          ) : null}
+          <div style={styles.photoMetaRow}>
+            <span style={styles.fieldLabel}>State</span>
+            <span
+              style={{
+                color:
+                  media.upload_state === 'failed'
+                    ? '#B42318'
+                    : media.upload_state === 'done'
+                      ? '#067647'
+                      : '#D97706',
+              }}
+            >
+              {media.upload_state ?? '—'}
+            </span>
+          </div>
+          {media.file_size_bytes ? (
+            <div style={styles.photoMetaRow}>
+              <span style={styles.fieldLabel}>Size</span>
+              <span>{formatBytes(media.file_size_bytes)}</span>
+            </div>
+          ) : null}
+          {videoUrl ? (
+            <a
+              href={videoUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={styles.fullLink}
+            >
+              Download video →
+            </a>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   // Voice memos render with the native <audio> control instead of an
   // image. Same upload-state badge so the bookkeeper can spot a memo
   // that hasn't synced yet.
@@ -561,6 +642,18 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     color: '#9CA3AF',
     fontSize: 13,
+  },
+  videoBlock: {
+    width: '100%',
+    background: '#0B0E14',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoPlayer: {
+    width: '100%',
+    maxHeight: 360,
+    display: 'block',
   },
   audioBlock: {
     display: 'flex',

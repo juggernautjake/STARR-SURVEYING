@@ -20,6 +20,7 @@ import { lookupPrefix } from '@/lib/dataPointCodes';
 import {
   type FieldMedia,
   useAttachPhoto,
+  useAttachVideo,
   useDeleteMedia,
   usePointMedia,
 } from '@/lib/fieldMedia';
@@ -53,9 +54,12 @@ export default function PointPhotosScreen() {
   const { point, isLoading } = useDataPoint(pointId);
   const { media } = usePointMedia(pointId, 'photo');
   const attachPhoto = useAttachPhoto();
+  const attachVideo = useAttachVideo();
   const deleteMedia = useDeleteMedia();
 
-  const [busy, setBusy] = useState<'camera' | 'library' | null>(null);
+  const [busy, setBusy] = useState<
+    'camera' | 'library' | 'video-camera' | null
+  >(null);
 
   if (isLoading) return <LoadingSplash />;
 
@@ -133,6 +137,58 @@ export default function PointPhotosScreen() {
         });
         Alert.alert(
           'Capture failed',
+          err instanceof Error ? err.message : String(err)
+        );
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /**
+   * Mirror of onAttach for video. The OS provides the recording UI
+   * (per plan §5.4 the cap is 5 minutes; expo-image-picker enforces
+   * via videoMaxDuration). Stays on the screen after save so the
+   * surveyor can capture more right away.
+   */
+  const onAttachVideo = async () => {
+    if (busy) return;
+    if (!point?.job_id) {
+      logWarn(
+        'photosScreen.onAttachVideo',
+        'point missing job_id — refusing capture',
+        undefined,
+        { point_id: pointId ?? null }
+      );
+      Alert.alert(
+        'Job link missing',
+        'This point isn’t linked to a job yet. Pull down to refresh and try again.'
+      );
+      return;
+    }
+    setBusy('video-camera');
+    try {
+      await attachVideo({
+        jobId: point.job_id,
+        dataPointId: pointId ?? null,
+        source: 'camera',
+      });
+    } catch (err) {
+      const deniedKind = isPermissionDeniedError(err);
+      if (deniedKind) {
+        logWarn('photosScreen.onAttachVideo', 'permission denied', err, {
+          job_id: point.job_id,
+          point_id: pointId ?? null,
+          kind: deniedKind,
+        });
+        promptForSettings({ kind: deniedKind });
+      } else {
+        logError('photosScreen.onAttachVideo', 'attach failed', err, {
+          job_id: point.job_id,
+          point_id: pointId ?? null,
+        });
+        Alert.alert(
+          'Video capture failed',
           err instanceof Error ? err.message : String(err)
         );
       }
@@ -291,6 +347,15 @@ export default function PointPhotosScreen() {
             loading={busy === 'library'}
             disabled={busy === 'camera'}
             accessibilityHint="Picks an existing photo from your library to attach to this point."
+          />
+          <View style={{ height: 12 }} />
+          <Button
+            variant="secondary"
+            label="📹 Record video"
+            onPress={onAttachVideo}
+            loading={busy === 'video-camera'}
+            disabled={busy === 'camera' || busy === 'library'}
+            accessibilityHint="Opens the OS camera in video mode. Capped at 5 minutes per recording."
           />
           <View style={{ height: 12 }} />
           <Button
