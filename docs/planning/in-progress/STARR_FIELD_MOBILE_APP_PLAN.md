@@ -1197,6 +1197,69 @@ under one phase.
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
 
+**Batch S — per-job consolidated field-data view (MVP)**
+
+Per the user's request: *"There needs to be a list of all of the
+points that have been logged in the app for a given job, and if
+they select a point it should open that point info and show all
+of the comments, files, or media relating to that point. They
+should also be able to download any media in any job."*
+
+Reduced-scope MVP — the per-point drilldown
+(`/admin/field-data/[id]`) already exists and renders comments +
+files + media for the selected point, so this batch only needs
+the per-job points-list + bulk download. Job-level media / notes
+/ files inline blocks deferred to the next round.
+
+API:
+- `GET /api/admin/jobs/[id]/field-data` — single round trip
+  returning `{ job, points[], job_media[], job_notes[],
+  job_files[], stats }`. Per-point summaries include a signed
+  thumbnail URL, media + note counts so the list cards render
+  without per-point fetches. Bulk-resolves creator emails via
+  one `registered_users` IN-query. Sign failures cap at 3 log
+  lines per request.
+- `GET /api/admin/jobs/[id]/field-data/manifest` — CSV with one
+  row per downloadable (`point_name, kind, filename,
+  content_type, size_bytes, duration_seconds, captured_at,
+  signed_url`). 4-hour TTL on the signed URLs (configurable via
+  `?ttl_hours=`, max 24). Audit-log line per pull so ops can
+  correlate manifest pulls with user activity. Bookkeeper
+  pipes to `xargs wget` or opens in Excel.
+
+Admin page (`/admin/jobs/[id]/field`):
+- Header: job name + number + client + address.
+- Stats bar: Points / Photos / Videos / Voice / Notes / Files
+  counts.
+- Points grid: thumbnail + name + offset/correction flag pills
+  + "code · creator · captured-at" meta + media/note counts.
+  Each card links to the existing `/admin/field-data/{point_id}`
+  drilldown.
+- "⬇ Download all media (CSV)" button hits the manifest
+  endpoint + triggers a browser download. Disabled when the
+  job has zero media + files.
+- Empty state explains how points appear ("As crew uses the
+  mobile app, points appear here within seconds of regaining
+  reception").
+- Logging + error handling: every fetch surfaces failures via
+  the visible error banner; sign-failure thumbnails fall back
+  to a placeholder.
+
+Cross-link from existing job detail:
+- `/admin/jobs/[id]/page.tsx` gets a "📍 View field captures →"
+  pill button next to the existing "Back to Jobs" link, prominently
+  visible at the top so dispatchers find it immediately.
+- Inline-styled to avoid touching the existing job-detail
+  stylesheet.
+
+Deferred for the next round (after the user reviews the MVP):
+- Job-level media block (photos / voice / video attached at job
+  level, no point assignment) inline on the new page. The API
+  already returns `job_media[]`; the UI just needs to render it.
+- Job-level notes inline on the new page (`job_notes[]`).
+- Job-level files inline on the new page (`job_files[]`).
+- ZIP-stream download (vs. CSV manifest of signed URLs).
+
 **Batch R — voice transcription via OpenAI Whisper (F4 closer)**
 
 Closes the last F4 plan deliverable — voice memos are now searchable

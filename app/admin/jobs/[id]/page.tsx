@@ -302,7 +302,37 @@ export default function JobDetailPage() {
 
       {/* Job Header */}
       <div className="job-detail__header">
-        <Link href="/admin/jobs" className="learn__back">&larr; Back to Jobs</Link>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Link href="/admin/jobs" className="learn__back">&larr; Back to Jobs</Link>
+          {/* Quick jump to the consolidated per-job field captures
+              view (Batch S — points + media + notes + files in one
+              place, with bulk media-manifest download). Inline-styled
+              to avoid adding new CSS to the existing job-detail
+              stylesheet. */}
+          <Link
+            href={`/admin/jobs/${jobId}/field`}
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#1D3095',
+              border: '1px solid #1D3095',
+              borderRadius: 8,
+              padding: '6px 12px',
+              textDecoration: 'none',
+            }}
+            title="See every point + photo + voice memo + file the field crew has logged on this job, and download the media in one CSV."
+          >
+            📍 View field captures →
+          </Link>
+        </div>
         <div className="job-detail__header-top">
           <div>
             <div className="job-detail__number">{job.job_number}</div>
