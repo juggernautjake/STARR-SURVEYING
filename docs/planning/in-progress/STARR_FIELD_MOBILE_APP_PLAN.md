@@ -1526,6 +1526,68 @@ Activation gates:
   never set up with an address, or where the address geocode is
   off.
 
+**Batch JJ — admin receipts bulk-approve (closes Batch FF v2 polish)**
+
+Closes the Batch FF v2 polish item *"Bulk-approve action —
+checkboxes in the row + a top-of-list '✓ Approve N selected'
+button so the bookkeeper can clear the pending queue in one tap."*
+A bookkeeper with 30 pending receipts can now clear the whole
+queue in one click instead of 30 individual taps.
+
+API (`app/api/admin/receipts/bulk-approve/route.ts`):
+- `POST /api/admin/receipts/bulk-approve` body `{ ids: string[] }`,
+  returns `{ approved: string[], skipped: { id, reason }[] }`.
+- Hard cap: 200 rows per request (queue rarely exceeds 50/day;
+  ceiling stops a runaway client from approving thousands by
+  accident).
+- Per-row classifier surfaces typed skip reasons —
+  `not_found | already_approved | rejected | exported |
+  soft_deleted | unknown_status`. The UI surfaces these so the
+  bookkeeper sees why a row didn't transition.
+- Single bulk UPDATE with `WHERE status='pending'` guard so a
+  TOCTOU between SELECT and UPDATE (someone approved a row
+  manually mid-batch) is caught — those rows surface as
+  `already_approved` skips so the count math still holds.
+- Resolves the admin's `auth.users.id` once for the batch via
+  the same `listUsers` lookup the per-row PATCH uses, then
+  stamps `approved_by` + `approved_at = now()` +
+  `rejected_reason = null` on every approved row.
+
+Page (`app/admin/receipts/page.tsx`):
+- New `selectedIds: Set<string>` + `bulkBusy` state on the
+  pending tab. Selection clears whenever the active tab
+  changes so a stale set can't leak.
+- Per-row checkbox sibling to the existing row-summary
+  button. `stopPropagation` keeps the checkbox click from
+  toggling row expansion. Only renders when the row is
+  approve-able (status='pending' + not deleted).
+- "Select all N pending" label at the top of the list when
+  there are approve-able rows. Uses `every`-style logic so the
+  checkbox stays consistent when the bookkeeper expands /
+  collapses the selection.
+- Sticky action bar pinned to the bottom of the page when
+  selection > 0: "N selected · Clear · ✓ Approve N selected."
+  Confirms with `window.confirm` ("Approve N receipts? This
+  stamps your name as the approver.") before commit.
+- After commit, clears the selection + reloads the list. Skip
+  reasons surface as a single alert ("Approved X · skipped Y
+  (reasons…)") so the bookkeeper isn't surprised.
+
+Logging:
+- `console.log` summary line on every commit
+  (`requested=N approved=M skipped=K admin_email=…`) for
+  audit-trail correlation.
+- `console.error` on the underlying SELECT / UPDATE failures.
+
+Pending v2 polish:
+- Bulk-reject mirror with a shared rejection-reason input
+  (currently rejection is per-row only because reasons are
+  per-receipt).
+- Admin keyboard shortcut: ⌘A select-all on the pending tab.
+- Surface the audit-trail of bulk-approves on the receipt
+  detail screen so the bookkeeper can answer "did I bulk-
+  approve this row, or hand-approve it?" months later.
+
 **Batch II — mobile per-job "Today's captures" rollup**
 
 Surveyors arriving at a job in the truck want a one-glance answer
