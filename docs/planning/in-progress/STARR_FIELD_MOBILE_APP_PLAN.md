@@ -1050,7 +1050,7 @@ Resilience additions (same offline-first pattern as F2):
 - [x] Privacy controls panel (employee-facing) — `/(tabs)/me/privacy` shows what we capture, when (only between clock-in/out), cadence (battery-aware tier table), who sees it, and the storage path; plus a today's-timeline list of every `location_pings` row the user wrote in the last 24 h. **No** "pause tracking" toggle — that would violate the privacy contract from the other side (dispatcher would think the user left a job site mid-shift); the only way to stop tracking is to clock out, which does so atomically.
 
 Audit additions:
-- [ ] Per-user `/admin/team/[email]` drilldown — natural extension of the team-card view. Today's pings + a static map snapshot + clock-in history. Tracked as a follow-on to mileage.
+- [x] Per-user `/admin/team/[email]` drilldown (Batch X) — single-page "what is X up to today?" view that aggregates clock-in state · today's clock-in history table · today's miles + stops + pings + captures + receipts stat bar · today's captures grid (with thumbnails) · today's receipts list · today's dispatcher pings sent. Header has quick-action buttons (send log_hours / submit_week ping; deep-link to Timeline / Mileage / All captures). Powered by a single `GET /api/admin/team/{email}/today?date=` aggregator that runs every section query in parallel via `Promise.all` so the page renders in one round trip. Linked from each `/admin/team` card via "📋 Open profile."
 
 **Exit:** Full location-aware feature set live. **Status:** background-tracking + dispatcher last-seen + privacy panel + mileage export shipped. Stop detection / day-replay / vehicle picker / consent modal / missing-receipt prompts remain.
 
@@ -1157,7 +1157,7 @@ classifier) · 228 (voice transcription) — all present.
 | F4 notes | Free-text + four structured templates + admin viewer | Cross-notes search across body + structured payloads (no FTS index — server `tsvector` or local SQLite FTS5 TBD) |
 | F5 files | Document picker + admin Files block + image/PDF/CSV preview + pin-to-device offline read (Batch W) | CSV parser for surveying P,N,E,Z,D; auto-link CSV rows → data points |
 | F6 stops | Geofence classifier + idempotent re-derivation | AI classifier for ambiguous stops; reverse-geocoded `place_name`/`place_address`; PostGIS `path_simplified` for day-replay scrubber; pg_cron nightly schedule |
-| F6 dispatcher | Last-seen card; per-user mileage drilldown | Continuous live-map trace; per-user `/admin/team/[email]` daily drilldown; day-replay scrubber UI; missing-receipt cross-reference worker |
+| F6 dispatcher | Last-seen card; per-user mileage drilldown; per-user `/admin/team/[email]` daily drilldown (Batch X) | Continuous live-map trace; day-replay scrubber UI; missing-receipt cross-reference worker |
 | F7 polish | Storage / sync UI, network-restore drainer, notification UX | High-contrast sun-readable theme; battery profile audit on real devices; tablet split-pane layouts on drilldown screens; multi-device conflict-resolution UX + tests; 30-day stress test on 5 devices |
 | F0 ops | Expo scaffold, biometric, PowerSync, Sentry | Lock-screen widget (iOS WidgetKit / Android shortcut); OTA update channel URL in `app.json`; EAS submit credentials still `REPLACE_WITH_*`; first TestFlight build pending |
 
@@ -1525,6 +1525,72 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch X — per-user team drilldown (`/admin/team/[email]`)**
+
+Closes the F6 deferral *"Per-user `/admin/team/[email]` drilldown —
+natural extension of the team-card view."* The dispatcher used to
+have to open four pages (`/admin/timeline`, `/admin/mileage`,
+`/admin/field-data`, `/admin/receipts`) plus the team list to
+answer "what is Lance up to today?" — now it's one page.
+
+API (`/api/admin/team/[email]/today/route.ts`):
+- Single-round-trip aggregator. Resolves the email →
+  `registered_users.id`, then runs every section query in parallel
+  via `Promise.all`:
+    - Today's `job_time_entries` (closed + open)
+    - Today's `location_pings` (sample for visualisation +
+      head-count for the stat bar)
+    - Today's `location_stops` (count only — full detail on
+      `/admin/timeline`)
+    - Today's `location_segments` distances (summed for miles)
+    - Today's `field_data_points` (last 12 with thumbnails +
+      total count)
+    - Today's `receipts` (last 12 + total count)
+    - Today's `notifications` (dispatcher pings sent)
+- Bulk lookup of every `job_id` referenced by entries + captures
+  in one `IN`-query so the page can render `{job_number} ·
+  {job_name}` without per-row fetches.
+- Bulk thumbnail signing for the captures grid (1-hour TTL).
+- Open `job_time_entries.duration_minutes` is computed
+  server-side from `started_at → now()` so the stat bar reads
+  correctly for live entries.
+- Auth: admin / developer / tech_support. Hard-fails on the first
+  errored section query rather than rendering partial data — a
+  silent "0 receipts" because the query 5xx'd would mislead.
+
+Page (`/admin/team/[email]/page.tsx`):
+- Header card: name + roles + last-sign-in + clock-state badge
+  ("🟢 Clocked in · 4h 23m" / "⚪ Off the clock") + last-seen
+  badge with battery glyph.
+- Quick-action column (right side): "⏱ Ping: log hours" / "✓
+  Ping: submit week" buttons (POST `/api/admin/notifications`
+  with the same dedup contract as `/admin/team`) + deep links
+  to Timeline / Mileage / All captures.
+- Stats bar (6 columns): Worked / Miles / Stops / Pings /
+  Captures / Receipts.
+- "On the clock" card (only when active): job name + duration +
+  Maps links for clock-in spot + last-seen.
+- Today's clock-ins table with active-row highlighting.
+- Captures grid (3-col responsive) with thumbnails + flag pills
+  ("offset" / "correction") — links to the existing per-point
+  detail page. "See all N →" footer when capped at 12.
+- Receipts list with vendor + total + status — links to receipt
+  detail.
+- Dispatcher pings sent today with delivered + read state.
+
+Cross-link: every member card on `/admin/team` now leads with a
+"📋 Open profile" button (the existing 🚗 Mileage and 🗺️ Timeline
+links remain for one-click jumps to the deep views).
+
+Logging + error handling:
+- Section query failures log via console.error with the user
+  email + error message, then 500 so the page surfaces the
+  failure inline.
+- Thumbnail sign failures log a warn (per-tile fallback to a
+  📍 placeholder) but don't fail the request.
+- The page's pinging buttons surface failures via the inline
+  error banner; the rest of the data stays visible.
 
 **Batch W — file pin-to-device + open-on-tap (F5 closer)**
 

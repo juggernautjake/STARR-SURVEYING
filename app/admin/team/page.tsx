@@ -444,6 +444,12 @@ function TeamCard({ member, pinging, onPing }: TeamCardProps) {
           ✓ Submit week
         </button>
         <a
+          href={`/admin/team/${encodeURIComponent(member.email)}`}
+          style={{ ...styles.linkBtn, fontWeight: 600 }}
+        >
+          📋 Open profile
+        </a>
+        <a
           href={`/admin/mileage?user_email=${encodeURIComponent(member.email)}`}
           style={styles.linkBtn}
         >
