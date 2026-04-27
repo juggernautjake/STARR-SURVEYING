@@ -1046,7 +1046,7 @@ Resilience additions (same offline-first pattern as F2):
 - [x] Vehicle assignment + driver/passenger — `seeds/225_starr_field_vehicles.sql` lands the `vehicles` table that's been declared in the mobile schema since seeds/220 + wires the FK from `job_time_entries.vehicle_id` (existing column) and `location_segments.vehicle_id` (added by seeds/224). `/admin/vehicles` page provides full CRUD (add / edit / archive / reactivate; soft-archive preserves historical refs). Mobile vehicle picker on the clock-in `pick-job` modal with optional vehicle pill row + "I'm driving" toggle (defaults true since most clock-ins are the driver themselves; passengers explicitly flip it off so mileage attribution stays clean for IRS). `useClockIn` accepts `vehicleId` + `isDriver`; persists to `job_time_entries.vehicle_id` + `is_driver`. `lib/vehicles.ts` `useVehicles` + `useVehicle` hooks back the picker. **Per-vehicle mileage breakdown** on `/admin/mileage` shipped (Batch P): each (user, date) row expands to per-vehicle subtotals with driver / passenger badges so bookkeepers see "Jacob drove Truck 3 for 28 mi AND rode passenger in Truck 1 for 12 mi" — only the driver miles are IRS-deductible. CSV export gains `vehicle_id` / `vehicle_name` / `is_driver` columns for QuickBooks pivots.
 - [x] Dispatcher live map (web app, partial) — `/admin/team` shows last-known GPS + battery + staleness, with Google-Maps deep-link per card. Full live map (continuous trace, polling) pending.
 - [ ] Day-replay scrubber (web app) — depends on the worker-derived segments above.
-- [ ] Missing-receipt cross-reference prompts — should compare clocked-in geofences against receipt timestamps and prompt "you spent 12 min at a gas station yesterday but no receipt was logged." Worker job + mobile inbox notification.
+- [x] Missing-receipt cross-reference prompts (Batch DD) — `worker/src/services/missing-receipt-detection.ts` + `worker/src/cli/scan-missing-receipts.ts`. Hourly cron scans `location_stops` from the last 24h that are ≥5 min long, have no `job_id` (geofence didn't match a known site), aren't user-overridden, and have NO `receipts.transaction_at` within ±30 min of the stop window. Pushes a notification with `source_type='missing_receipt'`, `link='/(tabs)/money/capture?stopId=...'` so a tap deep-links to the receipt-capture screen with the stop time pre-filled. Idempotent via stop_id encoded in the link. Per-user-per-scan cap of 5 so a forgetful surveyor isn't bombarded. Soft-deleted receipts don't count toward the "covered" check (Batch CC).
 - [x] Privacy controls panel (employee-facing) — `/(tabs)/me/privacy` shows what we capture, when (only between clock-in/out), cadence (battery-aware tier table), who sees it, and the storage path; plus a today's-timeline list of every `location_pings` row the user wrote in the last 24 h. **No** "pause tracking" toggle — that would violate the privacy contract from the other side (dispatcher would think the user left a job site mid-shift); the only way to stop tracking is to clock out, which does so atomically.
 
 Audit additions:
@@ -1157,7 +1157,7 @@ classifier) · 228 (voice transcription) — all present.
 | F4 notes | Free-text + four structured templates + admin viewer + cross-notes search (Batch BB) | Server-side `tsvector` index for cross-user admin search at scale; FTS5 ranking when the LIKE scan tops 10k notes per device |
 | F5 files | Document picker + admin Files block + image/PDF/CSV preview + pin-to-device offline read (Batch W) + P,N,E,Z,D parser w/ point-match preview (Batch AA) | Auto-import unmatched CSV rows as new data points |
 | F6 stops | Geofence classifier + idempotent re-derivation | AI classifier for ambiguous stops; reverse-geocoded `place_name`/`place_address`; PostGIS `path_simplified` for day-replay scrubber; pg_cron nightly schedule |
-| F6 dispatcher | Last-seen card; per-user mileage drilldown; per-user `/admin/team/[email]` daily drilldown (Batch X) | Continuous live-map trace; day-replay scrubber UI; missing-receipt cross-reference worker |
+| F6 dispatcher | Last-seen card; per-user mileage drilldown; per-user `/admin/team/[email]` daily drilldown (Batch X); missing-receipt prompts via worker scan (Batch DD) | Continuous live-map trace; day-replay scrubber UI |
 | F7 polish | Storage / sync UI, network-restore drainer, notification UX, sun-readable theme (Batch Y) | Battery profile audit on real devices; tablet split-pane layouts on drilldown screens; multi-device conflict-resolution UX + tests; 30-day stress test on 5 devices |
 | F0 ops | Expo scaffold, biometric, PowerSync, Sentry | Lock-screen widget (iOS WidgetKit / Android shortcut); OTA update channel URL in `app.json`; EAS submit credentials still `REPLACE_WITH_*`; first TestFlight build pending |
 
@@ -1525,6 +1525,86 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch DD — missing-receipt cross-reference prompts (F6 closer)**
+
+Closes the F6 deferral *"Missing-receipt cross-reference prompts —
+should compare clocked-in geofences against receipt timestamps
+and prompt 'you spent 12 min at a gas station yesterday but no
+receipt was logged.' Worker job + mobile inbox notification."*
+
+Hourly cron scans the last 24h of `location_stops` and pushes a
+notification through the existing dispatcher-ping inbox flow
+(Batch B) when a long-enough non-job-site stop has no associated
+receipt. Surveyor taps the inbox row → deep-link straight to the
+receipt-capture screen with the stop time encoded in the URL.
+
+Worker service (`worker/src/services/missing-receipt-detection.ts`):
+- `processMissingReceiptScan(supabase, opts?)` returns
+  `{ candidateStops, receiptCovered, alreadyNotified, capped,
+   inserted, errors }` so the CLI can emit a summary.
+- Detection rule (v1):
+    - duration_minutes ≥ 5 (skip parking-stoplight stops)
+    - arrived_at within last 24h (don't spam old stops)
+    - `job_id IS NULL` — geofence classifier (Batch Q) sets
+      job_id on matched-fence stops; we skip those because a
+      known job site is by definition a place we don't expect a
+      separate receipt for.
+    - `user_overridden != true` (surveyor has explicit category
+      control over overridden stops).
+    - NO `receipts.transaction_at` within ±30 min of
+      `arrived_at..departed_at`. Soft-deleted receipts (Batch
+      CC) don't count.
+    - NOT already notified — we encode the stop_id in the
+      notification link so a SELECT against `link LIKE
+      '%stop_id%'` gives idempotency without a new column.
+- Performance pattern: single bulk fetch of stops + receipts +
+  prior notifications, then in-memory per-stop matching. O(n)
+  per scan, no per-stop SQL hit.
+- Per-user-per-scan cap: 5 notifications. A surveyor with a
+  busy day of unknown stops gets the most-recent 5 instead of a
+  flood.
+
+CLI (`worker/src/cli/scan-missing-receipts.ts`):
+- Mirrors the `transcribe-voice` + `extract-receipts` patterns:
+  one-shot mode (`node dist/cli/scan-missing-receipts.js`),
+  `--watch` mode (1-hour poll loop), tunable
+  `--per-user-cap` / `--min-duration` /
+  `--receipt-window` / `--hours-back`.
+- npm script alias: `npm run scan-missing-receipts -- --watch`.
+
+Notification shape:
+- title: "Forget a receipt?"
+- body: "You stopped for 18 min at Tue 3:42 PM. If that was a
+  gas / food / supplies run, snap the receipt now — tap to
+  capture."
+- icon: 🧾
+- link: `/(tabs)/money/capture?stopId=...&stopArrivedAt=...`
+  — the existing notification-route handler routes the tap to
+  the receipt capture screen.
+- expires_at: 48 h from creation. Stale prompts auto-tomb.
+
+Activation gate:
+- Set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` on the
+  worker. Schedule the CLI hourly via cron / pm2 / systemd.
+- Geofence classifier (seeds/227 + Batch Q) should already be
+  applied so matched-job-site stops get filtered out at the
+  source — without it, every job-site visit would generate a
+  spurious "forget a receipt?" prompt. v1 will still send
+  prompts for un-fenced visits to known sites; the dispatcher
+  uses `/admin/timeline` "📍 Set as job site" to capture
+  those over time.
+
+Pending v2 polish:
+- AI categorization: classify "fuel" vs "food" vs "supplies"
+  per stop so the prompt body is more specific ("You spent 18
+  min at a gas station — snap the receipt"). Depends on the
+  deferred AI stop classifier from Batch J.
+- Receipt-capture screen consumes `?stopId=` + `?stopArrivedAt=`
+  query params to pre-fill `transaction_at`. v1 routes to the
+  capture screen but doesn't pre-fill.
+- Per-user notification preferences (opt-out of missing-receipt
+  prompts entirely on the Me tab).
 
 **Batch CC — receipt soft-delete + IRS retention foundation (F2 audit closer)**
 

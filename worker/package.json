@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "extract-receipts": "node dist/cli/extract-receipts.js",
-    "transcribe-voice": "node dist/cli/transcribe-voice.js"
+    "transcribe-voice": "node dist/cli/transcribe-voice.js",
+    "scan-missing-receipts": "node dist/cli/scan-missing-receipts.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
