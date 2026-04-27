@@ -6,6 +6,10 @@ import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ReceiptCard } from '@/lib/ReceiptCard';
 import { useReceipts, type Receipt } from '@/lib/receipts';
+import {
+  tabletContainerStyle,
+  useResponsiveLayout,
+} from '@/lib/responsive';
 import { colors } from '@/lib/theme';
 
 /**
@@ -22,6 +26,8 @@ export default function MoneyScreen() {
   const scheme = useColorScheme() ?? 'dark';
   const palette = colors[scheme];
   const { receipts, isLoading } = useReceipts();
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
 
   if (isLoading && receipts.length === 0) return <LoadingSplash />;
 
@@ -32,7 +38,7 @@ export default function MoneyScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, tabletStyle]}>
         <Text style={[styles.heading, { color: palette.text }]}>Receipts</Text>
         <Text style={[styles.count, { color: palette.muted }]}>
           {receipts.length}
@@ -67,7 +73,7 @@ export default function MoneyScreen() {
                 onPress={() => router.push(`/(tabs)/money/${item.id}`)}
               />
             )}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, tabletStyle]}
             showsVerticalScrollIndicator={false}
           />
           <View

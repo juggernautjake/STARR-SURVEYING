@@ -5,6 +5,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { JobCard } from '@/lib/JobCard';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { useJobs, type Job } from '@/lib/jobs';
+import {
+  tabletContainerStyle,
+  useResponsiveLayout,
+} from '@/lib/responsive';
 import { colors } from '@/lib/theme';
 
 /**
@@ -28,6 +32,10 @@ export default function JobsScreen() {
   const scheme = useColorScheme() ?? 'dark';
   const palette = colors[scheme];
   const { jobs, isLoading } = useJobs();
+  // Tablet support: clamp content to a comfortable reading width on
+  // ≥600 dp displays so the cards don't span 1100 px on an iPad.
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
 
   if (isLoading && jobs.length === 0) return <LoadingSplash />;
 
@@ -36,7 +44,7 @@ export default function JobsScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, tabletStyle]}>
         <Text style={[styles.heading, { color: palette.text }]}>Jobs</Text>
         <Text style={[styles.count, { color: palette.muted }]}>
           {jobs.length}
@@ -64,7 +72,7 @@ export default function JobsScreen() {
               onPress={() => router.push(`/(tabs)/jobs/${item.id}`)}
             />
           )}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, tabletStyle]}
           showsVerticalScrollIndicator={false}
         />
       )}

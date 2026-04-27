@@ -1,0 +1,203 @@
+// app/api/admin/field-data/[id]/route.ts — Per-point detail
+//
+// GET /api/admin/field-data/{point_id}
+//   Returns a single field_data_points row + every field_media row
+//   attached to it, with signed URLs (1 h TTL) for storage_url +
+//   thumbnail_url + original_url + annotated_url so the admin
+//   detail page can render the full gallery without per-tile
+//   round-trips.
+import { NextRequest, NextResponse } from 'next/server';
+import { auth, isAdmin } from '@/lib/auth';
+import { supabaseAdmin } from '@/lib/supabase';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
+
+const PHOTO_BUCKET = 'starr-field-photos';
+const SIGNED_URL_TTL_SEC = 60 * 60;
+
+interface DataPointRow {
+  id: string;
+  job_id: string;
+  name: string;
+  code_category: string | null;
+  description: string | null;
+  device_lat: number | null;
+  device_lon: number | null;
+  device_altitude_m: number | null;
+  device_accuracy_m: number | null;
+  device_compass_heading: number | null;
+  is_offset: boolean | null;
+  is_correction: boolean | null;
+  corrects_point_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface AdminFieldMediaRow {
+  id: string;
+  media_type: string;
+  burst_group_id: string | null;
+  position: number | null;
+  duration_seconds: number | null;
+  file_size_bytes: number | null;
+  device_lat: number | null;
+  device_lon: number | null;
+  device_compass_heading: number | null;
+  captured_at: string | null;
+  uploaded_at: string | null;
+  upload_state: string | null;
+  transcription: string | null;
+  /** Signed URLs (null when the underlying path is null OR the sign
+   *  failed). */
+  storage_signed_url: string | null;
+  thumbnail_signed_url: string | null;
+  original_signed_url: string | null;
+  annotated_signed_url: string | null;
+}
+
+export const GET = withErrorHandler(
+  async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
+    const session = await auth();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userRoles = (session.user as { roles?: string[] } | undefined)
+      ?.roles ?? [];
+    if (
+      !isAdmin(session.user.roles) &&
+      !userRoles.includes('tech_support')
+    ) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { id } = await ctx.params;
+    if (!id) {
+      return NextResponse.json({ error: 'id required' }, { status: 400 });
+    }
+
+    const { data: pointRaw, error: pointErr } = await supabaseAdmin
+      .from('field_data_points')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (pointErr) {
+      return NextResponse.json(
+        { error: pointErr.message },
+        { status: 500 }
+      );
+    }
+    if (!pointRaw) {
+      return NextResponse.json(
+        { error: 'Point not found' },
+        { status: 404 }
+      );
+    }
+    const point = pointRaw as DataPointRow;
+
+    // Annotate point with job + user.
+    const [{ data: jobRaw }, { data: userRaw }, { data: mediaRaw }] =
+      await Promise.all([
+        supabaseAdmin
+          .from('jobs')
+          .select('id, name, job_number')
+          .eq('id', point.job_id)
+          .maybeSingle(),
+        point.created_by
+          ? supabaseAdmin
+              .from('registered_users')
+              .select('id, email, name')
+              .eq('id', point.created_by)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabaseAdmin
+          .from('field_media')
+          .select(
+            'id, media_type, burst_group_id, position, duration_seconds, file_size_bytes, device_lat, device_lon, device_compass_heading, captured_at, uploaded_at, upload_state, transcription, storage_url, thumbnail_url, original_url, annotated_url'
+          )
+          .eq('data_point_id', id)
+          .order('position', { ascending: true })
+          .order('captured_at', { ascending: true }),
+      ]);
+
+    type RawMedia = {
+      id: string;
+      media_type: string;
+      burst_group_id: string | null;
+      position: number | null;
+      duration_seconds: number | null;
+      file_size_bytes: number | null;
+      device_lat: number | null;
+      device_lon: number | null;
+      device_compass_heading: number | null;
+      captured_at: string | null;
+      uploaded_at: string | null;
+      upload_state: string | null;
+      transcription: string | null;
+      storage_url: string | null;
+      thumbnail_url: string | null;
+      original_url: string | null;
+      annotated_url: string | null;
+    };
+
+    // Sign every URL in parallel. Each path that fails signs to null.
+    const signOne = async (path: string | null): Promise<string | null> => {
+      if (!path) return null;
+      const { data, error } = await supabaseAdmin.storage
+        .from(PHOTO_BUCKET)
+        .createSignedUrl(path, SIGNED_URL_TTL_SEC);
+      if (error) {
+        console.warn('[admin/field-data/:id] sign failed', {
+          path,
+          error: error.message,
+        });
+        return null;
+      }
+      return data?.signedUrl ?? null;
+    };
+
+    const media: AdminFieldMediaRow[] = await Promise.all(
+      ((mediaRaw ?? []) as RawMedia[]).map(async (m) => {
+        const [storage, thumbnail, original, annotated] = await Promise.all([
+          signOne(m.storage_url),
+          signOne(m.thumbnail_url),
+          signOne(m.original_url),
+          signOne(m.annotated_url),
+        ]);
+        return {
+          id: m.id,
+          media_type: m.media_type,
+          burst_group_id: m.burst_group_id,
+          position: m.position,
+          duration_seconds: m.duration_seconds,
+          file_size_bytes: m.file_size_bytes,
+          device_lat: m.device_lat,
+          device_lon: m.device_lon,
+          device_compass_heading: m.device_compass_heading,
+          captured_at: m.captured_at,
+          uploaded_at: m.uploaded_at,
+          upload_state: m.upload_state,
+          transcription: m.transcription,
+          storage_signed_url: storage,
+          thumbnail_signed_url: thumbnail,
+          original_signed_url: original,
+          annotated_signed_url: annotated,
+        };
+      })
+    );
+
+    return NextResponse.json({
+      point: {
+        ...point,
+        job_name: (jobRaw as { name?: string } | null)?.name ?? null,
+        job_number:
+          (jobRaw as { job_number?: string } | null)?.job_number ?? null,
+        created_by_email:
+          (userRaw as { email?: string } | null)?.email ?? null,
+        created_by_name:
+          (userRaw as { name?: string } | null)?.name ?? null,
+      },
+      media,
+    });
+  },
+  { routeName: 'admin/field-data/:id' }
+);

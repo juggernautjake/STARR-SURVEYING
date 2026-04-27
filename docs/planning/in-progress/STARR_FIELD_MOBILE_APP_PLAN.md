@@ -1010,14 +1010,14 @@ Audit additions:
 - [/] Phone GPS / altitude metadata — captured in `useAttachPhoto`. Compass heading is **pending**: `expo-sensors` magnetometer not yet wired; the `device_compass_heading` column is left null pending integration.
 - [ ] Photo annotation (arrow, circle, text) — `field_media.annotated_url` + `annotations` JSONB columns reserved; UI not built. F3 #6 still in flight.
 - [x] Job-level photo upload (no point assignment) — `attachPhoto({ dataPointId: null, jobId })` and the gallery at `(tabs)/capture/[pointId]/photos.tsx`.
-- [ ] Office reviewer sees points + photos in web app — **no admin viewer exists yet**. `field_data_points` and `field_media` are not surfaced anywhere under `app/admin/`. Highest-impact remaining F3 item.
+- [x] Office reviewer sees points + photos in web app — `/admin/field-data` list with date range + employee + job + free-text filters; per-point detail at `/admin/field-data/[id]` with full photo gallery (lightbox, signed URLs for storage / thumbnail / original / annotated tiers), creator info, GPS metadata + Maps deep-link, offset / correction flags, and a link back to the parent `/admin/jobs/[id]`. APIs at `/api/admin/field-data` (list with thumbnails) + `/api/admin/field-data/[id]` (full detail). Sidebar entry under Work group.
 
 Resilience additions (same offline-first pattern as F2):
 - [x] INSERT field_media first → enqueue upload; `upload_state` flips `pending → done`/`failed` via `lib/uploadQueue.ts`
 - [x] Optional device-Photos backup via `lib/deviceLibrary.ts` (opt-in toggle on Me tab)
 - [x] Per-photo `usePendingUploadLocalUri` fallback for the gallery (same as receipts)
 
-**Exit:** Found-monument workflow <60s. **Status:** core capture loop shipped; annotation overlay + admin viewer + compass heading remain.
+**Exit:** Found-monument workflow <60s. **Status:** core capture loop + admin viewer shipped; annotation overlay + compass heading remain.
 
 ### Phase F4 — Voice + video + notes (Week 13–16)
 - [ ] Voice memo + on-device transcription — direct ask in user's resilience requirement ("save voice recordings to the app and the data also need to be able to be saved to the phone storage as well"). Should reuse `uploadQueue.ts` pattern + `deviceLibrary.ts` for the phone-storage backup half.
@@ -1059,7 +1059,7 @@ Audit additions:
 - [x] Sync UI improvements (per-asset progress, retry surfaces) — `useUploadQueueStatus` + the Uploads screen + Me-tab summary row that surfaces failed counts in danger colour.
 - [ ] High-contrast / sun-readable theme — dark mode default exists per `lib/theme.ts`; high-contrast variant pending. Acceptance: legible in direct 100°F sun.
 - [ ] Battery profile audit — needs real-device measurement against the §2 goal of <50% over 8-hour field day with location tracking on. Test rig + measurement protocol both pending.
-- [ ] Tablet layout (truck-mounted iPad) — `supportsTablet: true` set in `app.json`; layout work pending (split-pane jobs + map view).
+- [/] Tablet layout (truck-mounted iPad) — `supportsTablet: true` set in `app.json`. `lib/responsive.ts` provides `useResponsiveLayout()` + `tabletContainerStyle()` helpers (≥600 dp = tablet; clamp content to 720 px max + centre). Applied to the four main tab screens (Jobs / Time / Money / Me); detail / drilldown screens still inherit phone defaults — split-pane layouts and a tablet-specific Jobs+map combo are post-v1.
 - [ ] Conflict resolution UX for multi-device — per §10 risk: per-field LWW for non-media, "both photos kept" for media. Currently no test coverage of the multi-device path.
 - [ ] Stress-test: 30 days of data on 5 devices — operator concern; needs scripted nightly job + a few volunteer devices.
 
@@ -1197,6 +1197,37 @@ under one phase.
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
 
+**Batch H — field-data admin viewer + tablet support**
+- [x] `GET /api/admin/field-data` — list of every captured data point
+      with bulk-joined job + creator + first-thumbnail signed URL
+      (1-hour TTL). Filters: `job_id`, `user_id`, `user_email`,
+      `from`, `to`, `limit`, `offset`. Bulk look-ups (jobs / users /
+      media) executed in parallel so a 50-row page is one round trip
+      after the initial query.
+- [x] `GET /api/admin/field-data/[id]` — single point + every
+      attached `field_media` row, with per-tier signed URLs (storage,
+      thumbnail, original, annotated). Returns null per URL when the
+      sign call fails so the UI can render a "no image" placeholder
+      instead of crashing.
+- [x] `/admin/field-data` page — date-range filter (default 14 days),
+      employee + job + free-text search (client-side for now;
+      server-side `tsvector` index TBD). Card grid with thumbnail,
+      offset / correction flag chips, capture metadata, paging
+      (50 per page).
+- [x] `/admin/field-data/[id]` detail page — point metadata block
+      (lat/lon/accuracy/altitude/heading + Maps deep-link), notes,
+      photo gallery with lightbox + "Open full-resolution" link to
+      the original tier (WiFi-only sync per plan §5.4 — admin web
+      always sees originals via the signed URL). Sidebar entry under
+      Work group.
+- [x] `mobile/lib/responsive.ts` — `useResponsiveLayout()` hook +
+      `tabletContainerStyle()` helper. Applied to Jobs / Time /
+      Money / Me tab screens; drilldowns + capture flow inherit
+      phone-portrait defaults until F7 polish.
+- [x] Web-integration coverage matrix added to §9.y so future
+      mobile features have a checklist for "did I also add an admin
+      surface for this data?" before they ship.
+
 **Batch G — mileage report (IRS-grade, F6)**
 - [x] `GET /api/admin/mileage` — Haversine sum of consecutive
       `location_pings` per `(user_email, UTC date)`, with a 200 km
@@ -1253,6 +1284,67 @@ PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
   `requestBackgroundPermissionsAsync()` call (currently the OS prompt
   is the only consent surface; the disclosure copy already lives at
   `/(tabs)/me/privacy`).
+
+---
+
+## 9.y — Web-integration coverage matrix
+
+Per the user's deployment requirement: *"I need it to fully integrate
+with the website. Everything that happens and shows up in the app
+should also be recorded and stored and show up in the online website
+as well."* Every mobile-write table is replicated to Supabase via
+PowerSync's CRUD queue — that half is automatic. This matrix tracks
+the **observable** half: where on the web admin can you see each
+slice of mobile-written data?
+
+| Mobile data | Supabase table | Admin surface | Status |
+|---|---|---|---|
+| Clock-in / clock-out | `daily_time_logs`, `job_time_entries` | `/admin/hours-approval`, `/admin/payroll`, `/admin/my-hours` | ✓ shipped |
+| Time edits + audit trail | `time_edits` | History column on `/admin/hours-approval` (existing) | ✓ shipped |
+| Receipts + line items | `receipts`, `receipt_line_items` | `/admin/receipts` + `/admin/receipts/[id]` + CSV export | ✓ shipped |
+| Field data points | `field_data_points` | `/admin/field-data` list + `/admin/field-data/[id]` detail (this batch) | ✓ shipped |
+| Field media (photos) | `field_media` | Photo gallery on `/admin/field-data/[id]` with lightbox + per-tier signed URLs | ✓ shipped |
+| Background GPS pings | `location_pings` | `/admin/team` last-seen card + `/admin/mileage` per-day aggregates | ✓ shipped (raw + aggregate) |
+| Stops + segments | `location_stops`, `location_segments` | depends on stop-detection worker | ⏳ deferred |
+| Notifications (admin pings) | `notifications` | `/admin/team` Ping buttons + existing NotificationBell + POST `/api/admin/notifications` | ✓ shipped |
+| Vehicle assignments | `vehicles` | (none yet — small lookup table) | ⏳ deferred |
+| Jobs (mobile read-only v1) | `jobs` | `/admin/jobs` (existing) | ✓ shipped |
+| Fieldbook notes | `fieldbook_notes` | `/admin/learn/{fieldbook,notes}` (existing) | ✓ shipped |
+
+**Activation gate**: every admin surface above bypasses RLS via
+`supabaseAdmin` (service role), so the data flows even if user-JWT
+RLS isn't fully configured yet. New mobile screens that write
+should be added to this matrix as they ship.
+
+---
+
+## 9.z — Tablet & responsive support
+
+Per the user's deployment requirement: *"I am going to need to build
+this app to work on tablets and all kinds of phones."* Tracked as a
+cross-cutting concern rather than a single F7 checkbox.
+
+**Currently:**
+- `mobile/app.json` declares `supportsTablet: true` (iOS).
+- `mobile/lib/responsive.ts` (this batch) exposes
+  `useResponsiveLayout()` + `tabletContainerStyle()` so a screen can
+  opt into a max-readable-width layout with two lines of code.
+  Breakpoints: `<600 dp` = phone, `≥600 dp` = tablet. Tablet content
+  clamps to 720 px and centres.
+- Applied to the four main tab screens: Jobs (`(tabs)/jobs/index.tsx`),
+  Time (`(tabs)/time/index.tsx`), Money (`(tabs)/money/index.tsx`),
+  Me (`(tabs)/me/index.tsx`).
+
+**Pending:**
+- Drill-down screens (`jobs/[id]/`, `money/[id]`, `me/uploads`,
+  `me/privacy`, `time/edit/[id]`, `time/pick-job`, capture flows)
+  still inherit phone-portrait defaults. Same helper applies trivially.
+- Split-pane layouts for tablet landscape — Jobs list + map next to
+  each other; Time tab + active-job preview side-by-side. Tracked
+  under F7 "Tablet layout (truck-mounted iPad)" with the responsive
+  primitives now in place.
+- Real-device testing: 6.1" iPhone, 6.7" iPhone, 11" iPad, 12.9" iPad
+  in both orientations. No automated testing of layouts — manual QA.
 
 ---
 

@@ -23,6 +23,10 @@ import {
 } from '@/lib/timeFormat';
 import { useTimesheet } from '@/lib/timesheet';
 import { thisWeekRange, useSubmitWeek, useThisWeekTotal } from '@/lib/timesheetActions';
+import {
+  tabletContainerStyle,
+  useResponsiveLayout,
+} from '@/lib/responsive';
 import { colors } from '@/lib/theme';
 
 /**
@@ -184,12 +188,17 @@ export default function TimeScreen() {
     }
   };
 
+  // Tablet layout: clamp scroll content to a comfortable reading
+  // width so cards don't span the full iPad screen. No-op on phones.
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
+
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
         <View style={styles.headerRow}>
           <Text style={[styles.heading, { color: palette.text }]}>Time</Text>
         </View>

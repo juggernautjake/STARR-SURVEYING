@@ -32,6 +32,10 @@ import {
   type NotificationPermissionState,
 } from '@/lib/notifications';
 import { useOwnLocationPingSummary } from '@/lib/locationTracker';
+import {
+  tabletContainerStyle,
+  useResponsiveLayout,
+} from '@/lib/responsive';
 import { useUploadQueueStatus } from '@/lib/uploadQueue';
 import { colors } from '@/lib/theme';
 
@@ -212,10 +216,12 @@ export default function MeScreen() {
 
   const email = session?.user.email ?? 'unknown';
   const kindUpper = capitalize(biometricLabel(bioKind));
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
         <View style={styles.headerBlock}>
           <Text style={[styles.label, { color: palette.muted }]}>Signed in as</Text>
           <Text style={[styles.email, { color: palette.text }]} selectable>
