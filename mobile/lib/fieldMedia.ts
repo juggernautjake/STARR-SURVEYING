@@ -560,15 +560,19 @@ export function useAttachVideo(): (
                duration_seconds, file_size_bytes,
                device_lat, device_lon, device_compass_heading,
                captured_at, uploaded_at,
-               created_by, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               created_by, created_at,
+               thumbnail_extraction_status
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               mediaId,
               jobId,
               dataPointId,
               'video',
               storagePath,
-              null, // server-side thumbnail extraction in F4 polish
+              // thumbnail_url stays null until the worker extracts a
+              // poster frame via ffmpeg (Batch GG). Mobile UI falls
+              // back to the 🎬 placeholder until the row syncs back.
+              null,
               null, // WiFi-only original-quality tier in F4 polish
               null, // no annotation overlay for video
               'pending',
@@ -583,6 +587,15 @@ export function useAttachVideo(): (
               nowIso,
               userId,
               nowIso,
+              // Mark queued so the thumbnail-extraction worker
+              // (worker/src/services/video-thumbnail-extraction.ts)
+              // picks the row up after upload completes. The
+              // worker's poll filters on
+              //   media_type='video' AND upload_state='done'
+              //   AND thumbnail_extraction_status='queued'
+              // so this row sits queued until the upload queue
+              // flips upload_state to 'done'.
+              'queued',
             ]
           );
         });

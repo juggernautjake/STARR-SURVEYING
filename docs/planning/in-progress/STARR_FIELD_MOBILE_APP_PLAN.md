@@ -1152,7 +1152,7 @@ classifier) · 228 (voice transcription) — all present.
 |---|---|---|
 | F2 receipts | Capture, extraction, approval, CSV export, duplicate detection + review-before-save (Batch Z), soft-delete foundation (Batch CC) | Worker retention sweep CLI (purges rows past IRS retention threshold); per-receipt admin sign-off audit |
 | F3 photos | Multi-photo, GPS, EXIF, annotator, compass heading (Batch V) | Arrow / circle / text annotation primitives (schema slots reserved; pen-only in v1) |
-| F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U) | Server-side FFmpeg thumbnail extraction; WiFi-only original-quality re-upload tier |
+| F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U), server-side FFmpeg thumbnails (Batch GG) | WiFi-only original-quality re-upload tier |
 | F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
 | F4 notes | Free-text + four structured templates + admin viewer + cross-notes search (Batch BB) | Server-side `tsvector` index for cross-user admin search at scale; FTS5 ranking when the LIKE scan tops 10k notes per device |
 | F5 files | Document picker + admin Files block + image/PDF/CSV preview + pin-to-device offline read (Batch W) + P,N,E,Z,D parser w/ point-match preview (Batch AA) | Auto-import unmatched CSV rows as new data points |
@@ -1525,6 +1525,96 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch GG — server-side video thumbnail extraction (F4 closer)**
+
+Closes the F4 deferral *"server-side thumbnail extraction (FFmpeg
+via worker) so the gallery thumbnail isn't a placeholder."* Every
+video the surveyor records now gets a real poster-frame JPEG
+written to the photo bucket and surfaced in `field_media.thumbnail_url`
+within ~30 s of upload — admin viewer + mobile Videos grid switch
+from the 🎬 placeholder glyph to a recognizable still automatically.
+
+Schema (`seeds/231_starr_field_video_thumbnails.sql`):
+- `field_media.thumbnail_extraction_status` (`queued | running |
+  done | failed`) — same state machine as
+  `extraction_status` (receipts) and `transcription_status`
+  (voice).
+- `field_media.thumbnail_extraction_error` for the truncated
+  failure reason.
+- `field_media.thumbnail_extraction_started_at` +
+  `thumbnail_extraction_completed_at` for the watchdog +
+  ops-correlation.
+- Two partial indexes: `idx_field_media_thumb_extract_queued` for
+  the worker poll, `idx_field_media_thumb_extract_running` for
+  the watchdog sweep.
+- Apply AFTER seeds/221.
+
+Mobile (`mobile/lib/db/schema.ts`, `mobile/lib/fieldMedia.ts`):
+- Schema mirrors the four new columns.
+- `useAttachVideo` INSERT now sets
+  `thumbnail_extraction_status='queued'` so the worker's
+  poll-filter immediately sees the row when `upload_state` flips
+  to `'done'`.
+
+Worker service (`worker/src/services/video-thumbnail-extraction.ts`):
+- `processVideoThumbnailBatch(supabase, opts)` returns
+  `{ total, done, failed, skipped, results }`.
+- Uses the **ffmpeg-static** binary (~50 MB prebuilt; no host
+  ffmpeg dep). Spawn pattern: `-ss 1 -i input.mp4 -frames:v 1
+  -vf scale=640:-2 -q:v 4 out.jpg`. For very short clips
+  (`duration_seconds < 1.5`) seeks to 0 instead of 1 s so the
+  fade-out doesn't return a black frame.
+- 30 s ffmpeg timeout per video. Hard 200 MB cap on input
+  (skips with `over_size_cap` reason).
+- Race-safe `claimRow` UPDATE flips `queued → running` so two
+  workers can't double-process the same row.
+- Watchdog sweeps `running` rows whose
+  `thumbnail_extraction_started_at` is older than 5 min and
+  re-queues them (covers crashed workers + container restarts).
+- Cleanup is bullet-proof: `mkdtemp` per row + `rm -rf` in
+  `finally` — no temp leaks.
+
+Storage path convention:
+- Thumbnail uploads to `starr-field-photos` at
+  `{user_id}/{media_id}-thumb.jpg`. The `user_id` segment is
+  parsed from the source video's `storage_url` so the photo
+  bucket's RLS aligns with the source.
+- `upsert: true` so re-extracts (rare) overwrite cleanly
+  without leaking storage objects.
+
+CLI (`worker/src/cli/extract-video-thumbnails.ts`):
+- Mirrors the receipt + voice CLIs: one-shot mode + `--watch`
+  loop polling every 60 s. Tunable `--batch-size` (default 5,
+  max 20).
+- npm script: `npm run extract-video-thumbnails -- --watch`.
+
+Worker package: adds `ffmpeg-static ^5.2.0` dep + the new npm
+script. No host ffmpeg required — the prebuilt binary ships
+with the package.
+
+Logging:
+- `video-thumb` ProcessLogger emits structured logs at
+  info/warn/error. Per-row context (`media_id`, `storage_url`,
+  `thumb_bytes`, `seek_sec`) so Sentry can correlate failures
+  with bucket-config issues.
+- CLI summary line on every batch: `done=N failed=M skipped=K
+  KB written`.
+
+Activation gate: apply `seeds/231` to live Supabase + run
+`npm install` on the worker (adds ~50 MB for ffmpeg-static)
+before scheduling the cron. Mobile insert already writes the
+`'queued'` state so the worker picks rows up immediately on
+startup.
+
+Pending v2 polish:
+- WiFi-only original-quality re-upload tier per plan §5.4 (the
+  last F4 deferral). Currently single-tier upload at the
+  picker's `videoQuality: 0.7`.
+- Multi-frame thumbnail for videos > 60 s (so the gallery
+  shows a 4-up grid representative of the whole clip).
+- Time-travel thumbnail (let the surveyor scrub to a frame
+  they want as the poster instead of the auto-1s default).
 
 **Batch FF — admin "Show deleted" toggle on /admin/receipts (closes Batch CC audit-trail UX)**
 

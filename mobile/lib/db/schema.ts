@@ -151,6 +151,14 @@ const field_media = new Table({
   transcription_started_at: column.text,
   transcription_completed_at: column.text,
   transcription_cost_cents: column.integer,
+  // Server-side video thumbnail extraction (Batch GG, seeds/231).
+  // Mobile insert sets 'queued' for video rows; the worker
+  // (worker/src/services/video-thumbnail-extraction.ts) flips to
+  // 'running' → 'done' (writing thumbnail_url) or 'failed'.
+  thumbnail_extraction_status: column.text,
+  thumbnail_extraction_error: column.text,
+  thumbnail_extraction_started_at: column.text,
+  thumbnail_extraction_completed_at: column.text,
   annotations: column.text, // JSON-encoded JSONB
   created_by: column.text,
   client_id: column.text,
