@@ -70,6 +70,11 @@ interface JobMediaRow {
   file_size_bytes: number | null;
   device_lat: number | null;
   device_lon: number | null;
+  /** Magnetic-compass bearing of the camera at capture time, 0..360°.
+   *  Wired from `expo-location.getHeadingAsync()` in Batch V. Null
+   *  on devices without a magnetometer or when calibration was
+   *  needed at capture time. */
+  device_compass_heading: number | null;
   captured_at: string | null;
   uploaded_at: string | null;
   upload_state: string | null;
@@ -160,7 +165,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     supabaseAdmin
       .from('field_media')
       .select(
-        'id, media_type, data_point_id, storage_url, thumbnail_url, original_url, annotated_url, annotations, transcription, transcription_status, duration_seconds, file_size_bytes, device_lat, device_lon, captured_at, uploaded_at, upload_state, created_by'
+        'id, media_type, data_point_id, storage_url, thumbnail_url, original_url, annotated_url, annotations, transcription, transcription_status, duration_seconds, file_size_bytes, device_lat, device_lon, device_compass_heading, captured_at, uploaded_at, upload_state, created_by'
       )
       .eq('job_id', jobId)
       .order('captured_at', { ascending: false }),
@@ -232,6 +237,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     file_size_bytes: number | null;
     device_lat: number | null;
     device_lon: number | null;
+    device_compass_heading: number | null;
     captured_at: string | null;
     uploaded_at: string | null;
     upload_state: string | null;
@@ -420,6 +426,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         file_size_bytes: m.file_size_bytes,
         device_lat: m.device_lat,
         device_lon: m.device_lon,
+        device_compass_heading: m.device_compass_heading,
         captured_at: m.captured_at,
         uploaded_at: m.uploaded_at,
         upload_state: m.upload_state,

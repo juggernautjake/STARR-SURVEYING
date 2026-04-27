@@ -21,7 +21,11 @@ import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
 import { extractPrefix } from './dataPointCodes';
 import { PHOTO_BUCKET } from './fieldMedia';
-import { getCurrentPosition, type GpsFailureReason } from './location';
+import {
+  getCurrentHeadingOrNull,
+  getCurrentPosition,
+  type GpsFailureReason,
+} from './location';
 import { logError, logInfo } from './log';
 import { removeFromBucket } from './storage/mediaUpload';
 import { randomUUID } from './uuid';
@@ -94,11 +98,17 @@ export function useCreateDataPoint(): (
         throw err;
       }
 
-      // Best-effort GPS fix — don't block point creation on it. The
-      // location helper handles permission, timeout, and hardware
-      // failure with graceful degradation. We pass `reason` back to
-      // the screen so the user sees why GPS failed.
-      const { pos, reason: gpsReason } = await getCurrentPosition();
+      // Best-effort GPS + compass — don't block point creation on
+      // either. The location helpers handle permission, timeout,
+      // sensor unavailability, and hardware failure with graceful
+      // degradation. Both run in parallel so total wall-time is
+      // bounded by the slower of the two timeouts (GPS 8 s,
+      // heading 1.5 s). `gpsReason` propagates back to the screen
+      // so the user sees WHY GPS failed.
+      const [{ pos, reason: gpsReason }, heading] = await Promise.all([
+        getCurrentPosition(),
+        getCurrentHeadingOrNull(),
+      ]);
       const codeCategory = extractPrefix(cleanName);
 
       const id = randomUUID();
@@ -109,6 +119,7 @@ export function useCreateDataPoint(): (
         name: cleanName,
         code_category: codeCategory,
         has_gps: !!pos,
+        has_heading: heading != null,
         is_offset: !!input.isOffset,
         is_correction: !!input.isCorrection,
       });
@@ -132,10 +143,7 @@ export function useCreateDataPoint(): (
             pos?.longitude ?? null,
             pos?.altitude ?? null,
             pos?.accuracy ?? null,
-            // Compass heading: expo-sensors' Magnetometer ships in F3
-            // polish — for F3 #2 we leave this null. Plan §5.3 wants
-            // it eventually so the office can render shot direction.
-            null,
+            heading,
             // SQLite has no boolean — store as 0/1 INTEGER per the
             // schema convention used by job_time_entries.is_driver etc.
             input.isOffset ? 1 : 0,

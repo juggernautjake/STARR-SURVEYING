@@ -1007,7 +1007,7 @@ Audit additions:
 ### Phase F3 — Data points + photos (Week 9–12)
 - [x] Create data point with name from 179-code library — `lib/dataPoints.ts` + `lib/dataPointCodes.ts`. Capture flow at `(tabs)/capture/index.tsx` and per-point detail at `(tabs)/jobs/[id]/points/[pointId].tsx`.
 - [x] Camera capture, multi-photo — `lib/fieldMedia.ts` `useAttachPhoto`. Burst-grouping via `burst_group_id` ready in schema; UI for burst capture pending (F3 polish).
-- [/] Phone GPS / altitude metadata — captured in `useAttachPhoto`. Compass heading is **pending**: `expo-sensors` magnetometer not yet wired; the `device_compass_heading` column is left null pending integration.
+- [x] Phone GPS / altitude / compass heading metadata — captured in `useAttachPhoto` (and now `useAttachVideo` + `dataPoints.create`). Heading lands via `getCurrentHeadingOrNull()` in `lib/location.ts`, wrapping `expo-location.getHeadingAsync()` (no new native dep). Best-effort with a 1.5 s timeout so a slow magnetometer doesn't block capture; trueHeading preferred (geo-north) with magHeading fallback when declination hasn't been computed yet; calibration-needed readings (`accuracy < 1`) drop to null. Admin viewer renders a `↑ 273° W` badge with rotating arrow on the point meta cell + every photo / video card. (Batch V)
 - [/] Photo annotation — `lib/PhotoAnnotator.tsx` (full-screen react-native-svg editor with PanResponder freehand strokes, 4-colour palette, undo + clear + save) + `lib/photoAnnotation.ts` data model (z-ordered `AnnotationDocument` with normalised 0..1 coordinates so strokes render identically on phone / tablet / web admin) + `useUpdateMediaAnnotations` hook. Originals NEVER touched per plan §5.4 — overlay rendered live from JSON in `field_media.annotations`. PhotoLightbox shows existing strokes + has "Annotate" / "Edit annotations" entry button. Web admin `/admin/field-data/[id]` lightbox renders the same SVG overlay using the shared `lib/photoAnnotationRenderer.ts` helpers. **Pen tool only in v1**; arrow / circle / text primitives have schema slots reserved for v2.
 - [x] Job-level photo upload (no point assignment) — `attachPhoto({ dataPointId: null, jobId })` and the gallery at `(tabs)/capture/[pointId]/photos.tsx`.
 - [x] Office reviewer sees points + photos in web app — `/admin/field-data` list with date range + employee + job + free-text filters; per-point detail at `/admin/field-data/[id]` with full photo gallery (lightbox, signed URLs for storage / thumbnail / original / annotated tiers), creator info, GPS metadata + Maps deep-link, offset / correction flags, and a link back to the parent `/admin/jobs/[id]`. APIs at `/api/admin/field-data` (list with thumbnails) + `/api/admin/field-data/[id]` (full detail). Sidebar entry under Work group.
@@ -1151,7 +1151,7 @@ classifier) · 228 (voice transcription) — all present.
 | Area | Done | Deferred |
 |---|---|---|
 | F2 receipts | Capture, extraction, approval, CSV export | Soft-delete + IRS 7-yr retention; per-receipt admin sign-off audit |
-| F3 photos | Multi-photo, GPS, EXIF, annotator | Compass heading (magnetometer not wired); arrow / circle / text annotation primitives (schema slots reserved) |
+| F3 photos | Multi-photo, GPS, EXIF, annotator, compass heading (Batch V) | Arrow / circle / text annotation primitives (schema slots reserved; pen-only in v1) |
 | F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U) | Server-side FFmpeg thumbnail extraction; WiFi-only original-quality re-upload tier |
 | F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
 | F4 notes | Free-text + four structured templates + admin viewer | Cross-notes search across body + structured payloads (no FTS index — server `tsvector` or local SQLite FTS5 TBD) |
@@ -1525,6 +1525,77 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch V — compass heading on every photo / video / point**
+
+Closes the F3 deferral *"`expo-sensors` magnetometer not yet wired;
+the `device_compass_heading` column is left null pending
+integration."* Surveyors photograph monuments from a specific
+direction; the office reviewer needs to know which face of the
+rebar they're looking at. Until this batch the column was always
+null.
+
+Implementation chose `expo-location.getHeadingAsync()` over a new
+`expo-sensors` Magnetometer wiring because:
+1. expo-location already gates on the same foreground-permission
+   grant the GPS calls use, so no extra prompt or rationale dialog.
+2. The OS handles magnetic-declination → true-north conversion
+   once it has a recent GPS fix; rolling our own would mean
+   shipping a declination table or hitting NOAA WMM.
+3. expo-location is already in the dep tree; expo-sensors would
+   add a native module + iOS / Android plugin entries.
+
+`mobile/lib/location.ts` `getCurrentHeadingOrNull()`:
+- Calls `Location.getHeadingAsync()` behind a 1.5 s timeout (the
+  capture flow already costs ~8 s waiting for GPS; another 5 s
+  on a cold magnetometer is not acceptable).
+- Prefers `trueHeading` (geo-north) over `magHeading`. Falls back
+  to magnetic when the OS hasn't computed declination yet (no
+  recent GPS fix → trueHeading reports `-1`).
+- Drops readings where `accuracy < 1` (Apple's "calibration
+  needed" enum) so we don't store bearings that point at a steel
+  I-beam instead of magnetic north.
+- Normalises to 0..360 (defensive against iOS hardware that
+  occasionally returns -180..180), rounds to 0.1°.
+- Returns null on permission denied / timeout / unavailable
+  sensor / hardware error — same null-degrades-to-graceful
+  contract as the GPS helper.
+
+Capture flows (`mobile/lib/fieldMedia.ts`, `mobile/lib/dataPoints.ts`):
+- `useAttachPhoto`, `useAttachVideo`, `dataPoints.create` now
+  fetch GPS + heading in parallel via `Promise.all` so total
+  wall-time stays bounded by the slower of the two timeouts (8 s
+  GPS / 1.5 s heading), not their sum.
+- Heading writes to `field_media.device_compass_heading` on every
+  photo + video, and `field_data_points.device_compass_heading`
+  on every new point.
+- Voice memos still write null — bearing is irrelevant for audio.
+- Success log lines now include `has_heading: bool` for ops
+  visibility into how often the magnetometer is producing a
+  reading in the wild.
+
+Admin viewer (`/admin/field-data/[id]` + `/admin/jobs/[id]/field`):
+- New `<HeadingBadge deg={n} />` component renders a north-anchored
+  ▲ arrow rotated to the bearing, plus the degree + cardinal
+  abbreviation (`273° W`). 8-point cardinals (N / NE / E / SE / S
+  / SW / W / NW) are the sweet spot for "rebar's NW face" without
+  crowding the badge with NNE / ENE / etc.
+- Rendered on the point meta cell (Heading column) AND on every
+  photo / video card (Facing row) — only when present, so legacy
+  rows captured before this batch don't show stale "—" rows.
+- Per-job API `GET /api/admin/jobs/[id]/field-data` extended to
+  include `device_compass_heading` on every `JobMediaRow` so the
+  per-job page can render the same badge on its job-level media
+  cards.
+
+Logging + error handling:
+- `location.getCurrentHeadingOrNull` logs at info level on
+  permission denial, timeout, and low-accuracy drop so an ops
+  flag (e.g. "every photo from this device is null-headed") is
+  visible.
+- All capture-flow logs include `has_heading: bool` so we can
+  correlate magnetometer availability with device model in
+  Sentry.
 
 **Batch U — mobile video review (Photos / Videos tab + full-screen player)**
 

@@ -24,7 +24,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 
 import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
-import { getCurrentPositionOrNull } from './location';
+import { getCurrentHeadingOrNull, getCurrentPositionOrNull } from './location';
 import { logError, logInfo } from './log';
 import {
   pickAndCompress,
@@ -149,9 +149,15 @@ export function useAttachPhoto(): (
       // 2. Capture phone GPS + compass for the EXIF-equivalent metadata
       //    columns. expo-image-picker's exif option strips this when
       //    set to false (we set false to avoid a slow PHAsset round-
-      //    trip), so we re-capture from the location helper. Best-
-      //    effort — null on permission denied / no fix.
-      const pos = await getCurrentPositionOrNull();
+      //    trip), so we re-capture from the location helper. Both are
+      //    best-effort (null on denied permission / no fix / sensor
+      //    unavailable) and run in parallel so total wall-time is
+      //    bounded by the slower of the two timeouts (GPS 8 s,
+      //    heading 1.5 s).
+      const [pos, heading] = await Promise.all([
+        getCurrentPositionOrNull(),
+        getCurrentHeadingOrNull(),
+      ]);
 
       // 3. Generate IDs + storage path. Path convention is locked by
       //    the storage RLS policy (see seeds/221_*.sql): leading
@@ -212,8 +218,7 @@ export function useAttachPhoto(): (
               picked.fileSize ?? null,
               pos?.latitude ?? null,
               pos?.longitude ?? null,
-              // Compass heading needs expo-sensors' Magnetometer; F3 polish.
-              null,
+              heading,
               nowIso,
               nowIso,
               userId,
@@ -252,6 +257,8 @@ export function useAttachPhoto(): (
         media_id: mediaId,
         point_id: dataPointId,
         bytes: picked.fileSize ?? null,
+        has_gps: !!pos,
+        has_heading: heading != null,
         uploaded_now: enqueueResult.uploadedNow,
       });
 
@@ -518,8 +525,13 @@ export function useAttachVideo(): (
         return null;
       }
 
-      // Best-effort GPS metadata. Same pattern as photo capture.
-      const pos = await getCurrentPositionOrNull();
+      // Best-effort GPS + compass metadata. Same pattern as photo
+      // capture — both queries run in parallel and degrade to null
+      // independently.
+      const [pos, heading] = await Promise.all([
+        getCurrentPositionOrNull(),
+        getCurrentHeadingOrNull(),
+      ]);
 
       const mediaId = randomUUID();
       const parentTag = dataPointId ?? `job-${jobId}`;
@@ -566,7 +578,7 @@ export function useAttachVideo(): (
               picked.fileSize ?? null,
               pos?.latitude ?? null,
               pos?.longitude ?? null,
-              null,
+              heading,
               nowIso,
               nowIso,
               userId,
@@ -602,6 +614,8 @@ export function useAttachVideo(): (
         point_id: dataPointId,
         duration_seconds: picked.durationSeconds ?? null,
         file_size: picked.fileSize ?? null,
+        has_gps: !!pos,
+        has_heading: heading != null,
         uploaded_now: enqueueResult.uploadedNow,
       });
 
