@@ -1021,7 +1021,7 @@ Resilience additions (same offline-first pattern as F2):
 
 ### Phase F4 — Voice + video + notes (Week 13–16)
 - [x] Voice memo capture + transcription — `lib/voiceRecorder.ts` (expo-av Audio.Recording with M4A mono preset, 5-minute auto-stop cap, idempotent permission cache, mid-flight cancel + cleanup), `lib/fieldMedia.ts` `useAttachVoice` (mirrors `useAttachPhoto` — INSERT first with `transcription_status='queued'`, enqueue upload to `starr-field-voice` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup via `lib/deviceLibrary.ts`), `(tabs)/capture/[pointId]/voice.tsx` capture screen with per-memo playback row (long-press to delete). **Server-side transcription via OpenAI Whisper** lands in Batch R: `seeds/228` adds `transcription_status` / `transcription_error` / `transcription_started_at` / `transcription_completed_at` / `transcription_cost_cents` to `field_media`; `worker/src/services/voice-transcription.ts` polls `WHERE upload_state='done' AND transcription_status='queued'`, race-safe `claimRow` flips to `'running'`, fetches the M4A via signed URL, calls Whisper-1 (en hint), writes back with cost in cents (~$0.006/min). Watchdog re-queues stale `'running'` rows after 5 min. CLI at `worker/src/cli/transcribe-voice.ts` for cron; `POST /starr-field/voice/transcribe` for on-demand. Admin `/admin/field-data/[id]` shows ⏳ queued / 🎧 transcribing / ✓ done / ⚠ failed badges + the transcript text once landed.
-- [/] Video capture — `lib/storage/mediaUpload.ts` `pickVideo()` wraps `expo-image-picker.launchCameraAsync` with the Videos media type + 5-min cap (per plan §5.4), `lib/fieldMedia.ts` `useAttachVideo` mirrors the photo + voice pattern (INSERT field_media row with `media_type='video'`, enqueue upload to `starr-field-videos` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup which goes to Camera Roll). "📹 Record video" button on the photos screen footer. Admin `/admin/field-data/[id]` renders native `<video controls>` with mp4 + quicktime fallback `<source>` tags, duration in mm:ss, download link. **Pending:** server-side thumbnail extraction (FFmpeg via worker) so the gallery thumbnail isn't a placeholder; WiFi-only original-quality re-upload tier per plan §5.4; mobile-side video gallery (currently captured via OS camera + surfaced on web admin only).
+- [/] Video capture — `lib/storage/mediaUpload.ts` `pickVideo()` wraps `expo-image-picker.launchCameraAsync` with the Videos media type + 5-min cap (per plan §5.4), `lib/fieldMedia.ts` `useAttachVideo` mirrors the photo + voice pattern (INSERT field_media row with `media_type='video'`, enqueue upload to `starr-field-videos` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup which goes to Camera Roll). "📹 Record video" button on the photos screen footer. Admin `/admin/field-data/[id]` renders native `<video controls>` with mp4 + quicktime fallback `<source>` tags, duration in mm:ss, download link. **Mobile video review shipped (Batch U)**: Photos / Videos tab toggle on the per-point capture screen + a full-screen player at `(tabs)/capture/[pointId]/video-player.tsx` with native expo-av controls + delete + offline-first playback via `useFieldMediaVideoUrl` (falls back to local `documentDirectory` URI before the bytes sync). **Pending:** server-side thumbnail extraction (FFmpeg via worker) so the gallery thumbnail isn't a placeholder; WiFi-only original-quality re-upload tier per plan §5.4.
 - [x] Free-text notes + structured templates (offset, monument, hazard, correction) — `lib/fieldNotes.ts` (`useAddFieldNote` / `usePointNotes` / `useJobLevelNotes` / `useArchiveFieldNote` + `summariseStructuredPayload` + `parseStructuredPayload` helpers), per-template typed payload interfaces, body-summary derivation so the existing `/admin/notes` grep + future search-across-notes work without parsing JSON. Add-note screen at `/(tabs)/jobs/[id]/notes/new` accepts `?point_id=&template=` query params; in-app pill picker switches between Free-text / Offset shot / Monument found / Hazard / Correction with per-template form (typed inputs, choice pills for enums, severity colour-coding). Point detail screen (`(tabs)/jobs/[id]/points/[pointId].tsx`) gets a Notes section with reactive list + long-press archive + "+ Add note" button. Admin `/admin/field-data/[id]` surfaces attached notes with template tag, body, structured payload as a key/value table, author + age stamp, archived badge — `/api/admin/field-data/[id]` returns the parsed structured payload alongside the note row. Job-level note hook (`useJobLevelNotes`) is ready for a future job-detail surface.
 - [ ] Voice-to-text shortcut — bound to a hardware key for hands-free dictation. Need expo-speech-recognition or a Whisper-via-API path.
 - [ ] Search across notes + transcriptions — depends on the above + an FTS index. Need to confirm whether server-side `tsvector` columns or local SQLite FTS5 is the better path.
@@ -1152,7 +1152,7 @@ classifier) · 228 (voice transcription) — all present.
 |---|---|---|
 | F2 receipts | Capture, extraction, approval, CSV export | Soft-delete + IRS 7-yr retention; per-receipt admin sign-off audit |
 | F3 photos | Multi-photo, GPS, EXIF, annotator | Compass heading (magnetometer not wired); arrow / circle / text annotation primitives (schema slots reserved) |
-| F4 video | Capture, upload, admin player | Server-side FFmpeg thumbnail extraction; WiFi-only original-quality re-upload tier; mobile video-gallery tab |
+| F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U) | Server-side FFmpeg thumbnail extraction; WiFi-only original-quality re-upload tier |
 | F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
 | F4 notes | Free-text + four structured templates + admin viewer | Cross-notes search across body + structured payloads (no FTS index — server `tsvector` or local SQLite FTS5 TBD) |
 | F5 files | Document picker + admin Files block + image/PDF/CSV preview | Pin-to-device for persistent offline read; CSV parser for surveying P,N,E,Z,D; auto-link CSV rows → data points |
@@ -1525,6 +1525,70 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch U — mobile video review (Photos / Videos tab + full-screen player)**
+
+Closes the F4 deferral *"mobile-side video gallery — captures land
+on the web admin but don't show in the mobile photos.tsx grid."*
+
+Field: surveyor records a 30-second monument walkthrough → previously
+the only way to confirm the recording wasn't accidentally muted /
+shaky was to wait until the truck pulled back to the office and
+load the web admin. Now they tap **Videos** on the capture screen,
+see the tile, tap to play full-screen.
+
+UI:
+- `mobile/lib/VideoGrid.tsx` — 3-column tile grid mirroring
+  `ThumbnailGrid` for photos, with: server-thumbnail when present
+  (placeholder ▶ + 🎬 glyph until the F4 FFmpeg-thumbnail polish
+  lands), bottom-left `mm:ss` duration pill, top-right upload-state
+  badge (↑ pending / WiFi waiting / ! failed). Same vocabulary as
+  the photo grid so surveyors learn the pictograms once.
+- `mobile/app/(tabs)/capture/[pointId]/photos.tsx` — adds a
+  `Photos · N` / `Videos · M` pill toggle below the header.
+  Active pill lifts to the accent colour for glove-vision
+  contrast. Empty-state copy is type-aware ("No videos yet — tap
+  'Record video' below to capture one").
+- `mobile/app/(tabs)/capture/[pointId]/video-player.tsx` —
+  full-screen modal with native `<Video>` controls
+  (`expo-av` ResizeMode.CONTAIN), back button + Delete button in
+  the header bar, meta block underneath (Duration · Size · State
+  · Captured). On delete → `router.back()` lands back on the
+  Videos tab. Errors surface as a banner over the placeholder,
+  never a crash.
+- Stack route registered in `(tabs)/capture/_layout.tsx`.
+
+Resilience: the player resolves its source via the new
+`useFieldMediaVideoUrl` hook (parallel to the existing
+`useFieldMediaPhotoUrl`), which falls back to the local
+`documentDirectory` URI from the upload queue when the bytes
+haven't synced yet. Net: a freshly-captured walkthrough plays back
+**immediately** in airplane mode, before the upload queue even
+fires — same offline-first contract as photos and voice.
+
+Logging + error handling:
+- `videoPlayer.onError` → `logError` with `{ media_id, point_id,
+  upload_state }` so a wedged signed URL (expired TTL,
+  misconfigured bucket) is visible to ops.
+- `videoPlayer.onDelete` → mirrors the photo delete path with
+  Alert confirm + `useDeleteMedia` + Sentry on failure.
+- `photosScreen.onPressVideo` → simple navigation, no error case
+  beyond an obviously-corrupt route param.
+
+UX touches:
+- "Save without photos?" guard on Done now counts photos +
+  videos (a point with only a walkthrough is still considered
+  captured). Button label flips to "Done (skip captures)" only
+  when both grids are empty.
+- Long-press delete on either grid shares the same handler with
+  type-aware Alert copy ("Delete this video?" vs "Delete this
+  photo?").
+
+Pending v2 (still listed in §9.w):
+- Server-side FFmpeg thumbnail extraction so the placeholder tile
+  becomes a real frame.
+- WiFi-only original-quality re-upload tier (currently single-tier
+  upload at the picker's `videoQuality: 0.7`).
 
 **Batch T — author attribution everywhere + ZIP bundle download (closes Batch S follow-ups)**
 
