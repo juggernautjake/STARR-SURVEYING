@@ -1,11 +1,20 @@
 import { router } from 'expo-router';
-import { FlatList, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { useState } from 'react';
+import {
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ReceiptCard } from '@/lib/ReceiptCard';
 import {
+  type ReceiptListFilter,
   useReceipts,
   useReceiptsNeedingReview,
   type Receipt,
@@ -29,7 +38,12 @@ import { colors } from '@/lib/theme';
 export default function MoneyScreen() {
   const scheme = useColorScheme() ?? 'dark';
   const palette = colors[scheme];
-  const { receipts, isLoading } = useReceipts();
+  // Filter chip state (Batch LL). Tap the amber review badge to
+  // narrow the list to "needs review" only; the chip surfaces a
+  // clear-button so the surveyor can return to the all-receipts
+  // view without losing their place.
+  const [filter, setFilter] = useState<ReceiptListFilter>('all');
+  const { receipts, isLoading } = useReceipts(100, filter);
   // Reactive count of receipts that finished AI extraction but
   // haven't been user-confirmed yet. Drives the amber "N to
   // review" pill under the heading so the surveyor doesn't miss
@@ -53,54 +67,105 @@ export default function MoneyScreen() {
           {receipts.length}
         </Text>
       </View>
-      {reviewCount > 0 ? (
+      {/* Review badge — tap to filter to "needs review" only.
+          When the filter is active, render an amber chip with a
+          × button instead so the surveyor can clear the filter
+          without scrolling back. */}
+      {filter === 'needs-review' ? (
         <View style={tabletStyle}>
-          <View
-            style={{
-              marginHorizontal: 16,
-              marginBottom: 8,
-              padding: 10,
-              borderRadius: 999,
-              backgroundColor: '#FEF3C7',
-              borderWidth: 1,
-              borderColor: '#D97706',
-              alignSelf: 'flex-start',
-            }}
-            accessibilityLabel={`${reviewCount} receipts need review`}
-          >
-            <Text
-              style={{
-                color: '#92400E',
-                fontSize: 12,
-                fontWeight: '700',
-                letterSpacing: 0.3,
-              }}
+          <View style={[styles.filterChipRow, { marginHorizontal: 16 }]}>
+            <View
+              style={[
+                styles.filterChip,
+                { backgroundColor: '#FEF3C7', borderColor: '#D97706' },
+              ]}
+              accessibilityLabel="Filter active: needs review"
             >
+              <Text style={styles.filterChipText}>
+                👀 Filter: {receipts.length}{' '}
+                {receipts.length === 1 ? 'receipt' : 'receipts'} needing review
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => setFilter('all')}
+              accessibilityRole="button"
+              accessibilityLabel="Clear review filter"
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.filterClearBtn,
+                { borderColor: palette.border, opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Text style={[styles.filterClearText, { color: palette.text }]}>
+                ×
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : reviewCount > 0 ? (
+        <View style={tabletStyle}>
+          <Pressable
+            onPress={() => setFilter('needs-review')}
+            accessibilityRole="button"
+            accessibilityLabel={`${reviewCount} receipts need review — tap to filter`}
+            accessibilityHint="Filters the list to only the receipts you haven't confirmed yet."
+            style={({ pressed }) => [
+              styles.filterChip,
+              {
+                marginHorizontal: 16,
+                marginBottom: 8,
+                backgroundColor: '#FEF3C7',
+                borderColor: '#D97706',
+                alignSelf: 'flex-start',
+                opacity: pressed ? 0.75 : 1,
+              },
+            ]}
+          >
+            <Text style={styles.filterChipText}>
               👀 {reviewCount}{' '}
               {reviewCount === 1 ? 'receipt needs' : 'receipts need'} your
-              review
+              review →
             </Text>
-          </View>
+          </Pressable>
         </View>
       ) : null}
 
       {receipts.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={[styles.emptyTitle, { color: palette.text }]}>
-            No receipts yet
-          </Text>
-          <Text style={[styles.emptyBody, { color: palette.muted }]}>
-            Snap your first receipt — Starr Field auto-extracts the vendor,
-            total, and category so you don&apos;t have to retype anything.
-          </Text>
-          <View style={styles.emptyButton}>
-            <Button
-              label="+ Add receipt"
-              onPress={onAddReceipt}
-              accessibilityHint="Opens the camera to capture a new receipt"
-            />
+        filter === 'needs-review' ? (
+          <View style={styles.empty}>
+            <Text style={[styles.emptyTitle, { color: palette.text }]}>
+              All caught up
+            </Text>
+            <Text style={[styles.emptyBody, { color: palette.muted }]}>
+              Nothing left to review. Tap clear to see all your
+              receipts again.
+            </Text>
+            <View style={styles.emptyButton}>
+              <Button
+                variant="secondary"
+                label="Clear filter"
+                onPress={() => setFilter('all')}
+              />
+            </View>
           </View>
-        </View>
+        ) : (
+          <View style={styles.empty}>
+            <Text style={[styles.emptyTitle, { color: palette.text }]}>
+              No receipts yet
+            </Text>
+            <Text style={[styles.emptyBody, { color: palette.muted }]}>
+              Snap your first receipt — Starr Field auto-extracts the vendor,
+              total, and category so you don&apos;t have to retype anything.
+            </Text>
+            <View style={styles.emptyButton}>
+              <Button
+                label="+ Add receipt"
+                onPress={onAddReceipt}
+                accessibilityHint="Opens the camera to capture a new receipt"
+              />
+            </View>
+          </View>
+        )
       ) : (
         <>
           <FlatList
@@ -139,6 +204,36 @@ function keyForReceipt(receipt: Receipt): string {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  filterChipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  filterChip: {
+    padding: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  filterChipText: {
+    color: '#92400E',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  filterClearBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterClearText: {
+    fontSize: 18,
+    fontWeight: '300',
+    lineHeight: 18,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'baseline',

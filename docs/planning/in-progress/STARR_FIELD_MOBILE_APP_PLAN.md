@@ -1526,6 +1526,46 @@ Activation gates:
   never set up with an address, or where the address geocode is
   off.
 
+**Batch LL — mobile receipts "needs review" filter (closes Batch Z UX gap)**
+
+The amber "👀 N receipts need your review" badge from Batch Z was
+informational only — tapping it did nothing. Surveyors with a
+busy day asked "where ARE those?" and had to scroll the full
+list. Batch LL makes the badge tappable: tap → filter the list
+to needs-review only; tap × on the active chip → clear back to
+all.
+
+Mobile lib (`mobile/lib/receipts.ts`):
+- `ReceiptListFilter` union (`'all' | 'needs-review'`).
+- `useReceipts(limit, filter='all')` switches its SQL between
+  the existing all-receipts query and a new needs-review query
+  that exactly mirrors `useReceiptsNeedingReview`'s filter
+  (extraction done · user_reviewed_at null · status pending ·
+  not duplicate-discarded · deleted_at null). Both reach the
+  same set so the badge count and the filtered list always
+  agree.
+
+Mobile screen (`mobile/app/(tabs)/money/index.tsx`):
+- New `filter: ReceiptListFilter` state. Defaults to `'all'`.
+- The amber review badge becomes a `<Pressable>` — tap →
+  `setFilter('needs-review')`. Adds a `→` glyph to signal
+  "tap me." Accessibility hint explains the filter behaviour.
+- When the filter is active, the badge hides and a row above
+  the list shows a "Filter: N receipts needing review" amber
+  chip plus a circular `×` clear button. Tapping × restores
+  `'all'`.
+- New empty-state copy when the filter has zero matches: "All
+  caught up — Nothing left to review. Tap clear to see all
+  your receipts again." with a Clear-filter button.
+
+Pending v2 polish:
+- More filter chips: `'pending'` / `'rejected'` / `'this job
+  only'` / `'last 7 days'`. v1 limits scope to needs-review
+  since that's the only one with a count badge driving it.
+- Persist the chosen filter across launches (e.g.
+  AsyncStorage) so a surveyor reviewing one item at a time
+  keeps their place between captures.
+
 **Batch KK — Wi-Fi-only video upload gating (F4 closer)**
 
 Closes the F4 deferral *"WiFi-only original-quality re-upload

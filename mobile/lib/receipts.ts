@@ -234,7 +234,27 @@ export function useCaptureReceipt(): (
  * Reverse-chrono list of the current user's receipts. Powers the Money
  * tab. Returns an empty list when no session is present (sign-out race).
  */
-export function useReceipts(limit: number = 100): {
+export type ReceiptListFilter =
+  /** Default — all receipts the surveyor owns (excluding tombstones). */
+  | 'all'
+  /** Batch Z review-before-save subset — extraction landed but the
+   *  user hasn't confirmed yet AND the row is still pending +
+   *  not duplicate-discarded. Drives the Money-tab "Needs review"
+   *  filter chip from Batch LL. */
+  | 'needs-review';
+
+/**
+ * Reverse-chrono list of the current user's receipts. Powers the Money
+ * tab. Returns an empty list when no session is present (sign-out race).
+ *
+ * `filter` defaults to `'all'`. `'needs-review'` constrains to the
+ * same subset `useReceiptsNeedingReview()` counts so the badge tap +
+ * the filter chip reach the same rows.
+ */
+export function useReceipts(
+  limit: number = 100,
+  filter: ReceiptListFilter = 'all'
+): {
   receipts: Receipt[];
   isLoading: boolean;
 } {
@@ -246,15 +266,26 @@ export function useReceipts(limit: number = 100): {
     [userId, limit]
   );
 
-  const { data, isLoading, error } = useQuery<Receipt>(
-    `SELECT *
-     FROM receipts
-     WHERE user_id = ?
-       AND deleted_at IS NULL
-     ORDER BY COALESCE(created_at, '') DESC
-     LIMIT ?`,
-    queryParams
-  );
+  const sql =
+    filter === 'needs-review'
+      ? `SELECT *
+           FROM receipts
+          WHERE user_id = ?
+            AND deleted_at IS NULL
+            AND user_reviewed_at IS NULL
+            AND extraction_status = 'done'
+            AND status = 'pending'
+            AND (dedup_decision IS NULL OR dedup_decision != 'discard')
+          ORDER BY COALESCE(created_at, '') DESC
+          LIMIT ?`
+      : `SELECT *
+           FROM receipts
+          WHERE user_id = ?
+            AND deleted_at IS NULL
+          ORDER BY COALESCE(created_at, '') DESC
+          LIMIT ?`;
+
+  const { data, isLoading, error } = useQuery<Receipt>(sql, queryParams);
 
   useEffect(() => {
     if (error) logError('receipts.useReceipts', 'query failed', error);
