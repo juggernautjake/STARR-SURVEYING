@@ -1,5 +1,12 @@
 import { router } from 'expo-router';
-import { FlatList, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import {
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { JobCard } from '@/lib/JobCard';
@@ -46,9 +53,32 @@ export default function JobsScreen() {
     >
       <View style={[styles.headerRow, tabletStyle]}>
         <Text style={[styles.heading, { color: palette.text }]}>Jobs</Text>
-        <Text style={[styles.count, { color: palette.muted }]}>
-          {jobs.length}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Text style={[styles.count, { color: palette.muted }]}>
+            {jobs.length}
+          </Text>
+          {/* Cross-notes search entry. Tap → modal-presented
+              /(tabs)/jobs/search screen with auto-focused input. */}
+          <Pressable
+            onPress={() => router.push('/(tabs)/jobs/search')}
+            accessibilityRole="button"
+            accessibilityLabel="Search notes"
+            accessibilityHint="Opens the cross-notes search across every job and point on this device."
+            hitSlop={8}
+            style={({ pressed }) => ({
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: palette.border,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Text style={{ fontSize: 14, color: palette.text }}>
+              🔍 Search
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {jobs.length === 0 ? (

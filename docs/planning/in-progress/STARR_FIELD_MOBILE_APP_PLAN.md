@@ -1024,7 +1024,7 @@ Resilience additions (same offline-first pattern as F2):
 - [/] Video capture — `lib/storage/mediaUpload.ts` `pickVideo()` wraps `expo-image-picker.launchCameraAsync` with the Videos media type + 5-min cap (per plan §5.4), `lib/fieldMedia.ts` `useAttachVideo` mirrors the photo + voice pattern (INSERT field_media row with `media_type='video'`, enqueue upload to `starr-field-videos` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup which goes to Camera Roll). "📹 Record video" button on the photos screen footer. Admin `/admin/field-data/[id]` renders native `<video controls>` with mp4 + quicktime fallback `<source>` tags, duration in mm:ss, download link. **Mobile video review shipped (Batch U)**: Photos / Videos tab toggle on the per-point capture screen + a full-screen player at `(tabs)/capture/[pointId]/video-player.tsx` with native expo-av controls + delete + offline-first playback via `useFieldMediaVideoUrl` (falls back to local `documentDirectory` URI before the bytes sync). **Pending:** server-side thumbnail extraction (FFmpeg via worker) so the gallery thumbnail isn't a placeholder; WiFi-only original-quality re-upload tier per plan §5.4.
 - [x] Free-text notes + structured templates (offset, monument, hazard, correction) — `lib/fieldNotes.ts` (`useAddFieldNote` / `usePointNotes` / `useJobLevelNotes` / `useArchiveFieldNote` + `summariseStructuredPayload` + `parseStructuredPayload` helpers), per-template typed payload interfaces, body-summary derivation so the existing `/admin/notes` grep + future search-across-notes work without parsing JSON. Add-note screen at `/(tabs)/jobs/[id]/notes/new` accepts `?point_id=&template=` query params; in-app pill picker switches between Free-text / Offset shot / Monument found / Hazard / Correction with per-template form (typed inputs, choice pills for enums, severity colour-coding). Point detail screen (`(tabs)/jobs/[id]/points/[pointId].tsx`) gets a Notes section with reactive list + long-press archive + "+ Add note" button. Admin `/admin/field-data/[id]` surfaces attached notes with template tag, body, structured payload as a key/value table, author + age stamp, archived badge — `/api/admin/field-data/[id]` returns the parsed structured payload alongside the note row. Job-level note hook (`useJobLevelNotes`) is ready for a future job-detail surface.
 - [ ] Voice-to-text shortcut — bound to a hardware key for hands-free dictation. Need expo-speech-recognition or a Whisper-via-API path.
-- [ ] Search across notes + transcriptions — depends on the above + an FTS index. Need to confirm whether server-side `tsvector` columns or local SQLite FTS5 is the better path.
+- [x] Search across notes + transcriptions (Batch BB) — `useSearchFieldNotes(query, limit)` hook in `mobile/lib/fieldNotes.ts` runs a parametrised LIKE scan across the local PowerSync SQLite, joining body + structured_data + note_template + parent point name + parent job name + job_number in one query. Mobile screen at `(tabs)/jobs/search.tsx` opens as a modal with auto-focused input + clear button + result cards (template badge · age stamp · highlighted match excerpt · job + point footer). Results stay reactive to PowerSync — new notes arriving via sync mid-typing appear in the list. Tap a result → navigates to the relevant point detail (or job detail for job-level notes). Decision: LIKE-only for v1 (works fully offline, no schema changes). Server-side `tsvector` index for cross-user admin search at scale is v2 polish.
 
 **Exit:** Field documentation fully replaces paper notes. **Status:** voice memo + video capture + free-text/structured notes + admin viewers all shipped (Batches I + K + L). Voice transcription + voice-to-text shortcut + cross-notes search remain.
 
@@ -1154,7 +1154,7 @@ classifier) · 228 (voice transcription) — all present.
 | F3 photos | Multi-photo, GPS, EXIF, annotator, compass heading (Batch V) | Arrow / circle / text annotation primitives (schema slots reserved; pen-only in v1) |
 | F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U) | Server-side FFmpeg thumbnail extraction; WiFi-only original-quality re-upload tier |
 | F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
-| F4 notes | Free-text + four structured templates + admin viewer | Cross-notes search across body + structured payloads (no FTS index — server `tsvector` or local SQLite FTS5 TBD) |
+| F4 notes | Free-text + four structured templates + admin viewer + cross-notes search (Batch BB) | Server-side `tsvector` index for cross-user admin search at scale; FTS5 ranking when the LIKE scan tops 10k notes per device |
 | F5 files | Document picker + admin Files block + image/PDF/CSV preview + pin-to-device offline read (Batch W) + P,N,E,Z,D parser w/ point-match preview (Batch AA) | Auto-import unmatched CSV rows as new data points |
 | F6 stops | Geofence classifier + idempotent re-derivation | AI classifier for ambiguous stops; reverse-geocoded `place_name`/`place_address`; PostGIS `path_simplified` for day-replay scrubber; pg_cron nightly schedule |
 | F6 dispatcher | Last-seen card; per-user mileage drilldown; per-user `/admin/team/[email]` daily drilldown (Batch X) | Continuous live-map trace; day-replay scrubber UI; missing-receipt cross-reference worker |
@@ -1525,6 +1525,80 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch BB — cross-notes search (F4 closer)**
+
+Closes the F4 deferral *"Search across notes + transcriptions —
+depends on the above + an FTS index. Need to confirm whether
+server-side `tsvector` columns or local SQLite FTS5 is the
+better path."* Surveyors hit the 🔍 button on the Jobs tab and
+type a few characters; results render across every active note
+on this device with the matched term highlighted.
+
+Decision: **offline-first LIKE-scan for v1**, not FTS5 / tsvector.
+Reasoning:
+  - PowerSync's local SQLite mirrors `fieldbook_notes` +
+    `field_data_points` + `jobs` already, so a six-column LIKE
+    join lands fully offline with no schema changes.
+  - Per-user note volume in v1 (~5 surveyors × ~10 notes/day ×
+    weeks of retention) stays well under the 1k-row threshold
+    where LIKE starts to feel slow on a phone.
+  - FTS5 (or server `tsvector`) becomes worthwhile when the
+    dataset crosses ~10k rows per device or when admin-side
+    cross-user search ships. Tracked in §9.w as v2 polish.
+
+Mobile lib (`mobile/lib/fieldNotes.ts`):
+- New `useSearchFieldNotes(query, limit = 50)` hook. Returns
+  `{ hits, isLoading }` where `hit = { note, jobName,
+  jobNumber, pointName }`. Empty hits when the trimmed query
+  is <2 chars (avoids "a" returning everything).
+- Single SQL query joins fieldbook_notes ⨝ field_data_points ⨝
+  jobs and ORs six LIKE clauses against `body`,
+  `structured_data`, `note_template`, point name, job name,
+  and job_number. Results sorted by `created_at DESC`.
+- Returns active rows only (`is_current = 1`).
+
+Mobile screen (`mobile/app/(tabs)/jobs/search.tsx`):
+- Modal-presented (slides up from the bottom) with auto-focus
+  text input + glyph + clear button.
+- Empty states for: nothing typed yet · 1 char so far · search
+  in progress · zero results.
+- Result count line ("12 results") with a "(capped)" suffix
+  when the limit hits.
+- ResultCard with template pill / "Free-text" badge, age stamp,
+  highlighted match excerpt clipped to a 140-char window
+  centred on the first match, and a footer with job number +
+  name + point name.
+- HighlightedText component splits the body around every
+  case-insensitive match and renders matches in the accent
+  colour, bold. Preserves original casing.
+- Tap a result → push `(tabs)/jobs/[id]/points/[pointId]` for
+  point-attached notes; push `(tabs)/jobs/[id]` for job-level
+  notes.
+
+Routing (`mobile/app/(tabs)/jobs/_layout.tsx`):
+- New `<Stack.Screen name="search" />` registered with
+  `presentation: 'modal'` + `slide_from_bottom` for the modal
+  feel. Cancel button at the top dismisses.
+
+Entry (`mobile/app/(tabs)/jobs/index.tsx`):
+- 🔍 Search pill in the Jobs-tab header (right of the count)
+  pushes the search screen.
+
+Logging:
+- Query failures log via `fieldNotes.useSearchFieldNotes` with
+  the trimmed query for ops correlation.
+
+Pending v2 polish:
+- Server-side `tsvector` index for cross-user admin search at
+  scale (so the office can grep across every surveyor's notes
+  for compliance reviews).
+- SQLite FTS5 ranking when local datasets exceed ~10k notes —
+  drops the LIKE scan in favour of a ranked virtual-table
+  query.
+- Voice-transcript search (currently `field_media.transcription`
+  isn't joined into the search; needs a UNION query when the
+  Whisper worker results land).
 
 **Batch AA — CSV (P,N,E,Z,D) parser + match-to-points preview (F5 closer)**
 

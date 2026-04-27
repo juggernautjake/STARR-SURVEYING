@@ -26,6 +26,17 @@ export default function JobsStackLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="[id]" />
+      <Stack.Screen
+        name="search"
+        options={{
+          // Modal feel — slides up from the bottom — for the
+          // search-screen entry from the jobs list. Surveyors
+          // dismiss with the Cancel button at the top, which
+          // pops back to wherever they came from.
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
     </Stack>
   );
 }

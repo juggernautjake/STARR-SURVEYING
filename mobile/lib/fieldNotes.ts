@@ -156,6 +156,124 @@ export function useJobLevelNotes(
 
 // ── Write hooks ──────────────────────────────────────────────────────────────
 
+export interface SearchNoteHit {
+  /** The note row, with all fields the per-point cards already
+   *  render (template, body, structured_data, etc). */
+  note: FieldNote;
+  /** Parent job's name + number — joined in for the result-card
+   *  subtitle. Null when the join didn't resolve (rare; row points
+   *  at a job that hasn't synced to this device yet). */
+  jobName: string | null;
+  jobNumber: string | null;
+  /** Parent point's name when the note is point-attached; null for
+   *  job-level notes. */
+  pointName: string | null;
+}
+
+/**
+ * Cross-notes search — Batch BB. Closes the F4 deferral *"Search
+ * across notes + transcriptions — depends on the above + an FTS
+ * index. Need to confirm whether server-side `tsvector` columns or
+ * local SQLite FTS5 is the better path."*
+ *
+ * This v1 picks the offline-first path: a parametrised LIKE scan
+ * against the local PowerSync SQLite. Six fields are searched in
+ * one query so a surveyor typing "rebar" matches:
+ *   - the body text ("found rebar with cap")
+ *   - the structured_data JSON ("monument_type": "rebar")
+ *   - the note_template ("hazard")
+ *   - the parent point's name ("BM01")
+ *   - the parent job's name ("Smith Ranch boundary")
+ *   - the parent job's job_number ("J-2026-042")
+ *
+ * Why LIKE instead of FTS5?
+ *   - PowerSync's `localOnly` virtual-table support requires extra
+ *     wiring; the user-visible win for v1 is "I can find that
+ *     hazard note from last week." LIKE handles thousands of rows
+ *     per user without a perceptible delay.
+ *   - Server-side `tsvector` is the post-v1 path for big datasets
+ *     (10k+ notes) AND for cross-user search on the admin side.
+ *     v2 polish.
+ *
+ * Returns active notes only (`is_current = 1`). Caps at `limit` so
+ * a typo like "a" doesn't render thousands of rows. Empty query →
+ * empty array (the screen renders a "type to search" empty state).
+ */
+export function useSearchFieldNotes(
+  query: string,
+  limit: number = 50
+): { hits: SearchNoteHit[]; isLoading: boolean } {
+  const trimmed = query.trim();
+  // Use a multi-LIKE WHERE so we don't have to build a dynamic SQL
+  // with column-coupled bind params. Six placeholders for the six
+  // fields, one for the limit.
+  const queryParams = useMemo(() => {
+    if (trimmed.length < 2) return [];
+    const pat = `%${trimmed}%`;
+    return [pat, pat, pat, pat, pat, pat, limit];
+  }, [trimmed, limit]);
+
+  // Result row shape — wider than FieldNote because of the joined
+  // job + point names. We re-pack into SearchNoteHit below.
+  interface RawSearchRow extends FieldNote {
+    point_name: string | null;
+    job_name: string | null;
+    job_number: string | null;
+  }
+
+  const { data, isLoading, error } = useQuery<RawSearchRow>(
+    `SELECT n.*,
+            p.name        AS point_name,
+            j.name        AS job_name,
+            j.job_number  AS job_number
+       FROM fieldbook_notes n
+       LEFT JOIN field_data_points p ON p.id = n.data_point_id
+       LEFT JOIN jobs              j ON j.id = n.job_id
+      WHERE COALESCE(n.is_current, 1) = 1
+        AND (
+              n.body                       LIKE ?
+           OR COALESCE(n.structured_data,'') LIKE ?
+           OR COALESCE(n.note_template,  '') LIKE ?
+           OR COALESCE(p.name,            '') LIKE ?
+           OR COALESCE(j.name,            '') LIKE ?
+           OR COALESCE(j.job_number,      '') LIKE ?
+        )
+      ORDER BY COALESCE(n.created_at,'') DESC
+      LIMIT ?`,
+    queryParams
+  );
+
+  useEffect(() => {
+    if (error) {
+      logError('fieldNotes.useSearchFieldNotes', 'query failed', error, {
+        query: trimmed,
+      });
+    }
+  }, [error, trimmed]);
+
+  const hits = useMemo<SearchNoteHit[]>(() => {
+    if (!data || data.length === 0) return [];
+    return data.map((r) => {
+      // Strip the join columns off the raw row before stuffing it
+      // into the FieldNote slot. This keeps SearchNoteHit.note's
+      // shape stable for the calling UI even as the SELECT * picks
+      // up new columns over time.
+      const { point_name, job_name, job_number, ...note } = r;
+      return {
+        note: note as FieldNote,
+        pointName: point_name,
+        jobName: job_name,
+        jobNumber: job_number,
+      };
+    });
+  }, [data]);
+
+  return {
+    hits,
+    isLoading: trimmed.length >= 2 && isLoading,
+  };
+}
+
 export interface AddNoteInput {
   /** Required — every note belongs to a job. */
   jobId: string;
