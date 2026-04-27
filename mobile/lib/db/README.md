@@ -97,6 +97,15 @@ Activation gates (each blocks live sync but NOT local-only dev):
       `lib/jobFiles.ts` capture flow ("+ Attach file" on the point
       detail screen) and the Files block on `/admin/field-data/[id]`.
       Apply BEFORE the mobile file picker ships.
+- [ ] Apply `seeds/227_starr_field_geofence_classifier.sql` (F6 v2
+      stop-classification — replaces `derive_location_timeline` with
+      a version that joins `jobs.{centroid_lat, centroid_lon,
+      geofence_radius_m}` to label each derived stop with the
+      matching job's name + `category_source='geofence'`). Apply
+      AFTER seeds/224. Idempotent — `CREATE OR REPLACE FUNCTION`,
+      safe to re-apply. Once applied, dispatchers use the "📍 Set
+      as job site" button on `/admin/timeline` to capture each
+      job's geofence from a real stop centroid.
 - [ ] Provision PowerSync service (Cloud or self-hosted, see below).
 - [ ] Author sync rules — see "Sync rules" below.
 - [ ] Set `EXPO_PUBLIC_POWERSYNC_URL` in `mobile/.env.local` (dev) and

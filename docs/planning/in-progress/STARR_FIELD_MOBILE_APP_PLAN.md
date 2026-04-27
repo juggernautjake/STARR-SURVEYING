@@ -1040,7 +1040,7 @@ Resilience additions (same offline-first pattern as F2):
 ### Phase F6 — Location tracking + dispatcher view (Week 19–24)
 - [x] One-time consent flow — `lib/TrackingConsentModal.tsx` shows the privacy explainer (when / what / cadence / who sees / storage / OS indicators) BEFORE the OS Always-location prompt fires. `lib/trackingConsent.ts` persists the consent flag in AsyncStorage so the modal shows once per install (resetting via `resetTrackingConsent` after uninstall is the correct re-prompt path). Pick-job clock-in flow gates `useClockIn` behind the modal: tap "Continue" → persist consent + clock in (which then triggers the OS prompt for "Always" via `startBackgroundTracking`); tap "Skip tracking for now" → clock in WITHOUT background tracking (boundary pings still capture clock-in/out coordinates via `lib/location.ts`). The skip path leaves the flag unset so the explainer re-shows on the next clock-in.
 - [x] Background location with battery-conscious modes — `lib/locationTracker.ts` (high / balanced / low tiers based on battery %), `seeds/223_starr_field_location_pings.sql`, native config in `mobile/app.json` (UIBackgroundModes + ACCESS_BACKGROUND_LOCATION + foreground service). Cold-start reconciliation in `LocationTrackerReconciler` (app/_layout.tsx) recovers from phone-died-mid-shift.
-- [/] Stop detection — `seeds/224_starr_field_location_derivations.sql` lands `location_stops` + `location_segments` tables and a deterministic PL/pgSQL aggregator `derive_location_timeline(p_user_id, p_log_date)`. Algorithm (v1, no AI / no map-matching): cluster pings within 50 m for ≥5 min into stops, sum Haversine distances along intermediate pings into segments (with 200 km single-jump glitch guard, matching `/api/admin/mileage`). Idempotent — DELETEs prior derivations except `user_overridden` stops. Geofence + AI classification + reverse-geocoded place names deferred to v2.
+- [/] Stop detection — `seeds/224_starr_field_location_derivations.sql` lands `location_stops` + `location_segments` tables and a deterministic PL/pgSQL aggregator `derive_location_timeline(p_user_id, p_log_date)`. Algorithm (v1, no AI / no map-matching): cluster pings within 50 m for ≥5 min into stops, sum Haversine distances along intermediate pings into segments (with 200 km single-jump glitch guard, matching `/api/admin/mileage`). Idempotent — DELETEs prior derivations except `user_overridden` stops. **Geofence classifier shipped in Batch Q** (`seeds/227`): `derive_location_timeline` now joins `jobs.{centroid_lat, centroid_lon, geofence_radius_m}` and labels each stop with the matching job's name + `category_source='geofence'`. Cheap bounding-box prefilter (~5 km lat/lon delta) before the Haversine check keeps the per-stop cost bounded. Closest match wins for overlapping fences. AI classifier + reverse-geocoded place names still deferred to v2 polish.
 - [x] Daily timeline view (employee + admin) — admin: `/admin/timeline?user=&date=` reads the derived stops/segments and renders a stop → segment → stop timeline with per-stop time window, duration, Maps deep-link, optional category/place name, links to job + field-data. "Recompute" button POSTs to derive on-demand for fresh pings. APIs: `GET /api/admin/timeline` reads, `POST /api/admin/timeline` re-derives. Sidebar entry under Work group + per-card Timeline link from `/admin/team`. Employee: `(tabs)/me/privacy.tsx` surfaces the same stops/segments alongside the raw pings via `useOwnStopsForDate` / `useOwnSegmentsForDate` / `useOwnTimelineSummary` (PowerSync-backed). Three-stat summary card (stops · miles · stationary) matches the dispatcher's totals so surveyors see exactly what the office sees.
 - [x] Mileage log generation (IRS-format export) — `GET /api/admin/mileage?from=&to=&user_email=&format=json|csv`. Server-side Haversine sum across consecutive pings per `(user, UTC date)` with a 200 km / single-jump glitch guard; CSV download for QuickBooks / tax import. Admin UI at `/admin/mileage` with date-range picker, per-user grouping, per-employee subtotals + download. Per-user drill-down link from each `/admin/team` card.
 - [x] Vehicle assignment + driver/passenger — `seeds/225_starr_field_vehicles.sql` lands the `vehicles` table that's been declared in the mobile schema since seeds/220 + wires the FK from `job_time_entries.vehicle_id` (existing column) and `location_segments.vehicle_id` (added by seeds/224). `/admin/vehicles` page provides full CRUD (add / edit / archive / reactivate; soft-archive preserves historical refs). Mobile vehicle picker on the clock-in `pick-job` modal with optional vehicle pill row + "I'm driving" toggle (defaults true since most clock-ins are the driver themselves; passengers explicitly flip it off so mileage attribution stays clean for IRS). `useClockIn` accepts `vehicleId` + `isDriver`; persists to `job_time_entries.vehicle_id` + `is_driver`. `lib/vehicles.ts` `useVehicles` + `useVehicle` hooks back the picker. **Per-vehicle mileage breakdown** on `/admin/mileage` shipped (Batch P): each (user, date) row expands to per-vehicle subtotals with driver / passenger badges so bookkeepers see "Jacob drove Truck 3 for 28 mi AND rode passenger in Truck 1 for 12 mi" — only the driver miles are IRS-deductible. CSV export gains `vehicle_id` / `vehicle_name` / `is_driver` columns for QuickBooks pivots.
@@ -1196,6 +1196,38 @@ under one phase.
       mid-shift would silently break the "tracking-while-clocked-in"
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
+
+**Batch Q — geofence classifier (stop-detection v2 phase 1)**
+
+- `seeds/227_starr_field_geofence_classifier.sql` — `CREATE OR
+  REPLACE FUNCTION` that adds the geofence pass to
+  `derive_location_timeline`. After clustering pings into stops,
+  each stop centroid is checked against every job whose
+  `centroid_lat / centroid_lon / geofence_radius_m` are populated.
+  Bounding-box prefilter (~5 km lat/lon delta) keeps the work
+  bounded; the closest job within radius wins. Match writes
+  `category=jobs.name`, `category_source='geofence'`,
+  `job_id=jobs.id` (overrides the time-entry's job_id since
+  bookkeepers care about WHICH SITE the crew was at, not which
+  time-entry happened to be open).
+- v1 protections preserved: `user_overridden=true` stops are never
+  touched; idempotent via DELETE-then-INSERT pattern; same Haversine
+  glitch guards.
+- `PATCH /api/admin/jobs/[id]/geofence` accepts
+  `{ centroid_lat, centroid_lon, geofence_radius_m? }` and writes
+  the three columns on the jobs row. Validates lat / lon bounds +
+  radius (25–5000 m). Default radius 200 m when omitted.
+- `/admin/timeline` Stop card adds "📍 Set as job site →" button
+  when the stop is linked to a job AND not already classified by a
+  geofence. One tap captures the stop's centroid + 200 m radius
+  onto the job. Future stops at that location auto-classify on the
+  next Recompute. Confirms with `confirm()` before writing.
+- The "magic moment" loop: surveyor visits a job → phone tracks
+  pings → admin Recomputes → unclassified stop appears at the new
+  site → admin clicks "Set as job site" → next Recompute labels
+  every stop there with the job's name. Works for jobs that were
+  never set up with an address, or where the address geocode is
+  off.
 
 **Batch P — three closer items (consent + per-vehicle mileage + inline file preview)**
 
@@ -1630,6 +1662,13 @@ adds `job_files` (last 90 days, scoped by `created_by`).
    bucket (100 MB cap, per-user-folder RLS) + owner CRUD policies.
    Powers `lib/jobFiles.ts` `usePickAndAttachFile` and the Files
    block on `/admin/field-data/[id]`.
+8. `seeds/227_starr_field_geofence_classifier.sql` — `CREATE OR
+   REPLACE FUNCTION` that adds geofence-based stop classification
+   to `derive_location_timeline`. Idempotent — safe to re-apply.
+   Apply AFTER seeds/224. Once applied, dispatchers use the "📍
+   Set as job site" button on `/admin/timeline` to capture each
+   job's geofence from any real stop centroid; future stops there
+   auto-classify on the next Recompute.
 
 PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
 - `notifications` — scoped by `target_user_id` OR case-insensitive

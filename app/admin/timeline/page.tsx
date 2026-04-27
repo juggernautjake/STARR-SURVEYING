@@ -267,6 +267,7 @@ export default function TimelinePage() {
                 key={`stop-${entry.row.id}`}
                 stop={entry.row}
                 userEmail={userEmail}
+                onAfterGeofence={() => void fetchTimeline()}
               />
             ) : (
               <SegmentRail key={`seg-${entry.row.id}`} segment={entry.row} />
@@ -281,11 +282,62 @@ export default function TimelinePage() {
 function StopCard({
   stop,
   userEmail,
+  onAfterGeofence,
 }: {
   stop: StopRow;
   userEmail: string;
+  /** Caller refetches the timeline after a geofence write so any
+   *  subsequent stop tap sees fresh state. The user still hits
+   *  Recompute manually to re-derive with the new classification. */
+  onAfterGeofence: () => void;
 }) {
   const mapsHref = `https://www.google.com/maps?q=${stop.lat},${stop.lon}`;
+  const [setting, setSetting] = useState(false);
+
+  /**
+   * Set this stop's centroid as the linked job's geofence. Only
+   * surfaces when the stop is tied to a job_id but has no
+   * category — i.e. the stop is at this job site but the geofence
+   * hasn't been captured yet. One tap ⇒ "Smith Job" classification
+   * for every future stop nearby.
+   */
+  const onSetAsJobSite = async () => {
+    if (!stop.job_id) return;
+    if (
+      !confirm(
+        `Set this stop (${stop.lat.toFixed(5)}, ${stop.lon.toFixed(5)}) as the geofence for the linked job? Future stops within 200 m will auto-classify as that job.`
+      )
+    ) {
+      return;
+    }
+    setSetting(true);
+    try {
+      const res = await fetch(`/api/admin/jobs/${stop.job_id}/geofence`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          centroid_lat: stop.lat,
+          centroid_lon: stop.lon,
+          geofence_radius_m: 200,
+        }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(
+          json?.error ?? `Geofence write failed (HTTP ${res.status})`
+        );
+      }
+      onAfterGeofence();
+      alert(
+        'Geofence saved. Tap “Recompute” to re-derive today’s timeline with the new classification.'
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Geofence write failed');
+    } finally {
+      setSetting(false);
+    }
+  };
+
   return (
     <li style={styles.stopCard}>
       <div style={styles.stopMarker}>📍</div>
@@ -326,6 +378,27 @@ function StopCard({
             >
               View job →
             </Link>
+          ) : null}
+          {/* Set-as-job-site only surfaces when the stop is linked
+              to a job AND not already classified by the geofence —
+              otherwise we'd be rewriting the centroid for jobs that
+              already have one. */}
+          {stop.job_id && stop.category_source !== 'geofence' ? (
+            <button
+              type="button"
+              onClick={() => void onSetAsJobSite()}
+              style={{
+                ...styles.stopAction,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                font: 'inherit',
+              }}
+              disabled={setting}
+            >
+              {setting ? 'Saving…' : '📍 Set as job site →'}
+            </button>
           ) : null}
           <a
             href={mapsHref}
