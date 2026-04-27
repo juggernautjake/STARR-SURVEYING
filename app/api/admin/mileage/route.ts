@@ -53,6 +53,24 @@ interface PingRow {
   lat: number;
   lon: number;
   captured_at: string; // ISO
+  job_time_entry_id: string | null;
+}
+
+/** Per-vehicle subtotal within a (user, date) bucket. Surfaced under
+ *  each day so the bookkeeper can see "Jacob drove Truck 3 for 28 mi
+ *  AND rode passenger in Truck 1 for 12 mi" — only the driver miles
+ *  are IRS-deductible (per `is_driver`). */
+export interface VehicleSubtotal {
+  vehicle_id: string | null;
+  vehicle_name: string | null;
+  /** Most common is_driver flag for the pings in this subgroup —
+   *  null when the user wasn't on a clock-in slice tied to a vehicle
+   *  (rare; the boundary pings or vehicle-less entry types). */
+  is_driver: boolean | null;
+  miles: number;
+  meters: number;
+  ping_count: number;
+  segment_count: number;
 }
 
 export interface MileageDayRow {
@@ -68,6 +86,9 @@ export interface MileageDayRow {
   dropped_jump_count: number;
   first_ping_at: string;
   last_ping_at: string;
+  /** Per-vehicle breakdown for this (user, date) bucket. Empty when
+   *  no pings in the bucket had a vehicle attached. */
+  by_vehicle: VehicleSubtotal[];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -111,13 +132,23 @@ function csvEscape(s: string | number): string {
 
 // ── Aggregation ──────────────────────────────────────────────────────────────
 
+interface EntryMeta {
+  vehicle_id: string | null;
+  vehicle_name: string | null;
+  is_driver: boolean | null;
+}
+
 /**
- * Group pings by (user_email, utcDate) and compute per-day totals.
+ * Group pings by (user_email, utcDate) and compute per-day totals,
+ * plus a per-vehicle breakdown via the joined `entryMeta` map.
  * Pings within a group must arrive sorted by captured_at ASC for the
  * Haversine sum to be correct. The query below applies that ordering
  * before grouping.
  */
-function aggregate(pings: PingRow[]): MileageDayRow[] {
+function aggregate(
+  pings: PingRow[],
+  entryMeta: Map<string, EntryMeta>
+): MileageDayRow[] {
   // Group key: `${email}|${utcDate}`
   type Bucket = {
     user_email: string;
@@ -141,9 +172,48 @@ function aggregate(pings: PingRow[]): MileageDayRow[] {
     let meters = 0;
     let segmentCount = 0;
     let droppedJumps = 0;
+    // Per-vehicle accumulators, keyed by vehicle_id (or '' for null).
+    const vehBuckets = new Map<
+      string,
+      {
+        vehicle_id: string | null;
+        vehicle_name: string | null;
+        is_driver: boolean | null;
+        meters: number;
+        ping_count: number;
+        segment_count: number;
+      }
+    >();
+    const noteVehiclePing = (p: PingRow) => {
+      const meta = p.job_time_entry_id
+        ? entryMeta.get(p.job_time_entry_id)
+        : null;
+      const vid = meta?.vehicle_id ?? null;
+      const key = vid ?? '';
+      let v = vehBuckets.get(key);
+      if (!v) {
+        v = {
+          vehicle_id: vid,
+          vehicle_name: meta?.vehicle_name ?? null,
+          is_driver: meta?.is_driver ?? null,
+          meters: 0,
+          ping_count: 0,
+          segment_count: 0,
+        };
+        vehBuckets.set(key, v);
+      }
+      v.ping_count += 1;
+      return v;
+    };
+
+    // First ping of the day — counts in vehicle ping_count but
+    // contributes no segment distance (no predecessor).
+    if (b.rows.length > 0) noteVehiclePing(b.rows[0]);
+
     for (let i = 1; i < b.rows.length; i++) {
       const prev = b.rows[i - 1];
       const cur = b.rows[i];
+      const veh = noteVehiclePing(cur);
       const d = haversineMeters(prev.lat, prev.lon, cur.lat, cur.lon);
       if (d > MAX_PLAUSIBLE_JUMP_M) {
         droppedJumps += 1;
@@ -151,7 +221,30 @@ function aggregate(pings: PingRow[]): MileageDayRow[] {
       }
       meters += d;
       segmentCount += 1;
+      veh.meters += d;
+      veh.segment_count += 1;
     }
+
+    const by_vehicle: VehicleSubtotal[] = [...vehBuckets.values()].map(
+      (v) => ({
+        vehicle_id: v.vehicle_id,
+        vehicle_name: v.vehicle_name,
+        is_driver: v.is_driver,
+        miles: Math.round((v.meters / METERS_PER_MILE) * 100) / 100,
+        meters: Math.round(v.meters),
+        ping_count: v.ping_count,
+        segment_count: v.segment_count,
+      })
+    );
+    // Sort: driver miles first (descending miles), then passenger,
+    // then no-vehicle bucket.
+    by_vehicle.sort((a, b2) => {
+      const aPriority = a.is_driver === true ? 0 : a.vehicle_id ? 1 : 2;
+      const bPriority = b2.is_driver === true ? 0 : b2.vehicle_id ? 1 : 2;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return b2.miles - a.miles;
+    });
+
     result.push({
       user_email: b.user_email,
       date: b.date,
@@ -162,6 +255,7 @@ function aggregate(pings: PingRow[]): MileageDayRow[] {
       dropped_jump_count: droppedJumps,
       first_ping_at: b.rows[0]?.captured_at ?? '',
       last_ping_at: b.rows[b.rows.length - 1]?.captured_at ?? '',
+      by_vehicle,
     });
   }
 
@@ -177,6 +271,9 @@ function aggregate(pings: PingRow[]): MileageDayRow[] {
 }
 
 function toCsv(days: MileageDayRow[]): string {
+  // Two row types: a per-day total (vehicle_id blank) followed by
+  // one row per vehicle subtotal under it. Bookkeepers can pivot
+  // by vehicle in Excel/QuickBooks via the vehicle_id column.
   const header = [
     'user_email',
     'date',
@@ -187,9 +284,13 @@ function toCsv(days: MileageDayRow[]): string {
     'dropped_jump_count',
     'first_ping_at',
     'last_ping_at',
+    'vehicle_id',
+    'vehicle_name',
+    'is_driver',
   ];
   const lines = [header.join(',')];
   for (const d of days) {
+    // Day-total row.
     lines.push(
       [
         csvEscape(d.user_email),
@@ -201,8 +302,34 @@ function toCsv(days: MileageDayRow[]): string {
         csvEscape(d.dropped_jump_count),
         csvEscape(d.first_ping_at),
         csvEscape(d.last_ping_at),
+        '',
+        '',
+        '',
       ].join(',')
     );
+    // Per-vehicle subgroup rows.
+    for (const v of d.by_vehicle) {
+      lines.push(
+        [
+          csvEscape(d.user_email),
+          csvEscape(d.date),
+          csvEscape(v.miles),
+          csvEscape(v.meters),
+          csvEscape(v.ping_count),
+          csvEscape(v.segment_count),
+          '',
+          '',
+          '',
+          csvEscape(v.vehicle_id ?? ''),
+          csvEscape(v.vehicle_name ?? ''),
+          v.is_driver === true
+            ? 'true'
+            : v.is_driver === false
+              ? 'false'
+              : '',
+        ].join(',')
+      );
+    }
   }
   return lines.join('\n') + '\n';
 }
@@ -253,11 +380,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     );
   }
 
-  // Pull pings. We need lat/lon/captured_at and user_email; sort
-  // ASC by captured_at so the per-day Haversine sum is deterministic.
+  // Pull pings. We need lat/lon/captured_at, user_email, and the
+  // job_time_entry_id so the per-vehicle subgrouping can join out
+  // to vehicles. ASC by captured_at so the per-day Haversine sum
+  // is deterministic.
   let query = supabaseAdmin
     .from('location_pings')
-    .select('user_email, lat, lon, captured_at')
+    .select('user_email, lat, lon, captured_at, job_time_entry_id')
     .gte('captured_at', new Date(fromMs).toISOString())
     .lte('captured_at', new Date(toMs).toISOString())
     .order('user_email', { ascending: true })
@@ -273,7 +402,72 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   const pings = (data ?? []) as PingRow[];
-  const days = aggregate(pings);
+
+  // Bulk-look-up job_time_entries → vehicles via the unique entry
+  // ids in the ping set. One round trip each (entries, then
+  // vehicles), regardless of ping count.
+  const entryIds = [
+    ...new Set(
+      pings
+        .map((p) => p.job_time_entry_id)
+        .filter((id): id is string => !!id)
+    ),
+  ];
+  const entryMeta = new Map<string, EntryMeta>();
+  if (entryIds.length > 0) {
+    const { data: entries, error: entriesErr } = await supabaseAdmin
+      .from('job_time_entries')
+      .select('id, vehicle_id, is_driver')
+      .in('id', entryIds);
+    if (entriesErr) {
+      return NextResponse.json(
+        { error: entriesErr.message },
+        { status: 500 }
+      );
+    }
+    type EntryRow = {
+      id: string;
+      vehicle_id: string | null;
+      is_driver: boolean | null;
+    };
+    const vehicleIds = [
+      ...new Set(
+        ((entries ?? []) as EntryRow[])
+          .map((e) => e.vehicle_id)
+          .filter((id): id is string => !!id)
+      ),
+    ];
+    const vehiclesById = new Map<string, string>();
+    if (vehicleIds.length > 0) {
+      const { data: vehicles, error: vehiclesErr } = await supabaseAdmin
+        .from('vehicles')
+        .select('id, name')
+        .in('id', vehicleIds);
+      if (vehiclesErr) {
+        return NextResponse.json(
+          { error: vehiclesErr.message },
+          { status: 500 }
+        );
+      }
+      for (const v of ((vehicles ?? []) as Array<{
+        id: string;
+        name: string | null;
+      }>)) {
+        vehiclesById.set(v.id, v.name ?? 'Unnamed');
+      }
+    }
+    for (const e of (entries ?? []) as EntryRow[]) {
+      entryMeta.set(e.id, {
+        vehicle_id: e.vehicle_id,
+        vehicle_name: e.vehicle_id
+          ? (vehiclesById.get(e.vehicle_id) ?? null)
+          : null,
+        is_driver: e.is_driver,
+      });
+    }
+  }
+
+  const days = aggregate(pings, entryMeta);
 
   if (format === 'csv') {
     const csv = toCsv(days);

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -15,6 +15,11 @@ import { Button } from '@/lib/Button';
 import { logError } from '@/lib/log';
 import { useJobs, type Job } from '@/lib/jobs';
 import { useClockIn, type EntryType } from '@/lib/timeTracking';
+import {
+  hasTrackingConsent,
+  setTrackingConsent,
+} from '@/lib/trackingConsent';
+import { TrackingConsentModal } from '@/lib/TrackingConsentModal';
 import { useVehicles, type Vehicle } from '@/lib/vehicles';
 import { colors } from '@/lib/theme';
 
@@ -55,6 +60,12 @@ export default function PickJobScreen() {
     null
   );
   const [isDriver, setIsDriver] = useState<boolean>(true);
+  // Tracking-consent modal state. Shown the FIRST time the surveyor
+  // clocks in (per `hasTrackingConsent` flag in AsyncStorage). The
+  // pending action is held in a ref so onContinue / onSkip can run
+  // the right job / entry type when the modal closes.
+  const [consentVisible, setConsentVisible] = useState(false);
+  const pendingClockInRef = useRef<null | (() => Promise<void>)>(null);
 
   // Shared exit path — surface GPS-failure messaging when present, then
   // dismiss back to the Time tab. Surveyors trust the on-site stamp
@@ -75,49 +86,92 @@ export default function PickJobScreen() {
     router.back();
   };
 
-  const onPickEntryType = async (type: EntryType) => {
-    setSubmitting(true);
-    try {
-      const result = await clockIn({
-        jobId: null,
-        entryType: type,
-        vehicleId: pickedVehicleId,
-        isDriver: pickedVehicleId ? isDriver : false,
-      });
-      finishClockIn(result, type);
-    } catch (err) {
-      logError('pickJob.onPickEntryType', 'clock-in failed', err, {
-        entry_type: type,
-      });
-      Alert.alert(
-        'Clock-in failed',
-        err instanceof Error ? err.message : String(err)
-      );
-      setSubmitting(false);
+  /**
+   * Wrap a clock-in action with the tracking-consent check.
+   * - If consent already granted → run immediately.
+   * - If not → defer the action behind the consent modal. The
+   *   user's "Continue" tap persists consent + runs the action;
+   *   "Skip tracking for now" runs the action without consent
+   *   (clock-in still happens; only background tracking is bypassed).
+   *
+   * Held in a ref because Modal callbacks would otherwise close
+   * over stale jobId / type values.
+   */
+  const runWithConsent = async (action: () => Promise<void>) => {
+    const granted = await hasTrackingConsent();
+    if (granted) {
+      await action();
+      return;
     }
+    pendingClockInRef.current = action;
+    setConsentVisible(true);
   };
 
-  const onPickJob = async (job: Job) => {
+  const onConsentContinue = async () => {
+    setConsentVisible(false);
+    await setTrackingConsent(true);
+    const action = pendingClockInRef.current;
+    pendingClockInRef.current = null;
+    if (action) await action();
+  };
+
+  const onConsentSkip = async () => {
+    setConsentVisible(false);
+    // Don't persist consent — we'll re-prompt on next clock-in.
+    // The action still runs so the surveyor can clock in WITHOUT
+    // background tracking for this shift; clock-in/out boundary
+    // pings still capture coordinates via lib/location.ts.
+    const action = pendingClockInRef.current;
+    pendingClockInRef.current = null;
+    if (action) await action();
+  };
+
+  const onPickEntryType = (type: EntryType) =>
+    runWithConsent(async () => {
+      setSubmitting(true);
+      try {
+        const result = await clockIn({
+          jobId: null,
+          entryType: type,
+          vehicleId: pickedVehicleId,
+          isDriver: pickedVehicleId ? isDriver : false,
+        });
+        finishClockIn(result, type);
+      } catch (err) {
+        logError('pickJob.onPickEntryType', 'clock-in failed', err, {
+          entry_type: type,
+        });
+        Alert.alert(
+          'Clock-in failed',
+          err instanceof Error ? err.message : String(err)
+        );
+        setSubmitting(false);
+      }
+    });
+
+  const onPickJob = (job: Job) => {
     if (!job.id) return;
-    setSubmitting(true);
-    try {
-      const result = await clockIn({
-        jobId: job.id,
-        entryType: 'on_site',
-        vehicleId: pickedVehicleId,
-        isDriver: pickedVehicleId ? isDriver : false,
-      });
-      finishClockIn(result, job.name?.trim() || 'job');
-    } catch (err) {
-      logError('pickJob.onPickJob', 'clock-in failed', err, {
-        job_id: job.id,
-      });
-      Alert.alert(
-        'Clock-in failed',
-        err instanceof Error ? err.message : String(err)
-      );
-      setSubmitting(false);
-    }
+    return runWithConsent(async () => {
+      setSubmitting(true);
+      try {
+        const result = await clockIn({
+          jobId: job.id,
+          entryType: 'on_site',
+          vehicleId: pickedVehicleId,
+          isDriver: pickedVehicleId ? isDriver : false,
+        });
+        finishClockIn(result, job.name?.trim() || 'job');
+      } catch (err) {
+        logError('pickJob.onPickJob', 'clock-in failed', err, {
+          job_id: job.id,
+        });
+        Alert.alert(
+          'Clock-in failed',
+          err instanceof Error ? err.message : String(err)
+        );
+        setSubmitting(false);
+      }
+    });
   };
 
   const gpsReasonClockInCopy = (
@@ -290,6 +344,12 @@ export default function PickJobScreen() {
           <Button label="Clocking in…" onPress={() => undefined} loading />
         </View>
       ) : null}
+
+      <TrackingConsentModal
+        visible={consentVisible}
+        onContinue={() => void onConsentContinue()}
+        onSkip={() => void onConsentSkip()}
+      />
     </SafeAreaView>
   );
 }

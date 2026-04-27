@@ -13,6 +13,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 
+interface VehicleSubtotal {
+  vehicle_id: string | null;
+  vehicle_name: string | null;
+  is_driver: boolean | null;
+  miles: number;
+  meters: number;
+  ping_count: number;
+  segment_count: number;
+}
+
 interface MileageDayRow {
   user_email: string;
   date: string;
@@ -23,6 +33,7 @@ interface MileageDayRow {
   dropped_jump_count: number;
   first_ping_at: string;
   last_ping_at: string;
+  by_vehicle: VehicleSubtotal[];
 }
 
 interface MileageResponse {
@@ -255,31 +266,122 @@ export default function MileagePage() {
                 </tr>
               </thead>
               <tbody>
-                {g.days.map((d) => (
-                  <tr key={`${d.user_email}-${d.date}`}>
-                    <td style={styles.td}>{d.date}</td>
-                    <td style={styles.tdRight}>
-                      <strong>{d.miles.toFixed(2)}</strong>
-                    </td>
-                    <td style={styles.tdRight}>{d.ping_count}</td>
-                    <td style={styles.td}>{formatTime(d.first_ping_at)}</td>
-                    <td style={styles.td}>{formatTime(d.last_ping_at)}</td>
-                    <td
-                      style={{
-                        ...styles.tdRight,
-                        color:
-                          d.dropped_jump_count > 0 ? '#D97706' : '#9CA3AF',
-                      }}
-                      title={
-                        d.dropped_jump_count > 0
-                          ? 'Implausible single-ping jumps (>200 km between fixes) excluded from the total'
-                          : undefined
-                      }
-                    >
-                      {d.dropped_jump_count}
-                    </td>
-                  </tr>
-                ))}
+                {g.days.flatMap((d) => {
+                  const dayRow = (
+                    <tr key={`${d.user_email}-${d.date}`}>
+                      <td style={styles.td}>{d.date}</td>
+                      <td style={styles.tdRight}>
+                        <strong>{d.miles.toFixed(2)}</strong>
+                      </td>
+                      <td style={styles.tdRight}>{d.ping_count}</td>
+                      <td style={styles.td}>
+                        {formatTime(d.first_ping_at)}
+                      </td>
+                      <td style={styles.td}>
+                        {formatTime(d.last_ping_at)}
+                      </td>
+                      <td
+                        style={{
+                          ...styles.tdRight,
+                          color:
+                            d.dropped_jump_count > 0
+                              ? '#D97706'
+                              : '#9CA3AF',
+                        }}
+                        title={
+                          d.dropped_jump_count > 0
+                            ? 'Implausible single-ping jumps (>200 km between fixes) excluded from the total'
+                            : undefined
+                        }
+                      >
+                        {d.dropped_jump_count}
+                      </td>
+                    </tr>
+                  );
+                  // Sub-rows: one per vehicle. Skip when there's
+                  // only one entry AND it has no vehicle (the
+                  // breakdown adds nothing in that case).
+                  const vehicleRows =
+                    d.by_vehicle.length === 0 ||
+                    (d.by_vehicle.length === 1 &&
+                      d.by_vehicle[0].vehicle_id === null)
+                      ? []
+                      : d.by_vehicle.map((v, i) => (
+                          <tr
+                            key={`${d.user_email}-${d.date}-v${i}`}
+                            style={{ background: '#FAFBFC' }}
+                          >
+                            <td
+                              style={{
+                                ...styles.td,
+                                paddingLeft: 36,
+                                color: '#6B7280',
+                                fontSize: 12,
+                              }}
+                            >
+                              ↳{' '}
+                              {v.vehicle_name ?? 'No vehicle'}
+                              {v.is_driver === true ? (
+                                <span
+                                  style={{
+                                    marginLeft: 6,
+                                    background: '#EEF2FF',
+                                    color: '#1D3095',
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    padding: '1px 6px',
+                                    borderRadius: 4,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.4,
+                                  }}
+                                  title="IRS-deductible driver miles"
+                                >
+                                  driver
+                                </span>
+                              ) : v.is_driver === false ? (
+                                <span
+                                  style={{
+                                    marginLeft: 6,
+                                    background: '#F3F4F6',
+                                    color: '#6B7280',
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    padding: '1px 6px',
+                                    borderRadius: 4,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.4,
+                                  }}
+                                  title="Passenger — no IRS attribution"
+                                >
+                                  passenger
+                                </span>
+                              ) : null}
+                            </td>
+                            <td
+                              style={{
+                                ...styles.tdRight,
+                                fontSize: 12,
+                                color: '#4B5563',
+                              }}
+                            >
+                              {v.miles.toFixed(2)}
+                            </td>
+                            <td
+                              style={{
+                                ...styles.tdRight,
+                                fontSize: 12,
+                                color: '#9CA3AF',
+                              }}
+                            >
+                              {v.ping_count}
+                            </td>
+                            <td style={styles.td} />
+                            <td style={styles.td} />
+                            <td style={styles.tdRight} />
+                          </tr>
+                        ));
+                  return [dayRow, ...vehicleRows];
+                })}
               </tbody>
             </table>
           </section>

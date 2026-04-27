@@ -1030,7 +1030,7 @@ Resilience additions (same offline-first pattern as F2):
 
 ### Phase F5 — Files + CSV (Week 17–18)
 - [x] File upload from device, cloud, web link — `seeds/226_starr_field_files.sql` lands the `job_files` table + `starr-field-files` storage bucket (100 MB cap, per-user-folder RLS). `lib/jobFiles.ts` `usePickAndAttachFile` opens `expo-document-picker` (handles iCloud + Google Drive providers via the OS picker), enforces the 100 MB cap, INSERTs row with `upload_state='pending'`, enqueues the bytes through `lib/uploadQueue.ts` (offline-first), and supports archive via `useDeleteJobFile`. "+ Attach file" button on the point detail screen.
-- [/] PDF / image / CSV preview — admin `/admin/field-data/[id]` Files block shows MIME / size / upload-state + a Download link to the signed URL. Inline previewers (PDF render in-browser, CSV table) are F5 polish.
+- [x] PDF / image / CSV preview — admin `/admin/field-data/[id]` Files block branches on MIME type: `image/*` renders inline at max-height 320 px; `application/pdf` mounts an `<iframe>` at 480 px tall; `text/csv` (or `.csv` extension) auto-fetches the signed URL + parses the first 50 rows into a scrollable table (comma OR tab separator detection + quoted-field handling). Everything else falls back to the Download link. Bookkeeper reviews most files without leaving the page.
 - [ ] Pin-to-device for offline access — files are kept on disk through the queue's `documentDirectory` copy until upload succeeds, then deleted. Persistent pin (re-download for re-read offline) is F5 polish.
 - [ ] CSV parser (P,N,E,Z,D and variants).
 - [ ] Auto-link CSV rows to phone-side data points by name.
@@ -1038,12 +1038,12 @@ Resilience additions (same offline-first pattern as F2):
 **Exit:** Raw survey data and reference docs at fingertips. **Status:** capture + admin viewer shipped (Batch O); preview + parser + pin remain.
 
 ### Phase F6 — Location tracking + dispatcher view (Week 19–24)
-- [ ] One-time consent flow — permission rationale + privacy disclosure UI shown BEFORE the first OS permission prompt. The disclosure copy already exists on `/(tabs)/me/privacy`; consent modal that gates the first `Location.requestBackgroundPermissionsAsync()` call is pending.
+- [x] One-time consent flow — `lib/TrackingConsentModal.tsx` shows the privacy explainer (when / what / cadence / who sees / storage / OS indicators) BEFORE the OS Always-location prompt fires. `lib/trackingConsent.ts` persists the consent flag in AsyncStorage so the modal shows once per install (resetting via `resetTrackingConsent` after uninstall is the correct re-prompt path). Pick-job clock-in flow gates `useClockIn` behind the modal: tap "Continue" → persist consent + clock in (which then triggers the OS prompt for "Always" via `startBackgroundTracking`); tap "Skip tracking for now" → clock in WITHOUT background tracking (boundary pings still capture clock-in/out coordinates via `lib/location.ts`). The skip path leaves the flag unset so the explainer re-shows on the next clock-in.
 - [x] Background location with battery-conscious modes — `lib/locationTracker.ts` (high / balanced / low tiers based on battery %), `seeds/223_starr_field_location_pings.sql`, native config in `mobile/app.json` (UIBackgroundModes + ACCESS_BACKGROUND_LOCATION + foreground service). Cold-start reconciliation in `LocationTrackerReconciler` (app/_layout.tsx) recovers from phone-died-mid-shift.
 - [/] Stop detection — `seeds/224_starr_field_location_derivations.sql` lands `location_stops` + `location_segments` tables and a deterministic PL/pgSQL aggregator `derive_location_timeline(p_user_id, p_log_date)`. Algorithm (v1, no AI / no map-matching): cluster pings within 50 m for ≥5 min into stops, sum Haversine distances along intermediate pings into segments (with 200 km single-jump glitch guard, matching `/api/admin/mileage`). Idempotent — DELETEs prior derivations except `user_overridden` stops. Geofence + AI classification + reverse-geocoded place names deferred to v2.
 - [x] Daily timeline view (employee + admin) — admin: `/admin/timeline?user=&date=` reads the derived stops/segments and renders a stop → segment → stop timeline with per-stop time window, duration, Maps deep-link, optional category/place name, links to job + field-data. "Recompute" button POSTs to derive on-demand for fresh pings. APIs: `GET /api/admin/timeline` reads, `POST /api/admin/timeline` re-derives. Sidebar entry under Work group + per-card Timeline link from `/admin/team`. Employee: `(tabs)/me/privacy.tsx` surfaces the same stops/segments alongside the raw pings via `useOwnStopsForDate` / `useOwnSegmentsForDate` / `useOwnTimelineSummary` (PowerSync-backed). Three-stat summary card (stops · miles · stationary) matches the dispatcher's totals so surveyors see exactly what the office sees.
 - [x] Mileage log generation (IRS-format export) — `GET /api/admin/mileage?from=&to=&user_email=&format=json|csv`. Server-side Haversine sum across consecutive pings per `(user, UTC date)` with a 200 km / single-jump glitch guard; CSV download for QuickBooks / tax import. Admin UI at `/admin/mileage` with date-range picker, per-user grouping, per-employee subtotals + download. Per-user drill-down link from each `/admin/team` card.
-- [x] Vehicle assignment + driver/passenger — `seeds/225_starr_field_vehicles.sql` lands the `vehicles` table that's been declared in the mobile schema since seeds/220 + wires the FK from `job_time_entries.vehicle_id` (existing column) and `location_segments.vehicle_id` (added by seeds/224). `/admin/vehicles` page provides full CRUD (add / edit / archive / reactivate; soft-archive preserves historical refs). Mobile vehicle picker on the clock-in `pick-job` modal with optional vehicle pill row + "I'm driving" toggle (defaults true since most clock-ins are the driver themselves; passengers explicitly flip it off so mileage attribution stays clean for IRS). `useClockIn` accepts `vehicleId` + `isDriver`; persists to `job_time_entries.vehicle_id` + `is_driver`. `lib/vehicles.ts` `useVehicles` + `useVehicle` hooks back the picker. Per-vehicle mileage breakdown on `/admin/mileage` deferred to a follow-on (the data is in place; UI swap is a small change).
+- [x] Vehicle assignment + driver/passenger — `seeds/225_starr_field_vehicles.sql` lands the `vehicles` table that's been declared in the mobile schema since seeds/220 + wires the FK from `job_time_entries.vehicle_id` (existing column) and `location_segments.vehicle_id` (added by seeds/224). `/admin/vehicles` page provides full CRUD (add / edit / archive / reactivate; soft-archive preserves historical refs). Mobile vehicle picker on the clock-in `pick-job` modal with optional vehicle pill row + "I'm driving" toggle (defaults true since most clock-ins are the driver themselves; passengers explicitly flip it off so mileage attribution stays clean for IRS). `useClockIn` accepts `vehicleId` + `isDriver`; persists to `job_time_entries.vehicle_id` + `is_driver`. `lib/vehicles.ts` `useVehicles` + `useVehicle` hooks back the picker. **Per-vehicle mileage breakdown** on `/admin/mileage` shipped (Batch P): each (user, date) row expands to per-vehicle subtotals with driver / passenger badges so bookkeepers see "Jacob drove Truck 3 for 28 mi AND rode passenger in Truck 1 for 12 mi" — only the driver miles are IRS-deductible. CSV export gains `vehicle_id` / `vehicle_name` / `is_driver` columns for QuickBooks pivots.
 - [x] Dispatcher live map (web app, partial) — `/admin/team` shows last-known GPS + battery + staleness, with Google-Maps deep-link per card. Full live map (continuous trace, polling) pending.
 - [ ] Day-replay scrubber (web app) — depends on the worker-derived segments above.
 - [ ] Missing-receipt cross-reference prompts — should compare clocked-in geofences against receipt timestamps and prompt "you spent 12 min at a gas station yesterday but no receipt was logged." Worker job + mobile inbox notification.
@@ -1197,6 +1197,51 @@ under one phase.
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
 
+**Batch P — three closer items (consent + per-vehicle mileage + inline file preview)**
+
+Three small closer items, no native deps, that finish open loops
+from earlier batches.
+
+Tracking-consent modal (closes F6 #consent-flow):
+- `lib/trackingConsent.ts` — AsyncStorage-backed flag with cached
+  read, `setTrackingConsent` / `resetTrackingConsent` helpers.
+- `lib/TrackingConsentModal.tsx` — full-screen page-sheet modal
+  with the same disclosure block surveyors see on
+  `(tabs)/me/privacy` (when / what / cadence / who sees /
+  storage / OS indicators) plus a "your phone OS will ask next"
+  callout setting expectations for the system dialog.
+- Pick-job clock-in flow gates `useClockIn` behind the modal:
+  Continue → persist consent + clock in (which then triggers the
+  OS Always-location prompt via `startBackgroundTracking`); Skip
+  → clock in WITHOUT background tracking. Skip leaves the flag
+  unset so the explainer re-shows on the next clock-in. The
+  modal shows once per install — re-prompt on uninstall is the
+  correct behaviour for a privacy disclosure.
+
+Per-vehicle mileage breakdown (closes F6 polish deferral):
+- `/api/admin/mileage` now joins `location_pings.job_time_entry_id`
+  → `job_time_entries.{vehicle_id, is_driver}` → `vehicles.name`
+  in two follow-up bulk queries. New `VehicleSubtotal` shape
+  attached to each `MileageDayRow.by_vehicle[]`.
+- Sub-rows render under each (user, date) row on `/admin/mileage`
+  with Driver / Passenger pills (Driver in accent blue;
+  Passenger in muted grey). IRS attribution becomes scannable —
+  bookkeepers see who actually drove what for how many miles.
+- CSV export gains three columns (`vehicle_id`, `vehicle_name`,
+  `is_driver`) so QuickBooks pivots can slice by vehicle.
+
+Inline file preview on admin (closes F5 polish deferral):
+- `FileCardItem` on `/admin/field-data/[id]` branches on MIME:
+  - `image/*` → inline `<img>` at max-height 320 px
+  - `application/pdf` → `<iframe>` at 480 px tall
+  - `text/csv` (or `.csv` extension) → fetches the signed URL
+    and renders the first 50 rows as a scrollable table. Tiny
+    pure-JS CSV parser handles comma OR tab separators with
+    quoted-field escapes; "(Preview limited to 50 rows…)"
+    footer when truncated.
+- Everything else falls back to the Download link. Bookkeeper
+  reviews most files without leaving the page.
+
 **Batch O — device-access audit + photo annotation + F5 files + offline-first verification**
 
 This batch responds to the user's directive: *"Make sure that we
@@ -1338,8 +1383,8 @@ adds `job_files` (last 90 days, scoped by `created_by`).
       `isDriver?` opt-in params; `is_driver` coerced to 0/1 for
       SQLite, null when no vehicle picked.
 - Deliberate non-features (deferred to F6 polish):
-  - Per-vehicle mileage breakdown on `/admin/mileage` (data is in
-    place via segments.vehicle_id; UI swap is small).
+  - Per-vehicle mileage breakdown on `/admin/mileage` — **shipped
+    in Batch P** (data + UI + CSV columns).
   - Default-vehicle preference per surveyor (so the next clock-in
     pre-picks the truck they used yesterday).
   - In-vehicle status indicator on the active-clock-in card so the
@@ -1593,10 +1638,8 @@ PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
   SQLite bounded; older pings live server-side for F6 reports).
 
 **Pending in the resilience track:**
-- One-time consent modal that gates the first
-  `requestBackgroundPermissionsAsync()` call (currently the OS prompt
-  is the only consent surface; the disclosure copy already lives at
-  `/(tabs)/me/privacy`).
+- (Consent modal shipped in Batch P — `lib/TrackingConsentModal.tsx`
+  gates the first `requestBackgroundPermissionsAsync()` call.)
 - Voice memo on-device transcription (`field_media.transcription`
   column already populated by the recorder when available; needs an
   expo-speech-recognition wiring or a server-side Whisper job).

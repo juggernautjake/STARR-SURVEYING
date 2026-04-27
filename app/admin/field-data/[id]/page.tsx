@@ -533,10 +533,20 @@ function Lightbox({
 }
 
 /**
- * One-row card for a generic file attachment. Shows filename,
- * description, MIME, size, upload state, and a "Download" link
- * to the signed URL. PDF / image / CSV all go through the
- * download path — inline previewers are F5 polish.
+ * One-row card for a generic file attachment. Renders inline preview
+ * for image / PDF / CSV; everything else falls back to a download
+ * link. Bookkeeper can review most file types without leaving the
+ * page.
+ *
+ * Inline-preview matrix:
+ *   - image/*           → <img> at max-width 100% (capped height
+ *                         so portrait scans don't blow up the
+ *                         layout)
+ *   - application/pdf   → <iframe> at 480 px tall
+ *   - text/csv          → first 50 rows parsed + rendered as a
+ *                         table (loaded asynchronously via fetch
+ *                         on the signed URL)
+ *   - everything else   → download link only
  */
 function FileCardItem({ file }: { file: FileRow }) {
   const created = new Date(file.created_at);
@@ -553,10 +563,21 @@ function FileCardItem({ file }: { file: FileRow }) {
       : file.upload_state === 'done'
         ? '#067647'
         : '#D97706';
+
+  const mime = (file.content_type ?? '').toLowerCase();
+  const isImage = mime.startsWith('image/');
+  const isPdf = mime === 'application/pdf';
+  const isCsv =
+    mime === 'text/csv' ||
+    mime === 'application/csv' ||
+    /\.csv$/i.test(file.name);
+
   return (
     <article style={styles.noteCard}>
       <header style={styles.noteHeader}>
-        <span style={styles.noteTemplate}>📎 File</span>
+        <span style={styles.noteTemplate}>
+          {isImage ? '🖼' : isPdf ? '📄' : isCsv ? '📊' : '📎'} File
+        </span>
         <span style={styles.noteMeta}>{ageLabel}</span>
       </header>
       <p style={styles.noteBody}>{file.name || '(unnamed)'}</p>
@@ -565,6 +586,43 @@ function FileCardItem({ file }: { file: FileRow }) {
           {file.description}
         </p>
       ) : null}
+
+      {/* Inline previews — only when the bytes are actually
+          uploaded (signed_url present + state=done). Pending uploads
+          fall through to the metadata-only render. */}
+      {file.signed_url && file.upload_state === 'done' ? (
+        isImage ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={file.signed_url}
+            alt={file.name}
+            style={{
+              display: 'block',
+              maxWidth: '100%',
+              maxHeight: 320,
+              objectFit: 'contain',
+              borderRadius: 8,
+              marginTop: 8,
+              background: '#F7F8FA',
+            }}
+          />
+        ) : isPdf ? (
+          <iframe
+            src={file.signed_url}
+            title={file.name}
+            style={{
+              width: '100%',
+              height: 480,
+              border: '1px solid #E2E5EB',
+              borderRadius: 8,
+              marginTop: 8,
+            }}
+          />
+        ) : isCsv ? (
+          <CsvPreview signedUrl={file.signed_url} />
+        ) : null
+      ) : null}
+
       <div style={styles.notePayload}>
         {file.content_type ? (
           <div style={styles.notePayloadRow}>
@@ -603,6 +661,193 @@ function FileCardItem({ file }: { file: FileRow }) {
       ) : null}
     </article>
   );
+}
+
+/**
+ * Inline CSV preview — fetches the signed URL, parses the first 50
+ * rows, renders a table. Handles both comma + tab separators and
+ * quoted fields. Bookkeeper can scan the columns without
+ * downloading the file.
+ */
+function CsvPreview({ signedUrl }: { signedUrl: string }) {
+  const [rows, setRows] = useState<string[][] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(signedUrl)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.text();
+      })
+      .then((text) => {
+        if (cancelled) return;
+        const parsed = parseCsv(text, 50);
+        setRows(parsed);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Preview failed');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [signedUrl]);
+
+  if (loading) {
+    return (
+      <p style={{ fontSize: 12, color: '#6B7280', marginTop: 8 }}>
+        Loading CSV preview…
+      </p>
+    );
+  }
+  if (error || !rows || rows.length === 0) {
+    return (
+      <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 8 }}>
+        Preview unavailable. Use Download to inspect.
+      </p>
+    );
+  }
+  const header = rows[0];
+  const body = rows.slice(1);
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        maxHeight: 320,
+        overflow: 'auto',
+        border: '1px solid #E2E5EB',
+        borderRadius: 8,
+      }}
+    >
+      <table
+        style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          fontSize: 12,
+        }}
+      >
+        <thead>
+          <tr style={{ background: '#F7F8FA' }}>
+            {header.map((h, i) => (
+              <th
+                key={i}
+                style={{
+                  textAlign: 'left',
+                  padding: '6px 10px',
+                  borderBottom: '1px solid #E2E5EB',
+                  fontWeight: 600,
+                  color: '#0B0E14',
+                }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {body.map((r, i) => (
+            <tr key={i}>
+              {r.map((c, j) => (
+                <td
+                  key={j}
+                  style={{
+                    padding: '6px 10px',
+                    borderBottom: '1px solid #F3F4F6',
+                    color: '#4B5563',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {c}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {body.length === 49 ? (
+        <p
+          style={{
+            fontSize: 11,
+            color: '#9CA3AF',
+            padding: '6px 10px',
+            margin: 0,
+            borderTop: '1px solid #E2E5EB',
+          }}
+        >
+          (Preview limited to 50 rows. Download for the full file.)
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Tiny CSV parser handling comma OR tab separator + quoted fields
+ * with embedded commas / quotes. Stops at maxRows. Adequate for
+ * surveying P,N,E,Z,D coordinate dumps + Trimble exports.
+ */
+function parseCsv(text: string, maxRows: number): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+  // Sniff separator from the first line — pick comma or tab,
+  // whichever appears more in the first 200 chars.
+  const sample = text.slice(0, 200);
+  const sep =
+    (sample.match(/\t/g)?.length ?? 0) >
+    (sample.match(/,/g)?.length ?? 0)
+      ? '\t'
+      : ',';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += ch;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+    if (ch === sep) {
+      row.push(cell);
+      cell = '';
+      continue;
+    }
+    if (ch === '\n' || ch === '\r') {
+      // Skip a paired \r\n by consuming the \n that follows the \r.
+      if (ch === '\r' && text[i + 1] === '\n') i += 1;
+      row.push(cell);
+      cell = '';
+      // Drop a fully-empty row (trailing newline at EOF, etc.).
+      if (!(row.length === 1 && row[0] === '')) rows.push(row);
+      row = [];
+      if (rows.length >= maxRows) return rows;
+      continue;
+    }
+    cell += ch;
+  }
+  if (cell.length > 0 || row.length > 0) {
+    row.push(cell);
+    if (!(row.length === 1 && row[0] === '')) rows.push(row);
+  }
+  return rows;
 }
 
 function PhotoCard({
