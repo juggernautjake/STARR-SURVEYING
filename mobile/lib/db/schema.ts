@@ -667,6 +667,13 @@ const pending_uploads = new Table(
     /** Wall-clock ms timestamp of next eligible attempt. The queue
      *  skips rows where now() < next_attempt_at. */
     next_attempt_at: column.integer,
+    /** Wi-Fi-only flag (Batch KK). When 1, the upload queue's
+     *  drainer skips this row whenever the device is on cellular —
+     *  protects the surveyor's data plan against large
+     *  original-tier video uploads. The capture path sets this to
+     *  1 for video rows over WIFI_ONLY_BYTES_THRESHOLD; everything
+     *  else is 0 and uploads on any connection. */
+    require_wifi: column.integer,
     created_at: column.text,
   },
   // PowerSync localOnly: these rows never replay to Supabase. The

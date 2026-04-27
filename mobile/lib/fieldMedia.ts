@@ -50,6 +50,14 @@ export const VIDEO_BUCKET = 'starr-field-videos';
 // pushing typical JPEG file sizes much past 600 KB.
 const PHOTO_MAX_DIMENSION_PX = 2400;
 const PHOTO_QUALITY = 0.85;
+/** Videos larger than this queue with `require_wifi=1` so the
+ *  upload queue holds them off the cellular network. 10 MB is a
+ *  practical cutoff: 30-second clips at 1080p typically land
+ *  ~8 MB, so most short captures upload immediately on cellular,
+ *  while 2-min walkthroughs (~50 MB+) queue for Wi-Fi.
+ *  Surveyor can see "Waiting for Wi-Fi" on the tile so it's
+ *  never a mystery wait. */
+const WIFI_ONLY_BYTES_THRESHOLD = 10 * 1024 * 1024;
 
 // UUID v4 + v5 + v7 shapes — anything `gen_random_uuid()` produces on
 // the server side, plus what `randomUUID()` produces client-side.
@@ -608,6 +616,18 @@ export function useAttachVideo(): (
         throw err;
       }
 
+      // Wi-Fi-only gate (Batch KK). Videos over the cellular-budget
+      // threshold queue with `require_wifi=1` — the upload queue's
+      // drainer skips them on cellular and picks them up on the
+      // next Wi-Fi transition. The threshold mirrors §5.4's intent
+      // ("WiFi-only original-quality re-upload tier") without the
+      // architectural overhead of a second-tier transcode pipeline:
+      // the original IS the only tier, and we just gate large clips.
+      // Surveyor sees 'wifi-waiting' on the tile; pre-Wi-Fi
+      // captures upload silently on next reconnect.
+      const requireWifi =
+        (picked.fileSize ?? 0) > WIFI_ONLY_BYTES_THRESHOLD;
+
       const enqueueResult = await enqueueAndAttempt(db, {
         parentTable: 'field_media',
         parentId: mediaId,
@@ -616,6 +636,7 @@ export function useAttachVideo(): (
         localFileUri: picked.uri,
         contentType: picked.contentType,
         scope: 'fieldMedia.attachVideo',
+        requireWifi,
       });
 
       // MediaLibrary backup — for video the asset goes to the user's
@@ -627,6 +648,7 @@ export function useAttachVideo(): (
         point_id: dataPointId,
         duration_seconds: picked.durationSeconds ?? null,
         file_size: picked.fileSize ?? null,
+        require_wifi: requireWifi,
         has_gps: !!pos,
         has_heading: heading != null,
         uploaded_now: enqueueResult.uploadedNow,

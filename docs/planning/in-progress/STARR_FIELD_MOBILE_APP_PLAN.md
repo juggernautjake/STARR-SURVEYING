@@ -1152,7 +1152,7 @@ classifier) · 228 (voice transcription) — all present.
 |---|---|---|
 | F2 receipts | Capture, extraction, approval, CSV export, duplicate detection + review-before-save (Batch Z), soft-delete foundation (Batch CC) | Worker retention sweep CLI (purges rows past IRS retention threshold); per-receipt admin sign-off audit |
 | F3 photos | Multi-photo, GPS, EXIF, annotator, compass heading (Batch V) | Arrow / circle / text annotation primitives (schema slots reserved; pen-only in v1) |
-| F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U), server-side FFmpeg thumbnails (Batch GG) | WiFi-only original-quality re-upload tier |
+| F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U), server-side FFmpeg thumbnails (Batch GG), WiFi-only gating for large clips (Batch KK) | True dual-tier transcoding (cellular 480p + original 1080p) via worker ffmpeg pipeline; surveyor "data-saver" toggle |
 | F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
 | F4 notes | Free-text + four structured templates + admin viewer + cross-notes search (Batch BB) | Server-side `tsvector` index for cross-user admin search at scale; FTS5 ranking when the LIKE scan tops 10k notes per device |
 | F5 files | Document picker + admin Files block + image/PDF/CSV preview + pin-to-device offline read (Batch W) + P,N,E,Z,D parser w/ point-match preview (Batch AA) | Auto-import unmatched CSV rows as new data points |
@@ -1525,6 +1525,65 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch KK — Wi-Fi-only video upload gating (F4 closer)**
+
+Closes the F4 deferral *"WiFi-only original-quality re-upload
+tier per plan §5.4 (v1 uploads single-tier at the picker's
+videoQuality: 0.7)."* Pragmatic v1 interpretation: the picker
+now captures at original quality (1.0) and the upload queue
+holds large clips (>10 MB) off cellular until Wi-Fi returns —
+no separate transcode pipeline, no mystery wait, no surprise
+bill. A true dual-tier transcoding pipeline is tracked as v2
+polish.
+
+Picker (`mobile/lib/storage/mediaUpload.ts`):
+- Default `videoQuality` bumped 0.7 → 1.0 so the upload IS the
+  original. Smaller clips (typical ≤30 s @ 1080p ≈ 8 MB)
+  still upload immediately on cellular; a 5-minute walkthrough
+  (~50 MB) waits for Wi-Fi.
+
+Network (`mobile/lib/networkState.ts`):
+- New `isOnWifiNow()` sync read + `useIsOnWifi()` reactive hook
+  on top of NetInfo's `state.type`. Treats `'wifi'` and
+  `'ethernet'` as no-cellular-budget concern; everything else
+  (cellular / unknown / VPN / bluetooth) gates Wi-Fi-only
+  uploads.
+
+Schema (`mobile/lib/db/schema.ts`):
+- `pending_uploads.require_wifi` integer column added to the
+  local-only queue table. PowerSync's localOnly contract means
+  no seed migration is needed — schema bumps roll out with
+  the next mobile build.
+
+Upload queue (`mobile/lib/uploadQueue.ts`):
+- `EnqueueOptions.requireWifi?: boolean` plumbed through.
+- Synchronous attempt path skips the upload when
+  `requireWifi && !isOnWifiNow()`, AND flips the parent
+  `field_media.upload_state` to `'wifi-waiting'` so the mobile
+  tile shows the right badge instead of a stuck "Uploading…".
+- `processQueue` SQL filters `require_wifi=0` rows on cellular,
+  pulls all rows on Wi-Fi. The drainer subscribes to NetInfo
+  on every change so a cellular → Wi-Fi transition fires
+  another batch automatically.
+
+Capture (`mobile/lib/fieldMedia.ts`):
+- New `WIFI_ONLY_BYTES_THRESHOLD = 10 MB`.
+- `useAttachVideo` computes `requireWifi = file_size >
+  threshold` and passes it through to `enqueueAndAttempt`.
+- Success log line carries `require_wifi: bool` for ops
+  visibility ("how often does this kick in?").
+
+Pending v2 polish:
+- True dual-tier transcoding: the worker (already has
+  ffmpeg-static from Batch GG) transcodes the original →
+  480p cellular tier on upload, mobile reads
+  `cellular_url` first / `original_url` when on Wi-Fi.
+- Me-tab "data-saver" toggle that drops the threshold to
+  zero (everything Wi-Fi-only) for surveyors with strict
+  data plans.
+- Per-job override on long shoots (sometimes the surveyor
+  WANTS the cellular hit on a critical clip).
 
 **Batch JJ — admin receipts bulk-approve (closes Batch FF v2 polish)**
 

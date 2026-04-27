@@ -94,3 +94,52 @@ export function subscribeToOnline(cb: NetworkSubscriber): () => void {
 export function isOnlineNow(): boolean {
   return lastKnownOnline;
 }
+
+// ── Connection type (Wi-Fi / cellular / other) ─────────────────────────────
+
+/** Last-known connection type. NetInfo's `state.type` enum values
+ *  per docs: 'wifi' | 'cellular' | 'ethernet' | 'wimax' | 'bluetooth'
+ *  | 'vpn' | 'other' | 'unknown' | 'none'. We treat 'wifi' +
+ *  'ethernet' as "no cellular budget concern"; everything else is
+ *  cellular-or-unknown and held back when the upload queue's row
+ *  is flagged require_wifi. */
+let lastKnownType: NetInfoState['type'] = 'unknown';
+
+NetInfo.addEventListener((state) => {
+  lastKnownType = state.type;
+});
+
+/** Sync read of the most-recent connection type. Returns
+ *  `'unknown'` until NetInfo lands its first state (~50 ms after
+ *  cold start). Callers that care about the difference between
+ *  "haven't sampled yet" vs "definitely cellular" should use the
+ *  hook + render a "Waiting for network info…" state during that
+ *  brief window. */
+export function isOnWifiNow(): boolean {
+  return lastKnownType === 'wifi' || lastKnownType === 'ethernet';
+}
+
+/** Reactive variant — for the UI's "Waiting for Wi-Fi" banner. */
+export function useIsOnWifi(): boolean {
+  const [onWifi, setOnWifi] = useState<boolean>(isOnWifiNow());
+  useEffect(() => {
+    let mounted = true;
+    NetInfo.fetch()
+      .then((state) => {
+        if (!mounted) return;
+        setOnWifi(state.type === 'wifi' || state.type === 'ethernet');
+      })
+      .catch(() => {
+        /* fall through */
+      });
+    const unsub = NetInfo.addEventListener((state) => {
+      if (!mounted) return;
+      setOnWifi(state.type === 'wifi' || state.type === 'ethernet');
+    });
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
+  return onWifi;
+}

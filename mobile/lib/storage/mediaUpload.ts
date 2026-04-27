@@ -77,7 +77,13 @@ export interface PickVideoOptions {
   maxDurationSec?: number;
   /** Quality preset — passed straight to expo-image-picker.
    *  0..1 maps to Low / Medium / High on the native side. Default
-   *  0.7 keeps file sizes reasonable for cellular sync. */
+   *  bumped from 0.7 → 1.0 in Batch KK so we capture at original
+   *  resolution; the upload queue's `require_wifi` flag (set by
+   *  the caller for files over WIFI_ONLY_BYTES_THRESHOLD) protects
+   *  the surveyor's data plan against large clips.
+   *
+   *  Callers can still override (e.g. a future "data-saver" mode
+   *  for off-Wi-Fi shoots). */
   quality?: number;
   scope: string;
 }
@@ -115,7 +121,12 @@ export async function pickVideo(
   opts: PickVideoOptions
 ): Promise<PickedVideo | null> {
   const maxDurationSec = opts.maxDurationSec ?? DEFAULT_VIDEO_MAX_DURATION_SEC;
-  const quality = opts.quality ?? 0.7;
+  // Default quality bumped to 1.0 in Batch KK — original
+  // resolution preserved for the office reviewer + future
+  // server-side transcoding. Cellular-budget protection is the
+  // upload queue's `require_wifi` flag (set on enqueue for files
+  // over WIFI_ONLY_BYTES_THRESHOLD).
+  const quality = opts.quality ?? 1.0;
 
   let asset: ImagePicker.ImagePickerAsset | null = null;
   if (opts.source === 'camera') {
