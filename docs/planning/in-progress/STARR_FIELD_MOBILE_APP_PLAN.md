@@ -1080,6 +1080,167 @@ Audit additions:
 
 ---
 
+## 9.w — Inventory snapshot (state-of-the-build)
+
+*Audited at commit `f2917de` against the actual filesystem.* Plan
+claims throughout this document are spot-verified — the lists below
+are the reconciled truth, not a re-statement of the per-phase
+checkboxes. Update this section every time a Batch lands.
+
+### A. Shipped & verified in code
+
+**Mobile (Expo / `mobile/`):**
+- All five tabs wired (Jobs / Capture FAB / Time / Money / Me) with
+  nested stacks. Tab + drilldown screens listed in §9.y matrix.
+- Auth + biometric (Supabase Auth, Apple Sign-In, magic link, idle
+  re-prompt) — `lib/auth.tsx`, `lib/biometric.ts`, `lib/lockState.ts`.
+- PowerSync DB layer — `lib/db/{schema,connector,index}.tsx` with 14
+  tables incl. local-only `pending_uploads` queue.
+- Offline-first capture pipeline — `lib/uploadQueue.ts` (durable
+  retry, backoff, stuck-uploads triage at `(tabs)/me/uploads.tsx`),
+  applied to receipts / photos / voice / video / files / notes.
+- Camera + voice + video + files + notes capture surfaces
+  (Batches I, K, L, O — confirmed all `lib/*.ts` modules + `(tabs)`
+  screens present).
+- Photo annotation (Batch O) — `lib/PhotoAnnotator.tsx`,
+  `lib/photoAnnotation.ts`, originals never modified, web admin
+  renders via shared `lib/photoAnnotationRenderer.ts`.
+- Background GPS + battery-aware tiers + boundary pings (Batch C).
+- Tracking-consent modal (Batch P) — `lib/TrackingConsentModal.tsx`
+  + `lib/trackingConsent.ts`.
+- Vehicle picker on clock-in + `is_driver` toggle (Batch M).
+- Mobile timeline reader on `(tabs)/me/privacy.tsx` (Batch N) —
+  stops + segments + summary stats.
+- Notification inbox + dispatcher → user pings (Batch B).
+- Submit-for-approval bridge (Batch E) — `DailyLogStatus` enum
+  unifies web + mobile.
+- Responsive primitives (`lib/responsive.ts`) applied to four main
+  tab screens.
+
+**Web admin (`app/admin/`):**
+- `/admin/field-data` (list) + `/admin/field-data/[id]` (detail with
+  photo lightbox + annotation overlay + notes + files + voice
+  transcripts + video player).
+- `/admin/jobs/[id]/field` (per-job consolidated view, Batches S+T).
+- `/admin/timeline` (stops/segments + Recompute + "Set as job site"
+  geofence capture, Batches J+Q).
+- `/admin/mileage` (per-user + per-vehicle subtotals + IRS-grade
+  CSV, Batches G+P).
+- `/admin/vehicles` (CRUD + soft-archive, Batch M).
+- `/admin/team` (last-seen + battery + drill-downs, Batch B+G).
+
+**Admin APIs (`app/api/admin/`):** `field-data`, `field-data/[id]`,
+`jobs/[id]/field-data`, `jobs/[id]/field-data/manifest` (CSV with
+uploader columns), `jobs/[id]/field-data/zip` (server-streamed ZIP),
+`jobs/[id]/geofence`, `timeline` (GET+POST), `mileage`, `vehicles`
+(CRUD), `team`, `notifications`, `time-logs/*`, `receipts/*`.
+
+**Worker (`worker/src/services/`):**
+- `receipt-extraction.ts` + `cli/extract-receipts.ts` + endpoint at
+  `/starr-field/receipts/extract` (Phase F2).
+- `voice-transcription.ts` + `cli/transcribe-voice.ts` + endpoint at
+  `/starr-field/voice/transcribe` (Batch R).
+
+**Seeds (`seeds/`):** 220 (receipts) · 221 (data points) ·
+222 (notifications) · 223 (location pings) · 224 (location
+derivations) · 225 (vehicles) · 226 (files) · 227 (geofence
+classifier) · 228 (voice transcription) — all present.
+
+### B. Partial (started; polish deferred)
+
+| Area | Done | Deferred |
+|---|---|---|
+| F2 receipts | Capture, extraction, approval, CSV export | Soft-delete + IRS 7-yr retention; per-receipt admin sign-off audit |
+| F3 photos | Multi-photo, GPS, EXIF, annotator | Compass heading (magnetometer not wired); arrow / circle / text annotation primitives (schema slots reserved) |
+| F4 video | Capture, upload, admin player | Server-side FFmpeg thumbnail extraction; WiFi-only original-quality re-upload tier; mobile video-gallery tab |
+| F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
+| F4 notes | Free-text + four structured templates + admin viewer | Cross-notes search across body + structured payloads (no FTS index — server `tsvector` or local SQLite FTS5 TBD) |
+| F5 files | Document picker + admin Files block + image/PDF/CSV preview | Pin-to-device for persistent offline read; CSV parser for surveying P,N,E,Z,D; auto-link CSV rows → data points |
+| F6 stops | Geofence classifier + idempotent re-derivation | AI classifier for ambiguous stops; reverse-geocoded `place_name`/`place_address`; PostGIS `path_simplified` for day-replay scrubber; pg_cron nightly schedule |
+| F6 dispatcher | Last-seen card; per-user mileage drilldown | Continuous live-map trace; per-user `/admin/team/[email]` daily drilldown; day-replay scrubber UI; missing-receipt cross-reference worker |
+| F7 polish | Storage / sync UI, network-restore drainer, notification UX | High-contrast sun-readable theme; battery profile audit on real devices; tablet split-pane layouts on drilldown screens; multi-device conflict-resolution UX + tests; 30-day stress test on 5 devices |
+| F0 ops | Expo scaffold, biometric, PowerSync, Sentry | Lock-screen widget (iOS WidgetKit / Android shortcut); OTA update channel URL in `app.json`; EAS submit credentials still `REPLACE_WITH_*`; first TestFlight build pending |
+
+### C. Pending (planned but not started)
+
+- **Phase F8** — Trimble Access file exchange (Path A from §8.1):
+  watched cloud folder, JobXML / CSV auto-import, name-based
+  auto-link.
+- **Phase F9+** — real-time Trimble streaming (Path C); QuickBooks
+  Online direct API; Civil 3D round-trip; Apple Watch / Wear OS;
+  fleet fuel-card reconciliation; AR overlay; drone import; weather
+  metadata.
+- **Server-side UPSERT idempotency on `client_id`** — currently
+  PowerSync's CRUD queue dedupes on replay; server-side enforcement
+  per §10 risk register has not landed.
+
+### D. Architectural deviations from the plan
+
+1. **No `/api/mobile/*` REST namespace exists.** The plan §13
+   declares Supabase-JWT-gated mobile routes (data-points,
+   time-entries, receipts, location-stops). Reality: mobile uses
+   PowerSync's CRUD queue + Supabase RLS for **all** writes; REST is
+   only used for worker-triggered actions which currently route to
+   `/starr-field/*` on the worker, not `/api/mobile/*` on Next.
+   §13 contracts are aspirational documentation, not implemented
+   endpoints. **Action:** §13 should be re-framed as "PowerSync
+   table writes" rather than "REST contracts" — or the REST
+   endpoints should be added if a non-PowerSync client ever needs
+   them. No urgency until a non-PowerSync caller emerges.
+2. **Receipt AI extraction does not currently integrate with the
+   global `AiUsageTracker`** (Whisper transcription same — Batch R
+   notes this explicitly). Per-row cost lands in
+   `transcription_cost_cents` / receipt-side equivalent, but the
+   shared circuit breaker doesn't trip on Starr Field spend. v2
+   polish per the cost model in §11.
+
+### E. Outstanding bootstrapping (operator + legal prerequisites)
+
+From §15 (re-verified — see also patches below). Most items below
+are operator / legal actions, not engineering work:
+
+- [ ] App name decision (working title still "Starr Field")
+- [ ] Apple Developer + Google Play accounts under Starr Software
+- [ ] App icon + splash screen (no `mobile/assets/` directory yet)
+- [ ] `seeds/214_starr_field_existing_schema_snapshot.sql` —
+  **blocks** fresh `./seeds/run_all.sh --reset` runs because seeds
+  220+ ALTER `jobs` / `time_entries` from the live schema
+- [ ] 179-code point taxonomy import to `point_codes` (currently
+  offline, in Henry's printout)
+- [ ] Reserve `app.starr.software/field` deep-link domain
+- [ ] Privacy policy + ToS drafts (required for store submission +
+  consent flow)
+- [ ] Texas-licensed employment attorney engagement letter for
+  location-tracking review
+- [ ] Internal alpha tester list (Jacob, dad, 1–2 crew)
+- [ ] MVP success metric — *"Jacob does a full week using only
+  Starr Field for time, receipts, and notes"*
+- [ ] Raise unified `AI_DAILY_CAP_USD` $50 → $60 + rename env var
+  across root + worker `.env.example`
+- [ ] Google Cloud Places / Distance Matrix billing alerts
+- [ ] Verify PostGIS extension on live Supabase
+- [ ] Confirm with Hank Maddux RPLS that `fieldbook_notes` is the
+  right home for structured mobile notes
+
+### F. Open product / policy questions
+
+20 unresolved questions in §12 (single-app vs per-product, photo
+retention, multi-tenant, crew-role granularity, Trimble integration
+scope, pricing, TX compliance, backup strategy, watch app scope,
+1099 location-tracking policy, receipt approval threshold, mileage
+rate, QuickBooks integration phasing, per diem, driver detection,
+PTO tracking, schedule integration). These are decision-required
+items, not engineering work.
+
+### G. One-line verdict
+
+Core v1 capture loop + admin review + bundle download is
+**code-complete and offline-first**. Store submission, legal
+review, and 12 of 14 §15 bootstrapping items separate the codebase
+from a production rollout — none of which are engineering blocked.
+
+---
+
 ## 9.x — Resilience batches (cross-cutting, completed)
 
 These batches landed alongside F1–F3 work to satisfy the user's
@@ -2213,10 +2374,10 @@ GET /api/mobile/mileage-log.csv?user_id=...&start=2026-01-01&end=2026-12-31
 - [ ] Decide app name (working title: Starr Field)
 - [ ] Apple Developer + Google Play accounts under Starr Software
 - [ ] App icon + splash screen
-- [ ] Initialize Expo at `mobile/` in this monorepo (`npx create-expo-app mobile --template`) — see §6 preamble
+- [x] Initialize Expo at `mobile/` in this monorepo (`npx create-expo-app mobile --template`) — see §6 preamble. Done; scaffold + tab bar + auth + PowerSync wired (Phase F0).
 - [ ] **Schema audit + snapshot:** export the live Supabase schema for `jobs`, `job_tags`, `job_team`, `job_equipment`, `job_files`, `job_research`, `job_stages_history` (and any other `job_*` tables) plus `time_entries` and related payroll tables, into a tracked `seeds/214_starr_field_existing_schema_snapshot.sql`. Without this, `seeds/220_starr_field_tables.sql` will fail against a fresh `./seeds/run_all.sh --reset` because `ALTER TABLE jobs` and `ALTER TABLE time_entries` reference tables not in the seed pipeline. **Blocks every other Phase F0 item that touches those tables.**
 - [ ] **Inventory the 179-code point taxonomy:** locate the canonical list (printout, spreadsheet, or interview Henry), encode as a CSV, and seed `point_codes` in the same migration. Without this, `field_data_points.code_category` is unenforceable.
-- [ ] PowerSync vs WatermelonDB 1-day spike (per §6.1)
+- [x] PowerSync vs WatermelonDB 1-day spike (per §6.1) — committed to PowerSync; `mobile/lib/db/{schema,connector,index}.tsx` running in production.
 - [ ] Reserve `app.starr.software/field` deep-link domain
 - [ ] Privacy policy + terms of service drafted (required for store submission AND for location-tracking consent flow)
 - [ ] **Texas-licensed employment attorney engagement letter for location-tracking review**
