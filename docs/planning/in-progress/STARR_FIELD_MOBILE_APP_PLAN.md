@@ -1040,8 +1040,8 @@ Resilience additions (same offline-first pattern as F2):
 ### Phase F6 — Location tracking + dispatcher view (Week 19–24)
 - [ ] One-time consent flow — permission rationale + privacy disclosure UI shown BEFORE the first OS permission prompt. The disclosure copy already exists on `/(tabs)/me/privacy`; consent modal that gates the first `Location.requestBackgroundPermissionsAsync()` call is pending.
 - [x] Background location with battery-conscious modes — `lib/locationTracker.ts` (high / balanced / low tiers based on battery %), `seeds/223_starr_field_location_pings.sql`, native config in `mobile/app.json` (UIBackgroundModes + ACCESS_BACKGROUND_LOCATION + foreground service). Cold-start reconciliation in `LocationTrackerReconciler` (app/_layout.tsx) recovers from phone-died-mid-shift.
-- [ ] Stop detection, geofence + AI classification — derives from `location_pings` once an F6 worker lands. Recommended path: a worker job (or Postgres scheduled function) that materialises `location_stops` (≥5 min stationary inside ~50 m radius) and `location_segments` (movement between stops). Schema rows for both tables already declared in `mobile/lib/db/schema.ts`; server-side seed pending (planned `224_starr_field_location_derivations.sql`).
-- [ ] Daily timeline view (employee + admin) — surface needs the worker output above. Mobile-side privacy panel already shows the raw ping stream; "stops + segments" timeline is the next layer.
+- [/] Stop detection — `seeds/224_starr_field_location_derivations.sql` lands `location_stops` + `location_segments` tables and a deterministic PL/pgSQL aggregator `derive_location_timeline(p_user_id, p_log_date)`. Algorithm (v1, no AI / no map-matching): cluster pings within 50 m for ≥5 min into stops, sum Haversine distances along intermediate pings into segments (with 200 km single-jump glitch guard, matching `/api/admin/mileage`). Idempotent — DELETEs prior derivations except `user_overridden` stops. Geofence + AI classification + reverse-geocoded place names deferred to v2.
+- [x] Daily timeline view (admin) — `/admin/timeline?user=&date=` reads the derived stops/segments and renders a stop → segment → stop timeline with per-stop time window, duration, Maps deep-link, optional category/place name, links to job + field-data. "Recompute" button POSTs to derive on-demand for fresh pings. APIs: `GET /api/admin/timeline` reads, `POST /api/admin/timeline` re-derives. Sidebar entry under Work group + per-card Timeline link from `/admin/team`. Employee-facing timeline view on mobile pending (the Privacy panel already shows raw pings; stops + segments overlay is the polish).
 - [x] Mileage log generation (IRS-format export) — `GET /api/admin/mileage?from=&to=&user_email=&format=json|csv`. Server-side Haversine sum across consecutive pings per `(user, UTC date)` with a 200 km / single-jump glitch guard; CSV download for QuickBooks / tax import. Admin UI at `/admin/mileage` with date-range picker, per-user grouping, per-employee subtotals + download. Per-user drill-down link from each `/admin/team` card.
 - [ ] Vehicle assignment + driver/passenger — `vehicles` table exists in mobile schema; mobile picker on clock-in pending. `job_time_entries.vehicle_id` + `is_driver` columns reserved.
 - [x] Dispatcher live map (web app, partial) — `/admin/team` shows last-known GPS + battery + staleness, with Google-Maps deep-link per card. Full live map (continuous trace, polling) pending.
@@ -1197,6 +1197,51 @@ under one phase.
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
 
+**Batch J — stop detection + daily timeline (F6)**
+- [x] `seeds/224_starr_field_location_derivations.sql` — adds
+      `location_stops` + `location_segments` (with FKs to
+      `auth.users` + `job_time_entries` + each other; CHECK
+      constraints on lat/lon/window), three indexes (user-recent,
+      per-job, per-entry), RLS service-role full + owner SELECT,
+      and explicit REVOKE of INSERT/UPDATE/DELETE from
+      authenticated (derivation runs server-side only). Pure-SQL
+      `haversine_m(lat1, lon1, lat2, lon2)` function.
+- [x] `derive_location_timeline(p_user_id UUID, p_log_date DATE)`
+      PL/pgSQL aggregator (SECURITY DEFINER, granted to
+      service_role only). Walks pings in time order, accumulates a
+      cluster centroid, emits a `location_stops` row when the
+      cluster dwells ≥5 min within ~50 m AND breaks (next ping
+      >50 m from centroid OR >10 min gap). Sums Haversine distance
+      between consecutive pings into the bridging
+      `location_segments` row. Idempotent — DELETEs prior
+      derivations except `user_overridden=true` stops (so admin /
+      surveyor manual category fixes survive recomputes). Returns
+      `(stops_written, segments_written)` counts.
+- [x] `GET /api/admin/timeline?user_email=&date=` — reads the
+      derived stops/segments for a (user, date) bucket, returns
+      `{ stops, segments, total_distance_miles, total_dwell_minutes,
+      derived_at }`. `POST /api/admin/timeline` calls the
+      aggregator via `supabaseAdmin.rpc('derive_location_timeline')`
+      and returns the counts.
+- [x] `/admin/timeline?user=&date=` page — stop → segment → stop
+      timeline render. Per-stop card shows time window, duration,
+      Maps deep-link, optional category/place name, "View job",
+      "Field data" deep-links. Per-segment rail shows distance +
+      transit duration. "Recompute" button POSTs to derive on-
+      demand. Sidebar entry "🗺️ Daily Timeline" + per-card
+      Timeline link from `/admin/team`.
+- Deliberate non-features (deferred to v2):
+  - Geofence-based category assignment (job site / office / home /
+    gas station). Schema columns ready (`category`,
+    `category_source`, `ai_confidence`).
+  - AI classification via worker for ambiguous stops.
+  - Reverse-geocoded `place_name` / `place_address`.
+  - PostGIS `path_simplified` polyline for the day-replay scrubber.
+  - Mobile reader for stops + segments (raw pings already on
+    `(tabs)/me/privacy.tsx`; the summary view is the polish).
+  - pg_cron nightly schedule (currently on-demand via the
+    Recompute button).
+
 **Batch I — voice memo capture (F4 audio half)**
 - [x] `mobile/lib/voiceRecorder.ts` — expo-av wrapper with
       `ensureRecordingPermission` (cached, busts via
@@ -1297,6 +1342,12 @@ under one phase.
    permission, which won't make sense without the table to write to)
    AND before the `/admin/mileage` page is exposed to admins (the
    page reads from `location_pings`).
+5. `seeds/224_starr_field_location_derivations.sql` — before
+   `/admin/timeline` is exposed. Adds `location_stops` +
+   `location_segments` + the `derive_location_timeline()` PL/pgSQL
+   aggregator + the `haversine_m()` helper. Derivation is on-demand
+   via the admin "Recompute" button; pg_cron nightly schedule
+   recommended in v2.
 
 PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
 - `notifications` — scoped by `target_user_id` OR case-insensitive
@@ -1305,9 +1356,6 @@ PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
   SQLite bounded; older pings live server-side for F6 reports).
 
 **Pending in the resilience track:**
-- Stop detection worker → `location_stops` + `location_segments`
-  derivation (unblocks day-replay scrubber, missing-receipt
-  cross-reference, and per-trip mileage breakdown).
 - One-time consent modal that gates the first
   `requestBackgroundPermissionsAsync()` call (currently the OS prompt
   is the only consent surface; the disclosure copy already lives at
@@ -1317,6 +1365,14 @@ PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
   expo-speech-recognition wiring or a server-side Whisper job).
 - Video capture (mirror of voice memo — same offline-first pattern,
   WiFi-only original tier per plan §5.4).
+- Stop-detection v2: geofence-based category assignment (job site /
+  office / home / gas station) using `jobs.centroid_lat/lon` +
+  radius; AI classification via worker for ambiguous stops; reverse-
+  geocoded place names; PostGIS `path_simplified` column for the
+  day-replay scrubber.
+- Mobile reader for `location_stops` + `location_segments` — surface
+  the derived day on `(tabs)/me/privacy.tsx` next to the raw ping
+  stream so surveyors see the same summary the dispatcher does.
 
 ---
 
@@ -1340,7 +1396,7 @@ slice of mobile-written data?
 | Field media (voice) | `field_media` (`media_type='voice'`) | `<audio>` player on `/admin/field-data/[id]` with download link + duration display | ✓ shipped |
 | Field media (video) | `field_media` (`media_type='video'`) | (none yet — F4 video capture not built) | ⏳ deferred |
 | Background GPS pings | `location_pings` | `/admin/team` last-seen card + `/admin/mileage` per-day aggregates | ✓ shipped (raw + aggregate) |
-| Stops + segments | `location_stops`, `location_segments` | depends on stop-detection worker | ⏳ deferred |
+| Stops + segments | `location_stops`, `location_segments` | `/admin/timeline` (per-user / per-day) + Recompute button + sidebar entry; mobile reader pending | ✓ shipped (admin) |
 | Notifications (admin pings) | `notifications` | `/admin/team` Ping buttons + existing NotificationBell + POST `/api/admin/notifications` | ✓ shipped |
 | Vehicle assignments | `vehicles` | (none yet — small lookup table) | ⏳ deferred |
 | Jobs (mobile read-only v1) | `jobs` | `/admin/jobs` (existing) | ✓ shipped |

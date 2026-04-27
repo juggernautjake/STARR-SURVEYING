@@ -449,6 +449,12 @@ function TeamCard({ member, pinging, onPing }: TeamCardProps) {
         >
           🚗 Mileage
         </a>
+        <a
+          href={`/admin/timeline?user=${encodeURIComponent(member.email)}`}
+          style={styles.linkBtn}
+        >
+          🗺️ Timeline
+        </a>
       </div>
     </article>
   );

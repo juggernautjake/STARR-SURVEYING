@@ -75,6 +75,15 @@ Activation gates (each blocks live sync but NOT local-only dev):
       (the native config in `app.json` requests Always-On location +
       foreground service permission, which won't make sense without
       the table to write to).
+- [ ] Apply `seeds/224_starr_field_location_derivations.sql` (daily
+      timeline derivation — adds `location_stops` + `location_segments`
+      tables, the `derive_location_timeline(p_user_id, p_log_date)`
+      PL/pgSQL aggregator, and the `haversine_m` distance helper).
+      Powers the `/admin/timeline` view + the "Recompute" button.
+      Apply BEFORE the `/admin/timeline` route is exposed to admins
+      (the page reads from these tables). Idempotent — safe to call
+      `derive_location_timeline()` repeatedly; user-overridden stops
+      are preserved across recomputes.
 - [ ] Provision PowerSync service (Cloud or self-hosted, see below).
 - [ ] Author sync rules — see "Sync rules" below.
 - [ ] Set `EXPO_PUBLIC_POWERSYNC_URL` in `mobile/.env.local` (dev) and
@@ -152,6 +161,16 @@ bucket_definitions:
       - SELECT * FROM location_pings
           WHERE user_id = bucket.user_id
             AND captured_at > now() - interval '24 hours'
+      # Derived stops + segments — owner-only, last 7 days. These
+      # roll up the raw pings into a daily timeline (seeds/224 +
+      # /admin/timeline). Mobile reads them on the Me → Privacy
+      # screen for "your day, summarised."
+      - SELECT * FROM location_stops
+          WHERE user_id = bucket.user_id
+            AND arrived_at > now() - interval '7 days'
+      - SELECT * FROM location_segments
+          WHERE user_id = bucket.user_id
+            AND started_at > now() - interval '7 days'
 
   by_company:
     # Jobs and reference tables — visible to all employees of the
