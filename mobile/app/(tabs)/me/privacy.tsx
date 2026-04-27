@@ -38,7 +38,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   type OwnPingRow,
+  type OwnSegmentRow,
+  type OwnStopRow,
   useOwnLocationPings,
+  useOwnSegmentsForDate,
+  useOwnStopsForDate,
+  useOwnTimelineSummary,
 } from '@/lib/locationTracker';
 import { colors } from '@/lib/theme';
 
@@ -46,9 +51,16 @@ export default function PrivacyScreen() {
   const scheme = useColorScheme() ?? 'dark';
   const palette = colors[scheme];
 
-  // Last 24 h. The Me-tab summary uses the same hook; both stay in
-  // sync via PowerSync's reactive query layer.
+  // Last 24 h of raw pings. The Me-tab summary uses the same hook;
+  // both stay in sync via PowerSync's reactive query layer.
   const pings = useOwnLocationPings(24);
+
+  // Today's derived stops + segments — same data the dispatcher sees
+  // on /admin/timeline. Server-side derivation runs on the
+  // dispatcher's "Recompute" tap; mobile is a read-only consumer.
+  const stops = useOwnStopsForDate(0);
+  const segments = useOwnSegmentsForDate(0);
+  const summary = useOwnTimelineSummary(0);
 
   return (
     <SafeAreaView
@@ -120,10 +132,66 @@ export default function PrivacyScreen() {
           />
         </View>
 
+        {/* Day summary — same totals the dispatcher sees on
+            /admin/timeline. Renders only when the server-side
+            derivation has run (stops + segments arrive via
+            PowerSync within seconds of the dispatcher's Recompute
+            tap, OR overnight via the future pg_cron schedule). */}
+        {stops.length > 0 || segments.length > 0 ? (
+          <View
+            style={[
+              styles.summaryCard,
+              {
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+              },
+            ]}
+          >
+            <Text style={[styles.summaryTitle, { color: palette.text }]}>
+              Today’s day, summarised
+            </Text>
+            <View style={styles.summaryRow}>
+              <SummaryStat
+                label="Stops"
+                value={String(summary.stop_count)}
+                palette={palette}
+              />
+              <SummaryStat
+                label="Miles"
+                value={summary.total_distance_miles.toFixed(1)}
+                palette={palette}
+              />
+              <SummaryStat
+                label="Stationary"
+                value={formatStationary(summary.total_dwell_minutes)}
+                palette={palette}
+              />
+            </View>
+            <Text style={[styles.summaryHint, { color: palette.muted }]}>
+              These totals match what the office sees. Stops are
+              periods where you stayed within ~50 m for ≥5 min;
+              segments are the travel between them.
+            </Text>
+            <View style={styles.timelineList}>
+              {stops.map((stop, i) => (
+                <View key={stop.id}>
+                  <StopRow stop={stop} palette={palette} />
+                  {segments[i] ? (
+                    <SegmentRow
+                      segment={segments[i]}
+                      palette={palette}
+                    />
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: palette.muted }]}>
-              Today’s timeline
+              Today’s raw pings
             </Text>
             <Text style={[styles.sectionCount, { color: palette.muted }]}>
               {pings.length} ping{pings.length === 1 ? '' : 's'}
@@ -234,6 +302,91 @@ function PingCard({ ping, palette }: PingCardProps) {
   );
 }
 
+interface SummaryStatProps {
+  label: string;
+  value: string;
+  palette: ReturnType<typeof paletteOf>;
+}
+
+function SummaryStat({ label, value, palette }: SummaryStatProps) {
+  return (
+    <View style={styles.summaryStat}>
+      <Text style={[styles.summaryStatValue, { color: palette.text }]}>
+        {value}
+      </Text>
+      <Text style={[styles.summaryStatLabel, { color: palette.muted }]}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function StopRow({
+  stop,
+  palette,
+}: {
+  stop: OwnStopRow;
+  palette: ReturnType<typeof paletteOf>;
+}) {
+  const arrived = new Date(stop.arrived_at);
+  const departed = new Date(stop.departed_at);
+  return (
+    <View style={[styles.stopCard, { borderColor: palette.border }]}>
+      <Text style={[styles.stopMarker, { color: palette.accent }]}>📍</Text>
+      <View style={styles.stopBody}>
+        <Text style={[styles.stopTime, { color: palette.text }]}>
+          {arrived.toLocaleTimeString(undefined, {
+            hour: 'numeric',
+            minute: '2-digit',
+          })}{' '}
+          → {departed.toLocaleTimeString(undefined, {
+            hour: 'numeric',
+            minute: '2-digit',
+          })}
+        </Text>
+        <Text style={[styles.stopMeta, { color: palette.muted }]}>
+          {stop.duration_minutes}m{' · '}
+          {stop.place_name ??
+            `${stop.lat.toFixed(5)}, ${stop.lon.toFixed(5)}`}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function SegmentRow({
+  segment,
+  palette,
+}: {
+  segment: OwnSegmentRow;
+  palette: ReturnType<typeof paletteOf>;
+}) {
+  const meters = segment.distance_meters ?? 0;
+  const miles = meters / 1609.344;
+  const minutes =
+    (new Date(segment.ended_at).getTime() -
+      new Date(segment.started_at).getTime()) /
+    60_000;
+  return (
+    <View style={styles.segmentRail}>
+      <View
+        style={[styles.segmentLine, { backgroundColor: palette.border }]}
+      />
+      <Text style={[styles.segmentLabel, { color: palette.muted }]}>
+        🚗 {miles.toFixed(2)} mi · {Math.round(minutes)}m in transit
+      </Text>
+    </View>
+  );
+}
+
+function formatStationary(minutes: number): string {
+  if (!Number.isFinite(minutes)) return '—';
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes - h * 60);
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
 function paletteOf(scheme: 'light' | 'dark') {
   return colors[scheme];
 }
@@ -331,5 +484,82 @@ const styles = StyleSheet.create({
   pingMeta: {
     fontSize: 12,
     lineHeight: 18,
+  },
+  summaryCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 24,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  summaryStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  summaryStatValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  summaryStatLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  summaryHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+  timelineList: {
+    gap: 4,
+  },
+  stopCard: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  stopMarker: {
+    fontSize: 18,
+    width: 22,
+    textAlign: 'center',
+  },
+  stopBody: { flex: 1 },
+  stopTime: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  stopMeta: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  segmentRail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+    paddingLeft: 22,
+  },
+  segmentLine: {
+    width: 2,
+    height: 18,
+    marginLeft: 10,
+  },
+  segmentLabel: {
+    fontSize: 12,
   },
 });

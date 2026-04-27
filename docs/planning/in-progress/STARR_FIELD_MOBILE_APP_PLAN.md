@@ -1041,7 +1041,7 @@ Resilience additions (same offline-first pattern as F2):
 - [ ] One-time consent flow — permission rationale + privacy disclosure UI shown BEFORE the first OS permission prompt. The disclosure copy already exists on `/(tabs)/me/privacy`; consent modal that gates the first `Location.requestBackgroundPermissionsAsync()` call is pending.
 - [x] Background location with battery-conscious modes — `lib/locationTracker.ts` (high / balanced / low tiers based on battery %), `seeds/223_starr_field_location_pings.sql`, native config in `mobile/app.json` (UIBackgroundModes + ACCESS_BACKGROUND_LOCATION + foreground service). Cold-start reconciliation in `LocationTrackerReconciler` (app/_layout.tsx) recovers from phone-died-mid-shift.
 - [/] Stop detection — `seeds/224_starr_field_location_derivations.sql` lands `location_stops` + `location_segments` tables and a deterministic PL/pgSQL aggregator `derive_location_timeline(p_user_id, p_log_date)`. Algorithm (v1, no AI / no map-matching): cluster pings within 50 m for ≥5 min into stops, sum Haversine distances along intermediate pings into segments (with 200 km single-jump glitch guard, matching `/api/admin/mileage`). Idempotent — DELETEs prior derivations except `user_overridden` stops. Geofence + AI classification + reverse-geocoded place names deferred to v2.
-- [x] Daily timeline view (admin) — `/admin/timeline?user=&date=` reads the derived stops/segments and renders a stop → segment → stop timeline with per-stop time window, duration, Maps deep-link, optional category/place name, links to job + field-data. "Recompute" button POSTs to derive on-demand for fresh pings. APIs: `GET /api/admin/timeline` reads, `POST /api/admin/timeline` re-derives. Sidebar entry under Work group + per-card Timeline link from `/admin/team`. Employee-facing timeline view on mobile pending (the Privacy panel already shows raw pings; stops + segments overlay is the polish).
+- [x] Daily timeline view (employee + admin) — admin: `/admin/timeline?user=&date=` reads the derived stops/segments and renders a stop → segment → stop timeline with per-stop time window, duration, Maps deep-link, optional category/place name, links to job + field-data. "Recompute" button POSTs to derive on-demand for fresh pings. APIs: `GET /api/admin/timeline` reads, `POST /api/admin/timeline` re-derives. Sidebar entry under Work group + per-card Timeline link from `/admin/team`. Employee: `(tabs)/me/privacy.tsx` surfaces the same stops/segments alongside the raw pings via `useOwnStopsForDate` / `useOwnSegmentsForDate` / `useOwnTimelineSummary` (PowerSync-backed). Three-stat summary card (stops · miles · stationary) matches the dispatcher's totals so surveyors see exactly what the office sees.
 - [x] Mileage log generation (IRS-format export) — `GET /api/admin/mileage?from=&to=&user_email=&format=json|csv`. Server-side Haversine sum across consecutive pings per `(user, UTC date)` with a 200 km / single-jump glitch guard; CSV download for QuickBooks / tax import. Admin UI at `/admin/mileage` with date-range picker, per-user grouping, per-employee subtotals + download. Per-user drill-down link from each `/admin/team` card.
 - [x] Vehicle assignment + driver/passenger — `seeds/225_starr_field_vehicles.sql` lands the `vehicles` table that's been declared in the mobile schema since seeds/220 + wires the FK from `job_time_entries.vehicle_id` (existing column) and `location_segments.vehicle_id` (added by seeds/224). `/admin/vehicles` page provides full CRUD (add / edit / archive / reactivate; soft-archive preserves historical refs). Mobile vehicle picker on the clock-in `pick-job` modal with optional vehicle pill row + "I'm driving" toggle (defaults true since most clock-ins are the driver themselves; passengers explicitly flip it off so mileage attribution stays clean for IRS). `useClockIn` accepts `vehicleId` + `isDriver`; persists to `job_time_entries.vehicle_id` + `is_driver`. `lib/vehicles.ts` `useVehicles` + `useVehicle` hooks back the picker. Per-vehicle mileage breakdown on `/admin/mileage` deferred to a follow-on (the data is in place; UI swap is a small change).
 - [x] Dispatcher live map (web app, partial) — `/admin/team` shows last-known GPS + battery + staleness, with Google-Maps deep-link per card. Full live map (continuous trace, polling) pending.
@@ -1196,6 +1196,26 @@ under one phase.
       mid-shift would silently break the "tracking-while-clocked-in"
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
+
+**Batch N — mobile timeline reader (F6 employee timeline)**
+- [x] `lib/locationTracker.ts` — `useOwnStopsForDate(offset)` /
+      `useOwnSegmentsForDate(offset)` reactive hooks scoped to the
+      current user via PowerSync. Date offset (0=today) lets future
+      day-paging work without changing the call site.
+      `useOwnTimelineSummary(offset)` aggregates count + miles +
+      dwell, matching the dispatcher's totals on `/admin/timeline`.
+- [x] `(tabs)/me/privacy.tsx` — when stops or segments exist, renders
+      a "Today's day, summarised" card ABOVE the raw-pings list with
+      a three-stat header (Stops · Miles · Stationary) + a stop →
+      segment → stop list mirroring the admin layout. Surveyors see
+      EXACTLY what the office sees, closing the dispatcher↔surveyor
+      parity loop.
+- The card hides entirely when no stops have been derived (the
+  pings are still visible below). Server-side derivation runs on
+  the dispatcher's "Recompute" tap or — once pg_cron is wired —
+  overnight. PowerSync sync rule already includes
+  `location_stops` + `location_segments` (last 7 days, scoped by
+  user_id) per `mobile/lib/db/README.md`.
 
 **Batch M — vehicles + IRS mileage attribution (F6 vehicle-picker)**
 - [x] `seeds/225_starr_field_vehicles.sql` — adds the `vehicles`
@@ -1497,9 +1517,8 @@ PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
   radius; AI classification via worker for ambiguous stops; reverse-
   geocoded place names; PostGIS `path_simplified` column for the
   day-replay scrubber.
-- Mobile reader for `location_stops` + `location_segments` — surface
-  the derived day on `(tabs)/me/privacy.tsx` next to the raw ping
-  stream so surveyors see the same summary the dispatcher does.
+- (Mobile reader for `location_stops` + `location_segments` shipped
+  in Batch N — see below.)
 
 ---
 
@@ -1523,7 +1542,7 @@ slice of mobile-written data?
 | Field media (voice) | `field_media` (`media_type='voice'`) | `<audio>` player on `/admin/field-data/[id]` with download link + duration display | ✓ shipped |
 | Field media (video) | `field_media` (`media_type='video'`) | `<video controls>` player on `/admin/field-data/[id]` with download link + duration display (Batch K) | ✓ shipped |
 | Background GPS pings | `location_pings` | `/admin/team` last-seen card + `/admin/mileage` per-day aggregates | ✓ shipped (raw + aggregate) |
-| Stops + segments | `location_stops`, `location_segments` | `/admin/timeline` (per-user / per-day) + Recompute button + sidebar entry; mobile reader pending | ✓ shipped (admin) |
+| Stops + segments | `location_stops`, `location_segments` | `/admin/timeline` (per-user / per-day) + Recompute button + sidebar entry; mobile reader on `(tabs)/me/privacy.tsx` (Batch N) | ✓ shipped |
 | Notifications (admin pings) | `notifications` | `/admin/team` Ping buttons + existing NotificationBell + POST `/api/admin/notifications` | ✓ shipped |
 | Vehicle assignments | `vehicles` | `/admin/vehicles` CRUD page (add / edit / archive); mobile picker on clock-in populates `job_time_entries.vehicle_id` + `is_driver` (Batch M) | ✓ shipped |
 | Jobs (mobile read-only v1) | `jobs` | `/admin/jobs` (existing) | ✓ shipped |

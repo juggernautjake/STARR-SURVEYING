@@ -677,3 +677,138 @@ export function useOwnLocationPingSummary(
     latest: pings[0]?.captured_at ?? null,
   };
 }
+
+// ── Derived stops + segments (mobile reader) ─────────────────────────────────
+//
+// Surfaces what the dispatcher sees on /admin/timeline back to the
+// surveyor on (tabs)/me/privacy. Same `location_stops` +
+// `location_segments` rows; PowerSync sync rule scopes to the
+// current user + last 7 days (see mobile/lib/db/README.md).
+// Derivation runs server-side; mobile is a read-only consumer.
+
+export interface OwnStopRow {
+  id: string;
+  job_id: string | null;
+  job_time_entry_id: string | null;
+  category: string | null;
+  category_source: string | null;
+  lat: number;
+  lon: number;
+  place_name: string | null;
+  arrived_at: string;
+  departed_at: string;
+  duration_minutes: number;
+  user_overridden: number; // 0/1 SQLite boolean
+}
+
+export interface OwnSegmentRow {
+  id: string;
+  start_stop_id: string | null;
+  end_stop_id: string | null;
+  vehicle_id: string | null;
+  started_at: string;
+  ended_at: string;
+  distance_meters: number;
+  is_business: number; // 0/1
+}
+
+/**
+ * Today's derived stops for the current user, oldest first (the
+ * timeline reads chronologically). The Privacy panel pairs each
+ * stop with its outgoing segment.
+ *
+ * `dateOffsetDays` lets the screen page back through history; 0 =
+ * today (UTC bucket, matching the server-side derive function).
+ */
+export function useOwnStopsForDate(dateOffsetDays: number = 0): OwnStopRow[] {
+  const { session } = useAuth();
+  const userId = session?.user.id ?? null;
+
+  // Bind dateOffsetDays defensively as a SQL modifier — same pattern
+  // as useOwnLocationPings's `'-N hours'` modifier. Bound to an
+  // integer to keep injection-safe.
+  const offset = Math.max(0, Math.floor(dateOffsetDays));
+
+  const { data, error } = useQuery<OwnStopRow>(
+    `SELECT id, job_id, job_time_entry_id, category, category_source,
+            lat, lon, place_name, arrived_at, departed_at,
+            duration_minutes, user_overridden
+       FROM location_stops
+      WHERE user_id = ?
+        AND date(arrived_at) = date('now', '-${offset} days')
+      ORDER BY arrived_at ASC`,
+    userId ? [userId] : []
+  );
+
+  useEffect(() => {
+    if (error) {
+      logWarn('locationTracker.useOwnStopsForDate', 'query failed', error, {
+        offset,
+      });
+    }
+  }, [error, offset]);
+
+  return data ?? [];
+}
+
+export function useOwnSegmentsForDate(
+  dateOffsetDays: number = 0
+): OwnSegmentRow[] {
+  const { session } = useAuth();
+  const userId = session?.user.id ?? null;
+  const offset = Math.max(0, Math.floor(dateOffsetDays));
+
+  const { data, error } = useQuery<OwnSegmentRow>(
+    `SELECT id, start_stop_id, end_stop_id, vehicle_id,
+            started_at, ended_at, distance_meters, is_business
+       FROM location_segments
+      WHERE user_id = ?
+        AND date(started_at) = date('now', '-${offset} days')
+      ORDER BY started_at ASC`,
+    userId ? [userId] : []
+  );
+
+  useEffect(() => {
+    if (error) {
+      logWarn('locationTracker.useOwnSegmentsForDate', 'query failed', error, {
+        offset,
+      });
+    }
+  }, [error, offset]);
+
+  return data ?? [];
+}
+
+/**
+ * Aggregate summary for the Privacy panel header — total miles in
+ * transit + total dwell time. Matches the dispatcher-side numbers
+ * on /admin/timeline so the surveyor sees the same totals.
+ */
+export interface OwnTimelineSummary {
+  stop_count: number;
+  total_distance_miles: number;
+  total_dwell_minutes: number;
+}
+
+const METERS_PER_MILE = 1609.344;
+
+export function useOwnTimelineSummary(
+  dateOffsetDays: number = 0
+): OwnTimelineSummary {
+  const stops = useOwnStopsForDate(dateOffsetDays);
+  const segments = useOwnSegmentsForDate(dateOffsetDays);
+  const totalMeters = segments.reduce(
+    (s, seg) => s + (seg.distance_meters ?? 0),
+    0
+  );
+  const totalDwell = stops.reduce(
+    (s, st) => s + st.duration_minutes,
+    0
+  );
+  return {
+    stop_count: stops.length,
+    total_distance_miles:
+      Math.round((totalMeters / METERS_PER_MILE) * 100) / 100,
+    total_dwell_minutes: totalDwell,
+  };
+}
