@@ -1020,13 +1020,13 @@ Resilience additions (same offline-first pattern as F2):
 **Exit:** Found-monument workflow <60s. **Status:** core capture loop + admin viewer shipped; annotation overlay + compass heading remain.
 
 ### Phase F4 — Voice + video + notes (Week 13–16)
-- [ ] Voice memo + on-device transcription — direct ask in user's resilience requirement ("save voice recordings to the app and the data also need to be able to be saved to the phone storage as well"). Should reuse `uploadQueue.ts` pattern + `deviceLibrary.ts` for the phone-storage backup half.
+- [/] Voice memo capture — `lib/voiceRecorder.ts` (expo-av Audio.Recording with M4A mono preset, 5-minute auto-stop cap, idempotent permission cache, mid-flight cancel + cleanup), `lib/fieldMedia.ts` `useAttachVoice` (mirrors `useAttachPhoto` — INSERT first, enqueue upload to `starr-field-voice` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup via `lib/deviceLibrary.ts`), `(tabs)/capture/[pointId]/voice.tsx` capture screen with per-memo playback row (long-press to delete). Voice button on the photos screen footer Stack-pushes the recorder. **On-device transcription pending** — `field_media.transcription` column reserved; needs `expo-speech-recognition` or a Whisper-via-API path.
 - [ ] Video capture (1080p, 5 min cap) — same offline-first pattern as photos. WiFi-only originals per plan §5.4.
 - [ ] Free-text notes + structured templates (offset, monument, hazard, correction) — `fieldbook_notes` table already in schema with `structured_data` JSONB column reserved.
 - [ ] Voice-to-text shortcut — bound to a hardware key for hands-free dictation. Need expo-speech-recognition or a Whisper-via-API path.
 - [ ] Search across notes + transcriptions — depends on the above + an FTS index. Need to confirm whether server-side `tsvector` columns or local SQLite FTS5 is the better path.
 
-**Exit:** Field documentation fully replaces paper notes. **Status:** not started. **Resilience priority:** voice memos are explicit user requirement (the device-Photos backup pattern won't work for audio — need a separate path for `expo-av` recordings into both `documentDirectory` and an opt-in iCloud / Google Drive folder).
+**Exit:** Field documentation fully replaces paper notes. **Status:** voice memo capture + admin audio player shipped (Batch I). Video + notes + transcription remain.
 
 ### Phase F5 — Files + CSV (Week 17–18)
 - [ ] File upload from device, cloud, web link
@@ -1197,6 +1197,37 @@ under one phase.
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
 
+**Batch I — voice memo capture (F4 audio half)**
+- [x] `mobile/lib/voiceRecorder.ts` — expo-av wrapper with
+      `ensureRecordingPermission` (cached, busts via
+      `resetRecordingPermissionCache`), `startRecording` (M4A mono
+      HIGH_QUALITY preset; iOS audio-mode flip for silent-switch
+      override), polled `getRecordingStatus`, `stopRecording`
+      (returns `{ uri, durationMs, fileSize, contentType }`), and
+      idempotent `cancelRecording` that deletes the temp file.
+- [x] `mobile/lib/fieldMedia.ts` `useAttachVoice` — INSERT
+      `field_media` row with `media_type='voice'` + `duration_seconds`
+      + GPS metadata, then enqueue upload to `starr-field-voice`
+      bucket via `lib/uploadQueue.ts` (offline-first contract
+      preserved), then opt-in MediaLibrary backup. Mirrors the
+      photo path so resilience is identical.
+- [x] `(tabs)/capture/[pointId]/voice.tsx` — full-screen recorder UI
+      with live duration counter (250 ms tick), 5-min auto-stop
+      cap, Stop & Save / Cancel buttons, and a memo list with
+      tap-to-toggle playback (loads on first tap, unloads on
+      unmount) + long-press to delete. expo-router stack route
+      registered in `(tabs)/capture/_layout.tsx`.
+- [x] Photo screen footer — added "🎙 Record voice memo" button
+      that Stack-pushes the recorder; preserves the photo capture
+      flow as primary.
+- [x] Admin audio player on `/admin/field-data/[id]` — when a
+      `field_media` row's `media_type === 'voice'`, render a
+      native `<audio controls>` (with both `audio/mp4` + `audio/mpeg`
+      `<source>` tags for browser fallback), duration in mm:ss,
+      transcript display when populated (future), and "Download
+      audio" link to the signed URL.
+- [x] `expo-av ~15.0.2` added to `mobile/package.json`.
+
 **Batch H — field-data admin viewer + tablet support**
 - [x] `GET /api/admin/field-data` — list of every captured data point
       with bulk-joined job + creator + first-thumbnail signed URL
@@ -1274,9 +1305,6 @@ PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
   SQLite bounded; older pings live server-side for F6 reports).
 
 **Pending in the resilience track:**
-- Voice memo capture + on-device file backup (F4 voice path is the
-  remaining half of the user's "save … voice recordings to the app
-  AND saved to the phone storage" requirement).
 - Stop detection worker → `location_stops` + `location_segments`
   derivation (unblocks day-replay scrubber, missing-receipt
   cross-reference, and per-trip mileage breakdown).
@@ -1284,6 +1312,11 @@ PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
   `requestBackgroundPermissionsAsync()` call (currently the OS prompt
   is the only consent surface; the disclosure copy already lives at
   `/(tabs)/me/privacy`).
+- Voice memo on-device transcription (`field_media.transcription`
+  column already populated by the recorder when available; needs an
+  expo-speech-recognition wiring or a server-side Whisper job).
+- Video capture (mirror of voice memo — same offline-first pattern,
+  WiFi-only original tier per plan §5.4).
 
 ---
 
@@ -1303,7 +1336,9 @@ slice of mobile-written data?
 | Time edits + audit trail | `time_edits` | History column on `/admin/hours-approval` (existing) | ✓ shipped |
 | Receipts + line items | `receipts`, `receipt_line_items` | `/admin/receipts` + `/admin/receipts/[id]` + CSV export | ✓ shipped |
 | Field data points | `field_data_points` | `/admin/field-data` list + `/admin/field-data/[id]` detail (this batch) | ✓ shipped |
-| Field media (photos) | `field_media` | Photo gallery on `/admin/field-data/[id]` with lightbox + per-tier signed URLs | ✓ shipped |
+| Field media (photos) | `field_media` (`media_type='photo'`) | Photo gallery on `/admin/field-data/[id]` with lightbox + per-tier signed URLs | ✓ shipped |
+| Field media (voice) | `field_media` (`media_type='voice'`) | `<audio>` player on `/admin/field-data/[id]` with download link + duration display | ✓ shipped |
+| Field media (video) | `field_media` (`media_type='video'`) | (none yet — F4 video capture not built) | ⏳ deferred |
 | Background GPS pings | `location_pings` | `/admin/team` last-seen card + `/admin/mileage` per-day aggregates | ✓ shipped (raw + aggregate) |
 | Stops + segments | `location_stops`, `location_segments` | depends on stop-detection worker | ⏳ deferred |
 | Notifications (admin pings) | `notifications` | `/admin/team` Ping buttons + existing NotificationBell + POST `/api/admin/notifications` | ✓ shipped |

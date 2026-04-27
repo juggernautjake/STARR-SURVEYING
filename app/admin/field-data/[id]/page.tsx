@@ -281,6 +281,82 @@ function PhotoCard({
   media: MediaRow;
   onOpenLightbox: (url: string) => void;
 }) {
+  // Voice memos render with the native <audio> control instead of an
+  // image. Same upload-state badge so the bookkeeper can spot a memo
+  // that hasn't synced yet.
+  if (media.media_type === 'voice') {
+    const audioUrl =
+      media.original_signed_url ?? media.storage_signed_url;
+    return (
+      <div style={styles.photoCard}>
+        <div style={styles.audioBlock}>
+          <span style={styles.audioGlyph}>🎙</span>
+          {audioUrl ? (
+            <audio controls preload="metadata" style={styles.audioPlayer}>
+              <source src={audioUrl} type="audio/mp4" />
+              <source src={audioUrl} type="audio/mpeg" />
+              Your browser does not support the audio element.
+            </audio>
+          ) : (
+            <span style={styles.audioMissing}>
+              {media.upload_state === 'pending'
+                ? 'Uploading…'
+                : 'No audio available'}
+            </span>
+          )}
+        </div>
+        <div style={styles.photoMeta}>
+          <div style={styles.photoMetaRow}>
+            <span style={styles.fieldLabel}>Captured</span>
+            <span>{formatTimestamp(media.captured_at)}</span>
+          </div>
+          {media.duration_seconds ? (
+            <div style={styles.photoMetaRow}>
+              <span style={styles.fieldLabel}>Duration</span>
+              <span>
+                {Math.floor(media.duration_seconds / 60)}:
+                {(media.duration_seconds % 60)
+                  .toString()
+                  .padStart(2, '0')}
+              </span>
+            </div>
+          ) : null}
+          <div style={styles.photoMetaRow}>
+            <span style={styles.fieldLabel}>State</span>
+            <span
+              style={{
+                color:
+                  media.upload_state === 'failed'
+                    ? '#B42318'
+                    : media.upload_state === 'done'
+                      ? '#067647'
+                      : '#D97706',
+              }}
+            >
+              {media.upload_state ?? '—'}
+            </span>
+          </div>
+          {media.transcription ? (
+            <div style={styles.transcriptBlock}>
+              <span style={styles.fieldLabel}>Transcript</span>
+              <p style={styles.transcript}>{media.transcription}</p>
+            </div>
+          ) : null}
+          {audioUrl ? (
+            <a
+              href={audioUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={styles.fullLink}
+            >
+              Download audio →
+            </a>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   const displayUrl =
     media.original_signed_url ??
     media.storage_signed_url ??
@@ -485,6 +561,36 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     color: '#9CA3AF',
     fontSize: 13,
+  },
+  audioBlock: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    padding: 20,
+    background: '#F7F8FA',
+  },
+  audioGlyph: {
+    fontSize: 36,
+  },
+  audioPlayer: {
+    width: '100%',
+  },
+  audioMissing: {
+    color: '#9CA3AF',
+    fontSize: 13,
+  },
+  transcriptBlock: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTop: '1px solid #F3F4F6',
+  },
+  transcript: {
+    fontSize: 13,
+    color: '#0B0E14',
+    lineHeight: 1.5,
+    margin: '4px 0 0',
   },
   photoMeta: {
     padding: 12,

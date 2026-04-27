@@ -38,9 +38,11 @@ import { colors } from '@/lib/theme';
  *   - Header: point name + prefix tag + Done
  *   - Subheader: GPS coords (when captured)
  *   - Grid: 3-col thumbnails of attached photos. Long-press deletes.
- *   - Footer: large "Snap" button + "From library" secondary
+ *   - Footer: large "Snap" button + "From library" secondary +
+ *     "🎙 Record voice memo" (Stack-pushes /(tabs)/capture/[pointId]/voice
+ *     for the audio capture flow — F4 voice memos shipped Batch I).
  *
- * Video + voice + notes attach via F4. The Snap-photo flow is the
+ * Video + notes attach via F4 polish. The Snap-photo flow is the
  * F3 #3 deliverable; F3 #6 layers annotation on top.
  */
 export default function PointPhotosScreen() {
@@ -289,6 +291,19 @@ export default function PointPhotosScreen() {
             loading={busy === 'library'}
             disabled={busy === 'camera'}
             accessibilityHint="Picks an existing photo from your library to attach to this point."
+          />
+          <View style={{ height: 12 }} />
+          <Button
+            variant="secondary"
+            label="🎙 Record voice memo"
+            onPress={() =>
+              router.push({
+                pathname: '/(tabs)/capture/[pointId]/voice',
+                params: { pointId: pointId ?? '' },
+              })
+            }
+            disabled={!!busy}
+            accessibilityHint="Opens the voice recorder. Memos attach to this point and play back from the gallery."
           />
         </View>
 

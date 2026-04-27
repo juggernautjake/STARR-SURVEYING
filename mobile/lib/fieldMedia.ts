@@ -42,6 +42,7 @@ export type MediaType = 'photo' | 'video' | 'voice';
 export type UploadState = 'pending' | 'wifi-waiting' | 'done' | 'failed';
 
 export const PHOTO_BUCKET = 'starr-field-photos';
+export const VOICE_BUCKET = 'starr-field-voice';
 // Plan §5.4: data-point photos preserve detail for surveying review;
 // 2400 px on the long edge is sharper than receipts (1600) without
 // pushing typical JPEG file sizes much past 600 KB.
@@ -249,6 +250,175 @@ export function useAttachPhoto(): (
         media_id: mediaId,
         point_id: dataPointId,
         bytes: picked.fileSize ?? null,
+        uploaded_now: enqueueResult.uploadedNow,
+      });
+
+      return { id: mediaId, storagePath };
+    },
+    [db, session]
+  );
+}
+
+// ── Voice memo capture ─────────────────────────────────────────────────────
+
+export interface AttachVoiceInput {
+  /** Required — job the voice memo belongs to. */
+  jobId: string;
+  /** Optional — the data point the memo attaches to. Null = job-
+   *  level voice memo (free-floating notes about the day). */
+  dataPointId: string | null;
+  /** file:// URI of the captured M4A. Comes from
+   *  lib/voiceRecorder.ts stopRecording().uri. */
+  uri: string;
+  /** Recorded duration in milliseconds (from stopRecording().durationMs). */
+  durationMs: number;
+  /** File size in bytes (may be null if FS info wasn't available). */
+  fileSize: number | null;
+}
+
+export interface AttachedVoice {
+  /** UUID of the inserted field_media row. */
+  id: string;
+  /** Storage path (relative to the bucket). */
+  storagePath: string;
+}
+
+/**
+ * Insert a voice-memo `field_media` row + enqueue the upload. Mirror
+ * of `useAttachPhoto` for `media_type='voice'`. Uses the same
+ * offline-first contract: row INSERT first → enqueue upload, so the
+ * memo is visible in the gallery the moment it's captured even when
+ * the device has no reception.
+ *
+ * Per the user's resilience requirement — "save voice recordings to
+ * the app and the data also need to be able to be saved to the phone
+ * storage as well." The local file is persisted to documentDirectory
+ * by enqueueAndAttempt (survives app kills). Optional MediaLibrary
+ * backup via lib/deviceLibrary.ts is fired-forget when the user has
+ * opted in on the Me tab.
+ */
+export function useAttachVoice(): (
+  input: AttachVoiceInput
+) => Promise<AttachedVoice | null> {
+  const db = usePowerSync();
+  const { session } = useAuth();
+
+  return useCallback(
+    async ({ jobId, dataPointId, uri, durationMs, fileSize }) => {
+      const userId = session?.user.id;
+      if (!userId) {
+        const err = new Error('Not signed in.');
+        logError('fieldMedia.attachVoice', 'no session', err);
+        throw err;
+      }
+
+      if (!UUID_REGEX.test(jobId)) {
+        const err = new Error(`Invalid job id: ${jobId}`);
+        logError('fieldMedia.attachVoice', 'invalid job id', err, {
+          job_id: jobId,
+        });
+        throw err;
+      }
+      if (dataPointId != null && !UUID_REGEX.test(dataPointId)) {
+        const err = new Error(`Invalid data point id: ${dataPointId}`);
+        logError('fieldMedia.attachVoice', 'invalid point id', err, {
+          data_point_id: dataPointId,
+        });
+        throw err;
+      }
+
+      logInfo('fieldMedia.attachVoice', 'attempt', {
+        job_id: jobId,
+        data_point_id: dataPointId,
+        duration_ms: durationMs,
+        file_size: fileSize,
+      });
+
+      // Best-effort GPS for the EXIF-equivalent metadata. Same as
+      // photo capture; null on permission denied / no fix.
+      const pos = await getCurrentPositionOrNull();
+
+      const mediaId = randomUUID();
+      const parentTag = dataPointId ?? `job-${jobId}`;
+      const storagePath = `${userId}/${parentTag}-${mediaId}.m4a`;
+      const nowIso = new Date().toISOString();
+
+      try {
+        await db.writeTransaction(async (tx) => {
+          const positionRow = await tx.get<{ next_position: number }>(
+            `SELECT COALESCE(MAX(position), -1) + 1 AS next_position
+             FROM field_media
+             WHERE ${dataPointId ? 'data_point_id = ?' : 'data_point_id IS NULL AND job_id = ?'}`,
+            [dataPointId ?? jobId]
+          );
+          const position = positionRow?.next_position ?? 0;
+
+          await tx.execute(
+            `INSERT INTO field_media (
+               id, job_id, data_point_id, media_type,
+               storage_url, thumbnail_url, original_url, annotated_url,
+               upload_state, burst_group_id, position,
+               duration_seconds, file_size_bytes,
+               device_lat, device_lon, device_compass_heading,
+               captured_at, uploaded_at,
+               created_by, created_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              mediaId,
+              jobId,
+              dataPointId,
+              'voice',
+              storagePath,
+              null, // no thumbnail tier for audio
+              null, // no original (voice is single-tier)
+              null, // no annotation overlay
+              'pending',
+              null, // no burst grouping for voice
+              position,
+              Math.round(durationMs / 1000),
+              fileSize,
+              pos?.latitude ?? null,
+              pos?.longitude ?? null,
+              null, // compass heading — irrelevant for audio
+              nowIso,
+              nowIso,
+              userId,
+              nowIso,
+            ]
+          );
+        });
+      } catch (err) {
+        logError('fieldMedia.attachVoice', 'db insert failed', err, {
+          media_id: mediaId,
+          point_id: dataPointId,
+          job_id: jobId,
+        });
+        throw err;
+      }
+
+      // Enqueue upload. Same retry / persistence behaviour as photos
+      // — file copied to documentDirectory, retried on backoff, marks
+      // upload_state='done' on success.
+      const enqueueResult = await enqueueAndAttempt(db, {
+        parentTable: 'field_media',
+        parentId: mediaId,
+        bucket: VOICE_BUCKET,
+        storagePath,
+        localFileUri: uri,
+        contentType: 'audio/mp4',
+        scope: 'fieldMedia.attachVoice',
+      });
+
+      // Phone-storage backup (opt-in). MediaLibrary on iOS will save
+      // M4A to the user's Files app under the Starr Field album when
+      // available; on Android it goes to /Music or /Documents.
+      // Best-effort fire-and-forget; failures log but don't block.
+      void saveCopyToDeviceIfEnabled(uri, 'fieldMedia.attachVoice');
+
+      logInfo('fieldMedia.attachVoice', 'success', {
+        media_id: mediaId,
+        point_id: dataPointId,
+        duration_ms: durationMs,
         uploaded_now: enqueueResult.uploadedNow,
       });
 
