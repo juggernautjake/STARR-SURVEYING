@@ -43,6 +43,11 @@ let _db: PowerSyncDatabase | null = null;
  * `usePowerSync()` from @powersync/react (resolved via the provider
  * below) so the database lifecycle, lock-state, and test-swap stories
  * stay in one place.
+ *
+ * EXCEPTION: headless background tasks (lib/locationTracker.ts) run
+ * outside the React tree and have no access to PowerSyncContext, so
+ * they reach in via `getDatabaseForHeadlessTask()` below. Add a new
+ * caller only if you've ruled out wiring it through a hook.
  */
 function getDatabase(): PowerSyncDatabase {
   if (!_db) {
@@ -52,6 +57,19 @@ function getDatabase(): PowerSyncDatabase {
     });
   }
   return _db;
+}
+
+/**
+ * Headless-task escape hatch. Returns the same singleton, ensuring
+ * init() has run so the SQLite file is open. Used by
+ * lib/locationTracker.ts because expo-task-manager's task body runs
+ * outside React. The init call is idempotent — if the main provider
+ * has already initialised, this is a no-op.
+ */
+export async function getDatabaseForHeadlessTask(): Promise<PowerSyncDatabase> {
+  const db = getDatabase();
+  await db.init();
+  return db;
 }
 
 /**

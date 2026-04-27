@@ -28,6 +28,7 @@ import { getCurrentPositionOrNull } from './location';
 import { logError, logInfo } from './log';
 import {
   pickAndCompress,
+  pickVideo,
   removeFromBucket,
   type ImageSource,
 } from './storage/mediaUpload';
@@ -42,6 +43,8 @@ export type MediaType = 'photo' | 'video' | 'voice';
 export type UploadState = 'pending' | 'wifi-waiting' | 'done' | 'failed';
 
 export const PHOTO_BUCKET = 'starr-field-photos';
+export const VOICE_BUCKET = 'starr-field-voice';
+export const VIDEO_BUCKET = 'starr-field-videos';
 // Plan §5.4: data-point photos preserve detail for surveying review;
 // 2400 px on the long edge is sharper than receipts (1600) without
 // pushing typical JPEG file sizes much past 600 KB.
@@ -256,6 +259,367 @@ export function useAttachPhoto(): (
     },
     [db, session]
   );
+}
+
+// ── Voice memo capture ─────────────────────────────────────────────────────
+
+export interface AttachVoiceInput {
+  /** Required — job the voice memo belongs to. */
+  jobId: string;
+  /** Optional — the data point the memo attaches to. Null = job-
+   *  level voice memo (free-floating notes about the day). */
+  dataPointId: string | null;
+  /** file:// URI of the captured M4A. Comes from
+   *  lib/voiceRecorder.ts stopRecording().uri. */
+  uri: string;
+  /** Recorded duration in milliseconds (from stopRecording().durationMs). */
+  durationMs: number;
+  /** File size in bytes (may be null if FS info wasn't available). */
+  fileSize: number | null;
+}
+
+export interface AttachedVoice {
+  /** UUID of the inserted field_media row. */
+  id: string;
+  /** Storage path (relative to the bucket). */
+  storagePath: string;
+}
+
+/**
+ * Insert a voice-memo `field_media` row + enqueue the upload. Mirror
+ * of `useAttachPhoto` for `media_type='voice'`. Uses the same
+ * offline-first contract: row INSERT first → enqueue upload, so the
+ * memo is visible in the gallery the moment it's captured even when
+ * the device has no reception.
+ *
+ * Per the user's resilience requirement — "save voice recordings to
+ * the app and the data also need to be able to be saved to the phone
+ * storage as well." The local file is persisted to documentDirectory
+ * by enqueueAndAttempt (survives app kills). Optional MediaLibrary
+ * backup via lib/deviceLibrary.ts is fired-forget when the user has
+ * opted in on the Me tab.
+ */
+export function useAttachVoice(): (
+  input: AttachVoiceInput
+) => Promise<AttachedVoice | null> {
+  const db = usePowerSync();
+  const { session } = useAuth();
+
+  return useCallback(
+    async ({ jobId, dataPointId, uri, durationMs, fileSize }) => {
+      const userId = session?.user.id;
+      if (!userId) {
+        const err = new Error('Not signed in.');
+        logError('fieldMedia.attachVoice', 'no session', err);
+        throw err;
+      }
+
+      if (!UUID_REGEX.test(jobId)) {
+        const err = new Error(`Invalid job id: ${jobId}`);
+        logError('fieldMedia.attachVoice', 'invalid job id', err, {
+          job_id: jobId,
+        });
+        throw err;
+      }
+      if (dataPointId != null && !UUID_REGEX.test(dataPointId)) {
+        const err = new Error(`Invalid data point id: ${dataPointId}`);
+        logError('fieldMedia.attachVoice', 'invalid point id', err, {
+          data_point_id: dataPointId,
+        });
+        throw err;
+      }
+
+      logInfo('fieldMedia.attachVoice', 'attempt', {
+        job_id: jobId,
+        data_point_id: dataPointId,
+        duration_ms: durationMs,
+        file_size: fileSize,
+      });
+
+      // Best-effort GPS for the EXIF-equivalent metadata. Same as
+      // photo capture; null on permission denied / no fix.
+      const pos = await getCurrentPositionOrNull();
+
+      const mediaId = randomUUID();
+      const parentTag = dataPointId ?? `job-${jobId}`;
+      const storagePath = `${userId}/${parentTag}-${mediaId}.m4a`;
+      const nowIso = new Date().toISOString();
+
+      try {
+        await db.writeTransaction(async (tx) => {
+          const positionRow = await tx.get<{ next_position: number }>(
+            `SELECT COALESCE(MAX(position), -1) + 1 AS next_position
+             FROM field_media
+             WHERE ${dataPointId ? 'data_point_id = ?' : 'data_point_id IS NULL AND job_id = ?'}`,
+            [dataPointId ?? jobId]
+          );
+          const position = positionRow?.next_position ?? 0;
+
+          await tx.execute(
+            `INSERT INTO field_media (
+               id, job_id, data_point_id, media_type,
+               storage_url, thumbnail_url, original_url, annotated_url,
+               upload_state, burst_group_id, position,
+               duration_seconds, file_size_bytes,
+               device_lat, device_lon, device_compass_heading,
+               captured_at, uploaded_at,
+               created_by, created_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              mediaId,
+              jobId,
+              dataPointId,
+              'voice',
+              storagePath,
+              null, // no thumbnail tier for audio
+              null, // no original (voice is single-tier)
+              null, // no annotation overlay
+              'pending',
+              null, // no burst grouping for voice
+              position,
+              Math.round(durationMs / 1000),
+              fileSize,
+              pos?.latitude ?? null,
+              pos?.longitude ?? null,
+              null, // compass heading — irrelevant for audio
+              nowIso,
+              nowIso,
+              userId,
+              nowIso,
+            ]
+          );
+        });
+      } catch (err) {
+        logError('fieldMedia.attachVoice', 'db insert failed', err, {
+          media_id: mediaId,
+          point_id: dataPointId,
+          job_id: jobId,
+        });
+        throw err;
+      }
+
+      // Enqueue upload. Same retry / persistence behaviour as photos
+      // — file copied to documentDirectory, retried on backoff, marks
+      // upload_state='done' on success.
+      const enqueueResult = await enqueueAndAttempt(db, {
+        parentTable: 'field_media',
+        parentId: mediaId,
+        bucket: VOICE_BUCKET,
+        storagePath,
+        localFileUri: uri,
+        contentType: 'audio/mp4',
+        scope: 'fieldMedia.attachVoice',
+      });
+
+      // Phone-storage backup (opt-in). MediaLibrary on iOS will save
+      // M4A to the user's Files app under the Starr Field album when
+      // available; on Android it goes to /Music or /Documents.
+      // Best-effort fire-and-forget; failures log but don't block.
+      void saveCopyToDeviceIfEnabled(uri, 'fieldMedia.attachVoice');
+
+      logInfo('fieldMedia.attachVoice', 'success', {
+        media_id: mediaId,
+        point_id: dataPointId,
+        duration_ms: durationMs,
+        uploaded_now: enqueueResult.uploadedNow,
+      });
+
+      return { id: mediaId, storagePath };
+    },
+    [db, session]
+  );
+}
+
+// ── Video capture ──────────────────────────────────────────────────────────
+
+export interface AttachVideoInput {
+  /** Required — job the video belongs to. */
+  jobId: string;
+  /** Optional — the data point the video attaches to. Null = job-
+   *  level video (free-floating site walkthroughs etc.). */
+  dataPointId: string | null;
+  /** Source — 'camera' opens the OS recorder; 'library' opens the picker. */
+  source: ImageSource;
+}
+
+export interface AttachedVideo {
+  /** UUID of the inserted field_media row. */
+  id: string;
+  /** Storage path (relative to the bucket). */
+  storagePath: string;
+}
+
+/**
+ * Insert a video `field_media` row + enqueue the upload. Mirror of
+ * `useAttachPhoto` / `useAttachVoice` for `media_type='video'`. The
+ * OS provides the recording UI (no in-app capture screen for v1) —
+ * `expo-image-picker.launchCameraAsync` with the Videos media type
+ * caps duration at 5 minutes per plan §5.4.
+ *
+ * Per the user's resilience requirement — "save images and videos
+ * and voice recordings to the app and the data also need to be able
+ * to be saved to the phone storage as well." The captured file is
+ * persisted to documentDirectory by `enqueueAndAttempt` (survives
+ * app kills) AND a fire-and-forget MediaLibrary backup runs when
+ * the user has opted in on the Me tab.
+ *
+ * Note: video lands as a single-tier upload — `original_url` /
+ * `thumbnail_url` / `annotated_url` stay null in v1. F4 polish layers
+ * on a server-side thumbnail extraction (FFmpeg via worker) and a
+ * WiFi-only original-quality re-upload tier.
+ */
+export function useAttachVideo(): (
+  input: AttachVideoInput
+) => Promise<AttachedVideo | null> {
+  const db = usePowerSync();
+  const { session } = useAuth();
+
+  return useCallback(
+    async ({ jobId, dataPointId, source }) => {
+      const userId = session?.user.id;
+      if (!userId) {
+        const err = new Error('Not signed in.');
+        logError('fieldMedia.attachVideo', 'no session', err);
+        throw err;
+      }
+
+      if (!UUID_REGEX.test(jobId)) {
+        const err = new Error(`Invalid job id: ${jobId}`);
+        logError('fieldMedia.attachVideo', 'invalid job id', err, {
+          job_id: jobId,
+        });
+        throw err;
+      }
+      if (dataPointId != null && !UUID_REGEX.test(dataPointId)) {
+        const err = new Error(`Invalid data point id: ${dataPointId}`);
+        logError('fieldMedia.attachVideo', 'invalid point id', err, {
+          data_point_id: dataPointId,
+        });
+        throw err;
+      }
+
+      logInfo('fieldMedia.attachVideo', 'attempt', {
+        job_id: jobId,
+        data_point_id: dataPointId,
+        source,
+      });
+
+      const picked = await pickVideo({
+        source,
+        scope: 'fieldMedia.attachVideo',
+      });
+      if (!picked) {
+        logInfo('fieldMedia.attachVideo', 'cancelled');
+        return null;
+      }
+
+      // Best-effort GPS metadata. Same pattern as photo capture.
+      const pos = await getCurrentPositionOrNull();
+
+      const mediaId = randomUUID();
+      const parentTag = dataPointId ?? `job-${jobId}`;
+      // Preserve the file extension from the picker's content type so
+      // downstream players can probe correctly. iOS = mp4, older
+      // Android may give us 3gp / mov.
+      const ext = inferVideoExtension(picked.uri, picked.contentType);
+      const storagePath = `${userId}/${parentTag}-${mediaId}${ext}`;
+      const nowIso = new Date().toISOString();
+
+      try {
+        await db.writeTransaction(async (tx) => {
+          const positionRow = await tx.get<{ next_position: number }>(
+            `SELECT COALESCE(MAX(position), -1) + 1 AS next_position
+             FROM field_media
+             WHERE ${dataPointId ? 'data_point_id = ?' : 'data_point_id IS NULL AND job_id = ?'}`,
+            [dataPointId ?? jobId]
+          );
+          const position = positionRow?.next_position ?? 0;
+
+          await tx.execute(
+            `INSERT INTO field_media (
+               id, job_id, data_point_id, media_type,
+               storage_url, thumbnail_url, original_url, annotated_url,
+               upload_state, burst_group_id, position,
+               duration_seconds, file_size_bytes,
+               device_lat, device_lon, device_compass_heading,
+               captured_at, uploaded_at,
+               created_by, created_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              mediaId,
+              jobId,
+              dataPointId,
+              'video',
+              storagePath,
+              null, // server-side thumbnail extraction in F4 polish
+              null, // WiFi-only original-quality tier in F4 polish
+              null, // no annotation overlay for video
+              'pending',
+              null,
+              position,
+              picked.durationSeconds ?? null,
+              picked.fileSize ?? null,
+              pos?.latitude ?? null,
+              pos?.longitude ?? null,
+              null,
+              nowIso,
+              nowIso,
+              userId,
+              nowIso,
+            ]
+          );
+        });
+      } catch (err) {
+        logError('fieldMedia.attachVideo', 'db insert failed', err, {
+          media_id: mediaId,
+          point_id: dataPointId,
+          job_id: jobId,
+        });
+        throw err;
+      }
+
+      const enqueueResult = await enqueueAndAttempt(db, {
+        parentTable: 'field_media',
+        parentId: mediaId,
+        bucket: VIDEO_BUCKET,
+        storagePath,
+        localFileUri: picked.uri,
+        contentType: picked.contentType,
+        scope: 'fieldMedia.attachVideo',
+      });
+
+      // MediaLibrary backup — for video the asset goes to the user's
+      // Camera Roll on iOS / DCIM on Android. Best-effort.
+      void saveCopyToDeviceIfEnabled(picked.uri, 'fieldMedia.attachVideo');
+
+      logInfo('fieldMedia.attachVideo', 'success', {
+        media_id: mediaId,
+        point_id: dataPointId,
+        duration_seconds: picked.durationSeconds ?? null,
+        file_size: picked.fileSize ?? null,
+        uploaded_now: enqueueResult.uploadedNow,
+      });
+
+      return { id: mediaId, storagePath };
+    },
+    [db, session]
+  );
+}
+
+/**
+ * Lightweight extension probe — picker uri + mime fallback.
+ * Defaults to .mp4 because that's what the Supabase video bucket
+ * accepts and what most native players prefer. Older Android
+ * devices that hand us a .3gp get re-tagged to .mp4 (the bytes are
+ * compatible enough for the v1 admin <video> player).
+ */
+function inferVideoExtension(uri: string, mime: string): string {
+  const lowerUri = uri.toLowerCase();
+  if (lowerUri.endsWith('.mp4')) return '.mp4';
+  if (lowerUri.endsWith('.mov')) return '.mov';
+  if (lowerUri.endsWith('.m4v')) return '.m4v';
+  if (mime === 'video/quicktime') return '.mov';
+  return '.mp4';
 }
 
 /**

@@ -37,6 +37,20 @@ interface LastPing {
   read_at: string | null;
 }
 
+interface LastLocation {
+  lat: number;
+  lon: number;
+  accuracy_m: number | null;
+  battery_pct: number | null;
+  is_charging: boolean | null;
+  source: string;
+  captured_at: string;
+  /** Minutes between captured_at and the API request — server-side
+   *  computed so client clock skew doesn't drift the staleness
+   *  indicator. */
+  staleness_minutes: number;
+}
+
 interface TeamMember {
   email: string;
   name: string | null;
@@ -44,6 +58,7 @@ interface TeamMember {
   last_sign_in: string | null;
   active_entry: ActiveEntry | null;
   last_log_hours_ping: LastPing | null;
+  last_location: LastLocation | null;
 }
 
 const REFRESH_MS = 60_000;
@@ -282,6 +297,7 @@ interface TeamCardProps {
 function TeamCard({ member, pinging, onPing }: TeamCardProps) {
   const e = member.active_entry;
   const ping = member.last_log_hours_ping;
+  const lastLoc = member.last_location;
   const stale = staleness(member);
   const lat = e?.clock_in_lat;
   const lon = e?.clock_in_lon;
@@ -289,6 +305,9 @@ function TeamCard({ member, pinging, onPing }: TeamCardProps) {
     lat != null && lon != null
       ? `https://www.google.com/maps?q=${lat},${lon}`
       : null;
+  const lastSeenHref = lastLoc
+    ? `https://www.google.com/maps?q=${lastLoc.lat},${lastLoc.lon}`
+    : null;
 
   return (
     <article
@@ -350,6 +369,39 @@ function TeamCard({ member, pinging, onPing }: TeamCardProps) {
             </dd>
           </div>
         ) : null}
+        {lastLoc && lastSeenHref ? (
+          <div style={styles.dlRow}>
+            <dt style={styles.dt}>Last seen</dt>
+            <dd style={styles.dd}>
+              <a href={lastSeenHref} target="_blank" rel="noreferrer">
+                {formatMinutes(lastLoc.staleness_minutes)} ago
+              </a>
+              {lastLoc.battery_pct != null ? (
+                <>
+                  {' · '}
+                  <span
+                    style={{
+                      color:
+                        lastLoc.battery_pct <= 20
+                          ? '#B42318'
+                          : lastLoc.battery_pct <= 40
+                          ? '#D97706'
+                          : '#067647',
+                    }}
+                    title={
+                      lastLoc.is_charging
+                        ? 'Battery charging'
+                        : 'Battery (not charging)'
+                    }
+                  >
+                    {lastLoc.is_charging ? '⚡' : '🔋'}
+                    {lastLoc.battery_pct}%
+                  </span>
+                </>
+              ) : null}
+            </dd>
+          </div>
+        ) : null}
         <div style={styles.dlRow}>
           <dt style={styles.dt}>Last sign-in</dt>
           <dd style={styles.dd}>{formatTimeAgo(member.last_sign_in)}</dd>
@@ -391,6 +443,18 @@ function TeamCard({ member, pinging, onPing }: TeamCardProps) {
         >
           ✓ Submit week
         </button>
+        <a
+          href={`/admin/mileage?user_email=${encodeURIComponent(member.email)}`}
+          style={styles.linkBtn}
+        >
+          🚗 Mileage
+        </a>
+        <a
+          href={`/admin/timeline?user=${encodeURIComponent(member.email)}`}
+          style={styles.linkBtn}
+        >
+          🗺️ Timeline
+        </a>
       </div>
     </article>
   );
@@ -562,5 +626,18 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 500,
+  },
+  linkBtn: {
+    background: 'transparent',
+    color: '#0B0E14',
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+    textDecoration: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
   },
 };

@@ -66,6 +66,31 @@ Activation gates (each blocks live sync but NOT local-only dev):
       web admin's NotificationBell + lib/notifications.ts continue to
       work unchanged. Apply BEFORE the mobile NotificationBanner +
       admin /admin/team Ping button ships.
+- [ ] Apply `seeds/223_starr_field_location_pings.sql` (background GPS
+      tracking — adds the append-only `location_pings` table with
+      battery snapshot + RLS owner-only INSERT/SELECT). Powers the
+      mobile `lib/locationTracker.ts` background task and the "Last
+      seen" column on the dispatcher Team page. Apply BEFORE
+      `EAS build` for a release that has background tracking enabled
+      (the native config in `app.json` requests Always-On location +
+      foreground service permission, which won't make sense without
+      the table to write to).
+- [ ] Apply `seeds/224_starr_field_location_derivations.sql` (daily
+      timeline derivation — adds `location_stops` + `location_segments`
+      tables, the `derive_location_timeline(p_user_id, p_log_date)`
+      PL/pgSQL aggregator, and the `haversine_m` distance helper).
+      Powers the `/admin/timeline` view + the "Recompute" button.
+      Apply BEFORE the `/admin/timeline` route is exposed to admins
+      (the page reads from these tables). Idempotent — safe to call
+      `derive_location_timeline()` repeatedly; user-overridden stops
+      are preserved across recomputes.
+- [ ] Apply `seeds/225_starr_field_vehicles.sql` (fleet roster — adds
+      the `vehicles` table referenced by the mobile schema since
+      seeds/220 + the FKs from `job_time_entries.vehicle_id` and
+      `location_segments.vehicle_id`). Powers the mobile vehicle
+      picker on clock-in (per-clock-in IRS mileage attribution) and
+      the `/admin/vehicles` CRUD page. Apply BEFORE the mobile
+      vehicle picker ships.
 - [ ] Provision PowerSync service (Cloud or self-hosted, see below).
 - [ ] Author sync rules — see "Sync rules" below.
 - [ ] Set `EXPO_PUBLIC_POWERSYNC_URL` in `mobile/.env.local` (dev) and
@@ -135,6 +160,28 @@ bucket_definitions:
             )
             AND is_dismissed = false
             AND (expires_at IS NULL OR expires_at > now())
+      # Location pings — owner-only, last 24 hours. PowerSync only
+      # needs to mirror RECENT pings so the mobile UI can render
+      # "today's route." Older pings stay server-side for F6 reports.
+      # The local SQLite stays bounded; the row count grows by ~960
+      # per 8-hour shift before pruning naturally.
+      - SELECT * FROM location_pings
+          WHERE user_id = bucket.user_id
+            AND captured_at > now() - interval '24 hours'
+      # Derived stops + segments — owner-only, last 7 days. These
+      # roll up the raw pings into a daily timeline (seeds/224 +
+      # /admin/timeline). Mobile reads them on the Me → Privacy
+      # screen for "your day, summarised."
+      - SELECT * FROM location_stops
+          WHERE user_id = bucket.user_id
+            AND arrived_at > now() - interval '7 days'
+      - SELECT * FROM location_segments
+          WHERE user_id = bucket.user_id
+            AND started_at > now() - interval '7 days'
+      # Vehicle roster — read-only on mobile. Active vehicles only
+      # (RLS already filters this server-side; mobile filter is a
+      # belt-and-braces guard for the picker query).
+      - SELECT * FROM vehicles WHERE active = true
 
   by_company:
     # Jobs and reference tables — visible to all employees of the

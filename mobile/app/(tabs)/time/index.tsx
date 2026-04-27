@@ -23,6 +23,10 @@ import {
 } from '@/lib/timeFormat';
 import { useTimesheet } from '@/lib/timesheet';
 import { thisWeekRange, useSubmitWeek, useThisWeekTotal } from '@/lib/timesheetActions';
+import {
+  tabletContainerStyle,
+  useResponsiveLayout,
+} from '@/lib/responsive';
 import { colors } from '@/lib/theme';
 
 /**
@@ -101,8 +105,9 @@ export default function TimeScreen() {
 
   const onSubmitWeek = () => {
     // Submit is effectively irreversible from the surveyor's side —
-    // once status flips to 'submitted', the bookkeeper has to reject
-    // for the user to edit again. Confirm before sending.
+    // once status flips to 'pending', the bookkeeper has to reject
+    // (or use the dispute path) for the user to edit again. Confirm
+    // before sending.
     Alert.alert(
       'Submit this week for approval?',
       'Open days in this week will be sent to the dispatcher. You won’t be able to edit them on mobile until they’re approved or rejected.',
@@ -183,12 +188,17 @@ export default function TimeScreen() {
     }
   };
 
+  // Tablet layout: clamp scroll content to a comfortable reading
+  // width so cards don't span the full iPad screen. No-op on phones.
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
+
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
         <View style={styles.headerRow}>
           <Text style={[styles.heading, { color: palette.text }]}>Time</Text>
         </View>

@@ -25,6 +25,7 @@ export default function CaptureStackLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="[pointId]/photos" />
+      <Stack.Screen name="[pointId]/voice" />
     </Stack>
   );
 }

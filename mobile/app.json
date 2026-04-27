@@ -19,14 +19,22 @@
         "NSLocationWhenInUseUsageDescription": "Starr Field stamps your clock-in / clock-out times with GPS so timesheets and mileage logs are accurate.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Starr Field tracks location only while you're clocked in (per the privacy contract in plan §5.10.1) so the dispatcher knows where the crew is and IRS-compliant mileage logs generate automatically. Tracking stops within 60 seconds of clock-out.",
         "NSCameraUsageDescription": "Starr Field uses the camera to capture receipts and field photos. Receipt photos are uploaded to your private Starr Surveying workspace for AI extraction and bookkeeping.",
-        "NSPhotoLibraryUsageDescription": "Starr Field reads photos from your library when you attach an existing receipt photo (e.g. one you snapped before opening the app)."
+        "NSPhotoLibraryUsageDescription": "Starr Field reads photos from your library when you attach an existing receipt photo (e.g. one you snapped before opening the app).",
+        "UIBackgroundModes": ["location", "fetch"]
       }
     },
     "android": {
       "package": "com.starrsoftware.starrfield",
       "adaptiveIcon": {
         "backgroundColor": "#1D3095"
-      }
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -45,8 +53,10 @@
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Starr Field tracks location only while you're clocked in (per the privacy contract in plan §5.10.1) so the dispatcher knows where the crew is and IRS-compliant mileage logs generate automatically.",
-          "isIosBackgroundLocationEnabled": false,
-          "isAndroidBackgroundLocationEnabled": false
+          "locationWhenInUsePermission": "Starr Field stamps your clock-in / clock-out times with GPS so timesheets and mileage logs are accurate.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       "expo-notifications",

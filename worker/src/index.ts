@@ -3032,7 +3032,12 @@ app.post(
       // mobile / web admin). The retry only applies to rows currently
       // 'failed' so we don't trample an in-flight extraction.
       if (body.receiptId) {
-        const { error: requeueErr } = await supabase
+        // The supabase client is typed via ReturnType<typeof
+        // createClient> without a Database generic, so update()
+        // narrows the payload to `never` (see pipeline.ts:247
+        // comment). Cast matches the project-wide convention.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: requeueErr } = await (supabase as any)
           .from('receipts')
           .update({
             extraction_status: 'queued',

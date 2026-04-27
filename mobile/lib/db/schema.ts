@@ -180,6 +180,44 @@ const location_stops = new Table({
   user_overridden: column.integer,
 });
 
+// ── location_pings — append-only GPS samples while clocked in ──────────────
+//
+// Per the user's resilience requirement: "if the gps signal is lost,
+// we just need to keep track of the last known location of the user's
+// phone until they get reception again."
+//
+// Mobile writes one row every ~30 s while a job_time_entries row is
+// open (lib/locationTracker.ts). PowerSync's CRUD queue buffers
+// inserts when offline and replays on reception. Sync rule scopes
+// reads to current user (privacy contract per plan §5.10.1).
+//
+// Backed by seeds/223_starr_field_location_pings.sql. No UPDATE /
+// DELETE from mobile — append-only.
+const location_pings = new Table({
+  user_id: column.text,
+  user_email: column.text,
+  job_time_entry_id: column.text,
+  /** Required — row is meaningless without these. */
+  lat: column.real,
+  lon: column.real,
+  accuracy_m: column.real,
+  altitude_m: column.real,
+  /** Degrees, 0=N. Some Android devices never report this. */
+  heading: column.real,
+  /** Meters per second. */
+  speed_mps: column.real,
+  /** 0-100; null when expo-battery hasn't reported. */
+  battery_pct: column.integer,
+  /** 0/1 boolean. */
+  is_charging: column.integer,
+  /** 'foreground' | 'background' | 'clock_in' | 'clock_out'. */
+  source: column.text,
+  captured_at: column.text,
+  created_at: column.text,
+  /** Idempotency key for offline-replayed inserts. */
+  client_id: column.text,
+});
+
 const location_segments = new Table({
   user_id: column.text,
   job_time_entry_id: column.text,
@@ -356,7 +394,13 @@ const daily_time_logs = new Table({
   total_minutes: column.integer,
   total_pay_cents: column.integer,
   // Approval:
-  status: column.text, // 'open' | 'submitted' | 'approved' | 'locked'
+  // Unified status enum — see DailyLogStatus in lib/timesheet.ts.
+  // Mobile clock-in creates rows as 'open'; useSubmitWeek flips
+  // 'open' → 'pending' so the web admin's hours-approval queue
+  // surfaces them. Approved/rejected/adjusted/disputed/locked all
+  // come from the web side. 'submitted' is a legacy alias for
+  // 'pending' kept for back-compat with rows from earlier builds.
+  status: column.text,
   submitted_at: column.text,
   approved_at: column.text,
   approved_by: column.text,
@@ -578,6 +622,7 @@ export const AppSchema = new Schema({
   fieldbook_notes,
   job_time_entries,
   jobs,
+  location_pings,
   location_segments,
   location_stops,
   notifications,

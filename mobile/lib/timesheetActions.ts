@@ -7,7 +7,11 @@
  *                               7-day window (live)
  *   - useSubmitWeek()         : action that flips every 'open'
  *                               daily_time_logs row in the week to
- *                               'submitted' with submitted_at = now
+ *                               'pending' with submitted_at = now.
+ *                               Web admin's hours-approval queue
+ *                               surfaces 'pending' and 'disputed';
+ *                               see lib/timesheet.ts for the full
+ *                               DailyLogStatus union.
  *
  * Per plan §5.8.6 we submit per-week (not per-day) because that's
  * how Henry's bookkeeper processes payroll. Sub-day submission lands
@@ -89,7 +93,7 @@ export function useThisWeekTotal(): { totalMinutes: number; isLoading: boolean }
 }
 
 export interface SubmitWeekResult {
-  /** Number of daily_time_logs flipped from 'open' to 'submitted'. */
+  /** Number of daily_time_logs flipped from 'open' to 'pending'. */
   flipped: number;
   /** True if there were no open entries to submit (idempotent retry). */
   alreadySubmitted: boolean;
@@ -99,12 +103,16 @@ export interface SubmitWeekResult {
 
 /**
  * Submit the current week. Flips every 'open' daily_time_logs row
- * within Mon-Sun to 'submitted' with submitted_at = now. Refuses
+ * within Mon-Sun to 'pending' with submitted_at = now. Refuses
  * if any job_time_entry in the window is still open (clock out
  * first).
  *
  * Idempotent: re-submitting after a successful submit returns
- * { flipped: 0, alreadySubmitted: true }.
+ * { flipped: 0, alreadySubmitted: true }. The matching SQL filter
+ * also tolerates the legacy 'submitted' value (rows from earlier
+ * mobile builds) by matching on COALESCE(status, 'open') = 'open' —
+ * those rows are already past the submit step and shouldn't be
+ * touched again.
  */
 export function useSubmitWeek(): () => Promise<SubmitWeekResult> {
   const db = usePowerSync();
@@ -166,10 +174,16 @@ export function useSubmitWeek(): () => Promise<SubmitWeekResult> {
 
       const nowIso = new Date().toISOString();
       // Single bulk UPDATE — PowerSync emits one CRUD op per matched
-      // row server-side; we just save N local round trips.
+      // row server-side; we just save N local round trips. Status
+      // flips to 'pending' to match the existing web admin's
+      // hours-approval queue (which filters on status='pending'
+      // OR status='disputed'). Earlier mobile builds wrote
+      // 'submitted' here; that value is kept as a legacy alias in
+      // the StatusChip + LOCKED_DAY_STATUSES so existing rows still
+      // render correctly.
       await db.execute(
         `UPDATE daily_time_logs
-         SET status = 'submitted',
+         SET status = 'pending',
              submitted_at = ?,
              updated_at = ?
          WHERE user_email = ?

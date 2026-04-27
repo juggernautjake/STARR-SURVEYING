@@ -30,6 +30,14 @@ import {
 } from '@/lib/dataPoints';
 import { lookupPrefix } from '@/lib/dataPointCodes';
 import {
+  NOTE_TEMPLATE_LABELS,
+  type FieldNote,
+  type NoteTemplate,
+  parseStructuredPayload,
+  useArchiveFieldNote,
+  usePointNotes,
+} from '@/lib/fieldNotes';
+import {
   type FieldMedia,
   useDeleteMedia,
   usePointMedia,
@@ -80,6 +88,8 @@ function PointForm({ point, palette }: PointFormProps) {
   const deletePoint = useDeleteDataPoint();
   const deleteMedia = useDeleteMedia();
   const { media } = usePointMedia(point.id, 'photo');
+  const { notes } = usePointNotes(point.id);
+  const archiveNote = useArchiveFieldNote();
   const { names: existingNames } = useJobPointNames(point.job_id);
 
   const [name, setName] = useState<string>(point.name ?? '');
@@ -309,6 +319,47 @@ function PointForm({ point, palette }: PointFormProps) {
             />
           </View>
 
+          {/* Notes — F4 #3 free-text + structured templates */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionLabel, { color: palette.muted }]}>
+                Notes ({notes.length})
+              </Text>
+            </View>
+            {notes.length === 0 ? (
+              <Text style={[styles.sectionHint, { color: palette.muted }]}>
+                No notes yet. Add a free-text note or pick a template
+                (offset shot · monument found · hazard · correction).
+              </Text>
+            ) : (
+              <View style={{ gap: 8, marginBottom: 8 }}>
+                {notes.map((n) => (
+                  <NoteCard
+                    key={n.id}
+                    note={n}
+                    palette={palette}
+                    onLongPress={() => onLongPressNote(n.id, archiveNote)}
+                  />
+                ))}
+              </View>
+            )}
+            <View style={{ height: 12 }} />
+            <Button
+              variant="secondary"
+              label="+ Add note"
+              onPress={() =>
+                router.push({
+                  pathname: '/(tabs)/jobs/[id]/notes/new',
+                  params: {
+                    id: point.job_id,
+                    point_id: point.id,
+                  },
+                })
+              }
+              accessibilityHint="Opens the note editor with template picker."
+            />
+          </View>
+
           {/* Edit form */}
           <View style={styles.section}>
             <TextField
@@ -443,6 +494,88 @@ function NotFound({ palette, onBack }: NotFoundProps) {
   );
 }
 
+interface NoteCardProps {
+  note: FieldNote;
+  palette: Palette;
+  onLongPress: () => void;
+}
+
+/**
+ * Single-row note card. Shows the body summary (free-text note OR
+ * the per-template summary computed at insert time), the template
+ * tag when present, and a relative-time stamp. Long-press opens
+ * the archive confirmation Alert.
+ */
+function NoteCard({ note, palette, onLongPress }: NoteCardProps) {
+  const template = (note.note_template ?? null) as NoteTemplate | null;
+  const templateLabel = template ? NOTE_TEMPLATE_LABELS[template] : null;
+  const ageLabel = note.created_at ? noteTimeAgo(note.created_at) : '';
+  // Defensive parse — old/garbled JSON renders the body fallback.
+  // We don't surface payload fields inline today; the admin viewer
+  // does the rich render.
+  void parseStructuredPayload(note.structured_data);
+  return (
+    <Pressable
+      onLongPress={onLongPress}
+      delayLongPress={500}
+      style={[styles.noteCard, { borderColor: palette.border }]}
+      accessibilityRole="button"
+      accessibilityLabel={`Note: ${note.body ?? ''}`}
+      accessibilityHint="Long-press to archive"
+    >
+      {templateLabel ? (
+        <Text style={[styles.noteTemplateTag, { color: palette.accent }]}>
+          {templateLabel}
+        </Text>
+      ) : null}
+      <Text style={[styles.noteBody, { color: palette.text }]}>
+        {note.body ?? ''}
+      </Text>
+      <Text style={[styles.noteAge, { color: palette.muted }]}>
+        {ageLabel}
+      </Text>
+    </Pressable>
+  );
+}
+
+function noteTimeAgo(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  const min = Math.max(0, Math.floor((Date.now() - t) / 60_000));
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function onLongPressNote(
+  noteId: string,
+  archive: ReturnType<typeof useArchiveFieldNote>
+): void {
+  Alert.alert(
+    'Archive this note?',
+    'It will be hidden from the mobile list but still visible to the office reviewer.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Archive',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await archive(noteId);
+          } catch (err) {
+            Alert.alert(
+              'Archive failed',
+              err instanceof Error ? err.message : String(err)
+            );
+          }
+        },
+      },
+    ]
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   flex: { flex: 1 },
@@ -538,5 +671,25 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  noteCard: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  noteTemplateTag: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  noteBody: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  noteAge: {
+    fontSize: 11,
+    marginTop: 6,
   },
 });

@@ -33,21 +33,54 @@ export interface TimesheetEntry {
   durationMinutes: number | null;
 }
 
+/**
+ * Day statuses on `daily_time_logs.status`.
+ *
+ * The mobile + web enums diverged historically (mobile used
+ * 'submitted', web used 'pending') — this union is the unified set,
+ * and both sides accept either value. Mobile's submit-for-approval
+ * flow flips 'open' → 'pending' so the existing web Hours-Approval
+ * UI surfaces it without changes.
+ *
+ * - 'open'      — mobile-only initial state. Editable on mobile.
+ * - 'pending'   — submitted, awaiting admin. Web admin's
+ *                 hours-approval queue surfaces these.
+ * - 'submitted' — legacy alias for 'pending'; treated identically.
+ *                 Kept so any rows already inserted by an earlier
+ *                 mobile build still render the right chip + lock
+ *                 the day from edits.
+ * - 'approved'  — admin approved.
+ * - 'rejected'  — admin rejected; user can fix + resubmit.
+ * - 'adjusted'  — admin tweaked hours; treated as approved-for-pay.
+ * - 'disputed'  — user disputed an admin decision; back in queue.
+ * - 'locked'    — payroll has run; immutable on every surface.
+ */
 export type DailyLogStatus =
   | 'open'
+  | 'pending'
   | 'submitted'
   | 'approved'
   | 'rejected'
+  | 'adjusted'
+  | 'disputed'
   | 'locked';
 
 /**
  * Day statuses where mobile must NOT allow edits — admin owns the
- * day once it leaves 'open' (or 'rejected', which surveyors can
- * still fix and resubmit).
+ * day once it leaves 'open' (or 'rejected'/'disputed', which the
+ * surveyor can still fix and resubmit).
+ *
+ * NOTE: 'pending' and 'submitted' are both locked because once the
+ * row is in the admin queue, the surveyor shouldn't be able to
+ * change hours out from under them. Surveyors who need a correction
+ * after submitting can dispute via the web (or rely on the admin's
+ * 'adjusted' path).
  */
 export const LOCKED_DAY_STATUSES: ReadonlySet<DailyLogStatus> = new Set([
+  'pending',
   'submitted',
   'approved',
+  'adjusted',
   'locked',
 ]);
 

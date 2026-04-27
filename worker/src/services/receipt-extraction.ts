@@ -340,7 +340,7 @@ async function processOne(
     extracted = parseExtraction(raw);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await markFailed(supabase, row.id, `vision: ${msg}`);
+    await markFailed(supabase, row.id, `vision: ${msg}`, logger);
     tracker.record({
       service: 'vision-ocr',
       address: `receipt:${row.id}`,
