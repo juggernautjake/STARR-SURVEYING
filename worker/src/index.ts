@@ -3101,6 +3101,97 @@ app.post(
   }
 );
 
+// ── Starr Field F4: Voice Memo Transcription ──────────────────────────────
+//
+// Mobile/web call POST /starr-field/voice/transcribe to flush the
+// queue of voice memos (field_media.transcription_status='queued').
+// The CLI at src/cli/transcribe-voice.ts is the cron entry point;
+// this endpoint is the on-demand trigger for "office reviewer wants
+// the transcript NOW" or "transcription failed and the admin tapped
+// Retry."
+//
+// Body: { batchSize?: number; mediaId?: string }
+//   - batchSize: cap on rows processed in one shot (default 5).
+//   - mediaId: when set, marks JUST that row as queued before
+//     running the batch — handy for "retry this one" buttons.
+app.post(
+  '/starr-field/voice/transcribe',
+  requireAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const supabase = await getSupabase();
+      if (!supabase) {
+        res.status(500).json({ error: 'Supabase not configured' });
+        return;
+      }
+      const body = (req.body ?? {}) as { batchSize?: number; mediaId?: string };
+
+      // Optional re-queue for a specific memo (Retry button on
+      // mobile / web admin). Only applies to 'failed' rows so we
+      // don't trample an in-flight transcription.
+      if (body.mediaId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: requeueErr } = await (supabase as any)
+          .from('field_media')
+          .update({
+            transcription_status: 'queued',
+            transcription_started_at: null,
+            transcription_completed_at: null,
+            transcription_error: null,
+          })
+          .eq('id', body.mediaId)
+          .eq('transcription_status', 'failed');
+        if (requeueErr) {
+          console.error('[starr-field/voice/transcribe] requeue failed', {
+            mediaId: body.mediaId,
+            error: requeueErr.message,
+            code: (requeueErr as { code?: string }).code ?? null,
+          });
+          res
+            .status(500)
+            .json({ error: `requeue failed: ${requeueErr.message}` });
+          return;
+        }
+      }
+
+      const { processVoiceTranscriptionBatch } = await import(
+        './services/voice-transcription.js'
+      );
+      const summary = await processVoiceTranscriptionBatch(supabase, {
+        batchSize: body.batchSize,
+      });
+
+      const totalCostCents = summary.results.reduce(
+        (sum, r) => sum + (r.costCents ?? 0),
+        0
+      );
+      // Audit trail line — every on-demand transcribe lands in worker
+      // logs alongside the CLI batch lines.
+      console.log('[starr-field/voice/transcribe] processed', {
+        processed: summary.total,
+        done: summary.done,
+        failed: summary.failed,
+        skipped: summary.skipped,
+        totalCostCents,
+        mediaId: body.mediaId ?? null,
+      });
+      res.json({
+        processed: summary.total,
+        done: summary.done,
+        failed: summary.failed,
+        skipped: summary.skipped,
+        totalCostCents,
+        results: summary.results,
+      });
+    } catch (err) {
+      console.error('[starr-field/voice/transcribe] failed:', err);
+      res.status(500).json({
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+);
+
 // ── Phase 11: Data Source Routes ────────────────────────────────────────────
 
 // Configurable paths for Phase 11 output directories

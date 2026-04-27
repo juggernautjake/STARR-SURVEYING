@@ -21,7 +21,13 @@ import { Alert, Linking } from 'react-native';
 
 import { logWarn } from './log';
 
-export type PermissionKind = 'camera' | 'photoLibrary' | 'location' | 'notifications';
+export type PermissionKind =
+  | 'camera'
+  | 'photoLibrary'
+  | 'location'
+  | 'notifications'
+  | 'microphone'
+  | 'mediaLibraryAdd';
 
 interface PromptOptions {
   kind: PermissionKind;
@@ -87,6 +93,8 @@ export function isPermissionDeniedError(err: unknown): PermissionKind | null {
   if (msg.includes('camera permission denied')) return 'camera';
   if (msg.includes('photo library permission denied')) return 'photoLibrary';
   if (msg.includes('location permission denied')) return 'location';
+  if (msg.includes('microphone permission denied')) return 'microphone';
+  if (msg.includes('media library permission denied')) return 'mediaLibraryAdd';
   return null;
 }
 
@@ -111,5 +119,13 @@ const COPY_BY_KIND: Record<PermissionKind, CopyEntry> = {
   notifications: {
     title: 'Notifications blocked',
     body: '"Still working?" reminders need notification access. Tap Open Settings to enable them; receipts and points still work without notifications.',
+  },
+  microphone: {
+    title: 'Microphone access blocked',
+    body: 'Starr Field needs microphone access to record voice memos and capture audio with field videos. Tap Open Settings, find Starr Field, and turn on Microphone.',
+  },
+  mediaLibraryAdd: {
+    title: 'Photo library save blocked',
+    body: 'Starr Field needs permission to save backup copies to your Photos library. Tap Open Settings, find Starr Field, and choose "All Photos" or enable saving.',
   },
 };

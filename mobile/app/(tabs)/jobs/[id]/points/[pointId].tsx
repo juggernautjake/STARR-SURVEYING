@@ -38,6 +38,12 @@ import {
   usePointNotes,
 } from '@/lib/fieldNotes';
 import {
+  type JobFile,
+  useDeleteJobFile,
+  usePickAndAttachFile,
+  usePointFiles,
+} from '@/lib/jobFiles';
+import {
   type FieldMedia,
   useDeleteMedia,
   usePointMedia,
@@ -90,6 +96,10 @@ function PointForm({ point, palette }: PointFormProps) {
   const { media } = usePointMedia(point.id, 'photo');
   const { notes } = usePointNotes(point.id);
   const archiveNote = useArchiveFieldNote();
+  const { files } = usePointFiles(point.id);
+  const pickFile = usePickAndAttachFile();
+  const deleteFile = useDeleteJobFile();
+  const [attachingFile, setAttachingFile] = useState(false);
   const { names: existingNames } = useJobPointNames(point.job_id);
 
   const [name, setName] = useState<string>(point.name ?? '');
@@ -360,6 +370,68 @@ function PointForm({ point, palette }: PointFormProps) {
             />
           </View>
 
+          {/* Files — F5 generic attachments (PDF, CSV, instrument
+              exports, scanned plans, etc.) */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionLabel, { color: palette.muted }]}>
+                Files ({files.length})
+              </Text>
+            </View>
+            {files.length === 0 ? (
+              <Text style={[styles.sectionHint, { color: palette.muted }]}>
+                No files yet. Attach a PDF, CSV, instrument export, or
+                any other file from your phone, iCloud, or Google Drive.
+              </Text>
+            ) : (
+              <View style={{ gap: 8, marginBottom: 8 }}>
+                {files.map((f) => (
+                  <FileCard
+                    key={f.id}
+                    file={f}
+                    palette={palette}
+                    onLongPress={() => onLongPressFile(f, deleteFile)}
+                  />
+                ))}
+              </View>
+            )}
+            <View style={{ height: 12 }} />
+            <Button
+              variant="secondary"
+              label={attachingFile ? 'Attaching…' : '+ Attach file'}
+              loading={attachingFile}
+              disabled={attachingFile}
+              onPress={async () => {
+                if (!point.job_id) {
+                  Alert.alert(
+                    'Job link missing',
+                    'This point isn’t linked to a job yet. Pull down to refresh and try again.'
+                  );
+                  return;
+                }
+                setAttachingFile(true);
+                try {
+                  await pickFile({
+                    jobId: point.job_id,
+                    dataPointId: point.id,
+                  });
+                } catch (err) {
+                  logError('pointDetail.attachFile', 'failed', err, {
+                    point_id: point.id,
+                    job_id: point.job_id,
+                  });
+                  Alert.alert(
+                    'Couldn’t attach file',
+                    err instanceof Error ? err.message : String(err)
+                  );
+                } finally {
+                  setAttachingFile(false);
+                }
+              }}
+              accessibilityHint="Opens the OS document picker. Files upload in the background and survive offline captures."
+            />
+          </View>
+
           {/* Edit form */}
           <View style={styles.section}>
             <TextField
@@ -567,6 +639,90 @@ function onLongPressNote(
           } catch (err) {
             Alert.alert(
               'Archive failed',
+              err instanceof Error ? err.message : String(err)
+            );
+          }
+        },
+      },
+    ]
+  );
+}
+
+interface FileCardProps {
+  file: JobFile;
+  palette: Palette;
+  onLongPress: () => void;
+}
+
+/**
+ * One-row file card. Shows the user-typed name, the upload status,
+ * and a relative-time stamp. Long-press confirms delete.
+ */
+function FileCard({ file, palette, onLongPress }: FileCardProps) {
+  const ageLabel = file.created_at ? noteTimeAgo(file.created_at) : '';
+  const sizeLabel =
+    file.file_size_bytes != null
+      ? formatFileSize(file.file_size_bytes)
+      : null;
+  const stateColor =
+    file.upload_state === 'failed'
+      ? palette.danger
+      : file.upload_state === 'done'
+        ? palette.success
+        : palette.muted;
+  return (
+    <Pressable
+      onLongPress={onLongPress}
+      delayLongPress={500}
+      style={[styles.noteCard, { borderColor: palette.border }]}
+      accessibilityRole="button"
+      accessibilityLabel={`File: ${file.name ?? 'untitled'}`}
+      accessibilityHint="Long-press to delete"
+    >
+      <Text style={[styles.noteBody, { color: palette.text }]}>
+        📎 {file.name ?? 'Untitled'}
+      </Text>
+      <Text style={[styles.noteAge, { color: palette.muted }]}>
+        {sizeLabel ? `${sizeLabel} · ` : ''}
+        <Text style={{ color: stateColor }}>
+          {file.upload_state === 'pending'
+            ? 'Uploading…'
+            : file.upload_state === 'failed'
+              ? 'Failed — retry from Me → Uploads'
+              : file.upload_state === 'done'
+                ? 'Synced'
+                : (file.upload_state ?? 'queued')}
+        </Text>
+        {ageLabel ? ` · ${ageLabel}` : ''}
+      </Text>
+    </Pressable>
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function onLongPressFile(
+  file: JobFile,
+  deleteFile: ReturnType<typeof useDeleteJobFile>
+): void {
+  Alert.alert(
+    'Delete this file?',
+    `“${file.name ?? 'Untitled'}” will be removed from this point. Cannot be undone.`,
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteFile(file);
+          } catch (err) {
+            Alert.alert(
+              'Delete failed',
               err instanceof Error ? err.message : String(err)
             );
           }

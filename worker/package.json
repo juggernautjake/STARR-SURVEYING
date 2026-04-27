@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "extract-receipts": "node dist/cli/extract-receipts.js"
+    "extract-receipts": "node dist/cli/extract-receipts.js",
+    "transcribe-voice": "node dist/cli/transcribe-voice.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
@@ -25,6 +26,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.0",
     "ioredis": "^5.10.0",
+    "openai": "^4.77.0",
     "pdfkit": "^0.17.2",
     "playwright": "^1.58.2",
     "sharp": "^0.34.5",

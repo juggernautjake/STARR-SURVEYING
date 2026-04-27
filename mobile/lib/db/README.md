@@ -91,6 +91,32 @@ Activation gates (each blocks live sync but NOT local-only dev):
       picker on clock-in (per-clock-in IRS mileage attribution) and
       the `/admin/vehicles` CRUD page. Apply BEFORE the mobile
       vehicle picker ships.
+- [ ] Apply `seeds/226_starr_field_files.sql` (F5 generic file
+      attachments — adds `job_files` table + `starr-field-files`
+      storage bucket + per-user-folder RLS). Powers the
+      `lib/jobFiles.ts` capture flow ("+ Attach file" on the point
+      detail screen) and the Files block on `/admin/field-data/[id]`.
+      Apply BEFORE the mobile file picker ships.
+- [ ] Apply `seeds/227_starr_field_geofence_classifier.sql` (F6 v2
+      stop-classification — replaces `derive_location_timeline` with
+      a version that joins `jobs.{centroid_lat, centroid_lon,
+      geofence_radius_m}` to label each derived stop with the
+      matching job's name + `category_source='geofence'`). Apply
+      AFTER seeds/224. Idempotent — `CREATE OR REPLACE FUNCTION`,
+      safe to re-apply. Once applied, dispatchers use the "📍 Set
+      as job site" button on `/admin/timeline` to capture each
+      job's geofence from a real stop centroid.
+- [ ] Apply `seeds/228_starr_field_voice_transcription.sql` (F4
+      voice-transcription tracking — adds
+      `transcription_status` / `transcription_error` /
+      `transcription_started_at` / `transcription_completed_at` /
+      `transcription_cost_cents` to `field_media` + two partial
+      indexes for the worker poll). Apply AFTER seeds/221. Powers
+      the OpenAI Whisper worker job at
+      `worker/src/services/voice-transcription.ts` + CLI at
+      `worker/src/cli/transcribe-voice.ts` + on-demand endpoint
+      `POST /starr-field/voice/transcribe`. Set `OPENAI_API_KEY` on
+      the worker before deploying.
 - [ ] Provision PowerSync service (Cloud or self-hosted, see below).
 - [ ] Author sync rules — see "Sync rules" below.
 - [ ] Set `EXPO_PUBLIC_POWERSYNC_URL` in `mobile/.env.local` (dev) and
@@ -182,6 +208,12 @@ bucket_definitions:
       # (RLS already filters this server-side; mobile filter is a
       # belt-and-braces guard for the picker query).
       - SELECT * FROM vehicles WHERE active = true
+      # Job + point file attachments (F5). Owner-only; mobile
+      # surfaces files captured in the last 90 days for the offline
+      # gallery while older rows live server-side.
+      - SELECT * FROM job_files
+          WHERE created_by = bucket.user_id
+            AND created_at > now() - interval '90 days'
 
   by_company:
     # Jobs and reference tables — visible to all employees of the

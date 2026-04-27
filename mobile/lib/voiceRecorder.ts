@@ -107,6 +107,9 @@ export async function startRecording(): Promise<void> {
   }
   const granted = await ensureRecordingPermission();
   if (!granted) {
+    // Phrase MUST match isPermissionDeniedError() in permissionGuard.ts
+    // so the caller can branch + Settings-deep-link instead of showing
+    // a generic "couldn't start recording" alert.
     throw new Error('Microphone permission denied.');
   }
 

@@ -1008,7 +1008,7 @@ Audit additions:
 - [x] Create data point with name from 179-code library — `lib/dataPoints.ts` + `lib/dataPointCodes.ts`. Capture flow at `(tabs)/capture/index.tsx` and per-point detail at `(tabs)/jobs/[id]/points/[pointId].tsx`.
 - [x] Camera capture, multi-photo — `lib/fieldMedia.ts` `useAttachPhoto`. Burst-grouping via `burst_group_id` ready in schema; UI for burst capture pending (F3 polish).
 - [/] Phone GPS / altitude metadata — captured in `useAttachPhoto`. Compass heading is **pending**: `expo-sensors` magnetometer not yet wired; the `device_compass_heading` column is left null pending integration.
-- [ ] Photo annotation (arrow, circle, text) — `field_media.annotated_url` + `annotations` JSONB columns reserved; UI not built. F3 #6 still in flight.
+- [/] Photo annotation — `lib/PhotoAnnotator.tsx` (full-screen react-native-svg editor with PanResponder freehand strokes, 4-colour palette, undo + clear + save) + `lib/photoAnnotation.ts` data model (z-ordered `AnnotationDocument` with normalised 0..1 coordinates so strokes render identically on phone / tablet / web admin) + `useUpdateMediaAnnotations` hook. Originals NEVER touched per plan §5.4 — overlay rendered live from JSON in `field_media.annotations`. PhotoLightbox shows existing strokes + has "Annotate" / "Edit annotations" entry button. Web admin `/admin/field-data/[id]` lightbox renders the same SVG overlay using the shared `lib/photoAnnotationRenderer.ts` helpers. **Pen tool only in v1**; arrow / circle / text primitives have schema slots reserved for v2.
 - [x] Job-level photo upload (no point assignment) — `attachPhoto({ dataPointId: null, jobId })` and the gallery at `(tabs)/capture/[pointId]/photos.tsx`.
 - [x] Office reviewer sees points + photos in web app — `/admin/field-data` list with date range + employee + job + free-text filters; per-point detail at `/admin/field-data/[id]` with full photo gallery (lightbox, signed URLs for storage / thumbnail / original / annotated tiers), creator info, GPS metadata + Maps deep-link, offset / correction flags, and a link back to the parent `/admin/jobs/[id]`. APIs at `/api/admin/field-data` (list with thumbnails) + `/api/admin/field-data/[id]` (full detail). Sidebar entry under Work group.
 
@@ -1020,7 +1020,7 @@ Resilience additions (same offline-first pattern as F2):
 **Exit:** Found-monument workflow <60s. **Status:** core capture loop + admin viewer shipped; annotation overlay + compass heading remain.
 
 ### Phase F4 — Voice + video + notes (Week 13–16)
-- [/] Voice memo capture — `lib/voiceRecorder.ts` (expo-av Audio.Recording with M4A mono preset, 5-minute auto-stop cap, idempotent permission cache, mid-flight cancel + cleanup), `lib/fieldMedia.ts` `useAttachVoice` (mirrors `useAttachPhoto` — INSERT first, enqueue upload to `starr-field-voice` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup via `lib/deviceLibrary.ts`), `(tabs)/capture/[pointId]/voice.tsx` capture screen with per-memo playback row (long-press to delete). Voice button on the photos screen footer Stack-pushes the recorder. **On-device transcription pending** — `field_media.transcription` column reserved; needs `expo-speech-recognition` or a Whisper-via-API path.
+- [x] Voice memo capture + transcription — `lib/voiceRecorder.ts` (expo-av Audio.Recording with M4A mono preset, 5-minute auto-stop cap, idempotent permission cache, mid-flight cancel + cleanup), `lib/fieldMedia.ts` `useAttachVoice` (mirrors `useAttachPhoto` — INSERT first with `transcription_status='queued'`, enqueue upload to `starr-field-voice` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup via `lib/deviceLibrary.ts`), `(tabs)/capture/[pointId]/voice.tsx` capture screen with per-memo playback row (long-press to delete). **Server-side transcription via OpenAI Whisper** lands in Batch R: `seeds/228` adds `transcription_status` / `transcription_error` / `transcription_started_at` / `transcription_completed_at` / `transcription_cost_cents` to `field_media`; `worker/src/services/voice-transcription.ts` polls `WHERE upload_state='done' AND transcription_status='queued'`, race-safe `claimRow` flips to `'running'`, fetches the M4A via signed URL, calls Whisper-1 (en hint), writes back with cost in cents (~$0.006/min). Watchdog re-queues stale `'running'` rows after 5 min. CLI at `worker/src/cli/transcribe-voice.ts` for cron; `POST /starr-field/voice/transcribe` for on-demand. Admin `/admin/field-data/[id]` shows ⏳ queued / 🎧 transcribing / ✓ done / ⚠ failed badges + the transcript text once landed.
 - [/] Video capture — `lib/storage/mediaUpload.ts` `pickVideo()` wraps `expo-image-picker.launchCameraAsync` with the Videos media type + 5-min cap (per plan §5.4), `lib/fieldMedia.ts` `useAttachVideo` mirrors the photo + voice pattern (INSERT field_media row with `media_type='video'`, enqueue upload to `starr-field-videos` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup which goes to Camera Roll). "📹 Record video" button on the photos screen footer. Admin `/admin/field-data/[id]` renders native `<video controls>` with mp4 + quicktime fallback `<source>` tags, duration in mm:ss, download link. **Pending:** server-side thumbnail extraction (FFmpeg via worker) so the gallery thumbnail isn't a placeholder; WiFi-only original-quality re-upload tier per plan §5.4; mobile-side video gallery (currently captured via OS camera + surfaced on web admin only).
 - [x] Free-text notes + structured templates (offset, monument, hazard, correction) — `lib/fieldNotes.ts` (`useAddFieldNote` / `usePointNotes` / `useJobLevelNotes` / `useArchiveFieldNote` + `summariseStructuredPayload` + `parseStructuredPayload` helpers), per-template typed payload interfaces, body-summary derivation so the existing `/admin/notes` grep + future search-across-notes work without parsing JSON. Add-note screen at `/(tabs)/jobs/[id]/notes/new` accepts `?point_id=&template=` query params; in-app pill picker switches between Free-text / Offset shot / Monument found / Hazard / Correction with per-template form (typed inputs, choice pills for enums, severity colour-coding). Point detail screen (`(tabs)/jobs/[id]/points/[pointId].tsx`) gets a Notes section with reactive list + long-press archive + "+ Add note" button. Admin `/admin/field-data/[id]` surfaces attached notes with template tag, body, structured payload as a key/value table, author + age stamp, archived badge — `/api/admin/field-data/[id]` returns the parsed structured payload alongside the note row. Job-level note hook (`useJobLevelNotes`) is ready for a future job-detail surface.
 - [ ] Voice-to-text shortcut — bound to a hardware key for hands-free dictation. Need expo-speech-recognition or a Whisper-via-API path.
@@ -1029,21 +1029,21 @@ Resilience additions (same offline-first pattern as F2):
 **Exit:** Field documentation fully replaces paper notes. **Status:** voice memo + video capture + free-text/structured notes + admin viewers all shipped (Batches I + K + L). Voice transcription + voice-to-text shortcut + cross-notes search remain.
 
 ### Phase F5 — Files + CSV (Week 17–18)
-- [ ] File upload from device, cloud, web link
-- [ ] PDF / image / CSV preview
-- [ ] Pin-to-device for offline access
-- [ ] CSV parser (P,N,E,Z,D and variants)
-- [ ] Auto-link CSV rows to phone-side data points by name
+- [x] File upload from device, cloud, web link — `seeds/226_starr_field_files.sql` lands the `job_files` table + `starr-field-files` storage bucket (100 MB cap, per-user-folder RLS). `lib/jobFiles.ts` `usePickAndAttachFile` opens `expo-document-picker` (handles iCloud + Google Drive providers via the OS picker), enforces the 100 MB cap, INSERTs row with `upload_state='pending'`, enqueues the bytes through `lib/uploadQueue.ts` (offline-first), and supports archive via `useDeleteJobFile`. "+ Attach file" button on the point detail screen.
+- [x] PDF / image / CSV preview — admin `/admin/field-data/[id]` Files block branches on MIME type: `image/*` renders inline at max-height 320 px; `application/pdf` mounts an `<iframe>` at 480 px tall; `text/csv` (or `.csv` extension) auto-fetches the signed URL + parses the first 50 rows into a scrollable table (comma OR tab separator detection + quoted-field handling). Everything else falls back to the Download link. Bookkeeper reviews most files without leaving the page.
+- [ ] Pin-to-device for offline access — files are kept on disk through the queue's `documentDirectory` copy until upload succeeds, then deleted. Persistent pin (re-download for re-read offline) is F5 polish.
+- [ ] CSV parser (P,N,E,Z,D and variants).
+- [ ] Auto-link CSV rows to phone-side data points by name.
 
-**Exit:** Raw survey data and reference docs at fingertips. **Status:** not started.
+**Exit:** Raw survey data and reference docs at fingertips. **Status:** capture + admin viewer shipped (Batch O); preview + parser + pin remain.
 
 ### Phase F6 — Location tracking + dispatcher view (Week 19–24)
-- [ ] One-time consent flow — permission rationale + privacy disclosure UI shown BEFORE the first OS permission prompt. The disclosure copy already exists on `/(tabs)/me/privacy`; consent modal that gates the first `Location.requestBackgroundPermissionsAsync()` call is pending.
+- [x] One-time consent flow — `lib/TrackingConsentModal.tsx` shows the privacy explainer (when / what / cadence / who sees / storage / OS indicators) BEFORE the OS Always-location prompt fires. `lib/trackingConsent.ts` persists the consent flag in AsyncStorage so the modal shows once per install (resetting via `resetTrackingConsent` after uninstall is the correct re-prompt path). Pick-job clock-in flow gates `useClockIn` behind the modal: tap "Continue" → persist consent + clock in (which then triggers the OS prompt for "Always" via `startBackgroundTracking`); tap "Skip tracking for now" → clock in WITHOUT background tracking (boundary pings still capture clock-in/out coordinates via `lib/location.ts`). The skip path leaves the flag unset so the explainer re-shows on the next clock-in.
 - [x] Background location with battery-conscious modes — `lib/locationTracker.ts` (high / balanced / low tiers based on battery %), `seeds/223_starr_field_location_pings.sql`, native config in `mobile/app.json` (UIBackgroundModes + ACCESS_BACKGROUND_LOCATION + foreground service). Cold-start reconciliation in `LocationTrackerReconciler` (app/_layout.tsx) recovers from phone-died-mid-shift.
-- [/] Stop detection — `seeds/224_starr_field_location_derivations.sql` lands `location_stops` + `location_segments` tables and a deterministic PL/pgSQL aggregator `derive_location_timeline(p_user_id, p_log_date)`. Algorithm (v1, no AI / no map-matching): cluster pings within 50 m for ≥5 min into stops, sum Haversine distances along intermediate pings into segments (with 200 km single-jump glitch guard, matching `/api/admin/mileage`). Idempotent — DELETEs prior derivations except `user_overridden` stops. Geofence + AI classification + reverse-geocoded place names deferred to v2.
+- [/] Stop detection — `seeds/224_starr_field_location_derivations.sql` lands `location_stops` + `location_segments` tables and a deterministic PL/pgSQL aggregator `derive_location_timeline(p_user_id, p_log_date)`. Algorithm (v1, no AI / no map-matching): cluster pings within 50 m for ≥5 min into stops, sum Haversine distances along intermediate pings into segments (with 200 km single-jump glitch guard, matching `/api/admin/mileage`). Idempotent — DELETEs prior derivations except `user_overridden` stops. **Geofence classifier shipped in Batch Q** (`seeds/227`): `derive_location_timeline` now joins `jobs.{centroid_lat, centroid_lon, geofence_radius_m}` and labels each stop with the matching job's name + `category_source='geofence'`. Cheap bounding-box prefilter (~5 km lat/lon delta) before the Haversine check keeps the per-stop cost bounded. Closest match wins for overlapping fences. AI classifier + reverse-geocoded place names still deferred to v2 polish.
 - [x] Daily timeline view (employee + admin) — admin: `/admin/timeline?user=&date=` reads the derived stops/segments and renders a stop → segment → stop timeline with per-stop time window, duration, Maps deep-link, optional category/place name, links to job + field-data. "Recompute" button POSTs to derive on-demand for fresh pings. APIs: `GET /api/admin/timeline` reads, `POST /api/admin/timeline` re-derives. Sidebar entry under Work group + per-card Timeline link from `/admin/team`. Employee: `(tabs)/me/privacy.tsx` surfaces the same stops/segments alongside the raw pings via `useOwnStopsForDate` / `useOwnSegmentsForDate` / `useOwnTimelineSummary` (PowerSync-backed). Three-stat summary card (stops · miles · stationary) matches the dispatcher's totals so surveyors see exactly what the office sees.
 - [x] Mileage log generation (IRS-format export) — `GET /api/admin/mileage?from=&to=&user_email=&format=json|csv`. Server-side Haversine sum across consecutive pings per `(user, UTC date)` with a 200 km / single-jump glitch guard; CSV download for QuickBooks / tax import. Admin UI at `/admin/mileage` with date-range picker, per-user grouping, per-employee subtotals + download. Per-user drill-down link from each `/admin/team` card.
-- [x] Vehicle assignment + driver/passenger — `seeds/225_starr_field_vehicles.sql` lands the `vehicles` table that's been declared in the mobile schema since seeds/220 + wires the FK from `job_time_entries.vehicle_id` (existing column) and `location_segments.vehicle_id` (added by seeds/224). `/admin/vehicles` page provides full CRUD (add / edit / archive / reactivate; soft-archive preserves historical refs). Mobile vehicle picker on the clock-in `pick-job` modal with optional vehicle pill row + "I'm driving" toggle (defaults true since most clock-ins are the driver themselves; passengers explicitly flip it off so mileage attribution stays clean for IRS). `useClockIn` accepts `vehicleId` + `isDriver`; persists to `job_time_entries.vehicle_id` + `is_driver`. `lib/vehicles.ts` `useVehicles` + `useVehicle` hooks back the picker. Per-vehicle mileage breakdown on `/admin/mileage` deferred to a follow-on (the data is in place; UI swap is a small change).
+- [x] Vehicle assignment + driver/passenger — `seeds/225_starr_field_vehicles.sql` lands the `vehicles` table that's been declared in the mobile schema since seeds/220 + wires the FK from `job_time_entries.vehicle_id` (existing column) and `location_segments.vehicle_id` (added by seeds/224). `/admin/vehicles` page provides full CRUD (add / edit / archive / reactivate; soft-archive preserves historical refs). Mobile vehicle picker on the clock-in `pick-job` modal with optional vehicle pill row + "I'm driving" toggle (defaults true since most clock-ins are the driver themselves; passengers explicitly flip it off so mileage attribution stays clean for IRS). `useClockIn` accepts `vehicleId` + `isDriver`; persists to `job_time_entries.vehicle_id` + `is_driver`. `lib/vehicles.ts` `useVehicles` + `useVehicle` hooks back the picker. **Per-vehicle mileage breakdown** on `/admin/mileage` shipped (Batch P): each (user, date) row expands to per-vehicle subtotals with driver / passenger badges so bookkeepers see "Jacob drove Truck 3 for 28 mi AND rode passenger in Truck 1 for 12 mi" — only the driver miles are IRS-deductible. CSV export gains `vehicle_id` / `vehicle_name` / `is_driver` columns for QuickBooks pivots.
 - [x] Dispatcher live map (web app, partial) — `/admin/team` shows last-known GPS + battery + staleness, with Google-Maps deep-link per card. Full live map (continuous trace, polling) pending.
 - [ ] Day-replay scrubber (web app) — depends on the worker-derived segments above.
 - [ ] Missing-receipt cross-reference prompts — should compare clocked-in geofences against receipt timestamps and prompt "you spent 12 min at a gas station yesterday but no receipt was logged." Worker job + mobile inbox notification.
@@ -1197,6 +1197,246 @@ under one phase.
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
 
+**Batch R — voice transcription via OpenAI Whisper (F4 closer)**
+
+Closes the last F4 plan deliverable — voice memos are now searchable
+for the office. Mirrors the receipts-extraction worker pattern so
+deployment / monitoring / retries are uniform.
+
+Schema (seeds/228_starr_field_voice_transcription.sql):
+- ALTER TABLE field_media adds five columns:
+  `transcription_status` (queued/running/done/failed),
+  `transcription_error`, `transcription_started_at`,
+  `transcription_completed_at`, `transcription_cost_cents`.
+  Idempotent via ADD COLUMN IF NOT EXISTS + DO blocks for the
+  CHECK constraint.
+- Two partial indexes:
+  `idx_field_media_transcription_queued` on `(created_at ASC) WHERE
+  media_type='voice' AND upload_state='done' AND
+  transcription_status='queued'` for the worker poll.
+  `idx_field_media_transcription_running` on
+  `transcription_started_at WHERE transcription_status='running'`
+  for the watchdog sweep.
+
+Mobile capture (lib/fieldMedia.ts useAttachVoice):
+- Voice INSERT now sets `transcription_status='queued'` so the
+  worker picks the row up the moment `upload_state='done'`.
+  No other capture-flow change.
+
+Worker (worker/src/services/voice-transcription.ts):
+- `processVoiceTranscriptionBatch(supabase, { batchSize?, logger? })`
+  fetches up to `batchSize` queued rows, race-safe `claimRow` flips
+  to `'running'`, fetches the M4A via signed URL, calls Whisper-1
+  (English hint) via the OpenAI SDK, writes the transcript +
+  cost in cents back to `field_media`. Failures land as
+  `transcription_status='failed'` with truncated `transcription_error`.
+- Hard caps: skip rows over 10 min duration (mark failed —
+  surveyors record short field memos; longer is usually an
+  accidentally-left-on recording). The Whisper API supports up
+  to 25 MB but quality + cost don't justify the long-tail use case.
+- Watchdog: rows stuck in `'running'` past 5 min get re-queued at
+  the start of the next batch. Crashed worker → max 5 min stuck.
+- Cost: Whisper $0.006/min ($0.0001/sec). Per-row spend lands in
+  `transcription_cost_cents`. v1 doesn't integrate with the global
+  ai-usage-tracker (its service enum is closed; v2 polish extends
+  it to include 'whisper-transcribe').
+- Logging: every step (claim / fetch / Whisper call / write-back /
+  watchdog sweep) emits a structured log line via the project's
+  ProcessLogger pattern so Sentry sees breadcrumbs.
+
+CLI + endpoint:
+- `worker/src/cli/transcribe-voice.ts` mirrors extract-receipts
+  (one-shot OR --watch loop with 60s polling). Always emits a
+  summary line so a healthy idle worker is distinguishable from
+  a stuck cron job.
+- `npm run transcribe-voice -- --watch` for cron / pm2 / systemd.
+- `POST /starr-field/voice/transcribe` (auth-gated) for on-demand
+  triggers + retry-this-one. Body: `{ batchSize?, mediaId? }` —
+  `mediaId` flips a single failed row back to queued before
+  running the batch.
+
+Admin viewer (/admin/field-data/[id]):
+- Voice cards now show a transcription status badge (⏳ queued /
+  🎧 transcribing / ✓ done / ⚠ failed) above the existing
+  transcript text block. Failed rows show the truncated error
+  inline so the bookkeeper can spot pattern issues (rate-limited,
+  malformed audio, etc.).
+
+Activation gates:
+- Apply seeds/228 to live Supabase before the worker starts
+  polling (the worker's UPDATE would 4xx without the new
+  columns).
+- Set `OPENAI_API_KEY` on the worker before enabling. The CLI +
+  endpoint short-circuit + log a warn breadcrumb when the key
+  is missing rather than dropping rows.
+
+**Batch Q — geofence classifier (stop-detection v2 phase 1)**
+
+- `seeds/227_starr_field_geofence_classifier.sql` — `CREATE OR
+  REPLACE FUNCTION` that adds the geofence pass to
+  `derive_location_timeline`. After clustering pings into stops,
+  each stop centroid is checked against every job whose
+  `centroid_lat / centroid_lon / geofence_radius_m` are populated.
+  Bounding-box prefilter (~5 km lat/lon delta) keeps the work
+  bounded; the closest job within radius wins. Match writes
+  `category=jobs.name`, `category_source='geofence'`,
+  `job_id=jobs.id` (overrides the time-entry's job_id since
+  bookkeepers care about WHICH SITE the crew was at, not which
+  time-entry happened to be open).
+- v1 protections preserved: `user_overridden=true` stops are never
+  touched; idempotent via DELETE-then-INSERT pattern; same Haversine
+  glitch guards.
+- `PATCH /api/admin/jobs/[id]/geofence` accepts
+  `{ centroid_lat, centroid_lon, geofence_radius_m? }` and writes
+  the three columns on the jobs row. Validates lat / lon bounds +
+  radius (25–5000 m). Default radius 200 m when omitted.
+- `/admin/timeline` Stop card adds "📍 Set as job site →" button
+  when the stop is linked to a job AND not already classified by a
+  geofence. One tap captures the stop's centroid + 200 m radius
+  onto the job. Future stops at that location auto-classify on the
+  next Recompute. Confirms with `confirm()` before writing.
+- The "magic moment" loop: surveyor visits a job → phone tracks
+  pings → admin Recomputes → unclassified stop appears at the new
+  site → admin clicks "Set as job site" → next Recompute labels
+  every stop there with the job's name. Works for jobs that were
+  never set up with an address, or where the address geocode is
+  off.
+
+**Batch P — three closer items (consent + per-vehicle mileage + inline file preview)**
+
+Three small closer items, no native deps, that finish open loops
+from earlier batches.
+
+Tracking-consent modal (closes F6 #consent-flow):
+- `lib/trackingConsent.ts` — AsyncStorage-backed flag with cached
+  read, `setTrackingConsent` / `resetTrackingConsent` helpers.
+- `lib/TrackingConsentModal.tsx` — full-screen page-sheet modal
+  with the same disclosure block surveyors see on
+  `(tabs)/me/privacy` (when / what / cadence / who sees /
+  storage / OS indicators) plus a "your phone OS will ask next"
+  callout setting expectations for the system dialog.
+- Pick-job clock-in flow gates `useClockIn` behind the modal:
+  Continue → persist consent + clock in (which then triggers the
+  OS Always-location prompt via `startBackgroundTracking`); Skip
+  → clock in WITHOUT background tracking. Skip leaves the flag
+  unset so the explainer re-shows on the next clock-in. The
+  modal shows once per install — re-prompt on uninstall is the
+  correct behaviour for a privacy disclosure.
+
+Per-vehicle mileage breakdown (closes F6 polish deferral):
+- `/api/admin/mileage` now joins `location_pings.job_time_entry_id`
+  → `job_time_entries.{vehicle_id, is_driver}` → `vehicles.name`
+  in two follow-up bulk queries. New `VehicleSubtotal` shape
+  attached to each `MileageDayRow.by_vehicle[]`.
+- Sub-rows render under each (user, date) row on `/admin/mileage`
+  with Driver / Passenger pills (Driver in accent blue;
+  Passenger in muted grey). IRS attribution becomes scannable —
+  bookkeepers see who actually drove what for how many miles.
+- CSV export gains three columns (`vehicle_id`, `vehicle_name`,
+  `is_driver`) so QuickBooks pivots can slice by vehicle.
+
+Inline file preview on admin (closes F5 polish deferral):
+- `FileCardItem` on `/admin/field-data/[id]` branches on MIME:
+  - `image/*` → inline `<img>` at max-height 320 px
+  - `application/pdf` → `<iframe>` at 480 px tall
+  - `text/csv` (or `.csv` extension) → fetches the signed URL
+    and renders the first 50 rows as a scrollable table. Tiny
+    pure-JS CSV parser handles comma OR tab separators with
+    quoted-field escapes; "(Preview limited to 50 rows…)"
+    footer when truncated.
+- Everything else falls back to the Download link. Bookkeeper
+  reviews most files without leaving the page.
+
+**Batch O — device-access audit + photo annotation + F5 files + offline-first verification**
+
+This batch responds to the user's directive: *"Make sure that we
+can actually get access to the tablet/phone camera within the app
+whether it is apple or android or other OS. Make sure it asks for
+permissions and all of that. Make sure it can get access to the
+camera roll. Make sure we can upload audio and videos and pictures
+and files to job or specific points in a job. Make sure the proper
+user prompts are in place for all of this. Make sure we have proper
+logging and error handling. Make sure the app really can work as a
+stand alone app whenever internet is down."*
+
+Permissions audit + fixes (`mobile/app.json`):
+- Added `NSMicrophoneUsageDescription` (voice + video recording
+  would have failed on iOS without this).
+- Added `NSPhotoLibraryAddUsageDescription` (MediaLibrary
+  device-Photos backup would have silently failed on iOS 14+).
+- Added Android 13+ media perms: `READ_MEDIA_IMAGES` /
+  `READ_MEDIA_VIDEO` / `READ_MEDIA_AUDIO`. Added explicit
+  `CAMERA`, `RECORD_AUDIO`, `READ_EXTERNAL_STORAGE`,
+  `WRITE_EXTERNAL_STORAGE`, `VIBRATE` (the existing list relied
+  on plugin auto-injection; explicit is safer for production).
+- Added expo-av plugin entry (microphone permission) +
+  expo-media-library plugin entry (savePhotosPermission +
+  isAccessMediaLocationEnabled) + expo-document-picker plugin
+  entry (iCloud container).
+- expo-image-picker plugin entry now also declares
+  `microphonePermission` (video capture).
+
+`mobile/lib/permissionGuard.ts` extended:
+- Added `'microphone'` and `'mediaLibraryAdd'` permission kinds with
+  per-kind copy + Settings deep-link.
+- `isPermissionDeniedError` now detects "Microphone permission
+  denied." + "Media library permission denied." so caller screens
+  branch into the Settings prompt instead of a generic alert.
+- `lib/voiceRecorder.ts` `startRecording` throws the exact phrase
+  that `isPermissionDeniedError` matches.
+
+Photo annotation (F3 #6 closer):
+- `react-native-svg` + `lib/PhotoAnnotator.tsx` (full-screen
+  editor: 4 colours, freehand pen, undo + clear + save). Original
+  bytes never modified per plan §5.4 — annotations live in
+  `field_media.annotations` JSON, rendered live as SVG overlay.
+- Coordinates normalised 0..1 over image so strokes render
+  identically on phone / tablet / web admin lightbox.
+- `lib/photoAnnotation.ts` data model + `useUpdateMediaAnnotations`
+  PowerSync hook.
+- `PhotoLightbox` shows existing annotations + "Annotate" /
+  "Edit annotations" entry button. Computes the contained-image
+  rect so strokes plot on the photo, not the letterbox bars.
+- Web admin `/admin/field-data/[id]` Lightbox renders the same
+  SVG overlay using the shared `lib/photoAnnotationRenderer.ts`
+  helpers (pure functions — no React Native dep in the Next
+  build).
+- API `/api/admin/field-data/[id]` now returns
+  `field_media.annotations` alongside the signed URLs.
+
+F5 files capture (Batch O):
+- `seeds/226_starr_field_files.sql` adds the `job_files` table
+  (lifecycle + content metadata + `upload_state` enum mirroring
+  field_media), `starr-field-files` bucket (100 MB cap, no MIME
+  restriction so PDF / CSV / DXF / DWG / TXT all flow), per-user-
+  folder storage RLS, owner CRUD on the row + storage object.
+- `mobile/lib/jobFiles.ts` `usePickAndAttachFile` — opens
+  `expo-document-picker` (handles iCloud + Google Drive providers
+  via the OS picker), defensive size probe, hard-fail at 100 MB,
+  INSERT row → enqueue upload, sanitised storage path.
+- `lib/uploadQueue.ts` `ParentTable` extended with `'job_files'`;
+  upload-state flips on success / failure / discard mirror the
+  field_media branch.
+- "+ Attach file" button on the point detail screen with a Files
+  list (per-row state badge + long-press delete confirm).
+- Admin `/admin/field-data/[id]` gets a Files block above Photos
+  with per-file metadata + Download link via signed URL.
+
+Offline-first verification:
+- Audited every capture path (`receipts.ts`, `fieldMedia.ts` ×3
+  for photo / voice / video, `fieldNotes.ts`, `jobFiles.ts`):
+  every flow INSERTs the parent row FIRST then enqueues bytes
+  via `enqueueAndAttempt`. Row visible in the gallery / list the
+  moment of capture; bytes upload when reception returns. Queue
+  persists to `FileSystem.documentDirectory` and survives app
+  kills + reboots.
+- Notes (text-only) skip the byte queue — PowerSync's CRUD queue
+  handles the small JSON payload directly.
+
+Activation gate: apply `seeds/226_starr_field_files.sql` to live
+Supabase before the file picker ships. PowerSync sync-rule snippet
+adds `job_files` (last 90 days, scoped by `created_by`).
+
 **Batch N — mobile timeline reader (F6 employee timeline)**
 - [x] `lib/locationTracker.ts` — `useOwnStopsForDate(offset)` /
       `useOwnSegmentsForDate(offset)` reactive hooks scoped to the
@@ -1248,8 +1488,8 @@ under one phase.
       `isDriver?` opt-in params; `is_driver` coerced to 0/1 for
       SQLite, null when no vehicle picked.
 - Deliberate non-features (deferred to F6 polish):
-  - Per-vehicle mileage breakdown on `/admin/mileage` (data is in
-    place via segments.vehicle_id; UI swap is small).
+  - Per-vehicle mileage breakdown on `/admin/mileage` — **shipped
+    in Batch P** (data + UI + CSV columns).
   - Default-vehicle preference per surveyor (so the next clock-in
     pre-picks the truck they used yesterday).
   - In-vehicle status indicator on the active-clock-in card so the
@@ -1490,6 +1730,25 @@ under one phase.
    `job_time_entries.vehicle_id` and `location_segments.vehicle_id`.
    Office must seed the fleet via `/admin/vehicles` before the
    picker is meaningful.
+7. `seeds/226_starr_field_files.sql` — before the mobile file picker
+   ships. Adds the `job_files` table + `starr-field-files` storage
+   bucket (100 MB cap, per-user-folder RLS) + owner CRUD policies.
+   Powers `lib/jobFiles.ts` `usePickAndAttachFile` and the Files
+   block on `/admin/field-data/[id]`.
+8. `seeds/227_starr_field_geofence_classifier.sql` — `CREATE OR
+   REPLACE FUNCTION` that adds geofence-based stop classification
+   to `derive_location_timeline`. Idempotent — safe to re-apply.
+   Apply AFTER seeds/224. Once applied, dispatchers use the "📍
+   Set as job site" button on `/admin/timeline` to capture each
+   job's geofence from any real stop centroid; future stops there
+   auto-classify on the next Recompute.
+9. `seeds/228_starr_field_voice_transcription.sql` — adds the
+   five `transcription_*` tracking columns to `field_media` plus
+   two partial indexes for the Whisper worker poll + watchdog.
+   Apply AFTER seeds/221. Set `OPENAI_API_KEY` on the worker
+   before enabling. The mobile UI continues to function without
+   transcription (the columns are nullable + the existing flow
+   doesn't read them).
 
 PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
 - `notifications` — scoped by `target_user_id` OR case-insensitive
@@ -1498,13 +1757,14 @@ PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
   SQLite bounded; older pings live server-side for F6 reports).
 
 **Pending in the resilience track:**
-- One-time consent modal that gates the first
-  `requestBackgroundPermissionsAsync()` call (currently the OS prompt
-  is the only consent surface; the disclosure copy already lives at
-  `/(tabs)/me/privacy`).
-- Voice memo on-device transcription (`field_media.transcription`
-  column already populated by the recorder when available; needs an
-  expo-speech-recognition wiring or a server-side Whisper job).
+- (Consent modal shipped in Batch P — `lib/TrackingConsentModal.tsx`
+  gates the first `requestBackgroundPermissionsAsync()` call.)
+- (Voice transcription shipped in Batch R via OpenAI Whisper
+  worker — `worker/src/services/voice-transcription.ts`. On-device
+  transcription via `expo-speech-recognition` for Apple's
+  on-device dictation API still pending if low-latency
+  hands-free dictation is needed; server-side Whisper covers the
+  searchable-archive use case.)
 - Video polish: server-side FFmpeg thumbnail extraction (so the
   gallery list shows a real thumb rather than a placeholder) +
   WiFi-only original-quality re-upload tier per plan §5.4 + a

@@ -363,8 +363,9 @@ export function useAttachVoice(): (
                duration_seconds, file_size_bytes,
                device_lat, device_lon, device_compass_heading,
                captured_at, uploaded_at,
-               created_by, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               created_by, created_at,
+               transcription_status
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               mediaId,
               jobId,
@@ -386,6 +387,10 @@ export function useAttachVoice(): (
               nowIso,
               userId,
               nowIso,
+              // Mark queued so the worker (worker/src/services/
+              // voice-transcription.ts) picks it up after upload
+              // completes.
+              'queued',
             ]
           );
         });
@@ -712,6 +717,50 @@ export function useJobLevelMedia(
     media: data ?? [],
     isLoading: !!jobId && isLoading,
   };
+}
+
+// ── Annotation save ───────────────────────────────────────────────────────
+
+/**
+ * Persist a JSON annotation document onto a `field_media` row.
+ * Original `storage_url` / `original_url` stay untouched per plan
+ * §5.4 — the overlay is rendered LIVE from `annotations` JSON on
+ * both mobile + admin, no flattened PNG re-upload.
+ *
+ * Idempotent — re-saving the same payload is harmless. Mobile
+ * RLS allows owner UPDATE on the row (creator only).
+ */
+export function useUpdateMediaAnnotations(): (
+  mediaId: string,
+  annotationsJson: string | null
+) => Promise<void> {
+  const db = usePowerSync();
+
+  return useCallback(
+    async (mediaId, annotationsJson) => {
+      try {
+        await db.execute(
+          `UPDATE field_media
+              SET annotations = ?
+            WHERE id = ?`,
+          [annotationsJson, mediaId]
+        );
+        logInfo('fieldMedia.updateAnnotations', 'saved', {
+          media_id: mediaId,
+          length: annotationsJson?.length ?? 0,
+        });
+      } catch (err) {
+        logError(
+          'fieldMedia.updateAnnotations',
+          'save failed',
+          err,
+          { media_id: mediaId }
+        );
+        throw err;
+      }
+    },
+    [db]
+  );
 }
 
 /**
