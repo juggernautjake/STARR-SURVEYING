@@ -3,9 +3,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+
+import {
+  parseAnnotations,
+  strokeToPath,
+  strokeWidthPx,
+} from '@/lib/photoAnnotationRenderer';
 
 interface PointRow {
   id: string;
@@ -46,6 +52,10 @@ interface MediaRow {
   thumbnail_signed_url: string | null;
   original_signed_url: string | null;
   annotated_signed_url: string | null;
+  /** TEXT-encoded JSON document of pen-stroke annotations from the
+   *  mobile annotator. Rendered as an SVG overlay on the photo +
+   *  inside the lightbox; original photo bytes never modified. */
+  annotations: string | null;
 }
 
 interface NoteRow {
@@ -60,10 +70,24 @@ interface NoteRow {
   voice_transcript_media_id: string | null;
 }
 
+interface FileRow {
+  id: string;
+  name: string;
+  description: string | null;
+  storage_path: string;
+  signed_url: string | null;
+  content_type: string | null;
+  file_size_bytes: number | null;
+  upload_state: string | null;
+  created_at: string;
+  uploaded_at: string | null;
+}
+
 interface DetailResponse {
   point: PointRow;
   media: MediaRow[];
   notes: NoteRow[];
+  files: FileRow[];
 }
 
 const NOTE_TEMPLATE_LABELS: Record<string, string> = {
@@ -95,7 +119,12 @@ export default function FieldDataDetailPage() {
   const [data, setData] = useState<DetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  // Lightbox tracks the full media row (not just the URL) so the
+  // SVG annotation overlay can render alongside the image. Open via
+  // the photo card's tap; close via tap on the backdrop.
+  const [lightboxMedia, setLightboxMedia] = useState<MediaRow | null>(
+    null
+  );
 
   const fetchDetail = useCallback(async () => {
     if (!session?.user?.email || !id) return;
@@ -249,6 +278,20 @@ export default function FieldDataDetailPage() {
       )}
 
       <h2 style={styles.h2}>
+        Files{' '}
+        {data.files.length > 0 ? `(${data.files.length})` : ''}
+      </h2>
+      {data.files.length === 0 ? (
+        <div style={styles.empty}>No files attached to this point.</div>
+      ) : (
+        <div style={styles.noteList}>
+          {data.files.map((f) => (
+            <FileCardItem key={f.id} file={f} />
+          ))}
+        </div>
+      )}
+
+      <h2 style={styles.h2}>
         Photos {media.length > 0 ? `(${media.length})` : ''}
       </h2>
       {media.length === 0 ? (
@@ -259,35 +302,17 @@ export default function FieldDataDetailPage() {
             <PhotoCard
               key={m.id}
               media={m}
-              onOpenLightbox={(url) => setLightboxUrl(url)}
+              onOpenLightbox={() => setLightboxMedia(m)}
             />
           ))}
         </div>
       )}
 
-      {lightboxUrl ? (
-        <div
-          style={styles.lightboxWrap}
-          onClick={() => setLightboxUrl(null)}
-          role="dialog"
-          aria-modal="true"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={lightboxUrl}
-            alt=""
-            style={styles.lightboxImg}
-            onClick={(e) => e.stopPropagation()}
-          />
-          <button
-            type="button"
-            style={styles.lightboxClose}
-            onClick={() => setLightboxUrl(null)}
-            aria-label="Close lightbox"
-          >
-            ×
-          </button>
-        </div>
+      {lightboxMedia ? (
+        <Lightbox
+          media={lightboxMedia}
+          onDismiss={() => setLightboxMedia(null)}
+        />
       ) : null}
     </div>
   );
@@ -355,12 +380,240 @@ function NoteCardItem({ note }: { note: NoteRow }) {
   );
 }
 
+/**
+ * Full-screen photo viewer with annotation overlay. The SVG layer
+ * sits ON TOP of the contained image rect (not the whole modal —
+ * resizeMode=contain leaves letterbox bars on the long axis). The
+ * overlay re-measures via natural-size + container-size on each
+ * load so rotations + window resizes plot strokes correctly.
+ *
+ * Original photo bytes are NEVER modified (plan §5.4); the
+ * overlay is rendered live from the JSON in
+ * `field_media.annotations`.
+ */
+function Lightbox({
+  media,
+  onDismiss,
+}: {
+  media: MediaRow;
+  onDismiss: () => void;
+}) {
+  const url =
+    media.original_signed_url ??
+    media.storage_signed_url ??
+    media.thumbnail_signed_url;
+  const annotationDoc = useMemo(
+    () => parseAnnotations(media.annotations),
+    [media.annotations]
+  );
+
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerSize, setContainerSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const [naturalSize, setNaturalSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+
+  // Track the container size so the overlay rect updates on resize.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const update = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      setContainerSize({
+        width: el.clientWidth,
+        height: el.clientHeight,
+      });
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  // Compute the rect the photo actually occupies inside its
+  // container when object-fit: contain is in effect.
+  const overlayRect = useMemo(() => {
+    if (!naturalSize || !containerSize) return null;
+    const imgRatio = naturalSize.width / naturalSize.height;
+    const contRatio = containerSize.width / containerSize.height;
+    let drawW: number;
+    let drawH: number;
+    if (imgRatio > contRatio) {
+      drawW = containerSize.width;
+      drawH = containerSize.width / imgRatio;
+    } else {
+      drawW = containerSize.height * imgRatio;
+      drawH = containerSize.height;
+    }
+    return {
+      width: drawW,
+      height: drawH,
+      left: (containerSize.width - drawW) / 2,
+      top: (containerSize.height - drawH) / 2,
+    };
+  }, [naturalSize, containerSize]);
+
+  return (
+    <div
+      style={styles.lightboxWrap}
+      onClick={onDismiss}
+      role="dialog"
+      aria-modal="true"
+      ref={containerRef}
+    >
+      {url ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            alt=""
+            style={styles.lightboxImg}
+            onClick={(e) => e.stopPropagation()}
+            onLoad={(e) => {
+              const t = e.target as HTMLImageElement;
+              setNaturalSize({
+                width: t.naturalWidth,
+                height: t.naturalHeight,
+              });
+            }}
+          />
+          {/* SVG annotation overlay positioned on top of the image's
+              actual rect (not the whole container — letterbox bars
+              would otherwise render strokes off-image). */}
+          {annotationDoc && overlayRect ? (
+            <svg
+              width={overlayRect.width}
+              height={overlayRect.height}
+              style={{
+                position: 'absolute',
+                top: overlayRect.top,
+                left: overlayRect.left,
+                pointerEvents: 'none',
+              }}
+            >
+              {annotationDoc.items.map((item, i) => {
+                if (item.type !== 'pen') return null;
+                return (
+                  <path
+                    key={i}
+                    d={strokeToPath(
+                      item,
+                      overlayRect.width,
+                      overlayRect.height
+                    )}
+                    stroke={item.color}
+                    strokeWidth={strokeWidthPx(
+                      item.width,
+                      overlayRect.width,
+                      overlayRect.height
+                    )}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                  />
+                );
+              })}
+            </svg>
+          ) : null}
+        </>
+      ) : null}
+      <button
+        type="button"
+        style={styles.lightboxClose}
+        onClick={onDismiss}
+        aria-label="Close lightbox"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+/**
+ * One-row card for a generic file attachment. Shows filename,
+ * description, MIME, size, upload state, and a "Download" link
+ * to the signed URL. PDF / image / CSV all go through the
+ * download path — inline previewers are F5 polish.
+ */
+function FileCardItem({ file }: { file: FileRow }) {
+  const created = new Date(file.created_at);
+  const ageLabel = Number.isFinite(created.getTime())
+    ? created.toLocaleString()
+    : '';
+  const sizeLabel =
+    file.file_size_bytes != null
+      ? formatBytes(file.file_size_bytes)
+      : null;
+  const stateColor =
+    file.upload_state === 'failed'
+      ? '#B42318'
+      : file.upload_state === 'done'
+        ? '#067647'
+        : '#D97706';
+  return (
+    <article style={styles.noteCard}>
+      <header style={styles.noteHeader}>
+        <span style={styles.noteTemplate}>📎 File</span>
+        <span style={styles.noteMeta}>{ageLabel}</span>
+      </header>
+      <p style={styles.noteBody}>{file.name || '(unnamed)'}</p>
+      {file.description ? (
+        <p style={{ ...styles.noteBody, fontSize: 12, color: '#4B5563' }}>
+          {file.description}
+        </p>
+      ) : null}
+      <div style={styles.notePayload}>
+        {file.content_type ? (
+          <div style={styles.notePayloadRow}>
+            <dt style={styles.notePayloadKey}>type</dt>
+            <dd style={styles.notePayloadVal}>{file.content_type}</dd>
+          </div>
+        ) : null}
+        {sizeLabel ? (
+          <div style={styles.notePayloadRow}>
+            <dt style={styles.notePayloadKey}>size</dt>
+            <dd style={styles.notePayloadVal}>{sizeLabel}</dd>
+          </div>
+        ) : null}
+        <div style={styles.notePayloadRow}>
+          <dt style={styles.notePayloadKey}>state</dt>
+          <dd style={{ ...styles.notePayloadVal, color: stateColor }}>
+            {file.upload_state ?? '—'}
+          </dd>
+        </div>
+      </div>
+      {file.signed_url ? (
+        <a
+          href={file.signed_url}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: 'inline-block',
+            marginTop: 8,
+            fontSize: 12,
+            color: '#1D3095',
+            textDecoration: 'none',
+          }}
+        >
+          Download →
+        </a>
+      ) : null}
+    </article>
+  );
+}
+
 function PhotoCard({
   media,
   onOpenLightbox,
 }: {
   media: MediaRow;
-  onOpenLightbox: (url: string) => void;
+  /** Caller is the page; it sets `lightboxMedia` to the full row so
+   *  the lightbox can render the SVG annotation overlay alongside
+   *  the image without a re-fetch. */
+  onOpenLightbox: () => void;
 }) {
   // Video uses the native <video controls> element. Single-tier in
   // v1 (no thumbnail extraction yet); poster falls back to the
@@ -530,7 +783,7 @@ function PhotoCard({
         <button
           type="button"
           style={styles.photoBtn}
-          onClick={() => displayUrl && onOpenLightbox(displayUrl)}
+          onClick={() => displayUrl && onOpenLightbox()}
           aria-label="Open photo"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}

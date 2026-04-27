@@ -714,6 +714,50 @@ export function useJobLevelMedia(
   };
 }
 
+// ── Annotation save ───────────────────────────────────────────────────────
+
+/**
+ * Persist a JSON annotation document onto a `field_media` row.
+ * Original `storage_url` / `original_url` stay untouched per plan
+ * §5.4 — the overlay is rendered LIVE from `annotations` JSON on
+ * both mobile + admin, no flattened PNG re-upload.
+ *
+ * Idempotent — re-saving the same payload is harmless. Mobile
+ * RLS allows owner UPDATE on the row (creator only).
+ */
+export function useUpdateMediaAnnotations(): (
+  mediaId: string,
+  annotationsJson: string | null
+) => Promise<void> {
+  const db = usePowerSync();
+
+  return useCallback(
+    async (mediaId, annotationsJson) => {
+      try {
+        await db.execute(
+          `UPDATE field_media
+              SET annotations = ?
+            WHERE id = ?`,
+          [annotationsJson, mediaId]
+        );
+        logInfo('fieldMedia.updateAnnotations', 'saved', {
+          media_id: mediaId,
+          length: annotationsJson?.length ?? 0,
+        });
+      } catch (err) {
+        logError(
+          'fieldMedia.updateAnnotations',
+          'save failed',
+          err,
+          { media_id: mediaId }
+        );
+        throw err;
+      }
+    },
+    [db]
+  );
+}
+
 /**
  * Delete an attached photo. Owner-scoped — RLS allows only the
  * creator to delete (within 24 h per the seed policy). Storage

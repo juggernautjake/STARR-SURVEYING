@@ -44,7 +44,7 @@ const MAX_RETRIES = 8;
  *  ~10 min later if the queue ever got there. */
 const BACKOFF_MS = [5_000, 10_000, 20_000, 40_000, 80_000, 160_000, 300_000, 300_000];
 
-type ParentTable = 'receipts' | 'field_media';
+type ParentTable = 'receipts' | 'field_media' | 'job_files';
 
 export interface EnqueueOptions {
   parentTable: ParentTable;
@@ -295,6 +295,19 @@ async function markSuccess(
         parent_id: args.parentId,
       });
     }
+  } else if (args.parentTable === 'job_files') {
+    // job_files (F5) carries the same upload_state column convention.
+    try {
+      await db.execute(
+        `UPDATE job_files SET upload_state = 'done', uploaded_at = ? WHERE id = ?`,
+        [new Date().toISOString(), args.parentId]
+      );
+    } catch (err) {
+      logWarn('uploadQueue.markSuccess', 'parent flip failed', err, {
+        parent_table: args.parentTable,
+        parent_id: args.parentId,
+      });
+    }
   }
 
   // Delete the queue row + the local file. Both are best-effort —
@@ -341,6 +354,17 @@ async function markRetry(
     try {
       await db.execute(
         `UPDATE field_media SET upload_state = 'failed' WHERE id = ?`,
+        [args.parentId]
+      );
+    } catch (err) {
+      logWarn('uploadQueue.markRetry', 'parent fail-flip failed', err, {
+        parent_id: args.parentId,
+      });
+    }
+  } else if (nextRetry >= MAX_RETRIES && args.parentTable === 'job_files') {
+    try {
+      await db.execute(
+        `UPDATE job_files SET upload_state = 'failed' WHERE id = ?`,
         [args.parentId]
       );
     } catch (err) {
@@ -613,6 +637,17 @@ export async function discardUpload(
     try {
       await db.execute(
         `UPDATE field_media SET upload_state = 'failed' WHERE id = ?`,
+        [row.parent_id]
+      );
+    } catch (err) {
+      logWarn('uploadQueue.discard', 'parent fail-flip failed', err, {
+        pending_id: pendingId,
+      });
+    }
+  } else if (row?.parent_table === 'job_files') {
+    try {
+      await db.execute(
+        `UPDATE job_files SET upload_state = 'failed' WHERE id = ?`,
         [row.parent_id]
       );
     } catch (err) {

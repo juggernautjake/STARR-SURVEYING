@@ -1008,7 +1008,7 @@ Audit additions:
 - [x] Create data point with name from 179-code library — `lib/dataPoints.ts` + `lib/dataPointCodes.ts`. Capture flow at `(tabs)/capture/index.tsx` and per-point detail at `(tabs)/jobs/[id]/points/[pointId].tsx`.
 - [x] Camera capture, multi-photo — `lib/fieldMedia.ts` `useAttachPhoto`. Burst-grouping via `burst_group_id` ready in schema; UI for burst capture pending (F3 polish).
 - [/] Phone GPS / altitude metadata — captured in `useAttachPhoto`. Compass heading is **pending**: `expo-sensors` magnetometer not yet wired; the `device_compass_heading` column is left null pending integration.
-- [ ] Photo annotation (arrow, circle, text) — `field_media.annotated_url` + `annotations` JSONB columns reserved; UI not built. F3 #6 still in flight.
+- [/] Photo annotation — `lib/PhotoAnnotator.tsx` (full-screen react-native-svg editor with PanResponder freehand strokes, 4-colour palette, undo + clear + save) + `lib/photoAnnotation.ts` data model (z-ordered `AnnotationDocument` with normalised 0..1 coordinates so strokes render identically on phone / tablet / web admin) + `useUpdateMediaAnnotations` hook. Originals NEVER touched per plan §5.4 — overlay rendered live from JSON in `field_media.annotations`. PhotoLightbox shows existing strokes + has "Annotate" / "Edit annotations" entry button. Web admin `/admin/field-data/[id]` lightbox renders the same SVG overlay using the shared `lib/photoAnnotationRenderer.ts` helpers. **Pen tool only in v1**; arrow / circle / text primitives have schema slots reserved for v2.
 - [x] Job-level photo upload (no point assignment) — `attachPhoto({ dataPointId: null, jobId })` and the gallery at `(tabs)/capture/[pointId]/photos.tsx`.
 - [x] Office reviewer sees points + photos in web app — `/admin/field-data` list with date range + employee + job + free-text filters; per-point detail at `/admin/field-data/[id]` with full photo gallery (lightbox, signed URLs for storage / thumbnail / original / annotated tiers), creator info, GPS metadata + Maps deep-link, offset / correction flags, and a link back to the parent `/admin/jobs/[id]`. APIs at `/api/admin/field-data` (list with thumbnails) + `/api/admin/field-data/[id]` (full detail). Sidebar entry under Work group.
 
@@ -1029,13 +1029,13 @@ Resilience additions (same offline-first pattern as F2):
 **Exit:** Field documentation fully replaces paper notes. **Status:** voice memo + video capture + free-text/structured notes + admin viewers all shipped (Batches I + K + L). Voice transcription + voice-to-text shortcut + cross-notes search remain.
 
 ### Phase F5 — Files + CSV (Week 17–18)
-- [ ] File upload from device, cloud, web link
-- [ ] PDF / image / CSV preview
-- [ ] Pin-to-device for offline access
-- [ ] CSV parser (P,N,E,Z,D and variants)
-- [ ] Auto-link CSV rows to phone-side data points by name
+- [x] File upload from device, cloud, web link — `seeds/226_starr_field_files.sql` lands the `job_files` table + `starr-field-files` storage bucket (100 MB cap, per-user-folder RLS). `lib/jobFiles.ts` `usePickAndAttachFile` opens `expo-document-picker` (handles iCloud + Google Drive providers via the OS picker), enforces the 100 MB cap, INSERTs row with `upload_state='pending'`, enqueues the bytes through `lib/uploadQueue.ts` (offline-first), and supports archive via `useDeleteJobFile`. "+ Attach file" button on the point detail screen.
+- [/] PDF / image / CSV preview — admin `/admin/field-data/[id]` Files block shows MIME / size / upload-state + a Download link to the signed URL. Inline previewers (PDF render in-browser, CSV table) are F5 polish.
+- [ ] Pin-to-device for offline access — files are kept on disk through the queue's `documentDirectory` copy until upload succeeds, then deleted. Persistent pin (re-download for re-read offline) is F5 polish.
+- [ ] CSV parser (P,N,E,Z,D and variants).
+- [ ] Auto-link CSV rows to phone-side data points by name.
 
-**Exit:** Raw survey data and reference docs at fingertips. **Status:** not started.
+**Exit:** Raw survey data and reference docs at fingertips. **Status:** capture + admin viewer shipped (Batch O); preview + parser + pin remain.
 
 ### Phase F6 — Location tracking + dispatcher view (Week 19–24)
 - [ ] One-time consent flow — permission rationale + privacy disclosure UI shown BEFORE the first OS permission prompt. The disclosure copy already exists on `/(tabs)/me/privacy`; consent modal that gates the first `Location.requestBackgroundPermissionsAsync()` call is pending.
@@ -1196,6 +1196,96 @@ under one phase.
       mid-shift would silently break the "tracking-while-clocked-in"
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
+
+**Batch O — device-access audit + photo annotation + F5 files + offline-first verification**
+
+This batch responds to the user's directive: *"Make sure that we
+can actually get access to the tablet/phone camera within the app
+whether it is apple or android or other OS. Make sure it asks for
+permissions and all of that. Make sure it can get access to the
+camera roll. Make sure we can upload audio and videos and pictures
+and files to job or specific points in a job. Make sure the proper
+user prompts are in place for all of this. Make sure we have proper
+logging and error handling. Make sure the app really can work as a
+stand alone app whenever internet is down."*
+
+Permissions audit + fixes (`mobile/app.json`):
+- Added `NSMicrophoneUsageDescription` (voice + video recording
+  would have failed on iOS without this).
+- Added `NSPhotoLibraryAddUsageDescription` (MediaLibrary
+  device-Photos backup would have silently failed on iOS 14+).
+- Added Android 13+ media perms: `READ_MEDIA_IMAGES` /
+  `READ_MEDIA_VIDEO` / `READ_MEDIA_AUDIO`. Added explicit
+  `CAMERA`, `RECORD_AUDIO`, `READ_EXTERNAL_STORAGE`,
+  `WRITE_EXTERNAL_STORAGE`, `VIBRATE` (the existing list relied
+  on plugin auto-injection; explicit is safer for production).
+- Added expo-av plugin entry (microphone permission) +
+  expo-media-library plugin entry (savePhotosPermission +
+  isAccessMediaLocationEnabled) + expo-document-picker plugin
+  entry (iCloud container).
+- expo-image-picker plugin entry now also declares
+  `microphonePermission` (video capture).
+
+`mobile/lib/permissionGuard.ts` extended:
+- Added `'microphone'` and `'mediaLibraryAdd'` permission kinds with
+  per-kind copy + Settings deep-link.
+- `isPermissionDeniedError` now detects "Microphone permission
+  denied." + "Media library permission denied." so caller screens
+  branch into the Settings prompt instead of a generic alert.
+- `lib/voiceRecorder.ts` `startRecording` throws the exact phrase
+  that `isPermissionDeniedError` matches.
+
+Photo annotation (F3 #6 closer):
+- `react-native-svg` + `lib/PhotoAnnotator.tsx` (full-screen
+  editor: 4 colours, freehand pen, undo + clear + save). Original
+  bytes never modified per plan §5.4 — annotations live in
+  `field_media.annotations` JSON, rendered live as SVG overlay.
+- Coordinates normalised 0..1 over image so strokes render
+  identically on phone / tablet / web admin lightbox.
+- `lib/photoAnnotation.ts` data model + `useUpdateMediaAnnotations`
+  PowerSync hook.
+- `PhotoLightbox` shows existing annotations + "Annotate" /
+  "Edit annotations" entry button. Computes the contained-image
+  rect so strokes plot on the photo, not the letterbox bars.
+- Web admin `/admin/field-data/[id]` Lightbox renders the same
+  SVG overlay using the shared `lib/photoAnnotationRenderer.ts`
+  helpers (pure functions — no React Native dep in the Next
+  build).
+- API `/api/admin/field-data/[id]` now returns
+  `field_media.annotations` alongside the signed URLs.
+
+F5 files capture (Batch O):
+- `seeds/226_starr_field_files.sql` adds the `job_files` table
+  (lifecycle + content metadata + `upload_state` enum mirroring
+  field_media), `starr-field-files` bucket (100 MB cap, no MIME
+  restriction so PDF / CSV / DXF / DWG / TXT all flow), per-user-
+  folder storage RLS, owner CRUD on the row + storage object.
+- `mobile/lib/jobFiles.ts` `usePickAndAttachFile` — opens
+  `expo-document-picker` (handles iCloud + Google Drive providers
+  via the OS picker), defensive size probe, hard-fail at 100 MB,
+  INSERT row → enqueue upload, sanitised storage path.
+- `lib/uploadQueue.ts` `ParentTable` extended with `'job_files'`;
+  upload-state flips on success / failure / discard mirror the
+  field_media branch.
+- "+ Attach file" button on the point detail screen with a Files
+  list (per-row state badge + long-press delete confirm).
+- Admin `/admin/field-data/[id]` gets a Files block above Photos
+  with per-file metadata + Download link via signed URL.
+
+Offline-first verification:
+- Audited every capture path (`receipts.ts`, `fieldMedia.ts` ×3
+  for photo / voice / video, `fieldNotes.ts`, `jobFiles.ts`):
+  every flow INSERTs the parent row FIRST then enqueues bytes
+  via `enqueueAndAttempt`. Row visible in the gallery / list the
+  moment of capture; bytes upload when reception returns. Queue
+  persists to `FileSystem.documentDirectory` and survives app
+  kills + reboots.
+- Notes (text-only) skip the byte queue — PowerSync's CRUD queue
+  handles the small JSON payload directly.
+
+Activation gate: apply `seeds/226_starr_field_files.sql` to live
+Supabase before the file picker ships. PowerSync sync-rule snippet
+adds `job_files` (last 90 days, scoped by `created_by`).
 
 **Batch N — mobile timeline reader (F6 employee timeline)**
 - [x] `lib/locationTracker.ts` — `useOwnStopsForDate(offset)` /
@@ -1490,6 +1580,11 @@ under one phase.
    `job_time_entries.vehicle_id` and `location_segments.vehicle_id`.
    Office must seed the fleet via `/admin/vehicles` before the
    picker is meaningful.
+7. `seeds/226_starr_field_files.sql` — before the mobile file picker
+   ships. Adds the `job_files` table + `starr-field-files` storage
+   bucket (100 MB cap, per-user-folder RLS) + owner CRUD policies.
+   Powers `lib/jobFiles.ts` `usePickAndAttachFile` and the Files
+   block on `/admin/field-data/[id]`.
 
 PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
 - `notifications` — scoped by `target_user_id` OR case-insensitive

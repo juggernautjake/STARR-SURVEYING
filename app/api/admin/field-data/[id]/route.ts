@@ -12,6 +12,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 const PHOTO_BUCKET = 'starr-field-photos';
+const FILES_BUCKET = 'starr-field-files';
 const SIGNED_URL_TTL_SEC = 60 * 60;
 
 interface DataPointRow {
@@ -31,6 +32,21 @@ interface DataPointRow {
   created_by: string | null;
   created_at: string;
   updated_at: string | null;
+}
+
+export interface AdminJobFileRow {
+  id: string;
+  name: string;
+  description: string | null;
+  storage_path: string;
+  /** Signed URL (1 h TTL); null when sign failed. */
+  signed_url: string | null;
+  content_type: string | null;
+  file_size_bytes: number | null;
+  upload_state: string | null;
+  created_by: string | null;
+  created_at: string;
+  uploaded_at: string | null;
 }
 
 export interface AdminFieldNoteRow {
@@ -67,6 +83,12 @@ export interface AdminFieldMediaRow {
   thumbnail_signed_url: string | null;
   original_signed_url: string | null;
   annotated_signed_url: string | null;
+  /** TEXT-encoded JSON document of pen-stroke annotations the
+   *  surveyor drew on the photo via the mobile annotator. The web
+   *  admin renders these as an SVG overlay on top of the photo —
+   *  the original_signed_url image bytes are NEVER modified per
+   *  plan §5.4. Null when no annotations exist. */
+  annotations: string | null;
 }
 
 export const GET = withErrorHandler(
@@ -114,12 +136,13 @@ export const GET = withErrorHandler(
     }
     const point = pointRaw as DataPointRow;
 
-    // Annotate point with job + user + media + notes.
+    // Annotate point with job + user + media + notes + files.
     const [
       { data: jobRaw },
       { data: userRaw },
       { data: mediaRaw },
       { data: notesRaw },
+      { data: filesRaw },
     ] = await Promise.all([
       supabaseAdmin
         .from('jobs')
@@ -136,7 +159,7 @@ export const GET = withErrorHandler(
       supabaseAdmin
         .from('field_media')
         .select(
-          'id, media_type, burst_group_id, position, duration_seconds, file_size_bytes, device_lat, device_lon, device_compass_heading, captured_at, uploaded_at, upload_state, transcription, storage_url, thumbnail_url, original_url, annotated_url'
+          'id, media_type, burst_group_id, position, duration_seconds, file_size_bytes, device_lat, device_lon, device_compass_heading, captured_at, uploaded_at, upload_state, transcription, storage_url, thumbnail_url, original_url, annotated_url, annotations'
         )
         .eq('data_point_id', id)
         .order('position', { ascending: true })
@@ -145,6 +168,13 @@ export const GET = withErrorHandler(
         .from('fieldbook_notes')
         .select(
           'id, body, note_template, structured_data, is_current, user_email, created_at, updated_at, voice_transcript_media_id'
+        )
+        .eq('data_point_id', id)
+        .order('created_at', { ascending: false }),
+      supabaseAdmin
+        .from('job_files')
+        .select(
+          'id, name, description, storage_path, content_type, file_size_bytes, upload_state, created_by, created_at, uploaded_at'
         )
         .eq('data_point_id', id)
         .order('created_at', { ascending: false }),
@@ -168,6 +198,7 @@ export const GET = withErrorHandler(
       thumbnail_url: string | null;
       original_url: string | null;
       annotated_url: string | null;
+      annotations: string | null;
     };
 
     // Sign every URL in parallel. Each path that fails signs to null.
@@ -212,6 +243,7 @@ export const GET = withErrorHandler(
           thumbnail_signed_url: thumbnail,
           original_signed_url: original,
           annotated_signed_url: annotated,
+          annotations: m.annotations,
         };
       })
     );
@@ -254,6 +286,50 @@ export const GET = withErrorHandler(
       }
     );
 
+    type RawFile = {
+      id: string;
+      name: string;
+      description: string | null;
+      storage_path: string;
+      content_type: string | null;
+      file_size_bytes: number | null;
+      upload_state: string | null;
+      created_by: string | null;
+      created_at: string;
+      uploaded_at: string | null;
+    };
+    const files: AdminJobFileRow[] = await Promise.all(
+      ((filesRaw ?? []) as RawFile[]).map(async (f) => {
+        let signedUrl: string | null = null;
+        if (f.storage_path) {
+          const { data, error } = await supabaseAdmin.storage
+            .from(FILES_BUCKET)
+            .createSignedUrl(f.storage_path, SIGNED_URL_TTL_SEC);
+          if (error) {
+            console.warn('[admin/field-data/:id] file sign failed', {
+              path: f.storage_path,
+              error: error.message,
+            });
+          } else {
+            signedUrl = data?.signedUrl ?? null;
+          }
+        }
+        return {
+          id: f.id,
+          name: f.name,
+          description: f.description,
+          storage_path: f.storage_path,
+          signed_url: signedUrl,
+          content_type: f.content_type,
+          file_size_bytes: f.file_size_bytes,
+          upload_state: f.upload_state,
+          created_by: f.created_by,
+          created_at: f.created_at,
+          uploaded_at: f.uploaded_at,
+        };
+      })
+    );
+
     return NextResponse.json({
       point: {
         ...point,
@@ -267,6 +343,7 @@ export const GET = withErrorHandler(
       },
       media,
       notes,
+      files,
     });
   },
   { routeName: 'admin/field-data/:id' }

@@ -18,8 +18,10 @@
         "NSFaceIDUsageDescription": "Starr Field uses Face ID to unlock the app and confirm sensitive actions like deleting field data.",
         "NSLocationWhenInUseUsageDescription": "Starr Field stamps your clock-in / clock-out times with GPS so timesheets and mileage logs are accurate.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Starr Field tracks location only while you're clocked in (per the privacy contract in plan §5.10.1) so the dispatcher knows where the crew is and IRS-compliant mileage logs generate automatically. Tracking stops within 60 seconds of clock-out.",
-        "NSCameraUsageDescription": "Starr Field uses the camera to capture receipts and field photos. Receipt photos are uploaded to your private Starr Surveying workspace for AI extraction and bookkeeping.",
-        "NSPhotoLibraryUsageDescription": "Starr Field reads photos from your library when you attach an existing receipt photo (e.g. one you snapped before opening the app).",
+        "NSCameraUsageDescription": "Starr Field uses the camera to capture receipts, field photos, and short videos of jobsite conditions or found monuments.",
+        "NSMicrophoneUsageDescription": "Starr Field records voice memos so you can dictate notes hands-free, and captures audio with field videos. Recordings stay private to your Starr Surveying workspace.",
+        "NSPhotoLibraryUsageDescription": "Starr Field can attach existing photos and videos from your library to receipts, points, or jobs (e.g. media you captured before opening the app).",
+        "NSPhotoLibraryAddUsageDescription": "Starr Field optionally backs up your captured photos and videos to your device's Photos library (under a 'Starr Field' album) so you keep a personal copy. Off by default — enable on the Me tab.",
         "UIBackgroundModes": ["location", "fetch"]
       }
     },
@@ -33,7 +35,15 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "READ_MEDIA_AUDIO",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_EXTERNAL_STORAGE",
+        "VIBRATE"
       ]
     },
     "web": {
@@ -63,8 +73,29 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Starr Field reads photos from your library when you attach an existing receipt photo.",
-          "cameraPermission": "Starr Field uses the camera to capture receipts and field photos."
+          "photosPermission": "Starr Field can attach existing photos and videos from your library to receipts, points, or jobs.",
+          "cameraPermission": "Starr Field uses the camera to capture receipts, field photos, and short videos.",
+          "microphonePermission": "Starr Field records audio when capturing field videos so the office hears site context."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Starr Field records voice memos so you can dictate notes hands-free."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Starr Field reads media when restoring backups.",
+          "savePhotosPermission": "Starr Field optionally saves a copy of every captured photo / video to your device's Photos library (Me → Backups toggle).",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
         }
       ],
       "@sentry/react-native/expo"

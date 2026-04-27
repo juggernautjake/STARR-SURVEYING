@@ -91,6 +91,12 @@ Activation gates (each blocks live sync but NOT local-only dev):
       picker on clock-in (per-clock-in IRS mileage attribution) and
       the `/admin/vehicles` CRUD page. Apply BEFORE the mobile
       vehicle picker ships.
+- [ ] Apply `seeds/226_starr_field_files.sql` (F5 generic file
+      attachments — adds `job_files` table + `starr-field-files`
+      storage bucket + per-user-folder RLS). Powers the
+      `lib/jobFiles.ts` capture flow ("+ Attach file" on the point
+      detail screen) and the Files block on `/admin/field-data/[id]`.
+      Apply BEFORE the mobile file picker ships.
 - [ ] Provision PowerSync service (Cloud or self-hosted, see below).
 - [ ] Author sync rules — see "Sync rules" below.
 - [ ] Set `EXPO_PUBLIC_POWERSYNC_URL` in `mobile/.env.local` (dev) and
@@ -182,6 +188,12 @@ bucket_definitions:
       # (RLS already filters this server-side; mobile filter is a
       # belt-and-braces guard for the picker query).
       - SELECT * FROM vehicles WHERE active = true
+      # Job + point file attachments (F5). Owner-only; mobile
+      # surfaces files captured in the last 90 days for the offline
+      # gallery while older rows live server-side.
+      - SELECT * FROM job_files
+          WHERE created_by = bucket.user_id
+            AND created_at > now() - interval '90 days'
 
   by_company:
     # Jobs and reference tables — visible to all employees of the

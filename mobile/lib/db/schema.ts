@@ -559,6 +559,36 @@ const notifications = new Table({
   created_at: column.text,
 });
 
+// ── job_files — generic file attachments on jobs + points ──────────────────
+//
+// Per F5 plan + the user's "make sure we can upload audio and videos
+// and pictures and files to job or specific points in a job"
+// requirement. field_media handles photo / voice / video; this table
+// handles everything else (PDF, CSV, Trimble JobXML, scope-of-work,
+// scanned plans, third-party survey records).
+//
+// Backed by seeds/226_starr_field_files.sql. Same offline-first
+// contract as photos / voice / video — INSERT row first, enqueue
+// upload to starr-field-files bucket via lib/uploadQueue.ts.
+const job_files = new Table({
+  job_id: column.text,
+  /** Optional FK to a data point. Null = job-level file. */
+  data_point_id: column.text,
+  name: column.text,
+  description: column.text,
+  storage_path: column.text,
+  content_type: column.text,
+  file_size_bytes: column.integer,
+  /** 'pending' | 'wifi-waiting' | 'done' | 'failed' — same enum as
+   *  field_media.upload_state so the upload queue branches uniformly. */
+  upload_state: column.text,
+  created_by: column.text,
+  created_at: column.text,
+  uploaded_at: column.text,
+  updated_at: column.text,
+  client_id: column.text,
+});
+
 // ── pending_uploads — local-only retry queue ────────────────────────────────
 //
 // Survives reception loss + app crashes. Captures (receipts photo,
@@ -620,6 +650,7 @@ export const AppSchema = new Schema({
   field_data_points,
   field_media,
   fieldbook_notes,
+  job_files,
   job_time_entries,
   jobs,
   location_pings,
