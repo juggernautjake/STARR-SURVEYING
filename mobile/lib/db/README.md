@@ -106,6 +106,17 @@ Activation gates (each blocks live sync but NOT local-only dev):
       safe to re-apply. Once applied, dispatchers use the "📍 Set
       as job site" button on `/admin/timeline` to capture each
       job's geofence from a real stop centroid.
+- [ ] Apply `seeds/228_starr_field_voice_transcription.sql` (F4
+      voice-transcription tracking — adds
+      `transcription_status` / `transcription_error` /
+      `transcription_started_at` / `transcription_completed_at` /
+      `transcription_cost_cents` to `field_media` + two partial
+      indexes for the worker poll). Apply AFTER seeds/221. Powers
+      the OpenAI Whisper worker job at
+      `worker/src/services/voice-transcription.ts` + CLI at
+      `worker/src/cli/transcribe-voice.ts` + on-demand endpoint
+      `POST /starr-field/voice/transcribe`. Set `OPENAI_API_KEY` on
+      the worker before deploying.
 - [ ] Provision PowerSync service (Cloud or self-hosted, see below).
 - [ ] Author sync rules — see "Sync rules" below.
 - [ ] Set `EXPO_PUBLIC_POWERSYNC_URL` in `mobile/.env.local` (dev) and

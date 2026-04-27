@@ -363,8 +363,9 @@ export function useAttachVoice(): (
                duration_seconds, file_size_bytes,
                device_lat, device_lon, device_compass_heading,
                captured_at, uploaded_at,
-               created_by, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               created_by, created_at,
+               transcription_status
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               mediaId,
               jobId,
@@ -386,6 +387,10 @@ export function useAttachVoice(): (
               nowIso,
               userId,
               nowIso,
+              // Mark queued so the worker (worker/src/services/
+              // voice-transcription.ts) picks it up after upload
+              // completes.
+              'queued',
             ]
           );
         });

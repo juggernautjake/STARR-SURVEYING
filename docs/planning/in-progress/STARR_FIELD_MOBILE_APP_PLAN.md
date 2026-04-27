@@ -1020,7 +1020,7 @@ Resilience additions (same offline-first pattern as F2):
 **Exit:** Found-monument workflow <60s. **Status:** core capture loop + admin viewer shipped; annotation overlay + compass heading remain.
 
 ### Phase F4 — Voice + video + notes (Week 13–16)
-- [/] Voice memo capture — `lib/voiceRecorder.ts` (expo-av Audio.Recording with M4A mono preset, 5-minute auto-stop cap, idempotent permission cache, mid-flight cancel + cleanup), `lib/fieldMedia.ts` `useAttachVoice` (mirrors `useAttachPhoto` — INSERT first, enqueue upload to `starr-field-voice` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup via `lib/deviceLibrary.ts`), `(tabs)/capture/[pointId]/voice.tsx` capture screen with per-memo playback row (long-press to delete). Voice button on the photos screen footer Stack-pushes the recorder. **On-device transcription pending** — `field_media.transcription` column reserved; needs `expo-speech-recognition` or a Whisper-via-API path.
+- [x] Voice memo capture + transcription — `lib/voiceRecorder.ts` (expo-av Audio.Recording with M4A mono preset, 5-minute auto-stop cap, idempotent permission cache, mid-flight cancel + cleanup), `lib/fieldMedia.ts` `useAttachVoice` (mirrors `useAttachPhoto` — INSERT first with `transcription_status='queued'`, enqueue upload to `starr-field-voice` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup via `lib/deviceLibrary.ts`), `(tabs)/capture/[pointId]/voice.tsx` capture screen with per-memo playback row (long-press to delete). **Server-side transcription via OpenAI Whisper** lands in Batch R: `seeds/228` adds `transcription_status` / `transcription_error` / `transcription_started_at` / `transcription_completed_at` / `transcription_cost_cents` to `field_media`; `worker/src/services/voice-transcription.ts` polls `WHERE upload_state='done' AND transcription_status='queued'`, race-safe `claimRow` flips to `'running'`, fetches the M4A via signed URL, calls Whisper-1 (en hint), writes back with cost in cents (~$0.006/min). Watchdog re-queues stale `'running'` rows after 5 min. CLI at `worker/src/cli/transcribe-voice.ts` for cron; `POST /starr-field/voice/transcribe` for on-demand. Admin `/admin/field-data/[id]` shows ⏳ queued / 🎧 transcribing / ✓ done / ⚠ failed badges + the transcript text once landed.
 - [/] Video capture — `lib/storage/mediaUpload.ts` `pickVideo()` wraps `expo-image-picker.launchCameraAsync` with the Videos media type + 5-min cap (per plan §5.4), `lib/fieldMedia.ts` `useAttachVideo` mirrors the photo + voice pattern (INSERT field_media row with `media_type='video'`, enqueue upload to `starr-field-videos` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup which goes to Camera Roll). "📹 Record video" button on the photos screen footer. Admin `/admin/field-data/[id]` renders native `<video controls>` with mp4 + quicktime fallback `<source>` tags, duration in mm:ss, download link. **Pending:** server-side thumbnail extraction (FFmpeg via worker) so the gallery thumbnail isn't a placeholder; WiFi-only original-quality re-upload tier per plan §5.4; mobile-side video gallery (currently captured via OS camera + surfaced on web admin only).
 - [x] Free-text notes + structured templates (offset, monument, hazard, correction) — `lib/fieldNotes.ts` (`useAddFieldNote` / `usePointNotes` / `useJobLevelNotes` / `useArchiveFieldNote` + `summariseStructuredPayload` + `parseStructuredPayload` helpers), per-template typed payload interfaces, body-summary derivation so the existing `/admin/notes` grep + future search-across-notes work without parsing JSON. Add-note screen at `/(tabs)/jobs/[id]/notes/new` accepts `?point_id=&template=` query params; in-app pill picker switches between Free-text / Offset shot / Monument found / Hazard / Correction with per-template form (typed inputs, choice pills for enums, severity colour-coding). Point detail screen (`(tabs)/jobs/[id]/points/[pointId].tsx`) gets a Notes section with reactive list + long-press archive + "+ Add note" button. Admin `/admin/field-data/[id]` surfaces attached notes with template tag, body, structured payload as a key/value table, author + age stamp, archived badge — `/api/admin/field-data/[id]` returns the parsed structured payload alongside the note row. Job-level note hook (`useJobLevelNotes`) is ready for a future job-detail surface.
 - [ ] Voice-to-text shortcut — bound to a hardware key for hands-free dictation. Need expo-speech-recognition or a Whisper-via-API path.
@@ -1196,6 +1196,79 @@ under one phase.
       mid-shift would silently break the "tracking-while-clocked-in"
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
+
+**Batch R — voice transcription via OpenAI Whisper (F4 closer)**
+
+Closes the last F4 plan deliverable — voice memos are now searchable
+for the office. Mirrors the receipts-extraction worker pattern so
+deployment / monitoring / retries are uniform.
+
+Schema (seeds/228_starr_field_voice_transcription.sql):
+- ALTER TABLE field_media adds five columns:
+  `transcription_status` (queued/running/done/failed),
+  `transcription_error`, `transcription_started_at`,
+  `transcription_completed_at`, `transcription_cost_cents`.
+  Idempotent via ADD COLUMN IF NOT EXISTS + DO blocks for the
+  CHECK constraint.
+- Two partial indexes:
+  `idx_field_media_transcription_queued` on `(created_at ASC) WHERE
+  media_type='voice' AND upload_state='done' AND
+  transcription_status='queued'` for the worker poll.
+  `idx_field_media_transcription_running` on
+  `transcription_started_at WHERE transcription_status='running'`
+  for the watchdog sweep.
+
+Mobile capture (lib/fieldMedia.ts useAttachVoice):
+- Voice INSERT now sets `transcription_status='queued'` so the
+  worker picks the row up the moment `upload_state='done'`.
+  No other capture-flow change.
+
+Worker (worker/src/services/voice-transcription.ts):
+- `processVoiceTranscriptionBatch(supabase, { batchSize?, logger? })`
+  fetches up to `batchSize` queued rows, race-safe `claimRow` flips
+  to `'running'`, fetches the M4A via signed URL, calls Whisper-1
+  (English hint) via the OpenAI SDK, writes the transcript +
+  cost in cents back to `field_media`. Failures land as
+  `transcription_status='failed'` with truncated `transcription_error`.
+- Hard caps: skip rows over 10 min duration (mark failed —
+  surveyors record short field memos; longer is usually an
+  accidentally-left-on recording). The Whisper API supports up
+  to 25 MB but quality + cost don't justify the long-tail use case.
+- Watchdog: rows stuck in `'running'` past 5 min get re-queued at
+  the start of the next batch. Crashed worker → max 5 min stuck.
+- Cost: Whisper $0.006/min ($0.0001/sec). Per-row spend lands in
+  `transcription_cost_cents`. v1 doesn't integrate with the global
+  ai-usage-tracker (its service enum is closed; v2 polish extends
+  it to include 'whisper-transcribe').
+- Logging: every step (claim / fetch / Whisper call / write-back /
+  watchdog sweep) emits a structured log line via the project's
+  ProcessLogger pattern so Sentry sees breadcrumbs.
+
+CLI + endpoint:
+- `worker/src/cli/transcribe-voice.ts` mirrors extract-receipts
+  (one-shot OR --watch loop with 60s polling). Always emits a
+  summary line so a healthy idle worker is distinguishable from
+  a stuck cron job.
+- `npm run transcribe-voice -- --watch` for cron / pm2 / systemd.
+- `POST /starr-field/voice/transcribe` (auth-gated) for on-demand
+  triggers + retry-this-one. Body: `{ batchSize?, mediaId? }` —
+  `mediaId` flips a single failed row back to queued before
+  running the batch.
+
+Admin viewer (/admin/field-data/[id]):
+- Voice cards now show a transcription status badge (⏳ queued /
+  🎧 transcribing / ✓ done / ⚠ failed) above the existing
+  transcript text block. Failed rows show the truncated error
+  inline so the bookkeeper can spot pattern issues (rate-limited,
+  malformed audio, etc.).
+
+Activation gates:
+- Apply seeds/228 to live Supabase before the worker starts
+  polling (the worker's UPDATE would 4xx without the new
+  columns).
+- Set `OPENAI_API_KEY` on the worker before enabling. The CLI +
+  endpoint short-circuit + log a warn breadcrumb when the key
+  is missing rather than dropping rows.
 
 **Batch Q — geofence classifier (stop-detection v2 phase 1)**
 
@@ -1669,6 +1742,13 @@ adds `job_files` (last 90 days, scoped by `created_by`).
    Set as job site" button on `/admin/timeline` to capture each
    job's geofence from any real stop centroid; future stops there
    auto-classify on the next Recompute.
+9. `seeds/228_starr_field_voice_transcription.sql` — adds the
+   five `transcription_*` tracking columns to `field_media` plus
+   two partial indexes for the Whisper worker poll + watchdog.
+   Apply AFTER seeds/221. Set `OPENAI_API_KEY` on the worker
+   before enabling. The mobile UI continues to function without
+   transcription (the columns are nullable + the existing flow
+   doesn't read them).
 
 PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
 - `notifications` — scoped by `target_user_id` OR case-insensitive
@@ -1679,9 +1759,12 @@ PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
 **Pending in the resilience track:**
 - (Consent modal shipped in Batch P — `lib/TrackingConsentModal.tsx`
   gates the first `requestBackgroundPermissionsAsync()` call.)
-- Voice memo on-device transcription (`field_media.transcription`
-  column already populated by the recorder when available; needs an
-  expo-speech-recognition wiring or a server-side Whisper job).
+- (Voice transcription shipped in Batch R via OpenAI Whisper
+  worker — `worker/src/services/voice-transcription.ts`. On-device
+  transcription via `expo-speech-recognition` for Apple's
+  on-device dictation API still pending if low-latency
+  hands-free dictation is needed; server-side Whisper covers the
+  searchable-archive use case.)
 - Video polish: server-side FFmpeg thumbnail extraction (so the
   gallery list shows a real thumb rather than a placeholder) +
   WiFi-only original-quality re-upload tier per plan §5.4 + a

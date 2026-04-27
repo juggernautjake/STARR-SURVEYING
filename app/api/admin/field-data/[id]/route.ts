@@ -77,6 +77,12 @@ export interface AdminFieldMediaRow {
   uploaded_at: string | null;
   upload_state: string | null;
   transcription: string | null;
+  /** Worker lifecycle for the Whisper transcription pipeline. Mirror
+   *  of receipts.extraction_status. */
+  transcription_status: string | null;
+  transcription_error: string | null;
+  transcription_completed_at: string | null;
+  transcription_cost_cents: number | null;
   /** Signed URLs (null when the underlying path is null OR the sign
    *  failed). */
   storage_signed_url: string | null;
@@ -159,7 +165,7 @@ export const GET = withErrorHandler(
       supabaseAdmin
         .from('field_media')
         .select(
-          'id, media_type, burst_group_id, position, duration_seconds, file_size_bytes, device_lat, device_lon, device_compass_heading, captured_at, uploaded_at, upload_state, transcription, storage_url, thumbnail_url, original_url, annotated_url, annotations'
+          'id, media_type, burst_group_id, position, duration_seconds, file_size_bytes, device_lat, device_lon, device_compass_heading, captured_at, uploaded_at, upload_state, transcription, transcription_status, transcription_error, transcription_completed_at, transcription_cost_cents, storage_url, thumbnail_url, original_url, annotated_url, annotations'
         )
         .eq('data_point_id', id)
         .order('position', { ascending: true })
@@ -194,6 +200,10 @@ export const GET = withErrorHandler(
       uploaded_at: string | null;
       upload_state: string | null;
       transcription: string | null;
+      transcription_status: string | null;
+      transcription_error: string | null;
+      transcription_completed_at: string | null;
+      transcription_cost_cents: number | null;
       storage_url: string | null;
       thumbnail_url: string | null;
       original_url: string | null;
@@ -239,6 +249,10 @@ export const GET = withErrorHandler(
           uploaded_at: m.uploaded_at,
           upload_state: m.upload_state,
           transcription: m.transcription,
+          transcription_status: m.transcription_status,
+          transcription_error: m.transcription_error,
+          transcription_completed_at: m.transcription_completed_at,
+          transcription_cost_cents: m.transcription_cost_cents,
           storage_signed_url: storage,
           thumbnail_signed_url: thumbnail,
           original_signed_url: original,

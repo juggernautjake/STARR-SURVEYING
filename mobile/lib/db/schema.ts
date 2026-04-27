@@ -143,6 +143,14 @@ const field_media = new Table({
   captured_at: column.text,
   uploaded_at: column.text,
   transcription: column.text,
+  /** Worker-driven transcription lifecycle. 'queued' (mobile sets
+   *  on insert) → 'running' (worker claim) → 'done' / 'failed'.
+   *  Mirrors receipts.extraction_status. Backed by seeds/228. */
+  transcription_status: column.text,
+  transcription_error: column.text,
+  transcription_started_at: column.text,
+  transcription_completed_at: column.text,
+  transcription_cost_cents: column.integer,
   annotations: column.text, // JSON-encoded JSONB
   created_by: column.text,
   client_id: column.text,

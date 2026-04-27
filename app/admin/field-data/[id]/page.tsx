@@ -48,6 +48,10 @@ interface MediaRow {
   uploaded_at: string | null;
   upload_state: string | null;
   transcription: string | null;
+  transcription_status: string | null;
+  transcription_error: string | null;
+  transcription_completed_at: string | null;
+  transcription_cost_cents: number | null;
   storage_signed_url: string | null;
   thumbnail_signed_url: string | null;
   original_signed_url: string | null;
@@ -996,10 +1000,52 @@ function PhotoCard({
               {media.upload_state ?? '—'}
             </span>
           </div>
+          {media.transcription_status ? (
+            <div style={styles.photoMetaRow}>
+              <span style={styles.fieldLabel}>Transcript</span>
+              <span
+                style={{
+                  color:
+                    media.transcription_status === 'failed'
+                      ? '#B42318'
+                      : media.transcription_status === 'done'
+                        ? '#067647'
+                        : '#D97706',
+                }}
+                title={
+                  media.transcription_error
+                    ? `Last error: ${media.transcription_error}`
+                    : undefined
+                }
+              >
+                {media.transcription_status === 'queued'
+                  ? '⏳ queued'
+                  : media.transcription_status === 'running'
+                    ? '🎧 transcribing…'
+                    : media.transcription_status === 'failed'
+                      ? '⚠ failed'
+                      : '✓ done'}
+              </span>
+            </div>
+          ) : null}
           {media.transcription ? (
             <div style={styles.transcriptBlock}>
               <span style={styles.fieldLabel}>Transcript</span>
               <p style={styles.transcript}>{media.transcription}</p>
+            </div>
+          ) : media.transcription_status === 'failed' &&
+            media.transcription_error ? (
+            <div style={styles.transcriptBlock}>
+              <span style={styles.fieldLabel}>Transcription error</span>
+              <p
+                style={{
+                  ...styles.transcript,
+                  color: '#B42318',
+                  fontSize: 12,
+                }}
+              >
+                {media.transcription_error}
+              </p>
             </div>
           ) : null}
           {audioUrl ? (
