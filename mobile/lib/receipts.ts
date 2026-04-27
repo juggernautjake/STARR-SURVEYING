@@ -224,6 +224,7 @@ export function useReceipts(limit: number = 100): {
     `SELECT *
      FROM receipts
      WHERE user_id = ?
+       AND deleted_at IS NULL
      ORDER BY COALESCE(created_at, '') DESC
      LIMIT ?`,
     queryParams
@@ -273,7 +274,8 @@ export function useJobReceiptRollup(jobId: string | null | undefined): {
     `SELECT category, total_cents, created_at
      FROM receipts
      WHERE job_id = ?
-       AND COALESCE(status, 'pending') != 'rejected'`,
+       AND COALESCE(status, 'pending') != 'rejected'
+       AND deleted_at IS NULL`,
     queryParams
   );
 
@@ -512,14 +514,22 @@ export function useResolveReceiptDuplicate(): (
       const nowIso = new Date().toISOString();
       try {
         if (decision === 'discard') {
+          // Discarded duplicate → soft-delete the row with a
+          // 'duplicate' reason so the audit trail survives the
+          // full IRS retention window (Batch CC), AND flip the
+          // status to 'rejected' so any pre-Batch-CC consumers
+          // that haven't migrated to filtering by deleted_at
+          // still see it as not-pending.
           await db.execute(
             `UPDATE receipts
                 SET dedup_decision = ?,
                     status = 'rejected',
                     rejected_reason = COALESCE(rejected_reason, 'duplicate'),
+                    deleted_at = ?,
+                    deletion_reason = 'duplicate',
                     updated_at = ?
               WHERE id = ?`,
-            [decision, nowIso, id]
+            [decision, nowIso, nowIso, id]
           );
         } else {
           await db.execute(
@@ -579,29 +589,42 @@ export function useReceiptsNeedingReview(): number {
       WHERE user_id = ?
         AND user_reviewed_at IS NULL
         AND extraction_status = 'done'
-        AND status = 'pending'`,
+        AND status = 'pending'
+        AND deleted_at IS NULL`,
     queryParams
   );
   return data?.[0]?.count ?? 0;
 }
 
+export type DeletionReason =
+  | 'user_undo'
+  | 'duplicate'
+  | 'wrong_capture';
+
 /**
- * Delete a receipt. Soft delete is NOT used — receipts.status='rejected'
- * is the soft state for "user wants to undo this capture without losing
- * the audit trail." Hard delete is reserved for clear-mistakes (e.g.
- * accidental capture of an unrelated photo) and only allowed while the
- * receipt is still 'pending' or 'rejected'. The IRS retention archival
- * job (§5.11.9) is the only path that touches approved receipts.
+ * Soft-delete a receipt. Sets `deleted_at = now()` so the row
+ * disappears from list views but the IRS audit trail survives.
+ * Hard delete is the worker's job (retention sweep purges rows
+ * whose `deleted_at` exceeds the retention threshold).
  *
- * Best-effort storage cleanup runs after the DB delete so the photo
- * doesn't dangle in the bucket.
+ * Approved + exported rows can't be deleted from the field — the
+ * bookkeeper has signed off and IRS retention has begun.
+ *
+ * The optional `reason` arg (defaults to 'user_undo') feeds
+ * `receipts.deletion_reason` so an audit reviewer can tell why a
+ * row was tombstoned. Useful when paired with the Batch Z
+ * dedup-warning card (which sets `reason='duplicate'` on its
+ * "Discard duplicate" path).
  */
-export function useDeleteReceipt(): (receipt: Receipt) => Promise<void> {
+export function useDeleteReceipt(): (
+  receipt: Receipt,
+  reason?: DeletionReason
+) => Promise<void> {
   const db = usePowerSync();
   const { session } = useAuth();
 
   return useCallback(
-    async (receipt) => {
+    async (receipt, reason = 'user_undo') => {
       const userId = session?.user.id;
       if (!userId) {
         const err = new Error('Not signed in.');
@@ -617,28 +640,40 @@ export function useDeleteReceipt(): (receipt: Receipt) => Promise<void> {
         throw err;
       }
 
-      logInfo('receipts.delete', 'attempt', { receipt_id: receipt.id });
+      logInfo('receipts.delete', 'attempt', {
+        receipt_id: receipt.id,
+        reason,
+      });
 
+      const nowIso = new Date().toISOString();
       try {
-        await db.execute(`DELETE FROM receipts WHERE id = ?`, [receipt.id]);
-        logInfo('receipts.delete', 'success', { receipt_id: receipt.id });
+        // Soft delete — flip deleted_at so list filters drop the
+        // row but the audit trail survives the full IRS retention
+        // window. The retention sweep CLI hard-deletes rows whose
+        // deleted_at is past the threshold (v2 polish: tracked in
+        // §9.w as the worker retention sweep).
+        await db.execute(
+          `UPDATE receipts
+              SET deleted_at = ?, deletion_reason = ?, updated_at = ?
+            WHERE id = ?`,
+          [nowIso, reason, nowIso, receipt.id]
+        );
+        logInfo('receipts.delete', 'soft-deleted', {
+          receipt_id: receipt.id,
+          reason,
+        });
       } catch (err) {
-        logError('receipts.delete', 'db delete failed', err, {
+        logError('receipts.delete', 'soft-delete failed', err, {
           receipt_id: receipt.id,
         });
         throw err;
       }
 
-      // Storage cleanup is best-effort — the row deletion is the
-      // authoritative action. A dangling photo will be cleaned up by
-      // the IRS archival job.
-      if (receipt.photo_url) {
-        await removeFromBucket({
-          bucket: STORAGE_BUCKET,
-          path: receipt.photo_url,
-          scope: 'receipts.delete',
-        });
-      }
+      // Storage cleanup is deferred to the worker retention sweep:
+      // we want the photo on disk for the full IRS retention window
+      // so an auditor reviewing a tombstoned row can still see what
+      // got captured. Hard-deleting the bucket object here would
+      // strand the audit trail.
     },
     [db, session]
   );

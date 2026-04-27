@@ -999,7 +999,7 @@ Resilience additions:
 - [x] Optional device-Photos backup (off by default — receipts have card numbers) via `lib/deviceLibrary.ts`.
 
 Audit additions:
-- [ ] Soft-delete + IRS 7-year retention — `receipts` table currently hard-deletes on user `delete`. Per §5.11.9 + risk register need a `deleted_at` column + retention sweep. Not yet shipped.
+- [/] Soft-delete + IRS 7-year retention (Batch CC) — `seeds/230_starr_field_receipt_retention.sql` adds `deleted_at TIMESTAMPTZ` + `deletion_reason TEXT` (`'user_undo' | 'duplicate' | 'wrong_capture'`) to `receipts` plus partial indexes for visible-row reads + the retention sweep. Mobile `useDeleteReceipt` now soft-deletes (sets `deleted_at = now()`); list hooks (`useReceipts`, `useJobReceiptRollup`, `useReceiptsNeedingReview`) filter `deleted_at IS NULL`. Detail-screen hooks deliberately do NOT filter so a user can navigate to a tombstoned row to review the audit trail. Discarded duplicates from Batch Z's resolver path also tombstone with `deletion_reason='duplicate'`. **Pending:** worker retention sweep CLI that hard-deletes rows past the IRS retention window (3 years for clean returns, 7 years for substantial under-reporting; rejected/never-approved rows can purge after 90 days). Tracked as v2 polish.
 - [ ] Bookkeeper sign-off audit on the web admin — currently mobile shows status flips but no per-receipt admin audit log entry for who approved when. Tracked separately.
 
 **Exit:** Jacob can replace expense reports for v1 use. **Status:** shipped; bookkeeper validation outstanding; soft-delete polish remains.
@@ -1150,7 +1150,7 @@ classifier) · 228 (voice transcription) — all present.
 
 | Area | Done | Deferred |
 |---|---|---|
-| F2 receipts | Capture, extraction, approval, CSV export, duplicate detection + review-before-save (Batch Z) | Soft-delete + IRS 7-yr retention; per-receipt admin sign-off audit |
+| F2 receipts | Capture, extraction, approval, CSV export, duplicate detection + review-before-save (Batch Z), soft-delete foundation (Batch CC) | Worker retention sweep CLI (purges rows past IRS retention threshold); per-receipt admin sign-off audit |
 | F3 photos | Multi-photo, GPS, EXIF, annotator, compass heading (Batch V) | Arrow / circle / text annotation primitives (schema slots reserved; pen-only in v1) |
 | F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U) | Server-side FFmpeg thumbnail extraction; WiFi-only original-quality re-upload tier |
 | F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
@@ -1525,6 +1525,76 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch CC — receipt soft-delete + IRS retention foundation (F2 audit closer)**
+
+Closes the F2 audit-additions deferral *"Soft-delete + IRS 7-year
+retention — receipts table currently hard-deletes on user
+delete."* Surveyor-side delete now leaves the audit trail in
+place (the row tombstones with `deleted_at` instead of being
+purged), which is the IRS contract. The retention sweep CLI
+that actually hard-deletes rows past the retention window is
+tracked as v2 polish.
+
+Schema (`seeds/230_starr_field_receipt_retention.sql`):
+- `receipts.deleted_at TIMESTAMPTZ` — NULL = visible, non-null
+  = soft-deleted.
+- `receipts.deletion_reason TEXT` with a CHECK constraint to
+  `'user_undo' | 'duplicate' | 'wrong_capture'`. Optional;
+  helps the bookkeeper triage why a row was tombstoned.
+- Partial index `idx_receipts_user_time_visible (user_id,
+  created_at DESC) WHERE deleted_at IS NULL` so the per-user
+  list scan stays fast even after years of accumulation.
+- Partial index `idx_receipts_deleted_at` covering rows where
+  `deleted_at IS NOT NULL` so the future retention sweep is
+  cheap.
+- New RLS policy `receipts_owner_soft_delete` allows the user
+  to UPDATE `deleted_at` + `deletion_reason` on their own
+  pending / rejected rows. Hard DELETE remains revoked from
+  `authenticated` — only `service_role` (worker) can purge.
+
+Mobile contract (`mobile/lib/db/schema.ts`,
+`mobile/lib/receipts.ts`):
+- Mobile schema mirrors the two new columns.
+- `useDeleteReceipt(receipt, reason?)` now `UPDATE`s
+  `deleted_at + deletion_reason + updated_at` instead of
+  `DELETE`-ing. Rejects the call when `status` is
+  `'approved' | 'exported'` (same lock as before).
+- `removeFromBucket` cleanup is dropped from the delete path
+  — the photo stays in storage so an IRS auditor reviewing
+  a tombstoned row can still see the captured image. The
+  retention sweep is the only path that purges bucket
+  objects.
+- `useReceipts` (Money-tab list), `useJobReceiptRollup`
+  (per-job mileage rollups), and `useReceiptsNeedingReview`
+  (Batch Z review badge count) all filter `deleted_at IS
+  NULL` so tombstoned rows disappear from the surveyor's
+  view.
+- `useReceipt(id)` and `useReceiptRow(id)` deliberately do
+  NOT filter so a user can navigate to a tombstoned row to
+  review the audit trail (and see "Discarded as duplicate"
+  on the dedup banner if applicable).
+- `useResolveReceiptDuplicate` discard path also stamps
+  `deleted_at + deletion_reason='duplicate'` so the
+  duplicate-discard flow naturally creates an audit-ready
+  tombstone in one transaction.
+
+Activation gate: apply `seeds/230` to live Supabase before the
+mobile build that ships this batch — without the columns, the
+`UPDATE … SET deleted_at = …` would fail. PowerSync CRUD
+queue replay handles the transition naturally for any in-flight
+mobile delete that lands after the seed applies.
+
+Pending v2 polish:
+- Worker retention sweep CLI: scans for rows where
+  `deleted_at < now() - retention_threshold` and hard-deletes
+  bucket object + DB row in one transaction. Threshold per
+  IRS class (3 yr for clean returns, 7 yr for substantial
+  under-reporting, 90 days for never-approved).
+- Mobile "Recently deleted" panel under Me → Storage so the
+  surveyor can undo within ~24h.
+- Admin "Show deleted" toggle on `/admin/receipts` so the
+  bookkeeper can review tombstones for audit prep.
 
 **Batch BB — cross-notes search (F4 closer)**
 

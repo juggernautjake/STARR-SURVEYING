@@ -283,6 +283,12 @@ const receipts = new Table({
   dedup_decision: column.text, // 'keep' | 'discard' | NULL
   user_reviewed_at: column.text,
   user_review_edits: column.text, // JSON-encoded JSONB
+  // Soft-delete + IRS retention (Batch CC, seeds/230). NULL =
+  // visible; non-null = soft-deleted. Mobile filters out
+  // deleted rows; the worker retention sweep purges rows whose
+  // deleted_at exceeds the IRS retention threshold.
+  deleted_at: column.text,
+  deletion_reason: column.text, // 'user_undo' | 'duplicate' | 'wrong_capture' | NULL
   client_id: column.text,
   created_at: column.text,
   updated_at: column.text,
