@@ -10,7 +10,6 @@ import {
   Text,
   View,
   Switch,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -37,6 +36,11 @@ import {
   useResponsiveLayout,
 } from '@/lib/responsive';
 import { usePinnedStorageStats } from '@/lib/pinnedFiles';
+import {
+  type ThemePreference,
+  useResolvedScheme,
+  useThemePreference,
+} from '@/lib/themePreference';
 import { useUploadQueueStatus } from '@/lib/uploadQueue';
 import { colors } from '@/lib/theme';
 
@@ -52,8 +56,12 @@ import { colors } from '@/lib/theme';
  * land in F1+.
  */
 export default function MeScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  // useResolvedScheme honours the user's Display preference (auto /
+  // light / dark / sun) so the Me tab itself respects the toggle the
+  // user is about to flip below.
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
+  const [themePref, setThemePref] = useThemePreference();
   const { session, signOut, biometricEnabled, setBiometricEnabled, lockNow } = useAuth();
 
   const [signingOut, setSigningOut] = useState(false);
@@ -346,6 +354,72 @@ export default function MeScreen() {
           </View>
         </View>
 
+        {/* Display preference. Sun-readable boosts contrast for direct
+            sunlight per plan §7.1 rule 3 ("Sun-readable: high-contrast
+            theme, 1-tap toggle"). */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.muted }]}>
+            Display
+          </Text>
+          <View style={[styles.row, { borderColor: palette.border }]}>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: palette.text }]}>
+                Theme
+              </Text>
+              <Text style={[styles.rowCaption, { color: palette.muted }]}>
+                {themePref === 'sun'
+                  ? 'Sun-readable picks max-contrast colours so the screen reads in direct sunlight.'
+                  : themePref === 'auto'
+                    ? 'Auto follows the OS dark / light setting.'
+                    : 'Manually picked. Switch back to Auto to follow the OS.'}
+              </Text>
+              <View style={styles.themePillRow}>
+                {(
+                  [
+                    { key: 'auto', label: 'Auto' },
+                    { key: 'light', label: 'Light' },
+                    { key: 'dark', label: 'Dark' },
+                    { key: 'sun', label: '☀ Sun' },
+                  ] as Array<{ key: ThemePreference; label: string }>
+                ).map((opt) => {
+                  const active = themePref === opt.key;
+                  return (
+                    <Pressable
+                      key={opt.key}
+                      onPress={() => void setThemePref(opt.key)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={`Theme: ${opt.label}`}
+                      style={({ pressed }) => [
+                        styles.themePill,
+                        {
+                          backgroundColor: active
+                            ? palette.accent
+                            : 'transparent',
+                          borderColor: active
+                            ? palette.accent
+                            : palette.border,
+                          opacity: pressed ? 0.75 : 1,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color: active ? '#FFFFFF' : palette.text,
+                          fontSize: 13,
+                          fontWeight: '600',
+                        }}
+                      >
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        </View>
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: palette.muted }]}>
             Storage
@@ -479,6 +553,20 @@ function formatStorageBytes(bytes: number): string {
 }
 
 const styles = StyleSheet.create({
+  themePillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  themePill: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    minWidth: 64,
+    alignItems: 'center',
+  },
   safe: { flex: 1 },
   scroll: {
     padding: 24,

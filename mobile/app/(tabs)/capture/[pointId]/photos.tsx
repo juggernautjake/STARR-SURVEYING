@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -27,6 +26,7 @@ import {
   usePointMedia,
 } from '@/lib/fieldMedia';
 import { type Palette, colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Per-point capture loop — F3 #3 + F4 video review.
@@ -53,7 +53,7 @@ import { type Palette, colors } from '@/lib/theme';
  * away via the bottom button.
  */
 export default function PointPhotosScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const { pointId } = useLocalSearchParams<{ pointId: string }>();

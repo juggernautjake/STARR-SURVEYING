@@ -25,7 +25,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -41,6 +40,7 @@ import {
   usePointMedia,
 } from '@/lib/fieldMedia';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 import {
   cancelRecording,
   getRecordingStatus,
@@ -61,7 +61,7 @@ function formatDuration(ms: number): string {
 }
 
 export default function PointVoiceScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const { pointId } = useLocalSearchParams<{ pointId: string }>();

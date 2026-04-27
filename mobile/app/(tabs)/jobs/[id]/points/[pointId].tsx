@@ -9,7 +9,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -55,6 +54,7 @@ import {
   usePointMedia,
 } from '@/lib/fieldMedia';
 import { colors, type Palette } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Per-point detail / edit screen — F3 #4.
@@ -74,7 +74,7 @@ import { colors, type Palette } from '@/lib/theme';
  * style retention sweep.
  */
 export default function PointDetailScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const { pointId } = useLocalSearchParams<{ pointId: string }>();

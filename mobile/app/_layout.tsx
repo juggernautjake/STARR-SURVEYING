@@ -19,6 +19,7 @@ import {
 } from '@/lib/notificationsInbox';
 import Sentry, { initSentry } from '@/lib/sentry';
 import { usePinnedFilesReconciler } from '@/lib/pinnedFiles';
+import { ThemePreferenceProvider } from '@/lib/themePreference';
 import { useUploadQueueDrainer } from '@/lib/uploadQueue';
 import { usePowerSync } from '@powersync/react';
 
@@ -283,8 +284,9 @@ function RootLayout() {
   return (
     <SafeAreaProvider>
       <StatusBar style="auto" />
-      <AuthProvider>
-        <DatabaseProvider>
+      <ThemePreferenceProvider>
+        <AuthProvider>
+          <DatabaseProvider>
           <UploadQueueDrainer />
           <PinnedFilesReconciler />
           <AdminPingDispatcher />
@@ -306,8 +308,9 @@ function RootLayout() {
            * exists, so it has zero cost when there's nothing to show.
            */}
           <NotificationBanner />
-        </DatabaseProvider>
-      </AuthProvider>
+          </DatabaseProvider>
+        </AuthProvider>
+      </ThemePreferenceProvider>
     </SafeAreaProvider>
   );
 }

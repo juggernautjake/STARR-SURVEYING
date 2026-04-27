@@ -1057,7 +1057,7 @@ Audit additions:
 ### Phase F7 — Polish + offline hardening (Week 25–28)
 - [x] Storage management UI — Me-tab Uploads section + drilldown (`(tabs)/me/uploads.tsx`); per-row retry/discard, in-flight / failed filter tabs.
 - [x] Sync UI improvements (per-asset progress, retry surfaces) — `useUploadQueueStatus` + the Uploads screen + Me-tab summary row that surfaces failed counts in danger colour.
-- [ ] High-contrast / sun-readable theme — dark mode default exists per `lib/theme.ts`; high-contrast variant pending. Acceptance: legible in direct 100°F sun.
+- [x] High-contrast / sun-readable theme (Batch Y) — `lib/theme.ts` adds a third `'sun'` palette (pure white background, pure black text + borders, saturated accents) on top of the existing light + dark variants. `lib/themePreference.tsx` is the AsyncStorage-backed user preference (`'auto' | 'light' | 'dark' | 'sun'`) with a `<ThemePreferenceProvider>` mounted at the root, plus `useResolvedScheme()` hook that screens use in place of `useColorScheme()`. The provider mirrors the choice through `Appearance.setColorScheme()` so legacy `useColorScheme()` callers get a sensible light/dark fallback (sun maps to light). Me-tab Display section has a 4-pill picker with description copy. Capture entry, per-point capture (photos + voice + video player), time tab, pick-job modal, point detail, and Me tab now all read `useResolvedScheme()` so flipping to sun-readable propagates through the full surveyor field workflow.
 - [ ] Battery profile audit — needs real-device measurement against the §2 goal of <50% over 8-hour field day with location tracking on. Test rig + measurement protocol both pending.
 - [/] Tablet layout (truck-mounted iPad) — `supportsTablet: true` set in `app.json`. `lib/responsive.ts` provides `useResponsiveLayout()` + `tabletContainerStyle()` helpers (≥600 dp = tablet; clamp content to 720 px max + centre). Applied to the four main tab screens (Jobs / Time / Money / Me); detail / drilldown screens still inherit phone defaults — split-pane layouts and a tablet-specific Jobs+map combo are post-v1.
 - [ ] Conflict resolution UX for multi-device — per §10 risk: per-field LWW for non-media, "both photos kept" for media. Currently no test coverage of the multi-device path.
@@ -1158,7 +1158,7 @@ classifier) · 228 (voice transcription) — all present.
 | F5 files | Document picker + admin Files block + image/PDF/CSV preview + pin-to-device offline read (Batch W) | CSV parser for surveying P,N,E,Z,D; auto-link CSV rows → data points |
 | F6 stops | Geofence classifier + idempotent re-derivation | AI classifier for ambiguous stops; reverse-geocoded `place_name`/`place_address`; PostGIS `path_simplified` for day-replay scrubber; pg_cron nightly schedule |
 | F6 dispatcher | Last-seen card; per-user mileage drilldown; per-user `/admin/team/[email]` daily drilldown (Batch X) | Continuous live-map trace; day-replay scrubber UI; missing-receipt cross-reference worker |
-| F7 polish | Storage / sync UI, network-restore drainer, notification UX | High-contrast sun-readable theme; battery profile audit on real devices; tablet split-pane layouts on drilldown screens; multi-device conflict-resolution UX + tests; 30-day stress test on 5 devices |
+| F7 polish | Storage / sync UI, network-restore drainer, notification UX, sun-readable theme (Batch Y) | Battery profile audit on real devices; tablet split-pane layouts on drilldown screens; multi-device conflict-resolution UX + tests; 30-day stress test on 5 devices |
 | F0 ops | Expo scaffold, biometric, PowerSync, Sentry | Lock-screen widget (iOS WidgetKit / Android shortcut); OTA update channel URL in `app.json`; EAS submit credentials still `REPLACE_WITH_*`; first TestFlight build pending |
 
 ### C. Pending (planned but not started)
@@ -1525,6 +1525,82 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch Y — sun-readable theme (F7 closer)**
+
+Closes the F7 deferral *"High-contrast / sun-readable theme — dark
+mode default exists per lib/theme.ts; high-contrast variant
+pending. Acceptance: legible in direct 100°F sun."* Surveyors
+flip "☀ Sun" on the Me tab once and every screen they touch in
+the cab (capture, time, point detail) renders pure-black-on-pure-
+white with saturated accents.
+
+Palette (`mobile/lib/theme.ts`):
+- New `'sun'` palette joins the existing `'light'` + `'dark'`.
+- background `#FFFFFF`, surface `#FFFFFF` (no contrast surface —
+  flatten everything for max readability), border `#000000` (full
+  black so borders read in glare), text `#000000`, muted
+  `#262626` (regular `#6B7280` muted disappears at high
+  brightness), accent `#001A8C` (deeper saturated brand blue),
+  danger `#9F0014`, success `#004D1A`.
+- `Scheme` type extended from `'light' | 'dark'` → `'light' |
+  'dark' | 'sun'`.
+
+Preference store (`mobile/lib/themePreference.tsx`):
+- `<ThemePreferenceProvider>` wraps the entire app; mounted at
+  the root layout above `<AuthProvider>` so every screen sees the
+  context.
+- AsyncStorage key `@starr-field/theme_pref` persists the choice
+  across launches; default is `'auto'` (follows OS).
+- Two-channel coordination so the migration is incremental:
+    1. `Appearance.setColorScheme()` mirrors the choice for legacy
+       `useColorScheme()` callers (sun → light fallback).
+    2. React context exposes the actual choice (`'sun'` included)
+       so opted-in screens get the high-contrast palette via
+       `useResolvedScheme()`.
+- Subscribes to OS scheme changes so an `'auto'` preference
+  re-renders when the user toggles dark mode in OS Settings.
+- Hook ergonomics: `useThemePreference()` returns
+  `[pref, setPref]` for the picker; `useResolvedScheme()`
+  returns the active scheme for screens.
+
+Me-tab Display section (`mobile/app/(tabs)/me/index.tsx`):
+- New "Display" section above Storage with a 4-pill picker
+  (Auto / Light / Dark / ☀ Sun). Active pill lifts to the accent
+  fill for unmistakable selection. Caption copy explains what
+  each mode does ("Sun-readable picks max-contrast colours so
+  the screen reads in direct sunlight.").
+- Me tab itself uses `useResolvedScheme()` so the toggle is
+  immediately visible in-place.
+
+Migrated screens (use `useResolvedScheme()`):
+- `(tabs)/capture/index.tsx` (point creation)
+- `(tabs)/capture/[pointId]/photos.tsx` (photo + video grids)
+- `(tabs)/capture/[pointId]/voice.tsx` (memo recorder)
+- `(tabs)/capture/[pointId]/video-player.tsx` (full-screen player)
+- `(tabs)/jobs/[id]/points/[pointId].tsx` (point detail)
+- `(tabs)/time/index.tsx` (timesheet)
+- `(tabs)/time/pick-job.tsx` (clock-in modal)
+- `(tabs)/me/index.tsx` (Me tab)
+
+Other screens (Money tab, Jobs tab, auth, dispatcher list)
+continue to read `useColorScheme()` and resolve via the
+`Appearance.setColorScheme()` mirror — they get the closest
+match (light or dark) until they're touched. No regression.
+
+Logging:
+- AsyncStorage hydrate failures log a warn breadcrumb so a
+  corrupted prefs file is visible in Sentry.
+
+Pending v2 polish:
+- Boost font scaling under sun-readable for surveyors who also
+  squint in glare (currently colour-only; bumping `fontSize`
+  app-wide is invasive).
+- Shake-to-toggle so a one-handed surveyor flips between dark
+  and sun without tabbing to Me.
+- Migrate the remaining ~50 screens to `useResolvedScheme()` so
+  the choice propagates everywhere; current scope is the
+  surveyor's daily field workflow only.
 
 **Batch X — per-user team drilldown (`/admin/team/[email]`)**
 
