@@ -170,12 +170,21 @@ export interface ClockInResult {
 export function useClockIn(): (params: {
   jobId: string | null;
   entryType: EntryType;
+  /** F6 #vehicle-picker — when set, attributes the time entry (and
+   *  therefore the derived mileage segments) to this vehicle.
+   *  Optional in v1 to keep the office/overhead clock-in flow simple
+   *  — those entry types don't need a vehicle. */
+  vehicleId?: string | null;
+  /** True when the clocking-in user is the DRIVER of `vehicleId`.
+   *  Mileage attribution belongs to the driver only — passengers
+   *  share the segment metadata but not the IRS-deductible miles. */
+  isDriver?: boolean;
 }) => Promise<ClockInResult> {
   const db = usePowerSync();
   const { session } = useAuth();
 
   return useCallback(
-    async ({ jobId, entryType }) => {
+    async ({ jobId, entryType, vehicleId = null, isDriver = false }) => {
       const userEmail = session?.user.email;
       const userId = session?.user.id;
       if (!userEmail || !userId) {
@@ -189,6 +198,8 @@ export function useClockIn(): (params: {
         job_id: jobId,
         entry_type: entryType,
         log_date: today,
+        vehicle_id: vehicleId,
+        is_driver: isDriver,
       });
 
       try {
@@ -230,15 +241,19 @@ export function useClockIn(): (params: {
         await db.execute(
           `INSERT INTO job_time_entries (
              id, daily_time_log_id, job_id, user_email, entry_type,
+             vehicle_id, is_driver,
              started_at, clock_in_lat, clock_in_lon,
              created_at, updated_at, client_id
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             entryId,
             dailyLog.id,
             jobId, // null is fine for office / travel / overhead
             userEmail,
             entryType,
+            vehicleId,
+            // Coerce to 0/1 for SQLite; null when no vehicle picked.
+            vehicleId ? (isDriver ? 1 : 0) : null,
             nowIso,
             pos?.latitude ?? null,
             pos?.longitude ?? null,

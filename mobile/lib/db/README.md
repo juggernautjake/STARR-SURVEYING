@@ -84,6 +84,13 @@ Activation gates (each blocks live sync but NOT local-only dev):
       (the page reads from these tables). Idempotent — safe to call
       `derive_location_timeline()` repeatedly; user-overridden stops
       are preserved across recomputes.
+- [ ] Apply `seeds/225_starr_field_vehicles.sql` (fleet roster — adds
+      the `vehicles` table referenced by the mobile schema since
+      seeds/220 + the FKs from `job_time_entries.vehicle_id` and
+      `location_segments.vehicle_id`). Powers the mobile vehicle
+      picker on clock-in (per-clock-in IRS mileage attribution) and
+      the `/admin/vehicles` CRUD page. Apply BEFORE the mobile
+      vehicle picker ships.
 - [ ] Provision PowerSync service (Cloud or self-hosted, see below).
 - [ ] Author sync rules — see "Sync rules" below.
 - [ ] Set `EXPO_PUBLIC_POWERSYNC_URL` in `mobile/.env.local` (dev) and
@@ -171,6 +178,10 @@ bucket_definitions:
       - SELECT * FROM location_segments
           WHERE user_id = bucket.user_id
             AND started_at > now() - interval '7 days'
+      # Vehicle roster — read-only on mobile. Active vehicles only
+      # (RLS already filters this server-side; mobile filter is a
+      # belt-and-braces guard for the picker query).
+      - SELECT * FROM vehicles WHERE active = true
 
   by_company:
     # Jobs and reference tables — visible to all employees of the

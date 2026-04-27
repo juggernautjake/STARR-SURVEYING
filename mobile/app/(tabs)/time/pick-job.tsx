@@ -15,6 +15,7 @@ import { Button } from '@/lib/Button';
 import { logError } from '@/lib/log';
 import { useJobs, type Job } from '@/lib/jobs';
 import { useClockIn, type EntryType } from '@/lib/timeTracking';
+import { useVehicles, type Vehicle } from '@/lib/vehicles';
 import { colors } from '@/lib/theme';
 
 /**
@@ -42,9 +43,18 @@ export default function PickJobScreen() {
   const palette = colors[scheme];
 
   const { jobs } = useJobs();
+  const { vehicles } = useVehicles();
   const clockIn = useClockIn();
 
   const [submitting, setSubmitting] = useState(false);
+  // Vehicle picker state — surveyor selects (or skips) a vehicle
+  // BEFORE picking a job/category. Driver toggle defaults true since
+  // most clock-ins are the driver themselves; passengers explicitly
+  // flip it off so mileage attribution stays clean.
+  const [pickedVehicleId, setPickedVehicleId] = useState<string | null>(
+    null
+  );
+  const [isDriver, setIsDriver] = useState<boolean>(true);
 
   // Shared exit path — surface GPS-failure messaging when present, then
   // dismiss back to the Time tab. Surveyors trust the on-site stamp
@@ -68,7 +78,12 @@ export default function PickJobScreen() {
   const onPickEntryType = async (type: EntryType) => {
     setSubmitting(true);
     try {
-      const result = await clockIn({ jobId: null, entryType: type });
+      const result = await clockIn({
+        jobId: null,
+        entryType: type,
+        vehicleId: pickedVehicleId,
+        isDriver: pickedVehicleId ? isDriver : false,
+      });
       finishClockIn(result, type);
     } catch (err) {
       logError('pickJob.onPickEntryType', 'clock-in failed', err, {
@@ -86,7 +101,12 @@ export default function PickJobScreen() {
     if (!job.id) return;
     setSubmitting(true);
     try {
-      const result = await clockIn({ jobId: job.id, entryType: 'on_site' });
+      const result = await clockIn({
+        jobId: job.id,
+        entryType: 'on_site',
+        vehicleId: pickedVehicleId,
+        isDriver: pickedVehicleId ? isDriver : false,
+      });
       finishClockIn(result, job.name?.trim() || 'job');
     } catch (err) {
       logError('pickJob.onPickJob', 'clock-in failed', err, {
@@ -135,6 +155,63 @@ export default function PickJobScreen() {
         keyExtractor={(j) => j.id ?? ''}
         ListHeaderComponent={
           <View>
+            {vehicles.length > 0 ? (
+              <View style={styles.vehicleBlock}>
+                <Text style={[styles.sectionLabel, { color: palette.muted }]}>
+                  Vehicle (optional)
+                </Text>
+                <View style={styles.vehiclePillRow}>
+                  <VehiclePill
+                    active={pickedVehicleId === null}
+                    label="None"
+                    onPress={() => setPickedVehicleId(null)}
+                    palette={palette}
+                  />
+                  {vehicles.map((v) => (
+                    <VehiclePill
+                      key={v.id}
+                      active={pickedVehicleId === v.id}
+                      label={v.name ?? 'Unnamed'}
+                      onPress={() => setPickedVehicleId(v.id ?? null)}
+                      palette={palette}
+                    />
+                  ))}
+                </View>
+                {pickedVehicleId ? (
+                  <Pressable
+                    onPress={() => setIsDriver((d) => !d)}
+                    style={styles.driverToggleRow}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isDriver }}
+                    accessibilityLabel="I'm driving"
+                    hitSlop={8}
+                  >
+                    <View
+                      style={[
+                        styles.checkbox,
+                        {
+                          borderColor: isDriver ? palette.accent : palette.border,
+                          backgroundColor: isDriver ? palette.accent : 'transparent',
+                        },
+                      ]}
+                    >
+                      {isDriver ? (
+                        <Text style={styles.checkboxMark}>✓</Text>
+                      ) : null}
+                    </View>
+                    <Text style={[styles.driverToggleLabel, { color: palette.text }]}>
+                      I’m driving
+                    </Text>
+                    <Text style={[styles.driverToggleHint, { color: palette.muted }]}>
+                      {isDriver
+                        ? 'Mileage will be attributed to you for IRS deduction.'
+                        : 'You’re a passenger — the driver claims mileage.'}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+
             <Text style={[styles.sectionLabel, { color: palette.muted }]}>
               Quick categories
             </Text>
@@ -215,6 +292,43 @@ export default function PickJobScreen() {
       ) : null}
     </SafeAreaView>
   );
+}
+
+interface VehiclePillProps {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+  palette: ReturnType<typeof paletteOf>;
+}
+
+function VehiclePill({ active, label, onPress, palette }: VehiclePillProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.vehiclePill,
+        {
+          borderColor: active ? palette.accent : palette.border,
+          backgroundColor: active ? palette.accent : 'transparent',
+        },
+      ]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+    >
+      <Text
+        style={[
+          styles.vehiclePillText,
+          { color: active ? '#FFFFFF' : palette.muted },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function paletteOf(scheme: 'light' | 'dark') {
+  return colors[scheme];
 }
 
 const styles = StyleSheet.create({
@@ -301,5 +415,53 @@ const styles = StyleSheet.create({
     bottom: 24,
     left: 24,
     right: 24,
+  },
+  vehicleBlock: {
+    marginBottom: 8,
+  },
+  vehiclePillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 24,
+    marginBottom: 8,
+  },
+  vehiclePill: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  vehiclePillText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  driverToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxMark: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  driverToggleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  driverToggleHint: {
+    fontSize: 12,
+    flex: 1,
   },
 });

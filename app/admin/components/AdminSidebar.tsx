@@ -111,6 +111,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       { href: '/admin/field-data', label: 'Field Data', icon: '📍', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       { href: '/admin/timeline', label: 'Daily Timeline', icon: '🗺️', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       { href: '/admin/mileage', label: 'Mileage', icon: '🚗', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/vehicles', label: 'Vehicles', icon: '🛻', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
     ]},
 
     { label: 'Research', items: [

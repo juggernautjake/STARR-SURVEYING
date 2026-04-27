@@ -1043,7 +1043,7 @@ Resilience additions (same offline-first pattern as F2):
 - [/] Stop detection — `seeds/224_starr_field_location_derivations.sql` lands `location_stops` + `location_segments` tables and a deterministic PL/pgSQL aggregator `derive_location_timeline(p_user_id, p_log_date)`. Algorithm (v1, no AI / no map-matching): cluster pings within 50 m for ≥5 min into stops, sum Haversine distances along intermediate pings into segments (with 200 km single-jump glitch guard, matching `/api/admin/mileage`). Idempotent — DELETEs prior derivations except `user_overridden` stops. Geofence + AI classification + reverse-geocoded place names deferred to v2.
 - [x] Daily timeline view (admin) — `/admin/timeline?user=&date=` reads the derived stops/segments and renders a stop → segment → stop timeline with per-stop time window, duration, Maps deep-link, optional category/place name, links to job + field-data. "Recompute" button POSTs to derive on-demand for fresh pings. APIs: `GET /api/admin/timeline` reads, `POST /api/admin/timeline` re-derives. Sidebar entry under Work group + per-card Timeline link from `/admin/team`. Employee-facing timeline view on mobile pending (the Privacy panel already shows raw pings; stops + segments overlay is the polish).
 - [x] Mileage log generation (IRS-format export) — `GET /api/admin/mileage?from=&to=&user_email=&format=json|csv`. Server-side Haversine sum across consecutive pings per `(user, UTC date)` with a 200 km / single-jump glitch guard; CSV download for QuickBooks / tax import. Admin UI at `/admin/mileage` with date-range picker, per-user grouping, per-employee subtotals + download. Per-user drill-down link from each `/admin/team` card.
-- [ ] Vehicle assignment + driver/passenger — `vehicles` table exists in mobile schema; mobile picker on clock-in pending. `job_time_entries.vehicle_id` + `is_driver` columns reserved.
+- [x] Vehicle assignment + driver/passenger — `seeds/225_starr_field_vehicles.sql` lands the `vehicles` table that's been declared in the mobile schema since seeds/220 + wires the FK from `job_time_entries.vehicle_id` (existing column) and `location_segments.vehicle_id` (added by seeds/224). `/admin/vehicles` page provides full CRUD (add / edit / archive / reactivate; soft-archive preserves historical refs). Mobile vehicle picker on the clock-in `pick-job` modal with optional vehicle pill row + "I'm driving" toggle (defaults true since most clock-ins are the driver themselves; passengers explicitly flip it off so mileage attribution stays clean for IRS). `useClockIn` accepts `vehicleId` + `isDriver`; persists to `job_time_entries.vehicle_id` + `is_driver`. `lib/vehicles.ts` `useVehicles` + `useVehicle` hooks back the picker. Per-vehicle mileage breakdown on `/admin/mileage` deferred to a follow-on (the data is in place; UI swap is a small change).
 - [x] Dispatcher live map (web app, partial) — `/admin/team` shows last-known GPS + battery + staleness, with Google-Maps deep-link per card. Full live map (continuous trace, polling) pending.
 - [ ] Day-replay scrubber (web app) — depends on the worker-derived segments above.
 - [ ] Missing-receipt cross-reference prompts — should compare clocked-in geofences against receipt timestamps and prompt "you spent 12 min at a gas station yesterday but no receipt was logged." Worker job + mobile inbox notification.
@@ -1196,6 +1196,44 @@ under one phase.
       mid-shift would silently break the "tracking-while-clocked-in"
       contract from the dispatcher's POV. The only stop path is
       clock-out (atomic via `useClockOut` + `stopBackgroundTracking`).
+
+**Batch M — vehicles + IRS mileage attribution (F6 vehicle-picker)**
+- [x] `seeds/225_starr_field_vehicles.sql` — adds the `vehicles`
+      table that's been declared in the mobile schema since
+      seeds/220 (was a dangling reference). CHECK on non-empty
+      name, unique active license_plate (case-insensitive,
+      trimmed), `active` flag for soft-archive. RLS: service-role
+      full + authenticated SELECT on active rows only. Defensive
+      DO blocks wire FKs from `job_time_entries.vehicle_id` and
+      `location_segments.vehicle_id` (added by 220 + 224
+      respectively) only when those columns exist.
+- [x] `/api/admin/vehicles` GET / POST / PUT / DELETE — admin-only
+      writes (tech_support read-only); soft-archive on DELETE
+      preserves historical references. Length caps + plate/VIN
+      uppercase normalisation.
+- [x] `/admin/vehicles` page — list with active + archived filter,
+      add/edit form, archive + reactivate buttons, sidebar entry
+      "🛻 Vehicles" under Work group.
+- [x] `mobile/lib/vehicles.ts` — `useVehicles` (active only,
+      alphabetical) + `useVehicle(id)` reactive hooks backed by
+      PowerSync.
+- [x] Mobile clock-in vehicle picker — pill row at top of the
+      `(tabs)/time/pick-job` modal, "I'm driving" toggle that
+      defaults true (passengers explicitly flip off so IRS
+      attribution stays clean), passes `vehicleId` + `isDriver`
+      through `useClockIn` to `job_time_entries`. Picker hides
+      entirely when no vehicles have been seeded by the office,
+      so the flow degrades gracefully.
+- [x] `useClockIn` signature extended with `vehicleId?` +
+      `isDriver?` opt-in params; `is_driver` coerced to 0/1 for
+      SQLite, null when no vehicle picked.
+- Deliberate non-features (deferred to F6 polish):
+  - Per-vehicle mileage breakdown on `/admin/mileage` (data is in
+    place via segments.vehicle_id; UI swap is small).
+  - Default-vehicle preference per surveyor (so the next clock-in
+    pre-picks the truck they used yesterday).
+  - In-vehicle status indicator on the active-clock-in card so the
+    surveyor confirms they're tracked as the driver vs passenger.
 
 **Batch L — free-text + structured notes (F4 notes)**
 - [x] `mobile/lib/fieldNotes.ts` — `useAddFieldNote` /
@@ -1427,6 +1465,11 @@ under one phase.
    aggregator + the `haversine_m()` helper. Derivation is on-demand
    via the admin "Recompute" button; pg_cron nightly schedule
    recommended in v2.
+6. `seeds/225_starr_field_vehicles.sql` — before the mobile vehicle
+   picker ships. Adds the `vehicles` table + the FKs from
+   `job_time_entries.vehicle_id` and `location_segments.vehicle_id`.
+   Office must seed the fleet via `/admin/vehicles` before the
+   picker is meaningful.
 
 PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
 - `notifications` — scoped by `target_user_id` OR case-insensitive
@@ -1482,7 +1525,7 @@ slice of mobile-written data?
 | Background GPS pings | `location_pings` | `/admin/team` last-seen card + `/admin/mileage` per-day aggregates | ✓ shipped (raw + aggregate) |
 | Stops + segments | `location_stops`, `location_segments` | `/admin/timeline` (per-user / per-day) + Recompute button + sidebar entry; mobile reader pending | ✓ shipped (admin) |
 | Notifications (admin pings) | `notifications` | `/admin/team` Ping buttons + existing NotificationBell + POST `/api/admin/notifications` | ✓ shipped |
-| Vehicle assignments | `vehicles` | (none yet — small lookup table) | ⏳ deferred |
+| Vehicle assignments | `vehicles` | `/admin/vehicles` CRUD page (add / edit / archive); mobile picker on clock-in populates `job_time_entries.vehicle_id` + `is_driver` (Batch M) | ✓ shipped |
 | Jobs (mobile read-only v1) | `jobs` | `/admin/jobs` (existing) | ✓ shipped |
 | Fieldbook notes (learning) | `fieldbook_notes` (`module_id`/`lesson_id`/etc.) | `/admin/learn/{fieldbook,notes}` (existing) | ✓ shipped |
 | Field notes (job/point) | `fieldbook_notes` (`job_id`/`data_point_id`/`note_template`/`structured_data`) | Notes block on `/admin/field-data/[id]` with template tag + structured payload table; mobile add screen at `/(tabs)/jobs/[id]/notes/new` (Batch L) | ✓ shipped |
