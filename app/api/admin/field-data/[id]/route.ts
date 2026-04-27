@@ -70,7 +70,7 @@ export interface AdminFieldMediaRow {
 }
 
 export const GET = withErrorHandler(
-  async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
+  async (req: NextRequest) => {
     const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -84,9 +84,15 @@ export const GET = withErrorHandler(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { id } = await ctx.params;
+    // Next 15: params is a Promise<>; the URL parse is the robust
+    // path that withErrorHandler's `(req) => …` signature supports.
+    // (Same pattern as /api/admin/receipts/[id].)
+    const id = new URL(req.url).pathname.split('/').filter(Boolean).pop();
     if (!id) {
-      return NextResponse.json({ error: 'id required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Missing point id' },
+        { status: 400 }
+      );
     }
 
     const { data: pointRaw, error: pointErr } = await supabaseAdmin
