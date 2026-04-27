@@ -690,10 +690,29 @@ function FileCard({ file, palette, onLongPress }: FileCardProps) {
         ? palette.success
         : palette.muted;
 
+  // CSV files route to the in-app coordinate preview screen rather
+  // than the OS share sheet — surveyors get the P,N,E,Z,D table +
+  // match-to-points view inline. The preview screen has an "Open
+  // in another app" fallback so the share-sheet path is still one
+  // tap away when the user wants Numbers / Excel.
+  const isCsvFile =
+    !!file.id &&
+    !!file.job_id &&
+    (file.content_type === 'text/csv' ||
+      file.content_type === 'application/csv' ||
+      /\.csv$/i.test(file.name ?? ''));
+
   const onTap = async () => {
     if (busy) return;
     setBusy('open');
     try {
+      if (isCsvFile && file.id && file.job_id) {
+        router.push({
+          pathname: '/(tabs)/jobs/[id]/files/[fileId]/preview',
+          params: { id: file.job_id, fileId: file.id },
+        });
+        return;
+      }
       await openFile(file);
     } catch (err) {
       Alert.alert(
@@ -747,7 +766,7 @@ function FileCard({ file, palette, onLongPress }: FileCardProps) {
             style={[styles.noteBody, { color: palette.text, flex: 1 }]}
             numberOfLines={2}
           >
-            {isPinned ? '📍 ' : '📎 '}
+            {isCsvFile ? '📊 ' : isPinned ? '📍 ' : '📎 '}
             {file.name ?? 'Untitled'}
           </Text>
           <Pressable

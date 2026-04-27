@@ -1032,8 +1032,8 @@ Resilience additions (same offline-first pattern as F2):
 - [x] File upload from device, cloud, web link — `seeds/226_starr_field_files.sql` lands the `job_files` table + `starr-field-files` storage bucket (100 MB cap, per-user-folder RLS). `lib/jobFiles.ts` `usePickAndAttachFile` opens `expo-document-picker` (handles iCloud + Google Drive providers via the OS picker), enforces the 100 MB cap, INSERTs row with `upload_state='pending'`, enqueues the bytes through `lib/uploadQueue.ts` (offline-first), and supports archive via `useDeleteJobFile`. "+ Attach file" button on the point detail screen.
 - [x] PDF / image / CSV preview — admin `/admin/field-data/[id]` Files block branches on MIME type: `image/*` renders inline at max-height 320 px; `application/pdf` mounts an `<iframe>` at 480 px tall; `text/csv` (or `.csv` extension) auto-fetches the signed URL + parses the first 50 rows into a scrollable table (comma OR tab separator detection + quoted-field handling). Everything else falls back to the Download link. Bookkeeper reviews most files without leaving the page.
 - [x] Pin-to-device for offline access — `mobile/lib/pinnedFiles.ts` + new local-only `pinned_files` table. Tap-pin on a file row resolves a signed URL, streams the bytes to `documentDirectory/pinned/<file_id>.<ext>` via `FileSystem.downloadAsync`, INSERTs a pinned row. Tap-open uses the local URI when pinned (offline-safe + instant) or signs a fresh URL + caches to `cacheDirectory` for one-shot reads when not pinned. Tap-unpin drops the row + unlinks the file. Me-tab Storage section shows "N files · X MB pinned." Mount-once reconciler reaps stale pinned_files rows whose local file disappeared between launches. Deleting a parent `job_files` row cascades to drop the pin so we don't leak disk. (Batch W)
-- [ ] CSV parser (P,N,E,Z,D and variants).
-- [ ] Auto-link CSV rows to phone-side data points by name.
+- [x] CSV parser (P,N,E,Z,D and variants) — `mobile/lib/csvCoords.ts` (Batch AA). Pure module, separator auto-detect (comma / tab / semicolon), header-row auto-detect, P,N,E,Z,D and N,E,Z,D,P column-order detection, RFC-4180 quoted-field handling, comma-as-thousands-separator tolerance, soft-warning collection.
+- [x] Auto-link CSV rows to phone-side data points by name (Batch AA). Tapping a CSV file row routes to the in-app preview screen at `/(tabs)/jobs/[id]/files/[fileId]/preview` instead of the share sheet. Preview shows stats bar (rows · matched · new), detected format, per-row table with N/E/Z + description + ✓ / "New" match badge against `useJobPointNames(jobId)`, plus an "Open in another app" fallback that hands off to the OS share sheet for surveyors who want Numbers / Excel.
 
 **Exit:** Raw survey data and reference docs at fingertips. **Status:** capture + admin viewer shipped (Batch O); preview + parser + pin remain.
 
@@ -1155,7 +1155,7 @@ classifier) · 228 (voice transcription) — all present.
 | F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U) | Server-side FFmpeg thumbnail extraction; WiFi-only original-quality re-upload tier |
 | F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
 | F4 notes | Free-text + four structured templates + admin viewer | Cross-notes search across body + structured payloads (no FTS index — server `tsvector` or local SQLite FTS5 TBD) |
-| F5 files | Document picker + admin Files block + image/PDF/CSV preview + pin-to-device offline read (Batch W) | CSV parser for surveying P,N,E,Z,D; auto-link CSV rows → data points |
+| F5 files | Document picker + admin Files block + image/PDF/CSV preview + pin-to-device offline read (Batch W) + P,N,E,Z,D parser w/ point-match preview (Batch AA) | Auto-import unmatched CSV rows as new data points |
 | F6 stops | Geofence classifier + idempotent re-derivation | AI classifier for ambiguous stops; reverse-geocoded `place_name`/`place_address`; PostGIS `path_simplified` for day-replay scrubber; pg_cron nightly schedule |
 | F6 dispatcher | Last-seen card; per-user mileage drilldown; per-user `/admin/team/[email]` daily drilldown (Batch X) | Continuous live-map trace; day-replay scrubber UI; missing-receipt cross-reference worker |
 | F7 polish | Storage / sync UI, network-restore drainer, notification UX, sun-readable theme (Batch Y) | Battery profile audit on real devices; tablet split-pane layouts on drilldown screens; multi-device conflict-resolution UX + tests; 30-day stress test on 5 devices |
@@ -1525,6 +1525,89 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch AA — CSV (P,N,E,Z,D) parser + match-to-points preview (F5 closer)**
+
+Closes the F5 deferral *"CSV parser (P,N,E,Z,D and variants);
+auto-link CSV rows to phone-side data points by name."* When a
+surveyor attaches a Trimble / Carlson / Topcon coordinate export
+to a job and taps the file row, they now land on an in-app
+preview that auto-detects the format, parses the rows, and
+matches each row's point name against the points already captured
+in the field. ✓ rows are tied; "New" rows are unrecorded.
+
+Pure parser (`mobile/lib/csvCoords.ts`):
+- `parseCoordCsv(text)` returns `{ format, separator, hasHeader,
+  columnLabels, rows, parsedCount, warnings }`.
+- Separator auto-detect (`sniffSeparator`): comma / tab /
+  semicolon, picked by frequency on first 500 chars; tab beats
+  comma when both present.
+- Header-row auto-detect via `looksLikeHeader`: a row with no
+  numeric cells + ≥3 columns is a header (e.g. `P,N,E,Z,D`);
+  data rows have 3+ numerics. Falls back to "treat first row as
+  data" when the data-row sample fails to detect a format.
+- Format auto-detect via `detectFormat`: looks at the first 5
+  data rows + counts how many fit each candidate. P,N,E,Z,D
+  (point name first) wins when col 0 is alpha + cols 1..3 are
+  numeric. N,E,Z,D,P (point name last) wins when cols 0..2 are
+  numeric + col 3 is alpha.
+- RFC-4180-ish `splitLine` handles double-quote escapes +
+  embedded separators inside quoted cells.
+- `isNumeric` accepts comma-as-thousands-separator (some
+  European exports). `toNumber` strips commas before parseFloat.
+- `matchedRowNames(rows, knownNames)` returns a Set for O(1)
+  match lookups in the UI.
+- Pure module. No React, no Supabase, no expo. Trivially
+  testable.
+
+Preview screen (`mobile/app/(tabs)/jobs/[id]/files/[fileId]/preview.tsx`):
+- Resolves bytes via three-tier cascade:
+    1. pinned_files.local_uri (offline-safe; instant)
+    2. pending_uploads.local_uri (upload queue's copy if not
+       synced yet)
+    3. signed-URL fetch to cacheDirectory (only path needing
+       reception)
+  Shows "Loaded from your pinned copy" / "from the upload
+  queue" / "from the server" so the user knows which path won.
+- 5 MB cap on in-memory parsing — over that, the screen offers
+  the share-sheet fallback so the user can open in Numbers /
+  Excel without freezing the JS thread.
+- Stats bar: Rows · Matched · New.
+- Format banner: "P, N, E, Z, D — point name first · comma-
+  separated · header row skipped" (or "Unknown — showing raw
+  cells").
+- Coordinate grid: per-row #, Point + Description, N / E / Z,
+  Match column with ✓ / "New" / "—" badges.
+- "Open in another app" fallback button hands the file to
+  `useOpenJobFile()` so the share-sheet path stays one tap
+  away.
+
+Routing (`mobile/app/(tabs)/jobs/[id]/_layout.tsx`):
+- New `<Stack.Screen name="files/[fileId]/preview" />` registered
+  alongside the existing per-point and notes routes.
+
+UX integration (`mobile/app/(tabs)/jobs/[id]/points/[pointId].tsx`):
+- File-row tap branches: CSV files (by content_type or `.csv`
+  extension) push the preview screen; everything else still hits
+  the share-sheet open path.
+- File-row title prefix flips: 📊 for CSV (signals "tap to
+  preview"), 📍 for pinned, 📎 for everything else.
+
+Logging:
+- `csvPreview.parse` logs format + row count + warnings + byte
+  source on success; `csvPreview.parse` logs errors on failure.
+- Cleanup on the cache copy is left to the OS (cacheDirectory
+  is reaped automatically on low-storage events).
+
+Pending v2 polish:
+- Auto-import unmatched rows as new data points — a "+ Import N
+  unmatched rows" CTA at the top of the preview that creates
+  field_data_points entries with the parsed N/E/Z + description.
+  Needs a coordinate-system picker (state plane vs lat/lon) so
+  the captured-on-device GPS columns match the import.
+- Per-row reverse-matching by GPS distance for rows whose names
+  don't match — surveyors sometimes rename a point in Trimble
+  after capture; matching by proximity catches those.
 
 **Batch Z — receipt duplicate detection + review-before-save (F2 closer)**
 
