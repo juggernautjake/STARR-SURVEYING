@@ -649,6 +649,46 @@ const pending_uploads = new Table(
   { localOnly: true }
 );
 
+// ── pinned_files — persistent local copy of a job_files row ────────────────
+//
+// Lets surveyors mark a plat / deed / CSV for offline re-read. The
+// upload queue normally deletes the local file once the upload
+// succeeds; pinning fetches the bytes back via a signed URL (or
+// keeps the upload-queue copy if pinning happens before the queue
+// drains) and persists them under a stable per-file path. Tapping
+// a pinned file opens instantly from local storage even with no
+// reception.
+//
+// Lifecycle:
+//   1. User taps "Pin" → pinFile() resolves a signed URL, fetches
+//      the bytes to FileSystem.documentDirectory/pinned/<file_id>,
+//      INSERTs this row.
+//   2. The file is now readable offline via shareAsync(local_uri).
+//   3. User taps "Unpin" or deletes the parent job_files row →
+//      DELETE this row + best-effort FS unlink.
+//
+// PowerSync localOnly: phone-specific paths shouldn't leak to other
+// devices; each device decides independently which files to pin.
+const pinned_files = new Table(
+  {
+    /** FK to job_files.id — the parent file row that's pinned.
+     *  Composite-PK semantics handled by the only-one-row-per-file
+     *  invariant enforced in pinnedFiles.ts (defensive INSERT after
+     *  SELECT). */
+    job_file_id: column.text,
+    /** file:// URI in FileSystem.documentDirectory/pinned/. Persistent
+     *  across launches, app kills, reboots. Matches the
+     *  upload-queue's local_uri pattern. */
+    local_uri: column.text,
+    /** Bytes — drives the Me-tab "N MB pinned" summary so the user
+     *  can spot a runaway pin set. */
+    file_size_bytes: column.integer,
+    /** ISO timestamp the surveyor pinned it. */
+    pinned_at: column.text,
+  },
+  { localOnly: true }
+);
+
 /**
  * Top-level schema. Order doesn't matter for sync; alphabetical here
  * for human grep-ability.
@@ -666,6 +706,7 @@ export const AppSchema = new Schema({
   location_stops,
   notifications,
   pending_uploads,
+  pinned_files,
   point_codes,
   receipt_line_items,
   receipts,

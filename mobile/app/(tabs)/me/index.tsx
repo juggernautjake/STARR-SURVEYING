@@ -36,6 +36,7 @@ import {
   tabletContainerStyle,
   useResponsiveLayout,
 } from '@/lib/responsive';
+import { usePinnedStorageStats } from '@/lib/pinnedFiles';
 import { useUploadQueueStatus } from '@/lib/uploadQueue';
 import { colors } from '@/lib/theme';
 
@@ -69,6 +70,13 @@ export default function MeScreen() {
   // field today and 3 are still queued" before opening the drilldown.
   const { pendingCount: uploadsPending, failedCount: uploadsFailed } =
     useUploadQueueStatus();
+  // Pinned-files summary so the surveyor can spot a runaway pin set
+  // (e.g. ten 50 MB plats accumulated over a job). The row is
+  // read-only here — actual unpin happens on the per-point file
+  // card next to the file itself, which is where the user actually
+  // remembers what each pin is.
+  const { count: pinnedCount, totalBytes: pinnedBytes } =
+    usePinnedStorageStats();
   // Reactive — drives the Privacy row's "X pings today" affordance
   // and "last seen" copy. The summary reads the same location_pings
   // rows the user can audit in the drilldown.
@@ -374,6 +382,22 @@ export default function MeScreen() {
               ›
             </Text>
           </Pressable>
+
+          <View
+            style={[styles.row, { borderColor: palette.border }]}
+            accessibilityLabel={`Pinned files — ${pinnedCount} files, ${formatStorageBytes(pinnedBytes)}`}
+          >
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: palette.text }]}>
+                Pinned files
+              </Text>
+              <Text style={[styles.rowCaption, { color: palette.muted }]}>
+                {pinnedCount === 0
+                  ? 'Nothing pinned. Pin a plat or deed from a point to read it offline.'
+                  : `${pinnedCount} ${pinnedCount === 1 ? 'file' : 'files'} · ${formatStorageBytes(pinnedBytes)} on this device. Unpin from the point to free space.`}
+              </Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -442,6 +466,16 @@ function formatPingAge(iso: string): string {
   if (min < 1) return 'just now';
   if (min < 60) return `${min}m ago`;
   return `${Math.floor(min / 60)}h ago`;
+}
+
+/** "12.4 MB" — used by the pinned-files row. Same scale as the
+ *  per-file size column on the per-point file card so the user
+ *  reads consistent units throughout. */
+function formatStorageBytes(bytes: number): string {
+  if (!bytes) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const styles = StyleSheet.create({

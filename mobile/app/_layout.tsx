@@ -18,6 +18,7 @@ import {
   useAdminPingDispatcher,
 } from '@/lib/notificationsInbox';
 import Sentry, { initSentry } from '@/lib/sentry';
+import { usePinnedFilesReconciler } from '@/lib/pinnedFiles';
 import { useUploadQueueDrainer } from '@/lib/uploadQueue';
 import { usePowerSync } from '@powersync/react';
 
@@ -96,6 +97,17 @@ Notifications.setNotificationHandler({
  */
 function UploadQueueDrainer() {
   useUploadQueueDrainer();
+  return null;
+}
+
+/**
+ * Mount-once: reap pinned_files rows whose local file is gone (user
+ * deleted via Files app, OS reaped during a low-storage event).
+ * Without this, an offline open would resolve to a dead path and
+ * fail with a confusing "URI does not exist" error.
+ */
+function PinnedFilesReconciler() {
+  usePinnedFilesReconciler();
   return null;
 }
 
@@ -274,6 +286,7 @@ function RootLayout() {
       <AuthProvider>
         <DatabaseProvider>
           <UploadQueueDrainer />
+          <PinnedFilesReconciler />
           <AdminPingDispatcher />
           <NotificationResponseHandler />
           <LocationTrackerReconciler />

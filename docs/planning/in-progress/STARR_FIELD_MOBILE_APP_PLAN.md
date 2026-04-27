@@ -1031,7 +1031,7 @@ Resilience additions (same offline-first pattern as F2):
 ### Phase F5 — Files + CSV (Week 17–18)
 - [x] File upload from device, cloud, web link — `seeds/226_starr_field_files.sql` lands the `job_files` table + `starr-field-files` storage bucket (100 MB cap, per-user-folder RLS). `lib/jobFiles.ts` `usePickAndAttachFile` opens `expo-document-picker` (handles iCloud + Google Drive providers via the OS picker), enforces the 100 MB cap, INSERTs row with `upload_state='pending'`, enqueues the bytes through `lib/uploadQueue.ts` (offline-first), and supports archive via `useDeleteJobFile`. "+ Attach file" button on the point detail screen.
 - [x] PDF / image / CSV preview — admin `/admin/field-data/[id]` Files block branches on MIME type: `image/*` renders inline at max-height 320 px; `application/pdf` mounts an `<iframe>` at 480 px tall; `text/csv` (or `.csv` extension) auto-fetches the signed URL + parses the first 50 rows into a scrollable table (comma OR tab separator detection + quoted-field handling). Everything else falls back to the Download link. Bookkeeper reviews most files without leaving the page.
-- [ ] Pin-to-device for offline access — files are kept on disk through the queue's `documentDirectory` copy until upload succeeds, then deleted. Persistent pin (re-download for re-read offline) is F5 polish.
+- [x] Pin-to-device for offline access — `mobile/lib/pinnedFiles.ts` + new local-only `pinned_files` table. Tap-pin on a file row resolves a signed URL, streams the bytes to `documentDirectory/pinned/<file_id>.<ext>` via `FileSystem.downloadAsync`, INSERTs a pinned row. Tap-open uses the local URI when pinned (offline-safe + instant) or signs a fresh URL + caches to `cacheDirectory` for one-shot reads when not pinned. Tap-unpin drops the row + unlinks the file. Me-tab Storage section shows "N files · X MB pinned." Mount-once reconciler reaps stale pinned_files rows whose local file disappeared between launches. Deleting a parent `job_files` row cascades to drop the pin so we don't leak disk. (Batch W)
 - [ ] CSV parser (P,N,E,Z,D and variants).
 - [ ] Auto-link CSV rows to phone-side data points by name.
 
@@ -1155,7 +1155,7 @@ classifier) · 228 (voice transcription) — all present.
 | F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U) | Server-side FFmpeg thumbnail extraction; WiFi-only original-quality re-upload tier |
 | F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
 | F4 notes | Free-text + four structured templates + admin viewer | Cross-notes search across body + structured payloads (no FTS index — server `tsvector` or local SQLite FTS5 TBD) |
-| F5 files | Document picker + admin Files block + image/PDF/CSV preview | Pin-to-device for persistent offline read; CSV parser for surveying P,N,E,Z,D; auto-link CSV rows → data points |
+| F5 files | Document picker + admin Files block + image/PDF/CSV preview + pin-to-device offline read (Batch W) | CSV parser for surveying P,N,E,Z,D; auto-link CSV rows → data points |
 | F6 stops | Geofence classifier + idempotent re-derivation | AI classifier for ambiguous stops; reverse-geocoded `place_name`/`place_address`; PostGIS `path_simplified` for day-replay scrubber; pg_cron nightly schedule |
 | F6 dispatcher | Last-seen card; per-user mileage drilldown | Continuous live-map trace; per-user `/admin/team/[email]` daily drilldown; day-replay scrubber UI; missing-receipt cross-reference worker |
 | F7 polish | Storage / sync UI, network-restore drainer, notification UX | High-contrast sun-readable theme; battery profile audit on real devices; tablet split-pane layouts on drilldown screens; multi-device conflict-resolution UX + tests; 30-day stress test on 5 devices |
@@ -1525,6 +1525,83 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch W — file pin-to-device + open-on-tap (F5 closer)**
+
+Closes the F5 deferral *"Pin-to-device for offline access — files
+are kept on disk through the queue's `documentDirectory` copy
+until upload succeeds, then deleted."* Surveyors now mark a plat /
+deed / CSV "Pin offline" once at the office; the file opens
+instantly in the cab even with no LTE.
+
+Schema (`mobile/lib/db/schema.ts`):
+- New local-only `pinned_files` table — `(job_file_id, local_uri,
+  file_size_bytes, pinned_at)`. PowerSync `localOnly: true` keeps
+  the device-specific path off the wire; each device decides
+  independently which files to pin.
+
+Mobile lib (`mobile/lib/pinnedFiles.ts`):
+- `useIsPinned(jobFileId)` — reactive bool for the badge + button.
+- `usePinFile()` — guards on `upload_state === 'done'` + online
+  reception, signs a 5-minute URL, streams bytes via
+  `FileSystem.downloadAsync` to a stable per-file path
+  (`documentDirectory/pinned/<id>.<ext>` so re-pinning a renamed
+  file doesn't leak two rows), INSERTs the pinned_files row.
+  Half-written files are best-effort cleaned on fetch failure.
+- `useUnpinFile()` — DELETE the row + `FileSystem.deleteAsync` the
+  local file.
+- `useOpenJobFile()` — prefers the local pinned copy, falls back
+  to a one-shot signed-URL → `cacheDirectory` download for
+  unpinned reads (OS-managed cleanup; no row tracking). Opens via
+  `expo-sharing.shareAsync` so the OS picks the renderer
+  (Quick Look on iOS, system intent on Android). Surfaces a
+  helpful error when offline + not pinned.
+- `usePinnedFilesReconciler()` — mount-once cleanup that drops
+  pinned_files rows whose local file disappeared between
+  launches (user deleted via Files app, OS reaped during a
+  low-storage event). Without this, an offline open would resolve
+  to a dead path.
+
+UX (`mobile/app/(tabs)/jobs/[id]/points/[pointId].tsx`):
+- File row is now tap-to-open (was metadata-only). Tap → share
+  sheet; long-press → delete confirm (unchanged).
+- Pin button on the right side, pill-style with accent fill when
+  pinned. Disabled while `upload_state !== 'done'` so users can't
+  pin a still-uploading row.
+- Title row shows 📍 prefix when pinned (vs 📎 for unpinned) so a
+  scan of the file list reads the pin state at a glance.
+
+Me-tab Storage section (`mobile/app/(tabs)/me/index.tsx`):
+- New "Pinned files" row: `N files · X MB on this device. Unpin
+  from the point to free space.` Read-only — actual unpin happens
+  next to the file itself, where the user remembers what each pin
+  is.
+
+Cascade (`mobile/lib/jobFiles.ts`):
+- `useDeleteJobFile` now drops the pinned_files row + unlinks the
+  local file BEFORE deleting the parent so a delete cascade
+  doesn't leak disk.
+
+Mount in root layout (`mobile/app/_layout.tsx`):
+- New `<PinnedFilesReconciler />` sibling to `<UploadQueueDrainer />`.
+
+Logging + error handling:
+- Every pin / unpin / open emits structured logs
+  (`pinnedFiles.pin`, `pinnedFiles.unpin`, `pinnedFiles.open`,
+  `pinnedFiles.reconcile`) with `file_id` so Sentry can correlate
+  failures with bucket-config issues per file.
+- User-facing errors: friendly copy on offline pin attempts
+  ("No reception. Pin this file when you have signal — the bytes
+  need to download once."), pin-not-yet-done ("Wait for the upload
+  to finish before pinning."), share-not-available, signed URL
+  failure, HTTP failure.
+
+Pending v2 polish:
+- Bulk-pin from the per-job page so the office can pre-pin "all
+  the documents for tomorrow's job" with one tap.
+- Auto-pin policy ("everything under 5 MB on the active job").
+- Pinned-files panel on the Me tab with per-row unpin (currently
+  the row is read-only; unpin happens next to each file).
 
 **Batch V — compass heading on every photo / video / point**
 
