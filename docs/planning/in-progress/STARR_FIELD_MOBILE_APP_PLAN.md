@@ -2026,9 +2026,293 @@ through the §5.10.4 stack:
   owned by the existing `/admin/vehicles` flow with one
   ALTER to add `vehicle_id` support to the
   `maintenance_events` schema above).
-- **5.12.9 Mobile UX** — "what's in my truck right now" tab for
-  surveyors; QR-scan check-in on return; lost-on-site flow
-  (mark a piece lost with last-known job GPS).
+#### 5.12.9 Mobile UX (surveyor + Equipment Manager)
+
+The admin-web side from §5.12.7 is the Equipment Manager's
+desk. This sub-section is the **phone**: where the surveyor
+actually picks up gear at 6:30am, returns it at 6pm, and
+reports a busted prism in between. The user's directive was
+explicit on the daily ritual being phone-driven (*"Crews would
+have to rely on the equipment manager to get them what they
+need for the job, and they would have to always turn in their
+stuff back to the equipment manager too at the end of the
+day."*) — this is that.
+
+**Two phone audiences, one app, one mental model.** Surveyor
+flows live in the existing 5-tab Starr Field layout (Jobs ·
+Capture · Time · Money · Me). Equipment Manager flows live in
+the same app under a **role-gated 6th tab** (🛠 Gear) that
+only renders when the user's roles array includes
+`equipment_manager`. Same mobile binary, no second download.
+
+**Scaffolding.** New mobile module `mobile/lib/equipment.ts`
+mirrors the `receipts.ts` / `fieldMedia.ts` shape:
+- `useMyCheckouts()` — PowerSync hook returning the
+  surveyor's open `equipment_reservations` (`state='checked_out'`,
+  `checked_out_to_user = me`)
+- `useMyAssignments()` — PowerSync hook returning the
+  surveyor's `job_team` rows in `'proposed'` / `'confirmed'`
+  state
+- `useEquipmentByQr(qrCodeId)` — resolves a scanned QR to
+  the inventory row (cached locally)
+- `useCheckOut`, `useCheckIn`, `useReportDamage`,
+  `useReportLost`, `useExtendCheckout`, `useConfirmAssignment`,
+  `useDeclineAssignment` — mutation hooks that enqueue via
+  `lib/uploadQueue.ts` so every action is offline-safe
+
+##### 5.12.9.1 Surveyor-side flows
+
+**Pre-job loadout preview.** When a surveyor opens an
+upcoming or in-progress job (Jobs tab → job detail), the
+existing job screen gets a new **Loadout** card right under
+the job header:
+- Equipment list (kits + items) with a status pill per row
+  (✓ ready · ⏳ awaiting check-out · ⚠ in maintenance ·
+  ✗ unavailable)
+- Personnel slots (who else is on the crew + their slot_role)
+- Vehicle assignment
+- Below the fold: **"Confirm assignment"** (surveyor's
+  own §5.12.4 push response) and **"Open Equipment Manager
+  chat"** (deep-link into Batch B notifications targeted to
+  `equipment_manager` role recipients) buttons
+- Empty / non-applicable jobs (e.g. "Office") simply hide
+  the card
+
+This is the morning pre-flight check — by the time the
+surveyor walks to the gear cage, they know what they're
+expecting to receive and can spot mistakes BEFORE Equipment
+Manager hands the wrong kit over.
+
+**"What's in my truck right now" — Me tab section.** A new
+section on the Me tab between *Storage* and *Privacy*:
+- Card list of every active checkout for the current user
+- Each card: thumbnail of the inventory photo (when present),
+  label + serial, due-back time, condition pill, vehicle pill
+- Tap → drilldown shows the original loadout + check-out
+  photo + the one-tap **Return** button
+- Long-press → quick actions: Mark damaged · Mark lost ·
+  Extend until tomorrow 8am · Open in vehicle map
+- Empty state: *"No gear checked out. Tap a job's Loadout
+  card to start a check-out scan."* (deep-links into Jobs
+  tab)
+
+This solves the "I forgot what I took" problem 30 minutes
+into a job. Always offline-readable via PowerSync local
+cache.
+
+**QR check-out / check-in scanner.** A full-screen camera
+overlay reachable from three places:
+- Loadout card → "Scan to check out"
+- Me tab "What's in my truck" → per-card "Return" button
+- Persistent FAB on the Me tab when ANY check-out is open
+  (so check-in is always one tap away regardless of
+  navigation state)
+
+Implementation reuses `expo-camera` (already a dependency
+for receipts in §5.11). The scanner overlay:
+- Renders a centred reticle that pulses when a QR is
+  detected
+- Confirms with haptic + a top-of-screen toast: *"S9 Total
+  Station #3 — checking out"*
+- Drops to a confirmation sheet: condition selector
+  (good / fair / damaged), optional photo (defaults to a
+  fresh shot for damaged), notes textbox
+- Submit → enqueues via `lib/uploadQueue.ts`, optimistic
+  PowerSync flip per §5.12.6
+- On collision (server returned a different state), surfaces
+  a non-blocking toast and rolls back the optimistic flip
+
+**Kit batch scanner.** Scanning a kit-parent QR triggers the
+§5.12.6 atomic batch flow. The confirmation sheet shows every
+child item with per-row condition selectors that default to
+the kit-level pick — surveyor can flag exceptions inline
+("Tripod leg loose, but everything else is fine").
+
+**Damage report flow.** Triggered from the per-card long-
+press menu OR from a check-in's `condition='damaged'` path:
+- Required: photo of the damage + free-text description
+- Optional: location (auto-pre-filled from current GPS) +
+  voice memo (re-uses §5.5 voice infrastructure for
+  hands-free reporting)
+- Submit → flips the inventory unit's `current_status` to
+  `maintenance`, creates a §5.12.8 `damage_triage` event,
+  notifies the Equipment Manager
+- Surveyor sees a "Reported · waiting for triage" badge on
+  the original card until the Equipment Manager acts
+
+**Lost-on-site flow.** Triggered from the per-card long-press
+menu when the gear is genuinely missing:
+- Required: a "last seen" location (defaults to the most
+  recent location_pings cluster from the open job; surveyor
+  can drag the pin)
+- Required: a brief description of the circumstances
+- Optional: photos of the area
+- Submit → creates a §5.12.8 `lost_returned` event, flips
+  status to `lost`, fires a notification to admin +
+  Equipment Manager + crew lead with a deep-link to the map
+- The surveyor's open job's notes get an auto-appended
+  "Equipment lost on site" note so end-of-day reconcile
+  picks it up
+
+**Consumables ritual on the phone.** When a surveyor checks
+in a kit at end-of-day, any consumable line item gets a
+quantity selector:
+- Default: full reserved quantity (assumes "we used what we
+  brought")
+- Surveyor adjusts down ("brought 4 rolls, used 2, two go
+  back")
+- Submit decrements `quantity_on_hand` server-side per the
+  §5.12.6 trigger logic
+
+Surveyors don't track partial-roll consumption — that's a
+design choice from §5.12.6. They count whole units.
+
+**Notifications stack.** Re-uses Batch B notification
+infrastructure (§5.10.4) plus three new `source_type` values:
+- `equipment_assignment` — fired when an assignment lands in
+  `'proposed'`. Tap → Loadout card with [Confirm] / [Decline]
+- `equipment_overdue` — the §5.12.6 6pm + 9pm nag. Tap →
+  scanner pre-loaded for return
+- `equipment_status_change` — when a unit you had a
+  reservation on is no longer available (someone else got
+  it via override, or it broke). Tap → updated Loadout card
+  with the substitution
+
+Push payloads always include `equipment_id` + `reservation_id`
+so deep-links resolve even when the app cold-boots from a
+notification.
+
+**Confirmation card UI** (§5.12.4 push response):
+- Renders inline in the Notifications inbox + as a sticky
+  card on the Jobs tab while pending
+- Two buttons: **Confirm** (one-tap) · **Decline** (opens a
+  reason picker — sick / scheduled off / scheduling conflict
+  / other-with-text)
+- Decline immediately re-fires a re-staff notification to the
+  dispatcher with the reason
+
+**Self-service after-hours.** Surveyors with
+`equipment_self_checkout=true` (§5.12.6) see the regular QR
+scanner; surveyors without the flag instead see a soft
+warning: *"Equipment Manager isn't around — text Henry to
+authorise this check-out, or wait until 7am."* — with a
+shortcut to the equipment_manager chat.
+
+##### 5.12.9.2 Equipment Manager-side flows (the 🛠 Gear tab)
+
+A trimmed, action-first home screen mirroring §5.12.7.1
+Today but optimised for one-handed phone use at the gear
+cage:
+- **Top: scanner FAB** — always visible, opens the QR camera.
+  Smart routing: if the scanned unit has a held reservation
+  for today, default to check-out; if it has a checked-out
+  reservation, default to check-in. Equipment Manager can
+  override with a 2-button toggle on the confirmation sheet.
+- **Strip 1 (Going out)** — tappable list of today's held
+  reservations. Each row has a "Pre-staged ✓" indicator the
+  Equipment Manager can flip with one tap (mirrors the
+  §5.12.7.1 web button).
+- **Strip 2 (Out right now)** — sorted by `reserved_to`
+  ascending. Inline action: send a poke notification to the
+  surveyor ("Just checking — still on schedule?"). Cheap way
+  to nudge before the formal 6pm cron fires.
+- **Strip 3 (Returns waiting)** — anything coming back this
+  hour or already overdue.
+- **Notifications inbox** — same as the surveyor tab,
+  filtered to gear-related events.
+
+**Walk-up service flow.** When a surveyor walks up with gear
+to return, Equipment Manager:
+1. Pulls phone out, scanner FAB.
+2. Scans the kit / item.
+3. Confirmation sheet appears with the surveyor + job
+   already filled. Equipment Manager confirms condition,
+   adds note if needed, taps Submit.
+4. Repeats for additional items, or scans a kit parent for
+   batch.
+
+End-to-end target: **&lt; 5 seconds per item** (the user's
+implicit ergonomic bar — anything slower and the system
+gets bypassed).
+
+**Pre-stage workflow.** Evening prep ritual:
+1. Equipment Manager opens 🛠 Gear → Strip 1 (Going out
+   tomorrow).
+2. Walks to the cage, scans each item or kit to flip its
+   Pre-staged flag.
+3. Bins / labels by job number per the existing shop layout.
+4. Morning the surveyor walks up, Equipment Manager just
+   hands over the pre-staged bin (no re-scan needed —
+   the morning scan flips state to `checked_out` in one
+   step).
+
+**Maintenance + low-stock alert handling.** Push
+notifications from the §5.12.8 cron + §5.12.7.5 low-stock
+detector route to the Equipment Manager mobile inbox with
+deep-links to the relevant create-event / restock screens.
+
+##### 5.12.9.3 Cross-cutting mobile patterns
+
+**Offline-first.** Every flow above (check-out, check-in,
+damage report, lost report, confirmation, decline, restock)
+goes through `lib/uploadQueue.ts`. Optimistic local writes
+land instantly; server collisions surface non-blocking
+toasts; the §5.10.4 stuck-uploads triage page (Batch D) is
+the existing safety net.
+
+**PowerSync sync rules.** Three new sync rules:
+- `equipment_inventory` — global read-only for all internal
+  users (the catalogue is shop-wide; pricing visibility
+  scoped to admin/equipment_manager)
+- `equipment_reservations` — scoped by
+  `(checked_out_to_user = me OR job_id IN [my open jobs])`
+  so a surveyor sees their own + their crew's
+- `maintenance_events` — scoped to admin / equipment_manager
+  only. Surveyors see status-only summaries (the
+  current_status pill is enough for their workflow)
+
+**Sun-readability.** Every new screen reads
+`useResolvedScheme()` per Batch PP — the cage is often
+outdoors and the surveyor is always outdoors.
+
+**Offline scanner caching.** The mobile app pre-fetches the
+QR-code-id → equipment-id mapping for the user's open
+reservations + the full catalogue so QR scans resolve
+instantly even with no signal at the gear cage's metal-
+shed dead zone.
+
+**Battery-aware capture.** Damage / lost photos honour the
+existing §5.10.3 battery-aware tier — degrade JPEG quality
+under 20% battery to keep the 30-second damage report
+guaranteed.
+
+##### 5.12.9.4 Surveyor self-service inventory edits
+
+Limited write surface for surveyors who aren't equipment_managers
+but need to record reality:
+- **"Borrowed from another crew"** — surveyor scans an item
+  not on their reservation list. Modal: *"This isn't yours
+  — borrowing from [Henry / Job #422]?"* Confirmation creates
+  a `borrowed_during_field_work` event log entry and routes
+  a notification to both crew leads + Equipment Manager.
+  Inventory reservation isn't auto-rewritten — Equipment
+  Manager reconciles manually using the audit trail.
+- **"Personal kit"** flag on the surveyor's user row marks
+  certain items (their own field tools brought from home —
+  hammers, machetes, gloves) so they're tracked but not
+  managed. Schema-wise these live in `equipment_inventory`
+  with `is_personal=true` + `owner_user_id`; they don't
+  appear in the Equipment Manager dashboards.
+
+##### 5.12.9.5 What §5.12.9 does NOT cover
+
+- The depreciation accounting that ties `cost_cents` from
+  damage triage events to the tax ledger (§5.12.10).
+- The lost-equipment insurance packet generator
+  (§5.12.11).
+- The dispatch-side template apply UI — that's web-admin
+  per §5.12.3, not mobile (dispatchers don't plan jobs from
+  their phones; they use the desk).
 - **5.12.10 Tax + depreciation tie-in** — `acquired_cost_cents`
   + `useful_life_months` feeds the Schedule C Section 13
   depreciation line. Receipt category `equipment` already maps
