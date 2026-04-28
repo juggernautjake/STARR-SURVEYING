@@ -6376,6 +6376,146 @@ The mileage log alone — at IRS standard rate × actual miles driven — typica
 19. **Time-off / PTO tracking** — in-app, or stays in whatever payroll system you use?
 20. **Schedule integration** — show employees their assigned jobs for the day, with deviation alerts? (Phase F8+.)
 
+### Equipment + crew assignment (Phase F10 — added per §5.12)
+
+21. **Equipment Manager role mapping.** Is this a dedicated
+    person at Starr's current size, or a hat worn by an
+    existing crew lead / Henry? Affects sidebar visibility +
+    push-notification routing default. (Lean: hat worn by
+    one of the existing admin / dev users initially, with
+    the role + permissions modeled cleanly so a dedicated
+    hire later doesn't require a refactor.)
+
+22. **Reservation conflict default — hard-block or
+    soft-warn?** §5.12.5 ships hard-block as the default with
+    a soft-override path. Should some conflict types
+    soft-warn instead (e.g. low-stock consumables that the
+    Equipment Manager can resolve with a quick restock)?
+    (Lean: ship hard-block universally; iterate after 3
+    months of usage data.)
+
+23. **Calibration-overdue grace window.** §5.12.5 soft-warns
+    inside 30 days past due, hard-blocks beyond. Is 30 days
+    the right number for total stations? GPS receivers? Should
+    it vary per category? (Decision-required from a licensed
+    surveyor — defaults are sketches.)
+
+24. **Section 179 default behaviour.** §5.12.10 picker
+    defaults `straight_line` for most items, suggests
+    `section_179` for total stations / GPS / similarly-pricey
+    instruments. Should the bookkeeper / CPA override the
+    suggestion globally, or per-acquisition? (Lean: per-
+    acquisition; reflects real-world tax planning where the
+    §179 election interacts with annual income shape.)
+
+25. **Equipment receipt threshold.** §5.12.10
+    `EQUIPMENT_RECEIPT_THRESHOLD_CENTS` defaults to $2,500
+    (IRS de minimis safe harbour). Should this float with
+    annual IRS updates, or stay pinned? (Lean: env-overridable
+    constant, surfaced in admin Settings so the bookkeeper
+    can update on annual IRS publish.)
+
+26. **QR sticker ergonomics + label printer.** What label
+    stock + printer is Starr planning to use? (Affects
+    §5.12.7.3 bulk QR PDF page geometry — Brother QL-820NWB
+    vs DYMO LabelWriter vs generic Avery.) (Lean: Brother
+    DK-1201 2.4" × 1.1" address labels — peel-and-stick,
+    weatherproof variant exists.)
+
+27. **Personal kit policy.** §5.12.9.4 introduces
+    `is_personal=true` for surveyor-owned tools. Does Starr
+    want to track these AT ALL, or stay out of personal
+    property entirely? (Important for liability + 1099
+    boundaries. Lean: track only when surveyor opts in via
+    the Money tab "personal" toggle; never assume.)
+
+28. **Borrowed equipment recordkeeping.** §5.12.11.A
+    `equipment_borrowed_in` table records gear borrowed from
+    other firms. Any TX-survey-board reporting requirements
+    we should bake in (chain of custody for a borrowed
+    receiver used on a recorded survey)? (Decision required
+    from licensed surveyor.)
+
+29. **Lent equipment liability.** §5.12.11.B
+    `equipment_loans_out` requires admin sign-off. Does Starr
+    want a written agreement template the system generates +
+    e-signature flow for the borrower? (Lean: v1 — printed
+    PDF Equipment Manager hands over physically; e-sign in
+    v2.)
+
+30. **Multi-day overnight default behaviour.** §5.12.11.J
+    `multi_day_overnight=true` flag silences the §5.12.6
+    nag. Should the default be on for jobs flagged as
+    `out_of_state` / `multi_day_estimated_duration`? (Lean:
+    no — explicit per-job flag avoids surprise nag-silence
+    on a job that ran overtime.)
+
+31. **Cross-template substitution graph.** §5.12.5 v1 lets
+    template `notes` declare substitution rules in free-form
+    ("OK to swap to GPS Rover Kit if no total station is
+    free"). Does Starr want a structured graph in v2 (e.g.
+    `category='total_station_kit'` substitutes-to
+    `['gps_rover_kit']`)? (Lean: yes for v2 polish, but only
+    after 3 months of seeing what surveyors actually
+    substitute in real operation.)
+
+32. **Reservation lookahead window.** §5.12.7.2 ships a
+    14-day Gantt view by default. Is 14 days the right
+    horizon? (Surveying jobs typically book 2–4 weeks out.
+    Lean: configurable per user with 14 as default; admins
+    extend to 60 days for quarterly planning.)
+
+33. **Software license seat counts.** §5.12.11.I tracks
+    seats_total / seats_used per Trimble Access /
+    Carlson SurvCE entry. Does Starr need to enforce a
+    hard-block when seats_used reaches seats_total at
+    check-out time? (Lean: yes — block the check-out, force
+    the Equipment Manager to free a seat or buy another.)
+
+34. **Equipment depreciation lock cadence.** §5.12.10
+    annual close ritual mirrors Batch QQ. Should this be
+    triggered manually only, or auto-fire on the bookkeeper's
+    fiscal-year-end + a confirmation prompt? (Lean: manual
+    only — too consequential for auto-fire.)
+
+35. **Surveyor decline reason — open enum or fixed?**
+    §5.12.4 surveyor decline picker. Should the reason set be
+    pre-canned (sick / scheduled-off / scheduling-conflict /
+    other-with-text) or fully open? (Lean: pre-canned for
+    statistical visibility; "other" path always free-text.)
+
+36. **Fleet valuation export format.** §5.12.7.7 ships CSV +
+    PDF "Asset Detail Schedule." Does Starr's CPA prefer one
+    format over the other, or want both? Any specific column
+    ordering? (Decision-required from CPA.)
+
+37. **Cage / office hours default.** §5.12.6 self-service
+    after-hours requires an `equipment_self_checkout` flag.
+    Should the system know what "after hours" means (e.g.
+    7am–5pm Mon–Fri)? Affects when the soft warning fires
+    vs the regular scanner flow. (Lean: configurable per-
+    office time-of-day window; surveyors with the flag bypass
+    the warning regardless.)
+
+38. **Notification consolidation.** Equipment-related
+    notifications could pile up (overdue + maintenance due +
+    low stock + assignment confirm). Does the user want a
+    per-day digest mode for non-urgent equipment events, or
+    individual pings? (Lean: individual for action-required,
+    digest for FYI / low-stock / cert-expiring.)
+
+39. **Litigation hold scope.** §5.12.11.K applies a hold to
+    a job's reservations + events. Should the hold also
+    freeze the linked maintenance events / receipts /
+    surveyor location pings? (Lean: yes — full chain-of-
+    custody requires the related rows; admin-only action.)
+
+40. **F10 launch prerequisite — fleet inventory.** §5.12.11.H
+    bulk import. Is the existing fleet documented anywhere
+    (spreadsheet, paper, vendor invoices)? F10.1 needs source
+    data. (Action item before F10 starts: Equipment Manager
+    walks the cage with a clipboard.)
+
 ---
 
 ## 13. Appendix A — sample API contracts
