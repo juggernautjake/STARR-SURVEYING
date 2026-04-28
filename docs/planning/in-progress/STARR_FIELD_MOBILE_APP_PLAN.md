@@ -920,13 +920,204 @@ sub-sections, sketched at the end of §5.12):
   chief), per-day capacity ("Jacob is on Job A 8am-noon, Job B
   noon-5pm"), and template hooks ("template requires at least one
   RPLS").
-- **5.12.5 Availability + conflict detection** — central rule:
-  any `equipment_inventory` row whose `current_status='in_use'`
-  OR has an unreturned `job_equipment` row OR is reserved for a
-  future overlapping window is **not assignable**. Dispatcher
-  sees the conflict + the reason + a suggested alternative
-  (next-available date or a substitutable kit). Hard-block by
-  default, soft-override with audit reason for emergencies.
+#### 5.12.5 Availability + conflict detection
+
+The user's other headline ask: *"the system should track this
+and notify the dispatcher that the equipment is not available."*
+This sub-section is the algorithm + data model behind that
+warning — the piece that turns the §5.12.3 templates spec from
+a glorified shopping list into a real planning tool.
+
+**The central question.** When a dispatcher applies a template
+or adds a line item to a job, the system must answer in
+&lt;500ms:
+
+> "Is this specific instrument (or any unit of this category)
+> available for the job's scheduled window? If not, who has it,
+> when does it come back, and what's the next-best
+> substitution?"
+
+**Reservation windows, not point-in-time.** The naive model —
+`equipment_inventory.current_status='in_use'` — only knows
+*right now*. Real planning happens days / weeks ahead: "Friday
+morning crew needs an S9; Thursday's job runs late and an S9
+gets stuck on-site overnight." The system needs to model time
+windows, not just a current flag.
+
+**Schema sketch — `equipment_reservations` table** (one row per
+job × instrument × window, the source of truth for availability
+queries):
+- `id UUID PK`
+- `equipment_inventory_id UUID FK NOT NULL` (specific unit;
+  category-of-kind requests resolve to a specific unit at
+  reserve-time, not at apply-time, so reservations always pin
+  a real unit)
+- `job_id UUID FK NOT NULL`
+- `from_template_id UUID FK NULL`, `from_template_version INT NULL`
+  (audit — see §5.12.3 versioning rule)
+- `reserved_from TIMESTAMPTZ NOT NULL` (start of the window —
+  default = job's scheduled start; dispatcher can adjust)
+- `reserved_to TIMESTAMPTZ NOT NULL` (end of window — default
+  = scheduled end + 1h overrun grace; dispatcher can adjust)
+- `state TEXT NOT NULL CHECK (state IN ('held', 'checked_out',
+  'returned', 'cancelled'))`
+  - `held` — reservation exists but the gear hasn't been
+    physically picked up yet (the §5.12.3 apply step lands here).
+  - `checked_out` — Equipment Manager scanned the QR (§5.12.6).
+    Carries `actual_checked_out_at`.
+  - `returned` — Equipment Manager scanned at return.
+    Carries `actual_returned_at`. Reservation closes.
+  - `cancelled` — dispatcher pulled back before check-out.
+    Free for re-reservation.
+- `reserved_by UUID FK auth.users(id)`
+- `notes TEXT` (substitution reason, soft-override reason, etc.)
+- `created_at`, `updated_at`
+
+**Key derived columns** on `equipment_inventory` (kept in sync
+by triggers so availability lookups stay one-table fast):
+- `next_available_at TIMESTAMPTZ` — earliest moment with no
+  active reservation. NULL = available right now.
+- `current_reservation_id UUID NULL` — points to the
+  `held`/`checked_out` row that owns the unit at `now()`, if
+  any. The §5.12.7 reconcile dashboard reads this directly.
+
+**Indexes.**
+- `(equipment_inventory_id, reserved_from, reserved_to)` —
+  range-overlap lookups
+- Partial: `(equipment_inventory_id) WHERE state IN ('held', 'checked_out')`
+  — the "what's locked right now or in the future" filter
+- GiST `tstzrange(reserved_from, reserved_to)` for native
+  Postgres range-overlap (`&&`) queries when we have lots of
+  reservations
+
+**The four "is this assignable?" checks** (all must pass for
+green-tick assignment; any failure surfaces a typed reason):
+
+1. **Status check.** `equipment_inventory.current_status` ∈
+   {`maintenance`, `loaned_out`, `lost`, `retired`} → not
+   assignable, reason `'unavailable_status'` + the specific
+   status. `retired_at IS NOT NULL` is also a hard fail.
+2. **Reservation overlap check.** `EXISTS` an
+   `equipment_reservations` row for the same instrument with
+   `state IN ('held', 'checked_out')` AND
+   `tstzrange(reserved_from, reserved_to) && tstzrange(window_from, window_to)`.
+   Reason: `'reserved_for_other_job'` + the conflicting job
+   summary + `reserved_to` (so the UI can suggest "available
+   after Friday 5pm").
+3. **Calibration / certification check.** When
+   `next_calibration_due_at < window_to`, the unit is
+   technically usable but past-due during the window. Reason:
+   `'calibration_overdue'`. **Soft-warn**, not hard-block — a
+   day-one-past-due tripod is still functional; the Equipment
+   Manager just needs to schedule cal. Hard-block if
+   configurable threshold passes (default 30 days past due).
+4. **Stock check (consumables only).** When `item_kind='consumable'`,
+   `quantity_on_hand &lt; quantity_needed` → reason
+   `'low_stock'` + on-hand count + restock-eta from the
+   vendor field on the SKU row. Soft-warn if at-or-above the
+   `low_stock_threshold` minus the requested count (because
+   the threshold itself is a re-order trigger, not a hard
+   floor); hard-block when truly zero.
+
+**Hard block vs. soft warn — the rule.** Templates and
+dispatcher-tuned loadouts both flow through the same checks,
+but the response differs:
+- **Hard block** = the apply / reserve action fails with the
+  typed reason. Dispatcher must substitute, defer, or
+  soft-override (see below).
+- **Soft warn** = the action proceeds but the row is tagged
+  `notes` with the warning. The Equipment Manager's reconcile
+  dashboard (§5.12.7) lists soft-warned rows as "review."
+
+**Soft-override path** (for genuine emergencies — boundary job
+where the only S9 is past calibration but the surveyor needs
+something *today*):
+- Dispatchers with role `admin` OR `equipment_manager` can
+  click "Override conflict" on a hard-blocked row. Required:
+  free-text `override_reason`. Recorded as a row in the
+  per-row event log (§5.12.1) with the actor + timestamp +
+  reason.
+- Override does NOT collapse two reservations into one — it
+  inserts a second `equipment_reservations` row with
+  `notes='OVERRIDE: ' || override_reason`. The conflict
+  remains visible; the Equipment Manager sees both reservations
+  on the timeline and decides who gets the gear when the
+  collision actually happens.
+- Per the user's directive: nothing is silent. Every
+  override surfaces as a `notification` (§5.10.4) to the
+  Equipment Manager + a daily digest line so it doesn't get
+  lost.
+
+**Substitution suggestions** (the "what's the next-best
+option?" half of the user's ask):
+- When a specific-instrument check fails, the system widens
+  to category-of-kind and surfaces:
+  - All available units of the same category, ranked by
+    proximity (same office / same vehicle home-base — see
+    §5.12.1 `home_location`)
+  - The blocked unit's `next_available_at` so the dispatcher
+    can choose to push the job's window instead
+- When a category-of-kind check fails (every unit busy):
+  - Earliest `next_available_at` across all units in the
+    category — "next S9 available Friday 3pm"
+  - Compatible substitution categories — total station and
+    GPS rover are not interchangeable in the field, but the
+    template's `notes` field can declare substitution rules
+    on a per-line basis (e.g. "OK to swap to GPS Rover Kit if
+    no total station is free"). v1: free-form notes;
+    v2 polish: structured substitution graph.
+
+**Worked example** — dispatcher applies "Residential 4-corner
+boundary — total station" template to Job #427 scheduled
+Friday 8am-noon:
+1. Template's category line `category='total_station_kit'`
+   resolves at apply-time to the four kits in inventory.
+2. Kit #1 — `current_status='in_use'`, `current_reservation_id`
+   points to Job #422 with `reserved_to='Friday 6pm'`. ❌
+   conflict: `reserved_for_other_job`, available Friday 6pm.
+3. Kit #2 — `current_status='maintenance'`, scheduled to
+   come out next Wednesday. ❌ conflict: `unavailable_status`.
+4. Kit #3 — fully clear for the window. ✓ green tick. System
+   pins this kit, creates the `equipment_reservations` row in
+   `state='held'`.
+5. Kit #4 — fully clear too (alternate). Surfaced in the UI
+   as "Kit #3 reserved; Kit #4 also available — switch?"
+
+The dispatcher sees all four states at once. Decision is
+explicit, fast, and audited.
+
+**Race-safety.** Two dispatchers applying templates at the
+same instant could both try to reserve Kit #3. Resolution:
+- All inserts to `equipment_reservations` go through a
+  `SELECT … FOR UPDATE` of the target `equipment_inventory`
+  row inside a transaction — same race-safe pattern as
+  Batch QQ's `mark-exported` UPDATE.
+- The second insert reads the freshly-locked row, re-runs the
+  four checks, fails on reservation overlap, and surfaces the
+  collision to the second dispatcher as a normal hard block.
+
+**API sketch** (deferred to the implementation batch — names
+provisional):
+- `GET /api/admin/equipment/availability?from=&to=&category=&id=`
+  — runs the checks, returns assignable units + conflicts
+- `POST /api/admin/equipment/reserve` — body `{ job_id,
+  items: [{equipment_id?, category?, quantity, from, to,
+  override_reason? }] }`. Atomically reserves all items or
+  none.
+- `POST /api/admin/equipment/cancel-reservation` — `{
+  reservation_id }`. Sets state='cancelled'.
+
+**What §5.12.5 explicitly does NOT cover** (kept distinct so
+the implementation batches stay focused):
+- The morning-of QR-scan that flips `state='held'` →
+  `'checked_out'` (§5.12.6).
+- Personnel availability — same rules conceptually but
+  different data (`job_team` rather than `equipment_reservations`).
+  See §5.12.4.
+- The Equipment Manager's day-of reconcile dashboard that
+  reads from these reservations (§5.12.7).
+- The notification routing for unreturned-at-end-of-day gear
+  (§5.12.6 + §5.10.4).
 - **5.12.6 Daily check-in/check-out** — Equipment Manager mobile
   screen with QR scan. Morning: scan kit → it flips to `in_use`,
   records the crew + job. Evening: scan kit on return → flips to
