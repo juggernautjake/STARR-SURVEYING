@@ -2839,6 +2839,27 @@ losing the "I considered everything" brief.
 
 **Migration file:** `seeds/220_starr_field_tables.sql` — `213_text_to_uuid_fks.sql` is the highest currently-tracked seed; the next free slot for Starr Field is 220 (leaving 214–219 reserved for in-flight Recon and self-healing work). Follows the project's seed conventions: `BEGIN; … COMMIT;` wrapper, `CREATE TABLE IF NOT EXISTS`, `ADD CONSTRAINT IF NOT EXISTS` via `DO $$ … END $$` blocks (see `seeds/201_captcha_solves.sql` and `seeds/099_fieldbook.sql` for the exact patterns). Re-applying in CI restore drills must be idempotent.
 
+**Forward reference — Phase F10 schema (seeds/233-237).** The
+schema below is the F0 baseline (`seeds/220`). Subsequent
+phases land additional tables in their own seed files:
+seeds/221-228 land F2-F6 schema (already documented inline
+through their respective batch entries in §9.x); seeds/229-232
+land F2 polish (Batch Z review queue · Batch CC retention ·
+Batch GG video thumbnails · Batch QQ tax-period locking).
+**Phase F10** introduces the equipment + crew assignment
+ledger via seeds/233-237 — full schema sketches live in
+§5.12.1 / §5.12.3 / §5.12.4 / §5.12.5 / §5.12.6 / §5.12.8 /
+§5.12.10 / §5.12.11 rather than being re-stated here. The
+F10 tables ALTER existing schemas (`equipment_inventory`,
+`job_equipment`, `job_team`) plus add `equipment_kits` /
+`_kit_items` / `_events` / `_templates` / `_template_items` /
+`_template_versions` / `_reservations` / `_borrowed_in` /
+`_loans_out` / `_software_licenses` / `_reorder_requests` /
+`_tax_elections` / `personnel_skills` / `personnel_unavailability`
+/ `maintenance_events` / `_event_documents` / `_schedules` /
+`incident_packets`. See the §9 Phase F10 entry for the apply
+order; activation gates list them in seeds/233-237 sequence.
+
 **PostGIS prerequisite.** `location_segments.path_simplified` uses the PostGIS `GEOMETRY` type. Verify with `SELECT extname FROM pg_extension WHERE extname='postgis'` before applying; if absent, the migration's first statement is `CREATE EXTENSION IF NOT EXISTS postgis;`. Most Supabase projects have it by default but assume nothing.
 
 **Notes table — none here.** `field_notes` does **not** appear below: per §5.5, mobile notes write through to the existing `fieldbook_notes` table. ALTER columns for `fieldbook_notes` (e.g. `data_point_id`, `note_template`, `structured_data` JSONB, `voice_transcript_media_id`) ship in the same migration but extend the existing schema rather than creating a parallel table.
@@ -3680,6 +3701,19 @@ tax-period locking, Batch QQ) — all present on disk.
   Operator step: run `eas update:configure`, paste the URL, ship
   a build. The `<OtaUpdatesReconciler />` already degrades
   safely on un-configured builds.
+- **Phase F10 — equipment + supplies inventory + dispatcher
+  templates** (§5.12 / Phase F10 in §9; spec'd Apr 2026; eight
+  sub-phases F10.0–F10.9 sized for Weeks 33–40). Existing
+  schema baseline: `equipment_inventory` + `job_equipment` +
+  `job_team` already shipped (extended in place per §5.12.2).
+  New schema queued: seeds/233-237 (equipment v2 + reservations
+  + personnel skills/unavailability + maintenance + tax
+  elections). New role `equipment_manager` queued for the role
+  enum. Twelve §5.12.11 edge-case batches sequenced as
+  post-F10 polish (priority order: F → C → E → A/B → D → I →
+  G → J → K → L). Forty §12 open questions (#21-#40) document
+  decision-required items requiring user / surveyor / CPA
+  sign-off before each sub-phase starts.
 
 ### D. Architectural deviations from the plan
 
@@ -6240,6 +6274,22 @@ slice of mobile-written data?
 | Field notes (job/point) | `fieldbook_notes` (`job_id`/`data_point_id`/`note_template`/`structured_data`) | Notes block on `/admin/field-data/[id]` with template tag + structured payload table; mobile add screen at `/(tabs)/jobs/[id]/notes/new` (Batch L) | ✓ shipped |
 | Per-job consolidated review | `field_data_points` + `field_media` + `fieldbook_notes` + `job_files` (joined) | `/admin/jobs/[id]/field` — points list (Batch S) + job-level media/notes/files inline blocks + "Uploaded by X · timestamp" attribution on every item (Batch T) | ✓ shipped |
 | Job media bundle download | `field_media` + `job_files` (signed) | `/api/admin/jobs/[id]/field-data/manifest` (CSV manifest, Batch S; uploader columns added in Batch T) + `/api/admin/jobs/[id]/field-data/zip` (server-streamed ZIP, organised by media_type/point, Batch T) — single-file Download links on every card on the per-job + per-point pages | ✓ shipped |
+| Tax-time finances | `receipts` (joined w/ `location_segments` + `vehicles`) | `/api/admin/finances/tax-summary` (Schedule-C JSON+CSV w/ status split, Batch QQ) + `/api/admin/finances/mark-exported` (period-lock action) — admin page UI deferred to Batch QQ part-2 | ◐ API shipped, page pending |
+| Equipment inventory | `equipment_inventory` (extended per §5.12.1) | `/admin/equipment/inventory` (Phase F10.1) — filterable list, inline-edit, bulk QR sticker PDF, bulk CSV import for system-go-live | ⨯ planned (F10.1) |
+| Equipment kits | `equipment_kits`, `equipment_kit_items` | Inline kit composer on the Inventory catalogue page; one-scan kit batch check-out via `equipment_events` rows (§5.12.6) | ⨯ planned (F10.1) |
+| Equipment templates | `equipment_templates`, `equipment_template_items`, `equipment_template_versions` | `/admin/equipment/templates` admin CRUD + Apply-template flow on existing job detail page (Phase F10.2) | ⨯ planned (F10.2) |
+| Equipment reservations | `equipment_reservations` | `/admin/equipment/reservations` Gantt timeline (§5.12.7.2); per-job reservations panel on existing job detail page; mobile loadout preview (§5.12.9.1) | ⨯ planned (F10.3) |
+| Equipment availability | derived `equipment_inventory.next_available_at` + `current_reservation_id` | `GET /api/admin/equipment/availability` runs the four §5.12.5 checks; Today landing-page status pills (§5.12.7.1) | ⨯ planned (F10.3) |
+| Personnel skills + certs | `personnel_skills`, `personnel_unavailability` | `/admin/employees/[email]/skills` admin pages (Phase F10.4); cert PDFs via `seeds/226` files bucket | ⨯ planned (F10.4) |
+| Job team assignments + state | `job_team` (extended w/ `assigned_from`/`_to` + `state` machine) | Assignment slot widget on existing job detail page; mobile [Confirm]/[Decline] cards in inbox; week-grid heatmap on `/admin/equipment/crew-calendar` (§5.12.7.6) | ⨯ planned (F10.4) |
+| Equipment events (audit) | `equipment_events` | History drawer accessible from every inventory unit + every reservation drilldown; powers chain-of-custody PDF for §5.12.11.K litigation hold | ⨯ planned (F10.5) |
+| Daily check-in/check-out | `equipment_reservations` (`state='checked_out'`/`returned'` + condition fields) | Equipment Manager mobile 🛠 Gear tab + admin Today landing page; QR-scan flows on both surfaces; 6pm/9pm unreturned-gear nag cron | ⨯ planned (F10.5) |
+| Maintenance + calibration | `maintenance_events`, `maintenance_event_documents`, `maintenance_schedules` | `/admin/equipment/maintenance` calendar + per-unit history page; daily 3am cron for due-date notifications | ⨯ planned (F10.7) |
+| Consumables (bulk) | `equipment_inventory` (`item_kind='consumable'`) + `equipment_reorder_requests` | `/admin/equipment/consumables` low-stock list w/ days-of-stock-remaining sort + restock receipt linkage (§5.12.7.5) | ⨯ planned (F10.6) |
+| Borrowed-in equipment | `equipment_borrowed_in` | Inline section on Today landing page + per-job loadout panel (§5.12.11.A) | ⨯ planned (post-F10) |
+| Lent-out equipment | `equipment_loans_out` | Admin-gated loan approval flow + reservation hard-block linkage (§5.12.11.B) | ⨯ planned (post-F10) |
+| Equipment depreciation | `equipment_tax_elections` (per-year-per-asset frozen records) | "Lock equipment depreciation" button on `/admin/finances` (mirrors Batch QQ); `equipment` block on `tax-summary` JSON; Asset Detail Schedule PDF + CSV (§5.12.10) | ⨯ planned (F10.9) |
+| Software licenses | `equipment_software_licenses` | Per-unit license card on inventory drilldown w/ seats_total / seats_used + transfer history (§5.12.11.I) | ⨯ planned (post-F10) |
 
 **Activation gate**: every admin surface above bypasses RLS via
 `supabaseAdmin` (service role), so the data flows even if user-JWT
@@ -6350,6 +6400,49 @@ The `AiUsageTracker` circuit breaker trips **before** the per-product budget all
 | **ROI** | | **5–15x** |
 
 The mileage log alone — at IRS standard rate × actual miles driven — typically pays for the entire system many times over.
+
+### Phase F10 incremental cost (equipment + supplies inventory)
+
+Phase F10 adds storage + a few cron jobs but no per-receipt
+AI cost (the equipment promotion path reuses the existing
+§5.11 receipt extraction; nothing new to bill).
+
+| Item | Monthly | Notes |
+|---|---|---|
+| Supabase Storage — calibration cert PDFs + maintenance event documents | $1–5 | ~50 instruments × ~5 PDFs × 200KB + before/after damage photos |
+| Supabase Storage — equipment catalogue photos + QR sticker PDFs | $0–2 | One photo per durable; bulk QR sheets cached on the admin side |
+| Supabase compute — daily 3am maintenance cron + 6pm/9pm unreturned-gear cron | $0 | Within existing Pro plan; queries are tiny |
+| Push notifications — assignment confirms / overdue nags / cert-expiry warnings | $0 | Expo free tier |
+| Worker compute — Asset Detail Schedule PDF generation (annual) | $0 | One-shot annual job; runs on existing worker |
+| **Total F10 incremental** | **~$1–7/mo** | Negligible vs the receipts/Anthropic line; Schedule C Line 13 deduction recovery dwarfs it |
+
+### Phase F10 ROI
+
+Per-asset visibility + IRS-grade depreciation tracking +
+calibration-overdue prevention has compound value:
+
+- **Avoided lost / forgotten gear**: typical small surveying
+  shop loses ~$2–5K/yr to "left it on site" + "took it home
+  and forgot" + un-recoverable damaged items. Closed-loop
+  daily check-in + lost-on-site GPS recovery typically
+  recovers 60–80% of that.
+- **Section 179 / depreciation accuracy**: a single
+  $40K total station with §179 election + accurate
+  placed-in-service date saves ~$8–12K in year-1 federal
+  tax depending on bracket. Mis-classifying it as supplies
+  (or depreciating wrong) can leave that on the table.
+- **Calibration-overdue avoidance**: the cost of a single
+  contested boundary survey caused by an out-of-cal
+  instrument can be $5K–$50K in re-shoot + legal exposure.
+  Hard-block past 30 days past due is cheap insurance.
+- **Equipment Manager labour**: ~3–5 hours/week of manual
+  cage tracking → ~30 min/week of digital review.
+  ~$5K/yr at a $35/hr fully-loaded rate.
+
+Net: **~$15K–$70K/yr in recovered value** depending on shop
+size + asset profile, against ~$50/yr incremental cloud cost.
+ROI is dominated by the §179 / depreciation accuracy line —
+the rest is gravy.
 
 ---
 
@@ -6648,6 +6741,45 @@ GET /api/mobile/mileage-log.csv?user_id=...&start=2026-01-01&end=2026-12-31
 | Done | <1s | |
 | **Total** | **~3s** | |
 
+### Equipment kit check-out (target <5s, per §5.12.9.2)
+
+The Equipment Manager's bar — anything slower and the system
+gets bypassed for hand-written cage logs.
+
+| Step | Target | Notes |
+|---|---|---|
+| 🛠 Gear tab → Scanner FAB | 0.5s | Persistent FAB, single tap |
+| QR scan resolves | <0.5s | Pre-cached lookup table from offline pre-fetch (§5.12.9.3) |
+| Confirmation sheet renders | 0.5s | Crew + job pre-filled from `state='held'` reservation |
+| Default condition = good (one tap to submit) OR photo + condition selector | 1–3s | Photo path adds ~2s for capture |
+| Server roundtrip + optimistic local flip | <0.5s | Background; local state updates immediately |
+| **Total (kit, default condition)** | **~3s** | |
+| **Total (item with damage photo)** | **~6s** | |
+
+Kit batch check-out flips parent + N children in one
+transaction — same 3s budget regardless of kit size (§5.12.6).
+
+### Equipment kit check-in (target <5s)
+
+| Step | Target | Notes |
+|---|---|---|
+| 🛠 Gear tab → Scanner FAB | 0.5s | |
+| QR scan + smart routing | <0.5s | System auto-detects this is a return because reservation is in `state='checked_out'` |
+| Confirmation sheet — condition + consumed_quantity (consumables only) | 1–2s | |
+| Submit + audit log + `quantity_on_hand` decrement (if consumable) | <0.5s | |
+| **Total (durable, good condition)** | **~3s** | |
+| **Total (consumable w/ count)** | **~4s** | |
+
+### Surveyor assignment confirmation (target <10s)
+
+| Step | Target | Notes |
+|---|---|---|
+| Notification arrives | (push) | |
+| Tap notification → confirmation card | 1s | |
+| Read job + crew + equipment list | 5–7s | User-driven |
+| Tap **Confirm** OR **Decline + reason picker** | 1–3s | Decline path 3s for reason selection |
+| **Total** | **~7–10s** | |
+
 ---
 
 ## 15. Appendix C — bootstrapping checklist (Phase F0)
@@ -6668,6 +6800,74 @@ GET /api/mobile/mileage-log.csv?user_id=...&start=2026-01-01&end=2026-12-31
 - [ ] Google Cloud project + Places/Distance Matrix billing alerts
 - [ ] Verify PostGIS extension enabled on the live Supabase project (`SELECT extname FROM pg_extension WHERE extname='postgis'`)
 - [ ] Confirm with Hank Maddux RPLS that `fieldbook_notes` is the right home for mobile structured notes (per §5.5) — if not, decide on a parallel `field_notes` table with explicit reasons
+
+### Phase F10 prerequisites (equipment + supplies inventory + dispatcher templates)
+
+These items don't block Phase F0–F9 but ARE prereqs before
+F10.0 (Week 33) can start. Listed in roughly the order needed.
+
+- [ ] **Decide Equipment Manager role mapping** (per §12 #21):
+      hat worn by an existing admin / dev user, or new hire?
+      Affects role-enum value semantics + push-notification
+      routing default. Lean: hat worn initially with role
+      modeled cleanly so a future dedicated hire is a
+      permission-flip, not a refactor.
+- [ ] **Walk-the-cage inventory** (per §12 #40 + §5.12.11.H):
+      Equipment Manager produces a CSV (or paper tally
+      transcribed) listing every durable + kit + consumable
+      currently in the cage with: name, category, manufacturer
+      / model, serial number (when applicable), acquired_at
+      (best estimate ok), acquired_cost_cents (from invoice
+      if available; otherwise estimate), useful_life_months,
+      home_location. Powers F10.1 bulk import.
+- [ ] **Decide QR sticker label-printer** (per §12 #26):
+      Brother QL-820NWB + DK-1201 weatherproof labels
+      recommended; alternates: DYMO LabelWriter or generic
+      Avery + sheet printer. Affects F10.1 bulk QR PDF page
+      geometry.
+- [ ] **Calibration grace window per category** (per §12 #23):
+      30-day default soft-warn before hard-block. Decision
+      required from licensed surveyor — does this hold for
+      total stations? GPS receivers? Levels?
+- [ ] **Equipment receipt threshold** (per §12 #25):
+      $250000 cents ($2,500 — IRS de minimis safe harbour) is
+      the §5.12.10 default. Confirm with bookkeeper / CPA
+      whether to raise / lower for Starr's fiscal profile.
+- [ ] **CPA conversation on tax surfaces** (per §12 #36 + #34):
+      preferred export format (CSV vs PDF Asset Detail Schedule
+      vs both); column ordering; whether Section 179 picker
+      defaults are useful or noise; annual lock cadence
+      (manual only is the lean).
+- [ ] **TX-survey-board chain-of-custody review** (per §12 #28):
+      do borrowed-from-other-firm receivers used on a recorded
+      survey require any specific recordkeeping that
+      `equipment_borrowed_in` should bake in? Decision
+      required from Hank Maddux RPLS or equivalent.
+- [ ] **Reservation lookahead horizon** (per §12 #32): default
+      14 days OK or extend to 30 / 60? Affects §5.12.7.2 Gantt
+      page-load size + the §5.12.5 conflict-detection scan
+      window.
+- [ ] **Existing fleet → category taxonomy mapping**: the
+      `equipment_inventory.category` enum is open in §5.12.1 but
+      every unit needs one. Equipment Manager + a licensed
+      surveyor agree on the canonical list (`total_station`,
+      `gps_rover`, `data_collector`, `tripod`, `prism`, `level`,
+      `vehicle_*`, `consumable_paint`, …). v1 stays small;
+      categories added as new gear arrives.
+- [ ] **Existing software-license inventory** (per §12 #33):
+      list every Trimble Access / Carlson / Topcon activation
+      currently bound to a specific receiver, plus seats_total
+      / seats_used + expiry. Powers F10.7 / §5.12.11.I when
+      that polish batch lands.
+- [ ] **Personnel skill catalogue seeding**: list every active
+      RPLS / LSIT / Part-107 / OSHA-30 / flagger / CDL credential
+      across the team with `acquired_at` + `expires_at` +
+      cert PDF if available. Powers F10.4 personnel availability
+      checks.
+- [ ] **Cage hours definition** (per §12 #37): time-of-day
+      window for "in office hours" vs "after hours"
+      self-service. Default 7am–5pm Mon–Fri; configurable per
+      office once §5.12.11.D lands.
 
 ---
 
