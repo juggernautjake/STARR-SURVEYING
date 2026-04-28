@@ -3488,8 +3488,15 @@ the rest of F10 reads from. Broken into 10 small sub-batches:
       (newly added to package.json) + the existing pdfkit
       dep. 422 if the row has no qr_code_id (operator edits
       to assign one first).
-- [ ] **F10.1g** — Bulk QR PDF (multi-page; selected rows →
-      sheet).
+- [◐] **F10.1g** — Bulk QR PDF (multi-page; selected rows →
+      sheet). **F10.1g-i (POST `/api/admin/equipment/qr-stickers`
+      endpoint)** shipped — body accepts `{ ids: string[] }` OR
+      `{ filter: {…} }` (mutually exclusive), 200-row hard cap,
+      parallel QR encode, multi-page PDF (one page per row,
+      same Brother DK-1201 layout as F10.1f). Skips rows with
+      no qr_code_id and reports the count via X-Stickers-Skipped
+      response header. F10.1g-ii (catalogue checkbox UI + bulk
+      print buttons) lands next.
 - [ ] **F10.1h** — Bulk CSV importer at
       `/admin/equipment/import` (§5.12.11.H, system-go-live
       fleet seeding).
@@ -3705,20 +3712,14 @@ aggregator, Batch X), `notifications`, `time-logs/*`,
 for tombstones, Batch FF), `finances/tax-summary`
 (JSON+CSV Schedule-C report w/ status split, Batch QQ),
 `finances/mark-exported` (period-lock action, Batch QQ),
-**`equipment` (Phase F10.1a GET catalogue with status / category /
-item_kind / include_retired / q filters; Phase F10.1c-i POST
-creates a row with allow-listed columns, validated item_kind /
-current_status enums, auto-generated qr_code_id, non-negative
-integer guards on cents/quantity columns, 409 on qr_code_id
-collision; Phase F10.1d-i `PATCH /api/admin/equipment/[id]`
-inline-edit endpoint with the same allow-list MINUS retired_at
-(forced through F10.1e), UUID-validated id, 404 on missing row,
-last-write-wins concurrency w/ equipment_events audit trail
-downstream; Phase F10.1e-i `POST /api/admin/equipment/[id]/retire`
-+ `/restore` lifecycle endpoints — set/clear retired_at +
-retired_reason + current_status, idempotent re-runs surface
-already_retired / already_active flags, audit-log row written
-to equipment_events on every transition; equipment_manager
+**`equipment` (Phase F10.1a GET catalogue; F10.1c-i POST create
+w/ enum + integer guards + 409 on qr_code_id collision; F10.1d-i
+`PATCH [id]` inline-edit; F10.1e-i `POST [id]/retire` + `/restore`
+lifecycle endpoints w/ equipment_events audit trail; F10.1f
+`GET [id]/qr-sticker` single-row Brother DK-1201 PDF; F10.1g-i
+`POST /qr-stickers` bulk multi-page PDF accepting `ids: string[]`
+or `filter: {…}` — 200-row cap, parallel QR encode, X-Stickers-
+Printed / X-Stickers-Skipped response headers; equipment_manager
 role gated; tech_support read-only)**.
 
 **Worker (`worker/src/services/`):**
@@ -3839,7 +3840,7 @@ the dashboards they link to.
   - **✅ F10.0a-iv** seeds/236 equipment_events audit log `[fb94f61]`
   - **✅ F10.0a-v** seeds/237 equipment_templates + items + versions `[e566747]`
   - **✅ F10.0e** equipment_manager role + 4 consumers `[ded0b67]`
-  - **◐ F10.1** Inventory catalogue UI + QR codes — F10.1a GET + F10.1b page + F10.1c (POST + Add) + F10.1d (PATCH + Edit) + F10.1e (retire/restore + UI) + F10.1f (single-row QR PDF) shipped; F10.1g-j pending (bulk QR PDF · bulk CSV import · mobile useEquipmentByQr · mobile scanner overlay)
+  - **◐ F10.1** Inventory catalogue UI + QR codes — F10.1a GET + F10.1b page + F10.1c (POST + Add) + F10.1d (PATCH + Edit) + F10.1e (retire/restore + UI) + F10.1f (single-row QR PDF) + F10.1g-i (bulk QR PDF endpoint) shipped; F10.1g-ii (bulk-select UI) + F10.1h-j pending (bulk CSV import · mobile useEquipmentByQr · mobile scanner overlay)
   - **⨯ F10.2** Templates + dispatcher apply flow (CRUD, preview-with-availability, save-as-template, composition, versioning snapshots)
   - **⨯ F10.3** Availability + conflict engine (seeds/238 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
   - **⨯ F10.4** Personnel side (seeds/239 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
@@ -6552,7 +6553,7 @@ slice of mobile-written data?
 | Per-job consolidated review | `field_data_points` + `field_media` + `fieldbook_notes` + `job_files` (joined) | `/admin/jobs/[id]/field` — points list (Batch S) + job-level media/notes/files inline blocks + "Uploaded by X · timestamp" attribution on every item (Batch T) | ✓ shipped |
 | Job media bundle download | `field_media` + `job_files` (signed) | `/api/admin/jobs/[id]/field-data/manifest` (CSV manifest, Batch S; uploader columns added in Batch T) + `/api/admin/jobs/[id]/field-data/zip` (server-streamed ZIP, organised by media_type/point, Batch T) — single-file Download links on every card on the per-job + per-point pages | ✓ shipped |
 | Tax-time finances | `receipts` (joined w/ `location_segments` + `vehicles`) | `/api/admin/finances/tax-summary` (Schedule-C JSON+CSV w/ status split, Batch QQ) + `/api/admin/finances/mark-exported` (period-lock action) — admin page UI deferred to Batch QQ part-2 | ◐ API shipped, page pending |
-| Equipment inventory | `equipment_inventory` (extended per §5.12.1) | `GET /api/admin/equipment` (F10.1a) + `/admin/equipment/inventory` catalogue (F10.1b) + Add (F10.1c) + Edit (F10.1d) + Retire/Restore (F10.1e) + single-row QR sticker PDF `/api/admin/equipment/[id]/qr-sticker` (F10.1f). Bulk QR PDF + CSV import land in F10.1g-h. | ◐ CRUD + single QR shipped, bulk QR/CSV pending |
+| Equipment inventory | `equipment_inventory` (extended per §5.12.1) | `GET /api/admin/equipment` (F10.1a) + `/admin/equipment/inventory` catalogue (F10.1b) + Add (F10.1c) + Edit (F10.1d) + Retire/Restore (F10.1e) + single-row QR PDF (F10.1f) + bulk multi-page QR PDF endpoint `POST /api/admin/equipment/qr-stickers` (F10.1g-i). Bulk-select UI + CSV import land in F10.1g-ii / F10.1h. | ◐ CRUD + QR endpoints shipped; bulk-select UI + CSV pending |
 | Equipment kits | `equipment_kits`, `equipment_kit_items` | Inline kit composer on the Inventory catalogue page; one-scan kit batch check-out via `equipment_events` rows (§5.12.6) | ⨯ planned (F10.1) |
 | Equipment templates | `equipment_templates`, `equipment_template_items`, `equipment_template_versions` | `/admin/equipment/templates` admin CRUD + Apply-template flow on existing job detail page (Phase F10.2) | ⨯ planned (F10.2) |
 | Equipment reservations | `equipment_reservations` | `/admin/equipment/reservations` Gantt timeline (§5.12.7.2); per-job reservations panel on existing job detail page; mobile loadout preview (§5.12.9.1) | ⨯ planned (F10.3) |
