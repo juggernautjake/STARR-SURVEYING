@@ -915,11 +915,241 @@ sub-sections, sketched at the end of §5.12):
   cleanup queue UI (§5.12.7).
 
 
-- **5.12.4 Personnel assignment** — `job_team` already exists. We
-  layer crew skills / certifications (RPLS, field tech, party
-  chief), per-day capacity ("Jacob is on Job A 8am-noon, Job B
-  noon-5pm"), and template hooks ("template requires at least one
-  RPLS").
+#### 5.12.4 Personnel assignment + crew capacity
+
+The user's directive: *"they can also assign personnel to the
+specific crew for the job."* Equipment is half the loadout; the
+other half is **who is on the truck**. This sub-section makes
+crew assignment mirror the equipment model from §5.12.5 — same
+reservation-window vocabulary, same conflict-detection ergonomics
+— so the dispatcher learns one mental model, not two.
+
+**Existing infrastructure (extend, do not duplicate).** The live
+schema already has `job_team` (referenced in `app/api/admin/jobs/team/route.ts`,
+`app/admin/components/jobs/JobCard.tsx`, the §5.2 jobs spec).
+Today's columns: `job_id`, `user_email`, `user_name`, `role`,
+`removed_at`. It's currently a *who's on this job at all* list —
+no time windows, no skill matching, no capacity awareness.
+Starr Field's personnel work ALTERs `job_team` and adds parallel
+tables; it does NOT introduce a `job_personnel` rename.
+
+**Schema additions** (extend `job_team` in place):
+- `assigned_from TIMESTAMPTZ NULL` (start of the assignment
+  window — defaults to job's scheduled start when NULL,
+  matching the equipment reservation pattern)
+- `assigned_to TIMESTAMPTZ NULL` (end of window — defaults to
+  scheduled end + 1h overrun grace)
+- `slot_role TEXT NULL` (the slot the person fills, e.g.
+  `'rpls'`, `'party_chief'`, `'field_tech'`, `'drone_pilot'`,
+  `'instrument_op'`, `'rod_person'`. Distinct from the existing
+  `role` column which is generic — `slot_role` is the
+  template-defined need; `role` is what they actually bring)
+- `state TEXT CHECK (state IN ('proposed', 'confirmed',
+  'declined', 'cancelled')) DEFAULT 'proposed'`
+  - `proposed` — dispatcher pencilled them in but the surveyor
+    hasn't acknowledged
+  - `confirmed` — surveyor saw the assignment + tapped accept
+    (mobile push notification flow, see "Surveyor flow" below)
+  - `declined` — surveyor said no (PTO, conflict, sick); the
+    dispatcher gets notified to re-staff
+  - `cancelled` — dispatcher pulled them off; symmetric with
+    equipment reservation cancellation
+- `confirmed_at TIMESTAMPTZ NULL`, `declined_at TIMESTAMPTZ NULL`,
+  `decline_reason TEXT NULL`
+- `is_crew_lead BOOLEAN DEFAULT false` (one per job — the
+  decision-maker, runs the §5.12.6 check-out, can soft-override
+  per §5.12.5 if granted)
+- `notes TEXT`
+
+**New tables.**
+
+`personnel_skills` — per-user catalogue of skills + certs:
+- `id UUID PK`
+- `user_id UUID FK auth.users(id)`
+- `skill_code TEXT` (open enum — `rpls` (Registered Professional
+  Land Surveyor), `lsit` (Surveyor in Training), `field_tech`,
+  `party_chief`, `drone_pilot_part_107`, `osha_30`, `flagger`,
+  `cdl_class_a`, `instrument_specialist_total_station`,
+  `instrument_specialist_gnss`, custom strings allowed)
+- `acquired_at DATE`, `expires_at DATE NULL` (cert expiry — the
+  RPLS license, the OSHA 30-card, the Part 107 — all renewable
+  on different cycles)
+- `cert_document_url TEXT NULL` (PDF in the §5.6 files bucket)
+- `state TEXT CHECK (state IN ('active', 'expired', 'revoked'))`
+- `notes TEXT`
+
+`personnel_unavailability` — PTO / sick / training / off-duty:
+- `id UUID PK`
+- `user_id UUID FK auth.users(id)`
+- `unavailable_from TIMESTAMPTZ`, `unavailable_to TIMESTAMPTZ`
+- `kind TEXT CHECK (kind IN ('pto', 'sick', 'training',
+  'doctor', 'other'))`
+- `reason TEXT NULL`, `is_paid BOOLEAN`
+- `approved_by UUID NULL`, `approved_at TIMESTAMPTZ NULL`
+- Cross-links to the existing time-off / PTO infrastructure
+  if/when that lands; until then this table is the source of
+  truth.
+
+Indexes on both new tables mirror the equipment side: composite
+`(user_id, range)` plus a partial on active/non-expired rows.
+
+**Template hooks — required slots + certifications.** §5.12.3
+already declared `equipment_templates.requires_certifications
+TEXT[]` plus per-template-item `default_crew_size INT`. We
+flesh that out:
+- `equipment_templates.required_personnel_slots JSONB` —
+  one entry per slot the template insists on. Example for
+  "Residential 4-corner boundary — total station":
+  ```json
+  [
+    { "slot_role": "rpls", "min": 1, "max": 1,
+      "required_skills": ["rpls"] },
+    { "slot_role": "field_tech", "min": 1, "max": 2,
+      "required_skills": [] }
+  ]
+  ```
+- "OSHA road-work add-on" template (composed via
+  `composes_from`, §5.12.3) injects:
+  ```json
+  [{ "slot_role": "flagger", "min": 1, "max": 1,
+     "required_skills": ["flagger"] }]
+  ```
+- The dispatcher's apply flow (§5.12.3 step 4) renders these
+  slots alongside the equipment lines. Each slot widget says
+  "1× RPLS needed" with a typeahead picker filtered to users
+  who:
+  1. Have a matching `personnel_skills` row with
+     `state='active'` AND (`expires_at IS NULL OR expires_at >
+     window_to`)
+  2. Have no overlapping `job_team` row in `'confirmed' OR
+     'proposed'` state for the same window
+  3. Have no overlapping `personnel_unavailability` row
+
+**The four "is this person assignable?" checks** (parallel to
+the equipment four checks in §5.12.5):
+1. **Skill check.** Does the user have an active, unexpired
+   `personnel_skills` row matching the slot's required_skills?
+   Hard-block when the slot is template-required; soft-warn when
+   the dispatcher is filling a slot ad-hoc with an underqualified
+   person ("Jacob's not a Part 107 pilot — assign anyway?").
+2. **Capacity check.** Overlap with another `job_team` row in
+   `proposed`/`confirmed` state. Hard-block by default — the
+   user can split-shift across two jobs but only via explicit
+   `assigned_from` / `assigned_to` windows that DON'T overlap.
+   Suggested resolution: shrink one window or swap the person.
+3. **Unavailability check.** Overlap with a
+   `personnel_unavailability` row → hard-block, with the
+   reason + kind shown so the dispatcher knows whether it's
+   an "ask to skip PTO" conversation or a "they're at the
+   doctor" non-starter.
+4. **Cert-expiry-during-window check.** If a required cert
+   `expires_at` falls inside the assignment window, soft-warn:
+   *"Jacob's RPLS expires 3 days into this job — confirm he
+   plans to renew."* Becomes hard-block when the cert is
+   expired before the window even starts.
+
+**Soft-override path.** Same vocabulary as §5.12.5 — `admin`
+or `equipment_manager`-flagged dispatcher can override with a
+required text reason. Override inserts the assignment as
+normal but tags the row + notifies the affected user.
+
+**Surveyor confirmation loop** (the part the user didn't
+spell out, but that the directive demands — *"They can also
+assign personnel"* implies an assignment is push, not a silent
+schedule change):
+1. Dispatcher applies a template / picks a person → assignment
+   row lands in `state='proposed'`.
+2. Notification (§5.10.4) hits the surveyor: *"Henry assigned
+   you to [Job #427 — Smith Boundary] tomorrow 8am-noon. Tap
+   to accept or decline."*
+3. Mobile inbox shows a card with [Confirm] / [Decline +
+   reason] buttons.
+4. Confirm → `state='confirmed'`. The mobile app's daily
+   schedule view (Time tab) now shows the job. The
+   `next-day Today's captures rollup` (Batch II) keys off
+   confirmed assignments rather than the old free-for-all
+   list.
+5. Decline → `state='declined'` + reason → re-fires a
+   notification to the dispatcher who then re-staffs.
+6. Dispatchers can also mark assignments `confirmed` on
+   behalf of the surveyor — useful for a "they verbally
+   agreed in person" flow. Audit log records the bypass.
+
+**Crew lead designation.** Exactly one assignment per job has
+`is_crew_lead=true`. The crew lead:
+- Owns the §5.12.6 morning check-out (when the Equipment
+  Manager isn't physically present)
+- Is the default recipient of job-level dispatch pings
+- Can soft-override per-row equipment conflicts when granted
+  the `equipment_self_checkout` flag (§5.12.6)
+
+If the dispatcher tries to confirm a job-day with no crew
+lead set, the system soft-warns and auto-promotes the most
+senior person (RPLS > LSIT > field tech > general role) — the
+warning surfaces so the dispatcher can correct.
+
+**Capacity calendar view** (admin web — UI brief, deferred to
+implementation): a week-grid of every internal user × day,
+each cell coloured by state (white = open · green = confirmed
+job · yellow = proposed · grey = unavailable). Click a cell
+to drill into the assignment / PTO. Lets the dispatcher see
+"Jacob is fully booked Wed-Fri but open Mon-Tue" at a glance
+before applying a template that needs his RPLS.
+
+**Subcontractor / 1099 personnel** — see §4.5. Out of scope for
+v1: 1099s have separate consent + permissions + tracking
+scope. Schema-wise they'll hang off `auth.users` like W-2s but
+with a `is_contractor=true` flag that gates location-tracking
+and capacity-calendar visibility. v1 only assigns W-2
+employees through `job_team`.
+
+**Worked example** — dispatcher applies "Residential 4-corner
+boundary — total station" to Job #427 Friday 8am-noon, with
+the slots `[ {rpls × 1}, {field_tech × 1-2} ]`:
+1. RPLS slot widget filters to active RPLS holders. Henry
+   (admin, unbooked Friday) and Jacob (RPLS, on Job #422
+   8-noon Thursday — clear by Friday) appear. Dispatcher picks
+   Jacob.
+2. Capacity check on Jacob: clear for Friday window. ✓
+3. `personnel_unavailability` check: clear. ✓
+4. RPLS expires 2027 — well past window. ✓ green tick.
+5. Field-tech slot: dispatcher picks James. Capacity overlap
+   with Job #428 1pm-5pm — fine, doesn't overlap 8-noon. ✓
+6. Each assignment row inserts in `state='proposed'`. Both
+   surveyors get a notification within seconds.
+7. Jacob taps Confirm; James taps Decline (sick) with reason.
+   Dispatcher gets a re-staff notification, picks Carlos, who
+   confirms. Assignment is final.
+
+**Race-safety.** Two dispatchers picking Jacob for overlapping
+windows simultaneously: same `SELECT … FOR UPDATE` pattern as
+§5.12.5 (lock the user_id row in a `personnel_locks` helper
+table while the assignment insert tx runs). Second dispatcher
+sees the conflict + has to substitute.
+
+**API sketch** (provisional):
+- `GET /api/admin/personnel/availability?from=&to=&skills=&user_id=`
+  → returns assignable users + their conflict reasons
+- `POST /api/admin/personnel/assign` — body `{ job_id, slots:
+  [{ user_id, slot_role, from, to, is_crew_lead?,
+    override_reason? }] }`. Atomic — all-or-none.
+- `POST /api/admin/personnel/respond` — surveyor-side
+  endpoint hit by the mobile [Confirm]/[Decline] buttons.
+  Body `{ assignment_id, response: 'confirm'|'decline',
+  decline_reason? }`.
+- `POST /api/admin/personnel/cancel-assignment` — symmetric
+  cancel, mirrors equipment-reservation cancel.
+
+**What §5.12.4 explicitly does NOT cover:**
+- The actual capacity-calendar UI (week-grid heatmap) —
+  goes in the §5.12.7 Equipment Manager dashboards sub-section
+  alongside the equipment timeline view.
+- Skill / cert PDF storage workflow — re-uses the §5.6
+  files-bucket pattern; no new infrastructure.
+- 1099 / subcontractor onboarding (§4.5, out of v1 scope).
+- The mobile inbox rendering of [Confirm]/[Decline] cards —
+  re-uses Batch B notification UX with two action buttons.
+
 #### 5.12.5 Availability + conflict detection
 
 The user's other headline ask: *"the system should track this
@@ -1118,36 +1348,1447 @@ the implementation batches stay focused):
   reads from these reservations (§5.12.7).
 - The notification routing for unreturned-at-end-of-day gear
   (§5.12.6 + §5.10.4).
-- **5.12.6 Daily check-in/check-out** — Equipment Manager mobile
-  screen with QR scan. Morning: scan kit → it flips to `in_use`,
-  records the crew + job. Evening: scan kit on return → flips to
-  `available`, records condition. Crews who clock out without
-  returning gear get a nag notification (reuses the §5.10.4
-  notifications stack).
-- **5.12.7 Equipment Manager dashboards** — daily reconcile view
-  (what's out, what's overdue, what's coming back tonight),
-  maintenance calendar, low-stock consumables alerts, fleet
-  valuation page (rolls into the §11 cost model + Batch QQ tax
-  summary's depreciation line).
-- **5.12.8 Maintenance + calibration** — service events table,
-  PDF cert attachments, "next calibration due in 14 days"
-  alerts, integration with the receipts module so a calibration
-  invoice receipt links back to the equipment row.
-- **5.12.9 Mobile UX** — "what's in my truck right now" tab for
-  surveyors; QR-scan check-in on return; lost-on-site flow
-  (mark a piece lost with last-known job GPS).
-- **5.12.10 Tax + depreciation tie-in** — `acquired_cost_cents`
-  + `useful_life_months` feeds the Schedule C Section 13
-  depreciation line. Receipt category `equipment` already maps
-  to that line (Batch QQ); §5.12.10 closes the loop so
-  acquiring a tripod via the receipts flow auto-creates the
-  inventory row.
-- **5.12.11 Edge cases** — loaned-in (rented from another firm)
-  vs loaned-out (lent to another firm); stolen / damaged
-  workflows + insurance packet generation; cross-office
-  transfers; consumable reorder workflow; calibration-overdue
-  hard-block ("S9 #1 is 30 days past calibration; assign
-  anyway?").
+#### 5.12.6 Daily check-in / check-out workflow
+
+The user's third headline ask: *"Crews would have to rely on the
+equipment manager to get them what they need for the job, and
+they would have to always turn in their stuff back to the
+equipment manager too at the end of the day."* This sub-section
+is the daily ritual that physically consumes a §5.12.5
+reservation, plus the safety nets that catch unreturned gear
+before it walks off.
+
+**The two scan moments.** The whole workflow hinges on the QR
+sticker glued to every durable / kit case / consumable bin
+(§5.12.1):
+- **Morning check-out** flips a reservation `state='held' → 'checked_out'`,
+  records the receiving crew member, stamps `actual_checked_out_at`,
+  optionally captures a condition photo.
+- **Evening check-in** flips `'checked_out' → 'returned'`,
+  stamps `actual_returned_at`, captures a condition photo +
+  optional damage note. For consumables, the difference between
+  reserved quantity and returned quantity is the consumed
+  count.
+
+Both scans are first-class on the mobile app (the Equipment
+Manager + crew lead use cases) and on the admin web (the
+office walk-up case). The same RPC drives both surfaces so
+behaviour stays uniform.
+
+**Schema additions** (extend the §5.12.5 `equipment_reservations`
+table in place — these columns are NULL until the relevant
+scan happens):
+- `checked_out_by UUID FK auth.users(id) NULL` — who scanned
+  the gear out (typically the Equipment Manager OR an authorised
+  crew lead — see "self-service after-hours" below)
+- `actual_checked_out_at TIMESTAMPTZ NULL`
+- `checked_out_condition TEXT CHECK (… IN ('good', 'fair', 'damaged'))`
+- `checked_out_photo_url TEXT NULL` (signed-bucket reference,
+  same pattern as receipts photos)
+- `checked_out_to_user UUID FK auth.users(id) NULL` — the
+  crew member receiving the gear (often the same person who
+  scanned, but a crew lead can scan-out for a junior surveyor)
+- `checked_out_to_vehicle UUID FK vehicles(id) NULL` — which
+  truck the gear is loaded onto. Auto-pre-filled from the
+  job's assigned vehicle (see §5.12.4 Personnel) when present.
+- `actual_returned_at TIMESTAMPTZ NULL`
+- `returned_by UUID FK auth.users(id) NULL`
+- `returned_condition TEXT CHECK (… IN ('good', 'fair', 'damaged', 'lost'))`
+- `returned_photo_url TEXT NULL`
+- `returned_notes TEXT NULL`
+- For consumable lines: `consumed_quantity INT NULL` (how many
+  units were used in the field; `reserved_quantity -
+  consumed_quantity` go back into stock).
+
+Every transition emits a row into the §5.12.1 `equipment_events`
+audit log so a future "who had this when it broke?" query is
+one join away.
+
+**Kit batch check-out — one scan, all children.** Per §5.12.1.C
+a kit is a parent row with a child item list. Scanning the kit's
+QR pulls every child's reservation forward atomically:
+1. The scan resolves to the kit's `equipment_inventory_id`.
+2. The mobile RPC fetches every child reservation with the
+   same `job_id` + `state='held'` + `reserved_from` overlapping
+   today.
+3. All matching children + the parent flip to `'checked_out'`
+   in a single transaction.
+4. The condition photo is captured once at the kit level (the
+   case exterior); per-child conditions inherit unless the
+   crew flags an exception inline.
+
+The reverse holds at check-in — one scan returns the whole kit
+unless the surveyor explicitly marks an item missing or damaged
+mid-scan.
+
+**Condition documentation.** A condition photo isn't required
+for `'good'` returns, but it IS required for `'damaged'`,
+`'fair'`, or `'lost'` so the audit trail has visual evidence.
+The mobile capture flow re-uses the receipts camera mode (high
+contrast, edge detection, brightness correction — §5.11.1) so
+the surveyor learns the affordance once.
+
+**Damage triage flow** (when `returned_condition='damaged'`):
+1. Equipment Manager gets a notification immediately (§5.10.4
+   pings).
+2. The instrument's `current_status` flips to `maintenance`,
+   blocking further reservations (§5.12.5 status check).
+3. A `maintenance_event` row is created (data model lands in
+   §5.12.8) with the photo + the surveyor's note.
+4. The Equipment Manager triages — repair in-shop, send to
+   vendor, retire. Status flips again when the resolution
+   lands.
+
+**Lost-on-site protocol** (when `returned_condition='lost'` —
+the $200-prism-in-the-woods case):
+- The reservation auto-attaches the surveyor's
+  most-recent-clock-in `location_pings` cluster (last 1h
+  before clock-out) so the search has GPS context.
+- A `lost_equipment` notification routes to admin +
+  Equipment Manager + the on-site crew lead, with a deep link
+  to the map view.
+- The instrument's `current_status` flips to `lost`. Insurance
+  packet generation is a §5.12.11 polish item; v1 records
+  enough state for a manual claim.
+
+**End-of-day unreturned-gear nag** — the user's directive made
+this explicit:
+- Cron tick at 6pm and 9pm Mon-Fri (configurable). Query:
+  `equipment_reservations WHERE state='checked_out' AND
+   reserved_to < now()`.
+- For each row, push a notification (§5.10.4) to the
+  `checked_out_to_user`: *"You haven't returned [Kit #3]. Drop
+  it off or extend the reservation — tap to act."*
+- The notification has two actions inline: **Extend until
+  tomorrow 8am** (extends `reserved_to`, no further nag
+  tonight) and **Mark in transit** (you're driving it back
+  right now; nag silenced until midnight). Anything else gets
+  re-nagged at 9pm.
+- Daily digest at 10pm to admin + Equipment Manager listing
+  every still-unreturned row plus its on-site GPS so morning
+  follow-ups have context.
+
+**Crew clock-out gating.** A surveyor tapping "Clock out" on
+the Time tab triggers a check: any active `equipment_reservations`
+with `state='checked_out' AND checked_out_to_user = me`?
+- If yes → modal: "You have 3 items still checked out: Kit
+  #3, GPS Rover #2, 12× ribbon. Returning now? [Scan to
+  return] [Keep overnight]." Keeping overnight stamps the
+  reservation `extended_overnight_at` so the daily digest
+  surfaces it.
+- If no → clock-out proceeds normally.
+
+The check is local-fast (the mobile app already has the user's
+reservations cached via PowerSync) so it doesn't add network
+latency to the clock-out path.
+
+**Self-service after-hours protocol.** Reality check: the
+Equipment Manager isn't always at the office at 6am when the
+crew leaves for a 7am job site. Two flavours:
+1. **Authorised crew lead.** Some surveyors get
+   `equipment_self_checkout=true` on their user row. They can
+   scan-out gear themselves before/after office hours. The
+   audit log makes the actor distinct from the Equipment
+   Manager so accountability is clear.
+2. **Smart-locker / drop-box.** v2 polish — a physical
+   locker that opens via a one-time code generated by the
+   reservation. v1: just trust + the audit log.
+
+Either way, the schema doesn't change; only the actor on the
+event log differs.
+
+**Consumables: a different ritual.** Durables have one-out /
+one-in symmetry. Consumables don't — paint is sprayed, lath
+is driven into the ground, ribbon is left on a fence. The
+check-in step asks *how many units came back*:
+- Reserved 4 cans of paint, returned 1 → `consumed_quantity=3`,
+  `equipment_inventory.quantity_on_hand` decremented by 3 via
+  the same trigger that handles direct stock changes (§5.12.1).
+- Reserved 50 hubs, returned 0 → `consumed_quantity=50`,
+  same decrement.
+- Reserved 1 roll of ribbon, returned 1 (still mostly on the
+  roll) → `consumed_quantity=0`. The roll lives on; partial
+  consumption doesn't drop the SKU count until the
+  Equipment Manager weighs / inspects and adjusts manually
+  (low-fidelity by design — chasing fractional rolls isn't
+  worth the friction).
+
+When `quantity_on_hand` crosses below `low_stock_threshold`
+the Equipment Manager gets a §5.12.7-dashboard alert (deferred)
+and the Schedule-C-feed sees a "consumables consumed" line
+for the period.
+
+**API sketch** (provisional names — implementation batch will
+finalise):
+- `POST /api/admin/equipment/check-out` — body `{ qr_code_id,
+  job_id?, condition, photo_url?, to_user, to_vehicle? }`.
+  Resolves QR → equipment_id → matching held reservation,
+  flips to `checked_out`, writes the event log row.
+- `POST /api/admin/equipment/check-in` — body `{ qr_code_id,
+  condition, photo_url?, notes?, consumed_quantity? }`. Same
+  resolution, flips to `returned`.
+- `POST /api/admin/equipment/extend-reservation` — body `{
+  reservation_id, new_reserved_to }`. Used by the nag-action
+  inline button.
+- `GET /api/admin/equipment/my-checkouts` — for the mobile
+  "what's in my truck right now" tab (§5.12.9, deferred).
+
+**Offline-first behaviour.** The mobile check-out / check-in
+flows must work in a parking-lot dead zone:
+- Scan + photo + form submit lands in the existing
+  `pending_uploads` queue (§5.9 / `lib/uploadQueue.ts`).
+- The reservation's local PowerSync row optimistically flips
+  to `checked_out`/`returned` so the surveyor sees instant
+  feedback.
+- Server-side conflict resolution: a second-actor scan that
+  reaches Postgres first wins; the PowerSync replay surfaces
+  a "this was already returned by [other user]" toast and
+  rolls back the local optimistic flip.
+
+**What §5.12.6 explicitly does NOT cover:**
+- The Equipment Manager's reconcile dashboard listing every
+  open / overdue / coming-back-tonight reservation
+  (§5.12.7).
+- The maintenance event lifecycle that consumes a
+  `damaged` return (§5.12.8).
+- Insurance-packet generation for `lost` returns (§5.12.11).
+- The "what's in my truck right now" surveyor view
+  (§5.12.9).
+#### 5.12.7 Equipment Manager dashboards
+
+The §4.6 Equipment Manager runs the daily flow that the
+preceding sub-sections describe. They need one role-specific
+landing page that surfaces everything actionable today —
+*what's leaving, what's coming back, what's broken, what's
+running low* — without having to bounce across 5 admin
+screens. This sub-section is the UI brief for that landing
+page plus four supporting dashboards.
+
+The schema work for these dashboards is already done — every
+view here reads from tables defined in §5.12.1, §5.12.4,
+§5.12.5, and §5.12.6. The implementation batch only adds
+queries + UI; no migrations.
+
+**Sidebar anchor.** New section in `app/admin/components/AdminSidebar.tsx`
+called **"Equipment"** sitting between *Work* and *Rewards & Pay*:
+- 🛠 Today (`/admin/equipment` — landing page below)
+- 📋 Reservations (`/admin/equipment/reservations`)
+- 🧰 Inventory (`/admin/equipment/inventory`)
+- 🛡 Maintenance (`/admin/equipment/maintenance`)
+- 📦 Consumables (`/admin/equipment/consumables`)
+- 👥 Crew calendar (`/admin/equipment/crew-calendar`)
+- 💼 Fleet valuation (`/admin/equipment/valuation`)
+
+Roles: `['admin', 'developer', 'tech_support', 'equipment_manager']`,
+`internalOnly: true`. The dashboard pages also degrade
+gracefully for `admin` / `developer` who don't carry the
+equipment_manager hat — they see read-only views.
+
+##### 5.12.7.1 Today (the landing page)
+
+The single most-visited screen. Three vertical strips, each
+glanceable in 2 seconds:
+
+**Strip A — Going out today** (top third):
+- Pulls `equipment_reservations` rows where `state='held'`
+  AND `reserved_from::date = today`.
+- Grouped by job. Each job card shows: job number + name,
+  scheduled crew, scheduled equipment items, scheduled vehicle,
+  go-time. Soft-warn badges surface anything from §5.12.5
+  (calibration due, low stock, stale config) so the
+  Equipment Manager sees the problems BEFORE the truck
+  rolls.
+- Per-card action: **"Pre-stage kit"** button → records a
+  `pre_staged_at` timestamp on the reservations + emits an
+  audit event ("Equipment Manager pre-staged Job #427 at 5:42pm").
+  Lets Equipment Manager check off "I built tomorrow's kit
+  tonight" without involving a QR scanner.
+- Per-card action: **"Hand off (no scanner)"** override →
+  same effect as a QR scan check-out (§5.12.6) but logged
+  with `actor='equipment_manager'` + `reason='manual_override'`.
+  For the case where a sticker fell off or the camera won't
+  focus.
+
+**Strip B — Out right now** (middle third):
+- `equipment_reservations` rows where
+  `state='checked_out'` AND `reserved_to >= now()`.
+- Sorted by `reserved_to` ascending — what comes back next
+  is at the top.
+- Each row: equipment label, who has it, which job, when it's
+  due back, an "On time / Overdue / At risk" pill (overdue =
+  past `reserved_to`; at risk = within 1h of `reserved_to`
+  but the surveyor's location_pings cluster doesn't yet
+  show movement back toward the office).
+- The "at risk" tag uses the same location infrastructure the
+  Batch DD missing-receipt scan keys off of — proactive nag
+  before the gear is officially late.
+
+**Strip C — Already returned today** (bottom third, collapsed
+by default):
+- `equipment_reservations` rows where `state='returned'` AND
+  `actual_returned_at::date = today`.
+- One row per item, condition badge (✓ good · ⚠ fair · ⚡
+  damaged · ❓ lost). Damaged + lost rows link straight into
+  the §5.12.8 maintenance flow / §5.12.11 lost-equipment
+  packet.
+- Strip serves as the daily reconcile artifact — Equipment
+  Manager can confirm at end of day that every morning's
+  Strip-A row eventually landed in Strip C, with a count
+  guard at the top: *"42 went out · 39 returned · 3 still
+  out (see Strip B)."*
+
+**Top-of-page banners.**
+- Red banner: any `personnel_unavailability` rows starting
+  today that the dispatcher hasn't yet re-staffed — pulls
+  through from §5.12.4 to keep the Equipment Manager in the
+  loop on people-side gaps that affect today's gear plans.
+- Amber banner: any `low_stock_threshold` consumables that
+  dropped below threshold yesterday + are reserved for today's
+  jobs.
+- Blue banner: maintenance windows starting today
+  (§5.12.8).
+
+**Mobile parity.** The Equipment Manager mobile app gets a
+trimmed version of this same view as their default home tab
+— the morning + evening rituals happen at the gear cage, not
+at a desk.
+
+##### 5.12.7.2 Reservations (timeline view)
+
+A horizontal Gantt-style timeline of every
+`equipment_reservations` row across the next 14 days,
+swappable to per-equipment vs per-job grouping:
+- **Per-equipment row** — one swimlane per durable / kit,
+  showing back-to-back reservations as colored bars
+  (`held` = light blue, `checked_out` = solid blue,
+  `returned` = grey, `cancelled` = strikethrough). Gaps
+  visualise availability windows.
+- **Per-job row** — one swimlane per job, showing every
+  piece of equipment reserved to it as bars.
+- Click a bar → drilldown drawer shows the reservation row
+  + the four §5.12.5 check results + soft-override history.
+- Drag-resize a `held` bar to extend / shrink the window
+  without leaving the page (re-runs availability checks +
+  flags any new conflicts inline).
+- Filter chips at the top: equipment category, job type,
+  state, overdue-only.
+
+This view is the Equipment Manager's *long-range planning*
+tool. The §5.12.7.1 Today page is for the next 24h; this page
+is for "do we have what we need for next week's jobs?"
+
+##### 5.12.7.3 Inventory (catalogue view)
+
+The list of every row in `equipment_inventory`:
+- Filterable by category, status, home_location, calibration
+  due, retired_at IS NULL/NOT NULL.
+- Inline-edit columns for the Equipment Manager:
+  `home_location`, `notes`, `current_status`. Calibration
+  fields are read-only here — they edit through the §5.12.8
+  maintenance flow.
+- Per-row actions: **Print QR sticker** (PDF download —
+  pre-formatted to a Brother label printer), **View
+  history** (the equipment_events audit log), **Retire**
+  (sets `retired_at`; soft-archives in templates per the
+  §5.12.3 cleanup queue).
+- Top-of-page action: **Add unit** (modal that wraps the
+  POST `/api/admin/jobs/equipment` `inventory_item` mode
+  already shipped in the existing route, plus the new
+  §5.12.1 columns).
+- Top-of-page action: **Bulk QR sticker print** (selected
+  rows → multi-page PDF).
+
+##### 5.12.7.4 Maintenance (calibration calendar)
+
+Twin views:
+- **Calendar grid** — month view colored by service events.
+  Each cell shows "S9 #1 cal due", "Truck 2 oil change due"
+  (vehicles cross-link in here for one-stop fleet upkeep).
+  Click a cell → drilldown.
+- **Upcoming list** — prioritised by days-until-due ascending.
+  Default range: next 60 days. Each row has a one-click
+  **Schedule** button that opens a modal for the
+  §5.12.8 service event creation flow.
+
+Cross-links:
+- Receipts (Batch QQ): a calibration invoice receipt
+  attached to a maintenance event auto-decrements the
+  equipment's depreciation reserve; the Equipment Manager
+  doesn't have to re-enter the cost. (Detail in §5.12.10
+  tax tie-in.)
+- Reservations: when an instrument has an upcoming
+  maintenance window, the §5.12.7.2 timeline shades that
+  range red so dispatchers can't accidentally reserve
+  through it. The §5.12.5 status check already enforces
+  the hard-block; this is the visual reinforcement.
+
+##### 5.12.7.5 Consumables (low-stock + restock)
+
+A flat list of every `equipment_inventory` row with
+`item_kind='consumable'`:
+- Sorted by *days-of-stock-remaining* ascending — the lowest
+  rolls float to the top. Estimated from the trailing
+  30-day consumption rate (consumed_quantity totals from
+  §5.12.6 returns).
+- Per-row badges: **OK** (≥ 14 days estimated stock),
+  **Reorder soon** (7–14), **Reorder NOW** (< 7 OR below
+  `low_stock_threshold` regardless of rate).
+- Inline actions: **Restock arrived** (modal — quantity +
+  cost + receipt photo upload, the latter wires straight
+  into the receipts pipeline so the bookkeeper sees it
+  too), **Update threshold**, **Mark discontinued**.
+- Top of page: monthly burn-rate chart per consumable
+  category (paint, lath, hubs, ribbon, marker_flags) —
+  helps the Equipment Manager spot a rate change before
+  it bites a job.
+
+##### 5.12.7.6 Crew calendar (week heatmap)
+
+The capacity-calendar view referenced in §5.12.4. Week-grid:
+rows = internal users, columns = days. Each cell coloured by
+state:
+- White = open (no `job_team` row)
+- Light green = `proposed` assignment
+- Solid green = `confirmed` assignment
+- Yellow = partial day (split-shift)
+- Grey = `personnel_unavailability` (PTO / sick / training)
+- Red = unconfirmed assignment past notification grace
+  (default 24h — auto-fires a re-prompt to the surveyor)
+
+Click any cell → drilldown shows the assignment / unavailability
+detail + actions. Drag-create a new unavailability row or
+shift an assignment between adjacent days.
+
+The same view is the dispatcher's primary planning tool too —
+exposed in the existing /admin/jobs flow via a "View crew
+availability" link.
+
+##### 5.12.7.7 Fleet valuation
+
+Read-only page that rolls every non-retired
+`equipment_inventory` row's `acquired_cost_cents`,
+`acquired_at`, `useful_life_months` into a three-column
+summary:
+- **Cost basis** — sum of acquisition costs.
+- **Accumulated depreciation** — straight-line per
+  useful_life_months (refined per §5.12.10 tax tie-in;
+  Section 179 immediate-expense overrides still flow through
+  the receipt category logic).
+- **Book value remaining** — basis minus accumulated dep.
+
+Group-by toggles: category, home_location, vehicle, year
+acquired. Export-to-CSV button feeds the Batch QQ tax-summary
+endpoint a "depreciation by category" line that lands on
+Schedule C Line 13. Closes the loop the §5.11.4 receipt
+categories opened — `equipment` receipts now have a downstream
+ledger.
+
+Insurance valuation export (PDF) is a v2 polish item —
+template documents the insurer wants in their format.
+
+##### 5.12.7.8 Templates referencing retired gear
+
+The cleanup queue called out in §5.12.3 — surfaced as a
+small badge on the sidebar item when non-zero. Page itself is
+a list of templates pinned to a `retired_at IS NOT NULL`
+instrument with one-click "Swap to category-of-kind" or
+"Swap to alternate unit" actions. Empty state when
+everything's clean ("All templates point to active gear ✓").
+
+**What §5.12.7 does NOT cover:**
+- The maintenance event create / edit flow itself (§5.12.8).
+- The mobile surveyor "what's in my truck right now" view
+  (§5.12.9).
+- The depreciation algorithm + tax line plumbing (§5.12.10).
+- The lost-equipment insurance packet generator (§5.12.11).
+#### 5.12.8 Maintenance + calibration
+
+The §4.6 Equipment Manager's other major hat: **keep every
+piece of expensive metal calibrated, serviced, and trustworthy.**
+Total stations need annual NIST calibration. GNSS receivers
+need firmware updates. Tripods need tightening. Trucks (already
+tracked via §6.3 `vehicles`) need oil changes. A surveyor whose
+S9 is 6 months past calibration is producing legally
+questionable measurements — the Equipment Manager has to keep
+that from happening.
+
+**Two-axis classification.** Service events split along two
+dimensions; the schema captures both:
+
+| Axis | Values | Notes |
+|---|---|---|
+| `kind` | `calibration`, `repair`, `firmware_update`, `inspection`, `cleaning`, `scheduled_service`, `damage_triage`, `recall`, `software_license` | What kind of work is being done. |
+| `origin` | `recurring_schedule`, `damaged_return`, `manual`, `vendor_recall`, `cert_expiring`, `lost_returned` | Why the event was created. Recurring + cert-expiring are auto-scheduled by the cron; damaged_return + lost_returned auto-create on the §5.12.6 check-in flow; the rest are Equipment Manager-initiated. |
+
+**Schema sketch — `maintenance_events`** (one row per service
+occurrence, current or historical):
+- `id UUID PK`
+- `equipment_inventory_id UUID FK` (or `vehicle_id UUID FK
+  vehicles(id)` — exactly one of these is non-null. The
+  schema uses an `xor` CHECK so vehicles flow through the same
+  pipeline without forcing them into the equipment table.)
+- `kind`, `origin` (CHECKs above)
+- `state TEXT CHECK (state IN ('scheduled', 'in_progress',
+  'awaiting_parts', 'awaiting_vendor', 'complete',
+  'cancelled', 'failed_qa'))`
+- `scheduled_for TIMESTAMPTZ NULL` (when the work is planned —
+  drives the §5.12.7.4 calendar)
+- `started_at TIMESTAMPTZ NULL`, `completed_at TIMESTAMPTZ NULL`
+- `expected_back_at TIMESTAMPTZ NULL` (when the gear should be
+  available again; drives the §5.12.5 reservation hard-block
+  and the §5.12.7.2 timeline shading)
+- `vendor_name TEXT NULL`, `vendor_contact TEXT NULL`,
+  `vendor_work_order TEXT NULL`
+- `performed_by_user_id UUID FK NULL` (in-shop work — Equipment
+  Manager or designee. Mutually exclusive with vendor fields
+  when `kind='calibration'` because a NIST cert requires a
+  third-party.)
+- `cost_cents BIGINT NULL` (parts + labour total when known)
+- `linked_receipt_id UUID FK receipts(id) NULL` (when the
+  Equipment Manager attaches a calibration / parts invoice)
+- `summary TEXT NOT NULL` (one-line — "Annual NIST cal sent
+  to Trimble Service Houston")
+- `notes TEXT` (long-form — what was wrong, what was done)
+- `qa_passed BOOLEAN NULL` (post-cal accuracy check; false
+  routes the event to `failed_qa`)
+- `next_due_at TIMESTAMPTZ NULL` (auto-computed when the event
+  completes — see "Recurring schedules" below)
+- `created_at`, `created_by`, `updated_at`
+
+**Schema sketch — `maintenance_event_documents`** (PDF
+attachments — calibration certs, work orders, parts receipts):
+- `id UUID PK`
+- `event_id UUID FK ON DELETE CASCADE`
+- `kind TEXT CHECK (kind IN ('calibration_cert',
+  'work_order', 'parts_invoice', 'before_photo',
+  'after_photo', 'qa_report', 'other'))`
+- `storage_url TEXT` (re-uses the §5.6 files-bucket pattern
+  with per-equipment-folder RLS)
+- `uploaded_by`, `uploaded_at`, `description TEXT`
+
+**Schema sketch — `maintenance_schedules`** (recurring rules
+attached to a specific equipment row OR to a category):
+- `id UUID PK`
+- `equipment_inventory_id UUID NULL` (specific unit) OR
+  `category TEXT NULL` (every unit of the category — e.g. all
+  total stations get annual cal)
+- `kind` (FK to the `kind` enum above)
+- `frequency_months INT` (12 = annual; 6 = semi-annual; etc.)
+- `lead_time_days INT DEFAULT 30` (how far ahead the
+  Equipment Manager sees the alert)
+- `is_hard_block BOOLEAN DEFAULT true` (true → §5.12.5 hard-
+  blocks reservations past the due date; false → soft-warn
+  only)
+- `auto_create_event BOOLEAN DEFAULT true` (whether the cron
+  pre-creates a `state='scheduled'` event when due)
+- `notes TEXT`
+
+The Equipment Manager seeds these once per category at
+onboarding; the cron handles the rest.
+
+**Recurring schedule cron** (worker job, runs daily at 3am):
+1. For every active schedule, compute the most recent
+   completed event for the matched equipment (by category or
+   specific id).
+2. Add `frequency_months` to its `completed_at` → the
+   `next_due_at`.
+3. If `next_due_at - lead_time_days <= now()` and there's no
+   open event for that schedule:
+   - If `auto_create_event=true` → INSERT a
+     `state='scheduled'` event with `origin='recurring_schedule'`
+     and a sensible `scheduled_for` placeholder.
+   - Either way, push a notification (§5.10.4) to the
+     Equipment Manager: *"Total Station S9 #1 — annual NIST
+     cal due in 30 days."*
+4. The §5.12.7.1 Today blue banner picks up any schedule
+   whose due date is today or this week; the §5.12.7.4
+   calendar pages plot the full lookahead.
+
+**Cert-expiring auto-creation.** Distinct from recurring
+schedules — driven by the `personnel_skills.expires_at` and
+`equipment_inventory.next_calibration_due_at` columns. Cron
+emits warnings at the 60-day, 30-day, and 7-day marks. The
+§5.12.4 personnel side handles the surveyor cert path; this
+sub-section handles the equipment side.
+
+**Damage triage entry path** (called out in §5.12.6):
+- A `returned_condition='damaged'` check-in triggers the
+  flow that creates a `kind='damage_triage'`,
+  `origin='damaged_return'`, `state='scheduled'` event with
+  the photo + surveyor's note pre-attached.
+- The `equipment_inventory.current_status` flips to
+  `maintenance` and `expected_back_at` is left NULL until
+  the Equipment Manager sets it during triage. While NULL,
+  §5.12.5 treats the unit as indefinitely unavailable.
+- Equipment Manager opens the event, decides:
+  - **Repair in-shop** — sets `state='in_progress'`,
+    `performed_by_user_id`, an `expected_back_at` estimate.
+  - **Send to vendor** — sets `state='awaiting_vendor'`,
+    fills vendor fields. `expected_back_at` per the vendor's
+    quoted turnaround.
+  - **Retire** — closes the event with
+    `state='cancelled'`, sets `equipment_inventory.retired_at`.
+    Triggers the §5.12.3 cleanup queue badge.
+
+**Out-for-service workflow.**
+- While `state IN ('in_progress', 'awaiting_parts',
+  'awaiting_vendor')`, the equipment row stays
+  `current_status='maintenance'`. Reservations cannot be
+  created against it (§5.12.5 status check).
+- Equipment Manager updates `expected_back_at` as the work
+  progresses; each update emits a notification to anyone who
+  had been WAITING on the unit (the §5.12.7.2 timeline knows
+  who via overlapping `held` reservations that were forced
+  onto alternates).
+- Completing the event flips `current_status` back to
+  `available` and opens the unit for new reservations.
+
+**QA gate on calibration completion.** Calibration events have
+a mandatory accuracy check before flipping `qa_passed=true`:
+- Equipment Manager runs a known-baseline shot (or accepts
+  the vendor's cert + serial-matched accuracy report).
+- Result entered as a JSON `qa_results` field on the event.
+- Failed QA → `state='failed_qa'`, notification to admin,
+  unit stays in `maintenance`. Surfaces on the §5.12.7.4
+  page as a red row.
+
+**Vendor management.**
+- v1: vendor info lives on each event row (free-text
+  `vendor_name` / `vendor_contact`). Good enough for the
+  ~5 vendors a small shop uses.
+- v2 polish: dedicated `equipment_vendors` table with default
+  turnaround times, contact history, ratings, integration
+  with the receipts pipeline so vendor invoices auto-attach.
+- The Equipment Manager dashboard (§5.12.7.4 maintenance
+  calendar) groups upcoming events by vendor so a single
+  trip to Trimble Service Houston can batch multiple
+  instruments.
+
+**Receipt cross-link** (the user's directive again — *"don't
+double-count things"*):
+- The §5.11 receipts pipeline already extracts vendor + total
+  + category. When the Equipment Manager opens a maintenance
+  event and clicks **Attach receipt**, a picker shows
+  recently-approved receipts in category `equipment` /
+  `professional_services` that aren't already linked.
+- Alternatively, when reviewing a freshly-extracted receipt
+  in the Money tab, the surveyor sees an *"Is this for
+  equipment maintenance?"* prompt with a typeahead picker if
+  the receipt vendor matches a known maintenance vendor.
+- The link drops the receipt's `total_cents` onto the event's
+  `cost_cents` field and prevents the bookkeeper from
+  expensing the same dollar twice — Schedule C Line 22
+  (Supplies) for the receipt OR Line 13 (Depreciation) for
+  the equipment, never both. §5.12.10 owns the full ledger
+  reconciliation.
+
+**Maintenance history page** on each inventory unit:
+- Sortable table of every event ever attached to the unit.
+- Cumulative cost (running total of all linked
+  `cost_cents`).
+- Mean time between failures (auto-computed from the
+  damage_triage event sequence).
+- Cert PDFs inline-viewable (the §5.6 files-bucket signed
+  URL pattern).
+- Drives the "is this unit reliable?" decision when an
+  Equipment Manager is debating retirement vs another repair.
+
+**API sketch** (provisional names):
+- `POST /api/admin/equipment/maintenance-events` — create.
+- `PATCH /api/admin/equipment/maintenance-events/[id]` —
+  update state / fields.
+- `POST /api/admin/equipment/maintenance-events/[id]/documents`
+  — multipart attachment upload.
+- `POST /api/admin/equipment/maintenance-events/[id]/link-receipt`
+  — body `{ receipt_id }`.
+- `POST /api/admin/equipment/maintenance-events/[id]/qa` —
+  body `{ qa_passed, qa_results }`.
+- `GET /api/admin/equipment/[id]/history` — full event log
+  for a unit.
+
+**Notification routing.** Every state transition pushes
+through the §5.10.4 stack:
+- `equipment_manager` → all events.
+- `admin` → `failed_qa`, `cancelled` (when retiring an asset),
+  cost-cents over a configurable threshold.
+- Surveyors who had reservations forced onto alternates →
+  `expected_back_at` updates so they know when their preferred
+  unit is back.
+- The §5.12.7.1 Today page red banner picks up any
+  `state='failed_qa'` row.
+
+**What §5.12.8 explicitly does NOT cover:**
+- The depreciation accounting that links cost_cents to
+  Schedule C Line 13 / Section 179 (§5.12.10).
+- The mobile-side lost-on-site insurance packet (§5.12.11).
+- The vehicle-service overlap detail (cross-linked into
+  §5.12.7.4 today; the dedicated vehicle service log is
+  owned by the existing `/admin/vehicles` flow with one
+  ALTER to add `vehicle_id` support to the
+  `maintenance_events` schema above).
+#### 5.12.9 Mobile UX (surveyor + Equipment Manager)
+
+The admin-web side from §5.12.7 is the Equipment Manager's
+desk. This sub-section is the **phone**: where the surveyor
+actually picks up gear at 6:30am, returns it at 6pm, and
+reports a busted prism in between. The user's directive was
+explicit on the daily ritual being phone-driven (*"Crews would
+have to rely on the equipment manager to get them what they
+need for the job, and they would have to always turn in their
+stuff back to the equipment manager too at the end of the
+day."*) — this is that.
+
+**Two phone audiences, one app, one mental model.** Surveyor
+flows live in the existing 5-tab Starr Field layout (Jobs ·
+Capture · Time · Money · Me). Equipment Manager flows live in
+the same app under a **role-gated 6th tab** (🛠 Gear) that
+only renders when the user's roles array includes
+`equipment_manager`. Same mobile binary, no second download.
+
+**Scaffolding.** New mobile module `mobile/lib/equipment.ts`
+mirrors the `receipts.ts` / `fieldMedia.ts` shape:
+- `useMyCheckouts()` — PowerSync hook returning the
+  surveyor's open `equipment_reservations` (`state='checked_out'`,
+  `checked_out_to_user = me`)
+- `useMyAssignments()` — PowerSync hook returning the
+  surveyor's `job_team` rows in `'proposed'` / `'confirmed'`
+  state
+- `useEquipmentByQr(qrCodeId)` — resolves a scanned QR to
+  the inventory row (cached locally)
+- `useCheckOut`, `useCheckIn`, `useReportDamage`,
+  `useReportLost`, `useExtendCheckout`, `useConfirmAssignment`,
+  `useDeclineAssignment` — mutation hooks that enqueue via
+  `lib/uploadQueue.ts` so every action is offline-safe
+
+##### 5.12.9.1 Surveyor-side flows
+
+**Pre-job loadout preview.** When a surveyor opens an
+upcoming or in-progress job (Jobs tab → job detail), the
+existing job screen gets a new **Loadout** card right under
+the job header:
+- Equipment list (kits + items) with a status pill per row
+  (✓ ready · ⏳ awaiting check-out · ⚠ in maintenance ·
+  ✗ unavailable)
+- Personnel slots (who else is on the crew + their slot_role)
+- Vehicle assignment
+- Below the fold: **"Confirm assignment"** (surveyor's
+  own §5.12.4 push response) and **"Open Equipment Manager
+  chat"** (deep-link into Batch B notifications targeted to
+  `equipment_manager` role recipients) buttons
+- Empty / non-applicable jobs (e.g. "Office") simply hide
+  the card
+
+This is the morning pre-flight check — by the time the
+surveyor walks to the gear cage, they know what they're
+expecting to receive and can spot mistakes BEFORE Equipment
+Manager hands the wrong kit over.
+
+**"What's in my truck right now" — Me tab section.** A new
+section on the Me tab between *Storage* and *Privacy*:
+- Card list of every active checkout for the current user
+- Each card: thumbnail of the inventory photo (when present),
+  label + serial, due-back time, condition pill, vehicle pill
+- Tap → drilldown shows the original loadout + check-out
+  photo + the one-tap **Return** button
+- Long-press → quick actions: Mark damaged · Mark lost ·
+  Extend until tomorrow 8am · Open in vehicle map
+- Empty state: *"No gear checked out. Tap a job's Loadout
+  card to start a check-out scan."* (deep-links into Jobs
+  tab)
+
+This solves the "I forgot what I took" problem 30 minutes
+into a job. Always offline-readable via PowerSync local
+cache.
+
+**QR check-out / check-in scanner.** A full-screen camera
+overlay reachable from three places:
+- Loadout card → "Scan to check out"
+- Me tab "What's in my truck" → per-card "Return" button
+- Persistent FAB on the Me tab when ANY check-out is open
+  (so check-in is always one tap away regardless of
+  navigation state)
+
+Implementation reuses `expo-camera` (already a dependency
+for receipts in §5.11). The scanner overlay:
+- Renders a centred reticle that pulses when a QR is
+  detected
+- Confirms with haptic + a top-of-screen toast: *"S9 Total
+  Station #3 — checking out"*
+- Drops to a confirmation sheet: condition selector
+  (good / fair / damaged), optional photo (defaults to a
+  fresh shot for damaged), notes textbox
+- Submit → enqueues via `lib/uploadQueue.ts`, optimistic
+  PowerSync flip per §5.12.6
+- On collision (server returned a different state), surfaces
+  a non-blocking toast and rolls back the optimistic flip
+
+**Kit batch scanner.** Scanning a kit-parent QR triggers the
+§5.12.6 atomic batch flow. The confirmation sheet shows every
+child item with per-row condition selectors that default to
+the kit-level pick — surveyor can flag exceptions inline
+("Tripod leg loose, but everything else is fine").
+
+**Damage report flow.** Triggered from the per-card long-
+press menu OR from a check-in's `condition='damaged'` path:
+- Required: photo of the damage + free-text description
+- Optional: location (auto-pre-filled from current GPS) +
+  voice memo (re-uses §5.5 voice infrastructure for
+  hands-free reporting)
+- Submit → flips the inventory unit's `current_status` to
+  `maintenance`, creates a §5.12.8 `damage_triage` event,
+  notifies the Equipment Manager
+- Surveyor sees a "Reported · waiting for triage" badge on
+  the original card until the Equipment Manager acts
+
+**Lost-on-site flow.** Triggered from the per-card long-press
+menu when the gear is genuinely missing:
+- Required: a "last seen" location (defaults to the most
+  recent location_pings cluster from the open job; surveyor
+  can drag the pin)
+- Required: a brief description of the circumstances
+- Optional: photos of the area
+- Submit → creates a §5.12.8 `lost_returned` event, flips
+  status to `lost`, fires a notification to admin +
+  Equipment Manager + crew lead with a deep-link to the map
+- The surveyor's open job's notes get an auto-appended
+  "Equipment lost on site" note so end-of-day reconcile
+  picks it up
+
+**Consumables ritual on the phone.** When a surveyor checks
+in a kit at end-of-day, any consumable line item gets a
+quantity selector:
+- Default: full reserved quantity (assumes "we used what we
+  brought")
+- Surveyor adjusts down ("brought 4 rolls, used 2, two go
+  back")
+- Submit decrements `quantity_on_hand` server-side per the
+  §5.12.6 trigger logic
+
+Surveyors don't track partial-roll consumption — that's a
+design choice from §5.12.6. They count whole units.
+
+**Notifications stack.** Re-uses Batch B notification
+infrastructure (§5.10.4) plus three new `source_type` values:
+- `equipment_assignment` — fired when an assignment lands in
+  `'proposed'`. Tap → Loadout card with [Confirm] / [Decline]
+- `equipment_overdue` — the §5.12.6 6pm + 9pm nag. Tap →
+  scanner pre-loaded for return
+- `equipment_status_change` — when a unit you had a
+  reservation on is no longer available (someone else got
+  it via override, or it broke). Tap → updated Loadout card
+  with the substitution
+
+Push payloads always include `equipment_id` + `reservation_id`
+so deep-links resolve even when the app cold-boots from a
+notification.
+
+**Confirmation card UI** (§5.12.4 push response):
+- Renders inline in the Notifications inbox + as a sticky
+  card on the Jobs tab while pending
+- Two buttons: **Confirm** (one-tap) · **Decline** (opens a
+  reason picker — sick / scheduled off / scheduling conflict
+  / other-with-text)
+- Decline immediately re-fires a re-staff notification to the
+  dispatcher with the reason
+
+**Self-service after-hours.** Surveyors with
+`equipment_self_checkout=true` (§5.12.6) see the regular QR
+scanner; surveyors without the flag instead see a soft
+warning: *"Equipment Manager isn't around — text Henry to
+authorise this check-out, or wait until 7am."* — with a
+shortcut to the equipment_manager chat.
+
+##### 5.12.9.2 Equipment Manager-side flows (the 🛠 Gear tab)
+
+A trimmed, action-first home screen mirroring §5.12.7.1
+Today but optimised for one-handed phone use at the gear
+cage:
+- **Top: scanner FAB** — always visible, opens the QR camera.
+  Smart routing: if the scanned unit has a held reservation
+  for today, default to check-out; if it has a checked-out
+  reservation, default to check-in. Equipment Manager can
+  override with a 2-button toggle on the confirmation sheet.
+- **Strip 1 (Going out)** — tappable list of today's held
+  reservations. Each row has a "Pre-staged ✓" indicator the
+  Equipment Manager can flip with one tap (mirrors the
+  §5.12.7.1 web button).
+- **Strip 2 (Out right now)** — sorted by `reserved_to`
+  ascending. Inline action: send a poke notification to the
+  surveyor ("Just checking — still on schedule?"). Cheap way
+  to nudge before the formal 6pm cron fires.
+- **Strip 3 (Returns waiting)** — anything coming back this
+  hour or already overdue.
+- **Notifications inbox** — same as the surveyor tab,
+  filtered to gear-related events.
+
+**Walk-up service flow.** When a surveyor walks up with gear
+to return, Equipment Manager:
+1. Pulls phone out, scanner FAB.
+2. Scans the kit / item.
+3. Confirmation sheet appears with the surveyor + job
+   already filled. Equipment Manager confirms condition,
+   adds note if needed, taps Submit.
+4. Repeats for additional items, or scans a kit parent for
+   batch.
+
+End-to-end target: **&lt; 5 seconds per item** (the user's
+implicit ergonomic bar — anything slower and the system
+gets bypassed).
+
+**Pre-stage workflow.** Evening prep ritual:
+1. Equipment Manager opens 🛠 Gear → Strip 1 (Going out
+   tomorrow).
+2. Walks to the cage, scans each item or kit to flip its
+   Pre-staged flag.
+3. Bins / labels by job number per the existing shop layout.
+4. Morning the surveyor walks up, Equipment Manager just
+   hands over the pre-staged bin (no re-scan needed —
+   the morning scan flips state to `checked_out` in one
+   step).
+
+**Maintenance + low-stock alert handling.** Push
+notifications from the §5.12.8 cron + §5.12.7.5 low-stock
+detector route to the Equipment Manager mobile inbox with
+deep-links to the relevant create-event / restock screens.
+
+##### 5.12.9.3 Cross-cutting mobile patterns
+
+**Offline-first.** Every flow above (check-out, check-in,
+damage report, lost report, confirmation, decline, restock)
+goes through `lib/uploadQueue.ts`. Optimistic local writes
+land instantly; server collisions surface non-blocking
+toasts; the §5.10.4 stuck-uploads triage page (Batch D) is
+the existing safety net.
+
+**PowerSync sync rules.** Three new sync rules:
+- `equipment_inventory` — global read-only for all internal
+  users (the catalogue is shop-wide; pricing visibility
+  scoped to admin/equipment_manager)
+- `equipment_reservations` — scoped by
+  `(checked_out_to_user = me OR job_id IN [my open jobs])`
+  so a surveyor sees their own + their crew's
+- `maintenance_events` — scoped to admin / equipment_manager
+  only. Surveyors see status-only summaries (the
+  current_status pill is enough for their workflow)
+
+**Sun-readability.** Every new screen reads
+`useResolvedScheme()` per Batch PP — the cage is often
+outdoors and the surveyor is always outdoors.
+
+**Offline scanner caching.** The mobile app pre-fetches the
+QR-code-id → equipment-id mapping for the user's open
+reservations + the full catalogue so QR scans resolve
+instantly even with no signal at the gear cage's metal-
+shed dead zone.
+
+**Battery-aware capture.** Damage / lost photos honour the
+existing §5.10.3 battery-aware tier — degrade JPEG quality
+under 20% battery to keep the 30-second damage report
+guaranteed.
+
+##### 5.12.9.4 Surveyor self-service inventory edits
+
+Limited write surface for surveyors who aren't equipment_managers
+but need to record reality:
+- **"Borrowed from another crew"** — surveyor scans an item
+  not on their reservation list. Modal: *"This isn't yours
+  — borrowing from [Henry / Job #422]?"* Confirmation creates
+  a `borrowed_during_field_work` event log entry and routes
+  a notification to both crew leads + Equipment Manager.
+  Inventory reservation isn't auto-rewritten — Equipment
+  Manager reconciles manually using the audit trail.
+- **"Personal kit"** flag on the surveyor's user row marks
+  certain items (their own field tools brought from home —
+  hammers, machetes, gloves) so they're tracked but not
+  managed. Schema-wise these live in `equipment_inventory`
+  with `is_personal=true` + `owner_user_id`; they don't
+  appear in the Equipment Manager dashboards.
+
+##### 5.12.9.5 What §5.12.9 does NOT cover
+
+- The depreciation accounting that ties `cost_cents` from
+  damage triage events to the tax ledger (§5.12.10).
+- The lost-equipment insurance packet generator
+  (§5.12.11).
+- The dispatch-side template apply UI — that's web-admin
+  per §5.12.3, not mobile (dispatchers don't plan jobs from
+  their phones; they use the desk).
+#### 5.12.10 Tax + depreciation tie-in (closes the Batch QQ loop)
+
+Recap the two coupled directives the user gave during the
+Batch QQ build:
+1. *"Make it so we can use the data to keep really great
+   track of everything and make dealing with taxes super
+   easy!"*
+2. *"if data has already been managed or used for it's
+   intended purpose … they are handled and marked well so
+   that there is no confusion. We don't want things getting
+   counted twice, or not counted at all in the total."*
+
+§5.11 / Batch QQ delivered the receipts side of those
+directives — every approved/exported receipt rolls into the
+Schedule-C-shaped tax summary. But equipment acquisitions are
+NOT a single-line expense — they're a **multi-year capital
+asset** whose cost is recovered over time via depreciation
+(or in one year via §179 election). Without a closed loop
+between the receipts pipeline and the equipment ledger, a
+$3,000 total station lands twice on Schedule C: once as
+"Supplies / Equipment" the year it was bought, then again as
+depreciation in subsequent years. **Or — equally bad — it
+lands zero times** because the bookkeeper saw the receipt was
+"big" and excluded it without anything else picking it up.
+
+This sub-section is the rule set that prevents either
+mistake.
+
+**The two acquisition paths.**
+
+| Path | Trigger | Schema effect |
+|---|---|---|
+| **Receipt-driven** | Bookkeeper approves a receipt with `category='equipment'` AND `total_cents >= EQUIPMENT_RECEIPT_THRESHOLD_CENTS` (default $250000 = $2,500, configurable) | A modal pops on receipt approval: *"This looks like a capital asset. Create inventory row?"* Confirm → INSERT into `equipment_inventory` with `acquired_cost_cents` = `receipt.total_cents`, `acquired_at` = `receipt.transaction_at`, `linked_acquisition_receipt_id` = `receipt.id`. Status defaults `available`; Equipment Manager fills calibration / serial / QR fields after physical receipt. |
+| **Admin-entered** | Equipment Manager adds a unit via §5.12.7.3 inventory page when no receipt exists (gift, owner's contribution, transferred from old shop, etc.) | Standard INSERT; `linked_acquisition_receipt_id` stays NULL. Bookkeeper must manually classify on Schedule C. |
+
+The threshold matters. Below $2,500 (the IRS de minimis safe
+harbour), small purchases like a $40 hammer don't need
+asset-tracking — they expense as Supplies in the year bought.
+Above the threshold, the system pushes for a capital-asset
+treatment. Threshold lives in `app_settings` so the bookkeeper
+can tune it as IRS rules evolve.
+
+**Anti-double-count guard rail.** Per the user's directive,
+the Batch QQ tax summary endpoint must skip receipts that
+have been promoted to inventory rows:
+- New column on `receipts`: `promoted_to_equipment_id UUID
+  REFERENCES equipment_inventory(id) NULL`. Set when the
+  acquisition modal confirms.
+- Batch QQ tax summary's WHERE clause adds `AND
+  promoted_to_equipment_id IS NULL` on the receipts side.
+- Equipment depreciation lands on a SEPARATE Schedule C row
+  (Line 13) computed from the equipment ledger.
+- Both feeds total to a single bottom-line. Receipt totals +
+  depreciation totals = no overlap.
+
+**Schema additions on `equipment_inventory`** (extend the
+§5.12.1 baseline):
+- `linked_acquisition_receipt_id UUID NULL` (FK above)
+- `depreciation_method TEXT CHECK (depreciation_method IN
+  ('section_179', 'straight_line', 'macrs_5yr', 'macrs_7yr',
+  'bonus_first_year', 'none')) DEFAULT 'straight_line'`
+- `placed_in_service_at DATE` (the day the asset was actually
+  put to work; can differ from `acquired_at` for items
+  bought-and-stored)
+- `disposed_at DATE NULL`, `disposal_proceeds_cents BIGINT
+  NULL`, `disposal_kind TEXT CHECK (disposal_kind IN
+  ('sold', 'traded', 'scrapped', 'lost', 'stolen', 'donated'))
+  NULL` — closes the books when the unit retires
+- `tax_year_locked_through INT NULL` — the latest tax year
+  that's been "locked" via the §5.12.10 annual close ritual
+  (mirrors Batch QQ's `exported_period`)
+
+**Depreciation algorithm** (worker function — runs on
+demand for the Batch QQ tax summary endpoint):
+
+```
+For each equipment row where retired_at IS NULL OR
+retired_at >= start_of_tax_year:
+
+  if depreciation_method = 'section_179' AND placed_in_service_at
+     within tax year:
+     this_year_depreciation = acquired_cost_cents
+     # Whole basis recovered in year-1; subsequent years = 0
+  elif depreciation_method = 'straight_line':
+     months_elapsed = months_overlap(window, placed_in_service..disposed_or_now)
+     this_year_depreciation = acquired_cost_cents *
+                               (months_elapsed / useful_life_months)
+  elif depreciation_method in ('macrs_5yr', 'macrs_7yr'):
+     # IRS table-driven; ship a constants table mirroring Pub 946
+     this_year_depreciation = acquired_cost_cents *
+                               MACRS_TABLE[method][year_index]
+  else:
+     this_year_depreciation = 0
+
+  # Cap at remaining basis so we never depreciate below zero
+  this_year_depreciation = min(this_year_depreciation,
+                                remaining_basis(row))
+
+  # Apply mid-year convention for assets bought / sold mid-year
+  apply_half_year_or_mid_quarter_convention(...)
+```
+
+**Section 179 election workflow.** §179 is a one-time choice
+per asset, made the year placed in service. The Equipment
+Manager (or admin) flags the choice when promoting a receipt:
+- Acquisition modal has a *"Tax treatment"* picker
+  defaulting to `straight_line` for most items
+- Total stations / GPS rovers / similarly-pricey instruments
+  prompt with `section_179` as the suggested default with a
+  hover-text explainer
+- Vehicles get auto-suggested `macrs_5yr` (light truck rule)
+- Section 179 election is recorded in `equipment_inventory`
+  AND copied into a freeze record on
+  `equipment_tax_elections` (immutable per-year per-asset)
+  so the choice survives later edits
+
+**Schema sketch — `equipment_tax_elections`** (immutable
+per-year-per-asset record):
+- `id UUID PK`
+- `equipment_inventory_id UUID FK`
+- `tax_year INT NOT NULL`
+- `method TEXT NOT NULL` (snapshot of the
+  depreciation_method at the time)
+- `cost_basis_cents BIGINT NOT NULL` (snapshot)
+- `useful_life_months INT NOT NULL` (snapshot)
+- `recorded_depreciation_cents BIGINT NOT NULL` (the actual
+  amount filed on Schedule C this year)
+- `placed_in_service_at DATE` (snapshot)
+- `convention TEXT` (`half_year`, `mid_quarter`, `mid_month`)
+- `locked_at TIMESTAMPTZ NULL` (set during annual close)
+- `notes TEXT`
+
+**Annual close ritual** (mirrors Batch QQ `mark-exported`):
+1. Bookkeeper opens `/admin/finances` for the closing year
+   and clicks **"Lock equipment depreciation"** (new button
+   alongside the existing receipts Lock).
+2. The endpoint:
+   - Computes the depreciation for every active row using
+     the algorithm above
+   - Inserts a row into `equipment_tax_elections` for each
+     row depreciated this year
+   - Sets `equipment_inventory.tax_year_locked_through =
+     YYYY` on every affected row
+   - Returns the totals + per-asset breakdown for CSV export
+3. The Batch QQ tax summary refuses to re-compute
+   depreciation for a locked year — pulls the frozen
+   `equipment_tax_elections` rows directly. Re-running the
+   close after lock surfaces *"Year YYYY already locked on
+   DDDD by EEEE"* with a hard-block, mirroring the receipts
+   path.
+
+**Service / repair / cal receipts (§5.12.8 cross-link).**
+Distinct from acquisition:
+- `kind='calibration'` / `'cleaning'` / `'inspection'` —
+  Schedule C Line 21 (Repairs & Maintenance). Linked
+  receipts get `promoted_to_equipment_id IS NULL`
+  (unchanged) but get a new
+  `receipts.linked_maintenance_event_id` so the bookkeeper
+  sees them threaded under the equipment row.
+- `kind='repair'` if material — depending on amount, may
+  capitalise vs expense. Bookkeeper sees a hint
+  ("$1,200 repair on a $4,000 asset — re-evaluate
+  capitalisation?") but final call stays manual.
+- `kind='firmware_update'` / `'software_license'` — Line 22
+  (Supplies) for one-off; Line 8 (Advertising) is wrong but
+  surfaces sometimes in vendor receipts; bookkeeper
+  reclassifies. Schema doesn't try to be smart here.
+- `kind='damage_triage'` cost — same as repair logic above.
+- `kind='lost_returned'` cost — N/A (the asset itself goes
+  through disposal flow below).
+
+**Disposal accounting** (when an asset is retired):
+- `disposal_kind='sold'` + `disposal_proceeds_cents` →
+  potentially a gain (proceeds > book value) or loss; Form
+  4797 territory. v1 surfaces the calculation but the
+  bookkeeper / CPA does the form.
+- `disposal_kind='traded'` — basis carries to replacement;
+  simplistically out of scope for v1, manually handled.
+- `disposal_kind='scrapped'` / `'donated'` — write off
+  remaining basis to Line 27a (Other expenses).
+- `disposal_kind='lost'` / `'stolen'` — Form 4684 casualty
+  loss territory. v1 surfaces remaining basis + the §5.12.11
+  insurance packet; CPA handles the form.
+
+**Anti-double-count enforcement points** (the "no confusion"
+half of the user directive):
+
+| Risk | Guard |
+|---|---|
+| Receipt promoted to inventory ALSO showing as Schedule C Line 22 supplies | `receipts.promoted_to_equipment_id IS NOT NULL` filter on Batch QQ summary |
+| Equipment depreciation pulled twice (re-computation after lock) | `equipment_inventory.tax_year_locked_through` + frozen `equipment_tax_elections` rows |
+| Calibration receipt counted as both maintenance AND supplies | `receipts.linked_maintenance_event_id IS NOT NULL` filter routes the row to Line 21 only |
+| Disposal gain/loss missed | `equipment_inventory.disposed_at IS NOT NULL` triggers a year-end review queue on the §5.12.7.7 fleet valuation page |
+| Personal kit (`is_personal=true`) creeping onto company tax | Tax summary excludes `is_personal=true` rows entirely |
+
+**Audit-friendly export.** The annual close generates a PDF
+"Asset Detail Schedule" — one row per asset showing year,
+method, cost basis, prior accumulated dep, this-year dep,
+remaining basis. Standard CPA artifact, no re-keying.
+Also pushes the same data as a CSV alongside the Batch QQ
+tax summary so the CPA's spreadsheet workflows still work.
+
+**API sketch** (provisional):
+- `POST /api/admin/equipment/promote-receipt` — body
+  `{ receipt_id, depreciation_method, useful_life_months,
+  placed_in_service_at }`. Atomic: creates inventory row +
+  sets `receipts.promoted_to_equipment_id`.
+- `POST /api/admin/equipment/dispose` — body
+  `{ equipment_id, disposed_at, disposal_kind,
+  disposal_proceeds_cents }`.
+- `POST /api/admin/finances/lock-equipment-year` — body
+  `{ tax_year }`. Mirrors Batch QQ mark-exported semantics.
+- Updated `GET /api/admin/finances/tax-summary` — gains
+  `equipment` block alongside `receipts` and `mileage`,
+  reading the locked elections (or computing live for the
+  current year).
+
+**What §5.12.10 explicitly does NOT cover:**
+- The Form 4797 / Form 4562 / Form 4684 generation
+  (CPA's domain — v1 just surfaces the source data).
+- Bonus depreciation phase-out math beyond the IRS table
+  (Pub 946 ships annually; we update the constant table on
+  IRS publish, no schema change).
+- Multi-state apportionment (Texas has no state income tax;
+  out of scope for v1's TX-only deployment).
+- The §5.12.11 insurance packet generation that consumes a
+  `disposal_kind='lost'` event.
+#### 5.12.11 Edge cases
+
+The user asked me to think about *"anything that I have not
+considered."* This sub-section is that audit — collecting
+edge cases earlier sub-sections referenced + a handful of
+scenarios the rest of §5.12 hasn't addressed yet. Each entry
+states the trigger, the schema effect, and the UI ergonomics.
+
+##### A. Borrowed equipment (in-flow)
+
+A surveyor needs an extra prism for a Friday job; Starr borrows
+one from another local firm for the day. We need to track
+that gear in the field log without polluting the asset
+ledger.
+
+- New table `equipment_borrowed_in` — `id`, `name`,
+  `category`, `borrowed_from_org TEXT`, `borrowed_from_contact`,
+  `borrowed_at`, `expected_return_at`, `actually_returned_at`,
+  `condition_in`, `condition_out`, `notes`, `created_by`.
+- Borrowed items can be assigned to jobs via the §5.12.3
+  template apply flow with an "Add borrowed item" affordance
+  — the row gets a temporary reservation that auto-expires
+  at `expected_return_at`.
+- They do NOT appear in `equipment_inventory`, so they don't
+  flow through depreciation, fleet valuation, or the §5.12.7.7
+  page. They DO appear in the §5.12.7.1 Today landing page's
+  Strip B with a distinct "borrowed" badge so the Equipment
+  Manager doesn't lose track.
+- Daily nag fires if `expected_return_at < today AND
+  actually_returned_at IS NULL` — same notification stack as
+  unreturned company gear.
+
+##### B. Lent equipment (out-flow)
+
+Reverse of (A): another firm needs a tripod for the weekend.
+- Existing `equipment_inventory.current_status` gains
+  `'loaned_out'` (already in §5.12.1 enum). Loan rows live
+  in a new `equipment_loans_out` table — `equipment_id`,
+  `loaned_to_org`, `loaned_to_contact`, `loaned_at`,
+  `expected_return_at`, `actually_returned_at`,
+  `condition_out`, `condition_in`, `cost_collected_cents`
+  (if charged), `notes`, `approved_by` (admin-only).
+- §5.12.5 hard-blocks reservations against loaned-out units
+  for the loan window. Equipment Manager UI surfaces an
+  "Approve loan" two-tap flow that requires admin sign-off
+  (this is shop-policy territory — no junior dispatchers
+  unilaterally lending the $40k receiver).
+- The §5.12.10 tax tie-in: lent units stay on Schedule C
+  depreciation as normal (it's still our asset).
+
+##### C. Theft / catastrophic loss
+
+Beyond the per-unit lost-on-site flow (§5.12.6) — what
+happens when a truck is stolen with a full kit, or there's
+a cage break-in?
+
+- New admin action **"Bulk-mark stolen"** on the §5.12.7.3
+  inventory page — multi-select units, fill one shared form
+  (`stolen_at`, `last_known_location`, `police_report_number`,
+  `incident_summary`), and the system flips every selected
+  unit's status to `lost` with the same metadata.
+- Insurance packet generator (the v2 polish item promised in
+  §5.12.6 / §5.12.10) runs against the `disposal_kind='stolen'`
+  rows and outputs a single PDF: cover sheet · per-asset
+  detail page (photos · serial · acquisition cost · book
+  value remaining · acquisition receipt PDF) · maintenance
+  history snippet · police report number · last GPS pings
+  cluster (when available). Attaches to a single
+  `incident_packets` row for archive.
+- Disaster mode: if the Equipment Manager flags an incident
+  as `kind='catastrophic'`, the §5.12.5 reservation engine
+  refuses ALL pending reservations for affected units
+  (instead of the per-unit hard-block) and dispatches a
+  notification to admin asking to re-staff downstream jobs.
+
+##### D. Cross-office transfers (multi-location growth)
+
+Starr is one office today. If/when a second opens, gear
+needs to move:
+- Schema: existing `equipment_inventory.home_location` from
+  §5.12.1 already supports this — value is just a string
+  today; expanded to a FK on a new `offices` table when the
+  second location opens.
+- New event log entry kind `transfer` with
+  `from_location → to_location` + transit window.
+- During transit (`status='in_transit'`, new enum value),
+  reservations against the unit are hard-blocked. Arrival
+  scan flips back to `available` and updates `home_location`.
+- Cross-office templates: a template can declare
+  `valid_at_locations TEXT[]` so a dispatcher at office A
+  doesn't accidentally apply a template that pins
+  office-B-only units.
+
+##### E. Consumable reorder workflow
+
+Touched in §5.12.7.5 but worth a dedicated edge-case treatment
+since the math + workflow span multiple modules:
+- New table `equipment_reorder_requests` — `equipment_id`
+  (consumable SKU), `requested_quantity`, `requested_by`,
+  `requested_at`, `vendor_preferred`, `state` (`requested`,
+  `approved`, `ordered`, `received`, `cancelled`),
+  `expected_arrival_at`, `actual_arrival_at`,
+  `linked_receipt_id`, `notes`.
+- Trigger paths:
+  1. **Cron auto-suggest** — when `quantity_on_hand`
+     crosses below `low_stock_threshold`, system pre-creates
+     a `state='requested'` row with quantity = a default
+     restock multiple (configurable per SKU).
+  2. **Manual** — Equipment Manager creates one from
+     §5.12.7.5 inline action.
+- On `state='received'` + linked receipt:
+  - `quantity_on_hand` increments by the actual received
+    quantity (which may differ from requested)
+  - The receipt is auto-categorised as `category='supplies'`
+    on the §5.11 receipt review screen, with a hint linking
+    back to the reorder row
+  - Bookkeeper confirms; Schedule C Line 22 (Supplies) gets
+    the cost
+- Approval gating: orders over a configurable threshold
+  (default $500) require admin sign-off before
+  `state` can advance to `'ordered'`.
+
+##### F. Calibration-overdue override (the "we need it today" case)
+
+§5.12.5 says a calibration-overdue unit hard-blocks past 30
+days, soft-warns inside that window. The override path:
+- Override picker on the apply / reserve screen with
+  pre-canned reason categories: `customer_emergency` ·
+  `vendor_delay` · `weather_window` · `crew_already_on_site`
+  · `other_with_freetext`. Reason is mandatory.
+- Override fires a notification (1) to admin (always),
+  (2) to the surveyor about to receive the gear (so they
+  know to flag any anomalous shots in the field notes), and
+  (3) to the bookkeeper at end-of-month for tax-sensitivity
+  review.
+- Audit log retains a permanent record. The §5.12.7.4
+  maintenance dashboard surfaces a "Recently overridden
+  past-cal" rollup so accumulating override fatigue doesn't
+  become a silent risk.
+- Liability hint surfaced inline: *"This unit is X days
+  past calibration. Survey accuracy may not meet
+  professional standards. Document any anomalous results in
+  the job's field notes."* — protects the firm without
+  legalese.
+
+##### G. Personal kit boundary
+
+§5.12.9.4 introduced `is_personal=true` items the surveyor
+owns. Edge cases that come up:
+- **Surveyor leaves the firm** — admin action "Mark all
+  personal items as exited" on the user offboarding flow.
+  Personal-kit rows get `retired_at` set; they don't appear
+  in any future view but stay in the audit log per the
+  §5.12.1 7-year retention.
+- **Personal item used on a contested job** — admin can
+  flip an `is_personal` flag (with audit reason) for legal-
+  hold purposes. Doesn't reattribute ownership, but ensures
+  the item appears in compliance exports.
+- **Personal item receipt** — when a surveyor submits a
+  receipt for a hammer they bought for personal use, the
+  Money tab gains a "This is for my personal kit, not the
+  company" toggle that prevents the receipt from being
+  expensed. v2 polish.
+
+##### H. Onboarding bulk import (system-go-live)
+
+When this module ships, the existing fleet (50+ items today)
+needs to land in `equipment_inventory` without a per-row
+manual entry:
+- Admin-only `/admin/equipment/import` page — paste a CSV
+  with name / category / serial / acquired_at /
+  acquired_cost / etc. + bulk QR sticker generation
+- Photo backfill is deferred — Equipment Manager fills in
+  per-row photos as they handle each unit through normal
+  workflow. A "needs photo" sidebar badge gives them a
+  trickle of cleanup work post-import.
+- The import flow generates `equipment_events` rows with
+  `kind='imported'` so the audit log distinguishes
+  pre-system gear from gear acquired through the system.
+
+##### I. Software licences pinned to a unit
+
+Modern instruments (Trimble Access, Carlson SurvCE) ship with
+software activation keys tied to a specific receiver serial.
+When the receiver is replaced, the licence transfers — and
+when the receiver is retired, the licence loses value.
+- New table `equipment_software_licenses` —
+  `equipment_id`, `vendor`, `product`, `license_key_hash`
+  (we don't store the raw key — admin retrieves from a
+  vault on demand), `seats_total`, `seats_used`,
+  `expires_at`, `transfer_history_jsonb`, `notes`.
+- Transfer workflow: when admin retires unit A and assigns
+  the licence to unit B, the system records the transfer
+  + emits a notification to whoever's about to use unit B
+  ("Software activation may take 24h after vendor approves
+  transfer").
+
+##### J. Crew-truck-overnight at remote job site
+
+Some jobs run multiple days; the truck stays on-site
+overnight with the kit locked inside. The §5.12.6 6pm
+unreturned-gear nag would fire incorrectly.
+- Job-detail flag `multi_day_overnight=true` (admin-set on
+  the job before the crew leaves)
+- When set, reservations on equipment for that job auto-
+  extend `reserved_to` daily through the job's scheduled
+  end + grace, and the nag is silenced
+- Each morning the system pushes a soft *"Still on site?
+  Tap to confirm"* notification — surveyor confirms with one
+  tap, declining triggers the regular check-in flow
+
+##### K. Discovery / FOIA / litigation hold
+
+If a survey is contested in court, the firm may receive a
+discovery request to produce records of the equipment used.
+- Admin-only "Apply litigation hold" on a job → freezes the
+  job's `equipment_reservations` rows + their linked
+  `equipment_events` from automated archival/purge for
+  the §5.12.1 7-year retention period (held items get
+  retained until hold is released, not auto-purged at the
+  retention deadline)
+- Generated PDF: chain-of-custody report — every check-out /
+  check-in / damage / cal event for every piece of gear
+  used on the contested job, plus the operator history
+  (who held the gear when)
+- Out of scope: actual e-discovery export to opposing
+  counsel's tool. v1 just produces the PDF + the underlying
+  audit-log CSV.
+
+##### L. Counterfeit / suspect serial numbers (rare but worth
+defending)
+
+When the Equipment Manager registers a high-end instrument,
+the system checks the serial against a known-bad list (vendor-
+published recall lists for cloned / stolen units when
+available). v1: free-text vendor fields + manual flag
+`serial_suspect=true`. v2 polish: API integration with the
+Trimble fraud database when/if vendor publishes one. Mostly
+relevant to second-hand acquisitions.
+
+##### Closing note
+
+These edge cases are NOT all v1. Phase F10 (planned in §9)
+ships the §5.12.1-§5.12.7 backbone first — the daily ritual
+loop. Edge cases land as polish batches in priority order:
+F (override), C (theft / disaster), E (reorder), A/B
+(borrow / lend), then the remainder as they're encountered
+in real operation. This keeps Phase F10 tractable without
+losing the "I considered everything" brief.
 
 ---
 
@@ -1197,6 +2838,27 @@ the implementation batches stay focused):
 ### 6.3 New Supabase tables (additions)
 
 **Migration file:** `seeds/220_starr_field_tables.sql` — `213_text_to_uuid_fks.sql` is the highest currently-tracked seed; the next free slot for Starr Field is 220 (leaving 214–219 reserved for in-flight Recon and self-healing work). Follows the project's seed conventions: `BEGIN; … COMMIT;` wrapper, `CREATE TABLE IF NOT EXISTS`, `ADD CONSTRAINT IF NOT EXISTS` via `DO $$ … END $$` blocks (see `seeds/201_captcha_solves.sql` and `seeds/099_fieldbook.sql` for the exact patterns). Re-applying in CI restore drills must be idempotent.
+
+**Forward reference — Phase F10 schema (seeds/233-237).** The
+schema below is the F0 baseline (`seeds/220`). Subsequent
+phases land additional tables in their own seed files:
+seeds/221-228 land F2-F6 schema (already documented inline
+through their respective batch entries in §9.x); seeds/229-232
+land F2 polish (Batch Z review queue · Batch CC retention ·
+Batch GG video thumbnails · Batch QQ tax-period locking).
+**Phase F10** introduces the equipment + crew assignment
+ledger via seeds/233-237 — full schema sketches live in
+§5.12.1 / §5.12.3 / §5.12.4 / §5.12.5 / §5.12.6 / §5.12.8 /
+§5.12.10 / §5.12.11 rather than being re-stated here. The
+F10 tables ALTER existing schemas (`equipment_inventory`,
+`job_equipment`, `job_team`) plus add `equipment_kits` /
+`_kit_items` / `_events` / `_templates` / `_template_items` /
+`_template_versions` / `_reservations` / `_borrowed_in` /
+`_loans_out` / `_software_licenses` / `_reorder_requests` /
+`_tax_elections` / `personnel_skills` / `personnel_unavailability`
+/ `maintenance_events` / `_event_documents` / `_schedules` /
+`incident_packets`. See the §9 Phase F10 entry for the apply
+order; activation gates list them in seeds/233-237 sequence.
 
 **PostGIS prerequisite.** `location_segments.path_simplified` uses the PostGIS `GEOMETRY` type. Verify with `SELECT extname FROM pg_extension WHERE extname='postgis'` before applying; if absent, the migration's first statement is `CREATE EXTENSION IF NOT EXISTS postgis;`. Most Supabase projects have it by default but assume nothing.
 
@@ -1716,6 +3378,186 @@ Audit additions:
 
 ### Phase F9+ — Real-time integrations, AR, watch app, fuel-card reconciliation (research)
 
+### Phase F10 — Equipment & supplies inventory + dispatcher templates (Week 33–40)
+
+Implements the §5.12 spec. Single largest feature area outside
+the F2/F6 capture loops. Sequenced so the daily ritual (the
+user's headline ask) lands first; the tax + edge-case polish
+follows.
+
+**F10.0 — Schema + seeds + role wiring (Week 33).**
+- [ ] `seeds/233_starr_field_equipment_v2.sql` — extends the
+      existing `equipment_inventory` + `job_equipment` tables
+      per §5.12.2 migration sketch (no rename, ALTER + new
+      tables). Adds `equipment_kits`, `equipment_kit_items`,
+      `equipment_events`, `equipment_templates`,
+      `equipment_template_items`, `equipment_template_versions`
+      per §5.12.3.
+- [ ] `seeds/234_starr_field_equipment_reservations.sql` —
+      `equipment_reservations` (§5.12.5) with the GiST range
+      index + the derived `next_available_at` /
+      `current_reservation_id` columns + the
+      `personnel_locks` helper for race-safety.
+- [ ] `seeds/235_starr_field_personnel_skills.sql` — extends
+      `job_team` per §5.12.4; adds `personnel_skills`,
+      `personnel_unavailability`.
+- [ ] `seeds/236_starr_field_equipment_maintenance.sql` —
+      `maintenance_events`, `maintenance_event_documents`,
+      `maintenance_schedules` per §5.12.8 (xor on
+      `equipment_inventory_id` | `vehicle_id`).
+- [ ] Add `equipment_manager` to the existing role enum + the
+      sidebar role-gate logic (§5.12.7 sidebar anchor).
+
+**F10.1 — Inventory catalogue + QR codes (Week 33–34).**
+The "list of every piece of metal" surface — the foundation
+the rest of F10 reads from.
+- [ ] Admin `/admin/equipment/inventory` (§5.12.7.3) with
+      filters, inline-edit, soft-archive (`retired_at`).
+- [ ] QR code generation + label-printer-ready PDF
+      (single-row + bulk multi-page).
+- [ ] Bulk CSV importer at `/admin/equipment/import`
+      (§5.12.11.H) for system-go-live fleet seeding.
+- [ ] Mobile `useEquipmentByQr` resolver hook + offline
+      cache pre-fetch.
+- [ ] Mobile camera scanner overlay (re-uses
+      `expo-camera` from §5.11).
+
+**F10.2 — Templates + dispatcher apply flow (Week 34–35).**
+- [ ] CRUD on `equipment_templates` + items (admin web,
+      §5.12.3 permissions split).
+- [ ] Apply-template flow on the existing job detail page —
+      preview with live availability badges per §5.12.5
+      checks, diff-vs-template edits, `equipment_reservations`
+      insert in `state='held'`.
+- [ ] Save-as-template shortcut on custom loadouts.
+- [ ] Composition (`composes_from[]`) with recursion guard.
+- [ ] Versioning — every template save snapshots into
+      `equipment_template_versions`.
+
+**F10.3 — Availability + conflict detection engine (Week 35).**
+- [ ] `GET /api/admin/equipment/availability` — runs the four
+      §5.12.5 checks, returns assignable units + typed reasons.
+- [ ] `POST /api/admin/equipment/reserve` — atomic multi-item
+      reserve with `SELECT … FOR UPDATE` race guard.
+- [ ] Substitution suggestions surface on conflict.
+- [ ] Soft-override path with required reason + admin
+      notification + double-reservation insert pattern.
+- [ ] `POST /api/admin/equipment/cancel-reservation`.
+
+**F10.4 — Personnel side (Week 36).**
+- [ ] Personnel-skills + unavailability admin pages
+      (§5.12.4 cert PDF upload via §5.6 files-bucket).
+- [ ] Personnel availability check engine —
+      `GET /api/admin/personnel/availability`.
+- [ ] Mobile assignment confirmation card with [Confirm] /
+      [Decline + reason] (§5.12.4 surveyor flow).
+- [ ] Crew-lead designation + auto-promote heuristic.
+
+**F10.5 — Daily check-in/check-out workflow (Week 36–37).**
+The user's headline ritual. Lands AFTER reservations work
+end-to-end so the QR scan has something to flip.
+- [ ] `POST /api/admin/equipment/check-out` +
+      `/check-in` + `/extend-reservation` per §5.12.6.
+- [ ] Mobile scanner check-out / check-in sheets — kit batch
+      flow, condition photo, consumed-quantity selector.
+- [ ] Damage-triage entry path → §5.12.8 event creation.
+- [ ] Lost-on-site flow with auto-pre-filled
+      `location_pings` cluster.
+- [ ] End-of-day unreturned-gear nag cron (6pm + 9pm) +
+      [Extend until 8am] / [Mark in transit] notification
+      actions.
+- [ ] Crew clock-out gating modal.
+- [ ] Self-service after-hours flag + soft warning path.
+
+**F10.6 — Equipment Manager dashboards (Week 37–38).**
+The §5.12.7 admin web surface that pulls everything together.
+- [ ] Sidebar "Equipment" group + role-gated nav.
+- [ ] §5.12.7.1 Today landing page (3 strips + 3 banners).
+- [ ] §5.12.7.2 Reservations Gantt timeline.
+- [ ] §5.12.7.5 Consumables low-stock + restock view.
+- [ ] §5.12.7.6 Crew calendar week heatmap.
+- [ ] §5.12.7.8 "Templates referencing retired gear"
+      cleanup queue.
+
+**F10.7 — Maintenance + calibration (Week 38–39).**
+- [ ] `maintenance_events` CRUD + state machine + document
+      upload (§5.12.8).
+- [ ] §5.12.7.4 maintenance calendar (month grid + upcoming
+      list).
+- [ ] Daily 3am cron — recurring schedule due-date
+      computation + 60/30/7-day notifications + auto-create
+      events.
+- [ ] QA gate on calibration completion + `failed_qa` red-row
+      surfacing.
+- [ ] Receipt cross-link UI (Attach-receipt picker + Money-tab
+      "Is this for equipment maintenance?" prompt).
+- [ ] Per-unit maintenance history page.
+
+**F10.8 — Mobile UX polish (Week 39).**
+- [ ] Pre-job loadout preview card on mobile job detail
+      (§5.12.9.1).
+- [ ] "What's in my truck right now" Me-tab section.
+- [ ] Persistent scanner FAB when any check-out is open.
+- [ ] 🛠 Gear tab (role-gated 6th tab) for Equipment Manager
+      mobile flows (§5.12.9.2).
+- [ ] Three new notification source_types
+      (`equipment_assignment` / `_overdue` / `_status_change`).
+- [ ] PowerSync sync rules per §5.12.9.3.
+- [ ] Surveyor self-service paths — borrowed-from-other-crew
+      event log, personal-kit flag.
+
+**F10.9 — Tax + depreciation tie-in (Week 40).**
+Closes the Batch QQ loop — lands at the END of F10 so the
+inventory + maintenance ledgers are mature before the tax
+side reads them.
+- [ ] `seeds/237_starr_field_equipment_tax.sql` —
+      `equipment_tax_elections` + the new
+      `receipts.promoted_to_equipment_id` /
+      `linked_maintenance_event_id` columns.
+- [ ] Receipt-promotion modal on bookkeeper approval
+      (§5.12.10 acquisition path).
+- [ ] Section 179 / MACRS algorithm + Pub 946 constants
+      table.
+- [ ] §5.12.7.7 Fleet valuation page.
+- [ ] "Lock equipment depreciation" button on
+      `/admin/finances` (mirrors Batch QQ mark-exported).
+- [ ] Tax summary endpoint extension — adds `equipment`
+      block alongside `receipts` + `mileage`; reads frozen
+      `equipment_tax_elections` for locked years.
+- [ ] Asset Detail Schedule PDF + CSV export.
+- [ ] Disposal flow (`POST /api/admin/equipment/dispose`)
+      with kind branches.
+
+**Exit (Week 40):** A surveyor walks to the gear cage at
+6:30am. Equipment Manager scans a kit QR. The kit + its
+seven children flip to checked-out, the surveyor confirms
+condition with a photo, and the truck rolls 90 seconds
+later. At 6pm the surveyor gets a return-reminder push,
+walks back to the cage, scans the same kit. Damage = next
+morning's maintenance triage. Lost = a packet for the
+insurance claim. End of year, the bookkeeper hits "Lock
+depreciation" on `/admin/finances` and the Schedule C
+flows through to the CPA without re-keying anything. **The
+user's full directive — track everything, keep crews
+supplied, no double-counting on taxes — closes.**
+
+**Edge-case polish (post-F10).** Per §5.12.11 closing note,
+edge cases ship as priority-ordered polish batches AFTER
+F10 backbone is stable in real operation. Suggested order:
+F (calibration override) → C (theft / disaster) → E
+(reorder workflow) → A/B (borrow / lend) → D (multi-office)
+→ I (software licenses) → G (personal kit polish) → J
+(overnight) → K (litigation hold) → H (bulk import already
+landed in F10.1) → L (counterfeit DB).
+
+**Activation gates** (apply in order before exposing any
+F10 admin/mobile route):
+1. `seeds/233` — equipment v2 baseline
+2. `seeds/234` — reservations
+3. `seeds/235` — personnel skills/unavailability
+4. `seeds/236` — maintenance
+5. `seeds/237` — tax tie-in (only required before F10.9)
+
 ---
 
 ## 9.w — Inventory snapshot (state-of-the-build)
@@ -1859,6 +3701,19 @@ tax-period locking, Batch QQ) — all present on disk.
   Operator step: run `eas update:configure`, paste the URL, ship
   a build. The `<OtaUpdatesReconciler />` already degrades
   safely on un-configured builds.
+- **Phase F10 — equipment + supplies inventory + dispatcher
+  templates** (§5.12 / Phase F10 in §9; spec'd Apr 2026; eight
+  sub-phases F10.0–F10.9 sized for Weeks 33–40). Existing
+  schema baseline: `equipment_inventory` + `job_equipment` +
+  `job_team` already shipped (extended in place per §5.12.2).
+  New schema queued: seeds/233-237 (equipment v2 + reservations
+  + personnel skills/unavailability + maintenance + tax
+  elections). New role `equipment_manager` queued for the role
+  enum. Twelve §5.12.11 edge-case batches sequenced as
+  post-F10 polish (priority order: F → C → E → A/B → D → I →
+  G → J → K → L). Forty §12 open questions (#21-#40) document
+  decision-required items requiring user / surveyor / CPA
+  sign-off before each sub-phase starts.
 
 ### D. Architectural deviations from the plan
 
@@ -4419,6 +6274,22 @@ slice of mobile-written data?
 | Field notes (job/point) | `fieldbook_notes` (`job_id`/`data_point_id`/`note_template`/`structured_data`) | Notes block on `/admin/field-data/[id]` with template tag + structured payload table; mobile add screen at `/(tabs)/jobs/[id]/notes/new` (Batch L) | ✓ shipped |
 | Per-job consolidated review | `field_data_points` + `field_media` + `fieldbook_notes` + `job_files` (joined) | `/admin/jobs/[id]/field` — points list (Batch S) + job-level media/notes/files inline blocks + "Uploaded by X · timestamp" attribution on every item (Batch T) | ✓ shipped |
 | Job media bundle download | `field_media` + `job_files` (signed) | `/api/admin/jobs/[id]/field-data/manifest` (CSV manifest, Batch S; uploader columns added in Batch T) + `/api/admin/jobs/[id]/field-data/zip` (server-streamed ZIP, organised by media_type/point, Batch T) — single-file Download links on every card on the per-job + per-point pages | ✓ shipped |
+| Tax-time finances | `receipts` (joined w/ `location_segments` + `vehicles`) | `/api/admin/finances/tax-summary` (Schedule-C JSON+CSV w/ status split, Batch QQ) + `/api/admin/finances/mark-exported` (period-lock action) — admin page UI deferred to Batch QQ part-2 | ◐ API shipped, page pending |
+| Equipment inventory | `equipment_inventory` (extended per §5.12.1) | `/admin/equipment/inventory` (Phase F10.1) — filterable list, inline-edit, bulk QR sticker PDF, bulk CSV import for system-go-live | ⨯ planned (F10.1) |
+| Equipment kits | `equipment_kits`, `equipment_kit_items` | Inline kit composer on the Inventory catalogue page; one-scan kit batch check-out via `equipment_events` rows (§5.12.6) | ⨯ planned (F10.1) |
+| Equipment templates | `equipment_templates`, `equipment_template_items`, `equipment_template_versions` | `/admin/equipment/templates` admin CRUD + Apply-template flow on existing job detail page (Phase F10.2) | ⨯ planned (F10.2) |
+| Equipment reservations | `equipment_reservations` | `/admin/equipment/reservations` Gantt timeline (§5.12.7.2); per-job reservations panel on existing job detail page; mobile loadout preview (§5.12.9.1) | ⨯ planned (F10.3) |
+| Equipment availability | derived `equipment_inventory.next_available_at` + `current_reservation_id` | `GET /api/admin/equipment/availability` runs the four §5.12.5 checks; Today landing-page status pills (§5.12.7.1) | ⨯ planned (F10.3) |
+| Personnel skills + certs | `personnel_skills`, `personnel_unavailability` | `/admin/employees/[email]/skills` admin pages (Phase F10.4); cert PDFs via `seeds/226` files bucket | ⨯ planned (F10.4) |
+| Job team assignments + state | `job_team` (extended w/ `assigned_from`/`_to` + `state` machine) | Assignment slot widget on existing job detail page; mobile [Confirm]/[Decline] cards in inbox; week-grid heatmap on `/admin/equipment/crew-calendar` (§5.12.7.6) | ⨯ planned (F10.4) |
+| Equipment events (audit) | `equipment_events` | History drawer accessible from every inventory unit + every reservation drilldown; powers chain-of-custody PDF for §5.12.11.K litigation hold | ⨯ planned (F10.5) |
+| Daily check-in/check-out | `equipment_reservations` (`state='checked_out'`/`returned'` + condition fields) | Equipment Manager mobile 🛠 Gear tab + admin Today landing page; QR-scan flows on both surfaces; 6pm/9pm unreturned-gear nag cron | ⨯ planned (F10.5) |
+| Maintenance + calibration | `maintenance_events`, `maintenance_event_documents`, `maintenance_schedules` | `/admin/equipment/maintenance` calendar + per-unit history page; daily 3am cron for due-date notifications | ⨯ planned (F10.7) |
+| Consumables (bulk) | `equipment_inventory` (`item_kind='consumable'`) + `equipment_reorder_requests` | `/admin/equipment/consumables` low-stock list w/ days-of-stock-remaining sort + restock receipt linkage (§5.12.7.5) | ⨯ planned (F10.6) |
+| Borrowed-in equipment | `equipment_borrowed_in` | Inline section on Today landing page + per-job loadout panel (§5.12.11.A) | ⨯ planned (post-F10) |
+| Lent-out equipment | `equipment_loans_out` | Admin-gated loan approval flow + reservation hard-block linkage (§5.12.11.B) | ⨯ planned (post-F10) |
+| Equipment depreciation | `equipment_tax_elections` (per-year-per-asset frozen records) | "Lock equipment depreciation" button on `/admin/finances` (mirrors Batch QQ); `equipment` block on `tax-summary` JSON; Asset Detail Schedule PDF + CSV (§5.12.10) | ⨯ planned (F10.9) |
+| Software licenses | `equipment_software_licenses` | Per-unit license card on inventory drilldown w/ seats_total / seats_used + transfer history (§5.12.11.I) | ⨯ planned (post-F10) |
 
 **Activation gate**: every admin surface above bypasses RLS via
 `supabaseAdmin` (service role), so the data flows even if user-JWT
@@ -4530,6 +6401,49 @@ The `AiUsageTracker` circuit breaker trips **before** the per-product budget all
 
 The mileage log alone — at IRS standard rate × actual miles driven — typically pays for the entire system many times over.
 
+### Phase F10 incremental cost (equipment + supplies inventory)
+
+Phase F10 adds storage + a few cron jobs but no per-receipt
+AI cost (the equipment promotion path reuses the existing
+§5.11 receipt extraction; nothing new to bill).
+
+| Item | Monthly | Notes |
+|---|---|---|
+| Supabase Storage — calibration cert PDFs + maintenance event documents | $1–5 | ~50 instruments × ~5 PDFs × 200KB + before/after damage photos |
+| Supabase Storage — equipment catalogue photos + QR sticker PDFs | $0–2 | One photo per durable; bulk QR sheets cached on the admin side |
+| Supabase compute — daily 3am maintenance cron + 6pm/9pm unreturned-gear cron | $0 | Within existing Pro plan; queries are tiny |
+| Push notifications — assignment confirms / overdue nags / cert-expiry warnings | $0 | Expo free tier |
+| Worker compute — Asset Detail Schedule PDF generation (annual) | $0 | One-shot annual job; runs on existing worker |
+| **Total F10 incremental** | **~$1–7/mo** | Negligible vs the receipts/Anthropic line; Schedule C Line 13 deduction recovery dwarfs it |
+
+### Phase F10 ROI
+
+Per-asset visibility + IRS-grade depreciation tracking +
+calibration-overdue prevention has compound value:
+
+- **Avoided lost / forgotten gear**: typical small surveying
+  shop loses ~$2–5K/yr to "left it on site" + "took it home
+  and forgot" + un-recoverable damaged items. Closed-loop
+  daily check-in + lost-on-site GPS recovery typically
+  recovers 60–80% of that.
+- **Section 179 / depreciation accuracy**: a single
+  $40K total station with §179 election + accurate
+  placed-in-service date saves ~$8–12K in year-1 federal
+  tax depending on bracket. Mis-classifying it as supplies
+  (or depreciating wrong) can leave that on the table.
+- **Calibration-overdue avoidance**: the cost of a single
+  contested boundary survey caused by an out-of-cal
+  instrument can be $5K–$50K in re-shoot + legal exposure.
+  Hard-block past 30 days past due is cheap insurance.
+- **Equipment Manager labour**: ~3–5 hours/week of manual
+  cage tracking → ~30 min/week of digital review.
+  ~$5K/yr at a $35/hr fully-loaded rate.
+
+Net: **~$15K–$70K/yr in recovered value** depending on shop
+size + asset profile, against ~$50/yr incremental cloud cost.
+ROI is dominated by the §179 / depreciation accuracy line —
+the rest is gravy.
+
 ---
 
 ## 12. Open questions
@@ -4554,6 +6468,146 @@ The mileage log alone — at IRS standard rate × actual miles driven — typica
 18. **Driver detection** — manual toggle vs. auto-detect via OS motion APIs? (Manual is fine for v1.)
 19. **Time-off / PTO tracking** — in-app, or stays in whatever payroll system you use?
 20. **Schedule integration** — show employees their assigned jobs for the day, with deviation alerts? (Phase F8+.)
+
+### Equipment + crew assignment (Phase F10 — added per §5.12)
+
+21. **Equipment Manager role mapping.** Is this a dedicated
+    person at Starr's current size, or a hat worn by an
+    existing crew lead / Henry? Affects sidebar visibility +
+    push-notification routing default. (Lean: hat worn by
+    one of the existing admin / dev users initially, with
+    the role + permissions modeled cleanly so a dedicated
+    hire later doesn't require a refactor.)
+
+22. **Reservation conflict default — hard-block or
+    soft-warn?** §5.12.5 ships hard-block as the default with
+    a soft-override path. Should some conflict types
+    soft-warn instead (e.g. low-stock consumables that the
+    Equipment Manager can resolve with a quick restock)?
+    (Lean: ship hard-block universally; iterate after 3
+    months of usage data.)
+
+23. **Calibration-overdue grace window.** §5.12.5 soft-warns
+    inside 30 days past due, hard-blocks beyond. Is 30 days
+    the right number for total stations? GPS receivers? Should
+    it vary per category? (Decision-required from a licensed
+    surveyor — defaults are sketches.)
+
+24. **Section 179 default behaviour.** §5.12.10 picker
+    defaults `straight_line` for most items, suggests
+    `section_179` for total stations / GPS / similarly-pricey
+    instruments. Should the bookkeeper / CPA override the
+    suggestion globally, or per-acquisition? (Lean: per-
+    acquisition; reflects real-world tax planning where the
+    §179 election interacts with annual income shape.)
+
+25. **Equipment receipt threshold.** §5.12.10
+    `EQUIPMENT_RECEIPT_THRESHOLD_CENTS` defaults to $2,500
+    (IRS de minimis safe harbour). Should this float with
+    annual IRS updates, or stay pinned? (Lean: env-overridable
+    constant, surfaced in admin Settings so the bookkeeper
+    can update on annual IRS publish.)
+
+26. **QR sticker ergonomics + label printer.** What label
+    stock + printer is Starr planning to use? (Affects
+    §5.12.7.3 bulk QR PDF page geometry — Brother QL-820NWB
+    vs DYMO LabelWriter vs generic Avery.) (Lean: Brother
+    DK-1201 2.4" × 1.1" address labels — peel-and-stick,
+    weatherproof variant exists.)
+
+27. **Personal kit policy.** §5.12.9.4 introduces
+    `is_personal=true` for surveyor-owned tools. Does Starr
+    want to track these AT ALL, or stay out of personal
+    property entirely? (Important for liability + 1099
+    boundaries. Lean: track only when surveyor opts in via
+    the Money tab "personal" toggle; never assume.)
+
+28. **Borrowed equipment recordkeeping.** §5.12.11.A
+    `equipment_borrowed_in` table records gear borrowed from
+    other firms. Any TX-survey-board reporting requirements
+    we should bake in (chain of custody for a borrowed
+    receiver used on a recorded survey)? (Decision required
+    from licensed surveyor.)
+
+29. **Lent equipment liability.** §5.12.11.B
+    `equipment_loans_out` requires admin sign-off. Does Starr
+    want a written agreement template the system generates +
+    e-signature flow for the borrower? (Lean: v1 — printed
+    PDF Equipment Manager hands over physically; e-sign in
+    v2.)
+
+30. **Multi-day overnight default behaviour.** §5.12.11.J
+    `multi_day_overnight=true` flag silences the §5.12.6
+    nag. Should the default be on for jobs flagged as
+    `out_of_state` / `multi_day_estimated_duration`? (Lean:
+    no — explicit per-job flag avoids surprise nag-silence
+    on a job that ran overtime.)
+
+31. **Cross-template substitution graph.** §5.12.5 v1 lets
+    template `notes` declare substitution rules in free-form
+    ("OK to swap to GPS Rover Kit if no total station is
+    free"). Does Starr want a structured graph in v2 (e.g.
+    `category='total_station_kit'` substitutes-to
+    `['gps_rover_kit']`)? (Lean: yes for v2 polish, but only
+    after 3 months of seeing what surveyors actually
+    substitute in real operation.)
+
+32. **Reservation lookahead window.** §5.12.7.2 ships a
+    14-day Gantt view by default. Is 14 days the right
+    horizon? (Surveying jobs typically book 2–4 weeks out.
+    Lean: configurable per user with 14 as default; admins
+    extend to 60 days for quarterly planning.)
+
+33. **Software license seat counts.** §5.12.11.I tracks
+    seats_total / seats_used per Trimble Access /
+    Carlson SurvCE entry. Does Starr need to enforce a
+    hard-block when seats_used reaches seats_total at
+    check-out time? (Lean: yes — block the check-out, force
+    the Equipment Manager to free a seat or buy another.)
+
+34. **Equipment depreciation lock cadence.** §5.12.10
+    annual close ritual mirrors Batch QQ. Should this be
+    triggered manually only, or auto-fire on the bookkeeper's
+    fiscal-year-end + a confirmation prompt? (Lean: manual
+    only — too consequential for auto-fire.)
+
+35. **Surveyor decline reason — open enum or fixed?**
+    §5.12.4 surveyor decline picker. Should the reason set be
+    pre-canned (sick / scheduled-off / scheduling-conflict /
+    other-with-text) or fully open? (Lean: pre-canned for
+    statistical visibility; "other" path always free-text.)
+
+36. **Fleet valuation export format.** §5.12.7.7 ships CSV +
+    PDF "Asset Detail Schedule." Does Starr's CPA prefer one
+    format over the other, or want both? Any specific column
+    ordering? (Decision-required from CPA.)
+
+37. **Cage / office hours default.** §5.12.6 self-service
+    after-hours requires an `equipment_self_checkout` flag.
+    Should the system know what "after hours" means (e.g.
+    7am–5pm Mon–Fri)? Affects when the soft warning fires
+    vs the regular scanner flow. (Lean: configurable per-
+    office time-of-day window; surveyors with the flag bypass
+    the warning regardless.)
+
+38. **Notification consolidation.** Equipment-related
+    notifications could pile up (overdue + maintenance due +
+    low stock + assignment confirm). Does the user want a
+    per-day digest mode for non-urgent equipment events, or
+    individual pings? (Lean: individual for action-required,
+    digest for FYI / low-stock / cert-expiring.)
+
+39. **Litigation hold scope.** §5.12.11.K applies a hold to
+    a job's reservations + events. Should the hold also
+    freeze the linked maintenance events / receipts /
+    surveyor location pings? (Lean: yes — full chain-of-
+    custody requires the related rows; admin-only action.)
+
+40. **F10 launch prerequisite — fleet inventory.** §5.12.11.H
+    bulk import. Is the existing fleet documented anywhere
+    (spreadsheet, paper, vendor invoices)? F10.1 needs source
+    data. (Action item before F10 starts: Equipment Manager
+    walks the cage with a clipboard.)
 
 ---
 
@@ -4687,6 +6741,45 @@ GET /api/mobile/mileage-log.csv?user_id=...&start=2026-01-01&end=2026-12-31
 | Done | <1s | |
 | **Total** | **~3s** | |
 
+### Equipment kit check-out (target <5s, per §5.12.9.2)
+
+The Equipment Manager's bar — anything slower and the system
+gets bypassed for hand-written cage logs.
+
+| Step | Target | Notes |
+|---|---|---|
+| 🛠 Gear tab → Scanner FAB | 0.5s | Persistent FAB, single tap |
+| QR scan resolves | <0.5s | Pre-cached lookup table from offline pre-fetch (§5.12.9.3) |
+| Confirmation sheet renders | 0.5s | Crew + job pre-filled from `state='held'` reservation |
+| Default condition = good (one tap to submit) OR photo + condition selector | 1–3s | Photo path adds ~2s for capture |
+| Server roundtrip + optimistic local flip | <0.5s | Background; local state updates immediately |
+| **Total (kit, default condition)** | **~3s** | |
+| **Total (item with damage photo)** | **~6s** | |
+
+Kit batch check-out flips parent + N children in one
+transaction — same 3s budget regardless of kit size (§5.12.6).
+
+### Equipment kit check-in (target <5s)
+
+| Step | Target | Notes |
+|---|---|---|
+| 🛠 Gear tab → Scanner FAB | 0.5s | |
+| QR scan + smart routing | <0.5s | System auto-detects this is a return because reservation is in `state='checked_out'` |
+| Confirmation sheet — condition + consumed_quantity (consumables only) | 1–2s | |
+| Submit + audit log + `quantity_on_hand` decrement (if consumable) | <0.5s | |
+| **Total (durable, good condition)** | **~3s** | |
+| **Total (consumable w/ count)** | **~4s** | |
+
+### Surveyor assignment confirmation (target <10s)
+
+| Step | Target | Notes |
+|---|---|---|
+| Notification arrives | (push) | |
+| Tap notification → confirmation card | 1s | |
+| Read job + crew + equipment list | 5–7s | User-driven |
+| Tap **Confirm** OR **Decline + reason picker** | 1–3s | Decline path 3s for reason selection |
+| **Total** | **~7–10s** | |
+
 ---
 
 ## 15. Appendix C — bootstrapping checklist (Phase F0)
@@ -4707,6 +6800,74 @@ GET /api/mobile/mileage-log.csv?user_id=...&start=2026-01-01&end=2026-12-31
 - [ ] Google Cloud project + Places/Distance Matrix billing alerts
 - [ ] Verify PostGIS extension enabled on the live Supabase project (`SELECT extname FROM pg_extension WHERE extname='postgis'`)
 - [ ] Confirm with Hank Maddux RPLS that `fieldbook_notes` is the right home for mobile structured notes (per §5.5) — if not, decide on a parallel `field_notes` table with explicit reasons
+
+### Phase F10 prerequisites (equipment + supplies inventory + dispatcher templates)
+
+These items don't block Phase F0–F9 but ARE prereqs before
+F10.0 (Week 33) can start. Listed in roughly the order needed.
+
+- [ ] **Decide Equipment Manager role mapping** (per §12 #21):
+      hat worn by an existing admin / dev user, or new hire?
+      Affects role-enum value semantics + push-notification
+      routing default. Lean: hat worn initially with role
+      modeled cleanly so a future dedicated hire is a
+      permission-flip, not a refactor.
+- [ ] **Walk-the-cage inventory** (per §12 #40 + §5.12.11.H):
+      Equipment Manager produces a CSV (or paper tally
+      transcribed) listing every durable + kit + consumable
+      currently in the cage with: name, category, manufacturer
+      / model, serial number (when applicable), acquired_at
+      (best estimate ok), acquired_cost_cents (from invoice
+      if available; otherwise estimate), useful_life_months,
+      home_location. Powers F10.1 bulk import.
+- [ ] **Decide QR sticker label-printer** (per §12 #26):
+      Brother QL-820NWB + DK-1201 weatherproof labels
+      recommended; alternates: DYMO LabelWriter or generic
+      Avery + sheet printer. Affects F10.1 bulk QR PDF page
+      geometry.
+- [ ] **Calibration grace window per category** (per §12 #23):
+      30-day default soft-warn before hard-block. Decision
+      required from licensed surveyor — does this hold for
+      total stations? GPS receivers? Levels?
+- [ ] **Equipment receipt threshold** (per §12 #25):
+      $250000 cents ($2,500 — IRS de minimis safe harbour) is
+      the §5.12.10 default. Confirm with bookkeeper / CPA
+      whether to raise / lower for Starr's fiscal profile.
+- [ ] **CPA conversation on tax surfaces** (per §12 #36 + #34):
+      preferred export format (CSV vs PDF Asset Detail Schedule
+      vs both); column ordering; whether Section 179 picker
+      defaults are useful or noise; annual lock cadence
+      (manual only is the lean).
+- [ ] **TX-survey-board chain-of-custody review** (per §12 #28):
+      do borrowed-from-other-firm receivers used on a recorded
+      survey require any specific recordkeeping that
+      `equipment_borrowed_in` should bake in? Decision
+      required from Hank Maddux RPLS or equivalent.
+- [ ] **Reservation lookahead horizon** (per §12 #32): default
+      14 days OK or extend to 30 / 60? Affects §5.12.7.2 Gantt
+      page-load size + the §5.12.5 conflict-detection scan
+      window.
+- [ ] **Existing fleet → category taxonomy mapping**: the
+      `equipment_inventory.category` enum is open in §5.12.1 but
+      every unit needs one. Equipment Manager + a licensed
+      surveyor agree on the canonical list (`total_station`,
+      `gps_rover`, `data_collector`, `tripod`, `prism`, `level`,
+      `vehicle_*`, `consumable_paint`, …). v1 stays small;
+      categories added as new gear arrives.
+- [ ] **Existing software-license inventory** (per §12 #33):
+      list every Trimble Access / Carlson / Topcon activation
+      currently bound to a specific receiver, plus seats_total
+      / seats_used + expiry. Powers F10.7 / §5.12.11.I when
+      that polish batch lands.
+- [ ] **Personnel skill catalogue seeding**: list every active
+      RPLS / LSIT / Part-107 / OSHA-30 / flagger / CDL credential
+      across the team with `acquired_at` + `expires_at` +
+      cert PDF if available. Powers F10.4 personnel availability
+      checks.
+- [ ] **Cage hours definition** (per §12 #37): time-of-day
+      window for "in office hours" vs "after hours"
+      self-service. Default 7am–5pm Mon–Fri; configurable per
+      office once §5.12.11.D lands.
 
 ---
 
