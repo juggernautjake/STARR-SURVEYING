@@ -2792,10 +2792,6 @@ losing the "I considered everything" brief.
 
 ---
 
-### Phase F10 entry — to be added in §9 in the next planning prompt
-
----
-
 ## 6. Architecture
 
 **Mobile code lives in this monorepo at `mobile/`** — adjacent to `app/`, `worker/`, and `lib/`. Reasoning: shared TypeScript types (especially `worker/src/shared/research-events.ts` for the realtime channel and the eventual mobile-event variants per §6.4), shared lint config, single CI pipeline, single git history for a feature spanning web admin + mobile + worker. Trade-off: monorepo build complexity (Next.js, worker, and React Native all live in one node_modules tree). **Escape hatch:** if mobile build noise becomes a real problem at end of Phase F1, split to a separate repo with the shared types extracted to a published npm package — but do not start there.
@@ -3360,6 +3356,186 @@ Audit additions:
 **Exit:** Trimble integration v1 (Path A from §8.1).
 
 ### Phase F9+ — Real-time integrations, AR, watch app, fuel-card reconciliation (research)
+
+### Phase F10 — Equipment & supplies inventory + dispatcher templates (Week 33–40)
+
+Implements the §5.12 spec. Single largest feature area outside
+the F2/F6 capture loops. Sequenced so the daily ritual (the
+user's headline ask) lands first; the tax + edge-case polish
+follows.
+
+**F10.0 — Schema + seeds + role wiring (Week 33).**
+- [ ] `seeds/233_starr_field_equipment_v2.sql` — extends the
+      existing `equipment_inventory` + `job_equipment` tables
+      per §5.12.2 migration sketch (no rename, ALTER + new
+      tables). Adds `equipment_kits`, `equipment_kit_items`,
+      `equipment_events`, `equipment_templates`,
+      `equipment_template_items`, `equipment_template_versions`
+      per §5.12.3.
+- [ ] `seeds/234_starr_field_equipment_reservations.sql` —
+      `equipment_reservations` (§5.12.5) with the GiST range
+      index + the derived `next_available_at` /
+      `current_reservation_id` columns + the
+      `personnel_locks` helper for race-safety.
+- [ ] `seeds/235_starr_field_personnel_skills.sql` — extends
+      `job_team` per §5.12.4; adds `personnel_skills`,
+      `personnel_unavailability`.
+- [ ] `seeds/236_starr_field_equipment_maintenance.sql` —
+      `maintenance_events`, `maintenance_event_documents`,
+      `maintenance_schedules` per §5.12.8 (xor on
+      `equipment_inventory_id` | `vehicle_id`).
+- [ ] Add `equipment_manager` to the existing role enum + the
+      sidebar role-gate logic (§5.12.7 sidebar anchor).
+
+**F10.1 — Inventory catalogue + QR codes (Week 33–34).**
+The "list of every piece of metal" surface — the foundation
+the rest of F10 reads from.
+- [ ] Admin `/admin/equipment/inventory` (§5.12.7.3) with
+      filters, inline-edit, soft-archive (`retired_at`).
+- [ ] QR code generation + label-printer-ready PDF
+      (single-row + bulk multi-page).
+- [ ] Bulk CSV importer at `/admin/equipment/import`
+      (§5.12.11.H) for system-go-live fleet seeding.
+- [ ] Mobile `useEquipmentByQr` resolver hook + offline
+      cache pre-fetch.
+- [ ] Mobile camera scanner overlay (re-uses
+      `expo-camera` from §5.11).
+
+**F10.2 — Templates + dispatcher apply flow (Week 34–35).**
+- [ ] CRUD on `equipment_templates` + items (admin web,
+      §5.12.3 permissions split).
+- [ ] Apply-template flow on the existing job detail page —
+      preview with live availability badges per §5.12.5
+      checks, diff-vs-template edits, `equipment_reservations`
+      insert in `state='held'`.
+- [ ] Save-as-template shortcut on custom loadouts.
+- [ ] Composition (`composes_from[]`) with recursion guard.
+- [ ] Versioning — every template save snapshots into
+      `equipment_template_versions`.
+
+**F10.3 — Availability + conflict detection engine (Week 35).**
+- [ ] `GET /api/admin/equipment/availability` — runs the four
+      §5.12.5 checks, returns assignable units + typed reasons.
+- [ ] `POST /api/admin/equipment/reserve` — atomic multi-item
+      reserve with `SELECT … FOR UPDATE` race guard.
+- [ ] Substitution suggestions surface on conflict.
+- [ ] Soft-override path with required reason + admin
+      notification + double-reservation insert pattern.
+- [ ] `POST /api/admin/equipment/cancel-reservation`.
+
+**F10.4 — Personnel side (Week 36).**
+- [ ] Personnel-skills + unavailability admin pages
+      (§5.12.4 cert PDF upload via §5.6 files-bucket).
+- [ ] Personnel availability check engine —
+      `GET /api/admin/personnel/availability`.
+- [ ] Mobile assignment confirmation card with [Confirm] /
+      [Decline + reason] (§5.12.4 surveyor flow).
+- [ ] Crew-lead designation + auto-promote heuristic.
+
+**F10.5 — Daily check-in/check-out workflow (Week 36–37).**
+The user's headline ritual. Lands AFTER reservations work
+end-to-end so the QR scan has something to flip.
+- [ ] `POST /api/admin/equipment/check-out` +
+      `/check-in` + `/extend-reservation` per §5.12.6.
+- [ ] Mobile scanner check-out / check-in sheets — kit batch
+      flow, condition photo, consumed-quantity selector.
+- [ ] Damage-triage entry path → §5.12.8 event creation.
+- [ ] Lost-on-site flow with auto-pre-filled
+      `location_pings` cluster.
+- [ ] End-of-day unreturned-gear nag cron (6pm + 9pm) +
+      [Extend until 8am] / [Mark in transit] notification
+      actions.
+- [ ] Crew clock-out gating modal.
+- [ ] Self-service after-hours flag + soft warning path.
+
+**F10.6 — Equipment Manager dashboards (Week 37–38).**
+The §5.12.7 admin web surface that pulls everything together.
+- [ ] Sidebar "Equipment" group + role-gated nav.
+- [ ] §5.12.7.1 Today landing page (3 strips + 3 banners).
+- [ ] §5.12.7.2 Reservations Gantt timeline.
+- [ ] §5.12.7.5 Consumables low-stock + restock view.
+- [ ] §5.12.7.6 Crew calendar week heatmap.
+- [ ] §5.12.7.8 "Templates referencing retired gear"
+      cleanup queue.
+
+**F10.7 — Maintenance + calibration (Week 38–39).**
+- [ ] `maintenance_events` CRUD + state machine + document
+      upload (§5.12.8).
+- [ ] §5.12.7.4 maintenance calendar (month grid + upcoming
+      list).
+- [ ] Daily 3am cron — recurring schedule due-date
+      computation + 60/30/7-day notifications + auto-create
+      events.
+- [ ] QA gate on calibration completion + `failed_qa` red-row
+      surfacing.
+- [ ] Receipt cross-link UI (Attach-receipt picker + Money-tab
+      "Is this for equipment maintenance?" prompt).
+- [ ] Per-unit maintenance history page.
+
+**F10.8 — Mobile UX polish (Week 39).**
+- [ ] Pre-job loadout preview card on mobile job detail
+      (§5.12.9.1).
+- [ ] "What's in my truck right now" Me-tab section.
+- [ ] Persistent scanner FAB when any check-out is open.
+- [ ] 🛠 Gear tab (role-gated 6th tab) for Equipment Manager
+      mobile flows (§5.12.9.2).
+- [ ] Three new notification source_types
+      (`equipment_assignment` / `_overdue` / `_status_change`).
+- [ ] PowerSync sync rules per §5.12.9.3.
+- [ ] Surveyor self-service paths — borrowed-from-other-crew
+      event log, personal-kit flag.
+
+**F10.9 — Tax + depreciation tie-in (Week 40).**
+Closes the Batch QQ loop — lands at the END of F10 so the
+inventory + maintenance ledgers are mature before the tax
+side reads them.
+- [ ] `seeds/237_starr_field_equipment_tax.sql` —
+      `equipment_tax_elections` + the new
+      `receipts.promoted_to_equipment_id` /
+      `linked_maintenance_event_id` columns.
+- [ ] Receipt-promotion modal on bookkeeper approval
+      (§5.12.10 acquisition path).
+- [ ] Section 179 / MACRS algorithm + Pub 946 constants
+      table.
+- [ ] §5.12.7.7 Fleet valuation page.
+- [ ] "Lock equipment depreciation" button on
+      `/admin/finances` (mirrors Batch QQ mark-exported).
+- [ ] Tax summary endpoint extension — adds `equipment`
+      block alongside `receipts` + `mileage`; reads frozen
+      `equipment_tax_elections` for locked years.
+- [ ] Asset Detail Schedule PDF + CSV export.
+- [ ] Disposal flow (`POST /api/admin/equipment/dispose`)
+      with kind branches.
+
+**Exit (Week 40):** A surveyor walks to the gear cage at
+6:30am. Equipment Manager scans a kit QR. The kit + its
+seven children flip to checked-out, the surveyor confirms
+condition with a photo, and the truck rolls 90 seconds
+later. At 6pm the surveyor gets a return-reminder push,
+walks back to the cage, scans the same kit. Damage = next
+morning's maintenance triage. Lost = a packet for the
+insurance claim. End of year, the bookkeeper hits "Lock
+depreciation" on `/admin/finances` and the Schedule C
+flows through to the CPA without re-keying anything. **The
+user's full directive — track everything, keep crews
+supplied, no double-counting on taxes — closes.**
+
+**Edge-case polish (post-F10).** Per §5.12.11 closing note,
+edge cases ship as priority-ordered polish batches AFTER
+F10 backbone is stable in real operation. Suggested order:
+F (calibration override) → C (theft / disaster) → E
+(reorder workflow) → A/B (borrow / lend) → D (multi-office)
+→ I (software licenses) → G (personal kit polish) → J
+(overnight) → K (litigation hold) → H (bulk import already
+landed in F10.1) → L (counterfeit DB).
+
+**Activation gates** (apply in order before exposing any
+F10 admin/mobile route):
+1. `seeds/233` — equipment v2 baseline
+2. `seeds/234` — reservations
+3. `seeds/235` — personnel skills/unavailability
+4. `seeds/236` — maintenance
+5. `seeds/237` — tax tie-in (only required before F10.9)
 
 ---
 
