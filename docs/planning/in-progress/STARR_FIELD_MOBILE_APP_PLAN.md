@@ -3689,20 +3689,30 @@ F (calibration override) → C (theft / disaster) → E
 landed in F10.1) → L (counterfeit DB).
 
 **Activation gates** (apply in order before exposing any
-F10 admin/mobile route). Updated to reflect the F10.0 split:
+F10 admin/mobile route). Updated to reflect the F10.0 split +
+the seeds/238 polish add (per the user's "image / condition /
+team-history" follow-up):
 1. `seeds/233` — equipment_inventory v2 ✅ shipped
 2. `seeds/234` — job_equipment FK ✅ shipped
 3. `seeds/235` — equipment_kits + items ✅ shipped
 4. `seeds/236` — equipment_events audit log ✅ shipped
 5. `seeds/237` — equipment_templates + items + versions ✅ shipped
-6. `seeds/238` — reservations (queued for F10.3)
-7. `seeds/239` — personnel skills + unavailability (queued for F10.4)
-8. `seeds/240` — maintenance (queued for F10.7)
-9. `seeds/241` — tax tie-in (queued for F10.9)
+6. `seeds/238` — equipment richer metadata (photo_url +
+   condition enum + condition_updated_at + needs-attention
+   partial idx) ✅ shipped — addresses the "image / condition"
+   gap in seeds/233; team-assignment history is already in
+   `job_equipment` (no schema change, surfaced when the
+   inventory drilldown lands)
+7. `seeds/239` — reservations (queued for F10.3, was 238)
+8. `seeds/240` — personnel skills + unavailability (queued for F10.4, was 239)
+9. `seeds/241` — maintenance (queued for F10.7, was 240)
+10. `seeds/242` — tax tie-in (queued for F10.9, was 241)
+11. `seeds/243` — equipment-photos storage bucket policy
+    (queued, F10 polish — companion to seeds/238 photo_url)
 
-Operator action: apply seeds/233-237 to live Supabase before
-the F10.1 admin UI lands. Subsequent seeds (238-241) gate their
-respective sub-phases.
+Operator action: apply seeds/233-238 to live Supabase before
+the F10.1 admin UI is exercised. Subsequent seeds (239-243)
+gate their respective sub-phases.
 
 ---
 
@@ -3804,11 +3814,15 @@ tax-period locking, Batch QQ) · **233 (equipment_inventory v2
 extensions, Phase F10.0a-i) · 234 (job_equipment FK, F10.0a-ii)
 · 235 (equipment_kits + items, F10.0a-iii) · 236 (equipment_events
 audit log, F10.0a-iv) · 237 (equipment_templates + items +
-versions, F10.0a-v)** — all present on disk.
+versions, F10.0a-v) · 238 (equipment richer metadata —
+photo_url + condition + condition_updated_at + needs-attention
+partial idx, F10 polish per the user's "image / condition /
+team-history" follow-up)** — all present on disk.
 **Activation gates pending live apply:** 229, 230, 231, 232,
-233, 234, 235, 236, 237. (Subsequent equipment seeds 238-241
-will land alongside their respective F10 sub-phases — 238
-reservations, 239 personnel, 240 maintenance, 241 tax tie-in.)
+233, 234, 235, 236, 237, 238. (Subsequent equipment seeds
+239-243 will land alongside their respective F10 sub-phases —
+239 reservations, 240 personnel, 241 maintenance, 242 tax
+tie-in, 243 equipment-photos storage bucket policy.)
 
 **Roles (`lib/auth.ts`):** standard 10 roles plus `equipment_manager`
 (Phase F10.0e `[ded0b67]`); 4 `Record<UserRole, …>` consumers
@@ -3900,13 +3914,13 @@ the dashboards they link to.
   - **✅ F10.0e** equipment_manager role + 4 consumers `[ded0b67]`
   - **✅ F10.1** Inventory catalogue UI + QR codes — fully shipped (F10.1a-j: GET endpoint · catalogue page · POST + Add modal · PATCH + Edit modal · Retire/Restore endpoints + UI · single-row QR PDF · bulk QR PDF endpoint + bulk-select UI · CSV import endpoint + page · mobile useEquipmentByQr resolver + schema · mobile camera scanner overlay)
   - **◐ F10.2** Templates + dispatcher apply flow — F10.2a (list + detail GET endpoints) shipped; F10.2b-g pending (POST/PATCH/DELETE templates · items endpoints · list page · edit page · save-as-template · apply flow)
-  - **⨯ F10.3** Availability + conflict engine (seeds/238 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
-  - **⨯ F10.4** Personnel side (seeds/239 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
+  - **⨯ F10.3** Availability + conflict engine (seeds/239 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
+  - **⨯ F10.4** Personnel side (seeds/240 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
   - **⨯ F10.5** Daily check-in/out workflow (the user's headline ritual; QR scanner sheets; damage triage; lost-on-site; 6pm/9pm nag cron)
   - **⨯ F10.6** Equipment Manager dashboards (sidebar group; Today landing; Reservations Gantt; Consumables; Crew calendar; retired-gear cleanup queue)
-  - **⨯ F10.7** Maintenance + calibration (seeds/240; events CRUD; 3am cron; QA gate; receipt cross-link; per-unit history)
+  - **⨯ F10.7** Maintenance + calibration (seeds/241; events CRUD; 3am cron; QA gate; receipt cross-link; per-unit history)
   - **⨯ F10.8** Mobile UX polish (pre-job loadout card; what's-in-my-truck; persistent FAB; 🛠 Gear tab; 3 new notification source_types; PowerSync rules; surveyor self-service)
-  - **⨯ F10.9** Tax + depreciation tie-in (seeds/241; receipt-promotion modal; §179/MACRS; Lock-equipment-depreciation button; equipment block on tax-summary; Asset Detail Schedule PDF; disposal flow)
+  - **⨯ F10.9** Tax + depreciation tie-in (seeds/242; receipt-promotion modal; §179/MACRS; Lock-equipment-depreciation button; equipment block on tax-summary; Asset Detail Schedule PDF; disposal flow)
 
   Twelve §5.12.11 edge-case batches sequenced as post-F10 polish
   (priority: F → C → E → A/B → D → I → G → J → K → H → L).
@@ -4310,7 +4324,7 @@ Closes Phase F10.0 of the §5.12 spec. Six commits:
   (~20 canonical values listed in comment, but log MUST NOT
   fail on a new code path's previously-unseen event), actor +
   job + reservation_id + maintenance_event_id (FKs deferred to
-  seeds/238 + 240), notes + payload JSONB. Five indexes covering
+  seeds/239 + 241), notes + payload JSONB. Five indexes covering
   the read patterns. RLS append-only.
 * `seeds/237_starr_field_equipment_templates.sql` `[e566747]` —
   `equipment_templates` header (name, slug, job_type,
@@ -4333,11 +4347,11 @@ Activation gate: apply seeds/233 → 234 → 235 → 236 → 237 in
 order before exposing F10.1+ admin/mobile routes.
 
 Subsequent F10 sub-phases each bring their own seed + UI batch:
-F10.1 (catalogue + QR) · F10.2 (templates UI) · F10.3 (seeds/238
-+ availability engine) · F10.4 (seeds/239 + personnel) · F10.5
+F10.1 (catalogue + QR) · F10.2 (templates UI) · F10.3 (seeds/239
++ availability engine) · F10.4 (seeds/240 + personnel) · F10.5
 (check-in/out workflow) · F10.6 (Equipment Manager dashboards) ·
-F10.7 (seeds/240 + maintenance) · F10.8 (mobile UX polish) ·
-F10.9 (seeds/241 + tax + depreciation tie-in).
+F10.7 (seeds/241 + maintenance) · F10.8 (mobile UX polish) ·
+F10.9 (seeds/242 + tax + depreciation tie-in).
 
 **Batch SS — Whisper into shared AI-usage tracker (§9.w D closer)**
 
