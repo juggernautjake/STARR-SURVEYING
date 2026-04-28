@@ -1,7 +1,6 @@
 import { Stack } from 'expo-router';
-import { useColorScheme } from 'react-native';
-
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Per-job nested stack — job detail at /, per-point detail at
@@ -9,7 +8,7 @@ import { colors } from '@/lib/theme';
  * sub-tabs) extend this.
  */
 export default function JobStackLayout() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   return (

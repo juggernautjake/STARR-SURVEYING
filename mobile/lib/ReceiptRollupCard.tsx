@@ -7,12 +7,13 @@
  * leaving the screen. F1 #3 / F1 polish wires the full Expenses
  * sub-tab; this card is the lightweight summary above it.
  */
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { categoryLabel } from './CategoryPicker';
 import { formatCents } from './money';
 import type { JobReceiptRollup } from './receipts';
 import { type Palette, colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface ReceiptRollupCardProps {
   rollup: JobReceiptRollup;
@@ -23,7 +24,7 @@ interface ReceiptRollupCardProps {
 }
 
 export function ReceiptRollupCard({ rollup, isLoading, onPress }: ReceiptRollupCardProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   if (isLoading && rollup.count === 0) {

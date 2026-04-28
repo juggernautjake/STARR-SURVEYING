@@ -1526,6 +1526,38 @@ Activation gates:
   never set up with an address, or where the address geocode is
   off.
 
+**Batch PP — sun-readable theme: 100% coverage (closes Batch MM v2 gap)**
+
+Closes the Batch MM v2 polish item *"Auth + layout screens
+migration (~10 files; trivial once prioritised)."* Plus 5 leaf
+components Batch MM missed (`AppleSignInButton`, `TimeEditHistory`,
+`VideoGrid`, `ReceiptRollupCard`, `CategoryPicker`).
+
+Net: **zero** `useColorScheme()` callers remain anywhere in the
+app — every screen + every leaf component reads the user's
+chosen theme via `useResolvedScheme()`. Sun-readable now
+propagates through 100% of the surface.
+
+Migrated screens (auth + layouts + 404):
+- `(auth)/sign-in.tsx`, `forgot-password.tsx`,
+  `reset-password.tsx`, `auth-callback.tsx`
+- `(tabs)/_layout.tsx` (tab bar chrome)
+- `(tabs)/jobs/_layout.tsx`, `jobs/[id]/_layout.tsx`,
+  `me/_layout.tsx`, `money/_layout.tsx`, `time/_layout.tsx`,
+  `capture/_layout.tsx` (per-stack chrome)
+- `+not-found.tsx`
+
+Migrated leaf components:
+- `lib/AppleSignInButton.tsx`, `TimeEditHistory.tsx`,
+  `VideoGrid.tsx`, `ReceiptRollupCard.tsx`,
+  `CategoryPicker.tsx`.
+
+The only `useColorScheme()` references left in the codebase
+are inside `lib/themePreference.tsx` itself — that hook drives
+the legacy `Appearance` API and uses the OS scheme as a
+fallback when the user's preference is `'auto'`. No further
+migration is meaningful.
+
 **Batch OO — Money-tab filter persists across launches (closes Batch LL v2 gap)**
 
 Closes the Batch LL v2 polish item *"Persist the chosen filter

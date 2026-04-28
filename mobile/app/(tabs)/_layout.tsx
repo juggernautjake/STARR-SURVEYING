@@ -1,10 +1,11 @@
 import { Redirect, Tabs } from 'expo-router';
-import { Text, useColorScheme } from 'react-native';
+import { Text } from 'react-native';
 
 import { CaptureFab } from '@/lib/CaptureFab';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 const TAB_BAR_HEIGHT = 64;
 
@@ -27,7 +28,7 @@ export default function TabsLayout() {
   // Dark-mode default per plan §7.1 rule 7 (battery-aware). Matches
   // the default in lib/Placeholder.tsx so the tab bar and screen
   // backgrounds agree on first render.
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   if (loading) return <LoadingSplash />;

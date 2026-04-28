@@ -22,7 +22,7 @@
  */
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, View, useColorScheme } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { logWarn } from './log';
 import { supabase } from './supabase';
@@ -33,7 +33,7 @@ interface AppleSignInButtonProps {
 }
 
 export function AppleSignInButton({ onError }: AppleSignInButtonProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const [available, setAvailable] = useState(false);
 
   useEffect(() => {

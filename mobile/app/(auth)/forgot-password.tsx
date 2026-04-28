@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -15,6 +14,7 @@ import { Button } from '@/lib/Button';
 import { TextField } from '@/lib/TextField';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Request a password-reset email. Supabase sends a deep-link to
@@ -28,7 +28,7 @@ import { colors } from '@/lib/theme';
  * app at the reset-password screen to finish the flow.
  */
 export default function ForgotPasswordScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
   const { resetPassword } = useAuth();
 

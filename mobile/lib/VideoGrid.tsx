@@ -25,11 +25,11 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 
 import { type FieldMedia, useFieldMediaPhotoUrl } from './fieldMedia';
 import { type Palette, colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface VideoGridProps {
   media: FieldMedia[];
@@ -49,7 +49,7 @@ export function VideoGrid({
   onPressMedia,
   onLongPressMedia,
 }: VideoGridProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   if (media.length === 0) {

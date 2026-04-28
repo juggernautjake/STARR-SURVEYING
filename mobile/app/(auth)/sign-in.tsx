@@ -8,7 +8,6 @@ import {
   Text,
   TextInput,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,6 +16,7 @@ import { Button } from '@/lib/Button';
 import { TextField } from '@/lib/TextField';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Email + password sign-in plus alternative flows: magic link (email
@@ -29,7 +29,7 @@ import { colors } from '@/lib/theme';
  * `shouldCreateUser: false` to enforce that.
  */
 export default function SignInScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
   const { signIn, signInWithMagicLink } = useAuth();
 

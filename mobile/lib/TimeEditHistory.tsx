@@ -8,17 +8,18 @@
  *   - shows field name + old → new + reason (if any) + who/when
  *   - empty state when nothing has been edited yet
  */
-import { StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { TimeEdit } from './timeEdits';
 import { colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface TimeEditHistoryProps {
   edits: TimeEdit[];
 }
 
 export function TimeEditHistory({ edits }: TimeEditHistoryProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   if (edits.length === 0) {
