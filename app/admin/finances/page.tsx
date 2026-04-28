@@ -30,6 +30,45 @@ interface ByCategoryRow {
   schedule_c_line: string;
 }
 
+interface ByTaxFlagRow {
+  flag: string;
+  count: number;
+  total_cents: number;
+  deductible_cents: number;
+}
+
+interface VendorRow {
+  vendor_name: string;
+  count: number;
+  total_cents: number;
+}
+
+interface ByUserReceiptsRow {
+  email: string;
+  name: string | null;
+  count: number;
+  total_cents: number;
+}
+
+interface MileageByUserRow {
+  email: string;
+  miles: number;
+  deduction_cents: number;
+}
+
+interface MileageByVehicleRow {
+  vehicle_id: string;
+  name: string;
+  miles: number;
+  deduction_cents: number;
+}
+
+interface ExportedPeriodRow {
+  exported_period: string;
+  count: number;
+  total_cents: number;
+}
+
 interface TaxSummaryResponse {
   period: { year: number | null; from: string; to: string };
   irs_rate_cents_per_mile: number;
@@ -39,10 +78,16 @@ interface TaxSummaryResponse {
     count: number;
     by_status: { approved: ByStatusBucket; exported: ByStatusBucket };
     by_category: ByCategoryRow[];
+    by_tax_flag: ByTaxFlagRow[];
+    top_vendors: VendorRow[];
+    by_user: ByUserReceiptsRow[];
+    exported_periods: ExportedPeriodRow[];
   };
   mileage: {
     total_miles: number;
     deduction_cents: number;
+    by_user: MileageByUserRow[];
+    by_vehicle: MileageByVehicleRow[];
   };
   totals: { deductible_cents: number; expense_cents: number };
 }
@@ -275,6 +320,254 @@ export default function FinancesPage() {
               </table>
             )}
           </section>
+
+          {/* Mileage — the other deductible half. Two stacked sub-tables
+              so the bookkeeper can verify per-user totals add up before
+              the per-vehicle breakdown drives the IRS-grade allocation. */}
+          <section style={styles.section}>
+            <header style={styles.sectionHeader}>
+              <h2 style={styles.h2}>Mileage</h2>
+              <p style={styles.sectionSub}>
+                Business miles aggregated from `location_segments`,
+                deducted at the IRS standard rate of{' '}
+                {(data.irs_rate_cents_per_mile / 100).toFixed(2)}/mi.
+                Driver miles only — passenger time excluded.
+              </p>
+            </header>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Surveyor</th>
+                  <th style={styles.thRight}>Miles</th>
+                  <th style={styles.thRight}>Deduction</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.mileage.by_user.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={styles.tdEmpty}>
+                      No business miles in this period.
+                    </td>
+                  </tr>
+                ) : (
+                  data.mileage.by_user.map((u) => (
+                    <tr key={`mileage-user-${u.email}`}>
+                      <td style={styles.td}>{u.email}</td>
+                      <td style={styles.tdRight}>{u.miles.toFixed(1)}</td>
+                      <td style={styles.tdRight}>
+                        {dollars(u.deduction_cents)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+                <tr style={styles.totalsRow}>
+                  <td style={styles.td}>
+                    <strong>All surveyors</strong>
+                  </td>
+                  <td style={styles.tdRight}>
+                    <strong>{data.mileage.total_miles.toFixed(1)}</strong>
+                  </td>
+                  <td style={styles.tdRight}>
+                    <strong>{dollars(data.mileage.deduction_cents)}</strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            {data.mileage.by_vehicle.length > 0 ? (
+              <>
+                <div style={styles.subHeader}>By vehicle</div>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>Vehicle</th>
+                      <th style={styles.thRight}>Miles</th>
+                      <th style={styles.thRight}>Deduction</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.mileage.by_vehicle.map((v) => (
+                      <tr key={`mileage-vehicle-${v.vehicle_id}`}>
+                        <td style={styles.td}>{v.name}</td>
+                        <td style={styles.tdRight}>{v.miles.toFixed(1)}</td>
+                        <td style={styles.tdRight}>
+                          {dollars(v.deduction_cents)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            ) : null}
+          </section>
+
+          {/* Audit cross-check — by tax flag. If the column total here
+              differs from the Schedule C deductible total, something
+              upstream has miscategorised. */}
+          <section style={styles.section}>
+            <header style={styles.sectionHeader}>
+              <h2 style={styles.h2}>By tax flag (audit cross-check)</h2>
+              <p style={styles.sectionSub}>
+                Should sum to the same deductible total as the Schedule C
+                breakdown above. A mismatch indicates a category /
+                tax_deductible_flag misalignment worth investigating.
+              </p>
+            </header>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Flag</th>
+                  <th style={styles.thRight}>Count</th>
+                  <th style={styles.thRight}>Gross</th>
+                  <th style={styles.thRight}>Deductible</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.receipts.by_tax_flag.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} style={styles.tdEmpty}>
+                      No flagged receipts in this period.
+                    </td>
+                  </tr>
+                ) : (
+                  data.receipts.by_tax_flag.map((f) => (
+                    <tr key={`flag-${f.flag}`}>
+                      <td style={styles.td}>{formatCategory(f.flag)}</td>
+                      <td style={styles.tdRight}>{f.count}</td>
+                      <td style={styles.tdRight}>
+                        {dollars(f.total_cents)}
+                      </td>
+                      <td style={styles.tdRight}>
+                        {dollars(f.deductible_cents)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </section>
+
+          {/* Top vendors — useful for spotting patterns
+              ("Why do we spend $X/yr at Buc-ee's?") without
+              cross-referencing the per-row receipts page. */}
+          <section style={styles.section}>
+            <header style={styles.sectionHeader}>
+              <h2 style={styles.h2}>Top vendors</h2>
+              <p style={styles.sectionSub}>
+                Top 10 by spend. Consolidates fuel + supplies +
+                meals into one ranked view.
+              </p>
+            </header>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Vendor</th>
+                  <th style={styles.thRight}>Receipts</th>
+                  <th style={styles.thRight}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.receipts.top_vendors.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={styles.tdEmpty}>
+                      No vendor data in this period.
+                    </td>
+                  </tr>
+                ) : (
+                  data.receipts.top_vendors.map((v) => (
+                    <tr key={`vendor-${v.vendor_name}`}>
+                      <td style={styles.td}>{v.vendor_name}</td>
+                      <td style={styles.tdRight}>{v.count}</td>
+                      <td style={styles.tdRight}>
+                        {dollars(v.total_cents)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </section>
+
+          {/* Per-submitter receipts — useful for reimbursement
+              reconciliation if the firm runs a reimbursement loop
+              for crew-paid receipts. */}
+          <section style={styles.section}>
+            <header style={styles.sectionHeader}>
+              <h2 style={styles.h2}>Receipts by submitter</h2>
+              <p style={styles.sectionSub}>
+                Per-surveyor totals — feeds reimbursement reconciliation
+                when crew members pay out of pocket.
+              </p>
+            </header>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Submitter</th>
+                  <th style={styles.thRight}>Receipts</th>
+                  <th style={styles.thRight}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.receipts.by_user.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={styles.tdEmpty}>
+                      No submitter data in this period.
+                    </td>
+                  </tr>
+                ) : (
+                  data.receipts.by_user.map((u) => (
+                    <tr key={`submitter-${u.email}`}>
+                      <td style={styles.td}>
+                        {u.name ? `${u.name} (${u.email})` : u.email}
+                      </td>
+                      <td style={styles.tdRight}>{u.count}</td>
+                      <td style={styles.tdRight}>
+                        {dollars(u.total_cents)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </section>
+
+          {/* Prior-export traceback — only renders when the period
+              window pulls in already-exported rows. Lets the
+              bookkeeper spot mis-tags ("why is a 2024-Q1 receipt
+              showing in this 2025 export?") without leaving the
+              page. */}
+          {data.receipts.exported_periods.length > 0 ? (
+            <section style={styles.section}>
+              <header style={styles.sectionHeader}>
+                <h2 style={styles.h2}>Prior-period traceback</h2>
+                <p style={styles.sectionSub}>
+                  Receipts in this window that were already locked into
+                  a prior tax period — confirms which CPA submission
+                  they went on. Should be empty if the period hasn't
+                  been locked yet.
+                </p>
+              </header>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Filed under period</th>
+                    <th style={styles.thRight}>Count</th>
+                    <th style={styles.thRight}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.receipts.exported_periods.map((ep) => (
+                    <tr key={`period-${ep.exported_period}`}>
+                      <td style={styles.td}>{ep.exported_period}</td>
+                      <td style={styles.tdRight}>{ep.count}</td>
+                      <td style={styles.tdRight}>
+                        {dollars(ep.total_cents)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          ) : null}
         </>
       )}
 
@@ -463,6 +756,23 @@ const styles: Record<string, React.CSSProperties> = {
   },
   totalsRow: {
     background: '#F7F8FA',
+  },
+  tdEmpty: {
+    padding: '12px 16px',
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  subHeader: {
+    padding: '8px 16px',
+    background: '#FAFBFC',
+    borderTop: '1px solid #E2E5EB',
+    borderBottom: '1px solid #F3F4F6',
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   note: {
     fontSize: 12,
