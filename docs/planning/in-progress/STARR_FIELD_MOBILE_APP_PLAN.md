@@ -1082,10 +1082,11 @@ Audit additions:
 
 ## 9.w — Inventory snapshot (state-of-the-build)
 
-*Audited at commit `f2917de` against the actual filesystem.* Plan
-claims throughout this document are spot-verified — the lists below
-are the reconciled truth, not a re-statement of the per-phase
-checkboxes. Update this section every time a Batch lands.
+*Audited at commit `f2917de` against the actual filesystem, then
+incrementally updated through Batch QQ.* Plan claims throughout
+this document are spot-verified — the lists below are the
+reconciled truth, not a re-statement of the per-phase checkboxes.
+Update this section every time a Batch lands.
 
 ### A. Shipped & verified in code
 
@@ -1133,24 +1134,41 @@ checkboxes. Update this section every time a Batch lands.
 `jobs/[id]/field-data`, `jobs/[id]/field-data/manifest` (CSV with
 uploader columns), `jobs/[id]/field-data/zip` (server-streamed ZIP),
 `jobs/[id]/geofence`, `timeline` (GET+POST), `mileage`, `vehicles`
-(CRUD), `team`, `notifications`, `time-logs/*`, `receipts/*`.
+(CRUD), `team`, `team/[email]/today` (per-user drilldown
+aggregator, Batch X), `notifications`, `time-logs/*`,
+`receipts/*` (incl. `bulk-approve`, Batch JJ; `?include_deleted=1`
+for tombstones, Batch FF), `finances/tax-summary`
+(JSON+CSV Schedule-C report w/ status split, Batch QQ),
+`finances/mark-exported` (period-lock action, Batch QQ).
 
 **Worker (`worker/src/services/`):**
 - `receipt-extraction.ts` + `cli/extract-receipts.ts` + endpoint at
   `/starr-field/receipts/extract` (Phase F2).
 - `voice-transcription.ts` + `cli/transcribe-voice.ts` + endpoint at
   `/starr-field/voice/transcribe` (Batch R).
+- `missing-receipt-detection.ts` + `cli/scan-missing-receipts.ts`
+  (Batch DD — hourly cron pushes "Forget a receipt?" notifications
+  for unclassified ≥5-min stops with no nearby receipt).
+- `video-thumbnail-extraction.ts` + `cli/extract-video-thumbnails.ts`
+  (Batch GG — ffmpeg-static spawn extracts a JPG thumb from each
+  uploaded video; thumbs land in the photos bucket so `VideoGrid`
+  surfaces them).
 
 **Seeds (`seeds/`):** 220 (receipts) · 221 (data points) ·
 222 (notifications) · 223 (location pings) · 224 (location
 derivations) · 225 (vehicles) · 226 (files) · 227 (geofence
-classifier) · 228 (voice transcription) — all present.
+classifier) · 228 (voice transcription) · 229 (receipt review +
+dedup fingerprint, Batch Z) · 230 (receipt soft-delete +
+retention, Batch CC) · 231 (video thumbnail tracking columns,
+Batch GG) · 232 (receipts.exported_at + exported_period for
+tax-period locking, Batch QQ) — all present on disk.
+**Activation gates pending live apply:** 229, 230, 231, 232.
 
 ### B. Partial (started; polish deferred)
 
 | Area | Done | Deferred |
 |---|---|---|
-| F2 receipts | Capture, extraction, approval, CSV export, duplicate detection + review-before-save (Batch Z), soft-delete foundation (Batch CC) | Worker retention sweep CLI (purges rows past IRS retention threshold); per-receipt admin sign-off audit |
+| F2 receipts | Capture, extraction, approval, CSV export, duplicate detection + review-before-save (Batch Z), soft-delete foundation (Batch CC), bulk-approve (Batch JJ), "Show deleted" admin toggle (Batch FF), Money-tab "needs review" filter (Batch LL) + persisted across launches (Batch OO), tax-summary endpoint + period-lock schema (Batch QQ — API + seeds shipped) | Worker retention sweep CLI (purges rows past IRS retention threshold); per-receipt admin sign-off audit; `/admin/finances` page UI + sidebar entry (Batch QQ sub-batch — planned next) |
 | F3 photos | Multi-photo, GPS, EXIF, annotator, compass heading (Batch V) | Arrow / circle / text annotation primitives (schema slots reserved; pen-only in v1) |
 | F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U), server-side FFmpeg thumbnails (Batch GG), WiFi-only gating for large clips (Batch KK) | True dual-tier transcoding (cellular 480p + original 1080p) via worker ffmpeg pipeline; surveyor "data-saver" toggle |
 | F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
@@ -1163,16 +1181,46 @@ classifier) · 228 (voice transcription) — all present.
 
 ### C. Pending (planned but not started)
 
+- **Batch QQ part-2** — the `/admin/finances` page UI on top of
+  the now-shipped tax-summary + mark-exported endpoints + the
+  `Finances` sidebar entry under the Work group (`['admin',
+  'developer', 'tech_support']`, `internalOnly: true`). Split
+  out from QQ part-1 to keep the React component build-out
+  scoped to a single sub-batch. See the Batch QQ entry in
+  §9.x for the full UI brief (status-segmented stat cards,
+  Schedule C breakdown table, mileage section, Lock + Export
+  CSV buttons).
+- **Worker retention sweep CLI** — closes the Batch CC v2
+  polish item: hard-delete receipts past the IRS retention
+  window (3 yr clean returns, 7 yr substantial under-reporting,
+  90 d for never-approved rejections). Tombstone columns +
+  partial index already shipped (`seeds/230`); only the worker
+  service + cron entry remain.
+- **Per-row admin sign-off audit trail on receipts** — Batch JJ
+  bulk-approve writes `approved_by` + `approved_at`; deferred
+  is a richer per-row event log (who approved, when, from what
+  device / IP) for the audit-trail-as-product story.
 - **Phase F8** — Trimble Access file exchange (Path A from §8.1):
   watched cloud folder, JobXML / CSV auto-import, name-based
   auto-link.
 - **Phase F9+** — real-time Trimble streaming (Path C); QuickBooks
-  Online direct API; Civil 3D round-trip; Apple Watch / Wear OS;
-  fleet fuel-card reconciliation; AR overlay; drone import; weather
-  metadata.
+  Online direct API (could subsume the Batch QQ CSV bridge for
+  customers who prefer pull-sync over CSV import); Civil 3D
+  round-trip; Apple Watch / Wear OS; fleet fuel-card
+  reconciliation; AR overlay; drone import; weather metadata.
 - **Server-side UPSERT idempotency on `client_id`** — currently
   PowerSync's CRUD queue dedupes on replay; server-side enforcement
   per §10 risk register has not landed.
+- **AI-usage tracker integration for Whisper + receipt
+  extraction** — both worker services land per-row spend in
+  their own cents column; the shared circuit breaker doesn't
+  trip on Starr Field spend yet (see "Architectural deviations"
+  below).
+- **EAS Update URL fill-in** — Batch HH wired the OTA scaffold
+  but `app.json` still ships `"url": "REPLACE_WITH_EAS_UPDATE_URL"`.
+  Operator step: run `eas update:configure`, paste the URL, ship
+  a build. The `<OtaUpdatesReconciler />` already degrades
+  safely on un-configured builds.
 
 ### D. Architectural deviations from the plan
 
@@ -1526,7 +1574,167 @@ Activation gates:
   never set up with an address, or where the address geocode is
   off.
 
-**Batch PP — sun-readable theme: 100% coverage (closes Batch MM v2 gap)**
+**Batch QQ — tax-time financial summary + anti-double-counting (F2 ↔ F6 closer)**
+
+Closes the user's coupled directives:
+1. *"For things dealing with receipts and finances, please build
+   systems that keep track of everything and make it super easy to
+   manage and export data. Make it so that we can use the data to
+   keep really great track of everything and make dealing with
+   taxes super easy!"*
+2. *"if data has already been managed or used for it's intended
+   purpose, such as old receipts being calculated into business
+   costs, that they are handled and marked well so that there is
+   no confusion. We don't want things getting counted twice, or
+   not counted at all in the total."*
+
+Joins approved/exported receipts + per-vehicle business mileage +
+the IRS standard mileage rate into one Schedule-C-shaped report,
+with a status-bucket split so the bookkeeper can distinguish
+*new* deductions (status='approved', `exported_at IS NULL`) from
+*already-filed* ones (status='exported') without ever having to
+guess. The "Lock this period as exported" action seals the new
+bucket into a named tax period so subsequent summaries don't
+double-count.
+
+Schema (`seeds/232_starr_field_finances_lock.sql`) — **shipped**:
+- `receipts.exported_at TIMESTAMPTZ` — wall-clock when the row
+  was first locked. NULL = never exported.
+- `receipts.exported_period TEXT` — human label (`'2025'`,
+  `'2025-Q4'`, `'2025-Apr'`, etc.) for traceback from row to CPA
+  submission.
+- Partial index `idx_receipts_export_pending` on
+  `(created_at DESC) WHERE status IN ('approved','exported') AND
+  deleted_at IS NULL AND exported_at IS NULL` — drives the "X new
+  since last export" stat without scanning the full table.
+- Idempotent — every ALTER + index guards on existence.
+
+Admin API (`app/api/admin/finances/`) — **shipped**:
+- `GET /api/admin/finances/tax-summary?year=YYYY` (or
+  `?from=&to=`) `&status=approved|exported|all&format=json|csv`.
+  - JSON shape includes `period`, `irs_rate_cents_per_mile`
+    (env-overridable via `IRS_MILEAGE_CENTS_PER_MILE`, default 67¢
+    — 2025 rate), `status_filter`, plus three top-level blocks:
+    - `receipts` — `total_cents`, `count`,
+      `by_status` (`approved` vs `exported` split with
+      `count` / `total_cents` / `deductible_cents`),
+      `by_category` (one row per Schedule C line — fuel→Line 9,
+      meals→24b, supplies→22, equipment→13, lodging→24a,
+      professional_services→17, office_supplies→18,
+      client_entertainment→27a, other→27a),
+      `by_tax_flag` (`full|partial_50|none|review`),
+      `top_vendors` (top 10 by spend),
+      `by_user` (per-submitter totals),
+      `exported_periods` (which prior periods do exported rows
+      trace back to — empty until the first lock).
+    - `mileage` — `total_miles`, `deduction_cents`,
+      `by_user`, `by_vehicle` (driver-only via
+      `location_segments.vehicle_id` + `is_business`).
+    - `totals` — `deductible_cents` (receipts deductible +
+      mileage deduction), `expense_cents` (gross).
+  - CSV variant flattens to a tax-prep-friendly section-grouped
+    layout: header (period · rate · status filter), by-status
+    split, Schedule C lines, by tax flag, top vendors, per-user,
+    prior-export traceback, mileage by user / vehicle, grand
+    totals row. Bookkeeper hands the file to the CPA.
+  - `?status=approved` → only rows ready to lock; `?status=exported`
+    → only rows already filed; `?status=all` (default) → both,
+    with the by_status split so neither bucket is missed.
+  - Soft-deleted (Batch CC) + rejected + pending receipts are
+    excluded from every aggregation. Auth: admin / developer /
+    tech_support.
+- `POST /api/admin/finances/mark-exported` — body
+  `{ year } | { from, to, period_label }`. Bulk UPDATE flips
+  matching `status='approved' AND exported_at IS NULL AND
+  deleted_at IS NULL` rows in the window to `status='exported',
+  exported_at=now(), exported_period=<label>`. Race-safe
+  (`exported_at IS NULL` guard in the WHERE clause), idempotent
+  (re-running for an already-locked period is a no-op zero-row
+  UPDATE), audited (every call logs counts +
+  `admin_email`). Response: `{ locked, already_exported,
+  pending_or_rejected, soft_deleted, period_label, exported_at,
+  window }` so the page UI can render an at-a-glance summary
+  even when the lock did nothing.
+
+Tax-summary endpoint reads the new columns + reports the
+`by_status` split + the `exported_periods` traceback. CSV emits
+both blocks. **Both endpoint changes are shipped;** mark-exported
+is fully wired to the new schema.
+
+Web admin page (`/admin/finances`) — **planned** (next sub-batch):
+- Year / quarter / month / custom-range picker. Defaults to
+  current calendar year.
+- Status-segmented stat cards at the top: "X new (approved,
+  ready to lock)" + "Y already filed (exported)" so the
+  bookkeeper sees the split before scrolling.
+- Schedule C breakdown table (one row per category, with line
+  number + count + total + deductible + drill-down link to
+  filtered receipts list).
+- By-tax-flag audit cross-check table.
+- Top vendors + per-submitter sections.
+- Mileage section (total miles · IRS rate · deduction; per-user +
+  per-vehicle subtotals).
+- Grand totals row.
+- "⬇ Export CSV" button (hits the same endpoint with
+  `format=csv`).
+- "🔒 Lock this period as exported" button — confirms via
+  `confirm()` with the count of rows about to lock + the
+  `period_label`, calls the POST endpoint, refreshes the page.
+  Disabled when the approved-bucket count is zero.
+- Sidebar entry under "Work" group: `/admin/finances`, label
+  "Finances", icon 💼. Roles: `['admin', 'developer',
+  'tech_support']`, `internalOnly: true`.
+
+Why the page split out from the build: the React UI is a large
+self-contained component (~400 LOC) and the user asked us to
+de-risk the agent runway by tackling it as a separate sub-batch
+on top of the now-shipped API + schema foundation. Splitting it
+also means the API can be exercised today via curl / Postman by
+the bookkeeper while the page UI lands.
+
+Anti-double-counting design notes (so the user's directive stays
+visible to future authors):
+- Once a row's `exported_at` is set, no admin path flips it back
+  to `status='approved'` without surgery. The bookkeeper is
+  expected to re-issue a corrected period if a row was filed in
+  the wrong year — same as how QuickBooks handles closed periods.
+- The bulk-approve endpoint (Batch JJ) already refuses to touch
+  `status='exported'` rows; that ground-rule continues to hold.
+- The per-row PATCH endpoint at `/api/admin/receipts/[id]`
+  remains the only way to manually flip an exported row back —
+  intentionally noisy in the audit log so any "un-export" leaves
+  a trail.
+- The mobile Money tab + receipts hooks treat `'exported'` as a
+  display-only status (no inline edit). Surveyors don't see
+  exported rows differently from approved ones — the distinction
+  is bookkeeper-facing.
+
+Activation gates:
+- Apply `seeds/232_starr_field_finances_lock.sql` to live
+  Supabase before exposing `/admin/finances` (the GET endpoint
+  short-circuits without the columns; `mark-exported` would 4xx
+  on the UPDATE).
+- No env var or worker change required.
+
+Pending v2 polish (queued but not started):
+- Per-month drill-in chart on the page (12-bar stacked
+  approved/exported by month). Today's table view is
+  CPA-friendly; a chart helps the owner spot seasonal lumps.
+- "Reverse a lock" admin action (one-receipt scope) for the rare
+  case the bookkeeper exported the wrong period. Today: edit via
+  the per-row PATCH endpoint (audited).
+- Email the locked CSV to the CPA on lock — `mailto:` shortcut
+  in v1, real SMTP via the worker queue in v2.
+- Quarterly estimated-tax preview: project current-YTD into a
+  full-year estimate via simple linear extrapolation (rough
+  guidance, not a tax filing).
+- Cross-link from the per-employee page (`/admin/team/[email]`)
+  to a pre-filtered Finances view scoped to that submitter.
+- IRS rate auto-fetch from a daily cron once the IRS publishes
+  the 2026 rate (today's rate is hard-coded with an env-var
+  override).
+
+
 
 Closes the Batch MM v2 polish item *"Auth + layout screens
 migration (~10 files; trivial once prioritised)."* Plus 5 leaf
@@ -3485,6 +3693,33 @@ adds `job_files` (last 90 days, scoped by `created_by`).
    before enabling. The mobile UI continues to function without
    transcription (the columns are nullable + the existing flow
    doesn't read them).
+10. `seeds/229_starr_field_receipt_review.sql` (Batch Z) —
+    receipt review queue + dedup fingerprint columns
+    (`needs_review`, `review_reason`, `dedup_fingerprint`) + the
+    partial index that drives the bookkeeper's "X need review"
+    badge. Apply AFTER seeds/220. Idempotent via ADD COLUMN
+    IF NOT EXISTS.
+11. `seeds/230_starr_field_receipt_retention.sql` (Batch CC) —
+    `receipts.deleted_at TIMESTAMPTZ` + `receipts.deletion_reason
+    TEXT` (`'user_undo' | 'duplicate' | 'wrong_capture'`) +
+    partial indexes for visible-row reads + the retention sweep.
+    Mobile `useDeleteReceipt` already soft-deletes against this
+    schema; without the seed the UPDATE 4xx's. Apply AFTER
+    seeds/220.
+12. `seeds/231_starr_field_video_thumbnails.sql` (Batch GG) —
+    adds `field_media.thumbnail_status` + `thumbnail_storage_url`
+    + `thumbnail_started_at` + `thumbnail_completed_at` +
+    `thumbnail_error` plus the worker-poll partial index. Apply
+    AFTER seeds/221. Worker requires `npm install` on
+    `worker/` to pull `ffmpeg-static` before
+    `extract-video-thumbnails` runs.
+13. `seeds/232_starr_field_finances_lock.sql` (Batch QQ) —
+    `receipts.exported_at TIMESTAMPTZ` +
+    `receipts.exported_period TEXT` + the export-pending partial
+    index. Apply AFTER seeds/220 + 230. Required before exposing
+    `/admin/finances` (Batch QQ part-2) — the GET tax-summary
+    short-circuits and the POST mark-exported UPDATE 4xx's
+    without these columns. Idempotent.
 
 PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
 - `notifications` — scoped by `target_user_id` OR case-insensitive
