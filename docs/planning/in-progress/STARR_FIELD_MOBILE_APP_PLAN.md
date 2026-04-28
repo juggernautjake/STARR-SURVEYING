@@ -3457,8 +3457,9 @@ the rest of F10 reads from. Broken into 10 small sub-batches:
       item_kind='consumable', auto-generates qr_code_id
       server-side when blank, refetches the catalogue + shows a
       success toast on create.
-- [ ] **F10.1d** — Inline edit (`PATCH /api/admin/equipment/[id]`
-      + form on the catalogue rows).
+- [◐] **F10.1d** — Inline edit (`PATCH /api/admin/equipment/[id]`
+      + form on the catalogue rows). **F10.1d-i (PATCH endpoint)
+      shipped**; F10.1d-ii edit-modal UI lands next.
 - [ ] **F10.1e** — Retire action (soft-archive via
       `retired_at` + `retired_reason` from seeds/233).
 - [ ] **F10.1f** — QR sticker PDF (single row, label-printer
@@ -3680,13 +3681,16 @@ aggregator, Batch X), `notifications`, `time-logs/*`,
 for tombstones, Batch FF), `finances/tax-summary`
 (JSON+CSV Schedule-C report w/ status split, Batch QQ),
 `finances/mark-exported` (period-lock action, Batch QQ),
-**`equipment` (Phase F10.1a — GET catalogue with status /
-category / item_kind / include_retired / q filters; Phase F10.1c-i
-POST creates a row with allow-listed columns, validated
-item_kind / current_status enums, auto-generated qr_code_id,
-non-negative integer guards on cents/quantity columns, 409 on
-qr_code_id collision; equipment_manager role gated; tech_support
-read-only)**.
+**`equipment` (Phase F10.1a GET catalogue with status / category /
+item_kind / include_retired / q filters; Phase F10.1c-i POST
+creates a row with allow-listed columns, validated item_kind /
+current_status enums, auto-generated qr_code_id, non-negative
+integer guards on cents/quantity columns, 409 on qr_code_id
+collision; Phase F10.1d-i `PATCH /api/admin/equipment/[id]`
+inline-edit endpoint with the same allow-list MINUS retired_at
+(forced through F10.1e), UUID-validated id, 404 on missing row,
+last-write-wins concurrency w/ equipment_events audit trail
+downstream; equipment_manager role gated; tech_support read-only)**.
 
 **Worker (`worker/src/services/`):**
 - `receipt-extraction.ts` + `cli/extract-receipts.ts` + endpoint at
