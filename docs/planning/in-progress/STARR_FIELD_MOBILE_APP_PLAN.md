@@ -1118,12 +1118,212 @@ the implementation batches stay focused):
   reads from these reservations (§5.12.7).
 - The notification routing for unreturned-at-end-of-day gear
   (§5.12.6 + §5.10.4).
-- **5.12.6 Daily check-in/check-out** — Equipment Manager mobile
-  screen with QR scan. Morning: scan kit → it flips to `in_use`,
-  records the crew + job. Evening: scan kit on return → flips to
-  `available`, records condition. Crews who clock out without
-  returning gear get a nag notification (reuses the §5.10.4
-  notifications stack).
+#### 5.12.6 Daily check-in / check-out workflow
+
+The user's third headline ask: *"Crews would have to rely on the
+equipment manager to get them what they need for the job, and
+they would have to always turn in their stuff back to the
+equipment manager too at the end of the day."* This sub-section
+is the daily ritual that physically consumes a §5.12.5
+reservation, plus the safety nets that catch unreturned gear
+before it walks off.
+
+**The two scan moments.** The whole workflow hinges on the QR
+sticker glued to every durable / kit case / consumable bin
+(§5.12.1):
+- **Morning check-out** flips a reservation `state='held' → 'checked_out'`,
+  records the receiving crew member, stamps `actual_checked_out_at`,
+  optionally captures a condition photo.
+- **Evening check-in** flips `'checked_out' → 'returned'`,
+  stamps `actual_returned_at`, captures a condition photo +
+  optional damage note. For consumables, the difference between
+  reserved quantity and returned quantity is the consumed
+  count.
+
+Both scans are first-class on the mobile app (the Equipment
+Manager + crew lead use cases) and on the admin web (the
+office walk-up case). The same RPC drives both surfaces so
+behaviour stays uniform.
+
+**Schema additions** (extend the §5.12.5 `equipment_reservations`
+table in place — these columns are NULL until the relevant
+scan happens):
+- `checked_out_by UUID FK auth.users(id) NULL` — who scanned
+  the gear out (typically the Equipment Manager OR an authorised
+  crew lead — see "self-service after-hours" below)
+- `actual_checked_out_at TIMESTAMPTZ NULL`
+- `checked_out_condition TEXT CHECK (… IN ('good', 'fair', 'damaged'))`
+- `checked_out_photo_url TEXT NULL` (signed-bucket reference,
+  same pattern as receipts photos)
+- `checked_out_to_user UUID FK auth.users(id) NULL` — the
+  crew member receiving the gear (often the same person who
+  scanned, but a crew lead can scan-out for a junior surveyor)
+- `checked_out_to_vehicle UUID FK vehicles(id) NULL` — which
+  truck the gear is loaded onto. Auto-pre-filled from the
+  job's assigned vehicle (see §5.12.4 Personnel) when present.
+- `actual_returned_at TIMESTAMPTZ NULL`
+- `returned_by UUID FK auth.users(id) NULL`
+- `returned_condition TEXT CHECK (… IN ('good', 'fair', 'damaged', 'lost'))`
+- `returned_photo_url TEXT NULL`
+- `returned_notes TEXT NULL`
+- For consumable lines: `consumed_quantity INT NULL` (how many
+  units were used in the field; `reserved_quantity -
+  consumed_quantity` go back into stock).
+
+Every transition emits a row into the §5.12.1 `equipment_events`
+audit log so a future "who had this when it broke?" query is
+one join away.
+
+**Kit batch check-out — one scan, all children.** Per §5.12.1.C
+a kit is a parent row with a child item list. Scanning the kit's
+QR pulls every child's reservation forward atomically:
+1. The scan resolves to the kit's `equipment_inventory_id`.
+2. The mobile RPC fetches every child reservation with the
+   same `job_id` + `state='held'` + `reserved_from` overlapping
+   today.
+3. All matching children + the parent flip to `'checked_out'`
+   in a single transaction.
+4. The condition photo is captured once at the kit level (the
+   case exterior); per-child conditions inherit unless the
+   crew flags an exception inline.
+
+The reverse holds at check-in — one scan returns the whole kit
+unless the surveyor explicitly marks an item missing or damaged
+mid-scan.
+
+**Condition documentation.** A condition photo isn't required
+for `'good'` returns, but it IS required for `'damaged'`,
+`'fair'`, or `'lost'` so the audit trail has visual evidence.
+The mobile capture flow re-uses the receipts camera mode (high
+contrast, edge detection, brightness correction — §5.11.1) so
+the surveyor learns the affordance once.
+
+**Damage triage flow** (when `returned_condition='damaged'`):
+1. Equipment Manager gets a notification immediately (§5.10.4
+   pings).
+2. The instrument's `current_status` flips to `maintenance`,
+   blocking further reservations (§5.12.5 status check).
+3. A `maintenance_event` row is created (data model lands in
+   §5.12.8) with the photo + the surveyor's note.
+4. The Equipment Manager triages — repair in-shop, send to
+   vendor, retire. Status flips again when the resolution
+   lands.
+
+**Lost-on-site protocol** (when `returned_condition='lost'` —
+the $200-prism-in-the-woods case):
+- The reservation auto-attaches the surveyor's
+  most-recent-clock-in `location_pings` cluster (last 1h
+  before clock-out) so the search has GPS context.
+- A `lost_equipment` notification routes to admin +
+  Equipment Manager + the on-site crew lead, with a deep link
+  to the map view.
+- The instrument's `current_status` flips to `lost`. Insurance
+  packet generation is a §5.12.11 polish item; v1 records
+  enough state for a manual claim.
+
+**End-of-day unreturned-gear nag** — the user's directive made
+this explicit:
+- Cron tick at 6pm and 9pm Mon-Fri (configurable). Query:
+  `equipment_reservations WHERE state='checked_out' AND
+   reserved_to < now()`.
+- For each row, push a notification (§5.10.4) to the
+  `checked_out_to_user`: *"You haven't returned [Kit #3]. Drop
+  it off or extend the reservation — tap to act."*
+- The notification has two actions inline: **Extend until
+  tomorrow 8am** (extends `reserved_to`, no further nag
+  tonight) and **Mark in transit** (you're driving it back
+  right now; nag silenced until midnight). Anything else gets
+  re-nagged at 9pm.
+- Daily digest at 10pm to admin + Equipment Manager listing
+  every still-unreturned row plus its on-site GPS so morning
+  follow-ups have context.
+
+**Crew clock-out gating.** A surveyor tapping "Clock out" on
+the Time tab triggers a check: any active `equipment_reservations`
+with `state='checked_out' AND checked_out_to_user = me`?
+- If yes → modal: "You have 3 items still checked out: Kit
+  #3, GPS Rover #2, 12× ribbon. Returning now? [Scan to
+  return] [Keep overnight]." Keeping overnight stamps the
+  reservation `extended_overnight_at` so the daily digest
+  surfaces it.
+- If no → clock-out proceeds normally.
+
+The check is local-fast (the mobile app already has the user's
+reservations cached via PowerSync) so it doesn't add network
+latency to the clock-out path.
+
+**Self-service after-hours protocol.** Reality check: the
+Equipment Manager isn't always at the office at 6am when the
+crew leaves for a 7am job site. Two flavours:
+1. **Authorised crew lead.** Some surveyors get
+   `equipment_self_checkout=true` on their user row. They can
+   scan-out gear themselves before/after office hours. The
+   audit log makes the actor distinct from the Equipment
+   Manager so accountability is clear.
+2. **Smart-locker / drop-box.** v2 polish — a physical
+   locker that opens via a one-time code generated by the
+   reservation. v1: just trust + the audit log.
+
+Either way, the schema doesn't change; only the actor on the
+event log differs.
+
+**Consumables: a different ritual.** Durables have one-out /
+one-in symmetry. Consumables don't — paint is sprayed, lath
+is driven into the ground, ribbon is left on a fence. The
+check-in step asks *how many units came back*:
+- Reserved 4 cans of paint, returned 1 → `consumed_quantity=3`,
+  `equipment_inventory.quantity_on_hand` decremented by 3 via
+  the same trigger that handles direct stock changes (§5.12.1).
+- Reserved 50 hubs, returned 0 → `consumed_quantity=50`,
+  same decrement.
+- Reserved 1 roll of ribbon, returned 1 (still mostly on the
+  roll) → `consumed_quantity=0`. The roll lives on; partial
+  consumption doesn't drop the SKU count until the
+  Equipment Manager weighs / inspects and adjusts manually
+  (low-fidelity by design — chasing fractional rolls isn't
+  worth the friction).
+
+When `quantity_on_hand` crosses below `low_stock_threshold`
+the Equipment Manager gets a §5.12.7-dashboard alert (deferred)
+and the Schedule-C-feed sees a "consumables consumed" line
+for the period.
+
+**API sketch** (provisional names — implementation batch will
+finalise):
+- `POST /api/admin/equipment/check-out` — body `{ qr_code_id,
+  job_id?, condition, photo_url?, to_user, to_vehicle? }`.
+  Resolves QR → equipment_id → matching held reservation,
+  flips to `checked_out`, writes the event log row.
+- `POST /api/admin/equipment/check-in` — body `{ qr_code_id,
+  condition, photo_url?, notes?, consumed_quantity? }`. Same
+  resolution, flips to `returned`.
+- `POST /api/admin/equipment/extend-reservation` — body `{
+  reservation_id, new_reserved_to }`. Used by the nag-action
+  inline button.
+- `GET /api/admin/equipment/my-checkouts` — for the mobile
+  "what's in my truck right now" tab (§5.12.9, deferred).
+
+**Offline-first behaviour.** The mobile check-out / check-in
+flows must work in a parking-lot dead zone:
+- Scan + photo + form submit lands in the existing
+  `pending_uploads` queue (§5.9 / `lib/uploadQueue.ts`).
+- The reservation's local PowerSync row optimistically flips
+  to `checked_out`/`returned` so the surveyor sees instant
+  feedback.
+- Server-side conflict resolution: a second-actor scan that
+  reaches Postgres first wins; the PowerSync replay surfaces
+  a "this was already returned by [other user]" toast and
+  rolls back the local optimistic flip.
+
+**What §5.12.6 explicitly does NOT cover:**
+- The Equipment Manager's reconcile dashboard listing every
+  open / overdue / coming-back-tonight reservation
+  (§5.12.7).
+- The maintenance event lifecycle that consumes a
+  `damaged` return (§5.12.8).
+- Insurance-packet generation for `lost` returns (§5.12.11).
+- The "what's in my truck right now" surveyor view
+  (§5.12.9).
 - **5.12.7 Equipment Manager dashboards** — daily reconcile view
   (what's out, what's overdue, what's coming back tonight),
   maintenance calendar, low-stock consumables alerts, fleet
