@@ -1,14 +1,21 @@
 // app/admin/finances/page.tsx — Tax-time finances landing page (Batch QQ part-2)
 //
-// Step 1 of 4 — scaffold only. Auth-gates, year picker, fetches the
-// /api/admin/finances/tax-summary endpoint (Batch QQ part-1, shipped),
-// renders raw count + total. Subsequent steps add:
-//   step 2: status-segmented stat cards + Schedule C breakdown table
-//   step 3: mileage section + by-tax-flag + top vendors + grand totals
-//   step 4: Lock period + Export CSV buttons + final polish
+// Schedule-C-shaped report joining approved/exported receipts with
+// business mileage. Powered by the Batch QQ part-1 endpoints:
+//   GET  /api/admin/finances/tax-summary?year=YYYY[&format=csv]
+//   POST /api/admin/finances/mark-exported
+//
+// Page surfaces:
+//   * Year picker + Refresh / Export CSV / Lock period actions
+//   * Three status-segmented stat cards (anti-double-counting view)
+//   * Schedule C breakdown table
+//   * Mileage section (per-user + per-vehicle)
+//   * By tax flag audit cross-check
+//   * Top vendors · Receipts by submitter
+//   * Prior-period traceback (only when already-exported rows present)
 //
 // Style mirrors /admin/mileage/page.tsx (inline-styled, no AdminCommon
-// stylesheet) so the entire batch lands without touching shared CSS.
+// stylesheet) so the batch lands without touching shared CSS.
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
@@ -117,6 +124,10 @@ export default function FinancesPage() {
   const [year, setYear] = useState<number>(currentYear());
   const [data, setData] = useState<TaxSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [locking, setLocking] = useState(false);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [periodLabel, setPeriodLabel] = useState<string>(String(year));
 
   const fetchSummary = useCallback(async () => {
     if (!session?.user?.email) return;
@@ -132,6 +143,78 @@ export default function FinancesPage() {
     void fetchSummary();
   }, [fetchSummary]);
 
+  // Keep period label in sync when the user picks a different year —
+  // unless they've manually edited it (we treat any non-default value
+  // as user-set and don't clobber it).
+  useEffect(() => {
+    setPeriodLabel((prev) =>
+      /^\d{4}$/.test(prev) ? String(year) : prev
+    );
+  }, [year]);
+
+  const exportCsv = useCallback(() => {
+    setExporting(true);
+    setActionMsg(null);
+    // Browser-native download — the endpoint sets the right
+    // Content-Disposition. Anchor click is more reliable than
+    // window.open across browsers.
+    try {
+      const url = `/api/admin/finances/tax-summary?year=${year}&format=csv`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tax_summary_${year}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } finally {
+      setExporting(false);
+    }
+  }, [year]);
+
+  const lockPeriod = useCallback(async () => {
+    if (!data) return;
+    const lockable = data.receipts.by_status.approved.count;
+    if (lockable === 0) return;
+    const label = periodLabel.trim() || String(year);
+    const ok = window.confirm(
+      `Lock ${lockable} approved receipt${lockable === 1 ? '' : 's'} into period "${label}"?\n\n` +
+        `These rows will flip to status='exported' and stop appearing as "ready to lock" on this page. ` +
+        `Re-running this action for the same period is a no-op.`
+    );
+    if (!ok) return;
+    setLocking(true);
+    setActionMsg(null);
+    type LockResult = {
+      locked: number;
+      already_exported: number;
+      pending_or_rejected: number;
+      soft_deleted: number;
+      period_label: string;
+      exported_at: string;
+    };
+    const result = await safeFetch<LockResult>(
+      `/api/admin/finances/mark-exported`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year, period_label: label }),
+      }
+    );
+    setLocking(false);
+    if (result) {
+      setActionMsg(
+        `✓ Locked ${result.locked} receipt${result.locked === 1 ? '' : 's'} into period "${result.period_label}". ` +
+          `${result.already_exported} were already filed; ${result.pending_or_rejected} pending/rejected; ` +
+          `${result.soft_deleted} soft-deleted.`
+      );
+      void fetchSummary();
+    } else {
+      setActionMsg(
+        '⚠ Lock failed — see error log. Period left unchanged.'
+      );
+    }
+  }, [data, periodLabel, year, safeFetch, fetchSummary]);
+
   if (!session?.user?.email) {
     return <div style={styles.empty}>Sign in required.</div>;
   }
@@ -142,9 +225,10 @@ export default function FinancesPage() {
         <h1 style={styles.h1}>Finances — tax-time summary</h1>
         <p style={styles.subtitle}>
           Schedule-C-shaped report joining approved + exported receipts
-          with business mileage. Use the year picker below to switch
-          tax periods. Export CSV + Lock-as-exported buttons land in
-          the next sub-batch.
+          with business mileage. Pick a tax year, review the
+          breakdown, then export the CSV for your CPA. Use{' '}
+          <strong>Lock period</strong> to mark this year's approved
+          receipts as filed so they aren't double-counted next year.
         </p>
       </header>
 
@@ -166,6 +250,17 @@ export default function FinancesPage() {
             )}
           </select>
         </label>
+        <label style={styles.field}>
+          <span style={styles.fieldLabel}>Period label</span>
+          <input
+            type="text"
+            value={periodLabel}
+            onChange={(e) => setPeriodLabel(e.target.value)}
+            placeholder={String(year)}
+            style={styles.input}
+            maxLength={64}
+          />
+        </label>
         <button
           type="button"
           style={styles.refreshBtn}
@@ -174,7 +269,52 @@ export default function FinancesPage() {
         >
           {loading ? 'Loading…' : 'Refresh'}
         </button>
+        <button
+          type="button"
+          style={styles.exportBtn}
+          onClick={() => exportCsv()}
+          disabled={exporting || loading || !data || data.receipts.count === 0}
+          title={
+            !data || data.receipts.count === 0
+              ? 'No receipts in this period to export'
+              : 'Download a tax-prep-friendly CSV (Schedule C lines, mileage, totals)'
+          }
+        >
+          {exporting ? 'Exporting…' : '⬇ Export CSV'}
+        </button>
+        <button
+          type="button"
+          style={styles.lockBtn}
+          onClick={() => void lockPeriod()}
+          disabled={
+            locking ||
+            loading ||
+            !data ||
+            data.receipts.by_status.approved.count === 0
+          }
+          title={
+            !data
+              ? 'Loading…'
+              : data.receipts.by_status.approved.count === 0
+                ? 'Nothing new to lock — every approved receipt in this window is already filed.'
+                : `Lock ${data.receipts.by_status.approved.count} approved receipt(s) into "${periodLabel.trim() || String(year)}"`
+          }
+        >
+          {locking
+            ? 'Locking…'
+            : `🔒 Lock ${data?.receipts.by_status.approved.count ?? 0} into period`}
+        </button>
       </div>
+
+      {actionMsg ? (
+        <div
+          style={
+            actionMsg.startsWith('✓') ? styles.actionMsgOk : styles.actionMsgWarn
+          }
+        >
+          {actionMsg}
+        </div>
+      ) : null}
 
       {loading && !data ? (
         <div style={styles.empty}>Loading…</div>
@@ -573,8 +713,8 @@ export default function FinancesPage() {
 
       <p style={styles.note}>
         ▸ Activation gate: <code>seeds/232</code> must be applied to
-        live Supabase before this page renders real data. Without it
-        the endpoint short-circuits.
+        live Supabase before Lock works. ▸ IRS rate is env-overridable
+        via <code>IRS_MILEAGE_CENTS_PER_MILE</code>.
       </p>
     </div>
   );
@@ -619,6 +759,44 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     padding: '8px 14px',
     cursor: 'pointer',
+    fontSize: 13,
+  },
+  exportBtn: {
+    background: '#1D3095',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  lockBtn: {
+    background: '#15803D',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  actionMsgOk: {
+    background: '#F0FDF4',
+    border: '1px solid #86EFAC',
+    color: '#15803D',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    fontSize: 13,
+  },
+  actionMsgWarn: {
+    background: '#FEF3C7',
+    border: '1px solid #FCD34D',
+    color: '#92400E',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
     fontSize: 13,
   },
   empty: {
