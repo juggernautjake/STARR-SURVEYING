@@ -708,16 +708,213 @@ sub-batch):
    "this case lives on Truck 3 by default" semantics, when
    useful for the loadout view.
 
-#### 5.12.3 Templates · 5.12.4 Personnel · 5.12.5 Availability + conflicts · 5.12.6 Daily check-in/out · 5.12.7 Equipment Manager workflows · 5.12.8 Maintenance + calibration · 5.12.9 Mobile UX · 5.12.10 Tax + depreciation tie-in · 5.12.11 Edge cases
+#### 5.12.3 Job equipment templates
 
-**Deferred to follow-up planning prompts.** Sketches of what each
-sub-section will cover (so the user can pick the next chunk):
+The user's headline ask: *"the dispatcher can create a template
+that entails all of the equipment that would be used on that
+kind of job, and then could reuse that template over and over
+again."* The template system is what makes the §5.12.1 inventory
+ledger feel like a planning tool rather than a spreadsheet.
 
-- **5.12.3 Templates** — dispatcher-defined reusable kits ("4-corner
-  residential boundary, total-station flavour"; "GPS rover flavour";
-  "OSHA-mandated road work add-on"). Per-job-type defaults.
-  Template versioning so old jobs don't drift when the template
-  is updated.
+**Concept.** A template is a named, reusable bundle declaring
+what a *type of job* typically needs:
+- Equipment line items (durable + consumable + kits).
+- Personnel slots ("1× RPLS, 1× field tech" — fleshed out in
+  §5.12.4 Personnel).
+- Optional defaults: estimated duration, required
+  certifications, OSHA add-ons, "needs a vehicle with hitch."
+
+The dispatcher builds a template once. Every future job of that
+type can apply the template in one tap and the assignment list
+pre-fills — the dispatcher only edits the exceptions.
+
+**Examples the user called out** (mapped to template shape):
+
+| Template name | Items | Notes |
+|---|---|---|
+| "Residential 4-corner boundary — total station" | 1× Total Station Kit, 1× tripod, 1× prism+pole, 1× data collector, 4× hubs, 1× can pink paint, 4× wood lath, 1 roll ribbon | Default duration 4 h. Personnel: 1 RPLS, 1 field tech. |
+| "Residential boundary — GPS" | 1× GPS Rover Kit, 1× base, 4× hubs, 1× paint, 4× lath, 1× ribbon | Same shop / same job size, different tooling preference. |
+| "Topo — large parcel" | 1× Total Station Kit, 1× GPS Rover, 1× data collector, 2× tripod, 4× prism+pole | Crew of 3. |
+| "Construction stakeout — residential" | 1× Total Station Kit, 50× hubs, 4× cans paint, 8× lath bundles | Higher consumable counts. |
+| "Road work — OSHA add-on" | 4× cones, 2× safety vests, 1× flagger paddle | Stackable add-on, see "composition" below. |
+
+The shop will end up with 10–25 templates over time. The schema
+must support that growth without becoming a maintenance burden.
+
+**Schema sketch — `equipment_templates` table** (one row per
+named template):
+- `id UUID PK`
+- `name TEXT NOT NULL` (display label — "Residential 4-corner
+  boundary — total station")
+- `slug TEXT UNIQUE` (for stable references — `residential_4corner_total_station`)
+- `description TEXT` (one-paragraph context for the dispatcher)
+- `job_type TEXT` (free-form tag — `boundary`, `topo`,
+  `stakeout`, `road_work`. Indexed; powers the "templates for
+  this kind of job" picker.)
+- `default_crew_size INT`
+- `default_duration_hours NUMERIC` (rough planning hint;
+  bookkeeper uses this for IRS time-on-site estimates pre-clock-in)
+- `requires_certifications TEXT[]` (e.g. `{ 'rpls' }`;
+  §5.12.4 Personnel uses this)
+- `version INT NOT NULL DEFAULT 1` (every save bumps; see
+  "Versioning" below)
+- `is_archived BOOLEAN DEFAULT false` (soft-archive when a
+  template is no longer used, so historical jobs that
+  referenced it still resolve)
+- `created_by UUID REFERENCES auth.users(id)`
+- `created_at TIMESTAMPTZ DEFAULT now()`
+- `updated_at TIMESTAMPTZ DEFAULT now()`
+
+**Schema sketch — `equipment_template_items` table** (one row
+per line item inside a template):
+- `id UUID PK`
+- `template_id UUID FK → equipment_templates(id) ON DELETE CASCADE`
+- `item_kind TEXT CHECK (item_kind IN ('durable', 'consumable', 'kit'))`
+- `equipment_inventory_id UUID NULL` (FK; populated for
+  durable/kit when the template wants a specific instrument —
+  e.g. "always Total Station Kit #3 because it's our newest")
+- `category TEXT NULL` (populated when the template wants ANY
+  item of a category — "any total station kit," chosen at
+  apply-time. This is the common case; pinning a specific
+  instrument is rare.)
+- `quantity INT NOT NULL DEFAULT 1` (consumables count rolls;
+  durables are typically 1 but could be 2 for "two tripods")
+- `is_required BOOLEAN DEFAULT true` (when false, a missing
+  item is a soft warning rather than a hard block. Lets a
+  template say "ribbon if available, paint if not.")
+- `notes TEXT` (free-form — "spare battery for cold-weather
+  jobs")
+- `sort_order INT` (display ordering; the dispatcher's UI lets
+  them drag rows)
+
+The split between `equipment_inventory_id` (specific instrument)
+and `category` (any-of-kind) is the linchpin: a template that
+pins SN12345 of an S9 means *that exact unit goes out*; a
+template that pins `category='total_station_kit'` means *any
+available kit at apply-time*. Conflict detection (§5.12.5,
+deferred) interprets the two differently — a category match has
+substitution flexibility; a specific match either works or
+doesn't.
+
+**Composition: stackable add-ons.** OSHA road-work gear is a
+canonical example of an add-on that layers onto a base template.
+Rather than maintain "Residential boundary," "Residential
+boundary — road-frontage," "Topo," "Topo — road-frontage" as
+four separate templates, the model supports composition:
+- `equipment_templates.composes_from UUID[] NULL` — array of
+  parent template IDs. When applied, the system unions the
+  current template's items with each parent's items.
+- Conflicts are de-duped by (`equipment_inventory_id` OR
+  `category`) — applying "Residential boundary" + "OSHA road
+  work" pulls a single 4-pack of cones, not two.
+- Quantities sum across parents for consumables (10× hubs in
+  base + 4× hubs in add-on = 14× hubs).
+- Cycles are blocked by a recursion guard (`MAX_DEPTH=4`).
+  Practically this only ever needs depth 2 ("base + one
+  add-on"), but the guard makes a typo safe.
+
+**Versioning.** Templates change. The dispatcher tunes "Residential
+4-corner" after running it three times — adds a spare battery,
+drops the 4th lath. A naive overwrite would mean the historical
+record of *what was assigned to Job #427 last week* drifts to
+match the new template, and audit gets confused. Two-part rule:
+1. The `equipment_templates` row is **mutable** — `name`,
+   `description`, item list — but every save:
+   - Bumps `version`
+   - Inserts a snapshot into `equipment_template_versions` (id,
+     template_id, version, items_jsonb, saved_at, saved_by).
+2. The `job_equipment` row records the **applied** items
+   verbatim, with a `from_template_id` + `from_template_version`
+   pair. The audit trail asks the snapshot, not the live
+   template, when answering "what did Job #427 actually go
+   out with?"
+
+This mirrors the receipts soft-delete pattern (Batch CC) where
+the audit trail outlives the user-facing edit.
+
+**"Apply template" UX flow** (admin web):
+1. Dispatcher creates / opens a job.
+2. Job detail screen has an "Equipment + supplies" panel.
+3. Empty panel shows two buttons: **"Apply template"** (opens a
+   picker filtered by `job_type` first, then all) and **"Build
+   custom"** (drops to manual line-item editor).
+4. Picking a template renders a preview: every line item with
+   resolved availability info from §5.12.5 (✓ available · ⚠
+   in-use until Friday · ✗ in maintenance · ⚠ low stock —
+   only 2 left). The dispatcher sees the conflicts BEFORE
+   committing.
+5. Dispatcher edits the preview (swap a specific instrument,
+   bump a consumable count, remove an item) — every edit shown
+   as a "diff vs. template" so the audit trail records intent
+   ("dispatcher swapped S9-#1 → S9-#2 because #1 is in
+   maintenance; dispatcher dropped 1× ribbon — already plenty
+   on the truck").
+6. **Reserve.** Items flip to status='reserved' for the job's
+   scheduled window — see §5.12.5 for the lock semantics.
+   Reservation does NOT yet check the gear out — that's the
+   morning-of step in §5.12.6.
+7. **Apply.** The job's equipment list is now populated. The
+   Equipment Manager sees it in their reconcile dashboard
+   (§5.12.7) so they can pre-stage the kit overnight.
+
+**"Save as template"** shortcut on a custom-built job loadout —
+one-tap promotes the dispatcher's ad-hoc kit to a reusable
+template, naming it on the spot. Reduces the friction of the
+"I built this from scratch and want to use it again" path that
+otherwise leads to dispatchers giving up on templates.
+
+**Permissions.**
+- Create / edit / archive templates: `admin`, `equipment_manager`
+  (see §4.6). Dispatchers without the equipment_manager hat
+  can *use* templates but not create them — keeps the catalog
+  curated rather than fragmenting into 50 near-duplicate
+  templates.
+- View templates: any internal role.
+- Apply a template to a job: any role with job-edit
+  permission (`admin`, `developer`, `tech_support`, plus
+  whoever owns dispatch).
+
+**Edge cases worth calling out now** (so they don't get lost
+when §5.12.5 conflict detection is fleshed out):
+- **Template references a retired instrument.** When the
+  dispatcher applies a template that pins `equipment_inventory_id`
+  for an instrument now `retired_at IS NOT NULL`, the apply
+  flow surfaces a warning + prompts substitution to a
+  category-of-kind match. Templates are not auto-rewritten on
+  retire — Equipment Manager gets a "templates referencing
+  retired gear" cleanup queue.
+- **Template's category-of-kind has zero available units.**
+  ("Any total station kit" but all four are out.) Hard-block
+  the apply with the next-available date; offer "reserve for
+  Friday instead?" inline.
+- **Template's required certification has zero matching
+  personnel today.** Soft-warn — surveyor staffing is more
+  fluid than equipment, and the dispatcher may already know
+  someone's coming back from PTO.
+- **Cross-template conflicts during a multi-job day.** When
+  two templates applied to two same-day jobs both pin the same
+  S9 #1, the SECOND apply errors. Resolution: the second job
+  picks a different instrument or pushes its window. The
+  template apply does NOT silently win the race.
+- **Bulk-apply to imported jobs.** When the existing
+  `/admin/jobs/import` flow lands 50 jobs at once, an optional
+  `default_template_slug` column in the import CSV pre-applies
+  a template to each — turns a CSV import into a 50-job
+  loadout draft in one operation. Conflicts surface as a
+  pre-import preview.
+
+**What §5.12.3 explicitly does NOT cover** (handled by later
+sub-sections, sketched at the end of §5.12):
+- The actual conflict-detection algorithm + reservation lock
+  semantics (§5.12.5).
+- Personnel slots, skill matching, capacity calendars
+  (§5.12.4).
+- The morning check-out / evening check-in workflow that
+  consumes a reservation (§5.12.6).
+- The Equipment Manager's "templates referencing retired gear"
+  cleanup queue UI (§5.12.7).
+
+
 - **5.12.4 Personnel assignment** — `job_team` already exists. We
   layer crew skills / certifications (RPLS, field tech, party
   chief), per-day capacity ("Jacob is on Job A 8am-noon, Job B
