@@ -176,6 +176,56 @@ const vehicles = new Table({
 // time_entry_edits table from plan §6.3 is intentionally not declared
 // here — see schema reconciliation note above.
 
+// Phase F10.0a-i (seeds/233 — equipment inventory v2).
+// Mobile projection of equipment_inventory; reads only (no
+// mobile-side mutation in v1 — Equipment Manager creates/edits
+// via the admin web). Powers the §5.12.9 mobile flows:
+//   * useEquipmentByQr — F10.1i scanner resolver
+//   * useMyCheckouts (later) — joins reservations to inventory
+//   * Pre-job loadout preview — F10.1d-equivalent on mobile job detail
+const equipment_inventory = new Table({
+  // Identity / human metadata.
+  name: column.text,
+  category: column.text,
+  item_kind: column.text, // durable | consumable | kit
+  current_status: column.text, // available | in_use | maintenance | …
+  qr_code_id: column.text,
+  brand: column.text,
+  model: column.text,
+  serial_number: column.text,
+  notes: column.text,
+  // Cost basis (read-only on mobile).
+  acquired_at: column.text,
+  acquired_cost_cents: column.integer,
+  useful_life_months: column.integer,
+  placed_in_service_at: column.text,
+  // Calibration (drives §5.12.9.1 loadout-preview status pills).
+  last_calibrated_at: column.text,
+  next_calibration_due_at: column.text,
+  warranty_expires_at: column.text,
+  service_contract_vendor: column.text,
+  last_serviced_at: column.text,
+  // Consumable accounting.
+  unit: column.text,
+  quantity_on_hand: column.integer,
+  low_stock_threshold: column.integer,
+  last_restocked_at: column.text,
+  vendor: column.text,
+  cost_per_unit_cents: column.integer,
+  // Location.
+  home_location: column.text,
+  vehicle_id: column.text,
+  // Personal kit (§5.12.9.4).
+  is_personal: column.integer, // 0 | 1
+  owner_user_id: column.text,
+  // Soft-delete (§5.12.1).
+  retired_at: column.text,
+  retired_reason: column.text,
+  serial_suspect: column.integer, // 0 | 1
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 const location_stops = new Table({
   user_id: column.text,
   // FK to job_time_entries (granular: which clock-in slice was the
@@ -728,6 +778,7 @@ const pinned_files = new Table(
  */
 export const AppSchema = new Schema({
   daily_time_logs,
+  equipment_inventory,
   field_data_points,
   field_media,
   fieldbook_notes,

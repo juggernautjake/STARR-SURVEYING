@@ -3514,8 +3514,20 @@ the rest of F10 reads from. Broken into 10 small sub-batches:
       buttons, errors highlighted in a per-row table, success
       banner with link back to catalogue. Sidebar entry lands
       in F10.6.
-- [ ] **F10.1i** — Mobile `useEquipmentByQr` resolver hook
+- [x] **F10.1i** — Mobile `useEquipmentByQr` resolver hook
       + offline cache pre-fetch (`mobile/lib/equipment.ts`).
+      Shipped. Local-SQLite-first via PowerSync (per
+      §5.12.9.3 offline-first contract — every lookup runs
+      against the synced rows so QR scans resolve at the
+      cage's metal-shed dead zone). Three hooks:
+      `useEquipmentByQr(qrCodeId)` (case-insensitive,
+      retired_at IS NULL filter), `useEquipment(id)` (UUID
+      drilldown), `useEquipmentList(filter?)` (catalogue
+      browse with optional status / category / itemKind /
+      includeRetired filters). Mobile schema extended with
+      `equipment_inventory` table; sync rule wiring deferred
+      to F10.5 activation gate (operator updates server-side
+      sync rules before exposing F10.1j scanner).
 - [ ] **F10.1j** — Mobile camera scanner overlay (re-uses
       `expo-camera` from §5.11).
 
@@ -3854,7 +3866,7 @@ the dashboards they link to.
   - **✅ F10.0a-iv** seeds/236 equipment_events audit log `[fb94f61]`
   - **✅ F10.0a-v** seeds/237 equipment_templates + items + versions `[e566747]`
   - **✅ F10.0e** equipment_manager role + 4 consumers `[ded0b67]`
-  - **◐ F10.1** Inventory catalogue UI + QR codes — F10.1a GET + F10.1b page + F10.1c (POST + Add) + F10.1d (PATCH + Edit) + F10.1e (retire/restore + UI) + F10.1f (single-row QR PDF) + F10.1g (bulk QR PDF endpoint + bulk-select UI) + F10.1h (CSV import endpoint + page) shipped; F10.1i-j pending (mobile useEquipmentByQr · mobile scanner overlay)
+  - **◐ F10.1** Inventory catalogue UI + QR codes — F10.1a GET + F10.1b page + F10.1c (POST + Add) + F10.1d (PATCH + Edit) + F10.1e (retire/restore + UI) + F10.1f (single-row QR PDF) + F10.1g (bulk QR PDF endpoint + bulk-select UI) + F10.1h (CSV import endpoint + page) + F10.1i (mobile useEquipmentByQr resolver + schema) shipped; F10.1j pending (mobile camera scanner overlay)
   - **⨯ F10.2** Templates + dispatcher apply flow (CRUD, preview-with-availability, save-as-template, composition, versioning snapshots)
   - **⨯ F10.3** Availability + conflict engine (seeds/238 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
   - **⨯ F10.4** Personnel side (seeds/239 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
