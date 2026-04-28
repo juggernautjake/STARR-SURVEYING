@@ -3788,6 +3788,11 @@ Printed / X-Stickers-Skipped response headers; F10.1h-i
 `POST /import` CSV bulk-import w/ RFC-4180 parser, dry-run +
 execute modes, 1000-row cap, per-row error attribution;
 F10.2a `GET /templates` list w/ embedded item_count + `GET /templates/[id]` detail w/ joined items + version metadata;
+F10.2b-i `POST /templates` atomic create w/ items + v1 snapshot;
+seeds/238 `photo_url` + `condition` enum (new/good/fair/poor/damaged/needs_repair) + `condition_updated_at` plumbed
+through GET + POST + PATCH (`condition_updated_at` stamped server-side
+on every condition change) + Add/Edit modal pickers + per-row
+catalogue condition badge w/ "last checked" hover hint;
 equipment_manager role gated; tech_support read-only)**.
 
 **Worker (`worker/src/services/`):**

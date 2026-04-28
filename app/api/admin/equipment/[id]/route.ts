@@ -49,6 +49,15 @@ const ALLOWED_ITEM_KINDS = new Set(['durable', 'consumable', 'kit']);
  *  any audit / FK columns that should never be hand-edited via
  *  this surface (`created_at`, `updated_at` is set by the trigger
  *  / row-default; `id` obviously not). */
+const ALLOWED_CONDITIONS = new Set([
+  'new',
+  'good',
+  'fair',
+  'poor',
+  'damaged',
+  'needs_repair',
+]);
+
 const ALLOWED_PATCH_KEYS = new Set([
   'name',
   'item_kind',
@@ -59,6 +68,11 @@ const ALLOWED_PATCH_KEYS = new Set([
   'notes',
   'qr_code_id',
   'current_status',
+  // seeds/238 — physical condition + image (Phase F10 polish).
+  // condition_updated_at is stamped server-side when condition
+  // changes; never accepted from the client directly.
+  'photo_url',
+  'condition',
   'acquired_at',
   'acquired_cost_cents',
   'useful_life_months',
@@ -84,6 +98,7 @@ const ALLOWED_PATCH_KEYS = new Set([
 const SELECT_COLUMNS =
   'id, name, category, item_kind, current_status, qr_code_id, ' +
   'brand, model, serial_number, notes, ' +
+  'photo_url, condition, condition_updated_at, ' +
   'acquired_at, acquired_cost_cents, useful_life_months, ' +
   'placed_in_service_at, ' +
   'last_calibrated_at, next_calibration_due_at, warranty_expires_at, ' +
@@ -185,6 +200,33 @@ export const PATCH = withErrorHandler(
           { status: 400 }
         );
       }
+    }
+    // seeds/238 condition (physical condition, distinct from
+    // current_status lifecycle). Stamp condition_updated_at
+    // server-side every time the value lands; never accept a
+    // client value for that timestamp.
+    if (update.condition !== undefined) {
+      if (update.condition === null) {
+        update.condition_updated_at = null;
+      } else if (
+        typeof update.condition !== 'string' ||
+        !ALLOWED_CONDITIONS.has(update.condition)
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'condition must be one of: ' +
+              Array.from(ALLOWED_CONDITIONS).join(', '),
+          },
+          { status: 400 }
+        );
+      } else {
+        update.condition_updated_at = new Date().toISOString();
+      }
+    }
+    if (typeof update.photo_url === 'string') {
+      const trimmedPhoto = update.photo_url.trim();
+      update.photo_url = trimmedPhoto || null;
     }
     if (typeof update.name === 'string') {
       const trimmed = update.name.trim();

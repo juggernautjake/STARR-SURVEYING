@@ -34,6 +34,10 @@ interface EquipmentRow {
   model: string | null;
   serial_number: string | null;
   notes: string | null;
+  // seeds/238 — richer metadata
+  photo_url: string | null;
+  condition: string | null;
+  condition_updated_at: string | null;
   acquired_at: string | null;
   acquired_cost_cents: number | null;
   useful_life_months: number | null;
@@ -102,6 +106,28 @@ const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   retired: { bg: '#F3F4F6', fg: '#6B7280' },
 };
 
+// seeds/238 condition enum (physical condition, separate from
+// current_status lifecycle). Order = pickability sequence on the
+// modal (best-condition-first).
+const CONDITION_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'No condition recorded' },
+  { value: 'new', label: 'New (out of box)' },
+  { value: 'good', label: 'Good (full working order)' },
+  { value: 'fair', label: 'Fair (works, cosmetic damage)' },
+  { value: 'poor', label: 'Poor (works with caveats)' },
+  { value: 'damaged', label: 'Damaged (functional but compromised)' },
+  { value: 'needs_repair', label: 'Needs repair (route to maintenance)' },
+];
+
+const CONDITION_COLORS: Record<string, { bg: string; fg: string }> = {
+  new: { bg: '#DCFCE7', fg: '#15803D' },
+  good: { bg: '#ECFDF5', fg: '#047857' },
+  fair: { bg: '#FEF9C3', fg: '#854D0E' },
+  poor: { bg: '#FED7AA', fg: '#9A3412' },
+  damaged: { bg: '#FEE2E2', fg: '#B91C1C' },
+  needs_repair: { bg: '#FCE7F3', fg: '#9F1239' },
+};
+
 function dollars(cents: number | null): string {
   if (cents == null) return '—';
   return (cents / 100).toLocaleString('en-US', {
@@ -161,6 +187,7 @@ function AddUnitModal({ onClose, onCreated }: AddUnitModalProps) {
   const [homeLocation, setHomeLocation] = useState('');
   const [notes, setNotes] = useState('');
   const [qrCodeId, setQrCodeId] = useState(''); // empty → auto-generate server-side
+  const [condition, setCondition] = useState(''); // seeds/238 — empty = unrecorded
   // Consumable-only.
   const [unit, setUnit] = useState('');
   const [quantityOnHand, setQuantityOnHand] = useState('');
@@ -186,6 +213,7 @@ function AddUnitModal({ onClose, onCreated }: AddUnitModalProps) {
       if (homeLocation.trim()) body.home_location = homeLocation.trim();
       if (notes.trim()) body.notes = notes.trim();
       if (qrCodeId.trim()) body.qr_code_id = qrCodeId.trim();
+      if (condition) body.condition = condition;
 
       if (kind === 'consumable') {
         if (unit.trim()) body.unit = unit.trim();
@@ -228,6 +256,7 @@ function AddUnitModal({ onClose, onCreated }: AddUnitModalProps) {
     [
       brand,
       category,
+      condition,
       homeLocation,
       kind,
       lowStockThreshold,
@@ -416,6 +445,25 @@ function AddUnitModal({ onClose, onCreated }: AddUnitModalProps) {
           )}
 
           <label style={styles.formField}>
+            <span style={styles.formLabel}>Condition</span>
+            <select
+              value={condition}
+              onChange={(e) => setCondition(e.target.value)}
+              style={styles.formInput}
+            >
+              {CONDITION_OPTIONS.map((o) => (
+                <option key={o.value || 'unrecorded'} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <span style={styles.modalHint}>
+              ▸ Physical condition — distinct from current_status
+              (lifecycle). Server stamps the timestamp when set.
+            </span>
+          </label>
+
+          <label style={styles.formField}>
             <span style={styles.formLabel}>Notes</span>
             <textarea
               value={notes}
@@ -497,6 +545,7 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
   const [homeLocation, setHomeLocation] = useState(row.home_location ?? '');
   const [notes, setNotes] = useState(row.notes ?? '');
   const [qrCodeId, setQrCodeId] = useState(row.qr_code_id ?? '');
+  const [condition, setCondition] = useState(row.condition ?? '');
   const [currentStatus, setCurrentStatus] = useState<StatusFilter>(
     (row.current_status as StatusFilter) ?? 'available'
   );
@@ -542,6 +591,9 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
         notes: notes.trim() || null,
         home_location: homeLocation.trim() || null,
         current_status: currentStatus || 'available',
+        // seeds/238 — empty string ⇒ explicit null (clears the
+        // condition + the paired condition_updated_at server-side).
+        condition: condition || null,
       };
 
       if (qrCodeId.trim()) {
@@ -646,6 +698,7 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
       acquiredCost,
       brand,
       category,
+      condition,
       costPerUnit,
       currentStatus,
       homeLocation,
@@ -903,6 +956,33 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
               </label>
             </div>
           </fieldset>
+
+          <label style={styles.formField}>
+            <span style={styles.formLabel}>Condition</span>
+            <select
+              value={condition}
+              onChange={(e) => setCondition(e.target.value)}
+              style={styles.formInput}
+            >
+              {CONDITION_OPTIONS.map((o) => (
+                <option key={o.value || 'unrecorded'} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {row.condition_updated_at && row.condition === condition ? (
+              <span style={styles.modalHint}>
+                ▸ Last updated{' '}
+                {new Date(row.condition_updated_at).toLocaleDateString()}.
+                Changing this stamps a new timestamp server-side.
+              </span>
+            ) : (
+              <span style={styles.modalHint}>
+                ▸ Stamps condition_updated_at server-side. Distinct
+                from the lifecycle status above.
+              </span>
+            )}
+          </label>
 
           <label style={styles.formField}>
             <span style={styles.formLabel}>Notes</span>
@@ -1530,6 +1610,7 @@ export default function EquipmentInventoryPage() {
               <th style={styles.th}>Name</th>
               <th style={styles.th}>Category</th>
               <th style={styles.th}>Status</th>
+              <th style={styles.th}>Condition</th>
               <th style={styles.th}>Kind</th>
               <th style={styles.th}>Serial / Model</th>
               <th style={styles.th}>QR</th>
@@ -1586,6 +1667,34 @@ export default function EquipmentInventoryPage() {
                     >
                       {formatCategory(row.current_status ?? 'available')}
                     </span>
+                  </td>
+                  <td style={styles.td}>
+                    {row.condition ? (
+                      (() => {
+                        const c = CONDITION_COLORS[row.condition] ?? {
+                          bg: '#F3F4F6',
+                          fg: '#6B7280',
+                        };
+                        return (
+                          <span
+                            style={{
+                              ...styles.statusPill,
+                              background: c.bg,
+                              color: c.fg,
+                            }}
+                            title={
+                              row.condition_updated_at
+                                ? `Last checked ${new Date(row.condition_updated_at).toLocaleDateString()}`
+                                : undefined
+                            }
+                          >
+                            {formatCategory(row.condition)}
+                          </span>
+                        );
+                      })()
+                    ) : (
+                      <span style={styles.muted}>—</span>
+                    )}
                   </td>
                   <td style={styles.td}>{row.item_kind ?? '—'}</td>
                   <td style={styles.td}>

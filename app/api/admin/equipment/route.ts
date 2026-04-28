@@ -60,6 +60,10 @@ interface EquipmentRow {
   model?: string | null;
   serial_number?: string | null;
   notes?: string | null;
+  // Richer metadata (seeds/238)
+  photo_url: string | null;
+  condition: string | null;
+  condition_updated_at: string | null;
   // Cost basis (seeds/233)
   acquired_at: string | null;
   acquired_cost_cents: number | null;
@@ -96,6 +100,7 @@ interface EquipmentRow {
 const SELECT_COLUMNS =
   'id, name, category, item_kind, current_status, qr_code_id, ' +
   'brand, model, serial_number, notes, ' +
+  'photo_url, condition, condition_updated_at, ' +
   'acquired_at, acquired_cost_cents, useful_life_months, ' +
   'placed_in_service_at, ' +
   'last_calibrated_at, next_calibration_due_at, warranty_expires_at, ' +
@@ -254,6 +259,11 @@ const ALLOWED_CREATE_KEYS = new Set([
   'notes',
   'qr_code_id',
   'current_status',
+  // seeds/238 — richer metadata per the user's "image / condition"
+  // follow-up. condition_updated_at stamped server-side when
+  // condition is supplied, never accepted from the client.
+  'photo_url',
+  'condition',
   'acquired_at',
   'acquired_cost_cents',
   'useful_life_months',
@@ -274,6 +284,17 @@ const ALLOWED_CREATE_KEYS = new Set([
   'is_personal',
   'owner_user_id',
   'serial_suspect',
+]);
+
+/** seeds/238 condition enum — physical condition distinct from
+ *  the lifecycle current_status enum. */
+const ALLOWED_CONDITIONS = new Set([
+  'new',
+  'good',
+  'fair',
+  'poor',
+  'damaged',
+  'needs_repair',
 ]);
 
 /** Generate a 12-char UUID slice for the QR sticker code.
@@ -363,6 +384,31 @@ export const POST = withErrorHandler(
         },
         { status: 400 }
       );
+    }
+
+    // Validate condition (seeds/238) if supplied. Stamps
+    // condition_updated_at server-side; client value ignored.
+    if (insert.condition !== undefined && insert.condition !== null) {
+      if (
+        typeof insert.condition !== 'string' ||
+        !ALLOWED_CONDITIONS.has(insert.condition)
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'condition must be one of: ' +
+              Array.from(ALLOWED_CONDITIONS).join(', '),
+          },
+          { status: 400 }
+        );
+      }
+      insert.condition_updated_at = new Date().toISOString();
+    }
+
+    // photo_url is a free-form bucket path; trim if present.
+    if (typeof insert.photo_url === 'string') {
+      const trimmed = insert.photo_url.trim();
+      insert.photo_url = trimmed || null;
     }
 
     // Auto-generate qr_code_id when not supplied.
