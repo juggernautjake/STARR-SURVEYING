@@ -3670,12 +3670,14 @@ tax-period locking, Batch QQ) — all present on disk.
   §9.x for the full UI brief (status-segmented stat cards,
   Schedule C breakdown table, mileage section, Lock + Export
   CSV buttons).
-- **Worker retention sweep CLI** — closes the Batch CC v2
-  polish item: hard-delete receipts past the IRS retention
-  window (3 yr clean returns, 7 yr substantial under-reporting,
-  90 d for never-approved rejections). Tombstone columns +
-  partial index already shipped (`seeds/230`); only the worker
-  service + cron entry remain.
+- ~~**Worker retention sweep CLI**~~ — **shipped (Batch RR
+  next).** `worker/src/services/receipt-retention-sweep.ts` +
+  `worker/src/cli/sweep-receipt-retention.ts` purge soft-deleted
+  receipts past the IRS window (90d for rejected; 7y default
+  for everything else, env-overridable). DRY-RUN by default;
+  `--execute` flag required to actually delete; storage purge
+  fires before db delete (safer to leave an orphan db row than
+  an unreachable blob).
 - **Per-row admin sign-off audit trail on receipts** — Batch JJ
   bulk-approve writes `approved_by` + `approved_at`; deferred
   is a richer per-row event log (who approved, when, from what
