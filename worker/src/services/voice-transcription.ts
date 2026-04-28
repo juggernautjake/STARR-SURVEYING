@@ -155,9 +155,13 @@ export async function processVoiceTranscriptionBatch(
     .limit(batchSize);
 
   if (rowsErr) {
+    // Supabase PostgrestError isn't an Error instance — narrowing via
+    // `instanceof Error` leaves the else-branch as `never` under
+    // strict TS. Wrap unconditionally; logger.error wants an Error
+    // shape and `.message` is always present on the Postgrest type.
     logger.error(
       'queue fetch failed',
-      rowsErr instanceof Error ? rowsErr : new Error(rowsErr.message),
+      new Error(rowsErr.message ?? String(rowsErr)),
       {}
     );
     return { total: 0, done: 0, failed: 0, skipped: 0, results: [] };
@@ -301,7 +305,14 @@ async function processOne(
     // Construct a File-like blob the SDK accepts. Filename must
     // include a recognised extension so Whisper picks the right
     // decoder; .m4a maps to AAC.
-    const blob = new Blob([audioBuffer], { type: 'audio/mp4' });
+    //
+    // Buffer → Uint8Array bounce: Node 22's `Buffer` has a
+    // SharedArrayBuffer-leaning `.buffer` type that the `Blob`
+    // constructor's `BlobPart` union refuses (TS2322). Wrapping in
+    // `Uint8Array` gives us a plain ArrayBuffer-backed view that
+    // satisfies the constraint without copying bytes.
+    const bytes = new Uint8Array(audioBuffer);
+    const blob = new Blob([bytes], { type: 'audio/mp4' });
     const file = new File([blob], `${row.id}.m4a`, { type: 'audio/mp4' });
     const transcript = await client.audio.transcriptions.create({
       file,
