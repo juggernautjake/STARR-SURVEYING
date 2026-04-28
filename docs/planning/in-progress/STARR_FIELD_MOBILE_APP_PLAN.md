@@ -3528,8 +3528,19 @@ the rest of F10 reads from. Broken into 10 small sub-batches:
       `equipment_inventory` table; sync rule wiring deferred
       to F10.5 activation gate (operator updates server-side
       sync rules before exposing F10.1j scanner).
-- [ ] **F10.1j** — Mobile camera scanner overlay (re-uses
-      `expo-camera` from §5.11).
+- [x] **F10.1j** — Mobile camera scanner overlay
+      (`mobile/lib/QrScanner.tsx`). Shipped. Reusable
+      forwardRef component handling permissions (request +
+      Open Settings fallback when denied), live `CameraView`
+      with `barcodeScannerSettings={{ barcodeTypes: ['qr'] }}`,
+      single-shot decode (parent calls `rearm()` via the
+      imperative ref to scan again — supports the §5.12.6
+      kit-batch flow), animated scan-line inside a 240pt
+      reticle with corner brackets, dim spotlight overlay,
+      bottom hint text + top-right ✕ close. Pairs with
+      F10.1i `useEquipmentByQr` resolver — host screens
+      decoded-string→equipment-row in F10.5+ workflows.
+      `expo-camera ~16.0.10` added to mobile/package.json.
 
 **F10.2 — Templates + dispatcher apply flow (Week 34–35).**
 - [ ] CRUD on `equipment_templates` + items (admin web,
@@ -3866,7 +3877,7 @@ the dashboards they link to.
   - **✅ F10.0a-iv** seeds/236 equipment_events audit log `[fb94f61]`
   - **✅ F10.0a-v** seeds/237 equipment_templates + items + versions `[e566747]`
   - **✅ F10.0e** equipment_manager role + 4 consumers `[ded0b67]`
-  - **◐ F10.1** Inventory catalogue UI + QR codes — F10.1a GET + F10.1b page + F10.1c (POST + Add) + F10.1d (PATCH + Edit) + F10.1e (retire/restore + UI) + F10.1f (single-row QR PDF) + F10.1g (bulk QR PDF endpoint + bulk-select UI) + F10.1h (CSV import endpoint + page) + F10.1i (mobile useEquipmentByQr resolver + schema) shipped; F10.1j pending (mobile camera scanner overlay)
+  - **✅ F10.1** Inventory catalogue UI + QR codes — fully shipped (F10.1a-j: GET endpoint · catalogue page · POST + Add modal · PATCH + Edit modal · Retire/Restore endpoints + UI · single-row QR PDF · bulk QR PDF endpoint + bulk-select UI · CSV import endpoint + page · mobile useEquipmentByQr resolver + schema · mobile camera scanner overlay)
   - **⨯ F10.2** Templates + dispatcher apply flow (CRUD, preview-with-availability, save-as-template, composition, versioning snapshots)
   - **⨯ F10.3** Availability + conflict engine (seeds/238 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
   - **⨯ F10.4** Personnel side (seeds/239 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
@@ -6579,7 +6590,7 @@ slice of mobile-written data?
 | Per-job consolidated review | `field_data_points` + `field_media` + `fieldbook_notes` + `job_files` (joined) | `/admin/jobs/[id]/field` — points list (Batch S) + job-level media/notes/files inline blocks + "Uploaded by X · timestamp" attribution on every item (Batch T) | ✓ shipped |
 | Job media bundle download | `field_media` + `job_files` (signed) | `/api/admin/jobs/[id]/field-data/manifest` (CSV manifest, Batch S; uploader columns added in Batch T) + `/api/admin/jobs/[id]/field-data/zip` (server-streamed ZIP, organised by media_type/point, Batch T) — single-file Download links on every card on the per-job + per-point pages | ✓ shipped |
 | Tax-time finances | `receipts` (joined w/ `location_segments` + `vehicles`) | `/api/admin/finances/tax-summary` (Schedule-C JSON+CSV w/ status split, Batch QQ) + `/api/admin/finances/mark-exported` (period-lock action) — admin page UI deferred to Batch QQ part-2 | ◐ API shipped, page pending |
-| Equipment inventory | `equipment_inventory` (extended per §5.12.1) | Full admin CRUD: `GET /api/admin/equipment` (F10.1a) + `/admin/equipment/inventory` catalogue (F10.1b) + Add (F10.1c) + Edit (F10.1d) + Retire/Restore (F10.1e) + single-row QR PDF (F10.1f) + bulk QR + checkbox UI (F10.1g) + CSV bulk import endpoint + `/admin/equipment/import` page (F10.1h). Mobile resolver + scanner land in F10.1i-j. | ✓ admin web fully shipped; mobile pending |
+| Equipment inventory | `equipment_inventory` (extended per §5.12.1) | Full F10.1 stack: admin web (F10.1a-h GET / page / POST+Add / PATCH+Edit / Retire+Restore / single-row QR PDF / bulk QR + checkbox UI / CSV import) + mobile useEquipmentByQr/useEquipment/useEquipmentList resolver hooks + schema (F10.1i) + reusable QrScanner overlay (F10.1j). Daily check-in/out flows that consume the scanner land in F10.5. | ✓ F10.1 fully shipped |
 | Equipment kits | `equipment_kits`, `equipment_kit_items` | Inline kit composer on the Inventory catalogue page; one-scan kit batch check-out via `equipment_events` rows (§5.12.6) | ⨯ planned (F10.1) |
 | Equipment templates | `equipment_templates`, `equipment_template_items`, `equipment_template_versions` | `/admin/equipment/templates` admin CRUD + Apply-template flow on existing job detail page (Phase F10.2) | ⨯ planned (F10.2) |
 | Equipment reservations | `equipment_reservations` | `/admin/equipment/reservations` Gantt timeline (§5.12.7.2); per-job reservations panel on existing job detail page; mobile loadout preview (§5.12.9.1) | ⨯ planned (F10.3) |
