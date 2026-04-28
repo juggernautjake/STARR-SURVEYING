@@ -121,6 +121,336 @@ function formatCategory(raw: string | null): string {
     .join(' ');
 }
 
+// ── Add Unit modal (Phase F10.1c-ii) ───────────────────────────────────────
+// Modal overlay form that POSTs to /api/admin/equipment. Keeps to the
+// most-useful create fields (name + item_kind required; brand / model /
+// serial / location / notes optional). Cost basis, calibration, and
+// vehicle assignment are deferred to the F10.1d inline-edit flow so the
+// modal stays scannable. Consumable-only fields (unit, quantity_on_hand,
+// low_stock_threshold) appear conditionally when item_kind='consumable'.
+
+interface AddUnitModalProps {
+  onClose: () => void;
+  onCreated: (item: EquipmentRow) => void;
+}
+
+const ITEM_KIND_RADIO: Array<{ value: 'durable' | 'consumable' | 'kit'; label: string; hint: string }> = [
+  { value: 'durable', label: 'Durable', hint: 'One row per physical unit (e.g. a total station)' },
+  { value: 'consumable', label: 'Consumable', hint: 'One row per SKU + quantity_on_hand (paint, lath, ribbon)' },
+  { value: 'kit', label: 'Kit', hint: 'Pre-bundled grouping that checks out as a unit' },
+];
+
+function AddUnitModal({ onClose, onCreated }: AddUnitModalProps) {
+  const { safeFetch } = usePageError('AddUnitModal');
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Form state. Strings throughout; numbers parsed at submit time.
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<'durable' | 'consumable' | 'kit'>('durable');
+  const [category, setCategory] = useState('');
+  const [brand, setBrand] = useState('');
+  const [model, setModel] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
+  const [homeLocation, setHomeLocation] = useState('');
+  const [notes, setNotes] = useState('');
+  const [qrCodeId, setQrCodeId] = useState(''); // empty → auto-generate server-side
+  // Consumable-only.
+  const [unit, setUnit] = useState('');
+  const [quantityOnHand, setQuantityOnHand] = useState('');
+  const [lowStockThreshold, setLowStockThreshold] = useState('');
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        setError('Name is required.');
+        return;
+      }
+      const body: Record<string, unknown> = {
+        name: trimmedName,
+        item_kind: kind,
+      };
+      if (category.trim()) body.category = category.trim();
+      if (brand.trim()) body.brand = brand.trim();
+      if (model.trim()) body.model = model.trim();
+      if (serialNumber.trim()) body.serial_number = serialNumber.trim();
+      if (homeLocation.trim()) body.home_location = homeLocation.trim();
+      if (notes.trim()) body.notes = notes.trim();
+      if (qrCodeId.trim()) body.qr_code_id = qrCodeId.trim();
+
+      if (kind === 'consumable') {
+        if (unit.trim()) body.unit = unit.trim();
+        if (quantityOnHand.trim()) {
+          const n = parseInt(quantityOnHand.trim(), 10);
+          if (!Number.isInteger(n) || n < 0) {
+            setError('Quantity on hand must be a non-negative integer.');
+            return;
+          }
+          body.quantity_on_hand = n;
+        }
+        if (lowStockThreshold.trim()) {
+          const n = parseInt(lowStockThreshold.trim(), 10);
+          if (!Number.isInteger(n) || n < 0) {
+            setError('Low-stock threshold must be a non-negative integer.');
+            return;
+          }
+          body.low_stock_threshold = n;
+        }
+      }
+
+      setSubmitting(true);
+      const res = await safeFetch<{ item: EquipmentRow }>(
+        '/api/admin/equipment',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }
+      );
+      setSubmitting(false);
+      if (res?.item) {
+        onCreated(res.item);
+      } else {
+        // safeFetch already reported to Sentry; show a user-visible
+        // hint so the form doesn't silently fail.
+        setError('Create failed. Check the error log; the form is unchanged.');
+      }
+    },
+    [
+      brand,
+      category,
+      homeLocation,
+      kind,
+      lowStockThreshold,
+      model,
+      name,
+      notes,
+      onCreated,
+      qrCodeId,
+      quantityOnHand,
+      safeFetch,
+      serialNumber,
+      unit,
+    ]
+  );
+
+  return (
+    <div style={styles.modalBackdrop} onClick={onClose}>
+      <form
+        style={styles.modal}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={handleSubmit}
+      >
+        <header style={styles.modalHeader}>
+          <h2 style={styles.modalTitle}>Add inventory unit</h2>
+          <button
+            type="button"
+            style={styles.modalClose}
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div style={styles.modalBody}>
+          <label style={styles.formField}>
+            <span style={styles.formLabel}>Name *</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={styles.formInput}
+              maxLength={200}
+              required
+              autoFocus
+              placeholder="Total Station — Trimble S9 #1"
+            />
+          </label>
+
+          <fieldset style={styles.fieldset}>
+            <legend style={styles.formLabel}>Item kind *</legend>
+            {ITEM_KIND_RADIO.map((opt) => (
+              <label key={opt.value} style={styles.radioRow}>
+                <input
+                  type="radio"
+                  name="item_kind"
+                  value={opt.value}
+                  checked={kind === opt.value}
+                  onChange={() => setKind(opt.value)}
+                />
+                <span>
+                  <strong>{opt.label}</strong>{' '}
+                  <span style={styles.muted}>· {opt.hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
+          <div style={styles.formGrid}>
+            <label style={styles.formField}>
+              <span style={styles.formLabel}>Category</span>
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                style={styles.formInput}
+                placeholder="total_station / gps_rover / paint / …"
+              />
+            </label>
+            <label style={styles.formField}>
+              <span style={styles.formLabel}>Home location</span>
+              <input
+                type="text"
+                value={homeLocation}
+                onChange={(e) => setHomeLocation(e.target.value)}
+                style={styles.formInput}
+                placeholder="Cage shelf B2 / Truck 3"
+              />
+            </label>
+          </div>
+
+          {kind !== 'consumable' ? (
+            <div style={styles.formGrid}>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Brand</span>
+                <input
+                  type="text"
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                  style={styles.formInput}
+                  placeholder="Trimble / Topcon / Leica"
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Model</span>
+                <input
+                  type="text"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  style={styles.formInput}
+                  placeholder="S9"
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Serial number</span>
+                <input
+                  type="text"
+                  value={serialNumber}
+                  onChange={(e) => setSerialNumber(e.target.value)}
+                  style={styles.formInput}
+                  placeholder="SN12345"
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>QR code (optional)</span>
+                <input
+                  type="text"
+                  value={qrCodeId}
+                  onChange={(e) =>
+                    setQrCodeId(e.target.value.toUpperCase())
+                  }
+                  style={styles.formInput}
+                  placeholder="auto-generated when blank"
+                  maxLength={64}
+                />
+              </label>
+            </div>
+          ) : (
+            <div style={styles.formGrid}>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Unit</span>
+                <input
+                  type="text"
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  style={styles.formInput}
+                  placeholder="can / roll / bundle / lb"
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Quantity on hand</span>
+                <input
+                  type="number"
+                  value={quantityOnHand}
+                  onChange={(e) => setQuantityOnHand(e.target.value)}
+                  style={styles.formInput}
+                  min={0}
+                  step={1}
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Low-stock threshold</span>
+                <input
+                  type="number"
+                  value={lowStockThreshold}
+                  onChange={(e) => setLowStockThreshold(e.target.value)}
+                  style={styles.formInput}
+                  min={0}
+                  step={1}
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>QR code (optional)</span>
+                <input
+                  type="text"
+                  value={qrCodeId}
+                  onChange={(e) =>
+                    setQrCodeId(e.target.value.toUpperCase())
+                  }
+                  style={styles.formInput}
+                  placeholder="auto-generated when blank"
+                  maxLength={64}
+                />
+              </label>
+            </div>
+          )}
+
+          <label style={styles.formField}>
+            <span style={styles.formLabel}>Notes</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              style={{ ...styles.formInput, minHeight: 60 }}
+              placeholder="Anything bookkeeping or maintenance should know"
+            />
+          </label>
+
+          <p style={styles.modalHint}>
+            ▸ Cost basis, calibration, and warranty fields land via the
+            inline-edit flow (Phase F10.1d). Use this form for the
+            initial create; refine later.
+          </p>
+
+          {error ? <div style={styles.actionMsgWarn}>{error}</div> : null}
+        </div>
+
+        <footer style={styles.modalFooter}>
+          <button
+            type="button"
+            style={styles.refreshBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            style={styles.submitBtn}
+            disabled={submitting || !name.trim()}
+          >
+            {submitting ? 'Creating…' : 'Create unit'}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
 export default function EquipmentInventoryPage() {
   const { data: session } = useSession();
   const { safeFetch } = usePageError('EquipmentInventoryPage');
@@ -131,6 +461,8 @@ export default function EquipmentInventoryPage() {
   const [q, setQ] = useState('');
   const [data, setData] = useState<CatalogueResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -228,7 +560,42 @@ export default function EquipmentInventoryPage() {
         >
           {loading ? 'Loading…' : 'Refresh'}
         </button>
+        <button
+          type="button"
+          style={styles.addBtn}
+          onClick={() => {
+            setActionMsg(null);
+            setShowAddModal(true);
+          }}
+        >
+          + Add unit
+        </button>
       </div>
+
+      {actionMsg ? (
+        <div
+          style={
+            actionMsg.startsWith('✓')
+              ? styles.actionMsgOk
+              : styles.actionMsgWarn
+          }
+        >
+          {actionMsg}
+        </div>
+      ) : null}
+
+      {showAddModal ? (
+        <AddUnitModal
+          onClose={() => setShowAddModal(false)}
+          onCreated={(item) => {
+            setShowAddModal(false);
+            setActionMsg(
+              `✓ Added "${item.name ?? '(unnamed)'}" — QR ${item.qr_code_id ?? '(none)'}.`
+            );
+            void fetchInventory();
+          }}
+        />
+      ) : null}
 
       {data ? (
         <div style={styles.summary}>
@@ -396,6 +763,136 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 14px',
     cursor: 'pointer',
     fontSize: 13,
+  },
+  addBtn: {
+    background: '#1D3095',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  submitBtn: {
+    background: '#15803D',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  actionMsgOk: {
+    background: '#F0FDF4',
+    border: '1px solid #86EFAC',
+    color: '#15803D',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    fontSize: 13,
+  },
+  actionMsgWarn: {
+    background: '#FEF3C7',
+    border: '1px solid #FCD34D',
+    color: '#92400E',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    fontSize: 13,
+  },
+  modalBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(15, 23, 42, 0.5)',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingTop: 60,
+    zIndex: 1000,
+  },
+  modal: {
+    background: '#FFFFFF',
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 720,
+    maxHeight: 'calc(100vh - 120px)',
+    boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  modalHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '14px 20px',
+    borderBottom: '1px solid #E2E5EB',
+  },
+  modalTitle: { fontSize: 16, fontWeight: 600, margin: 0 },
+  modalClose: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: 18,
+    cursor: 'pointer',
+    color: '#6B7280',
+    lineHeight: 1,
+    padding: 4,
+  },
+  modalBody: {
+    padding: 20,
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+  },
+  modalFooter: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 10,
+    padding: '12px 20px',
+    borderTop: '1px solid #E2E5EB',
+    background: '#FAFBFC',
+    borderRadius: '0 0 12px 12px',
+  },
+  modalHint: {
+    fontSize: 12,
+    color: '#6B7280',
+    margin: 0,
+    fontStyle: 'italic',
+  },
+  formField: { display: 'flex', flexDirection: 'column', gap: 4 },
+  formLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#374151',
+  },
+  formInput: {
+    padding: '8px 10px',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: 'inherit',
+  },
+  formGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gap: 12,
+  },
+  fieldset: {
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    padding: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  radioRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    fontSize: 13,
+    cursor: 'pointer',
   },
   summary: {
     fontSize: 13,
