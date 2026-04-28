@@ -1554,11 +1554,253 @@ flows must work in a parking-lot dead zone:
 - Insurance-packet generation for `lost` returns (§5.12.11).
 - The "what's in my truck right now" surveyor view
   (§5.12.9).
-- **5.12.7 Equipment Manager dashboards** — daily reconcile view
-  (what's out, what's overdue, what's coming back tonight),
-  maintenance calendar, low-stock consumables alerts, fleet
-  valuation page (rolls into the §11 cost model + Batch QQ tax
-  summary's depreciation line).
+#### 5.12.7 Equipment Manager dashboards
+
+The §4.6 Equipment Manager runs the daily flow that the
+preceding sub-sections describe. They need one role-specific
+landing page that surfaces everything actionable today —
+*what's leaving, what's coming back, what's broken, what's
+running low* — without having to bounce across 5 admin
+screens. This sub-section is the UI brief for that landing
+page plus four supporting dashboards.
+
+The schema work for these dashboards is already done — every
+view here reads from tables defined in §5.12.1, §5.12.4,
+§5.12.5, and §5.12.6. The implementation batch only adds
+queries + UI; no migrations.
+
+**Sidebar anchor.** New section in `app/admin/components/AdminSidebar.tsx`
+called **"Equipment"** sitting between *Work* and *Rewards & Pay*:
+- 🛠 Today (`/admin/equipment` — landing page below)
+- 📋 Reservations (`/admin/equipment/reservations`)
+- 🧰 Inventory (`/admin/equipment/inventory`)
+- 🛡 Maintenance (`/admin/equipment/maintenance`)
+- 📦 Consumables (`/admin/equipment/consumables`)
+- 👥 Crew calendar (`/admin/equipment/crew-calendar`)
+- 💼 Fleet valuation (`/admin/equipment/valuation`)
+
+Roles: `['admin', 'developer', 'tech_support', 'equipment_manager']`,
+`internalOnly: true`. The dashboard pages also degrade
+gracefully for `admin` / `developer` who don't carry the
+equipment_manager hat — they see read-only views.
+
+##### 5.12.7.1 Today (the landing page)
+
+The single most-visited screen. Three vertical strips, each
+glanceable in 2 seconds:
+
+**Strip A — Going out today** (top third):
+- Pulls `equipment_reservations` rows where `state='held'`
+  AND `reserved_from::date = today`.
+- Grouped by job. Each job card shows: job number + name,
+  scheduled crew, scheduled equipment items, scheduled vehicle,
+  go-time. Soft-warn badges surface anything from §5.12.5
+  (calibration due, low stock, stale config) so the
+  Equipment Manager sees the problems BEFORE the truck
+  rolls.
+- Per-card action: **"Pre-stage kit"** button → records a
+  `pre_staged_at` timestamp on the reservations + emits an
+  audit event ("Equipment Manager pre-staged Job #427 at 5:42pm").
+  Lets Equipment Manager check off "I built tomorrow's kit
+  tonight" without involving a QR scanner.
+- Per-card action: **"Hand off (no scanner)"** override →
+  same effect as a QR scan check-out (§5.12.6) but logged
+  with `actor='equipment_manager'` + `reason='manual_override'`.
+  For the case where a sticker fell off or the camera won't
+  focus.
+
+**Strip B — Out right now** (middle third):
+- `equipment_reservations` rows where
+  `state='checked_out'` AND `reserved_to >= now()`.
+- Sorted by `reserved_to` ascending — what comes back next
+  is at the top.
+- Each row: equipment label, who has it, which job, when it's
+  due back, an "On time / Overdue / At risk" pill (overdue =
+  past `reserved_to`; at risk = within 1h of `reserved_to`
+  but the surveyor's location_pings cluster doesn't yet
+  show movement back toward the office).
+- The "at risk" tag uses the same location infrastructure the
+  Batch DD missing-receipt scan keys off of — proactive nag
+  before the gear is officially late.
+
+**Strip C — Already returned today** (bottom third, collapsed
+by default):
+- `equipment_reservations` rows where `state='returned'` AND
+  `actual_returned_at::date = today`.
+- One row per item, condition badge (✓ good · ⚠ fair · ⚡
+  damaged · ❓ lost). Damaged + lost rows link straight into
+  the §5.12.8 maintenance flow / §5.12.11 lost-equipment
+  packet.
+- Strip serves as the daily reconcile artifact — Equipment
+  Manager can confirm at end of day that every morning's
+  Strip-A row eventually landed in Strip C, with a count
+  guard at the top: *"42 went out · 39 returned · 3 still
+  out (see Strip B)."*
+
+**Top-of-page banners.**
+- Red banner: any `personnel_unavailability` rows starting
+  today that the dispatcher hasn't yet re-staffed — pulls
+  through from §5.12.4 to keep the Equipment Manager in the
+  loop on people-side gaps that affect today's gear plans.
+- Amber banner: any `low_stock_threshold` consumables that
+  dropped below threshold yesterday + are reserved for today's
+  jobs.
+- Blue banner: maintenance windows starting today
+  (§5.12.8).
+
+**Mobile parity.** The Equipment Manager mobile app gets a
+trimmed version of this same view as their default home tab
+— the morning + evening rituals happen at the gear cage, not
+at a desk.
+
+##### 5.12.7.2 Reservations (timeline view)
+
+A horizontal Gantt-style timeline of every
+`equipment_reservations` row across the next 14 days,
+swappable to per-equipment vs per-job grouping:
+- **Per-equipment row** — one swimlane per durable / kit,
+  showing back-to-back reservations as colored bars
+  (`held` = light blue, `checked_out` = solid blue,
+  `returned` = grey, `cancelled` = strikethrough). Gaps
+  visualise availability windows.
+- **Per-job row** — one swimlane per job, showing every
+  piece of equipment reserved to it as bars.
+- Click a bar → drilldown drawer shows the reservation row
+  + the four §5.12.5 check results + soft-override history.
+- Drag-resize a `held` bar to extend / shrink the window
+  without leaving the page (re-runs availability checks +
+  flags any new conflicts inline).
+- Filter chips at the top: equipment category, job type,
+  state, overdue-only.
+
+This view is the Equipment Manager's *long-range planning*
+tool. The §5.12.7.1 Today page is for the next 24h; this page
+is for "do we have what we need for next week's jobs?"
+
+##### 5.12.7.3 Inventory (catalogue view)
+
+The list of every row in `equipment_inventory`:
+- Filterable by category, status, home_location, calibration
+  due, retired_at IS NULL/NOT NULL.
+- Inline-edit columns for the Equipment Manager:
+  `home_location`, `notes`, `current_status`. Calibration
+  fields are read-only here — they edit through the §5.12.8
+  maintenance flow.
+- Per-row actions: **Print QR sticker** (PDF download —
+  pre-formatted to a Brother label printer), **View
+  history** (the equipment_events audit log), **Retire**
+  (sets `retired_at`; soft-archives in templates per the
+  §5.12.3 cleanup queue).
+- Top-of-page action: **Add unit** (modal that wraps the
+  POST `/api/admin/jobs/equipment` `inventory_item` mode
+  already shipped in the existing route, plus the new
+  §5.12.1 columns).
+- Top-of-page action: **Bulk QR sticker print** (selected
+  rows → multi-page PDF).
+
+##### 5.12.7.4 Maintenance (calibration calendar)
+
+Twin views:
+- **Calendar grid** — month view colored by service events.
+  Each cell shows "S9 #1 cal due", "Truck 2 oil change due"
+  (vehicles cross-link in here for one-stop fleet upkeep).
+  Click a cell → drilldown.
+- **Upcoming list** — prioritised by days-until-due ascending.
+  Default range: next 60 days. Each row has a one-click
+  **Schedule** button that opens a modal for the
+  §5.12.8 service event creation flow.
+
+Cross-links:
+- Receipts (Batch QQ): a calibration invoice receipt
+  attached to a maintenance event auto-decrements the
+  equipment's depreciation reserve; the Equipment Manager
+  doesn't have to re-enter the cost. (Detail in §5.12.10
+  tax tie-in.)
+- Reservations: when an instrument has an upcoming
+  maintenance window, the §5.12.7.2 timeline shades that
+  range red so dispatchers can't accidentally reserve
+  through it. The §5.12.5 status check already enforces
+  the hard-block; this is the visual reinforcement.
+
+##### 5.12.7.5 Consumables (low-stock + restock)
+
+A flat list of every `equipment_inventory` row with
+`item_kind='consumable'`:
+- Sorted by *days-of-stock-remaining* ascending — the lowest
+  rolls float to the top. Estimated from the trailing
+  30-day consumption rate (consumed_quantity totals from
+  §5.12.6 returns).
+- Per-row badges: **OK** (≥ 14 days estimated stock),
+  **Reorder soon** (7–14), **Reorder NOW** (< 7 OR below
+  `low_stock_threshold` regardless of rate).
+- Inline actions: **Restock arrived** (modal — quantity +
+  cost + receipt photo upload, the latter wires straight
+  into the receipts pipeline so the bookkeeper sees it
+  too), **Update threshold**, **Mark discontinued**.
+- Top of page: monthly burn-rate chart per consumable
+  category (paint, lath, hubs, ribbon, marker_flags) —
+  helps the Equipment Manager spot a rate change before
+  it bites a job.
+
+##### 5.12.7.6 Crew calendar (week heatmap)
+
+The capacity-calendar view referenced in §5.12.4. Week-grid:
+rows = internal users, columns = days. Each cell coloured by
+state:
+- White = open (no `job_team` row)
+- Light green = `proposed` assignment
+- Solid green = `confirmed` assignment
+- Yellow = partial day (split-shift)
+- Grey = `personnel_unavailability` (PTO / sick / training)
+- Red = unconfirmed assignment past notification grace
+  (default 24h — auto-fires a re-prompt to the surveyor)
+
+Click any cell → drilldown shows the assignment / unavailability
+detail + actions. Drag-create a new unavailability row or
+shift an assignment between adjacent days.
+
+The same view is the dispatcher's primary planning tool too —
+exposed in the existing /admin/jobs flow via a "View crew
+availability" link.
+
+##### 5.12.7.7 Fleet valuation
+
+Read-only page that rolls every non-retired
+`equipment_inventory` row's `acquired_cost_cents`,
+`acquired_at`, `useful_life_months` into a three-column
+summary:
+- **Cost basis** — sum of acquisition costs.
+- **Accumulated depreciation** — straight-line per
+  useful_life_months (refined per §5.12.10 tax tie-in;
+  Section 179 immediate-expense overrides still flow through
+  the receipt category logic).
+- **Book value remaining** — basis minus accumulated dep.
+
+Group-by toggles: category, home_location, vehicle, year
+acquired. Export-to-CSV button feeds the Batch QQ tax-summary
+endpoint a "depreciation by category" line that lands on
+Schedule C Line 13. Closes the loop the §5.11.4 receipt
+categories opened — `equipment` receipts now have a downstream
+ledger.
+
+Insurance valuation export (PDF) is a v2 polish item —
+template documents the insurer wants in their format.
+
+##### 5.12.7.8 Templates referencing retired gear
+
+The cleanup queue called out in §5.12.3 — surfaced as a
+small badge on the sidebar item when non-zero. Page itself is
+a list of templates pinned to a `retired_at IS NOT NULL`
+instrument with one-click "Swap to category-of-kind" or
+"Swap to alternate unit" actions. Empty state when
+everything's clean ("All templates point to active gear ✓").
+
+**What §5.12.7 does NOT cover:**
+- The maintenance event create / edit flow itself (§5.12.8).
+- The mobile surveyor "what's in my truck right now" view
+  (§5.12.9).
+- The depreciation algorithm + tax line plumbing (§5.12.10).
+- The lost-equipment insurance packet generator (§5.12.11).
 - **5.12.8 Maintenance + calibration** — service events table,
   PDF cert attachments, "next calibration due in 14 days"
   alerts, integration with the receipts module so a calibration
