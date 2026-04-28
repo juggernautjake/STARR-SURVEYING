@@ -3544,13 +3544,13 @@ the rest of F10 reads from. Broken into 10 small sub-batches:
 
 **F10.2 — Templates + dispatcher apply flow (Week 34–35).**
 Broken into smaller sub-batches per the established pattern.
-- [◐] **F10.2a** — Templates list endpoints. **F10.2a-i
-      (`GET /api/admin/equipment/templates`)** shipped: filters
-      by job_type / include_archived / q (substring on name +
-      description), returns headers w/ embedded item_count
-      aggregate, total_count probe filtered to the same
-      archive shape, 100/500 limit. F10.2a-ii (`GET [id]`
-      detail with items + version snapshot) lands next.
+- [x] **F10.2a** — Templates list endpoints. **F10.2a-i
+      (`GET /api/admin/equipment/templates` list)** + **F10.2a-ii
+      (`GET /api/admin/equipment/templates/[id]` detail)** both
+      shipped. Detail endpoint joins items (ordered by
+      sort_order) + version_count + latest_snapshot_at via
+      4 parallel queries, returns 404 on missing row, UUID-
+      validates the path-param.
 - [ ] **F10.2b** — Templates create/edit endpoints
       (POST + PATCH + DELETE).
 - [ ] **F10.2c** — Items endpoints (POST/PATCH/DELETE for
@@ -3767,7 +3767,7 @@ or `filter: {…}` — 200-row cap, parallel QR encode, X-Stickers-
 Printed / X-Stickers-Skipped response headers; F10.1h-i
 `POST /import` CSV bulk-import w/ RFC-4180 parser, dry-run +
 execute modes, 1000-row cap, per-row error attribution;
-F10.2a-i `GET /templates` list w/ embedded item_count;
+F10.2a `GET /templates` list w/ embedded item_count + `GET /templates/[id]` detail w/ joined items + version metadata;
 equipment_manager role gated; tech_support read-only)**.
 
 **Worker (`worker/src/services/`):**
@@ -3889,7 +3889,7 @@ the dashboards they link to.
   - **✅ F10.0a-v** seeds/237 equipment_templates + items + versions `[e566747]`
   - **✅ F10.0e** equipment_manager role + 4 consumers `[ded0b67]`
   - **✅ F10.1** Inventory catalogue UI + QR codes — fully shipped (F10.1a-j: GET endpoint · catalogue page · POST + Add modal · PATCH + Edit modal · Retire/Restore endpoints + UI · single-row QR PDF · bulk QR PDF endpoint + bulk-select UI · CSV import endpoint + page · mobile useEquipmentByQr resolver + schema · mobile camera scanner overlay)
-  - **◐ F10.2** Templates + dispatcher apply flow — F10.2a-i (GET /api/admin/equipment/templates list endpoint w/ embedded item_count + filter probes) shipped; F10.2a-ii through F10.2g pending (detail GET · POST/PATCH/DELETE templates · items endpoints · list page · edit page · save-as-template · apply flow)
+  - **◐ F10.2** Templates + dispatcher apply flow — F10.2a (list + detail GET endpoints) shipped; F10.2b-g pending (POST/PATCH/DELETE templates · items endpoints · list page · edit page · save-as-template · apply flow)
   - **⨯ F10.3** Availability + conflict engine (seeds/238 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
   - **⨯ F10.4** Personnel side (seeds/239 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
   - **⨯ F10.5** Daily check-in/out workflow (the user's headline ritual; QR scanner sheets; damage triage; lost-on-site; 6pm/9pm nag cron)
