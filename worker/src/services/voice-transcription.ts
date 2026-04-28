@@ -17,12 +17,12 @@
 //      PowerSync (mobile) or fetch refresh (admin).
 //
 // Cost: Whisper API = $0.006/min ($0.0001/sec). Per-row cost lands
-// on field_media.transcription_cost_cents for audit. v1 doesn't
-// integrate with the global ai-usage-tracker (that tracker's
-// service enum is closed to vision-ocr / variant-generation /
-// ai-parse) — Whisper costs are predictable + cheap; v2 polish
-// can extend the tracker to include the 'whisper-transcribe'
-// service.
+// on field_media.transcription_cost_cents for audit AND flows
+// through the shared `getGlobalAiTracker()` circuit breaker
+// (Batch SS — service='whisper-transcribe', explicit costUsd
+// override since Whisper bills per-second rather than per-token).
+// A runaway Whisper backlog will trip the same gate that protects
+// Recon's vision-ocr spend.
 //
 // Failure modes:
 //   - Signed URL fetch error → markFailed with 'fetch: ...'.
@@ -42,6 +42,8 @@
 
 import OpenAI from 'openai';
 import type { SupabaseClient } from '@supabase/supabase-js';
+
+import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -173,8 +175,21 @@ export async function processVoiceTranscriptionBatch(
   let failed = 0;
   let skipped = 0;
 
+  // Pre-loop gate check — same shape as receipt-extraction. The
+  // per-row pipeline re-checks before the Whisper call too, but
+  // bailing out early when the breaker is wide-open avoids
+  // claiming rows we won't process.
+  const tracker = getGlobalAiTracker();
+  const initialGate = tracker.canMakeCall();
+  if (!initialGate.allowed) {
+    logger.warn('AI usage tracker circuit open — skipping batch', {
+      reason: initialGate.reason,
+    });
+    return { total: 0, done: 0, failed: 0, skipped: rows.length, results: [] };
+  }
+
   for (const row of rows) {
-    const result = await processOne(supabase, client, row, logger);
+    const result = await processOne(supabase, client, tracker, row, logger);
     results.push(result);
     if (result.status === 'done') done += 1;
     else if (result.status === 'failed') failed += 1;
@@ -196,6 +211,7 @@ export async function processVoiceTranscriptionBatch(
 async function processOne(
   supabase: SupabaseClient,
   client: OpenAI,
+  tracker: ReturnType<typeof getGlobalAiTracker>,
   row: VoiceRow,
   logger: ProcessLogger
 ): Promise<VoiceTranscriptionResult> {
@@ -257,7 +273,28 @@ async function processOne(
     return { mediaId: row.id, status: 'failed', error: msg };
   }
 
-  // 4. Whisper API call. The OpenAI SDK accepts a File-like — Node
+  // 4. Re-check the gate immediately before the Whisper call. The
+  //    audio download might have taken seconds; a sibling row in
+  //    the batch could have just opened the breaker. Without this
+  //    check, we'd spend on a call we should have skipped. Mirror
+  //    the receipt-extraction pattern.
+  const gate = tracker.canMakeCall();
+  if (!gate.allowed) {
+    // Roll the row back to 'queued' so the next batch retries.
+    // Don't markFailed — the breaker is a transient soft-stop.
+    await releaseClaim(supabase, row.id, logger);
+    logger.warn('circuit open after audio fetch — releasing row', {
+      media_id: row.id,
+      reason: gate.reason,
+    });
+    return {
+      mediaId: row.id,
+      status: 'failed',
+      error: gate.reason ?? 'circuit open',
+    };
+  }
+
+  // 5. Whisper API call. The OpenAI SDK accepts a File-like — Node
   //    fetch handles the multipart upload internally.
   let text = '';
   try {
@@ -278,12 +315,19 @@ async function processOne(
     text = transcript.text ?? '';
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    // Failed attempts go on the ledger too — consecutive failures
+    // open the circuit (Whisper outage shouldn't drain credits).
+    tracker.record({
+      service: 'whisper-transcribe',
+      address: `voice:${row.id}`,
+      success: false,
+    });
     await markFailed(supabase, row.id, `whisper: ${msg}`, logger);
     logger.warn('whisper call failed', { media_id: row.id, error: msg });
     return { mediaId: row.id, status: 'failed', error: msg };
   }
 
-  // 5. Compute cost. duration_seconds is the source of truth from
+  // 6. Compute cost. duration_seconds is the source of truth from
   //    the mobile recorder; if missing we fall back to the file
   //    size / 96 kbps heuristic so we still get a reasonable
   //    estimate.
@@ -295,6 +339,16 @@ async function processOne(
   const minutes = seconds / 60;
   const costUsd = minutes * WHISPER_USD_PER_MINUTE;
   const costCents = Math.round(costUsd * 100);
+
+  // Land on the shared circuit breaker with the explicit costUsd
+  // (Whisper bills per-second, not per-token, so the tracker's
+  // Sonnet-token math would be wrong).
+  tracker.record({
+    service: 'whisper-transcribe',
+    address: `voice:${row.id}`,
+    success: true,
+    costUsd,
+  });
 
   const writeErr = await markDone(supabase, row.id, text, costCents);
   if (writeErr) {
@@ -353,6 +407,35 @@ async function sweepWatchdog(
 }
 
 // ── Claim row (race-safe) ────────────────────────────────────────────────────
+
+/**
+ * Roll a `transcription_status='running'` row back to `'queued'`.
+ * Used when the AI-usage tracker breaker flips open after we've
+ * claimed the row but before we've called Whisper. Don't markFailed —
+ * the breaker is a transient soft-stop; the next batch will pick the
+ * row up.
+ */
+async function releaseClaim(
+  supabase: SupabaseClient,
+  mediaId: string,
+  logger: ProcessLogger
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from('field_media')
+    .update({
+      transcription_status: 'queued',
+      transcription_started_at: null,
+    })
+    .eq('id', mediaId)
+    .eq('transcription_status', 'running');
+  if (error) {
+    logger.warn('releaseClaim failed', {
+      media_id: mediaId,
+      error: error.message,
+    });
+  }
+}
 
 async function claimRow(
   supabase: SupabaseClient,

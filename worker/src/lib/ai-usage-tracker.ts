@@ -14,10 +14,22 @@ const ESTIMATED_TOKENS_PER_CALL = 800;
 
 export interface AiUsageEntry {
   timestamp: number;
-  service: 'variant-generation' | 'vision-ocr' | 'ai-parse';
+  /** Logical AI workload buckets sharing one circuit breaker.
+   *  - variant-generation / vision-ocr / ai-parse: STARR Recon
+   *  - vision-ocr is also used by the Starr Field receipt extractor
+   *  - whisper-transcribe: Starr Field voice-memo transcription
+   *    (different vendor + per-second pricing — see record() costUsd
+   *    override). */
+  service:
+    | 'variant-generation'
+    | 'vision-ocr'
+    | 'ai-parse'
+    | 'whisper-transcribe';
   inputTokens: number;
   outputTokens: number;
   estimatedCostUsd: number;
+  /** Free-form context label — typically a property address (Recon),
+   *  a receipt id, or a media id. Optional; empty string is fine. */
   address: string;
   success: boolean;
 }
@@ -114,12 +126,31 @@ export class AiUsageTracker {
 
   // ── Recording ──────────────────────────────────────────────────────────────
 
-  /** Record an AI API call and its outcome. */
-  record(entry: Omit<AiUsageEntry, 'timestamp' | 'estimatedCostUsd' | 'inputTokens' | 'outputTokens'> & { inputTokens?: number; outputTokens?: number }): void {
+  /** Record an AI API call and its outcome.
+   *
+   *  Cost computation:
+   *  - When `costUsd` is supplied, it's used verbatim. Use this for
+   *    Whisper (per-second pricing) or any non-Sonnet model.
+   *  - Otherwise the cost is estimated from tokens × Sonnet rate.
+   *    Approximate; circuit breaker only needs order-of-magnitude
+   *    accuracy.
+   */
+  record(
+    entry: Omit<
+      AiUsageEntry,
+      'timestamp' | 'estimatedCostUsd' | 'inputTokens' | 'outputTokens' | 'address'
+    > & {
+      inputTokens?: number;
+      outputTokens?: number;
+      costUsd?: number;
+      address?: string;
+    }
+  ): void {
     const inputTokens = entry.inputTokens ?? Math.round(ESTIMATED_TOKENS_PER_CALL * 0.6);
     const outputTokens = entry.outputTokens ?? Math.round(ESTIMATED_TOKENS_PER_CALL * 0.4);
     const totalTokens = inputTokens + outputTokens;
-    const estimatedCostUsd = (totalTokens / 1000) * SONNET_COST_PER_1K_TOKENS;
+    const estimatedCostUsd =
+      entry.costUsd ?? (totalTokens / 1000) * SONNET_COST_PER_1K_TOKENS;
 
     const fullEntry: AiUsageEntry = {
       timestamp: Date.now(),
@@ -127,7 +158,7 @@ export class AiUsageTracker {
       inputTokens,
       outputTokens,
       estimatedCostUsd,
-      address: entry.address,
+      address: entry.address ?? '',
       success: entry.success,
     };
 
