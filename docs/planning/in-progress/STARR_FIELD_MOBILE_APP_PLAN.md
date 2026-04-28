@@ -3449,8 +3449,9 @@ the rest of F10 reads from. Broken into 10 small sub-batches:
       personal/suspect/retired badges, low-stock highlight
       on consumables, cost basis + next-cal-due columns.
       Sidebar entry NOT yet added (lands in F10.6).
-- [ ] **F10.1c** — Add Unit modal + `POST /api/admin/equipment`
-      endpoint.
+- [◐] **F10.1c** — Add Unit modal + `POST /api/admin/equipment`
+      endpoint. **F10.1c-i (POST endpoint) shipped**; F10.1c-ii
+      modal UI on the catalogue page lands next.
 - [ ] **F10.1d** — Inline edit (`PATCH /api/admin/equipment/[id]`
       + form on the catalogue rows).
 - [ ] **F10.1e** — Retire action (soft-archive via
@@ -3675,8 +3676,12 @@ for tombstones, Batch FF), `finances/tax-summary`
 (JSON+CSV Schedule-C report w/ status split, Batch QQ),
 `finances/mark-exported` (period-lock action, Batch QQ),
 **`equipment` (Phase F10.1a — GET catalogue with status /
-category / item_kind / include_retired / q filters, equipment_manager
-role gated)**.
+category / item_kind / include_retired / q filters; Phase F10.1c-i
+POST creates a row with allow-listed columns, validated
+item_kind / current_status enums, auto-generated qr_code_id,
+non-negative integer guards on cents/quantity columns, 409 on
+qr_code_id collision; equipment_manager role gated; tech_support
+read-only)**.
 
 **Worker (`worker/src/services/`):**
 - `receipt-extraction.ts` + `cli/extract-receipts.ts` + endpoint at

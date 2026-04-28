@@ -213,3 +213,231 @@ export const GET = withErrorHandler(
   },
   { routeName: 'admin/equipment' }
 );
+
+// ── POST /api/admin/equipment — create a new inventory row ─────────────────
+//
+// Body (all keys optional except name + item_kind):
+//   name (required, ≤200 chars)
+//   item_kind (required, durable | consumable | kit)
+//   category, brand, model, serial_number, notes
+//   qr_code_id (optional — auto-generated 12-char UUID slice when
+//     omitted, so the Equipment Manager can print the sticker
+//     immediately after creation; UNIQUE constraint surfaces a 409
+//     if the supplied value collides)
+//   current_status (default 'available')
+//   acquired_at, acquired_cost_cents, useful_life_months,
+//     placed_in_service_at
+//   last_calibrated_at, next_calibration_due_at, warranty_expires_at,
+//     service_contract_vendor, last_serviced_at
+//   unit, quantity_on_hand, low_stock_threshold, last_restocked_at,
+//     vendor, cost_per_unit_cents (consumable-shape fields)
+//   home_location, vehicle_id
+//   is_personal (default false), owner_user_id
+//   serial_suspect (default false)
+//
+// Auth: admin / developer / equipment_manager. tech_support is
+// read-only — they don't create inventory. Returns the inserted
+// row in full so the page can refetch one row instead of the whole
+// catalogue when adding via the modal (saves a roundtrip).
+
+interface CreateEquipmentBody {
+  [key: string]: unknown;
+}
+
+const ALLOWED_CREATE_KEYS = new Set([
+  'name',
+  'item_kind',
+  'category',
+  'brand',
+  'model',
+  'serial_number',
+  'notes',
+  'qr_code_id',
+  'current_status',
+  'acquired_at',
+  'acquired_cost_cents',
+  'useful_life_months',
+  'placed_in_service_at',
+  'last_calibrated_at',
+  'next_calibration_due_at',
+  'warranty_expires_at',
+  'service_contract_vendor',
+  'last_serviced_at',
+  'unit',
+  'quantity_on_hand',
+  'low_stock_threshold',
+  'last_restocked_at',
+  'vendor',
+  'cost_per_unit_cents',
+  'home_location',
+  'vehicle_id',
+  'is_personal',
+  'owner_user_id',
+  'serial_suspect',
+]);
+
+/** Generate a 12-char UUID slice for the QR sticker code.
+ *  Short enough to fit on a Brother DK-1201 weatherproof label
+ *  (the §15 prereq #26 default), long enough to avoid collisions
+ *  in a catalogue of even 10K units. UNIQUE constraint surfaces
+ *  the 1-in-billions collision case as a clean 409. */
+function generateQrCodeId(): string {
+  const raw = crypto.randomUUID().replace(/-/g, '');
+  return raw.slice(0, 12).toUpperCase();
+}
+
+export const POST = withErrorHandler(
+  async (req: NextRequest) => {
+    const session = await auth();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userRoles = (session.user as { roles?: string[] } | undefined)
+      ?.roles ?? [];
+    // tech_support is read-only — no inventory creation.
+    if (
+      !isAdmin(session.user.roles) &&
+      !userRoles.includes('equipment_manager')
+    ) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    let body: CreateEquipmentBody;
+    try {
+      body = (await req.json()) as CreateEquipmentBody;
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid JSON body' },
+        { status: 400 }
+      );
+    }
+
+    // Strip unknown keys defensively — clients can't sneak columns
+    // like `created_by` or `id` past the gate.
+    const insert: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(body)) {
+      if (ALLOWED_CREATE_KEYS.has(k) && v !== undefined) {
+        insert[k] = v;
+      }
+    }
+
+    // Required: name + item_kind.
+    const name = typeof insert.name === 'string' ? insert.name.trim() : '';
+    if (!name) {
+      return NextResponse.json(
+        { error: 'name is required' },
+        { status: 400 }
+      );
+    }
+    if (name.length > 200) {
+      return NextResponse.json(
+        { error: 'name must be ≤200 characters' },
+        { status: 400 }
+      );
+    }
+    insert.name = name;
+
+    const itemKind = insert.item_kind;
+    if (typeof itemKind !== 'string' || !ALLOWED_ITEM_KINDS.has(itemKind)) {
+      return NextResponse.json(
+        {
+          error:
+            'item_kind is required (durable | consumable | kit)',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate current_status if supplied; default to 'available'.
+    if (insert.current_status === undefined || insert.current_status === null) {
+      insert.current_status = 'available';
+    } else if (
+      typeof insert.current_status !== 'string' ||
+      !ALLOWED_STATUSES.has(insert.current_status)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'current_status must be one of: ' +
+            Array.from(ALLOWED_STATUSES).join(', '),
+        },
+        { status: 400 }
+      );
+    }
+
+    // Auto-generate qr_code_id when not supplied.
+    if (!insert.qr_code_id || typeof insert.qr_code_id !== 'string') {
+      insert.qr_code_id = generateQrCodeId();
+    } else {
+      // Normalise + cap length defensively.
+      insert.qr_code_id = insert.qr_code_id.trim().toUpperCase().slice(0, 64);
+      if (!insert.qr_code_id) insert.qr_code_id = generateQrCodeId();
+    }
+
+    // Cents columns must be integers ≥ 0 if present.
+    for (const key of [
+      'acquired_cost_cents',
+      'cost_per_unit_cents',
+    ] as const) {
+      const v = insert[key];
+      if (v !== undefined && v !== null) {
+        if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) {
+          return NextResponse.json(
+            { error: `${key} must be a non-negative integer (cents)` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    // Quantity columns must be non-negative integers if present.
+    for (const key of [
+      'quantity_on_hand',
+      'low_stock_threshold',
+      'useful_life_months',
+    ] as const) {
+      const v = insert[key];
+      if (v !== undefined && v !== null) {
+        if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) {
+          return NextResponse.json(
+            { error: `${key} must be a non-negative integer` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('equipment_inventory')
+      .insert(insert)
+      .select(SELECT_COLUMNS)
+      .single();
+
+    if (error) {
+      // 23505 = UNIQUE violation (qr_code_id collision is the only
+      // unique constraint at this table; surface as a clean 409).
+      if (error.code === '23505') {
+        return NextResponse.json(
+          { error: `qr_code_id "${insert.qr_code_id}" is already taken` },
+          { status: 409 }
+        );
+      }
+      console.error('[admin/equipment] create failed', {
+        error: error.message,
+        admin_email: session.user.email,
+      });
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    console.log('[admin/equipment] created', {
+      id: (data as { id: string } | null)?.id,
+      name,
+      item_kind: itemKind,
+      qr_code_id: insert.qr_code_id,
+      admin_email: session.user.email,
+    });
+
+    return NextResponse.json({ item: data }, { status: 201 });
+  },
+  { routeName: 'admin/equipment#post' }
+);
