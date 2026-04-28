@@ -31,7 +31,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePowerSync } from '@powersync/react';
@@ -46,11 +45,12 @@ import {
   useUploadQueueStatus,
 } from '@/lib/uploadQueue';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 type Filter = 'pending' | 'failed';
 
 export default function UploadsScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
   const db = usePowerSync();
 

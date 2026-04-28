@@ -1,7 +1,6 @@
 import { Stack } from 'expo-router';
-import { useColorScheme } from 'react-native';
-
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Jobs-tab nested stack. Lets the list (`index.tsx`) push the
@@ -13,7 +12,7 @@ import { colors } from '@/lib/theme';
  * to keep visual hierarchy under the tab's control.
  */
 export default function JobsStackLayout() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   return (
@@ -26,6 +25,17 @@ export default function JobsStackLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="[id]" />
+      <Stack.Screen
+        name="search"
+        options={{
+          // Modal feel — slides up from the bottom — for the
+          // search-screen entry from the jobs list. Surveyors
+          // dismiss with the Cancel button at the top, which
+          // pops back to wherever they came from.
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
     </Stack>
   );
 }

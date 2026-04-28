@@ -24,7 +24,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 
 import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
-import { getCurrentPositionOrNull } from './location';
+import { getCurrentHeadingOrNull, getCurrentPositionOrNull } from './location';
 import { logError, logInfo } from './log';
 import {
   pickAndCompress,
@@ -50,6 +50,14 @@ export const VIDEO_BUCKET = 'starr-field-videos';
 // pushing typical JPEG file sizes much past 600 KB.
 const PHOTO_MAX_DIMENSION_PX = 2400;
 const PHOTO_QUALITY = 0.85;
+/** Videos larger than this queue with `require_wifi=1` so the
+ *  upload queue holds them off the cellular network. 10 MB is a
+ *  practical cutoff: 30-second clips at 1080p typically land
+ *  ~8 MB, so most short captures upload immediately on cellular,
+ *  while 2-min walkthroughs (~50 MB+) queue for Wi-Fi.
+ *  Surveyor can see "Waiting for Wi-Fi" on the tile so it's
+ *  never a mystery wait. */
+const WIFI_ONLY_BYTES_THRESHOLD = 10 * 1024 * 1024;
 
 // UUID v4 + v5 + v7 shapes — anything `gen_random_uuid()` produces on
 // the server side, plus what `randomUUID()` produces client-side.
@@ -149,9 +157,15 @@ export function useAttachPhoto(): (
       // 2. Capture phone GPS + compass for the EXIF-equivalent metadata
       //    columns. expo-image-picker's exif option strips this when
       //    set to false (we set false to avoid a slow PHAsset round-
-      //    trip), so we re-capture from the location helper. Best-
-      //    effort — null on permission denied / no fix.
-      const pos = await getCurrentPositionOrNull();
+      //    trip), so we re-capture from the location helper. Both are
+      //    best-effort (null on denied permission / no fix / sensor
+      //    unavailable) and run in parallel so total wall-time is
+      //    bounded by the slower of the two timeouts (GPS 8 s,
+      //    heading 1.5 s).
+      const [pos, heading] = await Promise.all([
+        getCurrentPositionOrNull(),
+        getCurrentHeadingOrNull(),
+      ]);
 
       // 3. Generate IDs + storage path. Path convention is locked by
       //    the storage RLS policy (see seeds/221_*.sql): leading
@@ -212,8 +226,7 @@ export function useAttachPhoto(): (
               picked.fileSize ?? null,
               pos?.latitude ?? null,
               pos?.longitude ?? null,
-              // Compass heading needs expo-sensors' Magnetometer; F3 polish.
-              null,
+              heading,
               nowIso,
               nowIso,
               userId,
@@ -252,6 +265,8 @@ export function useAttachPhoto(): (
         media_id: mediaId,
         point_id: dataPointId,
         bytes: picked.fileSize ?? null,
+        has_gps: !!pos,
+        has_heading: heading != null,
         uploaded_now: enqueueResult.uploadedNow,
       });
 
@@ -518,8 +533,13 @@ export function useAttachVideo(): (
         return null;
       }
 
-      // Best-effort GPS metadata. Same pattern as photo capture.
-      const pos = await getCurrentPositionOrNull();
+      // Best-effort GPS + compass metadata. Same pattern as photo
+      // capture — both queries run in parallel and degrade to null
+      // independently.
+      const [pos, heading] = await Promise.all([
+        getCurrentPositionOrNull(),
+        getCurrentHeadingOrNull(),
+      ]);
 
       const mediaId = randomUUID();
       const parentTag = dataPointId ?? `job-${jobId}`;
@@ -548,15 +568,19 @@ export function useAttachVideo(): (
                duration_seconds, file_size_bytes,
                device_lat, device_lon, device_compass_heading,
                captured_at, uploaded_at,
-               created_by, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               created_by, created_at,
+               thumbnail_extraction_status
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               mediaId,
               jobId,
               dataPointId,
               'video',
               storagePath,
-              null, // server-side thumbnail extraction in F4 polish
+              // thumbnail_url stays null until the worker extracts a
+              // poster frame via ffmpeg (Batch GG). Mobile UI falls
+              // back to the 🎬 placeholder until the row syncs back.
+              null,
               null, // WiFi-only original-quality tier in F4 polish
               null, // no annotation overlay for video
               'pending',
@@ -566,11 +590,20 @@ export function useAttachVideo(): (
               picked.fileSize ?? null,
               pos?.latitude ?? null,
               pos?.longitude ?? null,
-              null,
+              heading,
               nowIso,
               nowIso,
               userId,
               nowIso,
+              // Mark queued so the thumbnail-extraction worker
+              // (worker/src/services/video-thumbnail-extraction.ts)
+              // picks the row up after upload completes. The
+              // worker's poll filters on
+              //   media_type='video' AND upload_state='done'
+              //   AND thumbnail_extraction_status='queued'
+              // so this row sits queued until the upload queue
+              // flips upload_state to 'done'.
+              'queued',
             ]
           );
         });
@@ -583,6 +616,18 @@ export function useAttachVideo(): (
         throw err;
       }
 
+      // Wi-Fi-only gate (Batch KK). Videos over the cellular-budget
+      // threshold queue with `require_wifi=1` — the upload queue's
+      // drainer skips them on cellular and picks them up on the
+      // next Wi-Fi transition. The threshold mirrors §5.4's intent
+      // ("WiFi-only original-quality re-upload tier") without the
+      // architectural overhead of a second-tier transcode pipeline:
+      // the original IS the only tier, and we just gate large clips.
+      // Surveyor sees 'wifi-waiting' on the tile; pre-Wi-Fi
+      // captures upload silently on next reconnect.
+      const requireWifi =
+        (picked.fileSize ?? 0) > WIFI_ONLY_BYTES_THRESHOLD;
+
       const enqueueResult = await enqueueAndAttempt(db, {
         parentTable: 'field_media',
         parentId: mediaId,
@@ -591,6 +636,7 @@ export function useAttachVideo(): (
         localFileUri: picked.uri,
         contentType: picked.contentType,
         scope: 'fieldMedia.attachVideo',
+        requireWifi,
       });
 
       // MediaLibrary backup — for video the asset goes to the user's
@@ -602,6 +648,9 @@ export function useAttachVideo(): (
         point_id: dataPointId,
         duration_seconds: picked.durationSeconds ?? null,
         file_size: picked.fileSize ?? null,
+        require_wifi: requireWifi,
+        has_gps: !!pos,
+        has_heading: heading != null,
         uploaded_now: enqueueResult.uploadedNow,
       });
 

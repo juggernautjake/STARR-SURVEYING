@@ -224,6 +224,105 @@ export interface FixWithFallback {
   reason: GpsFailureReason | null;
 }
 
+// ── Compass heading capture ────────────────────────────────────────────────
+
+const HEADING_TIMEOUT_MS = 1_500;
+
+/**
+ * Best-effort one-shot magnetic-compass heading. Returns degrees
+ * 0..360 (true heading preferred; falls back to magnetic when the
+ * OS hasn't computed declination yet, e.g. fresh start indoors).
+ *
+ * Why prefer trueHeading? Surveyors mark monument photos against
+ * cardinal directions ("the rebar's north face"), which is geo-
+ * north, not magnetic. The OS handles the declination lookup once
+ * it has a GPS fix.
+ *
+ * Why a tight 1.5 s timeout? `getHeadingAsync()` returns immediately
+ * once a sample is available, but on a cold start the magnetometer
+ * may need several samples to stabilise. Surveyors won't wait —
+ * a missing heading is fine; a 5-second wait is not.
+ *
+ * Returns null on:
+ *   - no foreground location permission (heading uses the same
+ *     permission grant as GPS on iOS / Android)
+ *   - sensor unavailable (older Android, indoor environments,
+ *     hardware errors)
+ *   - sample not stable in time (timeout)
+ *   - very low accuracy (`accuracy === 0` from expo-location =
+ *     "calibration needed"; surfaces as null so we don't write
+ *     wildly wrong bearings to the row)
+ */
+export async function getCurrentHeadingOrNull(): Promise<number | null> {
+  const granted = await ensureForegroundPermission();
+  if (!granted) {
+    logInfo('location.getCurrentHeadingOrNull', 'no permission — null heading');
+    return null;
+  }
+
+  try {
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    const timeoutPromise = new Promise<null>((resolve) => {
+      timeoutHandle = setTimeout(() => resolve(null), HEADING_TIMEOUT_MS);
+    });
+
+    try {
+      const heading = await Promise.race([
+        Location.getHeadingAsync(),
+        timeoutPromise,
+      ]);
+
+      if (!heading) {
+        logInfo('location.getCurrentHeadingOrNull', 'timeout — null heading', {
+          timeout_ms: HEADING_TIMEOUT_MS,
+        });
+        return null;
+      }
+
+      // expo-location returns `accuracy` as an Apple-style enum:
+      //   0 = calibration needed (north arrow spins wildly)
+      //   1 = low (room-scale interference, like steel I-beams)
+      //   2 = medium (typical outdoor)
+      //   3 = high (clear-sky, no metal nearby)
+      // We accept any reading the device is willing to label
+      // medium-or-better; calibration-needed gets dropped so we
+      // don't silently record a bearing that points at a building's
+      // rebar instead of magnetic north.
+      if (heading.accuracy != null && heading.accuracy < 1) {
+        logInfo(
+          'location.getCurrentHeadingOrNull',
+          'accuracy too low — dropping reading',
+          { accuracy: heading.accuracy }
+        );
+        return null;
+      }
+
+      // trueHeading: -1 when the OS hasn't reconciled declination yet
+      // (no recent GPS fix). Fall back to magHeading rather than
+      // returning null — magnetic is still useful directionally and
+      // the office reviewer can see the value as a hint.
+      const raw =
+        heading.trueHeading != null && heading.trueHeading >= 0
+          ? heading.trueHeading
+          : heading.magHeading;
+      if (raw == null || !Number.isFinite(raw)) {
+        return null;
+      }
+
+      // Normalise to 0..360. expo-location is supposed to return in
+      // that range already but defensive bounds handle the edge
+      // case where iOS returns -180..180 on some hardware.
+      const normalised = ((raw % 360) + 360) % 360;
+      return Math.round(normalised * 10) / 10;
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
+  } catch (err) {
+    logWarn('location.getCurrentHeadingOrNull', 'getHeadingAsync failed', err);
+    return null;
+  }
+}
+
 export async function getCurrentPositionWithFallback(): Promise<FixWithFallback> {
   // getCurrentPosition() refreshes the cache itself on success, so
   // we don't double-write here.

@@ -12,7 +12,7 @@
  * adds the manual-edit screen with audit trail; an entry tap will
  * navigate there.
  */
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { StatusChip } from './StatusChip';
 import { entryTypeLabel } from './timeTracking';
@@ -32,7 +32,7 @@ interface TimesheetProps {
 }
 
 export function Timesheet({ days, onPressEntry }: TimesheetProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   if (days.length === 0) {

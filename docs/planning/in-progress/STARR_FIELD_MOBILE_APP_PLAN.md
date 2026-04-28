@@ -952,7 +952,7 @@ No parallel `/dispatcher/` or `/field-admin/` route tree — that would duplicat
 - [x] Local SQLite + sync queue scaffolding (PowerSync — `mobile/lib/db/{schema,connector,index}.tsx`); 14 tables in `AppSchema` covering jobs, time tracking, receipts, field data, location pings, notifications, plus the local-only `pending_uploads` queue.
 - [x] Tab bar shell, navigation, theme (`mobile/app/(tabs)/_layout.tsx` + `lib/theme.ts`); 5 tabs (Jobs / Capture FAB / Time / Money / Me) with nested stacks under Jobs / Time / Money / Me / Capture.
 - [/] EAS Build configured (TestFlight + internal Android) — `mobile/eas.json` defines development / preview / production channels; submit credentials still placeholders (`REPLACE_WITH_*`); first TestFlight build pending operator action.
-- [ ] OTA updates working — `expo-updates` installed but `app.json` has no `"updates"` block (no channel URL set). Need to flip on once EAS Update is provisioned.
+- [/] OTA updates working (Batch HH) — `mobile/lib/otaUpdates.ts` ships cold-start silent-update + manual-check-with-restart hooks, `<OtaUpdatesReconciler />` mounts at root, Me-tab "About" section shows app version + EAS channel + bundle ID + "Check for updates" / "Restart to apply" buttons. `app.json` now has the `updates` block (`enabled: true`, `checkAutomatically: 'ON_LOAD'`, `fallbackToCacheTimeout: 0`). **Operator step:** replace `"url": "REPLACE_WITH_EAS_UPDATE_URL"` with the real EAS Update URL after running `eas update:configure`. Until then, both hooks degrade safely — `Updates.isEnabled` is false in dev/unconfigured builds and the About row tells the user to install from the App Store / Play Store instead.
 - [x] Crash reporting (Sentry) — `mobile/lib/sentry.ts` + `initSentry()` in root layout; passthrough when DSN missing so dev still works.
 
 Audit additions:
@@ -999,7 +999,7 @@ Resilience additions:
 - [x] Optional device-Photos backup (off by default — receipts have card numbers) via `lib/deviceLibrary.ts`.
 
 Audit additions:
-- [ ] Soft-delete + IRS 7-year retention — `receipts` table currently hard-deletes on user `delete`. Per §5.11.9 + risk register need a `deleted_at` column + retention sweep. Not yet shipped.
+- [/] Soft-delete + IRS 7-year retention (Batch CC) — `seeds/230_starr_field_receipt_retention.sql` adds `deleted_at TIMESTAMPTZ` + `deletion_reason TEXT` (`'user_undo' | 'duplicate' | 'wrong_capture'`) to `receipts` plus partial indexes for visible-row reads + the retention sweep. Mobile `useDeleteReceipt` now soft-deletes (sets `deleted_at = now()`); list hooks (`useReceipts`, `useJobReceiptRollup`, `useReceiptsNeedingReview`) filter `deleted_at IS NULL`. Detail-screen hooks deliberately do NOT filter so a user can navigate to a tombstoned row to review the audit trail. Discarded duplicates from Batch Z's resolver path also tombstone with `deletion_reason='duplicate'`. **Pending:** worker retention sweep CLI that hard-deletes rows past the IRS retention window (3 years for clean returns, 7 years for substantial under-reporting; rejected/never-approved rows can purge after 90 days). Tracked as v2 polish.
 - [ ] Bookkeeper sign-off audit on the web admin — currently mobile shows status flips but no per-receipt admin audit log entry for who approved when. Tracked separately.
 
 **Exit:** Jacob can replace expense reports for v1 use. **Status:** shipped; bookkeeper validation outstanding; soft-delete polish remains.
@@ -1007,7 +1007,7 @@ Audit additions:
 ### Phase F3 — Data points + photos (Week 9–12)
 - [x] Create data point with name from 179-code library — `lib/dataPoints.ts` + `lib/dataPointCodes.ts`. Capture flow at `(tabs)/capture/index.tsx` and per-point detail at `(tabs)/jobs/[id]/points/[pointId].tsx`.
 - [x] Camera capture, multi-photo — `lib/fieldMedia.ts` `useAttachPhoto`. Burst-grouping via `burst_group_id` ready in schema; UI for burst capture pending (F3 polish).
-- [/] Phone GPS / altitude metadata — captured in `useAttachPhoto`. Compass heading is **pending**: `expo-sensors` magnetometer not yet wired; the `device_compass_heading` column is left null pending integration.
+- [x] Phone GPS / altitude / compass heading metadata — captured in `useAttachPhoto` (and now `useAttachVideo` + `dataPoints.create`). Heading lands via `getCurrentHeadingOrNull()` in `lib/location.ts`, wrapping `expo-location.getHeadingAsync()` (no new native dep). Best-effort with a 1.5 s timeout so a slow magnetometer doesn't block capture; trueHeading preferred (geo-north) with magHeading fallback when declination hasn't been computed yet; calibration-needed readings (`accuracy < 1`) drop to null. Admin viewer renders a `↑ 273° W` badge with rotating arrow on the point meta cell + every photo / video card. (Batch V)
 - [/] Photo annotation — `lib/PhotoAnnotator.tsx` (full-screen react-native-svg editor with PanResponder freehand strokes, 4-colour palette, undo + clear + save) + `lib/photoAnnotation.ts` data model (z-ordered `AnnotationDocument` with normalised 0..1 coordinates so strokes render identically on phone / tablet / web admin) + `useUpdateMediaAnnotations` hook. Originals NEVER touched per plan §5.4 — overlay rendered live from JSON in `field_media.annotations`. PhotoLightbox shows existing strokes + has "Annotate" / "Edit annotations" entry button. Web admin `/admin/field-data/[id]` lightbox renders the same SVG overlay using the shared `lib/photoAnnotationRenderer.ts` helpers. **Pen tool only in v1**; arrow / circle / text primitives have schema slots reserved for v2.
 - [x] Job-level photo upload (no point assignment) — `attachPhoto({ dataPointId: null, jobId })` and the gallery at `(tabs)/capture/[pointId]/photos.tsx`.
 - [x] Office reviewer sees points + photos in web app — `/admin/field-data` list with date range + employee + job + free-text filters; per-point detail at `/admin/field-data/[id]` with full photo gallery (lightbox, signed URLs for storage / thumbnail / original / annotated tiers), creator info, GPS metadata + Maps deep-link, offset / correction flags, and a link back to the parent `/admin/jobs/[id]`. APIs at `/api/admin/field-data` (list with thumbnails) + `/api/admin/field-data/[id]` (full detail). Sidebar entry under Work group.
@@ -1024,16 +1024,16 @@ Resilience additions (same offline-first pattern as F2):
 - [/] Video capture — `lib/storage/mediaUpload.ts` `pickVideo()` wraps `expo-image-picker.launchCameraAsync` with the Videos media type + 5-min cap (per plan §5.4), `lib/fieldMedia.ts` `useAttachVideo` mirrors the photo + voice pattern (INSERT field_media row with `media_type='video'`, enqueue upload to `starr-field-videos` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup which goes to Camera Roll). "📹 Record video" button on the photos screen footer. Admin `/admin/field-data/[id]` renders native `<video controls>` with mp4 + quicktime fallback `<source>` tags, duration in mm:ss, download link. **Mobile video review shipped (Batch U)**: Photos / Videos tab toggle on the per-point capture screen + a full-screen player at `(tabs)/capture/[pointId]/video-player.tsx` with native expo-av controls + delete + offline-first playback via `useFieldMediaVideoUrl` (falls back to local `documentDirectory` URI before the bytes sync). **Pending:** server-side thumbnail extraction (FFmpeg via worker) so the gallery thumbnail isn't a placeholder; WiFi-only original-quality re-upload tier per plan §5.4.
 - [x] Free-text notes + structured templates (offset, monument, hazard, correction) — `lib/fieldNotes.ts` (`useAddFieldNote` / `usePointNotes` / `useJobLevelNotes` / `useArchiveFieldNote` + `summariseStructuredPayload` + `parseStructuredPayload` helpers), per-template typed payload interfaces, body-summary derivation so the existing `/admin/notes` grep + future search-across-notes work without parsing JSON. Add-note screen at `/(tabs)/jobs/[id]/notes/new` accepts `?point_id=&template=` query params; in-app pill picker switches between Free-text / Offset shot / Monument found / Hazard / Correction with per-template form (typed inputs, choice pills for enums, severity colour-coding). Point detail screen (`(tabs)/jobs/[id]/points/[pointId].tsx`) gets a Notes section with reactive list + long-press archive + "+ Add note" button. Admin `/admin/field-data/[id]` surfaces attached notes with template tag, body, structured payload as a key/value table, author + age stamp, archived badge — `/api/admin/field-data/[id]` returns the parsed structured payload alongside the note row. Job-level note hook (`useJobLevelNotes`) is ready for a future job-detail surface.
 - [ ] Voice-to-text shortcut — bound to a hardware key for hands-free dictation. Need expo-speech-recognition or a Whisper-via-API path.
-- [ ] Search across notes + transcriptions — depends on the above + an FTS index. Need to confirm whether server-side `tsvector` columns or local SQLite FTS5 is the better path.
+- [x] Search across notes + transcriptions (Batch BB) — `useSearchFieldNotes(query, limit)` hook in `mobile/lib/fieldNotes.ts` runs a parametrised LIKE scan across the local PowerSync SQLite, joining body + structured_data + note_template + parent point name + parent job name + job_number in one query. Mobile screen at `(tabs)/jobs/search.tsx` opens as a modal with auto-focused input + clear button + result cards (template badge · age stamp · highlighted match excerpt · job + point footer). Results stay reactive to PowerSync — new notes arriving via sync mid-typing appear in the list. Tap a result → navigates to the relevant point detail (or job detail for job-level notes). Decision: LIKE-only for v1 (works fully offline, no schema changes). Server-side `tsvector` index for cross-user admin search at scale is v2 polish.
 
 **Exit:** Field documentation fully replaces paper notes. **Status:** voice memo + video capture + free-text/structured notes + admin viewers all shipped (Batches I + K + L). Voice transcription + voice-to-text shortcut + cross-notes search remain.
 
 ### Phase F5 — Files + CSV (Week 17–18)
 - [x] File upload from device, cloud, web link — `seeds/226_starr_field_files.sql` lands the `job_files` table + `starr-field-files` storage bucket (100 MB cap, per-user-folder RLS). `lib/jobFiles.ts` `usePickAndAttachFile` opens `expo-document-picker` (handles iCloud + Google Drive providers via the OS picker), enforces the 100 MB cap, INSERTs row with `upload_state='pending'`, enqueues the bytes through `lib/uploadQueue.ts` (offline-first), and supports archive via `useDeleteJobFile`. "+ Attach file" button on the point detail screen.
 - [x] PDF / image / CSV preview — admin `/admin/field-data/[id]` Files block branches on MIME type: `image/*` renders inline at max-height 320 px; `application/pdf` mounts an `<iframe>` at 480 px tall; `text/csv` (or `.csv` extension) auto-fetches the signed URL + parses the first 50 rows into a scrollable table (comma OR tab separator detection + quoted-field handling). Everything else falls back to the Download link. Bookkeeper reviews most files without leaving the page.
-- [ ] Pin-to-device for offline access — files are kept on disk through the queue's `documentDirectory` copy until upload succeeds, then deleted. Persistent pin (re-download for re-read offline) is F5 polish.
-- [ ] CSV parser (P,N,E,Z,D and variants).
-- [ ] Auto-link CSV rows to phone-side data points by name.
+- [x] Pin-to-device for offline access — `mobile/lib/pinnedFiles.ts` + new local-only `pinned_files` table. Tap-pin on a file row resolves a signed URL, streams the bytes to `documentDirectory/pinned/<file_id>.<ext>` via `FileSystem.downloadAsync`, INSERTs a pinned row. Tap-open uses the local URI when pinned (offline-safe + instant) or signs a fresh URL + caches to `cacheDirectory` for one-shot reads when not pinned. Tap-unpin drops the row + unlinks the file. Me-tab Storage section shows "N files · X MB pinned." Mount-once reconciler reaps stale pinned_files rows whose local file disappeared between launches. Deleting a parent `job_files` row cascades to drop the pin so we don't leak disk. (Batch W)
+- [x] CSV parser (P,N,E,Z,D and variants) — `mobile/lib/csvCoords.ts` (Batch AA). Pure module, separator auto-detect (comma / tab / semicolon), header-row auto-detect, P,N,E,Z,D and N,E,Z,D,P column-order detection, RFC-4180 quoted-field handling, comma-as-thousands-separator tolerance, soft-warning collection.
+- [x] Auto-link CSV rows to phone-side data points by name (Batch AA). Tapping a CSV file row routes to the in-app preview screen at `/(tabs)/jobs/[id]/files/[fileId]/preview` instead of the share sheet. Preview shows stats bar (rows · matched · new), detected format, per-row table with N/E/Z + description + ✓ / "New" match badge against `useJobPointNames(jobId)`, plus an "Open in another app" fallback that hands off to the OS share sheet for surveyors who want Numbers / Excel.
 
 **Exit:** Raw survey data and reference docs at fingertips. **Status:** capture + admin viewer shipped (Batch O); preview + parser + pin remain.
 
@@ -1046,18 +1046,18 @@ Resilience additions (same offline-first pattern as F2):
 - [x] Vehicle assignment + driver/passenger — `seeds/225_starr_field_vehicles.sql` lands the `vehicles` table that's been declared in the mobile schema since seeds/220 + wires the FK from `job_time_entries.vehicle_id` (existing column) and `location_segments.vehicle_id` (added by seeds/224). `/admin/vehicles` page provides full CRUD (add / edit / archive / reactivate; soft-archive preserves historical refs). Mobile vehicle picker on the clock-in `pick-job` modal with optional vehicle pill row + "I'm driving" toggle (defaults true since most clock-ins are the driver themselves; passengers explicitly flip it off so mileage attribution stays clean for IRS). `useClockIn` accepts `vehicleId` + `isDriver`; persists to `job_time_entries.vehicle_id` + `is_driver`. `lib/vehicles.ts` `useVehicles` + `useVehicle` hooks back the picker. **Per-vehicle mileage breakdown** on `/admin/mileage` shipped (Batch P): each (user, date) row expands to per-vehicle subtotals with driver / passenger badges so bookkeepers see "Jacob drove Truck 3 for 28 mi AND rode passenger in Truck 1 for 12 mi" — only the driver miles are IRS-deductible. CSV export gains `vehicle_id` / `vehicle_name` / `is_driver` columns for QuickBooks pivots.
 - [x] Dispatcher live map (web app, partial) — `/admin/team` shows last-known GPS + battery + staleness, with Google-Maps deep-link per card. Full live map (continuous trace, polling) pending.
 - [ ] Day-replay scrubber (web app) — depends on the worker-derived segments above.
-- [ ] Missing-receipt cross-reference prompts — should compare clocked-in geofences against receipt timestamps and prompt "you spent 12 min at a gas station yesterday but no receipt was logged." Worker job + mobile inbox notification.
+- [x] Missing-receipt cross-reference prompts (Batch DD + EE) — `worker/src/services/missing-receipt-detection.ts` + `worker/src/cli/scan-missing-receipts.ts`. Hourly cron scans `location_stops` from the last 24h that are ≥5 min long, have no `job_id` (geofence didn't match a known site), aren't user-overridden, and have NO `receipts.transaction_at` within ±30 min of the stop window. Pushes a notification with `source_type='missing_receipt'`, `link='/(tabs)/money/capture?stopId=...&stopArrivedAt=...'`. **Batch EE** wires the capture screen to consume those query params: shows an amber "Forget a receipt?" callout with the human-readable stop time + pre-stamps the new row with `transaction_at` = stop arrival + `location_stop_id` = stop UUID so AI extraction has a head-start, dedup fingerprinting works on insert, and the bookkeeper can trace from receipt back to the stop. Idempotent via stop_id in the link. Per-user-per-scan cap of 5. Soft-deleted receipts don't count toward "covered" (Batch CC).
 - [x] Privacy controls panel (employee-facing) — `/(tabs)/me/privacy` shows what we capture, when (only between clock-in/out), cadence (battery-aware tier table), who sees it, and the storage path; plus a today's-timeline list of every `location_pings` row the user wrote in the last 24 h. **No** "pause tracking" toggle — that would violate the privacy contract from the other side (dispatcher would think the user left a job site mid-shift); the only way to stop tracking is to clock out, which does so atomically.
 
 Audit additions:
-- [ ] Per-user `/admin/team/[email]` drilldown — natural extension of the team-card view. Today's pings + a static map snapshot + clock-in history. Tracked as a follow-on to mileage.
+- [x] Per-user `/admin/team/[email]` drilldown (Batch X) — single-page "what is X up to today?" view that aggregates clock-in state · today's clock-in history table · today's miles + stops + pings + captures + receipts stat bar · today's captures grid (with thumbnails) · today's receipts list · today's dispatcher pings sent. Header has quick-action buttons (send log_hours / submit_week ping; deep-link to Timeline / Mileage / All captures). Powered by a single `GET /api/admin/team/{email}/today?date=` aggregator that runs every section query in parallel via `Promise.all` so the page renders in one round trip. Linked from each `/admin/team` card via "📋 Open profile."
 
 **Exit:** Full location-aware feature set live. **Status:** background-tracking + dispatcher last-seen + privacy panel + mileage export shipped. Stop detection / day-replay / vehicle picker / consent modal / missing-receipt prompts remain.
 
 ### Phase F7 — Polish + offline hardening (Week 25–28)
 - [x] Storage management UI — Me-tab Uploads section + drilldown (`(tabs)/me/uploads.tsx`); per-row retry/discard, in-flight / failed filter tabs.
 - [x] Sync UI improvements (per-asset progress, retry surfaces) — `useUploadQueueStatus` + the Uploads screen + Me-tab summary row that surfaces failed counts in danger colour.
-- [ ] High-contrast / sun-readable theme — dark mode default exists per `lib/theme.ts`; high-contrast variant pending. Acceptance: legible in direct 100°F sun.
+- [x] High-contrast / sun-readable theme (Batch Y) — `lib/theme.ts` adds a third `'sun'` palette (pure white background, pure black text + borders, saturated accents) on top of the existing light + dark variants. `lib/themePreference.tsx` is the AsyncStorage-backed user preference (`'auto' | 'light' | 'dark' | 'sun'`) with a `<ThemePreferenceProvider>` mounted at the root, plus `useResolvedScheme()` hook that screens use in place of `useColorScheme()`. The provider mirrors the choice through `Appearance.setColorScheme()` so legacy `useColorScheme()` callers get a sensible light/dark fallback (sun maps to light). Me-tab Display section has a 4-pill picker with description copy. Capture entry, per-point capture (photos + voice + video player), time tab, pick-job modal, point detail, and Me tab now all read `useResolvedScheme()` so flipping to sun-readable propagates through the full surveyor field workflow.
 - [ ] Battery profile audit — needs real-device measurement against the §2 goal of <50% over 8-hour field day with location tracking on. Test rig + measurement protocol both pending.
 - [/] Tablet layout (truck-mounted iPad) — `supportsTablet: true` set in `app.json`. `lib/responsive.ts` provides `useResponsiveLayout()` + `tabletContainerStyle()` helpers (≥600 dp = tablet; clamp content to 720 px max + centre). Applied to the four main tab screens (Jobs / Time / Money / Me); detail / drilldown screens still inherit phone defaults — split-pane layouts and a tablet-specific Jobs+map combo are post-v1.
 - [ ] Conflict resolution UX for multi-device — per §10 risk: per-field LWW for non-media, "both photos kept" for media. Currently no test coverage of the multi-device path.
@@ -1082,10 +1082,11 @@ Audit additions:
 
 ## 9.w — Inventory snapshot (state-of-the-build)
 
-*Audited at commit `f2917de` against the actual filesystem.* Plan
-claims throughout this document are spot-verified — the lists below
-are the reconciled truth, not a re-statement of the per-phase
-checkboxes. Update this section every time a Batch lands.
+*Audited at commit `f2917de` against the actual filesystem, then
+incrementally updated through Batch QQ.* Plan claims throughout
+this document are spot-verified — the lists below are the
+reconciled truth, not a re-statement of the per-phase checkboxes.
+Update this section every time a Batch lands.
 
 ### A. Shipped & verified in code
 
@@ -1133,46 +1134,93 @@ checkboxes. Update this section every time a Batch lands.
 `jobs/[id]/field-data`, `jobs/[id]/field-data/manifest` (CSV with
 uploader columns), `jobs/[id]/field-data/zip` (server-streamed ZIP),
 `jobs/[id]/geofence`, `timeline` (GET+POST), `mileage`, `vehicles`
-(CRUD), `team`, `notifications`, `time-logs/*`, `receipts/*`.
+(CRUD), `team`, `team/[email]/today` (per-user drilldown
+aggregator, Batch X), `notifications`, `time-logs/*`,
+`receipts/*` (incl. `bulk-approve`, Batch JJ; `?include_deleted=1`
+for tombstones, Batch FF), `finances/tax-summary`
+(JSON+CSV Schedule-C report w/ status split, Batch QQ),
+`finances/mark-exported` (period-lock action, Batch QQ).
 
 **Worker (`worker/src/services/`):**
 - `receipt-extraction.ts` + `cli/extract-receipts.ts` + endpoint at
   `/starr-field/receipts/extract` (Phase F2).
 - `voice-transcription.ts` + `cli/transcribe-voice.ts` + endpoint at
   `/starr-field/voice/transcribe` (Batch R).
+- `missing-receipt-detection.ts` + `cli/scan-missing-receipts.ts`
+  (Batch DD — hourly cron pushes "Forget a receipt?" notifications
+  for unclassified ≥5-min stops with no nearby receipt).
+- `video-thumbnail-extraction.ts` + `cli/extract-video-thumbnails.ts`
+  (Batch GG — ffmpeg-static spawn extracts a JPG thumb from each
+  uploaded video; thumbs land in the photos bucket so `VideoGrid`
+  surfaces them).
 
 **Seeds (`seeds/`):** 220 (receipts) · 221 (data points) ·
 222 (notifications) · 223 (location pings) · 224 (location
 derivations) · 225 (vehicles) · 226 (files) · 227 (geofence
-classifier) · 228 (voice transcription) — all present.
+classifier) · 228 (voice transcription) · 229 (receipt review +
+dedup fingerprint, Batch Z) · 230 (receipt soft-delete +
+retention, Batch CC) · 231 (video thumbnail tracking columns,
+Batch GG) · 232 (receipts.exported_at + exported_period for
+tax-period locking, Batch QQ) — all present on disk.
+**Activation gates pending live apply:** 229, 230, 231, 232.
 
 ### B. Partial (started; polish deferred)
 
 | Area | Done | Deferred |
 |---|---|---|
-| F2 receipts | Capture, extraction, approval, CSV export | Soft-delete + IRS 7-yr retention; per-receipt admin sign-off audit |
-| F3 photos | Multi-photo, GPS, EXIF, annotator | Compass heading (magnetometer not wired); arrow / circle / text annotation primitives (schema slots reserved) |
-| F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U) | Server-side FFmpeg thumbnail extraction; WiFi-only original-quality re-upload tier |
+| F2 receipts | Capture, extraction, approval, CSV export, duplicate detection + review-before-save (Batch Z), soft-delete foundation (Batch CC), bulk-approve (Batch JJ), "Show deleted" admin toggle (Batch FF), Money-tab "needs review" filter (Batch LL) + persisted across launches (Batch OO), tax-summary endpoint + period-lock schema (Batch QQ — API + seeds shipped) | Worker retention sweep CLI (purges rows past IRS retention threshold); per-receipt admin sign-off audit; `/admin/finances` page UI + sidebar entry (Batch QQ sub-batch — planned next) |
+| F3 photos | Multi-photo, GPS, EXIF, annotator, compass heading (Batch V) | Arrow / circle / text annotation primitives (schema slots reserved; pen-only in v1) |
+| F4 video | Capture, upload, admin player, mobile review tab + full-screen player (Batch U), server-side FFmpeg thumbnails (Batch GG), WiFi-only gating for large clips (Batch KK) | True dual-tier transcoding (cellular 480p + original 1080p) via worker ffmpeg pipeline; surveyor "data-saver" toggle |
 | F4 voice | Recorder, Whisper transcription, admin player | Voice-to-text shortcut for hands-free dictation (no `expo-speech-recognition`) |
-| F4 notes | Free-text + four structured templates + admin viewer | Cross-notes search across body + structured payloads (no FTS index — server `tsvector` or local SQLite FTS5 TBD) |
-| F5 files | Document picker + admin Files block + image/PDF/CSV preview | Pin-to-device for persistent offline read; CSV parser for surveying P,N,E,Z,D; auto-link CSV rows → data points |
+| F4 notes | Free-text + four structured templates + admin viewer + cross-notes search (Batch BB) | Server-side `tsvector` index for cross-user admin search at scale; FTS5 ranking when the LIKE scan tops 10k notes per device |
+| F5 files | Document picker + admin Files block + image/PDF/CSV preview + pin-to-device offline read (Batch W) + P,N,E,Z,D parser w/ point-match preview (Batch AA) | Auto-import unmatched CSV rows as new data points |
 | F6 stops | Geofence classifier + idempotent re-derivation | AI classifier for ambiguous stops; reverse-geocoded `place_name`/`place_address`; PostGIS `path_simplified` for day-replay scrubber; pg_cron nightly schedule |
-| F6 dispatcher | Last-seen card; per-user mileage drilldown | Continuous live-map trace; per-user `/admin/team/[email]` daily drilldown; day-replay scrubber UI; missing-receipt cross-reference worker |
-| F7 polish | Storage / sync UI, network-restore drainer, notification UX | High-contrast sun-readable theme; battery profile audit on real devices; tablet split-pane layouts on drilldown screens; multi-device conflict-resolution UX + tests; 30-day stress test on 5 devices |
-| F0 ops | Expo scaffold, biometric, PowerSync, Sentry | Lock-screen widget (iOS WidgetKit / Android shortcut); OTA update channel URL in `app.json`; EAS submit credentials still `REPLACE_WITH_*`; first TestFlight build pending |
+| F6 dispatcher | Last-seen card; per-user mileage drilldown; per-user `/admin/team/[email]` daily drilldown (Batch X); missing-receipt prompts via worker scan (Batch DD) | Continuous live-map trace; day-replay scrubber UI |
+| F7 polish | Storage / sync UI, network-restore drainer, notification UX, sun-readable theme (Batch Y) | Battery profile audit on real devices; tablet split-pane layouts on drilldown screens; multi-device conflict-resolution UX + tests; 30-day stress test on 5 devices |
+| F0 ops | Expo scaffold, biometric, PowerSync, Sentry, OTA wiring (Batch HH; needs operator to fill EAS Update URL) | Lock-screen widget (iOS WidgetKit / Android shortcut); EAS submit credentials still `REPLACE_WITH_*`; first TestFlight build pending |
 
 ### C. Pending (planned but not started)
 
+- **Batch QQ part-2** — the `/admin/finances` page UI on top of
+  the now-shipped tax-summary + mark-exported endpoints + the
+  `Finances` sidebar entry under the Work group (`['admin',
+  'developer', 'tech_support']`, `internalOnly: true`). Split
+  out from QQ part-1 to keep the React component build-out
+  scoped to a single sub-batch. See the Batch QQ entry in
+  §9.x for the full UI brief (status-segmented stat cards,
+  Schedule C breakdown table, mileage section, Lock + Export
+  CSV buttons).
+- **Worker retention sweep CLI** — closes the Batch CC v2
+  polish item: hard-delete receipts past the IRS retention
+  window (3 yr clean returns, 7 yr substantial under-reporting,
+  90 d for never-approved rejections). Tombstone columns +
+  partial index already shipped (`seeds/230`); only the worker
+  service + cron entry remain.
+- **Per-row admin sign-off audit trail on receipts** — Batch JJ
+  bulk-approve writes `approved_by` + `approved_at`; deferred
+  is a richer per-row event log (who approved, when, from what
+  device / IP) for the audit-trail-as-product story.
 - **Phase F8** — Trimble Access file exchange (Path A from §8.1):
   watched cloud folder, JobXML / CSV auto-import, name-based
   auto-link.
 - **Phase F9+** — real-time Trimble streaming (Path C); QuickBooks
-  Online direct API; Civil 3D round-trip; Apple Watch / Wear OS;
-  fleet fuel-card reconciliation; AR overlay; drone import; weather
-  metadata.
+  Online direct API (could subsume the Batch QQ CSV bridge for
+  customers who prefer pull-sync over CSV import); Civil 3D
+  round-trip; Apple Watch / Wear OS; fleet fuel-card
+  reconciliation; AR overlay; drone import; weather metadata.
 - **Server-side UPSERT idempotency on `client_id`** — currently
   PowerSync's CRUD queue dedupes on replay; server-side enforcement
   per §10 risk register has not landed.
+- **AI-usage tracker integration for Whisper + receipt
+  extraction** — both worker services land per-row spend in
+  their own cents column; the shared circuit breaker doesn't
+  trip on Starr Field spend yet (see "Architectural deviations"
+  below).
+- **EAS Update URL fill-in** — Batch HH wired the OTA scaffold
+  but `app.json` still ships `"url": "REPLACE_WITH_EAS_UPDATE_URL"`.
+  Operator step: run `eas update:configure`, paste the URL, ship
+  a build. The `<OtaUpdatesReconciler />` already degrades
+  safely on un-configured builds.
 
 ### D. Architectural deviations from the plan
 
@@ -1525,6 +1573,1549 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Batch QQ — tax-time financial summary + anti-double-counting (F2 ↔ F6 closer)**
+
+Closes the user's coupled directives:
+1. *"For things dealing with receipts and finances, please build
+   systems that keep track of everything and make it super easy to
+   manage and export data. Make it so that we can use the data to
+   keep really great track of everything and make dealing with
+   taxes super easy!"*
+2. *"if data has already been managed or used for it's intended
+   purpose, such as old receipts being calculated into business
+   costs, that they are handled and marked well so that there is
+   no confusion. We don't want things getting counted twice, or
+   not counted at all in the total."*
+
+Joins approved/exported receipts + per-vehicle business mileage +
+the IRS standard mileage rate into one Schedule-C-shaped report,
+with a status-bucket split so the bookkeeper can distinguish
+*new* deductions (status='approved', `exported_at IS NULL`) from
+*already-filed* ones (status='exported') without ever having to
+guess. The "Lock this period as exported" action seals the new
+bucket into a named tax period so subsequent summaries don't
+double-count.
+
+Schema (`seeds/232_starr_field_finances_lock.sql`) — **shipped**:
+- `receipts.exported_at TIMESTAMPTZ` — wall-clock when the row
+  was first locked. NULL = never exported.
+- `receipts.exported_period TEXT` — human label (`'2025'`,
+  `'2025-Q4'`, `'2025-Apr'`, etc.) for traceback from row to CPA
+  submission.
+- Partial index `idx_receipts_export_pending` on
+  `(created_at DESC) WHERE status IN ('approved','exported') AND
+  deleted_at IS NULL AND exported_at IS NULL` — drives the "X new
+  since last export" stat without scanning the full table.
+- Idempotent — every ALTER + index guards on existence.
+
+Admin API (`app/api/admin/finances/`) — **shipped**:
+- `GET /api/admin/finances/tax-summary?year=YYYY` (or
+  `?from=&to=`) `&status=approved|exported|all&format=json|csv`.
+  - JSON shape includes `period`, `irs_rate_cents_per_mile`
+    (env-overridable via `IRS_MILEAGE_CENTS_PER_MILE`, default 67¢
+    — 2025 rate), `status_filter`, plus three top-level blocks:
+    - `receipts` — `total_cents`, `count`,
+      `by_status` (`approved` vs `exported` split with
+      `count` / `total_cents` / `deductible_cents`),
+      `by_category` (one row per Schedule C line — fuel→Line 9,
+      meals→24b, supplies→22, equipment→13, lodging→24a,
+      professional_services→17, office_supplies→18,
+      client_entertainment→27a, other→27a),
+      `by_tax_flag` (`full|partial_50|none|review`),
+      `top_vendors` (top 10 by spend),
+      `by_user` (per-submitter totals),
+      `exported_periods` (which prior periods do exported rows
+      trace back to — empty until the first lock).
+    - `mileage` — `total_miles`, `deduction_cents`,
+      `by_user`, `by_vehicle` (driver-only via
+      `location_segments.vehicle_id` + `is_business`).
+    - `totals` — `deductible_cents` (receipts deductible +
+      mileage deduction), `expense_cents` (gross).
+  - CSV variant flattens to a tax-prep-friendly section-grouped
+    layout: header (period · rate · status filter), by-status
+    split, Schedule C lines, by tax flag, top vendors, per-user,
+    prior-export traceback, mileage by user / vehicle, grand
+    totals row. Bookkeeper hands the file to the CPA.
+  - `?status=approved` → only rows ready to lock; `?status=exported`
+    → only rows already filed; `?status=all` (default) → both,
+    with the by_status split so neither bucket is missed.
+  - Soft-deleted (Batch CC) + rejected + pending receipts are
+    excluded from every aggregation. Auth: admin / developer /
+    tech_support.
+- `POST /api/admin/finances/mark-exported` — body
+  `{ year } | { from, to, period_label }`. Bulk UPDATE flips
+  matching `status='approved' AND exported_at IS NULL AND
+  deleted_at IS NULL` rows in the window to `status='exported',
+  exported_at=now(), exported_period=<label>`. Race-safe
+  (`exported_at IS NULL` guard in the WHERE clause), idempotent
+  (re-running for an already-locked period is a no-op zero-row
+  UPDATE), audited (every call logs counts +
+  `admin_email`). Response: `{ locked, already_exported,
+  pending_or_rejected, soft_deleted, period_label, exported_at,
+  window }` so the page UI can render an at-a-glance summary
+  even when the lock did nothing.
+
+Tax-summary endpoint reads the new columns + reports the
+`by_status` split + the `exported_periods` traceback. CSV emits
+both blocks. **Both endpoint changes are shipped;** mark-exported
+is fully wired to the new schema.
+
+Web admin page (`/admin/finances`) — **planned** (next sub-batch):
+- Year / quarter / month / custom-range picker. Defaults to
+  current calendar year.
+- Status-segmented stat cards at the top: "X new (approved,
+  ready to lock)" + "Y already filed (exported)" so the
+  bookkeeper sees the split before scrolling.
+- Schedule C breakdown table (one row per category, with line
+  number + count + total + deductible + drill-down link to
+  filtered receipts list).
+- By-tax-flag audit cross-check table.
+- Top vendors + per-submitter sections.
+- Mileage section (total miles · IRS rate · deduction; per-user +
+  per-vehicle subtotals).
+- Grand totals row.
+- "⬇ Export CSV" button (hits the same endpoint with
+  `format=csv`).
+- "🔒 Lock this period as exported" button — confirms via
+  `confirm()` with the count of rows about to lock + the
+  `period_label`, calls the POST endpoint, refreshes the page.
+  Disabled when the approved-bucket count is zero.
+- Sidebar entry under "Work" group: `/admin/finances`, label
+  "Finances", icon 💼. Roles: `['admin', 'developer',
+  'tech_support']`, `internalOnly: true`.
+
+Why the page split out from the build: the React UI is a large
+self-contained component (~400 LOC) and the user asked us to
+de-risk the agent runway by tackling it as a separate sub-batch
+on top of the now-shipped API + schema foundation. Splitting it
+also means the API can be exercised today via curl / Postman by
+the bookkeeper while the page UI lands.
+
+Anti-double-counting design notes (so the user's directive stays
+visible to future authors):
+- Once a row's `exported_at` is set, no admin path flips it back
+  to `status='approved'` without surgery. The bookkeeper is
+  expected to re-issue a corrected period if a row was filed in
+  the wrong year — same as how QuickBooks handles closed periods.
+- The bulk-approve endpoint (Batch JJ) already refuses to touch
+  `status='exported'` rows; that ground-rule continues to hold.
+- The per-row PATCH endpoint at `/api/admin/receipts/[id]`
+  remains the only way to manually flip an exported row back —
+  intentionally noisy in the audit log so any "un-export" leaves
+  a trail.
+- The mobile Money tab + receipts hooks treat `'exported'` as a
+  display-only status (no inline edit). Surveyors don't see
+  exported rows differently from approved ones — the distinction
+  is bookkeeper-facing.
+
+Activation gates:
+- Apply `seeds/232_starr_field_finances_lock.sql` to live
+  Supabase before exposing `/admin/finances` (the GET endpoint
+  short-circuits without the columns; `mark-exported` would 4xx
+  on the UPDATE).
+- No env var or worker change required.
+
+Pending v2 polish (queued but not started):
+- Per-month drill-in chart on the page (12-bar stacked
+  approved/exported by month). Today's table view is
+  CPA-friendly; a chart helps the owner spot seasonal lumps.
+- "Reverse a lock" admin action (one-receipt scope) for the rare
+  case the bookkeeper exported the wrong period. Today: edit via
+  the per-row PATCH endpoint (audited).
+- Email the locked CSV to the CPA on lock — `mailto:` shortcut
+  in v1, real SMTP via the worker queue in v2.
+- Quarterly estimated-tax preview: project current-YTD into a
+  full-year estimate via simple linear extrapolation (rough
+  guidance, not a tax filing).
+- Cross-link from the per-employee page (`/admin/team/[email]`)
+  to a pre-filtered Finances view scoped to that submitter.
+- IRS rate auto-fetch from a daily cron once the IRS publishes
+  the 2026 rate (today's rate is hard-coded with an env-var
+  override).
+
+
+
+Closes the Batch MM v2 polish item *"Auth + layout screens
+migration (~10 files; trivial once prioritised)."* Plus 5 leaf
+components Batch MM missed (`AppleSignInButton`, `TimeEditHistory`,
+`VideoGrid`, `ReceiptRollupCard`, `CategoryPicker`).
+
+Net: **zero** `useColorScheme()` callers remain anywhere in the
+app — every screen + every leaf component reads the user's
+chosen theme via `useResolvedScheme()`. Sun-readable now
+propagates through 100% of the surface.
+
+Migrated screens (auth + layouts + 404):
+- `(auth)/sign-in.tsx`, `forgot-password.tsx`,
+  `reset-password.tsx`, `auth-callback.tsx`
+- `(tabs)/_layout.tsx` (tab bar chrome)
+- `(tabs)/jobs/_layout.tsx`, `jobs/[id]/_layout.tsx`,
+  `me/_layout.tsx`, `money/_layout.tsx`, `time/_layout.tsx`,
+  `capture/_layout.tsx` (per-stack chrome)
+- `+not-found.tsx`
+
+Migrated leaf components:
+- `lib/AppleSignInButton.tsx`, `TimeEditHistory.tsx`,
+  `VideoGrid.tsx`, `ReceiptRollupCard.tsx`,
+  `CategoryPicker.tsx`.
+
+The only `useColorScheme()` references left in the codebase
+are inside `lib/themePreference.tsx` itself — that hook drives
+the legacy `Appearance` API and uses the OS scheme as a
+fallback when the user's preference is `'auto'`. No further
+migration is meaningful.
+
+**Batch OO — Money-tab filter persists across launches (closes Batch LL v2 gap)**
+
+Closes the Batch LL v2 polish item *"Persist the chosen filter
+across launches (e.g. AsyncStorage) so a surveyor reviewing one
+item at a time keeps their place between captures."* Surveyors
+who flip the "needs review" filter on, capture one receipt,
+backgroud the app, and come back hours later now find the
+filter still active — no re-flip needed.
+
+Mobile lib (`mobile/lib/receipts.ts`):
+- New `usePersistedReceiptFilter()` hook returning the same
+  `[filter, setFilter]` tuple shape `useState` did, plus an
+  `AsyncStorage`-backed `useEffect` that hydrates from
+  `@starr-field/receipt_filter` on mount and persists every
+  set call. Mirrors the `useThemePreference` pattern from
+  `themePreference.tsx`.
+- Persistence is best-effort: AsyncStorage failures log via
+  `logWarn` but don't reject the setState — the local state
+  update is the user-visible contract. Default is `'all'` for
+  the first paint and for any corrupted-key recovery.
+- Hook stays screen-level (no provider) since the filter is
+  per-device UX, not cross-component state.
+
+Mobile screen (`mobile/app/(tabs)/money/index.tsx`):
+- Drop-in swap: `useState<ReceiptListFilter>('all')` →
+  `usePersistedReceiptFilter()`. Tuple shape matches.
+- Removed unused `useState` and `ReceiptListFilter` type
+  imports.
+
+Logging:
+- `receipts.usePersistedReceiptFilter` warns on hydrate /
+  persist failures so a corrupted prefs file is visible in
+  Sentry.
+
+Pending v2 polish:
+- Add a "Reset Money tab to default view" toggle in Me-tab
+  Display section so a surveyor stuck in a forgotten filter
+  can clear without finding the chip.
+
+**Batch NN — CSV preview "unknown format" fall-through (closes Batch AA v2 gap)**
+
+Closes the small UX gap from Batch AA: when `parseCoordCsv`
+detected `format='unknown'` (the file isn't P,N,E,Z,D or
+N,E,Z,D,P), the preview screen still rendered the structured
+6-column grid with `—` cells in every numeric / point / match
+column. Surveyors saw a useless wall of em-dashes.
+
+Now: unknown formats fall through to a generic raw-cells table
+that uses `parseCoordCsv`'s `columnLabels` as headers + `row.raw`
+as the cell values. Non-coord CSVs (vendor invoices, address
+lists, anything tabular the surveyor attached) preview usefully
+without leaving the app.
+
+UI (`mobile/app/(tabs)/jobs/[id]/files/[fileId]/preview.tsx`):
+- New `RawCellsTable` component renders horizontally-scrollable
+  table with 110 px columns + 24-char per-cell truncation.
+  Caps at 12 columns (footer says "+ N more columns hidden,
+  open in another app to see them all").
+- Stats bar branches on format: structured formats keep
+  Rows / Matched / New; unknown formats swap Matched/New for a
+  single Columns count (since name-matching is meaningless
+  without a parseable point-name column).
+- Footnote copy branches too: structured says "✓ means a data
+  point with that name already exists"; unknown says "the
+  format didn't match P,N,E,Z,D or N,E,Z,D,P — showing raw
+  cells so you can still review the file."
+- Format banner ("Detected format: Unknown — showing raw cells")
+  was already in place from Batch AA; now it accurately
+  describes the screen below.
+
+Logging: no new lines — the parser already logs format
+detection via the existing `csvPreview.parse` info breadcrumb.
+
+Pending v2 polish:
+- Pinch-to-zoom on the raw table for tablets.
+- Detect specific known-non-coord shapes (Trimble JobXML CSV
+  export, Carlson note-export) and render bespoke layouts.
+- "Force PNEZD parsing" override that lets the surveyor try
+  the structured grid even when auto-detect failed.
+
+**Batch MM — sun-readable theme coverage audit (closes Batch Y v2 polish)**
+
+Closes the Batch Y v2 polish item *"Migrate the remaining ~50
+screens to `useResolvedScheme()` so the choice propagates
+everywhere; current scope is the surveyor's daily field workflow
+only."* Sun-readable mode now propagates through every screen
+the surveyor lays eyes on plus every leaf component rendered
+inside one.
+
+26 files migrated in one batch (8 surveyor screens + 18 leaf
+components). The migration is mechanical — swap
+`useColorScheme() ?? 'dark'` → `useResolvedScheme()` and add the
+`from '@/lib/themePreference'` import next to the existing
+`from '@/lib/theme'` import. A Python regex pass handled it
+consistently so no file was forgotten.
+
+Migrated screens (`mobile/app/`):
+- `(tabs)/jobs/index.tsx` (Jobs list)
+- `(tabs)/jobs/[id]/index.tsx` (per-job detail)
+- `(tabs)/jobs/[id]/notes/new.tsx` (add note modal)
+- `(tabs)/money/index.tsx` (Money list)
+- `(tabs)/money/capture.tsx` (receipt capture)
+- `(tabs)/money/[id].tsx` (receipt detail)
+- `(tabs)/me/uploads.tsx` (stuck-upload triage)
+- `(tabs)/me/privacy.tsx` (privacy panel)
+- `(tabs)/time/edit/[id].tsx` (time-entry edit)
+
+Migrated leaf components (`mobile/lib/`):
+- `Button.tsx`, `JobCard.tsx`, `PointCard.tsx`,
+  `ReceiptCard.tsx`, `ThumbnailGrid.tsx`, `PhotoLightbox.tsx`,
+  `TextField.tsx`, `StatusChip.tsx`, `NotificationBanner.tsx`,
+  `TrackingConsentModal.tsx`, `LockOverlay.tsx`,
+  `CaptureFab.tsx`, `Timesheet.tsx`, `PhotoAnnotator.tsx`,
+  `Placeholder.tsx`, `RemotePhoto.tsx`, `LoadingSplash.tsx`.
+
+Why this matters: a screen migrated in Batch Y but using a leaf
+component still on `useColorScheme()` rendered the leaf in the
+`'light'` palette (Appearance fallback) instead of `'sun'`. So a
+surveyor flipped to sun-readable saw `palette.text='#000000'`
+on the screen text but `JobCard`'s body text still rendered at
+`#0B0E14` — close but not max-contrast. After Batch MM, every
+foreground-text rendering inside a sun-readable surveyor screen
+honours the high-contrast palette.
+
+Out of scope (intentional):
+- Auth screens (sign-in / forgot-password / reset-password /
+  auth-callback) — pre-login, dim-lit indoor use; not high-
+  priority for sun-read. Will migrate when touched for other
+  reasons.
+- `_layout.tsx` files — pass theme through `Stack.screenOptions`
+  for chrome only; foreground readability isn't affected.
+- Dev-only utilities (`Placeholder.tsx` was migrated since it's
+  used in early-flow screens; `LockOverlay` since it surfaces
+  during field idle-lock).
+
+Logging: no new log lines — this is a pure refactor that
+preserves runtime behaviour. The migration script pattern is
+documented inline in this plan entry so future batches can
+re-run it after new screens land.
+
+Pending v2 polish:
+- Auth + layout screens migration (~10 files; trivial once
+  prioritised).
+- Auto-detect "screen still uses useColorScheme" via a CI lint
+  rule so the surveyor's surface stays at 100% sun-readable
+  coverage.
+
+**Batch LL — mobile receipts "needs review" filter (closes Batch Z UX gap)**
+
+The amber "👀 N receipts need your review" badge from Batch Z was
+informational only — tapping it did nothing. Surveyors with a
+busy day asked "where ARE those?" and had to scroll the full
+list. Batch LL makes the badge tappable: tap → filter the list
+to needs-review only; tap × on the active chip → clear back to
+all.
+
+Mobile lib (`mobile/lib/receipts.ts`):
+- `ReceiptListFilter` union (`'all' | 'needs-review'`).
+- `useReceipts(limit, filter='all')` switches its SQL between
+  the existing all-receipts query and a new needs-review query
+  that exactly mirrors `useReceiptsNeedingReview`'s filter
+  (extraction done · user_reviewed_at null · status pending ·
+  not duplicate-discarded · deleted_at null). Both reach the
+  same set so the badge count and the filtered list always
+  agree.
+
+Mobile screen (`mobile/app/(tabs)/money/index.tsx`):
+- New `filter: ReceiptListFilter` state. Defaults to `'all'`.
+- The amber review badge becomes a `<Pressable>` — tap →
+  `setFilter('needs-review')`. Adds a `→` glyph to signal
+  "tap me." Accessibility hint explains the filter behaviour.
+- When the filter is active, the badge hides and a row above
+  the list shows a "Filter: N receipts needing review" amber
+  chip plus a circular `×` clear button. Tapping × restores
+  `'all'`.
+- New empty-state copy when the filter has zero matches: "All
+  caught up — Nothing left to review. Tap clear to see all
+  your receipts again." with a Clear-filter button.
+
+Pending v2 polish:
+- More filter chips: `'pending'` / `'rejected'` / `'this job
+  only'` / `'last 7 days'`. v1 limits scope to needs-review
+  since that's the only one with a count badge driving it.
+- Persist the chosen filter across launches (e.g.
+  AsyncStorage) so a surveyor reviewing one item at a time
+  keeps their place between captures.
+
+**Batch KK — Wi-Fi-only video upload gating (F4 closer)**
+
+Closes the F4 deferral *"WiFi-only original-quality re-upload
+tier per plan §5.4 (v1 uploads single-tier at the picker's
+videoQuality: 0.7)."* Pragmatic v1 interpretation: the picker
+now captures at original quality (1.0) and the upload queue
+holds large clips (>10 MB) off cellular until Wi-Fi returns —
+no separate transcode pipeline, no mystery wait, no surprise
+bill. A true dual-tier transcoding pipeline is tracked as v2
+polish.
+
+Picker (`mobile/lib/storage/mediaUpload.ts`):
+- Default `videoQuality` bumped 0.7 → 1.0 so the upload IS the
+  original. Smaller clips (typical ≤30 s @ 1080p ≈ 8 MB)
+  still upload immediately on cellular; a 5-minute walkthrough
+  (~50 MB) waits for Wi-Fi.
+
+Network (`mobile/lib/networkState.ts`):
+- New `isOnWifiNow()` sync read + `useIsOnWifi()` reactive hook
+  on top of NetInfo's `state.type`. Treats `'wifi'` and
+  `'ethernet'` as no-cellular-budget concern; everything else
+  (cellular / unknown / VPN / bluetooth) gates Wi-Fi-only
+  uploads.
+
+Schema (`mobile/lib/db/schema.ts`):
+- `pending_uploads.require_wifi` integer column added to the
+  local-only queue table. PowerSync's localOnly contract means
+  no seed migration is needed — schema bumps roll out with
+  the next mobile build.
+
+Upload queue (`mobile/lib/uploadQueue.ts`):
+- `EnqueueOptions.requireWifi?: boolean` plumbed through.
+- Synchronous attempt path skips the upload when
+  `requireWifi && !isOnWifiNow()`, AND flips the parent
+  `field_media.upload_state` to `'wifi-waiting'` so the mobile
+  tile shows the right badge instead of a stuck "Uploading…".
+- `processQueue` SQL filters `require_wifi=0` rows on cellular,
+  pulls all rows on Wi-Fi. The drainer subscribes to NetInfo
+  on every change so a cellular → Wi-Fi transition fires
+  another batch automatically.
+
+Capture (`mobile/lib/fieldMedia.ts`):
+- New `WIFI_ONLY_BYTES_THRESHOLD = 10 MB`.
+- `useAttachVideo` computes `requireWifi = file_size >
+  threshold` and passes it through to `enqueueAndAttempt`.
+- Success log line carries `require_wifi: bool` for ops
+  visibility ("how often does this kick in?").
+
+Pending v2 polish:
+- True dual-tier transcoding: the worker (already has
+  ffmpeg-static from Batch GG) transcodes the original →
+  480p cellular tier on upload, mobile reads
+  `cellular_url` first / `original_url` when on Wi-Fi.
+- Me-tab "data-saver" toggle that drops the threshold to
+  zero (everything Wi-Fi-only) for surveyors with strict
+  data plans.
+- Per-job override on long shoots (sometimes the surveyor
+  WANTS the cellular hit on a critical clip).
+
+**Batch JJ — admin receipts bulk-approve (closes Batch FF v2 polish)**
+
+Closes the Batch FF v2 polish item *"Bulk-approve action —
+checkboxes in the row + a top-of-list '✓ Approve N selected'
+button so the bookkeeper can clear the pending queue in one tap."*
+A bookkeeper with 30 pending receipts can now clear the whole
+queue in one click instead of 30 individual taps.
+
+API (`app/api/admin/receipts/bulk-approve/route.ts`):
+- `POST /api/admin/receipts/bulk-approve` body `{ ids: string[] }`,
+  returns `{ approved: string[], skipped: { id, reason }[] }`.
+- Hard cap: 200 rows per request (queue rarely exceeds 50/day;
+  ceiling stops a runaway client from approving thousands by
+  accident).
+- Per-row classifier surfaces typed skip reasons —
+  `not_found | already_approved | rejected | exported |
+  soft_deleted | unknown_status`. The UI surfaces these so the
+  bookkeeper sees why a row didn't transition.
+- Single bulk UPDATE with `WHERE status='pending'` guard so a
+  TOCTOU between SELECT and UPDATE (someone approved a row
+  manually mid-batch) is caught — those rows surface as
+  `already_approved` skips so the count math still holds.
+- Resolves the admin's `auth.users.id` once for the batch via
+  the same `listUsers` lookup the per-row PATCH uses, then
+  stamps `approved_by` + `approved_at = now()` +
+  `rejected_reason = null` on every approved row.
+
+Page (`app/admin/receipts/page.tsx`):
+- New `selectedIds: Set<string>` + `bulkBusy` state on the
+  pending tab. Selection clears whenever the active tab
+  changes so a stale set can't leak.
+- Per-row checkbox sibling to the existing row-summary
+  button. `stopPropagation` keeps the checkbox click from
+  toggling row expansion. Only renders when the row is
+  approve-able (status='pending' + not deleted).
+- "Select all N pending" label at the top of the list when
+  there are approve-able rows. Uses `every`-style logic so the
+  checkbox stays consistent when the bookkeeper expands /
+  collapses the selection.
+- Sticky action bar pinned to the bottom of the page when
+  selection > 0: "N selected · Clear · ✓ Approve N selected."
+  Confirms with `window.confirm` ("Approve N receipts? This
+  stamps your name as the approver.") before commit.
+- After commit, clears the selection + reloads the list. Skip
+  reasons surface as a single alert ("Approved X · skipped Y
+  (reasons…)") so the bookkeeper isn't surprised.
+
+Logging:
+- `console.log` summary line on every commit
+  (`requested=N approved=M skipped=K admin_email=…`) for
+  audit-trail correlation.
+- `console.error` on the underlying SELECT / UPDATE failures.
+
+Pending v2 polish:
+- Bulk-reject mirror with a shared rejection-reason input
+  (currently rejection is per-row only because reasons are
+  per-receipt).
+- Admin keyboard shortcut: ⌘A select-all on the pending tab.
+- Surface the audit-trail of bulk-approves on the receipt
+  detail screen so the bookkeeper can answer "did I bulk-
+  approve this row, or hand-approve it?" months later.
+
+**Batch II — mobile per-job "Today's captures" rollup**
+
+Surveyors arriving at a job in the truck want a one-glance answer
+to *"where am I on this job today?"* — clock state, hours logged
+so far, captures by type, receipts so far. Mobile mirror of the
+admin `/admin/jobs/[id]/field` rollup.
+
+Mobile lib (`mobile/lib/jobs.ts`):
+- New `useJobTodayRollup(jobId)` hook. Reactive against PowerSync's
+  local SQLite — fully offline, updates as the surveyor captures
+  throughout the day.
+- Single SQL query joins **eleven** aggregations in one round-trip:
+    - points / photos / videos / voice / notes / files / receipts
+      counts (per current user, per job, today)
+    - receipts total in cents
+    - closed time-entries' duration_minutes sum
+    - open time-entries count + earliest open `started_at`
+- Per-user scope — every count filters by `created_by =
+  :userId` (or `user_email` for time / notes; `user_id` for
+  receipts) so two crew members on the same job each see their
+  own day. Job is the shared context; captures aren't.
+- "Today" anchored on the device-local midnight ISO so a 6 AM
+  cold-start shows the right day even if the user crossed
+  midnight in airplane mode.
+- `minutesToday` is exact: closed entries' stored
+  `duration_minutes` plus the open entry's
+  `(now − started_at)` → live ticker accurate.
+- `isClockedIn` flips to true when any open entry exists for the
+  user on this job today.
+
+UI (`mobile/lib/JobTodayRollup.tsx`):
+- New `<JobTodayRollupCard>` component with:
+    - Top row: "Today · Tue Apr 28" label + clock-state pill
+      ("🟢 Clocked in" green when active, "⚪ Off the clock"
+      neutral otherwise).
+    - Big primary number: `H:MM` worked today (36 px font;
+      drives at-a-glance orientation).
+    - Six-tile grid (3 cols × 2 rows): 📍 points · 📷 photos
+      · 🎬 videos · 🎙 memos · 📝 notes · 📎 files. Zero-counts
+      render at 55% opacity so a fresh-morning card reads
+      "fresh start" without looking empty/broken.
+    - Receipts strip (only when `receiptsToday > 0`):
+      `🧾 N receipts · $X.YZ`.
+    - Empty hint when nothing has been captured.
+    - Big "+ Capture" CTA at the bottom — tap deep-links to
+      `/(tabs)/capture?jobId=...`.
+
+Per-job screen (`mobile/app/(tabs)/jobs/[id]/index.tsx`):
+- New `<JobTodayRollupCard>` rendered between the header
+  actions row and the Client section so it's the first
+  scrollable block the surveyor sees.
+
+Logging:
+- `jobs.useJobTodayRollup` logs query failures with `job_id`
+  for ops correlation.
+
+Pending v2 polish:
+- Per-day paging — let the surveyor scrub backwards to
+  yesterday / last week to review historical days.
+- Add today's miles + stops counts when those become naturally
+  per-job (currently only the geofence-classifier-tagged stops
+  carry `job_id`).
+- Tap-into deep-links from each tile (📷 → photos screen with
+  date filter, 🧾 → receipts list filtered to this job + today).
+
+**Batch HH — OTA updates wiring (F0 closer)**
+
+Closes the F0 deferral *"OTA updates working — `expo-updates`
+installed but `app.json` has no `'updates'` block (no channel URL
+set). Need to flip on once EAS Update is provisioned."* JS-only
+fixes can now ship without an EAS build + store-review delay
+(once the operator provisions the EAS Update channel).
+
+Two-channel update strategy:
+
+1. **Silent cold-start check** (`useCheckForUpdatesOnLaunch`)
+   mounts at the root layout. On every launch, in production builds
+   with reception:
+     - `Updates.checkForUpdateAsync()` against the EAS CDN
+     - On `isAvailable=true` → `fetchUpdateAsync()` →
+       `reloadAsync()` so the next paint runs the new bundle
+     - 60 s timeout caps blocked startups; offline / dev / not-
+       enabled paths skip silently
+2. **Manual "Check for updates"** (`useManualUpdateCheck`) lives
+   on the Me tab "About" row. Returns explicit state
+   (`'idle' | 'checking' | 'downloading' | 'no-update' |
+   'ready-to-restart' | 'error'`) so the UI can render captions +
+   the "Restart to apply" CTA. Surveyor finishes their current
+   task before yanking the JS context.
+
+Mobile lib (`mobile/lib/otaUpdates.ts`):
+- Both hooks wrap every async call in try/catch + log a warn
+  breadcrumb. Network failures, CDN 5xx, no-channel-configured
+  all degrade silently.
+- `getAppVersionInfo()` returns `{ appVersion, runtimeVersion,
+  channel, updateId, enabled }` for the About row.
+
+Root layout (`mobile/app/_layout.tsx`):
+- New `<OtaUpdatesReconciler />` sibling to
+  `<UploadQueueDrainer />` + `<PinnedFilesReconciler />`.
+
+Me-tab About section (`mobile/app/(tabs)/me/index.tsx`):
+- New `AboutRow` component renders inside an "About" section.
+  Shows app name + `v0.0.1 · production channel` + bundle ID
+  prefix when running an OTA. State-aware caption underneath
+  ("You're up to date." / "Update ready. Tap 'Restart to apply'
+  to use it." / "Couldn't check: No reception").
+- Primary action: "Check for updates" → "Restart to apply"
+  (state-aware) → `Updates.reloadAsync()`.
+- When `Updates.isEnabled === false`, the row tells the user to
+  install from the App Store / Play Store instead.
+
+Config (`mobile/app.json`):
+- `updates` block added: `enabled: true`,
+  `checkAutomatically: 'ON_LOAD'`, `fallbackToCacheTimeout: 0`,
+  `url: 'REPLACE_WITH_EAS_UPDATE_URL'`.
+- `runtimeVersion: { policy: 'appVersion' }` was already in
+  place.
+
+Activation gate (operator):
+1. Run `eas update:configure` to get the channel URL (e.g.
+   `https://u.expo.dev/<project-id>`).
+2. Replace the `REPLACE_WITH_EAS_UPDATE_URL` placeholder.
+3. Build + submit a binary that bakes the URL in. Subsequent
+   JS-only fixes ship via `eas update --branch=production`
+   without a new build.
+
+Logging:
+- `otaUpdates.coldStart` info/warn for the silent path.
+- `otaUpdates.manualCheck` for user-triggered checks.
+- All log lines carry `current_id` so a Sentry trace can
+  correlate stale-bundle reports.
+
+Pending v2 polish:
+- Per-environment EAS channels (dev / preview / production)
+  with auto-routing via `EAS_BUILD_PROFILE`.
+- "What's new" changelog modal that surfaces release notes from
+  the update manifest's `extra` field on first cold-start after
+  applying.
+- Forced-update gate that blocks the surveyor from continuing
+  on a known-bad bundle (rare; useful when a critical bug
+  ships).
+
+**Batch GG — server-side video thumbnail extraction (F4 closer)**
+
+Closes the F4 deferral *"server-side thumbnail extraction (FFmpeg
+via worker) so the gallery thumbnail isn't a placeholder."* Every
+video the surveyor records now gets a real poster-frame JPEG
+written to the photo bucket and surfaced in `field_media.thumbnail_url`
+within ~30 s of upload — admin viewer + mobile Videos grid switch
+from the 🎬 placeholder glyph to a recognizable still automatically.
+
+Schema (`seeds/231_starr_field_video_thumbnails.sql`):
+- `field_media.thumbnail_extraction_status` (`queued | running |
+  done | failed`) — same state machine as
+  `extraction_status` (receipts) and `transcription_status`
+  (voice).
+- `field_media.thumbnail_extraction_error` for the truncated
+  failure reason.
+- `field_media.thumbnail_extraction_started_at` +
+  `thumbnail_extraction_completed_at` for the watchdog +
+  ops-correlation.
+- Two partial indexes: `idx_field_media_thumb_extract_queued` for
+  the worker poll, `idx_field_media_thumb_extract_running` for
+  the watchdog sweep.
+- Apply AFTER seeds/221.
+
+Mobile (`mobile/lib/db/schema.ts`, `mobile/lib/fieldMedia.ts`):
+- Schema mirrors the four new columns.
+- `useAttachVideo` INSERT now sets
+  `thumbnail_extraction_status='queued'` so the worker's
+  poll-filter immediately sees the row when `upload_state` flips
+  to `'done'`.
+
+Worker service (`worker/src/services/video-thumbnail-extraction.ts`):
+- `processVideoThumbnailBatch(supabase, opts)` returns
+  `{ total, done, failed, skipped, results }`.
+- Uses the **ffmpeg-static** binary (~50 MB prebuilt; no host
+  ffmpeg dep). Spawn pattern: `-ss 1 -i input.mp4 -frames:v 1
+  -vf scale=640:-2 -q:v 4 out.jpg`. For very short clips
+  (`duration_seconds < 1.5`) seeks to 0 instead of 1 s so the
+  fade-out doesn't return a black frame.
+- 30 s ffmpeg timeout per video. Hard 200 MB cap on input
+  (skips with `over_size_cap` reason).
+- Race-safe `claimRow` UPDATE flips `queued → running` so two
+  workers can't double-process the same row.
+- Watchdog sweeps `running` rows whose
+  `thumbnail_extraction_started_at` is older than 5 min and
+  re-queues them (covers crashed workers + container restarts).
+- Cleanup is bullet-proof: `mkdtemp` per row + `rm -rf` in
+  `finally` — no temp leaks.
+
+Storage path convention:
+- Thumbnail uploads to `starr-field-photos` at
+  `{user_id}/{media_id}-thumb.jpg`. The `user_id` segment is
+  parsed from the source video's `storage_url` so the photo
+  bucket's RLS aligns with the source.
+- `upsert: true` so re-extracts (rare) overwrite cleanly
+  without leaking storage objects.
+
+CLI (`worker/src/cli/extract-video-thumbnails.ts`):
+- Mirrors the receipt + voice CLIs: one-shot mode + `--watch`
+  loop polling every 60 s. Tunable `--batch-size` (default 5,
+  max 20).
+- npm script: `npm run extract-video-thumbnails -- --watch`.
+
+Worker package: adds `ffmpeg-static ^5.2.0` dep + the new npm
+script. No host ffmpeg required — the prebuilt binary ships
+with the package.
+
+Logging:
+- `video-thumb` ProcessLogger emits structured logs at
+  info/warn/error. Per-row context (`media_id`, `storage_url`,
+  `thumb_bytes`, `seek_sec`) so Sentry can correlate failures
+  with bucket-config issues.
+- CLI summary line on every batch: `done=N failed=M skipped=K
+  KB written`.
+
+Activation gate: apply `seeds/231` to live Supabase + run
+`npm install` on the worker (adds ~50 MB for ffmpeg-static)
+before scheduling the cron. Mobile insert already writes the
+`'queued'` state so the worker picks rows up immediately on
+startup.
+
+Pending v2 polish:
+- WiFi-only original-quality re-upload tier per plan §5.4 (the
+  last F4 deferral). Currently single-tier upload at the
+  picker's `videoQuality: 0.7`.
+- Multi-frame thumbnail for videos > 60 s (so the gallery
+  shows a 4-up grid representative of the whole clip).
+- Time-travel thumbnail (let the surveyor scrub to a frame
+  they want as the poster instead of the auto-1s default).
+
+**Batch FF — admin "Show deleted" toggle on /admin/receipts (closes Batch CC audit-trail UX)**
+
+Closes the Batch CC v2 polish item *"Admin 'Show deleted' toggle on
+`/admin/receipts` so the bookkeeper can review tombstones for audit
+prep."* Tombstoned receipts (Batch CC) are an audit-trail artifact
+— hidden from the daily queue, but the office reviewer needs them
+visible during IRS prep + dispute resolution.
+
+API (`app/api/admin/receipts/route.ts`):
+- New `?include_deleted=1` (also `true` / `yes`) query param.
+- Default behaviour is unchanged: tombstones are filtered via
+  `deleted_at IS NULL`.
+- When `include_deleted` is truthy, the filter is skipped so
+  tombstones flow through. Existing `select('*')` already pulls
+  the `deleted_at` + `deletion_reason` columns.
+
+Page (`app/admin/receipts/page.tsx`):
+- New "Show deleted" checkbox in the filter row, with a tooltip
+  explaining the audit-prep use case.
+- Reactive — toggling re-runs the load with the new query param.
+- ReceiptRow's right-side chip column now renders a "🗑 deleted"
+  red chip when `deleted_at` is set. Hover-tooltip shows the
+  deletion timestamp + reason ("user_undo" / "duplicate" /
+  "wrong_capture") so the bookkeeper has the full context
+  without expanding the row.
+- AdminReceiptRow type extended with `deleted_at` +
+  `deletion_reason` mirroring the API row shape.
+
+Pending v2 polish:
+- Bulk-approve action — checkboxes in the row + a top-of-list
+  "✓ Approve N selected" button so the bookkeeper can clear the
+  pending queue in one tap. Requires a new
+  `POST /api/admin/receipts/bulk-approve` endpoint with array
+  body + per-row error-collection.
+- "Restore" action on tombstoned rows — flips `deleted_at`
+  back to null when the bookkeeper decides a delete was
+  premature (e.g. user discarded a real-but-similar receipt as
+  duplicate).
+
+**Batch EE — missing-receipt deep-link pre-fill (closes Batch DD UX loop)**
+
+Closes the Batch DD v2 polish item *"Receipt-capture screen
+consumes `?stopId=` + `?stopArrivedAt=` query params to pre-fill
+`transaction_at`. v1 routes to the capture screen but doesn't
+pre-fill."* Tapping a "Forget a receipt?" notification now lands
+on the capture screen with:
+  - an amber "🧾 Forget a receipt?" callout banner above the
+    capture controls, telling the surveyor we'll stamp the
+    receipt with the stop's arrival time
+  - the new receipt row pre-stamped with `transaction_at` =
+    stop arrival ISO + `location_stop_id` = stop UUID
+
+`transaction_at` pre-fill matters because:
+  - AI extraction has a head-start — Claude Vision compares
+    against the pre-filled value rather than parsing it from
+    scratch.
+  - The Batch Z dedup-fingerprint is computable on insert
+    (vendor will land later, but the date component is already
+    correct).
+  - The Batch CC review screen's "Captured" row shows a
+    sensible default while AI is still running.
+
+`location_stop_id` pre-fill matters because:
+  - The bookkeeper can trace from the receipt to the stop that
+    prompted it, useful for audit prep.
+  - The Batch DD scan auto-skips stops with already-linked
+    receipts on subsequent runs (the receipt-window check picks
+    them up via `transaction_at` proximity).
+
+Notification routing (`mobile/lib/notificationsInbox.ts`):
+- `'missing_receipt'` joins `AdminPingSourceType` so type-aware
+  consumers can branch on it.
+- `deepLinkForSourceType('missing_receipt')` returns
+  `{ pathname: '/(tabs)/money/capture' }` as a fallback when the
+  notification's `link` couldn't be parsed.
+
+Capture flow (`mobile/lib/receipts.ts`):
+- `CaptureOptions` gains `transactionAt?: string | null` +
+  `locationStopId?: string | null`.
+- INSERT carries both fields (or null) so the row is correct
+  from creation. PowerSync's CRUD queue replays the full row.
+- Success log line includes `prefilled_transaction_at` +
+  `prefilled_stop_id` flags so ops can correlate adoption.
+
+Capture screen (`mobile/app/(tabs)/money/capture.tsx`):
+- Reads `useLocalSearchParams` for `stopId` + `stopArrivedAt`.
+- Renders the amber "Forget a receipt?" callout with the human
+  readable stop time when both params are present.
+- Passes both through to `useCaptureReceipt`.
+
+Logging:
+- `receipts.capture` 'attempt' line carries
+  `prefilled_transaction_at` + `prefilled_stop_id` booleans for
+  ops visibility.
+
+Pending (still v2):
+- Per-user notification preferences for opting out of
+  missing-receipt prompts on the Me tab.
+- AI categorization that lets the prompt body say "gas station"
+  vs "restaurant" instead of generic "stop."
+
+**Batch DD — missing-receipt cross-reference prompts (F6 closer)**
+
+Closes the F6 deferral *"Missing-receipt cross-reference prompts —
+should compare clocked-in geofences against receipt timestamps
+and prompt 'you spent 12 min at a gas station yesterday but no
+receipt was logged.' Worker job + mobile inbox notification."*
+
+Hourly cron scans the last 24h of `location_stops` and pushes a
+notification through the existing dispatcher-ping inbox flow
+(Batch B) when a long-enough non-job-site stop has no associated
+receipt. Surveyor taps the inbox row → deep-link straight to the
+receipt-capture screen with the stop time encoded in the URL.
+
+Worker service (`worker/src/services/missing-receipt-detection.ts`):
+- `processMissingReceiptScan(supabase, opts?)` returns
+  `{ candidateStops, receiptCovered, alreadyNotified, capped,
+   inserted, errors }` so the CLI can emit a summary.
+- Detection rule (v1):
+    - duration_minutes ≥ 5 (skip parking-stoplight stops)
+    - arrived_at within last 24h (don't spam old stops)
+    - `job_id IS NULL` — geofence classifier (Batch Q) sets
+      job_id on matched-fence stops; we skip those because a
+      known job site is by definition a place we don't expect a
+      separate receipt for.
+    - `user_overridden != true` (surveyor has explicit category
+      control over overridden stops).
+    - NO `receipts.transaction_at` within ±30 min of
+      `arrived_at..departed_at`. Soft-deleted receipts (Batch
+      CC) don't count.
+    - NOT already notified — we encode the stop_id in the
+      notification link so a SELECT against `link LIKE
+      '%stop_id%'` gives idempotency without a new column.
+- Performance pattern: single bulk fetch of stops + receipts +
+  prior notifications, then in-memory per-stop matching. O(n)
+  per scan, no per-stop SQL hit.
+- Per-user-per-scan cap: 5 notifications. A surveyor with a
+  busy day of unknown stops gets the most-recent 5 instead of a
+  flood.
+
+CLI (`worker/src/cli/scan-missing-receipts.ts`):
+- Mirrors the `transcribe-voice` + `extract-receipts` patterns:
+  one-shot mode (`node dist/cli/scan-missing-receipts.js`),
+  `--watch` mode (1-hour poll loop), tunable
+  `--per-user-cap` / `--min-duration` /
+  `--receipt-window` / `--hours-back`.
+- npm script alias: `npm run scan-missing-receipts -- --watch`.
+
+Notification shape:
+- title: "Forget a receipt?"
+- body: "You stopped for 18 min at Tue 3:42 PM. If that was a
+  gas / food / supplies run, snap the receipt now — tap to
+  capture."
+- icon: 🧾
+- link: `/(tabs)/money/capture?stopId=...&stopArrivedAt=...`
+  — the existing notification-route handler routes the tap to
+  the receipt capture screen.
+- expires_at: 48 h from creation. Stale prompts auto-tomb.
+
+Activation gate:
+- Set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` on the
+  worker. Schedule the CLI hourly via cron / pm2 / systemd.
+- Geofence classifier (seeds/227 + Batch Q) should already be
+  applied so matched-job-site stops get filtered out at the
+  source — without it, every job-site visit would generate a
+  spurious "forget a receipt?" prompt. v1 will still send
+  prompts for un-fenced visits to known sites; the dispatcher
+  uses `/admin/timeline` "📍 Set as job site" to capture
+  those over time.
+
+Pending v2 polish:
+- AI categorization: classify "fuel" vs "food" vs "supplies"
+  per stop so the prompt body is more specific ("You spent 18
+  min at a gas station — snap the receipt"). Depends on the
+  deferred AI stop classifier from Batch J.
+- Receipt-capture screen consumes `?stopId=` + `?stopArrivedAt=`
+  query params to pre-fill `transaction_at`. v1 routes to the
+  capture screen but doesn't pre-fill.
+- Per-user notification preferences (opt-out of missing-receipt
+  prompts entirely on the Me tab).
+
+**Batch CC — receipt soft-delete + IRS retention foundation (F2 audit closer)**
+
+Closes the F2 audit-additions deferral *"Soft-delete + IRS 7-year
+retention — receipts table currently hard-deletes on user
+delete."* Surveyor-side delete now leaves the audit trail in
+place (the row tombstones with `deleted_at` instead of being
+purged), which is the IRS contract. The retention sweep CLI
+that actually hard-deletes rows past the retention window is
+tracked as v2 polish.
+
+Schema (`seeds/230_starr_field_receipt_retention.sql`):
+- `receipts.deleted_at TIMESTAMPTZ` — NULL = visible, non-null
+  = soft-deleted.
+- `receipts.deletion_reason TEXT` with a CHECK constraint to
+  `'user_undo' | 'duplicate' | 'wrong_capture'`. Optional;
+  helps the bookkeeper triage why a row was tombstoned.
+- Partial index `idx_receipts_user_time_visible (user_id,
+  created_at DESC) WHERE deleted_at IS NULL` so the per-user
+  list scan stays fast even after years of accumulation.
+- Partial index `idx_receipts_deleted_at` covering rows where
+  `deleted_at IS NOT NULL` so the future retention sweep is
+  cheap.
+- New RLS policy `receipts_owner_soft_delete` allows the user
+  to UPDATE `deleted_at` + `deletion_reason` on their own
+  pending / rejected rows. Hard DELETE remains revoked from
+  `authenticated` — only `service_role` (worker) can purge.
+
+Mobile contract (`mobile/lib/db/schema.ts`,
+`mobile/lib/receipts.ts`):
+- Mobile schema mirrors the two new columns.
+- `useDeleteReceipt(receipt, reason?)` now `UPDATE`s
+  `deleted_at + deletion_reason + updated_at` instead of
+  `DELETE`-ing. Rejects the call when `status` is
+  `'approved' | 'exported'` (same lock as before).
+- `removeFromBucket` cleanup is dropped from the delete path
+  — the photo stays in storage so an IRS auditor reviewing
+  a tombstoned row can still see the captured image. The
+  retention sweep is the only path that purges bucket
+  objects.
+- `useReceipts` (Money-tab list), `useJobReceiptRollup`
+  (per-job mileage rollups), and `useReceiptsNeedingReview`
+  (Batch Z review badge count) all filter `deleted_at IS
+  NULL` so tombstoned rows disappear from the surveyor's
+  view.
+- `useReceipt(id)` and `useReceiptRow(id)` deliberately do
+  NOT filter so a user can navigate to a tombstoned row to
+  review the audit trail (and see "Discarded as duplicate"
+  on the dedup banner if applicable).
+- `useResolveReceiptDuplicate` discard path also stamps
+  `deleted_at + deletion_reason='duplicate'` so the
+  duplicate-discard flow naturally creates an audit-ready
+  tombstone in one transaction.
+
+Activation gate: apply `seeds/230` to live Supabase before the
+mobile build that ships this batch — without the columns, the
+`UPDATE … SET deleted_at = …` would fail. PowerSync CRUD
+queue replay handles the transition naturally for any in-flight
+mobile delete that lands after the seed applies.
+
+Pending v2 polish:
+- Worker retention sweep CLI: scans for rows where
+  `deleted_at < now() - retention_threshold` and hard-deletes
+  bucket object + DB row in one transaction. Threshold per
+  IRS class (3 yr for clean returns, 7 yr for substantial
+  under-reporting, 90 days for never-approved).
+- Mobile "Recently deleted" panel under Me → Storage so the
+  surveyor can undo within ~24h.
+- Admin "Show deleted" toggle on `/admin/receipts` so the
+  bookkeeper can review tombstones for audit prep.
+
+**Batch BB — cross-notes search (F4 closer)**
+
+Closes the F4 deferral *"Search across notes + transcriptions —
+depends on the above + an FTS index. Need to confirm whether
+server-side `tsvector` columns or local SQLite FTS5 is the
+better path."* Surveyors hit the 🔍 button on the Jobs tab and
+type a few characters; results render across every active note
+on this device with the matched term highlighted.
+
+Decision: **offline-first LIKE-scan for v1**, not FTS5 / tsvector.
+Reasoning:
+  - PowerSync's local SQLite mirrors `fieldbook_notes` +
+    `field_data_points` + `jobs` already, so a six-column LIKE
+    join lands fully offline with no schema changes.
+  - Per-user note volume in v1 (~5 surveyors × ~10 notes/day ×
+    weeks of retention) stays well under the 1k-row threshold
+    where LIKE starts to feel slow on a phone.
+  - FTS5 (or server `tsvector`) becomes worthwhile when the
+    dataset crosses ~10k rows per device or when admin-side
+    cross-user search ships. Tracked in §9.w as v2 polish.
+
+Mobile lib (`mobile/lib/fieldNotes.ts`):
+- New `useSearchFieldNotes(query, limit = 50)` hook. Returns
+  `{ hits, isLoading }` where `hit = { note, jobName,
+  jobNumber, pointName }`. Empty hits when the trimmed query
+  is <2 chars (avoids "a" returning everything).
+- Single SQL query joins fieldbook_notes ⨝ field_data_points ⨝
+  jobs and ORs six LIKE clauses against `body`,
+  `structured_data`, `note_template`, point name, job name,
+  and job_number. Results sorted by `created_at DESC`.
+- Returns active rows only (`is_current = 1`).
+
+Mobile screen (`mobile/app/(tabs)/jobs/search.tsx`):
+- Modal-presented (slides up from the bottom) with auto-focus
+  text input + glyph + clear button.
+- Empty states for: nothing typed yet · 1 char so far · search
+  in progress · zero results.
+- Result count line ("12 results") with a "(capped)" suffix
+  when the limit hits.
+- ResultCard with template pill / "Free-text" badge, age stamp,
+  highlighted match excerpt clipped to a 140-char window
+  centred on the first match, and a footer with job number +
+  name + point name.
+- HighlightedText component splits the body around every
+  case-insensitive match and renders matches in the accent
+  colour, bold. Preserves original casing.
+- Tap a result → push `(tabs)/jobs/[id]/points/[pointId]` for
+  point-attached notes; push `(tabs)/jobs/[id]` for job-level
+  notes.
+
+Routing (`mobile/app/(tabs)/jobs/_layout.tsx`):
+- New `<Stack.Screen name="search" />` registered with
+  `presentation: 'modal'` + `slide_from_bottom` for the modal
+  feel. Cancel button at the top dismisses.
+
+Entry (`mobile/app/(tabs)/jobs/index.tsx`):
+- 🔍 Search pill in the Jobs-tab header (right of the count)
+  pushes the search screen.
+
+Logging:
+- Query failures log via `fieldNotes.useSearchFieldNotes` with
+  the trimmed query for ops correlation.
+
+Pending v2 polish:
+- Server-side `tsvector` index for cross-user admin search at
+  scale (so the office can grep across every surveyor's notes
+  for compliance reviews).
+- SQLite FTS5 ranking when local datasets exceed ~10k notes —
+  drops the LIKE scan in favour of a ranked virtual-table
+  query.
+- Voice-transcript search (currently `field_media.transcription`
+  isn't joined into the search; needs a UNION query when the
+  Whisper worker results land).
+
+**Batch AA — CSV (P,N,E,Z,D) parser + match-to-points preview (F5 closer)**
+
+Closes the F5 deferral *"CSV parser (P,N,E,Z,D and variants);
+auto-link CSV rows to phone-side data points by name."* When a
+surveyor attaches a Trimble / Carlson / Topcon coordinate export
+to a job and taps the file row, they now land on an in-app
+preview that auto-detects the format, parses the rows, and
+matches each row's point name against the points already captured
+in the field. ✓ rows are tied; "New" rows are unrecorded.
+
+Pure parser (`mobile/lib/csvCoords.ts`):
+- `parseCoordCsv(text)` returns `{ format, separator, hasHeader,
+  columnLabels, rows, parsedCount, warnings }`.
+- Separator auto-detect (`sniffSeparator`): comma / tab /
+  semicolon, picked by frequency on first 500 chars; tab beats
+  comma when both present.
+- Header-row auto-detect via `looksLikeHeader`: a row with no
+  numeric cells + ≥3 columns is a header (e.g. `P,N,E,Z,D`);
+  data rows have 3+ numerics. Falls back to "treat first row as
+  data" when the data-row sample fails to detect a format.
+- Format auto-detect via `detectFormat`: looks at the first 5
+  data rows + counts how many fit each candidate. P,N,E,Z,D
+  (point name first) wins when col 0 is alpha + cols 1..3 are
+  numeric. N,E,Z,D,P (point name last) wins when cols 0..2 are
+  numeric + col 3 is alpha.
+- RFC-4180-ish `splitLine` handles double-quote escapes +
+  embedded separators inside quoted cells.
+- `isNumeric` accepts comma-as-thousands-separator (some
+  European exports). `toNumber` strips commas before parseFloat.
+- `matchedRowNames(rows, knownNames)` returns a Set for O(1)
+  match lookups in the UI.
+- Pure module. No React, no Supabase, no expo. Trivially
+  testable.
+
+Preview screen (`mobile/app/(tabs)/jobs/[id]/files/[fileId]/preview.tsx`):
+- Resolves bytes via three-tier cascade:
+    1. pinned_files.local_uri (offline-safe; instant)
+    2. pending_uploads.local_uri (upload queue's copy if not
+       synced yet)
+    3. signed-URL fetch to cacheDirectory (only path needing
+       reception)
+  Shows "Loaded from your pinned copy" / "from the upload
+  queue" / "from the server" so the user knows which path won.
+- 5 MB cap on in-memory parsing — over that, the screen offers
+  the share-sheet fallback so the user can open in Numbers /
+  Excel without freezing the JS thread.
+- Stats bar: Rows · Matched · New.
+- Format banner: "P, N, E, Z, D — point name first · comma-
+  separated · header row skipped" (or "Unknown — showing raw
+  cells").
+- Coordinate grid: per-row #, Point + Description, N / E / Z,
+  Match column with ✓ / "New" / "—" badges.
+- "Open in another app" fallback button hands the file to
+  `useOpenJobFile()` so the share-sheet path stays one tap
+  away.
+
+Routing (`mobile/app/(tabs)/jobs/[id]/_layout.tsx`):
+- New `<Stack.Screen name="files/[fileId]/preview" />` registered
+  alongside the existing per-point and notes routes.
+
+UX integration (`mobile/app/(tabs)/jobs/[id]/points/[pointId].tsx`):
+- File-row tap branches: CSV files (by content_type or `.csv`
+  extension) push the preview screen; everything else still hits
+  the share-sheet open path.
+- File-row title prefix flips: 📊 for CSV (signals "tap to
+  preview"), 📍 for pinned, 📎 for everything else.
+
+Logging:
+- `csvPreview.parse` logs format + row count + warnings + byte
+  source on success; `csvPreview.parse` logs errors on failure.
+- Cleanup on the cache copy is left to the OS (cacheDirectory
+  is reaped automatically on low-storage events).
+
+Pending v2 polish:
+- Auto-import unmatched rows as new data points — a "+ Import N
+  unmatched rows" CTA at the top of the preview that creates
+  field_data_points entries with the parsed N/E/Z + description.
+  Needs a coordinate-system picker (state plane vs lat/lon) so
+  the captured-on-device GPS columns match the import.
+- Per-row reverse-matching by GPS distance for rows whose names
+  don't match — surveyors sometimes rename a point in Trimble
+  after capture; matching by proximity catches those.
+
+**Batch Z — receipt duplicate detection + review-before-save (F2 closer)**
+
+Closes the user's directive: *"We also need to make sure we are
+not uploading duplicate receipts, so AI needs to be able to
+recognize whenever there is likely a duplicate receipt and needs
+to prompt the user to ask them if they still want to save it or
+discard the duplicate. Also, whenever a receipt is uploaded, it
+needs to scan the receipt and store the data, but it needs to ask
+the user to review the information to make sure it is actually
+correct."*
+
+Two coupled features ship together because they share the same
+post-extraction lifecycle stage.
+
+Schema (`seeds/229_starr_field_receipt_review.sql`):
+- New `receipts.dedup_fingerprint TEXT` — computed by the worker:
+  `lower(alnum-only(vendor)) || '|' || total_cents || '|' ||
+  YYYY-MM-DD(transaction_at)`. Two receipts from "Lowe's #1234"
+  and "LOWES STORE 1234" both normalise to `lowes1234` and match.
+- New `receipts.dedup_match_id UUID REFERENCES receipts(id)` —
+  the prior matching row the worker found (if any).
+- New `receipts.dedup_decision TEXT 'keep' | 'discard'` — the
+  user's call.
+- New `receipts.user_reviewed_at TIMESTAMPTZ` — set the moment
+  the user taps "Confirm receipt." Until then the row shows the
+  yellow "👀 Tap to review" badge in the list.
+- New `receipts.user_review_edits JSONB` — sparse audit trail
+  of which fields the user changed during review. Empty object
+  = "reviewed, no edits noted." Distinct from null = "never
+  reviewed."
+- Two partial indexes: dedup-lookup `(user_id, dedup_fingerprint)
+  WHERE dedup_fingerprint IS NOT NULL AND status != 'rejected'`
+  for the worker's match query; needs-review
+  `(user_id, created_at DESC) WHERE user_reviewed_at IS NULL AND
+  extraction_status = 'done' AND status = 'pending'` for the
+  list-side reactive query.
+
+Worker (`worker/src/services/receipt-extraction.ts`):
+- `markDone()` now computes the fingerprint AFTER picking the
+  final values (post-COALESCE so user mid-edit values win),
+  then runs a single SELECT to find a prior non-rejected
+  receipt with the same `(user_id, dedup_fingerprint)`.
+- When a match is found, writes `dedup_match_id` on the new row.
+  We do NOT auto-discard — two $5 coffees on the same day at
+  the same shop are legit; the user makes the call.
+- Dedup query failures log + continue (worse case the warning
+  card doesn't render; the receipt still saves).
+- New exported `computeDedupFingerprint(vendor, totalCents,
+  transactionAt)` helper — pure function, easy to test, used by
+  the mobile side too if a future "instant client-side dup
+  preview" wants to call it.
+
+Mobile lib (`mobile/lib/receipts.ts`):
+- `useConfirmReceiptReview(id, edits?)` — stamps
+  `user_reviewed_at = now()` + writes `user_review_edits` JSON.
+- `useResolveReceiptDuplicate(id, 'keep' | 'discard')` — records
+  the decision; 'discard' also flips status to 'rejected' with
+  `rejected_reason = 'duplicate'`.
+- `useReceiptRow(id)` — non-loading-wrapper variant that powers
+  the duplicate-match preview card (different from the existing
+  `useReceipt(id)` which returns `{receipt, isLoading}`).
+- `useReceiptsNeedingReview()` — reactive count for the Money
+  tab header pill.
+
+Mobile UI:
+- `(tabs)/money/[id].tsx` (receipt detail):
+    - New `<DuplicateBanner>` at the top — amber when undecided,
+      flips to muted-confirmed once the user picks. Shows the
+      matching receipt's vendor / total / date.
+    - New `<ReviewBanner>` below — accent-coloured "Please
+      review" CTA with a "✓ Confirm receipt" button. Hidden
+      when extraction is in flight, when already user-confirmed,
+      when locked, or when discarded as duplicate.
+- `(tabs)/money/index.tsx` (receipts list):
+    - New "👀 N receipts need your review" pill under the
+      heading when count > 0.
+- `lib/ReceiptCard.tsx`:
+    - "⚠ Possible duplicate" amber badge on cards where
+      `dedup_match_id` is set + `dedup_decision` is null.
+      Prioritised over the regular review badge.
+    - "👀 Tap to review" accent badge on cards that finished
+      extraction without user confirmation.
+    - "Discarded as dup" label on rejected-via-dedup rows.
+- `(tabs)/money/capture.tsx`:
+    - Snap-tips block now mentions: "AI will read the vendor +
+      total + date and ask you to confirm. We'll also flag a
+      possible duplicate if it matches an earlier receipt."
+
+Logging:
+- `receipts.confirmReview` / `receipts.resolveDuplicate` log the
+  decision + edit count for ops visibility.
+- Worker dedup-query failures log a warn so a misconfigured
+  index is visible.
+
+Activation gate: apply `seeds/229_starr_field_receipt_review.sql`
+to live Supabase before the worker pushes the next image —
+without the columns the worker's UPDATE 4xx's. The mobile UI
+gracefully handles a null `dedup_match_id` / null
+`user_reviewed_at`, so the rollout order is: seed → worker →
+mobile (or mobile-first works too; the new badges hide until
+the worker writes the columns).
+
+Pending v2 polish:
+- Fuzzy matching: "near-duplicate" detection on amounts ±$0.10
+  (cashier rounding) or vendor variants the normalisation
+  doesn't catch. v1 is exact-match only.
+- Per-field review wizard that diffs AI vs user edits and
+  records each one into `user_review_edits` (currently we just
+  stamp the timestamp).
+- Photo-perceptual hash so two receipts captured from the same
+  paper but with slightly different lighting still match.
+
+**Batch Y — sun-readable theme (F7 closer)**
+
+Closes the F7 deferral *"High-contrast / sun-readable theme — dark
+mode default exists per lib/theme.ts; high-contrast variant
+pending. Acceptance: legible in direct 100°F sun."* Surveyors
+flip "☀ Sun" on the Me tab once and every screen they touch in
+the cab (capture, time, point detail) renders pure-black-on-pure-
+white with saturated accents.
+
+Palette (`mobile/lib/theme.ts`):
+- New `'sun'` palette joins the existing `'light'` + `'dark'`.
+- background `#FFFFFF`, surface `#FFFFFF` (no contrast surface —
+  flatten everything for max readability), border `#000000` (full
+  black so borders read in glare), text `#000000`, muted
+  `#262626` (regular `#6B7280` muted disappears at high
+  brightness), accent `#001A8C` (deeper saturated brand blue),
+  danger `#9F0014`, success `#004D1A`.
+- `Scheme` type extended from `'light' | 'dark'` → `'light' |
+  'dark' | 'sun'`.
+
+Preference store (`mobile/lib/themePreference.tsx`):
+- `<ThemePreferenceProvider>` wraps the entire app; mounted at
+  the root layout above `<AuthProvider>` so every screen sees the
+  context.
+- AsyncStorage key `@starr-field/theme_pref` persists the choice
+  across launches; default is `'auto'` (follows OS).
+- Two-channel coordination so the migration is incremental:
+    1. `Appearance.setColorScheme()` mirrors the choice for legacy
+       `useColorScheme()` callers (sun → light fallback).
+    2. React context exposes the actual choice (`'sun'` included)
+       so opted-in screens get the high-contrast palette via
+       `useResolvedScheme()`.
+- Subscribes to OS scheme changes so an `'auto'` preference
+  re-renders when the user toggles dark mode in OS Settings.
+- Hook ergonomics: `useThemePreference()` returns
+  `[pref, setPref]` for the picker; `useResolvedScheme()`
+  returns the active scheme for screens.
+
+Me-tab Display section (`mobile/app/(tabs)/me/index.tsx`):
+- New "Display" section above Storage with a 4-pill picker
+  (Auto / Light / Dark / ☀ Sun). Active pill lifts to the accent
+  fill for unmistakable selection. Caption copy explains what
+  each mode does ("Sun-readable picks max-contrast colours so
+  the screen reads in direct sunlight.").
+- Me tab itself uses `useResolvedScheme()` so the toggle is
+  immediately visible in-place.
+
+Migrated screens (use `useResolvedScheme()`):
+- `(tabs)/capture/index.tsx` (point creation)
+- `(tabs)/capture/[pointId]/photos.tsx` (photo + video grids)
+- `(tabs)/capture/[pointId]/voice.tsx` (memo recorder)
+- `(tabs)/capture/[pointId]/video-player.tsx` (full-screen player)
+- `(tabs)/jobs/[id]/points/[pointId].tsx` (point detail)
+- `(tabs)/time/index.tsx` (timesheet)
+- `(tabs)/time/pick-job.tsx` (clock-in modal)
+- `(tabs)/me/index.tsx` (Me tab)
+
+Other screens (Money tab, Jobs tab, auth, dispatcher list)
+continue to read `useColorScheme()` and resolve via the
+`Appearance.setColorScheme()` mirror — they get the closest
+match (light or dark) until they're touched. No regression.
+
+Logging:
+- AsyncStorage hydrate failures log a warn breadcrumb so a
+  corrupted prefs file is visible in Sentry.
+
+Pending v2 polish:
+- Boost font scaling under sun-readable for surveyors who also
+  squint in glare (currently colour-only; bumping `fontSize`
+  app-wide is invasive).
+- Shake-to-toggle so a one-handed surveyor flips between dark
+  and sun without tabbing to Me.
+- Migrate the remaining ~50 screens to `useResolvedScheme()` so
+  the choice propagates everywhere; current scope is the
+  surveyor's daily field workflow only.
+
+**Batch X — per-user team drilldown (`/admin/team/[email]`)**
+
+Closes the F6 deferral *"Per-user `/admin/team/[email]` drilldown —
+natural extension of the team-card view."* The dispatcher used to
+have to open four pages (`/admin/timeline`, `/admin/mileage`,
+`/admin/field-data`, `/admin/receipts`) plus the team list to
+answer "what is Lance up to today?" — now it's one page.
+
+API (`/api/admin/team/[email]/today/route.ts`):
+- Single-round-trip aggregator. Resolves the email →
+  `registered_users.id`, then runs every section query in parallel
+  via `Promise.all`:
+    - Today's `job_time_entries` (closed + open)
+    - Today's `location_pings` (sample for visualisation +
+      head-count for the stat bar)
+    - Today's `location_stops` (count only — full detail on
+      `/admin/timeline`)
+    - Today's `location_segments` distances (summed for miles)
+    - Today's `field_data_points` (last 12 with thumbnails +
+      total count)
+    - Today's `receipts` (last 12 + total count)
+    - Today's `notifications` (dispatcher pings sent)
+- Bulk lookup of every `job_id` referenced by entries + captures
+  in one `IN`-query so the page can render `{job_number} ·
+  {job_name}` without per-row fetches.
+- Bulk thumbnail signing for the captures grid (1-hour TTL).
+- Open `job_time_entries.duration_minutes` is computed
+  server-side from `started_at → now()` so the stat bar reads
+  correctly for live entries.
+- Auth: admin / developer / tech_support. Hard-fails on the first
+  errored section query rather than rendering partial data — a
+  silent "0 receipts" because the query 5xx'd would mislead.
+
+Page (`/admin/team/[email]/page.tsx`):
+- Header card: name + roles + last-sign-in + clock-state badge
+  ("🟢 Clocked in · 4h 23m" / "⚪ Off the clock") + last-seen
+  badge with battery glyph.
+- Quick-action column (right side): "⏱ Ping: log hours" / "✓
+  Ping: submit week" buttons (POST `/api/admin/notifications`
+  with the same dedup contract as `/admin/team`) + deep links
+  to Timeline / Mileage / All captures.
+- Stats bar (6 columns): Worked / Miles / Stops / Pings /
+  Captures / Receipts.
+- "On the clock" card (only when active): job name + duration +
+  Maps links for clock-in spot + last-seen.
+- Today's clock-ins table with active-row highlighting.
+- Captures grid (3-col responsive) with thumbnails + flag pills
+  ("offset" / "correction") — links to the existing per-point
+  detail page. "See all N →" footer when capped at 12.
+- Receipts list with vendor + total + status — links to receipt
+  detail.
+- Dispatcher pings sent today with delivered + read state.
+
+Cross-link: every member card on `/admin/team` now leads with a
+"📋 Open profile" button (the existing 🚗 Mileage and 🗺️ Timeline
+links remain for one-click jumps to the deep views).
+
+Logging + error handling:
+- Section query failures log via console.error with the user
+  email + error message, then 500 so the page surfaces the
+  failure inline.
+- Thumbnail sign failures log a warn (per-tile fallback to a
+  📍 placeholder) but don't fail the request.
+- The page's pinging buttons surface failures via the inline
+  error banner; the rest of the data stays visible.
+
+**Batch W — file pin-to-device + open-on-tap (F5 closer)**
+
+Closes the F5 deferral *"Pin-to-device for offline access — files
+are kept on disk through the queue's `documentDirectory` copy
+until upload succeeds, then deleted."* Surveyors now mark a plat /
+deed / CSV "Pin offline" once at the office; the file opens
+instantly in the cab even with no LTE.
+
+Schema (`mobile/lib/db/schema.ts`):
+- New local-only `pinned_files` table — `(job_file_id, local_uri,
+  file_size_bytes, pinned_at)`. PowerSync `localOnly: true` keeps
+  the device-specific path off the wire; each device decides
+  independently which files to pin.
+
+Mobile lib (`mobile/lib/pinnedFiles.ts`):
+- `useIsPinned(jobFileId)` — reactive bool for the badge + button.
+- `usePinFile()` — guards on `upload_state === 'done'` + online
+  reception, signs a 5-minute URL, streams bytes via
+  `FileSystem.downloadAsync` to a stable per-file path
+  (`documentDirectory/pinned/<id>.<ext>` so re-pinning a renamed
+  file doesn't leak two rows), INSERTs the pinned_files row.
+  Half-written files are best-effort cleaned on fetch failure.
+- `useUnpinFile()` — DELETE the row + `FileSystem.deleteAsync` the
+  local file.
+- `useOpenJobFile()` — prefers the local pinned copy, falls back
+  to a one-shot signed-URL → `cacheDirectory` download for
+  unpinned reads (OS-managed cleanup; no row tracking). Opens via
+  `expo-sharing.shareAsync` so the OS picks the renderer
+  (Quick Look on iOS, system intent on Android). Surfaces a
+  helpful error when offline + not pinned.
+- `usePinnedFilesReconciler()` — mount-once cleanup that drops
+  pinned_files rows whose local file disappeared between
+  launches (user deleted via Files app, OS reaped during a
+  low-storage event). Without this, an offline open would resolve
+  to a dead path.
+
+UX (`mobile/app/(tabs)/jobs/[id]/points/[pointId].tsx`):
+- File row is now tap-to-open (was metadata-only). Tap → share
+  sheet; long-press → delete confirm (unchanged).
+- Pin button on the right side, pill-style with accent fill when
+  pinned. Disabled while `upload_state !== 'done'` so users can't
+  pin a still-uploading row.
+- Title row shows 📍 prefix when pinned (vs 📎 for unpinned) so a
+  scan of the file list reads the pin state at a glance.
+
+Me-tab Storage section (`mobile/app/(tabs)/me/index.tsx`):
+- New "Pinned files" row: `N files · X MB on this device. Unpin
+  from the point to free space.` Read-only — actual unpin happens
+  next to the file itself, where the user remembers what each pin
+  is.
+
+Cascade (`mobile/lib/jobFiles.ts`):
+- `useDeleteJobFile` now drops the pinned_files row + unlinks the
+  local file BEFORE deleting the parent so a delete cascade
+  doesn't leak disk.
+
+Mount in root layout (`mobile/app/_layout.tsx`):
+- New `<PinnedFilesReconciler />` sibling to `<UploadQueueDrainer />`.
+
+Logging + error handling:
+- Every pin / unpin / open emits structured logs
+  (`pinnedFiles.pin`, `pinnedFiles.unpin`, `pinnedFiles.open`,
+  `pinnedFiles.reconcile`) with `file_id` so Sentry can correlate
+  failures with bucket-config issues per file.
+- User-facing errors: friendly copy on offline pin attempts
+  ("No reception. Pin this file when you have signal — the bytes
+  need to download once."), pin-not-yet-done ("Wait for the upload
+  to finish before pinning."), share-not-available, signed URL
+  failure, HTTP failure.
+
+Pending v2 polish:
+- Bulk-pin from the per-job page so the office can pre-pin "all
+  the documents for tomorrow's job" with one tap.
+- Auto-pin policy ("everything under 5 MB on the active job").
+- Pinned-files panel on the Me tab with per-row unpin (currently
+  the row is read-only; unpin happens next to each file).
+
+**Batch V — compass heading on every photo / video / point**
+
+Closes the F3 deferral *"`expo-sensors` magnetometer not yet wired;
+the `device_compass_heading` column is left null pending
+integration."* Surveyors photograph monuments from a specific
+direction; the office reviewer needs to know which face of the
+rebar they're looking at. Until this batch the column was always
+null.
+
+Implementation chose `expo-location.getHeadingAsync()` over a new
+`expo-sensors` Magnetometer wiring because:
+1. expo-location already gates on the same foreground-permission
+   grant the GPS calls use, so no extra prompt or rationale dialog.
+2. The OS handles magnetic-declination → true-north conversion
+   once it has a recent GPS fix; rolling our own would mean
+   shipping a declination table or hitting NOAA WMM.
+3. expo-location is already in the dep tree; expo-sensors would
+   add a native module + iOS / Android plugin entries.
+
+`mobile/lib/location.ts` `getCurrentHeadingOrNull()`:
+- Calls `Location.getHeadingAsync()` behind a 1.5 s timeout (the
+  capture flow already costs ~8 s waiting for GPS; another 5 s
+  on a cold magnetometer is not acceptable).
+- Prefers `trueHeading` (geo-north) over `magHeading`. Falls back
+  to magnetic when the OS hasn't computed declination yet (no
+  recent GPS fix → trueHeading reports `-1`).
+- Drops readings where `accuracy < 1` (Apple's "calibration
+  needed" enum) so we don't store bearings that point at a steel
+  I-beam instead of magnetic north.
+- Normalises to 0..360 (defensive against iOS hardware that
+  occasionally returns -180..180), rounds to 0.1°.
+- Returns null on permission denied / timeout / unavailable
+  sensor / hardware error — same null-degrades-to-graceful
+  contract as the GPS helper.
+
+Capture flows (`mobile/lib/fieldMedia.ts`, `mobile/lib/dataPoints.ts`):
+- `useAttachPhoto`, `useAttachVideo`, `dataPoints.create` now
+  fetch GPS + heading in parallel via `Promise.all` so total
+  wall-time stays bounded by the slower of the two timeouts (8 s
+  GPS / 1.5 s heading), not their sum.
+- Heading writes to `field_media.device_compass_heading` on every
+  photo + video, and `field_data_points.device_compass_heading`
+  on every new point.
+- Voice memos still write null — bearing is irrelevant for audio.
+- Success log lines now include `has_heading: bool` for ops
+  visibility into how often the magnetometer is producing a
+  reading in the wild.
+
+Admin viewer (`/admin/field-data/[id]` + `/admin/jobs/[id]/field`):
+- New `<HeadingBadge deg={n} />` component renders a north-anchored
+  ▲ arrow rotated to the bearing, plus the degree + cardinal
+  abbreviation (`273° W`). 8-point cardinals (N / NE / E / SE / S
+  / SW / W / NW) are the sweet spot for "rebar's NW face" without
+  crowding the badge with NNE / ENE / etc.
+- Rendered on the point meta cell (Heading column) AND on every
+  photo / video card (Facing row) — only when present, so legacy
+  rows captured before this batch don't show stale "—" rows.
+- Per-job API `GET /api/admin/jobs/[id]/field-data` extended to
+  include `device_compass_heading` on every `JobMediaRow` so the
+  per-job page can render the same badge on its job-level media
+  cards.
+
+Logging + error handling:
+- `location.getCurrentHeadingOrNull` logs at info level on
+  permission denial, timeout, and low-accuracy drop so an ops
+  flag (e.g. "every photo from this device is null-headed") is
+  visible.
+- All capture-flow logs include `has_heading: bool` so we can
+  correlate magnetometer availability with device model in
+  Sentry.
 
 **Batch U — mobile video review (Photos / Videos tab + full-screen player)**
 
@@ -2102,6 +3693,33 @@ adds `job_files` (last 90 days, scoped by `created_by`).
    before enabling. The mobile UI continues to function without
    transcription (the columns are nullable + the existing flow
    doesn't read them).
+10. `seeds/229_starr_field_receipt_review.sql` (Batch Z) —
+    receipt review queue + dedup fingerprint columns
+    (`needs_review`, `review_reason`, `dedup_fingerprint`) + the
+    partial index that drives the bookkeeper's "X need review"
+    badge. Apply AFTER seeds/220. Idempotent via ADD COLUMN
+    IF NOT EXISTS.
+11. `seeds/230_starr_field_receipt_retention.sql` (Batch CC) —
+    `receipts.deleted_at TIMESTAMPTZ` + `receipts.deletion_reason
+    TEXT` (`'user_undo' | 'duplicate' | 'wrong_capture'`) +
+    partial indexes for visible-row reads + the retention sweep.
+    Mobile `useDeleteReceipt` already soft-deletes against this
+    schema; without the seed the UPDATE 4xx's. Apply AFTER
+    seeds/220.
+12. `seeds/231_starr_field_video_thumbnails.sql` (Batch GG) —
+    adds `field_media.thumbnail_status` + `thumbnail_storage_url`
+    + `thumbnail_started_at` + `thumbnail_completed_at` +
+    `thumbnail_error` plus the worker-poll partial index. Apply
+    AFTER seeds/221. Worker requires `npm install` on
+    `worker/` to pull `ffmpeg-static` before
+    `extract-video-thumbnails` runs.
+13. `seeds/232_starr_field_finances_lock.sql` (Batch QQ) —
+    `receipts.exported_at TIMESTAMPTZ` +
+    `receipts.exported_period TEXT` + the export-pending partial
+    index. Apply AFTER seeds/220 + 230. Required before exposing
+    `/admin/finances` (Batch QQ part-2) — the GET tax-summary
+    short-circuits and the POST mark-exported UPDATE 4xx's
+    without these columns. Idempotent.
 
 PowerSync sync rules to update (snippet in `mobile/lib/db/README.md`):
 - `notifications` — scoped by `target_user_id` OR case-insensitive

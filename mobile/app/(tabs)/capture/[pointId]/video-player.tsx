@@ -8,13 +8,13 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { logError } from '@/lib/log';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 import {
   type FieldMedia,
   useDeleteMedia,
@@ -48,7 +48,7 @@ import {
  *     surveyor lands back on the Videos tab.
  */
 export default function VideoPlayerScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const { pointId, mediaId } = useLocalSearchParams<{

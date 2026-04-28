@@ -1,7 +1,6 @@
 import { Stack } from 'expo-router';
-import { useColorScheme } from 'react-native';
-
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Time-tab nested stack. Lets the index screen push the pick-job
@@ -9,7 +8,7 @@ import { colors } from '@/lib/theme';
  * §7.1 rule 1, not as a card-modal). Tab bar stays visible.
  */
 export default function TimeStackLayout() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   return (

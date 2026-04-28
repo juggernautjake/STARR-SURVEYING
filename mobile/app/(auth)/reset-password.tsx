@@ -8,7 +8,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,6 +16,7 @@ import { TextField } from '@/lib/TextField';
 import { parseAuthCallbackUrl } from '@/lib/parseAuthUrl';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Password-reset deep-link handler.
@@ -38,7 +38,7 @@ import { colors } from '@/lib/theme';
  * also lands here with a setSession error.
  */
 export default function ResetPasswordScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const url = Linking.useURL();

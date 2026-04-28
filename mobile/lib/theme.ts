@@ -1,13 +1,19 @@
 /**
- * Theme palette for Starr Field. Two surfaces: light (rare — the app
- * is dark-mode-default per STARR_FIELD_MOBILE_APP_PLAN.md §7.1 rule 7
- * "battery-aware") and dark.
+ * Theme palette for Starr Field. Three surfaces:
+ *   - light: indoor / typical use
+ *   - dark: dark-mode-default per plan §7.1 rule 7 ("battery-aware")
+ *   - sun:  high-contrast for direct-sunlight readability per plan
+ *           §7.1 rule 3 + §7.3 ("Sun glare makes screen unreadable").
+ *           Pure-white background, pure-black text + borders, saturated
+ *           accents. Surveyors in 100°F direct sun pick this; the
+ *           muted-grey of the regular light palette disappears in
+ *           glare.
  *
  * The accent color matches the Starr brand blue used elsewhere
  * (seeds/099_fieldbook.sql sets #1D3095 for category color in the
  * default Fieldbook seed).
  */
-export type Scheme = 'light' | 'dark';
+export type Scheme = 'light' | 'dark' | 'sun';
 
 export interface Palette {
   background: string;
@@ -40,5 +46,20 @@ export const colors: Record<Scheme, Palette> = {
     accent: '#7B8DDB',
     danger: '#F97066',
     success: '#47CD89',
+  },
+  // Sun-readable. Same family as `light` but pushed to maximum
+  // contrast on every surface so a phone in direct sun is still
+  // legible. The greys are darker (no #6B7280 muted that washes
+  // out at high brightness) and the accents are deepened to retain
+  // saturation when the screen is competing with 100k lux.
+  sun: {
+    background: '#FFFFFF',
+    surface: '#FFFFFF',
+    border: '#000000',
+    text: '#000000',
+    muted: '#262626',
+    accent: '#001A8C',
+    danger: '#9F0014',
+    success: '#004D1A',
   },
 };

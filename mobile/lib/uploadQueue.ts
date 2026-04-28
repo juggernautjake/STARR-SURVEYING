@@ -29,7 +29,7 @@ import { usePowerSync, useQuery } from '@powersync/react';
 import type { AbstractPowerSyncDatabase } from '@powersync/react-native';
 
 import { logError, logInfo, logWarn } from './log';
-import { isOnlineNow, subscribeToOnline } from './networkState';
+import { isOnWifiNow, isOnlineNow, subscribeToOnline } from './networkState';
 import { supabase } from './supabase';
 import { randomUUID } from './uuid';
 
@@ -58,6 +58,13 @@ export interface EnqueueOptions {
   contentType: string;
   /** Logging scope, e.g. 'receipts.capture'. */
   scope: string;
+  /** Wi-Fi-only flag (Batch KK). When true, the drainer skips
+   *  this row whenever the device is on cellular — protects the
+   *  surveyor's data plan against large original-tier video
+   *  uploads. The synchronous attempt at the end of
+   *  `enqueueAndAttempt` also short-circuits to "deferred" in
+   *  that case so the surveyor doesn't pay for it on capture. */
+  requireWifi?: boolean;
 }
 
 export interface EnqueueResult {
@@ -89,8 +96,8 @@ export async function enqueueAndAttempt(
     `INSERT INTO pending_uploads (
        id, parent_table, parent_id, bucket, storage_path,
        local_uri, content_type, retry_count, last_error,
-       next_attempt_at, created_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       next_attempt_at, require_wifi, created_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       pendingId,
       opts.parentTable,
@@ -102,6 +109,7 @@ export async function enqueueAndAttempt(
       0,
       null,
       Date.now(),
+      opts.requireWifi ? 1 : 0,
       nowIso,
     ]
   );
@@ -111,6 +119,7 @@ export async function enqueueAndAttempt(
     parent_table: opts.parentTable,
     parent_id: opts.parentId,
     bucket: opts.bucket,
+    require_wifi: !!opts.requireWifi,
   });
 
   // Try once synchronously. If we're offline, this will fail —
@@ -119,6 +128,33 @@ export async function enqueueAndAttempt(
     logInfo('uploadQueue.enqueue', 'offline — deferred', {
       pending_id: pendingId,
     });
+    return { pendingId, uploadedNow: false };
+  }
+  // Wi-Fi-only rows skip the synchronous attempt unless we're on
+  // Wi-Fi — otherwise the surveyor would pay for the cellular
+  // upload anyway. The drainer picks this up on the next
+  // network-type transition.
+  if (opts.requireWifi && !isOnWifiNow()) {
+    logInfo('uploadQueue.enqueue', 'cellular — deferred (wifi-only)', {
+      pending_id: pendingId,
+    });
+    // Flip the parent row's upload_state to 'wifi-waiting' so the
+    // mobile UI surfaces the right badge instead of "Uploading…"
+    // forever. We only do this for field_media (the only table
+    // that uses require_wifi today); the parent's state column is
+    // identical for receipts but they never set the flag.
+    if (opts.parentTable === 'field_media') {
+      try {
+        await db.execute(
+          `UPDATE field_media SET upload_state = 'wifi-waiting' WHERE id = ?`,
+          [opts.parentId]
+        );
+      } catch (err) {
+        logWarn('uploadQueue.enqueue', 'wifi-waiting flip failed', err, {
+          parent_id: opts.parentId,
+        });
+      }
+    }
     return { pendingId, uploadedNow: false };
   }
 
@@ -161,13 +197,26 @@ export async function processQueue(
   if (!isOnlineNow()) {
     return { attempted: 0, succeeded: 0, failed: 0 };
   }
+  // Wi-Fi-only rows (Batch KK) are excluded from the SELECT when
+  // the device is on cellular. The same query runs again on the
+  // next network-type transition (the upload queue subscribes
+  // to subscribeToOnline, which fires on every NetInfo change),
+  // so a Wi-Fi tether picks them up automatically.
+  const onWifi = isOnWifiNow();
   const now = Date.now();
   const rows = await db.getAll<QueueRow>(
-    `SELECT * FROM pending_uploads
-     WHERE retry_count < ?
-       AND COALESCE(next_attempt_at, 0) <= ?
-     ORDER BY COALESCE(next_attempt_at, 0) ASC
-     LIMIT 25`,
+    onWifi
+      ? `SELECT * FROM pending_uploads
+           WHERE retry_count < ?
+             AND COALESCE(next_attempt_at, 0) <= ?
+           ORDER BY COALESCE(next_attempt_at, 0) ASC
+           LIMIT 25`
+      : `SELECT * FROM pending_uploads
+           WHERE retry_count < ?
+             AND COALESCE(next_attempt_at, 0) <= ?
+             AND COALESCE(require_wifi, 0) = 0
+           ORDER BY COALESCE(next_attempt_at, 0) ASC
+           LIMIT 25`,
     [MAX_RETRIES, now]
   );
 

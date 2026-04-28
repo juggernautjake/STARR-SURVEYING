@@ -295,7 +295,9 @@ export function usePickAndAttachFile(): (
 
 /**
  * Hard-delete an attached file. Owner-scoped — RLS allows only the
- * creator. Storage cleanup is best-effort.
+ * creator. Storage cleanup is best-effort. If the file is pinned,
+ * the local copy + pinned_files row are also dropped so we don't
+ * leak disk after the parent row is gone.
  */
 export function useDeleteJobFile(): (file: JobFile) => Promise<void> {
   const db = usePowerSync();
@@ -303,8 +305,36 @@ export function useDeleteJobFile(): (file: JobFile) => Promise<void> {
   return useCallback(
     async (file) => {
       try {
+        // Drop pin first — the localOnly row + the FS file. We do
+        // this BEFORE deleting the parent row so the pinned_files
+        // FK reference is consistent if anything in here throws.
+        const pinned = await db.get<{ local_uri: string }>(
+          `SELECT local_uri FROM pinned_files WHERE job_file_id = ?`,
+          [file.id]
+        );
+        if (pinned) {
+          await db.execute(
+            `DELETE FROM pinned_files WHERE job_file_id = ?`,
+            [file.id]
+          );
+          if (pinned.local_uri) {
+            try {
+              await FileSystem.deleteAsync(pinned.local_uri, {
+                idempotent: true,
+              });
+            } catch (fsErr) {
+              logWarn('jobFiles.delete', 'pinned unlink failed', fsErr, {
+                file_id: file.id,
+              });
+            }
+          }
+        }
+
         await db.execute(`DELETE FROM job_files WHERE id = ?`, [file.id]);
-        logInfo('jobFiles.delete', 'deleted', { file_id: file.id });
+        logInfo('jobFiles.delete', 'deleted', {
+          file_id: file.id,
+          had_pin: !!pinned,
+        });
       } catch (err) {
         logError('jobFiles.delete', 'failed', err, { file_id: file.id });
         throw err;

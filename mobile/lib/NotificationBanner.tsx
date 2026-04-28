@@ -23,7 +23,7 @@
  *   the banner is high priority even at a glance.
  */
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePowerSync } from '@powersync/react';
 
@@ -54,7 +54,7 @@ export function NotificationBanner() {
   const ping = useActiveAdminPing();
   const db = usePowerSync();
   const router = useRouter();
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   if (!ping) return null;

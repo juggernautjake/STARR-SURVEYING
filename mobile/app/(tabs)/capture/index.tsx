@@ -9,7 +9,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -32,6 +31,7 @@ import {
 import { useJob, useJobs, type Job } from '@/lib/jobs';
 import { useActiveTimeEntry } from '@/lib/timeTracking';
 import { colors, type Palette } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Data-point capture entry — F3 #2 ships the pre-photo flow:
@@ -53,7 +53,7 @@ import { colors, type Palette } from '@/lib/theme';
  * user taps "+ Point" from a job detail page) and skips the picker.
  */
 export default function CaptureScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const { jobId: jobIdParam } = useLocalSearchParams<{ jobId?: string }>();

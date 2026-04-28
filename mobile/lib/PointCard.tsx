@@ -15,7 +15,7 @@
  * `mediaCount` is optional — caller passes it in (the parent screen
  * batches one query per visible point). Falsy hides the badge.
  */
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { lookupPrefix } from './dataPointCodes';
 import type { FieldDataPoint } from './dataPoints';
@@ -29,7 +29,7 @@ interface PointCardProps {
 }
 
 export function PointCard({ point, mediaCount, onPress }: PointCardProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const prefixInfo = lookupPrefix(point.code_category);

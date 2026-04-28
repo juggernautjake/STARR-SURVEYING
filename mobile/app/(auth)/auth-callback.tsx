@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
@@ -9,6 +9,7 @@ import { LoadingSplash } from '@/lib/LoadingSplash';
 import { parseAuthCallbackUrl } from '@/lib/parseAuthUrl';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Magic-link callback handler.
@@ -24,7 +25,7 @@ import { colors } from '@/lib/theme';
  * before the user notices.
  */
 export default function AuthCallbackScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const url = Linking.useURL();

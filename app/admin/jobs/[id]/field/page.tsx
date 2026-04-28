@@ -76,6 +76,7 @@ interface JobMedia {
   file_size_bytes: number | null;
   device_lat: number | null;
   device_lon: number | null;
+  device_compass_heading: number | null;
   captured_at: string | null;
   uploaded_at: string | null;
   upload_state: string | null;
@@ -152,6 +153,45 @@ function uploaderLine(
 ): string {
   const who = name || email || 'Unknown';
   return `Uploaded by ${who} · ${formatTimestamp(iso)}`;
+}
+
+/** 0..360° → 8-point cardinal abbreviation (N, NE, E, …, NW). */
+function cardinalFromDegrees(deg: number): string {
+  const d = ((deg % 360) + 360) % 360;
+  const idx = Math.round(d / 45) % 8;
+  return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][idx];
+}
+
+/** Inline-flex "↑ 273° W" badge. The arrow rotates to match the
+ *  bearing — north-anchored, so 0° points up and 90° points right.
+ *  Surveyors + reviewers can scan a wall of photo cards and tell
+ *  at a glance which way each shot was facing. */
+function HeadingBadge({ deg }: { deg: number | null }) {
+  if (deg == null) return null;
+  const rounded = Math.round(deg);
+  const cardinal = cardinalFromDegrees(deg);
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <svg
+        width="11"
+        height="11"
+        viewBox="0 0 12 12"
+        style={{ transform: `rotate(${deg}deg)`, flexShrink: 0 }}
+        aria-hidden="true"
+      >
+        <path
+          d="M6 1 L9 9 L6 7 L3 9 Z"
+          fill="currentColor"
+          stroke="currentColor"
+          strokeWidth="0.5"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span>
+        {rounded}° {cardinal}
+      </span>
+    </span>
+  );
 }
 
 export default function JobFieldDataPage() {
@@ -574,6 +614,11 @@ function JobMediaCard({ media }: { media: JobMedia }) {
       )}
       <div style={styles.mediaMeta}>
         <span>{formatTimestamp(media.captured_at)}</span>
+        {media.device_compass_heading != null ? (
+          <span>
+            <HeadingBadge deg={media.device_compass_heading} />
+          </span>
+        ) : null}
         {media.file_size_bytes ? (
           <span>{formatBytes(media.file_size_bytes)}</span>
         ) : null}

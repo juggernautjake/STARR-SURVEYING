@@ -151,6 +151,14 @@ const field_media = new Table({
   transcription_started_at: column.text,
   transcription_completed_at: column.text,
   transcription_cost_cents: column.integer,
+  // Server-side video thumbnail extraction (Batch GG, seeds/231).
+  // Mobile insert sets 'queued' for video rows; the worker
+  // (worker/src/services/video-thumbnail-extraction.ts) flips to
+  // 'running' → 'done' (writing thumbnail_url) or 'failed'.
+  thumbnail_extraction_status: column.text,
+  thumbnail_extraction_error: column.text,
+  thumbnail_extraction_started_at: column.text,
+  thumbnail_extraction_completed_at: column.text,
   annotations: column.text, // JSON-encoded JSONB
   created_by: column.text,
   client_id: column.text,
@@ -271,6 +279,24 @@ const receipts = new Table({
   extraction_completed_at: column.text,
   extraction_error: column.text,
   extraction_cost_cents: column.integer,
+  // Duplicate detection + user-review-before-save (Batch Z, seeds/229).
+  // Worker computes dedup_fingerprint after extraction completes
+  // (`{normVendor}|{cents}|{YYYY-MM-DD}`), looks for a prior matching
+  // receipt for the same user, and writes dedup_match_id when it
+  // finds one. The mobile detail screen shows a duplicate-warning
+  // card and the user picks 'keep' or 'discard'. user_reviewed_at
+  // gates the "needs review" badge on the list.
+  dedup_fingerprint: column.text,
+  dedup_match_id: column.text,
+  dedup_decision: column.text, // 'keep' | 'discard' | NULL
+  user_reviewed_at: column.text,
+  user_review_edits: column.text, // JSON-encoded JSONB
+  // Soft-delete + IRS retention (Batch CC, seeds/230). NULL =
+  // visible; non-null = soft-deleted. Mobile filters out
+  // deleted rows; the worker retention sweep purges rows whose
+  // deleted_at exceeds the IRS retention threshold.
+  deleted_at: column.text,
+  deletion_reason: column.text, // 'user_undo' | 'duplicate' | 'wrong_capture' | NULL
   client_id: column.text,
   created_at: column.text,
   updated_at: column.text,
@@ -641,11 +667,58 @@ const pending_uploads = new Table(
     /** Wall-clock ms timestamp of next eligible attempt. The queue
      *  skips rows where now() < next_attempt_at. */
     next_attempt_at: column.integer,
+    /** Wi-Fi-only flag (Batch KK). When 1, the upload queue's
+     *  drainer skips this row whenever the device is on cellular —
+     *  protects the surveyor's data plan against large
+     *  original-tier video uploads. The capture path sets this to
+     *  1 for video rows over WIFI_ONLY_BYTES_THRESHOLD; everything
+     *  else is 0 and uploads on any connection. */
+    require_wifi: column.integer,
     created_at: column.text,
   },
   // PowerSync localOnly: these rows never replay to Supabase. The
   // upload itself goes via supabase.storage; the parent row already
   // syncs through the regular CRUD queue.
+  { localOnly: true }
+);
+
+// ── pinned_files — persistent local copy of a job_files row ────────────────
+//
+// Lets surveyors mark a plat / deed / CSV for offline re-read. The
+// upload queue normally deletes the local file once the upload
+// succeeds; pinning fetches the bytes back via a signed URL (or
+// keeps the upload-queue copy if pinning happens before the queue
+// drains) and persists them under a stable per-file path. Tapping
+// a pinned file opens instantly from local storage even with no
+// reception.
+//
+// Lifecycle:
+//   1. User taps "Pin" → pinFile() resolves a signed URL, fetches
+//      the bytes to FileSystem.documentDirectory/pinned/<file_id>,
+//      INSERTs this row.
+//   2. The file is now readable offline via shareAsync(local_uri).
+//   3. User taps "Unpin" or deletes the parent job_files row →
+//      DELETE this row + best-effort FS unlink.
+//
+// PowerSync localOnly: phone-specific paths shouldn't leak to other
+// devices; each device decides independently which files to pin.
+const pinned_files = new Table(
+  {
+    /** FK to job_files.id — the parent file row that's pinned.
+     *  Composite-PK semantics handled by the only-one-row-per-file
+     *  invariant enforced in pinnedFiles.ts (defensive INSERT after
+     *  SELECT). */
+    job_file_id: column.text,
+    /** file:// URI in FileSystem.documentDirectory/pinned/. Persistent
+     *  across launches, app kills, reboots. Matches the
+     *  upload-queue's local_uri pattern. */
+    local_uri: column.text,
+    /** Bytes — drives the Me-tab "N MB pinned" summary so the user
+     *  can spot a runaway pin set. */
+    file_size_bytes: column.integer,
+    /** ISO timestamp the surveyor pinned it. */
+    pinned_at: column.text,
+  },
   { localOnly: true }
 );
 
@@ -666,6 +739,7 @@ export const AppSchema = new Schema({
   location_stops,
   notifications,
   pending_uploads,
+  pinned_files,
   point_codes,
   receipt_line_items,
   receipts,

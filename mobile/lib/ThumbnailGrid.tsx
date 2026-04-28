@@ -16,7 +16,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 
 import { type FieldMedia, useFieldMediaPhotoUrl } from './fieldMedia';
@@ -33,7 +32,7 @@ export function ThumbnailGrid({
   onPressMedia,
   onLongPressMedia,
 }: ThumbnailGridProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   if (media.length === 0) {

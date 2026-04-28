@@ -1,7 +1,8 @@
 import { Link, Stack } from 'expo-router';
-import { StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * 404 fallback for unmatched routes. expo-router renders this any
@@ -9,7 +10,7 @@ import { colors } from '@/lib/theme';
  * resolve to a screen.
  */
 export default function NotFoundScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   return (

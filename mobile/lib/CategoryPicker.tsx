@@ -8,13 +8,14 @@
  * row doesn't dominate the form, but each tap target is still ≥44 px
  * tall via minHeight to satisfy plan §7.1 rule 2 (glove-friendly).
  */
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   type ReceiptCategory,
   RECEIPT_CATEGORIES,
 } from './receipts';
 import { colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface CategoryPickerProps {
   value: ReceiptCategory | null | undefined;
@@ -24,7 +25,7 @@ interface CategoryPickerProps {
 }
 
 export function CategoryPicker({ value, onChange, disabled }: CategoryPickerProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   // Tapping a selected chip clears the category. The bookkeeper

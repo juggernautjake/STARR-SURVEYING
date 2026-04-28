@@ -8,7 +8,7 @@
  * minimum tap target. Disabled state dims by 40% rather than 100% so
  * the affordance stays legible in direct sunlight.
  */
-import { ActivityIndicator, Pressable, StyleSheet, Text, useColorScheme } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
 import { colors } from './theme';
 
@@ -32,7 +32,7 @@ export function Button({
   disabled = false,
   accessibilityHint,
 }: ButtonProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const isDisabled = disabled || loading;

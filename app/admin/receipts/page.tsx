@@ -40,6 +40,12 @@ interface AdminReceiptRow {
   approved_by: string | null;
   approved_at: string | null;
   rejected_reason: string | null;
+  // Soft-delete + retention (Batch CC). Non-null deleted_at means
+  // the row is tombstoned. The bookkeeper page hides these by
+  // default but the "Show deleted" toggle (Batch FF) brings them
+  // back for audit review.
+  deleted_at: string | null;
+  deletion_reason: string | null;
   extraction_status: string | null;
   extraction_error: string | null;
   extraction_cost_cents: number | null;
@@ -133,28 +139,133 @@ export default function ReceiptsApprovalPage() {
   const [from, setFrom] = useState<string>(() => firstOfMonthIso());
   const [to, setTo] = useState<string>(() => todayIso());
   const [emailFilter, setEmailFilter] = useState<string>('');
+  // "Show deleted" toggle (Batch FF). Off by default — tombstoned
+  // rows are an audit-trail artifact, not part of the daily queue.
+  // When on, the API includes rows where `deleted_at IS NOT NULL`
+  // and we render a "Deleted" badge inline.
+  const [showDeleted, setShowDeleted] = useState<boolean>(false);
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Bulk-approve selection (Batch JJ). Only meaningful on the
+  // 'pending' tab — when the bookkeeper switches tabs we drop the
+  // selection so a stale set can't leak to the wrong status.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ status: tab, from, to });
       if (emailFilter.trim()) params.set('email', emailFilter.trim());
+      if (showDeleted) params.set('include_deleted', '1');
       const res = await safeFetch<ListResponse>(`/api/admin/receipts?${params}`);
       setData(res ?? { receipts: [], counters: zeroCounters() });
     } finally {
       setLoading(false);
     }
-  }, [tab, from, to, emailFilter, safeFetch]);
+  }, [tab, from, to, emailFilter, showDeleted, safeFetch]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  // Drop the bulk-approve selection whenever the active tab
+  // changes — the checkboxes are only rendered on the 'pending'
+  // tab and we never want to bulk-approve a row visible on
+  // the wrong tab.
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [tab]);
+
   const counters = data?.counters ?? zeroCounters();
   const receipts = data?.receipts ?? [];
+
+  const onToggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // The "Select all" checkbox at the top of the pending list. We
+  // only count rows that are actually approve-able (status='pending'
+  // + not deleted) so a click on Select-All never silently picks up
+  // a tombstone.
+  const approvableIds = useMemo(
+    () =>
+      receipts
+        .filter((r) => r.status === 'pending' && !r.deleted_at)
+        .map((r) => r.id),
+    [receipts]
+  );
+  const allApprovableSelected =
+    approvableIds.length > 0 &&
+    approvableIds.every((id) => selectedIds.has(id));
+  const onToggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allApprovableSelected) {
+        for (const id of approvableIds) next.delete(id);
+      } else {
+        for (const id of approvableIds) next.add(id);
+      }
+      return next;
+    });
+  }, [allApprovableSelected, approvableIds]);
+
+  const onBulkApprove = useCallback(async () => {
+    if (bulkBusy || selectedIds.size === 0) return;
+    const idsArr = Array.from(selectedIds);
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        `Approve ${idsArr.length} receipt${idsArr.length === 1 ? '' : 's'}? This stamps your name as the approver.`
+      )
+    ) {
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const res = await fetch('/api/admin/receipts/bulk-approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: idsArr }),
+      });
+      const json = (await res.json().catch(() => null)) as {
+        approved?: string[];
+        skipped?: Array<{ id: string; reason: string }>;
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        throw new Error(json?.error ?? `bulk approve failed (${res.status})`);
+      }
+      const approvedCount = json?.approved?.length ?? 0;
+      const skippedCount = json?.skipped?.length ?? 0;
+      if (skippedCount > 0) {
+        // Surface skip reasons inline so the bookkeeper knows why
+        // some rows didn't transition. Truncated body keeps the
+        // alert readable.
+        const reasons = (json?.skipped ?? [])
+          .slice(0, 5)
+          .map((s) => s.reason)
+          .join(', ');
+        alert(
+          `Approved ${approvedCount} · skipped ${skippedCount} (${reasons}${skippedCount > 5 ? ', …' : ''}).`
+        );
+      }
+      setSelectedIds(new Set());
+      await load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [bulkBusy, selectedIds, load]);
 
   const onMutate = async (id: string, body: Record<string, unknown>, label: string) => {
     await safeAction(label, async () => {
@@ -242,6 +353,22 @@ export default function ReceiptsApprovalPage() {
             style={styles.input}
           />
         </label>
+        <label
+          style={{
+            ...styles.filterLabel,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+          }}
+          title="Include soft-deleted receipts (Batch CC tombstones) in the list. Useful for IRS audit prep."
+        >
+          <input
+            type="checkbox"
+            checked={showDeleted}
+            onChange={(e) => setShowDeleted(e.target.checked)}
+          />
+          Show deleted
+        </label>
         <button type="button" onClick={() => void load()} style={styles.refreshButton}>
           Refresh
         </button>
@@ -262,6 +389,16 @@ export default function ReceiptsApprovalPage() {
         </p>
       ) : (
         <div style={styles.list}>
+          {tab === 'pending' && approvableIds.length > 0 ? (
+            <label style={styles.selectAllRow}>
+              <input
+                type="checkbox"
+                checked={allApprovableSelected}
+                onChange={onToggleSelectAll}
+              />
+              Select all {approvableIds.length} pending
+            </label>
+          ) : null}
           {receipts.map((r) => (
             <ReceiptRow
               key={r.id}
@@ -269,10 +406,46 @@ export default function ReceiptsApprovalPage() {
               expanded={expandedId === r.id}
               onToggle={() => setExpandedId(expandedId === r.id ? null : r.id)}
               onMutate={onMutate}
+              selectable={
+                tab === 'pending' &&
+                r.status === 'pending' &&
+                !r.deleted_at
+              }
+              selected={selectedIds.has(r.id)}
+              onToggleSelected={() => onToggleSelected(r.id)}
             />
           ))}
         </div>
       )}
+
+      {/* Sticky bulk-approve action bar (Batch JJ). Renders only on
+          the pending tab + when the selection is non-empty. Pinned
+          to the bottom so the bookkeeper can scroll through 50 rows
+          and confirm without losing the count. */}
+      {tab === 'pending' && selectedIds.size > 0 ? (
+        <div style={styles.bulkBar} role="region" aria-label="Bulk actions">
+          <span style={styles.bulkCount}>{selectedIds.size} selected</span>
+          <button
+            type="button"
+            style={styles.bulkClearBtn}
+            onClick={() => setSelectedIds(new Set())}
+            disabled={bulkBusy}
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            style={{
+              ...styles.bulkApproveBtn,
+              opacity: bulkBusy ? 0.6 : 1,
+            }}
+            onClick={() => void onBulkApprove()}
+            disabled={bulkBusy}
+          >
+            {bulkBusy ? 'Approving…' : `✓ Approve ${selectedIds.size} selected`}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -282,9 +455,22 @@ interface ReceiptRowProps {
   expanded: boolean;
   onToggle: () => void;
   onMutate: (id: string, body: Record<string, unknown>, label: string) => Promise<void>;
+  /** Show the bulk-select checkbox on this row. Only true on the
+   *  pending tab for non-deleted, status='pending' rows. */
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelected?: () => void;
 }
 
-function ReceiptRow({ row, expanded, onToggle, onMutate }: ReceiptRowProps) {
+function ReceiptRow({
+  row,
+  expanded,
+  onToggle,
+  onMutate,
+  selectable,
+  selected,
+  onToggleSelected,
+}: ReceiptRowProps) {
   const [rejectReason, setRejectReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -320,6 +506,24 @@ function ReceiptRow({ row, expanded, onToggle, onMutate }: ReceiptRowProps) {
 
   return (
     <div style={styles.row}>
+      {/* Bulk-approve checkbox (Batch JJ). Sits OUTSIDE the
+          rowSummary button so the click doesn't toggle expansion.
+          Stop-propagation on the inner click handler keeps it
+          isolated even when the user clicks the row's empty
+          space. */}
+      {selectable && onToggleSelected ? (
+        <label
+          style={styles.rowCheckbox}
+          onClick={(e) => e.stopPropagation()}
+          aria-label="Select for bulk approve"
+        >
+          <input
+            type="checkbox"
+            checked={!!selected}
+            onChange={onToggleSelected}
+          />
+        </label>
+      ) : null}
       <button type="button" style={styles.rowSummary} onClick={onToggle}>
         <div style={styles.rowMain}>
           <div style={styles.rowVendor}>
@@ -335,6 +539,23 @@ function ReceiptRow({ row, expanded, onToggle, onMutate }: ReceiptRowProps) {
         </div>
         <div style={styles.rowRight}>
           <div style={styles.rowTotal}>{total}</div>
+          {row.deleted_at ? (
+            <span
+              style={{
+                ...styles.statusChip,
+                borderColor: '#9F0014',
+                color: '#9F0014',
+                background: '#FEE2E2',
+              }}
+              title={
+                row.deletion_reason
+                  ? `Deleted by user (${row.deletion_reason}) on ${formatDateTime(row.deleted_at)} — Batch CC tombstone`
+                  : `Deleted by user on ${formatDateTime(row.deleted_at)} — Batch CC tombstone`
+              }
+            >
+              🗑 deleted
+            </span>
+          ) : null}
           <span
             style={{
               ...styles.statusChip,
@@ -642,11 +863,66 @@ const styles: Record<string, React.CSSProperties> = {
     fontStyle: 'italic',
   },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
+  selectAllRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '6px 16px',
+    fontSize: 13,
+    color: '#374151',
+    cursor: 'pointer',
+  },
   row: {
     border: '1px solid #ddd',
     borderRadius: 8,
     background: '#fff',
     overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'stretch',
+  },
+  rowCheckbox: {
+    display: 'flex',
+    alignItems: 'center',
+    paddingLeft: 12,
+    paddingRight: 4,
+    cursor: 'pointer',
+  },
+  bulkBar: {
+    position: 'sticky',
+    bottom: 0,
+    marginTop: 12,
+    padding: '12px 16px',
+    background: '#FFFFFF',
+    borderTop: '1px solid #E2E5EB',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    boxShadow: '0 -4px 8px rgba(0,0,0,0.04)',
+  },
+  bulkCount: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#374151',
+    flex: 1,
+  },
+  bulkClearBtn: {
+    background: 'transparent',
+    border: '1px solid #D1D5DB',
+    borderRadius: 6,
+    padding: '6px 12px',
+    cursor: 'pointer',
+    fontSize: 13,
+    color: '#374151',
+  },
+  bulkApproveBtn: {
+    background: '#059669',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 6,
+    padding: '8px 16px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 600,
   },
   rowSummary: {
     display: 'flex',

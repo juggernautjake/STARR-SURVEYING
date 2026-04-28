@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import {
   Alert,
@@ -10,7 +10,6 @@ import {
   Text,
   View,
   Switch,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -36,6 +35,18 @@ import {
   tabletContainerStyle,
   useResponsiveLayout,
 } from '@/lib/responsive';
+import {
+  type AppVersionInfo,
+  type ManualUpdateState,
+  getAppVersionInfo,
+  useManualUpdateCheck,
+} from '@/lib/otaUpdates';
+import { usePinnedStorageStats } from '@/lib/pinnedFiles';
+import {
+  type ThemePreference,
+  useResolvedScheme,
+  useThemePreference,
+} from '@/lib/themePreference';
 import { useUploadQueueStatus } from '@/lib/uploadQueue';
 import { colors } from '@/lib/theme';
 
@@ -51,8 +62,12 @@ import { colors } from '@/lib/theme';
  * land in F1+.
  */
 export default function MeScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  // useResolvedScheme honours the user's Display preference (auto /
+  // light / dark / sun) so the Me tab itself respects the toggle the
+  // user is about to flip below.
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
+  const [themePref, setThemePref] = useThemePreference();
   const { session, signOut, biometricEnabled, setBiometricEnabled, lockNow } = useAuth();
 
   const [signingOut, setSigningOut] = useState(false);
@@ -69,6 +84,13 @@ export default function MeScreen() {
   // field today and 3 are still queued" before opening the drilldown.
   const { pendingCount: uploadsPending, failedCount: uploadsFailed } =
     useUploadQueueStatus();
+  // Pinned-files summary so the surveyor can spot a runaway pin set
+  // (e.g. ten 50 MB plats accumulated over a job). The row is
+  // read-only here — actual unpin happens on the per-point file
+  // card next to the file itself, which is where the user actually
+  // remembers what each pin is.
+  const { count: pinnedCount, totalBytes: pinnedBytes } =
+    usePinnedStorageStats();
   // Reactive — drives the Privacy row's "X pings today" affordance
   // and "last seen" copy. The summary reads the same location_pings
   // rows the user can audit in the drilldown.
@@ -338,6 +360,72 @@ export default function MeScreen() {
           </View>
         </View>
 
+        {/* Display preference. Sun-readable boosts contrast for direct
+            sunlight per plan §7.1 rule 3 ("Sun-readable: high-contrast
+            theme, 1-tap toggle"). */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.muted }]}>
+            Display
+          </Text>
+          <View style={[styles.row, { borderColor: palette.border }]}>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: palette.text }]}>
+                Theme
+              </Text>
+              <Text style={[styles.rowCaption, { color: palette.muted }]}>
+                {themePref === 'sun'
+                  ? 'Sun-readable picks max-contrast colours so the screen reads in direct sunlight.'
+                  : themePref === 'auto'
+                    ? 'Auto follows the OS dark / light setting.'
+                    : 'Manually picked. Switch back to Auto to follow the OS.'}
+              </Text>
+              <View style={styles.themePillRow}>
+                {(
+                  [
+                    { key: 'auto', label: 'Auto' },
+                    { key: 'light', label: 'Light' },
+                    { key: 'dark', label: 'Dark' },
+                    { key: 'sun', label: '☀ Sun' },
+                  ] as Array<{ key: ThemePreference; label: string }>
+                ).map((opt) => {
+                  const active = themePref === opt.key;
+                  return (
+                    <Pressable
+                      key={opt.key}
+                      onPress={() => void setThemePref(opt.key)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={`Theme: ${opt.label}`}
+                      style={({ pressed }) => [
+                        styles.themePill,
+                        {
+                          backgroundColor: active
+                            ? palette.accent
+                            : 'transparent',
+                          borderColor: active
+                            ? palette.accent
+                            : palette.border,
+                          opacity: pressed ? 0.75 : 1,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color: active ? '#FFFFFF' : palette.text,
+                          fontSize: 13,
+                          fontWeight: '600',
+                        }}
+                      >
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        </View>
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: palette.muted }]}>
             Storage
@@ -374,6 +462,22 @@ export default function MeScreen() {
               ›
             </Text>
           </Pressable>
+
+          <View
+            style={[styles.row, { borderColor: palette.border }]}
+            accessibilityLabel={`Pinned files — ${pinnedCount} files, ${formatStorageBytes(pinnedBytes)}`}
+          >
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: palette.text }]}>
+                Pinned files
+              </Text>
+              <Text style={[styles.rowCaption, { color: palette.muted }]}>
+                {pinnedCount === 0
+                  ? 'Nothing pinned. Pin a plat or deed from a point to read it offline.'
+                  : `${pinnedCount} ${pinnedCount === 1 ? 'file' : 'files'} · ${formatStorageBytes(pinnedBytes)} on this device. Unpin from the point to free space.`}
+              </Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -402,6 +506,11 @@ export default function MeScreen() {
             </View>
             <Text style={[styles.rowChevron, { color: palette.muted }]}>›</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.muted }]}>About</Text>
+          <AboutRow palette={palette} />
         </View>
 
         <View style={styles.section}>
@@ -435,6 +544,182 @@ function capitalize(s: string): string {
  * 'just now' for sub-minute deltas. Defensive against bad ISO inputs —
  * any parse failure renders 'recently' so the row still reads.
  */
+/**
+ * About row — Batch HH. Shows the app version + EAS Update channel
+ * + a "Check for updates" button that pulls a fresh JS bundle from
+ * the EAS CDN and prompts the user to restart.
+ *
+ * Hidden when expo-updates isn't enabled (dev mode, no URL set) so
+ * the row isn't a misleading dead-end. The version line still
+ * renders so the surveyor can read the binary version off the
+ * screen for support requests.
+ */
+function AboutRow({
+  palette,
+}: {
+  palette: { text: string; muted: string; accent: string; surface: string; border: string; danger: string };
+}) {
+  const info = useMemo<AppVersionInfo>(() => getAppVersionInfo(), []);
+  const { state, check, restart } = useManualUpdateCheck();
+  const [busy, setBusy] = useState(false);
+
+  const onCheck = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await check();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRestart = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await restart();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const versionLine = [
+    info.appVersion ? `v${info.appVersion}` : null,
+    info.channel ? `${info.channel} channel` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const statusLabel = formatUpdateState(state);
+
+  return (
+    <View
+      style={{
+        backgroundColor: palette.surface,
+        borderColor: palette.border,
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 14,
+      }}
+    >
+      <Text style={{ color: palette.text, fontSize: 14, fontWeight: '600' }}>
+        Starr Field
+      </Text>
+      <Text
+        style={{ color: palette.muted, fontSize: 12, marginTop: 2 }}
+        accessibilityLabel={`App version ${versionLine || 'unknown'}`}
+      >
+        {versionLine || 'Version unknown'}
+      </Text>
+      {info.updateId ? (
+        <Text style={{ color: palette.muted, fontSize: 11, marginTop: 4 }}>
+          Bundle {info.updateId.slice(0, 8)}…
+        </Text>
+      ) : null}
+      {statusLabel ? (
+        <Text
+          style={{
+            color:
+              state.kind === 'error'
+                ? palette.danger
+                : state.kind === 'ready-to-restart'
+                  ? palette.accent
+                  : palette.muted,
+            fontSize: 12,
+            marginTop: 6,
+          }}
+          accessibilityLiveRegion="polite"
+        >
+          {statusLabel}
+        </Text>
+      ) : null}
+      {info.enabled ? (
+        <View style={{ marginTop: 12, flexDirection: 'row', gap: 8 }}>
+          {state.kind === 'ready-to-restart' ? (
+            <Pressable
+              onPress={() => void onRestart()}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Restart to apply update"
+              style={({ pressed }) => ({
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: 8,
+                backgroundColor: palette.accent,
+                opacity: pressed || busy ? 0.7 : 1,
+              })}
+            >
+              <Text
+                style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '600' }}
+              >
+                Restart to apply
+              </Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => void onCheck()}
+              disabled={busy || state.kind === 'checking' || state.kind === 'downloading'}
+              accessibilityRole="button"
+              accessibilityLabel="Check for updates"
+              style={({ pressed }) => ({
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: palette.accent,
+                opacity: pressed || busy ? 0.7 : 1,
+              })}
+            >
+              <Text
+                style={{ color: palette.accent, fontSize: 13, fontWeight: '600' }}
+              >
+                {state.kind === 'checking'
+                  ? 'Checking…'
+                  : state.kind === 'downloading'
+                    ? 'Downloading…'
+                    : 'Check for updates'}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      ) : (
+        <Text
+          style={{ color: palette.muted, fontSize: 11, marginTop: 8, fontStyle: 'italic' }}
+        >
+          OTA updates aren&apos;t enabled in this build. Install the latest
+          version from the App Store / Play Store.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function formatUpdateState(state: ManualUpdateState): string | null {
+  switch (state.kind) {
+    case 'idle':
+      return null;
+    case 'checking':
+      return 'Checking for updates…';
+    case 'downloading':
+      return 'Downloading the new version…';
+    case 'no-update': {
+      const t = Date.parse(state.checkedAt);
+      const ago = Number.isFinite(t)
+        ? Math.max(0, Math.floor((Date.now() - t) / 1000))
+        : 0;
+      return ago < 60
+        ? 'You’re up to date.'
+        : `You’re up to date. (Checked ${Math.floor(ago / 60)}m ago.)`;
+    }
+    case 'ready-to-restart':
+      return 'Update ready. Tap “Restart to apply” to use it.';
+    case 'error':
+      return `Couldn’t check: ${state.message}`;
+    default:
+      return null;
+  }
+}
+
 function formatPingAge(iso: string): string {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return 'recently';
@@ -444,7 +729,31 @@ function formatPingAge(iso: string): string {
   return `${Math.floor(min / 60)}h ago`;
 }
 
+/** "12.4 MB" — used by the pinned-files row. Same scale as the
+ *  per-file size column on the per-point file card so the user
+ *  reads consistent units throughout. */
+function formatStorageBytes(bytes: number): string {
+  if (!bytes) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 const styles = StyleSheet.create({
+  themePillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  themePill: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    minWidth: 64,
+    alignItems: 'center',
+  },
   safe: { flex: 1 },
   scroll: {
     padding: 24,

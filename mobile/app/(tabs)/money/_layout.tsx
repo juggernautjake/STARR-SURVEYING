@@ -1,7 +1,6 @@
 import { Stack } from 'expo-router';
-import { useColorScheme } from 'react-native';
-
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Money-tab nested stack — receipts list + capture modal + detail.
@@ -13,7 +12,7 @@ import { colors } from '@/lib/theme';
  * F2 #4 will add the per-receipt detail / edit screen at `[id].tsx`.
  */
 export default function MoneyStackLayout() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   return (

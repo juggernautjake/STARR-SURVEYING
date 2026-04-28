@@ -1,7 +1,6 @@
 import { Stack } from 'expo-router';
-import { useColorScheme } from 'react-native';
-
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Me-tab nested stack. Hosts the Me index + drilldowns:
@@ -14,7 +13,7 @@ import { colors } from '@/lib/theme';
  *                   employee."
  */
 export default function MeStackLayout() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   return (

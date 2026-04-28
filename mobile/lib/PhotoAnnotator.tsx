@@ -29,7 +29,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -73,7 +72,7 @@ export function PhotoAnnotator({
   onSave,
   onCancel,
 }: PhotoAnnotatorProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   // Document state — initialised from the prop on first render or

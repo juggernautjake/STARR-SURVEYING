@@ -9,7 +9,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -44,11 +43,18 @@ import {
   usePointFiles,
 } from '@/lib/jobFiles';
 import {
+  useIsPinned,
+  useOpenJobFile,
+  usePinFile,
+  useUnpinFile,
+} from '@/lib/pinnedFiles';
+import {
   type FieldMedia,
   useDeleteMedia,
   usePointMedia,
 } from '@/lib/fieldMedia';
 import { colors, type Palette } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Per-point detail / edit screen — F3 #4.
@@ -68,7 +74,7 @@ import { colors, type Palette } from '@/lib/theme';
  * style retention sweep.
  */
 export default function PointDetailScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const { pointId } = useLocalSearchParams<{ pointId: string }>();
@@ -655,10 +661,23 @@ interface FileCardProps {
 }
 
 /**
- * One-row file card. Shows the user-typed name, the upload status,
- * and a relative-time stamp. Long-press confirms delete.
+ * One-row file card. Tap opens via the OS share sheet (Quick Look /
+ * Files / Drive / etc.); long-press confirms delete; the 📍 button
+ * pins the file for offline re-read. Pinned rows show a 📍 badge in
+ * the title row.
+ *
+ * Pinning fetches the bytes via a signed URL and writes them under
+ * `documentDirectory/pinned/<id>.<ext>` so the file is readable
+ * offline. Unpinning drops the local copy. The plat / deed / CSV
+ * a surveyor needs in the field is always one tap from the cab.
  */
 function FileCard({ file, palette, onLongPress }: FileCardProps) {
+  const isPinned = useIsPinned(file.id);
+  const pinFile = usePinFile();
+  const unpinFile = useUnpinFile();
+  const openFile = useOpenJobFile();
+  const [busy, setBusy] = useState<'open' | 'pin' | null>(null);
+
   const ageLabel = file.created_at ? noteTimeAgo(file.created_at) : '';
   const sizeLabel =
     file.file_size_bytes != null
@@ -670,32 +689,142 @@ function FileCard({ file, palette, onLongPress }: FileCardProps) {
       : file.upload_state === 'done'
         ? palette.success
         : palette.muted;
+
+  // CSV files route to the in-app coordinate preview screen rather
+  // than the OS share sheet — surveyors get the P,N,E,Z,D table +
+  // match-to-points view inline. The preview screen has an "Open
+  // in another app" fallback so the share-sheet path is still one
+  // tap away when the user wants Numbers / Excel.
+  const isCsvFile =
+    !!file.id &&
+    !!file.job_id &&
+    (file.content_type === 'text/csv' ||
+      file.content_type === 'application/csv' ||
+      /\.csv$/i.test(file.name ?? ''));
+
+  const onTap = async () => {
+    if (busy) return;
+    setBusy('open');
+    try {
+      if (isCsvFile && file.id && file.job_id) {
+        router.push({
+          pathname: '/(tabs)/jobs/[id]/files/[fileId]/preview',
+          params: { id: file.job_id, fileId: file.id },
+        });
+        return;
+      }
+      await openFile(file);
+    } catch (err) {
+      Alert.alert(
+        'Couldn’t open file',
+        err instanceof Error ? err.message : String(err)
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onTogglePin = async () => {
+    if (busy) return;
+    setBusy('pin');
+    try {
+      if (isPinned) {
+        await unpinFile(file.id);
+      } else {
+        await pinFile(file);
+      }
+    } catch (err) {
+      Alert.alert(
+        isPinned ? 'Unpin failed' : 'Pin failed',
+        err instanceof Error ? err.message : String(err)
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
-    <Pressable
-      onLongPress={onLongPress}
-      delayLongPress={500}
-      style={[styles.noteCard, { borderColor: palette.border }]}
-      accessibilityRole="button"
-      accessibilityLabel={`File: ${file.name ?? 'untitled'}`}
-      accessibilityHint="Long-press to delete"
-    >
-      <Text style={[styles.noteBody, { color: palette.text }]}>
-        📎 {file.name ?? 'Untitled'}
-      </Text>
-      <Text style={[styles.noteAge, { color: palette.muted }]}>
-        {sizeLabel ? `${sizeLabel} · ` : ''}
-        <Text style={{ color: stateColor }}>
-          {file.upload_state === 'pending'
-            ? 'Uploading…'
-            : file.upload_state === 'failed'
-              ? 'Failed — retry from Me → Uploads'
-              : file.upload_state === 'done'
-                ? 'Synced'
-                : (file.upload_state ?? 'queued')}
+    <View style={[styles.noteCard, { borderColor: palette.border }]}>
+      <Pressable
+        onPress={onTap}
+        onLongPress={onLongPress}
+        delayLongPress={500}
+        accessibilityRole="button"
+        accessibilityLabel={`File: ${file.name ?? 'untitled'}${isPinned ? ', pinned for offline access' : ''}`}
+        accessibilityHint="Tap to open. Long-press to delete."
+        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+      >
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+          }}
+        >
+          <Text
+            style={[styles.noteBody, { color: palette.text, flex: 1 }]}
+            numberOfLines={2}
+          >
+            {isCsvFile ? '📊 ' : isPinned ? '📍 ' : '📎 '}
+            {file.name ?? 'Untitled'}
+          </Text>
+          <Pressable
+            onPress={onTogglePin}
+            disabled={busy === 'pin' || file.upload_state !== 'done'}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isPinned ? 'Unpin from offline access' : 'Pin for offline access'
+            }
+            accessibilityHint={
+              isPinned
+                ? 'Frees device storage. The file stays attached to the point.'
+                : 'Downloads the file to this device so it opens without reception.'
+            }
+            style={({ pressed }) => ({
+              paddingVertical: 6,
+              paddingHorizontal: 10,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: isPinned ? palette.accent : palette.border,
+              backgroundColor: isPinned ? palette.accent : 'transparent',
+              opacity:
+                pressed || busy === 'pin' || file.upload_state !== 'done'
+                  ? 0.6
+                  : 1,
+            })}
+          >
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: '600',
+                color: isPinned ? '#FFFFFF' : palette.text,
+              }}
+            >
+              {busy === 'pin'
+                ? '…'
+                : isPinned
+                  ? 'Pinned'
+                  : 'Pin offline'}
+            </Text>
+          </Pressable>
+        </View>
+        <Text style={[styles.noteAge, { color: palette.muted }]}>
+          {sizeLabel ? `${sizeLabel} · ` : ''}
+          <Text style={{ color: stateColor }}>
+            {file.upload_state === 'pending'
+              ? 'Uploading…'
+              : file.upload_state === 'failed'
+                ? 'Failed — retry from Me → Uploads'
+                : file.upload_state === 'done'
+                  ? 'Synced'
+                  : (file.upload_state ?? 'queued')}
+          </Text>
+          {ageLabel ? ` · ${ageLabel}` : ''}
+          {busy === 'open' ? ' · Opening…' : ''}
         </Text>
-        {ageLabel ? ` · ${ageLabel}` : ''}
-      </Text>
-    </Pressable>
+      </Pressable>
+    </View>
   );
 }
 

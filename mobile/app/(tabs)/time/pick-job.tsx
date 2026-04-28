@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -22,6 +21,7 @@ import {
 import { TrackingConsentModal } from '@/lib/TrackingConsentModal';
 import { useVehicles, type Vehicle } from '@/lib/vehicles';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Modal: pick what to clock into.
@@ -44,7 +44,7 @@ const ENTRY_TYPE_OPTIONS: { type: EntryType; label: string; emoji: string }[] = 
 ];
 
 export default function PickJobScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const { jobs } = useJobs();

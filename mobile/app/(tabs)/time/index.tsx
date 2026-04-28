@@ -3,7 +3,7 @@ import { buildTimesheetCsv, suggestedCsvFilename } from '@/lib/csvExport';
 import { shareTextFile } from '@/lib/share';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
@@ -28,6 +28,7 @@ import {
   useResponsiveLayout,
 } from '@/lib/responsive';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Time tab.
@@ -42,7 +43,7 @@ import { colors } from '@/lib/theme';
  *                           (F1 #5 + F1 #6)
  */
 export default function TimeScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const { session } = useAuth();

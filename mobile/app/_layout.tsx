@@ -18,6 +18,9 @@ import {
   useAdminPingDispatcher,
 } from '@/lib/notificationsInbox';
 import Sentry, { initSentry } from '@/lib/sentry';
+import { useCheckForUpdatesOnLaunch } from '@/lib/otaUpdates';
+import { usePinnedFilesReconciler } from '@/lib/pinnedFiles';
+import { ThemePreferenceProvider } from '@/lib/themePreference';
 import { useUploadQueueDrainer } from '@/lib/uploadQueue';
 import { usePowerSync } from '@powersync/react';
 
@@ -96,6 +99,29 @@ Notifications.setNotificationHandler({
  */
 function UploadQueueDrainer() {
   useUploadQueueDrainer();
+  return null;
+}
+
+/**
+ * Mount-once: reap pinned_files rows whose local file is gone (user
+ * deleted via Files app, OS reaped during a low-storage event).
+ * Without this, an offline open would resolve to a dead path and
+ * fail with a confusing "URI does not exist" error.
+ */
+function PinnedFilesReconciler() {
+  usePinnedFilesReconciler();
+  return null;
+}
+
+/**
+ * Mount-once: silent OTA check on cold start (Batch HH). Skips
+ * silently in dev / when offline / when no EAS Update URL is
+ * configured. On a fresh bundle, fetches + reloadAsync — the next
+ * paint runs the new code. 60 s timeout so a stuck CDN never
+ * blocks startup.
+ */
+function OtaUpdatesReconciler() {
+  useCheckForUpdatesOnLaunch();
   return null;
 }
 
@@ -271,9 +297,12 @@ function RootLayout() {
   return (
     <SafeAreaProvider>
       <StatusBar style="auto" />
-      <AuthProvider>
-        <DatabaseProvider>
+      <ThemePreferenceProvider>
+        <AuthProvider>
+          <DatabaseProvider>
           <UploadQueueDrainer />
+          <PinnedFilesReconciler />
+          <OtaUpdatesReconciler />
           <AdminPingDispatcher />
           <NotificationResponseHandler />
           <LocationTrackerReconciler />
@@ -293,8 +322,9 @@ function RootLayout() {
            * exists, so it has zero cost when there's nothing to show.
            */}
           <NotificationBanner />
-        </DatabaseProvider>
-      </AuthProvider>
+          </DatabaseProvider>
+        </AuthProvider>
+      </ThemePreferenceProvider>
     </SafeAreaProvider>
   );
 }

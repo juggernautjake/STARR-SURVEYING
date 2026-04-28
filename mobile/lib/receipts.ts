@@ -21,12 +21,13 @@
  * is greenfield, so it follows the plan convention rather than the
  * legacy email-keyed shape.
  */
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePowerSync, useQuery } from '@powersync/react';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
-import { logError, logInfo } from './log';
+import { logError, logInfo, logWarn } from './log';
 import {
   pickAndCompress,
   removeFromBucket,
@@ -84,6 +85,18 @@ export interface CaptureOptions {
   jobId?: string | null;
   /** Optional pre-fill for the time-entry link. */
   jobTimeEntryId?: string | null;
+  /** Optional pre-fill for `transaction_at` — used by the
+   *  missing-receipt deep-link flow (Batch DD/EE). When the
+   *  surveyor lands on the capture screen via a "Forget a
+   *  receipt?" notification, we pre-stamp the receipt with the
+   *  stop's arrival time so AI extraction has a head-start AND
+   *  the user-facing review screen shows a reasonable default
+   *  while AI is still running. ISO-8601 string. */
+  transactionAt?: string | null;
+  /** Optional pre-fill for `location_stop_id` — same flow as
+   *  `transactionAt`. Lets the bookkeeper trace back from the
+   *  receipt to the stop that prompted it. */
+  locationStopId?: string | null;
 }
 
 export interface CapturedReceipt {
@@ -107,7 +120,13 @@ export function useCaptureReceipt(): (
   const { session } = useAuth();
 
   return useCallback(
-    async ({ source, jobId, jobTimeEntryId }) => {
+    async ({
+      source,
+      jobId,
+      jobTimeEntryId,
+      transactionAt,
+      locationStopId,
+    }) => {
       const userId = session?.user.id;
       if (!userId) {
         const err = new Error('Not signed in.');
@@ -115,7 +134,12 @@ export function useCaptureReceipt(): (
         throw err;
       }
 
-      logInfo('receipts.capture', 'attempt', { source, job_id: jobId });
+      logInfo('receipts.capture', 'attempt', {
+        source,
+        job_id: jobId,
+        prefilled_transaction_at: !!transactionAt,
+        prefilled_stop_id: !!locationStopId,
+      });
 
       // 1. Pick + compress via the shared media-upload primitive.
       //    Receipts get the OS editor (square-up the page); 1600px is
@@ -147,15 +171,18 @@ export function useCaptureReceipt(): (
       try {
         await db.execute(
           `INSERT INTO receipts (
-             id, user_id, job_id, job_time_entry_id,
+             id, user_id, job_id, job_time_entry_id, location_stop_id,
+             transaction_at,
              photo_url, status, extraction_status,
              created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             receiptId,
             userId,
             jobId ?? null,
             jobTimeEntryId ?? null,
+            locationStopId ?? null,
+            transactionAt ?? null,
             storagePath,
             'pending',
             'queued',
@@ -208,7 +235,27 @@ export function useCaptureReceipt(): (
  * Reverse-chrono list of the current user's receipts. Powers the Money
  * tab. Returns an empty list when no session is present (sign-out race).
  */
-export function useReceipts(limit: number = 100): {
+export type ReceiptListFilter =
+  /** Default — all receipts the surveyor owns (excluding tombstones). */
+  | 'all'
+  /** Batch Z review-before-save subset — extraction landed but the
+   *  user hasn't confirmed yet AND the row is still pending +
+   *  not duplicate-discarded. Drives the Money-tab "Needs review"
+   *  filter chip from Batch LL. */
+  | 'needs-review';
+
+/**
+ * Reverse-chrono list of the current user's receipts. Powers the Money
+ * tab. Returns an empty list when no session is present (sign-out race).
+ *
+ * `filter` defaults to `'all'`. `'needs-review'` constrains to the
+ * same subset `useReceiptsNeedingReview()` counts so the badge tap +
+ * the filter chip reach the same rows.
+ */
+export function useReceipts(
+  limit: number = 100,
+  filter: ReceiptListFilter = 'all'
+): {
   receipts: Receipt[];
   isLoading: boolean;
 } {
@@ -220,14 +267,26 @@ export function useReceipts(limit: number = 100): {
     [userId, limit]
   );
 
-  const { data, isLoading, error } = useQuery<Receipt>(
-    `SELECT *
-     FROM receipts
-     WHERE user_id = ?
-     ORDER BY COALESCE(created_at, '') DESC
-     LIMIT ?`,
-    queryParams
-  );
+  const sql =
+    filter === 'needs-review'
+      ? `SELECT *
+           FROM receipts
+          WHERE user_id = ?
+            AND deleted_at IS NULL
+            AND user_reviewed_at IS NULL
+            AND extraction_status = 'done'
+            AND status = 'pending'
+            AND (dedup_decision IS NULL OR dedup_decision != 'discard')
+          ORDER BY COALESCE(created_at, '') DESC
+          LIMIT ?`
+      : `SELECT *
+           FROM receipts
+          WHERE user_id = ?
+            AND deleted_at IS NULL
+          ORDER BY COALESCE(created_at, '') DESC
+          LIMIT ?`;
+
+  const { data, isLoading, error } = useQuery<Receipt>(sql, queryParams);
 
   useEffect(() => {
     if (error) logError('receipts.useReceipts', 'query failed', error);
@@ -237,6 +296,64 @@ export function useReceipts(limit: number = 100): {
     receipts: data ?? [],
     isLoading: !!userId && isLoading,
   };
+}
+
+// ── Persisted Money-tab filter (Batch OO) ──────────────────────────────────
+
+const RECEIPT_FILTER_STORAGE_KEY = '@starr-field/receipt_filter';
+
+/**
+ * Persisted-across-launches version of `[filter, setFilter]` for
+ * the Money-tab Batch LL filter chip. AsyncStorage-backed so a
+ * surveyor reviewing one receipt at a time keeps their filter
+ * between captures + cold-launches.
+ *
+ * Hydrates from disk on mount; writes synchronously on every set
+ * (best-effort — failures log a warn breadcrumb but don't reject
+ * the setState). Default is `'all'` for the first paint and for
+ * any corrupted-key recovery.
+ *
+ * Mirrors the `useThemePreference` pattern from `themePreference.tsx`
+ * but stays a screen-level hook (the filter is per-device UX, not
+ * cross-component state, so no provider needed).
+ */
+export function usePersistedReceiptFilter(): [
+  ReceiptListFilter,
+  (next: ReceiptListFilter) => void,
+] {
+  const [filter, setFilterState] = useState<ReceiptListFilter>('all');
+
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(RECEIPT_FILTER_STORAGE_KEY)
+      .then((raw) => {
+        if (cancelled || !raw) return;
+        if (raw === 'all' || raw === 'needs-review') {
+          setFilterState(raw);
+        }
+      })
+      .catch((err) => {
+        // Swallow + log — first-paint default ('all') is a fine
+        // fallback when AsyncStorage is wedged.
+        logWarn('receipts.usePersistedReceiptFilter', 'hydrate failed', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const setFilter = useCallback((next: ReceiptListFilter) => {
+    setFilterState(next);
+    // Fire-and-forget — the local state update is the user-visible
+    // contract; persistence is best-effort.
+    AsyncStorage.setItem(RECEIPT_FILTER_STORAGE_KEY, next).catch((err) => {
+      logWarn('receipts.usePersistedReceiptFilter', 'persist failed', err, {
+        next,
+      });
+    });
+  }, []);
+
+  return [filter, setFilter];
 }
 
 export interface JobReceiptRollup {
@@ -273,7 +390,8 @@ export function useJobReceiptRollup(jobId: string | null | undefined): {
     `SELECT category, total_cents, created_at
      FROM receipts
      WHERE job_id = ?
-       AND COALESCE(status, 'pending') != 'rejected'`,
+       AND COALESCE(status, 'pending') != 'rejected'
+       AND deleted_at IS NULL`,
     queryParams
   );
 
@@ -445,22 +563,184 @@ export function useUpdateReceipt(): (
 }
 
 /**
- * Delete a receipt. Soft delete is NOT used — receipts.status='rejected'
- * is the soft state for "user wants to undo this capture without losing
- * the audit trail." Hard delete is reserved for clear-mistakes (e.g.
- * accidental capture of an unrelated photo) and only allowed while the
- * receipt is still 'pending' or 'rejected'. The IRS retention archival
- * job (§5.11.9) is the only path that touches approved receipts.
+ * Confirm a receipt's AI-extracted data after the user reviews it
+ * (Batch Z). Sets `user_reviewed_at` to now() so the "Tap to review"
+ * yellow badge clears and the row is treated as user-confirmed in
+ * the bookkeeper queue.
  *
- * Best-effort storage cleanup runs after the DB delete so the photo
- * doesn't dangle in the bucket.
+ * Optional `edits` arg captures what the user changed during review
+ * for the audit trail (stored as JSON in user_review_edits). If
+ * omitted we record an empty object so the column is still
+ * non-null and "the user reviewed and made no edits" is
+ * distinguishable from "the user never reviewed."
  */
-export function useDeleteReceipt(): (receipt: Receipt) => Promise<void> {
+export function useConfirmReceiptReview(): (
+  id: string,
+  edits?: Record<string, { from: unknown; to: unknown }>
+) => Promise<void> {
+  const db = usePowerSync();
+  return useCallback(
+    async (id, edits) => {
+      const nowIso = new Date().toISOString();
+      try {
+        await db.execute(
+          `UPDATE receipts
+              SET user_reviewed_at = ?,
+                  user_review_edits = ?,
+                  updated_at = ?
+            WHERE id = ?`,
+          [nowIso, JSON.stringify(edits ?? {}), nowIso, id]
+        );
+        logInfo('receipts.confirmReview', 'success', {
+          receipt_id: id,
+          edit_count: edits ? Object.keys(edits).length : 0,
+        });
+      } catch (err) {
+        logError('receipts.confirmReview', 'failed', err, { receipt_id: id });
+        throw err;
+      }
+    },
+    [db]
+  );
+}
+
+/**
+ * Resolve a likely-duplicate receipt (Batch Z). The worker writes
+ * `dedup_match_id` when it finds a prior receipt with the same
+ * `(vendor, total, date)` fingerprint. The user makes the call:
+ *
+ *   - 'keep'    → record the decision, leave the receipt visible
+ *                 (two real receipts can legitimately match — e.g.
+ *                 two $5 coffees on the same day at the same shop).
+ *   - 'discard' → flip status to 'rejected' with rejected_reason
+ *                 'duplicate' so it leaves the bookkeeper queue
+ *                 without losing the audit trail.
+ *
+ * We DO NOT clear `dedup_match_id` after the decision — keeping it
+ * lets the office reviewer trace why a receipt was rejected as a
+ * duplicate (or confirmed not to be one) months later.
+ */
+export function useResolveReceiptDuplicate(): (
+  id: string,
+  decision: 'keep' | 'discard'
+) => Promise<void> {
+  const db = usePowerSync();
+  return useCallback(
+    async (id, decision) => {
+      const nowIso = new Date().toISOString();
+      try {
+        if (decision === 'discard') {
+          // Discarded duplicate → soft-delete the row with a
+          // 'duplicate' reason so the audit trail survives the
+          // full IRS retention window (Batch CC), AND flip the
+          // status to 'rejected' so any pre-Batch-CC consumers
+          // that haven't migrated to filtering by deleted_at
+          // still see it as not-pending.
+          await db.execute(
+            `UPDATE receipts
+                SET dedup_decision = ?,
+                    status = 'rejected',
+                    rejected_reason = COALESCE(rejected_reason, 'duplicate'),
+                    deleted_at = ?,
+                    deletion_reason = 'duplicate',
+                    updated_at = ?
+              WHERE id = ?`,
+            [decision, nowIso, nowIso, id]
+          );
+        } else {
+          await db.execute(
+            `UPDATE receipts
+                SET dedup_decision = ?,
+                    updated_at = ?
+              WHERE id = ?`,
+            [decision, nowIso, id]
+          );
+        }
+        logInfo('receipts.resolveDuplicate', 'success', {
+          receipt_id: id,
+          decision,
+        });
+      } catch (err) {
+        logError('receipts.resolveDuplicate', 'failed', err, {
+          receipt_id: id,
+          decision,
+        });
+        throw err;
+      }
+    },
+    [db]
+  );
+}
+
+/**
+ * Reactive lookup of a single receipt by id, returning just the
+ * row (no `isLoading` wrapper — the dup-warning card is
+ * already inside the parent's loaded state). Powers the
+ * "duplicate match" preview card on the detail screen — when
+ * `dedup_match_id` is set, the page calls this with that id to
+ * fetch the suspected-prior-row.
+ */
+export function useReceiptRow(id: string | null | undefined): Receipt | null {
+  const queryParams = useMemo(() => (id ? [id] : []), [id]);
+  const { data } = useQuery<Receipt>(
+    `SELECT * FROM receipts WHERE id = ? LIMIT 1`,
+    queryParams
+  );
+  return id ? (data?.[0] ?? null) : null;
+}
+
+/**
+ * Reactive count of receipts that need review for the current user.
+ * Drives the Money tab's "N to review" badge. Receipts qualify when
+ * extraction has completed AND the user hasn't confirmed yet AND
+ * the row isn't already approved/rejected.
+ */
+export function useReceiptsNeedingReview(): number {
+  const { session } = useAuth();
+  const userId = session?.user.id ?? null;
+  const queryParams = useMemo(() => (userId ? [userId] : []), [userId]);
+  const { data } = useQuery<{ count: number }>(
+    `SELECT COUNT(*) AS count
+       FROM receipts
+      WHERE user_id = ?
+        AND user_reviewed_at IS NULL
+        AND extraction_status = 'done'
+        AND status = 'pending'
+        AND deleted_at IS NULL`,
+    queryParams
+  );
+  return data?.[0]?.count ?? 0;
+}
+
+export type DeletionReason =
+  | 'user_undo'
+  | 'duplicate'
+  | 'wrong_capture';
+
+/**
+ * Soft-delete a receipt. Sets `deleted_at = now()` so the row
+ * disappears from list views but the IRS audit trail survives.
+ * Hard delete is the worker's job (retention sweep purges rows
+ * whose `deleted_at` exceeds the retention threshold).
+ *
+ * Approved + exported rows can't be deleted from the field — the
+ * bookkeeper has signed off and IRS retention has begun.
+ *
+ * The optional `reason` arg (defaults to 'user_undo') feeds
+ * `receipts.deletion_reason` so an audit reviewer can tell why a
+ * row was tombstoned. Useful when paired with the Batch Z
+ * dedup-warning card (which sets `reason='duplicate'` on its
+ * "Discard duplicate" path).
+ */
+export function useDeleteReceipt(): (
+  receipt: Receipt,
+  reason?: DeletionReason
+) => Promise<void> {
   const db = usePowerSync();
   const { session } = useAuth();
 
   return useCallback(
-    async (receipt) => {
+    async (receipt, reason = 'user_undo') => {
       const userId = session?.user.id;
       if (!userId) {
         const err = new Error('Not signed in.');
@@ -476,28 +756,40 @@ export function useDeleteReceipt(): (receipt: Receipt) => Promise<void> {
         throw err;
       }
 
-      logInfo('receipts.delete', 'attempt', { receipt_id: receipt.id });
+      logInfo('receipts.delete', 'attempt', {
+        receipt_id: receipt.id,
+        reason,
+      });
 
+      const nowIso = new Date().toISOString();
       try {
-        await db.execute(`DELETE FROM receipts WHERE id = ?`, [receipt.id]);
-        logInfo('receipts.delete', 'success', { receipt_id: receipt.id });
+        // Soft delete — flip deleted_at so list filters drop the
+        // row but the audit trail survives the full IRS retention
+        // window. The retention sweep CLI hard-deletes rows whose
+        // deleted_at is past the threshold (v2 polish: tracked in
+        // §9.w as the worker retention sweep).
+        await db.execute(
+          `UPDATE receipts
+              SET deleted_at = ?, deletion_reason = ?, updated_at = ?
+            WHERE id = ?`,
+          [nowIso, reason, nowIso, receipt.id]
+        );
+        logInfo('receipts.delete', 'soft-deleted', {
+          receipt_id: receipt.id,
+          reason,
+        });
       } catch (err) {
-        logError('receipts.delete', 'db delete failed', err, {
+        logError('receipts.delete', 'soft-delete failed', err, {
           receipt_id: receipt.id,
         });
         throw err;
       }
 
-      // Storage cleanup is best-effort — the row deletion is the
-      // authoritative action. A dangling photo will be cleaned up by
-      // the IRS archival job.
-      if (receipt.photo_url) {
-        await removeFromBucket({
-          bucket: STORAGE_BUCKET,
-          path: receipt.photo_url,
-          scope: 'receipts.delete',
-        });
-      }
+      // Storage cleanup is deferred to the worker retention sweep:
+      // we want the photo on disk for the full IRS retention window
+      // so an auditor reviewing a tombstoned row can still see what
+      // got captured. Hard-deleting the bucket object here would
+      // strand the audit trail.
     },
     [db, session]
   );

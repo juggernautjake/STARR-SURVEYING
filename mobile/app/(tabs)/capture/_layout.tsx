@@ -1,7 +1,6 @@
 import { Stack } from 'expo-router';
-import { useColorScheme } from 'react-native';
-
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Capture-tab nested stack — entry screen + per-point photo capture.
@@ -12,7 +11,7 @@ import { colors } from '@/lib/theme';
  * real multi-photo capture flow.
  */
 export default function CaptureStackLayout() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   return (

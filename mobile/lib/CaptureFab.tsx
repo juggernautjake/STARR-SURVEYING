@@ -25,7 +25,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 
 import { colors } from './theme';
@@ -34,7 +33,7 @@ const FAB_SIZE = 64;
 const FAB_LIFT = 18;
 
 export function CaptureFab(props: BottomTabBarButtonProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   // Forward the actual GestureResponderEvent so the navigator's

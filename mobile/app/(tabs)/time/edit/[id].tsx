@@ -10,7 +10,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -40,6 +39,7 @@ import {
 import { entryTypeLabel } from '@/lib/timeTracking';
 import { useQuery } from '@powersync/react';
 import { colors, type Palette } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 interface JobTimeEntryRow {
   id: string;
@@ -77,7 +77,7 @@ interface JobTimeEntryRow {
  *   age > 24 hours  blocked on mobile; admin only
  */
 export default function EditTimeEntryScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const { id } = useLocalSearchParams<{ id: string }>();
