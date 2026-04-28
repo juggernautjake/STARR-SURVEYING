@@ -1801,10 +1801,231 @@ everything's clean ("All templates point to active gear ✓").
   (§5.12.9).
 - The depreciation algorithm + tax line plumbing (§5.12.10).
 - The lost-equipment insurance packet generator (§5.12.11).
-- **5.12.8 Maintenance + calibration** — service events table,
-  PDF cert attachments, "next calibration due in 14 days"
-  alerts, integration with the receipts module so a calibration
-  invoice receipt links back to the equipment row.
+#### 5.12.8 Maintenance + calibration
+
+The §4.6 Equipment Manager's other major hat: **keep every
+piece of expensive metal calibrated, serviced, and trustworthy.**
+Total stations need annual NIST calibration. GNSS receivers
+need firmware updates. Tripods need tightening. Trucks (already
+tracked via §6.3 `vehicles`) need oil changes. A surveyor whose
+S9 is 6 months past calibration is producing legally
+questionable measurements — the Equipment Manager has to keep
+that from happening.
+
+**Two-axis classification.** Service events split along two
+dimensions; the schema captures both:
+
+| Axis | Values | Notes |
+|---|---|---|
+| `kind` | `calibration`, `repair`, `firmware_update`, `inspection`, `cleaning`, `scheduled_service`, `damage_triage`, `recall`, `software_license` | What kind of work is being done. |
+| `origin` | `recurring_schedule`, `damaged_return`, `manual`, `vendor_recall`, `cert_expiring`, `lost_returned` | Why the event was created. Recurring + cert-expiring are auto-scheduled by the cron; damaged_return + lost_returned auto-create on the §5.12.6 check-in flow; the rest are Equipment Manager-initiated. |
+
+**Schema sketch — `maintenance_events`** (one row per service
+occurrence, current or historical):
+- `id UUID PK`
+- `equipment_inventory_id UUID FK` (or `vehicle_id UUID FK
+  vehicles(id)` — exactly one of these is non-null. The
+  schema uses an `xor` CHECK so vehicles flow through the same
+  pipeline without forcing them into the equipment table.)
+- `kind`, `origin` (CHECKs above)
+- `state TEXT CHECK (state IN ('scheduled', 'in_progress',
+  'awaiting_parts', 'awaiting_vendor', 'complete',
+  'cancelled', 'failed_qa'))`
+- `scheduled_for TIMESTAMPTZ NULL` (when the work is planned —
+  drives the §5.12.7.4 calendar)
+- `started_at TIMESTAMPTZ NULL`, `completed_at TIMESTAMPTZ NULL`
+- `expected_back_at TIMESTAMPTZ NULL` (when the gear should be
+  available again; drives the §5.12.5 reservation hard-block
+  and the §5.12.7.2 timeline shading)
+- `vendor_name TEXT NULL`, `vendor_contact TEXT NULL`,
+  `vendor_work_order TEXT NULL`
+- `performed_by_user_id UUID FK NULL` (in-shop work — Equipment
+  Manager or designee. Mutually exclusive with vendor fields
+  when `kind='calibration'` because a NIST cert requires a
+  third-party.)
+- `cost_cents BIGINT NULL` (parts + labour total when known)
+- `linked_receipt_id UUID FK receipts(id) NULL` (when the
+  Equipment Manager attaches a calibration / parts invoice)
+- `summary TEXT NOT NULL` (one-line — "Annual NIST cal sent
+  to Trimble Service Houston")
+- `notes TEXT` (long-form — what was wrong, what was done)
+- `qa_passed BOOLEAN NULL` (post-cal accuracy check; false
+  routes the event to `failed_qa`)
+- `next_due_at TIMESTAMPTZ NULL` (auto-computed when the event
+  completes — see "Recurring schedules" below)
+- `created_at`, `created_by`, `updated_at`
+
+**Schema sketch — `maintenance_event_documents`** (PDF
+attachments — calibration certs, work orders, parts receipts):
+- `id UUID PK`
+- `event_id UUID FK ON DELETE CASCADE`
+- `kind TEXT CHECK (kind IN ('calibration_cert',
+  'work_order', 'parts_invoice', 'before_photo',
+  'after_photo', 'qa_report', 'other'))`
+- `storage_url TEXT` (re-uses the §5.6 files-bucket pattern
+  with per-equipment-folder RLS)
+- `uploaded_by`, `uploaded_at`, `description TEXT`
+
+**Schema sketch — `maintenance_schedules`** (recurring rules
+attached to a specific equipment row OR to a category):
+- `id UUID PK`
+- `equipment_inventory_id UUID NULL` (specific unit) OR
+  `category TEXT NULL` (every unit of the category — e.g. all
+  total stations get annual cal)
+- `kind` (FK to the `kind` enum above)
+- `frequency_months INT` (12 = annual; 6 = semi-annual; etc.)
+- `lead_time_days INT DEFAULT 30` (how far ahead the
+  Equipment Manager sees the alert)
+- `is_hard_block BOOLEAN DEFAULT true` (true → §5.12.5 hard-
+  blocks reservations past the due date; false → soft-warn
+  only)
+- `auto_create_event BOOLEAN DEFAULT true` (whether the cron
+  pre-creates a `state='scheduled'` event when due)
+- `notes TEXT`
+
+The Equipment Manager seeds these once per category at
+onboarding; the cron handles the rest.
+
+**Recurring schedule cron** (worker job, runs daily at 3am):
+1. For every active schedule, compute the most recent
+   completed event for the matched equipment (by category or
+   specific id).
+2. Add `frequency_months` to its `completed_at` → the
+   `next_due_at`.
+3. If `next_due_at - lead_time_days <= now()` and there's no
+   open event for that schedule:
+   - If `auto_create_event=true` → INSERT a
+     `state='scheduled'` event with `origin='recurring_schedule'`
+     and a sensible `scheduled_for` placeholder.
+   - Either way, push a notification (§5.10.4) to the
+     Equipment Manager: *"Total Station S9 #1 — annual NIST
+     cal due in 30 days."*
+4. The §5.12.7.1 Today blue banner picks up any schedule
+   whose due date is today or this week; the §5.12.7.4
+   calendar pages plot the full lookahead.
+
+**Cert-expiring auto-creation.** Distinct from recurring
+schedules — driven by the `personnel_skills.expires_at` and
+`equipment_inventory.next_calibration_due_at` columns. Cron
+emits warnings at the 60-day, 30-day, and 7-day marks. The
+§5.12.4 personnel side handles the surveyor cert path; this
+sub-section handles the equipment side.
+
+**Damage triage entry path** (called out in §5.12.6):
+- A `returned_condition='damaged'` check-in triggers the
+  flow that creates a `kind='damage_triage'`,
+  `origin='damaged_return'`, `state='scheduled'` event with
+  the photo + surveyor's note pre-attached.
+- The `equipment_inventory.current_status` flips to
+  `maintenance` and `expected_back_at` is left NULL until
+  the Equipment Manager sets it during triage. While NULL,
+  §5.12.5 treats the unit as indefinitely unavailable.
+- Equipment Manager opens the event, decides:
+  - **Repair in-shop** — sets `state='in_progress'`,
+    `performed_by_user_id`, an `expected_back_at` estimate.
+  - **Send to vendor** — sets `state='awaiting_vendor'`,
+    fills vendor fields. `expected_back_at` per the vendor's
+    quoted turnaround.
+  - **Retire** — closes the event with
+    `state='cancelled'`, sets `equipment_inventory.retired_at`.
+    Triggers the §5.12.3 cleanup queue badge.
+
+**Out-for-service workflow.**
+- While `state IN ('in_progress', 'awaiting_parts',
+  'awaiting_vendor')`, the equipment row stays
+  `current_status='maintenance'`. Reservations cannot be
+  created against it (§5.12.5 status check).
+- Equipment Manager updates `expected_back_at` as the work
+  progresses; each update emits a notification to anyone who
+  had been WAITING on the unit (the §5.12.7.2 timeline knows
+  who via overlapping `held` reservations that were forced
+  onto alternates).
+- Completing the event flips `current_status` back to
+  `available` and opens the unit for new reservations.
+
+**QA gate on calibration completion.** Calibration events have
+a mandatory accuracy check before flipping `qa_passed=true`:
+- Equipment Manager runs a known-baseline shot (or accepts
+  the vendor's cert + serial-matched accuracy report).
+- Result entered as a JSON `qa_results` field on the event.
+- Failed QA → `state='failed_qa'`, notification to admin,
+  unit stays in `maintenance`. Surfaces on the §5.12.7.4
+  page as a red row.
+
+**Vendor management.**
+- v1: vendor info lives on each event row (free-text
+  `vendor_name` / `vendor_contact`). Good enough for the
+  ~5 vendors a small shop uses.
+- v2 polish: dedicated `equipment_vendors` table with default
+  turnaround times, contact history, ratings, integration
+  with the receipts pipeline so vendor invoices auto-attach.
+- The Equipment Manager dashboard (§5.12.7.4 maintenance
+  calendar) groups upcoming events by vendor so a single
+  trip to Trimble Service Houston can batch multiple
+  instruments.
+
+**Receipt cross-link** (the user's directive again — *"don't
+double-count things"*):
+- The §5.11 receipts pipeline already extracts vendor + total
+  + category. When the Equipment Manager opens a maintenance
+  event and clicks **Attach receipt**, a picker shows
+  recently-approved receipts in category `equipment` /
+  `professional_services` that aren't already linked.
+- Alternatively, when reviewing a freshly-extracted receipt
+  in the Money tab, the surveyor sees an *"Is this for
+  equipment maintenance?"* prompt with a typeahead picker if
+  the receipt vendor matches a known maintenance vendor.
+- The link drops the receipt's `total_cents` onto the event's
+  `cost_cents` field and prevents the bookkeeper from
+  expensing the same dollar twice — Schedule C Line 22
+  (Supplies) for the receipt OR Line 13 (Depreciation) for
+  the equipment, never both. §5.12.10 owns the full ledger
+  reconciliation.
+
+**Maintenance history page** on each inventory unit:
+- Sortable table of every event ever attached to the unit.
+- Cumulative cost (running total of all linked
+  `cost_cents`).
+- Mean time between failures (auto-computed from the
+  damage_triage event sequence).
+- Cert PDFs inline-viewable (the §5.6 files-bucket signed
+  URL pattern).
+- Drives the "is this unit reliable?" decision when an
+  Equipment Manager is debating retirement vs another repair.
+
+**API sketch** (provisional names):
+- `POST /api/admin/equipment/maintenance-events` — create.
+- `PATCH /api/admin/equipment/maintenance-events/[id]` —
+  update state / fields.
+- `POST /api/admin/equipment/maintenance-events/[id]/documents`
+  — multipart attachment upload.
+- `POST /api/admin/equipment/maintenance-events/[id]/link-receipt`
+  — body `{ receipt_id }`.
+- `POST /api/admin/equipment/maintenance-events/[id]/qa` —
+  body `{ qa_passed, qa_results }`.
+- `GET /api/admin/equipment/[id]/history` — full event log
+  for a unit.
+
+**Notification routing.** Every state transition pushes
+through the §5.10.4 stack:
+- `equipment_manager` → all events.
+- `admin` → `failed_qa`, `cancelled` (when retiring an asset),
+  cost-cents over a configurable threshold.
+- Surveyors who had reservations forced onto alternates →
+  `expected_back_at` updates so they know when their preferred
+  unit is back.
+- The §5.12.7.1 Today page red banner picks up any
+  `state='failed_qa'` row.
+
+**What §5.12.8 explicitly does NOT cover:**
+- The depreciation accounting that links cost_cents to
+  Schedule C Line 13 / Section 179 (§5.12.10).
+- The mobile-side lost-on-site insurance packet (§5.12.11).
+- The vehicle-service overlap detail (cross-linked into
+  §5.12.7.4 today; the dedicated vehicle service log is
+  owned by the existing `/admin/vehicles` flow with one
+  ALTER to add `vehicle_id` support to the
+  `maintenance_events` schema above).
 - **5.12.9 Mobile UX** — "what's in my truck right now" tab for
   surveyors; QR-scan check-in on return; lost-on-site flow
   (mark a piece lost with last-known job GPS).
