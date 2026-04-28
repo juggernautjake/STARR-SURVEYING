@@ -451,6 +451,493 @@ function AddUnitModal({ onClose, onCreated }: AddUnitModalProps) {
   );
 }
 
+// ── Edit Unit modal (Phase F10.1d-ii) ──────────────────────────────────────
+// PATCH-driven edit modal that pre-fills from the row data passed in by
+// the catalogue. Shows the same name + brand/model/serial OR
+// unit/qty/threshold conditional block as the Add modal PLUS a cost-basis
+// + calibration block that the Add modal explicitly defers here.
+//
+// item_kind is shown but read-only — changing kind would invalidate
+// every downstream relationship (kit memberships, template line items,
+// reservations) so kind changes go through retire-and-recreate.
+//
+// retired_at + retired_reason are NOT editable here — those flow through
+// the dedicated F10.1e retire action so the audit trail captures the
+// transition reason consistently.
+
+interface EditUnitModalProps {
+  row: EquipmentRow;
+  onClose: () => void;
+  onUpdated: (item: EquipmentRow) => void;
+}
+
+function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
+  const { safeFetch } = usePageError('EditUnitModal');
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Pre-fill from the row data. Date columns rendered as YYYY-MM-DD for
+  // <input type="date">; cents columns as plain integer strings.
+  const initialIso = (iso: string | null) =>
+    iso ? new Date(iso).toISOString().slice(0, 10) : '';
+  const initialNum = (n: number | null) =>
+    n == null ? '' : String(n);
+
+  const [name, setName] = useState(row.name ?? '');
+  const [category, setCategory] = useState(row.category ?? '');
+  const [brand, setBrand] = useState(row.brand ?? '');
+  const [model, setModel] = useState(row.model ?? '');
+  const [serialNumber, setSerialNumber] = useState(row.serial_number ?? '');
+  const [homeLocation, setHomeLocation] = useState(row.home_location ?? '');
+  const [notes, setNotes] = useState(row.notes ?? '');
+  const [qrCodeId, setQrCodeId] = useState(row.qr_code_id ?? '');
+  const [currentStatus, setCurrentStatus] = useState<StatusFilter>(
+    (row.current_status as StatusFilter) ?? 'available'
+  );
+
+  // Cost basis (editable on both durables + kits + consumables —
+  // capitalised consumables exist).
+  const [acquiredAt, setAcquiredAt] = useState(initialIso(row.acquired_cost_cents != null ? null : null));
+  const [acquiredCost, setAcquiredCost] = useState(initialNum(row.acquired_cost_cents));
+  const [usefulLifeMonths, setUsefulLifeMonths] = useState(initialNum(row.useful_life_months));
+  // Calibration / warranty (durable / kit only, but UI doesn't gate —
+  // a consumable with no cal date stays clean either way).
+  const [nextCalibrationDueAt, setNextCalibrationDueAt] = useState(
+    initialIso(row.next_calibration_due_at)
+  );
+  const [warrantyExpiresAt, setWarrantyExpiresAt] = useState(
+    initialIso(row.warranty_expires_at)
+  );
+  // Consumable accounting.
+  const [unit, setUnit] = useState(row.unit ?? '');
+  const [quantityOnHand, setQuantityOnHand] = useState(initialNum(row.quantity_on_hand));
+  const [lowStockThreshold, setLowStockThreshold] = useState(
+    initialNum(row.low_stock_threshold)
+  );
+  const [vendor, setVendor] = useState(row.vendor ?? '');
+  const [costPerUnit, setCostPerUnit] = useState(initialNum(row.cost_per_unit_cents));
+
+  const isConsumable = row.item_kind === 'consumable';
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        setError('Name cannot be empty.');
+        return;
+      }
+
+      const update: Record<string, unknown> = {
+        name: trimmedName,
+        category: category.trim() || null,
+        notes: notes.trim() || null,
+        home_location: homeLocation.trim() || null,
+        current_status: currentStatus || 'available',
+      };
+
+      if (qrCodeId.trim()) {
+        update.qr_code_id = qrCodeId.trim();
+      }
+
+      if (!isConsumable) {
+        update.brand = brand.trim() || null;
+        update.model = model.trim() || null;
+        update.serial_number = serialNumber.trim() || null;
+      } else {
+        update.unit = unit.trim() || null;
+        update.vendor = vendor.trim() || null;
+        if (quantityOnHand.trim()) {
+          const n = parseInt(quantityOnHand.trim(), 10);
+          if (!Number.isInteger(n) || n < 0) {
+            setError('Quantity on hand must be a non-negative integer.');
+            return;
+          }
+          update.quantity_on_hand = n;
+        } else {
+          update.quantity_on_hand = null;
+        }
+        if (lowStockThreshold.trim()) {
+          const n = parseInt(lowStockThreshold.trim(), 10);
+          if (!Number.isInteger(n) || n < 0) {
+            setError('Low-stock threshold must be a non-negative integer.');
+            return;
+          }
+          update.low_stock_threshold = n;
+        } else {
+          update.low_stock_threshold = null;
+        }
+        if (costPerUnit.trim()) {
+          const n = parseInt(costPerUnit.trim(), 10);
+          if (!Number.isInteger(n) || n < 0) {
+            setError('Cost per unit must be a non-negative integer (cents).');
+            return;
+          }
+          update.cost_per_unit_cents = n;
+        } else {
+          update.cost_per_unit_cents = null;
+        }
+      }
+
+      // Cost basis (always editable so the §5.12.10 promote-receipt
+      // flow can backfill via this surface too).
+      if (acquiredCost.trim()) {
+        const n = parseInt(acquiredCost.trim(), 10);
+        if (!Number.isInteger(n) || n < 0) {
+          setError('Acquired cost must be a non-negative integer (cents).');
+          return;
+        }
+        update.acquired_cost_cents = n;
+      } else {
+        update.acquired_cost_cents = null;
+      }
+      if (usefulLifeMonths.trim()) {
+        const n = parseInt(usefulLifeMonths.trim(), 10);
+        if (!Number.isInteger(n) || n < 0) {
+          setError('Useful life (months) must be a non-negative integer.');
+          return;
+        }
+        update.useful_life_months = n;
+      } else {
+        update.useful_life_months = null;
+      }
+      if (acquiredAt.trim()) {
+        update.acquired_at = `${acquiredAt}T00:00:00.000Z`;
+      }
+
+      // Calibration + warranty.
+      if (nextCalibrationDueAt.trim()) {
+        update.next_calibration_due_at = `${nextCalibrationDueAt}T00:00:00.000Z`;
+      } else {
+        update.next_calibration_due_at = null;
+      }
+      if (warrantyExpiresAt.trim()) {
+        update.warranty_expires_at = `${warrantyExpiresAt}T00:00:00.000Z`;
+      } else {
+        update.warranty_expires_at = null;
+      }
+
+      setSubmitting(true);
+      const res = await safeFetch<{ item: EquipmentRow }>(
+        `/api/admin/equipment/${row.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(update),
+        }
+      );
+      setSubmitting(false);
+      if (res?.item) {
+        onUpdated(res.item);
+      } else {
+        setError('Save failed. Check the error log; the form is unchanged.');
+      }
+    },
+    [
+      acquiredAt,
+      acquiredCost,
+      brand,
+      category,
+      costPerUnit,
+      currentStatus,
+      homeLocation,
+      isConsumable,
+      lowStockThreshold,
+      model,
+      name,
+      nextCalibrationDueAt,
+      notes,
+      onUpdated,
+      qrCodeId,
+      quantityOnHand,
+      row.id,
+      safeFetch,
+      serialNumber,
+      unit,
+      usefulLifeMonths,
+      vendor,
+      warrantyExpiresAt,
+    ]
+  );
+
+  return (
+    <div style={styles.modalBackdrop} onClick={onClose}>
+      <form
+        style={styles.modal}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={handleSubmit}
+      >
+        <header style={styles.modalHeader}>
+          <h2 style={styles.modalTitle}>
+            Edit unit · <code style={styles.code}>{row.qr_code_id ?? '(no QR)'}</code>
+          </h2>
+          <button
+            type="button"
+            style={styles.modalClose}
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div style={styles.modalBody}>
+          <p style={styles.modalHint}>
+            Item kind <strong>{row.item_kind ?? '(unset)'}</strong> is locked
+            (changing kind invalidates kit memberships, templates, and
+            reservations). Use retire + recreate if you need to change kind.
+          </p>
+
+          <label style={styles.formField}>
+            <span style={styles.formLabel}>Name *</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={styles.formInput}
+              maxLength={200}
+              required
+            />
+          </label>
+
+          <div style={styles.formGrid}>
+            <label style={styles.formField}>
+              <span style={styles.formLabel}>Category</span>
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                style={styles.formInput}
+              />
+            </label>
+            <label style={styles.formField}>
+              <span style={styles.formLabel}>Status</span>
+              <select
+                value={currentStatus}
+                onChange={(e) => setCurrentStatus(e.target.value as StatusFilter)}
+                style={styles.formInput}
+              >
+                {STATUS_OPTIONS.filter((o) => o.value !== '').map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={styles.formField}>
+              <span style={styles.formLabel}>Home location</span>
+              <input
+                type="text"
+                value={homeLocation}
+                onChange={(e) => setHomeLocation(e.target.value)}
+                style={styles.formInput}
+              />
+            </label>
+            <label style={styles.formField}>
+              <span style={styles.formLabel}>QR code</span>
+              <input
+                type="text"
+                value={qrCodeId}
+                onChange={(e) => setQrCodeId(e.target.value.toUpperCase())}
+                style={styles.formInput}
+                maxLength={64}
+              />
+            </label>
+          </div>
+
+          {!isConsumable ? (
+            <div style={styles.formGrid}>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Brand</span>
+                <input
+                  type="text"
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                  style={styles.formInput}
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Model</span>
+                <input
+                  type="text"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  style={styles.formInput}
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Serial number</span>
+                <input
+                  type="text"
+                  value={serialNumber}
+                  onChange={(e) => setSerialNumber(e.target.value)}
+                  style={styles.formInput}
+                />
+              </label>
+            </div>
+          ) : (
+            <div style={styles.formGrid}>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Unit</span>
+                <input
+                  type="text"
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  style={styles.formInput}
+                  placeholder="can / roll / bundle"
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Quantity on hand</span>
+                <input
+                  type="number"
+                  value={quantityOnHand}
+                  onChange={(e) => setQuantityOnHand(e.target.value)}
+                  style={styles.formInput}
+                  min={0}
+                  step={1}
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Low-stock threshold</span>
+                <input
+                  type="number"
+                  value={lowStockThreshold}
+                  onChange={(e) => setLowStockThreshold(e.target.value)}
+                  style={styles.formInput}
+                  min={0}
+                  step={1}
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Vendor</span>
+                <input
+                  type="text"
+                  value={vendor}
+                  onChange={(e) => setVendor(e.target.value)}
+                  style={styles.formInput}
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Cost per unit (cents)</span>
+                <input
+                  type="number"
+                  value={costPerUnit}
+                  onChange={(e) => setCostPerUnit(e.target.value)}
+                  style={styles.formInput}
+                  min={0}
+                  step={1}
+                  placeholder="e.g. 450 = $4.50"
+                />
+              </label>
+            </div>
+          )}
+
+          <fieldset style={styles.fieldset}>
+            <legend style={styles.formLabel}>Cost basis (§5.12.10 tax tie-in)</legend>
+            <div style={styles.formGrid}>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Acquired cost (cents)</span>
+                <input
+                  type="number"
+                  value={acquiredCost}
+                  onChange={(e) => setAcquiredCost(e.target.value)}
+                  style={styles.formInput}
+                  min={0}
+                  step={1}
+                  placeholder="e.g. 4000000 = $40,000"
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Acquired at</span>
+                <input
+                  type="date"
+                  value={acquiredAt}
+                  onChange={(e) => setAcquiredAt(e.target.value)}
+                  style={styles.formInput}
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Useful life (months)</span>
+                <input
+                  type="number"
+                  value={usefulLifeMonths}
+                  onChange={(e) => setUsefulLifeMonths(e.target.value)}
+                  style={styles.formInput}
+                  min={0}
+                  step={1}
+                  placeholder="60 = 5 years"
+                />
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset style={styles.fieldset}>
+            <legend style={styles.formLabel}>Calibration / warranty (§5.12.7.4 calendar)</legend>
+            <div style={styles.formGrid}>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Next calibration due</span>
+                <input
+                  type="date"
+                  value={nextCalibrationDueAt}
+                  onChange={(e) => setNextCalibrationDueAt(e.target.value)}
+                  style={styles.formInput}
+                />
+              </label>
+              <label style={styles.formField}>
+                <span style={styles.formLabel}>Warranty expires</span>
+                <input
+                  type="date"
+                  value={warrantyExpiresAt}
+                  onChange={(e) => setWarrantyExpiresAt(e.target.value)}
+                  style={styles.formInput}
+                />
+              </label>
+            </div>
+          </fieldset>
+
+          <label style={styles.formField}>
+            <span style={styles.formLabel}>Notes</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              style={{ ...styles.formInput, minHeight: 60 }}
+            />
+          </label>
+
+          <p style={styles.modalHint}>
+            ▸ Retire / un-retire flows through the dedicated F10.1e
+            action; this form does not edit retired_at.
+          </p>
+
+          {error ? <div style={styles.actionMsgWarn}>{error}</div> : null}
+        </div>
+
+        <footer style={styles.modalFooter}>
+          <button
+            type="button"
+            style={styles.refreshBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            style={styles.submitBtn}
+            disabled={submitting || !name.trim()}
+          >
+            {submitting ? 'Saving…' : 'Save changes'}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
 export default function EquipmentInventoryPage() {
   const { data: session } = useSession();
   const { safeFetch } = usePageError('EquipmentInventoryPage');
@@ -462,6 +949,7 @@ export default function EquipmentInventoryPage() {
   const [data, setData] = useState<CatalogueResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingRow, setEditingRow] = useState<EquipmentRow | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const queryString = useMemo(() => {
@@ -597,6 +1085,18 @@ export default function EquipmentInventoryPage() {
         />
       ) : null}
 
+      {editingRow ? (
+        <EditUnitModal
+          row={editingRow}
+          onClose={() => setEditingRow(null)}
+          onUpdated={(item) => {
+            setEditingRow(null);
+            setActionMsg(`✓ Saved changes to "${item.name ?? '(unnamed)'}".`);
+            void fetchInventory();
+          }}
+        />
+      ) : null}
+
       {data ? (
         <div style={styles.summary}>
           Showing <strong>{items.length}</strong>
@@ -630,6 +1130,7 @@ export default function EquipmentInventoryPage() {
               <th style={styles.thRight}>Stock / Qty</th>
               <th style={styles.thRight}>Cost basis</th>
               <th style={styles.th}>Next cal due</th>
+              <th style={styles.thRight}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -699,6 +1200,24 @@ export default function EquipmentInventoryPage() {
                   </td>
                   <td style={styles.td}>
                     {formatDate(row.next_calibration_due_at)}
+                  </td>
+                  <td style={styles.tdRight}>
+                    <button
+                      type="button"
+                      style={styles.rowActionBtn}
+                      onClick={() => {
+                        setActionMsg(null);
+                        setEditingRow(row);
+                      }}
+                      disabled={!!row.retired_at}
+                      title={
+                        row.retired_at
+                          ? 'Retired rows can be un-retired via the F10.1e retire action.'
+                          : 'Edit unit details'
+                      }
+                    >
+                      Edit
+                    </button>
                   </td>
                 </tr>
               );
@@ -772,6 +1291,16 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 14px',
     cursor: 'pointer',
     fontSize: 13,
+    fontWeight: 500,
+  },
+  rowActionBtn: {
+    background: 'transparent',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    padding: '4px 10px',
+    cursor: 'pointer',
+    fontSize: 12,
+    color: '#1D3095',
     fontWeight: 500,
   },
   submitBtn: {

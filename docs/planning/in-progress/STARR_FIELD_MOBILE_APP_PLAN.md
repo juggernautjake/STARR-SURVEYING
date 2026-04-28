@@ -3457,9 +3457,18 @@ the rest of F10 reads from. Broken into 10 small sub-batches:
       item_kind='consumable', auto-generates qr_code_id
       server-side when blank, refetches the catalogue + shows a
       success toast on create.
-- [◐] **F10.1d** — Inline edit (`PATCH /api/admin/equipment/[id]`
-      + form on the catalogue rows). **F10.1d-i (PATCH endpoint)
-      shipped**; F10.1d-ii edit-modal UI lands next.
+- [x] **F10.1d** — Inline edit (`PATCH /api/admin/equipment/[id]`
+      + form on the catalogue rows). **F10.1d-i (PATCH endpoint)**
+      + **F10.1d-ii (edit-modal UI)** both shipped. Edit modal
+      pre-fills from the row, locks `item_kind` (changing kind
+      invalidates kit memberships / templates / reservations —
+      retire+recreate path), surfaces extra fieldsets for cost
+      basis (§5.12.10) + calibration/warranty (§5.12.7.4) that
+      the Add modal explicitly defers, status select editable
+      so admins can move a unit through the lifecycle.
+      Per-row "Edit" button on the catalogue table; retired
+      rows get the button disabled with hover hint pointing
+      to the F10.1e retire action.
 - [ ] **F10.1e** — Retire action (soft-archive via
       `retired_at` + `retired_reason` from seeds/233).
 - [ ] **F10.1f** — QR sticker PDF (single row, label-printer
@@ -3810,7 +3819,7 @@ the dashboards they link to.
   - **✅ F10.0a-iv** seeds/236 equipment_events audit log `[fb94f61]`
   - **✅ F10.0a-v** seeds/237 equipment_templates + items + versions `[e566747]`
   - **✅ F10.0e** equipment_manager role + 4 consumers `[ded0b67]`
-  - **◐ F10.1** Inventory catalogue UI + QR codes — F10.1a GET endpoint + F10.1b read-only page + F10.1c (POST endpoint + Add Unit modal) shipped; F10.1d-j pending (inline edit · retire · single-row QR PDF · bulk QR PDF · bulk CSV import · mobile useEquipmentByQr · mobile scanner overlay)
+  - **◐ F10.1** Inventory catalogue UI + QR codes — F10.1a GET + F10.1b page + F10.1c (POST + Add Unit modal) + F10.1d (PATCH + edit modal w/ cost-basis & calibration fieldsets) shipped; F10.1e-j pending (retire · single-row QR PDF · bulk QR PDF · bulk CSV import · mobile useEquipmentByQr · mobile scanner overlay)
   - **⨯ F10.2** Templates + dispatcher apply flow (CRUD, preview-with-availability, save-as-template, composition, versioning snapshots)
   - **⨯ F10.3** Availability + conflict engine (seeds/238 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
   - **⨯ F10.4** Personnel side (seeds/239 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
@@ -6523,7 +6532,7 @@ slice of mobile-written data?
 | Per-job consolidated review | `field_data_points` + `field_media` + `fieldbook_notes` + `job_files` (joined) | `/admin/jobs/[id]/field` — points list (Batch S) + job-level media/notes/files inline blocks + "Uploaded by X · timestamp" attribution on every item (Batch T) | ✓ shipped |
 | Job media bundle download | `field_media` + `job_files` (signed) | `/api/admin/jobs/[id]/field-data/manifest` (CSV manifest, Batch S; uploader columns added in Batch T) + `/api/admin/jobs/[id]/field-data/zip` (server-streamed ZIP, organised by media_type/point, Batch T) — single-file Download links on every card on the per-job + per-point pages | ✓ shipped |
 | Tax-time finances | `receipts` (joined w/ `location_segments` + `vehicles`) | `/api/admin/finances/tax-summary` (Schedule-C JSON+CSV w/ status split, Batch QQ) + `/api/admin/finances/mark-exported` (period-lock action) — admin page UI deferred to Batch QQ part-2 | ◐ API shipped, page pending |
-| Equipment inventory | `equipment_inventory` (extended per §5.12.1) | `GET /api/admin/equipment` (F10.1a) + `/admin/equipment/inventory` catalogue (F10.1b) + Add Unit modal + `POST /api/admin/equipment` (F10.1c). Inline edit / retire / QR-print / bulk-CSV land in F10.1d-h. | ◐ create shipped, edit/retire/QR/CSV pending |
+| Equipment inventory | `equipment_inventory` (extended per §5.12.1) | `GET /api/admin/equipment` (F10.1a) + `/admin/equipment/inventory` catalogue (F10.1b) + Add Unit modal + `POST` (F10.1c) + Edit modal + `PATCH /api/admin/equipment/[id]` w/ cost-basis & calibration fieldsets (F10.1d). Retire / QR-print / bulk-CSV land in F10.1e-h. | ◐ create+edit shipped, retire/QR/CSV pending |
 | Equipment kits | `equipment_kits`, `equipment_kit_items` | Inline kit composer on the Inventory catalogue page; one-scan kit batch check-out via `equipment_events` rows (§5.12.6) | ⨯ planned (F10.1) |
 | Equipment templates | `equipment_templates`, `equipment_template_items`, `equipment_template_versions` | `/admin/equipment/templates` admin CRUD + Apply-template flow on existing job detail page (Phase F10.2) | ⨯ planned (F10.2) |
 | Equipment reservations | `equipment_reservations` | `/admin/equipment/reservations` Gantt timeline (§5.12.7.2); per-job reservations panel on existing job detail page; mobile loadout preview (§5.12.9.1) | ⨯ planned (F10.3) |
