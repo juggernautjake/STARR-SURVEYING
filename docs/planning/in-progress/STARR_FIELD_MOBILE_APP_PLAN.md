@@ -3543,16 +3543,24 @@ the rest of F10 reads from. Broken into 10 small sub-batches:
       `expo-camera ~16.0.10` added to mobile/package.json.
 
 **F10.2 — Templates + dispatcher apply flow (Week 34–35).**
-- [ ] CRUD on `equipment_templates` + items (admin web,
-      §5.12.3 permissions split).
-- [ ] Apply-template flow on the existing job detail page —
-      preview with live availability badges per §5.12.5
-      checks, diff-vs-template edits, `equipment_reservations`
-      insert in `state='held'`.
-- [ ] Save-as-template shortcut on custom loadouts.
-- [ ] Composition (`composes_from[]`) with recursion guard.
-- [ ] Versioning — every template save snapshots into
-      `equipment_template_versions`.
+Broken into smaller sub-batches per the established pattern.
+- [◐] **F10.2a** — Templates list endpoints. **F10.2a-i
+      (`GET /api/admin/equipment/templates`)** shipped: filters
+      by job_type / include_archived / q (substring on name +
+      description), returns headers w/ embedded item_count
+      aggregate, total_count probe filtered to the same
+      archive shape, 100/500 limit. F10.2a-ii (`GET [id]`
+      detail with items + version snapshot) lands next.
+- [ ] **F10.2b** — Templates create/edit endpoints
+      (POST + PATCH + DELETE).
+- [ ] **F10.2c** — Items endpoints (POST/PATCH/DELETE for
+      line items inside a template).
+- [ ] **F10.2d** — `/admin/equipment/templates` list page.
+- [ ] **F10.2e** — `/admin/equipment/templates/[id]` edit page.
+- [ ] **F10.2f** — Save-as-template shortcut (deferred to
+      F10.5 with apply flow).
+- [ ] **F10.2g** — Apply-template flow (deferred to F10.3
+      with reservations).
 
 **F10.3 — Availability + conflict detection engine (Week 35).**
 - [ ] `GET /api/admin/equipment/availability` — runs the four
@@ -3756,8 +3764,11 @@ lifecycle endpoints w/ equipment_events audit trail; F10.1f
 `GET [id]/qr-sticker` single-row Brother DK-1201 PDF; F10.1g-i
 `POST /qr-stickers` bulk multi-page PDF accepting `ids: string[]`
 or `filter: {…}` — 200-row cap, parallel QR encode, X-Stickers-
-Printed / X-Stickers-Skipped response headers; equipment_manager
-role gated; tech_support read-only)**.
+Printed / X-Stickers-Skipped response headers; F10.1h-i
+`POST /import` CSV bulk-import w/ RFC-4180 parser, dry-run +
+execute modes, 1000-row cap, per-row error attribution;
+F10.2a-i `GET /templates` list w/ embedded item_count;
+equipment_manager role gated; tech_support read-only)**.
 
 **Worker (`worker/src/services/`):**
 - `receipt-extraction.ts` + `cli/extract-receipts.ts` + endpoint at
@@ -3878,7 +3889,7 @@ the dashboards they link to.
   - **✅ F10.0a-v** seeds/237 equipment_templates + items + versions `[e566747]`
   - **✅ F10.0e** equipment_manager role + 4 consumers `[ded0b67]`
   - **✅ F10.1** Inventory catalogue UI + QR codes — fully shipped (F10.1a-j: GET endpoint · catalogue page · POST + Add modal · PATCH + Edit modal · Retire/Restore endpoints + UI · single-row QR PDF · bulk QR PDF endpoint + bulk-select UI · CSV import endpoint + page · mobile useEquipmentByQr resolver + schema · mobile camera scanner overlay)
-  - **⨯ F10.2** Templates + dispatcher apply flow (CRUD, preview-with-availability, save-as-template, composition, versioning snapshots)
+  - **◐ F10.2** Templates + dispatcher apply flow — F10.2a-i (GET /api/admin/equipment/templates list endpoint w/ embedded item_count + filter probes) shipped; F10.2a-ii through F10.2g pending (detail GET · POST/PATCH/DELETE templates · items endpoints · list page · edit page · save-as-template · apply flow)
   - **⨯ F10.3** Availability + conflict engine (seeds/238 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
   - **⨯ F10.4** Personnel side (seeds/239 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
   - **⨯ F10.5** Daily check-in/out workflow (the user's headline ritual; QR scanner sheets; damage triage; lost-on-site; 6pm/9pm nag cron)
