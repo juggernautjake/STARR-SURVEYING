@@ -34,11 +34,16 @@ interface EquipmentRow {
   model: string | null;
   serial_number: string | null;
   notes: string | null;
+  acquired_at: string | null;
   acquired_cost_cents: number | null;
+  useful_life_months: number | null;
   next_calibration_due_at: string | null;
+  warranty_expires_at: string | null;
   unit: string | null;
   quantity_on_hand: number | null;
   low_stock_threshold: number | null;
+  vendor: string | null;
+  cost_per_unit_cents: number | null;
   home_location: string | null;
   is_personal: boolean;
   retired_at: string | null;
@@ -1451,6 +1456,15 @@ export default function EquipmentInventoryPage() {
                       >
                         Edit
                       </button>
+                      {row.qr_code_id ? (
+                        <a
+                          href={`/api/admin/equipment/${row.id}/qr-sticker`}
+                          style={styles.rowActionBtn}
+                          title="Download a label-printer-ready QR sticker PDF (Brother DK-1201, 2.4×1.1 in)"
+                        >
+                          QR
+                        </a>
+                      ) : null}
                       {row.retired_at ? (
                         <button
                           type="button"
