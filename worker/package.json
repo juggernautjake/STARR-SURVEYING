@@ -14,7 +14,8 @@
     "extract-receipts": "node dist/cli/extract-receipts.js",
     "transcribe-voice": "node dist/cli/transcribe-voice.js",
     "scan-missing-receipts": "node dist/cli/scan-missing-receipts.js",
-    "extract-video-thumbnails": "node dist/cli/extract-video-thumbnails.js"
+    "extract-video-thumbnails": "node dist/cli/extract-video-thumbnails.js",
+    "sweep-receipt-retention": "node dist/cli/sweep-receipt-retention.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
