@@ -343,20 +343,34 @@ export default function CsvPreviewScreen() {
             ]}
           >
             <Stat label="Rows" value={String(stats.total)} palette={palette} />
-            <Stat
-              label="Matched"
-              value={String(stats.matched)}
-              accent={palette.success}
-              palette={palette}
-            />
-            <Stat
-              label="New"
-              value={String(stats.unmatched)}
-              accent={
-                stats.unmatched > 0 ? palette.accent : palette.muted
-              }
-              palette={palette}
-            />
+            {state.result.format === 'unknown' ? (
+              // Unknown formats can't compute Matched / New since
+              // there's no parseable point-name column. Show
+              // column count instead so the surveyor still gets a
+              // useful glanceable stat (Batch NN).
+              <Stat
+                label="Columns"
+                value={String(state.result.columnLabels.length)}
+                palette={palette}
+              />
+            ) : (
+              <>
+                <Stat
+                  label="Matched"
+                  value={String(stats.matched)}
+                  accent={palette.success}
+                  palette={palette}
+                />
+                <Stat
+                  label="New"
+                  value={String(stats.unmatched)}
+                  accent={
+                    stats.unmatched > 0 ? palette.accent : palette.muted
+                  }
+                  palette={palette}
+                />
+              </>
+            )}
           </View>
 
           {/* Format banner */}
@@ -396,95 +410,105 @@ export default function CsvPreviewScreen() {
             ) : null}
           </View>
 
-          {/* Row table */}
-          <View
-            style={[
-              styles.table,
-              { borderColor: palette.border, backgroundColor: palette.surface },
-            ]}
-          >
+          {/* Row table — branches on detected format. PNEZD / NEZDP
+              get the structured 6-column grid (#, Point, N, E, Z,
+              Match); unknown formats fall back to a generic raw-
+              cells table using the parser's columnLabels +
+              row.raw so non-coord CSVs (Trimble export of any
+              tabular data, vendor invoices, etc.) still preview
+              usefully (Batch NN). */}
+          {state.result.format === 'unknown' ? (
+            <RawCellsTable result={state.result} palette={palette} />
+          ) : (
             <View
               style={[
-                styles.tableHeader,
-                { borderBottomColor: palette.border },
+                styles.table,
+                { borderColor: palette.border, backgroundColor: palette.surface },
               ]}
             >
-              <Text style={[styles.thNarrow, { color: palette.muted }]}>
-                #
-              </Text>
-              <Text style={[styles.thFlex, { color: palette.muted }]}>
-                Point
-              </Text>
-              <Text style={[styles.thNum, { color: palette.muted }]}>N</Text>
-              <Text style={[styles.thNum, { color: palette.muted }]}>E</Text>
-              <Text style={[styles.thNum, { color: palette.muted }]}>Z</Text>
-              <Text style={[styles.thMatch, { color: palette.muted }]}>
-                Match
-              </Text>
-            </View>
-            {state.result.rows.map((row) => {
-              const isMatch =
-                row.name != null && matched.has(row.name);
-              return (
-                <View
-                  key={row.rowNumber}
-                  style={[
-                    styles.tableRow,
-                    { borderBottomColor: palette.border },
-                  ]}
-                >
-                  <Text style={[styles.tdNarrow, { color: palette.muted }]}>
-                    {row.rowNumber}
-                  </Text>
-                  <View style={styles.tdFlexCol}>
-                    <Text
-                      style={[styles.cellName, { color: palette.text }]}
-                      numberOfLines={1}
-                    >
-                      {row.name ?? '—'}
-                    </Text>
-                    {row.description ? (
-                      <Text
-                        style={[styles.cellDesc, { color: palette.muted }]}
-                        numberOfLines={1}
-                      >
-                        {row.description}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Text style={[styles.tdNum, { color: palette.text }]}>
-                    {row.northing != null ? row.northing.toFixed(2) : '—'}
-                  </Text>
-                  <Text style={[styles.tdNum, { color: palette.text }]}>
-                    {row.easting != null ? row.easting.toFixed(2) : '—'}
-                  </Text>
-                  <Text style={[styles.tdNum, { color: palette.text }]}>
-                    {row.elevation != null ? row.elevation.toFixed(2) : '—'}
-                  </Text>
-                  <View style={styles.tdMatch}>
-                    {row.name == null ? (
-                      <Text style={{ color: palette.muted }}>—</Text>
-                    ) : isMatch ? (
-                      <Text style={{ color: palette.success, fontWeight: '700' }}>
-                        ✓
-                      </Text>
-                    ) : (
-                      <Text style={{ color: palette.accent, fontWeight: '700' }}>
-                        New
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
-            {state.result.rows.length === 0 ? (
-              <View style={styles.emptyRow}>
-                <Text style={[styles.subtitle, { color: palette.muted }]}>
-                  No data rows in this CSV.
+              <View
+                style={[
+                  styles.tableHeader,
+                  { borderBottomColor: palette.border },
+                ]}
+              >
+                <Text style={[styles.thNarrow, { color: palette.muted }]}>
+                  #
+                </Text>
+                <Text style={[styles.thFlex, { color: palette.muted }]}>
+                  Point
+                </Text>
+                <Text style={[styles.thNum, { color: palette.muted }]}>N</Text>
+                <Text style={[styles.thNum, { color: palette.muted }]}>E</Text>
+                <Text style={[styles.thNum, { color: palette.muted }]}>Z</Text>
+                <Text style={[styles.thMatch, { color: palette.muted }]}>
+                  Match
                 </Text>
               </View>
-            ) : null}
-          </View>
+              {state.result.rows.map((row) => {
+                const isMatch =
+                  row.name != null && matched.has(row.name);
+                return (
+                  <View
+                    key={row.rowNumber}
+                    style={[
+                      styles.tableRow,
+                      { borderBottomColor: palette.border },
+                    ]}
+                  >
+                    <Text style={[styles.tdNarrow, { color: palette.muted }]}>
+                      {row.rowNumber}
+                    </Text>
+                    <View style={styles.tdFlexCol}>
+                      <Text
+                        style={[styles.cellName, { color: palette.text }]}
+                        numberOfLines={1}
+                      >
+                        {row.name ?? '—'}
+                      </Text>
+                      {row.description ? (
+                        <Text
+                          style={[styles.cellDesc, { color: palette.muted }]}
+                          numberOfLines={1}
+                        >
+                          {row.description}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text style={[styles.tdNum, { color: palette.text }]}>
+                      {row.northing != null ? row.northing.toFixed(2) : '—'}
+                    </Text>
+                    <Text style={[styles.tdNum, { color: palette.text }]}>
+                      {row.easting != null ? row.easting.toFixed(2) : '—'}
+                    </Text>
+                    <Text style={[styles.tdNum, { color: palette.text }]}>
+                      {row.elevation != null ? row.elevation.toFixed(2) : '—'}
+                    </Text>
+                    <View style={styles.tdMatch}>
+                      {row.name == null ? (
+                        <Text style={{ color: palette.muted }}>—</Text>
+                      ) : isMatch ? (
+                        <Text style={{ color: palette.success, fontWeight: '700' }}>
+                          ✓
+                        </Text>
+                      ) : (
+                        <Text style={{ color: palette.accent, fontWeight: '700' }}>
+                          New
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+              {state.result.rows.length === 0 ? (
+                <View style={styles.emptyRow}>
+                  <Text style={[styles.subtitle, { color: palette.muted }]}>
+                    No data rows in this CSV.
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          )}
 
           <View style={{ height: 12 }} />
 
@@ -496,10 +520,9 @@ export default function CsvPreviewScreen() {
           />
 
           <Text style={[styles.footnote, { color: palette.muted }]}>
-            Read-only preview. ✓ means a data point with that name
-            already exists on this job — captured in the field. “New”
-            means the CSV row hasn’t been recorded yet. Auto-import
-            of unmatched rows is a future polish.
+            {state.result.format === 'unknown'
+              ? 'Read-only preview. The format didn’t match P,N,E,Z,D or N,E,Z,D,P — showing raw cells so you can still review the file. Open in another app for the full view.'
+              : 'Read-only preview. ✓ means a data point with that name already exists on this job — captured in the field. “New” means the CSV row hasn’t been recorded yet. Auto-import of unmatched rows is a future polish.'}
           </Text>
         </ScrollView>
       ) : null}
@@ -512,6 +535,141 @@ interface StatProps {
   value: string;
   accent?: string;
   palette: { text: string; muted: string };
+}
+
+/**
+ * Generic raw-cells table for CSVs whose format the parser
+ * couldn't classify as P,N,E,Z,D or N,E,Z,D,P (Batch NN). Renders
+ * the parsed rows as a horizontally-scrollable table using
+ * `columnLabels` as headers + `row.raw` as cells. Caps each cell
+ * to 24 chars so a wall-of-text column doesn't blow up the row
+ * height; the surveyor opens "in another app" for the full view.
+ */
+function RawCellsTable({
+  result,
+  palette,
+}: {
+  result: CoordCsvResult;
+  palette: { text: string; muted: string; border: string; surface: string };
+}) {
+  // Render at most 12 columns so the horizontal scroll stays
+  // manageable on a phone. Most non-coord exports we'll see are
+  // a handful of columns (vendor invoices, address lists).
+  const MAX_COLS = 12;
+  const columnLabels = result.columnLabels.slice(0, MAX_COLS);
+  const colCount = columnLabels.length;
+  const overflow =
+    result.columnLabels.length > MAX_COLS
+      ? result.columnLabels.length - MAX_COLS
+      : 0;
+
+  if (colCount === 0) {
+    return (
+      <View
+        style={[
+          styles.table,
+          {
+            borderColor: palette.border,
+            backgroundColor: palette.surface,
+            padding: 16,
+          },
+        ]}
+      >
+        <Text style={[styles.subtitle, { color: palette.muted }]}>
+          No columns detected. Open in another app for the full view.
+        </Text>
+      </View>
+    );
+  }
+
+  const colWidth = 110; // px — enough for a 24-char cell at fontSize 12
+
+  return (
+    <View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator
+        style={[
+          styles.table,
+          { borderColor: palette.border, backgroundColor: palette.surface },
+        ]}
+      >
+        <View>
+          <View
+            style={[
+              styles.tableHeader,
+              { borderBottomColor: palette.border },
+            ]}
+          >
+            <Text style={[styles.thNarrow, { color: palette.muted }]}>#</Text>
+            {columnLabels.map((label, i) => (
+              <Text
+                key={i}
+                style={[
+                  styles.thRaw,
+                  { color: palette.muted, width: colWidth },
+                ]}
+                numberOfLines={1}
+              >
+                {label}
+              </Text>
+            ))}
+          </View>
+          {result.rows.map((row) => (
+            <View
+              key={row.rowNumber}
+              style={[
+                styles.tableRow,
+                { borderBottomColor: palette.border },
+              ]}
+            >
+              <Text style={[styles.tdNarrow, { color: palette.muted }]}>
+                {row.rowNumber}
+              </Text>
+              {Array.from({ length: colCount }).map((_, i) => {
+                const cell = row.raw[i] ?? '';
+                const truncated =
+                  cell.length > 24 ? `${cell.slice(0, 23)}…` : cell;
+                return (
+                  <Text
+                    key={i}
+                    style={[
+                      styles.tdRaw,
+                      { color: palette.text, width: colWidth },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {truncated || '—'}
+                  </Text>
+                );
+              })}
+            </View>
+          ))}
+          {result.rows.length === 0 ? (
+            <View style={styles.emptyRow}>
+              <Text style={[styles.subtitle, { color: palette.muted }]}>
+                No data rows in this CSV.
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
+      {overflow > 0 ? (
+        <Text
+          style={{
+            color: palette.muted,
+            fontSize: 11,
+            fontStyle: 'italic',
+            marginTop: 6,
+            paddingHorizontal: 4,
+          }}
+        >
+          + {overflow} more {overflow === 1 ? 'column' : 'columns'} hidden.
+          Open in another app to see them all.
+        </Text>
+      ) : null}
+    </View>
+  );
 }
 
 function Stat({ label, value, accent, palette }: StatProps) {
@@ -668,6 +826,17 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     textAlign: 'right',
+  },
+  thRaw: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 4,
+  },
+  tdRaw: {
+    fontSize: 12,
+    paddingHorizontal: 4,
   },
   thMatch: {
     width: 56,

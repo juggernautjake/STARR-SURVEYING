@@ -1526,6 +1526,47 @@ Activation gates:
   never set up with an address, or where the address geocode is
   off.
 
+**Batch NN — CSV preview "unknown format" fall-through (closes Batch AA v2 gap)**
+
+Closes the small UX gap from Batch AA: when `parseCoordCsv`
+detected `format='unknown'` (the file isn't P,N,E,Z,D or
+N,E,Z,D,P), the preview screen still rendered the structured
+6-column grid with `—` cells in every numeric / point / match
+column. Surveyors saw a useless wall of em-dashes.
+
+Now: unknown formats fall through to a generic raw-cells table
+that uses `parseCoordCsv`'s `columnLabels` as headers + `row.raw`
+as the cell values. Non-coord CSVs (vendor invoices, address
+lists, anything tabular the surveyor attached) preview usefully
+without leaving the app.
+
+UI (`mobile/app/(tabs)/jobs/[id]/files/[fileId]/preview.tsx`):
+- New `RawCellsTable` component renders horizontally-scrollable
+  table with 110 px columns + 24-char per-cell truncation.
+  Caps at 12 columns (footer says "+ N more columns hidden,
+  open in another app to see them all").
+- Stats bar branches on format: structured formats keep
+  Rows / Matched / New; unknown formats swap Matched/New for a
+  single Columns count (since name-matching is meaningless
+  without a parseable point-name column).
+- Footnote copy branches too: structured says "✓ means a data
+  point with that name already exists"; unknown says "the
+  format didn't match P,N,E,Z,D or N,E,Z,D,P — showing raw
+  cells so you can still review the file."
+- Format banner ("Detected format: Unknown — showing raw cells")
+  was already in place from Batch AA; now it accurately
+  describes the screen below.
+
+Logging: no new lines — the parser already logs format
+detection via the existing `csvPreview.parse` info breadcrumb.
+
+Pending v2 polish:
+- Pinch-to-zoom on the raw table for tablets.
+- Detect specific known-non-coord shapes (Trimble JobXML CSV
+  export, Carlson note-export) and render bespoke layouts.
+- "Force PNEZD parsing" override that lets the surveyor try
+  the structured grid even when auto-detect failed.
+
 **Batch MM — sun-readable theme coverage audit (closes Batch Y v2 polish)**
 
 Closes the Batch Y v2 polish item *"Migrate the remaining ~50
