@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,6 +16,7 @@ import {
   useResponsiveLayout,
 } from '@/lib/responsive';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Jobs tab — F1 #2 read-only list.
@@ -36,7 +36,7 @@ import { colors } from '@/lib/theme';
  *     but a feel-good gesture)
  */
 export default function JobsScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
   const { jobs, isLoading } = useJobs();
   // Tablet support: clamp content to a comfortable reading width on

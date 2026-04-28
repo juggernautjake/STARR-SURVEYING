@@ -19,7 +19,7 @@
  * Unknown statuses render with the muted-label treatment so a
  * future server-side status doesn't crash the row.
  */
-import { StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { type Palette, colors } from './theme';
 
@@ -67,7 +67,7 @@ interface StatusChipProps {
 }
 
 export function StatusChip({ status, hideWhenOpen = true }: StatusChipProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const key = status ?? 'open';

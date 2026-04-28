@@ -27,7 +27,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -44,6 +43,7 @@ import {
   useResponsiveLayout,
 } from '@/lib/responsive';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 // ── Per-template form state (each template has its own draft type
 // so the Save handler can compose the payload precisely) ────────────────────
@@ -83,7 +83,7 @@ const MONUMENT_TYPES: Array<MonumentDraft['monument_type']> = [
 const SEVERITIES: Array<HazardDraft['severity']> = ['low', 'med', 'high'];
 
 export default function AddNoteScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
   const { isTablet } = useResponsiveLayout();
   const tabletStyle = tabletContainerStyle(isTablet);

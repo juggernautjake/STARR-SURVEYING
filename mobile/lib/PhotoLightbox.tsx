@@ -24,7 +24,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -50,7 +49,7 @@ interface PhotoLightboxProps {
 }
 
 export function PhotoLightbox({ media, onDismiss }: PhotoLightboxProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
   const url = useFieldMediaPhotoUrl(media);
   const { session } = useAuth();

@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,6 +23,7 @@ import {
   useResponsiveLayout,
 } from '@/lib/responsive';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Money tab — F2 #2 ships the list shell.
@@ -36,7 +36,7 @@ import { colors } from '@/lib/theme';
  * Per-job + per-period rollups land in F2 #8; CSV export in F2 #9.
  */
 export default function MoneyScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
   // Filter chip state (Batch LL). Tap the amber review badge to
   // narrow the list to "needs review" only; the chip surfaces a

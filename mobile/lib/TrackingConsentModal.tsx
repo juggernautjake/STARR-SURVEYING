@@ -33,7 +33,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -51,7 +50,7 @@ interface Props {
 }
 
 export function TrackingConsentModal({ visible, onContinue, onSkip }: Props) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   return (

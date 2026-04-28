@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,6 +15,7 @@ import { isPermissionDeniedError, promptForSettings } from '@/lib/permissionGuar
 import { useActiveTimeEntry } from '@/lib/timeTracking';
 import { useCaptureReceipt } from '@/lib/receipts';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Receipt-capture entry point — F2 #2.
@@ -40,7 +40,7 @@ import { colors } from '@/lib/theme';
  *      list when the user lands back on /money.
  */
 export default function CaptureReceiptScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const { active } = useActiveTimeEntry();

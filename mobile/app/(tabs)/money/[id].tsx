@@ -10,7 +10,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -38,6 +37,7 @@ import {
 } from '@/lib/receipts';
 import { formatLocalShortDate, formatLocalTime } from '@/lib/timeFormat';
 import { type Palette, colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Receipt detail / edit screen — F2 #3.
@@ -61,7 +61,7 @@ import { type Palette, colors } from '@/lib/theme';
  * rule (see seeds/220_starr_field_receipts.sql).
  */
 export default function ReceiptDetailScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const { id } = useLocalSearchParams<{ id: string }>();

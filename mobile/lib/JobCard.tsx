@@ -13,7 +13,7 @@
  * which lands in F1 #3 — for F1 #2, the route is registered as a
  * placeholder so taps don't crash.
  */
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { StageChip } from './StageChip';
 import type { Job } from './jobs';
@@ -25,7 +25,7 @@ interface JobCardProps {
 }
 
 export function JobCard({ job, onPress }: JobCardProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   // Fallbacks keep the layout stable when sync has only delivered a

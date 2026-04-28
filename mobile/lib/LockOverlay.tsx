@@ -11,7 +11,7 @@
  * Phase F0 #2b — STARR_FIELD_MOBILE_APP_PLAN.md §5.1.
  */
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from './Button';
 import { authenticate, biometricLabel, getBiometricCapability } from './biometric';
@@ -25,7 +25,7 @@ interface LockOverlayProps {
 }
 
 export function LockOverlay({ onUnlock, onSignOut }: LockOverlayProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const [kindLabel, setKindLabel] = useState<string>('biometric');

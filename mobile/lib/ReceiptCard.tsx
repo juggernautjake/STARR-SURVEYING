@@ -19,7 +19,7 @@
  * still renders correctly as soon as the user has at least one
  * captured receipt.
  */
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { categoryLabel } from './CategoryPicker';
 import { type Palette, colors } from './theme';
@@ -37,7 +37,7 @@ interface ReceiptCardProps {
 }
 
 export function ReceiptCard({ receipt, jobName, onPress }: ReceiptCardProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const vendor = receipt.vendor_name?.trim() || '(awaiting AI extraction)';

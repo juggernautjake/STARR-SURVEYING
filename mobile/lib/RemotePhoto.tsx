@@ -9,7 +9,7 @@
  * Pass null/undefined when the URL is still being signed — the
  * placeholder renders until the URL arrives, then the Image swaps in.
  */
-import { Image, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { type Palette, colors } from './theme';
 
@@ -34,7 +34,7 @@ export function RemotePhoto({
   accessibilityLabel,
   unavailableText = 'Photo unavailable',
 }: RemotePhotoProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   if (signedUrl) {

@@ -1,4 +1,4 @@
-import { ActivityIndicator, StyleSheet, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { colors } from './theme';
 
@@ -8,7 +8,7 @@ import { colors } from './theme';
  * adds a real splash with the Starr logo via expo-splash-screen.
  */
 export function LoadingSplash() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   return (

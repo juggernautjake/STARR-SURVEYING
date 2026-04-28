@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
@@ -12,6 +12,7 @@ import { useJobDataPoints } from '@/lib/dataPoints';
 import { useJob, useJobTodayRollup } from '@/lib/jobs';
 import { useJobReceiptRollup } from '@/lib/receipts';
 import { colors, type Palette } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
  * Job detail — F1 #2 lands a minimal read-only view (header, stage,
@@ -20,7 +21,7 @@ import { colors, type Palette } from '@/lib/theme';
  * Points / Media / Files / Notes / Time / Expenses / Crew sub-tabs.
  */
 export default function JobDetailScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   const { id } = useLocalSearchParams<{ id: string }>();

@@ -32,7 +32,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -46,9 +45,10 @@ import {
   useOwnTimelineSummary,
 } from '@/lib/locationTracker';
 import { colors } from '@/lib/theme';
+import { useResolvedScheme } from '@/lib/themePreference';
 
 export default function PrivacyScreen() {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   // Last 24 h of raw pings. The Me-tab summary uses the same hook;

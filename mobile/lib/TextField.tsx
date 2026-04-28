@@ -12,7 +12,6 @@ import {
   Text,
   TextInput,
   View,
-  useColorScheme,
   type TextInputProps,
 } from 'react-native';
 
@@ -27,7 +26,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
   { label, error, style, ...inputProps },
   ref
 ) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   return (

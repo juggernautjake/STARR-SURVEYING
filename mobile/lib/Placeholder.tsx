@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { colors } from './theme';
 
@@ -17,7 +17,7 @@ interface PlaceholderProps {
  * repo for `Placeholder` to see what's still stubbed.
  */
 export function Placeholder({ title, caption, reference }: PlaceholderProps) {
-  const scheme = useColorScheme() ?? 'dark';
+  const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
   return (

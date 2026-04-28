@@ -1526,6 +1526,73 @@ Activation gates:
   never set up with an address, or where the address geocode is
   off.
 
+**Batch MM — sun-readable theme coverage audit (closes Batch Y v2 polish)**
+
+Closes the Batch Y v2 polish item *"Migrate the remaining ~50
+screens to `useResolvedScheme()` so the choice propagates
+everywhere; current scope is the surveyor's daily field workflow
+only."* Sun-readable mode now propagates through every screen
+the surveyor lays eyes on plus every leaf component rendered
+inside one.
+
+26 files migrated in one batch (8 surveyor screens + 18 leaf
+components). The migration is mechanical — swap
+`useColorScheme() ?? 'dark'` → `useResolvedScheme()` and add the
+`from '@/lib/themePreference'` import next to the existing
+`from '@/lib/theme'` import. A Python regex pass handled it
+consistently so no file was forgotten.
+
+Migrated screens (`mobile/app/`):
+- `(tabs)/jobs/index.tsx` (Jobs list)
+- `(tabs)/jobs/[id]/index.tsx` (per-job detail)
+- `(tabs)/jobs/[id]/notes/new.tsx` (add note modal)
+- `(tabs)/money/index.tsx` (Money list)
+- `(tabs)/money/capture.tsx` (receipt capture)
+- `(tabs)/money/[id].tsx` (receipt detail)
+- `(tabs)/me/uploads.tsx` (stuck-upload triage)
+- `(tabs)/me/privacy.tsx` (privacy panel)
+- `(tabs)/time/edit/[id].tsx` (time-entry edit)
+
+Migrated leaf components (`mobile/lib/`):
+- `Button.tsx`, `JobCard.tsx`, `PointCard.tsx`,
+  `ReceiptCard.tsx`, `ThumbnailGrid.tsx`, `PhotoLightbox.tsx`,
+  `TextField.tsx`, `StatusChip.tsx`, `NotificationBanner.tsx`,
+  `TrackingConsentModal.tsx`, `LockOverlay.tsx`,
+  `CaptureFab.tsx`, `Timesheet.tsx`, `PhotoAnnotator.tsx`,
+  `Placeholder.tsx`, `RemotePhoto.tsx`, `LoadingSplash.tsx`.
+
+Why this matters: a screen migrated in Batch Y but using a leaf
+component still on `useColorScheme()` rendered the leaf in the
+`'light'` palette (Appearance fallback) instead of `'sun'`. So a
+surveyor flipped to sun-readable saw `palette.text='#000000'`
+on the screen text but `JobCard`'s body text still rendered at
+`#0B0E14` — close but not max-contrast. After Batch MM, every
+foreground-text rendering inside a sun-readable surveyor screen
+honours the high-contrast palette.
+
+Out of scope (intentional):
+- Auth screens (sign-in / forgot-password / reset-password /
+  auth-callback) — pre-login, dim-lit indoor use; not high-
+  priority for sun-read. Will migrate when touched for other
+  reasons.
+- `_layout.tsx` files — pass theme through `Stack.screenOptions`
+  for chrome only; foreground readability isn't affected.
+- Dev-only utilities (`Placeholder.tsx` was migrated since it's
+  used in early-flow screens; `LockOverlay` since it surfaces
+  during field idle-lock).
+
+Logging: no new log lines — this is a pure refactor that
+preserves runtime behaviour. The migration script pattern is
+documented inline in this plan entry so future batches can
+re-run it after new screens land.
+
+Pending v2 polish:
+- Auth + layout screens migration (~10 files; trivial once
+  prioritised).
+- Auto-detect "screen still uses useColorScheme" via a CI lint
+  rule so the surveyor's surface stays at 100% sun-readable
+  coverage.
+
 **Batch LL — mobile receipts "needs review" filter (closes Batch Z UX gap)**
 
 The amber "👀 N receipts need your review" badge from Batch Z was
