@@ -3436,16 +3436,35 @@ Subsequent F10 sub-phases reference seed numbers shifted by 4:
 
 **F10.1 — Inventory catalogue + QR codes (Week 33–34).**
 The "list of every piece of metal" surface — the foundation
-the rest of F10 reads from.
-- [ ] Admin `/admin/equipment/inventory` (§5.12.7.3) with
-      filters, inline-edit, soft-archive (`retired_at`).
-- [ ] QR code generation + label-printer-ready PDF
-      (single-row + bulk multi-page).
-- [ ] Bulk CSV importer at `/admin/equipment/import`
-      (§5.12.11.H) for system-go-live fleet seeding.
-- [ ] Mobile `useEquipmentByQr` resolver hook + offline
-      cache pre-fetch.
-- [ ] Mobile camera scanner overlay (re-uses
+the rest of F10 reads from. Broken into 10 small sub-batches:
+- [x] **F10.1a** — `GET /api/admin/equipment` endpoint
+      `[1122ecc]`. Reads all 30+ seeds/233 columns; filters
+      by status, category, item_kind, include_retired, q
+      (substring on name+model+serial); auth gates on
+      admin/developer/tech_support/equipment_manager;
+      response includes total_count + filters_applied.
+- [x] **F10.1b** — `/admin/equipment/inventory` read-only
+      page. Filter row (status / kind / search / include-
+      retired toggle) + results table with status pills,
+      personal/suspect/retired badges, low-stock highlight
+      on consumables, cost basis + next-cal-due columns.
+      Sidebar entry NOT yet added (lands in F10.6).
+- [ ] **F10.1c** — Add Unit modal + `POST /api/admin/equipment`
+      endpoint.
+- [ ] **F10.1d** — Inline edit (`PATCH /api/admin/equipment/[id]`
+      + form on the catalogue rows).
+- [ ] **F10.1e** — Retire action (soft-archive via
+      `retired_at` + `retired_reason` from seeds/233).
+- [ ] **F10.1f** — QR sticker PDF (single row, label-printer
+      sized).
+- [ ] **F10.1g** — Bulk QR PDF (multi-page; selected rows →
+      sheet).
+- [ ] **F10.1h** — Bulk CSV importer at
+      `/admin/equipment/import` (§5.12.11.H, system-go-live
+      fleet seeding).
+- [ ] **F10.1i** — Mobile `useEquipmentByQr` resolver hook
+      + offline cache pre-fetch (`mobile/lib/equipment.ts`).
+- [ ] **F10.1j** — Mobile camera scanner overlay (re-uses
       `expo-camera` from §5.11).
 
 **F10.2 — Templates + dispatcher apply flow (Week 34–35).**
@@ -3654,7 +3673,10 @@ aggregator, Batch X), `notifications`, `time-logs/*`,
 `receipts/*` (incl. `bulk-approve`, Batch JJ; `?include_deleted=1`
 for tombstones, Batch FF), `finances/tax-summary`
 (JSON+CSV Schedule-C report w/ status split, Batch QQ),
-`finances/mark-exported` (period-lock action, Batch QQ).
+`finances/mark-exported` (period-lock action, Batch QQ),
+**`equipment` (Phase F10.1a — GET catalogue with status /
+category / item_kind / include_retired / q filters, equipment_manager
+role gated)**.
 
 **Worker (`worker/src/services/`):**
 - `receipt-extraction.ts` + `cli/extract-receipts.ts` + endpoint at
@@ -3774,7 +3796,7 @@ the dashboards they link to.
   - **✅ F10.0a-iv** seeds/236 equipment_events audit log `[fb94f61]`
   - **✅ F10.0a-v** seeds/237 equipment_templates + items + versions `[e566747]`
   - **✅ F10.0e** equipment_manager role + 4 consumers `[ded0b67]`
-  - **⨯ F10.1** Inventory catalogue UI + QR codes (`/admin/equipment/inventory`, label-printer PDF, bulk CSV import, mobile scanner)
+  - **◐ F10.1** Inventory catalogue UI + QR codes — F10.1a (GET endpoint) `[1122ecc]` + F10.1b (read-only page) shipped this batch; F10.1c-j pending (Add Unit · inline edit · retire · single-row QR PDF · bulk QR PDF · bulk CSV import · mobile useEquipmentByQr · mobile scanner overlay)
   - **⨯ F10.2** Templates + dispatcher apply flow (CRUD, preview-with-availability, save-as-template, composition, versioning snapshots)
   - **⨯ F10.3** Availability + conflict engine (seeds/238 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
   - **⨯ F10.4** Personnel side (seeds/239 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
@@ -6487,7 +6509,7 @@ slice of mobile-written data?
 | Per-job consolidated review | `field_data_points` + `field_media` + `fieldbook_notes` + `job_files` (joined) | `/admin/jobs/[id]/field` — points list (Batch S) + job-level media/notes/files inline blocks + "Uploaded by X · timestamp" attribution on every item (Batch T) | ✓ shipped |
 | Job media bundle download | `field_media` + `job_files` (signed) | `/api/admin/jobs/[id]/field-data/manifest` (CSV manifest, Batch S; uploader columns added in Batch T) + `/api/admin/jobs/[id]/field-data/zip` (server-streamed ZIP, organised by media_type/point, Batch T) — single-file Download links on every card on the per-job + per-point pages | ✓ shipped |
 | Tax-time finances | `receipts` (joined w/ `location_segments` + `vehicles`) | `/api/admin/finances/tax-summary` (Schedule-C JSON+CSV w/ status split, Batch QQ) + `/api/admin/finances/mark-exported` (period-lock action) — admin page UI deferred to Batch QQ part-2 | ◐ API shipped, page pending |
-| Equipment inventory | `equipment_inventory` (extended per §5.12.1) | `/admin/equipment/inventory` (Phase F10.1) — filterable list, inline-edit, bulk QR sticker PDF, bulk CSV import for system-go-live | ⨯ planned (F10.1) |
+| Equipment inventory | `equipment_inventory` (extended per §5.12.1) | `GET /api/admin/equipment` (F10.1a, shipped) + `/admin/equipment/inventory` read-only catalogue (F10.1b, shipped). Add/edit/retire/QR-print/bulk-CSV land in F10.1c-h. | ◐ list shipped, mutations pending |
 | Equipment kits | `equipment_kits`, `equipment_kit_items` | Inline kit composer on the Inventory catalogue page; one-scan kit batch check-out via `equipment_events` rows (§5.12.6) | ⨯ planned (F10.1) |
 | Equipment templates | `equipment_templates`, `equipment_template_items`, `equipment_template_versions` | `/admin/equipment/templates` admin CRUD + Apply-template flow on existing job detail page (Phase F10.2) | ⨯ planned (F10.2) |
 | Equipment reservations | `equipment_reservations` | `/admin/equipment/reservations` Gantt timeline (§5.12.7.2); per-job reservations panel on existing job detail page; mobile loadout preview (§5.12.9.1) | ⨯ planned (F10.3) |
