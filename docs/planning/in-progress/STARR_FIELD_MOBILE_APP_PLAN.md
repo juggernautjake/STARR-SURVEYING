@@ -2540,12 +2540,259 @@ tax summary so the CPA's spreadsheet workflows still work.
   out of scope for v1's TX-only deployment).
 - The §5.12.11 insurance packet generation that consumes a
   `disposal_kind='lost'` event.
-- **5.12.11 Edge cases** — loaned-in (rented from another firm)
-  vs loaned-out (lent to another firm); stolen / damaged
-  workflows + insurance packet generation; cross-office
-  transfers; consumable reorder workflow; calibration-overdue
-  hard-block ("S9 #1 is 30 days past calibration; assign
-  anyway?").
+#### 5.12.11 Edge cases
+
+The user asked me to think about *"anything that I have not
+considered."* This sub-section is that audit — collecting
+edge cases earlier sub-sections referenced + a handful of
+scenarios the rest of §5.12 hasn't addressed yet. Each entry
+states the trigger, the schema effect, and the UI ergonomics.
+
+##### A. Borrowed equipment (in-flow)
+
+A surveyor needs an extra prism for a Friday job; Starr borrows
+one from another local firm for the day. We need to track
+that gear in the field log without polluting the asset
+ledger.
+
+- New table `equipment_borrowed_in` — `id`, `name`,
+  `category`, `borrowed_from_org TEXT`, `borrowed_from_contact`,
+  `borrowed_at`, `expected_return_at`, `actually_returned_at`,
+  `condition_in`, `condition_out`, `notes`, `created_by`.
+- Borrowed items can be assigned to jobs via the §5.12.3
+  template apply flow with an "Add borrowed item" affordance
+  — the row gets a temporary reservation that auto-expires
+  at `expected_return_at`.
+- They do NOT appear in `equipment_inventory`, so they don't
+  flow through depreciation, fleet valuation, or the §5.12.7.7
+  page. They DO appear in the §5.12.7.1 Today landing page's
+  Strip B with a distinct "borrowed" badge so the Equipment
+  Manager doesn't lose track.
+- Daily nag fires if `expected_return_at < today AND
+  actually_returned_at IS NULL` — same notification stack as
+  unreturned company gear.
+
+##### B. Lent equipment (out-flow)
+
+Reverse of (A): another firm needs a tripod for the weekend.
+- Existing `equipment_inventory.current_status` gains
+  `'loaned_out'` (already in §5.12.1 enum). Loan rows live
+  in a new `equipment_loans_out` table — `equipment_id`,
+  `loaned_to_org`, `loaned_to_contact`, `loaned_at`,
+  `expected_return_at`, `actually_returned_at`,
+  `condition_out`, `condition_in`, `cost_collected_cents`
+  (if charged), `notes`, `approved_by` (admin-only).
+- §5.12.5 hard-blocks reservations against loaned-out units
+  for the loan window. Equipment Manager UI surfaces an
+  "Approve loan" two-tap flow that requires admin sign-off
+  (this is shop-policy territory — no junior dispatchers
+  unilaterally lending the $40k receiver).
+- The §5.12.10 tax tie-in: lent units stay on Schedule C
+  depreciation as normal (it's still our asset).
+
+##### C. Theft / catastrophic loss
+
+Beyond the per-unit lost-on-site flow (§5.12.6) — what
+happens when a truck is stolen with a full kit, or there's
+a cage break-in?
+
+- New admin action **"Bulk-mark stolen"** on the §5.12.7.3
+  inventory page — multi-select units, fill one shared form
+  (`stolen_at`, `last_known_location`, `police_report_number`,
+  `incident_summary`), and the system flips every selected
+  unit's status to `lost` with the same metadata.
+- Insurance packet generator (the v2 polish item promised in
+  §5.12.6 / §5.12.10) runs against the `disposal_kind='stolen'`
+  rows and outputs a single PDF: cover sheet · per-asset
+  detail page (photos · serial · acquisition cost · book
+  value remaining · acquisition receipt PDF) · maintenance
+  history snippet · police report number · last GPS pings
+  cluster (when available). Attaches to a single
+  `incident_packets` row for archive.
+- Disaster mode: if the Equipment Manager flags an incident
+  as `kind='catastrophic'`, the §5.12.5 reservation engine
+  refuses ALL pending reservations for affected units
+  (instead of the per-unit hard-block) and dispatches a
+  notification to admin asking to re-staff downstream jobs.
+
+##### D. Cross-office transfers (multi-location growth)
+
+Starr is one office today. If/when a second opens, gear
+needs to move:
+- Schema: existing `equipment_inventory.home_location` from
+  §5.12.1 already supports this — value is just a string
+  today; expanded to a FK on a new `offices` table when the
+  second location opens.
+- New event log entry kind `transfer` with
+  `from_location → to_location` + transit window.
+- During transit (`status='in_transit'`, new enum value),
+  reservations against the unit are hard-blocked. Arrival
+  scan flips back to `available` and updates `home_location`.
+- Cross-office templates: a template can declare
+  `valid_at_locations TEXT[]` so a dispatcher at office A
+  doesn't accidentally apply a template that pins
+  office-B-only units.
+
+##### E. Consumable reorder workflow
+
+Touched in §5.12.7.5 but worth a dedicated edge-case treatment
+since the math + workflow span multiple modules:
+- New table `equipment_reorder_requests` — `equipment_id`
+  (consumable SKU), `requested_quantity`, `requested_by`,
+  `requested_at`, `vendor_preferred`, `state` (`requested`,
+  `approved`, `ordered`, `received`, `cancelled`),
+  `expected_arrival_at`, `actual_arrival_at`,
+  `linked_receipt_id`, `notes`.
+- Trigger paths:
+  1. **Cron auto-suggest** — when `quantity_on_hand`
+     crosses below `low_stock_threshold`, system pre-creates
+     a `state='requested'` row with quantity = a default
+     restock multiple (configurable per SKU).
+  2. **Manual** — Equipment Manager creates one from
+     §5.12.7.5 inline action.
+- On `state='received'` + linked receipt:
+  - `quantity_on_hand` increments by the actual received
+    quantity (which may differ from requested)
+  - The receipt is auto-categorised as `category='supplies'`
+    on the §5.11 receipt review screen, with a hint linking
+    back to the reorder row
+  - Bookkeeper confirms; Schedule C Line 22 (Supplies) gets
+    the cost
+- Approval gating: orders over a configurable threshold
+  (default $500) require admin sign-off before
+  `state` can advance to `'ordered'`.
+
+##### F. Calibration-overdue override (the "we need it today" case)
+
+§5.12.5 says a calibration-overdue unit hard-blocks past 30
+days, soft-warns inside that window. The override path:
+- Override picker on the apply / reserve screen with
+  pre-canned reason categories: `customer_emergency` ·
+  `vendor_delay` · `weather_window` · `crew_already_on_site`
+  · `other_with_freetext`. Reason is mandatory.
+- Override fires a notification (1) to admin (always),
+  (2) to the surveyor about to receive the gear (so they
+  know to flag any anomalous shots in the field notes), and
+  (3) to the bookkeeper at end-of-month for tax-sensitivity
+  review.
+- Audit log retains a permanent record. The §5.12.7.4
+  maintenance dashboard surfaces a "Recently overridden
+  past-cal" rollup so accumulating override fatigue doesn't
+  become a silent risk.
+- Liability hint surfaced inline: *"This unit is X days
+  past calibration. Survey accuracy may not meet
+  professional standards. Document any anomalous results in
+  the job's field notes."* — protects the firm without
+  legalese.
+
+##### G. Personal kit boundary
+
+§5.12.9.4 introduced `is_personal=true` items the surveyor
+owns. Edge cases that come up:
+- **Surveyor leaves the firm** — admin action "Mark all
+  personal items as exited" on the user offboarding flow.
+  Personal-kit rows get `retired_at` set; they don't appear
+  in any future view but stay in the audit log per the
+  §5.12.1 7-year retention.
+- **Personal item used on a contested job** — admin can
+  flip an `is_personal` flag (with audit reason) for legal-
+  hold purposes. Doesn't reattribute ownership, but ensures
+  the item appears in compliance exports.
+- **Personal item receipt** — when a surveyor submits a
+  receipt for a hammer they bought for personal use, the
+  Money tab gains a "This is for my personal kit, not the
+  company" toggle that prevents the receipt from being
+  expensed. v2 polish.
+
+##### H. Onboarding bulk import (system-go-live)
+
+When this module ships, the existing fleet (50+ items today)
+needs to land in `equipment_inventory` without a per-row
+manual entry:
+- Admin-only `/admin/equipment/import` page — paste a CSV
+  with name / category / serial / acquired_at /
+  acquired_cost / etc. + bulk QR sticker generation
+- Photo backfill is deferred — Equipment Manager fills in
+  per-row photos as they handle each unit through normal
+  workflow. A "needs photo" sidebar badge gives them a
+  trickle of cleanup work post-import.
+- The import flow generates `equipment_events` rows with
+  `kind='imported'` so the audit log distinguishes
+  pre-system gear from gear acquired through the system.
+
+##### I. Software licences pinned to a unit
+
+Modern instruments (Trimble Access, Carlson SurvCE) ship with
+software activation keys tied to a specific receiver serial.
+When the receiver is replaced, the licence transfers — and
+when the receiver is retired, the licence loses value.
+- New table `equipment_software_licenses` —
+  `equipment_id`, `vendor`, `product`, `license_key_hash`
+  (we don't store the raw key — admin retrieves from a
+  vault on demand), `seats_total`, `seats_used`,
+  `expires_at`, `transfer_history_jsonb`, `notes`.
+- Transfer workflow: when admin retires unit A and assigns
+  the licence to unit B, the system records the transfer
+  + emits a notification to whoever's about to use unit B
+  ("Software activation may take 24h after vendor approves
+  transfer").
+
+##### J. Crew-truck-overnight at remote job site
+
+Some jobs run multiple days; the truck stays on-site
+overnight with the kit locked inside. The §5.12.6 6pm
+unreturned-gear nag would fire incorrectly.
+- Job-detail flag `multi_day_overnight=true` (admin-set on
+  the job before the crew leaves)
+- When set, reservations on equipment for that job auto-
+  extend `reserved_to` daily through the job's scheduled
+  end + grace, and the nag is silenced
+- Each morning the system pushes a soft *"Still on site?
+  Tap to confirm"* notification — surveyor confirms with one
+  tap, declining triggers the regular check-in flow
+
+##### K. Discovery / FOIA / litigation hold
+
+If a survey is contested in court, the firm may receive a
+discovery request to produce records of the equipment used.
+- Admin-only "Apply litigation hold" on a job → freezes the
+  job's `equipment_reservations` rows + their linked
+  `equipment_events` from automated archival/purge for
+  the §5.12.1 7-year retention period (held items get
+  retained until hold is released, not auto-purged at the
+  retention deadline)
+- Generated PDF: chain-of-custody report — every check-out /
+  check-in / damage / cal event for every piece of gear
+  used on the contested job, plus the operator history
+  (who held the gear when)
+- Out of scope: actual e-discovery export to opposing
+  counsel's tool. v1 just produces the PDF + the underlying
+  audit-log CSV.
+
+##### L. Counterfeit / suspect serial numbers (rare but worth
+defending)
+
+When the Equipment Manager registers a high-end instrument,
+the system checks the serial against a known-bad list (vendor-
+published recall lists for cloned / stolen units when
+available). v1: free-text vendor fields + manual flag
+`serial_suspect=true`. v2 polish: API integration with the
+Trimble fraud database when/if vendor publishes one. Mostly
+relevant to second-hand acquisitions.
+
+##### Closing note
+
+These edge cases are NOT all v1. Phase F10 (planned in §9)
+ships the §5.12.1-§5.12.7 backbone first — the daily ritual
+loop. Edge cases land as polish batches in priority order:
+F (override), C (theft / disaster), E (reorder), A/B
+(borrow / lend), then the remainder as they're encountered
+in real operation. This keeps Phase F10 tractable without
+losing the "I considered everything" brief.
+
+---
+
+### Phase F10 entry — to be added in §9 in the next planning prompt
 
 ---
 
