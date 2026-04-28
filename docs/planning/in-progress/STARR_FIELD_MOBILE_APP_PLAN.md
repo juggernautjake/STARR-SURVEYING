@@ -3500,9 +3500,19 @@ the rest of F10 reads from. Broken into 10 small sub-batches:
       (selected count · Clear · Print N QR), and a "Print all
       QR (filtered)" button next to + Add unit. Selection
       persists across filter changes for cross-page batches.
-- [ ] **F10.1h** — Bulk CSV importer at
+- [◐] **F10.1h** — Bulk CSV importer at
       `/admin/equipment/import` (§5.12.11.H, system-go-live
-      fleet seeding).
+      fleet seeding). **F10.1h-i (POST `/api/admin/equipment/
+      import` endpoint)** shipped — accepts `{ csv, mode:
+      'dry_run' | 'execute' }`, RFC-4180 quoted-field parser,
+      auto-detects comma vs tab delimiter, validates required
+      headers (name + item_kind) + the §5.12.1 enums + integer/
+      date columns, surfaces row-attributed errors, detects
+      intra-batch qr_code_id duplicates BEFORE Postgres bulk
+      insert, atomic execute (one bad row rolls back the
+      whole batch), 1000-row hard cap. F10.1h-ii (page UI
+      with file picker + preview table + dry-run/execute
+      buttons) lands next.
 - [ ] **F10.1i** — Mobile `useEquipmentByQr` resolver hook
       + offline cache pre-fetch (`mobile/lib/equipment.ts`).
 - [ ] **F10.1j** — Mobile camera scanner overlay (re-uses
@@ -3843,7 +3853,7 @@ the dashboards they link to.
   - **✅ F10.0a-iv** seeds/236 equipment_events audit log `[fb94f61]`
   - **✅ F10.0a-v** seeds/237 equipment_templates + items + versions `[e566747]`
   - **✅ F10.0e** equipment_manager role + 4 consumers `[ded0b67]`
-  - **◐ F10.1** Inventory catalogue UI + QR codes — F10.1a GET + F10.1b page + F10.1c (POST + Add) + F10.1d (PATCH + Edit) + F10.1e (retire/restore + UI) + F10.1f (single-row QR PDF) + F10.1g (bulk QR PDF endpoint + bulk-select UI) shipped; F10.1h-j pending (bulk CSV import · mobile useEquipmentByQr · mobile scanner overlay)
+  - **◐ F10.1** Inventory catalogue UI + QR codes — F10.1a GET + F10.1b page + F10.1c (POST + Add) + F10.1d (PATCH + Edit) + F10.1e (retire/restore + UI) + F10.1f (single-row QR PDF) + F10.1g (bulk QR PDF endpoint + bulk-select UI) + F10.1h-i (CSV import endpoint) shipped; F10.1h-ii (import page UI) + F10.1i-j pending (mobile useEquipmentByQr · mobile scanner overlay)
   - **⨯ F10.2** Templates + dispatcher apply flow (CRUD, preview-with-availability, save-as-template, composition, versioning snapshots)
   - **⨯ F10.3** Availability + conflict engine (seeds/238 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
   - **⨯ F10.4** Personnel side (seeds/239 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
