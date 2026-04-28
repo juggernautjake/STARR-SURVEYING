@@ -2313,12 +2313,233 @@ but need to record reality:
 - The dispatch-side template apply UI — that's web-admin
   per §5.12.3, not mobile (dispatchers don't plan jobs from
   their phones; they use the desk).
-- **5.12.10 Tax + depreciation tie-in** — `acquired_cost_cents`
-  + `useful_life_months` feeds the Schedule C Section 13
-  depreciation line. Receipt category `equipment` already maps
-  to that line (Batch QQ); §5.12.10 closes the loop so
-  acquiring a tripod via the receipts flow auto-creates the
-  inventory row.
+#### 5.12.10 Tax + depreciation tie-in (closes the Batch QQ loop)
+
+Recap the two coupled directives the user gave during the
+Batch QQ build:
+1. *"Make it so we can use the data to keep really great
+   track of everything and make dealing with taxes super
+   easy!"*
+2. *"if data has already been managed or used for it's
+   intended purpose … they are handled and marked well so
+   that there is no confusion. We don't want things getting
+   counted twice, or not counted at all in the total."*
+
+§5.11 / Batch QQ delivered the receipts side of those
+directives — every approved/exported receipt rolls into the
+Schedule-C-shaped tax summary. But equipment acquisitions are
+NOT a single-line expense — they're a **multi-year capital
+asset** whose cost is recovered over time via depreciation
+(or in one year via §179 election). Without a closed loop
+between the receipts pipeline and the equipment ledger, a
+$3,000 total station lands twice on Schedule C: once as
+"Supplies / Equipment" the year it was bought, then again as
+depreciation in subsequent years. **Or — equally bad — it
+lands zero times** because the bookkeeper saw the receipt was
+"big" and excluded it without anything else picking it up.
+
+This sub-section is the rule set that prevents either
+mistake.
+
+**The two acquisition paths.**
+
+| Path | Trigger | Schema effect |
+|---|---|---|
+| **Receipt-driven** | Bookkeeper approves a receipt with `category='equipment'` AND `total_cents >= EQUIPMENT_RECEIPT_THRESHOLD_CENTS` (default $250000 = $2,500, configurable) | A modal pops on receipt approval: *"This looks like a capital asset. Create inventory row?"* Confirm → INSERT into `equipment_inventory` with `acquired_cost_cents` = `receipt.total_cents`, `acquired_at` = `receipt.transaction_at`, `linked_acquisition_receipt_id` = `receipt.id`. Status defaults `available`; Equipment Manager fills calibration / serial / QR fields after physical receipt. |
+| **Admin-entered** | Equipment Manager adds a unit via §5.12.7.3 inventory page when no receipt exists (gift, owner's contribution, transferred from old shop, etc.) | Standard INSERT; `linked_acquisition_receipt_id` stays NULL. Bookkeeper must manually classify on Schedule C. |
+
+The threshold matters. Below $2,500 (the IRS de minimis safe
+harbour), small purchases like a $40 hammer don't need
+asset-tracking — they expense as Supplies in the year bought.
+Above the threshold, the system pushes for a capital-asset
+treatment. Threshold lives in `app_settings` so the bookkeeper
+can tune it as IRS rules evolve.
+
+**Anti-double-count guard rail.** Per the user's directive,
+the Batch QQ tax summary endpoint must skip receipts that
+have been promoted to inventory rows:
+- New column on `receipts`: `promoted_to_equipment_id UUID
+  REFERENCES equipment_inventory(id) NULL`. Set when the
+  acquisition modal confirms.
+- Batch QQ tax summary's WHERE clause adds `AND
+  promoted_to_equipment_id IS NULL` on the receipts side.
+- Equipment depreciation lands on a SEPARATE Schedule C row
+  (Line 13) computed from the equipment ledger.
+- Both feeds total to a single bottom-line. Receipt totals +
+  depreciation totals = no overlap.
+
+**Schema additions on `equipment_inventory`** (extend the
+§5.12.1 baseline):
+- `linked_acquisition_receipt_id UUID NULL` (FK above)
+- `depreciation_method TEXT CHECK (depreciation_method IN
+  ('section_179', 'straight_line', 'macrs_5yr', 'macrs_7yr',
+  'bonus_first_year', 'none')) DEFAULT 'straight_line'`
+- `placed_in_service_at DATE` (the day the asset was actually
+  put to work; can differ from `acquired_at` for items
+  bought-and-stored)
+- `disposed_at DATE NULL`, `disposal_proceeds_cents BIGINT
+  NULL`, `disposal_kind TEXT CHECK (disposal_kind IN
+  ('sold', 'traded', 'scrapped', 'lost', 'stolen', 'donated'))
+  NULL` — closes the books when the unit retires
+- `tax_year_locked_through INT NULL` — the latest tax year
+  that's been "locked" via the §5.12.10 annual close ritual
+  (mirrors Batch QQ's `exported_period`)
+
+**Depreciation algorithm** (worker function — runs on
+demand for the Batch QQ tax summary endpoint):
+
+```
+For each equipment row where retired_at IS NULL OR
+retired_at >= start_of_tax_year:
+
+  if depreciation_method = 'section_179' AND placed_in_service_at
+     within tax year:
+     this_year_depreciation = acquired_cost_cents
+     # Whole basis recovered in year-1; subsequent years = 0
+  elif depreciation_method = 'straight_line':
+     months_elapsed = months_overlap(window, placed_in_service..disposed_or_now)
+     this_year_depreciation = acquired_cost_cents *
+                               (months_elapsed / useful_life_months)
+  elif depreciation_method in ('macrs_5yr', 'macrs_7yr'):
+     # IRS table-driven; ship a constants table mirroring Pub 946
+     this_year_depreciation = acquired_cost_cents *
+                               MACRS_TABLE[method][year_index]
+  else:
+     this_year_depreciation = 0
+
+  # Cap at remaining basis so we never depreciate below zero
+  this_year_depreciation = min(this_year_depreciation,
+                                remaining_basis(row))
+
+  # Apply mid-year convention for assets bought / sold mid-year
+  apply_half_year_or_mid_quarter_convention(...)
+```
+
+**Section 179 election workflow.** §179 is a one-time choice
+per asset, made the year placed in service. The Equipment
+Manager (or admin) flags the choice when promoting a receipt:
+- Acquisition modal has a *"Tax treatment"* picker
+  defaulting to `straight_line` for most items
+- Total stations / GPS rovers / similarly-pricey instruments
+  prompt with `section_179` as the suggested default with a
+  hover-text explainer
+- Vehicles get auto-suggested `macrs_5yr` (light truck rule)
+- Section 179 election is recorded in `equipment_inventory`
+  AND copied into a freeze record on
+  `equipment_tax_elections` (immutable per-year per-asset)
+  so the choice survives later edits
+
+**Schema sketch — `equipment_tax_elections`** (immutable
+per-year-per-asset record):
+- `id UUID PK`
+- `equipment_inventory_id UUID FK`
+- `tax_year INT NOT NULL`
+- `method TEXT NOT NULL` (snapshot of the
+  depreciation_method at the time)
+- `cost_basis_cents BIGINT NOT NULL` (snapshot)
+- `useful_life_months INT NOT NULL` (snapshot)
+- `recorded_depreciation_cents BIGINT NOT NULL` (the actual
+  amount filed on Schedule C this year)
+- `placed_in_service_at DATE` (snapshot)
+- `convention TEXT` (`half_year`, `mid_quarter`, `mid_month`)
+- `locked_at TIMESTAMPTZ NULL` (set during annual close)
+- `notes TEXT`
+
+**Annual close ritual** (mirrors Batch QQ `mark-exported`):
+1. Bookkeeper opens `/admin/finances` for the closing year
+   and clicks **"Lock equipment depreciation"** (new button
+   alongside the existing receipts Lock).
+2. The endpoint:
+   - Computes the depreciation for every active row using
+     the algorithm above
+   - Inserts a row into `equipment_tax_elections` for each
+     row depreciated this year
+   - Sets `equipment_inventory.tax_year_locked_through =
+     YYYY` on every affected row
+   - Returns the totals + per-asset breakdown for CSV export
+3. The Batch QQ tax summary refuses to re-compute
+   depreciation for a locked year — pulls the frozen
+   `equipment_tax_elections` rows directly. Re-running the
+   close after lock surfaces *"Year YYYY already locked on
+   DDDD by EEEE"* with a hard-block, mirroring the receipts
+   path.
+
+**Service / repair / cal receipts (§5.12.8 cross-link).**
+Distinct from acquisition:
+- `kind='calibration'` / `'cleaning'` / `'inspection'` —
+  Schedule C Line 21 (Repairs & Maintenance). Linked
+  receipts get `promoted_to_equipment_id IS NULL`
+  (unchanged) but get a new
+  `receipts.linked_maintenance_event_id` so the bookkeeper
+  sees them threaded under the equipment row.
+- `kind='repair'` if material — depending on amount, may
+  capitalise vs expense. Bookkeeper sees a hint
+  ("$1,200 repair on a $4,000 asset — re-evaluate
+  capitalisation?") but final call stays manual.
+- `kind='firmware_update'` / `'software_license'` — Line 22
+  (Supplies) for one-off; Line 8 (Advertising) is wrong but
+  surfaces sometimes in vendor receipts; bookkeeper
+  reclassifies. Schema doesn't try to be smart here.
+- `kind='damage_triage'` cost — same as repair logic above.
+- `kind='lost_returned'` cost — N/A (the asset itself goes
+  through disposal flow below).
+
+**Disposal accounting** (when an asset is retired):
+- `disposal_kind='sold'` + `disposal_proceeds_cents` →
+  potentially a gain (proceeds > book value) or loss; Form
+  4797 territory. v1 surfaces the calculation but the
+  bookkeeper / CPA does the form.
+- `disposal_kind='traded'` — basis carries to replacement;
+  simplistically out of scope for v1, manually handled.
+- `disposal_kind='scrapped'` / `'donated'` — write off
+  remaining basis to Line 27a (Other expenses).
+- `disposal_kind='lost'` / `'stolen'` — Form 4684 casualty
+  loss territory. v1 surfaces remaining basis + the §5.12.11
+  insurance packet; CPA handles the form.
+
+**Anti-double-count enforcement points** (the "no confusion"
+half of the user directive):
+
+| Risk | Guard |
+|---|---|
+| Receipt promoted to inventory ALSO showing as Schedule C Line 22 supplies | `receipts.promoted_to_equipment_id IS NOT NULL` filter on Batch QQ summary |
+| Equipment depreciation pulled twice (re-computation after lock) | `equipment_inventory.tax_year_locked_through` + frozen `equipment_tax_elections` rows |
+| Calibration receipt counted as both maintenance AND supplies | `receipts.linked_maintenance_event_id IS NOT NULL` filter routes the row to Line 21 only |
+| Disposal gain/loss missed | `equipment_inventory.disposed_at IS NOT NULL` triggers a year-end review queue on the §5.12.7.7 fleet valuation page |
+| Personal kit (`is_personal=true`) creeping onto company tax | Tax summary excludes `is_personal=true` rows entirely |
+
+**Audit-friendly export.** The annual close generates a PDF
+"Asset Detail Schedule" — one row per asset showing year,
+method, cost basis, prior accumulated dep, this-year dep,
+remaining basis. Standard CPA artifact, no re-keying.
+Also pushes the same data as a CSV alongside the Batch QQ
+tax summary so the CPA's spreadsheet workflows still work.
+
+**API sketch** (provisional):
+- `POST /api/admin/equipment/promote-receipt` — body
+  `{ receipt_id, depreciation_method, useful_life_months,
+  placed_in_service_at }`. Atomic: creates inventory row +
+  sets `receipts.promoted_to_equipment_id`.
+- `POST /api/admin/equipment/dispose` — body
+  `{ equipment_id, disposed_at, disposal_kind,
+  disposal_proceeds_cents }`.
+- `POST /api/admin/finances/lock-equipment-year` — body
+  `{ tax_year }`. Mirrors Batch QQ mark-exported semantics.
+- Updated `GET /api/admin/finances/tax-summary` — gains
+  `equipment` block alongside `receipts` and `mileage`,
+  reading the locked elections (or computing live for the
+  current year).
+
+**What §5.12.10 explicitly does NOT cover:**
+- The Form 4797 / Form 4562 / Form 4684 generation
+  (CPA's domain — v1 just surfaces the source data).
+- Bonus depreciation phase-out math beyond the IRS table
+  (Pub 946 ships annually; we update the constant table on
+  IRS publish, no schema change).
+- Multi-state apportionment (Texas has no state income tax;
+  out of scope for v1's TX-only deployment).
+- The §5.12.11 insurance packet generation that consumes a
+  `disposal_kind='lost'` event.
 - **5.12.11 Edge cases** — loaned-in (rented from another firm)
   vs loaned-out (lent to another firm); stolen / damaged
   workflows + insurance packet generation; cross-office
