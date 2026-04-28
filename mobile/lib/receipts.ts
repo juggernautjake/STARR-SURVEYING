@@ -21,12 +21,13 @@
  * is greenfield, so it follows the plan convention rather than the
  * legacy email-keyed shape.
  */
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePowerSync, useQuery } from '@powersync/react';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
-import { logError, logInfo } from './log';
+import { logError, logInfo, logWarn } from './log';
 import {
   pickAndCompress,
   removeFromBucket,
@@ -295,6 +296,64 @@ export function useReceipts(
     receipts: data ?? [],
     isLoading: !!userId && isLoading,
   };
+}
+
+// ── Persisted Money-tab filter (Batch OO) ──────────────────────────────────
+
+const RECEIPT_FILTER_STORAGE_KEY = '@starr-field/receipt_filter';
+
+/**
+ * Persisted-across-launches version of `[filter, setFilter]` for
+ * the Money-tab Batch LL filter chip. AsyncStorage-backed so a
+ * surveyor reviewing one receipt at a time keeps their filter
+ * between captures + cold-launches.
+ *
+ * Hydrates from disk on mount; writes synchronously on every set
+ * (best-effort — failures log a warn breadcrumb but don't reject
+ * the setState). Default is `'all'` for the first paint and for
+ * any corrupted-key recovery.
+ *
+ * Mirrors the `useThemePreference` pattern from `themePreference.tsx`
+ * but stays a screen-level hook (the filter is per-device UX, not
+ * cross-component state, so no provider needed).
+ */
+export function usePersistedReceiptFilter(): [
+  ReceiptListFilter,
+  (next: ReceiptListFilter) => void,
+] {
+  const [filter, setFilterState] = useState<ReceiptListFilter>('all');
+
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(RECEIPT_FILTER_STORAGE_KEY)
+      .then((raw) => {
+        if (cancelled || !raw) return;
+        if (raw === 'all' || raw === 'needs-review') {
+          setFilterState(raw);
+        }
+      })
+      .catch((err) => {
+        // Swallow + log — first-paint default ('all') is a fine
+        // fallback when AsyncStorage is wedged.
+        logWarn('receipts.usePersistedReceiptFilter', 'hydrate failed', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const setFilter = useCallback((next: ReceiptListFilter) => {
+    setFilterState(next);
+    // Fire-and-forget — the local state update is the user-visible
+    // contract; persistence is best-effort.
+    AsyncStorage.setItem(RECEIPT_FILTER_STORAGE_KEY, next).catch((err) => {
+      logWarn('receipts.usePersistedReceiptFilter', 'persist failed', err, {
+        next,
+      });
+    });
+  }, []);
+
+  return [filter, setFilter];
 }
 
 export interface JobReceiptRollup {

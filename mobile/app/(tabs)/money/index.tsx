@@ -1,5 +1,4 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -13,7 +12,7 @@ import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ReceiptCard } from '@/lib/ReceiptCard';
 import {
-  type ReceiptListFilter,
+  usePersistedReceiptFilter,
   useReceipts,
   useReceiptsNeedingReview,
   type Receipt,
@@ -38,11 +37,13 @@ import { useResolvedScheme } from '@/lib/themePreference';
 export default function MoneyScreen() {
   const scheme = useResolvedScheme();
   const palette = colors[scheme];
-  // Filter chip state (Batch LL). Tap the amber review badge to
-  // narrow the list to "needs review" only; the chip surfaces a
-  // clear-button so the surveyor can return to the all-receipts
-  // view without losing their place.
-  const [filter, setFilter] = useState<ReceiptListFilter>('all');
+  // Filter chip state (Batch LL + OO). Persists across launches via
+  // AsyncStorage so a surveyor reviewing one receipt at a time keeps
+  // their filter between captures + cold-launches. Tap the amber
+  // review badge to narrow the list to "needs review" only; the
+  // chip surfaces a clear-button so the surveyor can return to the
+  // all-receipts view without losing their place.
+  const [filter, setFilter] = usePersistedReceiptFilter();
   const { receipts, isLoading } = useReceipts(100, filter);
   // Reactive count of receipts that finished AI extraction but
   // haven't been user-confirmed yet. Drives the amber "N to

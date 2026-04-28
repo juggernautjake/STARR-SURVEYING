@@ -1526,6 +1526,45 @@ Activation gates:
   never set up with an address, or where the address geocode is
   off.
 
+**Batch OO — Money-tab filter persists across launches (closes Batch LL v2 gap)**
+
+Closes the Batch LL v2 polish item *"Persist the chosen filter
+across launches (e.g. AsyncStorage) so a surveyor reviewing one
+item at a time keeps their place between captures."* Surveyors
+who flip the "needs review" filter on, capture one receipt,
+backgroud the app, and come back hours later now find the
+filter still active — no re-flip needed.
+
+Mobile lib (`mobile/lib/receipts.ts`):
+- New `usePersistedReceiptFilter()` hook returning the same
+  `[filter, setFilter]` tuple shape `useState` did, plus an
+  `AsyncStorage`-backed `useEffect` that hydrates from
+  `@starr-field/receipt_filter` on mount and persists every
+  set call. Mirrors the `useThemePreference` pattern from
+  `themePreference.tsx`.
+- Persistence is best-effort: AsyncStorage failures log via
+  `logWarn` but don't reject the setState — the local state
+  update is the user-visible contract. Default is `'all'` for
+  the first paint and for any corrupted-key recovery.
+- Hook stays screen-level (no provider) since the filter is
+  per-device UX, not cross-component state.
+
+Mobile screen (`mobile/app/(tabs)/money/index.tsx`):
+- Drop-in swap: `useState<ReceiptListFilter>('all')` →
+  `usePersistedReceiptFilter()`. Tuple shape matches.
+- Removed unused `useState` and `ReceiptListFilter` type
+  imports.
+
+Logging:
+- `receipts.usePersistedReceiptFilter` warns on hydrate /
+  persist failures so a corrupted prefs file is visible in
+  Sentry.
+
+Pending v2 polish:
+- Add a "Reset Money tab to default view" toggle in Me-tab
+  Display section so a surveyor stuck in a forgotten filter
+  can clear without finding the chip.
+
 **Batch NN — CSV preview "unknown format" fall-through (closes Batch AA v2 gap)**
 
 Closes the small UX gap from Batch AA: when `parseCoordCsv`
