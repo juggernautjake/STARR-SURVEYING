@@ -3469,8 +3469,14 @@ the rest of F10 reads from. Broken into 10 small sub-batches:
       Per-row "Edit" button on the catalogue table; retired
       rows get the button disabled with hover hint pointing
       to the F10.1e retire action.
-- [ ] **F10.1e** — Retire action (soft-archive via
+- [◐] **F10.1e** — Retire action (soft-archive via
       `retired_at` + `retired_reason` from seeds/233).
+      **F10.1e-i (POST `/api/admin/equipment/[id]/retire`
+      + `/restore` endpoints)** shipped — sets/clears
+      `retired_at` + flips `current_status`, idempotent re-runs,
+      writes an `equipment_events` audit row (event_type
+      `retired` / `restored`) per §5.12.1; F10.1e-ii (UI
+      button + confirmation dialog) lands next.
 - [ ] **F10.1f** — QR sticker PDF (single row, label-printer
       sized).
 - [ ] **F10.1g** — Bulk QR PDF (multi-page; selected rows →
@@ -3699,7 +3705,12 @@ collision; Phase F10.1d-i `PATCH /api/admin/equipment/[id]`
 inline-edit endpoint with the same allow-list MINUS retired_at
 (forced through F10.1e), UUID-validated id, 404 on missing row,
 last-write-wins concurrency w/ equipment_events audit trail
-downstream; equipment_manager role gated; tech_support read-only)**.
+downstream; Phase F10.1e-i `POST /api/admin/equipment/[id]/retire`
++ `/restore` lifecycle endpoints — set/clear retired_at +
+retired_reason + current_status, idempotent re-runs surface
+already_retired / already_active flags, audit-log row written
+to equipment_events on every transition; equipment_manager
+role gated; tech_support read-only)**.
 
 **Worker (`worker/src/services/`):**
 - `receipt-extraction.ts` + `cli/extract-receipts.ts` + endpoint at
