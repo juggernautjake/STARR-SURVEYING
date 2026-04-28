@@ -120,6 +120,26 @@ Starr Field is a mobile client against the same Supabase database the web app us
 - Permissions model needs to support this
 - 1099 contractors **cannot** be tracked the same way as W-2 employees — separate consent and feature set
 
+### 4.6 Equipment Manager (new role, planned via §5.12)
+- Owns the digital equipment inventory: receives, labels, calibrates, retires.
+- Approves dispatcher assignments when conflicts arise; nags
+  crews who haven't checked gear back in at end of day.
+- Prep tomorrow's kits at end of today (mobile checklist of
+  every assignment due to leave the office before 7 a.m.).
+- Maintains a **maintenance + calibration calendar** (annual
+  NIST cert for total stations, GPS firmware, vehicle service
+  intervals — vehicles already tracked via the §6.3 `vehicles`
+  table).
+- Reviews damage reports + low-stock alerts on consumables.
+- Likely a part-time hat worn by an existing crew lead at
+  Starr Surveying's current size; in larger shops becomes a
+  dedicated role. The schema + UI must work for both.
+- Permissions: read all jobs / assignments; write all
+  equipment + maintenance + check-out/in records; cannot
+  approve receipts or hours (kept distinct from the
+  bookkeeper hat). Mapped to a new `equipment_manager` role
+  in the existing role enum.
+
 ---
 
 ## 5. Core feature specifications
@@ -510,6 +530,236 @@ This catches both ends of fuel-cost auditing automatically.
 - Original photo + extracted data retained 7 years
 - Annual archival: receipts older than current tax year + 1 archived to cold storage (cheaper R2 archive class)
 - Receipts queryable, exportable, and audit-package-able by date range
+
+---
+
+### 5.12 Equipment & supplies inventory + crew assignment + dispatch templates
+
+**Status: planned (multi-batch).** This section is split into
+sub-sections that will be filled in across several prompts. This
+first pass establishes the goals, the inventory data model, and
+the existing infrastructure baseline. Templates, conflict
+detection, check-in/out workflow, the Equipment Manager dashboard,
+maintenance/calibration, mobile UX, and tax/depreciation tie-ins
+are deferred to the follow-up planning prompts noted at the
+bottom of this section.
+
+#### 5.12.0 Why this matters
+
+A surveying shop's expensive metal — total stations, GPS rovers,
+data collectors, tripods, prisms — *plus* its consumables —
+paint, lath, hubs, ribbon, marker flags — *plus* its personnel
+all have to converge on the right job at the right time, every
+day. Today that converging happens by memory, whiteboard, and
+hallway conversation. The user's directive: **make every piece of
+gear and every assignment tracked digitally, every crew member's
+loadout planned ahead of time, and every conflict surfaced before
+it becomes a "we got to the site without a tripod" problem.**
+
+Concretely, three coupled goals:
+
+1. **Always know where every piece is.** A live ledger of every
+   serialized instrument, every consumable's stock level, every
+   kit, and which job/crew/vehicle it's currently with.
+2. **Plan tomorrow's jobs today.** When the dispatcher creates a
+   job, they assign equipment + supplies + personnel from a
+   reusable template ("4-corner residential boundary, total
+   station kit") or build the kit ad-hoc. Conflicts (already in
+   use, in maintenance, low stock) surface immediately.
+3. **Hold the loop closed.** Crews check gear out from the
+   Equipment Manager in the morning, check it back in at end of
+   day. Anything still out at sunset triggers a nag. The
+   Equipment Manager (new role, §4.6) owns the daily reconcile.
+
+Out-of-scope for v1 (planned as v2 polish): RFID auto-check-in
+gates, weight-based truck-load sensors, cross-shop equipment
+sharing, GPS trackers welded to expensive instruments. The v1
+contract is **scan-a-QR-code-or-tap-a-row UX**, not warehouse
+automation.
+
+#### 5.12.1 Inventory data model
+
+The schema has to handle three distinct kinds of "stuff" with
+different ergonomics:
+
+**A. Durable + serialized — the expensive metal.**
+- One row per physical unit. A Trimble S9 #SN12345 is one row;
+  a second S9 #SN67890 is another row. Even when "the same
+  model," each unit has its own calibration cert, maintenance
+  history, and check-out/check-in trail.
+- Required fields: `name` ("Total Station — Trimble S9 #1"),
+  `category` (`total_station` | `gps_rover` | `data_collector`
+  | `tripod` | `prism` | `level` | `vehicle_*` | …),
+  `manufacturer`, `model`, `serial_number`, `acquired_at`,
+  `acquired_cost_cents`, `useful_life_months` (depreciation
+  helper), `current_status` (`available` | `in_use` |
+  `maintenance` | `loaned_out` | `lost` | `retired`),
+  `home_location` (which office / truck the gear lives in when
+  not deployed), `notes`, `qr_code_id`.
+- Calibration / warranty fields: `last_calibrated_at`,
+  `next_calibration_due_at`, `warranty_expires_at`,
+  `service_contract_vendor`, `last_serviced_at`.
+- Photo + cert PDFs attached via the existing files-bucket
+  pattern (see §5.6 / `seeds/226`).
+
+**B. Bulk consumables — the stuff that gets used up.**
+- One row per **SKU**, not per physical unit. "Pink survey
+  ribbon — 1 in × 300 ft roll" is one row with a
+  `quantity_on_hand` integer that decrements as the Equipment
+  Manager checks rolls out and increments when a new case
+  arrives. Crews don't return ribbon at end of day — it's
+  consumed in the field.
+- Required fields: `name`, `category` (`paint` | `lath` |
+  `hubs` | `ribbon` | `marker_flags` | `nails` | `chains` | …),
+  `unit` ("can", "roll", "bundle", "lb"), `quantity_on_hand`,
+  `low_stock_threshold` (alert when below — Equipment Manager
+  re-orders), `last_restocked_at`, `vendor`, `cost_per_unit_cents`,
+  `notes`.
+- Per-job "took 3 cans of pink paint" entries are recorded as
+  consumption events on the assignment rows (§5.12.6, deferred)
+  — they decrement `quantity_on_hand` server-side via a
+  PL/pgSQL trigger so the ledger stays consistent even when two
+  dispatchers assign in parallel.
+
+**C. Kits — pre-bundled groupings of A and/or B.**
+- A "Total Station Kit #3" row referencing a JSON list of
+  child-piece equipment IDs: the S9 itself, its tripod, its
+  prism + pole, its data collector, its case, two batteries +
+  charger. Checking out the kit checks out every child as one
+  atomic operation, so the dispatcher / crew sees a single line
+  on the assignment screen instead of seven.
+- A kit's `current_status` is the worst-case of its children
+  (`maintenance` if any child is in maintenance, etc.) with the
+  reason surfaced so the dispatcher knows *why* the kit is
+  unavailable.
+- Kits are user-defined (Equipment Manager creates them in the
+  admin UI) so the shop can model their actual workflow rather
+  than fighting our taxonomy.
+
+**Cross-cutting requirements for all three kinds:**
+- `qr_code_id` printed on a physical sticker for every row
+  (durable units, kit cases, consumable bins). Mobile camera
+  scans the QR to pull up the row instantly — the Equipment
+  Manager doesn't type serial numbers. Generated by the system
+  (UUIDv7 short-form) so labels can be pre-printed in batches.
+- Soft-delete via `retired_at TIMESTAMPTZ` (mirrors the receipts
+  Batch CC pattern). A retired Trimble S9 stays in the schema
+  for depreciation closeout; the inventory list filters
+  `retired_at IS NULL` by default with an "include retired"
+  toggle.
+- Per-row event log: `equipment_events` table records every
+  state change (assigned / checked-out / checked-in /
+  maintenance / loaned-out / damaged / retired) with actor,
+  timestamp, and free-form note. IRS-grade audit trail and
+  also feeds the §5.12.6 reconcile dashboard.
+
+#### 5.12.2 Existing infrastructure baseline (do not duplicate)
+
+The live Supabase schema already has two tables shipped from an
+earlier admin build, plus the API route + a reference in the
+admin /admin/jobs page sidebar copy. Starr Field's equipment
+work **extends** these, it does not greenfield around them.
+
+**`equipment_inventory`** (shipped):
+- Columns observed in code (`app/api/admin/jobs/equipment/route.ts`):
+  `name`, `equipment_type`, `brand`, `model`, `serial_number`,
+  `notes`. No status, no kit support, no calibration, no
+  consumable mode, no QR codes, no soft-delete.
+
+**`job_equipment`** (shipped):
+- Columns observed: `job_id`, `equipment_name`, `equipment_type`,
+  `serial_number`, `checked_out_by`, `checked_out_at`,
+  `returned_at`, `notes`. Free-text `equipment_name` rather than
+  an FK to `equipment_inventory.id` — meaning two dispatchers
+  could "check out" the same instrument to two jobs and the
+  schema wouldn't notice. Today it's an audit log, not a
+  reservation system.
+
+**`/api/admin/jobs/equipment`** (shipped):
+- GET (full inventory or per-job assignments), POST (add to
+  inventory or assign to job), PUT (update / mark returned).
+- No availability check on POST. No template support. No
+  conflict detection.
+
+**Migration strategy** (sketch — to be detailed in the §5.12.5
+sub-batch):
+1. New `seeds/2NN_starr_field_equipment_v2.sql` ALTERs
+   `equipment_inventory` to add the §5.12.1 fields
+   (`category`, `current_status`, `qr_code_id`, calibration
+   columns, `acquired_*`, `retired_at`, etc.) and ALTERs
+   `job_equipment` to add an FK column
+   `equipment_inventory_id UUID REFERENCES equipment_inventory(id)`
+   alongside the existing `equipment_name` text (kept as a
+   free-text fallback for historical rows + ad-hoc entries).
+2. New tables: `equipment_kits` (kit header + JSON child list),
+   `equipment_kit_items` (FK rows for relational queries),
+   `equipment_events` (audit log), `equipment_templates`
+   (dispatcher-defined, see §5.12.3 deferred),
+   `equipment_maintenance` (calibration + service log, see
+   §5.12.7 deferred).
+3. The existing GET / POST / PUT route stays alive but gains
+   conflict-detection + template-application code paths in a
+   later sub-batch. New routes (POST /reserve, POST /check-out,
+   POST /check-in, GET /availability) carry the new workflow.
+4. Vehicles stay in their own `vehicles` table (already deeply
+   wired into mileage + location segments) — the equipment
+   schema does **not** absorb them. Cross-link via a new
+   `equipment_inventory.vehicle_id NULLABLE` column for
+   "this case lives on Truck 3 by default" semantics, when
+   useful for the loadout view.
+
+#### 5.12.3 Templates · 5.12.4 Personnel · 5.12.5 Availability + conflicts · 5.12.6 Daily check-in/out · 5.12.7 Equipment Manager workflows · 5.12.8 Maintenance + calibration · 5.12.9 Mobile UX · 5.12.10 Tax + depreciation tie-in · 5.12.11 Edge cases
+
+**Deferred to follow-up planning prompts.** Sketches of what each
+sub-section will cover (so the user can pick the next chunk):
+
+- **5.12.3 Templates** — dispatcher-defined reusable kits ("4-corner
+  residential boundary, total-station flavour"; "GPS rover flavour";
+  "OSHA-mandated road work add-on"). Per-job-type defaults.
+  Template versioning so old jobs don't drift when the template
+  is updated.
+- **5.12.4 Personnel assignment** — `job_team` already exists. We
+  layer crew skills / certifications (RPLS, field tech, party
+  chief), per-day capacity ("Jacob is on Job A 8am-noon, Job B
+  noon-5pm"), and template hooks ("template requires at least one
+  RPLS").
+- **5.12.5 Availability + conflict detection** — central rule:
+  any `equipment_inventory` row whose `current_status='in_use'`
+  OR has an unreturned `job_equipment` row OR is reserved for a
+  future overlapping window is **not assignable**. Dispatcher
+  sees the conflict + the reason + a suggested alternative
+  (next-available date or a substitutable kit). Hard-block by
+  default, soft-override with audit reason for emergencies.
+- **5.12.6 Daily check-in/check-out** — Equipment Manager mobile
+  screen with QR scan. Morning: scan kit → it flips to `in_use`,
+  records the crew + job. Evening: scan kit on return → flips to
+  `available`, records condition. Crews who clock out without
+  returning gear get a nag notification (reuses the §5.10.4
+  notifications stack).
+- **5.12.7 Equipment Manager dashboards** — daily reconcile view
+  (what's out, what's overdue, what's coming back tonight),
+  maintenance calendar, low-stock consumables alerts, fleet
+  valuation page (rolls into the §11 cost model + Batch QQ tax
+  summary's depreciation line).
+- **5.12.8 Maintenance + calibration** — service events table,
+  PDF cert attachments, "next calibration due in 14 days"
+  alerts, integration with the receipts module so a calibration
+  invoice receipt links back to the equipment row.
+- **5.12.9 Mobile UX** — "what's in my truck right now" tab for
+  surveyors; QR-scan check-in on return; lost-on-site flow
+  (mark a piece lost with last-known job GPS).
+- **5.12.10 Tax + depreciation tie-in** — `acquired_cost_cents`
+  + `useful_life_months` feeds the Schedule C Section 13
+  depreciation line. Receipt category `equipment` already maps
+  to that line (Batch QQ); §5.12.10 closes the loop so
+  acquiring a tripod via the receipts flow auto-creates the
+  inventory row.
+- **5.12.11 Edge cases** — loaned-in (rented from another firm)
+  vs loaned-out (lent to another firm); stolen / damaged
+  workflows + insurance packet generation; cross-office
+  transfers; consumable reorder workflow; calibration-overdue
+  hard-block ("S9 #1 is 30 days past calibration; assign
+  anyway?").
 
 ---
 
