@@ -139,7 +139,11 @@ export async function processVideoThumbnailBatch(
     .order('created_at', { ascending: true })
     .limit(batchSize);
   if (error) throw error;
-  const rows = (data ?? []) as ThumbRow[];
+  // Cast through `unknown` — Supabase's `data` union includes the
+  // GenericStringError shape that TS2352 refuses to overlap with
+  // ThumbRow without an explicit unknown bounce. The select column
+  // list above is the source of truth for the row shape.
+  const rows = (data ?? []) as unknown as ThumbRow[];
 
   const results: VideoThumbResult[] = [];
   for (const row of rows) {

@@ -17,6 +17,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   employee: 'Employee',
   guest: 'Guest',
   tech_support: 'Tech Support',
+  equipment_manager: 'Equipment Manager',
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
@@ -30,6 +31,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
   employee: '#6B7280',
   guest: '#9CA3AF',
   tech_support: '#EA580C',
+  equipment_manager: '#0D9488',
 };
 
 // Job title labels from the employee_profiles payroll table

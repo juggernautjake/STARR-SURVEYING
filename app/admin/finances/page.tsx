@@ -227,8 +227,8 @@ export default function FinancesPage() {
           Schedule-C-shaped report joining approved + exported receipts
           with business mileage. Pick a tax year, review the
           breakdown, then export the CSV for your CPA. Use{' '}
-          <strong>Lock period</strong> to mark this year's approved
-          receipts as filed so they aren't double-counted next year.
+          <strong>Lock period</strong> to mark this year&apos;s approved
+          receipts as filed so they aren&apos;t double-counted next year.
         </p>
       </header>
 
@@ -682,7 +682,7 @@ export default function FinancesPage() {
                 <p style={styles.sectionSub}>
                   Receipts in this window that were already locked into
                   a prior tax period — confirms which CPA submission
-                  they went on. Should be empty if the period hasn't
+                  they went on. Should be empty if the period hasn&apos;t
                   been locked yet.
                 </p>
               </header>

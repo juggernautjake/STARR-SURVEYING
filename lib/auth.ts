@@ -8,13 +8,21 @@ import { supabaseAdmin } from '@/lib/supabase';
 // =============================================================================
 // ROLE SYSTEM
 // Expanded roles: admin, developer, teacher, student, researcher, drawer,
-// field_crew, employee, guest, tech_support
+// field_crew, employee, guest, tech_support, equipment_manager
 // Users can hold MULTIPLE roles (e.g. admin + teacher + researcher)
 // =============================================================================
 
 export const ALL_ROLES = [
   'admin', 'developer', 'teacher', 'student', 'researcher',
   'drawer', 'field_crew', 'employee', 'guest', 'tech_support',
+  // Phase F10 (§4.6 + §5.12) — equipment_manager owns the digital
+  // inventory ledger: receives, labels, calibrates, retires gear;
+  // approves dispatcher loadout assignments; nags crews on
+  // unreturned gear at end of day. Stored in registered_users.roles
+  // alongside other roles. Often a hat worn by an existing
+  // admin / dev user at Starr's current size; modeled cleanly so a
+  // future dedicated hire is a permission flip, not a refactor.
+  'equipment_manager',
 ] as const;
 
 export type UserRole = (typeof ALL_ROLES)[number];
@@ -31,6 +39,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   employee: 'Employee',
   guest: 'Guest',
   tech_support: 'Tech Support',
+  equipment_manager: 'Equipment Manager',
 };
 
 // Role descriptions for admin UI
@@ -45,6 +54,7 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   employee: 'Base role. Dashboard, profile, learning hub basics.',
   guest: 'External user. Limited to dashboard, profile, and basic learning.',
   tech_support: 'Error logs, view-only access to most pages for troubleshooting.',
+  equipment_manager: 'Owns the equipment + supplies inventory: morning checkout, end-of-day reconcile, maintenance schedules, low-stock restock, and damaged/lost triage. Cannot approve receipts or hours.',
 };
 
 // How often (in seconds) to re-fetch roles from DB for an active session.
@@ -63,6 +73,11 @@ const ALLOWED_DOMAIN = 'starr-surveying.com';
 /** Role priority for determining the "primary" display role (highest first) */
 const ROLE_PRIORITY: UserRole[] = [
   'admin', 'developer', 'teacher', 'tech_support',
+  // equipment_manager sits above researcher/drawer/field_crew —
+  // cage-keeper accountability outranks generic field roles for
+  // dashboard "primary role" display purposes but stays below
+  // admin / dev / teacher / tech_support.
+  'equipment_manager',
   'researcher', 'drawer', 'field_crew', 'student', 'guest', 'employee',
 ];
 

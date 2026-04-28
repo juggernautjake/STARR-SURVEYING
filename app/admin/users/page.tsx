@@ -22,6 +22,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   employee: 'Employee',
   guest: 'Guest',
   tech_support: 'Tech Support',
+  equipment_manager: 'Equipment Manager',
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
@@ -35,6 +36,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
   employee: '#6B7280',
   guest: '#9CA3AF',
   tech_support: '#EA580C',
+  equipment_manager: '#0D9488', // teal — distinct from field_crew lime + tech_support orange
 };
 
 const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
@@ -48,6 +50,7 @@ const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   employee: 'Base role. Dashboard, profile, learning basics.',
   guest: 'External user. Limited dashboard and learning.',
   tech_support: 'Error logs, view-only access for troubleshooting.',
+  equipment_manager: 'Equipment + supplies inventory: morning checkout, end-of-day reconcile, maintenance, low-stock restock, damage triage.',
 };
 
 interface RegisteredUser {

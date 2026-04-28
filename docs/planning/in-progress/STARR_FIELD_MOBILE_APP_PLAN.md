@@ -3385,28 +3385,54 @@ the F2/F6 capture loops. Sequenced so the daily ritual (the
 user's headline ask) lands first; the tax + edge-case polish
 follows.
 
-**F10.0 — Schema + seeds + role wiring (Week 33).**
-- [ ] `seeds/233_starr_field_equipment_v2.sql` — extends the
-      existing `equipment_inventory` + `job_equipment` tables
-      per §5.12.2 migration sketch (no rename, ALTER + new
-      tables). Adds `equipment_kits`, `equipment_kit_items`,
-      `equipment_events`, `equipment_templates`,
-      `equipment_template_items`, `equipment_template_versions`
-      per §5.12.3.
-- [ ] `seeds/234_starr_field_equipment_reservations.sql` —
-      `equipment_reservations` (§5.12.5) with the GiST range
-      index + the derived `next_available_at` /
-      `current_reservation_id` columns + the
-      `personnel_locks` helper for race-safety.
-- [ ] `seeds/235_starr_field_personnel_skills.sql` — extends
-      `job_team` per §5.12.4; adds `personnel_skills`,
-      `personnel_unavailability`.
-- [ ] `seeds/236_starr_field_equipment_maintenance.sql` —
-      `maintenance_events`, `maintenance_event_documents`,
-      `maintenance_schedules` per §5.12.8 (xor on
-      `equipment_inventory_id` | `vehicle_id`).
-- [ ] Add `equipment_manager` to the existing role enum + the
-      sidebar role-gate logic (§5.12.7 sidebar anchor).
+**F10.0 — Schema + seeds + role wiring (Week 33). ✅ SHIPPED.**
+The original plan had one fat `seeds/233` covering all of
+inventory v2 + kits + events + templates. During the build we
+split it into five smaller, independently-reviewable seed files
+(231-line max each instead of one ~700-line file). Reservations,
+personnel, maintenance, and tax stayed in their planned slots
+but their seed numbers shifted from 234-237 to 238-241 to
+accommodate the split.
+- [x] `seeds/233_starr_field_equipment_inventory_v2.sql` —
+      extends `equipment_inventory` with item_kind / category /
+      current_status / qr_code_id / cost basis / calibration /
+      consumable / home_location / vehicle_id / is_personal /
+      retired_at / serial_suspect (§5.12.1, F10.0a-i) `[b8d239f]`
+- [x] `seeds/234_starr_field_job_equipment_fk.sql` —
+      adds `equipment_inventory_id UUID` FK on `job_equipment`
+      with two indexes (per-inventory + open-assignments)
+      while keeping the free-text columns for historical rows
+      (§5.12.2, F10.0a-ii) `[dec1865]`
+- [x] `seeds/235_starr_field_equipment_kits.sql` —
+      `equipment_kits` wrapper + `equipment_kit_items` join
+      with quantity / is_required / sort_order; CASCADE on
+      kit, RESTRICT on child (§5.12.1.C, F10.0a-iii) `[90827da]`
+- [x] `seeds/236_starr_field_equipment_events.sql` —
+      universal append-only audit log with open-string
+      event_type, FKs to equipment + jobs, deferred FKs for
+      reservation_id / maintenance_event_id; 5 indexes; RLS
+      append-only (§5.12.1 cross-cutting + §5.12.6 + §5.12.11.K,
+      F10.0a-iv) `[fb94f61]`
+- [x] `seeds/237_starr_field_equipment_templates.sql` —
+      `equipment_templates` header + items (with the crucial
+      XOR between `equipment_inventory_id` and `category` for
+      §5.12.5 conflict-detection) + `equipment_template_versions`
+      immutable snapshots (§5.12.3, F10.0a-v) `[e566747]`
+- [x] `equipment_manager` role added to `lib/auth.ts ALL_ROLES`
+      + 4 `Record<UserRole, …>` consumers updated
+      (`AdminSidebar`, `users/page.tsx`, `employees/page.tsx`,
+      `auth.ts ROLE_LABELS / DESCRIPTIONS / PRIORITY`); no DB
+      migration needed since `registered_users.roles` is
+      `text[]` with no enum CHECK. Sidebar entries for the
+      new "Equipment" group intentionally NOT added — those
+      land in F10.6 alongside the dashboards they link to.
+      (§4.6 + §5.12.7, F10.0e) `[ded0b67]`
+
+Subsequent F10 sub-phases reference seed numbers shifted by 4:
+* F10.3 reservations seed: was `234` → now `238`
+* F10.4 personnel seed: was `235` → now `239`
+* F10.7 maintenance seed: was `236` → now `240`
+* F10.9 tax tie-in seed: was `237` → now `241`
 
 **F10.1 — Inventory catalogue + QR codes (Week 33–34).**
 The "list of every piece of metal" surface — the foundation
@@ -3551,22 +3577,31 @@ F (calibration override) → C (theft / disaster) → E
 landed in F10.1) → L (counterfeit DB).
 
 **Activation gates** (apply in order before exposing any
-F10 admin/mobile route):
-1. `seeds/233` — equipment v2 baseline
-2. `seeds/234` — reservations
-3. `seeds/235` — personnel skills/unavailability
-4. `seeds/236` — maintenance
-5. `seeds/237` — tax tie-in (only required before F10.9)
+F10 admin/mobile route). Updated to reflect the F10.0 split:
+1. `seeds/233` — equipment_inventory v2 ✅ shipped
+2. `seeds/234` — job_equipment FK ✅ shipped
+3. `seeds/235` — equipment_kits + items ✅ shipped
+4. `seeds/236` — equipment_events audit log ✅ shipped
+5. `seeds/237` — equipment_templates + items + versions ✅ shipped
+6. `seeds/238` — reservations (queued for F10.3)
+7. `seeds/239` — personnel skills + unavailability (queued for F10.4)
+8. `seeds/240` — maintenance (queued for F10.7)
+9. `seeds/241` — tax tie-in (queued for F10.9)
+
+Operator action: apply seeds/233-237 to live Supabase before
+the F10.1 admin UI lands. Subsequent seeds (238-241) gate their
+respective sub-phases.
 
 ---
 
 ## 9.w — Inventory snapshot (state-of-the-build)
 
 *Audited at commit `f2917de` against the actual filesystem, then
-incrementally updated through Batch QQ.* Plan claims throughout
-this document are spot-verified — the lists below are the
-reconciled truth, not a re-statement of the per-phase checkboxes.
-Update this section every time a Batch lands.
+incrementally updated through commit `ded0b67` (Phase F10.0e —
+closes the equipment + supplies schema foundation).* Plan claims
+throughout this document are spot-verified — the lists below are
+the reconciled truth, not a re-statement of the per-phase
+checkboxes. Update this section every time a Batch lands.
 
 ### A. Shipped & verified in code
 
@@ -3641,8 +3676,21 @@ classifier) · 228 (voice transcription) · 229 (receipt review +
 dedup fingerprint, Batch Z) · 230 (receipt soft-delete +
 retention, Batch CC) · 231 (video thumbnail tracking columns,
 Batch GG) · 232 (receipts.exported_at + exported_period for
-tax-period locking, Batch QQ) — all present on disk.
-**Activation gates pending live apply:** 229, 230, 231, 232.
+tax-period locking, Batch QQ) · **233 (equipment_inventory v2
+extensions, Phase F10.0a-i) · 234 (job_equipment FK, F10.0a-ii)
+· 235 (equipment_kits + items, F10.0a-iii) · 236 (equipment_events
+audit log, F10.0a-iv) · 237 (equipment_templates + items +
+versions, F10.0a-v)** — all present on disk.
+**Activation gates pending live apply:** 229, 230, 231, 232,
+233, 234, 235, 236, 237. (Subsequent equipment seeds 238-241
+will land alongside their respective F10 sub-phases — 238
+reservations, 239 personnel, 240 maintenance, 241 tax tie-in.)
+
+**Roles (`lib/auth.ts`):** standard 10 roles plus `equipment_manager`
+(Phase F10.0e `[ded0b67]`); 4 `Record<UserRole, …>` consumers
+updated. Sidebar entries for the new "Equipment" group
+intentionally NOT yet added — those land in F10.6 alongside
+the dashboards they link to.
 
 ### B. Partial (started; polish deferred)
 
@@ -3670,14 +3718,26 @@ tax-period locking, Batch QQ) — all present on disk.
   §9.x for the full UI brief (status-segmented stat cards,
   Schedule C breakdown table, mileage section, Lock + Export
   CSV buttons).
-- ~~**Worker retention sweep CLI**~~ — **shipped (Batch RR
-  next).** `worker/src/services/receipt-retention-sweep.ts` +
-  `worker/src/cli/sweep-receipt-retention.ts` purge soft-deleted
-  receipts past the IRS window (90d for rejected; 7y default
-  for everything else, env-overridable). DRY-RUN by default;
-  `--execute` flag required to actually delete; storage purge
-  fires before db delete (safer to leave an orphan db row than
-  an unreachable blob).
+- ~~**Worker retention sweep CLI**~~ — **shipped as Batch RR**
+  `[07bee84]`. `worker/src/services/receipt-retention-sweep.ts`
+  + `worker/src/cli/sweep-receipt-retention.ts` purge
+  soft-deleted receipts past the IRS window (90d for rejected;
+  7y default for everything else, env-overridable). DRY-RUN by
+  default; `--execute` flag required to actually delete;
+  storage purge fires before db delete (safer to leave an
+  orphan db row than an unreachable blob). Operator schedule:
+  nightly dry-run cron + weekly `--execute` after review.
+- ~~**AI-usage tracker integration for Whisper**~~ — **shipped
+  as Batch SS** `[f3fcaa5]`. `worker/src/lib/ai-usage-tracker.ts`
+  service enum extended with `'whisper-transcribe'`; `record()`
+  accepts optional `costUsd` override (Whisper bills per second,
+  not per token); `address` made optional. `worker/src/services/
+  voice-transcription.ts` adds `releaseClaim()` + pre-batch +
+  per-row gate checks + record-on-success-and-failure. Closes
+  the §9.w D architectural deviation — Starr Field voice spend
+  now trips the same circuit breaker that protects Recon's
+  Vision spend. Receipt extraction was already wired (uses
+  `service: 'vision-ocr'`).
 - **Per-row admin sign-off audit trail on receipts** — Batch JJ
   bulk-approve writes `approved_by` + `approved_at`; deferred
   is a richer per-row event log (who approved, when, from what
@@ -3704,18 +3764,33 @@ tax-period locking, Batch QQ) — all present on disk.
   a build. The `<OtaUpdatesReconciler />` already degrades
   safely on un-configured builds.
 - **Phase F10 — equipment + supplies inventory + dispatcher
-  templates** (§5.12 / Phase F10 in §9; spec'd Apr 2026; eight
-  sub-phases F10.0–F10.9 sized for Weeks 33–40). Existing
-  schema baseline: `equipment_inventory` + `job_equipment` +
-  `job_team` already shipped (extended in place per §5.12.2).
-  New schema queued: seeds/233-237 (equipment v2 + reservations
-  + personnel skills/unavailability + maintenance + tax
-  elections). New role `equipment_manager` queued for the role
-  enum. Twelve §5.12.11 edge-case batches sequenced as
-  post-F10 polish (priority order: F → C → E → A/B → D → I →
-  G → J → K → L). Forty §12 open questions (#21-#40) document
-  decision-required items requiring user / surveyor / CPA
-  sign-off before each sub-phase starts.
+  templates** — **F10.0 SHIPPED, F10.1–F10.9 PENDING.** §5.12
+  spec'd Apr 2026. Ten sub-phases (F10.0a-i through F10.9)
+  originally sized for Weeks 33–40; the F10.0 schema work
+  shipped early via 6 commits (5 seed files + role wiring).
+  - **✅ F10.0a-i** seeds/233 equipment_inventory v2 `[b8d239f]`
+  - **✅ F10.0a-ii** seeds/234 job_equipment FK `[dec1865]`
+  - **✅ F10.0a-iii** seeds/235 equipment_kits + items `[90827da]`
+  - **✅ F10.0a-iv** seeds/236 equipment_events audit log `[fb94f61]`
+  - **✅ F10.0a-v** seeds/237 equipment_templates + items + versions `[e566747]`
+  - **✅ F10.0e** equipment_manager role + 4 consumers `[ded0b67]`
+  - **⨯ F10.1** Inventory catalogue UI + QR codes (`/admin/equipment/inventory`, label-printer PDF, bulk CSV import, mobile scanner)
+  - **⨯ F10.2** Templates + dispatcher apply flow (CRUD, preview-with-availability, save-as-template, composition, versioning snapshots)
+  - **⨯ F10.3** Availability + conflict engine (seeds/238 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
+  - **⨯ F10.4** Personnel side (seeds/239 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
+  - **⨯ F10.5** Daily check-in/out workflow (the user's headline ritual; QR scanner sheets; damage triage; lost-on-site; 6pm/9pm nag cron)
+  - **⨯ F10.6** Equipment Manager dashboards (sidebar group; Today landing; Reservations Gantt; Consumables; Crew calendar; retired-gear cleanup queue)
+  - **⨯ F10.7** Maintenance + calibration (seeds/240; events CRUD; 3am cron; QA gate; receipt cross-link; per-unit history)
+  - **⨯ F10.8** Mobile UX polish (pre-job loadout card; what's-in-my-truck; persistent FAB; 🛠 Gear tab; 3 new notification source_types; PowerSync rules; surveyor self-service)
+  - **⨯ F10.9** Tax + depreciation tie-in (seeds/241; receipt-promotion modal; §179/MACRS; Lock-equipment-depreciation button; equipment block on tax-summary; Asset Detail Schedule PDF; disposal flow)
+
+  Twelve §5.12.11 edge-case batches sequenced as post-F10 polish
+  (priority: F → C → E → A/B → D → I → G → J → K → H → L).
+  Forty §12 open questions (#21-#40) document decision-required
+  items requiring user / surveyor / CPA sign-off — twelve §15
+  Phase F10 prereqs flag the operator action items needed
+  before F10.1 can fully ship (Equipment Manager role mapping,
+  walk-the-cage CSV, QR sticker label-printer choice, etc.).
 
 ### D. Architectural deviations from the plan
 
@@ -3730,12 +3805,18 @@ tax-period locking, Batch QQ) — all present on disk.
    table writes" rather than "REST contracts" — or the REST
    endpoints should be added if a non-PowerSync client ever needs
    them. No urgency until a non-PowerSync caller emerges.
-2. **Receipt AI extraction does not currently integrate with the
-   global `AiUsageTracker`** (Whisper transcription same — Batch R
-   notes this explicitly). Per-row cost lands in
-   `transcription_cost_cents` / receipt-side equivalent, but the
-   shared circuit breaker doesn't trip on Starr Field spend. v2
-   polish per the cost model in §11.
+2. ~~**Receipt AI extraction does not currently integrate with
+   the global `AiUsageTracker`**~~ — **resolved.** Receipts have
+   always routed through `getGlobalAiTracker()` via
+   `service: 'vision-ocr'` (the deviation note was stale).
+   Whisper voice transcription was the actual gap; closed by
+   Batch SS `[f3fcaa5]` — service enum extended with
+   `'whisper-transcribe'`, `record()` accepts an explicit
+   `costUsd` override (Whisper bills per second not per token),
+   pre-batch + per-row gate checks on the call sites.
+   Per-row spend still lands in `extraction_cost_cents` /
+   `transcription_cost_cents` for audit; the shared circuit
+   breaker now also fires on Starr Field spend.
 
 ### E. Outstanding bootstrapping (operator + legal prerequisites)
 
@@ -4068,6 +4149,135 @@ Activation gates:
   every stop there with the job's name. Works for jobs that were
   never set up with an address, or where the address geocode is
   off.
+
+**Phase F10.0 — equipment + supplies schema foundation (5 seeds + role)**
+
+Closes Phase F10.0 of the §5.12 spec. Six commits:
+
+* `seeds/233_starr_field_equipment_inventory_v2.sql` `[b8d239f]`
+  — extends the existing `equipment_inventory` table in place
+  with item_kind ('durable'|'consumable'|'kit'), category,
+  current_status, qr_code_id (UNIQUE), cost basis (acquired_at,
+  acquired_cost_cents, useful_life_months, placed_in_service_at),
+  calibration + warranty + service tracking, consumable
+  accounting (unit, quantity_on_hand, low_stock_threshold,
+  vendor, cost_per_unit_cents), home_location + optional
+  vehicle_id FK, is_personal + owner_user_id (§5.12.9.4),
+  retired_at + retired_reason soft-delete (§5.12.1 audit
+  pattern), serial_suspect flag (§5.12.11.L), audit timestamps.
+  Five partial indexes for the hot reads.
+* `seeds/234_starr_field_job_equipment_fk.sql` `[dec1865]` —
+  adds `equipment_inventory_id UUID` FK with ON DELETE SET NULL
+  (retired unit doesn't nuke historical assignment trail).
+  Free-text `equipment_name` / `serial_number` columns kept in
+  place (historical archive + §5.12.11.A borrowed-gear fallback).
+  Two indexes: per-inventory + open-assignments composite.
+* `seeds/235_starr_field_equipment_kits.sql` `[90827da]` —
+  `equipment_kits` wrapper (one row per kit, FK to its own
+  inventory row with item_kind='kit', UNIQUE(inventory_id),
+  ON DELETE CASCADE) + `equipment_kit_items` join with quantity
+  (handles "two batteries"), is_required (false → §5.12.5
+  soft-warn instead of hard-block), sort_order, UNIQUE(kit_id,
+  child_equipment_id), CHECK quantity ≥ 1, FK to kit CASCADE,
+  FK to child RESTRICT (refuse to drop an inventory row while
+  it's a kit member). Two indexes.
+* `seeds/236_starr_field_equipment_events.sql` `[fb94f61]` —
+  universal append-only audit log with open-string event_type
+  (~20 canonical values listed in comment, but log MUST NOT
+  fail on a new code path's previously-unseen event), actor +
+  job + reservation_id + maintenance_event_id (FKs deferred to
+  seeds/238 + 240), notes + payload JSONB. Five indexes covering
+  the read patterns. RLS append-only.
+* `seeds/237_starr_field_equipment_templates.sql` `[e566747]` —
+  `equipment_templates` header (name, slug, job_type,
+  composes_from[], requires_certifications, version, is_archived,
+  required_personnel_slots JSONB) + `equipment_template_items`
+  with the crucial XOR between `equipment_inventory_id`
+  (specific) and `category` (any-of-kind) enforced by CHECK +
+  `equipment_template_versions` immutable per-save snapshots.
+  Composition recursion guard (MAX_DEPTH=4) at app layer.
+* `lib/auth.ts` + 4 `Record<UserRole, …>` consumers `[ded0b67]`
+  — `equipment_manager` added to ALL_ROLES, ROLE_LABELS,
+  ROLE_DESCRIPTIONS, ROLE_PRIORITY. `AdminSidebar` ROLE_DISPLAY,
+  `users/page.tsx` ROLE_LABELS+COLORS+DESCRIPTIONS,
+  `employees/page.tsx` ROLE_LABELS+COLORS updated. No DB
+  migration needed (text[] column with no enum CHECK).
+  Sidebar entries for the new "Equipment" group NOT added —
+  those land in F10.6 alongside the dashboards.
+
+Activation gate: apply seeds/233 → 234 → 235 → 236 → 237 in
+order before exposing F10.1+ admin/mobile routes.
+
+Subsequent F10 sub-phases each bring their own seed + UI batch:
+F10.1 (catalogue + QR) · F10.2 (templates UI) · F10.3 (seeds/238
++ availability engine) · F10.4 (seeds/239 + personnel) · F10.5
+(check-in/out workflow) · F10.6 (Equipment Manager dashboards) ·
+F10.7 (seeds/240 + maintenance) · F10.8 (mobile UX polish) ·
+F10.9 (seeds/241 + tax + depreciation tie-in).
+
+**Batch SS — Whisper into shared AI-usage tracker (§9.w D closer)**
+
+`worker/src/lib/ai-usage-tracker.ts` `[f3fcaa5]`:
+* Service enum extended with `'whisper-transcribe'` (additive,
+  no breaking changes for Recon's variant-generation /
+  vision-ocr / ai-parse callers).
+* `record()` accepts optional `costUsd` override — Whisper bills
+  per-second, not per-token; the tracker's Sonnet token-math
+  was wrong for it.
+* `address` parameter now optional with `''` default.
+
+`worker/src/services/voice-transcription.ts`:
+* New `releaseClaim()` helper mirrors the receipt-extraction
+  pattern — flips `transcription_status='running' → 'queued'`
+  when the breaker opens after we've claimed but before we've
+  called Whisper. Soft-stop, not failure.
+* Pre-batch gate check at the top of
+  `processVoiceTranscriptionBatch` — if the breaker is wide
+  open, skip the batch with a logged warn and return zero work.
+* Per-row gate re-check immediately before the Whisper call
+  (audio fetch can take seconds; sibling rows in the batch can
+  flip the gate).
+* Both success and failure branches call `tracker.record()` —
+  failures count toward consecutive-failure threshold so a
+  Whisper outage opens the circuit instead of silently draining
+  retries. Successful records pass `costUsd: minutes *
+  WHISPER_USD_PER_MINUTE` for accurate ledger tracking.
+
+Closes the §9.w D architectural deviation. Receipts were
+already wired (uses `service: 'vision-ocr'`); this completes
+the Whisper half so a runaway Starr Field voice backlog now
+trips the same gate that protects Recon's Vision spend.
+
+**Batch RR — receipt retention sweep CLI (Batch CC v2 closer)**
+
+`worker/src/services/receipt-retention-sweep.ts` `[07bee84]`:
+* Two retention buckets, both env / CLI-overridable:
+  - `status='rejected'`: 90 days from `deleted_at` (per Batch
+    QQ part-1 plan-doc note — never went into accounting)
+  - everything else: 7y default (IRS substantial-under-reporting
+    conservative window). Operator may tighten to 3y for
+    clean-return shops.
+* Storage cleanup BEFORE db delete — safer to leave an orphan
+  db row than an unreachable blob. If storage delete fails the
+  row stays, surfaces as `storage-only-skip` in the result.
+* Per-batch cap (default 100) so a sudden backlog doesn't spike
+  Postgres / Storage IO.
+* Race guard on db delete — re-checks `deleted_at IS NOT NULL`
+  so an un-delete between scan and purge is respected.
+
+CLI (`worker/src/cli/sweep-receipt-retention.ts`):
+* DRY-RUN BY DEFAULT. The sweep only deletes when `--execute`
+  is supplied. No accidental mass-deletes from a misconfigured
+  crontab.
+* `--watch` mode loops every 24h.
+* Exit codes: 0 clean / 1 infra / 2 per-row errors. Surfaces
+  to cron monitoring.
+* npm script: `npm run sweep-receipt-retention -- --execute`.
+
+Operator activation: schedule a nightly dry-run cron (logs to
+syslog/journal) → review 2-3 reports to confirm bucket math →
+schedule a weekly `--execute` cron. `SUPABASE_SERVICE_ROLE_KEY`
+required.
 
 **Batch QQ — tax-time financial summary + anti-double-counting (F2 ↔ F6 closer)**
 
