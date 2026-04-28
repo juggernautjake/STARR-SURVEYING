@@ -915,11 +915,241 @@ sub-sections, sketched at the end of §5.12):
   cleanup queue UI (§5.12.7).
 
 
-- **5.12.4 Personnel assignment** — `job_team` already exists. We
-  layer crew skills / certifications (RPLS, field tech, party
-  chief), per-day capacity ("Jacob is on Job A 8am-noon, Job B
-  noon-5pm"), and template hooks ("template requires at least one
-  RPLS").
+#### 5.12.4 Personnel assignment + crew capacity
+
+The user's directive: *"they can also assign personnel to the
+specific crew for the job."* Equipment is half the loadout; the
+other half is **who is on the truck**. This sub-section makes
+crew assignment mirror the equipment model from §5.12.5 — same
+reservation-window vocabulary, same conflict-detection ergonomics
+— so the dispatcher learns one mental model, not two.
+
+**Existing infrastructure (extend, do not duplicate).** The live
+schema already has `job_team` (referenced in `app/api/admin/jobs/team/route.ts`,
+`app/admin/components/jobs/JobCard.tsx`, the §5.2 jobs spec).
+Today's columns: `job_id`, `user_email`, `user_name`, `role`,
+`removed_at`. It's currently a *who's on this job at all* list —
+no time windows, no skill matching, no capacity awareness.
+Starr Field's personnel work ALTERs `job_team` and adds parallel
+tables; it does NOT introduce a `job_personnel` rename.
+
+**Schema additions** (extend `job_team` in place):
+- `assigned_from TIMESTAMPTZ NULL` (start of the assignment
+  window — defaults to job's scheduled start when NULL,
+  matching the equipment reservation pattern)
+- `assigned_to TIMESTAMPTZ NULL` (end of window — defaults to
+  scheduled end + 1h overrun grace)
+- `slot_role TEXT NULL` (the slot the person fills, e.g.
+  `'rpls'`, `'party_chief'`, `'field_tech'`, `'drone_pilot'`,
+  `'instrument_op'`, `'rod_person'`. Distinct from the existing
+  `role` column which is generic — `slot_role` is the
+  template-defined need; `role` is what they actually bring)
+- `state TEXT CHECK (state IN ('proposed', 'confirmed',
+  'declined', 'cancelled')) DEFAULT 'proposed'`
+  - `proposed` — dispatcher pencilled them in but the surveyor
+    hasn't acknowledged
+  - `confirmed` — surveyor saw the assignment + tapped accept
+    (mobile push notification flow, see "Surveyor flow" below)
+  - `declined` — surveyor said no (PTO, conflict, sick); the
+    dispatcher gets notified to re-staff
+  - `cancelled` — dispatcher pulled them off; symmetric with
+    equipment reservation cancellation
+- `confirmed_at TIMESTAMPTZ NULL`, `declined_at TIMESTAMPTZ NULL`,
+  `decline_reason TEXT NULL`
+- `is_crew_lead BOOLEAN DEFAULT false` (one per job — the
+  decision-maker, runs the §5.12.6 check-out, can soft-override
+  per §5.12.5 if granted)
+- `notes TEXT`
+
+**New tables.**
+
+`personnel_skills` — per-user catalogue of skills + certs:
+- `id UUID PK`
+- `user_id UUID FK auth.users(id)`
+- `skill_code TEXT` (open enum — `rpls` (Registered Professional
+  Land Surveyor), `lsit` (Surveyor in Training), `field_tech`,
+  `party_chief`, `drone_pilot_part_107`, `osha_30`, `flagger`,
+  `cdl_class_a`, `instrument_specialist_total_station`,
+  `instrument_specialist_gnss`, custom strings allowed)
+- `acquired_at DATE`, `expires_at DATE NULL` (cert expiry — the
+  RPLS license, the OSHA 30-card, the Part 107 — all renewable
+  on different cycles)
+- `cert_document_url TEXT NULL` (PDF in the §5.6 files bucket)
+- `state TEXT CHECK (state IN ('active', 'expired', 'revoked'))`
+- `notes TEXT`
+
+`personnel_unavailability` — PTO / sick / training / off-duty:
+- `id UUID PK`
+- `user_id UUID FK auth.users(id)`
+- `unavailable_from TIMESTAMPTZ`, `unavailable_to TIMESTAMPTZ`
+- `kind TEXT CHECK (kind IN ('pto', 'sick', 'training',
+  'doctor', 'other'))`
+- `reason TEXT NULL`, `is_paid BOOLEAN`
+- `approved_by UUID NULL`, `approved_at TIMESTAMPTZ NULL`
+- Cross-links to the existing time-off / PTO infrastructure
+  if/when that lands; until then this table is the source of
+  truth.
+
+Indexes on both new tables mirror the equipment side: composite
+`(user_id, range)` plus a partial on active/non-expired rows.
+
+**Template hooks — required slots + certifications.** §5.12.3
+already declared `equipment_templates.requires_certifications
+TEXT[]` plus per-template-item `default_crew_size INT`. We
+flesh that out:
+- `equipment_templates.required_personnel_slots JSONB` —
+  one entry per slot the template insists on. Example for
+  "Residential 4-corner boundary — total station":
+  ```json
+  [
+    { "slot_role": "rpls", "min": 1, "max": 1,
+      "required_skills": ["rpls"] },
+    { "slot_role": "field_tech", "min": 1, "max": 2,
+      "required_skills": [] }
+  ]
+  ```
+- "OSHA road-work add-on" template (composed via
+  `composes_from`, §5.12.3) injects:
+  ```json
+  [{ "slot_role": "flagger", "min": 1, "max": 1,
+     "required_skills": ["flagger"] }]
+  ```
+- The dispatcher's apply flow (§5.12.3 step 4) renders these
+  slots alongside the equipment lines. Each slot widget says
+  "1× RPLS needed" with a typeahead picker filtered to users
+  who:
+  1. Have a matching `personnel_skills` row with
+     `state='active'` AND (`expires_at IS NULL OR expires_at >
+     window_to`)
+  2. Have no overlapping `job_team` row in `'confirmed' OR
+     'proposed'` state for the same window
+  3. Have no overlapping `personnel_unavailability` row
+
+**The four "is this person assignable?" checks** (parallel to
+the equipment four checks in §5.12.5):
+1. **Skill check.** Does the user have an active, unexpired
+   `personnel_skills` row matching the slot's required_skills?
+   Hard-block when the slot is template-required; soft-warn when
+   the dispatcher is filling a slot ad-hoc with an underqualified
+   person ("Jacob's not a Part 107 pilot — assign anyway?").
+2. **Capacity check.** Overlap with another `job_team` row in
+   `proposed`/`confirmed` state. Hard-block by default — the
+   user can split-shift across two jobs but only via explicit
+   `assigned_from` / `assigned_to` windows that DON'T overlap.
+   Suggested resolution: shrink one window or swap the person.
+3. **Unavailability check.** Overlap with a
+   `personnel_unavailability` row → hard-block, with the
+   reason + kind shown so the dispatcher knows whether it's
+   an "ask to skip PTO" conversation or a "they're at the
+   doctor" non-starter.
+4. **Cert-expiry-during-window check.** If a required cert
+   `expires_at` falls inside the assignment window, soft-warn:
+   *"Jacob's RPLS expires 3 days into this job — confirm he
+   plans to renew."* Becomes hard-block when the cert is
+   expired before the window even starts.
+
+**Soft-override path.** Same vocabulary as §5.12.5 — `admin`
+or `equipment_manager`-flagged dispatcher can override with a
+required text reason. Override inserts the assignment as
+normal but tags the row + notifies the affected user.
+
+**Surveyor confirmation loop** (the part the user didn't
+spell out, but that the directive demands — *"They can also
+assign personnel"* implies an assignment is push, not a silent
+schedule change):
+1. Dispatcher applies a template / picks a person → assignment
+   row lands in `state='proposed'`.
+2. Notification (§5.10.4) hits the surveyor: *"Henry assigned
+   you to [Job #427 — Smith Boundary] tomorrow 8am-noon. Tap
+   to accept or decline."*
+3. Mobile inbox shows a card with [Confirm] / [Decline +
+   reason] buttons.
+4. Confirm → `state='confirmed'`. The mobile app's daily
+   schedule view (Time tab) now shows the job. The
+   `next-day Today's captures rollup` (Batch II) keys off
+   confirmed assignments rather than the old free-for-all
+   list.
+5. Decline → `state='declined'` + reason → re-fires a
+   notification to the dispatcher who then re-staffs.
+6. Dispatchers can also mark assignments `confirmed` on
+   behalf of the surveyor — useful for a "they verbally
+   agreed in person" flow. Audit log records the bypass.
+
+**Crew lead designation.** Exactly one assignment per job has
+`is_crew_lead=true`. The crew lead:
+- Owns the §5.12.6 morning check-out (when the Equipment
+  Manager isn't physically present)
+- Is the default recipient of job-level dispatch pings
+- Can soft-override per-row equipment conflicts when granted
+  the `equipment_self_checkout` flag (§5.12.6)
+
+If the dispatcher tries to confirm a job-day with no crew
+lead set, the system soft-warns and auto-promotes the most
+senior person (RPLS > LSIT > field tech > general role) — the
+warning surfaces so the dispatcher can correct.
+
+**Capacity calendar view** (admin web — UI brief, deferred to
+implementation): a week-grid of every internal user × day,
+each cell coloured by state (white = open · green = confirmed
+job · yellow = proposed · grey = unavailable). Click a cell
+to drill into the assignment / PTO. Lets the dispatcher see
+"Jacob is fully booked Wed-Fri but open Mon-Tue" at a glance
+before applying a template that needs his RPLS.
+
+**Subcontractor / 1099 personnel** — see §4.5. Out of scope for
+v1: 1099s have separate consent + permissions + tracking
+scope. Schema-wise they'll hang off `auth.users` like W-2s but
+with a `is_contractor=true` flag that gates location-tracking
+and capacity-calendar visibility. v1 only assigns W-2
+employees through `job_team`.
+
+**Worked example** — dispatcher applies "Residential 4-corner
+boundary — total station" to Job #427 Friday 8am-noon, with
+the slots `[ {rpls × 1}, {field_tech × 1-2} ]`:
+1. RPLS slot widget filters to active RPLS holders. Henry
+   (admin, unbooked Friday) and Jacob (RPLS, on Job #422
+   8-noon Thursday — clear by Friday) appear. Dispatcher picks
+   Jacob.
+2. Capacity check on Jacob: clear for Friday window. ✓
+3. `personnel_unavailability` check: clear. ✓
+4. RPLS expires 2027 — well past window. ✓ green tick.
+5. Field-tech slot: dispatcher picks James. Capacity overlap
+   with Job #428 1pm-5pm — fine, doesn't overlap 8-noon. ✓
+6. Each assignment row inserts in `state='proposed'`. Both
+   surveyors get a notification within seconds.
+7. Jacob taps Confirm; James taps Decline (sick) with reason.
+   Dispatcher gets a re-staff notification, picks Carlos, who
+   confirms. Assignment is final.
+
+**Race-safety.** Two dispatchers picking Jacob for overlapping
+windows simultaneously: same `SELECT … FOR UPDATE` pattern as
+§5.12.5 (lock the user_id row in a `personnel_locks` helper
+table while the assignment insert tx runs). Second dispatcher
+sees the conflict + has to substitute.
+
+**API sketch** (provisional):
+- `GET /api/admin/personnel/availability?from=&to=&skills=&user_id=`
+  → returns assignable users + their conflict reasons
+- `POST /api/admin/personnel/assign` — body `{ job_id, slots:
+  [{ user_id, slot_role, from, to, is_crew_lead?,
+    override_reason? }] }`. Atomic — all-or-none.
+- `POST /api/admin/personnel/respond` — surveyor-side
+  endpoint hit by the mobile [Confirm]/[Decline] buttons.
+  Body `{ assignment_id, response: 'confirm'|'decline',
+  decline_reason? }`.
+- `POST /api/admin/personnel/cancel-assignment` — symmetric
+  cancel, mirrors equipment-reservation cancel.
+
+**What §5.12.4 explicitly does NOT cover:**
+- The actual capacity-calendar UI (week-grid heatmap) —
+  goes in the §5.12.7 Equipment Manager dashboards sub-section
+  alongside the equipment timeline view.
+- Skill / cert PDF storage workflow — re-uses the §5.6
+  files-bucket pattern; no new infrastructure.
+- 1099 / subcontractor onboarding (§4.5, out of v1 scope).
+- The mobile inbox rendering of [Confirm]/[Decline] cards —
+  re-uses Batch B notification UX with two action buttons.
+
 #### 5.12.5 Availability + conflict detection
 
 The user's other headline ask: *"the system should track this
