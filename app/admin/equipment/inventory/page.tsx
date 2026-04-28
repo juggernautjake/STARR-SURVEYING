@@ -938,6 +938,208 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
   );
 }
 
+// ── Retire / Restore modal (Phase F10.1e-ii) ───────────────────────────────
+// Single component handles both modes via the `mode` prop. Retire requires
+// a reason picker (canonical enum + freeform); restore is optional reason
+// only. POSTs to /retire or /restore from the F10.1e-i endpoints.
+
+interface RetireRestoreModalProps {
+  row: EquipmentRow;
+  mode: 'retire' | 'restore';
+  onClose: () => void;
+  onCompleted: (item: { id: string; name: string | null }) => void;
+}
+
+const RETIRE_REASON_OPTIONS = [
+  { value: 'sold', label: 'Sold' },
+  { value: 'traded', label: 'Traded in' },
+  { value: 'scrapped', label: 'Scrapped' },
+  { value: 'donated', label: 'Donated' },
+  { value: 'lost', label: 'Lost' },
+  { value: 'stolen', label: 'Stolen' },
+  { value: 'damaged_beyond_repair', label: 'Damaged beyond repair' },
+  { value: 'obsolete', label: 'Obsolete / superseded' },
+  { value: 'transfer_out', label: 'Transferred to another firm' },
+  { value: 'other', label: 'Other (specify in notes)' },
+];
+
+function RetireRestoreModal({
+  row,
+  mode,
+  onClose,
+  onCompleted,
+}: RetireRestoreModalProps) {
+  const { safeFetch } = usePageError(`${mode}-modal`);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reasonValue, setReasonValue] = useState(
+    mode === 'retire' ? RETIRE_REASON_OPTIONS[0].value : ''
+  );
+  const [notes, setNotes] = useState('');
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+
+      // For retire: reason is required; "other" forces a non-empty notes
+      // field so the audit-log line is meaningful.
+      if (mode === 'retire') {
+        if (!reasonValue) {
+          setError('Pick a reason.');
+          return;
+        }
+        if (reasonValue === 'other' && !notes.trim()) {
+          setError('Describe the reason in notes when picking "Other".');
+          return;
+        }
+      }
+
+      const path =
+        mode === 'retire'
+          ? `/api/admin/equipment/${row.id}/retire`
+          : `/api/admin/equipment/${row.id}/restore`;
+
+      const body: Record<string, unknown> = {};
+      if (mode === 'retire') {
+        // Server stores the canonical reason; if the user picked
+        // "other" we use the notes as the reason itself.
+        body.reason = reasonValue === 'other' ? notes.trim() : reasonValue;
+        if (notes.trim() && reasonValue !== 'other') {
+          body.notes = notes.trim();
+        }
+      } else if (notes.trim()) {
+        body.reason = notes.trim();
+      }
+
+      setSubmitting(true);
+      const res = await safeFetch<{ item: { id: string; name: string | null } }>(
+        path,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }
+      );
+      setSubmitting(false);
+      if (res?.item) {
+        onCompleted(res.item);
+      } else {
+        setError(
+          `${mode === 'retire' ? 'Retire' : 'Restore'} failed. Check the error log; the row is unchanged.`
+        );
+      }
+    },
+    [mode, notes, onCompleted, reasonValue, row.id, safeFetch]
+  );
+
+  const isRetire = mode === 'retire';
+
+  return (
+    <div style={styles.modalBackdrop} onClick={onClose}>
+      <form
+        style={{ ...styles.modal, maxWidth: 520 }}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={handleSubmit}
+      >
+        <header style={styles.modalHeader}>
+          <h2 style={styles.modalTitle}>
+            {isRetire ? 'Retire unit' : 'Restore unit'} ·{' '}
+            <code style={styles.code}>{row.qr_code_id ?? '(no QR)'}</code>
+          </h2>
+          <button
+            type="button"
+            style={styles.modalClose}
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div style={styles.modalBody}>
+          <p style={styles.modalHint}>
+            {isRetire
+              ? `Retiring "${row.name ?? '(unnamed)'}" soft-archives the row — it stays in the audit log + depreciation closeout but drops out of the active catalogue. The action writes an equipment_events row (per §5.12.1) so chain-of-custody stays clean. You can restore later.`
+              : `Restoring "${row.name ?? '(unnamed)'}" clears retired_at + retired_reason and flips current_status back to 'available'. The audit log captures the restore so the §5.12.7.3 history tab still shows the full lifecycle.`}
+          </p>
+
+          {isRetire ? (
+            <fieldset style={styles.fieldset}>
+              <legend style={styles.formLabel}>Reason *</legend>
+              {RETIRE_REASON_OPTIONS.map((opt) => (
+                <label key={opt.value} style={styles.radioRow}>
+                  <input
+                    type="radio"
+                    name="retire_reason"
+                    value={opt.value}
+                    checked={reasonValue === opt.value}
+                    onChange={() => setReasonValue(opt.value)}
+                  />
+                  <span>{opt.label}</span>
+                </label>
+              ))}
+            </fieldset>
+          ) : null}
+
+          <label style={styles.formField}>
+            <span style={styles.formLabel}>
+              {isRetire
+                ? reasonValue === 'other'
+                  ? 'Notes * (used as the reason)'
+                  : 'Notes (optional)'
+                : 'Reason / context (optional)'}
+            </span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              style={{ ...styles.formInput, minHeight: 60 }}
+              placeholder={
+                isRetire
+                  ? reasonValue === 'other'
+                    ? 'Describe the reason — recorded in equipment_events.'
+                    : 'Optional context the audit log will preserve.'
+                  : 'e.g. "Found in storage during inventory audit"'
+              }
+              maxLength={500}
+            />
+          </label>
+
+          {error ? <div style={styles.actionMsgWarn}>{error}</div> : null}
+        </div>
+
+        <footer style={styles.modalFooter}>
+          <button
+            type="button"
+            style={styles.refreshBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            style={{
+              ...styles.submitBtn,
+              background: isRetire ? '#B91C1C' : '#15803D',
+            }}
+            disabled={submitting}
+          >
+            {submitting
+              ? isRetire
+                ? 'Retiring…'
+                : 'Restoring…'
+              : isRetire
+                ? 'Retire unit'
+                : 'Restore unit'}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
 export default function EquipmentInventoryPage() {
   const { data: session } = useSession();
   const { safeFetch } = usePageError('EquipmentInventoryPage');
@@ -950,6 +1152,8 @@ export default function EquipmentInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRow, setEditingRow] = useState<EquipmentRow | null>(null);
+  const [retireRow, setRetireRow] = useState<EquipmentRow | null>(null);
+  const [restoreRow, setRestoreRow] = useState<EquipmentRow | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const queryString = useMemo(() => {
@@ -1097,6 +1301,34 @@ export default function EquipmentInventoryPage() {
         />
       ) : null}
 
+      {retireRow ? (
+        <RetireRestoreModal
+          row={retireRow}
+          mode="retire"
+          onClose={() => setRetireRow(null)}
+          onCompleted={(item) => {
+            setRetireRow(null);
+            setActionMsg(`✓ Retired "${item.name ?? '(unnamed)'}".`);
+            void fetchInventory();
+          }}
+        />
+      ) : null}
+
+      {restoreRow ? (
+        <RetireRestoreModal
+          row={restoreRow}
+          mode="restore"
+          onClose={() => setRestoreRow(null)}
+          onCompleted={(item) => {
+            setRestoreRow(null);
+            setActionMsg(
+              `✓ Restored "${item.name ?? '(unnamed)'}" to active inventory.`
+            );
+            void fetchInventory();
+          }}
+        />
+      ) : null}
+
       {data ? (
         <div style={styles.summary}>
           Showing <strong>{items.length}</strong>
@@ -1202,22 +1434,49 @@ export default function EquipmentInventoryPage() {
                     {formatDate(row.next_calibration_due_at)}
                   </td>
                   <td style={styles.tdRight}>
-                    <button
-                      type="button"
-                      style={styles.rowActionBtn}
-                      onClick={() => {
-                        setActionMsg(null);
-                        setEditingRow(row);
-                      }}
-                      disabled={!!row.retired_at}
-                      title={
-                        row.retired_at
-                          ? 'Retired rows can be un-retired via the F10.1e retire action.'
-                          : 'Edit unit details'
-                      }
-                    >
-                      Edit
-                    </button>
+                    <div style={styles.rowActionBar}>
+                      <button
+                        type="button"
+                        style={styles.rowActionBtn}
+                        onClick={() => {
+                          setActionMsg(null);
+                          setEditingRow(row);
+                        }}
+                        disabled={!!row.retired_at}
+                        title={
+                          row.retired_at
+                            ? 'Restore the row first to edit it.'
+                            : 'Edit unit details'
+                        }
+                      >
+                        Edit
+                      </button>
+                      {row.retired_at ? (
+                        <button
+                          type="button"
+                          style={styles.rowActionBtnRestore}
+                          onClick={() => {
+                            setActionMsg(null);
+                            setRestoreRow(row);
+                          }}
+                          title="Restore this unit to active inventory"
+                        >
+                          Restore
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          style={styles.rowActionBtnRetire}
+                          onClick={() => {
+                            setActionMsg(null);
+                            setRetireRow(row);
+                          }}
+                          title="Soft-archive this unit (audit trail preserved)"
+                        >
+                          Retire
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -1301,6 +1560,31 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: 12,
     color: '#1D3095',
+    fontWeight: 500,
+  },
+  rowActionBar: {
+    display: 'inline-flex',
+    gap: 6,
+    justifyContent: 'flex-end',
+  },
+  rowActionBtnRetire: {
+    background: 'transparent',
+    border: '1px solid #FCA5A5',
+    borderRadius: 6,
+    padding: '4px 10px',
+    cursor: 'pointer',
+    fontSize: 12,
+    color: '#B91C1C',
+    fontWeight: 500,
+  },
+  rowActionBtnRestore: {
+    background: 'transparent',
+    border: '1px solid #86EFAC',
+    borderRadius: 6,
+    padding: '4px 10px',
+    cursor: 'pointer',
+    fontSize: 12,
+    color: '#15803D',
     fontWeight: 500,
   },
   submitBtn: {
