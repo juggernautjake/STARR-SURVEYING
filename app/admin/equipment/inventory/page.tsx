@@ -1159,6 +1159,8 @@ export default function EquipmentInventoryPage() {
   const [editingRow, setEditingRow] = useState<EquipmentRow | null>(null);
   const [retireRow, setRetireRow] = useState<EquipmentRow | null>(null);
   const [restoreRow, setRestoreRow] = useState<EquipmentRow | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [printing, setPrinting] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const queryString = useMemo(() => {
@@ -1184,11 +1186,125 @@ export default function EquipmentInventoryPage() {
     void fetchInventory();
   }, [fetchInventory]);
 
+  const items = data?.items ?? [];
+
+  // Selection state derives off the visible items so toggling
+  // filters drops out-of-view rows from selection automatically
+  // (avoids "I selected 5 but only see 2" confusion).
+  const visibleIds = useMemo(
+    () => new Set(items.map((r) => r.id)),
+    [items]
+  );
+  const visibleSelectedIds = useMemo(
+    () => Array.from(selectedIds).filter((id) => visibleIds.has(id)),
+    [selectedIds, visibleIds]
+  );
+  const allVisibleSelected =
+    items.length > 0 && visibleSelectedIds.length === items.length;
+  const someVisibleSelected = visibleSelectedIds.length > 0;
+
+  const toggleRow = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleAllVisible = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        items.forEach((r) => next.delete(r.id));
+      } else {
+        items.forEach((r) => next.add(r.id));
+      }
+      return next;
+    });
+  }, [allVisibleSelected, items]);
+
+  // Bulk-print helper. Hits POST /api/admin/equipment/qr-stickers
+  // with either ids[] (when selection is active) or the current
+  // filter object (the "print all matching" path). Returns a PDF
+  // blob that we trigger a browser download on; reads the
+  // X-Stickers-Skipped header for the toast.
+  //
+  // safeFetch isn't used here because it parses JSON; the response
+  // is a binary PDF on success. Errors come back as JSON so we
+  // sniff Content-Type and surface the message inline.
+  const bulkPrint = useCallback(
+    async (mode: 'selected' | 'filtered') => {
+      if (!session?.user?.email) return;
+      setActionMsg(null);
+      setPrinting(true);
+      try {
+        const body =
+          mode === 'selected'
+            ? { ids: Array.from(selectedIds) }
+            : {
+                filter: {
+                  status: status || undefined,
+                  item_kind: itemKind || undefined,
+                  include_retired: includeRetired,
+                  // q is NOT forwarded — server doesn't support it
+                  // on the bulk endpoint (kept tighter to match
+                  // the catalogue filter columns).
+                },
+              };
+        const res = await fetch('/api/admin/equipment/qr-stickers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({
+            error: `HTTP ${res.status}`,
+          }));
+          setActionMsg(
+            `⚠ Print failed: ${err.error ?? `HTTP ${res.status}`}`
+          );
+          return;
+        }
+        const printed = res.headers.get('X-Stickers-Printed') ?? '?';
+        const skipped = res.headers.get('X-Stickers-Skipped') ?? '0';
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const cd = res.headers.get('Content-Disposition') ?? '';
+        const fnMatch = cd.match(/filename="([^"]+)"/);
+        a.download =
+          fnMatch?.[1] ??
+          `equipment_qr_${new Date().toISOString().slice(0, 10)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setActionMsg(
+          `✓ Printed ${printed} sticker${printed === '1' ? '' : 's'}` +
+            (skipped !== '0'
+              ? ` · ${skipped} skipped (no QR — assign via Edit)`
+              : '') +
+            '.'
+        );
+        if (mode === 'selected') {
+          setSelectedIds(new Set());
+        }
+      } catch (err) {
+        setActionMsg(
+          `⚠ Print failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+      } finally {
+        setPrinting(false);
+      }
+    },
+    [includeRetired, itemKind, selectedIds, session, status]
+  );
+
   if (!session?.user?.email) {
     return <div style={styles.empty}>Sign in required.</div>;
   }
-
-  const items = data?.items ?? [];
 
   return (
     <div style={styles.wrap}>
@@ -1266,6 +1382,15 @@ export default function EquipmentInventoryPage() {
           }}
         >
           + Add unit
+        </button>
+        <button
+          type="button"
+          style={styles.refreshBtn}
+          onClick={() => void bulkPrint('filtered')}
+          disabled={printing || loading || items.length === 0}
+          title="Print every row matching the current filters as a multi-page QR PDF"
+        >
+          {printing ? 'Printing…' : 'Print all QR (filtered)'}
         </button>
       </div>
 
@@ -1345,6 +1470,33 @@ export default function EquipmentInventoryPage() {
         </div>
       ) : null}
 
+      {selectedIds.size > 0 ? (
+        <div style={styles.bulkBar}>
+          <span style={styles.bulkLabel}>
+            <strong>{selectedIds.size}</strong> selected
+            {selectedIds.size > visibleSelectedIds.length
+              ? ` (${visibleSelectedIds.length} on this view)`
+              : ''}
+          </span>
+          <button
+            type="button"
+            style={styles.refreshBtn}
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            style={styles.addBtn}
+            onClick={() => void bulkPrint('selected')}
+            disabled={printing}
+            title="Bulk-print QR stickers for every selected row"
+          >
+            {printing ? 'Printing…' : `Print ${selectedIds.size} QR`}
+          </button>
+        </div>
+      ) : null}
+
       {loading && !data ? (
         <div style={styles.empty}>Loading inventory…</div>
       ) : items.length === 0 ? (
@@ -1357,6 +1509,24 @@ export default function EquipmentInventoryPage() {
         <table style={styles.table}>
           <thead>
             <tr>
+              <th style={styles.thCheckbox}>
+                <input
+                  type="checkbox"
+                  ref={(el) => {
+                    if (el) {
+                      el.indeterminate =
+                        someVisibleSelected && !allVisibleSelected;
+                    }
+                  }}
+                  checked={allVisibleSelected}
+                  onChange={() => toggleAllVisible()}
+                  aria-label={
+                    allVisibleSelected
+                      ? 'Deselect all visible rows'
+                      : 'Select all visible rows'
+                  }
+                />
+              </th>
               <th style={styles.th}>Name</th>
               <th style={styles.th}>Category</th>
               <th style={styles.th}>Status</th>
@@ -1385,6 +1555,14 @@ export default function EquipmentInventoryPage() {
                   key={row.id}
                   style={row.retired_at ? styles.retiredRow : undefined}
                 >
+                  <td style={styles.tdCheckbox}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(row.id)}
+                      onChange={() => toggleRow(row.id)}
+                      aria-label={`Select ${row.name ?? row.id}`}
+                    />
+                  </td>
                   <td style={styles.td}>
                     <strong>{row.name ?? '(unnamed)'}</strong>
                     {row.is_personal ? (
@@ -1580,6 +1758,34 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-flex',
     gap: 6,
     justifyContent: 'flex-end',
+  },
+  bulkBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    padding: '10px 14px',
+    marginBottom: 12,
+    background: '#EFF6FF',
+    border: '1px solid #BFDBFE',
+    borderRadius: 8,
+    fontSize: 13,
+    color: '#1E3A8A',
+  },
+  bulkLabel: {
+    flex: 1,
+  },
+  thCheckbox: {
+    textAlign: 'left',
+    padding: '10px 8px 10px 14px',
+    background: '#F7F8FA',
+    borderBottom: '1px solid #E2E5EB',
+    width: 32,
+  },
+  tdCheckbox: {
+    padding: '10px 8px 10px 14px',
+    borderBottom: '1px solid #F3F4F6',
+    width: 32,
+    verticalAlign: 'middle',
   },
   rowActionBtnRetire: {
     background: 'transparent',
