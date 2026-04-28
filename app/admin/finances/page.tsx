@@ -22,6 +22,14 @@ interface ByStatusBucket {
   deductible_cents: number;
 }
 
+interface ByCategoryRow {
+  category: string;
+  count: number;
+  total_cents: number;
+  deductible_cents: number;
+  schedule_c_line: string;
+}
+
 interface TaxSummaryResponse {
   period: { year: number | null; from: string; to: string };
   irs_rate_cents_per_mile: number;
@@ -30,12 +38,20 @@ interface TaxSummaryResponse {
     total_cents: number;
     count: number;
     by_status: { approved: ByStatusBucket; exported: ByStatusBucket };
+    by_category: ByCategoryRow[];
   };
   mileage: {
     total_miles: number;
     deduction_cents: number;
   };
   totals: { deductible_cents: number; expense_cents: number };
+}
+
+function formatCategory(raw: string): string {
+  return raw
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 }
 
 function dollars(cents: number): string {
@@ -122,35 +138,144 @@ export default function FinancesPage() {
           No data — the tax-summary endpoint returned nothing for {year}.
         </div>
       ) : (
-        <section style={styles.summaryRow}>
-          <div>
-            <span style={styles.summaryLabel}>Receipts</span>
-            <span style={styles.summaryValue}>{data.receipts.count}</span>
-            <span style={styles.summarySub}>
-              {dollars(data.receipts.total_cents)} gross
-            </span>
-          </div>
-          <div>
-            <span style={styles.summaryLabel}>Mileage</span>
-            <span style={styles.summaryValue}>
-              {data.mileage.total_miles.toFixed(1)} mi
-            </span>
-            <span style={styles.summarySub}>
-              {dollars(data.mileage.deduction_cents)} @{' '}
-              {(data.irs_rate_cents_per_mile / 100).toFixed(2)}/mi
-            </span>
-          </div>
-          <div>
-            <span style={styles.summaryLabel}>Total deductible</span>
-            <span style={styles.summaryValue}>
-              {dollars(data.totals.deductible_cents)}
-            </span>
-            <span style={styles.summarySub}>
-              {data.receipts.by_status.approved.count} new ·{' '}
-              {data.receipts.by_status.exported.count} already filed
-            </span>
-          </div>
-        </section>
+        <>
+          <section style={styles.statGrid}>
+            <article
+              style={{
+                ...styles.statCard,
+                ...styles.statCardNew,
+              }}
+            >
+              <div style={styles.statBadgeNew}>Ready to lock</div>
+              <span style={styles.statValue}>
+                {data.receipts.by_status.approved.count}
+              </span>
+              <span style={styles.statSub}>new approved receipts</span>
+              <div style={styles.statFooter}>
+                <span>
+                  {dollars(data.receipts.by_status.approved.total_cents)}{' '}
+                  gross
+                </span>
+                <span>
+                  {dollars(
+                    data.receipts.by_status.approved.deductible_cents
+                  )}{' '}
+                  deductible
+                </span>
+              </div>
+            </article>
+
+            <article
+              style={{
+                ...styles.statCard,
+                ...styles.statCardFiled,
+              }}
+            >
+              <div style={styles.statBadgeFiled}>Already filed</div>
+              <span style={styles.statValue}>
+                {data.receipts.by_status.exported.count}
+              </span>
+              <span style={styles.statSub}>
+                receipts locked into a prior period
+              </span>
+              <div style={styles.statFooter}>
+                <span>
+                  {dollars(data.receipts.by_status.exported.total_cents)}{' '}
+                  gross
+                </span>
+                <span>
+                  {dollars(
+                    data.receipts.by_status.exported.deductible_cents
+                  )}{' '}
+                  deductible
+                </span>
+              </div>
+            </article>
+
+            <article style={styles.statCard}>
+              <div style={styles.statBadgeTotal}>Period totals</div>
+              <span style={styles.statValue}>
+                {dollars(data.totals.deductible_cents)}
+              </span>
+              <span style={styles.statSub}>
+                total deductible (receipts + mileage)
+              </span>
+              <div style={styles.statFooter}>
+                <span>
+                  {dollars(data.totals.expense_cents)} gross expense
+                </span>
+                <span>
+                  {data.mileage.total_miles.toFixed(0)} mi @{' '}
+                  {(data.irs_rate_cents_per_mile / 100).toFixed(2)}
+                </span>
+              </div>
+            </article>
+          </section>
+
+          <section style={styles.section}>
+            <header style={styles.sectionHeader}>
+              <h2 style={styles.h2}>Schedule C breakdown</h2>
+              <p style={styles.sectionSub}>
+                Receipts grouped by IRS Schedule C line. Bookkeeper /
+                CPA can re-classify in QuickBooks before filing.
+              </p>
+            </header>
+            {data.receipts.by_category.length === 0 ? (
+              <div style={styles.empty}>
+                No receipts in this period yet.
+              </div>
+            ) : (
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Schedule C line</th>
+                    <th style={styles.th}>Category</th>
+                    <th style={styles.thRight}>Count</th>
+                    <th style={styles.thRight}>Gross</th>
+                    <th style={styles.thRight}>Deductible</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.receipts.by_category.map((c) => (
+                    <tr key={c.category}>
+                      <td style={styles.td}>{c.schedule_c_line}</td>
+                      <td style={styles.td}>{formatCategory(c.category)}</td>
+                      <td style={styles.tdRight}>{c.count}</td>
+                      <td style={styles.tdRight}>
+                        {dollars(c.total_cents)}
+                      </td>
+                      <td style={styles.tdRight}>
+                        <strong>{dollars(c.deductible_cents)}</strong>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr style={styles.totalsRow}>
+                    <td style={styles.td}>—</td>
+                    <td style={styles.td}>
+                      <strong>All categories</strong>
+                    </td>
+                    <td style={styles.tdRight}>
+                      <strong>{data.receipts.count}</strong>
+                    </td>
+                    <td style={styles.tdRight}>
+                      <strong>{dollars(data.receipts.total_cents)}</strong>
+                    </td>
+                    <td style={styles.tdRight}>
+                      <strong>
+                        {dollars(
+                          data.receipts.by_category.reduce(
+                            (s, c) => s + c.deductible_cents,
+                            0
+                          )
+                        )}
+                      </strong>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+          </section>
+        </>
       )}
 
       <p style={styles.note}>
@@ -208,31 +333,137 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center',
     color: '#6B7280',
   },
-  summaryRow: {
+  // Status-segmented stat cards — visually distinct so the bookkeeper
+  // sees the anti-double-counting story at a glance.
+  statGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: 16,
-    padding: '16px',
-    background: '#F7F8FA',
-    borderRadius: 12,
-    marginBottom: 16,
+    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+    gap: 12,
+    marginBottom: 24,
   },
-  summaryLabel: {
-    display: 'block',
-    fontSize: 11,
-    fontWeight: 600,
+  statCard: {
+    border: '1px solid #E2E5EB',
+    borderRadius: 12,
+    padding: 16,
+    background: '#FFFFFF',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  statCardNew: {
+    background: '#F0FDF4',
+    borderColor: '#86EFAC',
+  },
+  statCardFiled: {
+    background: '#F9FAFB',
+    borderColor: '#E5E7EB',
+  },
+  statBadgeNew: {
+    alignSelf: 'flex-start',
+    fontSize: 10,
+    fontWeight: 700,
+    color: '#15803D',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    background: '#DCFCE7',
+    padding: '2px 8px',
+    borderRadius: 999,
+  },
+  statBadgeFiled: {
+    alignSelf: 'flex-start',
+    fontSize: 10,
+    fontWeight: 700,
     color: '#6B7280',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
+    letterSpacing: 0.6,
+    background: '#E5E7EB',
+    padding: '2px 8px',
+    borderRadius: 999,
   },
-  summaryValue: {
-    display: 'block',
-    fontSize: 24,
+  statBadgeTotal: {
+    alignSelf: 'flex-start',
+    fontSize: 10,
+    fontWeight: 700,
+    color: '#1D3095',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    background: '#E0E7FF',
+    padding: '2px 8px',
+    borderRadius: 999,
+  },
+  statValue: {
+    fontSize: 28,
+    fontWeight: 700,
+    lineHeight: 1.1,
+  },
+  statSub: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  statFooter: {
+    marginTop: 4,
+    paddingTop: 8,
+    borderTop: '1px dashed #E5E7EB',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+    fontSize: 12,
+    color: '#374151',
+  },
+  // Section blocks — Schedule C table and (later) mileage / vendors.
+  section: {
+    marginBottom: 24,
+    border: '1px solid #E2E5EB',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  sectionHeader: {
+    padding: '12px 16px',
+    background: '#F7F8FA',
+    borderBottom: '1px solid #E2E5EB',
+  },
+  h2: {
+    fontSize: 14,
     fontWeight: 600,
-    marginBottom: 2,
+    margin: '0 0 4px',
   },
-  summarySub: { display: 'block', fontSize: 12, color: '#6B7280' },
+  sectionSub: {
+    fontSize: 12,
+    color: '#6B7280',
+    margin: 0,
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: 13,
+  },
+  th: {
+    textAlign: 'left',
+    padding: '8px 16px',
+    color: '#6B7280',
+    fontWeight: 500,
+    borderBottom: '1px solid #F3F4F6',
+  },
+  thRight: {
+    textAlign: 'right',
+    padding: '8px 16px',
+    color: '#6B7280',
+    fontWeight: 500,
+    borderBottom: '1px solid #F3F4F6',
+  },
+  td: {
+    padding: '8px 16px',
+    borderBottom: '1px solid #F3F4F6',
+  },
+  tdRight: {
+    padding: '8px 16px',
+    borderBottom: '1px solid #F3F4F6',
+    textAlign: 'right',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  totalsRow: {
+    background: '#F7F8FA',
+  },
   note: {
     fontSize: 12,
     color: '#9CA3AF',
