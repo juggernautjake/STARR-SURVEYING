@@ -3584,7 +3584,14 @@ Broken into smaller sub-batches per the established pattern.
       button (uses DELETE for archive, PATCH for restore).
       "+ New template" button navigates to /new (queued). Sidebar
       entry deferred to F10.6.
-- [ ] **F10.2e** — `/admin/equipment/templates/[id]` edit page.
+- [◐] **F10.2e** — Templates create + edit pages. **F10.2e-i
+      (`/admin/equipment/templates/new` create page)** shipped:
+      header-only form (name + slug + description + job_type +
+      crew/duration defaults + comma-separated cert chips). On
+      submit POSTs to /api/admin/equipment/templates and routes
+      to /[id] where the operator adds line items via the F10.2c
+      endpoints. F10.2e-ii (`/[id]` edit page w/ items management)
+      lands next.
 - [ ] **F10.2f** — Save-as-template shortcut (deferred to
       F10.5 with apply flow).
 - [ ] **F10.2g** — Apply-template flow (deferred to F10.3
