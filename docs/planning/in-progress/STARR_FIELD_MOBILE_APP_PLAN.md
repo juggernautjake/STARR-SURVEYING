@@ -3551,18 +3551,16 @@ Broken into smaller sub-batches per the established pattern.
       sort_order) + version_count + latest_snapshot_at via
       4 parallel queries, returns 404 on missing row, UUID-
       validates the path-param.
-- [◐] **F10.2b** — Templates create/edit endpoints
-      (POST + PATCH + DELETE). **F10.2b-i (POST)** + **F10.2b-ii
-      (PATCH header w/ version snapshot)** shipped. PATCH
-      validates body keys against the F10.2b-i allow-list MINUS
-      slug (locked to preserve URLs), name + composes_from +
-      requires_certifications + numeric guards, self-loop check
-      on composes_from, reads current items in parallel with
-      header so the snapshot row captures items_jsonb at the
-      bumped version, snapshot insert is best-effort (audit,
-      not source of truth — header update lands even if the
-      snapshot write fails). F10.2b-iii (DELETE → soft-archive
-      flip) lands next.
+- [x] **F10.2b** — Templates create/edit endpoints
+      (POST + PATCH + DELETE). **All three (b-i POST, b-ii PATCH
+      header, b-iii DELETE → soft-archive)** shipped. DELETE flips
+      is_archived=true with version bump + snapshot write
+      (idempotent — already-archived rows return 200 +
+      already_archived:true; race-guarded UPDATE against
+      `is_archived=false`). Hard-delete intentionally NOT
+      supported per §5.12.3 (would orphan job_equipment.
+      from_template_id audit chain). Restore via PATCH
+      `{ is_archived: false }`.
 - [ ] **F10.2c** — Items endpoints (POST/PATCH/DELETE for
       line items inside a template).
 - [ ] **F10.2d** — `/admin/equipment/templates` list page.

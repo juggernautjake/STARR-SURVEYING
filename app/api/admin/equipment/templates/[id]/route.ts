@@ -463,3 +463,175 @@ export const PATCH = withErrorHandler(
   },
   { routeName: 'admin/equipment/templates/:id#patch' }
 );
+
+// ── DELETE /api/admin/equipment/templates/{id} — soft-archive ─────────────
+//
+// Phase F10.2b-iii. Hard-delete is intentionally NOT supported —
+// historical job_equipment rows carry from_template_id pointing
+// at templates per the §5.12.3 versioning contract; deleting the
+// template would orphan that audit chain. Instead, this endpoint
+// flips is_archived=true (same effect as PATCH body
+// `{ is_archived: true }` but exposed under DELETE for clients
+// that prefer REST verb semantics).
+//
+// Idempotent: already-archived rows return 200 with
+// already_archived: true (no version bump, no snapshot write).
+//
+// Restore is via PATCH `{ is_archived: false }` — symmetric with
+// the F10.1e equipment retire/restore split where the unretire
+// path lives on the same surface as the retire.
+//
+// Auth: admin (incl. developer via isAdmin) + equipment_manager.
+
+export const DELETE = withErrorHandler(
+  async (req: NextRequest) => {
+    const session = await auth();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userRoles = (session.user as { roles?: string[] } | undefined)
+      ?.roles ?? [];
+    if (
+      !isAdmin(session.user.roles) &&
+      !userRoles.includes('equipment_manager')
+    ) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const url = new URL(req.url);
+    const pathSegments = url.pathname.split('/').filter(Boolean);
+    const id = pathSegments[pathSegments.length - 1];
+    if (!id || !PATCH_UUID_RE.test(id)) {
+      return NextResponse.json(
+        { error: 'id must be a UUID' },
+        { status: 400 }
+      );
+    }
+
+    // Read current state to detect already-archived idempotent
+    // re-run + capture items for the snapshot.
+    const [headerRes, itemsRes] = await Promise.all([
+      supabaseAdmin
+        .from('equipment_templates')
+        .select(HEADER_COLUMNS)
+        .eq('id', id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from('equipment_template_items')
+        .select(ITEM_COLUMNS)
+        .eq('template_id', id)
+        .order('sort_order', { ascending: true }),
+    ]);
+
+    if (headerRes.error) {
+      console.error('[admin/equipment/templates/:id DELETE] read failed', {
+        id,
+        error: headerRes.error.message,
+      });
+      return NextResponse.json(
+        { error: headerRes.error.message },
+        { status: 500 }
+      );
+    }
+    if (!headerRes.data) {
+      return NextResponse.json(
+        { error: 'Template not found' },
+        { status: 404 }
+      );
+    }
+
+    type RowShape = {
+      id: string;
+      version: number;
+      is_archived: boolean;
+      name: string;
+      description: string | null;
+      job_type: string | null;
+      composes_from: string[];
+      required_personnel_slots: unknown;
+      requires_certifications: string[];
+    };
+    const row = headerRes.data as RowShape;
+    if (row.is_archived) {
+      return NextResponse.json({
+        template: row,
+        already_archived: true,
+      });
+    }
+
+    const newVersion = row.version + 1;
+    const nowIso = new Date().toISOString();
+
+    const { data: updated, error: updateErr } = await supabaseAdmin
+      .from('equipment_templates')
+      .update({
+        is_archived: true,
+        version: newVersion,
+        updated_at: nowIso,
+      })
+      .eq('id', id)
+      .eq('is_archived', false) // race guard
+      .select(HEADER_COLUMNS)
+      .maybeSingle();
+
+    if (updateErr) {
+      console.error(
+        '[admin/equipment/templates/:id DELETE] update failed',
+        { id, error: updateErr.message }
+      );
+      return NextResponse.json(
+        { error: updateErr.message },
+        { status: 500 }
+      );
+    }
+    if (!updated) {
+      // Race lost — somebody else archived it between our read
+      // and our write. Re-read for the response.
+      const { data: refreshed } = await supabaseAdmin
+        .from('equipment_templates')
+        .select(HEADER_COLUMNS)
+        .eq('id', id)
+        .maybeSingle();
+      return NextResponse.json({
+        template: refreshed ?? row,
+        already_archived: true,
+      });
+    }
+
+    // Snapshot the archive transition. Best-effort.
+    const items = itemsRes.error ? [] : (itemsRes.data ?? []);
+    const u = updated as RowShape;
+    const { error: snapErr } = await supabaseAdmin
+      .from('equipment_template_versions')
+      .insert({
+        template_id: id,
+        version: newVersion,
+        name_at_version: u.name,
+        description_at_version: u.description,
+        job_type_at_version: u.job_type,
+        composes_from_at_version: u.composes_from ?? [],
+        required_personnel_slots_at_version: u.required_personnel_slots ?? [],
+        requires_certifications_at_version: u.requires_certifications ?? [],
+        items_jsonb: items,
+      });
+    if (snapErr) {
+      console.warn(
+        '[admin/equipment/templates/:id DELETE] snapshot write failed (non-fatal)',
+        { id, version: newVersion, error: snapErr.message }
+      );
+    }
+
+    console.log('[admin/equipment/templates/:id DELETE] archived', {
+      id,
+      new_version: newVersion,
+      admin_email: session.user.email,
+    });
+
+    return NextResponse.json({
+      template: updated,
+      already_archived: false,
+      version: newVersion,
+    });
+  },
+  { routeName: 'admin/equipment/templates/:id#delete' }
+);
