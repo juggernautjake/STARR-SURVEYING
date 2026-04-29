@@ -357,3 +357,166 @@ export const PATCH = withErrorHandler(
   },
   { routeName: 'admin/equipment/templates/:id/items/:itemId#patch' }
 );
+
+// ── DELETE — remove a line item from a template ───────────────────────────
+//
+// Phase F10.2c-iii. Hard-deletes the row from
+// equipment_template_items (no soft-archive at the item level —
+// the §5.12.3 audit chain runs through the parent template's
+// version snapshots, so dropping a single row preserves history
+// via the prior snapshot's items_jsonb). Bumps the parent's
+// version + writes a fresh snapshot capturing the post-delete
+// items array.
+//
+// 404 on (templateId, itemId) mismatch (same defence as PATCH —
+// spoofed itemIds belonging to a different template return
+// not-found rather than leaking the existence of the item).
+//
+// Auth: admin (incl. developer via isAdmin) + equipment_manager.
+// tech_support read-only per §5.12.3.
+
+export const DELETE = withErrorHandler(
+  async (req: NextRequest) => {
+    const session = await auth();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userRoles = (session.user as { roles?: string[] } | undefined)
+      ?.roles ?? [];
+    if (
+      !isAdmin(session.user.roles) &&
+      !userRoles.includes('equipment_manager')
+    ) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const ids = parseIds(new URL(req.url));
+    if (!ids) {
+      return NextResponse.json(
+        { error: 'template id and item id must both be UUIDs' },
+        { status: 400 }
+      );
+    }
+    const { templateId, itemId } = ids;
+
+    // Read header + all siblings in parallel — header for the
+    // snapshot fields, siblings so we can capture the post-delete
+    // items array at the new version.
+    const [headerRes, siblingsRes] = await Promise.all([
+      supabaseAdmin
+        .from('equipment_templates')
+        .select(HEADER_COLUMNS_FOR_SNAPSHOT)
+        .eq('id', templateId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from('equipment_template_items')
+        .select(ITEM_COLUMNS)
+        .eq('template_id', templateId)
+        .order('sort_order', { ascending: true }),
+    ]);
+
+    if (headerRes.error || !headerRes.data) {
+      return NextResponse.json(
+        { error: headerRes.error?.message ?? 'Template not found' },
+        { status: headerRes.data ? 500 : 404 }
+      );
+    }
+
+    // DELETE the item — scoped by BOTH ids so a spoofed itemId
+    // from another template silently no-ops (we surface as 404).
+    const { data: deleted, error: deleteErr } = await supabaseAdmin
+      .from('equipment_template_items')
+      .delete()
+      .eq('id', itemId)
+      .eq('template_id', templateId)
+      .select('id')
+      .maybeSingle();
+    if (deleteErr) {
+      console.error(
+        '[admin/equipment/templates/:id/items/:itemId DELETE] delete failed',
+        { templateId, itemId, error: deleteErr.message }
+      );
+      return NextResponse.json(
+        { error: deleteErr.message },
+        { status: 500 }
+      );
+    }
+    if (!deleted) {
+      return NextResponse.json(
+        { error: 'Template item not found' },
+        { status: 404 }
+      );
+    }
+
+    // Bump template version.
+    type HeaderShape = {
+      id: string;
+      name: string;
+      description: string | null;
+      job_type: string | null;
+      version: number;
+      composes_from: string[];
+      required_personnel_slots: unknown;
+      requires_certifications: string[];
+    };
+    const header = headerRes.data as HeaderShape;
+    const newVersion = header.version + 1;
+    const nowIso = new Date().toISOString();
+    const { error: versionErr } = await supabaseAdmin
+      .from('equipment_templates')
+      .update({ version: newVersion, updated_at: nowIso })
+      .eq('id', templateId);
+    if (versionErr) {
+      console.warn(
+        '[admin/equipment/templates/:id/items/:itemId DELETE] version bump failed',
+        { templateId, error: versionErr.message }
+      );
+    }
+
+    // Snapshot the post-delete state. Filter the just-deleted
+    // row out of the siblings array.
+    const siblings = siblingsRes.error ? [] : (siblingsRes.data ?? []);
+    const remaining = siblings.filter(
+      (s: Record<string, unknown>) => (s as { id: string }).id !== itemId
+    );
+    const { error: snapErr } = await supabaseAdmin
+      .from('equipment_template_versions')
+      .insert({
+        template_id: templateId,
+        version: newVersion,
+        name_at_version: header.name,
+        description_at_version: header.description,
+        job_type_at_version: header.job_type,
+        composes_from_at_version: header.composes_from ?? [],
+        required_personnel_slots_at_version:
+          header.required_personnel_slots ?? [],
+        requires_certifications_at_version:
+          header.requires_certifications ?? [],
+        items_jsonb: remaining,
+      });
+    if (snapErr) {
+      console.warn(
+        '[admin/equipment/templates/:id/items/:itemId DELETE] snapshot failed (non-fatal)',
+        { templateId, version: newVersion, error: snapErr.message }
+      );
+    }
+
+    console.log(
+      '[admin/equipment/templates/:id/items/:itemId DELETE] removed',
+      {
+        templateId,
+        itemId,
+        new_version: newVersion,
+        remaining_count: remaining.length,
+        admin_email: session.user.email,
+      }
+    );
+
+    return NextResponse.json({
+      deleted_item_id: itemId,
+      template_version: newVersion,
+      remaining_count: remaining.length,
+    });
+  },
+  { routeName: 'admin/equipment/templates/:id/items/:itemId#delete' }
+);

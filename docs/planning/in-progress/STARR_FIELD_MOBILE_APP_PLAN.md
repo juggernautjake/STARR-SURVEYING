@@ -3561,18 +3561,20 @@ Broken into smaller sub-batches per the established pattern.
       supported per §5.12.3 (would orphan job_equipment.
       from_template_id audit chain). Restore via PATCH
       `{ is_archived: false }`.
-- [◐] **F10.2c** — Items endpoints (POST/PATCH/DELETE for
-      line items inside a template). **F10.2c-i (POST add line)**
-      + **F10.2c-ii (PATCH edit line)** shipped — both bump the
-      parent's version + write a fresh snapshot capturing the
-      FULL items array at the new version (matches §5.12.3
-      audit-trail rule). PATCH validates body keys against an
-      allow-list, runs the XOR check on the MERGED state
-      (current row + incoming patch) so the operator can swap
-      equipment_inventory_id ↔ category in a single request,
-      404 on (templateId, itemId) mismatch (defends against
-      spoofed itemIds belonging to a different template).
-      F10.2c-iii (DELETE item) lands next.
+- [x] **F10.2c** — Items endpoints (POST/PATCH/DELETE for
+      line items inside a template). **All three (c-i POST,
+      c-ii PATCH, c-iii DELETE)** shipped — each bumps the
+      parent's version + writes a fresh snapshot capturing
+      the FULL post-mutation items array per the §5.12.3
+      audit-trail rule. PATCH runs the XOR check on MERGED
+      state (current row + incoming patch) so the operator
+      can swap equipment_inventory_id ↔ category in a single
+      request. DELETE hard-deletes the item row (no item-level
+      soft-archive — audit chain runs through the parent's
+      prior version snapshot which still carries the deleted
+      row in its items_jsonb). All three return 404 on
+      (templateId, itemId) mismatch — defends against spoofed
+      itemIds belonging to a different template.
 - [ ] **F10.2d** — `/admin/equipment/templates` list page.
 - [ ] **F10.2e** — `/admin/equipment/templates/[id]` edit page.
 - [ ] **F10.2f** — Save-as-template shortcut (deferred to
