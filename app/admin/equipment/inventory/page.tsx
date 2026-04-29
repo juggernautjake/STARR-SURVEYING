@@ -1873,6 +1873,13 @@ export default function EquipmentInventoryPage() {
                   </td>
                   <td style={styles.tdRight}>
                     <div style={styles.rowActionBar}>
+                      <a
+                        href={`/admin/equipment/${row.id}`}
+                        style={styles.rowActionBtn}
+                        title="Open drilldown — full metadata + assignment history"
+                      >
+                        View
+                      </a>
                       <button
                         type="button"
                         style={styles.rowActionBtn}

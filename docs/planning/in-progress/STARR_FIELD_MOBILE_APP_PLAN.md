@@ -3787,7 +3787,11 @@ for tombstones, Batch FF), `finances/tax-summary`
 w/ enum + integer guards + 409 on qr_code_id collision; F10.1d-i
 `PATCH [id]` inline-edit + `GET [id]` drilldown read endpoint
 w/ joined assignment history (last 50 from job_equipment + jobs)
-+ 1h signed photo URL — surfaces "what team has been assigned
++ 1h signed photo URL + `/admin/equipment/[id]` drilldown page
+(photo + status/condition pills + cost basis + calibration
++ consumable accounting + assignment history table w/ job
+links + open/returned indicator + back link; per-row "View"
+button on the catalogue) — surfaces "what team has been assigned
 to" per the user's follow-up directive; F10.1e-i `POST [id]/retire` + `/restore`
 lifecycle endpoints w/ equipment_events audit trail; F10.1f
 `GET [id]/qr-sticker` single-row Brother DK-1201 PDF; F10.1g-i
