@@ -3575,7 +3575,15 @@ Broken into smaller sub-batches per the established pattern.
       row in its items_jsonb). All three return 404 on
       (templateId, itemId) mismatch — defends against spoofed
       itemIds belonging to a different template.
-- [ ] **F10.2d** — `/admin/equipment/templates` list page.
+- [x] **F10.2d** — `/admin/equipment/templates` list page.
+      Catalogue browse w/ job_type / search / include-archived
+      filters · per-row name+description+cert badges · job_type
+      pill · item_count · default crew + duration · composes-from
+      indicator (⊕ N) · version code · last-edited date · active /
+      archived status badge · per-row Edit link + Archive/Restore
+      button (uses DELETE for archive, PATCH for restore).
+      "+ New template" button navigates to /new (queued). Sidebar
+      entry deferred to F10.6.
 - [ ] **F10.2e** — `/admin/equipment/templates/[id]` edit page.
 - [ ] **F10.2f** — Save-as-template shortcut (deferred to
       F10.5 with apply flow).
