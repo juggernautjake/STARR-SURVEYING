@@ -3449,35 +3449,153 @@ the rest of F10 reads from. Broken into 10 small sub-batches:
       personal/suspect/retired badges, low-stock highlight
       on consumables, cost basis + next-cal-due columns.
       Sidebar entry NOT yet added (lands in F10.6).
-- [ ] **F10.1c** — Add Unit modal + `POST /api/admin/equipment`
-      endpoint.
-- [ ] **F10.1d** — Inline edit (`PATCH /api/admin/equipment/[id]`
-      + form on the catalogue rows).
-- [ ] **F10.1e** — Retire action (soft-archive via
+- [x] **F10.1c** — Add Unit modal + `POST /api/admin/equipment`
+      endpoint. **F10.1c-i (POST endpoint)** + **F10.1c-ii
+      (modal UI)** both shipped. Modal validates name + item_kind
+      required, conditionally shows consumable-only fields
+      (unit / quantity_on_hand / low_stock_threshold) when
+      item_kind='consumable', auto-generates qr_code_id
+      server-side when blank, refetches the catalogue + shows a
+      success toast on create.
+- [x] **F10.1d** — Inline edit (`PATCH /api/admin/equipment/[id]`
+      + form on the catalogue rows). **F10.1d-i (PATCH endpoint)**
+      + **F10.1d-ii (edit-modal UI)** both shipped. Edit modal
+      pre-fills from the row, locks `item_kind` (changing kind
+      invalidates kit memberships / templates / reservations —
+      retire+recreate path), surfaces extra fieldsets for cost
+      basis (§5.12.10) + calibration/warranty (§5.12.7.4) that
+      the Add modal explicitly defers, status select editable
+      so admins can move a unit through the lifecycle.
+      Per-row "Edit" button on the catalogue table; retired
+      rows get the button disabled with hover hint pointing
+      to the F10.1e retire action.
+- [x] **F10.1e** — Retire action (soft-archive via
       `retired_at` + `retired_reason` from seeds/233).
-- [ ] **F10.1f** — QR sticker PDF (single row, label-printer
-      sized).
-- [ ] **F10.1g** — Bulk QR PDF (multi-page; selected rows →
-      sheet).
-- [ ] **F10.1h** — Bulk CSV importer at
+      **F10.1e-i (POST `/api/admin/equipment/[id]/retire`
+      + `/restore` endpoints) + F10.1e-ii (UI)** both shipped.
+      Per-row Retire (red ghost) / Restore (green ghost)
+      buttons next to Edit; one `RetireRestoreModal` handles
+      both modes via a `mode` prop; canonical reason picker
+      (10-value enum) for retire + freeform notes; single
+      notes field for restore. Audit-log rows written by the
+      endpoints make the §5.12.7.3 history tab one join away.
+- [x] **F10.1f** — QR sticker PDF (single row, label-printer
+      sized). `GET /api/admin/equipment/[id]/qr-sticker`
+      returns a Brother DK-1201-sized (2.4×1.1 in) PDF with
+      QR + name + category + brand/model/serial + qr_code_id
+      text. Per-row "QR" link in the catalogue Actions cell
+      triggers the browser download. Uses `qrcode` package
+      (newly added to package.json) + the existing pdfkit
+      dep. 422 if the row has no qr_code_id (operator edits
+      to assign one first).
+- [x] **F10.1g** — Bulk QR PDF (multi-page; selected rows →
+      sheet). **F10.1g-i (endpoint) + F10.1g-ii (UI)** both
+      shipped. Endpoint accepts `{ ids: string[] }` OR `{ filter:
+      {…} }` (mutually exclusive), 200-row cap, parallel QR
+      encode, X-Stickers-Skipped response header for the
+      "3 skipped — assign QR via Edit" toast. Catalogue UI adds
+      a checkbox column (with header indeterminate state when
+      partially selected), per-row checkboxes, a blue bulk-action
+      bar that floats above the table when selection > 0
+      (selected count · Clear · Print N QR), and a "Print all
+      QR (filtered)" button next to + Add unit. Selection
+      persists across filter changes for cross-page batches.
+- [x] **F10.1h** — Bulk CSV importer at
       `/admin/equipment/import` (§5.12.11.H, system-go-live
-      fleet seeding).
-- [ ] **F10.1i** — Mobile `useEquipmentByQr` resolver hook
+      fleet seeding). **F10.1h-i (POST `/api/admin/equipment/
+      import` endpoint) + F10.1h-ii (page UI)** both shipped.
+      Endpoint accepts `{ csv, mode: 'dry_run' | 'execute' }`,
+      RFC-4180 quoted-field parser, auto-detects comma vs tab,
+      validates required headers + the §5.12.1 enums + integer/
+      date columns, surfaces row-attributed errors, detects
+      intra-batch qr_code_id duplicates, atomic execute (one
+      bad row rolls back the whole batch), 1000-row hard cap.
+      Page wires file picker + paste textarea + dry-run / execute
+      buttons, errors highlighted in a per-row table, success
+      banner with link back to catalogue. Sidebar entry lands
+      in F10.6.
+- [x] **F10.1i** — Mobile `useEquipmentByQr` resolver hook
       + offline cache pre-fetch (`mobile/lib/equipment.ts`).
-- [ ] **F10.1j** — Mobile camera scanner overlay (re-uses
-      `expo-camera` from §5.11).
+      Shipped. Local-SQLite-first via PowerSync (per
+      §5.12.9.3 offline-first contract — every lookup runs
+      against the synced rows so QR scans resolve at the
+      cage's metal-shed dead zone). Three hooks:
+      `useEquipmentByQr(qrCodeId)` (case-insensitive,
+      retired_at IS NULL filter), `useEquipment(id)` (UUID
+      drilldown), `useEquipmentList(filter?)` (catalogue
+      browse with optional status / category / itemKind /
+      includeRetired filters). Mobile schema extended with
+      `equipment_inventory` table; sync rule wiring deferred
+      to F10.5 activation gate (operator updates server-side
+      sync rules before exposing F10.1j scanner).
+- [x] **F10.1j** — Mobile camera scanner overlay
+      (`mobile/lib/QrScanner.tsx`). Shipped. Reusable
+      forwardRef component handling permissions (request +
+      Open Settings fallback when denied), live `CameraView`
+      with `barcodeScannerSettings={{ barcodeTypes: ['qr'] }}`,
+      single-shot decode (parent calls `rearm()` via the
+      imperative ref to scan again — supports the §5.12.6
+      kit-batch flow), animated scan-line inside a 240pt
+      reticle with corner brackets, dim spotlight overlay,
+      bottom hint text + top-right ✕ close. Pairs with
+      F10.1i `useEquipmentByQr` resolver — host screens
+      decoded-string→equipment-row in F10.5+ workflows.
+      `expo-camera ~16.0.10` added to mobile/package.json.
 
 **F10.2 — Templates + dispatcher apply flow (Week 34–35).**
-- [ ] CRUD on `equipment_templates` + items (admin web,
-      §5.12.3 permissions split).
-- [ ] Apply-template flow on the existing job detail page —
-      preview with live availability badges per §5.12.5
-      checks, diff-vs-template edits, `equipment_reservations`
-      insert in `state='held'`.
-- [ ] Save-as-template shortcut on custom loadouts.
-- [ ] Composition (`composes_from[]`) with recursion guard.
-- [ ] Versioning — every template save snapshots into
-      `equipment_template_versions`.
+Broken into smaller sub-batches per the established pattern.
+- [x] **F10.2a** — Templates list endpoints. **F10.2a-i
+      (`GET /api/admin/equipment/templates` list)** + **F10.2a-ii
+      (`GET /api/admin/equipment/templates/[id]` detail)** both
+      shipped. Detail endpoint joins items (ordered by
+      sort_order) + version_count + latest_snapshot_at via
+      4 parallel queries, returns 404 on missing row, UUID-
+      validates the path-param.
+- [x] **F10.2b** — Templates create/edit endpoints
+      (POST + PATCH + DELETE). **All three (b-i POST, b-ii PATCH
+      header, b-iii DELETE → soft-archive)** shipped. DELETE flips
+      is_archived=true with version bump + snapshot write
+      (idempotent — already-archived rows return 200 +
+      already_archived:true; race-guarded UPDATE against
+      `is_archived=false`). Hard-delete intentionally NOT
+      supported per §5.12.3 (would orphan job_equipment.
+      from_template_id audit chain). Restore via PATCH
+      `{ is_archived: false }`.
+- [x] **F10.2c** — Items endpoints (POST/PATCH/DELETE for
+      line items inside a template). **All three (c-i POST,
+      c-ii PATCH, c-iii DELETE)** shipped — each bumps the
+      parent's version + writes a fresh snapshot capturing
+      the FULL post-mutation items array per the §5.12.3
+      audit-trail rule. PATCH runs the XOR check on MERGED
+      state (current row + incoming patch) so the operator
+      can swap equipment_inventory_id ↔ category in a single
+      request. DELETE hard-deletes the item row (no item-level
+      soft-archive — audit chain runs through the parent's
+      prior version snapshot which still carries the deleted
+      row in its items_jsonb). All three return 404 on
+      (templateId, itemId) mismatch — defends against spoofed
+      itemIds belonging to a different template.
+- [x] **F10.2d** — `/admin/equipment/templates` list page.
+      Catalogue browse w/ job_type / search / include-archived
+      filters · per-row name+description+cert badges · job_type
+      pill · item_count · default crew + duration · composes-from
+      indicator (⊕ N) · version code · last-edited date · active /
+      archived status badge · per-row Edit link + Archive/Restore
+      button (uses DELETE for archive, PATCH for restore).
+      "+ New template" button navigates to /new (queued). Sidebar
+      entry deferred to F10.6.
+- [◐] **F10.2e** — Templates create + edit pages. **F10.2e-i
+      (`/admin/equipment/templates/new` create page)** shipped:
+      header-only form (name + slug + description + job_type +
+      crew/duration defaults + comma-separated cert chips). On
+      submit POSTs to /api/admin/equipment/templates and routes
+      to /[id] where the operator adds line items via the F10.2c
+      endpoints. F10.2e-ii (`/[id]` edit page w/ items management)
+      lands next.
+- [ ] **F10.2f** — Save-as-template shortcut (deferred to
+      F10.5 with apply flow).
+- [ ] **F10.2g** — Apply-template flow (deferred to F10.3
+      with reservations).
 
 **F10.3 — Availability + conflict detection engine (Week 35).**
 - [ ] `GET /api/admin/equipment/availability` — runs the four
@@ -3596,20 +3714,36 @@ F (calibration override) → C (theft / disaster) → E
 landed in F10.1) → L (counterfeit DB).
 
 **Activation gates** (apply in order before exposing any
-F10 admin/mobile route). Updated to reflect the F10.0 split:
+F10 admin/mobile route). Updated to reflect the F10.0 split +
+the seeds/238 polish add (per the user's "image / condition /
+team-history" follow-up):
 1. `seeds/233` — equipment_inventory v2 ✅ shipped
 2. `seeds/234` — job_equipment FK ✅ shipped
 3. `seeds/235` — equipment_kits + items ✅ shipped
 4. `seeds/236` — equipment_events audit log ✅ shipped
 5. `seeds/237` — equipment_templates + items + versions ✅ shipped
-6. `seeds/238` — reservations (queued for F10.3)
-7. `seeds/239` — personnel skills + unavailability (queued for F10.4)
-8. `seeds/240` — maintenance (queued for F10.7)
-9. `seeds/241` — tax tie-in (queued for F10.9)
+6. `seeds/238` — equipment richer metadata (photo_url +
+   condition enum + condition_updated_at + needs-attention
+   partial idx) ✅ shipped — addresses the "image / condition"
+   gap in seeds/233; team-assignment history is already in
+   `job_equipment` (no schema change, surfaced when the
+   inventory drilldown lands)
+7. `seeds/239` — reservations (queued for F10.3, was 238)
+8. `seeds/240` — personnel skills + unavailability (queued for F10.4, was 239)
+9. `seeds/241` — maintenance (queued for F10.7, was 240)
+10. `seeds/242` — tax tie-in (queued for F10.9, was 241)
+11. `seeds/243` — equipment-photos storage bucket policy
+    ✅ shipped — companion to seeds/238 photo_url. Bucket
+    `starr-field-equipment-photos` (private, 10 MB cap, image
+    MIME types). Shop-wide read for any authenticated user;
+    writes via service_role only (catalogue stays curated).
+    Path convention: `{equipment_id}/{filename}.{ext}` so
+    multiple photos per unit can land without schema change.
 
-Operator action: apply seeds/233-237 to live Supabase before
-the F10.1 admin UI lands. Subsequent seeds (238-241) gate their
-respective sub-phases.
+Operator action: apply seeds/233-238 to live Supabase before
+the F10.1 admin UI is exercised; apply seeds/243 alongside the
+upcoming photo-upload endpoint. Subsequent seeds (239-242) gate
+their respective F10.3-F10.9 sub-phases.
 
 ---
 
@@ -3674,9 +3808,42 @@ aggregator, Batch X), `notifications`, `time-logs/*`,
 for tombstones, Batch FF), `finances/tax-summary`
 (JSON+CSV Schedule-C report w/ status split, Batch QQ),
 `finances/mark-exported` (period-lock action, Batch QQ),
-**`equipment` (Phase F10.1a — GET catalogue with status /
-category / item_kind / include_retired / q filters, equipment_manager
-role gated)**.
+**`equipment` (Phase F10.1a GET catalogue; F10.1c-i POST create
+w/ enum + integer guards + 409 on qr_code_id collision; F10.1d-i
+`PATCH [id]` inline-edit + `GET [id]` drilldown read endpoint
+w/ joined assignment history (last 50 from job_equipment + jobs)
++ 1h signed photo URL + `/admin/equipment/[id]` drilldown page
+(photo + status/condition pills + cost basis + calibration
++ consumable accounting + assignment history table w/ job
+links + open/returned indicator + back link; per-row "View"
+button on the catalogue) — surfaces "what team has been assigned
+to" per the user's follow-up directive; F10.1e-i `POST [id]/retire` + `/restore`
+lifecycle endpoints w/ equipment_events audit trail; F10.1f
+`GET [id]/qr-sticker` single-row Brother DK-1201 PDF; F10.1g-i
+`POST /qr-stickers` bulk multi-page PDF accepting `ids: string[]`
+or `filter: {…}` — 200-row cap, parallel QR encode, X-Stickers-
+Printed / X-Stickers-Skipped response headers; F10.1h-i
+`POST /import` CSV bulk-import w/ RFC-4180 parser, dry-run +
+execute modes, 1000-row cap, per-row error attribution;
+F10.2a `GET /templates` list w/ embedded item_count + `GET /templates/[id]` detail w/ joined items + version metadata;
+F10.2b-i `POST /templates` atomic create w/ items + v1 snapshot;
+seeds/238 `photo_url` + `condition` enum (new/good/fair/poor/damaged/needs_repair) + `condition_updated_at` plumbed
+through GET + POST + PATCH (`condition_updated_at` stamped server-side
+on every condition change) + Add/Edit modal pickers + per-row
+catalogue condition badge w/ "last checked" hover hint;
+seeds/243 `starr-field-equipment-photos` storage bucket + shop-wide-read /
+service-role-write RLS + `POST /api/admin/equipment/[id]/photo`
+upload endpoint (multipart form-data, 10 MB cap, image MIME
+allow-list, replaces prior path on extension change, returns
+60-min signed URL for immediate preview, db rollback on update
+failure to avoid orphaned uploads) + GET catalogue
+`?include_photo_urls=1` opt-in flag returning per-row signed
+URLs (parallel storage roundtrips so 200-row pages stay fast)
++ Edit modal Photo widget (file picker · preview · 10 MB +
+MIME client-side guards · inline error · auto-refresh on
+upload) + catalogue thumbnail column showing the signed-URL
+preview;
+equipment_manager role gated; tech_support read-only)**.
 
 **Worker (`worker/src/services/`):**
 - `receipt-extraction.ts` + `cli/extract-receipts.ts` + endpoint at
@@ -3702,11 +3869,17 @@ tax-period locking, Batch QQ) · **233 (equipment_inventory v2
 extensions, Phase F10.0a-i) · 234 (job_equipment FK, F10.0a-ii)
 · 235 (equipment_kits + items, F10.0a-iii) · 236 (equipment_events
 audit log, F10.0a-iv) · 237 (equipment_templates + items +
-versions, F10.0a-v)** — all present on disk.
+versions, F10.0a-v) · 238 (equipment richer metadata —
+photo_url + condition + condition_updated_at + needs-attention
+partial idx, F10 polish per the user's "image / condition /
+team-history" follow-up) · 243 (equipment-photos storage bucket
++ shop-wide-read / service-role-write RLS, F10 polish companion
+to seeds/238)** — all present on disk.
 **Activation gates pending live apply:** 229, 230, 231, 232,
-233, 234, 235, 236, 237. (Subsequent equipment seeds 238-241
-will land alongside their respective F10 sub-phases — 238
-reservations, 239 personnel, 240 maintenance, 241 tax tie-in.)
+233, 234, 235, 236, 237, 238, 243. (Subsequent equipment seeds
+239-242 will land alongside their respective F10 sub-phases —
+239 reservations, 240 personnel, 241 maintenance, 242 tax
+tie-in.)
 
 **Roles (`lib/auth.ts`):** standard 10 roles plus `equipment_manager`
 (Phase F10.0e `[ded0b67]`); 4 `Record<UserRole, …>` consumers
@@ -3796,15 +3969,15 @@ the dashboards they link to.
   - **✅ F10.0a-iv** seeds/236 equipment_events audit log `[fb94f61]`
   - **✅ F10.0a-v** seeds/237 equipment_templates + items + versions `[e566747]`
   - **✅ F10.0e** equipment_manager role + 4 consumers `[ded0b67]`
-  - **◐ F10.1** Inventory catalogue UI + QR codes — F10.1a (GET endpoint) `[1122ecc]` + F10.1b (read-only page) shipped this batch; F10.1c-j pending (Add Unit · inline edit · retire · single-row QR PDF · bulk QR PDF · bulk CSV import · mobile useEquipmentByQr · mobile scanner overlay)
-  - **⨯ F10.2** Templates + dispatcher apply flow (CRUD, preview-with-availability, save-as-template, composition, versioning snapshots)
-  - **⨯ F10.3** Availability + conflict engine (seeds/238 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
-  - **⨯ F10.4** Personnel side (seeds/239 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
+  - **✅ F10.1** Inventory catalogue UI + QR codes — fully shipped (F10.1a-j: GET endpoint · catalogue page · POST + Add modal · PATCH + Edit modal · Retire/Restore endpoints + UI · single-row QR PDF · bulk QR PDF endpoint + bulk-select UI · CSV import endpoint + page · mobile useEquipmentByQr resolver + schema · mobile camera scanner overlay)
+  - **◐ F10.2** Templates + dispatcher apply flow — F10.2a (list + detail GET endpoints) shipped; F10.2b-g pending (POST/PATCH/DELETE templates · items endpoints · list page · edit page · save-as-template · apply flow)
+  - **⨯ F10.3** Availability + conflict engine (seeds/239 reservations + GiST overlap + 4 checks + atomic reserve with `SELECT … FOR UPDATE` race guard + soft-override)
+  - **⨯ F10.4** Personnel side (seeds/240 personnel_skills + unavailability; mobile [Confirm]/[Decline] cards; crew-lead heuristic)
   - **⨯ F10.5** Daily check-in/out workflow (the user's headline ritual; QR scanner sheets; damage triage; lost-on-site; 6pm/9pm nag cron)
   - **⨯ F10.6** Equipment Manager dashboards (sidebar group; Today landing; Reservations Gantt; Consumables; Crew calendar; retired-gear cleanup queue)
-  - **⨯ F10.7** Maintenance + calibration (seeds/240; events CRUD; 3am cron; QA gate; receipt cross-link; per-unit history)
+  - **⨯ F10.7** Maintenance + calibration (seeds/241; events CRUD; 3am cron; QA gate; receipt cross-link; per-unit history)
   - **⨯ F10.8** Mobile UX polish (pre-job loadout card; what's-in-my-truck; persistent FAB; 🛠 Gear tab; 3 new notification source_types; PowerSync rules; surveyor self-service)
-  - **⨯ F10.9** Tax + depreciation tie-in (seeds/241; receipt-promotion modal; §179/MACRS; Lock-equipment-depreciation button; equipment block on tax-summary; Asset Detail Schedule PDF; disposal flow)
+  - **⨯ F10.9** Tax + depreciation tie-in (seeds/242; receipt-promotion modal; §179/MACRS; Lock-equipment-depreciation button; equipment block on tax-summary; Asset Detail Schedule PDF; disposal flow)
 
   Twelve §5.12.11 edge-case batches sequenced as post-F10 polish
   (priority: F → C → E → A/B → D → I → G → J → K → H → L).
@@ -4208,7 +4381,7 @@ Closes Phase F10.0 of the §5.12 spec. Six commits:
   (~20 canonical values listed in comment, but log MUST NOT
   fail on a new code path's previously-unseen event), actor +
   job + reservation_id + maintenance_event_id (FKs deferred to
-  seeds/238 + 240), notes + payload JSONB. Five indexes covering
+  seeds/239 + 241), notes + payload JSONB. Five indexes covering
   the read patterns. RLS append-only.
 * `seeds/237_starr_field_equipment_templates.sql` `[e566747]` —
   `equipment_templates` header (name, slug, job_type,
@@ -4231,11 +4404,11 @@ Activation gate: apply seeds/233 → 234 → 235 → 236 → 237 in
 order before exposing F10.1+ admin/mobile routes.
 
 Subsequent F10 sub-phases each bring their own seed + UI batch:
-F10.1 (catalogue + QR) · F10.2 (templates UI) · F10.3 (seeds/238
-+ availability engine) · F10.4 (seeds/239 + personnel) · F10.5
+F10.1 (catalogue + QR) · F10.2 (templates UI) · F10.3 (seeds/239
++ availability engine) · F10.4 (seeds/240 + personnel) · F10.5
 (check-in/out workflow) · F10.6 (Equipment Manager dashboards) ·
-F10.7 (seeds/240 + maintenance) · F10.8 (mobile UX polish) ·
-F10.9 (seeds/241 + tax + depreciation tie-in).
+F10.7 (seeds/241 + maintenance) · F10.8 (mobile UX polish) ·
+F10.9 (seeds/242 + tax + depreciation tie-in).
 
 **Batch SS — Whisper into shared AI-usage tracker (§9.w D closer)**
 
@@ -6509,7 +6682,7 @@ slice of mobile-written data?
 | Per-job consolidated review | `field_data_points` + `field_media` + `fieldbook_notes` + `job_files` (joined) | `/admin/jobs/[id]/field` — points list (Batch S) + job-level media/notes/files inline blocks + "Uploaded by X · timestamp" attribution on every item (Batch T) | ✓ shipped |
 | Job media bundle download | `field_media` + `job_files` (signed) | `/api/admin/jobs/[id]/field-data/manifest` (CSV manifest, Batch S; uploader columns added in Batch T) + `/api/admin/jobs/[id]/field-data/zip` (server-streamed ZIP, organised by media_type/point, Batch T) — single-file Download links on every card on the per-job + per-point pages | ✓ shipped |
 | Tax-time finances | `receipts` (joined w/ `location_segments` + `vehicles`) | `/api/admin/finances/tax-summary` (Schedule-C JSON+CSV w/ status split, Batch QQ) + `/api/admin/finances/mark-exported` (period-lock action) — admin page UI deferred to Batch QQ part-2 | ◐ API shipped, page pending |
-| Equipment inventory | `equipment_inventory` (extended per §5.12.1) | `GET /api/admin/equipment` (F10.1a, shipped) + `/admin/equipment/inventory` read-only catalogue (F10.1b, shipped). Add/edit/retire/QR-print/bulk-CSV land in F10.1c-h. | ◐ list shipped, mutations pending |
+| Equipment inventory | `equipment_inventory` (extended per §5.12.1) | Full F10.1 stack: admin web (F10.1a-h GET / page / POST+Add / PATCH+Edit / Retire+Restore / single-row QR PDF / bulk QR + checkbox UI / CSV import) + mobile useEquipmentByQr/useEquipment/useEquipmentList resolver hooks + schema (F10.1i) + reusable QrScanner overlay (F10.1j). Daily check-in/out flows that consume the scanner land in F10.5. | ✓ F10.1 fully shipped |
 | Equipment kits | `equipment_kits`, `equipment_kit_items` | Inline kit composer on the Inventory catalogue page; one-scan kit batch check-out via `equipment_events` rows (§5.12.6) | ⨯ planned (F10.1) |
 | Equipment templates | `equipment_templates`, `equipment_template_items`, `equipment_template_versions` | `/admin/equipment/templates` admin CRUD + Apply-template flow on existing job detail page (Phase F10.2) | ⨯ planned (F10.2) |
 | Equipment reservations | `equipment_reservations` | `/admin/equipment/reservations` Gantt timeline (§5.12.7.2); per-job reservations panel on existing job detail page; mobile loadout preview (§5.12.9.1) | ⨯ planned (F10.3) |

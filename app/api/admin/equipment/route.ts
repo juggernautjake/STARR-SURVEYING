@@ -60,6 +60,14 @@ interface EquipmentRow {
   model?: string | null;
   serial_number?: string | null;
   notes?: string | null;
+  // Richer metadata (seeds/238)
+  photo_url: string | null;
+  condition: string | null;
+  condition_updated_at: string | null;
+  // Populated only when caller passes ?include_photo_urls=1.
+  // 1h signed URL for the seeds/243 starr-field-equipment-photos
+  // bucket. Caller refetches the catalogue to refresh.
+  photo_signed_url?: string | null;
   // Cost basis (seeds/233)
   acquired_at: string | null;
   acquired_cost_cents: number | null;
@@ -96,6 +104,7 @@ interface EquipmentRow {
 const SELECT_COLUMNS =
   'id, name, category, item_kind, current_status, qr_code_id, ' +
   'brand, model, serial_number, notes, ' +
+  'photo_url, condition, condition_updated_at, ' +
   'acquired_at, acquired_cost_cents, useful_life_months, ' +
   'placed_in_service_at, ' +
   'last_calibrated_at, next_calibration_due_at, warranty_expires_at, ' +
@@ -128,6 +137,7 @@ export const GET = withErrorHandler(
     const categoryRaw = searchParams.get('category');
     const itemKindRaw = searchParams.get('item_kind');
     const includeRetired = searchParams.get('include_retired') === '1';
+    const includePhotoUrls = searchParams.get('include_photo_urls') === '1';
     const qRaw = searchParams.get('q');
     const limitRaw = searchParams.get('limit');
 
@@ -179,6 +189,41 @@ export const GET = withErrorHandler(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    let rows = (data ?? []) as EquipmentRow[];
+
+    // Optional: pre-sign photo URLs for the catalogue thumbnails.
+    // Costs 1 storage roundtrip per row that has a photo (in
+    // parallel via Promise.all). Default-off to keep the listing
+    // endpoint cheap; the F10.1b catalogue page opts in when it
+    // wants thumbnails.
+    if (includePhotoUrls) {
+      const targets = rows.filter((r) => r.photo_url);
+      if (targets.length > 0) {
+        const SIGNED_URL_TTL = 60 * 60; // 1h
+        const signedResults = await Promise.all(
+          targets.map((r) =>
+            supabaseAdmin.storage
+              .from('starr-field-equipment-photos')
+              .createSignedUrl(r.photo_url as string, SIGNED_URL_TTL)
+          )
+        );
+        const urlByRowId = new Map<string, string | null>();
+        targets.forEach((r, idx) => {
+          const sr = signedResults[idx];
+          urlByRowId.set(r.id, sr?.data?.signedUrl ?? null);
+        });
+        rows = rows.map((r) =>
+          r.photo_url
+            ? { ...r, photo_signed_url: urlByRowId.get(r.id) ?? null }
+            : { ...r, photo_signed_url: null }
+        );
+      } else {
+        // Caller asked but no row has a photo — surface the field
+        // as null so the client knows the request was honoured.
+        rows = rows.map((r) => ({ ...r, photo_signed_url: null }));
+      }
+    }
+
     // total_count probe — visible-rows count w/ retired filter only
     // (so narrowing by status doesn't move the denominator). One
     // round-trip; bookkeeper reads "Showing N of M" without a
@@ -196,7 +241,7 @@ export const GET = withErrorHandler(
     }
 
     return NextResponse.json({
-      items: (data ?? []) as EquipmentRow[],
+      items: rows,
       total_count: totalCount,
       filters_applied: {
         status: statusRaw && ALLOWED_STATUSES.has(statusRaw) ? statusRaw : null,
@@ -206,10 +251,280 @@ export const GET = withErrorHandler(
             ? itemKindRaw
             : null,
         include_retired: includeRetired,
+        include_photo_urls: includePhotoUrls,
         q: qRaw ?? null,
       },
       limit,
     });
   },
   { routeName: 'admin/equipment' }
+);
+
+// ── POST /api/admin/equipment — create a new inventory row ─────────────────
+//
+// Body (all keys optional except name + item_kind):
+//   name (required, ≤200 chars)
+//   item_kind (required, durable | consumable | kit)
+//   category, brand, model, serial_number, notes
+//   qr_code_id (optional — auto-generated 12-char UUID slice when
+//     omitted, so the Equipment Manager can print the sticker
+//     immediately after creation; UNIQUE constraint surfaces a 409
+//     if the supplied value collides)
+//   current_status (default 'available')
+//   acquired_at, acquired_cost_cents, useful_life_months,
+//     placed_in_service_at
+//   last_calibrated_at, next_calibration_due_at, warranty_expires_at,
+//     service_contract_vendor, last_serviced_at
+//   unit, quantity_on_hand, low_stock_threshold, last_restocked_at,
+//     vendor, cost_per_unit_cents (consumable-shape fields)
+//   home_location, vehicle_id
+//   is_personal (default false), owner_user_id
+//   serial_suspect (default false)
+//
+// Auth: admin / developer / equipment_manager. tech_support is
+// read-only — they don't create inventory. Returns the inserted
+// row in full so the page can refetch one row instead of the whole
+// catalogue when adding via the modal (saves a roundtrip).
+
+interface CreateEquipmentBody {
+  [key: string]: unknown;
+}
+
+const ALLOWED_CREATE_KEYS = new Set([
+  'name',
+  'item_kind',
+  'category',
+  'brand',
+  'model',
+  'serial_number',
+  'notes',
+  'qr_code_id',
+  'current_status',
+  // seeds/238 — richer metadata per the user's "image / condition"
+  // follow-up. condition_updated_at stamped server-side when
+  // condition is supplied, never accepted from the client.
+  'photo_url',
+  'condition',
+  'acquired_at',
+  'acquired_cost_cents',
+  'useful_life_months',
+  'placed_in_service_at',
+  'last_calibrated_at',
+  'next_calibration_due_at',
+  'warranty_expires_at',
+  'service_contract_vendor',
+  'last_serviced_at',
+  'unit',
+  'quantity_on_hand',
+  'low_stock_threshold',
+  'last_restocked_at',
+  'vendor',
+  'cost_per_unit_cents',
+  'home_location',
+  'vehicle_id',
+  'is_personal',
+  'owner_user_id',
+  'serial_suspect',
+]);
+
+/** seeds/238 condition enum — physical condition distinct from
+ *  the lifecycle current_status enum. */
+const ALLOWED_CONDITIONS = new Set([
+  'new',
+  'good',
+  'fair',
+  'poor',
+  'damaged',
+  'needs_repair',
+]);
+
+/** Generate a 12-char UUID slice for the QR sticker code.
+ *  Short enough to fit on a Brother DK-1201 weatherproof label
+ *  (the §15 prereq #26 default), long enough to avoid collisions
+ *  in a catalogue of even 10K units. UNIQUE constraint surfaces
+ *  the 1-in-billions collision case as a clean 409. */
+function generateQrCodeId(): string {
+  const raw = crypto.randomUUID().replace(/-/g, '');
+  return raw.slice(0, 12).toUpperCase();
+}
+
+export const POST = withErrorHandler(
+  async (req: NextRequest) => {
+    const session = await auth();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userRoles = (session.user as { roles?: string[] } | undefined)
+      ?.roles ?? [];
+    // tech_support is read-only — no inventory creation.
+    if (
+      !isAdmin(session.user.roles) &&
+      !userRoles.includes('equipment_manager')
+    ) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    let body: CreateEquipmentBody;
+    try {
+      body = (await req.json()) as CreateEquipmentBody;
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid JSON body' },
+        { status: 400 }
+      );
+    }
+
+    // Strip unknown keys defensively — clients can't sneak columns
+    // like `created_by` or `id` past the gate.
+    const insert: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(body)) {
+      if (ALLOWED_CREATE_KEYS.has(k) && v !== undefined) {
+        insert[k] = v;
+      }
+    }
+
+    // Required: name + item_kind.
+    const name = typeof insert.name === 'string' ? insert.name.trim() : '';
+    if (!name) {
+      return NextResponse.json(
+        { error: 'name is required' },
+        { status: 400 }
+      );
+    }
+    if (name.length > 200) {
+      return NextResponse.json(
+        { error: 'name must be ≤200 characters' },
+        { status: 400 }
+      );
+    }
+    insert.name = name;
+
+    const itemKind = insert.item_kind;
+    if (typeof itemKind !== 'string' || !ALLOWED_ITEM_KINDS.has(itemKind)) {
+      return NextResponse.json(
+        {
+          error:
+            'item_kind is required (durable | consumable | kit)',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate current_status if supplied; default to 'available'.
+    if (insert.current_status === undefined || insert.current_status === null) {
+      insert.current_status = 'available';
+    } else if (
+      typeof insert.current_status !== 'string' ||
+      !ALLOWED_STATUSES.has(insert.current_status)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'current_status must be one of: ' +
+            Array.from(ALLOWED_STATUSES).join(', '),
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate condition (seeds/238) if supplied. Stamps
+    // condition_updated_at server-side; client value ignored.
+    if (insert.condition !== undefined && insert.condition !== null) {
+      if (
+        typeof insert.condition !== 'string' ||
+        !ALLOWED_CONDITIONS.has(insert.condition)
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'condition must be one of: ' +
+              Array.from(ALLOWED_CONDITIONS).join(', '),
+          },
+          { status: 400 }
+        );
+      }
+      insert.condition_updated_at = new Date().toISOString();
+    }
+
+    // photo_url is a free-form bucket path; trim if present.
+    if (typeof insert.photo_url === 'string') {
+      const trimmed = insert.photo_url.trim();
+      insert.photo_url = trimmed || null;
+    }
+
+    // Auto-generate qr_code_id when not supplied.
+    if (!insert.qr_code_id || typeof insert.qr_code_id !== 'string') {
+      insert.qr_code_id = generateQrCodeId();
+    } else {
+      // Normalise + cap length defensively.
+      insert.qr_code_id = insert.qr_code_id.trim().toUpperCase().slice(0, 64);
+      if (!insert.qr_code_id) insert.qr_code_id = generateQrCodeId();
+    }
+
+    // Cents columns must be integers ≥ 0 if present.
+    for (const key of [
+      'acquired_cost_cents',
+      'cost_per_unit_cents',
+    ] as const) {
+      const v = insert[key];
+      if (v !== undefined && v !== null) {
+        if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) {
+          return NextResponse.json(
+            { error: `${key} must be a non-negative integer (cents)` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    // Quantity columns must be non-negative integers if present.
+    for (const key of [
+      'quantity_on_hand',
+      'low_stock_threshold',
+      'useful_life_months',
+    ] as const) {
+      const v = insert[key];
+      if (v !== undefined && v !== null) {
+        if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) {
+          return NextResponse.json(
+            { error: `${key} must be a non-negative integer` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('equipment_inventory')
+      .insert(insert)
+      .select(SELECT_COLUMNS)
+      .single();
+
+    if (error) {
+      // 23505 = UNIQUE violation (qr_code_id collision is the only
+      // unique constraint at this table; surface as a clean 409).
+      if (error.code === '23505') {
+        return NextResponse.json(
+          { error: `qr_code_id "${insert.qr_code_id}" is already taken` },
+          { status: 409 }
+        );
+      }
+      console.error('[admin/equipment] create failed', {
+        error: error.message,
+        admin_email: session.user.email,
+      });
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    console.log('[admin/equipment] created', {
+      id: (data as { id: string } | null)?.id,
+      name,
+      item_kind: itemKind,
+      qr_code_id: insert.qr_code_id,
+      admin_email: session.user.email,
+    });
+
+    return NextResponse.json({ item: data }, { status: 201 });
+  },
+  { routeName: 'admin/equipment#post' }
 );
