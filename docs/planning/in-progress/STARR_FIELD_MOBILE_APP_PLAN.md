@@ -3563,13 +3563,16 @@ Broken into smaller sub-batches per the established pattern.
       `{ is_archived: false }`.
 - [◐] **F10.2c** — Items endpoints (POST/PATCH/DELETE for
       line items inside a template). **F10.2c-i (POST add line)**
-      shipped — body validates item_kind enum + XOR between
-      equipment_inventory_id and category + quantity ≥1, INSERTs
-      the item, bumps the parent's version + writes a fresh
-      snapshot capturing the FULL items array at the new
-      version (matches §5.12.3 audit-trail rule). 23514 CHECK
-      violation surfaces as 400. F10.2c-ii (PATCH item) +
-      F10.2c-iii (DELETE item) land next.
+      + **F10.2c-ii (PATCH edit line)** shipped — both bump the
+      parent's version + write a fresh snapshot capturing the
+      FULL items array at the new version (matches §5.12.3
+      audit-trail rule). PATCH validates body keys against an
+      allow-list, runs the XOR check on the MERGED state
+      (current row + incoming patch) so the operator can swap
+      equipment_inventory_id ↔ category in a single request,
+      404 on (templateId, itemId) mismatch (defends against
+      spoofed itemIds belonging to a different template).
+      F10.2c-iii (DELETE item) lands next.
 - [ ] **F10.2d** — `/admin/equipment/templates` list page.
 - [ ] **F10.2e** — `/admin/equipment/templates/[id]` edit page.
 - [ ] **F10.2f** — Save-as-template shortcut (deferred to
