@@ -3708,11 +3708,17 @@ team-history" follow-up):
 9. `seeds/241` — maintenance (queued for F10.7, was 240)
 10. `seeds/242` — tax tie-in (queued for F10.9, was 241)
 11. `seeds/243` — equipment-photos storage bucket policy
-    (queued, F10 polish — companion to seeds/238 photo_url)
+    ✅ shipped — companion to seeds/238 photo_url. Bucket
+    `starr-field-equipment-photos` (private, 10 MB cap, image
+    MIME types). Shop-wide read for any authenticated user;
+    writes via service_role only (catalogue stays curated).
+    Path convention: `{equipment_id}/{filename}.{ext}` so
+    multiple photos per unit can land without schema change.
 
 Operator action: apply seeds/233-238 to live Supabase before
-the F10.1 admin UI is exercised. Subsequent seeds (239-243)
-gate their respective sub-phases.
+the F10.1 admin UI is exercised; apply seeds/243 alongside the
+upcoming photo-upload endpoint. Subsequent seeds (239-242) gate
+their respective F10.3-F10.9 sub-phases.
 
 ---
 
@@ -3822,12 +3828,14 @@ audit log, F10.0a-iv) · 237 (equipment_templates + items +
 versions, F10.0a-v) · 238 (equipment richer metadata —
 photo_url + condition + condition_updated_at + needs-attention
 partial idx, F10 polish per the user's "image / condition /
-team-history" follow-up)** — all present on disk.
+team-history" follow-up) · 243 (equipment-photos storage bucket
++ shop-wide-read / service-role-write RLS, F10 polish companion
+to seeds/238)** — all present on disk.
 **Activation gates pending live apply:** 229, 230, 231, 232,
-233, 234, 235, 236, 237, 238. (Subsequent equipment seeds
-239-243 will land alongside their respective F10 sub-phases —
+233, 234, 235, 236, 237, 238, 243. (Subsequent equipment seeds
+239-242 will land alongside their respective F10 sub-phases —
 239 reservations, 240 personnel, 241 maintenance, 242 tax
-tie-in, 243 equipment-photos storage bucket policy.)
+tie-in.)
 
 **Roles (`lib/auth.ts`):** standard 10 roles plus `equipment_manager`
 (Phase F10.0e `[ded0b67]`); 4 `Record<UserRole, …>` consumers
