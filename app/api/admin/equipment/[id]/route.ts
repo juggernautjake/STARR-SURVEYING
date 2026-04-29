@@ -114,6 +114,124 @@ interface PatchBody {
   [key: string]: unknown;
 }
 
+// ── GET /api/admin/equipment/{id} — drilldown read endpoint ────────────────
+//
+// Returns the full row + a 1h signed photo URL + recent
+// assignment history (last 50 rows from job_equipment joined w/
+// jobs by id). Powers the upcoming /admin/equipment/[id]
+// drilldown page that surfaces "what team has been assigned to"
+// per the user's follow-up directive.
+//
+// Auth: admin / developer / tech_support / equipment_manager —
+// every internal role can read inventory drilldown.
+//
+// Future extensions (queued):
+//   * kit memberships when seeds/235 has rows
+//   * template line-item back-references
+//   * maintenance event history when seeds/241 lands
+//   * reservations open/recent when seeds/239 lands
+export const GET = withErrorHandler(
+  async (req: NextRequest) => {
+    const session = await auth();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userRoles = (session.user as { roles?: string[] } | undefined)
+      ?.roles ?? [];
+    if (
+      !isAdmin(session.user.roles) &&
+      !userRoles.includes('tech_support') &&
+      !userRoles.includes('equipment_manager')
+    ) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const url = new URL(req.url);
+    const pathSegments = url.pathname.split('/').filter(Boolean);
+    const id = pathSegments[pathSegments.length - 1];
+    if (
+      !id ||
+      !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+        id
+      )
+    ) {
+      return NextResponse.json(
+        { error: 'id must be a UUID' },
+        { status: 400 }
+      );
+    }
+
+    // Two parallel queries: the row + the assignment history.
+    // Photo signed URL kicks off after the row read so we don't
+    // hit storage for a row that doesn't exist.
+    const [rowRes, historyRes] = await Promise.all([
+      supabaseAdmin
+        .from('equipment_inventory')
+        .select(SELECT_COLUMNS)
+        .eq('id', id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from('job_equipment')
+        .select(
+          'id, job_id, checked_out_by, checked_out_at, returned_at, ' +
+            'equipment_name, serial_number, notes, ' +
+            'jobs(id, name, job_number)'
+        )
+        .eq('equipment_inventory_id', id)
+        .order('checked_out_at', {
+          ascending: false,
+          nullsFirst: false,
+        })
+        .limit(50),
+    ]);
+
+    if (rowRes.error) {
+      console.error('[admin/equipment/:id] row read failed', {
+        id,
+        error: rowRes.error.message,
+      });
+      return NextResponse.json(
+        { error: rowRes.error.message },
+        { status: 500 }
+      );
+    }
+    if (!rowRes.data) {
+      return NextResponse.json(
+        { error: 'Equipment row not found' },
+        { status: 404 }
+      );
+    }
+
+    const row = rowRes.data as { photo_url: string | null };
+    let photoSignedUrl: string | null = null;
+    if (row.photo_url) {
+      const { data: signed } = await supabaseAdmin.storage
+        .from('starr-field-equipment-photos')
+        .createSignedUrl(row.photo_url, 60 * 60);
+      photoSignedUrl = signed?.signedUrl ?? null;
+    }
+
+    // Surface history-fetch errors as a non-fatal warning — the
+    // drilldown page renders the row even when history is broken.
+    const history = historyRes.error ? [] : historyRes.data ?? [];
+    if (historyRes.error) {
+      console.warn(
+        '[admin/equipment/:id] assignment history read failed',
+        { id, error: historyRes.error.message }
+      );
+    }
+
+    return NextResponse.json({
+      item: rowRes.data,
+      photo_signed_url: photoSignedUrl,
+      assignment_history: history,
+      assignment_history_error:
+        historyRes.error?.message ?? null,
+    });
+  },
+  { routeName: 'admin/equipment/:id#get' }
+);
+
 export const PATCH = withErrorHandler(
   async (req: NextRequest) => {
     const session = await auth();

@@ -3785,7 +3785,10 @@ for tombstones, Batch FF), `finances/tax-summary`
 `finances/mark-exported` (period-lock action, Batch QQ),
 **`equipment` (Phase F10.1a GET catalogue; F10.1c-i POST create
 w/ enum + integer guards + 409 on qr_code_id collision; F10.1d-i
-`PATCH [id]` inline-edit; F10.1e-i `POST [id]/retire` + `/restore`
+`PATCH [id]` inline-edit + `GET [id]` drilldown read endpoint
+w/ joined assignment history (last 50 from job_equipment + jobs)
++ 1h signed photo URL — surfaces "what team has been assigned
+to" per the user's follow-up directive; F10.1e-i `POST [id]/retire` + `/restore`
 lifecycle endpoints w/ equipment_events audit trail; F10.1f
 `GET [id]/qr-sticker` single-row Brother DK-1201 PDF; F10.1g-i
 `POST /qr-stickers` bulk multi-page PDF accepting `ids: string[]`
