@@ -64,6 +64,10 @@ interface EquipmentRow {
   photo_url: string | null;
   condition: string | null;
   condition_updated_at: string | null;
+  // Populated only when caller passes ?include_photo_urls=1.
+  // 1h signed URL for the seeds/243 starr-field-equipment-photos
+  // bucket. Caller refetches the catalogue to refresh.
+  photo_signed_url?: string | null;
   // Cost basis (seeds/233)
   acquired_at: string | null;
   acquired_cost_cents: number | null;
@@ -133,6 +137,7 @@ export const GET = withErrorHandler(
     const categoryRaw = searchParams.get('category');
     const itemKindRaw = searchParams.get('item_kind');
     const includeRetired = searchParams.get('include_retired') === '1';
+    const includePhotoUrls = searchParams.get('include_photo_urls') === '1';
     const qRaw = searchParams.get('q');
     const limitRaw = searchParams.get('limit');
 
@@ -184,6 +189,41 @@ export const GET = withErrorHandler(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    let rows = (data ?? []) as EquipmentRow[];
+
+    // Optional: pre-sign photo URLs for the catalogue thumbnails.
+    // Costs 1 storage roundtrip per row that has a photo (in
+    // parallel via Promise.all). Default-off to keep the listing
+    // endpoint cheap; the F10.1b catalogue page opts in when it
+    // wants thumbnails.
+    if (includePhotoUrls) {
+      const targets = rows.filter((r) => r.photo_url);
+      if (targets.length > 0) {
+        const SIGNED_URL_TTL = 60 * 60; // 1h
+        const signedResults = await Promise.all(
+          targets.map((r) =>
+            supabaseAdmin.storage
+              .from('starr-field-equipment-photos')
+              .createSignedUrl(r.photo_url as string, SIGNED_URL_TTL)
+          )
+        );
+        const urlByRowId = new Map<string, string | null>();
+        targets.forEach((r, idx) => {
+          const sr = signedResults[idx];
+          urlByRowId.set(r.id, sr?.data?.signedUrl ?? null);
+        });
+        rows = rows.map((r) =>
+          r.photo_url
+            ? { ...r, photo_signed_url: urlByRowId.get(r.id) ?? null }
+            : { ...r, photo_signed_url: null }
+        );
+      } else {
+        // Caller asked but no row has a photo — surface the field
+        // as null so the client knows the request was honoured.
+        rows = rows.map((r) => ({ ...r, photo_signed_url: null }));
+      }
+    }
+
     // total_count probe — visible-rows count w/ retired filter only
     // (so narrowing by status doesn't move the denominator). One
     // round-trip; bookkeeper reads "Showing N of M" without a
@@ -201,7 +241,7 @@ export const GET = withErrorHandler(
     }
 
     return NextResponse.json({
-      items: (data ?? []) as EquipmentRow[],
+      items: rows,
       total_count: totalCount,
       filters_applied: {
         status: statusRaw && ALLOWED_STATUSES.has(statusRaw) ? statusRaw : null,
@@ -211,6 +251,7 @@ export const GET = withErrorHandler(
             ? itemKindRaw
             : null,
         include_retired: includeRetired,
+        include_photo_urls: includePhotoUrls,
         q: qRaw ?? null,
       },
       limit,

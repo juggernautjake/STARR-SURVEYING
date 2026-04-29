@@ -3804,7 +3804,13 @@ service-role-write RLS + `POST /api/admin/equipment/[id]/photo`
 upload endpoint (multipart form-data, 10 MB cap, image MIME
 allow-list, replaces prior path on extension change, returns
 60-min signed URL for immediate preview, db rollback on update
-failure to avoid orphaned uploads);
+failure to avoid orphaned uploads) + GET catalogue
+`?include_photo_urls=1` opt-in flag returning per-row signed
+URLs (parallel storage roundtrips so 200-row pages stay fast)
++ Edit modal Photo widget (file picker · preview · 10 MB +
+MIME client-side guards · inline error · auto-refresh on
+upload) + catalogue thumbnail column showing the signed-URL
+preview;
 equipment_manager role gated; tech_support read-only)**.
 
 **Worker (`worker/src/services/`):**

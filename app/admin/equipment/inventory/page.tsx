@@ -18,7 +18,7 @@
 // direct URL.
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 
 import { usePageError } from '../../hooks/usePageError';
@@ -36,6 +36,8 @@ interface EquipmentRow {
   notes: string | null;
   // seeds/238 — richer metadata
   photo_url: string | null;
+  // Pre-signed via ?include_photo_urls=1 (seeds/243 bucket).
+  photo_signed_url?: string | null;
   condition: string | null;
   condition_updated_at: string | null;
   acquired_at: string | null;
@@ -474,9 +476,9 @@ function AddUnitModal({ onClose, onCreated }: AddUnitModalProps) {
           </label>
 
           <p style={styles.modalHint}>
-            ▸ Cost basis, calibration, and warranty fields land via the
-            inline-edit flow (Phase F10.1d). Use this form for the
-            initial create; refine later.
+            ▸ Cost basis, calibration, warranty, and photo upload
+            land via the inline-edit flow (Phase F10.1d). Use this
+            form for the initial create; open Edit to add the photo.
           </p>
 
           {error ? <div style={styles.actionMsgWarn}>{error}</div> : null}
@@ -546,6 +548,15 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
   const [notes, setNotes] = useState(row.notes ?? '');
   const [qrCodeId, setQrCodeId] = useState(row.qr_code_id ?? '');
   const [condition, setCondition] = useState(row.condition ?? '');
+  // Photo upload state — uses POST /api/admin/equipment/[id]/photo
+  // separately from the main PATCH because uploads are multipart
+  // and the rest of the form is JSON.
+  const [photoSignedUrl, setPhotoSignedUrl] = useState<string | null>(
+    row.photo_signed_url ?? null
+  );
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const [currentStatus, setCurrentStatus] = useState<StatusFilter>(
     (row.current_status as StatusFilter) ?? 'available'
   );
@@ -573,6 +584,57 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
   const [costPerUnit, setCostPerUnit] = useState(initialNum(row.cost_per_unit_cents));
 
   const isConsumable = row.item_kind === 'consumable';
+
+  const handlePhotoUpload = useCallback(
+    async (file: File) => {
+      setPhotoError(null);
+      // Client-side mirror of the F10.1 upload endpoint constraints
+      // — fail fast before the multipart roundtrip.
+      const ALLOWED = new Set([
+        'image/jpeg',
+        'image/png',
+        'image/heic',
+        'image/heif',
+        'image/webp',
+      ]);
+      if (!ALLOWED.has(file.type)) {
+        setPhotoError(
+          `Type "${file.type}" not supported. Use JPEG / PNG / HEIC / HEIF / WEBP.`
+        );
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setPhotoError('File too large — 10 MB max.');
+        return;
+      }
+
+      setPhotoUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch(
+          `/api/admin/equipment/${row.id}/photo`,
+          { method: 'POST', body: fd }
+        );
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setPhotoError(json.error ?? `Upload failed (${res.status})`);
+          return;
+        }
+        if (json.signed_url) {
+          setPhotoSignedUrl(json.signed_url as string);
+        }
+      } catch (err) {
+        setPhotoError(
+          err instanceof Error ? err.message : 'Upload failed'
+        );
+      } finally {
+        setPhotoUploading(false);
+        if (photoInputRef.current) photoInputRef.current.value = '';
+      }
+    },
+    [row.id]
+  );
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -760,6 +822,53 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
               required
             />
           </label>
+
+          <div style={styles.photoBlock}>
+            <span style={styles.formLabel}>Photo</span>
+            <div style={styles.photoRow}>
+              {photoSignedUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={photoSignedUrl}
+                  alt="Equipment"
+                  style={styles.photoPreview}
+                />
+              ) : (
+                <div style={styles.photoPlaceholder}>📷 No photo yet</div>
+              )}
+              <div style={styles.photoControls}>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/heic,image/heif,image/webp"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handlePhotoUpload(file);
+                  }}
+                />
+                <button
+                  type="button"
+                  style={styles.fileBtn}
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={photoUploading}
+                >
+                  {photoUploading
+                    ? 'Uploading…'
+                    : photoSignedUrl
+                      ? 'Replace photo'
+                      : 'Upload photo'}
+                </button>
+                <span style={styles.modalHint}>
+                  ▸ JPEG / PNG / HEIC / HEIF / WEBP up to 10 MB.
+                  Replaces any existing photo on this unit.
+                </span>
+                {photoError ? (
+                  <div style={styles.actionMsgWarn}>{photoError}</div>
+                ) : null}
+              </div>
+            </div>
+          </div>
 
           <div style={styles.formGrid}>
             <label style={styles.formField}>
@@ -1248,6 +1357,10 @@ export default function EquipmentInventoryPage() {
     if (status) params.set('status', status);
     if (itemKind) params.set('item_kind', itemKind);
     if (includeRetired) params.set('include_retired', '1');
+    // Always pre-sign photo URLs for the catalogue thumbnail
+    // column. Server costs 1 storage roundtrip per row that has
+    // a photo, in parallel.
+    params.set('include_photo_urls', '1');
     if (q.trim()) params.set('q', q.trim());
     return params.toString();
   }, [status, itemKind, includeRetired, q]);
@@ -1645,16 +1758,49 @@ export default function EquipmentInventoryPage() {
                     />
                   </td>
                   <td style={styles.td}>
-                    <strong>{row.name ?? '(unnamed)'}</strong>
-                    {row.is_personal ? (
-                      <span style={styles.personalBadge}>personal</span>
-                    ) : null}
-                    {row.serial_suspect ? (
-                      <span style={styles.suspectBadge}>suspect SN</span>
-                    ) : null}
-                    {row.retired_at ? (
-                      <span style={styles.retiredBadge}>retired</span>
-                    ) : null}
+                    <div style={styles.nameCell}>
+                      {row.photo_signed_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={row.photo_signed_url}
+                          alt=""
+                          style={styles.thumbnail}
+                          loading="lazy"
+                        />
+                      ) : row.photo_url ? (
+                        <div
+                          style={styles.thumbnailFallback}
+                          title="Photo on file (signed URL unavailable; refresh)"
+                        >
+                          📷
+                        </div>
+                      ) : (
+                        <div
+                          style={styles.thumbnailEmpty}
+                          aria-hidden="true"
+                        />
+                      )}
+                      <div style={styles.nameStack}>
+                        <strong>{row.name ?? '(unnamed)'}</strong>
+                        <div style={styles.nameBadges}>
+                          {row.is_personal ? (
+                            <span style={styles.personalBadge}>
+                              personal
+                            </span>
+                          ) : null}
+                          {row.serial_suspect ? (
+                            <span style={styles.suspectBadge}>
+                              suspect SN
+                            </span>
+                          ) : null}
+                          {row.retired_at ? (
+                            <span style={styles.retiredBadge}>
+                              retired
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
                   </td>
                   <td style={styles.td}>{formatCategory(row.category)}</td>
                   <td style={styles.td}>
@@ -2095,6 +2241,105 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
+  },
+  photoBlock: {
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    padding: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  photoRow: {
+    display: 'flex',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  photoPreview: {
+    width: 96,
+    height: 96,
+    borderRadius: 8,
+    objectFit: 'cover',
+    border: '1px solid #E2E5EB',
+    background: '#F7F8FA',
+    flexShrink: 0,
+  },
+  photoPlaceholder: {
+    width: 96,
+    height: 96,
+    borderRadius: 8,
+    background: '#F7F8FA',
+    border: '1px dashed #E2E5EB',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 12,
+    color: '#9CA3AF',
+    flexShrink: 0,
+    textAlign: 'center',
+    padding: 8,
+  },
+  photoControls: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+  },
+  fileBtn: {
+    background: '#1D3095',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 12px',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: 500,
+    alignSelf: 'flex-start',
+  },
+  nameCell: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+  },
+  nameStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+  },
+  nameBadges: {
+    display: 'flex',
+    gap: 4,
+    flexWrap: 'wrap',
+  },
+  thumbnail: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    objectFit: 'cover',
+    border: '1px solid #E2E5EB',
+    background: '#F7F8FA',
+    flexShrink: 0,
+  },
+  thumbnailFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    background: '#F7F8FA',
+    border: '1px solid #E2E5EB',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 18,
+    flexShrink: 0,
+  },
+  thumbnailEmpty: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    background: '#FAFBFC',
+    border: '1px dashed #E5E7EB',
+    flexShrink: 0,
   },
   personalBadge: {
     marginLeft: 6,
