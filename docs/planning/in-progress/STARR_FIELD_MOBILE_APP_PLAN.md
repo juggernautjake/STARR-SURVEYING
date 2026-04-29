@@ -3561,8 +3561,15 @@ Broken into smaller sub-batches per the established pattern.
       supported per §5.12.3 (would orphan job_equipment.
       from_template_id audit chain). Restore via PATCH
       `{ is_archived: false }`.
-- [ ] **F10.2c** — Items endpoints (POST/PATCH/DELETE for
-      line items inside a template).
+- [◐] **F10.2c** — Items endpoints (POST/PATCH/DELETE for
+      line items inside a template). **F10.2c-i (POST add line)**
+      shipped — body validates item_kind enum + XOR between
+      equipment_inventory_id and category + quantity ≥1, INSERTs
+      the item, bumps the parent's version + writes a fresh
+      snapshot capturing the FULL items array at the new
+      version (matches §5.12.3 audit-trail rule). 23514 CHECK
+      violation surfaces as 400. F10.2c-ii (PATCH item) +
+      F10.2c-iii (DELETE item) land next.
 - [ ] **F10.2d** — `/admin/equipment/templates` list page.
 - [ ] **F10.2e** — `/admin/equipment/templates/[id]` edit page.
 - [ ] **F10.2f** — Save-as-template shortcut (deferred to
