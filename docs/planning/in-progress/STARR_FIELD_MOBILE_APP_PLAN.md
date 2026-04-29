@@ -3552,17 +3552,17 @@ Broken into smaller sub-batches per the established pattern.
       4 parallel queries, returns 404 on missing row, UUID-
       validates the path-param.
 - [◐] **F10.2b** — Templates create/edit endpoints
-      (POST + PATCH + DELETE). **F10.2b-i (POST)** shipped:
-      atomic-ish 3-step create flow (header → items →
-      version=1 snapshot), header rollback on items insert
-      failure, snapshot non-fatal (audit, not source of truth),
-      pre-flight item XOR check (equipment_inventory_id XOR
-      category) for friendlier errors than the seeds/237 raw
-      CHECK violation, UUID guard on composes_from, slug
-      collision → 409. Auth: admin (incl. developer via
-      isAdmin) + equipment_manager — tech_support read-only
-      per §5.12.3. F10.2b-ii (PATCH header w/ version snapshot)
-      + F10.2b-iii (DELETE → soft-archive flip) land next.
+      (POST + PATCH + DELETE). **F10.2b-i (POST)** + **F10.2b-ii
+      (PATCH header w/ version snapshot)** shipped. PATCH
+      validates body keys against the F10.2b-i allow-list MINUS
+      slug (locked to preserve URLs), name + composes_from +
+      requires_certifications + numeric guards, self-loop check
+      on composes_from, reads current items in parallel with
+      header so the snapshot row captures items_jsonb at the
+      bumped version, snapshot insert is best-effort (audit,
+      not source of truth — header update lands even if the
+      snapshot write fails). F10.2b-iii (DELETE → soft-archive
+      flip) lands next.
 - [ ] **F10.2c** — Items endpoints (POST/PATCH/DELETE for
       line items inside a template).
 - [ ] **F10.2d** — `/admin/equipment/templates` list page.
