@@ -3799,6 +3799,12 @@ seeds/238 `photo_url` + `condition` enum (new/good/fair/poor/damaged/needs_repai
 through GET + POST + PATCH (`condition_updated_at` stamped server-side
 on every condition change) + Add/Edit modal pickers + per-row
 catalogue condition badge w/ "last checked" hover hint;
+seeds/243 `starr-field-equipment-photos` storage bucket + shop-wide-read /
+service-role-write RLS + `POST /api/admin/equipment/[id]/photo`
+upload endpoint (multipart form-data, 10 MB cap, image MIME
+allow-list, replaces prior path on extension change, returns
+60-min signed URL for immediate preview, db rollback on update
+failure to avoid orphaned uploads);
 equipment_manager role gated; tech_support read-only)**.
 
 **Worker (`worker/src/services/`):**
