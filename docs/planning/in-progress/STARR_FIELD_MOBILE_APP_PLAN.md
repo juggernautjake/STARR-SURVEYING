@@ -3585,18 +3585,19 @@ Broken into smaller sub-batches per the established pattern.
       "+ New template" button navigates to /new (queued). Sidebar
       entry deferred to F10.6.
 - [◐] **F10.2e** — Templates create + edit pages. **F10.2e-i
-      (`/admin/equipment/templates/new` create page)** + **F10.2e-ii-a
-      (`/[id]` edit page shell + header form)** shipped. Header
-      form pre-fills from GET, validates name + cents/qty +
-      composes_from UUID format + self-loop guard, calls PATCH on
-      save (which bumps version + writes snapshot). Page surfaces
-      version count + latest_snapshot_at + active/archived badge +
-      slug. Items section is a stub showing the count + a hint
-      pointing at F10.2e-ii-b through e for the upcoming items
-      management UI. F10.2e-ii-b (items table read-only) +
-      F10.2e-ii-c (Add item modal) + F10.2e-ii-d (Edit item modal
-      w/ XOR swap) + F10.2e-ii-e (Delete item action) land in
-      separate sub-batches per the small-chunks principle.
+      create + F10.2e-ii-a edit page shell + F10.2e-ii-b items
+      table** shipped. Items section now renders a real table
+      sorted by sort_order: Order · Kind (durable/consumable/kit
+      pill) · Specific-or-category column with 📌-pin badge for
+      pinned inventory units OR ⊕-category badge for any-of-kind
+      lookups · Quantity · Required/optional badge · Notes
+      (truncated w/ hover) · per-row Edit + Delete buttons (both
+      currently disabled with hover hints pointing to the
+      F10.2e-ii-d / F10.2e-ii-e batches that wire them up). Add
+      item button at the section header is disabled with a hint
+      pointing at F10.2e-ii-c. F10.2e-ii-c (Add modal) +
+      F10.2e-ii-d (Edit modal w/ XOR swap) + F10.2e-ii-e
+      (Delete action) close out F10.2e in subsequent sub-batches.
 - [ ] **F10.2f** — Save-as-template shortcut (deferred to
       F10.5 with apply flow).
 - [ ] **F10.2g** — Apply-template flow (deferred to F10.3

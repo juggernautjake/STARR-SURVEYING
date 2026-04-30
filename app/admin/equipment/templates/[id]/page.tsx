@@ -436,30 +436,119 @@ export default function TemplateEditPage() {
       </section>
 
       <section style={styles.section}>
-        <header style={styles.sectionHeader}>
-          <h2 style={styles.h2}>
-            Line items{' '}
-            <span style={styles.muted}>· {itemCount}</span>
-          </h2>
-          <p style={styles.sectionSub}>
-            Durables / consumables / kits this template pulls into a
-            job at apply time. Each line either pins a specific
-            inventory unit OR resolves any unit of a category at
-            apply-time (XOR enforced server-side).
-          </p>
+        <header style={styles.itemsHeader}>
+          <div>
+            <h2 style={styles.h2}>
+              Line items{' '}
+              <span style={styles.muted}>· {itemCount}</span>
+            </h2>
+            <p style={styles.sectionSub}>
+              Durables / consumables / kits this template pulls into a
+              job at apply time. Each line either pins a specific
+              inventory unit OR resolves any unit of a category at
+              apply-time (XOR enforced server-side).
+            </p>
+          </div>
+          <button
+            type="button"
+            style={styles.addBtn}
+            disabled
+            title="Add-item modal lands in the next sub-batch (F10.2e-ii-c). Use the items POST endpoint directly via curl until then."
+          >
+            + Add item
+          </button>
         </header>
         <div style={styles.sectionBody}>
           {itemCount === 0 ? (
             <div style={styles.empty}>
-              No line items yet. Add items via the Add-item modal
-              (lands in the next sub-batch — F10.2e-ii-c).
+              No line items yet. The <strong>+ Add item</strong> button
+              wires up in F10.2e-ii-c.
             </div>
           ) : (
-            <div style={styles.empty}>
-              {itemCount} item{itemCount === 1 ? '' : 's'} on file.
-              Read-only listing + per-row Edit/Delete actions land in
-              F10.2e-ii-b.
-            </div>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.thRight}>Order</th>
+                  <th style={styles.th}>Kind</th>
+                  <th style={styles.th}>Specific or category</th>
+                  <th style={styles.thRight}>Qty</th>
+                  <th style={styles.th}>Required?</th>
+                  <th style={styles.th}>Notes</th>
+                  <th style={styles.thRight}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items
+                  .slice()
+                  .sort((a, b) => a.sort_order - b.sort_order)
+                  .map((item) => (
+                    <tr key={item.id}>
+                      <td style={styles.tdRight}>{item.sort_order}</td>
+                      <td style={styles.td}>
+                        <span style={styles.kindBadge}>
+                          {item.item_kind}
+                        </span>
+                      </td>
+                      <td style={styles.td}>
+                        {item.equipment_inventory_id ? (
+                          <span title="Pinned to a specific inventory unit (resolved at apply-time to that exact row)">
+                            <span style={styles.pinBadge}>📌 unit</span>{' '}
+                            <code style={styles.code}>
+                              {item.equipment_inventory_id.slice(0, 8)}
+                            </code>
+                          </span>
+                        ) : item.category ? (
+                          <span title="Any-of-kind: resolved at apply-time to whatever's available in this category">
+                            <span style={styles.categoryBadge}>
+                              ⊕ category
+                            </span>{' '}
+                            <code style={styles.code}>{item.category}</code>
+                          </span>
+                        ) : (
+                          <span style={styles.muted}>—</span>
+                        )}
+                      </td>
+                      <td style={styles.tdRight}>{item.quantity}</td>
+                      <td style={styles.td}>
+                        {item.is_required ? (
+                          <span style={styles.requiredBadge}>required</span>
+                        ) : (
+                          <span style={styles.optionalBadge}>optional</span>
+                        )}
+                      </td>
+                      <td style={styles.td}>
+                        {item.notes ? (
+                          <span style={styles.notesCell} title={item.notes}>
+                            {item.notes}
+                          </span>
+                        ) : (
+                          <span style={styles.muted}>—</span>
+                        )}
+                      </td>
+                      <td style={styles.tdRight}>
+                        <div style={styles.rowActionBar}>
+                          <button
+                            type="button"
+                            style={styles.rowActionBtn}
+                            disabled
+                            title="Edit-item modal lands in F10.2e-ii-d"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            style={styles.rowActionBtnDanger}
+                            disabled
+                            title="Delete-item flow lands in F10.2e-ii-e"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
           )}
         </div>
       </section>
@@ -550,6 +639,139 @@ const styles: Record<string, React.CSSProperties> = {
     margin: '4px 0 0',
   },
   sectionBody: { padding: 16 },
+  itemsHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '12px 16px',
+    background: '#F7F8FA',
+    borderBottom: '1px solid #E2E5EB',
+  },
+  addBtn: {
+    background: '#1D3095',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+    flexShrink: 0,
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: 13,
+  },
+  th: {
+    textAlign: 'left',
+    padding: '10px 14px',
+    color: '#6B7280',
+    fontWeight: 500,
+    background: '#FAFBFC',
+    borderBottom: '1px solid #E2E5EB',
+  },
+  thRight: {
+    textAlign: 'right',
+    padding: '10px 14px',
+    color: '#6B7280',
+    fontWeight: 500,
+    background: '#FAFBFC',
+    borderBottom: '1px solid #E2E5EB',
+  },
+  td: {
+    padding: '10px 14px',
+    borderBottom: '1px solid #F3F4F6',
+    verticalAlign: 'middle',
+  },
+  tdRight: {
+    padding: '10px 14px',
+    borderBottom: '1px solid #F3F4F6',
+    textAlign: 'right',
+    verticalAlign: 'middle',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  kindBadge: {
+    display: 'inline-block',
+    padding: '2px 8px',
+    borderRadius: 999,
+    background: '#E0E7FF',
+    color: '#4338CA',
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  pinBadge: {
+    fontSize: 10,
+    padding: '1px 6px',
+    background: '#FEF3C7',
+    color: '#92400E',
+    borderRadius: 4,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+  },
+  categoryBadge: {
+    fontSize: 10,
+    padding: '1px 6px',
+    background: '#DBEAFE',
+    color: '#1D4ED8',
+    borderRadius: 4,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+  },
+  requiredBadge: {
+    fontSize: 10,
+    padding: '1px 6px',
+    background: '#FEE2E2',
+    color: '#B91C1C',
+    borderRadius: 4,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+  },
+  optionalBadge: {
+    fontSize: 10,
+    padding: '1px 6px',
+    background: '#F3F4F6',
+    color: '#6B7280',
+    borderRadius: 4,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+  },
+  notesCell: {
+    display: 'inline-block',
+    maxWidth: 280,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    verticalAlign: 'middle',
+  },
+  rowActionBar: {
+    display: 'inline-flex',
+    gap: 6,
+    justifyContent: 'flex-end',
+  },
+  rowActionBtn: {
+    background: 'transparent',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    padding: '4px 10px',
+    cursor: 'pointer',
+    fontSize: 12,
+    color: '#1D3095',
+    fontWeight: 500,
+  },
+  rowActionBtnDanger: {
+    background: 'transparent',
+    border: '1px solid #FCA5A5',
+    borderRadius: 6,
+    padding: '4px 10px',
+    cursor: 'pointer',
+    fontSize: 12,
+    color: '#B91C1C',
+    fontWeight: 500,
+  },
   form: {
     display: 'flex',
     flexDirection: 'column',
