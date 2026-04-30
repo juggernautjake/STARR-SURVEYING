@@ -1,5 +1,14 @@
 # STARR CAD — Complete Implementation Specification
 
+> **⚠️ Superseded by `STARR_CAD_MASTER_PLAN.md` (2026-04-30).**
+> The master plan is the new single source of truth for the CAD + AI plat
+> system. This doc remains for historical context — Phases 1–5 detail here is
+> still authoritative for those phases (cross-linked from the master), but
+> Phase 6+ scope has moved to the master plan, which adds: document
+> ingestion, the calculation methods registry, calculated-points / monument
+> recovery, and the conversational basis-selection workspace. Do not extend
+> this doc; open PRs against the master.
+
 **Version:** 1.0 | **Date:** March 2026 | **Company:** Starr Surveying Company, Belton, TX
 
 **Purpose:** This is the single source of truth for building Starr CAD. Every data model, algorithm, UI component, and behavior rule is defined here. Code AI tools (Copilot, Claude Code) should reference this document for all implementation decisions.

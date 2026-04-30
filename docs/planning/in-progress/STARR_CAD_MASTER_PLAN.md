@@ -1127,3 +1127,628 @@ A drawing is "ready for RPLS review" when:
 
 ---
 
+## 16. Tech stack (reconciled)
+
+The existing Phase 1 spec picked a TypeScript front-end stack; Jacob's plan
+recommends a Python back-end for DXF + geometry. Both are right for their
+domains; the unified stack is a hybrid.
+
+### 16.1 Frontend
+
+- **Next.js 14 (App Router) + TypeScript** — already in use, consistent
+  with the rest of the Starr admin web.
+- **PixiJS** for the canvas (Phase 1 pick). Falls back to SVG for
+  small drawings + print preview.
+- **Zustand** for editor state.
+- Shared design system from the existing `/admin` UI.
+
+### 16.2 Backend (CAD service)
+
+- **Node.js (Next.js API routes)** for the lightweight orchestration:
+  scene-graph CRUD, project metadata, audit log, exports of CSV /
+  GeoJSON / SVG / PNG.
+- **Python micro-service (FastAPI)** for the heavy survey + drafting
+  computation:
+  - `ezdxf` for DXF read/write (Jacob's pick; community-trusted).
+  - `shapely` for general 2D geometry.
+  - `pyproj` for coordinate transforms.
+  - `numpy` + `scipy` for least-squares adjustment + curve solvers.
+  - `reportlab` for PDF (already mastered in the broader project).
+  - `Pillow` + `pytesseract` for OCR fallback when the vision model
+    isn't appropriate.
+- The Python service is stateless and called by the Next.js layer over
+  HTTP/JSON. The scene graph is serialised as JSON on each call.
+- Long-running jobs (large adjustments, big-document OCR) are queued
+  via the existing Sentry-aware worker pattern in the repo.
+
+### 16.3 AI
+
+- **Anthropic Claude** via the SDK.
+- **Sonnet 4.6** for the bulk drafting + conversational workspace —
+  cost + latency match the workflow.
+- **Opus 4.7** for: complex multi-document reasoning, basis-selection
+  with > 2 viable candidates, reviewer-assist workflows. Selected per
+  request, not per session.
+- **Vision-capable Claude Sonnet** for OCR + extraction on scanned PDFs
+  / photographed plats. Tesseract is the fallback when the vision call
+  is unavailable or the document is marked "low sensitivity".
+- Prompt caching enabled on every system prompt + tool surface block to
+  cut token cost — the tool surface is large and stable, which is the
+  exact case prompt caching is designed for.
+
+### 16.4 Storage
+
+- **PostgreSQL** for project metadata, drawing scene graphs (as JSONB
+  with indexed metadata), audit log, ingestion artefacts.
+- **PostGIS** added when a use case demands spatial queries (initially
+  not on the critical path).
+- **Object storage (S3-compatible)** for original uploaded documents,
+  rendered PNG previews, exported DXF/PDF bundles.
+- All persistence respects the existing repo's tenancy model
+  (project-scoped, no cross-project leakage).
+
+### 16.5 Packaging
+
+- Monorepo (existing) with new packages:
+  - `packages/cad-engine/` (scene graph + tool surface dispatcher)
+  - `packages/cad-rules/` (rules engine)
+  - `packages/cad-validation/` (5-gate validator)
+  - `packages/cad-ingestion/` (translators + IR)
+  - `packages/cad-cogo/` (calculation methods registry)
+  - `packages/cad-autodraft/` (auto-draft engine)
+  - `apps/cad/` (Next.js editor UI)
+  - `services/cad-py/` (FastAPI survey/calc service)
+- Phase 1–5 code that exists today is refactored into these packages
+  incrementally, not re-written.
+
+### 16.6 Infra (eventual)
+
+- Docker per service.
+- AWS or GCP host for shared use across Starr.
+- Same observability stack (Sentry) used elsewhere in the repo.
+- DX requirement: full local dev with no cloud dependencies — CAD
+  service runs in Docker Compose alongside the Next.js dev server.
+
+---
+
+## 17. Phase roadmap (updated)
+
+The 8-phase STARR_CAD plan stays. The new pillars (§9, §10, §11, §12) are
+sequenced inside Phases 6–8 + a new prep phase that runs concurrently with
+the late stages of Phase 5.
+
+### 17.0 Phase 0 — Prep (concurrent with Phase 5 finalisation)
+
+| Milestone | Scope | Owner | Acceptance |
+|---|---|---|---|
+| P0.1 | Hank interview + drafting-standards intake | Lead | Documented firm-wide rules + signed-off by Hank |
+| P0.2 | Feature-code library audit (3,500 codes already present in repo) | Lead + Hank | Confirmed library covers test corpora; gaps filled |
+| P0.3 | Test corpora curation (§15.1 — 8–12 jobs + 15–20 docs) | Lead | All corpora committed with golden manifests |
+| P0.4 | Texas / TBPELS rule library | Lead + Hank | Encoded as declarative rules in firm-wide template |
+| P0.5 | Tolerance + style decisions per drawing-type | Hank | Boundary / topo / ALTA / subdivision tolerances set |
+
+**Rule:** none of Phase 6/7/8 starts until P0.1–P0.5 are accepted.
+
+### 17.1 Phase 6 — AI Engine (extended)
+
+Existing detail in `STARR_CAD_PHASE_6_AI_ENGINE.md`. Sequenced milestones for
+the new pillars:
+
+| Milestone | Scope | Reference |
+|---|---|---|
+| P6.1 | Scene graph delta — new metadata, layers, derivation schema | §4 |
+| P6.2 | Rules engine extraction from Phase 5 label optimiser | §7 |
+| P6.3 | Validation layer — 5 gates, structured-error contract | §8 |
+| P6.4 | AI tool surface dispatcher + caching | §6 |
+| P6.5 | IR + deterministic translators (CSV / RW5 / JobXML / shapefile / LandXML) | §8b |
+| P6.6 | Calculation methods registry + first 8 methods (bearing-distance, inverse, both intersections, traverse compass, curve 3-point, curve PC-PT-radius, offset) | §10 |
+| P6.7 | Document ingestion translators — PDF text-layer + pasted legal description | §8b + §9 |
+| P6.8 | Document review UI — side-by-side, confidence-gated, accept/correct flow | §9.2 |
+| P6.9 | Calculation methods batch 2 (least-squares, resection, POB-anchored chain, proportionate measurement, transit-rule traverse) | §10 |
+| P6.10 | Document ingestion batch 2 — scanned PDFs (OCR + vision) + photographed plats + title commitments | §9 |
+| P6.11 | Calculated-points feature — visual treatment, lineage UI, RPLS gate | §11 |
+| P6.12 | Conversational basis-selection workspace (chat + 3-pane) | §12 |
+| P6.13 | Consistency suite + visual regression CI gates | §15 |
+
+### 17.2 Phase 7 — Delivery (extended)
+
+Existing detail in `STARR_CAD_PHASE_7_FINAL.md`. Deltas:
+
+| Milestone | Scope | Reference |
+|---|---|---|
+| P7.1 | Calc/seal-aware export pipeline | §14.1 |
+| P7.2 | Stake-out export (CSV + PDF) | §14.4 |
+| P7.3 | Project bundle — original docs + IR + scene graph + audit log + chat | §14.2 |
+| P7.4 | Audit-log linkage embedded in PDF metadata | §14.3 |
+| P7.5 | Sealing workflow + seal invalidation on post-seal edits | §11.7 |
+| P7.6 | DXF round-trip QA against AutoCAD / Carlson / Civil 3D / Traverse PC | Phase 7 baseline |
+
+### 17.3 Phase 8 — UX polish (extended)
+
+Existing detail in `STARR_CAD_PHASE_8_UX_CONTROLS.md`. Deltas:
+
+| Milestone | Scope | Reference |
+|---|---|---|
+| P8.1 | Compare-bases mode in workspace | §12.4 |
+| P8.2 | Confidence rings + tolerance overlays on canvas | §11.3 |
+| P8.3 | Settings-driven AI verbosity + clarification thresholds | §12.5 |
+| P8.4 | Per-firm policy editor for tag-strip-on-seal, tolerance defaults, basis-cap | §11, §12 |
+| P8.5 | Conversation memory replay UI | §12.6 |
+
+### 17.4 Phase 9 — Trimble streaming (post-Phase-8)
+
+Tracked in Jacob's plan §14–§19 (Phase 2). Out of scope for this master
+doc's roadmap, but the architecture is ready: Trimble hot-folder input flows
+into the IR (§8b) like any other ingestion source; live updates are scene
+graph deltas, broadcast via WebSocket; the AI is called on milestone events
+only.
+
+### 17.5 Dependencies + critical path
+
+- **P0 → all of P6.** No Phase 6 work merges before Phase 0 acceptance.
+- **P6.4 (tool surface) blocks P6.6+.** Methods register against the
+  dispatcher; document ingestion calls go through the same dispatcher.
+- **P6.6 (calc methods batch 1) blocks P6.11.** Calculated points needs
+  the registry.
+- **P6.7+P6.8 (document ingestion + review UI) blocks P6.12.** The
+  workspace can't propose bases without ingested documents.
+- **P6.13 (consistency suite) gates P7.x release.** No sealing without
+  proven AI consistency on the test corpora.
+
+### 17.6 Time estimate
+
+Honest order-of-magnitude estimates assuming one focused engineer + Hank's
+part-time involvement for Phase 0 + ongoing review:
+
+| Phase | Estimate |
+|---|---|
+| Phase 0 prep | 4–6 weeks |
+| Phase 6.1–6.6 (foundations + first method batch) | 10–12 weeks |
+| Phase 6.7–6.10 (document ingestion in two batches) | 8–10 weeks |
+| Phase 6.11–6.12 (calc points + workspace) | 8–10 weeks |
+| Phase 6.13 (consistency suite) | 2–3 weeks |
+| Phase 7 deltas | 4–6 weeks |
+| Phase 8 deltas | 4–6 weeks |
+| **Total Phase 6–8 deltas** | **~10–12 months** |
+
+These are deltas on top of existing Phase 1–5 work; they assume Phase 1–5
+are stable. Trimble streaming is an additional ~4 months after Phase 8.
+
+---
+
+## 18. Cross-cutting concerns
+
+### 18.1 Legal + professional
+
+- The RPLS (Hank) signs every plat. The system never auto-seals.
+- Every export carries one of three states in the corner: "DRAFT — AI
+  ASSISTED — NOT SEALED" / "REVIEWED BY RPLS — UNSEALED" / "SEALED" + the
+  RPLS's identity + date.
+- Every entity carries enough metadata that the RPLS, six months later, can
+  reconstruct exactly how it was created and from what inputs.
+- TBPELS guidance on AI-assisted drafting is an emerging area; the audit
+  trail this system produces is more comprehensive than typical CAD work
+  and is intended to be *a* defence of the practice, not just a record.
+- For litigation: the project bundle is intended to be the complete
+  reproducible record. A future expert witness should be able to take the
+  bundle, the method registry at version X, and reproduce every numerical
+  value.
+
+### 18.2 Data security
+
+- Survey data is client-confidential. Encryption at rest and in transit.
+- Per-project ACLs. The existing Starr admin tenancy model applies.
+- Document uploads are scanned for PII against a per-firm policy
+  (default: nothing leaves the firm without explicit export action).
+- AI calls strip personally-identifying information from prompts where
+  possible (using deterministic redaction *before* the LLM call). The LLM
+  receives bearings, distances, monument descriptions, not party names.
+  Names + identities are joined back in on response.
+- Per-firm data residency choice — local on-prem deployment is supported
+  via the same Docker stack.
+
+### 18.3 Audit trail invariants
+
+- Every scene-graph mutation produces an audit-log entry: who, what tool,
+  what inputs, what result, when.
+- Audit log is append-only. Edits to an entity are logged as new entries,
+  not overwrites.
+- Audit log is queryable from the workspace (right-click an entity → "show
+  history").
+- The audit log is included in every project bundle and PDF export
+  metadata.
+
+### 18.4 Backup + versioning
+
+- Every drawing change is a version (CRDT-like or snapshot — pick on Phase
+  6.1).
+- Periodic full-project snapshots (every N edits or every M minutes,
+  configurable).
+- "Revert to before AI did X" command available in the workspace; uses the
+  audit log to identify and roll back.
+- Project bundles include the last N snapshots.
+
+### 18.5 Multi-user (deferred)
+
+- Single-user must be solid first.
+- Eventually: drawing-level locks for hard edits, optimistic concurrency
+  for soft edits (label moves, label restyles).
+- The chat is single-user — concurrent chat sessions on the same drawing
+  are out of scope until multi-user is on the critical path.
+
+### 18.6 Commercial licensing (deferred)
+
+- If Starr eventually licenses this to other firms, the architecture
+  should support per-firm template isolation, per-firm feature-code
+  libraries, per-firm rule packs, per-firm prompt customisation, and
+  branding overlays.
+- We do not architect for licensing on day one — but we don't paint into
+  a corner that prevents it (e.g., template paths are per-firm, not
+  global; feature codes are scoped, not hard-coded).
+
+### 18.7 Accessibility
+
+- The workspace UI follows the same WCAG AA target as the rest of the
+  Starr admin web.
+- Keyboard parity with mouse for every workspace action — surveyors who
+  prefer keyboard COGO never have to reach for the mouse.
+
+### 18.8 Performance budgets
+
+- Auto-draft on a 5,000-point topo: < 30 s on commodity hardware.
+- Document ingestion: < 60 s per 10-page PDF (text-layer); < 5 min per
+  10-page scanned PDF.
+- Basis proposal: < 10 s for up to 5 targets and 8 anchor candidates.
+- Scene graph render: 60 fps for drawings up to 50,000 entities; degraded
+  but usable at 200,000.
+- LLM tool-call round-trip with prompt caching: target P95 < 4 s.
+
+---
+
+## 19. Risks + open questions
+
+### 19.1 Technical risks
+
+| Risk | Severity | Mitigation |
+|---|---|---|
+| OCR + extraction accuracy on faded / handwritten / low-quality scans | **high** | (a) confidence-gated review UI; (b) explicit `partial_extraction_acknowledgement` workflow; (c) handwriting out of scope for v1 |
+| AI tool-call inconsistency under prompt drift | medium | Consistency suite (§15.2); short stable system prompt; tight tool surface |
+| DXF round-trip fidelity quirks across CAD vendors | medium | Per-vendor round-trip CI; known-incompatibility catalogue |
+| Curve handling edge cases (record vs. observed) | medium | Method-registry coverage; surveyor-confirmed curve direction; non-silent fallback |
+| Performance on 5,000+ point topos | medium | PixiJS path tested in Phase 1; profile early; WebGL fallback if SVG fails |
+| Trimble integration uncertainty (Phase 9) | medium-low | Verify Trimble API access before committing P9 work |
+| Method-registry version drift breaking historic Derivations | low | CI byte-for-byte compatibility gate on `compute()` |
+
+### 19.2 Process risks
+
+| Risk | Severity | Mitigation |
+|---|---|---|
+| Scope creep into "full CAD replacement" | **high** | Stay plat-focused; defer non-plat asks to a separate roadmap |
+| Feature-code adoption by field crews | high | Phase 0 includes crew training; non-conforming codes raise warnings, not silent guesses |
+| Hank's drafting standards as tribal knowledge | high | Phase 0.1 interview is not optional; encode standards as declarative rules, not prompt text |
+| Shipping the chat UI before the methods underneath are solid | medium | Method-registry batches 1+2 land before §12 ships |
+| RPLS-liability ambiguity slowing adoption | medium | Audit trail + sealing workflow + draft-watermark policy minimises ambiguity |
+
+### 19.3 Open questions (require decisions before implementation)
+
+1. **Web-only vs. desktop fallback?** Recommendation: web-only via
+   PixiJS in the browser. Confirm.
+2. **Scene-graph storage model — JSONB blob vs. normalised tables?**
+   Recommendation: JSONB blob with indexed metadata for now; revisit at
+   50k+ entities. Confirm at P6.1.
+3. **Default Texas state plane zone — Central or per-job pick?**
+   Recommendation: per-project pick at job creation; default to Central.
+   Confirm with Hank.
+4. **Bearing format precision — whole seconds vs. tenths?**
+   Recommendation: whole seconds in display; full source precision
+   retained in metadata. Confirm with Hank.
+5. **Vision model for OCR — Anthropic-only or fall back to Tesseract on
+   sensitive jobs?** Recommendation: Anthropic by default; per-firm
+   policy can force Tesseract for flagged-sensitive projects. Confirm.
+6. **AI cost cap per project / per month?** Recommendation: per-project
+   budget visible to the surveyor + soft warning at 75% + hard cap at
+   100% requiring admin override. Confirm.
+7. **RPLS-only vs. delegated review of calculated points?**
+   Recommendation: RPLS-only for sealing; delegation possible for
+   pre-review walk-through with RPLS final accept. Confirm with Hank.
+8. **Per-method tolerance defaults — by drawing type or by method?**
+   Recommendation: drawing type, with method-specific overrides allowed.
+   Confirm with Hank.
+9. **Stake-out file dialect — generic CSV or Trimble-specific JobXML?**
+   Recommendation: both; CSV is the lingua franca, JobXML is the
+   ergonomic export when the field crew uses Trimble. Confirm.
+10. **Handwritten field-note OCR — out of scope for v1?**
+    Recommendation: yes. Confirm.
+
+---
+
+## 20. Additional capabilities + integrations
+
+These were implicit in the product description but deserve their own section
+so a future implementer doesn't miss them. Each is in scope for the unified
+plan; specific milestones are slotted into §17.
+
+### 20.1 STARR Field mobile-app integration (Phase F10)
+
+The `STARR_FIELD_MOBILE_APP_PLAN.md` mobile app (Phase F10) is the field-side
+partner to this CAD system. Integration points:
+
+- **Stake-out hand-off.** When a drawing has `MONUMENTS_TO_SET` points
+  approved by the RPLS, the surveyor pushes them to the field app as
+  stake-out targets. Each target carries: northing/easting/elevation,
+  recommended setup station, bearing/distance from that station, suggested
+  monument description, target tolerance.
+- **Photos back to the office.** Field crew takes a photo of the
+  monument they set or recovered; the photo lands in the project bundle
+  and attaches to the scene-graph entity (§20.4). RPLS sees the photo on
+  the lineage panel during review.
+- **Found-monument check-in.** Field crew reports "found this rod;
+  here's the photo + the GPS observation"; the office sees a pending
+  observed point and can promote it to `MONUMENTS_FOUND`.
+- **Disturbed flag from the field.** If the crew finds a leaning rod,
+  they flag it from the field; the disturbed state propagates to the
+  drawing and triggers the §11 recovery workflow.
+- **Auth + tenancy.** The mobile app and CAD share the existing Starr
+  user model; per-project ACL applies to both.
+- **Offline.** Field app is offline-capable; sync on reconnection. The
+  CAD desktop is online-by-default but the editor degrades gracefully
+  on poor connectivity (read/edit local; sync queued).
+
+### 20.2 Adjoiners + neighbouring property
+
+Texas plats nearly always show adjoiners. The system handles:
+
+- Adjoiner outlines extracted from uploaded title commitments / deeds,
+  rendered on `EXISTING_BOUNDARY` per the firm template.
+- Adjoiner labels (owner name from deed, recording reference, calls if
+  shown).
+- Adjoiner monument ties (a found pin shared with an adjoiner is tagged
+  as such; the §11 workflow can use adjoiner monuments as anchors).
+- "Find adjoiners from county records" is an explicit deferred capability
+  (Phase 7+); v1 supports manual upload of adjoiner deeds.
+
+### 20.3 Easement workflow
+
+Easements are first-class drawing features:
+
+- Layer: `EASEMENT` (existing).
+- Easement entities carry metadata: easement type (utility, access,
+  drainage, blanket), grantor / grantee, recording reference, expiration
+  if any.
+- Easements often originate from documents — the document ingestion
+  pipeline (§9) extracts easement calls and the surveyor confirms before
+  they land on the canvas.
+- Easement areas computed automatically when the easement closes;
+  reported in the easement table per template.
+- "Subject to" easements (from a title commitment) are rendered with a
+  distinct linetype + flagged on the legend.
+
+### 20.4 Photo + external-reference attachments
+
+Any scene-graph entity can carry attachments. Use cases:
+
+- Photo of a found monument (from the mobile app or uploaded directly).
+- Sketch / hand-drawn diagram referenced during a calculation.
+- External reference to a non-extracted document (e.g., correspondence
+  with a neighbour about the boundary).
+
+Attachments live in object storage; entities reference them by id.
+Lineage panel (§11.4) shows photo thumbnails inline so the RPLS sees
+them during review. Photos exported with the project bundle.
+
+### 20.5 PLSS / flood-zone / reference layers
+
+For Texas boundary work in rural counties:
+
+- **PLSS overlay** — section / township / range lines from the GLO /
+  county records. Renders on a non-plottable reference layer.
+- **FEMA flood-zone overlay** — pulled from FEMA's NFHL service per the
+  drawing's CRS; renders on a non-plottable reference layer when the
+  drawing's notes block requires a flood-zone statement.
+- **County parcel boundary overlay** — from county appraisal districts
+  where available.
+- **USGS topo / aerial imagery** — when the active template enables it
+  (off by default; opt-in per project).
+
+These overlays are read-only references; the AI cannot promote them
+into observed entities. They're for situational awareness during the
+drafting + recovery workflow.
+
+### 20.6 Datum + CRS transformation
+
+A common pain point: old documents are in NAD27, modern observations in
+NAD83 or NAD2011, and the office state-plane choice may differ from the
+field-team's GNSS solution.
+
+- Every point + entity carries its native CRS.
+- Translation between CRSs uses `pyproj` with explicit transformation
+  parameters (no silent grid-shift assumptions).
+- Documents with stated datums are translated on ingest into the
+  drawing's working CRS; the original datum is preserved in metadata
+  for audit.
+- A "datum mismatch" warning blocks computation when basis anchors are
+  in different CRSs without an explicit user-confirmed transform.
+- The basis-selection workspace surfaces datum conflicts as a top-line
+  warning before computing.
+
+### 20.7 DXF import (in-flight migration)
+
+Surveyors don't start from zero. Many jobs already have an AutoCAD-drawn
+draft that the new system needs to consume:
+
+- DXF read via `ezdxf` produces a structured representation, mapped onto
+  the scene graph via a configurable layer-mapping (firm-wide default;
+  per-import override).
+- Imported entities are tagged `created_by='dxf_import'` with the source
+  file id in metadata.
+- Style mismatches between the DXF and the firm template are flagged in
+  a post-import audit; surveyor walks each and decides override-vs-conform.
+- An imported DXF can be the starting point for a §11 monument-recovery
+  workflow — observed-point and document-call workflows layer on top.
+
+### 20.8 Subdivision lot / parcel management
+
+Subdivision plats need lot numbering, lot areas, lot tables:
+
+- Lot entities are first-class — a closed polyline with `lot_number`,
+  `lot_area` (computed), `block_number`, optional `lot_label_position`.
+- Lot tables auto-generate per template.
+- Lot numbering rules in the rules engine (sequential per block,
+  skip-numbering allowed via explicit flag).
+- "Re-subdivide" command splits an existing lot polyline into N lots
+  per a user-chosen method (equal area, equal frontage, by call).
+- Calculated points participate normally — a subdivision may place
+  calculated lot corners.
+
+### 20.9 Template editor UI + governance
+
+Templates are central; their authoring needs explicit ownership.
+
+- Template editor UI — visual editor for layer styles, line types, text
+  styles, point symbols, blocks, table styles, title block, north
+  arrow, scale bar, notes block.
+- Rule-pack editor — visual editor for the declarative rules (§7.3);
+  Hank or a delegated CAD lead authors firm-wide rules.
+- Template versioning — SemVer per template; bumping a template kicks
+  off a "review template-version diff" task on every project that
+  references it (project pinned to a version unless explicitly bumped).
+- Template change preview — diff renders side-by-side on a sample
+  drawing before commit.
+- Template export — a firm can export its template pack for backup or
+  for sharing across offices (commercial-licensing groundwork, §18.6).
+
+### 20.10 Drawing comparison + revision diff
+
+Before sealing, the RPLS often needs to compare "what changed since the
+last draft I reviewed":
+
+- Per-drawing version history (already in §18.4); each version is a
+  snapshot.
+- Diff command produces a side-by-side: old scene graph vs. new, with
+  added / moved / deleted / restyled entities highlighted.
+- Diff filtered by author (e.g., "show only AI-driven changes since
+  yesterday").
+- Diff exported to PDF for archived review records.
+
+### 20.11 Stake-out + field check-in (handshake with §20.1)
+
+Closes the loop with the field:
+
+- Approved `MONUMENTS_TO_SET` push to the field app as stake-out
+  targets.
+- Field-set monuments come back as observations + photos; observed
+  points land on `MONUMENTS_SET` and the calculated point is marked
+  `realised: true` in metadata.
+- Realised calculated points retain their `Derivation` for audit, but
+  the visual treatment switches to "set" (filled circle).
+- Discrepancies between calculated position and observed-set position
+  are surfaced as a "field-check report" — useful for catching
+  field-crew errors and for refining future basis selections.
+
+### 20.12 Search + project-wide query
+
+A surveyor mid-job needs to find things fast. The workspace exposes a
+universal search (Cmd-K style):
+
+- "Find all monuments described as 'iron rod with cap STARR 6706'."
+- "Find every entity referencing document 1973-plat-page-2."
+- "Find calculated points exceeding tolerance."
+- "Find every entity created by AI in the last hour."
+- "Find every entity with `rpls_status='pending'`."
+
+Search runs against the scene graph + audit log + ingested documents;
+results clickable to canvas + lineage panel.
+
+### 20.13 Notes + surveyor's-certification workflow
+
+Boilerplate text is high-leverage:
+
+- Notes blocks come from the firm template (§5); per-drawing
+  customisation via the notes-block editor.
+- Surveyor's certification text is template-defined and locked — the
+  AI cannot modify it; the surveyor edits via a dedicated dialog that
+  logs every change to the audit trail.
+- TBPELS-required notes (datum statement, basis-of-bearing reference,
+  flood-zone statement) are validated before export.
+
+### 20.14 Print + plot
+
+Standard but worth pinning down:
+
+- Sheet sizes per active template (24×36, 22×34, 11×17, etc.).
+- Multi-sheet drawings supported (a long road-corridor survey across
+  several sheets).
+- Sheet-specific scale (1"=20', 1"=50', 1"=100', custom).
+- Match-line conventions per template.
+- Plot to PDF first; plot-to-physical-printer via OS print dialog.
+- Lineweights honoured (Phase 5 baseline).
+
+---
+
+## 21. Immediate next steps
+
+Sequenced. Do not skip ahead:
+
+1. **Hank interview (P0.1).** 2–3 sessions covering: drafting standards by
+   drawing type, monument-description vocabulary, preferred bearing/
+   distance precision, default tolerances, when calculated points are vs.
+   are not acceptable, sealing workflow, audit-trail expectations.
+   Output: signed-off `STARR_CAD_FIRM_STANDARDS.md`.
+2. **Confirm test corpora (P0.3).** Pick 8–12 representative past Starr
+   jobs (boundary, topo, ALTA, subdivision, road, lost-monument
+   recovery, partial-data) and 15–20 representative documents (clean
+   PDFs, scans, photographed plats, deeds, title commitments, legal
+   descriptions). Hand-curate the golden IRs + scene graphs.
+3. **Confirm Phase 0 acceptance criteria.** Hank's sign-off on the
+   feature-code library, the rule-pack, the tolerance defaults.
+4. **Decide Open Questions 1–10 (§19.3).** A short async doc; Hank +
+   lead engineer review; confirmed answers are recorded as ADRs in
+   `docs/architecture/decisions/`.
+5. **Stand up the package skeleton (§16.5).** Empty packages with the
+   defined boundaries. No logic; just module-shape commitments.
+6. **Start P6.1 (scene graph delta).** Once the skeleton is up.
+7. **Backfill `STARR_CAD_DOC_INGESTION.md`, `STARR_CAD_CALCULATION_METHODS.md`,
+   `STARR_CAD_MONUMENT_RECOVERY.md`, `STARR_CAD_AI_WORKSPACE.md`** as the
+   corresponding sections of this doc enter implementation.
+
+**Until Phase 0 is done, no P6 code merges.** The temptation to start with
+"easy wins" on the rules engine or method registry without standards
+sign-off is real and should be resisted — every implementation choice
+made before standards are pinned is one that will likely need redoing.
+
+---
+
+## 22. Glossary
+
+| Term | Definition |
+|---|---|
+| AI agent | The Claude-driven conversational + tool-calling layer; produces only structured tool calls, never free-form drawing instructions |
+| Auto-draft engine | Deterministic pipeline that converts a coded point set into a styled draft plat (no LLM in the data path) |
+| Basis | A specific anchor set + chain of calculation methods used to compute one or more calculated points |
+| Calculated point | A point whose coordinates are computed (not observed); carries a `Derivation` and lives on `MONUMENTS_CALCULATED` until accepted |
+| Derivation | The metadata block that records how a calculated entity was produced (method id + version + inputs + sources + timestamps) |
+| Document ingestion | The pipeline that converts uploaded PDFs / scans / pasted text into the IR via deterministic translators + LLM extraction |
+| Firm-wide template | The Starr-baseline declarative configuration that defines layers, styles, rules, and required content |
+| IR (intermediate representation) | The structured JSON object produced by every translator; the only thing the AI sees from an input file |
+| Method registry | The versioned catalogue of named calculation methods (§10) callable via `calc_method` |
+| Observed point | A point whose coordinates come from a field measurement; on `MONUMENTS_FOUND` or `MONUMENTS_SET` |
+| RPLS gate | The serial walkthrough the licensed surveyor performs before a drawing with `pending` calculated points can export with seal markings stripped |
+| Rules engine | The pure-function module that enforces drafting / template / Texas standards (§7) |
+| Scene graph | The single source of truth for drawing state — a tree of entities, layers, styles, metadata |
+| Tool surface | The fixed set of functions the AI agent can call; everything not on the surface is unavailable to the AI |
+| Validation layer | The 5-gate pipeline between AI tool calls and the scene graph (§8) |
+| Workspace | The chat + 3-pane UI for basis selection + monument recovery (§12) |
+
+---
+
+## 23. Document maintenance
+
+- Each numbered section has an owner who reviews proposed deltas via PR.
+- Major changes (anything that flips an architectural principle in §3 or
+  invalidates an existing `Derivation`) need an ADR.
+- Until P6.1 starts, this doc updates freely. After P6.1 starts, deltas
+  go via PR with explicit reviewer.
+- Cross-link discipline: when the corresponding detail doc is created
+  (`STARR_CAD_DOC_INGESTION.md`, etc.), the section here becomes a
+  summary + pointer; the detail moves out.
+

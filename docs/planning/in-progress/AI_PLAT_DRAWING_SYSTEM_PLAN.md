@@ -1,3 +1,12 @@
+> **⚠️ Adopted as the constraint-architecture source for `STARR_CAD_MASTER_PLAN.md`
+> Phase 6 (2026-04-30).** This doc is the canonical reference for the
+> deterministic-AI-drafter philosophy (scene graph as single source of truth,
+> tool-call-only AI, rules engine + validation layer, consistency discipline).
+> The master plan absorbs these principles + adds document ingestion, the
+> calculation methods registry, calculated-points / monument recovery, and the
+> conversational basis-selection workspace. For new work, prefer the master
+> plan and treat this doc as architectural background.
+
 # AI-Powered Plat Drawing System — Project Plan
  
 **Prepared for:** Starr Surveying

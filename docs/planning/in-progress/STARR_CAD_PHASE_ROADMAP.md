@@ -1,5 +1,14 @@
 # STARR CAD — 8-Phase Implementation Roadmap
 
+> **⚠️ Superseded by `STARR_CAD_MASTER_PLAN.md` §17 (2026-04-30).**
+> The master plan's §17 is the canonical roadmap. The 8-phase structure
+> below is preserved for historical context; Phase 6–8 milestones have been
+> extended in the master plan to cover document ingestion, the calculation
+> methods registry, calculated points / monument recovery, and the
+> conversational basis-selection workspace, plus a new prep Phase 0 that
+> must complete before Phase 6 starts. Do not extend this doc; open PRs
+> against the master.
+
 **Version:** 2.1 | **Date:** March 2026 | **Company:** Starr Surveying Company, Belton, TX
 
 **Purpose:** This document defines the 8 development phases for Starr CAD. Each phase has its own standalone implementation spec. Phases are sequential — each builds on the previous. Work on a phase only after the prior phase's deliverables are complete and tested.
