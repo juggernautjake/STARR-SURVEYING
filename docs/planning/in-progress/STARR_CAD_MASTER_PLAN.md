@@ -530,3 +530,600 @@ contents:
 
 ---
 
+## 10. Calculation methods library
+
+The registry of named, deterministic, mathematically-defined methods the
+system uses to compute coordinates. Both the AI tool surface (`calc_method`,
+§6.8) and the manual COGO panel call into the same registry. Phase 4's
+existing geometry tools become the first batch of registered methods.
+
+### 10.1 Goals
+
+- One canonical implementation per method (no drift between AI-invoked and
+  user-invoked calculations).
+- Each method produces a `Derivation` (§10.4) — sufficient to reproduce the
+  result from the inputs alone.
+- Each method declares its tolerance, expected closure error, and the
+  conditions under which it is the correct choice. The basis-selection
+  workspace (§12) reads these declarations to rank alternatives.
+- New methods can be added without touching the AI prompt — the prompt
+  references the registry, not individual methods.
+
+### 10.2 Registered methods (v1)
+
+| Id | Name | Inputs | Output | When to use |
+|---|---|---|---|---|
+| `bearing_distance` | Bearing + distance from known point | `from_point`, `bearing`, `distance` | one new point | Most common — single call extending from a known monument |
+| `inverse` | Inverse between two known points | `point_a`, `point_b` | bearing, distance | Reverse of above; reads from existing entities |
+| `bearing_bearing_intersection` | Intersection of two bearings | `from_a`, `bearing_a`, `from_b`, `bearing_b` | one new point (or two for parallel-near-parallel warning) | Lost monument when you have two adjoining lines that meet at it |
+| `bearing_distance_intersection` | Intersection of a bearing with a distance arc | `from_a`, `bearing_a`, `from_b`, `distance_b` | up to two solutions; user picks | When one neighbouring tie is bearing-only and one is distance-only |
+| `distance_distance_intersection` | Intersection of two distance arcs | `from_a`, `distance_a`, `from_b`, `distance_b` | up to two solutions; user picks | Two ties from known points to the lost corner |
+| `traverse_compass` | Compass-rule traverse balancing | `closed_traverse`, `closure_tolerance` | adjusted point set | Closing a measured boundary chain |
+| `traverse_transit` | Transit-rule traverse balancing | `closed_traverse`, `closure_tolerance` | adjusted point set | Older surveys; angles more reliable than distances |
+| `traverse_least_squares` | Least-squares network adjustment | `observations[]`, `fixed_points[]`, `weights?` | adjusted points + error ellipses | Modern adjustment when redundant observations exist |
+| `curve_pc_pt_radius` | Curve solver from PC + PT + radius | `pc`, `pt`, `radius`, `direction` | arc geometry + delta + length | Resolving record-call curves |
+| `curve_pc_radius_delta` | Curve solver from PC + radius + delta | `pc`, `radius`, `delta`, `tangent_in_bearing`, `direction` | arc + PT | Extending from a tangent-in |
+| `curve_3point` | Arc through 3 points | `p1`, `p2`, `p3` | arc + radius + delta + center | Resolving observed-only curves |
+| `offset_along_bearing` | Point at perpendicular offset from a line | `line_id`, `station`, `offset` | one new point | Staking offset positions |
+| `resection` | 3-point fix from known monuments | `from_a`, `from_b`, `from_c`, `obs_a`, `obs_b`, `obs_c` | one new point | Establishing position when occupying an unknown station |
+| `pob_anchored_chain` | Walks a metes-and-bounds chain from a POB | `pob`, `calls[]` | sequence of new points | Reconstructing a deed call from an extracted document |
+| `proportionate_measurement` | BLM-style proportionate measurement for lost corners | `controlling_corners[]`, `record_distances[]`, `lost_position_index` | one new point + alt rule (single, double, triple) | Lost original GLO/BLM corners |
+| `grid_to_ground` / `ground_to_grid` | Coordinate scale conversion | `point`, `combined_factor` (or computed from CRS + elevation) | adjusted coordinate | When mixing measured ground distances with grid-stored coordinates |
+
+The registry is open for extension. Each new method ships with: signature
+schema, implementation, unit tests against textbook examples, a "when to use"
+heuristic that the basis-selection workspace can read, and a doc page in
+`STARR_CAD_CALCULATION_METHODS.md`.
+
+### 10.3 Method signature anatomy
+
+Every registered method is a TypeScript module exporting:
+
+```ts
+export const method = {
+  id: 'bearing_distance',
+  display_name: 'Bearing + distance from known point',
+  category: 'point_derivation',
+  inputs: { /* JSON-schema */ },
+  outputs: { /* JSON-schema */ },
+  tolerance: {
+    expected_closure_error_ft: 0.01,
+    sensitivity: { /* per-input nudge factor for error propagation */ }
+  },
+  when_to_use: 'Single call extending from a known monument...',
+  preconditions: [ /* declarative — checked before run */ ],
+  compute(inputs): MethodResult,        // pure
+  describe(inputs): string,             // human-readable summary for audit log
+};
+```
+
+`compute()` is pure: same inputs → byte-identical outputs. No I/O, no clock.
+
+### 10.4 The `Derivation` schema
+
+Every entity created by a calculation method carries a `Derivation` in its
+metadata:
+
+```ts
+interface Derivation {
+  method_id: string;
+  method_version: string;     // SemVer of the method module
+  inputs: Record<string, unknown>;       // exact inputs as passed
+  input_sources: InputSource[];          // where each input came from
+  result_summary: string;                // human-readable (matches describe())
+  computed_at: string;                   // ISO timestamp
+  expected_error_ft?: number;            // if the method declared one
+  notes?: string;
+}
+
+interface InputSource {
+  param_name: string;
+  kind: 'observed_point' | 'calculated_point' | 'document_extract'
+       | 'user_entered' | 'derived_inverse';
+  ref?: string;                          // entity id / document id
+  document_span?: { page: number; bbox?: [number,number,number,number] };
+}
+```
+
+This is what makes a calculated point reproducible and auditable: any future
+reader can see *which* known points + *which* document calls + *which* method
+produced it, and re-run the computation to verify.
+
+### 10.5 Tolerance + error propagation
+
+Each method declares per-input sensitivity. The workspace propagates the
+input uncertainties (bearing ±N seconds, distance ±N hundredths) through to
+an expected positional error on the output. This drives:
+
+- The "expected closure error" displayed when ranking bases (§12).
+- The visual confidence ring drawn around calculated points on the canvas.
+- The "exceeds tolerance" warning that blocks export until the RPLS
+  acknowledges.
+
+### 10.6 Method governance
+
+- New methods land via PR with: implementation, unit tests against
+  textbook references (with citations), entry in
+  `STARR_CAD_CALCULATION_METHODS.md`, and Hank's review.
+- Method version bumps are SemVer; non-major changes preserve `compute()`
+  output byte-for-byte against the test corpus, enforced in CI.
+- Deprecated methods stay in the registry (so historic `Derivation`s
+  remain reproducible) but are hidden from the workspace UI.
+
+---
+
+## 11. Calculated points + monument recovery
+
+The end-to-end workflow for the headline use case: surveyor finds *some* of
+the original monuments, has documents (deed, old plat, field notes) for the
+rest, and needs the system to compute where the missing/disturbed monuments
+should be — with a drawing that shows clearly which points are observed vs.
+calculated, and audit trail to defend in front of the RPLS or in court.
+
+### 11.1 User story (canonical)
+
+> Surveyor reaches a job site, locates 3 of 8 boundary monuments, finds two
+> are clearly disturbed (one knocked over, one moved by recent fenceline
+> work), and one is missing entirely. They have the original 1973 plat (PDF
+> scan) and the recorded deed text. They want to calculate where the
+> 5 unfound monuments should be, decide which to re-set vs. accept as
+> disturbed, and produce a drawing the RPLS can review and seal.
+
+### 11.2 Workflow (happy path)
+
+1. **Open project, upload documents.** Old plat PDF + deed PDF land in the
+   ingestion pipeline (§9). Surveyor confirms extracted bearings, distances,
+   curve calls, POB.
+2. **Import observed points.** CSV from total station / GNSS receiver.
+   Observed monuments land on `MONUMENTS_FOUND`; disturbed ones get a
+   `disturbed: true` metadata flag (surveyor sets this manually or via a
+   bulk-tag UI).
+3. **Open the workspace (§12), pick targets.** Surveyor selects "I want to
+   compute the 5 missing corners + the 2 disturbed corner positions".
+4. **AI proposes bases.** Up to 3 candidate basis chains (§12.2), each
+   ranked by expected closure error, with a one-line "why this basis" and
+   the dependency graph (which calculated point depends on which observed
+   point + which document call).
+5. **Surveyor picks a basis (or asks AI to compare side-by-side).**
+6. **AI computes.** Each calculated point lands on `MONUMENTS_CALCULATED`
+   with full `Derivation` metadata, a confidence ring proportional to the
+   expected positional error, and a `rpls_status='pending'` flag.
+7. **Per-point review.** Surveyor walks each calculated point, accepts /
+   rejects / tweaks. Accepted points stay on `MONUMENTS_CALCULATED`;
+   rejected points are deleted; tweaked points are flagged
+   `user_overridden: true` and the override goes into the audit log.
+8. **Decide setting plan.** Surveyor moves "to be set" calculated points to
+   `MONUMENTS_TO_SET` (single click per point or bulk-promote-accepted).
+   These render with the green dashed circle + "TO SET" tag.
+9. **RPLS review gate.** Before the drawing exports without the "CALC" /
+   "TO SET" tagging, the RPLS runs the "review calculated points"
+   command — a serial walkthrough that requires explicit acceptance or
+   rejection of every entity with `rpls_status='pending'`. On full
+   acceptance, the drawing's `seal_status` flips to `sealed` and exports
+   strip the calc/to-set markings (per Phase 7).
+10. **Field crew sets monuments.** Optional: export a "stake-out file" of
+    `MONUMENTS_TO_SET` points (CSV + bearings/distances from chosen control)
+    that drops directly into Trimble Access.
+
+### 11.3 Visual treatment
+
+| State | Layer | Symbol | Colour | Tag | Notes on plat |
+|---|---|---|---|---|---|
+| Observed monument | `MONUMENTS_FOUND` | Open circle w/ cross | Black | (none) | Always |
+| Observed but disturbed | `MONUMENTS_FOUND` (disturbed flag) | Open circle w/ cross + small "D" | Black + orange "D" | "FND DISTURBED" call-out | Always |
+| Calculated, pending RPLS | `MONUMENTS_CALCULATED` | Dashed circle | Magenta | "CALC" + confidence ring | Until RPLS clears |
+| Calculated, accepted, to be set | `MONUMENTS_TO_SET` | Dashed circle w/ cross | Green | "TO SET" + confidence ring | Until physical set + re-shot |
+| Set this job | `MONUMENTS_SET` | Filled circle | Black | (none) | After re-shot confirms |
+
+The confidence ring radius = expected positional error from method's
+sensitivity propagation (§10.5). User can hide rings from the layer panel.
+
+### 11.4 Lineage UI
+
+Clicking a calculated point opens a side panel with:
+
+- The full `Derivation` (method, version, inputs, input sources).
+- Hyperlinks to source observed points (canvas highlights on hover).
+- Hyperlinks to source document spans (opens the original PDF/scan with the
+  span boxed).
+- "Re-run" button (applies current method version; useful after method
+  upgrades).
+- "Try alternate basis" button (sends the user back into §12 with this
+  point as the target).
+- "Accept" / "Reject" / "Override coordinate" controls.
+- Export-time inclusion toggle (e.g., "show on final plat as a tie point" vs.
+  "internal use only").
+
+### 11.5 Tolerance enforcement
+
+- Each drawing-type template declares an export tolerance (e.g., "boundary
+  monuments must have expected positional error ≤ 0.05 ft").
+- Calculated points exceeding the tolerance carry an `over_tolerance` flag.
+- Export is blocked until either: (a) the surveyor recalculates with a
+  tighter basis, or (b) the RPLS explicitly accepts the over-tolerance
+  point with a justification that lands in the audit log.
+
+### 11.6 Multi-job recall
+
+Calculated points carry their `Derivation` with the project bundle.
+Reopening the project a year later — even after method-registry version
+bumps — preserves the original calculation. A "re-run with current methods"
+button is offered but never automatic.
+
+### 11.7 Liability + sealing
+
+- Until `rpls_status='sealed'`, every export carries a watermark "DRAFT —
+  AI-ASSISTED — NOT SEALED".
+- The sealing step writes the RPLS's identity, timestamp, and the SHA-256 of
+  the drawing's serialised state into the audit log. Future modifications
+  invalidate the seal automatically.
+- Disturbed monuments are *never* moved to "calculated" automatically. The
+  surveyor must explicitly mark them, and the RPLS gate flags any
+  surveyor-assigned `disturbed` flag for review.
+
+---
+
+## 12. Conversational basis-selection workspace
+
+The chat-driven UI where the surveyor and the AI iterate on which observed
+points + document calls to use as the foundation for calculating missing
+points. This is the new pillar that wraps §9 + §10 + §11 into a coherent
+working tool.
+
+### 12.1 Layout
+
+Three-pane workspace mounted alongside the CAD canvas:
+
+```
+┌────────────────────────────┬────────────────────────────────────┐
+│                            │                                    │
+│      CAD CANVAS            │   BASIS CANDIDATES (right rail)    │
+│   (scene graph render —    │   ┌──────────────────────────────┐ │
+│    canonical state +       │   │ Basis A — chain from IRF#3    │ │
+│    provisional ghost       │   │   exp closure: 0.04 ft        │ │
+│    points from active      │   │   anchors: IRF#3, IRF#7       │ │
+│    basis)                  │   │   doc refs: 1973 plat (P2)    │ │
+│                            │   │   covers: 4 of 5 missing      │ │
+│                            │   └──────────────────────────────┘ │
+│                            │   ┌──────────────────────────────┐ │
+│                            │   │ Basis B — section corner +   │ │
+│                            │   │   deed call from POB         │ │
+│                            │   │   exp closure: 0.11 ft       │ │
+│                            │   │   covers: 5 of 5 missing     │ │
+│                            │   └──────────────────────────────┘ │
+│                            │   [ + Compare A vs B side-by-side ]│
+├────────────────────────────┴────────────────────────────────────┤
+│   CHAT (full-width bottom pane)                                  │
+│   You: which corners can you find from just the 1973 plat?      │
+│   AI:  the plat gives me the south + east lines verbatim;       │
+│        I can recover corners 4, 5, 6 from IRF#3 with…           │
+│   You: what if i don't trust the 1973 plat's south bearing?     │
+│   AI:  basis B avoids that bearing — it walks from the BLM      │
+│        section corner using the deed's east-west call. trade-   │
+│        off: 0.11 ft expected closure vs basis A's 0.04 ft…      │
+│   [ commit basis A | commit basis B | ask another question ]    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 12.2 Basis-proposal protocol
+
+When the surveyor picks targets and asks "what bases work?", the AI calls
+`propose_bases(targets, constraints?)`. The dispatcher under that tool:
+
+1. **Enumerates anchor sets.** Every observed point + every document-anchored
+   POB is a candidate anchor. Combinatorially restricted to anchors within a
+   reasonable tie-distance of any target.
+2. **Plans calculation chains.** For each anchor set, the planner walks the
+   target list and decides which method from §10 reaches each target. Walks
+   are scored by:
+   - Sum of per-step expected positional error.
+   - Number of document-extracted (vs. observed) inputs (fewer = more
+     trusted).
+   - Chain depth (shorter = more trusted).
+   - Tolerance budget (chains exceeding the drawing-type tolerance are
+     dropped unless no alternative exists).
+3. **Returns up to 3 ranked bases.** Each basis is structured:
+   ```ts
+   interface BasisCandidate {
+     id: string;
+     anchors: { observed_point_ids: string[]; documents: string[] };
+     coverage: { resolved_targets: string[]; unresolved_targets: string[] };
+     plan: PlannedStep[];                       // ordered list of method calls
+     expected_closure_error_ft: number;
+     dependency_graph: DependencyEdge[];
+     tradeoffs: string;                         // human-readable
+     ai_confidence: 'high' | 'medium' | 'low';
+   }
+   ```
+
+The cap of 3 is configurable per-firm but defaults to 3 to keep cognitive
+load manageable.
+
+### 12.3 Compute + preview
+
+Selecting a basis triggers `compute_basis(basis, targets)`:
+
+- Each target gets a *provisional* entity on `MONUMENTS_CALCULATED` with
+  `provisional: true` metadata.
+- Provisional entities render on the canvas as ghosts (50% opacity) so the
+  surveyor can see the fit before commit.
+- Switching to a different basis swaps the ghosts in place; nothing commits
+  to the audit-trail-relevant state until `commit_basis`.
+
+### 12.4 Compare-bases mode
+
+The "Compare A vs B" action splits the canvas into a vertical mirror: same
+viewport, two scene-graph projections, one for each basis. Differences
+between the two are highlighted (target points that move > tolerance show a
+red arrow A→B with the delta in feet). Below the canvas, a small table:
+
+| Target | Basis A position | Basis B position | Δ (ft) | Notes |
+|---|---|---|---|---|
+| Corner 4 | N12345.67 E22345.12 | N12345.71 E22345.10 | 0.04 | both within tolerance |
+| Corner 5 | N12678.91 E22612.45 | N12679.08 E22612.20 | 0.30 | **Basis B exceeds tolerance** |
+
+### 12.5 Chat conventions
+
+The chat is the surveyor's primary working surface for ambiguity. Conventions:
+
+- **AI asks before computing** when the inputs are ambiguous (e.g., "the
+  deed says 'thence south to the creek'; should I use the document-extracted
+  south bearing of S 00°15'00" W, or the modern observed creek centerline?").
+- **AI cites sources for every claim.** Every numeric value referenced in
+  the chat carries a clickable source (observed point id, document span, or
+  method id).
+- **AI proposes preferences as user-set policy.** When the surveyor says
+  "always use compass rule for boundary traverses", the AI offers to save
+  this as a project-level (or firm-level) preference and references it on
+  future runs.
+- **AI surfaces tradeoffs, never decides for the surveyor on legally
+  significant calls.** Phrases like "you should use basis A" are reserved
+  for cases where one basis is *clearly* better by all metrics; otherwise
+  the AI presents the tradeoff and asks.
+
+### 12.6 Conversation memory
+
+Per-project + per-drawing chat history is persisted with the project bundle.
+Each turn carries:
+
+- The user's message.
+- The AI's response (text).
+- All tool calls invoked + their structured results.
+- Any state changes that resulted (provisional / committed bases, accepted
+  points, rejected points).
+
+A future reader (RPLS reviewing 6 months later, court expert in litigation)
+can replay the conversation deterministically against the saved tool-call
+results.
+
+### 12.7 Manual override path
+
+The chat is never the *only* way. Every action in the workspace has an
+equivalent manual COGO panel command. The chat is a productivity layer over
+the underlying methods — surveyors who prefer command-line COGO can ignore
+the chat entirely without losing capability.
+
+### 12.8 AI-assist scope (hard limits)
+
+- The AI cannot commit a basis without explicit user action.
+- The AI cannot accept calculated points on the user's behalf — it only
+  proposes; the surveyor walks the per-point review.
+- The AI cannot mark a monument `disturbed` — surveyor judgment only.
+- The AI cannot modify document-extracted values; corrections route through
+  the document review UI (§9.2 step 4).
+- The AI cannot run methods that are deprecated in the current registry.
+
+---
+
+## 13. Auto-draft engine (point-set → linework)
+
+This is the existing Phase 6 capability, reframed against the new tool surface
++ method registry. The auto-draft engine is the deterministic path from "I
+have a coded point file" to "I have a styled draft plat" — it doesn't need
+the basis-selection workspace, but it does benefit from the same scene-graph
+contract and rules engine.
+
+### 13.1 Pipeline (deterministic)
+
+| Stage | Action | Module |
+|---|---|---|
+| 1. Parse | Read IR points (§8b); group by feature code | `cad-autodraft/parse` |
+| 2. Categorise | Map each point to a feature category from the firm code library | `cad-feature-codes` (existing, Phase 2) |
+| 3. Group | Connect points with the same line code in source order; detect curve markers (`BC`/`PC`/`PT`/`EC`) | `cad-autodraft/grouping` |
+| 4. Linework | Emit polylines for connected sequences; emit arcs for curve segments via §10 method `curve_3point` or `curve_pc_pt_radius` | `cad-autodraft/linework` |
+| 5. Symbols | Place feature-code-mapped blocks on observed points | `cad-autodraft/symbols` |
+| 6. Labels | Run rules engine label-placement pass (bearing/distance, point labels, curve labels) | `cad-rules` (§7) |
+| 7. Closure | Run `compute_traverse_closure` on boundary chains; flag if outside tolerance | `cad-cogo` (§10) |
+| 8. Tables | Generate point / leg / curve tables per active template | `cad-autodraft/tables` |
+| 9. Layout | Place title block, north arrow, scale bar, notes | template (§5) |
+| 10. Validate | Full rules audit (§7); produce report of warnings + blocks | `cad-rules` |
+| 11. Return | Surveyor reviews report; warnings remain on the drawing as flag overlays until cleared | UI |
+
+### 13.2 AI involvement
+
+The auto-draft engine itself is deterministic — no LLM in the data path. The
+AI's involvement is at the edges:
+
+- **Pre-draft.** Before stage 1, the AI inspects the input IR + the active
+  template and may ask clarifying questions ("this CSV has feature code
+  `BL3` which isn't in the firm library — should I map it to BL with a
+  sub-line index, treat it as a new code, or skip it?").
+- **Post-draft.** After stage 11, the AI summarises the warnings and
+  proposes resolutions ("3 points on the south boundary failed closure;
+  options: re-shoot, use compass rule via §10.6, or accept with a written
+  justification").
+
+### 13.3 Auto-draft → calculated-points handoff
+
+When the auto-draft engine finishes and the surveyor opens the workspace
+(§12), the workspace already has:
+
+- All observed points loaded.
+- The auto-drafted linework + labels + tables visible.
+- Any closure failures flagged as targets.
+
+If the input file lacks one or more boundary corners (an unclosed traverse),
+the workspace can offer "switch to monument-recovery mode" which routes
+those missing corners through §11.
+
+### 13.4 Edge cases
+
+Documented in `STARR_CAD_PHASE_6_AI_ENGINE.md` and re-affirmed here:
+
+- Crossing lines: the engine never silently picks "on top"; both stay,
+  rule-based label placement avoids the crossing.
+- Overlapping labels: rules engine flags; AI proposes the shift.
+- Non-closing parcels: never silently fudged. Closure error is shown.
+- Missing curve data: arc falls back to `curve_3point`; flagged as a warning
+  the surveyor must clear.
+- Multi-coded points: surveyor's mapping in the firm library wins; conflicts
+  flagged.
+- Mistyped codes: strict by default; the AI offers a fuzzy match in the
+  warnings panel for the surveyor to confirm.
+
+---
+
+## 14. Output + export
+
+Cross-link to `STARR_CAD_PHASE_7_FINAL.md` for the export engine itself;
+this section records the deltas the new pillars introduce.
+
+### 14.1 Calc/seal-aware export pipeline
+
+```
+export request
+   │
+   ▼
+seal status check ───► drawing has rpls_status='pending' entities?
+   │                          │
+   │                          ├── yes + RPLS gate not run → block; surface
+   │                          │   the "review calculated points" command
+   │                          ├── yes + RPLS gate run with rejections → block
+   │                          └── yes + RPLS gate fully accepted → continue
+   ▼
+strip-or-keep tags ───► firm-set policy (default: strip CALC/TO-SET on sealed
+                         export; keep on draft export)
+   │
+   ▼
+format-specific writer (DXF / PDF / SVG / GeoJSON / CSV / project bundle)
+   │
+   ▼
+audit-log entry: who exported, what format, with what tag policy, sha256 of
+                 the exported bytes
+```
+
+### 14.2 Export formats
+
+| Format | Use | Notes |
+|---|---|---|
+| DXF (2018+) | AutoCAD / Carlson / Civil 3D / Bricscad / Traverse PC interop | `ezdxf` writer; round-trip tested per Phase 7 |
+| PDF | Plotting / signing | Vector; lineweights honoured; multi-sheet |
+| SVG / PNG | Web previews | Watermarked DRAFT until sealed |
+| GeoJSON | GIS handoff | Reprojected to WGS84 on export |
+| CSV (PNEZD + variants) | Stake-out / archive | Includes a stake-out variant: `MONUMENTS_TO_SET` only, with bearings/distances from the surveyor-chosen control |
+| Project bundle (zip) | Archive / audit | Original uploaded files + IR + scene graph + audit log + chat history + selected basis + all `Derivation`s |
+
+### 14.3 Calculated-point markers in exports
+
+- **Draft export (any state):** calculated and to-set points carry
+  visible markers + tags + confidence rings.
+- **Sealed export (`rpls_status='sealed'` on every entity):** firm-default
+  strips the markers. Per-firm policy can override to keep them; a
+  surveyor-set per-export choice can override that.
+- **Audit-log linkage in exports:** every exported PDF embeds the project
+  bundle's audit-log SHA-256 + URL in the document metadata so a future
+  reader can fetch the trail.
+
+### 14.4 Stake-out export
+
+A first-class output for the §11 workflow. The export builds, for each point
+on `MONUMENTS_TO_SET`:
+
+- Northing / easting / elevation.
+- Recommended occupied station (from the basis's anchor set).
+- Bearing + distance from that station.
+- Optional: bearing + distance from a backup station.
+- Suggested setting note (e.g., "iron rod, 1/2 inch, 24 inch length, capped
+  STARR RPLS 6706").
+
+Exported as CSV (Trimble Access compatible) and as a printable stake-out
+sheet PDF.
+
+---
+
+## 15. Quality, testing, consistency
+
+### 15.1 Test corpora
+
+| Corpus | Source | Used by |
+|---|---|---|
+| Coded survey corpus | 8–12 representative Starr jobs (boundary, topo, ALTA, subdivision, road, resurvey, lost-monument, partial-data) | Auto-draft engine + AI agent |
+| Document corpus | 15–20 representative documents (clean PDFs, scanned PDFs, photographed plats, deeds, title commitments, legal descriptions) with hand-curated golden IRs | Document ingestion translators |
+| Method-textbook corpus | Citations from canonical surveying texts (Brinker & Wolf, Wolf & Ghilani) for each registered method | §10 method unit tests |
+| Calculated-point corpus | Job pairs where one job has full observation and one has partial observation + the rest of the data in documents | §11 + §12 end-to-end |
+| Visual-regression corpus | Rendered PNGs of golden draft plats from each survey-corpus entry | Phase 5 + style cascade |
+
+Each corpus entry has a manifest: inputs, expected IR or scene graph,
+expected exports, expected warnings. CI runs the full suite on every PR.
+
+### 15.2 Consistency suite
+
+Per Jacob's plan §11.3: run the same input through the AI 10× with
+randomised prompt orderings and compare:
+
+- Final scene graphs (modulo entity ids) — must match.
+- Tool-call sequences — must match modulo cosmetic ordering.
+- Exported DXFs — must hash-match after entity-id normalisation.
+
+Variation on identical input is treated as a bug. Triage:
+
+1. Was the rules engine consulted at every relevant gate? If not, fix the
+   tool surface.
+2. Did the AI use a method outside the tightly-bounded tool list? If so,
+   tighten the tool surface.
+3. Was the system prompt drifting (over-instructing in a way that left
+   creative latitude)? If so, simplify.
+
+### 15.3 Visual regression
+
+Each draft plat in the visual-regression corpus is rendered to PNG; CI
+diffs against the golden PNG. Deltas above pixel-tolerance flag for human
+review (some renderer changes are intentional and the goldens get
+regenerated, but explicitly).
+
+### 15.4 OCR + extraction QA
+
+For the document translators specifically:
+
+- Field-level precision/recall computed against hand-curated goldens.
+- Per-field confidence calibration: bucket extractions by reported
+  confidence and verify that low-confidence buckets have proportionally
+  more errors. Mis-calibration is treated as a prompt bug.
+- Failure modes catalogued: handwriting / poor scan / non-standard
+  bearing format / mixed metric+imperial / partial OCR. Each gets a known
+  warning code so triage is fast.
+
+### 15.5 Method-registry CI gates
+
+- New method PR cannot merge without textbook-citation tests.
+- Method version bumps preserve `compute()` output byte-for-byte against
+  the historical input/output corpus, enforced in CI.
+- Deprecated methods stay testable until a documented "no project still
+  references this method" check passes.
+
+### 15.6 Acceptance criteria (binding)
+
+A drawing is "ready for RPLS review" when:
+
+1. Every entity has `created_by`, `created_at`, and (if calculated) a
+   complete `Derivation`.
+2. No rule violations remain unresolved.
+3. The closure on every closed traverse is within the drawing-type
+   tolerance, or carries an explicit `over_tolerance_acknowledgement`.
+4. Every ingested document has either fully-confirmed extraction or an
+   explicit `partial_extraction_acknowledgement`.
+5. Every chat-driven AI tool call resulted in a committed scene-graph
+   change or an explicit user reject.
+
+---
+
