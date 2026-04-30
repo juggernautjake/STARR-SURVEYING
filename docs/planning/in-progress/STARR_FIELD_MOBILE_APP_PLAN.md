@@ -3584,19 +3584,22 @@ Broken into smaller sub-batches per the established pattern.
       button (uses DELETE for archive, PATCH for restore).
       "+ New template" button navigates to /new (queued). Sidebar
       entry deferred to F10.6.
-- [◐] **F10.2e** — Templates create + edit pages. **F10.2e-i
+- [✓] **F10.2e** — Templates create + edit pages. **F10.2e-i
       create + F10.2e-ii-a edit page shell + F10.2e-ii-b items
       table + F10.2e-ii-c Add-item modal + F10.2e-ii-d Edit-item
-      modal (PATCH w/ XOR swap)** shipped. Edit modal pre-fills
-      from the row, auto-detects resolution mode (specific vs
+      modal (PATCH w/ XOR swap) + F10.2e-ii-e Delete-item
+      confirm + DELETE** all shipped. Edit modal pre-fills from
+      the row, auto-detects resolution mode (specific vs
       category) from initial state, lets operator swap modes
       mid-edit — submit explicitly clears the OTHER field so
       the F10.2c-ii server-side merged-state XOR check accepts
-      the swap as a single PATCH. Submit refetches the template
-      surfacing "✓ Item updated. Bumped to v<N>; snapshot
-      recorded." Per-row Edit button now functional.
-      F10.2e-ii-e (Delete item action) closes out F10.2e in
-      the next sub-batch.
+      the swap as a single PATCH. Delete confirm modal shows
+      the row's contents (kind + specific/category + qty +
+      notes) inside the confirm card, calls DELETE per
+      F10.2c-iii, surfaces "✓ Item deleted. Bumped to v<N>;
+      snapshot recorded." Per-row Edit + Delete buttons now
+      functional. Phase F10.2e is fully shipped — F10.2f
+      (save-as) + F10.2g (apply) remain deferred per below.
 - [ ] **F10.2f** — Save-as-template shortcut (deferred to
       F10.5 with apply flow).
 - [ ] **F10.2g** — Apply-template flow (deferred to F10.3

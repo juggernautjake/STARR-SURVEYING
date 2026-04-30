@@ -2,12 +2,12 @@
 //
 // Manage an existing template's header + line items. F10.2e-ii is
 // split into 5 sub-batches per the small-chunks principle:
-//   F10.2e-ii-a (THIS): page shell + header form (PATCH on save)
+//   F10.2e-ii-a: page shell + header form (PATCH on save)
 //   F10.2e-ii-b: items table (read-only display + per-row Edit/
 //                Delete buttons that wire to the next two batches)
 //   F10.2e-ii-c: Add-item modal (POST)
 //   F10.2e-ii-d: Edit-item modal (PATCH w/ XOR swap)
-//   F10.2e-ii-e: Delete-item confirm + DELETE
+//   F10.2e-ii-e (THIS): Delete-item confirm + DELETE
 //
 // This batch loads the template via GET + lets the operator edit
 // the header fields + save via PATCH. Items render in a stub
@@ -96,6 +96,8 @@ export default function TemplateEditPage() {
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   // Edit-item modal state (Phase F10.2e-ii-d).
   const [editingItem, setEditingItem] = useState<TemplateItem | null>(null);
+  // Delete-item confirm-modal state (Phase F10.2e-ii-e).
+  const [deletingItem, setDeletingItem] = useState<TemplateItem | null>(null);
 
   const fetchTemplate = useCallback(async () => {
     if (!session?.user?.email || !id) return;
@@ -547,8 +549,10 @@ export default function TemplateEditPage() {
                           <button
                             type="button"
                             style={styles.rowActionBtnDanger}
-                            disabled
-                            title="Delete-item flow lands in F10.2e-ii-e"
+                            onClick={() => {
+                              setActionMsg(null);
+                              setDeletingItem(item);
+                            }}
                           >
                             Delete
                           </button>
@@ -593,6 +597,21 @@ export default function TemplateEditPage() {
             setEditingItem(null);
             setActionMsg(
               `✓ Item updated. Bumped to v${newVersion}; snapshot recorded.`
+            );
+            void fetchTemplate();
+          }}
+        />
+      ) : null}
+
+      {deletingItem ? (
+        <DeleteItemModal
+          templateId={id ?? ''}
+          item={deletingItem}
+          onClose={() => setDeletingItem(null)}
+          onDeleted={(newVersion) => {
+            setDeletingItem(null);
+            setActionMsg(
+              `✓ Item deleted. Bumped to v${newVersion}; snapshot recorded.`
             );
             void fetchTemplate();
           }}
@@ -1238,6 +1257,166 @@ function EditItemModal({
   );
 }
 
+// ── Delete-item confirm modal (Phase F10.2e-ii-e) ──────────────────────────
+//
+// Hard-deletes the row via DELETE /api/admin/equipment/templates/
+// [id]/items/[itemId] per F10.2c-iii. Shows the row's contents
+// (kind + specific/category + qty + notes) inside the confirm so
+// the operator sees exactly what they're dropping. Audit trail
+// runs through the parent template — DELETE bumps version +
+// writes a fresh snapshot capturing the post-delete items array,
+// so the just-deleted row stays recoverable from the prior
+// snapshot's items_jsonb (§5.12.3).
+//
+// Auth: admin / developer / equipment_manager. tech_support
+// read-only — Delete buttons render but the API rejects.
+
+interface DeleteItemModalProps {
+  templateId: string;
+  item: TemplateItem;
+  onClose: () => void;
+  onDeleted: (newVersion: number) => void;
+}
+
+function DeleteItemModal({
+  templateId,
+  item,
+  onClose,
+  onDeleted,
+}: DeleteItemModalProps) {
+  const { safeFetch } = usePageError('DeleteItemModal');
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleConfirm = useCallback(async () => {
+    setError(null);
+    setSubmitting(true);
+    const res = await safeFetch<{
+      deleted_item_id: string;
+      template_version: number;
+      remaining_count: number;
+    }>(
+      `/api/admin/equipment/templates/${templateId}/items/${item.id}`,
+      { method: 'DELETE' }
+    );
+    setSubmitting(false);
+
+    if (res?.template_version) {
+      onDeleted(res.template_version);
+    } else {
+      setError(
+        'Delete failed. Check the error log; the row is unchanged.'
+      );
+    }
+  }, [item.id, onDeleted, safeFetch, templateId]);
+
+  return (
+    <div style={modalStyles.backdrop} onClick={onClose}>
+      <div
+        style={modalStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-item-modal-title"
+      >
+        <header style={modalStyles.header}>
+          <h2 id="delete-item-modal-title" style={modalStyles.title}>
+            Delete line item?
+          </h2>
+          <button
+            type="button"
+            style={modalStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+            disabled={submitting}
+          >
+            ✕
+          </button>
+        </header>
+
+        <div style={modalStyles.body}>
+          <p style={modalStyles.warningCopy}>
+            Removes this line from the template. The parent template&apos;s
+            version bumps + a snapshot is written, so the row is
+            recoverable from the prior snapshot&apos;s items if you
+            need to restore it later.
+          </p>
+
+          <div style={modalStyles.summaryCard}>
+            <div style={modalStyles.summaryRow}>
+              <span style={modalStyles.summaryLabel}>Order</span>
+              <span style={modalStyles.summaryValue}>{item.sort_order}</span>
+            </div>
+            <div style={modalStyles.summaryRow}>
+              <span style={modalStyles.summaryLabel}>Kind</span>
+              <span style={modalStyles.summaryValue}>{item.item_kind}</span>
+            </div>
+            <div style={modalStyles.summaryRow}>
+              <span style={modalStyles.summaryLabel}>Resolution</span>
+              <span style={modalStyles.summaryValue}>
+                {item.equipment_inventory_id ? (
+                  <>
+                    📌 unit{' '}
+                    <code style={modalStyles.code}>
+                      {item.equipment_inventory_id.slice(0, 8)}…
+                    </code>
+                  </>
+                ) : item.category ? (
+                  <>
+                    ⊕ category{' '}
+                    <code style={modalStyles.code}>{item.category}</code>
+                  </>
+                ) : (
+                  '—'
+                )}
+              </span>
+            </div>
+            <div style={modalStyles.summaryRow}>
+              <span style={modalStyles.summaryLabel}>Quantity</span>
+              <span style={modalStyles.summaryValue}>{item.quantity}</span>
+            </div>
+            <div style={modalStyles.summaryRow}>
+              <span style={modalStyles.summaryLabel}>Required</span>
+              <span style={modalStyles.summaryValue}>
+                {item.is_required ? 'yes' : 'no'}
+              </span>
+            </div>
+            {item.notes ? (
+              <div style={modalStyles.summaryRow}>
+                <span style={modalStyles.summaryLabel}>Notes</span>
+                <span style={modalStyles.summaryValue}>{item.notes}</span>
+              </div>
+            ) : null}
+          </div>
+
+          {error ? <div style={modalStyles.error}>⚠ {error}</div> : null}
+        </div>
+
+        <footer style={modalStyles.footer}>
+          <button
+            type="button"
+            style={modalStyles.secondaryBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            style={modalStyles.dangerBtn}
+            onClick={handleConfirm}
+            disabled={submitting}
+            autoFocus
+          >
+            {submitting ? 'Deleting…' : 'Delete item'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 const modalStyles: Record<string, React.CSSProperties> = {
   backdrop: {
     position: 'fixed',
@@ -1364,6 +1543,49 @@ const modalStyles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: 13,
     color: '#374151',
+  },
+  dangerBtn: {
+    background: '#B91C1C',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  warningCopy: {
+    margin: 0,
+    fontSize: 13,
+    color: '#374151',
+    lineHeight: 1.5,
+  },
+  summaryCard: {
+    background: '#FAFBFC',
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    padding: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  summaryRow: {
+    display: 'grid',
+    gridTemplateColumns: '110px 1fr',
+    gap: 10,
+    fontSize: 13,
+    alignItems: 'baseline',
+  },
+  summaryLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#6B7280',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.04em',
+  },
+  summaryValue: {
+    color: '#111827',
+    wordBreak: 'break-word' as const,
   },
 };
 
