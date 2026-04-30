@@ -92,6 +92,9 @@ export default function TemplateEditPage() {
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Add-item modal state (Phase F10.2e-ii-c).
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+
   const fetchTemplate = useCallback(async () => {
     if (!session?.user?.email || !id) return;
     setLoading(true);
@@ -452,8 +455,10 @@ export default function TemplateEditPage() {
           <button
             type="button"
             style={styles.addBtn}
-            disabled
-            title="Add-item modal lands in the next sub-batch (F10.2e-ii-c). Use the items POST endpoint directly via curl until then."
+            onClick={() => {
+              setActionMsg(null);
+              setShowAddItemModal(true);
+            }}
           >
             + Add item
           </button>
@@ -559,9 +564,475 @@ export default function TemplateEditPage() {
         (F10.2g/F10.3) flows land later. Sidebar entry deferred to
         F10.6.
       </p>
+
+      {showAddItemModal ? (
+        <AddItemModal
+          templateId={id ?? ''}
+          existingItems={data.items}
+          onClose={() => setShowAddItemModal(false)}
+          onAdded={(newVersion) => {
+            setShowAddItemModal(false);
+            setActionMsg(
+              `✓ Item added. Bumped to v${newVersion}; snapshot recorded.`
+            );
+            void fetchTemplate();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
+
+// ── Add-item modal (Phase F10.2e-ii-c) ─────────────────────────────────────
+//
+// POSTs to /api/admin/equipment/templates/[id]/items per F10.2c-i.
+// Operator picks item_kind, then chooses one of two modes:
+//   * Pin specific — paste the equipment_inventory_id UUID
+//     (typeahead picker is v2 polish; copy the UUID from the
+//     catalogue's drilldown URL for now)
+//   * Any-of-kind — type a category string
+//
+// XOR enforced both client-side (one mode at a time) AND
+// server-side (seeds/237 CHECK constraint).
+
+interface AddItemModalProps {
+  templateId: string;
+  existingItems: TemplateItem[];
+  onClose: () => void;
+  onAdded: (newVersion: number) => void;
+}
+
+function AddItemModal({
+  templateId,
+  existingItems,
+  onClose,
+  onAdded,
+}: AddItemModalProps) {
+  const { safeFetch } = usePageError('AddItemModal');
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [itemKind, setItemKind] = useState<'durable' | 'consumable' | 'kit'>(
+    'durable'
+  );
+  const [mode, setMode] = useState<'specific' | 'category'>('category');
+  const [equipmentInventoryId, setEquipmentInventoryId] = useState('');
+  const [category, setCategory] = useState('');
+  const [quantity, setQuantity] = useState('1');
+  const [isRequired, setIsRequired] = useState(true);
+  const [notes, setNotes] = useState('');
+  const [sortOrder, setSortOrder] = useState(() => {
+    // Default to max(existing) + 10 — sparse spacing so the
+    // F10.2e-ii-d edit modal can drop a row in between two
+    // existing rows by setting sort_order to (n-1).sort_order + 5.
+    const maxExisting = existingItems.reduce(
+      (max, it) => Math.max(max, it.sort_order),
+      -10
+    );
+    return String(maxExisting + 10);
+  });
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+
+      const body: Record<string, unknown> = { item_kind: itemKind };
+
+      if (mode === 'specific') {
+        const trimmed = equipmentInventoryId.trim();
+        if (!trimmed) {
+          setError('Specific-mode needs an equipment_inventory_id UUID.');
+          return;
+        }
+        const uuidRe =
+          /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+        if (!uuidRe.test(trimmed)) {
+          setError('equipment_inventory_id must be a valid UUID.');
+          return;
+        }
+        body.equipment_inventory_id = trimmed;
+      } else {
+        const trimmed = category.trim();
+        if (!trimmed) {
+          setError('Category-mode needs a category string.');
+          return;
+        }
+        body.category = trimmed;
+      }
+
+      const qty = parseInt(quantity.trim(), 10);
+      if (!Number.isInteger(qty) || qty < 1) {
+        setError('Quantity must be a positive integer (≥1).');
+        return;
+      }
+      body.quantity = qty;
+      body.is_required = isRequired;
+      if (notes.trim()) body.notes = notes.trim();
+
+      const sortInt = parseInt(sortOrder.trim(), 10);
+      if (Number.isInteger(sortInt)) body.sort_order = sortInt;
+
+      setSubmitting(true);
+      const res = await safeFetch<{
+        item: TemplateItem;
+        template_version: number;
+      }>(`/api/admin/equipment/templates/${templateId}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      setSubmitting(false);
+
+      if (res?.item) {
+        onAdded(res.template_version);
+      } else {
+        setError('Add failed. Check the error log; the form is unchanged.');
+      }
+    },
+    [
+      itemKind,
+      mode,
+      equipmentInventoryId,
+      category,
+      quantity,
+      isRequired,
+      notes,
+      sortOrder,
+      templateId,
+      safeFetch,
+      onAdded,
+    ]
+  );
+
+  return (
+    <div style={modalStyles.backdrop} onClick={onClose}>
+      <form
+        style={modalStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={handleSubmit}
+      >
+        <header style={modalStyles.header}>
+          <h2 style={modalStyles.title}>Add line item</h2>
+          <button
+            type="button"
+            style={modalStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div style={modalStyles.body}>
+          <fieldset style={modalStyles.fieldset}>
+            <legend style={modalStyles.legend}>Item kind *</legend>
+            {(['durable', 'consumable', 'kit'] as const).map((k) => (
+              <label key={k} style={modalStyles.radioRow}>
+                <input
+                  type="radio"
+                  name="item_kind"
+                  value={k}
+                  checked={itemKind === k}
+                  onChange={() => setItemKind(k)}
+                />
+                <span style={modalStyles.radioLabel}>{k}</span>
+              </label>
+            ))}
+          </fieldset>
+
+          <fieldset style={modalStyles.fieldset}>
+            <legend style={modalStyles.legend}>Resolution mode *</legend>
+            <label style={modalStyles.radioRow}>
+              <input
+                type="radio"
+                name="mode"
+                value="category"
+                checked={mode === 'category'}
+                onChange={() => setMode('category')}
+              />
+              <span style={modalStyles.radioLabel}>
+                <strong>Any-of-kind (category)</strong>
+                <span style={modalStyles.hint}>
+                  {' '}
+                  · resolved at apply time to whatever&apos;s available
+                  in the category
+                </span>
+              </span>
+            </label>
+            <label style={modalStyles.radioRow}>
+              <input
+                type="radio"
+                name="mode"
+                value="specific"
+                checked={mode === 'specific'}
+                onChange={() => setMode('specific')}
+              />
+              <span style={modalStyles.radioLabel}>
+                <strong>Pin specific instrument</strong>
+                <span style={modalStyles.hint}>
+                  {' '}
+                  · always pulls THIS exact equipment_inventory row
+                </span>
+              </span>
+            </label>
+          </fieldset>
+
+          {mode === 'category' ? (
+            <label style={modalStyles.field}>
+              <span style={modalStyles.label}>Category string *</span>
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                style={modalStyles.input}
+                placeholder="total_station_kit / gps_rover / paint / lath"
+                required
+              />
+              <span style={modalStyles.hint}>
+                ▸ Free-form. Match the seeds/233{' '}
+                <code style={modalStyles.code}>category</code> values
+                you&apos;re using on actual inventory rows.
+              </span>
+            </label>
+          ) : (
+            <label style={modalStyles.field}>
+              <span style={modalStyles.label}>
+                equipment_inventory_id (UUID) *
+              </span>
+              <input
+                type="text"
+                value={equipmentInventoryId}
+                onChange={(e) =>
+                  setEquipmentInventoryId(e.target.value.trim())
+                }
+                style={{
+                  ...modalStyles.input,
+                  fontFamily: 'Menlo, monospace',
+                  fontSize: 12,
+                }}
+                placeholder="00000000-0000-0000-0000-000000000000"
+                required
+              />
+              <span style={modalStyles.hint}>
+                ▸ Copy from the catalogue drilldown URL —{' '}
+                <code style={modalStyles.code}>
+                  /admin/equipment/&lt;id&gt;
+                </code>
+                . Typeahead picker is v2 polish.
+              </span>
+            </label>
+          )}
+
+          <div style={modalStyles.gridRow}>
+            <label style={modalStyles.field}>
+              <span style={modalStyles.label}>Quantity *</span>
+              <input
+                type="number"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                style={modalStyles.input}
+                min={1}
+                step={1}
+                required
+              />
+            </label>
+            <label style={modalStyles.field}>
+              <span style={modalStyles.label}>Sort order</span>
+              <input
+                type="number"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                style={modalStyles.input}
+                step={5}
+              />
+              <span style={modalStyles.hint}>
+                ▸ Defaulted to max + 10. Drop in between two existing
+                rows by tweaking the value.
+              </span>
+            </label>
+          </div>
+
+          <label style={modalStyles.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={isRequired}
+              onChange={(e) => setIsRequired(e.target.checked)}
+            />
+            <span>
+              <strong>Required</strong>
+              <span style={modalStyles.hint}>
+                {' '}
+                · false → §5.12.5 soft-warn instead of hard-block when
+                this line is unavailable at apply-time
+              </span>
+            </span>
+          </label>
+
+          <label style={modalStyles.field}>
+            <span style={modalStyles.label}>Notes</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              style={{ ...modalStyles.input, minHeight: 60 }}
+              placeholder="Free-form context — e.g. 'spare battery for cold-weather jobs'"
+            />
+          </label>
+
+          {error ? <div style={modalStyles.error}>⚠ {error}</div> : null}
+        </div>
+
+        <footer style={modalStyles.footer}>
+          <button
+            type="button"
+            style={modalStyles.secondaryBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            style={modalStyles.primaryBtn}
+            disabled={submitting}
+          >
+            {submitting ? 'Adding…' : 'Add item'}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
+const modalStyles: Record<string, React.CSSProperties> = {
+  backdrop: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(15, 23, 42, 0.5)',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingTop: 60,
+    zIndex: 1000,
+  },
+  modal: {
+    background: '#FFFFFF',
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: 'calc(100vh - 120px)',
+    boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '14px 20px',
+    borderBottom: '1px solid #E2E5EB',
+  },
+  title: { fontSize: 16, fontWeight: 600, margin: 0 },
+  close: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: 18,
+    cursor: 'pointer',
+    color: '#6B7280',
+    lineHeight: 1,
+    padding: 4,
+  },
+  body: {
+    padding: 20,
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 14,
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 10,
+    padding: '12px 20px',
+    borderTop: '1px solid #E2E5EB',
+    background: '#FAFBFC',
+    borderRadius: '0 0 12px 12px',
+  },
+  field: { display: 'flex', flexDirection: 'column', gap: 4 },
+  label: { fontSize: 12, fontWeight: 600, color: '#374151' },
+  input: {
+    padding: '8px 10px',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: 'inherit',
+  },
+  fieldset: {
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    padding: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  legend: { fontSize: 12, fontWeight: 600, color: '#374151' },
+  radioRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    fontSize: 13,
+    cursor: 'pointer',
+  },
+  radioLabel: { display: 'inline-block' },
+  checkboxRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    fontSize: 13,
+  },
+  gridRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: 12,
+  },
+  hint: { fontSize: 11, color: '#6B7280', fontStyle: 'italic' },
+  code: {
+    fontFamily: 'Menlo, monospace',
+    fontSize: 11,
+    background: '#F7F8FA',
+    padding: '1px 6px',
+    borderRadius: 4,
+    border: '1px solid #E2E5EB',
+  },
+  error: {
+    background: '#FEF2F2',
+    border: '1px solid #FCA5A5',
+    color: '#B91C1C',
+    padding: 10,
+    borderRadius: 6,
+    fontSize: 12,
+  },
+  primaryBtn: {
+    background: '#15803D',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  secondaryBtn: {
+    background: 'transparent',
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    color: '#374151',
+  },
+};
 
 const styles: Record<string, React.CSSProperties> = {
   wrap: { padding: '24px', maxWidth: 1100, margin: '0 auto' },

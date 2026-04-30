@@ -3586,18 +3586,18 @@ Broken into smaller sub-batches per the established pattern.
       entry deferred to F10.6.
 - [◐] **F10.2e** — Templates create + edit pages. **F10.2e-i
       create + F10.2e-ii-a edit page shell + F10.2e-ii-b items
-      table** shipped. Items section now renders a real table
-      sorted by sort_order: Order · Kind (durable/consumable/kit
-      pill) · Specific-or-category column with 📌-pin badge for
-      pinned inventory units OR ⊕-category badge for any-of-kind
-      lookups · Quantity · Required/optional badge · Notes
-      (truncated w/ hover) · per-row Edit + Delete buttons (both
-      currently disabled with hover hints pointing to the
-      F10.2e-ii-d / F10.2e-ii-e batches that wire them up). Add
-      item button at the section header is disabled with a hint
-      pointing at F10.2e-ii-c. F10.2e-ii-c (Add modal) +
-      F10.2e-ii-d (Edit modal w/ XOR swap) + F10.2e-ii-e
-      (Delete action) close out F10.2e in subsequent sub-batches.
+      table + F10.2e-ii-c Add-item modal** shipped. Modal lets
+      operator pick item_kind (radio), choose between
+      any-of-kind category mode (default) and pin-specific mode,
+      set quantity / sort_order (defaulted to max+10) /
+      is_required / notes. Client validates UUID format on
+      pinned mode + non-empty category on category mode +
+      positive integer quantity. Submit POSTs to
+      /templates/[id]/items, refetches on success surfacing
+      "✓ Item added. Bumped to v<N>; snapshot recorded." Add
+      button now functional. F10.2e-ii-d (Edit item modal w/
+      XOR swap) + F10.2e-ii-e (Delete item action) close out
+      F10.2e in subsequent sub-batches.
 - [ ] **F10.2f** — Save-as-template shortcut (deferred to
       F10.5 with apply flow).
 - [ ] **F10.2g** — Apply-template flow (deferred to F10.3
