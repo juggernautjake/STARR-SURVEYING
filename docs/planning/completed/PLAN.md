@@ -1,5 +1,19 @@
 # AI Property Research & Plat Drawing Renderer — Implementation Plan
 
+> **⚠️ Superseded — closed out 2026-04-30. Status: Completed (historical).**
+>
+> This Feb-2026 mega-plan is the predecessor to two newer plans that have
+> since taken over its scope. Use those for any new work; this doc is
+> preserved as a historical reference only.
+>
+> | Original phase here | Now lives in |
+> |---|---|
+> | Phase 1–5 (database schema · file upload + document processing · property search · AI analysis · results / discrepancy mgmt) | `docs/planning/in-progress/STARR_RECON/` (19 phase docs from PHASE_01_DISCOVERY through PHASE_19_LIDAR_CROSSCOUNTY) |
+> | Phase 6–14 (drawing data model · canvas engine · view modes · comparison · workflow UI · API routes · templates · AI parameterisation · white-label) | `docs/planning/in-progress/STARR_CAD_MASTER_PLAN.md` and the cross-linked detail docs in `docs/planning/in-progress/STARR_CAD/` (phases 1–8) |
+> | Phase 15 (dependencies + DevOps) and Appendix A/B (TS interfaces · middleware) | Largely captured by the live codebase + the newer plans; the originals stay below as historical context |
+>
+> Direct new work to the newer plans. Do not extend this doc.
+
 **Starr Surveying · Admin Dashboard Feature Module**
 **Version 3.1 · February 2026**
 
