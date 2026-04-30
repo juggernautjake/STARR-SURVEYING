@@ -3606,14 +3606,42 @@ Broken into smaller sub-batches per the established pattern.
       with reservations).
 
 **F10.3 — Availability + conflict detection engine (Week 35).**
-- [ ] `GET /api/admin/equipment/availability` — runs the four
-      §5.12.5 checks, returns assignable units + typed reasons.
-- [ ] `POST /api/admin/equipment/reserve` — atomic multi-item
-      reserve with `SELECT … FOR UPDATE` race guard.
-- [ ] Substitution suggestions surface on conflict.
-- [ ] Soft-override path with required reason + admin
-      notification + double-reservation insert pattern.
-- [ ] `POST /api/admin/equipment/cancel-reservation`.
+Split into 6 sub-batches per the small-chunks discipline:
+F10.3-a (schema seed) · F10.3-b (availability engine + GET) ·
+F10.3-c (POST reserve, atomic FOR UPDATE) · F10.3-d
+(substitution suggestions) · F10.3-e (soft-override path) ·
+F10.3-f (POST cancel-reservation).
+- [✓] **F10.3-a** — `seeds/239_starr_field_equipment_reservations.sql`
+      shipped. Adds the `equipment_reservations` table (id,
+      equipment_inventory_id, job_id, from_template_id/version,
+      reserved_from/to, state ∈ held|checked_out|returned|
+      cancelled, actual_*_at scan stamps, notes, reserved_by) +
+      a GiST EXCLUDE constraint that makes overlapping
+      `held`/`checked_out` rows for the same instrument
+      structurally impossible (the §5.12.5 race fence —
+      Postgres rejects the second insert directly so two
+      dispatchers can never co-grant Kit #3). Plus partial
+      indexes on the active-state read paths, derived columns
+      `equipment_inventory.next_available_at` +
+      `current_reservation_id` kept in sync by an AFTER
+      INSERT/UPDATE/DELETE trigger that walks chained back-to-
+      back reservations as a single "busy until" answer, and
+      the deferred FK from `equipment_events.reservation_id`
+      (which seeds/236 stubbed without a constraint).
+- [ ] **F10.3-b** — `GET /api/admin/equipment/availability` —
+      runs the four §5.12.5 checks (status / reservation
+      overlap / calibration / stock), returns assignable units
+      + typed reasons.
+- [ ] **F10.3-c** — `POST /api/admin/equipment/reserve` —
+      atomic multi-item reserve with `SELECT … FOR UPDATE`
+      race guard layered on top of the GiST EXCLUDE; turns
+      raw 23P01 violations into typed `reserved_for_other_job`
+      conflicts.
+- [ ] **F10.3-d** — substitution suggestions surface on
+      conflict.
+- [ ] **F10.3-e** — soft-override path with required reason +
+      admin notification + double-reservation insert pattern.
+- [ ] **F10.3-f** — `POST /api/admin/equipment/cancel-reservation`.
 
 **F10.4 — Personnel side (Week 36).**
 - [ ] Personnel-skills + unavailability admin pages
