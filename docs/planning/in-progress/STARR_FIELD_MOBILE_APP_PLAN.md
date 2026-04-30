@@ -3585,13 +3585,18 @@ Broken into smaller sub-batches per the established pattern.
       "+ New template" button navigates to /new (queued). Sidebar
       entry deferred to F10.6.
 - [◐] **F10.2e** — Templates create + edit pages. **F10.2e-i
-      (`/admin/equipment/templates/new` create page)** shipped:
-      header-only form (name + slug + description + job_type +
-      crew/duration defaults + comma-separated cert chips). On
-      submit POSTs to /api/admin/equipment/templates and routes
-      to /[id] where the operator adds line items via the F10.2c
-      endpoints. F10.2e-ii (`/[id]` edit page w/ items management)
-      lands next.
+      create + F10.2e-ii-a edit page shell + F10.2e-ii-b items
+      table + F10.2e-ii-c Add-item modal + F10.2e-ii-d Edit-item
+      modal (PATCH w/ XOR swap)** shipped. Edit modal pre-fills
+      from the row, auto-detects resolution mode (specific vs
+      category) from initial state, lets operator swap modes
+      mid-edit — submit explicitly clears the OTHER field so
+      the F10.2c-ii server-side merged-state XOR check accepts
+      the swap as a single PATCH. Submit refetches the template
+      surfacing "✓ Item updated. Bumped to v<N>; snapshot
+      recorded." Per-row Edit button now functional.
+      F10.2e-ii-e (Delete item action) closes out F10.2e in
+      the next sub-batch.
 - [ ] **F10.2f** — Save-as-template shortcut (deferred to
       F10.5 with apply flow).
 - [ ] **F10.2g** — Apply-template flow (deferred to F10.3
