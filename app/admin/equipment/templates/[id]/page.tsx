@@ -94,6 +94,8 @@ export default function TemplateEditPage() {
 
   // Add-item modal state (Phase F10.2e-ii-c).
   const [showAddItemModal, setShowAddItemModal] = useState(false);
+  // Edit-item modal state (Phase F10.2e-ii-d).
+  const [editingItem, setEditingItem] = useState<TemplateItem | null>(null);
 
   const fetchTemplate = useCallback(async () => {
     if (!session?.user?.email || !id) return;
@@ -535,8 +537,10 @@ export default function TemplateEditPage() {
                           <button
                             type="button"
                             style={styles.rowActionBtn}
-                            disabled
-                            title="Edit-item modal lands in F10.2e-ii-d"
+                            onClick={() => {
+                              setActionMsg(null);
+                              setEditingItem(item);
+                            }}
                           >
                             Edit
                           </button>
@@ -574,6 +578,21 @@ export default function TemplateEditPage() {
             setShowAddItemModal(false);
             setActionMsg(
               `✓ Item added. Bumped to v${newVersion}; snapshot recorded.`
+            );
+            void fetchTemplate();
+          }}
+        />
+      ) : null}
+
+      {editingItem ? (
+        <EditItemModal
+          templateId={id ?? ''}
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onUpdated={(newVersion) => {
+            setEditingItem(null);
+            setActionMsg(
+              `✓ Item updated. Bumped to v${newVersion}; snapshot recorded.`
             );
             void fetchTemplate();
           }}
@@ -898,6 +917,320 @@ function AddItemModal({
             disabled={submitting}
           >
             {submitting ? 'Adding…' : 'Add item'}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
+// ── Edit-item modal (Phase F10.2e-ii-d) ────────────────────────────────────
+//
+// PATCHes /api/admin/equipment/templates/[id]/items/[itemId] per
+// F10.2c-ii. Pre-fills from the row passed in by the parent.
+// Resolution-mode auto-detects from initial state (specific if
+// equipment_inventory_id is set, otherwise category) but the
+// operator can swap modes mid-edit — the F10.2c-ii server runs
+// the XOR check on the MERGED state so a single PATCH that sets
+// one field + clears the other lands cleanly.
+
+interface EditItemModalProps {
+  templateId: string;
+  item: TemplateItem;
+  onClose: () => void;
+  onUpdated: (newVersion: number) => void;
+}
+
+function EditItemModal({
+  templateId,
+  item,
+  onClose,
+  onUpdated,
+}: EditItemModalProps) {
+  const { safeFetch } = usePageError('EditItemModal');
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [itemKind, setItemKind] = useState<'durable' | 'consumable' | 'kit'>(
+    (item.item_kind as 'durable' | 'consumable' | 'kit') ?? 'durable'
+  );
+  const [mode, setMode] = useState<'specific' | 'category'>(
+    item.equipment_inventory_id ? 'specific' : 'category'
+  );
+  const [equipmentInventoryId, setEquipmentInventoryId] = useState(
+    item.equipment_inventory_id ?? ''
+  );
+  const [category, setCategory] = useState(item.category ?? '');
+  const [quantity, setQuantity] = useState(String(item.quantity));
+  const [isRequired, setIsRequired] = useState(item.is_required);
+  const [notes, setNotes] = useState(item.notes ?? '');
+  const [sortOrder, setSortOrder] = useState(String(item.sort_order));
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+
+      // Build the patch body. We send the MERGED final state so the
+      // server's XOR check (on merged state per F10.2c-ii) lets a
+      // mode-swap land cleanly.
+      const update: Record<string, unknown> = { item_kind: itemKind };
+
+      if (mode === 'specific') {
+        const trimmed = equipmentInventoryId.trim();
+        if (!trimmed) {
+          setError('Specific-mode needs an equipment_inventory_id UUID.');
+          return;
+        }
+        const uuidRe =
+          /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+        if (!uuidRe.test(trimmed)) {
+          setError('equipment_inventory_id must be a valid UUID.');
+          return;
+        }
+        update.equipment_inventory_id = trimmed;
+        // Explicitly clear category so the merged-state XOR holds.
+        update.category = null;
+      } else {
+        const trimmed = category.trim();
+        if (!trimmed) {
+          setError('Category-mode needs a category string.');
+          return;
+        }
+        update.category = trimmed;
+        update.equipment_inventory_id = null;
+      }
+
+      const qty = parseInt(quantity.trim(), 10);
+      if (!Number.isInteger(qty) || qty < 1) {
+        setError('Quantity must be a positive integer (≥1).');
+        return;
+      }
+      update.quantity = qty;
+      update.is_required = isRequired;
+      update.notes = notes.trim() ? notes.trim() : null;
+
+      const sortInt = parseInt(sortOrder.trim(), 10);
+      if (Number.isInteger(sortInt)) update.sort_order = sortInt;
+
+      setSubmitting(true);
+      const res = await safeFetch<{
+        item: TemplateItem;
+        template_version: number;
+      }>(
+        `/api/admin/equipment/templates/${templateId}/items/${item.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(update),
+        }
+      );
+      setSubmitting(false);
+
+      if (res?.item) {
+        onUpdated(res.template_version);
+      } else {
+        setError('Save failed. Check the error log; the form is unchanged.');
+      }
+    },
+    [
+      itemKind,
+      mode,
+      equipmentInventoryId,
+      category,
+      quantity,
+      isRequired,
+      notes,
+      sortOrder,
+      templateId,
+      item.id,
+      safeFetch,
+      onUpdated,
+    ]
+  );
+
+  return (
+    <div style={modalStyles.backdrop} onClick={onClose}>
+      <form
+        style={modalStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={handleSubmit}
+      >
+        <header style={modalStyles.header}>
+          <h2 style={modalStyles.title}>
+            Edit line item ·{' '}
+            <code style={modalStyles.code}>{item.id.slice(0, 8)}</code>
+          </h2>
+          <button
+            type="button"
+            style={modalStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div style={modalStyles.body}>
+          <fieldset style={modalStyles.fieldset}>
+            <legend style={modalStyles.legend}>Item kind *</legend>
+            {(['durable', 'consumable', 'kit'] as const).map((k) => (
+              <label key={k} style={modalStyles.radioRow}>
+                <input
+                  type="radio"
+                  name="edit_item_kind"
+                  value={k}
+                  checked={itemKind === k}
+                  onChange={() => setItemKind(k)}
+                />
+                <span style={modalStyles.radioLabel}>{k}</span>
+              </label>
+            ))}
+          </fieldset>
+
+          <fieldset style={modalStyles.fieldset}>
+            <legend style={modalStyles.legend}>Resolution mode *</legend>
+            <label style={modalStyles.radioRow}>
+              <input
+                type="radio"
+                name="edit_mode"
+                value="category"
+                checked={mode === 'category'}
+                onChange={() => setMode('category')}
+              />
+              <span style={modalStyles.radioLabel}>
+                <strong>Any-of-kind (category)</strong>
+                <span style={modalStyles.hint}>
+                  {' '}
+                  · resolved at apply time
+                </span>
+              </span>
+            </label>
+            <label style={modalStyles.radioRow}>
+              <input
+                type="radio"
+                name="edit_mode"
+                value="specific"
+                checked={mode === 'specific'}
+                onChange={() => setMode('specific')}
+              />
+              <span style={modalStyles.radioLabel}>
+                <strong>Pin specific instrument</strong>
+                <span style={modalStyles.hint}>
+                  {' '}
+                  · always pulls THIS exact equipment_inventory row
+                </span>
+              </span>
+            </label>
+            <p style={modalStyles.hint}>
+              ▸ Switching mode here clears the other field server-side
+              (XOR enforced on merged state per F10.2c-ii).
+            </p>
+          </fieldset>
+
+          {mode === 'category' ? (
+            <label style={modalStyles.field}>
+              <span style={modalStyles.label}>Category string *</span>
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                style={modalStyles.input}
+                placeholder="total_station_kit / gps_rover / paint"
+                required
+              />
+            </label>
+          ) : (
+            <label style={modalStyles.field}>
+              <span style={modalStyles.label}>
+                equipment_inventory_id (UUID) *
+              </span>
+              <input
+                type="text"
+                value={equipmentInventoryId}
+                onChange={(e) =>
+                  setEquipmentInventoryId(e.target.value.trim())
+                }
+                style={{
+                  ...modalStyles.input,
+                  fontFamily: 'Menlo, monospace',
+                  fontSize: 12,
+                }}
+                placeholder="00000000-0000-0000-0000-000000000000"
+                required
+              />
+            </label>
+          )}
+
+          <div style={modalStyles.gridRow}>
+            <label style={modalStyles.field}>
+              <span style={modalStyles.label}>Quantity *</span>
+              <input
+                type="number"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                style={modalStyles.input}
+                min={1}
+                step={1}
+                required
+              />
+            </label>
+            <label style={modalStyles.field}>
+              <span style={modalStyles.label}>Sort order</span>
+              <input
+                type="number"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                style={modalStyles.input}
+                step={5}
+              />
+            </label>
+          </div>
+
+          <label style={modalStyles.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={isRequired}
+              onChange={(e) => setIsRequired(e.target.checked)}
+            />
+            <span>
+              <strong>Required</strong>
+              <span style={modalStyles.hint}>
+                {' '}
+                · false → §5.12.5 soft-warn rather than hard-block on
+                unavailability
+              </span>
+            </span>
+          </label>
+
+          <label style={modalStyles.field}>
+            <span style={modalStyles.label}>Notes</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              style={{ ...modalStyles.input, minHeight: 60 }}
+            />
+          </label>
+
+          {error ? <div style={modalStyles.error}>⚠ {error}</div> : null}
+        </div>
+
+        <footer style={modalStyles.footer}>
+          <button
+            type="button"
+            style={modalStyles.secondaryBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            style={modalStyles.primaryBtn}
+            disabled={submitting}
+          >
+            {submitting ? 'Saving…' : 'Save changes'}
           </button>
         </footer>
       </form>

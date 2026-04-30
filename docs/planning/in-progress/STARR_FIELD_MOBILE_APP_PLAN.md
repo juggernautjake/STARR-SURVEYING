@@ -3586,18 +3586,17 @@ Broken into smaller sub-batches per the established pattern.
       entry deferred to F10.6.
 - [◐] **F10.2e** — Templates create + edit pages. **F10.2e-i
       create + F10.2e-ii-a edit page shell + F10.2e-ii-b items
-      table + F10.2e-ii-c Add-item modal** shipped. Modal lets
-      operator pick item_kind (radio), choose between
-      any-of-kind category mode (default) and pin-specific mode,
-      set quantity / sort_order (defaulted to max+10) /
-      is_required / notes. Client validates UUID format on
-      pinned mode + non-empty category on category mode +
-      positive integer quantity. Submit POSTs to
-      /templates/[id]/items, refetches on success surfacing
-      "✓ Item added. Bumped to v<N>; snapshot recorded." Add
-      button now functional. F10.2e-ii-d (Edit item modal w/
-      XOR swap) + F10.2e-ii-e (Delete item action) close out
-      F10.2e in subsequent sub-batches.
+      table + F10.2e-ii-c Add-item modal + F10.2e-ii-d Edit-item
+      modal (PATCH w/ XOR swap)** shipped. Edit modal pre-fills
+      from the row, auto-detects resolution mode (specific vs
+      category) from initial state, lets operator swap modes
+      mid-edit — submit explicitly clears the OTHER field so
+      the F10.2c-ii server-side merged-state XOR check accepts
+      the swap as a single PATCH. Submit refetches the template
+      surfacing "✓ Item updated. Bumped to v<N>; snapshot
+      recorded." Per-row Edit button now functional.
+      F10.2e-ii-e (Delete item action) closes out F10.2e in
+      the next sub-batch.
 - [ ] **F10.2f** — Save-as-template shortcut (deferred to
       F10.5 with apply flow).
 - [ ] **F10.2g** — Apply-template flow (deferred to F10.3
