@@ -4034,19 +4034,49 @@ F10.4-e (POST /cancel-assignment + crew-lead helpers).
 
 **F10.5 — Daily check-in/check-out workflow (Week 36–37).**
 The user's headline ritual. Lands AFTER reservations work
-end-to-end so the QR scan has something to flip.
-- [ ] `POST /api/admin/equipment/check-out` +
-      `/check-in` + `/extend-reservation` per §5.12.6.
-- [ ] Mobile scanner check-out / check-in sheets — kit batch
-      flow, condition photo, consumed-quantity selector.
-- [ ] Damage-triage entry path → §5.12.8 event creation.
-- [ ] Lost-on-site flow with auto-pre-filled
-      `location_pings` cluster.
-- [ ] End-of-day unreturned-gear nag cron (6pm + 9pm) +
+end-to-end so the QR scan has something to flip. Split into 8
+sub-batches per the small-chunks discipline:
+- [✓] **F10.5-a** — `seeds/242_starr_field_equipment_check_inout.sql`
+      shipped. Extends `equipment_reservations` with the
+      check-out columns (`checked_out_by`,
+      `checked_out_to_user`, `checked_out_to_vehicle`,
+      `checked_out_condition` ∈ good|fair|damaged,
+      `checked_out_photo_url`), the check-in columns
+      (`returned_by`, `returned_condition` ∈ good|fair|
+      damaged|lost, `returned_photo_url`, `returned_notes`,
+      `consumed_quantity` ≥ 0 for consumables) and the nag-
+      extend audit columns (`extended_overnight_at`,
+      `original_reserved_to` — captured the first time
+      reserved_to is bumped via nag-extend so the trail shows
+      schedule slipped vs ran long). seeds/239 already had
+      `actual_checked_out_at` + `actual_returned_at` so they
+      stay there. Conditional FKs for `auth.users` (3 actor
+      columns) + `vehicles`. Partial indexes for the four hot
+      reads: "what's in my truck right now"
+      (checked_out_to_user + state), "every overdue checked-
+      out row" (the 6pm/9pm nag query), damage-triage routing
+      (returned_condition damaged|lost), vehicle drilldown
+      (checked_out_to_vehicle). Column comments document
+      §5.12.6 invariants for future readers.
+- [ ] **F10.5-b** — `POST /api/admin/equipment/check-out` —
+      QR-resolves to instrument, finds matching held
+      reservation, flips state.
+- [ ] **F10.5-c** — `POST /api/admin/equipment/check-in` —
+      flips checked_out → returned, handles consumed_quantity
+      decrement for consumables.
+- [ ] **F10.5-d** — `POST /api/admin/equipment/extend-reservation`
+      (used by clock-out modal + nag actions).
+- [ ] **F10.5-e** — Kit batch flow: parent QR pulls all child
+      reservations forward atomically per §5.12.1.C.
+- [ ] **F10.5-f** — End-of-day nag cron (6pm + 9pm) +
       [Extend until 8am] / [Mark in transit] notification
-      actions.
-- [ ] Crew clock-out gating modal.
-- [ ] Self-service after-hours flag + soft warning path.
+      actions + 10pm daily digest.
+- [ ] **F10.5-g** — Damage triage entry path → §5.12.8 event
+      creation; lost-on-site flow with auto-pre-filled
+      `location_pings` cluster.
+- [ ] **F10.5-h** — Crew clock-out gating modal +
+      self-service after-hours flag (`equipment_self_checkout`
+      on registered_users) + soft warning audit path.
 
 **F10.6 — Equipment Manager dashboards (Week 37–38).**
 The §5.12.7 admin web surface that pulls everything together.
