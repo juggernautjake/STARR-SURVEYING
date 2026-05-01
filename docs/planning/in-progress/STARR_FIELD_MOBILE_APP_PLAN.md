@@ -4503,13 +4503,28 @@ sub-batches per the small-chunks discipline:
 
 **F10.6 — Equipment Manager dashboards (Week 37–38).**
 The §5.12.7 admin web surface that pulls everything together.
-- [ ] Sidebar "Equipment" group + role-gated nav.
-- [ ] §5.12.7.1 Today landing page (3 strips + 3 banners).
-- [ ] §5.12.7.2 Reservations Gantt timeline.
-- [ ] §5.12.7.5 Consumables low-stock + restock view.
-- [ ] §5.12.7.6 Crew calendar week heatmap.
-- [ ] §5.12.7.8 "Templates referencing retired gear"
-      cleanup queue.
+Split across the seven §5.12.7 sub-panels per the small-chunks
+discipline.
+- [✓] **F10.6-a** — Sidebar "Equipment" group + role-gated
+      nav shipped. New `EQUIPMENT_ROLES` constant
+      (admin / developer / tech_support / equipment_manager
+      per §4.6) + new "Equipment" section in
+      `app/admin/components/AdminSidebar.tsx` between Work
+      and Research with the existing F10.1 catalogue + F10.2
+      templates links. Future F10.6-b..g panels add their
+      own entries as they ship; F10.7 maintenance lands its
+      links here too. The equipment_manager hat now has a
+      visible nav home — surveyors with just that role see
+      the Equipment section and nothing else admin-wide,
+      matching the §4.6 access matrix.
+- [ ] **F10.6-b** — §5.12.7.1 Today landing page (3 strips
+      + 3 banners).
+- [ ] **F10.6-c** — §5.12.7.2 Reservations Gantt timeline.
+- [ ] **F10.6-d** — §5.12.7.5 Consumables low-stock view.
+- [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
+- [ ] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
+      gear cleanup queue.
+- [ ] **F10.6-g** — §5.12.7.7 Override audit panel.
 
 **F10.7 — Maintenance + calibration (Week 38–39).**
 - [ ] `maintenance_events` CRUD + state machine + document
