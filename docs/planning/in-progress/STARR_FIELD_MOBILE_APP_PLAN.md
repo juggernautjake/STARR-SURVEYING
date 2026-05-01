@@ -3754,13 +3754,47 @@ F10.3-f (POST cancel-reservation).
       runs end-to-end against the wire shape.
 
 **F10.4 — Personnel side (Week 36).**
-- [ ] Personnel-skills + unavailability admin pages
-      (§5.12.4 cert PDF upload via §5.6 files-bucket).
-- [ ] Personnel availability check engine —
+Split into 5 sub-batches per the small-chunks discipline (mirrors
+F10.3): F10.4-a (schema seed) · F10.4-b (availability engine +
+GET) · F10.4-c (POST /assign atomic + override + notification) ·
+F10.4-d (POST /respond — confirm/decline mobile-card endpoint) ·
+F10.4-e (POST /cancel-assignment + crew-lead helpers).
+- [✓] **F10.4-a** — `seeds/241_starr_field_personnel_capacity.sql`
+      shipped. ALTERs `job_team` to add the §5.12.4
+      assignment-window + state-machine columns
+      (`assigned_from`/`_to`, `slot_role`, `state ∈ proposed |
+      confirmed | declined | cancelled`, `confirmed_at`/
+      `declined_at`/`decline_reason`, `is_crew_lead`,
+      `is_override`, `override_reason`) — additive only, the
+      live `app/api/admin/jobs/team/route.ts` keeps working
+      against pre-F10.4 NULL-state rows. GiST EXCLUDE on
+      (user_email, [assigned_from, assigned_to)) WHERE state ∈
+      (proposed, confirmed) AND is_override=false — same
+      structural race fence as seeds/239 for capacity overlap.
+      Crew-lead exactly-one-per-job via partial UNIQUE on
+      (job_id) WHERE is_crew_lead=true AND state ∈
+      (proposed, confirmed); cancelling/declining the lead
+      frees the slot automatically. Two new tables:
+      `personnel_skills` (per-user catalogue keyed on
+      user_email, with skill_code, acquired_at,
+      expires_at NULL = doesn't expire, cert_document_url for
+      §5.6 files-bucket PDFs, state ∈ active | expired |
+      revoked) and `personnel_unavailability` (PTO / sick /
+      training / doctor / other, with from/to window, reason,
+      is_paid, approved_by/at). GiST overlap indexes on both
+      so the F10.4-b engine's queries stay fast. updated_at
+      triggers on the new tables. Seed numbering: was
+      provisionally 240 in earlier plan revisions, but
+      seeds/240 shipped as the F10.3-e equipment-override
+      schema; renumbered to 241 to match actual ship order.
+- [ ] **F10.4-b** — Personnel availability check engine —
       `GET /api/admin/personnel/availability`.
-- [ ] Mobile assignment confirmation card with [Confirm] /
-      [Decline + reason] (§5.12.4 surveyor flow).
-- [ ] Crew-lead designation + auto-promote heuristic.
+- [ ] **F10.4-c** — `POST /api/admin/personnel/assign`
+      atomic multi-slot with override + surveyor notification.
+- [ ] **F10.4-d** — `POST /api/admin/personnel/respond` —
+      mobile [Confirm] / [Decline + reason] endpoint.
+- [ ] **F10.4-e** — `POST /api/admin/personnel/cancel-
+      assignment` + crew-lead auto-promote helper.
 
 **F10.5 — Daily check-in/check-out workflow (Week 36–37).**
 The user's headline ritual. Lands AFTER reservations work
