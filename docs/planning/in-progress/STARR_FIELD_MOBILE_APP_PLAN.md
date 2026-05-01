@@ -4721,8 +4721,37 @@ discipline.
         Catalogue. Inline styles per the rest of
         `/admin/equipment/*`. Auth: useSession gate; the
         aggregator enforces EQUIPMENT_ROLES server-side.
-  - [ ] **F10.6-d-iii** — Restock-arrived / update-threshold /
-        mark-discontinued inline action modals.
+  - [◐] **F10.6-d-iii** — Inline action modals. Split:
+    - [✓] **F10.6-d-iii-α** — Restock arrived shipped.
+          `POST /api/admin/equipment/[id]/restock` body
+          `{ quantity_added, cost_cents?, vendor?,
+          receipt_photo_url?, notes? }`. Refuses non-
+          consumables (typed `not_consumable` 400) +
+          retired rows (typed `retired` 409).
+          Increments `quantity_on_hand` by
+          `quantity_added`, stamps
+          `last_restocked_at=now()`, optionally updates
+          `vendor` and computes
+          `cost_per_unit_cents = round(cost_cents /
+          quantity_added)`. Best-effort
+          `equipment_events` audit row with
+          `event_type='restock'` + structured
+          `notes` field carrying the full restock
+          context (qty, per-unit cost, vendor, before
+          → after, receipt URL, free-form notes) since
+          the v1 events table has no dedicated summary/
+          photo columns. Page UI: per-row "Restock"
+          button opens a modal with required quantity,
+          optional total-cost (auto-converts to
+          per-unit), vendor (pre-filled), receipt URL,
+          and notes. Submit refetches the table +
+          flashes a success toast at the top of the
+          rows. Auth: admin / developer /
+          equipment_manager.
+    - [ ] **F10.6-d-iii-β** — Update-threshold modal +
+          PATCH endpoint extension.
+    - [ ] **F10.6-d-iii-γ** — Mark-discontinued modal
+          (re-uses the existing F10.1 retire endpoint).
 - [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
 - [ ] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
       gear cleanup queue.

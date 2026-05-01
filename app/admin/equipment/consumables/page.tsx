@@ -49,6 +49,14 @@ interface ConsumablesResponse {
 
 type SortKey = 'days_remaining' | 'name' | 'consumed_30d' | 'on_hand';
 
+interface RestockTarget {
+  id: string;
+  name: string;
+  vendor: string | null;
+  unit: string | null;
+  current_on_hand: number;
+}
+
 function formatDaysRemaining(d: number | null): string {
   if (d === null) return '—';
   if (d >= 999) return '999+';
@@ -70,6 +78,8 @@ export default function EquipmentConsumablesPage() {
   const [filter, setFilter] = useState<ReorderBadge | 'all'>('all');
   const [sortKey, setSortKey] = useState<SortKey>('days_remaining');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [restockTarget, setRestockTarget] = useState<RestockTarget | null>(null);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const fetchConsumables = useCallback(async () => {
     setLoading(true);
@@ -216,6 +226,7 @@ export default function EquipmentConsumablesPage() {
                   </th>
                   <th style={styles.th}>Vendor</th>
                   <th style={styles.thRight}>Unit cost</th>
+                  <th style={styles.thRight}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -254,16 +265,35 @@ export default function EquipmentConsumablesPage() {
                     <td style={styles.tdRight}>
                       {formatCurrency(r.cost_per_unit_cents)}
                     </td>
+                    <td style={styles.tdRight}>
+                      <button
+                        type="button"
+                        style={styles.actionBtn}
+                        onClick={() => {
+                          setActionMsg(null);
+                          setRestockTarget({
+                            id: r.id,
+                            name: r.name ?? r.id,
+                            vendor: r.vendor,
+                            unit: r.unit,
+                            current_on_hand: r.quantity_on_hand ?? 0,
+                          });
+                        }}
+                      >
+                        Restock
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
 
+          {actionMsg ? <div style={styles.actionMsg}>{actionMsg}</div> : null}
           <p style={styles.note}>
-            ▸ Restock-arrived / update-threshold / mark-discontinued
-            inline actions land in F10.6-d-iii. Click a row name to
-            drill into the catalogue page.
+            ▸ Update-threshold + mark-discontinued inline actions
+            land in F10.6-d-iii-β/γ. Click a row name to drill into
+            the catalogue page.
           </p>
         </>
       ) : loading ? (
@@ -273,6 +303,206 @@ export default function EquipmentConsumablesPage() {
           Failed to load. Check the error log; refresh.
         </div>
       )}
+
+      {restockTarget ? (
+        <RestockModal
+          target={restockTarget}
+          onClose={() => setRestockTarget(null)}
+          onRestocked={(newOnHand) => {
+            const t = restockTarget;
+            setRestockTarget(null);
+            setActionMsg(
+              `✓ Restocked ${t.name}. On-hand now ${newOnHand}.`
+            );
+            void fetchConsumables();
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function RestockModal({
+  target,
+  onClose,
+  onRestocked,
+}: {
+  target: RestockTarget;
+  onClose: () => void;
+  onRestocked: (newOnHand: number) => void;
+}) {
+  const { safeFetch } = usePageError('RestockModal');
+  const [quantity, setQuantity] = useState('1');
+  const [costDollars, setCostDollars] = useState('');
+  const [vendor, setVendor] = useState(target.vendor ?? '');
+  const [notes, setNotes] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+      const qty = parseInt(quantity.trim(), 10);
+      if (!Number.isInteger(qty) || qty < 1) {
+        setError('Quantity must be a positive integer.');
+        return;
+      }
+      const body: Record<string, unknown> = { quantity_added: qty };
+      if (costDollars.trim()) {
+        const dollars = parseFloat(costDollars.trim());
+        if (!Number.isFinite(dollars) || dollars < 0) {
+          setError('Cost must be a non-negative number.');
+          return;
+        }
+        body.cost_cents = Math.round(dollars * 100);
+      }
+      if (vendor.trim()) body.vendor = vendor.trim();
+      if (notes.trim()) body.notes = notes.trim();
+      if (photoUrl.trim()) body.receipt_photo_url = photoUrl.trim();
+
+      setSubmitting(true);
+      const res = await safeFetch<{
+        new_quantity_on_hand: number;
+      }>(`/api/admin/equipment/${target.id}/restock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      setSubmitting(false);
+      if (res?.new_quantity_on_hand !== undefined) {
+        onRestocked(res.new_quantity_on_hand);
+      } else {
+        setError('Restock failed. Check the error log; the form is unchanged.');
+      }
+    },
+    [quantity, costDollars, vendor, notes, photoUrl, safeFetch, target, onRestocked]
+  );
+
+  return (
+    <div style={modalStyles.backdrop} onClick={onClose}>
+      <form
+        style={modalStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={handleSubmit}
+      >
+        <header style={modalStyles.header}>
+          <div>
+            <h2 style={modalStyles.title}>Restock arrived</h2>
+            <p style={modalStyles.subtitle}>
+              {target.name} · current on-hand{' '}
+              <strong>
+                {target.current_on_hand}
+                {target.unit ? ` ${target.unit}` : ''}
+              </strong>
+            </p>
+          </div>
+          <button
+            type="button"
+            style={modalStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+            disabled={submitting}
+          >
+            ✕
+          </button>
+        </header>
+
+        <div style={modalStyles.body}>
+          <label style={modalStyles.field}>
+            <span style={modalStyles.label}>Quantity added *</span>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              min={1}
+              step={1}
+              required
+              autoFocus
+              style={modalStyles.input}
+            />
+            <span style={modalStyles.hint}>
+              ▸ Increments quantity_on_hand by this number.
+              Stamps last_restocked_at + writes an audit event.
+            </span>
+          </label>
+
+          <div style={modalStyles.gridRow}>
+            <label style={modalStyles.field}>
+              <span style={modalStyles.label}>Total cost ($)</span>
+              <input
+                type="number"
+                value={costDollars}
+                onChange={(e) => setCostDollars(e.target.value)}
+                min={0}
+                step={0.01}
+                placeholder="optional"
+                style={modalStyles.input}
+              />
+              <span style={modalStyles.hint}>
+                ▸ Per-unit cost = total / quantity. Updates
+                cost_per_unit_cents when set.
+              </span>
+            </label>
+            <label style={modalStyles.field}>
+              <span style={modalStyles.label}>Vendor</span>
+              <input
+                type="text"
+                value={vendor}
+                onChange={(e) => setVendor(e.target.value)}
+                placeholder="optional"
+                style={modalStyles.input}
+              />
+            </label>
+          </div>
+
+          <label style={modalStyles.field}>
+            <span style={modalStyles.label}>Receipt photo URL</span>
+            <input
+              type="text"
+              value={photoUrl}
+              onChange={(e) => setPhotoUrl(e.target.value)}
+              placeholder="paste URL from a prior receipt upload"
+              style={modalStyles.input}
+            />
+            <span style={modalStyles.hint}>
+              ▸ Attaches to the audit-trail event row.
+              File-bucket-upload UI is a future polish.
+            </span>
+          </label>
+
+          <label style={modalStyles.field}>
+            <span style={modalStyles.label}>Notes</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              style={{ ...modalStyles.input, minHeight: 60 }}
+              placeholder="optional context — e.g. 'short-shipped: ordered 100, received 75'"
+            />
+          </label>
+
+          {error ? <div style={modalStyles.error}>⚠ {error}</div> : null}
+        </div>
+
+        <footer style={modalStyles.footer}>
+          <button
+            type="button"
+            style={modalStyles.secondaryBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            style={modalStyles.primaryBtn}
+            disabled={submitting}
+          >
+            {submitting ? 'Restocking…' : 'Restock'}
+          </button>
+        </footer>
+      </form>
     </div>
   );
 }
@@ -474,5 +704,124 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 16,
     fontStyle: 'italic' as const,
     textAlign: 'center' as const,
+  },
+  actionBtn: {
+    padding: '4px 10px',
+    background: '#FFFFFF',
+    border: '1px solid #1D3095',
+    color: '#1D3095',
+    borderRadius: 6,
+    fontSize: 11,
+    cursor: 'pointer',
+    fontWeight: 500,
+  },
+  actionMsg: {
+    margin: '12px 0',
+    padding: '10px 14px',
+    background: '#DCFCE7',
+    border: '1px solid #86EFAC',
+    color: '#166534',
+    borderRadius: 8,
+    fontSize: 13,
+  },
+};
+
+const modalStyles: Record<string, React.CSSProperties> = {
+  backdrop: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(15, 23, 42, 0.5)',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingTop: 60,
+    zIndex: 1000,
+  },
+  modal: {
+    background: '#FFFFFF',
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: 'calc(100vh - 120px)',
+    boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '14px 20px',
+    borderBottom: '1px solid #E2E5EB',
+  },
+  title: { fontSize: 16, fontWeight: 600, margin: '0 0 4px' },
+  subtitle: { fontSize: 12, color: '#6B7280', margin: 0 },
+  close: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: 18,
+    color: '#6B7280',
+    cursor: 'pointer',
+    padding: 4,
+    lineHeight: 1,
+  },
+  body: {
+    padding: 20,
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 14,
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 10,
+    padding: '12px 20px',
+    borderTop: '1px solid #E2E5EB',
+    background: '#FAFBFC',
+    borderRadius: '0 0 12px 12px',
+  },
+  field: { display: 'flex', flexDirection: 'column', gap: 4 },
+  label: { fontSize: 12, fontWeight: 600, color: '#374151' },
+  input: {
+    padding: '8px 10px',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: 'inherit',
+  },
+  gridRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: 12,
+  },
+  hint: { fontSize: 11, color: '#6B7280', fontStyle: 'italic' as const },
+  error: {
+    background: '#FEF2F2',
+    border: '1px solid #FCA5A5',
+    color: '#B91C1C',
+    padding: 10,
+    borderRadius: 6,
+    fontSize: 12,
+  },
+  primaryBtn: {
+    background: '#15803D',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  secondaryBtn: {
+    background: 'transparent',
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    color: '#374151',
   },
 };
