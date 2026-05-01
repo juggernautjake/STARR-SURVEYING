@@ -4784,7 +4784,51 @@ discipline.
       F10.6-d closes out: aggregator + page UI + all three
       action modals shipped. The §5.12.7.5 consumables
       surface runs end-to-end.
-- [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
+- [◐] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
+      Split:
+  - [✓] **F10.6-e-i** — `GET /api/admin/personnel/crew-calendar`
+        aggregator shipped. Returns the (user × day) cell
+        grid with state derivations so the F10.6-e-ii
+        heatmap renders without per-cell roundtrips.
+        Default window = current week's Monday → Sunday
+        (UTC); `?from=YYYY-MM-DD&to=YYYY-MM-DD` lets the
+        EM scrub forward/back.
+        Cell-state derivation per (user, day):
+          `unavailable`           any
+                                  `personnel_unavailability`
+                                  overlap (PTO / sick /
+                                  training / doctor) — hard
+                                  floor, beats every other
+                                  state
+          `confirmed`             ≥1 confirmed assignment,
+                                  no others
+          `split_shift`           ≥2 active rows on the day
+                                  (any mix of proposed +
+                                  confirmed)
+          `proposed`              ≥1 proposed, no confirmed
+          `unconfirmed_overdue`   proposed AND
+                                  `now() - created_at >
+                                  24h` (the spec's
+                                  notification grace)
+          `open`                  nothing on the day
+        Internal-user filter via `registered_users.roles`
+        — excludes users whose roles are entirely
+        `{guest, student}`. Empty-roster short-circuits to
+        `[]` so the page handles it cleanly. Each cell
+        carries `primary_assignment_id` +
+        `primary_unavailability_id` for the F10.6-e-iii
+        drilldown drawer + assignment_count /
+        unavailability_count for the split-shift badge.
+        Summary block carries per-state cell counts so
+        the page header shows "12 confirmed · 3 PTO · 1
+        overdue" without client-side reduce. Auth:
+        EQUIPMENT_ROLES.
+  - [ ] **F10.6-e-ii** — `app/admin/personnel/crew-calendar/page.tsx`
+        — week-grid heatmap UI consuming the aggregator
+        + sidebar entry.
+  - [ ] **F10.6-e-iii** — Cell drilldown drawer.
+  - [ ] **F10.6-e-iv** — Drag-create new unavailability /
+        assignment (defer if scope grows).
 - [ ] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
       gear cleanup queue.
 - [ ] **F10.6-g** — §5.12.7.7 Override audit panel.
