@@ -66,7 +66,10 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import {
   assessCategory,
   assessUnit,
+  proposeSubstitutionsForCategory,
+  proposeSubstitutionsForUnit,
   type AvailabilityReason,
+  type SubstitutionSuggestion,
   type UnitAssessment,
 } from '@/lib/equipment/availability';
 
@@ -103,6 +106,13 @@ interface ItemConflict {
     blocked_units: number;
     earliest_next_available_at: string | null;
   };
+  /**
+   * F10.3-d — ranked substitution candidates the dispatcher
+   * can use to fix the block without a second roundtrip. Sourced
+   * from `proposeSubstitutionsForUnit` (unit-mode block) or
+   * `proposeSubstitutionsForCategory` (category-mode miss).
+   */
+  substitutions: SubstitutionSuggestion[];
 }
 
 export const POST = withErrorHandler(
@@ -197,12 +207,16 @@ export const POST = withErrorHandler(
                   `Equipment unit ${item.equipment_inventory_id} not found.`,
               },
             ],
+            substitutions: [],
           });
         } else if (!assessment.assignable) {
+          // F10.3-d: surface ranked swaps from the same category.
+          const subs = await proposeSubstitutionsForUnit(assessment, opts);
           conflicts.push({
             item_index: i,
             request: item,
             reasons: assessment.hard_blocks,
+            substitutions: subs,
           });
         } else {
           resolved.push({
@@ -214,16 +228,26 @@ export const POST = withErrorHandler(
           });
         }
       } else {
-        // Category mode — pick the first assignable unit.
-        // Ranking heuristic: assignable=true rows sorted by name
-        // (assessCategory orders by name). F10.3-d will replace
-        // this with proximity / earliest-next-available ranking.
+        // Category mode — F10.3-d ranks assignable units by
+        // proximity (same home_location > same vehicle > category-
+        // only) and picks the highest-ranked. The plan's
+        // §5.12.5 "kit #3 reserved; kit #4 also available —
+        // switch?" UX is built on top of this: the chosen
+        // winner lands in `resolved`; the alternates surface in
+        // the response's `substitutions` field for the dispatcher
+        // to swap to with one click.
         const assessments = await assessCategory(item.category!, opts);
-        const winner = assessments.find((a) => a.assignable);
+        const winner = pickProximityWinner(assessments);
         if (!winner) {
-          // No assignable unit. Surface enough context that the
-          // dispatcher can decide between "wait for free" vs.
-          // "substitute another category."
+          // No assignable unit anywhere in the category. Surface
+          // ranked candidates so the dispatcher can decide
+          // between "wait" (smallest next_available_at) and
+          // "swap category" (template `notes`-driven; structured
+          // substitution graph is v2 polish per §5.12.5).
+          const subs = await proposeSubstitutionsForCategory(
+            item.category!,
+            opts
+          );
           conflicts.push({
             item_index: i,
             request: item,
@@ -234,6 +258,7 @@ export const POST = withErrorHandler(
               blocked_units: assessments.length,
               earliest_next_available_at: earliestNextAvailable(assessments),
             },
+            substitutions: subs,
           });
         } else {
           resolved.push({
@@ -415,6 +440,23 @@ function validateItem(
       from_template_version: templateVersion,
     },
   };
+}
+
+/**
+ * F10.3-d category-mode picker. Walks the engine's
+ * already-loaded assessments and returns the assignable winner.
+ * V1 ranking is name-ASC (matches the engine's order_by); the
+ * more interesting proximity ranking lives in
+ * `proposeSubstitutionsForUnit` and only kicks in once an
+ * anchor exists (e.g. when a unit-mode reservation fails and
+ * we widen to its category for swaps). Centralising the picker
+ * here keeps the reserve flow's ranking decisions in one place
+ * for future tuning.
+ */
+function pickProximityWinner(
+  assessments: UnitAssessment[]
+): UnitAssessment | null {
+  return assessments.find((a) => a.assignable) ?? null;
 }
 
 function earliestNextAvailable(

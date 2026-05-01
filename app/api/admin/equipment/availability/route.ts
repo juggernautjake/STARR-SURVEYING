@@ -35,6 +35,9 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import {
   assessCategory,
   assessUnit,
+  proposeSubstitutionsForCategory,
+  proposeSubstitutionsForUnit,
+  type SubstitutionSuggestion,
   type UnitAssessment,
 } from '@/lib/equipment/availability';
 
@@ -139,6 +142,7 @@ export const GET = withErrorHandler(
     };
 
     let assessments: UnitAssessment[];
+    let substitutions: SubstitutionSuggestion[] = [];
     if (hasId) {
       const single = await assessUnit(idRaw!, opts);
       if (!single) {
@@ -148,8 +152,27 @@ export const GET = withErrorHandler(
         );
       }
       assessments = [single];
+      // F10.3-d: when the requested unit is blocked, propose
+      // ranked substitutes from the same category so the
+      // dispatcher can pick a swap or decide to wait based on
+      // each candidate's next_available_at.
+      if (!single.assignable) {
+        substitutions = await proposeSubstitutionsForUnit(single, opts);
+      }
     } else {
       assessments = await assessCategory(categoryRaw!.trim(), opts);
+      // For category mode, the engine already returns every unit
+      // in the category. We surface a ranked subset as
+      // `substitutions` so the UI can render the "next-best 5"
+      // affordance without filtering on the client.
+      const noneAssignable =
+        assessments.length === 0 || !assessments.some((a) => a.assignable);
+      if (noneAssignable) {
+        substitutions = await proposeSubstitutionsForCategory(
+          categoryRaw!.trim(),
+          opts
+        );
+      }
     }
 
     const assignableCount = assessments.filter((a) => a.assignable).length;
@@ -162,6 +185,7 @@ export const GET = withErrorHandler(
       qty,
       total: assessments.length,
       assignable: assignableCount,
+      substitutions: substitutions.length,
       admin_email: session.user.email,
     });
 
@@ -170,6 +194,7 @@ export const GET = withErrorHandler(
       assignable_count: assignableCount,
       blocked_count: blockedCount,
       assessments,
+      substitutions,
     });
   },
   { routeName: 'admin/equipment/availability#get' }

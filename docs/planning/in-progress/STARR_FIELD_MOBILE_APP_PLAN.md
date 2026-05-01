@@ -3671,8 +3671,32 @@ F10.3-f (POST cancel-reservation).
       not in this batch — handler returns clean typed conflicts;
       next batches build the UX affordances on top of the same
       shape.
-- [ ] **F10.3-d** — substitution suggestions surface on
-      conflict.
+- [✓] **F10.3-d** — substitution suggestions shipped.
+      `lib/equipment/availability.ts` adds
+      `proposeSubstitutionsForUnit(anchor, opts)` +
+      `proposeSubstitutionsForCategory(category, opts)`. Score
+      function: assignable + same `home_location` (top), then
+      assignable + same `vehicle_id`, then assignable +
+      category-only, then blocked-alternates ranked by
+      `next_available_at` ASC so the dispatcher sees the
+      earliest "wait" option last but visible. Tied scores
+      break on name ASC for stable ordering. Default cap = 5.
+      `UnitAssessment` gains `home_location` + `vehicle_id` so
+      the GET response carries enough for the UI to render
+      "near you" badges without a second roundtrip. GET
+      `/availability` extended: when a unit-mode request is
+      blocked OR when category-mode finds zero assignable
+      units, the response carries a top-level
+      `substitutions: SubstitutionSuggestion[]`. POST
+      `/reserve` swap: per-item conflicts now carry
+      `substitutions[]` so the dispatcher fixes blocks in one
+      pass; category-mode picker centralised in
+      `pickProximityWinner` (v1 = name ASC; tunable). Surfaces
+      the §5.12.5 worked-example "kit #3 reserved; kit #4
+      also available — switch?" UX directly from the wire
+      shape. Compatible-category swap graph (template-`notes`-
+      declared "OK to swap to GPS rover kit") is v2 polish per
+      the spec.
 - [ ] **F10.3-e** — soft-override path with required reason +
       admin notification + double-reservation insert pattern.
 - [ ] **F10.3-f** — `POST /api/admin/equipment/cancel-reservation`.

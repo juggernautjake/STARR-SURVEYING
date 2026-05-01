@@ -123,6 +123,8 @@ export interface UnitAssessment {
   item_kind: string | null;
   current_status: string | null;
   next_available_at: string | null;
+  home_location: string | null;
+  vehicle_id: string | null;
   /** Reasons that prevent assignment (severity='block'). Empty = clear. */
   hard_blocks: AvailabilityReason[];
   /** Reasons attached but not blocking (severity='warn'). */
@@ -131,11 +133,30 @@ export interface UnitAssessment {
   assignable: boolean;
 }
 
+/**
+ * F10.3-d substitution suggestion. Surfaced both in the GET
+ * /availability response (when a unit-mode request is blocked)
+ * and in POST /reserve's 409 conflict shape (when an item
+ * fails). Ranked by proximity to the requested anchor — same
+ * home_location wins, then same vehicle_id, then earliest
+ * next_available_at — so the dispatcher sees the closest viable
+ * swap first.
+ */
+export interface SubstitutionSuggestion {
+  unit: UnitAssessment;
+  rank_score: number;
+  rank_reason:
+    | 'same_home_location'
+    | 'same_vehicle'
+    | 'category_only'
+    | 'blocked_alternate';
+}
+
 // Internal — the inventory + reservation columns the engine needs.
 const UNIT_COLUMNS =
   'id, name, category, item_kind, current_status, retired_at, ' +
   'next_calibration_due_at, quantity_on_hand, low_stock_threshold, ' +
-  'next_available_at';
+  'next_available_at, home_location, vehicle_id';
 
 const RESERVATION_COLUMNS =
   'id, equipment_inventory_id, job_id, reserved_from, reserved_to, state';
@@ -246,6 +267,8 @@ interface InventoryRow {
   quantity_on_hand: number | null;
   low_stock_threshold: number | null;
   next_available_at: string | null;
+  home_location: string | null;
+  vehicle_id: string | null;
 }
 
 interface ReservationRow {
@@ -320,6 +343,8 @@ function assessRowSync(
     item_kind: row.item_kind,
     current_status: row.current_status,
     next_available_at: row.next_available_at,
+    home_location: row.home_location,
+    vehicle_id: row.vehicle_id,
     hard_blocks: hardBlocks,
     soft_warns: softWarns,
     assignable: hardBlocks.length === 0,
@@ -451,4 +476,113 @@ async function loadOverlappingReservations(
   }
 
   return (data ?? []) as ReservationRow[];
+}
+
+// ────────────────────────────────────────────────────────────
+// F10.3-d — substitution suggestions
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Given a blocked anchor unit + the same window, return ranked
+ * substitution candidates from the same category. The plan:
+ *
+ *   1. Anchor by the blocked unit's home_location + vehicle_id.
+ *   2. Walk every other non-retired unit in the same category.
+ *   3. For each, run the engine to see if it's assignable.
+ *   4. Rank: assignable + same home_location → top. Then
+ *      assignable + same vehicle_id. Then any other assignable
+ *      ranked by name. Then non-assignable rows ranked by
+ *      next_available_at ASC so the dispatcher can choose
+ *      "wait" over "substitute" when nothing nearby is free.
+ *
+ * Capped at `limit` (default 5) so the UI doesn't have to
+ * paginate. Caller can request a higher cap for the GET
+ * /availability raw response.
+ */
+export async function proposeSubstitutionsForUnit(
+  anchor: UnitAssessment,
+  opts: AssessOptions & { limit?: number }
+): Promise<SubstitutionSuggestion[]> {
+  if (!anchor.category) return [];
+  const limit = opts.limit ?? 5;
+
+  const candidates = await assessCategory(anchor.category, opts);
+  // Drop the anchor itself.
+  const others = candidates.filter(
+    (c) => c.equipment_inventory_id !== anchor.equipment_inventory_id
+  );
+
+  return rankSubstitutions(others, anchor, limit);
+}
+
+/**
+ * Category-mode substitutions for the case where every unit in
+ * the requested category was blocked. Returns the same shape so
+ * the UI renders uniformly; rank_reason='blocked_alternate'
+ * dominates here (no anchor unit to compare home_location/
+ * vehicle to). Caller can read each candidate's
+ * `next_available_at` to surface the "next S9 available Friday
+ * 3pm" hint per §5.12.5.
+ */
+export async function proposeSubstitutionsForCategory(
+  category: string,
+  opts: AssessOptions & { limit?: number }
+): Promise<SubstitutionSuggestion[]> {
+  const limit = opts.limit ?? 5;
+  const candidates = await assessCategory(category, opts);
+  return rankSubstitutions(candidates, null, limit);
+}
+
+function rankSubstitutions(
+  candidates: UnitAssessment[],
+  anchor: UnitAssessment | null,
+  limit: number
+): SubstitutionSuggestion[] {
+  // Score: lower is better.
+  //   assignable + same home_location  → 0
+  //   assignable + same vehicle_id     → 1
+  //   assignable + category_only       → 2
+  //   blocked + earliest_next_at       → 100 + epoch_ms / 1e10
+  // Stable sort: tied scores broken by name ASC.
+  const scored = candidates.map<SubstitutionSuggestion>((c) => {
+    let score: number;
+    let reason: SubstitutionSuggestion['rank_reason'];
+    if (c.assignable) {
+      if (
+        anchor &&
+        anchor.home_location &&
+        c.home_location === anchor.home_location
+      ) {
+        score = 0;
+        reason = 'same_home_location';
+      } else if (
+        anchor &&
+        anchor.vehicle_id &&
+        c.vehicle_id === anchor.vehicle_id
+      ) {
+        score = 1;
+        reason = 'same_vehicle';
+      } else {
+        score = 2;
+        reason = 'category_only';
+      }
+    } else {
+      const nextAt = c.next_available_at
+        ? Date.parse(c.next_available_at)
+        : Number.POSITIVE_INFINITY;
+      const epochScore = Number.isFinite(nextAt) ? nextAt / 1e10 : 1e10;
+      score = 100 + epochScore;
+      reason = 'blocked_alternate';
+    }
+    return { unit: c, rank_score: score, rank_reason: reason };
+  });
+
+  scored.sort((a, b) => {
+    if (a.rank_score !== b.rank_score) return a.rank_score - b.rank_score;
+    const an = a.unit.name ?? '';
+    const bn = b.unit.name ?? '';
+    return an.localeCompare(bn);
+  });
+
+  return scored.slice(0, limit);
 }
