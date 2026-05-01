@@ -3697,8 +3697,37 @@ F10.3-f (POST cancel-reservation).
       shape. Compatible-category swap graph (template-`notes`-
       declared "OK to swap to GPS rover kit") is v2 polish per
       the spec.
-- [ ] **F10.3-e** — soft-override path with required reason +
-      admin notification + double-reservation insert pattern.
+- [✓] **F10.3-e** — soft-override path shipped.
+      `seeds/240_starr_field_equipment_reservation_override.sql`
+      adds `is_override BOOLEAN DEFAULT false` and
+      `override_reason TEXT` to `equipment_reservations` + a
+      CHECK that `is_override=true` requires non-empty
+      `override_reason` + a partial admin index on
+      `WHERE is_override=true`. The seeds/239 GiST EXCLUDE is
+      replaced with an override-aware version that only fires
+      when `is_override=false` for both rows, so a soft-override
+      lands as a SECOND active row alongside the conflicting
+      reservation per §5.12.5 — both rows stay on the timeline
+      and the Equipment Manager picks at QR-scan time. POST
+      `/reserve` accepts optional `override_reason` per item
+      (specific-unit-mode only — category overrides are nonsense
+      since they bypass the substitution path); when set, the
+      handler skips the assignable gate, sets `is_override=true`,
+      writes the reason to both `override_reason` and
+      `notes='OVERRIDE: <reason>'` (separate column for clean
+      admin queries; prefix in notes for timeline UI), and after
+      a successful insert fans out a §5.10.4 notification with
+      escalation_level='high' to every `equipment_manager` user
+      + the actor (looked up via `registered_users.roles cs
+      '{equipment_manager}'`). Per the user's "nothing is
+      silent" directive: the override surfaces in the
+      notification inbox + daily digest of every relevant
+      stakeholder so it cannot be lost. Notify failures are
+      best-effort and don't roll back the reservation — events
+      audit trail (§5.12.1) provides the recoverable record.
+      Auth: only admin / developer / equipment_manager can hit
+      the route at all, so the role gate on override is the
+      same gate as the rest of the endpoint.
 - [ ] **F10.3-f** — `POST /api/admin/equipment/cancel-reservation`.
 
 **F10.4 — Personnel side (Week 36).**

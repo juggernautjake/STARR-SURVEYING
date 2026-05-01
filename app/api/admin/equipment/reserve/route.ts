@@ -63,6 +63,7 @@ import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notifyMany } from '@/lib/notifications';
 import {
   assessCategory,
   assessUnit,
@@ -85,6 +86,17 @@ interface ItemRequest {
   notes?: string;
   from_template_id?: string;
   from_template_version?: number;
+  /**
+   * F10.3-e — non-empty string switches this item into the
+   * soft-override path: the engine's hard-block check is
+   * bypassed, the row is inserted with is_override=true, notes
+   * gets an `OVERRIDE: ` prefix, and equipment_manager users
+   * receive a §5.10.4 notification. Per §5.12.5, override is
+   * only available to admin / equipment_manager dispatchers;
+   * the route enforces the role gate before honouring the
+   * field.
+   */
+  override_reason?: string;
 }
 
 interface ResolvedItem {
@@ -194,6 +206,9 @@ export const POST = withErrorHandler(
       if (item.equipment_inventory_id) {
         const assessment = await assessUnit(item.equipment_inventory_id, opts);
         if (!assessment) {
+          // Override or not, a missing row is always a hard fail
+          // (FK insert would die anyway). Surface the same not-
+          // found shape regardless of the override flag.
           conflicts.push({
             item_index: i,
             request: item,
@@ -209,7 +224,7 @@ export const POST = withErrorHandler(
             ],
             substitutions: [],
           });
-        } else if (!assessment.assignable) {
+        } else if (!assessment.assignable && !item.override_reason) {
           // F10.3-d: surface ranked swaps from the same category.
           const subs = await proposeSubstitutionsForUnit(assessment, opts);
           conflicts.push({
@@ -219,6 +234,10 @@ export const POST = withErrorHandler(
             substitutions: subs,
           });
         } else {
+          // Either fully clear, OR blocked but explicitly overridden.
+          // The override path inserts a SECOND row alongside the
+          // conflicting reservation per §5.12.5 — which is exactly
+          // what the seeds/240 EXCLUDE allows when is_override=true.
           resolved.push({
             index: i,
             unit: assessment,
@@ -290,26 +309,55 @@ export const POST = withErrorHandler(
     // PostgREST runs the array .insert() in a single transaction.
     // Any GiST EXCLUDE / FK / NOT NULL violation aborts the whole
     // batch — partial reservations are impossible.
-    const rows = resolved.map((r) => ({
-      equipment_inventory_id: r.unit.equipment_inventory_id,
-      job_id: jobId,
-      from_template_id: r.request.from_template_id ?? null,
-      from_template_version: r.request.from_template_version ?? null,
-      reserved_from: r.windowFrom,
-      reserved_to: r.windowTo,
-      state: 'held' as const,
-      notes: r.request.notes ?? null,
-      reserved_by: reservedByUserId,
-    }));
+    const rows = resolved.map((r) => {
+      const isOverride = !!r.request.override_reason;
+      const baseNotes = r.request.notes ?? null;
+      const finalNotes = isOverride
+        ? `OVERRIDE: ${r.request.override_reason}` +
+          (baseNotes ? ` — ${baseNotes}` : '')
+        : baseNotes;
+      return {
+        equipment_inventory_id: r.unit.equipment_inventory_id,
+        job_id: jobId,
+        from_template_id: r.request.from_template_id ?? null,
+        from_template_version: r.request.from_template_version ?? null,
+        reserved_from: r.windowFrom,
+        reserved_to: r.windowTo,
+        state: 'held' as const,
+        notes: finalNotes,
+        reserved_by: reservedByUserId,
+        is_override: isOverride,
+        override_reason: isOverride ? r.request.override_reason : null,
+      };
+    });
 
     const inserted = await tryInsertBatch(supabaseAdmin, rows);
     if ('error' in inserted) {
       return inserted.response;
     }
 
+    // F10.3-e — fan out a §5.10.4 notification for every
+    // override row. Per the user's "nothing is silent"
+    // directive: the actor + every equipment_manager gets one
+    // notification per override so the conflict surfaces in
+    // their inbox + the daily digest. Best-effort — a notify
+    // failure does NOT roll back the reservation (the row is
+    // already audit-recoverable via the equipment_events feed).
+    const overrideRows = (inserted.rows as ReservationInsertRow[]).filter(
+      (row) => row.is_override === true
+    );
+    if (overrideRows.length > 0) {
+      await emitOverrideNotifications({
+        actorEmail: session.user.email,
+        jobId,
+        overrideRows,
+      });
+    }
+
     console.log('[admin/equipment/reserve POST] ok', {
       job_id: jobId,
       count: inserted.rows.length,
+      override_count: overrideRows.length,
       admin_email: session.user.email,
     });
 
@@ -319,6 +367,7 @@ export const POST = withErrorHandler(
         requested: requestItems.length,
         resolved: resolved.length,
         blocked: 0,
+        override_count: overrideRows.length,
       },
     });
   },
@@ -428,6 +477,43 @@ function validateItem(
     notes = raw.notes;
   }
 
+  let overrideReason: string | undefined;
+  if (raw.override_reason !== undefined && raw.override_reason !== null) {
+    if (typeof raw.override_reason !== 'string') {
+      return {
+        error: `items[${index}].override_reason must be a string when present.`,
+      };
+    }
+    const trimmed = raw.override_reason.trim();
+    if (trimmed.length === 0) {
+      return {
+        error:
+          `items[${index}].override_reason cannot be blank. ` +
+          `Either omit the field (strict-fail path) or provide a ` +
+          `justification.`,
+      };
+    }
+    if (trimmed.length > 500) {
+      return {
+        error:
+          `items[${index}].override_reason must be ≤ 500 characters.`,
+      };
+    }
+    // Category-mode override is meaningless — the soft-override
+    // path is for "the only S9 is past calibration but I need
+    // one TODAY." Category mode means the dispatcher hasn't even
+    // pinned a unit; if every unit is busy, they should
+    // substitute or wait, not blanket-override the category.
+    if (!hasId) {
+      return {
+        error:
+          `items[${index}].override_reason requires equipment_inventory_id ` +
+          `(specific-unit mode). Pick the unit you want to override against.`,
+      };
+    }
+    overrideReason = trimmed;
+  }
+
   return {
     item: {
       equipment_inventory_id: hasId ? equipmentId : undefined,
@@ -438,6 +524,7 @@ function validateItem(
       notes,
       from_template_id: templateId,
       from_template_version: templateVersion,
+      override_reason: overrideReason,
     },
   };
 }
@@ -470,6 +557,78 @@ function earliestNextAvailable(
     }
   }
   return earliest;
+}
+
+interface ReservationInsertRow {
+  id: string;
+  equipment_inventory_id: string;
+  job_id: string;
+  reserved_from: string;
+  reserved_to: string;
+  is_override: boolean;
+  override_reason: string | null;
+}
+
+/**
+ * F10.3-e fan-out. Looks up every user with the
+ * `equipment_manager` role + the actor, dedupes, and inserts one
+ * notification per (recipient × override row). Best-effort —
+ * a notify failure logs and continues; the reservations are
+ * already committed and recoverable via equipment_events.
+ */
+async function emitOverrideNotifications(args: {
+  actorEmail: string;
+  jobId: string;
+  overrideRows: ReservationInsertRow[];
+}): Promise<void> {
+  const { actorEmail, jobId, overrideRows } = args;
+
+  // Find equipment_manager users. registered_users.roles is a
+  // text[] (per lib/auth.ts comment). The PostgREST `cs`
+  // operator does the array contains-element check.
+  let managerEmails: string[] = [];
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('registered_users')
+      .select('email')
+      .filter('roles', 'cs', '{equipment_manager}');
+    if (error) {
+      console.warn(
+        '[admin/equipment/reserve] equipment_manager lookup failed',
+        { error: error.message }
+      );
+    } else if (data) {
+      const rows = data as Array<{ email: string | null }>;
+      managerEmails = rows
+        .map((r) => r.email)
+        .filter((e): e is string => !!e);
+    }
+  } catch (err) {
+    console.warn(
+      '[admin/equipment/reserve] equipment_manager lookup threw',
+      { error: (err as Error).message }
+    );
+  }
+
+  // Always include the actor so their own dashboard shows the
+  // override they just authored.
+  const recipients = Array.from(new Set([...managerEmails, actorEmail]));
+
+  for (const row of overrideRows) {
+    await notifyMany(recipients, {
+      type: 'equipment_override',
+      title: 'Equipment reservation override',
+      body:
+        `${actorEmail} reserved unit ${row.equipment_inventory_id} ` +
+        `for job ${jobId} (${row.reserved_from} → ${row.reserved_to}) ` +
+        `via soft-override. Reason: ${row.override_reason ?? '—'}.`,
+      icon: '⚠️',
+      escalation_level: 'high',
+      source_type: 'equipment_reservation',
+      source_id: row.id,
+      link: `/admin/jobs/${jobId}`,
+    });
+  }
 }
 
 async function tryInsertBatch(
