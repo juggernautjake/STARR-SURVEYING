@@ -4517,8 +4517,34 @@ discipline.
       visible nav home — surveyors with just that role see
       the Equipment section and nothing else admin-wide,
       matching the §4.6 access matrix.
-- [ ] **F10.6-b** — §5.12.7.1 Today landing page (3 strips
-      + 3 banners).
+- [◐] **F10.6-b** — §5.12.7.1 Today landing page. Split:
+  - [✓] **F10.6-b-i** — `GET /api/admin/equipment/today?date=`
+        aggregator endpoint shipped. Returns the full
+        Today payload — three strips + three banners — in
+        one round-trip so the page UI stays thin and the
+        EM mobile-parity surface (§5.12.9 home tab) can
+        reuse it. Strips: `going_out` (state='held',
+        reserved_from in date window), `out_now`
+        (state='checked_out', sorted by reserved_to ASC,
+        each row pillged on_time / at_risk / overdue with
+        a 1h at-risk window before due), `returned`
+        (state='returned', actual_returned_at in date
+        window). Banners: `unstaffed_pto`
+        (personnel_unavailability starting today),
+        `low_stock_consumables` (consumables ≤ threshold
+        with held reservations today), `maintenance_
+        starting_today` (maintenance_events scheduled in
+        the window in any open state). Display fields
+        (equipment names, holder display names) resolved
+        in batch lookups across all strips so per-row
+        renders skip second roundtrips. Date param
+        defaults to today; YYYY-MM-DD lets the EM scrub.
+        Banner queries are fail-open — read errors degrade
+        to empty arrays so a single banner outage doesn't
+        nuke the strips. Auth: EQUIPMENT_ROLES.
+  - [ ] **F10.6-b-ii** — `app/admin/equipment/today/page.tsx`
+        — three-strip + three-banner layout consuming the
+        aggregator + sidebar nav entry.
 - [ ] **F10.6-c** — §5.12.7.2 Reservations Gantt timeline.
 - [ ] **F10.6-d** — §5.12.7.5 Consumables low-stock view.
 - [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
