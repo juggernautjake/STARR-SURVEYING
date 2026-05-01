@@ -7,5 +7,11 @@
     "app/api/admin/research/[projectId]/analyze/route.ts": {
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/equipment-overdue-nag",
+      "schedule": "0 0,3 * * 2-6"
+    }
+  ]
 }

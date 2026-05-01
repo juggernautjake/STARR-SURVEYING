@@ -4240,10 +4240,28 @@ sub-batches per the small-chunks discipline:
         from the cron's `reserved_to < now()` filter. Column
         comment documents the §5.12.6 invariant for future
         readers. Apply AFTER seeds/239.
-  - [ ] **F10.5-f-ii** — `app/api/cron/equipment-overdue-nag/route.ts`
-        — the 6pm/9pm tick that queries every checked_out
-        reservation past reserved_to + not silenced + fans
-        out the §5.10.4 notifications.
+  - [✓] **F10.5-f-ii** — `app/api/cron/equipment-overdue-nag/route.ts`
+        shipped + Vercel cron config in `vercel.json` at
+        `0 0,3 * * 2-6` (UTC; 6pm + 9pm CST Mon–Fri). Auth via
+        `Authorization: Bearer <CRON_SECRET>` header. Runs the
+        overdue query (`state='checked_out' AND reserved_to <
+        now() AND (nag_silenced_until IS NULL OR
+        nag_silenced_until <= now())`), batch-resolves
+        `checked_out_to_user` UUIDs to emails via
+        `registered_users.id` and equipment IDs to display
+        names via `equipment_inventory.name`, then fans out
+        per-row §5.10.4 notifications with
+        `type='equipment_overdue_return'`,
+        `escalation_level='high'`, source ids that the mobile
+        client matches against to render the inline action
+        buttons (Extend → F10.5-d, Mark in transit →
+        F10.5-f-iii). Returns
+        `{ sent, skipped, scanned }` so a manual debug trigger
+        gets clean numbers. Skipped rows (missing email
+        lookup, notify failure) log loudly but don't fail the
+        tick — re-runs are idempotent. DST-aware tuning is a
+        v1+ polish — the EM admin edits vercel.json if
+        seasonal drift becomes annoying.
   - [ ] **F10.5-f-iii** — `POST /api/admin/equipment/silence-nag`
         — the "Mark in transit" action endpoint that sets
         `nag_silenced_until = midnight today`.
