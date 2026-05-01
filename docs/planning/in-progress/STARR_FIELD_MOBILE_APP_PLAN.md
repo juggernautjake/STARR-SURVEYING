@@ -4417,12 +4417,35 @@ sub-batches per the small-chunks discipline:
         gymnastics. Empty list returns `{ reservations:
         [] }` so the mobile clock-out flow proceeds
         without modal interruption.
-  - [ ] **F10.5-h-ii** — schema column
-        `equipment_self_checkout` BOOLEAN on
-        `registered_users` + loosened auth gate on
-        `/check-out` so flagged crew leads can scan-out
-        gear before/after office hours; equipment_events
-        captures the bypass for audit.
+  - [✓] **F10.5-h-ii** — `seeds/246_starr_field_self_checkout_flag.sql`
+        + `/check-out` auth-gate update shipped. Adds
+        `equipment_self_checkout BOOLEAN NOT NULL
+        DEFAULT false` to `registered_users` with a partial
+        index on the truthy subset. The
+        `/check-out` POST loosens its forbidden gate: when
+        the actor isn't admin/equipment_manager, the
+        handler reads `registered_users.equipment_self_checkout`
+        for the session email; when true, lets the request
+        through with `selfServiceBypass=true` threaded into
+        the success log on both single-row + kit paths so
+        the §5.12.7 reconcile dashboard differentiates
+        flag-driven check-outs from admin/EM walk-ups for
+        the audit trail. Hank toggles the flag per-user via
+        the existing `/admin/users` page; default-off means
+        nobody is grandfathered in. Lookup-failure fallback
+        keeps the gate strict (logs the failure but doesn't
+        silently grant access). Per the §5.12.6
+        self-service after-hours protocol.
+
+      F10.5-h closes out: clock-out gating data source +
+      self-service flag both live. **F10.5 fully shipped**
+      (16 sub-batches: a + b + c + d + e-i + e-ii-α + e-ii-β
+      + f-i + f-ii + f-iii + f-iv + g-i + g-ii + g-iii +
+      h-i + h-ii). The §5.12.6 daily check-in/check-out
+      ritual runs end-to-end: morning scan → evening scan
+      → consumables decrement → kit-batch fan-out → nag
+      cron + silence + digest → damage/lost triage → my-
+      checkouts gate + self-service.
 
 **F10.6 — Equipment Manager dashboards (Week 37–38).**
 The §5.12.7 admin web surface that pulls everything together.

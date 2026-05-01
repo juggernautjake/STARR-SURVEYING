@@ -84,11 +84,39 @@ export const POST = withErrorHandler(
     }
     const userRoles = (session.user as { roles?: string[] } | undefined)
       ?.roles ?? [];
-    if (
-      !isAdmin(session.user.roles) &&
-      !userRoles.includes('equipment_manager')
-    ) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const isPrivileged =
+      isAdmin(session.user.roles) ||
+      userRoles.includes('equipment_manager');
+
+    // F10.5-h-ii: self-service after-hours flag. Non-privileged
+    // users with `registered_users.equipment_self_checkout=true`
+    // can scan gear out without admin/EM roles. Hank toggles the
+    // flag per-user for trusted crew leads (§5.12.6 self-service
+    // protocol). The audit-log line below distinguishes
+    // privileged walk-ups from self-service so the EM can
+    // reconcile after-hours activity on the §5.12.7 dashboard.
+    let selfServiceBypass = false;
+    if (!isPrivileged) {
+      const { data: ruRow, error: ruErr } = await supabaseAdmin
+        .from('registered_users')
+        .select('equipment_self_checkout')
+        .eq('email', session.user.email.toLowerCase())
+        .maybeSingle();
+      if (ruErr) {
+        console.warn(
+          '[admin/equipment/check-out] self-service flag lookup failed',
+          { email: session.user.email, error: ruErr.message }
+        );
+      } else if (
+        ruRow &&
+        (ruRow as { equipment_self_checkout?: boolean })
+          .equipment_self_checkout === true
+      ) {
+        selfServiceBypass = true;
+      }
+      if (!selfServiceBypass) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
     const actorUserId =
       (session.user as { id?: string } | undefined)?.id ?? null;
@@ -245,6 +273,7 @@ export const POST = withErrorHandler(
         toVehicle,
         actorUserId,
         actorEmail: session.user.email,
+        selfServiceBypass,
       });
       return kitResult;
     }
@@ -339,6 +368,7 @@ export const POST = withErrorHandler(
       condition,
       had_photo: !!photoUrl,
       actor_email: session.user.email,
+      self_service_bypass: selfServiceBypass,
     });
 
     return NextResponse.json({
@@ -362,6 +392,7 @@ async function applyKitCheckout(args: {
   toVehicle: string | null;
   actorUserId: string;
   actorEmail: string | null | undefined;
+  selfServiceBypass: boolean;
 }): Promise<NextResponse> {
   // 1. QR → parent equipment_inventory id (refuse retired).
   const inv = await supabaseAdmin
@@ -543,6 +574,7 @@ async function applyKitCheckout(args: {
     child_count: bundle.child_reservations.length,
     flipped_count: flippedRows.length,
     actor_email: args.actorEmail,
+    self_service_bypass: args.selfServiceBypass,
   });
 
   return NextResponse.json({
