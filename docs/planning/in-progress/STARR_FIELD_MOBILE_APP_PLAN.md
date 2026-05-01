@@ -4226,9 +4226,30 @@ sub-batches per the small-chunks discipline:
       and wired into both scan endpoints. The §5.12.1.C
       one-scan-flips-the-whole-kit promise lives end-to-end
       for durable kits.
-- [ ] **F10.5-f** — End-of-day nag cron (6pm + 9pm) +
-      [Extend until 8am] / [Mark in transit] notification
-      actions + 10pm daily digest.
+- [◐] **F10.5-f** — End-of-day nag cron + actions. Split:
+  - [✓] **F10.5-f-i** — `seeds/244_starr_field_equipment_nag_silence.sql`
+        shipped. Adds `nag_silenced_until TIMESTAMPTZ` to
+        `equipment_reservations` with a CHECK that silence
+        windows must be in the future when set + a partial
+        index for the cron's silence-aware refinement query.
+        Drives the "Mark in transit" inline action on the
+        6pm/9pm nag — the surveyor is driving gear back right
+        now and doesn't want a 9pm nag if 6pm just fired.
+        "Extend until 8am" doesn't need this column because
+        F10.5-d's reserved_to bump naturally excludes the row
+        from the cron's `reserved_to < now()` filter. Column
+        comment documents the §5.12.6 invariant for future
+        readers. Apply AFTER seeds/239.
+  - [ ] **F10.5-f-ii** — `app/api/cron/equipment-overdue-nag/route.ts`
+        — the 6pm/9pm tick that queries every checked_out
+        reservation past reserved_to + not silenced + fans
+        out the §5.10.4 notifications.
+  - [ ] **F10.5-f-iii** — `POST /api/admin/equipment/silence-nag`
+        — the "Mark in transit" action endpoint that sets
+        `nag_silenced_until = midnight today`.
+  - [ ] **F10.5-f-iv** — 10pm daily digest cron to admin +
+        equipment_manager listing every still-unreturned row +
+        their on-site GPS context.
 - [ ] **F10.5-g** — Damage triage entry path → §5.12.8 event
       creation; lost-on-site flow with auto-pre-filled
       `location_pings` cluster.
