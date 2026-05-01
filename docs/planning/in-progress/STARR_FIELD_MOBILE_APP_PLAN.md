@@ -4278,9 +4278,35 @@ sub-batches per the small-chunks discipline:
         excludes silenced rows until the timestamp passes.
         Returns the updated row + `previous_silenced_until`
         for audit context.
-  - [ ] **F10.5-f-iv** — 10pm daily digest cron to admin +
-        equipment_manager listing every still-unreturned row +
-        their on-site GPS context.
+  - [✓] **F10.5-f-iv** — `app/api/cron/equipment-overdue-digest/route.ts`
+        shipped + Vercel cron entry at `0 4 * * 2-6` (10pm
+        CST = 04:00 UTC). Auth via Authorization: Bearer
+        CRON_SECRET (mirrors F10.5-f-ii). Same overdue query
+        as the nag tick BUT INTENTIONALLY ignores
+        `nag_silenced_until` — silence applies to the
+        surveyor's nag, not the office's nightly bookkeeping;
+        if gear hasn't physically come back, the office should
+        know. Recipients: every `admin` + `equipment_manager`
+        looked up via
+        `registered_users.roles cs '{admin}'` +
+        `roles cs '{equipment_manager}'`. Single summary
+        notification per recipient (not per row): title
+        carries the count (`Overdue gear — 3 unreturned` /
+        `… all clear`), body lists up to 25 rows in
+        `• name — holder, due <ts>` format with
+        `…+N more` overflow tail. Resolves equipment names +
+        holder display fields via batch lookups
+        (`equipment_inventory` + `registered_users`) so the
+        body has human-readable context. `escalation_level`
+        downgrades to `low` on all-clear ticks so the
+        notification surfaces but doesn't beep. v1+ polish:
+        on-site GPS context (location_pings cluster) per the
+        spec call-out, cooldown guard for manual
+        re-triggers, recipient-side digest collapse.
+
+      F10.5-f closes out: nag-tick + silence-action + daily
+      digest all live. The §5.12.6 end-of-day flow runs end-
+      to-end against the wire shape.
 - [ ] **F10.5-g** — Damage triage entry path → §5.12.8 event
       creation; lost-on-site flow with auto-pre-filled
       `location_pings` cluster.
