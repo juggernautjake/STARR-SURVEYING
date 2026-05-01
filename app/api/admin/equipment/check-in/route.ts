@@ -65,6 +65,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notifyMany } from '@/lib/notifications';
 import {
   loadActiveReservationsForKit,
   resolveKit,
@@ -436,6 +437,39 @@ export const POST = withErrorHandler(
       }
     }
 
+    // ── F10.5-g-ii: damage triage ───────────────────────────────
+    // condition='damaged' on check-in fans out three actions:
+    //   1. INSERT a maintenance_events row (origin='damaged_
+    //      return', kind='damage_triage', state='scheduled') so
+    //      the §5.12.7.4 calendar surfaces it on EM's open-work
+    //      list.
+    //   2. Flip equipment_inventory.current_status to
+    //      'maintenance' so the F10.3-b status check blocks
+    //      future reservations until the EM resolves the work.
+    //   3. Notify every equipment_manager user with
+    //      escalation_level='high' so the gear doesn't
+    //      languish unseen.
+    // All best-effort post-success — the reservation already
+    // committed, so failures here log loudly and surface as
+    // warnings in the response. The audit anchor on
+    // equipment_reservations always survives.
+    let triageWarning: string | null = null;
+    let maintenanceEventId: string | null = null;
+    if (condition === 'damaged') {
+      const triage = await triggerDamageTriage({
+        equipmentInventoryId: row.equipment_inventory_id,
+        equipmentName: null, // helper resolves the display name
+        reservationId: row.id,
+        jobId: row.job_id,
+        photoUrl,
+        notes,
+        actorUserId,
+        actorEmail: session.user.email,
+      });
+      triageWarning = triage.warning;
+      maintenanceEventId = triage.maintenanceEventId;
+    }
+
     console.log('[admin/equipment/check-in POST] ok', {
       reservation_id: row.id,
       equipment_inventory_id: row.equipment_inventory_id,
@@ -444,6 +478,8 @@ export const POST = withErrorHandler(
       had_photo: !!photoUrl,
       consumed_quantity: consumedQuantity,
       stock_decrement_warning: !!stockDecrementWarning,
+      damage_triage_warning: !!triageWarning,
+      maintenance_event_id: maintenanceEventId,
       actor_email: session.user.email,
     });
 
@@ -451,6 +487,8 @@ export const POST = withErrorHandler(
       reservation: updated,
       previous_state: 'checked_out',
       stock_decrement_warning: stockDecrementWarning,
+      damage_triage_warning: triageWarning,
+      maintenance_event_id: maintenanceEventId,
     });
   },
   { routeName: 'admin/equipment/check-in#post' }
@@ -459,6 +497,150 @@ export const POST = withErrorHandler(
 // ────────────────────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────────────────────
+
+/**
+ * F10.5-g-ii damage-triage fan-out. Best-effort — every step is
+ * a separate write, none of which roll back the already-committed
+ * reservation update. Returns a warning string when any step
+ * fails so the response payload surfaces partial state for the
+ * EM to reconcile manually.
+ */
+async function triggerDamageTriage(args: {
+  equipmentInventoryId: string;
+  equipmentName: string | null;
+  reservationId: string;
+  jobId: string;
+  photoUrl: string | null;
+  notes: string | null;
+  actorUserId: string;
+  actorEmail: string | null | undefined;
+}): Promise<{ warning: string | null; maintenanceEventId: string | null }> {
+  const failures: string[] = [];
+
+  // Resolve a display name for the maintenance summary + the
+  // notification body. Best-effort; falls back to the UUID.
+  let displayName = args.equipmentName;
+  if (!displayName) {
+    const { data: invRow } = await supabaseAdmin
+      .from('equipment_inventory')
+      .select('name')
+      .eq('id', args.equipmentInventoryId)
+      .maybeSingle();
+    displayName =
+      (invRow as { name: string | null } | null)?.name ??
+      args.equipmentInventoryId;
+  }
+
+  // 1. INSERT maintenance_events row.
+  let maintenanceEventId: string | null = null;
+  const summary = `Damaged on return — triage pending (${displayName})`;
+  const meBody: Record<string, unknown> = {
+    equipment_inventory_id: args.equipmentInventoryId,
+    kind: 'damage_triage',
+    origin: 'damaged_return',
+    state: 'scheduled',
+    summary,
+    notes: args.notes,
+    created_by: args.actorUserId,
+  };
+  const { data: meRow, error: meErr } = await supabaseAdmin
+    .from('maintenance_events')
+    .insert(meBody)
+    .select('id')
+    .maybeSingle();
+  if (meErr) {
+    console.error(
+      '[admin/equipment/check-in damage-triage] maintenance_event insert failed',
+      {
+        equipment_inventory_id: args.equipmentInventoryId,
+        reservation_id: args.reservationId,
+        error: meErr.message,
+      }
+    );
+    failures.push('maintenance_event_insert');
+  } else {
+    maintenanceEventId = (meRow as { id: string } | null)?.id ?? null;
+  }
+
+  // 2. Flip equipment_inventory.current_status to 'maintenance'
+  // so the F10.3-b status check blocks future reservations.
+  const { error: statusErr } = await supabaseAdmin
+    .from('equipment_inventory')
+    .update({ current_status: 'maintenance' })
+    .eq('id', args.equipmentInventoryId);
+  if (statusErr) {
+    console.error(
+      '[admin/equipment/check-in damage-triage] status flip failed',
+      {
+        equipment_inventory_id: args.equipmentInventoryId,
+        error: statusErr.message,
+      }
+    );
+    failures.push('inventory_status_flip');
+  }
+
+  // 3. Notify equipment_manager users (and admins on call).
+  // Mirrors the F10.3-e override fan-out lookup pattern.
+  let recipients: string[] = [];
+  try {
+    const { data: rows, error: ruErr } = await supabaseAdmin
+      .from('registered_users')
+      .select('email')
+      .or('roles.cs.{admin},roles.cs.{equipment_manager}');
+    if (ruErr) {
+      console.warn(
+        '[admin/equipment/check-in damage-triage] recipients lookup failed',
+        { error: ruErr.message }
+      );
+      failures.push('notify_recipient_lookup');
+    } else {
+      recipients = ((rows ?? []) as Array<{ email: string | null }>)
+        .map((r) => r.email)
+        .filter((e): e is string => !!e);
+    }
+  } catch (err) {
+    console.warn(
+      '[admin/equipment/check-in damage-triage] recipients lookup threw',
+      { error: (err as Error).message }
+    );
+    failures.push('notify_recipient_lookup');
+  }
+
+  if (recipients.length > 0) {
+    try {
+      await notifyMany(recipients, {
+        type: 'equipment_damage_triage',
+        title: `Damage triage — ${displayName}`,
+        body:
+          `${args.actorEmail ?? 'A crew member'} returned ${displayName} ` +
+          `damaged on job ${args.jobId}.` +
+          (args.notes ? ` Notes: ${args.notes}` : '') +
+          ' Status flipped to maintenance; reservations blocked until cleared.',
+        icon: '🔧',
+        escalation_level: 'high',
+        source_type: 'maintenance_event',
+        source_id: maintenanceEventId ?? args.reservationId,
+        link: '/admin/equipment',
+      });
+    } catch (err) {
+      console.warn(
+        '[admin/equipment/check-in damage-triage] notifyMany failed',
+        { error: (err as Error).message }
+      );
+      failures.push('notify_send');
+    }
+  }
+
+  if (failures.length === 0) {
+    return { warning: null, maintenanceEventId };
+  }
+  return {
+    warning:
+      `Damage triage partial — these steps failed: ${failures.join(', ')}. ` +
+      'Reconcile from the §5.12.7 EM dashboard.',
+    maintenanceEventId,
+  };
+}
 
 async function applyKitCheckin(args: {
   qrCodeId: string;

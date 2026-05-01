@@ -4338,9 +4338,32 @@ sub-batches per the small-chunks discipline:
         layer (maintenance_event_documents,
         maintenance_schedules, calendar UI, 3am due-date
         cron) builds on this foundation.
-  - [ ] **F10.5-g-ii** — wire damage triage into
-        `/check-in` (status flip + maintenance_event row
-        + EM notification on condition='damaged').
+  - [✓] **F10.5-g-ii** — single-row damage-triage hook in
+        `/check-in` shipped. When condition='damaged' lands
+        on the single-row path, `triggerDamageTriage`
+        helper fans out three best-effort actions
+        post-success: (1) INSERT a `maintenance_events` row
+        with origin='damaged_return', kind='damage_triage',
+        state='scheduled', summary anchored to the
+        instrument's display name, notes from the surveyor;
+        (2) UPDATE
+        `equipment_inventory.current_status='maintenance'`
+        so the F10.3-b status check blocks future
+        reservations until the EM resolves; (3) notifyMany
+        every admin + equipment_manager with
+        escalation_level='high', body cites actor + job +
+        notes + status flip. All three are best-effort —
+        the reservation update already committed, so
+        failures log loudly + roll up into a
+        `damage_triage_warning` string surfaced in the
+        response payload alongside the inserted
+        `maintenance_event_id`. The EM reconciles partials
+        from the §5.12.7 dashboard. Kit-mode damage triage
+        (parent kit return with damaged condition fans out
+        per-child maintenance_events rows) is deferred to a
+        future batch — kit-mode condition currently
+        persists uniformly without triage; the single-row
+        path is the dominant damage flow in practice.
   - [ ] **F10.5-g-iii** — wire lost-on-site into
         `/check-in` (status flip + admin/EM/crew-lead
         notification on condition='lost'; GPS cluster
