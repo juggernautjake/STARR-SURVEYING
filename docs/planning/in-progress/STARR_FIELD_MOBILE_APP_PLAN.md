@@ -3787,8 +3787,36 @@ F10.4-e (POST /cancel-assignment + crew-lead helpers).
       provisionally 240 in earlier plan revisions, but
       seeds/240 shipped as the F10.3-e equipment-override
       schema; renumbered to 241 to match actual ship order.
-- [ ] **F10.4-b** — Personnel availability check engine —
-      `GET /api/admin/personnel/availability`.
+- [✓] **F10.4-b** — `GET /api/admin/personnel/availability`
+      shipped. `lib/personnel/availability.ts` exposes
+      `assessPerson(userEmail, opts)` +
+      `assessForSkillCohort(opts)` pure functions running the
+      four §5.12.4 checks: missing-skill (per `required_skills`
+      entry; hard-block when slot is template-required, soft-
+      warn when `skillsAreSoft=true` for ad-hoc fills),
+      capacity overlap (job_team rows in proposed|confirmed
+      with `[)` overlap on the window — same range semantics as
+      seeds/241's GiST EXCLUDE), unavailability (PTO/sick/
+      training/doctor/other with reason + kind so the UI
+      differentiates "ask to skip PTO" from "they're at the
+      doctor"), and cert-expiry-during-window (skill row
+      exists + active but `expires_at` falls inside the window
+      → soft-warn so the dispatcher can remind the surveyor
+      to renew). Each `PersonAssessment` carries `hard_blocks`
+      + `soft_warns` arrays of typed
+      `PersonnelAvailabilityReason` so callers (UI, F10.4-c
+      assign, capacity calendar) render uniformly. Cohort
+      mode walks every active user holding ≥1 of the requested
+      skills + assesses each (returns blocked rows too so the
+      typeahead shows "Jacob has the cert but is on Job
+      #422"); user-mode hits a single email. Optional cohort
+      fallback walks `registered_users` when no skills given,
+      for the bare PTO/capacity calendar. Three parallel reads
+      (skills · capacity · unavailability) batched per
+      assessment so the engine round-trips at most 3 + 1 to
+      the DB regardless of cohort size. F10.4-c assign will
+      reuse the same engine inside its FOR-UPDATE-equivalent
+      transaction by passing its own `client`.
 - [ ] **F10.4-c** — `POST /api/admin/personnel/assign`
       atomic multi-slot with override + surveyor notification.
 - [ ] **F10.4-d** — `POST /api/admin/personnel/respond` —
