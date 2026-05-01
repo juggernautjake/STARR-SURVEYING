@@ -4142,8 +4142,37 @@ sub-batches per the small-chunks discipline:
       re-reads. seeds/239 sync trigger refreshes
       `equipment_inventory.next_available_at` automatically
       since the active-window changed.
-- [ ] **F10.5-e** — Kit batch flow: parent QR pulls all child
-      reservations forward atomically per §5.12.1.C.
+- [◐] **F10.5-e** — Kit batch flow per §5.12.1.C. Split into
+      two sub-batches:
+  - [✓] **F10.5-e-i** — `lib/equipment/kit-resolver.ts`
+        shipped. `resolveKit(parentEquipmentId, client?)`
+        returns the parent inventory row + its
+        `equipment_kit_items` children (sorted by sort_order
+        ASC) joined with display fields (name, item_kind,
+        qr_code_id) so the F10.5-e-ii caller doesn't need a
+        second roundtrip. Typed errors:
+        `parent_not_found` (no inventory row),
+        `parent_is_not_a_kit` (inventory row exists but no
+        `equipment_kits` wrapper). Companion
+        `loadActiveReservationsForKit(resolved, opts)` walks
+        every reservation across the parent + children at a
+        target state (`held` for check-out fan-out,
+        `checked_out` for check-in fan-out) with optional
+        `jobIdFilter` + window bounds. Returns
+        `{ parent_reservation_id, child_reservations[] }` —
+        children without matching reservations stay absent
+        from the array so callers handle "kit was applied
+        without one of its optional children" cleanly.
+        Read-only — state-flip writes stay in F10.5-e-ii so
+        the route handlers own the audit-trail orchestration.
+        Accepts an optional `client` for transaction-aware
+        reads.
+  - [ ] **F10.5-e-ii** — wire the resolver into
+        `/check-out` + `/check-in` so a parent-QR scan flips
+        the parent + every child's reservation in one batch
+        with shared audit fields (single condition photo at
+        the kit level; per-child exceptions inline; consumed
+        quantities collected per consumable child).
 - [ ] **F10.5-f** — End-of-day nag cron (6pm + 9pm) +
       [Extend until 8am] / [Mark in transit] notification
       actions + 10pm daily digest.
