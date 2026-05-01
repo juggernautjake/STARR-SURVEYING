@@ -4395,9 +4395,34 @@ sub-batches per the small-chunks discipline:
       with damaged/lost condition fans out per-child
       maintenance_events rows) remains deferred — the
       single-row path covers the dominant flow in practice.
-- [ ] **F10.5-h** — Crew clock-out gating modal +
-      self-service after-hours flag (`equipment_self_checkout`
-      on registered_users) + soft warning audit path.
+- [◐] **F10.5-h** — Clock-out gating + self-service after-
+      hours. Split:
+  - [✓] **F10.5-h-i** — `GET /api/admin/equipment/my-checkouts`
+        shipped. Backs the §5.12.6 clock-out gating modal.
+        Returns every `state='checked_out'` reservation
+        owned by the authenticated session user
+        (`checked_out_to_user = session.user.id`), ordered
+        by `reserved_to` ASC so "due back soonest" lands
+        first. Auth gate is intentionally generous — any
+        authenticated user can fetch THEIR OWN list (no
+        role check beyond authenticated; the query is
+        keyed on `checked_out_to_user=me` so cross-user
+        leakage is impossible). Enriches each row with
+        `equipment_name`, `equipment_item_kind`,
+        `equipment_qr_code_id` via a single batch lookup
+        so the mobile modal renders names without further
+        roundtrips. Computes `overdue: boolean` per row so
+        the modal can flag "this is already past
+        reserved_to" without client-side date-parsing
+        gymnastics. Empty list returns `{ reservations:
+        [] }` so the mobile clock-out flow proceeds
+        without modal interruption.
+  - [ ] **F10.5-h-ii** — schema column
+        `equipment_self_checkout` BOOLEAN on
+        `registered_users` + loosened auth gate on
+        `/check-out` so flagged crew leads can scan-out
+        gear before/after office hours; equipment_events
+        captures the bypass for audit.
 
 **F10.6 — Equipment Manager dashboards (Week 37–38).**
 The §5.12.7 admin web surface that pulls everything together.
