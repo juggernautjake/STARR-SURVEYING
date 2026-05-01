@@ -3602,8 +3602,49 @@ Broken into smaller sub-batches per the established pattern.
       (save-as) + F10.2g (apply) remain deferred per below.
 - [ ] **F10.2f** — Save-as-template shortcut (deferred to
       F10.5 with apply flow).
-- [ ] **F10.2g** — Apply-template flow (deferred to F10.3
-      with reservations).
+- [◐] **F10.2g** — Apply-template flow. Split into 2 + 2 sub-
+      batches now that F10.3 + F10.4 prerequisites are shipped:
+      F10.2g-a-i (composition resolver lib) · F10.2g-a-ii
+      (GET /preview endpoint) · F10.2g-b-i (POST /apply
+      equipment side) · F10.2g-b-ii (POST /apply personnel
+      side + cleanup-on-partial-failure).
+  - [✓] **F10.2g-a-i** — `lib/equipment/template-resolver.ts`
+        shipped. Pure function `resolveTemplate(templateId,
+        client?)` walks the template + its `composes_from`
+        chain DFS up to `MAX_COMPOSITION_DEPTH=4`. Cycle
+        detection via a visited-set raises typed
+        `cycle_detected`; archived mid-chain parents raise
+        `archived_parent` (top-level archived templates ARE
+        re-applicable per spec — historical loadout). Items
+        dedupe by composite key (`unit:<uuid>` for specific
+        instruments, `cat:<category>` for any-of-kind);
+        quantities sum across parents per §5.12.3, is_required
+        ORs (any-required wins), notes concatenate with `|`
+        separator, sort_order takes the smallest contributor,
+        `source_template_ids[]` accumulates for the audit
+        trail. Personnel slots dedupe by `slot_role` with
+        min/max sums + skill-set union (lowercased + deduped).
+        Returns `{ resolved: { root, items, personnel_slots,
+        resolution_chain, resolution_depth } }` or `{ error:
+        ResolverError }` for typed surfacing in the GET
+        endpoint. Centralised so both /preview (g-a-ii) and
+        /apply (g-b-*) share identical resolution semantics
+        — no drift possible. Accepts an optional `client` so
+        the apply handler can pass its own connection if it
+        ever needs a transaction-aware read.
+  - [ ] **F10.2g-a-ii** — `GET /api/admin/equipment/templates/
+        [id]/preview?from=&to=&job_id=` — wraps the resolver +
+        runs F10.3-b availability per item and F10.4-b
+        availability per personnel slot, returns the combined
+        preview the dispatcher reviews before committing.
+  - [ ] **F10.2g-b-i** — `POST /apply` equipment side:
+        atomic batch reserve via the F10.3-c flow with
+        `from_template_id`/`from_template_version` audit
+        stamping.
+  - [ ] **F10.2g-b-ii** — `POST /apply` personnel side +
+        cleanup-on-partial-failure: walks slots, calls
+        F10.4-c assign, on failure rolls back the equipment
+        reservations from g-b-i.
 
 **F10.3 — Availability + conflict detection engine (Week 35).**
 Split into 6 sub-batches per the small-chunks discipline:
