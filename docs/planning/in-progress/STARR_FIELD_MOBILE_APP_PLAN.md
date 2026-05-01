@@ -3817,8 +3817,34 @@ F10.4-e (POST /cancel-assignment + crew-lead helpers).
       the DB regardless of cohort size. F10.4-c assign will
       reuse the same engine inside its FOR-UPDATE-equivalent
       transaction by passing its own `client`.
-- [ ] **F10.4-c** — `POST /api/admin/personnel/assign`
-      atomic multi-slot with override + surveyor notification.
+- [✓] **F10.4-c** — `POST /api/admin/personnel/assign` shipped.
+      Atomic all-or-none multi-slot. Body
+      `{ job_id, slots: [{ user_email, slot_role,
+      assigned_from, assigned_to, required_skills?,
+      skills_are_soft?, is_crew_lead?, notes?,
+      override_reason? }] }`. Per-slot flow validates →
+      assesses via the F10.4-b engine → either resolves
+      (assignable OR overridden) or attaches a
+      `SlotConflict` with reasons + user_not_found marker.
+      Pre-insert intra-batch checks reject duplicate
+      (user_email × overlapping window) within the same call
+      and refuse > 1 `is_crew_lead=true` per call. Atomic
+      batch INSERT into `job_team` (single transaction;
+      partial assignments impossible by construction);
+      seeds/241's GiST EXCLUDE catches concurrent races and
+      maps Postgres 23P01 → typed `capacity_overlap`; the
+      crew-lead partial UNIQUE catches 23505 → typed
+      `crew_lead_already_set` so dispatchers see the right
+      remediation. Post-insert: each surveyor gets a §5.10.4
+      `personnel_assignment_proposed` notification keyed to
+      `/admin/jobs/<id>` with the F10.4-d /respond UX
+      driving Confirm / Decline; override rows ALSO fan out
+      a high-priority audit notification to every
+      `equipment_manager` + actor per the "nothing is silent"
+      directive (mirrors F10.3-e). Notify failures are
+      best-effort and don't roll back. Auth: admin /
+      developer / equipment_manager (mutating; tech_support
+      read-only).
 - [ ] **F10.4-d** — `POST /api/admin/personnel/respond` —
       mobile [Confirm] / [Decline + reason] endpoint.
 - [ ] **F10.4-e** — `POST /api/admin/personnel/cancel-
