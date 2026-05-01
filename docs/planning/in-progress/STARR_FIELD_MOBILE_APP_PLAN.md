@@ -4083,9 +4083,36 @@ sub-batches per the small-chunks discipline:
       after-hours flag (F10.5-h) explicitly NOT in this batch
       — handler is the single-row state-flip core. Auth: admin
       / developer / equipment_manager.
-- [ ] **F10.5-c** — `POST /api/admin/equipment/check-in` —
-      flips checked_out → returned, handles consumed_quantity
-      decrement for consumables.
+- [✓] **F10.5-c** — `POST /api/admin/equipment/check-in`
+      shipped. Symmetric counterpart to /check-out. Body XOR
+      `qr_code_id` / `reservation_id`. State flip:
+      `checked_out → returned`; refuses non-checked_out states
+      with typed 409 + current_state. Required `condition` ∈
+      good|fair|damaged|lost; photo_url required when
+      condition ≠ 'good' (audit anchor for §5.12.6 + the
+      F10.5-g triage flow). Consumables: handler reads
+      `equipment_inventory.item_kind` after resolving the
+      reservation; when `consumable`, requires
+      `consumed_quantity` (non-negative integer); after the
+      state-flip UPDATE succeeds, decrements
+      `equipment_inventory.quantity_on_hand` in a separate
+      best-effort UPDATE (cross-table tx isn't available
+      through PostgREST). Decrement failure logs loudly +
+      surfaces `stock_decrement_warning` in the response
+      payload so the EM can reconcile manually; the audit
+      anchor still survives. Retired-instrument check
+      INTENTIONALLY skipped on the /check-in side — a retired
+      unit may still have an outstanding checked_out row that
+      needs to come back in; refusing on retire would block
+      the cleanup. (The /check-out side DOES refuse retire,
+      which is the gate that prevents new check-outs.)
+      Disambiguation 409 returned when multiple checked_out
+      rows match a QR — should be unreachable per seeds/239's
+      EXCLUDE but defensive surface kept. Damage triage
+      (`damaged`) + lost-on-site (`lost` + location_pings
+      cluster) hooks NOT in this batch — F10.5-g layers them
+      on top of the column persistence here. Auth: admin /
+      developer / equipment_manager.
 - [ ] **F10.5-d** — `POST /api/admin/equipment/extend-reservation`
       (used by clock-out modal + nag actions).
 - [ ] **F10.5-e** — Kit batch flow: parent QR pulls all child
