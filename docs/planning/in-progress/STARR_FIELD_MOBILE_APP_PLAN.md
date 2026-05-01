@@ -4262,9 +4262,22 @@ sub-batches per the small-chunks discipline:
         tick — re-runs are idempotent. DST-aware tuning is a
         v1+ polish — the EM admin edits vercel.json if
         seasonal drift becomes annoying.
-  - [ ] **F10.5-f-iii** — `POST /api/admin/equipment/silence-nag`
-        — the "Mark in transit" action endpoint that sets
-        `nag_silenced_until = midnight today`.
+  - [✓] **F10.5-f-iii** — `POST /api/admin/equipment/silence-nag`
+        shipped. Body `{ reservation_id, until? }`. Default
+        `until` = next 00:00 UTC (midnight tonight); explicit
+        values must be in the future and ≤ end-of-day-tomorrow
+        (anything longer routes through F10.5-d /extend-
+        reservation). Auth: admin / equipment_manager OR the
+        row's `checked_out_to_user` (so the surveyor with the
+        gear can action the inline button via their own
+        session). State guard: only `checked_out` rows are
+        silenceable; held/returned/cancelled return 409 with
+        current_state. UPDATE guards on `state='checked_out'`
+        for TOCTOU; on miss re-reads. Sets
+        `nag_silenced_until`; the F10.5-f-ii cron query
+        excludes silenced rows until the timestamp passes.
+        Returns the updated row + `previous_silenced_until`
+        for audit context.
   - [ ] **F10.5-f-iv** — 10pm daily digest cron to admin +
         equipment_manager listing every still-unreturned row +
         their on-site GPS context.
