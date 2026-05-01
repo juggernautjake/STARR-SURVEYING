@@ -3845,8 +3845,34 @@ F10.4-e (POST /cancel-assignment + crew-lead helpers).
       best-effort and don't roll back. Auth: admin /
       developer / equipment_manager (mutating; tech_support
       read-only).
-- [ ] **F10.4-d** — `POST /api/admin/personnel/respond` —
-      mobile [Confirm] / [Decline + reason] endpoint.
+- [✓] **F10.4-d** — `POST /api/admin/personnel/respond`
+      shipped. Body
+      `{ assignment_id, response: 'confirm'|'decline',
+      decline_reason? }`. Two auth paths: the assigned
+      surveyor (`job_team.user_email === session.email`) is
+      the primary case via the mobile inbox card; admin /
+      equipment_manager can hit on behalf of the surveyor for
+      the §5.12.4 step 6 "verbally agreed in person" bypass
+      (audit-logged with `privileged_bypass=true` on the
+      response so reviewers see the actor + on-behalf-of).
+      State machine: only `proposed` is respondable;
+      confirmed/declined/cancelled return 409 with
+      `current_state`. UPDATE guards on `state='proposed'`
+      (TOCTOU — re-reads on guard miss so the caller sees
+      what beat them). Confirm = quiet success
+      (`state='confirmed'`, `confirmed_at=now()`, no
+      notification — the dispatcher's roster shows the flip
+      on refresh). Decline = `state='declined'`,
+      `declined_at=now()`, `decline_reason` set, fan out a
+      §5.10.4 `personnel_assignment_declined` notification to
+      every admin + equipment_manager (filtered to exclude
+      the actor + declining surveyor) so any dispatcher can
+      re-staff. Decline notifications carry
+      escalation_level='high' when the declined slot was
+      `is_crew_lead=true` since losing the lead is more
+      urgent. Required `decline_reason` (≤500 chars,
+      non-blank) so the dispatcher can decide between
+      "ask again" and "find someone else".
 - [ ] **F10.4-e** — `POST /api/admin/personnel/cancel-
       assignment` + crew-lead auto-promote helper.
 
