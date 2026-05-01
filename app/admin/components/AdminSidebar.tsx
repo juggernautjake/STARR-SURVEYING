@@ -132,6 +132,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
     // group so it appears here even when the user has no other admin role.
     { label: 'Equipment', items: [
       { href: '/admin/equipment/today', label: 'Today', icon: '📅', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment/timeline', label: 'Timeline', icon: '📊', roles: EQUIPMENT_ROLES, internalOnly: true },
       { href: '/admin/equipment', label: 'Catalogue', icon: '📦', roles: EQUIPMENT_ROLES, internalOnly: true },
       { href: '/admin/equipment/templates', label: 'Templates', icon: '📋', roles: EQUIPMENT_ROLES, internalOnly: true },
     ]},

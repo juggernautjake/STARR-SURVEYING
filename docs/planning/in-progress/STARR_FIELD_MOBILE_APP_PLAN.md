@@ -4593,9 +4593,28 @@ discipline.
         §5.12.9 mobile timeline + future
         `/admin/jobs/[id]/timeline` embed reuse the same
         payload.
-  - [ ] **F10.6-c-ii** — `app/admin/equipment/timeline/page.tsx`
-        — Gantt UI (read-only) consuming the aggregator +
-        sidebar entry.
+  - [✓] **F10.6-c-ii** — `app/admin/equipment/timeline/page.tsx`
+        + sidebar entry shipped. Read-only Gantt: 200px
+        label gutter + flexible bar area per swimlane row.
+        Bar `left%`/`width%` computed from the time
+        window so any window size renders without per-day
+        grid math; bars clip cleanly at the window edges
+        (clamp 0–100). Tick row across the top with a
+        date label per day. Bar colors per state — held
+        light-blue, checked_out solid blue, returned grey,
+        cancelled white-with-dashed-border-and-line-through.
+        Override outline (`is_override=true`) renders a 2px
+        amber border. Hover title carries every drilldown
+        field (equipment name + state + job + window +
+        holder + override flag) until the F10.6-c-iii
+        drawer ships. Filter bar at top: group_by toggle
+        (Equipment / Job), state dropdown, category text
+        input, overdue-only checkbox. Date scrubbers + a
+        "Reset to 14d" jumper for window control.
+        Empty-state cleanly handles no-results-in-window.
+        Sidebar 'Timeline' link added between Today and
+        Catalogue. Inline styles per the rest of
+        `/admin/equipment/*`.
   - [ ] **F10.6-c-iii** — Drilldown drawer + filter chips
         UI.
   - [ ] **F10.6-c-iv** — Drag-resize on `held` bars (calls
