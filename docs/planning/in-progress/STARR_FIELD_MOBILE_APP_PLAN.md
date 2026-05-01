@@ -4763,8 +4763,27 @@ discipline.
           green action banner as Restock at the top of
           the rows. `0` is allowed (removes the floor
           entirely).
-    - [ ] **F10.6-d-iii-γ** — Mark-discontinued modal
-          (re-uses the existing F10.1 retire endpoint).
+    - [✓] **F10.6-d-iii-γ** — Mark-discontinued modal
+          shipped. Per-row red-tinted "Discontinue" button
+          opens a confirm modal; required `reason` field
+          (audit anchor) + optional notes; warning box
+          when `current_on_hand > 0` ("count becomes
+          inaccessible after discontinue"). Submit POSTs
+          to the existing F10.1e-i `/equipment/[id]/retire`
+          endpoint — sets `retired_at=now()`, flips
+          `current_status='retired'`, writes an
+          equipment_events row with
+          `event_type='retired'` for the §5.12.7.3
+          history tab. Discontinued row drops off the
+          consumables list on the next refetch since the
+          F10.6-d-i aggregator filters
+          `retired_at IS NULL`. Templates pinning the
+          discontinued row will surface in the F10.6-f
+          §5.12.7.8 cleanup queue.
+
+      F10.6-d closes out: aggregator + page UI + all three
+      action modals shipped. The §5.12.7.5 consumables
+      surface runs end-to-end.
 - [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
 - [ ] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
       gear cleanup queue.

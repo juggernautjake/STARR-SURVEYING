@@ -65,6 +65,13 @@ interface ThresholdTarget {
   current_on_hand: number;
 }
 
+interface DiscontinueTarget {
+  id: string;
+  name: string;
+  unit: string | null;
+  current_on_hand: number;
+}
+
 function formatDaysRemaining(d: number | null): string {
   if (d === null) return '—';
   if (d >= 999) return '999+';
@@ -88,6 +95,7 @@ export default function EquipmentConsumablesPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [restockTarget, setRestockTarget] = useState<RestockTarget | null>(null);
   const [thresholdTarget, setThresholdTarget] = useState<ThresholdTarget | null>(null);
+  const [discontinueTarget, setDiscontinueTarget] = useState<DiscontinueTarget | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const fetchConsumables = useCallback(async () => {
@@ -308,6 +316,21 @@ export default function EquipmentConsumablesPage() {
                         >
                           Threshold
                         </button>
+                        <button
+                          type="button"
+                          style={styles.actionBtnDanger}
+                          onClick={() => {
+                            setActionMsg(null);
+                            setDiscontinueTarget({
+                              id: r.id,
+                              name: r.name ?? r.id,
+                              unit: r.unit,
+                              current_on_hand: r.quantity_on_hand ?? 0,
+                            });
+                          }}
+                        >
+                          Discontinue
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -318,9 +341,8 @@ export default function EquipmentConsumablesPage() {
 
           {actionMsg ? <div style={styles.actionMsg}>{actionMsg}</div> : null}
           <p style={styles.note}>
-            ▸ Update-threshold + mark-discontinued inline actions
-            land in F10.6-d-iii-β/γ. Click a row name to drill into
-            the catalogue page.
+            ▸ Click a row name to drill into the catalogue page.
+            Discontinued rows drop off this list once they retire.
           </p>
         </>
       ) : loading ? (
@@ -355,6 +377,22 @@ export default function EquipmentConsumablesPage() {
             setThresholdTarget(null);
             setActionMsg(
               `✓ Updated ${t.name} threshold to ${newThreshold}.`
+            );
+            void fetchConsumables();
+          }}
+        />
+      ) : null}
+
+      {discontinueTarget ? (
+        <DiscontinueModal
+          target={discontinueTarget}
+          onClose={() => setDiscontinueTarget(null)}
+          onDiscontinued={() => {
+            const t = discontinueTarget;
+            setDiscontinueTarget(null);
+            setActionMsg(
+              `✓ Marked ${t.name} discontinued. It drops off this list ` +
+                'on next refetch.'
             );
             void fetchConsumables();
           }}
@@ -759,6 +797,130 @@ function ThresholdModal({
   );
 }
 
+function DiscontinueModal({
+  target,
+  onClose,
+  onDiscontinued,
+}: {
+  target: DiscontinueTarget;
+  onClose: () => void;
+  onDiscontinued: () => void;
+}) {
+  const { safeFetch } = usePageError('DiscontinueModal');
+  const [reason, setReason] = useState('');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleConfirm = useCallback(async () => {
+    setError(null);
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      setError('Please provide a reason for the audit log.');
+      return;
+    }
+    setSubmitting(true);
+    const body: Record<string, unknown> = { reason: trimmed };
+    if (notes.trim()) body.notes = notes.trim();
+    const res = await safeFetch<{
+      row?: { retired_at: string | null };
+    }>(`/api/admin/equipment/${target.id}/retire`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    setSubmitting(false);
+    if (res?.row || res) {
+      onDiscontinued();
+    } else {
+      setError('Discontinue failed. Check the error log.');
+    }
+  }, [reason, notes, safeFetch, target, onDiscontinued]);
+
+  return (
+    <div style={modalStyles.backdrop} onClick={onClose}>
+      <div
+        style={modalStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header style={modalStyles.header}>
+          <h2 style={modalStyles.title}>Mark discontinued?</h2>
+          <button
+            type="button"
+            style={modalStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+            disabled={submitting}
+          >
+            ✕
+          </button>
+        </header>
+        <div style={modalStyles.body}>
+          <p style={modalStyles.warningCopy}>
+            Soft-archives <strong>{target.name}</strong>. Sets
+            <code style={modalStyles.code}>retired_at = now()</code>;
+            row drops off this list + the F10.3-b availability
+            check refuses future reservations. Templates that pin
+            this row surface in the §5.12.7.8 cleanup queue
+            (F10.6-f). Reservation history is preserved per the
+            §5.12.11.K chain-of-custody rule.
+          </p>
+          {target.current_on_hand > 0 ? (
+            <div style={modalStyles.warningBox}>
+              ⚠ {target.current_on_hand}
+              {target.unit ? ` ${target.unit}` : ''} still on hand.
+              Confirm you want to retire this anyway — the count
+              becomes inaccessible after discontinue.
+            </div>
+          ) : null}
+          <label style={modalStyles.field}>
+            <span style={modalStyles.label}>Reason *</span>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. switched vendors / no longer stocked / formula change"
+              style={modalStyles.input}
+              required
+              autoFocus
+            />
+          </label>
+          <label style={modalStyles.field}>
+            <span style={modalStyles.label}>Notes</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              style={{ ...modalStyles.input, minHeight: 60 }}
+              placeholder="optional context"
+            />
+          </label>
+          {error ? <div style={modalStyles.error}>⚠ {error}</div> : null}
+        </div>
+        <footer style={modalStyles.footer}>
+          <button
+            type="button"
+            style={modalStyles.secondaryBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            style={modalStyles.dangerBtn}
+            onClick={handleConfirm}
+            disabled={submitting}
+          >
+            {submitting ? 'Discontinuing…' : 'Mark discontinued'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 const styles: Record<string, React.CSSProperties> = {
   wrap: { padding: '24px', maxWidth: 1300, margin: '0 auto' },
   header: {
@@ -910,6 +1072,15 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     cursor: 'pointer',
   },
+  actionBtnDanger: {
+    padding: '4px 10px',
+    background: '#FFFFFF',
+    border: '1px solid #FCA5A5',
+    color: '#B91C1C',
+    borderRadius: 6,
+    fontSize: 11,
+    cursor: 'pointer',
+  },
   actionMsg: {
     margin: '12px 0',
     padding: '10px 14px',
@@ -1028,4 +1199,36 @@ const modalStyles: Record<string, React.CSSProperties> = {
   },
   previewRed: { color: '#7F1D1D' },
   previewGreen: { color: '#166534' },
+  dangerBtn: {
+    background: '#B91C1C',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  warningCopy: {
+    margin: 0,
+    fontSize: 13,
+    color: '#374151',
+    lineHeight: 1.5,
+  },
+  warningBox: {
+    padding: 10,
+    background: '#FFFBEB',
+    border: '1px solid #FCD34D',
+    color: '#78350F',
+    borderRadius: 6,
+    fontSize: 12,
+  },
+  code: {
+    fontFamily: 'Menlo, monospace',
+    fontSize: 12,
+    background: '#F3F4F6',
+    padding: '1px 6px',
+    borderRadius: 4,
+    margin: '0 4px',
+  },
 };
