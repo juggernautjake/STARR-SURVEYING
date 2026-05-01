@@ -3728,7 +3728,30 @@ F10.3-f (POST cancel-reservation).
       Auth: only admin / developer / equipment_manager can hit
       the route at all, so the role gate on override is the
       same gate as the rest of the endpoint.
-- [ ] **F10.3-f** — `POST /api/admin/equipment/cancel-reservation`.
+- [✓] **F10.3-f** — `POST /api/admin/equipment/cancel-reservation`
+      shipped. Body `{ reservation_id, reason? }`. Flips a
+      `held` reservation to `cancelled`; refuses 409 on any
+      terminal state (`checked_out` → use §5.12.6 check-in
+      flow, `returned`/`cancelled` → already terminal). The
+      UPDATE guards on `state='held'` (belt-and-suspenders for
+      TOCTOU between read + write); on guard miss, re-reads the
+      latest state so the caller sees what beat them. Optional
+      `reason` (≤500 chars) appends as `CANCEL: <reason>` to
+      `notes`, preserving any prior `OVERRIDE: ` prefix so the
+      timeline carries both. The seeds/239 AFTER-UPDATE sync
+      trigger automatically releases
+      `equipment_inventory.current_reservation_id` +
+      `next_available_at` for the affected unit, so the
+      §5.12.7.1 Today landing-page card refreshes without any
+      extra writes here.
+
+      **F10.3 closes out.** All six sub-batches shipped: the
+      schema layer (a), the availability engine + GET (b), the
+      atomic POST /reserve (c), substitution suggestions (d),
+      the soft-override path with notification fan-out (e), and
+      cancel-reservation (f). The §5.12.5 worked-example UX
+      ("kit #3 reserved; kit #4 also available — switch?")
+      runs end-to-end against the wire shape.
 
 **F10.4 — Personnel side (Week 36).**
 - [ ] Personnel-skills + unavailability admin pages
