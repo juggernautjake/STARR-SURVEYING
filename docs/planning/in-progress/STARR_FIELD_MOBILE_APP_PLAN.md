@@ -4703,9 +4703,24 @@ discipline.
         per-tier counts so the F10.6-d-ii page header
         can show "3 reorder NOW · 5 reorder soon" without
         client-side filtering. Auth: EQUIPMENT_ROLES.
-  - [ ] **F10.6-d-ii** — `app/admin/equipment/consumables/page.tsx`
-        — table UI consuming the aggregator + sidebar
-        link.
+  - [✓] **F10.6-d-ii** — `app/admin/equipment/consumables/page.tsx`
+        + sidebar entry shipped. Flat table consuming the
+        F10.6-d-i aggregator. Filter chips at the top
+        (All / Reorder NOW / Reorder soon / OK) — counts
+        from the aggregator's summary block render
+        client-side without a refetch on chip toggle.
+        Sortable columns: Name / On hand / 30d used /
+        Days left (default = days_remaining ASC). Per-row
+        BadgePill (red/amber/green for the three tiers)
+        + row-level background tint matching the badge so
+        the reorder-now rows are visible at a glance.
+        Each name links to `/admin/equipment/<id>` for
+        the inventory drilldown. Days-left formatter:
+        `<1` for sub-day, `999+` for cap. Sidebar
+        'Consumables' link added between Timeline and
+        Catalogue. Inline styles per the rest of
+        `/admin/equipment/*`. Auth: useSession gate; the
+        aggregator enforces EQUIPMENT_ROLES server-side.
   - [ ] **F10.6-d-iii** — Restock-arrived / update-threshold /
         mark-discontinued inline action modals.
 - [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
