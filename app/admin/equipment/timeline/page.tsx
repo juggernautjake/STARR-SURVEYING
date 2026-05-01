@@ -19,6 +19,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
 import { usePageError } from '../../hooks/usePageError';
@@ -34,6 +35,7 @@ interface SwimlaneBar {
   equipment_name: string | null;
   holder_email: string | null;
   returned_condition: string | null;
+  notes: string | null;
 }
 
 interface Swimlane {
@@ -107,6 +109,14 @@ export default function EquipmentTimelinePage() {
 
   const [data, setData] = useState<TimelineResponse | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // F10.6-c-iii — drilldown drawer state. Stores the bar the
+  // EM clicked + which swimlane context it came from (used by
+  // the drawer's "Other reservations on this lane" cross-link).
+  const [drilldown, setDrilldown] = useState<{
+    bar: SwimlaneBar;
+    laneLabel: string;
+  } | null>(null);
 
   const fetchTimeline = useCallback(async () => {
     setLoading(true);
@@ -331,16 +341,15 @@ export default function EquipmentTimelinePage() {
                       BAR_STATE_STYLES[bar.state] ?? BAR_STATE_STYLES.default;
                     const isStrikethrough = bar.state === 'cancelled';
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={bar.reservation_id}
                         title={
-                          `${bar.equipment_name ?? bar.equipment_inventory_id}\n` +
-                          `${bar.state} · job ${bar.job_id.slice(0, 8)}\n` +
-                          `${bar.reserved_from} → ${bar.reserved_to}` +
-                          (bar.is_override ? '\nOVERRIDE' : '') +
-                          (bar.holder_email
-                            ? `\nHolder: ${bar.holder_email}`
-                            : '')
+                          `${bar.equipment_name ?? bar.equipment_inventory_id} — ` +
+                          `${bar.state}. Click for full details.`
+                        }
+                        onClick={() =>
+                          setDrilldown({ bar, laneLabel: lane.label })
                         }
                         style={{
                           ...styles.bar,
@@ -361,7 +370,7 @@ export default function EquipmentTimelinePage() {
                             : bar.equipment_name ??
                               bar.equipment_inventory_id.slice(0, 8)}
                         </span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -370,8 +379,150 @@ export default function EquipmentTimelinePage() {
           </div>
         </>
       )}
+
+      {drilldown ? (
+        <DrilldownDrawer
+          bar={drilldown.bar}
+          laneLabel={drilldown.laneLabel}
+          onClose={() => setDrilldown(null)}
+        />
+      ) : null}
     </div>
   );
+}
+
+// ────────────────────────────────────────────────────────────
+// F10.6-c-iii — drilldown drawer
+// ────────────────────────────────────────────────────────────
+
+function DrilldownDrawer({
+  bar,
+  laneLabel,
+  onClose,
+}: {
+  bar: SwimlaneBar;
+  laneLabel: string;
+  onClose: () => void;
+}) {
+  return (
+    <div style={drawerStyles.backdrop} onClick={onClose}>
+      <aside
+        style={drawerStyles.panel}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Reservation drilldown"
+      >
+        <header style={drawerStyles.header}>
+          <div>
+            <h2 style={drawerStyles.title}>
+              {bar.equipment_name ?? bar.equipment_inventory_id}
+            </h2>
+            <p style={drawerStyles.subtitle}>
+              <span style={stateBadgeStyle(bar.state)}>{bar.state}</span>
+              {bar.is_override ? (
+                <span style={drawerStyles.overrideBadge}>OVERRIDE</span>
+              ) : null}
+              <span style={drawerStyles.subtitleSpan}>
+                {' '}· lane: {laneLabel}
+              </span>
+            </p>
+          </div>
+          <button
+            type="button"
+            style={drawerStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div style={drawerStyles.body}>
+          <DrawerRow label="Reservation">
+            <code style={drawerStyles.code}>
+              {bar.reservation_id.slice(0, 8)}
+            </code>
+          </DrawerRow>
+          <DrawerRow label="Job">
+            <Link
+              href={`/admin/jobs/${bar.job_id}`}
+              style={drawerStyles.link}
+            >
+              {bar.job_id}
+            </Link>
+          </DrawerRow>
+          <DrawerRow label="Equipment">
+            <Link
+              href={`/admin/equipment/${bar.equipment_inventory_id}`}
+              style={drawerStyles.link}
+            >
+              {bar.equipment_name ?? bar.equipment_inventory_id}
+            </Link>
+          </DrawerRow>
+          <DrawerRow label="Window">
+            {new Date(bar.reserved_from).toLocaleString()}
+            <br />→ {new Date(bar.reserved_to).toLocaleString()}
+          </DrawerRow>
+          <DrawerRow label="Holder">
+            {bar.holder_email ?? <span style={drawerStyles.muted}>—</span>}
+          </DrawerRow>
+          {bar.returned_condition ? (
+            <DrawerRow label="Returned condition">
+              {bar.returned_condition}
+            </DrawerRow>
+          ) : null}
+          <DrawerRow label="Notes">
+            {bar.notes ?? <span style={drawerStyles.muted}>—</span>}
+          </DrawerRow>
+        </div>
+
+        <footer style={drawerStyles.footer}>
+          <Link
+            href={`/admin/equipment/${bar.equipment_inventory_id}`}
+            style={drawerStyles.secondaryBtn}
+          >
+            Open equipment
+          </Link>
+          <Link
+            href={`/admin/jobs/${bar.job_id}`}
+            style={drawerStyles.primaryBtn}
+          >
+            Open job →
+          </Link>
+        </footer>
+      </aside>
+    </div>
+  );
+}
+
+function DrawerRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={drawerStyles.row}>
+      <div style={drawerStyles.rowLabel}>{label}</div>
+      <div style={drawerStyles.rowValue}>{children}</div>
+    </div>
+  );
+}
+
+function stateBadgeStyle(state: string): React.CSSProperties {
+  const base = BAR_STATE_STYLES[state] ?? BAR_STATE_STYLES.default;
+  return {
+    ...base,
+    padding: '2px 8px',
+    borderRadius: 4,
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase' as const,
+    border: 'none',
+  };
 }
 
 const BAR_STATE_STYLES: Record<string, React.CSSProperties> = {
@@ -579,10 +730,128 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     cursor: 'pointer',
     minWidth: 4,
+    fontFamily: 'inherit',
+    textAlign: 'left',
   },
   barLabel: {
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
+  },
+};
+
+const drawerStyles: Record<string, React.CSSProperties> = {
+  backdrop: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(15, 23, 42, 0.4)',
+    display: 'flex',
+    justifyContent: 'flex-end',
+    zIndex: 1000,
+  },
+  panel: {
+    width: '100%',
+    maxWidth: 480,
+    height: '100%',
+    background: '#FFFFFF',
+    boxShadow: '-12px 0 32px rgba(0, 0, 0, 0.18)',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '16px 20px',
+    borderBottom: '1px solid #E2E5EB',
+  },
+  title: { fontSize: 18, fontWeight: 600, margin: '0 0 4px' },
+  subtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    margin: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  subtitleSpan: { color: '#6B7280' },
+  overrideBadge: {
+    background: '#FEF3C7',
+    color: '#78350F',
+    padding: '2px 8px',
+    borderRadius: 4,
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+  },
+  close: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: 18,
+    color: '#6B7280',
+    cursor: 'pointer',
+    padding: 4,
+    lineHeight: 1,
+  },
+  body: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: 20,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 14,
+  },
+  row: {
+    display: 'grid',
+    gridTemplateColumns: '120px 1fr',
+    gap: 12,
+    fontSize: 13,
+    alignItems: 'baseline',
+  },
+  rowLabel: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#6B7280',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.04em',
+  },
+  rowValue: { color: '#111827', wordBreak: 'break-word' },
+  link: { color: '#1D3095', textDecoration: 'none' },
+  muted: { color: '#9CA3AF' },
+  code: {
+    fontFamily: 'Menlo, monospace',
+    fontSize: 11,
+    background: '#F3F4F6',
+    padding: '1px 6px',
+    borderRadius: 4,
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 10,
+    padding: '12px 20px',
+    borderTop: '1px solid #E2E5EB',
+    background: '#FAFBFC',
+  },
+  secondaryBtn: {
+    padding: '8px 14px',
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    background: '#FFFFFF',
+    color: '#374151',
+    fontSize: 13,
+    textDecoration: 'none',
+  },
+  primaryBtn: {
+    padding: '8px 16px',
+    border: 'none',
+    borderRadius: 8,
+    background: '#1D3095',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: 500,
+    textDecoration: 'none',
   },
 };

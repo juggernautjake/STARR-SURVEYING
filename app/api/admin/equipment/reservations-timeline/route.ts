@@ -70,6 +70,7 @@ interface SwimlaneBar {
   equipment_name: string | null;
   holder_email: string | null;
   returned_condition: string | null;
+  notes: string | null;
 }
 
 interface Swimlane {
@@ -304,6 +305,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       ? holderById.get(r.checked_out_to_user) ?? null
       : null,
     returned_condition: r.returned_condition,
+    notes: r.notes,
   }));
 
   // Group into swimlanes.

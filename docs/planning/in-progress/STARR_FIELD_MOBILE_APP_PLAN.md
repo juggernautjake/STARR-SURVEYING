@@ -4615,8 +4615,29 @@ discipline.
         Sidebar 'Timeline' link added between Today and
         Catalogue. Inline styles per the rest of
         `/admin/equipment/*`.
-  - [ ] **F10.6-c-iii** — Drilldown drawer + filter chips
-        UI.
+  - [✓] **F10.6-c-iii** — drilldown drawer shipped. Click
+        any bar opens a 480px right-side drawer with
+        backdrop dismissal + ✕ close + escape-key
+        equivalent (click-outside via backdrop). Drawer
+        body shows: reservation_id (truncated, monospace),
+        deep-linked job, deep-linked equipment, full
+        window (from / to with locale-formatted
+        timestamps), holder email, returned_condition (when
+        present), notes. Header carries the bar's state as
+        a colored badge (matches the Gantt color set) +
+        OVERRIDE badge when `is_override=true` + the
+        swimlane label for context. Footer has two action
+        buttons: "Open equipment" (secondary) and "Open
+        job →" (primary). Bars converted from `<div>` to
+        `<button type="button">` so keyboard nav lands on
+        each bar correctly. Aggregator extended to carry
+        `notes` on every bar so the drawer renders
+        override reasons + cancel justifications inline.
+        Filter chips on the page bar already shipped in
+        F10.6-c-ii so this batch focused on the drawer
+        itself. Drag-resize on `held` bars (with the
+        F10.5-d /extend-reservation hookup) lands as
+        F10.6-c-iv.
   - [ ] **F10.6-c-iv** — Drag-resize on `held` bars (calls
         F10.5-d /extend-reservation; re-runs availability
         check inline).
