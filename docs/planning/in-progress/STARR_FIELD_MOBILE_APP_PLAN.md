@@ -3656,10 +3656,30 @@ Broken into smaller sub-batches per the established pattern.
         so 10-item templates round-trip fast. Auth: admin /
         developer / tech_support / equipment_manager (same
         read-side gate as `/availability`).
-  - [ ] **F10.2g-b-i** — `POST /apply` equipment side:
-        atomic batch reserve via the F10.3-c flow with
-        `from_template_id`/`from_template_version` audit
-        stamping.
+  - [✓] **F10.2g-b-i** — `POST /api/admin/equipment/templates/
+        [id]/apply` equipment side shipped (strict-fail v1 —
+        no per-item overrides yet; that lands as a follow-up
+        F10.2g-b-iii batch when the dispatcher UI demands it).
+        Body `{ job_id, from, to }`. Re-runs the F10.2g-a-i
+        resolver inside the handler so a stale preview can't
+        slip through; per item runs the F10.3-b engine; for
+        category-mode picks the first assignable winner
+        (proximity ranking already lives in the engine for
+        future tuning); on any block aborts with 409 carrying
+        every conflict in the same shape as the preview so
+        the dispatcher UI handles pre- and mid-insert
+        collisions identically. On full clear, batch-inserts
+        `equipment_reservations` with
+        `from_template_id=<this template>` +
+        `from_template_version=<resolved.root.version>` audit
+        stamps so the §5.12.3 versioning rule holds (the
+        snapshot answers "what did Job #427 actually go out
+        with?", not the live mutable template). Inherits race-
+        safety from F10.3-c: PostgREST batch INSERT runs in
+        one transaction, seeds/239's GiST EXCLUDE catches
+        concurrent overlap, Postgres 23P01 maps to typed
+        `reserved_for_other_job`. Auth: admin / developer /
+        equipment_manager.
   - [ ] **F10.2g-b-ii** — `POST /apply` personnel side +
         cleanup-on-partial-failure: walks slots, calls
         F10.4-c assign, on failure rolls back the equipment
