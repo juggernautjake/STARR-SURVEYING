@@ -3632,11 +3632,30 @@ Broken into smaller sub-batches per the established pattern.
         — no drift possible. Accepts an optional `client` so
         the apply handler can pass its own connection if it
         ever needs a transaction-aware read.
-  - [ ] **F10.2g-a-ii** — `GET /api/admin/equipment/templates/
-        [id]/preview?from=&to=&job_id=` — wraps the resolver +
-        runs F10.3-b availability per item and F10.4-b
-        availability per personnel slot, returns the combined
-        preview the dispatcher reviews before committing.
+  - [✓] **F10.2g-a-ii** — `GET /api/admin/equipment/templates/
+        [id]/preview?from=&to=[&job_id=]` shipped. Wraps the
+        F10.2g-a-i resolver + the F10.3-b equipment engine
+        (per item: unit-mode → 1 assessment; category-mode →
+        every unit in the category) + the F10.4-b personnel
+        engine (per slot: cohort assess across users holding
+        ≥1 of `required_skills`, with `skillsAreSoft=false`
+        for template-required strict-fail). Returns
+        `{ window, job_id, template, resolution: { chain,
+        depth }, items: [{ resolved, assessments,
+        assignable_count, blocked_count }],
+        personnel_slots: [{ resolved, candidates,
+        assignable_count, blocked_count }], summary: {
+        item_count, blocked_items, slot_count,
+        unfilled_slots, ready_to_apply } }`. Read-only — no
+        writes; the F10.2g-b apply path re-runs the resolver
+        + availability inside its transaction so a stale
+        preview can't slip through. Resolver errors map to
+        typed status codes: missing_template → 404,
+        cycle_detected / depth_exceeded / archived_parent →
+        409. Item assessments parallelised via `Promise.all`
+        so 10-item templates round-trip fast. Auth: admin /
+        developer / tech_support / equipment_manager (same
+        read-side gate as `/availability`).
   - [ ] **F10.2g-b-i** — `POST /apply` equipment side:
         atomic batch reserve via the F10.3-c flow with
         `from_template_id`/`from_template_version` audit
