@@ -118,6 +118,22 @@ export default function EquipmentTimelinePage() {
     laneLabel: string;
   } | null>(null);
 
+  // F10.6-c-iv — drag-resize state for `held` bars. Tracks the
+  // bar being resized + the bar-area DOM rect captured at
+  // mousedown so the mousemove math stays correct even if the
+  // user scrolls. currentToMs is the live preview; on mouseup
+  // it commits via POST /extend-reservation. extendError
+  // surfaces typed conflict messages from the route.
+  const [drag, setDrag] = useState<{
+    reservationId: string;
+    rectLeft: number;
+    rectWidth: number;
+    originalToMs: number;
+    currentToMs: number;
+  } | null>(null);
+  const [extendError, setExtendError] = useState<string | null>(null);
+  const [extending, setExtending] = useState(false);
+
   const fetchTimeline = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({
@@ -138,6 +154,92 @@ export default function EquipmentTimelinePage() {
   useEffect(() => {
     void fetchTimeline();
   }, [fetchTimeline]);
+
+  // ── F10.6-c-iv drag listeners ───────────────────────────────
+  // Window-level mousemove + mouseup so the cursor can leave
+  // the bar mid-drag without breaking the gesture. Only active
+  // while `drag` is non-null.
+  useEffect(() => {
+    if (!drag || !data) return;
+    const windowFromMs = Date.parse(data.window.from);
+    const windowToMs = Date.parse(data.window.to);
+    const span = Math.max(1, windowToMs - windowFromMs);
+
+    function onMove(e: MouseEvent) {
+      if (!drag) return;
+      const xPx = Math.max(
+        drag.rectLeft,
+        Math.min(drag.rectLeft + drag.rectWidth, e.clientX)
+      );
+      const ratio = (xPx - drag.rectLeft) / drag.rectWidth;
+      const newMs = windowFromMs + ratio * span;
+      setDrag((d) => (d ? { ...d, currentToMs: newMs } : d));
+    }
+    async function onUp() {
+      const snapshot = drag;
+      if (!snapshot) return;
+      // Reset drag UI immediately so the bar doesn't visually
+      // hang while the network call lands.
+      setDrag(null);
+
+      // Snap to nearest 15 minutes for usability — sub-minute
+      // precision isn't useful at the EM level.
+      const SNAP_MS = 15 * 60 * 1000;
+      const snapped =
+        Math.round(snapshot.currentToMs / SNAP_MS) * SNAP_MS;
+      // No-op when the user dragged < SNAP_MS away from the
+      // original (avoids accidental "I just clicked the handle"
+      // network calls).
+      if (Math.abs(snapped - snapshot.originalToMs) < SNAP_MS) {
+        return;
+      }
+      // Refuse a backward drag at the wire level — the
+      // /extend-reservation endpoint rejects it with 400, but
+      // catching here saves the round-trip + gives a cleaner
+      // error message.
+      if (snapped <= snapshot.originalToMs) {
+        setExtendError(
+          'Drag right to extend; left-drag (shrink) is a cancel-and-' +
+            're-reserve operation, not an extend.'
+        );
+        return;
+      }
+
+      setExtending(true);
+      setExtendError(null);
+      const newIso = new Date(snapped).toISOString();
+      const res = await safeFetch<{
+        reservation: { reserved_to: string };
+        previous_reserved_to?: string;
+      }>('/api/admin/equipment/extend-reservation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reservation_id: snapshot.reservationId,
+          new_reserved_to: newIso,
+          source: 'manual',
+        }),
+      });
+      setExtending(false);
+      if (res?.reservation) {
+        // Refetch so the Gantt picks up the new reserved_to +
+        // any sibling impacts (e.g., next_available_at on the
+        // catalogue side).
+        void fetchTimeline();
+      } else {
+        setExtendError(
+          'Extend failed — refetch the timeline. Common cause: ' +
+            'overlap with another active reservation.'
+        );
+      }
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [drag, data, fetchTimeline, safeFetch]);
 
   const ticks = useMemo(() => {
     if (!data) return [];
@@ -330,16 +432,23 @@ export default function EquipmentTimelinePage() {
                       Date.parse(bar.reserved_from),
                       windowFromMs
                     );
-                    const toMs = Math.min(
-                      Date.parse(bar.reserved_to),
-                      windowToMs
-                    );
+                    // While dragging the bar, show its currentToMs
+                    // (clamped to window) instead of reserved_to so
+                    // the visual previews the new end live.
+                    const liveToMs =
+                      drag && drag.reservationId === bar.reservation_id
+                        ? drag.currentToMs
+                        : Date.parse(bar.reserved_to);
+                    const toMs = Math.min(liveToMs, windowToMs);
                     if (toMs <= fromMs) return null;
                     const left = ((fromMs - windowFromMs) / windowSpanMs) * 100;
                     const width = ((toMs - fromMs) / windowSpanMs) * 100;
                     const stateStyle =
                       BAR_STATE_STYLES[bar.state] ?? BAR_STATE_STYLES.default;
                     const isStrikethrough = bar.state === 'cancelled';
+                    const isHeld = bar.state === 'held';
+                    const isDraggingThis =
+                      drag && drag.reservationId === bar.reservation_id;
                     return (
                       <button
                         type="button"
@@ -348,9 +457,15 @@ export default function EquipmentTimelinePage() {
                           `${bar.equipment_name ?? bar.equipment_inventory_id} — ` +
                           `${bar.state}. Click for full details.`
                         }
-                        onClick={() =>
-                          setDrilldown({ bar, laneLabel: lane.label })
-                        }
+                        onClick={() => {
+                          // Suppress click when a drag just ended
+                          // — the up-handler clears `drag`, but a
+                          // tiny mouse jiggle can fire onClick
+                          // anyway. Cheap guard: ignore clicks
+                          // while extending.
+                          if (extending) return;
+                          setDrilldown({ bar, laneLabel: lane.label });
+                        }}
                         style={{
                           ...styles.bar,
                           ...stateStyle,
@@ -361,6 +476,8 @@ export default function EquipmentTimelinePage() {
                             : 'none',
                           outline: bar.is_override
                             ? '2px solid #F59E0B'
+                            : isDraggingThis
+                            ? '2px solid #1D3095'
                             : 'none',
                         }}
                       >
@@ -370,6 +487,31 @@ export default function EquipmentTimelinePage() {
                             : bar.equipment_name ??
                               bar.equipment_inventory_id.slice(0, 8)}
                         </span>
+                        {isHeld ? (
+                          <span
+                            style={styles.dragHandle}
+                            title="Drag right to extend the held window"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const target = e.currentTarget
+                                .parentElement as HTMLElement | null;
+                              const area = target?.parentElement as
+                                | HTMLElement
+                                | null;
+                              if (!area) return;
+                              const rect = area.getBoundingClientRect();
+                              setExtendError(null);
+                              setDrag({
+                                reservationId: bar.reservation_id,
+                                rectLeft: rect.left,
+                                rectWidth: rect.width,
+                                originalToMs: Date.parse(bar.reserved_to),
+                                currentToMs: Date.parse(bar.reserved_to),
+                              });
+                            }}
+                          />
+                        ) : null}
                       </button>
                     );
                   })}
@@ -386,6 +528,28 @@ export default function EquipmentTimelinePage() {
           laneLabel={drilldown.laneLabel}
           onClose={() => setDrilldown(null)}
         />
+      ) : null}
+
+      {extending ? (
+        <div style={styles.extendingToast}>Extending reservation…</div>
+      ) : extendError ? (
+        <div style={styles.extendErrorToast}>
+          ⚠ {extendError}
+          <button
+            type="button"
+            onClick={() => setExtendError(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#7F1D1D',
+              fontSize: 11,
+              marginLeft: 8,
+              cursor: 'pointer',
+            }}
+          >
+            dismiss
+          </button>
+        </div>
       ) : null}
     </div>
   );
@@ -737,6 +901,43 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
+  },
+  dragHandle: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: 6,
+    cursor: 'ew-resize',
+    borderRadius: '0 4px 4px 0',
+    background:
+      'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(0,0,0,0.16) 100%)',
+  },
+  extendErrorToast: {
+    position: 'fixed',
+    bottom: 24,
+    right: 24,
+    padding: '10px 14px',
+    background: '#FEF2F2',
+    border: '1px solid #FCA5A5',
+    color: '#7F1D1D',
+    borderRadius: 8,
+    fontSize: 13,
+    maxWidth: 360,
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+    zIndex: 900,
+  },
+  extendingToast: {
+    position: 'fixed',
+    bottom: 24,
+    right: 24,
+    padding: '10px 14px',
+    background: '#1D3095',
+    color: '#FFFFFF',
+    borderRadius: 8,
+    fontSize: 13,
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+    zIndex: 900,
   },
 };
 

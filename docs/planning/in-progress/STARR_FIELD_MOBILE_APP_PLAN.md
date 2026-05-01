@@ -4638,9 +4638,42 @@ discipline.
         itself. Drag-resize on `held` bars (with the
         F10.5-d /extend-reservation hookup) lands as
         F10.6-c-iv.
-  - [ ] **F10.6-c-iv** — Drag-resize on `held` bars (calls
-        F10.5-d /extend-reservation; re-runs availability
-        check inline).
+  - [✓] **F10.6-c-iv** — drag-resize on held bars shipped.
+        `state='held'` bars get a 6px right-edge handle
+        (subtle gradient overlay so it's discoverable on
+        hover without cluttering the read view); other
+        states omit the handle. Mousedown captures the
+        bar-area DOM rect + the original reserved_to;
+        window-level mousemove/mouseup listeners mean the
+        cursor can leave the bar mid-gesture without
+        breaking the drag. Mouse-x position maps to a
+        timestamp via the same `(x - rectLeft) / rectWidth
+        * windowSpan` math as the static layout, snapped to
+        nearest 15-minute boundary so the EM doesn't
+        accidentally land on a sub-minute reserved_to.
+        Mouseup commits via POST F10.5-d
+        `/extend-reservation` with `source='manual'`. No-op
+        guard rejects drags < 15 min from the original
+        (avoids accidental "I just clicked the handle"
+        network calls); backward-drag rejected pre-flight
+        with a clear error toast (shrinking is a
+        cancel-and-re-reserve, not an extend). Live preview
+        — the bar's right edge follows the cursor during
+        the drag with a Starr-blue outline so the EM sees
+        the new end live before commit. Optimistic refetch
+        on success refreshes the Gantt; failure surfaces
+        a typed error toast (typically extend_collides
+        409 from the seeds/239 GiST EXCLUDE catching an
+        overlap with another active reservation). Click vs.
+        drag disambiguation: handle has its own
+        onMouseDown w/ stopPropagation so it never opens
+        the drilldown drawer; the bar's onClick guards on
+        `extending` to avoid edge-case post-drag click
+        misfires.
+
+      F10.6-c closes out: aggregator + Gantt UI + drilldown
+      drawer + drag-resize all live. The §5.12.7.2
+      timeline runs end-to-end.
 - [ ] **F10.6-d** — §5.12.7.5 Consumables low-stock view.
 - [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
 - [ ] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
