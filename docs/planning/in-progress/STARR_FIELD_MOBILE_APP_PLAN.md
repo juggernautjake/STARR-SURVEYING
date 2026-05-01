@@ -3648,11 +3648,29 @@ F10.3-f (POST cancel-reservation).
       F10.3-c reserve will reuse the same lib inside its
       FOR UPDATE transaction by passing its own `client` so
       assessment + insert see one snapshot.
-- [ ] **F10.3-c** — `POST /api/admin/equipment/reserve` —
-      atomic multi-item reserve with `SELECT … FOR UPDATE`
-      race guard layered on top of the GiST EXCLUDE; turns
-      raw 23P01 violations into typed `reserved_for_other_job`
-      conflicts.
+- [✓] **F10.3-c** — `POST /api/admin/equipment/reserve` shipped.
+      Atomic all-or-none reservation. Body
+      `{ job_id, items: [{equipment_inventory_id|category,
+      quantity?, reserved_from, reserved_to, notes?,
+      from_template_id?, from_template_version?}] }`. Per-item
+      flow: validate → assess (engine from F10.3-b) → for
+      category mode pick the first assignable unit (proximity
+      ranking lands in F10.3-d) → collect resolved rows. If any
+      item is blocked, return 409 with **all** items'
+      reasons in one response so the dispatcher fixes
+      everything in one pass. On full success, batch-insert all
+      reservations via PostgREST's array `.insert()` (single
+      transaction guarantee); the seeds/239 GiST EXCLUDE catches
+      any concurrent overlap that beat the engine's check, which
+      we map (Postgres error code 23P01 → typed
+      `reserved_for_other_job` conflict) so the dispatcher sees
+      the same error vocabulary regardless of where the conflict
+      was caught. Auth: admin / developer / equipment_manager
+      (tech_support read-only). Substitution suggestions
+      (F10.3-d) and soft-override path (F10.3-e) intentionally
+      not in this batch — handler returns clean typed conflicts;
+      next batches build the UX affordances on top of the same
+      shape.
 - [ ] **F10.3-d** — substitution suggestions surface on
       conflict.
 - [ ] **F10.3-e** — soft-override path with required reason +
