@@ -274,6 +274,16 @@ export const POST = withErrorHandler(
       itemKindById.set(r.id, r.item_kind ?? 'durable');
     }
 
+    // ── F10.2f-ii: derive personnel slots from job_team ─────────
+    // Walk every job_team row in proposed|confirmed state, group
+    // by slot_role, and emit one required_personnel_slots entry
+    // per role with min=max=count. required_skills derives from
+    // a small canonical map of role→skill (rpls/lsit/flagger/
+    // drone_pilot_part_107) — anything else lands with
+    // required_skills=[] and the dispatcher fills in via the
+    // template edit UI.
+    const requiredPersonnelSlots = await derivePersonnelSlots(jobId);
+
     // ── Create the template header ──────────────────────────────
     const headerInsert = {
       name,
@@ -283,7 +293,7 @@ export const POST = withErrorHandler(
       default_crew_size: defaultCrewSize,
       default_duration_hours: defaultDurationHours,
       requires_certifications: requiresCertifications,
-      required_personnel_slots: [], // F10.2f-ii layers these on
+      required_personnel_slots: requiredPersonnelSlots,
       composes_from: [],
       version: 1,
       is_archived: false,
@@ -378,7 +388,7 @@ export const POST = withErrorHandler(
         description_at_version: description,
         job_type_at_version: jobType,
         composes_from_at_version: [],
-        required_personnel_slots_at_version: [],
+        required_personnel_slots_at_version: requiredPersonnelSlots,
         requires_certifications_at_version: requiresCertifications,
         items_jsonb: itemsInserted ?? [],
       });
@@ -393,6 +403,7 @@ export const POST = withErrorHandler(
       template_id: templateId,
       job_id: jobId,
       item_count: (itemsInserted ?? []).length,
+      slot_count: requiredPersonnelSlots.length,
       actor_email: session.user.email,
     });
 
@@ -401,9 +412,68 @@ export const POST = withErrorHandler(
       items: itemsInserted ?? [],
       summary: {
         item_count: (itemsInserted ?? []).length,
+        slot_count: requiredPersonnelSlots.length,
         source_reservation_count: reservations.length,
       },
     });
   },
   { routeName: 'admin/equipment/templates/save-from-job#post' }
 );
+
+// ────────────────────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────────────────────
+
+interface DerivedSlot {
+  slot_role: string;
+  min: number;
+  max: number;
+  required_skills: string[];
+}
+
+// Canonical role → skill map. Slots whose role matches a key
+// here ship with the corresponding `required_skills`; anything
+// else lands with [] and the dispatcher fills in via the
+// template edit UI.
+const ROLE_TO_REQUIRED_SKILLS: Record<string, string[]> = {
+  rpls: ['rpls'],
+  lsit: ['lsit'],
+  flagger: ['flagger'],
+  drone_pilot_part_107: ['drone_pilot_part_107'],
+};
+
+async function derivePersonnelSlots(
+  jobId: string
+): Promise<DerivedSlot[]> {
+  const { data, error } = await supabaseAdmin
+    .from('job_team')
+    .select('slot_role')
+    .eq('job_id', jobId)
+    .in('state', ['proposed', 'confirmed'])
+    .not('slot_role', 'is', null);
+  if (error) {
+    console.warn(
+      '[admin/equipment/templates/save-from-job] job_team read failed',
+      { jobId, error: error.message }
+    );
+    return [];
+  }
+  if (!data || data.length === 0) return [];
+
+  const counts = new Map<string, number>();
+  for (const row of data as Array<{ slot_role: string | null }>) {
+    if (!row.slot_role) continue;
+    const role = row.slot_role.trim().toLowerCase();
+    if (!role) continue;
+    counts.set(role, (counts.get(role) ?? 0) + 1);
+  }
+
+  return Array.from(counts.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([slot_role, count]) => ({
+      slot_role,
+      min: count,
+      max: count,
+      required_skills: ROLE_TO_REQUIRED_SKILLS[slot_role] ?? [],
+    }));
+}

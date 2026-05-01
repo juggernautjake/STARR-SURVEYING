@@ -3631,11 +3631,31 @@ Broken into smaller sub-batches per the established pattern.
         `no_source_reservations` 400 ("apply equipment to
         the job first, then save-as"). Auth: admin /
         developer / equipment_manager.
-  - [ ] **F10.2f-ii** — personnel slots — group `job_team`
-        rows by `slot_role` to derive
-        `required_personnel_slots: [{slot_role, min, max,
-        required_skills}]` and persist on the saved
-        template header.
+  - [✓] **F10.2f-ii** — personnel slot derivation shipped.
+        `derivePersonnelSlots(jobId)` helper walks
+        `job_team` rows in `proposed|confirmed` state +
+        groups by `slot_role` (lowercased + trimmed) →
+        emits one `required_personnel_slots` entry per
+        role with `min=max=count` (the apply flow honors
+        these in F10.2g). `required_skills` derived from
+        `ROLE_TO_REQUIRED_SKILLS` canonical map (`rpls →
+        ['rpls']`, `lsit → ['lsit']`, `flagger →
+        ['flagger']`, `drone_pilot_part_107 →
+        ['drone_pilot_part_107']`); other slot_roles ship
+        with `required_skills=[]` and the dispatcher fills
+        in via the existing template edit UI. Threaded
+        into both the header insert AND the v1 snapshot so
+        the §5.12.3 audit chain captures the slot
+        derivation. Response summary now carries
+        `slot_count`. job_team read failure logs but
+        falls back to an empty slots array — saving the
+        template still succeeds, dispatcher edits as
+        needed.
+
+      F10.2f closes out: dispatcher can promote a custom-
+      built job loadout — both equipment AND crew slots —
+      into a reusable template via one POST. **Phase F10.2
+      fully shipped.**
 - [◐] **F10.2g** — Apply-template flow. Split into 2 + 2 sub-
       batches now that F10.3 + F10.4 prerequisites are shipped:
       F10.2g-a-i (composition resolver lib) · F10.2g-a-ii
