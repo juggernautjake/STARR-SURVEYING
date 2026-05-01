@@ -437,7 +437,7 @@ export const POST = withErrorHandler(
       }
     }
 
-    // ── F10.5-g-ii: damage triage ───────────────────────────────
+    // ── F10.5-g-ii / iii: damage + lost triage ──────────────────
     // condition='damaged' on check-in fans out three actions:
     //   1. INSERT a maintenance_events row (origin='damaged_
     //      return', kind='damage_triage', state='scheduled') so
@@ -449,6 +449,15 @@ export const POST = withErrorHandler(
     //   3. Notify every equipment_manager user with
     //      escalation_level='high' so the gear doesn't
     //      languish unseen.
+    //
+    // condition='lost' on check-in (the $200-prism-in-the-woods
+    // case per §5.12.6) fans out the same three actions with
+    // origin='lost_returned' + status flip to 'lost' + a
+    // 'critical' escalation that ALSO loops in the on-site crew
+    // lead (looked up from job_team) so they can join the search.
+    // GPS context (location_pings cluster) auto-attach is
+    // deferred until the location_pings ingest pipeline lands.
+    //
     // All best-effort post-success — the reservation already
     // committed, so failures here log loudly and surface as
     // warnings in the response. The audit anchor on
@@ -459,6 +468,19 @@ export const POST = withErrorHandler(
       const triage = await triggerDamageTriage({
         equipmentInventoryId: row.equipment_inventory_id,
         equipmentName: null, // helper resolves the display name
+        reservationId: row.id,
+        jobId: row.job_id,
+        photoUrl,
+        notes,
+        actorUserId,
+        actorEmail: session.user.email,
+      });
+      triageWarning = triage.warning;
+      maintenanceEventId = triage.maintenanceEventId;
+    } else if (condition === 'lost') {
+      const triage = await triggerLostTriage({
+        equipmentInventoryId: row.equipment_inventory_id,
+        equipmentName: null,
         reservationId: row.id,
         jobId: row.job_id,
         photoUrl,
@@ -637,6 +659,181 @@ async function triggerDamageTriage(args: {
   return {
     warning:
       `Damage triage partial — these steps failed: ${failures.join(', ')}. ` +
+      'Reconcile from the §5.12.7 EM dashboard.',
+    maintenanceEventId,
+  };
+}
+
+/**
+ * F10.5-g-iii lost-on-site fan-out. Mirrors triggerDamageTriage
+ * but flips status to 'lost' and includes the on-site crew lead
+ * in the recipient list so they can join the search. GPS
+ * context (location_pings cluster) auto-attach is deferred to a
+ * future batch — the spec calls it out but the location_pings
+ * ingest pipeline isn't ready yet, and the immediate
+ * notification with the job link gets the search underway
+ * without waiting for it.
+ */
+async function triggerLostTriage(args: {
+  equipmentInventoryId: string;
+  equipmentName: string | null;
+  reservationId: string;
+  jobId: string;
+  photoUrl: string | null;
+  notes: string | null;
+  actorUserId: string;
+  actorEmail: string | null | undefined;
+}): Promise<{ warning: string | null; maintenanceEventId: string | null }> {
+  const failures: string[] = [];
+
+  let displayName = args.equipmentName;
+  if (!displayName) {
+    const { data: invRow } = await supabaseAdmin
+      .from('equipment_inventory')
+      .select('name')
+      .eq('id', args.equipmentInventoryId)
+      .maybeSingle();
+    displayName =
+      (invRow as { name: string | null } | null)?.name ??
+      args.equipmentInventoryId;
+  }
+
+  // 1. INSERT maintenance_events row.
+  let maintenanceEventId: string | null = null;
+  const summary = `Lost on site — search + insurance pending (${displayName})`;
+  const meBody: Record<string, unknown> = {
+    equipment_inventory_id: args.equipmentInventoryId,
+    kind: 'damage_triage',
+    origin: 'lost_returned',
+    state: 'scheduled',
+    summary,
+    notes: args.notes,
+    created_by: args.actorUserId,
+  };
+  const { data: meRow, error: meErr } = await supabaseAdmin
+    .from('maintenance_events')
+    .insert(meBody)
+    .select('id')
+    .maybeSingle();
+  if (meErr) {
+    console.error(
+      '[admin/equipment/check-in lost-triage] maintenance_event insert failed',
+      {
+        equipment_inventory_id: args.equipmentInventoryId,
+        reservation_id: args.reservationId,
+        error: meErr.message,
+      }
+    );
+    failures.push('maintenance_event_insert');
+  } else {
+    maintenanceEventId = (meRow as { id: string } | null)?.id ?? null;
+  }
+
+  // 2. Flip equipment_inventory.current_status to 'lost' so the
+  // F10.3-b status check blocks future reservations and the
+  // catalogue tags the row red.
+  const { error: statusErr } = await supabaseAdmin
+    .from('equipment_inventory')
+    .update({ current_status: 'lost' })
+    .eq('id', args.equipmentInventoryId);
+  if (statusErr) {
+    console.error(
+      '[admin/equipment/check-in lost-triage] status flip failed',
+      {
+        equipment_inventory_id: args.equipmentInventoryId,
+        error: statusErr.message,
+      }
+    );
+    failures.push('inventory_status_flip');
+  }
+
+  // 3. Recipient set: admin + equipment_manager (the standard
+  // §5.10.4 audit fan-out) PLUS the on-site crew lead from
+  // job_team for this job_id. Crew-lead lookup is best-effort —
+  // the standard recipients still get the notification even if
+  // the crew_lead lookup fails.
+  const recipients = new Set<string>();
+  try {
+    const { data: rows, error: ruErr } = await supabaseAdmin
+      .from('registered_users')
+      .select('email')
+      .or('roles.cs.{admin},roles.cs.{equipment_manager}');
+    if (ruErr) {
+      console.warn(
+        '[admin/equipment/check-in lost-triage] recipients lookup failed',
+        { error: ruErr.message }
+      );
+      failures.push('notify_recipient_lookup');
+    } else {
+      for (const r of (rows ?? []) as Array<{ email: string | null }>) {
+        if (r.email) recipients.add(r.email);
+      }
+    }
+  } catch (err) {
+    console.warn(
+      '[admin/equipment/check-in lost-triage] recipients lookup threw',
+      { error: (err as Error).message }
+    );
+    failures.push('notify_recipient_lookup');
+  }
+
+  // Crew-lead lookup — find the live crew lead on this job.
+  try {
+    const { data: leadRow, error: leadErr } = await supabaseAdmin
+      .from('job_team')
+      .select('user_email')
+      .eq('job_id', args.jobId)
+      .eq('is_crew_lead', true)
+      .in('state', ['proposed', 'confirmed'])
+      .maybeSingle();
+    if (leadErr) {
+      console.warn(
+        '[admin/equipment/check-in lost-triage] crew_lead lookup failed',
+        { job_id: args.jobId, error: leadErr.message }
+      );
+    } else if (leadRow) {
+      const lead = (leadRow as { user_email: string | null }).user_email;
+      if (lead) recipients.add(lead);
+    }
+  } catch (err) {
+    console.warn(
+      '[admin/equipment/check-in lost-triage] crew_lead lookup threw',
+      { error: (err as Error).message }
+    );
+  }
+
+  if (recipients.size > 0) {
+    try {
+      await notifyMany(Array.from(recipients), {
+        type: 'equipment_lost',
+        title: `Lost on site — ${displayName}`,
+        body:
+          `${args.actorEmail ?? 'A crew member'} reported ${displayName} ` +
+          `lost on job ${args.jobId}.` +
+          (args.notes ? ` Notes: ${args.notes}` : '') +
+          ' Status flipped to lost; reservations blocked. ' +
+          'Crew lead looped in for search; insurance packet to follow.',
+        icon: '🚨',
+        escalation_level: 'critical',
+        source_type: 'maintenance_event',
+        source_id: maintenanceEventId ?? args.reservationId,
+        link: `/admin/jobs/${args.jobId}`,
+      });
+    } catch (err) {
+      console.warn(
+        '[admin/equipment/check-in lost-triage] notifyMany failed',
+        { error: (err as Error).message }
+      );
+      failures.push('notify_send');
+    }
+  }
+
+  if (failures.length === 0) {
+    return { warning: null, maintenanceEventId };
+  }
+  return {
+    warning:
+      `Lost-triage partial — these steps failed: ${failures.join(', ')}. ` +
       'Reconcile from the §5.12.7 EM dashboard.',
     maintenanceEventId,
   };

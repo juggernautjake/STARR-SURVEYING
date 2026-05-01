@@ -4364,10 +4364,37 @@ sub-batches per the small-chunks discipline:
         future batch — kit-mode condition currently
         persists uniformly without triage; the single-row
         path is the dominant damage flow in practice.
-  - [ ] **F10.5-g-iii** — wire lost-on-site into
-        `/check-in` (status flip + admin/EM/crew-lead
-        notification on condition='lost'; GPS cluster
-        deferred).
+  - [✓] **F10.5-g-iii** — single-row lost-on-site hook in
+        `/check-in` shipped. `triggerLostTriage` helper
+        mirrors the damage-triage shape with three
+        differences: (1) maintenance_events insert uses
+        `origin='lost_returned'`, summary "Lost on site —
+        search + insurance pending"; (2)
+        `equipment_inventory.current_status='lost'` (catalogue
+        tags red, F10.3-b status check blocks future
+        reservations); (3) recipient set adds the on-site
+        crew lead — looked up from `job_team` WHERE
+        `is_crew_lead=true AND state IN (proposed,confirmed)`
+        — alongside the standard admin + equipment_manager
+        audit list, with `escalation_level='critical'` so
+        the search can start immediately. Crew-lead lookup
+        is best-effort; standard recipients still get the
+        notification even if the lookup fails.
+        `triageWarning` + `maintenance_event_id` flow into
+        the same response payload as damage-triage. GPS
+        context auto-attach (location_pings cluster from the
+        last 1h before clock-out) is deferred until the
+        location_pings ingest pipeline lands; the immediate
+        notification with the job link gets the search
+        underway without it.
+
+      F10.5-g closes out: maintenance_events table + damage
+      triage + lost triage all live. The §5.12.6
+      damaged/lost return paths run end-to-end against the
+      wire shape. Kit-mode triage fan-out (parent kit return
+      with damaged/lost condition fans out per-child
+      maintenance_events rows) remains deferred — the
+      single-row path covers the dominant flow in practice.
 - [ ] **F10.5-h** — Crew clock-out gating modal +
       self-service after-hours flag (`equipment_self_checkout`
       on registered_users) + soft warning audit path.
