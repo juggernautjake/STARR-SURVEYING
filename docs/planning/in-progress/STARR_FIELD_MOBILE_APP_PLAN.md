@@ -4113,8 +4113,35 @@ sub-batches per the small-chunks discipline:
       cluster) hooks NOT in this batch — F10.5-g layers them
       on top of the column persistence here. Auth: admin /
       developer / equipment_manager.
-- [ ] **F10.5-d** — `POST /api/admin/equipment/extend-reservation`
-      (used by clock-out modal + nag actions).
+- [✓] **F10.5-d** — `POST /api/admin/equipment/extend-reservation`
+      shipped. Body
+      `{ reservation_id, new_reserved_to, source? }` where
+      source ∈ nag|clock_out|manual (default manual). Auth
+      gate: admin / equipment_manager OR the row's
+      `checked_out_to_user` (so the surveyor with gear in
+      their truck can action the inline 6pm/9pm nag button +
+      the mobile clock-out "Keep overnight" choice via their
+      own session). State guard: only `held`/`checked_out`
+      are extendable; refuses 409 on returned/cancelled +
+      `null state`. New `reserved_to` must be strictly after
+      the current one — shrinking is a cancel-and-re-reserve
+      operation, not an extend. Audit invariants: captures
+      `original_reserved_to` ONLY on the first extend so the
+      trail records "schedule slipped" once, never overwritten
+      on subsequent extends; sets `extended_overnight_at` only
+      when source ∈ nag|clock_out (deliberate overnight
+      retention markers) AND not already set, so a manual
+      dispatch extend after a nag-extend doesn't clobber the
+      nag's audit anchor. seeds/239 GiST EXCLUDE catches
+      collisions when the new window overlaps another active
+      reservation for the same instrument; Postgres 23P01
+      maps to typed `extend_collides` 409 with a friendly
+      message ("Extending to T would overlap … pick an
+      earlier end time"). UPDATE guards on
+      `state IN (held, checked_out)` (TOCTOU); on miss,
+      re-reads. seeds/239 sync trigger refreshes
+      `equipment_inventory.next_available_at` automatically
+      since the active-window changed.
 - [ ] **F10.5-e** — Kit batch flow: parent QR pulls all child
       reservations forward atomically per §5.12.1.C.
 - [ ] **F10.5-f** — End-of-day nag cron (6pm + 9pm) +
