@@ -4307,9 +4307,44 @@ sub-batches per the small-chunks discipline:
       F10.5-f closes out: nag-tick + silence-action + daily
       digest all live. The §5.12.6 end-of-day flow runs end-
       to-end against the wire shape.
-- [ ] **F10.5-g** — Damage triage entry path → §5.12.8 event
-      creation; lost-on-site flow with auto-pre-filled
-      `location_pings` cluster.
+- [◐] **F10.5-g** — Damage / lost triage hooks. Split:
+  - [✓] **F10.5-g-i** — `seeds/245_starr_field_maintenance_events.sql`
+        shipped. Creates the §5.12.8 `maintenance_events`
+        table — one row per service occurrence, current or
+        historical. XOR target (`equipment_inventory_id`
+        OR `vehicle_id` non-null) so vehicles flow through
+        the same pipeline. `kind` enum covers calibration /
+        repair / firmware_update / inspection / cleaning /
+        scheduled_service / damage_triage / recall /
+        software_license. `origin` enum covers
+        recurring_schedule / damaged_return / manual /
+        vendor_recall / cert_expiring / lost_returned —
+        F10.5-g-ii uses `damaged_return`, F10.5-g-iii uses
+        `lost_returned`. `state` lifecycle scheduled →
+        in_progress → awaiting_parts/vendor → complete /
+        cancelled / failed_qa. Vendor + in-shop fields
+        (vendor_name, work_order, performed_by_user_id),
+        cost tracking (cost_cents + linked_receipt_id),
+        QA gate (qa_passed). Conditional FKs to
+        equipment_inventory / vehicles / auth.users /
+        receipts following the seeds/234+236 defensive
+        pattern. Four read-path partial indexes
+        (per-unit history, per-vehicle history, calendar
+        scheduled query, open-work landing). updated_at
+        trigger. Backfills the deferred
+        `equipment_events.maintenance_event_id` FK that
+        seeds/236 stubbed (ON DELETE SET NULL —
+        chain-of-custody continuity). The full F10.7
+        layer (maintenance_event_documents,
+        maintenance_schedules, calendar UI, 3am due-date
+        cron) builds on this foundation.
+  - [ ] **F10.5-g-ii** — wire damage triage into
+        `/check-in` (status flip + maintenance_event row
+        + EM notification on condition='damaged').
+  - [ ] **F10.5-g-iii** — wire lost-on-site into
+        `/check-in` (status flip + admin/EM/crew-lead
+        notification on condition='lost'; GPS cluster
+        deferred).
 - [ ] **F10.5-h** — Crew clock-out gating modal +
       self-service after-hours flag (`equipment_self_checkout`
       on registered_users) + soft warning audit path.
