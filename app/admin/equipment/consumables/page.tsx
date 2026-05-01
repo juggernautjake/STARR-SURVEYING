@@ -57,6 +57,14 @@ interface RestockTarget {
   current_on_hand: number;
 }
 
+interface ThresholdTarget {
+  id: string;
+  name: string;
+  unit: string | null;
+  current_threshold: number | null;
+  current_on_hand: number;
+}
+
 function formatDaysRemaining(d: number | null): string {
   if (d === null) return '—';
   if (d >= 999) return '999+';
@@ -79,6 +87,7 @@ export default function EquipmentConsumablesPage() {
   const [sortKey, setSortKey] = useState<SortKey>('days_remaining');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [restockTarget, setRestockTarget] = useState<RestockTarget | null>(null);
+  const [thresholdTarget, setThresholdTarget] = useState<ThresholdTarget | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const fetchConsumables = useCallback(async () => {
@@ -266,22 +275,40 @@ export default function EquipmentConsumablesPage() {
                       {formatCurrency(r.cost_per_unit_cents)}
                     </td>
                     <td style={styles.tdRight}>
-                      <button
-                        type="button"
-                        style={styles.actionBtn}
-                        onClick={() => {
-                          setActionMsg(null);
-                          setRestockTarget({
-                            id: r.id,
-                            name: r.name ?? r.id,
-                            vendor: r.vendor,
-                            unit: r.unit,
-                            current_on_hand: r.quantity_on_hand ?? 0,
-                          });
-                        }}
-                      >
-                        Restock
-                      </button>
+                      <div style={styles.actionRow}>
+                        <button
+                          type="button"
+                          style={styles.actionBtn}
+                          onClick={() => {
+                            setActionMsg(null);
+                            setRestockTarget({
+                              id: r.id,
+                              name: r.name ?? r.id,
+                              vendor: r.vendor,
+                              unit: r.unit,
+                              current_on_hand: r.quantity_on_hand ?? 0,
+                            });
+                          }}
+                        >
+                          Restock
+                        </button>
+                        <button
+                          type="button"
+                          style={styles.actionBtnSecondary}
+                          onClick={() => {
+                            setActionMsg(null);
+                            setThresholdTarget({
+                              id: r.id,
+                              name: r.name ?? r.id,
+                              unit: r.unit,
+                              current_threshold: r.low_stock_threshold,
+                              current_on_hand: r.quantity_on_hand ?? 0,
+                            });
+                          }}
+                        >
+                          Threshold
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -313,6 +340,21 @@ export default function EquipmentConsumablesPage() {
             setRestockTarget(null);
             setActionMsg(
               `✓ Restocked ${t.name}. On-hand now ${newOnHand}.`
+            );
+            void fetchConsumables();
+          }}
+        />
+      ) : null}
+
+      {thresholdTarget ? (
+        <ThresholdModal
+          target={thresholdTarget}
+          onClose={() => setThresholdTarget(null)}
+          onUpdated={(newThreshold) => {
+            const t = thresholdTarget;
+            setThresholdTarget(null);
+            setActionMsg(
+              `✓ Updated ${t.name} threshold to ${newThreshold}.`
             );
             void fetchConsumables();
           }}
@@ -578,6 +620,145 @@ function rowStyleFor(badge: ReorderBadge): React.CSSProperties {
   return {};
 }
 
+function ThresholdModal({
+  target,
+  onClose,
+  onUpdated,
+}: {
+  target: ThresholdTarget;
+  onClose: () => void;
+  onUpdated: (newThreshold: number) => void;
+}) {
+  const { safeFetch } = usePageError('ThresholdModal');
+  const [threshold, setThreshold] = useState(
+    target.current_threshold !== null
+      ? String(target.current_threshold)
+      : ''
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+      const parsed = parseInt(threshold.trim(), 10);
+      if (!Number.isInteger(parsed) || parsed < 0) {
+        setError('Threshold must be a non-negative integer.');
+        return;
+      }
+      setSubmitting(true);
+      const res = await safeFetch<{ row?: { low_stock_threshold: number | null } }>(
+        `/api/admin/equipment/${target.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ low_stock_threshold: parsed }),
+        }
+      );
+      setSubmitting(false);
+      if (res?.row || res) {
+        onUpdated(parsed);
+      } else {
+        setError('Update failed. Check the error log; the form is unchanged.');
+      }
+    },
+    [threshold, safeFetch, target, onUpdated]
+  );
+
+  const previewBadge = (() => {
+    const t = parseInt(threshold.trim(), 10);
+    if (!Number.isInteger(t) || t < 0) return null;
+    if (target.current_on_hand <= t) {
+      return (
+        <span style={modalStyles.previewRed}>
+          ⚠ Current on-hand ({target.current_on_hand}) is at-or-below
+          this threshold — row will flag Reorder NOW.
+        </span>
+      );
+    }
+    return (
+      <span style={modalStyles.previewGreen}>
+        ✓ Current on-hand ({target.current_on_hand}) is above this
+        threshold.
+      </span>
+    );
+  })();
+
+  return (
+    <div style={modalStyles.backdrop} onClick={onClose}>
+      <form
+        style={modalStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={handleSubmit}
+      >
+        <header style={modalStyles.header}>
+          <div>
+            <h2 style={modalStyles.title}>Update threshold</h2>
+            <p style={modalStyles.subtitle}>
+              {target.name} · current threshold{' '}
+              <strong>
+                {target.current_threshold ?? '—'}
+                {target.unit ? ` ${target.unit}` : ''}
+              </strong>
+            </p>
+          </div>
+          <button
+            type="button"
+            style={modalStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+            disabled={submitting}
+          >
+            ✕
+          </button>
+        </header>
+        <div style={modalStyles.body}>
+          <label style={modalStyles.field}>
+            <span style={modalStyles.label}>New low-stock threshold *</span>
+            <input
+              type="number"
+              value={threshold}
+              onChange={(e) => setThreshold(e.target.value)}
+              min={0}
+              step={1}
+              required
+              autoFocus
+              style={modalStyles.input}
+            />
+            <span style={modalStyles.hint}>
+              ▸ Drives the reorder-NOW gate in the F10.3-b
+              availability check + the F10.6-d-i aggregator's
+              badge tier. Use 0 to remove the floor entirely.
+            </span>
+          </label>
+          {previewBadge ? (
+            <div style={modalStyles.previewBox}>{previewBadge}</div>
+          ) : null}
+          {error ? <div style={modalStyles.error}>⚠ {error}</div> : null}
+        </div>
+        <footer style={modalStyles.footer}>
+          <button
+            type="button"
+            style={modalStyles.secondaryBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            style={modalStyles.primaryBtn}
+            disabled={submitting}
+          >
+            {submitting ? 'Saving…' : 'Save threshold'}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
 const styles: Record<string, React.CSSProperties> = {
   wrap: { padding: '24px', maxWidth: 1300, margin: '0 auto' },
   header: {
@@ -705,6 +886,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontStyle: 'italic' as const,
     textAlign: 'center' as const,
   },
+  actionRow: {
+    display: 'flex',
+    gap: 6,
+    justifyContent: 'flex-end',
+  },
   actionBtn: {
     padding: '4px 10px',
     background: '#FFFFFF',
@@ -714,6 +900,15 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     cursor: 'pointer',
     fontWeight: 500,
+  },
+  actionBtnSecondary: {
+    padding: '4px 10px',
+    background: '#FFFFFF',
+    border: '1px solid #E2E5EB',
+    color: '#374151',
+    borderRadius: 6,
+    fontSize: 11,
+    cursor: 'pointer',
   },
   actionMsg: {
     margin: '12px 0',
@@ -824,4 +1019,13 @@ const modalStyles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     color: '#374151',
   },
+  previewBox: {
+    padding: 10,
+    borderRadius: 6,
+    fontSize: 12,
+    background: '#F9FAFB',
+    border: '1px solid #E2E5EB',
+  },
+  previewRed: { color: '#7F1D1D' },
+  previewGreen: { color: '#166534' },
 };

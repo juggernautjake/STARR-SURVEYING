@@ -4748,8 +4748,21 @@ discipline.
           flashes a success toast at the top of the
           rows. Auth: admin / developer /
           equipment_manager.
-    - [ ] **F10.6-d-iii-β** — Update-threshold modal +
-          PATCH endpoint extension.
+    - [✓] **F10.6-d-iii-β** — Update-threshold modal
+          shipped. The existing PATCH
+          `/api/admin/equipment/[id]` endpoint already
+          validates `low_stock_threshold` (non-negative
+          integer); modal just wires to it. Per-row
+          "Threshold" outline button next to "Restock"
+          opens the modal pre-filled with the row's
+          current threshold. Live preview chip below the
+          input compares `current_on_hand` vs the
+          proposed value: red "row will flag Reorder
+          NOW" when at-or-below, green "above this
+          threshold" otherwise. Save flashes the same
+          green action banner as Restock at the top of
+          the rows. `0` is allowed (removes the floor
+          entirely).
     - [ ] **F10.6-d-iii-γ** — Mark-discontinued modal
           (re-uses the existing F10.1 retire endpoint).
 - [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
