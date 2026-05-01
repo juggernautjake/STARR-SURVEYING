@@ -3873,8 +3873,46 @@ F10.4-e (POST /cancel-assignment + crew-lead helpers).
       urgent. Required `decline_reason` (≤500 chars,
       non-blank) so the dispatcher can decide between
       "ask again" and "find someone else".
-- [ ] **F10.4-e** — `POST /api/admin/personnel/cancel-
-      assignment` + crew-lead auto-promote helper.
+- [✓] **F10.4-e** — two endpoints close out F10.4.
+      `POST /api/admin/personnel/cancel-assignment` (mirror of
+      F10.3-f equipment cancel): body
+      `{ assignment_id, reason? }`. Cancels from `proposed` OR
+      `confirmed` (the post-confirm pull-back is rare but legal
+      — surveyor got sick day-of and the dispatcher swaps out);
+      refuses 409 on declined/cancelled/null state; UPDATE
+      guards on `state IN (proposed, confirmed)` for TOCTOU,
+      re-reads on miss; appends `CANCEL: <reason>` to notes
+      preserving any prior `OVERRIDE: ` prefix; notifies the
+      affected surveyor (escalation_level='high' when
+      `is_crew_lead=true`). `POST
+      /api/admin/personnel/promote-crew-lead`: implements the
+      §5.12.4 auto-promote heuristic. Body
+      `{ job_id, prefer_user_email? }`. If a lead is already
+      set, returns it with `ranking_reason='already_set'`.
+      Otherwise walks the job's active assignments + ranks by
+      tiers — RPLS holders > LSIT holders > `party_chief`
+      slot_role > `field_tech` / `instrument_specialist_*`
+      > alphabetical-by-name fallback — and promotes the
+      winner. The seeds/241 crew-lead partial UNIQUE catches
+      the race where two dispatchers promote at the same
+      instant; the handler maps 23505 → typed
+      `crew_lead_already_set` so the loser refetches.
+      `prefer_user_email` lets the dispatcher hand-pick from
+      the active roster (still validates membership); skipping
+      it triggers the auto-rank.
+
+      **F10.4 closes out.** All five sub-batches shipped:
+      schema (a), engine + GET (b), atomic POST /assign with
+      override + notification (c), POST /respond mobile-card
+      endpoint (d), and POST /cancel-assignment + crew-lead
+      auto-promote (e). The §5.12.4 worked-example UX
+      ("dispatcher picks Jacob → 'proposed' → mobile inbox
+      → tap Confirm → 'confirmed'") runs end-to-end. The
+      personnel surface is the F10.3 mirror by intent —
+      same vocabulary, same state machine, same race-fence
+      pattern — so dispatchers learn one mental model and the
+      apply-template flow (F10.2g) can address equipment +
+      personnel uniformly.
 
 **F10.5 — Daily check-in/check-out workflow (Week 36–37).**
 The user's headline ritual. Lands AFTER reservations work
