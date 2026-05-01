@@ -3680,10 +3680,48 @@ Broken into smaller sub-batches per the established pattern.
         concurrent overlap, Postgres 23P01 maps to typed
         `reserved_for_other_job`. Auth: admin / developer /
         equipment_manager.
-  - [ ] **F10.2g-b-ii** — `POST /apply` personnel side +
-        cleanup-on-partial-failure: walks slots, calls
-        F10.4-c assign, on failure rolls back the equipment
-        reservations from g-b-i.
+  - [✓] **F10.2g-b-ii** — `POST /apply` personnel side +
+        cleanup-on-partial-failure shipped. Body extends with
+        optional `slot_assignments: [{ slot_role, user_email,
+        is_crew_lead?, override_reason? }]`. Each entry's
+        slot_role must match a resolved slot, per-role count
+        must satisfy slot.min/max, no duplicate user-in-slot.
+        Slot-misuse codes (`unknown_slot_role`,
+        `count_below_min`, `count_above_max`,
+        `duplicate_user_in_slot`) surface as `slot_conflicts[]`
+        alongside the equipment `conflicts[]` so the dispatcher
+        sees everything in one 409. Per-row F10.4-b engine
+        assessment skipped when slot_misuse already attached
+        (no double work). On full clear: equipment commits
+        first via the existing batch INSERT (F10.2g-b-i path),
+        then personnel commits in a second batch INSERT into
+        `job_team` with `assigned_from=window.from`,
+        `assigned_to=window.to`, `state='proposed'`. If
+        personnel fails AFTER equipment commits, the handler
+        issues a delete-by-id batch against the just-inserted
+        reservations (`WHERE id IN (...) AND state='held'`) so
+        a concurrent check-out can't lose its row to our
+        cleanup. Cleanup result lands in the response as
+        `cleanup: { rolled_back_reservation_count }` so the
+        caller knows what happened. PG error mapping mirrors
+        F10.4-c: 23P01 → `capacity_overlap`, 23505 →
+        `crew_lead_already_set`. Cleanup failures log loudly
+        (equipment_events still records the reservations so
+        audit survives) but don't block the 409. Auth
+        unchanged: admin / developer / equipment_manager.
+
+      **F10.2g closes out.** Both halves shipped — preview
+      (a-i + a-ii) and apply (b-i + b-ii) — so the §5.12.3
+      worked example runs end-to-end: dispatcher applies
+      "Residential 4-corner boundary — total station" template
+      to Job #427 → preview shows resolved items + slot
+      candidates with availability info → dispatcher picks
+      crew → POST /apply commits equipment_reservations +
+      job_team rows atomically with from_template_id +
+      from_template_version stamps. Per-item override (swap /
+      drop / force) lands in F10.2g-b-iii when the dispatcher
+      UI demands it; until then overrides route through
+      F10.3-c /reserve directly.
 
 **F10.3 — Availability + conflict detection engine (Week 35).**
 Split into 6 sub-batches per the small-chunks discipline:
