@@ -3628,10 +3628,26 @@ F10.3-f (POST cancel-reservation).
       back reservations as a single "busy until" answer, and
       the deferred FK from `equipment_events.reservation_id`
       (which seeds/236 stubbed without a constraint).
-- [ ] **F10.3-b** — `GET /api/admin/equipment/availability` —
-      runs the four §5.12.5 checks (status / reservation
-      overlap / calibration / stock), returns assignable units
-      + typed reasons.
+- [✓] **F10.3-b** — `GET /api/admin/equipment/availability`
+      shipped. `lib/equipment/availability.ts` exposes
+      `assessUnit(id, opts)` + `assessCategory(category, opts)`
+      pure functions that run the four §5.12.5 checks (status
+      hard-block list · reservation overlap with the same '[)'
+      range semantics as seeds/239's GiST EXCLUDE · calibration
+      soft-warn that escalates to hard-block past
+      `calibrationHardBlockDays` (default 30) · consumable
+      stock hard-block on insufficient + soft-warn at/below
+      reorder threshold). Each `UnitAssessment` carries
+      `hard_blocks` + `soft_warns` arrays of typed
+      `AvailabilityReason` so callers (UI, F10.3-c reserve,
+      §5.12.7 reconcile) render uniformly. The thin GET
+      endpoint validates `from`/`to` ISO + XOR `id`/`category`
+      + optional `qty` / `calibration_hard_block_days`,
+      dispatches to the lib, and returns `{ window,
+      assignable_count, blocked_count, assessments[] }`.
+      F10.3-c reserve will reuse the same lib inside its
+      FOR UPDATE transaction by passing its own `client` so
+      assessment + insert see one snapshot.
 - [ ] **F10.3-c** — `POST /api/admin/equipment/reserve` —
       atomic multi-item reserve with `SELECT … FOR UPDATE`
       race guard layered on top of the GiST EXCLUDE; turns
