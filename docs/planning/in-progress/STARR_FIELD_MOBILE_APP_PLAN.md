@@ -3600,8 +3600,42 @@ Broken into smaller sub-batches per the established pattern.
       snapshot recorded." Per-row Edit + Delete buttons now
       functional. Phase F10.2e is fully shipped — F10.2f
       (save-as) + F10.2g (apply) remain deferred per below.
-- [ ] **F10.2f** — Save-as-template shortcut (deferred to
-      F10.5 with apply flow).
+- [◐] **F10.2f** — Save-as-template shortcut. Split:
+  - [✓] **F10.2f-i** — `POST /api/admin/equipment/templates/save-from-job`
+        (equipment items only) shipped. Body `{ job_id,
+        name, slug?, description?, job_type?,
+        default_crew_size?, default_duration_hours?,
+        requires_certifications? }`. Walks the job's
+        `equipment_reservations` rows in state ∈ held |
+        checked_out | returned (cancelled rows omitted —
+        the dispatcher pulled them back so they shouldn't
+        ride into the saved template). Per reservation:
+        preserves `equipment_inventory_id` (specific
+        instrument; dispatcher edits the resulting template
+        to switch to category-of-kind via the existing
+        item-edit UI), resolves `item_kind` from
+        `equipment_inventory.item_kind`, emits
+        `quantity=1` (consumables decrement happens
+        per-row at check-in; v1 of save-as emits 1 each
+        and dispatcher edits), `is_required=true`,
+        carries forward `notes`, `sort_order = i*10`.
+        Creates the equipment_templates header (v1) with
+        `required_personnel_slots=[]`, then batch inserts
+        the items with cleanup-on-failure (drops the
+        header if items insert fails so the dispatcher
+        doesn't end up with an empty-template ghost).
+        Snapshots v1 into `equipment_template_versions`
+        per the §5.12.3 audit chain (non-fatal on failure).
+        Slug collision (23505) returns typed 409
+        `slug_collision`. Empty source returns
+        `no_source_reservations` 400 ("apply equipment to
+        the job first, then save-as"). Auth: admin /
+        developer / equipment_manager.
+  - [ ] **F10.2f-ii** — personnel slots — group `job_team`
+        rows by `slot_role` to derive
+        `required_personnel_slots: [{slot_role, min, max,
+        required_skills}]` and persist on the saved
+        template header.
 - [◐] **F10.2g** — Apply-template flow. Split into 2 + 2 sub-
       batches now that F10.3 + F10.4 prerequisites are shipped:
       F10.2g-a-i (composition resolver lib) · F10.2g-a-ii
