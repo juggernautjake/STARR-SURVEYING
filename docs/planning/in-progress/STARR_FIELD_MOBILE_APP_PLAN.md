@@ -4058,9 +4058,31 @@ sub-batches per the small-chunks discipline:
       (returned_condition damaged|lost), vehicle drilldown
       (checked_out_to_vehicle). Column comments document
       §5.12.6 invariants for future readers.
-- [ ] **F10.5-b** — `POST /api/admin/equipment/check-out` —
-      QR-resolves to instrument, finds matching held
-      reservation, flips state.
+- [✓] **F10.5-b** — `POST /api/admin/equipment/check-out`
+      shipped. Body XOR `qr_code_id` (mobile-scanner / office-
+      walk-up path) OR `reservation_id` (dispatcher walk-up
+      path). When QR-mode: looks up `equipment_inventory` by
+      `qr_code_id`, refuses on retired (typed `retired`),
+      finds a unique held reservation overlapping `now()`,
+      filters by optional `job_id` for disambiguation. Returns
+      `qr_unknown` 404 / `no_matching_held_reservation` 404 /
+      `ambiguous_match` 409 (with candidate list so the caller
+      can pass `job_id`). When reservation_id-mode: direct row
+      lookup. Both paths converge on the state-machine guard:
+      must be `held`; otherwise typed 409 with `current_state`.
+      Required fields: `condition` ∈ good|fair|damaged,
+      `to_user` UUID. Optional: `to_vehicle`, `photo_url`.
+      Photo is REQUIRED when condition ∈ damaged|fair —
+      audit trail anchor for §5.12.6 + the F10.5-g
+      maintenance triage. UPDATE guards on `state='held'`
+      (TOCTOU); on miss, re-reads so the caller sees what beat
+      them. seeds/239's AFTER-UPDATE sync trigger refreshes
+      `equipment_inventory.current_reservation_id` +
+      `next_available_at` automatically. Damage triage hook
+      (F10.5-g) and kit-batch flow (F10.5-e) and self-service
+      after-hours flag (F10.5-h) explicitly NOT in this batch
+      — handler is the single-row state-flip core. Auth: admin
+      / developer / equipment_manager.
 - [ ] **F10.5-c** — `POST /api/admin/equipment/check-in` —
       flips checked_out → returned, handles consumed_quantity
       decrement for consumables.
