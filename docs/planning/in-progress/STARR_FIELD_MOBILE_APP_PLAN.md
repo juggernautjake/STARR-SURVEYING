@@ -4674,7 +4674,40 @@ discipline.
       F10.6-c closes out: aggregator + Gantt UI + drilldown
       drawer + drag-resize all live. The §5.12.7.2
       timeline runs end-to-end.
-- [ ] **F10.6-d** — §5.12.7.5 Consumables low-stock view.
+- [◐] **F10.6-d** — §5.12.7.5 Consumables low-stock view.
+      Split:
+  - [✓] **F10.6-d-i** — `GET /api/admin/equipment/consumables`
+        aggregator shipped. Pulls every non-retired
+        `item_kind='consumable'` row + sums
+        `consumed_quantity` from returned reservations in
+        the trailing 30 days, joins per equipment_id to
+        compute `daily_rate = consumed_30d / 30` and
+        `days_remaining = quantity_on_hand / daily_rate`
+        (capped at 999 to avoid surfacing "this paint will
+        last 47 years" as a real number). `reorder_badge`
+        tier:
+          `reorder_now`   days_remaining < 7 OR
+                          quantity_on_hand ≤
+                          low_stock_threshold (the latter
+                          wins regardless of rate so the
+                          reorder floor stays a hard
+                          trigger)
+          `reorder_soon`  7 ≤ days_remaining < 14
+          `ok`            ≥ 14 OR no signal yet
+        Rows without 30-day consumption (recently added
+        inventory) come back with `daily_rate=null`,
+        `days_remaining=null`, `reorder_badge='ok'` so
+        they don't false-positive into the reorder
+        queue. Sort: days_remaining ASC; null values land
+        last (alphabetical tiebreak). Summary carries
+        per-tier counts so the F10.6-d-ii page header
+        can show "3 reorder NOW · 5 reorder soon" without
+        client-side filtering. Auth: EQUIPMENT_ROLES.
+  - [ ] **F10.6-d-ii** — `app/admin/equipment/consumables/page.tsx`
+        — table UI consuming the aggregator + sidebar
+        link.
+  - [ ] **F10.6-d-iii** — Restock-arrived / update-threshold /
+        mark-discontinued inline action modals.
 - [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
 - [ ] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
       gear cleanup queue.
