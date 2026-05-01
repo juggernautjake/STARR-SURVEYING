@@ -3584,68 +3584,947 @@ Broken into smaller sub-batches per the established pattern.
       button (uses DELETE for archive, PATCH for restore).
       "+ New template" button navigates to /new (queued). Sidebar
       entry deferred to F10.6.
-- [◐] **F10.2e** — Templates create + edit pages. **F10.2e-i
+- [✓] **F10.2e** — Templates create + edit pages. **F10.2e-i
       create + F10.2e-ii-a edit page shell + F10.2e-ii-b items
       table + F10.2e-ii-c Add-item modal + F10.2e-ii-d Edit-item
-      modal (PATCH w/ XOR swap)** shipped. Edit modal pre-fills
-      from the row, auto-detects resolution mode (specific vs
+      modal (PATCH w/ XOR swap) + F10.2e-ii-e Delete-item
+      confirm + DELETE** all shipped. Edit modal pre-fills from
+      the row, auto-detects resolution mode (specific vs
       category) from initial state, lets operator swap modes
       mid-edit — submit explicitly clears the OTHER field so
       the F10.2c-ii server-side merged-state XOR check accepts
-      the swap as a single PATCH. Submit refetches the template
-      surfacing "✓ Item updated. Bumped to v<N>; snapshot
-      recorded." Per-row Edit button now functional.
-      F10.2e-ii-e (Delete item action) closes out F10.2e in
-      the next sub-batch.
-- [ ] **F10.2f** — Save-as-template shortcut (deferred to
-      F10.5 with apply flow).
-- [ ] **F10.2g** — Apply-template flow (deferred to F10.3
-      with reservations).
+      the swap as a single PATCH. Delete confirm modal shows
+      the row's contents (kind + specific/category + qty +
+      notes) inside the confirm card, calls DELETE per
+      F10.2c-iii, surfaces "✓ Item deleted. Bumped to v<N>;
+      snapshot recorded." Per-row Edit + Delete buttons now
+      functional. Phase F10.2e is fully shipped — F10.2f
+      (save-as) + F10.2g (apply) remain deferred per below.
+- [◐] **F10.2f** — Save-as-template shortcut. Split:
+  - [✓] **F10.2f-i** — `POST /api/admin/equipment/templates/save-from-job`
+        (equipment items only) shipped. Body `{ job_id,
+        name, slug?, description?, job_type?,
+        default_crew_size?, default_duration_hours?,
+        requires_certifications? }`. Walks the job's
+        `equipment_reservations` rows in state ∈ held |
+        checked_out | returned (cancelled rows omitted —
+        the dispatcher pulled them back so they shouldn't
+        ride into the saved template). Per reservation:
+        preserves `equipment_inventory_id` (specific
+        instrument; dispatcher edits the resulting template
+        to switch to category-of-kind via the existing
+        item-edit UI), resolves `item_kind` from
+        `equipment_inventory.item_kind`, emits
+        `quantity=1` (consumables decrement happens
+        per-row at check-in; v1 of save-as emits 1 each
+        and dispatcher edits), `is_required=true`,
+        carries forward `notes`, `sort_order = i*10`.
+        Creates the equipment_templates header (v1) with
+        `required_personnel_slots=[]`, then batch inserts
+        the items with cleanup-on-failure (drops the
+        header if items insert fails so the dispatcher
+        doesn't end up with an empty-template ghost).
+        Snapshots v1 into `equipment_template_versions`
+        per the §5.12.3 audit chain (non-fatal on failure).
+        Slug collision (23505) returns typed 409
+        `slug_collision`. Empty source returns
+        `no_source_reservations` 400 ("apply equipment to
+        the job first, then save-as"). Auth: admin /
+        developer / equipment_manager.
+  - [✓] **F10.2f-ii** — personnel slot derivation shipped.
+        `derivePersonnelSlots(jobId)` helper walks
+        `job_team` rows in `proposed|confirmed` state +
+        groups by `slot_role` (lowercased + trimmed) →
+        emits one `required_personnel_slots` entry per
+        role with `min=max=count` (the apply flow honors
+        these in F10.2g). `required_skills` derived from
+        `ROLE_TO_REQUIRED_SKILLS` canonical map (`rpls →
+        ['rpls']`, `lsit → ['lsit']`, `flagger →
+        ['flagger']`, `drone_pilot_part_107 →
+        ['drone_pilot_part_107']`); other slot_roles ship
+        with `required_skills=[]` and the dispatcher fills
+        in via the existing template edit UI. Threaded
+        into both the header insert AND the v1 snapshot so
+        the §5.12.3 audit chain captures the slot
+        derivation. Response summary now carries
+        `slot_count`. job_team read failure logs but
+        falls back to an empty slots array — saving the
+        template still succeeds, dispatcher edits as
+        needed.
+
+      F10.2f closes out: dispatcher can promote a custom-
+      built job loadout — both equipment AND crew slots —
+      into a reusable template via one POST. **Phase F10.2
+      fully shipped.**
+- [◐] **F10.2g** — Apply-template flow. Split into 2 + 2 sub-
+      batches now that F10.3 + F10.4 prerequisites are shipped:
+      F10.2g-a-i (composition resolver lib) · F10.2g-a-ii
+      (GET /preview endpoint) · F10.2g-b-i (POST /apply
+      equipment side) · F10.2g-b-ii (POST /apply personnel
+      side + cleanup-on-partial-failure).
+  - [✓] **F10.2g-a-i** — `lib/equipment/template-resolver.ts`
+        shipped. Pure function `resolveTemplate(templateId,
+        client?)` walks the template + its `composes_from`
+        chain DFS up to `MAX_COMPOSITION_DEPTH=4`. Cycle
+        detection via a visited-set raises typed
+        `cycle_detected`; archived mid-chain parents raise
+        `archived_parent` (top-level archived templates ARE
+        re-applicable per spec — historical loadout). Items
+        dedupe by composite key (`unit:<uuid>` for specific
+        instruments, `cat:<category>` for any-of-kind);
+        quantities sum across parents per §5.12.3, is_required
+        ORs (any-required wins), notes concatenate with `|`
+        separator, sort_order takes the smallest contributor,
+        `source_template_ids[]` accumulates for the audit
+        trail. Personnel slots dedupe by `slot_role` with
+        min/max sums + skill-set union (lowercased + deduped).
+        Returns `{ resolved: { root, items, personnel_slots,
+        resolution_chain, resolution_depth } }` or `{ error:
+        ResolverError }` for typed surfacing in the GET
+        endpoint. Centralised so both /preview (g-a-ii) and
+        /apply (g-b-*) share identical resolution semantics
+        — no drift possible. Accepts an optional `client` so
+        the apply handler can pass its own connection if it
+        ever needs a transaction-aware read.
+  - [✓] **F10.2g-a-ii** — `GET /api/admin/equipment/templates/
+        [id]/preview?from=&to=[&job_id=]` shipped. Wraps the
+        F10.2g-a-i resolver + the F10.3-b equipment engine
+        (per item: unit-mode → 1 assessment; category-mode →
+        every unit in the category) + the F10.4-b personnel
+        engine (per slot: cohort assess across users holding
+        ≥1 of `required_skills`, with `skillsAreSoft=false`
+        for template-required strict-fail). Returns
+        `{ window, job_id, template, resolution: { chain,
+        depth }, items: [{ resolved, assessments,
+        assignable_count, blocked_count }],
+        personnel_slots: [{ resolved, candidates,
+        assignable_count, blocked_count }], summary: {
+        item_count, blocked_items, slot_count,
+        unfilled_slots, ready_to_apply } }`. Read-only — no
+        writes; the F10.2g-b apply path re-runs the resolver
+        + availability inside its transaction so a stale
+        preview can't slip through. Resolver errors map to
+        typed status codes: missing_template → 404,
+        cycle_detected / depth_exceeded / archived_parent →
+        409. Item assessments parallelised via `Promise.all`
+        so 10-item templates round-trip fast. Auth: admin /
+        developer / tech_support / equipment_manager (same
+        read-side gate as `/availability`).
+  - [✓] **F10.2g-b-i** — `POST /api/admin/equipment/templates/
+        [id]/apply` equipment side shipped (strict-fail v1 —
+        no per-item overrides yet; that lands as a follow-up
+        F10.2g-b-iii batch when the dispatcher UI demands it).
+        Body `{ job_id, from, to }`. Re-runs the F10.2g-a-i
+        resolver inside the handler so a stale preview can't
+        slip through; per item runs the F10.3-b engine; for
+        category-mode picks the first assignable winner
+        (proximity ranking already lives in the engine for
+        future tuning); on any block aborts with 409 carrying
+        every conflict in the same shape as the preview so
+        the dispatcher UI handles pre- and mid-insert
+        collisions identically. On full clear, batch-inserts
+        `equipment_reservations` with
+        `from_template_id=<this template>` +
+        `from_template_version=<resolved.root.version>` audit
+        stamps so the §5.12.3 versioning rule holds (the
+        snapshot answers "what did Job #427 actually go out
+        with?", not the live mutable template). Inherits race-
+        safety from F10.3-c: PostgREST batch INSERT runs in
+        one transaction, seeds/239's GiST EXCLUDE catches
+        concurrent overlap, Postgres 23P01 maps to typed
+        `reserved_for_other_job`. Auth: admin / developer /
+        equipment_manager.
+  - [✓] **F10.2g-b-ii** — `POST /apply` personnel side +
+        cleanup-on-partial-failure shipped. Body extends with
+        optional `slot_assignments: [{ slot_role, user_email,
+        is_crew_lead?, override_reason? }]`. Each entry's
+        slot_role must match a resolved slot, per-role count
+        must satisfy slot.min/max, no duplicate user-in-slot.
+        Slot-misuse codes (`unknown_slot_role`,
+        `count_below_min`, `count_above_max`,
+        `duplicate_user_in_slot`) surface as `slot_conflicts[]`
+        alongside the equipment `conflicts[]` so the dispatcher
+        sees everything in one 409. Per-row F10.4-b engine
+        assessment skipped when slot_misuse already attached
+        (no double work). On full clear: equipment commits
+        first via the existing batch INSERT (F10.2g-b-i path),
+        then personnel commits in a second batch INSERT into
+        `job_team` with `assigned_from=window.from`,
+        `assigned_to=window.to`, `state='proposed'`. If
+        personnel fails AFTER equipment commits, the handler
+        issues a delete-by-id batch against the just-inserted
+        reservations (`WHERE id IN (...) AND state='held'`) so
+        a concurrent check-out can't lose its row to our
+        cleanup. Cleanup result lands in the response as
+        `cleanup: { rolled_back_reservation_count }` so the
+        caller knows what happened. PG error mapping mirrors
+        F10.4-c: 23P01 → `capacity_overlap`, 23505 →
+        `crew_lead_already_set`. Cleanup failures log loudly
+        (equipment_events still records the reservations so
+        audit survives) but don't block the 409. Auth
+        unchanged: admin / developer / equipment_manager.
+
+      **F10.2g closes out.** Both halves shipped — preview
+      (a-i + a-ii) and apply (b-i + b-ii) — so the §5.12.3
+      worked example runs end-to-end: dispatcher applies
+      "Residential 4-corner boundary — total station" template
+      to Job #427 → preview shows resolved items + slot
+      candidates with availability info → dispatcher picks
+      crew → POST /apply commits equipment_reservations +
+      job_team rows atomically with from_template_id +
+      from_template_version stamps. Per-item override (swap /
+      drop / force) lands in F10.2g-b-iii when the dispatcher
+      UI demands it; until then overrides route through
+      F10.3-c /reserve directly.
 
 **F10.3 — Availability + conflict detection engine (Week 35).**
-- [ ] `GET /api/admin/equipment/availability` — runs the four
-      §5.12.5 checks, returns assignable units + typed reasons.
-- [ ] `POST /api/admin/equipment/reserve` — atomic multi-item
-      reserve with `SELECT … FOR UPDATE` race guard.
-- [ ] Substitution suggestions surface on conflict.
-- [ ] Soft-override path with required reason + admin
-      notification + double-reservation insert pattern.
-- [ ] `POST /api/admin/equipment/cancel-reservation`.
+Split into 6 sub-batches per the small-chunks discipline:
+F10.3-a (schema seed) · F10.3-b (availability engine + GET) ·
+F10.3-c (POST reserve, atomic FOR UPDATE) · F10.3-d
+(substitution suggestions) · F10.3-e (soft-override path) ·
+F10.3-f (POST cancel-reservation).
+- [✓] **F10.3-a** — `seeds/239_starr_field_equipment_reservations.sql`
+      shipped. Adds the `equipment_reservations` table (id,
+      equipment_inventory_id, job_id, from_template_id/version,
+      reserved_from/to, state ∈ held|checked_out|returned|
+      cancelled, actual_*_at scan stamps, notes, reserved_by) +
+      a GiST EXCLUDE constraint that makes overlapping
+      `held`/`checked_out` rows for the same instrument
+      structurally impossible (the §5.12.5 race fence —
+      Postgres rejects the second insert directly so two
+      dispatchers can never co-grant Kit #3). Plus partial
+      indexes on the active-state read paths, derived columns
+      `equipment_inventory.next_available_at` +
+      `current_reservation_id` kept in sync by an AFTER
+      INSERT/UPDATE/DELETE trigger that walks chained back-to-
+      back reservations as a single "busy until" answer, and
+      the deferred FK from `equipment_events.reservation_id`
+      (which seeds/236 stubbed without a constraint).
+- [✓] **F10.3-b** — `GET /api/admin/equipment/availability`
+      shipped. `lib/equipment/availability.ts` exposes
+      `assessUnit(id, opts)` + `assessCategory(category, opts)`
+      pure functions that run the four §5.12.5 checks (status
+      hard-block list · reservation overlap with the same '[)'
+      range semantics as seeds/239's GiST EXCLUDE · calibration
+      soft-warn that escalates to hard-block past
+      `calibrationHardBlockDays` (default 30) · consumable
+      stock hard-block on insufficient + soft-warn at/below
+      reorder threshold). Each `UnitAssessment` carries
+      `hard_blocks` + `soft_warns` arrays of typed
+      `AvailabilityReason` so callers (UI, F10.3-c reserve,
+      §5.12.7 reconcile) render uniformly. The thin GET
+      endpoint validates `from`/`to` ISO + XOR `id`/`category`
+      + optional `qty` / `calibration_hard_block_days`,
+      dispatches to the lib, and returns `{ window,
+      assignable_count, blocked_count, assessments[] }`.
+      F10.3-c reserve will reuse the same lib inside its
+      FOR UPDATE transaction by passing its own `client` so
+      assessment + insert see one snapshot.
+- [✓] **F10.3-c** — `POST /api/admin/equipment/reserve` shipped.
+      Atomic all-or-none reservation. Body
+      `{ job_id, items: [{equipment_inventory_id|category,
+      quantity?, reserved_from, reserved_to, notes?,
+      from_template_id?, from_template_version?}] }`. Per-item
+      flow: validate → assess (engine from F10.3-b) → for
+      category mode pick the first assignable unit (proximity
+      ranking lands in F10.3-d) → collect resolved rows. If any
+      item is blocked, return 409 with **all** items'
+      reasons in one response so the dispatcher fixes
+      everything in one pass. On full success, batch-insert all
+      reservations via PostgREST's array `.insert()` (single
+      transaction guarantee); the seeds/239 GiST EXCLUDE catches
+      any concurrent overlap that beat the engine's check, which
+      we map (Postgres error code 23P01 → typed
+      `reserved_for_other_job` conflict) so the dispatcher sees
+      the same error vocabulary regardless of where the conflict
+      was caught. Auth: admin / developer / equipment_manager
+      (tech_support read-only). Substitution suggestions
+      (F10.3-d) and soft-override path (F10.3-e) intentionally
+      not in this batch — handler returns clean typed conflicts;
+      next batches build the UX affordances on top of the same
+      shape.
+- [✓] **F10.3-d** — substitution suggestions shipped.
+      `lib/equipment/availability.ts` adds
+      `proposeSubstitutionsForUnit(anchor, opts)` +
+      `proposeSubstitutionsForCategory(category, opts)`. Score
+      function: assignable + same `home_location` (top), then
+      assignable + same `vehicle_id`, then assignable +
+      category-only, then blocked-alternates ranked by
+      `next_available_at` ASC so the dispatcher sees the
+      earliest "wait" option last but visible. Tied scores
+      break on name ASC for stable ordering. Default cap = 5.
+      `UnitAssessment` gains `home_location` + `vehicle_id` so
+      the GET response carries enough for the UI to render
+      "near you" badges without a second roundtrip. GET
+      `/availability` extended: when a unit-mode request is
+      blocked OR when category-mode finds zero assignable
+      units, the response carries a top-level
+      `substitutions: SubstitutionSuggestion[]`. POST
+      `/reserve` swap: per-item conflicts now carry
+      `substitutions[]` so the dispatcher fixes blocks in one
+      pass; category-mode picker centralised in
+      `pickProximityWinner` (v1 = name ASC; tunable). Surfaces
+      the §5.12.5 worked-example "kit #3 reserved; kit #4
+      also available — switch?" UX directly from the wire
+      shape. Compatible-category swap graph (template-`notes`-
+      declared "OK to swap to GPS rover kit") is v2 polish per
+      the spec.
+- [✓] **F10.3-e** — soft-override path shipped.
+      `seeds/240_starr_field_equipment_reservation_override.sql`
+      adds `is_override BOOLEAN DEFAULT false` and
+      `override_reason TEXT` to `equipment_reservations` + a
+      CHECK that `is_override=true` requires non-empty
+      `override_reason` + a partial admin index on
+      `WHERE is_override=true`. The seeds/239 GiST EXCLUDE is
+      replaced with an override-aware version that only fires
+      when `is_override=false` for both rows, so a soft-override
+      lands as a SECOND active row alongside the conflicting
+      reservation per §5.12.5 — both rows stay on the timeline
+      and the Equipment Manager picks at QR-scan time. POST
+      `/reserve` accepts optional `override_reason` per item
+      (specific-unit-mode only — category overrides are nonsense
+      since they bypass the substitution path); when set, the
+      handler skips the assignable gate, sets `is_override=true`,
+      writes the reason to both `override_reason` and
+      `notes='OVERRIDE: <reason>'` (separate column for clean
+      admin queries; prefix in notes for timeline UI), and after
+      a successful insert fans out a §5.10.4 notification with
+      escalation_level='high' to every `equipment_manager` user
+      + the actor (looked up via `registered_users.roles cs
+      '{equipment_manager}'`). Per the user's "nothing is
+      silent" directive: the override surfaces in the
+      notification inbox + daily digest of every relevant
+      stakeholder so it cannot be lost. Notify failures are
+      best-effort and don't roll back the reservation — events
+      audit trail (§5.12.1) provides the recoverable record.
+      Auth: only admin / developer / equipment_manager can hit
+      the route at all, so the role gate on override is the
+      same gate as the rest of the endpoint.
+- [✓] **F10.3-f** — `POST /api/admin/equipment/cancel-reservation`
+      shipped. Body `{ reservation_id, reason? }`. Flips a
+      `held` reservation to `cancelled`; refuses 409 on any
+      terminal state (`checked_out` → use §5.12.6 check-in
+      flow, `returned`/`cancelled` → already terminal). The
+      UPDATE guards on `state='held'` (belt-and-suspenders for
+      TOCTOU between read + write); on guard miss, re-reads the
+      latest state so the caller sees what beat them. Optional
+      `reason` (≤500 chars) appends as `CANCEL: <reason>` to
+      `notes`, preserving any prior `OVERRIDE: ` prefix so the
+      timeline carries both. The seeds/239 AFTER-UPDATE sync
+      trigger automatically releases
+      `equipment_inventory.current_reservation_id` +
+      `next_available_at` for the affected unit, so the
+      §5.12.7.1 Today landing-page card refreshes without any
+      extra writes here.
+
+      **F10.3 closes out.** All six sub-batches shipped: the
+      schema layer (a), the availability engine + GET (b), the
+      atomic POST /reserve (c), substitution suggestions (d),
+      the soft-override path with notification fan-out (e), and
+      cancel-reservation (f). The §5.12.5 worked-example UX
+      ("kit #3 reserved; kit #4 also available — switch?")
+      runs end-to-end against the wire shape.
 
 **F10.4 — Personnel side (Week 36).**
-- [ ] Personnel-skills + unavailability admin pages
-      (§5.12.4 cert PDF upload via §5.6 files-bucket).
-- [ ] Personnel availability check engine —
-      `GET /api/admin/personnel/availability`.
-- [ ] Mobile assignment confirmation card with [Confirm] /
-      [Decline + reason] (§5.12.4 surveyor flow).
-- [ ] Crew-lead designation + auto-promote heuristic.
+Split into 5 sub-batches per the small-chunks discipline (mirrors
+F10.3): F10.4-a (schema seed) · F10.4-b (availability engine +
+GET) · F10.4-c (POST /assign atomic + override + notification) ·
+F10.4-d (POST /respond — confirm/decline mobile-card endpoint) ·
+F10.4-e (POST /cancel-assignment + crew-lead helpers).
+- [✓] **F10.4-a** — `seeds/241_starr_field_personnel_capacity.sql`
+      shipped. ALTERs `job_team` to add the §5.12.4
+      assignment-window + state-machine columns
+      (`assigned_from`/`_to`, `slot_role`, `state ∈ proposed |
+      confirmed | declined | cancelled`, `confirmed_at`/
+      `declined_at`/`decline_reason`, `is_crew_lead`,
+      `is_override`, `override_reason`) — additive only, the
+      live `app/api/admin/jobs/team/route.ts` keeps working
+      against pre-F10.4 NULL-state rows. GiST EXCLUDE on
+      (user_email, [assigned_from, assigned_to)) WHERE state ∈
+      (proposed, confirmed) AND is_override=false — same
+      structural race fence as seeds/239 for capacity overlap.
+      Crew-lead exactly-one-per-job via partial UNIQUE on
+      (job_id) WHERE is_crew_lead=true AND state ∈
+      (proposed, confirmed); cancelling/declining the lead
+      frees the slot automatically. Two new tables:
+      `personnel_skills` (per-user catalogue keyed on
+      user_email, with skill_code, acquired_at,
+      expires_at NULL = doesn't expire, cert_document_url for
+      §5.6 files-bucket PDFs, state ∈ active | expired |
+      revoked) and `personnel_unavailability` (PTO / sick /
+      training / doctor / other, with from/to window, reason,
+      is_paid, approved_by/at). GiST overlap indexes on both
+      so the F10.4-b engine's queries stay fast. updated_at
+      triggers on the new tables. Seed numbering: was
+      provisionally 240 in earlier plan revisions, but
+      seeds/240 shipped as the F10.3-e equipment-override
+      schema; renumbered to 241 to match actual ship order.
+- [✓] **F10.4-b** — `GET /api/admin/personnel/availability`
+      shipped. `lib/personnel/availability.ts` exposes
+      `assessPerson(userEmail, opts)` +
+      `assessForSkillCohort(opts)` pure functions running the
+      four §5.12.4 checks: missing-skill (per `required_skills`
+      entry; hard-block when slot is template-required, soft-
+      warn when `skillsAreSoft=true` for ad-hoc fills),
+      capacity overlap (job_team rows in proposed|confirmed
+      with `[)` overlap on the window — same range semantics as
+      seeds/241's GiST EXCLUDE), unavailability (PTO/sick/
+      training/doctor/other with reason + kind so the UI
+      differentiates "ask to skip PTO" from "they're at the
+      doctor"), and cert-expiry-during-window (skill row
+      exists + active but `expires_at` falls inside the window
+      → soft-warn so the dispatcher can remind the surveyor
+      to renew). Each `PersonAssessment` carries `hard_blocks`
+      + `soft_warns` arrays of typed
+      `PersonnelAvailabilityReason` so callers (UI, F10.4-c
+      assign, capacity calendar) render uniformly. Cohort
+      mode walks every active user holding ≥1 of the requested
+      skills + assesses each (returns blocked rows too so the
+      typeahead shows "Jacob has the cert but is on Job
+      #422"); user-mode hits a single email. Optional cohort
+      fallback walks `registered_users` when no skills given,
+      for the bare PTO/capacity calendar. Three parallel reads
+      (skills · capacity · unavailability) batched per
+      assessment so the engine round-trips at most 3 + 1 to
+      the DB regardless of cohort size. F10.4-c assign will
+      reuse the same engine inside its FOR-UPDATE-equivalent
+      transaction by passing its own `client`.
+- [✓] **F10.4-c** — `POST /api/admin/personnel/assign` shipped.
+      Atomic all-or-none multi-slot. Body
+      `{ job_id, slots: [{ user_email, slot_role,
+      assigned_from, assigned_to, required_skills?,
+      skills_are_soft?, is_crew_lead?, notes?,
+      override_reason? }] }`. Per-slot flow validates →
+      assesses via the F10.4-b engine → either resolves
+      (assignable OR overridden) or attaches a
+      `SlotConflict` with reasons + user_not_found marker.
+      Pre-insert intra-batch checks reject duplicate
+      (user_email × overlapping window) within the same call
+      and refuse > 1 `is_crew_lead=true` per call. Atomic
+      batch INSERT into `job_team` (single transaction;
+      partial assignments impossible by construction);
+      seeds/241's GiST EXCLUDE catches concurrent races and
+      maps Postgres 23P01 → typed `capacity_overlap`; the
+      crew-lead partial UNIQUE catches 23505 → typed
+      `crew_lead_already_set` so dispatchers see the right
+      remediation. Post-insert: each surveyor gets a §5.10.4
+      `personnel_assignment_proposed` notification keyed to
+      `/admin/jobs/<id>` with the F10.4-d /respond UX
+      driving Confirm / Decline; override rows ALSO fan out
+      a high-priority audit notification to every
+      `equipment_manager` + actor per the "nothing is silent"
+      directive (mirrors F10.3-e). Notify failures are
+      best-effort and don't roll back. Auth: admin /
+      developer / equipment_manager (mutating; tech_support
+      read-only).
+- [✓] **F10.4-d** — `POST /api/admin/personnel/respond`
+      shipped. Body
+      `{ assignment_id, response: 'confirm'|'decline',
+      decline_reason? }`. Two auth paths: the assigned
+      surveyor (`job_team.user_email === session.email`) is
+      the primary case via the mobile inbox card; admin /
+      equipment_manager can hit on behalf of the surveyor for
+      the §5.12.4 step 6 "verbally agreed in person" bypass
+      (audit-logged with `privileged_bypass=true` on the
+      response so reviewers see the actor + on-behalf-of).
+      State machine: only `proposed` is respondable;
+      confirmed/declined/cancelled return 409 with
+      `current_state`. UPDATE guards on `state='proposed'`
+      (TOCTOU — re-reads on guard miss so the caller sees
+      what beat them). Confirm = quiet success
+      (`state='confirmed'`, `confirmed_at=now()`, no
+      notification — the dispatcher's roster shows the flip
+      on refresh). Decline = `state='declined'`,
+      `declined_at=now()`, `decline_reason` set, fan out a
+      §5.10.4 `personnel_assignment_declined` notification to
+      every admin + equipment_manager (filtered to exclude
+      the actor + declining surveyor) so any dispatcher can
+      re-staff. Decline notifications carry
+      escalation_level='high' when the declined slot was
+      `is_crew_lead=true` since losing the lead is more
+      urgent. Required `decline_reason` (≤500 chars,
+      non-blank) so the dispatcher can decide between
+      "ask again" and "find someone else".
+- [✓] **F10.4-e** — two endpoints close out F10.4.
+      `POST /api/admin/personnel/cancel-assignment` (mirror of
+      F10.3-f equipment cancel): body
+      `{ assignment_id, reason? }`. Cancels from `proposed` OR
+      `confirmed` (the post-confirm pull-back is rare but legal
+      — surveyor got sick day-of and the dispatcher swaps out);
+      refuses 409 on declined/cancelled/null state; UPDATE
+      guards on `state IN (proposed, confirmed)` for TOCTOU,
+      re-reads on miss; appends `CANCEL: <reason>` to notes
+      preserving any prior `OVERRIDE: ` prefix; notifies the
+      affected surveyor (escalation_level='high' when
+      `is_crew_lead=true`). `POST
+      /api/admin/personnel/promote-crew-lead`: implements the
+      §5.12.4 auto-promote heuristic. Body
+      `{ job_id, prefer_user_email? }`. If a lead is already
+      set, returns it with `ranking_reason='already_set'`.
+      Otherwise walks the job's active assignments + ranks by
+      tiers — RPLS holders > LSIT holders > `party_chief`
+      slot_role > `field_tech` / `instrument_specialist_*`
+      > alphabetical-by-name fallback — and promotes the
+      winner. The seeds/241 crew-lead partial UNIQUE catches
+      the race where two dispatchers promote at the same
+      instant; the handler maps 23505 → typed
+      `crew_lead_already_set` so the loser refetches.
+      `prefer_user_email` lets the dispatcher hand-pick from
+      the active roster (still validates membership); skipping
+      it triggers the auto-rank.
+
+      **F10.4 closes out.** All five sub-batches shipped:
+      schema (a), engine + GET (b), atomic POST /assign with
+      override + notification (c), POST /respond mobile-card
+      endpoint (d), and POST /cancel-assignment + crew-lead
+      auto-promote (e). The §5.12.4 worked-example UX
+      ("dispatcher picks Jacob → 'proposed' → mobile inbox
+      → tap Confirm → 'confirmed'") runs end-to-end. The
+      personnel surface is the F10.3 mirror by intent —
+      same vocabulary, same state machine, same race-fence
+      pattern — so dispatchers learn one mental model and the
+      apply-template flow (F10.2g) can address equipment +
+      personnel uniformly.
 
 **F10.5 — Daily check-in/check-out workflow (Week 36–37).**
 The user's headline ritual. Lands AFTER reservations work
-end-to-end so the QR scan has something to flip.
-- [ ] `POST /api/admin/equipment/check-out` +
-      `/check-in` + `/extend-reservation` per §5.12.6.
-- [ ] Mobile scanner check-out / check-in sheets — kit batch
-      flow, condition photo, consumed-quantity selector.
-- [ ] Damage-triage entry path → §5.12.8 event creation.
-- [ ] Lost-on-site flow with auto-pre-filled
-      `location_pings` cluster.
-- [ ] End-of-day unreturned-gear nag cron (6pm + 9pm) +
-      [Extend until 8am] / [Mark in transit] notification
-      actions.
-- [ ] Crew clock-out gating modal.
-- [ ] Self-service after-hours flag + soft warning path.
+end-to-end so the QR scan has something to flip. Split into 8
+sub-batches per the small-chunks discipline:
+- [✓] **F10.5-a** — `seeds/242_starr_field_equipment_check_inout.sql`
+      shipped. Extends `equipment_reservations` with the
+      check-out columns (`checked_out_by`,
+      `checked_out_to_user`, `checked_out_to_vehicle`,
+      `checked_out_condition` ∈ good|fair|damaged,
+      `checked_out_photo_url`), the check-in columns
+      (`returned_by`, `returned_condition` ∈ good|fair|
+      damaged|lost, `returned_photo_url`, `returned_notes`,
+      `consumed_quantity` ≥ 0 for consumables) and the nag-
+      extend audit columns (`extended_overnight_at`,
+      `original_reserved_to` — captured the first time
+      reserved_to is bumped via nag-extend so the trail shows
+      schedule slipped vs ran long). seeds/239 already had
+      `actual_checked_out_at` + `actual_returned_at` so they
+      stay there. Conditional FKs for `auth.users` (3 actor
+      columns) + `vehicles`. Partial indexes for the four hot
+      reads: "what's in my truck right now"
+      (checked_out_to_user + state), "every overdue checked-
+      out row" (the 6pm/9pm nag query), damage-triage routing
+      (returned_condition damaged|lost), vehicle drilldown
+      (checked_out_to_vehicle). Column comments document
+      §5.12.6 invariants for future readers.
+- [✓] **F10.5-b** — `POST /api/admin/equipment/check-out`
+      shipped. Body XOR `qr_code_id` (mobile-scanner / office-
+      walk-up path) OR `reservation_id` (dispatcher walk-up
+      path). When QR-mode: looks up `equipment_inventory` by
+      `qr_code_id`, refuses on retired (typed `retired`),
+      finds a unique held reservation overlapping `now()`,
+      filters by optional `job_id` for disambiguation. Returns
+      `qr_unknown` 404 / `no_matching_held_reservation` 404 /
+      `ambiguous_match` 409 (with candidate list so the caller
+      can pass `job_id`). When reservation_id-mode: direct row
+      lookup. Both paths converge on the state-machine guard:
+      must be `held`; otherwise typed 409 with `current_state`.
+      Required fields: `condition` ∈ good|fair|damaged,
+      `to_user` UUID. Optional: `to_vehicle`, `photo_url`.
+      Photo is REQUIRED when condition ∈ damaged|fair —
+      audit trail anchor for §5.12.6 + the F10.5-g
+      maintenance triage. UPDATE guards on `state='held'`
+      (TOCTOU); on miss, re-reads so the caller sees what beat
+      them. seeds/239's AFTER-UPDATE sync trigger refreshes
+      `equipment_inventory.current_reservation_id` +
+      `next_available_at` automatically. Damage triage hook
+      (F10.5-g) and kit-batch flow (F10.5-e) and self-service
+      after-hours flag (F10.5-h) explicitly NOT in this batch
+      — handler is the single-row state-flip core. Auth: admin
+      / developer / equipment_manager.
+- [✓] **F10.5-c** — `POST /api/admin/equipment/check-in`
+      shipped. Symmetric counterpart to /check-out. Body XOR
+      `qr_code_id` / `reservation_id`. State flip:
+      `checked_out → returned`; refuses non-checked_out states
+      with typed 409 + current_state. Required `condition` ∈
+      good|fair|damaged|lost; photo_url required when
+      condition ≠ 'good' (audit anchor for §5.12.6 + the
+      F10.5-g triage flow). Consumables: handler reads
+      `equipment_inventory.item_kind` after resolving the
+      reservation; when `consumable`, requires
+      `consumed_quantity` (non-negative integer); after the
+      state-flip UPDATE succeeds, decrements
+      `equipment_inventory.quantity_on_hand` in a separate
+      best-effort UPDATE (cross-table tx isn't available
+      through PostgREST). Decrement failure logs loudly +
+      surfaces `stock_decrement_warning` in the response
+      payload so the EM can reconcile manually; the audit
+      anchor still survives. Retired-instrument check
+      INTENTIONALLY skipped on the /check-in side — a retired
+      unit may still have an outstanding checked_out row that
+      needs to come back in; refusing on retire would block
+      the cleanup. (The /check-out side DOES refuse retire,
+      which is the gate that prevents new check-outs.)
+      Disambiguation 409 returned when multiple checked_out
+      rows match a QR — should be unreachable per seeds/239's
+      EXCLUDE but defensive surface kept. Damage triage
+      (`damaged`) + lost-on-site (`lost` + location_pings
+      cluster) hooks NOT in this batch — F10.5-g layers them
+      on top of the column persistence here. Auth: admin /
+      developer / equipment_manager.
+- [✓] **F10.5-d** — `POST /api/admin/equipment/extend-reservation`
+      shipped. Body
+      `{ reservation_id, new_reserved_to, source? }` where
+      source ∈ nag|clock_out|manual (default manual). Auth
+      gate: admin / equipment_manager OR the row's
+      `checked_out_to_user` (so the surveyor with gear in
+      their truck can action the inline 6pm/9pm nag button +
+      the mobile clock-out "Keep overnight" choice via their
+      own session). State guard: only `held`/`checked_out`
+      are extendable; refuses 409 on returned/cancelled +
+      `null state`. New `reserved_to` must be strictly after
+      the current one — shrinking is a cancel-and-re-reserve
+      operation, not an extend. Audit invariants: captures
+      `original_reserved_to` ONLY on the first extend so the
+      trail records "schedule slipped" once, never overwritten
+      on subsequent extends; sets `extended_overnight_at` only
+      when source ∈ nag|clock_out (deliberate overnight
+      retention markers) AND not already set, so a manual
+      dispatch extend after a nag-extend doesn't clobber the
+      nag's audit anchor. seeds/239 GiST EXCLUDE catches
+      collisions when the new window overlaps another active
+      reservation for the same instrument; Postgres 23P01
+      maps to typed `extend_collides` 409 with a friendly
+      message ("Extending to T would overlap … pick an
+      earlier end time"). UPDATE guards on
+      `state IN (held, checked_out)` (TOCTOU); on miss,
+      re-reads. seeds/239 sync trigger refreshes
+      `equipment_inventory.next_available_at` automatically
+      since the active-window changed.
+- [◐] **F10.5-e** — Kit batch flow per §5.12.1.C. Split into
+      two sub-batches:
+  - [✓] **F10.5-e-i** — `lib/equipment/kit-resolver.ts`
+        shipped. `resolveKit(parentEquipmentId, client?)`
+        returns the parent inventory row + its
+        `equipment_kit_items` children (sorted by sort_order
+        ASC) joined with display fields (name, item_kind,
+        qr_code_id) so the F10.5-e-ii caller doesn't need a
+        second roundtrip. Typed errors:
+        `parent_not_found` (no inventory row),
+        `parent_is_not_a_kit` (inventory row exists but no
+        `equipment_kits` wrapper). Companion
+        `loadActiveReservationsForKit(resolved, opts)` walks
+        every reservation across the parent + children at a
+        target state (`held` for check-out fan-out,
+        `checked_out` for check-in fan-out) with optional
+        `jobIdFilter` + window bounds. Returns
+        `{ parent_reservation_id, child_reservations[] }` —
+        children without matching reservations stay absent
+        from the array so callers handle "kit was applied
+        without one of its optional children" cleanly.
+        Read-only — state-flip writes stay in F10.5-e-ii so
+        the route handlers own the audit-trail orchestration.
+        Accepts an optional `client` for transaction-aware
+        reads.
+  - [◐] **F10.5-e-ii** — wire the resolver into
+        `/check-out` + `/check-in`. Split into two:
+    - [✓] **F10.5-e-ii-α** — `/check-out` kit-mode shipped.
+          Body adds `kit_mode?: boolean` (requires
+          `qr_code_id`; rejects with `reservation_id`
+          400). When true: QR-resolves to the kit parent,
+          calls `resolveKit` (rejects `parent_is_not_a_kit`
+          / `parent_not_found`), refuses if any child is a
+          consumable (`kit_has_consumable_child` 400 — kits
+          in practice hold durables; consumables ride the
+          single-row path until a hybrid kit lands), calls
+          `loadActiveReservationsForKit(state='held',
+          windowFrom=now, windowTo=now)` to find the
+          parent + every matching child reservation,
+          enforces a missing-required-children gate
+          (`missing_required_children` 409 with the
+          incomplete child list so the dispatcher knows
+          what's missing), then issues a single
+          `UPDATE … WHERE id IN (...) AND state='held'`
+          flipping every row to `checked_out` with shared
+          audit fields (one condition photo at the
+          case-exterior level per §5.12.6 spec; per-child
+          exception flagging is v1+ polish). Partial-flip
+          detection via row-count compare returns
+          `partial_kit_flip` 409 so the dispatcher refetches
+          on race. seeds/239's sync trigger refreshes
+          inventory derived columns for every flipped row.
+          Response shape carries `mode: 'kit'` + the kit
+          metadata + every flipped reservation, so callers
+          render uniformly without inspecting the request.
+    - [✓] **F10.5-e-ii-β** — `/check-in` kit-mode shipped.
+          Symmetric to α: body adds `kit_mode?: boolean`
+          (requires `qr_code_id`; refuses with
+          `reservation_id` 400). Differences from morning
+          path: retired-instrument gate is INTENTIONALLY
+          absent (a retired unit may have an outstanding
+          checked_out row that needs to come back —
+          single-row spec'd this same way and the kit path
+          mirrors); state filter is `checked_out` (no window
+          bounds since the seeds/239 EXCLUDE guarantees one
+          active row per instrument); `consumed_quantity`
+          is rejected up front in kit-mode (v1 kits hold
+          durables). Same gates: `parent_is_not_a_kit` 400,
+          `kit_has_consumable_child` 400,
+          `no_matching_kit_reservation` 404,
+          `missing_required_children` 409 (when individual
+          children were already returned via single-row
+          check-in but the kit-mode call expected them all
+          checked-out — dispatcher reconciles via
+          single-row). Single condition photo + notes apply
+          uniformly across parent + children;
+          partial-flip detection returns 409 on race.
+          Response shape mirrors α with `mode: 'kit'`
+          discriminator and `previous_state: 'checked_out'`.
+
+      F10.5-e closes out: kit composition resolver shipped
+      and wired into both scan endpoints. The §5.12.1.C
+      one-scan-flips-the-whole-kit promise lives end-to-end
+      for durable kits.
+- [◐] **F10.5-f** — End-of-day nag cron + actions. Split:
+  - [✓] **F10.5-f-i** — `seeds/244_starr_field_equipment_nag_silence.sql`
+        shipped. Adds `nag_silenced_until TIMESTAMPTZ` to
+        `equipment_reservations` with a CHECK that silence
+        windows must be in the future when set + a partial
+        index for the cron's silence-aware refinement query.
+        Drives the "Mark in transit" inline action on the
+        6pm/9pm nag — the surveyor is driving gear back right
+        now and doesn't want a 9pm nag if 6pm just fired.
+        "Extend until 8am" doesn't need this column because
+        F10.5-d's reserved_to bump naturally excludes the row
+        from the cron's `reserved_to < now()` filter. Column
+        comment documents the §5.12.6 invariant for future
+        readers. Apply AFTER seeds/239.
+  - [✓] **F10.5-f-ii** — `app/api/cron/equipment-overdue-nag/route.ts`
+        shipped + Vercel cron config in `vercel.json` at
+        `0 0,3 * * 2-6` (UTC; 6pm + 9pm CST Mon–Fri). Auth via
+        `Authorization: Bearer <CRON_SECRET>` header. Runs the
+        overdue query (`state='checked_out' AND reserved_to <
+        now() AND (nag_silenced_until IS NULL OR
+        nag_silenced_until <= now())`), batch-resolves
+        `checked_out_to_user` UUIDs to emails via
+        `registered_users.id` and equipment IDs to display
+        names via `equipment_inventory.name`, then fans out
+        per-row §5.10.4 notifications with
+        `type='equipment_overdue_return'`,
+        `escalation_level='high'`, source ids that the mobile
+        client matches against to render the inline action
+        buttons (Extend → F10.5-d, Mark in transit →
+        F10.5-f-iii). Returns
+        `{ sent, skipped, scanned }` so a manual debug trigger
+        gets clean numbers. Skipped rows (missing email
+        lookup, notify failure) log loudly but don't fail the
+        tick — re-runs are idempotent. DST-aware tuning is a
+        v1+ polish — the EM admin edits vercel.json if
+        seasonal drift becomes annoying.
+  - [✓] **F10.5-f-iii** — `POST /api/admin/equipment/silence-nag`
+        shipped. Body `{ reservation_id, until? }`. Default
+        `until` = next 00:00 UTC (midnight tonight); explicit
+        values must be in the future and ≤ end-of-day-tomorrow
+        (anything longer routes through F10.5-d /extend-
+        reservation). Auth: admin / equipment_manager OR the
+        row's `checked_out_to_user` (so the surveyor with the
+        gear can action the inline button via their own
+        session). State guard: only `checked_out` rows are
+        silenceable; held/returned/cancelled return 409 with
+        current_state. UPDATE guards on `state='checked_out'`
+        for TOCTOU; on miss re-reads. Sets
+        `nag_silenced_until`; the F10.5-f-ii cron query
+        excludes silenced rows until the timestamp passes.
+        Returns the updated row + `previous_silenced_until`
+        for audit context.
+  - [✓] **F10.5-f-iv** — `app/api/cron/equipment-overdue-digest/route.ts`
+        shipped + Vercel cron entry at `0 4 * * 2-6` (10pm
+        CST = 04:00 UTC). Auth via Authorization: Bearer
+        CRON_SECRET (mirrors F10.5-f-ii). Same overdue query
+        as the nag tick BUT INTENTIONALLY ignores
+        `nag_silenced_until` — silence applies to the
+        surveyor's nag, not the office's nightly bookkeeping;
+        if gear hasn't physically come back, the office should
+        know. Recipients: every `admin` + `equipment_manager`
+        looked up via
+        `registered_users.roles cs '{admin}'` +
+        `roles cs '{equipment_manager}'`. Single summary
+        notification per recipient (not per row): title
+        carries the count (`Overdue gear — 3 unreturned` /
+        `… all clear`), body lists up to 25 rows in
+        `• name — holder, due <ts>` format with
+        `…+N more` overflow tail. Resolves equipment names +
+        holder display fields via batch lookups
+        (`equipment_inventory` + `registered_users`) so the
+        body has human-readable context. `escalation_level`
+        downgrades to `low` on all-clear ticks so the
+        notification surfaces but doesn't beep. v1+ polish:
+        on-site GPS context (location_pings cluster) per the
+        spec call-out, cooldown guard for manual
+        re-triggers, recipient-side digest collapse.
+
+      F10.5-f closes out: nag-tick + silence-action + daily
+      digest all live. The §5.12.6 end-of-day flow runs end-
+      to-end against the wire shape.
+- [◐] **F10.5-g** — Damage / lost triage hooks. Split:
+  - [✓] **F10.5-g-i** — `seeds/245_starr_field_maintenance_events.sql`
+        shipped. Creates the §5.12.8 `maintenance_events`
+        table — one row per service occurrence, current or
+        historical. XOR target (`equipment_inventory_id`
+        OR `vehicle_id` non-null) so vehicles flow through
+        the same pipeline. `kind` enum covers calibration /
+        repair / firmware_update / inspection / cleaning /
+        scheduled_service / damage_triage / recall /
+        software_license. `origin` enum covers
+        recurring_schedule / damaged_return / manual /
+        vendor_recall / cert_expiring / lost_returned —
+        F10.5-g-ii uses `damaged_return`, F10.5-g-iii uses
+        `lost_returned`. `state` lifecycle scheduled →
+        in_progress → awaiting_parts/vendor → complete /
+        cancelled / failed_qa. Vendor + in-shop fields
+        (vendor_name, work_order, performed_by_user_id),
+        cost tracking (cost_cents + linked_receipt_id),
+        QA gate (qa_passed). Conditional FKs to
+        equipment_inventory / vehicles / auth.users /
+        receipts following the seeds/234+236 defensive
+        pattern. Four read-path partial indexes
+        (per-unit history, per-vehicle history, calendar
+        scheduled query, open-work landing). updated_at
+        trigger. Backfills the deferred
+        `equipment_events.maintenance_event_id` FK that
+        seeds/236 stubbed (ON DELETE SET NULL —
+        chain-of-custody continuity). The full F10.7
+        layer (maintenance_event_documents,
+        maintenance_schedules, calendar UI, 3am due-date
+        cron) builds on this foundation.
+  - [✓] **F10.5-g-ii** — single-row damage-triage hook in
+        `/check-in` shipped. When condition='damaged' lands
+        on the single-row path, `triggerDamageTriage`
+        helper fans out three best-effort actions
+        post-success: (1) INSERT a `maintenance_events` row
+        with origin='damaged_return', kind='damage_triage',
+        state='scheduled', summary anchored to the
+        instrument's display name, notes from the surveyor;
+        (2) UPDATE
+        `equipment_inventory.current_status='maintenance'`
+        so the F10.3-b status check blocks future
+        reservations until the EM resolves; (3) notifyMany
+        every admin + equipment_manager with
+        escalation_level='high', body cites actor + job +
+        notes + status flip. All three are best-effort —
+        the reservation update already committed, so
+        failures log loudly + roll up into a
+        `damage_triage_warning` string surfaced in the
+        response payload alongside the inserted
+        `maintenance_event_id`. The EM reconciles partials
+        from the §5.12.7 dashboard. Kit-mode damage triage
+        (parent kit return with damaged condition fans out
+        per-child maintenance_events rows) is deferred to a
+        future batch — kit-mode condition currently
+        persists uniformly without triage; the single-row
+        path is the dominant damage flow in practice.
+  - [✓] **F10.5-g-iii** — single-row lost-on-site hook in
+        `/check-in` shipped. `triggerLostTriage` helper
+        mirrors the damage-triage shape with three
+        differences: (1) maintenance_events insert uses
+        `origin='lost_returned'`, summary "Lost on site —
+        search + insurance pending"; (2)
+        `equipment_inventory.current_status='lost'` (catalogue
+        tags red, F10.3-b status check blocks future
+        reservations); (3) recipient set adds the on-site
+        crew lead — looked up from `job_team` WHERE
+        `is_crew_lead=true AND state IN (proposed,confirmed)`
+        — alongside the standard admin + equipment_manager
+        audit list, with `escalation_level='critical'` so
+        the search can start immediately. Crew-lead lookup
+        is best-effort; standard recipients still get the
+        notification even if the lookup fails.
+        `triageWarning` + `maintenance_event_id` flow into
+        the same response payload as damage-triage. GPS
+        context auto-attach (location_pings cluster from the
+        last 1h before clock-out) is deferred until the
+        location_pings ingest pipeline lands; the immediate
+        notification with the job link gets the search
+        underway without it.
+
+      F10.5-g closes out: maintenance_events table + damage
+      triage + lost triage all live. The §5.12.6
+      damaged/lost return paths run end-to-end against the
+      wire shape. Kit-mode triage fan-out (parent kit return
+      with damaged/lost condition fans out per-child
+      maintenance_events rows) remains deferred — the
+      single-row path covers the dominant flow in practice.
+- [◐] **F10.5-h** — Clock-out gating + self-service after-
+      hours. Split:
+  - [✓] **F10.5-h-i** — `GET /api/admin/equipment/my-checkouts`
+        shipped. Backs the §5.12.6 clock-out gating modal.
+        Returns every `state='checked_out'` reservation
+        owned by the authenticated session user
+        (`checked_out_to_user = session.user.id`), ordered
+        by `reserved_to` ASC so "due back soonest" lands
+        first. Auth gate is intentionally generous — any
+        authenticated user can fetch THEIR OWN list (no
+        role check beyond authenticated; the query is
+        keyed on `checked_out_to_user=me` so cross-user
+        leakage is impossible). Enriches each row with
+        `equipment_name`, `equipment_item_kind`,
+        `equipment_qr_code_id` via a single batch lookup
+        so the mobile modal renders names without further
+        roundtrips. Computes `overdue: boolean` per row so
+        the modal can flag "this is already past
+        reserved_to" without client-side date-parsing
+        gymnastics. Empty list returns `{ reservations:
+        [] }` so the mobile clock-out flow proceeds
+        without modal interruption.
+  - [✓] **F10.5-h-ii** — `seeds/246_starr_field_self_checkout_flag.sql`
+        + `/check-out` auth-gate update shipped. Adds
+        `equipment_self_checkout BOOLEAN NOT NULL
+        DEFAULT false` to `registered_users` with a partial
+        index on the truthy subset. The
+        `/check-out` POST loosens its forbidden gate: when
+        the actor isn't admin/equipment_manager, the
+        handler reads `registered_users.equipment_self_checkout`
+        for the session email; when true, lets the request
+        through with `selfServiceBypass=true` threaded into
+        the success log on both single-row + kit paths so
+        the §5.12.7 reconcile dashboard differentiates
+        flag-driven check-outs from admin/EM walk-ups for
+        the audit trail. Hank toggles the flag per-user via
+        the existing `/admin/users` page; default-off means
+        nobody is grandfathered in. Lookup-failure fallback
+        keeps the gate strict (logs the failure but doesn't
+        silently grant access). Per the §5.12.6
+        self-service after-hours protocol.
+
+      F10.5-h closes out: clock-out gating data source +
+      self-service flag both live. **F10.5 fully shipped**
+      (16 sub-batches: a + b + c + d + e-i + e-ii-α + e-ii-β
+      + f-i + f-ii + f-iii + f-iv + g-i + g-ii + g-iii +
+      h-i + h-ii). The §5.12.6 daily check-in/check-out
+      ritual runs end-to-end: morning scan → evening scan
+      → consumables decrement → kit-batch fan-out → nag
+      cron + silence + digest → damage/lost triage → my-
+      checkouts gate + self-service.
 
 **F10.6 — Equipment Manager dashboards (Week 37–38).**
 The §5.12.7 admin web surface that pulls everything together.
-- [ ] Sidebar "Equipment" group + role-gated nav.
-- [ ] §5.12.7.1 Today landing page (3 strips + 3 banners).
-- [ ] §5.12.7.2 Reservations Gantt timeline.
-- [ ] §5.12.7.5 Consumables low-stock + restock view.
-- [ ] §5.12.7.6 Crew calendar week heatmap.
-- [ ] §5.12.7.8 "Templates referencing retired gear"
-      cleanup queue.
+Split across the seven §5.12.7 sub-panels per the small-chunks
+discipline.
+- [✓] **F10.6-a** — Sidebar "Equipment" group + role-gated
+      nav shipped. New `EQUIPMENT_ROLES` constant
+      (admin / developer / tech_support / equipment_manager
+      per §4.6) + new "Equipment" section in
+      `app/admin/components/AdminSidebar.tsx` between Work
+      and Research with the existing F10.1 catalogue + F10.2
+      templates links. Future F10.6-b..g panels add their
+      own entries as they ship; F10.7 maintenance lands its
+      links here too. The equipment_manager hat now has a
+      visible nav home — surveyors with just that role see
+      the Equipment section and nothing else admin-wide,
+      matching the §4.6 access matrix.
+- [ ] **F10.6-b** — §5.12.7.1 Today landing page (3 strips
+      + 3 banners).
+- [ ] **F10.6-c** — §5.12.7.2 Reservations Gantt timeline.
+- [ ] **F10.6-d** — §5.12.7.5 Consumables low-stock view.
+- [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
+- [ ] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
+      gear cleanup queue.
+- [ ] **F10.6-g** — §5.12.7.7 Override audit panel.
 
 **F10.7 — Maintenance + calibration (Week 38–39).**
 - [ ] `maintenance_events` CRUD + state machine + document

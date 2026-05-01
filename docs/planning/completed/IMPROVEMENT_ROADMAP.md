@@ -1,5 +1,10 @@
 # STARR-SURVEYING Platform Improvement Roadmap
 
+> **Status:** Completed 2026-04-30. Phases 1–7 shipped; Phase 8 (Polish &
+> Enhancement) is intentionally open-ended ongoing work tracked separately.
+> This doc is preserved as the historical record of the platform-improvement
+> sweep (RBAC, teacher roles, external registration, content rebuild).
+
 ## Overview
 
 This document outlines a phased approach to improving the STARR-SURVEYING learning platform. It covers bug fixes, role-based access control, teacher roles, external user registration, and the database content rebuild from monolithic HTML to structured lesson blocks.

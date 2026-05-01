@@ -1,8 +1,11 @@
 # Phase A Integration Prep — Planning & Activation Roadmap
 
-> **Status:** Prep PR complete — all four deliverables shipped, all
-> defaults OFF, no behavior change in current deploy. **Activation
-> work is pending external account provisioning** (see §6 runbooks).
+> **Status:** Completed 2026-04-30. Prep wiring shipped (Browserbase,
+> CapSolver, R2, WebSocket progress channel) — all four deliverables
+> in tree, all defaults OFF, 133 worker tests passing. Remaining work
+> is operational (account provisioning + flag flips) and is tracked
+> separately via the §6 activation runbooks below; those runbooks
+> remain the source of truth for turning each integration on.
 >
 > **Audience:** Future-Jacob, future-Copilot, and any engineer picking
 > this up months from now. If you are reading this and the names below

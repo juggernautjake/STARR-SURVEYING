@@ -1,5 +1,16 @@
 # CSS Cleanup Report — Static-Analysis Pass
 
+> **Status:** Completed 2026-04-30. The static-analysis sweep across all 20
+> admin CSS files is shipped — every selector is bucketed (referenced /
+> high-confidence dead / likely-dead / do-not-touch). The remaining work is
+> an operational per-file deletion loop driven by Chrome DevTools Coverage
+> against a logged-in admin session, captured as a self-contained runbook
+> in §"What to do with this report" below. That follow-up is not on the
+> critical path and runs as time permits — start with the smallest files
+> first per the migration order in this report. Doc preserved as the
+> historical record of the static-analysis pass + the canonical reference
+> for the per-file follow-up.
+
 **Generated:** April 2026 (Phase 0.5 cleanup PR)
 **Scope:** `app/admin/styles/*.css` against all `app/**` and `lib/**` source files
 **Tool:** Custom static-analysis script in `/tmp/css-analysis/analyze.mjs` (kept out of the repo because it was a one-shot)

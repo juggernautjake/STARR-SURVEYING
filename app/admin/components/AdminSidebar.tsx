@@ -64,6 +64,14 @@ const RESEARCH_ROLES: UserRole[] = ['admin', 'developer', 'researcher', 'drawer'
 const CONTENT_MGMT_ROLES: UserRole[] = ['admin', 'developer', 'teacher'];
 const INTERNAL_COMM_ROLES: UserRole[] = ['admin', 'developer', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'];
 const PAY_ROLES: UserRole[] = ['admin', 'developer', 'field_crew'];
+// Phase F10.6 — Equipment sidebar group. The §4.6 access matrix:
+// dispatchers (admin / developer / tech_support) AND the
+// equipment_manager hat. The equipment_manager role lives almost
+// entirely inside this nav group; gating on this constant keeps
+// the Catalogue / Templates / future-Today / future-Timeline /
+// etc. links visible to whoever holds that hat without leaking
+// admin-wide nav.
+const EQUIPMENT_ROLES: UserRole[] = ['admin', 'developer', 'tech_support', 'equipment_manager'];
 
 export default function AdminSidebar({ role, roles, userName, userEmail, userImage, isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
@@ -114,6 +122,17 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       { href: '/admin/mileage', label: 'Mileage', icon: '🚗', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       { href: '/admin/finances', label: 'Finances', icon: '💼', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       { href: '/admin/vehicles', label: 'Vehicles', icon: '🛻', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+    ]},
+
+    // Equipment group — Phase F10.6 sidebar scaffold. Catalogue + templates
+    // already shipped (F10.1 + F10.2); the F10.6-b..g panels add their own
+    // entries to this section as they land. Role gate matches §4.6:
+    // dispatchers (admin/developer/tech_support) get full access; the
+    // equipment_manager role is the §4.6 hat that lives mostly in this
+    // group so it appears here even when the user has no other admin role.
+    { label: 'Equipment', items: [
+      { href: '/admin/equipment', label: 'Catalogue', icon: '📦', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment/templates', label: 'Templates', icon: '📋', roles: EQUIPMENT_ROLES, internalOnly: true },
     ]},
 
     { label: 'Research', items: [
