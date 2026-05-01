@@ -4569,7 +4569,38 @@ discipline.
 
       F10.6-b closes out: aggregator + page UI shipped,
       §5.12.7.1 Today landing page lives end-to-end.
-- [ ] **F10.6-c** — §5.12.7.2 Reservations Gantt timeline.
+- [◐] **F10.6-c** — §5.12.7.2 Reservations Gantt timeline.
+      Split:
+  - [✓] **F10.6-c-i** — `GET /api/admin/equipment/reservations-timeline`
+        aggregator shipped. Returns every
+        `equipment_reservations` row whose
+        `[reserved_from, reserved_to)` overlaps the window
+        (default today → today+14d), grouped into
+        swimlanes per `group_by` ∈ equipment | job.
+        Filter chips: `category` (pre-resolves matching
+        equipment_ids; empty match short-circuits to []),
+        `state` (one of held/checked_out/returned/
+        cancelled), `overdue_only=1` (state='checked_out'
+        AND reserved_to < now() — the "what's late RIGHT
+        NOW" filter). Bars carry `equipment_name` +
+        `holder_email` resolved via batch lookup so the
+        F10.6-c-ii UI renders without per-row roundtrips.
+        Equipment swimlane meta carries `category` +
+        `item_kind` for the drilldown drawer; job swimlane
+        meta carries the bare `job_id`. Stable swimlane
+        ordering — alphabetical by label. Auth:
+        EQUIPMENT_ROLES. Presentation-agnostic so the
+        §5.12.9 mobile timeline + future
+        `/admin/jobs/[id]/timeline` embed reuse the same
+        payload.
+  - [ ] **F10.6-c-ii** — `app/admin/equipment/timeline/page.tsx`
+        — Gantt UI (read-only) consuming the aggregator +
+        sidebar entry.
+  - [ ] **F10.6-c-iii** — Drilldown drawer + filter chips
+        UI.
+  - [ ] **F10.6-c-iv** — Drag-resize on `held` bars (calls
+        F10.5-d /extend-reservation; re-runs availability
+        check inline).
 - [ ] **F10.6-d** — §5.12.7.5 Consumables low-stock view.
 - [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
 - [ ] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
