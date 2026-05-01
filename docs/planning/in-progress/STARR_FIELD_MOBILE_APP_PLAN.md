@@ -4542,9 +4542,33 @@ discipline.
         Banner queries are fail-open — read errors degrade
         to empty arrays so a single banner outage doesn't
         nuke the strips. Auth: EQUIPMENT_ROLES.
-  - [ ] **F10.6-b-ii** — `app/admin/equipment/today/page.tsx`
-        — three-strip + three-banner layout consuming the
-        aggregator + sidebar nav entry.
+  - [✓] **F10.6-b-ii** — `app/admin/equipment/today/page.tsx`
+        + sidebar entry shipped. Renders the three strips
+        (going_out / out_now / returned) + three banners
+        (PTO red / low-stock amber / maintenance blue) from
+        the F10.6-b-i aggregator. Date scrubber input
+        +"Today" jumper +"Refresh" button at the top so the
+        EM can move forward/back without URL editing.
+        Strip B rows carry the on_time / at_risk / overdue
+        pill from the server payload and the Strip B
+        header surfaces an overdue count if non-zero.
+        Strip C is collapsed by default (it's the
+        end-of-day reconcile artefact, not the live view);
+        the header shows the spec's count guard
+        ("42 went out · 39 returned · 3 still out"). Per-
+        row condition badges (good/fair/damaged/lost) on
+        returned rows route the EM toward the §5.12.8 /
+        §5.12.11 next steps. Job-id chips deep-link to
+        `/admin/jobs/<id>`. OVERRIDE badge surfaces on
+        rows with `is_override=true`. Sidebar entry added
+        as the FIRST Equipment link (above Catalogue) since
+        Today is the dispatcher's daily-driver. Inline
+        styles per the rest of `/admin/equipment/*`. Auth:
+        `useSession` gate; the aggregator enforces the
+        EQUIPMENT_ROLES gate server-side.
+
+      F10.6-b closes out: aggregator + page UI shipped,
+      §5.12.7.1 Today landing page lives end-to-end.
 - [ ] **F10.6-c** — §5.12.7.2 Reservations Gantt timeline.
 - [ ] **F10.6-d** — §5.12.7.5 Consumables low-stock view.
 - [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.

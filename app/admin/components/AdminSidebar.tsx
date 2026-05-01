@@ -131,6 +131,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
     // equipment_manager role is the §4.6 hat that lives mostly in this
     // group so it appears here even when the user has no other admin role.
     { label: 'Equipment', items: [
+      { href: '/admin/equipment/today', label: 'Today', icon: '📅', roles: EQUIPMENT_ROLES, internalOnly: true },
       { href: '/admin/equipment', label: 'Catalogue', icon: '📦', roles: EQUIPMENT_ROLES, internalOnly: true },
       { href: '/admin/equipment/templates', label: 'Templates', icon: '📋', roles: EQUIPMENT_ROLES, internalOnly: true },
     ]},
