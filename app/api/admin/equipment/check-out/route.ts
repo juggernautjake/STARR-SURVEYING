@@ -31,9 +31,21 @@
 // status flip + Equipment Manager notification all happen in
 // F10.5-g once the maintenance schema (seeds/243+) lands.
 //
-// Kit batch flow (parent scan pulls all children) lands in
-// F10.5-e. v1 of this endpoint operates on a single reservation
-// row.
+// Kit batch flow (parent scan pulls all children) — opt in via
+// `kit_mode: true` when the QR-resolved instrument is a kit
+// parent per §5.12.1.C. The handler walks every child held
+// reservation matching the same window + job_id and flips them
+// alongside the parent in one batch UPDATE. Per the spec,
+// kit-level audit fields apply uniformly to parent + children
+// (single condition photo at the case-exterior level); per-
+// child exception flagging is a v1+ polish. Kit-mode requires
+// `qr_code_id` (not `reservation_id`) and requires the
+// resolved instrument to actually be a registered kit. v1
+// refuses kit_mode for kits whose children include consumables
+// — kits in practice hold durables (total station + tripod +
+// data collector), so this gate keeps the consumables decrement
+// flow on the single-row path until a durable+consumable
+// hybrid kit shows up.
 //
 // Auth: admin / developer / equipment_manager. Crew-lead
 // self-service via `equipment_self_checkout` flag is F10.5-h.
@@ -43,6 +55,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import {
+  loadActiveReservationsForKit,
+  resolveKit,
+} from '@/lib/equipment/kit-resolver';
 
 const UUID_RE =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -92,6 +108,7 @@ export const POST = withErrorHandler(
           photo_url?: unknown;
           to_user?: unknown;
           to_vehicle?: unknown;
+          kit_mode?: unknown;
         }
       | null;
     if (!body || typeof body !== 'object') {
@@ -205,6 +222,33 @@ export const POST = withErrorHandler(
       jobIdFilter = body.job_id;
     }
 
+    const kitMode = body.kit_mode === true;
+    if (kitMode && !hasQr) {
+      return NextResponse.json(
+        {
+          error:
+            'kit_mode=true requires qr_code_id — fan-out runs from a ' +
+            'kit-parent QR scan, not a direct reservation pick.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // ── Kit-batch fan-out path ──────────────────────────────────
+    if (kitMode) {
+      const kitResult = await applyKitCheckout({
+        qrCodeId: qrCodeRaw,
+        jobIdFilter,
+        condition,
+        photoUrl,
+        toUser,
+        toVehicle,
+        actorUserId,
+        actorEmail: session.user.email,
+      });
+      return kitResult;
+    }
+
     // ── Resolve to a single held reservation ────────────────────
     const reservation = await resolveReservation({
       hasQr,
@@ -308,6 +352,210 @@ export const POST = withErrorHandler(
 // ────────────────────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────────────────────
+
+async function applyKitCheckout(args: {
+  qrCodeId: string;
+  jobIdFilter: string | null;
+  condition: string;
+  photoUrl: string | null;
+  toUser: string;
+  toVehicle: string | null;
+  actorUserId: string;
+  actorEmail: string | null | undefined;
+}): Promise<NextResponse> {
+  // 1. QR → parent equipment_inventory id (refuse retired).
+  const inv = await supabaseAdmin
+    .from('equipment_inventory')
+    .select('id, retired_at')
+    .eq('qr_code_id', args.qrCodeId)
+    .maybeSingle();
+  if (inv.error) {
+    return NextResponse.json({ error: inv.error.message }, { status: 500 });
+  }
+  if (!inv.data) {
+    return NextResponse.json(
+      { error: 'No equipment matches that QR code.', code: 'qr_unknown' },
+      { status: 404 }
+    );
+  }
+  const parentRow = inv.data as { id: string; retired_at: string | null };
+  if (parentRow.retired_at) {
+    return NextResponse.json(
+      {
+        error:
+          `Equipment was retired on ${parentRow.retired_at}; refusing ` +
+          'kit-mode check-out.',
+        code: 'retired',
+      },
+      { status: 409 }
+    );
+  }
+
+  // 2. Resolve kit composition.
+  const kit = await resolveKit(parentRow.id);
+  if ('error' in kit) {
+    if (kit.error === 'parent_is_not_a_kit') {
+      return NextResponse.json(
+        {
+          error:
+            'kit_mode=true but the scanned instrument is not registered ' +
+            'as a kit parent. Drop kit_mode or scan the kit case QR.',
+          code: 'parent_is_not_a_kit',
+        },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json(
+      { error: 'Kit parent not found.', code: 'parent_not_found' },
+      { status: 404 }
+    );
+  }
+  const resolved = kit.resolved;
+
+  // v1 gate: refuse kit-mode when any child is a consumable.
+  // The single-row /check-out path handles consumables cleanly;
+  // kits in practice hold durables. This gate prevents silent
+  // bugs when a future hybrid kit lands.
+  const consumableChild = resolved.children.find(
+    (c) => c.child_item_kind === 'consumable'
+  );
+  if (consumableChild) {
+    return NextResponse.json(
+      {
+        error:
+          `Kit '${resolved.parent_name ?? resolved.parent_equipment_id}' ` +
+          `contains a consumable child (` +
+          `${consumableChild.child_name ?? consumableChild.child_equipment_id}` +
+          `); use single-row check-out for these until kit consumables ` +
+          'support lands.',
+        code: 'kit_has_consumable_child',
+      },
+      { status: 400 }
+    );
+  }
+
+  // 3. Find every held reservation across parent + children
+  // overlapping now() (and matching job_id when supplied).
+  const nowIso = new Date().toISOString();
+  const bundle = await loadActiveReservationsForKit(resolved, {
+    state: 'held',
+    jobIdFilter: args.jobIdFilter,
+    windowFrom: nowIso,
+    windowTo: nowIso,
+  });
+
+  if (!bundle.parent_reservation_id) {
+    return NextResponse.json(
+      {
+        error:
+          'No held reservation matches the kit parent for the current ' +
+          'window. Apply / reserve the kit first, or pass job_id to ' +
+          'disambiguate.',
+        code: 'no_matching_kit_reservation',
+      },
+      { status: 404 }
+    );
+  }
+
+  // Required-child gate: every required child must have a
+  // matching reservation, otherwise the kit is incomplete.
+  // Optional children without reservations are fine.
+  const reservedChildIds = new Set(
+    bundle.child_reservations.map((r) => r.child_equipment_id)
+  );
+  const missingRequired = resolved.children.filter(
+    (c) => c.is_required && !reservedChildIds.has(c.child_equipment_id)
+  );
+  if (missingRequired.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          'Kit has required children with no held reservation in the ' +
+          'current window. Re-apply the template or split into single-' +
+          'row check-outs.',
+        code: 'missing_required_children',
+        missing: missingRequired.map((c) => ({
+          child_equipment_id: c.child_equipment_id,
+          child_name: c.child_name,
+        })),
+      },
+      { status: 409 }
+    );
+  }
+
+  // 4. Batch UPDATE every reservation in the bundle.
+  const ids = [
+    bundle.parent_reservation_id,
+    ...bundle.child_reservations.map((r) => r.reservation_id),
+  ];
+  const { data: updated, error: updateErr } = await supabaseAdmin
+    .from('equipment_reservations')
+    .update({
+      state: 'checked_out',
+      actual_checked_out_at: nowIso,
+      checked_out_by: args.actorUserId,
+      checked_out_to_user: args.toUser,
+      checked_out_to_vehicle: args.toVehicle,
+      checked_out_condition: args.condition,
+      checked_out_photo_url: args.photoUrl,
+    })
+    .in('id', ids)
+    .eq('state', 'held') // race guard for the whole batch
+    .select(
+      'id, equipment_inventory_id, job_id, reserved_from, reserved_to, ' +
+        'state, actual_checked_out_at, checked_out_by, ' +
+        'checked_out_to_user, checked_out_to_vehicle, ' +
+        'checked_out_condition, checked_out_photo_url, is_override, ' +
+        'override_reason, notes, updated_at'
+    );
+
+  if (updateErr) {
+    console.error(
+      '[admin/equipment/check-out POST kit] update failed',
+      { kit_id: resolved.kit_id, error: updateErr.message }
+    );
+    return NextResponse.json(
+      { error: updateErr.message },
+      { status: 500 }
+    );
+  }
+
+  const flippedRows = updated ?? [];
+  if (flippedRows.length !== ids.length) {
+    // Partial flip — at least one row's state moved between
+    // our read and write. Surface so the dispatcher refetches.
+    return NextResponse.json(
+      {
+        error:
+          `Kit batch was partially blocked — ${flippedRows.length}/${ids.length} ` +
+          'rows flipped to checked_out. Refetch the kit and retry.',
+        code: 'partial_kit_flip',
+        flipped_count: flippedRows.length,
+        expected_count: ids.length,
+      },
+      { status: 409 }
+    );
+  }
+
+  console.log('[admin/equipment/check-out POST kit] ok', {
+    kit_id: resolved.kit_id,
+    parent_equipment_id: resolved.parent_equipment_id,
+    child_count: bundle.child_reservations.length,
+    flipped_count: flippedRows.length,
+    actor_email: args.actorEmail,
+  });
+
+  return NextResponse.json({
+    mode: 'kit',
+    kit: {
+      kit_id: resolved.kit_id,
+      parent_equipment_id: resolved.parent_equipment_id,
+      parent_name: resolved.parent_name,
+    },
+    reservations: flippedRows,
+    previous_state: 'held',
+  });
+}
 
 async function resolveReservation(args: {
   hasQr: boolean;

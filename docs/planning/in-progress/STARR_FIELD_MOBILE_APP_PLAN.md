@@ -4167,12 +4167,39 @@ sub-batches per the small-chunks discipline:
         the route handlers own the audit-trail orchestration.
         Accepts an optional `client` for transaction-aware
         reads.
-  - [ ] **F10.5-e-ii** — wire the resolver into
-        `/check-out` + `/check-in` so a parent-QR scan flips
-        the parent + every child's reservation in one batch
-        with shared audit fields (single condition photo at
-        the kit level; per-child exceptions inline; consumed
-        quantities collected per consumable child).
+  - [◐] **F10.5-e-ii** — wire the resolver into
+        `/check-out` + `/check-in`. Split into two:
+    - [✓] **F10.5-e-ii-α** — `/check-out` kit-mode shipped.
+          Body adds `kit_mode?: boolean` (requires
+          `qr_code_id`; rejects with `reservation_id`
+          400). When true: QR-resolves to the kit parent,
+          calls `resolveKit` (rejects `parent_is_not_a_kit`
+          / `parent_not_found`), refuses if any child is a
+          consumable (`kit_has_consumable_child` 400 — kits
+          in practice hold durables; consumables ride the
+          single-row path until a hybrid kit lands), calls
+          `loadActiveReservationsForKit(state='held',
+          windowFrom=now, windowTo=now)` to find the
+          parent + every matching child reservation,
+          enforces a missing-required-children gate
+          (`missing_required_children` 409 with the
+          incomplete child list so the dispatcher knows
+          what's missing), then issues a single
+          `UPDATE … WHERE id IN (...) AND state='held'`
+          flipping every row to `checked_out` with shared
+          audit fields (one condition photo at the
+          case-exterior level per §5.12.6 spec; per-child
+          exception flagging is v1+ polish). Partial-flip
+          detection via row-count compare returns
+          `partial_kit_flip` 409 so the dispatcher refetches
+          on race. seeds/239's sync trigger refreshes
+          inventory derived columns for every flipped row.
+          Response shape carries `mode: 'kit'` + the kit
+          metadata + every flipped reservation, so callers
+          render uniformly without inspecting the request.
+    - [ ] **F10.5-e-ii-β** — `/check-in` kit-mode (symmetric;
+          flips checked_out → returned across parent +
+          children with shared condition photo).
 - [ ] **F10.5-f** — End-of-day nag cron (6pm + 9pm) +
       [Extend until 8am] / [Mark in transit] notification
       actions + 10pm daily digest.
