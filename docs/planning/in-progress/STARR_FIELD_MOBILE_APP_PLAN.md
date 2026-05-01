@@ -4197,9 +4197,35 @@ sub-batches per the small-chunks discipline:
           Response shape carries `mode: 'kit'` + the kit
           metadata + every flipped reservation, so callers
           render uniformly without inspecting the request.
-    - [ ] **F10.5-e-ii-β** — `/check-in` kit-mode (symmetric;
-          flips checked_out → returned across parent +
-          children with shared condition photo).
+    - [✓] **F10.5-e-ii-β** — `/check-in` kit-mode shipped.
+          Symmetric to α: body adds `kit_mode?: boolean`
+          (requires `qr_code_id`; refuses with
+          `reservation_id` 400). Differences from morning
+          path: retired-instrument gate is INTENTIONALLY
+          absent (a retired unit may have an outstanding
+          checked_out row that needs to come back —
+          single-row spec'd this same way and the kit path
+          mirrors); state filter is `checked_out` (no window
+          bounds since the seeds/239 EXCLUDE guarantees one
+          active row per instrument); `consumed_quantity`
+          is rejected up front in kit-mode (v1 kits hold
+          durables). Same gates: `parent_is_not_a_kit` 400,
+          `kit_has_consumable_child` 400,
+          `no_matching_kit_reservation` 404,
+          `missing_required_children` 409 (when individual
+          children were already returned via single-row
+          check-in but the kit-mode call expected them all
+          checked-out — dispatcher reconciles via
+          single-row). Single condition photo + notes apply
+          uniformly across parent + children;
+          partial-flip detection returns 409 on race.
+          Response shape mirrors α with `mode: 'kit'`
+          discriminator and `previous_state: 'checked_out'`.
+
+      F10.5-e closes out: kit composition resolver shipped
+      and wired into both scan endpoints. The §5.12.1.C
+      one-scan-flips-the-whole-kit promise lives end-to-end
+      for durable kits.
 - [ ] **F10.5-f** — End-of-day nag cron (6pm + 9pm) +
       [Extend until 8am] / [Mark in transit] notification
       actions + 10pm daily digest.
