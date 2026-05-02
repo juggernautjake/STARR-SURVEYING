@@ -35,9 +35,15 @@ executed against):
 - `STARR_CAD_CALCULATION_METHODS.md` (detail for §10)
 - `STARR_CAD_MONUMENT_RECOVERY.md` (detail for §11)
 - `STARR_CAD_AI_WORKSPACE.md` (detail for §12)
+- `STARR_CAD/STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md` (detail for §17.4 —
+  **shipped 2026-04-30**; covers the 5-min Trimble Connect polling
+  loop, OAuth via Trimble Identity, SQLite "seen points" diff, and the
+  event-driven `PointEvent` + handler-decorator architecture so future
+  analysis handlers add without touching the polling code)
 
-Those files do not yet exist. They are created on-demand when the corresponding
-phase begins; this master doc is sufficient until then.
+The other detail files do not yet exist. They are created on-demand
+when the corresponding phase begins; this master doc is sufficient
+until then.
 
 ---
 
@@ -1277,11 +1283,39 @@ Existing detail in `STARR_CAD_PHASE_8_UX_CONTROLS.md`. Deltas:
 
 ### 17.4 Phase 9 — Trimble streaming (post-Phase-8)
 
-Tracked in Jacob's plan §14–§19 (Phase 2). Out of scope for this master
-doc's roadmap, but the architecture is ready: Trimble hot-folder input flows
-into the IR (§8b) like any other ingestion source; live updates are scene
-graph deltas, broadcast via WebSocket; the AI is called on milestone events
-only.
+Operational deep-dive lives in
+`STARR_CAD/STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md`. Highlights:
+
+- **5-minute polling** of Trimble Connect from a Python sidecar service
+  (FastAPI + APScheduler) that authenticates via the standard OAuth
+  Authorization Code flow against Trimble Identity. The TDC600
+  controller's AutoSync uploads the job's CSV export to Connect every 5
+  min + on close-job + on end-survey.
+- **Diff against SQLite** — the office app keeps a "seen points" table
+  keyed by (project_id, job_id) and computes inserts / updates / deletes
+  off the latest CSV. Connect itself doesn't push deltas; it just hosts
+  the latest snapshot.
+- **Event-driven analysis architecture** — a single `new_points_event`
+  primitive that the polling loop fires once per detected delta;
+  handlers (`@new_points_event.subscribe`) run independently. Initial
+  handler set: WebSocket push to the live map, FXL code validation,
+  duplicate detection, auto-linework, traverse-closure check, deed
+  comparison, cert-expires-in-window, end-of-day report. Each handler
+  is one self-contained function that can be added without touching
+  the polling code.
+- **Office UI** — Leaflet map at `/admin/research/live-points` (or
+  similar) renders points as colour-coded markers per feature code +
+  draws polylines as the auto-linework handler fires. WebSocket from
+  the Python sidecar to the Next.js admin web; HTTP-poll fallback.
+- **Stack inheritance** — the Python sidecar reuses §16.2's Python
+  micro-service host. State in SQLite (small data volumes per job).
+
+The architecture is ready: Trimble CSV input flows into the IR (§8b)
+like any other ingestion source; live updates are scene-graph deltas,
+broadcast via WebSocket; the AI is called on milestone events only.
+Detail doc carries the OAuth setup, handler conventions, frontend
+rendering patterns, and a focused-weekend roadmap (Day 1 OAuth → Day 5
+handler suite).
 
 ### 17.5 Dependencies + critical path
 
