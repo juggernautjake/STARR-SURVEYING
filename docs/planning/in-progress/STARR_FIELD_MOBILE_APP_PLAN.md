@@ -5170,11 +5170,36 @@ sub-batches per the small-chunks discipline:
         section run as a follow-up batch since the document
         IDs aren't known until the docs read returns. Auth:
         EQUIPMENT_ROLES (read).
-  - [ ] **F10.7-g-ii** — page UI: header (kind/state/origin
-        badges) + main detail (windows / vendor / cost /
-        notes) + state-transition controls (calls F10.7-c-ii
-        PATCH) + documents list + upload control (calls
-        F10.7-d POST).
+  - [◐] **F10.7-g-ii** — page UI. Split into 4 micro-batches:
+    - [✓] **F10.7-g-ii-α** — read-only detail page shipped
+          at `app/admin/equipment/maintenance/[id]/page.tsx`.
+          Renders the F10.7-g-i detail payload across five
+          card-style sections — Target (equipment + vehicle
+          links + category / item_kind / qr_code), Schedule
+          + actuals (scheduled_for / started_at /
+          completed_at / expected_back_at / next_due_at),
+          Vendor (name / contact / work_order /
+          performed_by / cost / linked_receipt), Notes,
+          Documents (table with kind badge, filename
+          download link to storage_url, size, description,
+          uploader, uploaded_at), Audit
+          (created/updated/event_id). Header carries
+          state/kind/origin badges + QA passed/failed pill
+          + summary line + back-to-calendar link. Two stub
+          buttons next to the header preview the future
+          state-transition + edit-fields flows
+          (F10.7-g-ii-β/-γ); Documents header has a stub
+          Upload button for F10.7-g-ii-δ. Inline-styles per
+          the rest of `/admin/equipment/*`. Auth:
+          `useSession` sign-in gate; the detail endpoint
+          enforces EQUIPMENT_ROLES server-side.
+    - [ ] **F10.7-g-ii-β** — state-transition controls
+          (calls F10.7-c-ii PATCH).
+    - [ ] **F10.7-g-ii-γ** — editable fields with save-to-
+          PATCH integration.
+    - [ ] **F10.7-g-ii-δ** — documents upload modal
+          (signed URL → bucket upload → POST F10.7-d
+          metadata).
 - [ ] **F10.7-h** — Daily 3am cron — recurring schedule
       due-date computation + 60/30/7-day notifications +
       auto-create events.
