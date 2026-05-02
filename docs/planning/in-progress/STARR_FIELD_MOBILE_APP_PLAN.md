@@ -4976,15 +4976,52 @@ discipline.
       Overrides audit (g).
 
 **F10.7 — Maintenance + calibration (Week 38–39).**
-- [ ] `maintenance_events` CRUD + state machine + document
-      upload (§5.12.8).
-- [ ] §5.12.7.4 maintenance calendar (month grid + upcoming
-      list).
-- [ ] Daily 3am cron — recurring schedule due-date
-      computation + 60/30/7-day notifications + auto-create
-      events.
-- [ ] QA gate on calibration completion + `failed_qa` red-row
-      surfacing.
+Closes out the §5.12.8 schema started in F10.5-g-i and lights
+up the recurring-schedule cron + calendar UI. Split into
+sub-batches per the small-chunks discipline:
+- [✓] **F10.7-a** — `seeds/247_starr_field_maintenance_documents_schedules.sql`
+      shipped. Adds the two companion tables to seeds/245's
+      `maintenance_events`:
+      * `maintenance_event_documents` — PDF / photo
+        attachments per event (calibration certs, work
+        orders, parts invoices, before/after photos, QA
+        reports). Storage URL via the §5.6 files-bucket
+        pattern; per-event drilldown index +
+        kind-+-recency index for the §5.12.11.K chain-of-
+        custody sweep across all instruments.
+      * `maintenance_schedules` — recurring rules with
+        XOR target (specific equipment_id OR category;
+        category is the dominant pattern for "every
+        total station gets annual cal"). Carries
+        frequency_months (CHECK > 0), lead_time_days
+        (default 30), `is_hard_block` (drives §5.12.5
+        reservation hard-block when due-date lapses),
+        `auto_create_event` (drives the F10.7-h cron's
+        pre-create vs notify-only behavior). FKs
+        conditional on referenced tables per the
+        seeds/234+236 defensive pattern. updated_at
+        trigger reuses the seeds/245 helper.
+- [ ] **F10.7-b** — `GET /api/admin/maintenance/events`
+      list + filter API (per-equipment, per-state, date
+      window).
+- [ ] **F10.7-c** — `POST /api/admin/maintenance/events`
+      (create) + `PATCH /[id]` (state machine + field
+      updates).
+- [ ] **F10.7-d** — `POST /[id]/documents` upload + GET
+      list endpoints.
+- [ ] **F10.7-e** — `GET /api/admin/maintenance/calendar`
+      aggregator (month grid + upcoming list).
+- [ ] **F10.7-f** — `app/admin/equipment/maintenance/page.tsx`
+      calendar UI + sidebar entry.
+- [ ] **F10.7-g** — Per-event detail page UI with state
+      transitions + document upload.
+- [ ] **F10.7-h** — Daily 3am cron — recurring schedule
+      due-date computation + 60/30/7-day notifications +
+      auto-create events.
+- [ ] **F10.7-i** — Cert-expiring auto-creation cron +
+      §5.12.7.1 Today blue banner integration.
+- [ ] **F10.7-j** — QA gate on calibration completion +
+      `failed_qa` red-row surfacing on the calendar.
 - [ ] Receipt cross-link UI (Attach-receipt picker + Money-tab
       "Is this for equipment maintenance?" prompt).
 - [ ] Per-unit maintenance history page.
