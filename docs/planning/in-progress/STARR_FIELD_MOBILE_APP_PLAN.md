@@ -5126,8 +5126,35 @@ sub-batches per the small-chunks discipline:
       `react/no-unescaped-entities` rule; replaced with
       `&apos;` / `&ldquo;` / `&rdquo;` so the build
       passes. No behavior change.
-- [ ] **F10.7-f** — `app/admin/equipment/maintenance/page.tsx`
-      calendar UI + sidebar entry.
+- [✓] **F10.7-f** — `app/admin/equipment/maintenance/page.tsx`
+      shipped + sidebar entry. Three regions consuming the
+      F10.7-e aggregator in one fetch:
+      * Month grid — 7-column calendar (Sun–Sat). Leading
+        empty pad cells align day-1 to the correct
+        weekday. Each day cell shows the date + up to 3
+        chip links + "+N more" overflow indicator. Chip
+        background colors match the seven seeds/245 states
+        (scheduled blue · in_progress solid Starr blue ·
+        awaiting_parts/vendor amber · complete green ·
+        failed_qa red · cancelled white-dashed). Click any
+        chip routes to the F10.7-g detail page (queued).
+      * Upcoming sidebar — next-30-days open events with
+        per-row deep link, scheduled date, state chip,
+        summary line.
+      * Next-due table — schedule-driven rollup from the
+        aggregator. Past-due rows tint red, in-lead-window
+        rows tint amber. Columns: Equipment (deep link to
+        catalogue), Kind, Frequency (mo), Last completed
+        date or "never", Next due, Days-until.
+      Header: prev/next/this-month navigation + Refresh.
+      Filter bar: equipment_id text input + kind dropdown
+      (passes through to aggregator). Summary bar above
+      the grid surfaces "month_count · open · upcoming ·
+      schedules-in-lead-window" with amber highlight when
+      the lead-window count is non-zero.
+      Sidebar 'Maintenance' link added between Consumables
+      and Catalogue. Inline-styles per the rest of
+      `/admin/equipment/*`.
 - [ ] **F10.7-g** — Per-event detail page UI with state
       transitions + document upload.
 - [ ] **F10.7-h** — Daily 3am cron — recurring schedule
