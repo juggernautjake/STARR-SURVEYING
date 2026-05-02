@@ -5226,8 +5226,27 @@ sub-batches per the small-chunks discipline:
           page + flashes a green action banner. Errors
           surface inline in the modal. Auth: PATCH route
           enforces admin / equipment_manager.
-    - [ ] **F10.7-g-ii-γ** — editable fields with save-to-
-          PATCH integration.
+    - [✓] **F10.7-g-ii-γ** — editable fields with save-to-
+          PATCH integration. Inline edit-mode toggle replaces
+          the read-only Schedule + Vendor + Notes sections
+          with a single EditForm pre-filled from the event row.
+          Editable fields: summary (≤ 200 chars, required),
+          scheduled_for / started_at / completed_at /
+          expected_back_at / next_due_at (datetime-local with
+          a `toLocalInput` ↔ `localToIso` round-trip), vendor
+          name / contact / work-order, cost (USD dollars input
+          → integer cents), linked_receipt_id (UUID), notes,
+          and qa_passed (tristate select: unset / true / false).
+          Save diffs against the original snapshot and PATCHes
+          ONLY the changed fields — the F10.7-c-ii Maybe<T>
+          shape leaves omitted fields untouched, so over-
+          shipping the whole form would silently overwrite
+          concurrent edits. Cancel discards. On success the
+          page refetches + flashes a green banner. Server-
+          side guards (state machine, calibration NIST gate,
+          summary length) propagate inline errors. The Edit
+          button hides on cancelled events (terminal). Auth:
+          PATCH route enforces admin / equipment_manager.
     - [ ] **F10.7-g-ii-δ** — documents upload modal
           (signed URL → bucket upload → POST F10.7-d
           metadata).

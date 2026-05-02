@@ -134,6 +134,27 @@ function formatBytes(bytes: number | null): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+// F10.7-g-ii-γ — datetime-local <input> uses minute-precision
+// "YYYY-MM-DDTHH:mm" in the user's local timezone; the PATCH
+// route expects an ISO timestamp (or null to clear). These two
+// helpers round-trip cleanly and let the change-detector compare
+// "did the user actually edit this field" by string equality on
+// the local form rather than ms-precision ISO drift.
+function toLocalInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localToIso(local: string): string | null {
+  if (!local) return null;
+  const d = new Date(local);
+  if (!Number.isFinite(d.getTime())) return null;
+  return d.toISOString();
+}
+
 export default function MaintenanceEventDetailPage() {
   const { data: session } = useSession();
   const params = useParams<{ id: string }>();
@@ -149,6 +170,11 @@ export default function MaintenanceEventDetailPage() {
     isReopen: boolean;
   } | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+
+  // F10.7-g-ii-γ — edit-mode toggle + save state.
+  const [editMode, setEditMode] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const fetchDetail = useCallback(async () => {
     if (!id) return;
@@ -214,12 +240,30 @@ export default function MaintenanceEventDetailPage() {
               <span style={styles.qaPassedBadge}>QA passed</span>
             ) : null}
           </div>
-          <p style={styles.summaryLine}>{event.summary}</p>
+          {!editMode ? (
+            <p style={styles.summaryLine}>{event.summary}</p>
+          ) : null}
         </div>
         <div style={styles.editStub}>
-          <button type="button" disabled style={styles.disabledBtn}>
-            Edit fields (F10.7-g-ii-γ)
-          </button>
+          {!editMode ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditMode(true);
+                setEditError(null);
+                setActionMsg(null);
+              }}
+              style={styles.editBtn}
+              disabled={event.state === 'cancelled'}
+              title={
+                event.state === 'cancelled'
+                  ? 'Cancelled events are terminal — fields are locked.'
+                  : 'Edit vendor, cost, schedule, and notes'
+              }
+            >
+              ✎ Edit fields
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -284,68 +328,107 @@ export default function MaintenanceEventDetailPage() {
         ) : null}
       </section>
 
-      <section style={styles.section}>
-        <h2 style={styles.h2}>Schedule + actuals</h2>
-        <DetailRow label="Scheduled for">
-          {formatDateTime(event.scheduled_for)}
-        </DetailRow>
-        <DetailRow label="Started at">
-          {formatDateTime(event.started_at)}
-        </DetailRow>
-        <DetailRow label="Completed at">
-          {formatDateTime(event.completed_at)}
-        </DetailRow>
-        <DetailRow label="Expected back at">
-          {formatDateTime(event.expected_back_at)}
-        </DetailRow>
-        <DetailRow label="Next due at">
-          {formatDateTime(event.next_due_at)}
-        </DetailRow>
-      </section>
+      {editMode ? (
+        <EditForm
+          event={event}
+          submitting={editSubmitting}
+          error={editError}
+          onCancel={() => {
+            setEditMode(false);
+            setEditError(null);
+          }}
+          onSave={async (patch) => {
+            setEditSubmitting(true);
+            setEditError(null);
+            const res = await safeFetch<{
+              event?: { id: string };
+              error?: string;
+            }>(`/api/admin/maintenance/events/${id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(patch),
+            });
+            setEditSubmitting(false);
+            if (res?.event) {
+              setEditMode(false);
+              setActionMsg('✓ Fields updated.');
+              void fetchDetail();
+            } else {
+              setEditError(
+                res?.error ??
+                  'Save failed. Check the error log; the form is unchanged.'
+              );
+            }
+          }}
+        />
+      ) : (
+        <>
+          <section style={styles.section}>
+            <h2 style={styles.h2}>Schedule + actuals</h2>
+            <DetailRow label="Scheduled for">
+              {formatDateTime(event.scheduled_for)}
+            </DetailRow>
+            <DetailRow label="Started at">
+              {formatDateTime(event.started_at)}
+            </DetailRow>
+            <DetailRow label="Completed at">
+              {formatDateTime(event.completed_at)}
+            </DetailRow>
+            <DetailRow label="Expected back at">
+              {formatDateTime(event.expected_back_at)}
+            </DetailRow>
+            <DetailRow label="Next due at">
+              {formatDateTime(event.next_due_at)}
+            </DetailRow>
+          </section>
 
-      <section style={styles.section}>
-        <h2 style={styles.h2}>Vendor</h2>
-        <DetailRow label="Vendor name">
-          {event.vendor_name ?? <span style={styles.muted}>—</span>}
-        </DetailRow>
-        <DetailRow label="Vendor contact">
-          {event.vendor_contact ?? <span style={styles.muted}>—</span>}
-        </DetailRow>
-        <DetailRow label="Work order">
-          {event.vendor_work_order ?? (
-            <span style={styles.muted}>—</span>
-          )}
-        </DetailRow>
-        <DetailRow label="Performed by">
-          {event.performed_by_label ?? (
-            <span style={styles.muted}>—</span>
-          )}
-        </DetailRow>
-        <DetailRow label="Cost">
-          {formatCurrency(event.cost_cents)}
-        </DetailRow>
-        <DetailRow label="Linked receipt">
-          {event.linked_receipt_id ? (
-            <Link
-              href={`/admin/receipts/${event.linked_receipt_id}`}
-              style={styles.link}
-            >
-              {event.linked_receipt_id.slice(0, 8)}
-            </Link>
-          ) : (
-            <span style={styles.muted}>—</span>
-          )}
-        </DetailRow>
-      </section>
+          <section style={styles.section}>
+            <h2 style={styles.h2}>Vendor</h2>
+            <DetailRow label="Vendor name">
+              {event.vendor_name ?? <span style={styles.muted}>—</span>}
+            </DetailRow>
+            <DetailRow label="Vendor contact">
+              {event.vendor_contact ?? (
+                <span style={styles.muted}>—</span>
+              )}
+            </DetailRow>
+            <DetailRow label="Work order">
+              {event.vendor_work_order ?? (
+                <span style={styles.muted}>—</span>
+              )}
+            </DetailRow>
+            <DetailRow label="Performed by">
+              {event.performed_by_label ?? (
+                <span style={styles.muted}>—</span>
+              )}
+            </DetailRow>
+            <DetailRow label="Cost">
+              {formatCurrency(event.cost_cents)}
+            </DetailRow>
+            <DetailRow label="Linked receipt">
+              {event.linked_receipt_id ? (
+                <Link
+                  href={`/admin/receipts/${event.linked_receipt_id}`}
+                  style={styles.link}
+                >
+                  {event.linked_receipt_id.slice(0, 8)}
+                </Link>
+              ) : (
+                <span style={styles.muted}>—</span>
+              )}
+            </DetailRow>
+          </section>
 
-      <section style={styles.section}>
-        <h2 style={styles.h2}>Notes</h2>
-        {event.notes ? (
-          <div style={styles.notes}>{event.notes}</div>
-        ) : (
-          <div style={styles.muted}>No notes recorded.</div>
-        )}
-      </section>
+          <section style={styles.section}>
+            <h2 style={styles.h2}>Notes</h2>
+            {event.notes ? (
+              <div style={styles.notes}>{event.notes}</div>
+            ) : (
+              <div style={styles.muted}>No notes recorded.</div>
+            )}
+          </section>
+        </>
+      )}
 
       <section style={styles.section}>
         <header style={styles.docsHeader}>
@@ -774,6 +857,449 @@ function TransitionModal({
   );
 }
 
+// ────────────────────────────────────────────────────────────
+// F10.7-g-ii-γ — editable-fields form
+// ────────────────────────────────────────────────────────────
+//
+// Single-toggle edit mode: parent flips `editMode = true`, this
+// component pre-fills from the event row, the user edits, on
+// Save we diff against the original snapshot and PATCH only the
+// changed fields. The Maybe<T> shape on the PATCH route means
+// omitted fields are left untouched, so over-shipping the entire
+// form would silently overwrite any concurrent edits — the diff
+// check is the cheap insurance.
+
+function EditForm({
+  event,
+  submitting,
+  error,
+  onCancel,
+  onSave,
+}: {
+  event: MaintenanceEvent;
+  submitting: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onSave: (patch: Record<string, unknown>) => void;
+}) {
+  const [summary, setSummary] = useState(event.summary);
+  const [scheduledFor, setScheduledFor] = useState(
+    toLocalInput(event.scheduled_for)
+  );
+  const [startedAt, setStartedAt] = useState(
+    toLocalInput(event.started_at)
+  );
+  const [completedAt, setCompletedAt] = useState(
+    toLocalInput(event.completed_at)
+  );
+  const [expectedBackAt, setExpectedBackAt] = useState(
+    toLocalInput(event.expected_back_at)
+  );
+  const [nextDueAt, setNextDueAt] = useState(
+    toLocalInput(event.next_due_at)
+  );
+  const [vendorName, setVendorName] = useState(event.vendor_name ?? '');
+  const [vendorContact, setVendorContact] = useState(
+    event.vendor_contact ?? ''
+  );
+  const [vendorWorkOrder, setVendorWorkOrder] = useState(
+    event.vendor_work_order ?? ''
+  );
+  const [costDollars, setCostDollars] = useState(
+    event.cost_cents !== null ? (event.cost_cents / 100).toFixed(2) : ''
+  );
+  const [linkedReceiptId, setLinkedReceiptId] = useState(
+    event.linked_receipt_id ?? ''
+  );
+  const [notes, setNotes] = useState(event.notes ?? '');
+  const [qaPassed, setQaPassed] = useState<'unset' | 'true' | 'false'>(
+    event.qa_passed === null
+      ? 'unset'
+      : event.qa_passed
+      ? 'true'
+      : 'false'
+  );
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  function diffDate(
+    field: string,
+    localStr: string,
+    originalIso: string | null,
+    patch: Record<string, unknown>
+  ) {
+    if (localStr === toLocalInput(originalIso)) return;
+    patch[field] = localToIso(localStr);
+  }
+
+  function diffString(
+    field: string,
+    value: string,
+    original: string | null,
+    patch: Record<string, unknown>
+  ) {
+    const trimmed = value.trim();
+    const normalized = trimmed.length > 0 ? trimmed : null;
+    if (normalized !== (original ?? null)) {
+      patch[field] = normalized;
+    }
+  }
+
+  function handleSave() {
+    setLocalError(null);
+    const patch: Record<string, unknown> = {};
+
+    // Summary — required, non-empty, ≤ 200 chars (server enforces too).
+    const trimmedSummary = summary.trim();
+    if (trimmedSummary.length === 0) {
+      setLocalError('Summary is required and cannot be empty.');
+      return;
+    }
+    if (trimmedSummary.length > 200) {
+      setLocalError(
+        `Summary must be ≤ 200 characters (currently ${trimmedSummary.length}).`
+      );
+      return;
+    }
+    if (trimmedSummary !== event.summary) {
+      patch.summary = trimmedSummary;
+    }
+
+    diffDate('scheduled_for', scheduledFor, event.scheduled_for, patch);
+    diffDate('started_at', startedAt, event.started_at, patch);
+    diffDate('completed_at', completedAt, event.completed_at, patch);
+    diffDate(
+      'expected_back_at',
+      expectedBackAt,
+      event.expected_back_at,
+      patch
+    );
+    diffDate('next_due_at', nextDueAt, event.next_due_at, patch);
+
+    diffString('vendor_name', vendorName, event.vendor_name, patch);
+    diffString('vendor_contact', vendorContact, event.vendor_contact, patch);
+    diffString(
+      'vendor_work_order',
+      vendorWorkOrder,
+      event.vendor_work_order,
+      patch
+    );
+    diffString('notes', notes, event.notes, patch);
+
+    // Linked receipt: UUID or empty (server validates UUID).
+    const trimmedReceipt = linkedReceiptId.trim();
+    const normalizedReceipt =
+      trimmedReceipt.length > 0 ? trimmedReceipt : null;
+    if (normalizedReceipt !== (event.linked_receipt_id ?? null)) {
+      patch.linked_receipt_id = normalizedReceipt;
+    }
+
+    // Cost: dollars input → cents integer (or null to clear).
+    const trimmedCost = costDollars.trim();
+    if (trimmedCost === '') {
+      if (event.cost_cents !== null) patch.cost_cents = null;
+    } else {
+      const dollars = Number.parseFloat(trimmedCost);
+      if (!Number.isFinite(dollars) || dollars < 0) {
+        setLocalError(
+          'Cost must be a non-negative dollar amount (e.g. 125.00).'
+        );
+        return;
+      }
+      const cents = Math.round(dollars * 100);
+      if (cents !== event.cost_cents) patch.cost_cents = cents;
+    }
+
+    // qa_passed tristate.
+    const qaValue =
+      qaPassed === 'unset' ? null : qaPassed === 'true' ? true : false;
+    if (qaValue !== event.qa_passed) patch.qa_passed = qaValue;
+
+    if (Object.keys(patch).length === 0) {
+      onCancel();
+      return;
+    }
+
+    onSave(patch);
+  }
+
+  return (
+    <section style={styles.section}>
+      <header style={editStyles.header}>
+        <h2 style={styles.h2}>Edit fields</h2>
+        <span style={editStyles.hint}>
+          Only changed fields are sent on save.
+        </span>
+      </header>
+
+      <label style={editStyles.field}>
+        <span style={editStyles.label}>Summary *</span>
+        <input
+          type="text"
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+          maxLength={200}
+          style={editStyles.input}
+          disabled={submitting}
+        />
+        <span style={editStyles.hint}>
+          {summary.trim().length}/200 chars · required.
+        </span>
+      </label>
+
+      <div style={editStyles.gridTwo}>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Scheduled for</span>
+          <input
+            type="datetime-local"
+            value={scheduledFor}
+            onChange={(e) => setScheduledFor(e.target.value)}
+            style={editStyles.input}
+            disabled={submitting}
+          />
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Expected back at</span>
+          <input
+            type="datetime-local"
+            value={expectedBackAt}
+            onChange={(e) => setExpectedBackAt(e.target.value)}
+            style={editStyles.input}
+            disabled={submitting}
+          />
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Started at</span>
+          <input
+            type="datetime-local"
+            value={startedAt}
+            onChange={(e) => setStartedAt(e.target.value)}
+            style={editStyles.input}
+            disabled={submitting}
+          />
+          <span style={editStyles.hint}>
+            Auto-stamped on transition to in_progress; override only
+            when correcting backlog data.
+          </span>
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Completed at</span>
+          <input
+            type="datetime-local"
+            value={completedAt}
+            onChange={(e) => setCompletedAt(e.target.value)}
+            style={editStyles.input}
+            disabled={submitting}
+          />
+          <span style={editStyles.hint}>
+            Auto-stamped on transition to complete.
+          </span>
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Next due at</span>
+          <input
+            type="datetime-local"
+            value={nextDueAt}
+            onChange={(e) => setNextDueAt(e.target.value)}
+            style={editStyles.input}
+            disabled={submitting}
+          />
+          <span style={editStyles.hint}>
+            Drives the F10.7-h recurring-schedule projection.
+          </span>
+        </label>
+      </div>
+
+      <h3 style={editStyles.subhead}>Vendor</h3>
+      <div style={editStyles.gridTwo}>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Vendor name</span>
+          <input
+            type="text"
+            value={vendorName}
+            onChange={(e) => setVendorName(e.target.value)}
+            placeholder="e.g. Trimble Service Houston"
+            style={editStyles.input}
+            disabled={submitting}
+          />
+          {event.kind === 'calibration' ? (
+            <span style={editStyles.hint}>
+              ▸ Required on calibration completion (NIST traceability).
+            </span>
+          ) : null}
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Vendor contact</span>
+          <input
+            type="text"
+            value={vendorContact}
+            onChange={(e) => setVendorContact(e.target.value)}
+            placeholder="phone or email"
+            style={editStyles.input}
+            disabled={submitting}
+          />
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Work order #</span>
+          <input
+            type="text"
+            value={vendorWorkOrder}
+            onChange={(e) => setVendorWorkOrder(e.target.value)}
+            placeholder="e.g. WO-2026-1234"
+            style={editStyles.input}
+            disabled={submitting}
+          />
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Cost (USD)</span>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={costDollars}
+            onChange={(e) => setCostDollars(e.target.value)}
+            placeholder="0.00"
+            style={editStyles.input}
+            disabled={submitting}
+          />
+          <span style={editStyles.hint}>
+            Stored as integer cents. Leave blank to clear.
+          </span>
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Linked receipt id (UUID)</span>
+          <input
+            type="text"
+            value={linkedReceiptId}
+            onChange={(e) => setLinkedReceiptId(e.target.value)}
+            placeholder="optional — e.g. 9c7d…"
+            style={editStyles.input}
+            disabled={submitting}
+          />
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>QA passed</span>
+          <select
+            value={qaPassed}
+            onChange={(e) =>
+              setQaPassed(e.target.value as 'unset' | 'true' | 'false')
+            }
+            style={editStyles.input}
+            disabled={submitting}
+          >
+            <option value="unset">— not yet checked —</option>
+            <option value="true">Yes — QA passed</option>
+            <option value="false">No — QA failed</option>
+          </select>
+          <span style={editStyles.hint}>
+            Setting to false on a complete event auto-routes to
+            failed_qa per §5.12.8.
+          </span>
+        </label>
+      </div>
+
+      <h3 style={editStyles.subhead}>Notes</h3>
+      <label style={editStyles.field}>
+        <span style={editStyles.label}>Notes</span>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          style={{ ...editStyles.input, minHeight: 90, resize: 'vertical' }}
+          placeholder="Free-form notes — preserved in the audit log."
+          disabled={submitting}
+        />
+      </label>
+
+      {localError ? (
+        <div style={editStyles.error}>⚠ {localError}</div>
+      ) : null}
+      {error ? <div style={editStyles.error}>⚠ {error}</div> : null}
+
+      <footer style={editStyles.footer}>
+        <button
+          type="button"
+          style={transitionStyles.secondaryBtn}
+          onClick={onCancel}
+          disabled={submitting}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          style={transitionStyles.primaryBtn}
+          onClick={handleSave}
+          disabled={submitting}
+        >
+          {submitting ? 'Saving…' : 'Save changes'}
+        </button>
+      </footer>
+    </section>
+  );
+}
+
+const editStyles: Record<string, React.CSSProperties> = {
+  header: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
+  hint: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontStyle: 'italic' as const,
+  },
+  subhead: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#6B7280',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.04em',
+    margin: '20px 0 10px',
+  },
+  field: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 4,
+    marginBottom: 12,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#374151',
+  },
+  input: {
+    padding: '8px 10px',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: 'inherit',
+    background: '#FFFFFF',
+  },
+  gridTwo: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+    gap: 14,
+  },
+  error: {
+    background: '#FEF2F2',
+    border: '1px solid #FCA5A5',
+    color: '#B91C1C',
+    padding: 10,
+    borderRadius: 6,
+    fontSize: 12,
+    margin: '12px 0',
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 16,
+    paddingTop: 14,
+    borderTop: '1px solid #E2E5EB',
+  },
+};
+
 function transitionButtonStyle(target: string): React.CSSProperties {
   const base: React.CSSProperties = {
     padding: '6px 12px',
@@ -1052,6 +1578,16 @@ const styles: Record<string, React.CSSProperties> = {
     fontStyle: 'italic' as const,
   },
   editStub: { display: 'flex', flexDirection: 'column' as const, gap: 6 },
+  editBtn: {
+    padding: '8px 14px',
+    border: '1px solid #1D3095',
+    background: '#FFFFFF',
+    color: '#1D3095',
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
   disabledBtn: {
     padding: '6px 12px',
     border: '1px dashed #E2E5EB',
