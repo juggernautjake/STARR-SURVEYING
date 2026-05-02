@@ -5126,10 +5126,111 @@ sub-batches per the small-chunks discipline:
       `react/no-unescaped-entities` rule; replaced with
       `&apos;` / `&ldquo;` / `&rdquo;` so the build
       passes. No behavior change.
-- [ ] **F10.7-f** — `app/admin/equipment/maintenance/page.tsx`
-      calendar UI + sidebar entry.
-- [ ] **F10.7-g** — Per-event detail page UI with state
-      transitions + document upload.
+- [✓] **F10.7-f** — `app/admin/equipment/maintenance/page.tsx`
+      shipped + sidebar entry. Three regions consuming the
+      F10.7-e aggregator in one fetch:
+      * Month grid — 7-column calendar (Sun–Sat). Leading
+        empty pad cells align day-1 to the correct
+        weekday. Each day cell shows the date + up to 3
+        chip links + "+N more" overflow indicator. Chip
+        background colors match the seven seeds/245 states
+        (scheduled blue · in_progress solid Starr blue ·
+        awaiting_parts/vendor amber · complete green ·
+        failed_qa red · cancelled white-dashed). Click any
+        chip routes to the F10.7-g detail page (queued).
+      * Upcoming sidebar — next-30-days open events with
+        per-row deep link, scheduled date, state chip,
+        summary line.
+      * Next-due table — schedule-driven rollup from the
+        aggregator. Past-due rows tint red, in-lead-window
+        rows tint amber. Columns: Equipment (deep link to
+        catalogue), Kind, Frequency (mo), Last completed
+        date or "never", Next due, Days-until.
+      Header: prev/next/this-month navigation + Refresh.
+      Filter bar: equipment_id text input + kind dropdown
+      (passes through to aggregator). Summary bar above
+      the grid surfaces "month_count · open · upcoming ·
+      schedules-in-lead-window" with amber highlight when
+      the lead-window count is non-zero.
+      Sidebar 'Maintenance' link added between Consumables
+      and Catalogue. Inline-styles per the rest of
+      `/admin/equipment/*`.
+- [◐] **F10.7-g** — Per-event detail page UI. Split:
+  - [✓] **F10.7-g-i** — `GET /api/admin/maintenance/events/
+        [id]` shipped (added to the same route file as the
+        existing F10.7-c-ii PATCH). Returns the full event row
+        + joined display fields (equipment + vehicle minimal
+        rows; actor labels for `created_by` and
+        `performed_by_user_id`) + `maintenance_event_documents`
+        list with uploader labels resolved server-side. The 4
+        round-trips (event read · equipment / vehicle / actor
+        lookup · documents read) run in parallel via
+        `Promise.all` so the page hydrates in one slow read,
+        not four. Uploader display lookups for the documents
+        section run as a follow-up batch since the document
+        IDs aren't known until the docs read returns. Auth:
+        EQUIPMENT_ROLES (read).
+  - [◐] **F10.7-g-ii** — page UI. Split into 4 micro-batches:
+    - [✓] **F10.7-g-ii-α** — read-only detail page shipped
+          at `app/admin/equipment/maintenance/[id]/page.tsx`.
+          Renders the F10.7-g-i detail payload across five
+          card-style sections — Target (equipment + vehicle
+          links + category / item_kind / qr_code), Schedule
+          + actuals (scheduled_for / started_at /
+          completed_at / expected_back_at / next_due_at),
+          Vendor (name / contact / work_order /
+          performed_by / cost / linked_receipt), Notes,
+          Documents (table with kind badge, filename
+          download link to storage_url, size, description,
+          uploader, uploaded_at), Audit
+          (created/updated/event_id). Header carries
+          state/kind/origin badges + QA passed/failed pill
+          + summary line + back-to-calendar link. Two stub
+          buttons next to the header preview the future
+          state-transition + edit-fields flows
+          (F10.7-g-ii-β/-γ); Documents header has a stub
+          Upload button for F10.7-g-ii-δ. Inline-styles per
+          the rest of `/admin/equipment/*`. Auth:
+          `useSession` sign-in gate; the detail endpoint
+          enforces EQUIPMENT_ROLES server-side.
+    - [✓] **F10.7-g-ii-β** — state-transition controls
+          shipped on the detail page. New "Transition state"
+          section above the read-only body renders a
+          `TransitionBar` button row with one button per
+          allowed next-state per the F10.7-c-ii adjacency
+          table (kept in sync via the page-side
+          `ADJACENCY` constant). Cancel + failed_qa buttons
+          tint red; complete tints green; the rest are
+          neutral. Cancelled state shows "Terminal — no
+          transitions"; complete state shows a single
+          "↺ Re-open" button that PATCHes with `state=
+          in_progress` + `reopen=true` (the route clears
+          completed_at + qa_passed automatically). Click
+          any button opens `TransitionModal` — confirm
+          dialog with state-specific copy + conditional
+          fields:
+          * Calibration → complete + no vendor_name yet
+            → required vendor_name input (NIST traceability
+            gate from §5.12.8). The PATCH route's
+            `calibration_requires_vendor` 400 is the
+            server-side fence; the modal pre-flights it.
+          * Calibration → complete + performed_by_user_id
+            still set → "Clear performed_by" checkbox
+            (default checked) so the
+            `calibration_excludes_performed_by` 400 doesn't
+            surprise the EM.
+          * Cancelled / failed_qa → optional notes field
+            for the audit trail.
+          Submit posts JSON to F10.7-c-ii PATCH with the
+          right body shape; success refetches the detail
+          page + flashes a green action banner. Errors
+          surface inline in the modal. Auth: PATCH route
+          enforces admin / equipment_manager.
+    - [ ] **F10.7-g-ii-γ** — editable fields with save-to-
+          PATCH integration.
+    - [ ] **F10.7-g-ii-δ** — documents upload modal
+          (signed URL → bucket upload → POST F10.7-d
+          metadata).
 - [ ] **F10.7-h** — Daily 3am cron — recurring schedule
       due-date computation + 60/30/7-day notifications +
       auto-create events.
