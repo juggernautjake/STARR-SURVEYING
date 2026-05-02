@@ -161,10 +161,11 @@ export const GET = withErrorHandler(
       );
     }
 
-    // Two parallel queries: the row + the assignment history.
-    // Photo signed URL kicks off after the row read so we don't
-    // hit storage for a row that doesn't exist.
-    const [rowRes, historyRes] = await Promise.all([
+    // Three parallel queries: the row + the assignment history +
+    // F10.7 maintenance history. Photo signed URL kicks off after
+    // the row read so we don't hit storage for a row that doesn't
+    // exist.
+    const [rowRes, historyRes, maintenanceRes] = await Promise.all([
       supabaseAdmin
         .from('equipment_inventory')
         .select(SELECT_COLUMNS)
@@ -179,6 +180,19 @@ export const GET = withErrorHandler(
         )
         .eq('equipment_inventory_id', id)
         .order('checked_out_at', {
+          ascending: false,
+          nullsFirst: false,
+        })
+        .limit(50),
+      supabaseAdmin
+        .from('maintenance_events')
+        .select(
+          'id, kind, origin, state, scheduled_for, started_at, ' +
+            'completed_at, vendor_name, cost_cents, qa_passed, ' +
+            'next_due_at, summary'
+        )
+        .eq('equipment_inventory_id', id)
+        .order('scheduled_for', {
           ascending: false,
           nullsFirst: false,
         })
@@ -220,6 +234,15 @@ export const GET = withErrorHandler(
         { id, error: historyRes.error.message }
       );
     }
+    const maintenance = maintenanceRes.error
+      ? []
+      : maintenanceRes.data ?? [];
+    if (maintenanceRes.error) {
+      console.warn(
+        '[admin/equipment/:id] maintenance history read failed',
+        { id, error: maintenanceRes.error.message }
+      );
+    }
 
     return NextResponse.json({
       item: rowRes.data,
@@ -227,6 +250,9 @@ export const GET = withErrorHandler(
       assignment_history: history,
       assignment_history_error:
         historyRes.error?.message ?? null,
+      maintenance_history: maintenance,
+      maintenance_history_error:
+        maintenanceRes.error?.message ?? null,
     });
   },
   { routeName: 'admin/equipment/:id#get' }

@@ -82,11 +82,28 @@ interface AssignmentRow {
   jobs: JobLite | JobLite[] | null;
 }
 
+interface MaintenanceHistoryRow {
+  id: string;
+  kind: string;
+  origin: string;
+  state: string;
+  scheduled_for: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  vendor_name: string | null;
+  cost_cents: number | null;
+  qa_passed: boolean | null;
+  next_due_at: string | null;
+  summary: string;
+}
+
 interface DrilldownResponse {
   item: EquipmentRow;
   photo_signed_url: string | null;
   assignment_history: AssignmentRow[];
   assignment_history_error: string | null;
+  maintenance_history: MaintenanceHistoryRow[];
+  maintenance_history_error: string | null;
 }
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
@@ -445,6 +462,92 @@ export default function EquipmentDrilldownPage() {
         )}
       </Section>
 
+      <Section title="Maintenance history">
+        <p style={styles.sectionSub}>
+          Last 50 maintenance + calibration events for this unit.
+          Click a row to open the detail page.
+        </p>
+        {data.maintenance_history_error ? (
+          <div style={styles.warnBanner}>
+            ⚠ Couldn&apos;t load full history: {data.maintenance_history_error}
+          </div>
+        ) : null}
+        {data.maintenance_history.length === 0 ? (
+          <div style={styles.empty}>
+            No maintenance events recorded yet for this unit.
+          </div>
+        ) : (
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>State</th>
+                <th style={styles.th}>Kind</th>
+                <th style={styles.th}>Scheduled</th>
+                <th style={styles.th}>Completed</th>
+                <th style={styles.th}>Vendor</th>
+                <th style={styles.th}>Cost</th>
+                <th style={styles.th}>Summary</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.maintenance_history.map((m) => (
+                <tr
+                  key={m.id}
+                  style={
+                    m.state === 'failed_qa'
+                      ? maintRowStyles.failedRow
+                      : undefined
+                  }
+                >
+                  <td style={styles.td}>
+                    <Link
+                      href={`/admin/equipment/maintenance/${m.id}`}
+                      style={styles.link}
+                    >
+                      <span style={maintStatePill(m.state)}>
+                        {m.state.replace(/_/g, ' ')}
+                      </span>
+                    </Link>
+                  </td>
+                  <td style={styles.td}>
+                    <span style={maintRowStyles.kindChip}>{m.kind}</span>
+                    {m.qa_passed === false ? (
+                      <span style={maintRowStyles.qaFailedBadge}>
+                        QA fail
+                      </span>
+                    ) : null}
+                  </td>
+                  <td style={styles.td}>
+                    {formatDateTime(m.scheduled_for)}
+                  </td>
+                  <td style={styles.td}>
+                    {formatDateTime(m.completed_at)}
+                  </td>
+                  <td style={styles.td}>
+                    {m.vendor_name ?? <span style={styles.muted}>—</span>}
+                  </td>
+                  <td style={styles.td}>
+                    {m.cost_cents !== null ? (
+                      `$${(m.cost_cents / 100).toFixed(2)}`
+                    ) : (
+                      <span style={styles.muted}>—</span>
+                    )}
+                  </td>
+                  <td style={styles.td}>
+                    <Link
+                      href={`/admin/equipment/maintenance/${m.id}`}
+                      style={styles.link}
+                    >
+                      {m.summary}
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Section>
+
       {row.notes ? (
         <Section title="Notes">
           <p style={styles.notesBlock}>{row.notes}</p>
@@ -503,6 +606,59 @@ function Section({
     </section>
   );
 }
+
+// F10.7 tail — per-unit maintenance history styling.
+function maintStatePill(state: string): React.CSSProperties {
+  const map: Record<string, React.CSSProperties> = {
+    scheduled: { background: '#DBEAFE', color: '#1E3A8A' },
+    in_progress: { background: '#1D3095', color: '#FFFFFF' },
+    awaiting_parts: { background: '#FEF3C7', color: '#78350F' },
+    awaiting_vendor: { background: '#FEF3C7', color: '#78350F' },
+    complete: { background: '#DCFCE7', color: '#166534' },
+    failed_qa: { background: '#FEE2E2', color: '#7F1D1D' },
+    cancelled: {
+      background: '#F3F4F6',
+      color: '#6B7280',
+      border: '1px dashed #D1D5DB',
+    },
+  };
+  return {
+    display: 'inline-block',
+    padding: '2px 8px',
+    borderRadius: 4,
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.04em',
+    ...(map[state] ?? { background: '#F3F4F6', color: '#374151' }),
+  };
+}
+
+const maintRowStyles: Record<string, React.CSSProperties> = {
+  failedRow: {
+    background: 'rgba(254, 226, 226, 0.4)',
+    borderLeft: '3px solid #B91C1C',
+  },
+  kindChip: {
+    display: 'inline-block',
+    background: '#F3F4F6',
+    padding: '1px 8px',
+    borderRadius: 4,
+    fontSize: 11,
+    color: '#374151',
+    textTransform: 'capitalize' as const,
+    marginRight: 6,
+  },
+  qaFailedBadge: {
+    display: 'inline-block',
+    background: '#FEE2E2',
+    color: '#7F1D1D',
+    padding: '1px 6px',
+    borderRadius: 4,
+    fontSize: 10,
+    fontWeight: 600,
+  },
+};
 
 const styles: Record<string, React.CSSProperties> = {
   wrap: { padding: '24px', maxWidth: 1100, margin: '0 auto' },

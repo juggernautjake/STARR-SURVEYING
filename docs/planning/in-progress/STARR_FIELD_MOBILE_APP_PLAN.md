@@ -5422,7 +5422,24 @@ sub-batches per the small-chunks discipline:
           overflow hint when needed.
 - [ ] Receipt cross-link UI (Attach-receipt picker + Money-tab
       "Is this for equipment maintenance?" prompt).
-- [ ] Per-unit maintenance history page.
+- [✓] Per-unit maintenance history page. Equipment drilldown
+      (`/admin/equipment/[id]`) gains a "Maintenance history"
+      Section between Assignment history and Notes. Server
+      side: extended the F10.1 drilldown GET aggregator with a
+      third parallel query — last 50 `maintenance_events` for
+      this `equipment_inventory_id`, sorted by `scheduled_for`
+      DESC nulls last, includes kind / origin / state /
+      scheduled_for / completed_at / vendor_name / cost_cents
+      / qa_passed / next_due_at / summary. Best-effort: read
+      errors degrade to an empty array + warning banner. UI
+      side: a 7-column table (state pill linking to detail /
+      kind chip + QA-fail badge / scheduled / completed /
+      vendor / cost in dollars / summary). State pills mirror
+      the calendar's color scheme so a unit with a recent
+      `failed_qa` event jumps out. Failed-QA rows get a
+      red-tinted background + 3px left border for extra
+      prominence. Click anywhere row → detail page (where the
+      EM can re-open or document upload).
 
 **F10.8 — Mobile UX polish (Week 39).**
 - [ ] Pre-job loadout preview card on mobile job detail
