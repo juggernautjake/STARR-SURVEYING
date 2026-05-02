@@ -4823,9 +4823,30 @@ discipline.
         the page header shows "12 confirmed · 3 PTO · 1
         overdue" without client-side reduce. Auth:
         EQUIPMENT_ROLES.
-  - [ ] **F10.6-e-ii** — `app/admin/personnel/crew-calendar/page.tsx`
-        — week-grid heatmap UI consuming the aggregator
-        + sidebar entry.
+  - [✓] **F10.6-e-ii** — `app/admin/personnel/crew-calendar/page.tsx`
+        + sidebar entry shipped. Week-grid table: 200px
+        sticky-left user column + 7 day columns. Each cell
+        colored per the F10.6-e-i state cascade —
+        `confirmed` solid Starr green, `proposed` light
+        green, `split_shift` amber with "N×" tag,
+        `unavailable` grey with "PTO" tag,
+        `unconfirmed_overdue` red with "!" tag, `open`
+        white. Header carries Prev/Next-week navigation
+        + "This week" jumper + Refresh; the F10.6-e-i
+        aggregator handles the date math so the page
+        stays presentation-only. Summary bar at top with
+        per-state counts as a colored-swatch legend so
+        the EM scans "12 confirmed · 1 overdue" without
+        eyeballing the grid. User column shows display
+        name + email; cell tooltips give "<email> ·
+        <day> · <state>" for the full audit context
+        until the F10.6-e-iii drilldown drawer ships.
+        Sidebar 'Crew calendar' link added between
+        Timeline and Consumables. Path lives under
+        `/admin/personnel/` rather than
+        `/admin/equipment/` since it's a personnel-side
+        view, but the sidebar groups it with Equipment
+        per §5.12.7 (the EM owns crew capacity).
   - [ ] **F10.6-e-iii** — Cell drilldown drawer.
   - [ ] **F10.6-e-iv** — Drag-create new unavailability /
         assignment (defer if scope grows).
