@@ -5020,9 +5020,31 @@ sub-batches per the small-chunks discipline:
       so the page header surfaces "12 open · 3 cal · 2
       repair" without client-side reduce. Auth:
       EQUIPMENT_ROLES.
-- [ ] **F10.7-c** — `POST /api/admin/maintenance/events`
-      (create) + `PATCH /[id]` (state machine + field
-      updates).
+- [◐] **F10.7-c** — `POST` + `PATCH` maintenance event CRUD
+      + state machine. Split:
+  - [✓] **F10.7-c-i** — `POST /api/admin/maintenance/events`
+        shipped. Manual-create endpoint for EM-initiated rows
+        (the F10.5-g damage/lost triage path inserts directly
+        via the helper; the F10.7-h recurring-schedule cron
+        will also POST here with origin='recurring_schedule').
+        Body validates: XOR `equipment_inventory_id` /
+        `vehicle_id` (pre-checked for cleaner error than the
+        seeds/245 CHECK), required `kind` + `summary` (≤ 200),
+        optional `origin` (default 'manual'), `state` (default
+        'scheduled'), `scheduled_for`, `expected_back_at`,
+        `vendor_name` / `_contact` / `_work_order`,
+        `performed_by_user_id`, `cost_cents`, `linked_receipt_id`,
+        `notes`. All enums gated against the seeds/245 CHECK
+        sets. Stamps `created_by` from the session. Per-field
+        validation extracted into reusable
+        `parseOptional{Iso,Uuid,Int,String}` helpers so future
+        endpoints (PATCH next) inherit the same cleanup style.
+        Auth: admin / developer / equipment_manager (mutating).
+  - [ ] **F10.7-c-ii** — `PATCH /[id]` for state transitions
+        + field updates (vendor info, costs, started_at,
+        completed_at, qa_passed). State machine guard refuses
+        illegal transitions (complete → in_progress without
+        explicit reopen).
 - [ ] **F10.7-d** — `POST /[id]/documents` upload + GET
       list endpoints.
 - [ ] **F10.7-e** — `GET /api/admin/maintenance/calendar`

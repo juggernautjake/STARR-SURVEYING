@@ -1,28 +1,19 @@
 // app/api/admin/maintenance/events/route.ts
 //
-// GET /api/admin/maintenance/events
-//   ?equipment_id=&vehicle_id=&state=&kind=&origin=
-//    &since=YYYY-MM-DD&until=YYYY-MM-DD&open_only=1&limit=N
+// GET  /api/admin/maintenance/events  (F10.7-b — list + filter)
+// POST /api/admin/maintenance/events  (F10.7-c-i — create)
 //
-// Phase F10.7-b — list + filter the §5.12.8 maintenance_events
-// table. Per-equipment, per-vehicle, per-state, per-kind, per-
-// origin, date window. Open-state filter convenience flag for
-// the EM dashboard's "what's currently in shop?" view.
+// Read-only list endpoint + manual-create POST for the §5.12.8
+// maintenance_events table. Powers the F10.7-f calendar feed +
+// F10.7-g per-equipment service-history view + the §5.12.7.4
+// 'open work' panel. Manual create lands rows EM-initiated (the
+// F10.5-g damage/lost triage path inserts directly via the
+// triggerDamageTriage / triggerLostTriage helpers; the F10.7-h
+// recurring-schedule cron uses this same POST handler with
+// origin='recurring_schedule').
 //
-// Joins equipment_inventory.name + vehicles.name + actor display
-// fields so the F10.7-f calendar UI + F10.7-g detail page render
-// without per-row roundtrips.
-//
-// Returns:
-//   {
-//     events: MaintenanceEventRow[],
-//     summary: {
-//       total, open_count, by_state, by_kind, by_origin,
-//       truncated
-//     }
-//   }
-//
-// Auth: EQUIPMENT_ROLES.
+// Auth: EQUIPMENT_ROLES (read); admin / developer /
+// equipment_manager (write).
 
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -324,3 +315,327 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     },
   });
 }, { routeName: 'admin/maintenance/events#get' });
+
+// ──────────────────────────────────────────────────────────────
+// POST — F10.7-c-i: manual create
+// ──────────────────────────────────────────────────────────────
+//
+// Body:
+//   {
+//     equipment_inventory_id?: UUID,    // XOR with vehicle_id
+//     vehicle_id?: UUID,
+//     kind: enum,                       // required
+//     origin?: enum,                    // default 'manual'
+//     state?: enum,                     // default 'scheduled'
+//     scheduled_for?: ISO,
+//     expected_back_at?: ISO,
+//     vendor_name?: string,
+//     vendor_contact?: string,
+//     vendor_work_order?: string,
+//     performed_by_user_id?: UUID,
+//     cost_cents?: integer,             // total parts + labour
+//     linked_receipt_id?: UUID,
+//     summary: string,                  // required (≤ 200 chars)
+//     notes?: string,
+//   }
+//
+// XOR target: exactly one of equipment_inventory_id / vehicle_id
+// must be present. The seeds/245 CHECK enforces; we pre-validate
+// for cleaner error messages.
+//
+// performed_by + vendor_name CAN coexist (e.g., in-shop rebuild
+// using a vendor part). The §5.12.8 spec's "calibration requires
+// a third party" gate is enforced at the F10.7-c-ii PATCH level
+// when the EM completes a calibration event — keeps create
+// permissive so manual entry doesn't fight the EM.
+//
+// Returns: the created row.
+
+export const POST = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const userRoles = (session.user as { roles?: string[] } | undefined)
+    ?.roles ?? [];
+  if (
+    !isAdmin(session.user.roles) &&
+    !userRoles.includes('equipment_manager')
+  ) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  const actorUserId =
+    (session.user as { id?: string } | undefined)?.id ?? null;
+
+  const body = (await req.json().catch(() => null)) as Record<
+    string,
+    unknown
+  > | null;
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json(
+      { error: 'Body must be a JSON object.' },
+      { status: 400 }
+    );
+  }
+
+  // ── XOR target ──────────────────────────────────────────────
+  const equipmentId =
+    typeof body.equipment_inventory_id === 'string'
+      ? body.equipment_inventory_id.trim()
+      : '';
+  const vehicleId =
+    typeof body.vehicle_id === 'string' ? body.vehicle_id.trim() : '';
+  const hasEq = equipmentId.length > 0;
+  const hasVeh = vehicleId.length > 0;
+  if (hasEq === hasVeh) {
+    return NextResponse.json(
+      {
+        error:
+          'Provide exactly one of `equipment_inventory_id` or ' +
+          '`vehicle_id`.',
+      },
+      { status: 400 }
+    );
+  }
+  if (hasEq && !UUID_RE.test(equipmentId)) {
+    return NextResponse.json(
+      { error: '`equipment_inventory_id` must be a valid UUID.' },
+      { status: 400 }
+    );
+  }
+  if (hasVeh && !UUID_RE.test(vehicleId)) {
+    return NextResponse.json(
+      { error: '`vehicle_id` must be a valid UUID.' },
+      { status: 400 }
+    );
+  }
+
+  // ── Required + enum-gated fields ───────────────────────────
+  const kind = typeof body.kind === 'string' ? body.kind.trim() : '';
+  if (!ALLOWED_KINDS.has(kind)) {
+    return NextResponse.json(
+      {
+        error:
+          '`kind` is required and must be one of: ' +
+          Array.from(ALLOWED_KINDS).join(', '),
+      },
+      { status: 400 }
+    );
+  }
+
+  let origin = 'manual';
+  if (body.origin !== undefined && body.origin !== null) {
+    if (typeof body.origin !== 'string' || !ALLOWED_ORIGINS.has(body.origin)) {
+      return NextResponse.json(
+        {
+          error: `\`origin\` must be one of: ${Array.from(ALLOWED_ORIGINS).join(', ')}.`,
+        },
+        { status: 400 }
+      );
+    }
+    origin = body.origin;
+  }
+
+  let state = 'scheduled';
+  if (body.state !== undefined && body.state !== null) {
+    if (typeof body.state !== 'string' || !ALLOWED_STATES.has(body.state)) {
+      return NextResponse.json(
+        {
+          error: `\`state\` must be one of: ${Array.from(ALLOWED_STATES).join(', ')}.`,
+        },
+        { status: 400 }
+      );
+    }
+    state = body.state;
+  }
+
+  const summary =
+    typeof body.summary === 'string' ? body.summary.trim() : '';
+  if (!summary) {
+    return NextResponse.json(
+      { error: '`summary` is required.' },
+      { status: 400 }
+    );
+  }
+  if (summary.length > 200) {
+    return NextResponse.json(
+      { error: '`summary` must be ≤ 200 characters.' },
+      { status: 400 }
+    );
+  }
+
+  // ── Optional ISO timestamp + UUID + numeric fields ─────────
+  const scheduledFor = parseOptionalIso(body.scheduled_for, 'scheduled_for');
+  if ('error' in scheduledFor) return scheduledFor.error;
+  const expectedBackAt = parseOptionalIso(
+    body.expected_back_at,
+    'expected_back_at'
+  );
+  if ('error' in expectedBackAt) return expectedBackAt.error;
+
+  const performedBy = parseOptionalUuid(
+    body.performed_by_user_id,
+    'performed_by_user_id'
+  );
+  if ('error' in performedBy) return performedBy.error;
+
+  const linkedReceipt = parseOptionalUuid(
+    body.linked_receipt_id,
+    'linked_receipt_id'
+  );
+  if ('error' in linkedReceipt) return linkedReceipt.error;
+
+  const costCents = parseOptionalInt(body.cost_cents, 'cost_cents', 0);
+  if ('error' in costCents) return costCents.error;
+
+  const vendorName = parseOptionalString(body.vendor_name, 'vendor_name');
+  if ('error' in vendorName) return vendorName.error;
+  const vendorContact = parseOptionalString(
+    body.vendor_contact,
+    'vendor_contact'
+  );
+  if ('error' in vendorContact) return vendorContact.error;
+  const vendorWorkOrder = parseOptionalString(
+    body.vendor_work_order,
+    'vendor_work_order'
+  );
+  if ('error' in vendorWorkOrder) return vendorWorkOrder.error;
+
+  const notes = parseOptionalString(body.notes, 'notes');
+  if ('error' in notes) return notes.error;
+
+  // ── Insert ──────────────────────────────────────────────────
+  const insertBody = {
+    equipment_inventory_id: hasEq ? equipmentId : null,
+    vehicle_id: hasVeh ? vehicleId : null,
+    kind,
+    origin,
+    state,
+    scheduled_for: scheduledFor.value,
+    expected_back_at: expectedBackAt.value,
+    vendor_name: vendorName.value,
+    vendor_contact: vendorContact.value,
+    vendor_work_order: vendorWorkOrder.value,
+    performed_by_user_id: performedBy.value,
+    cost_cents: costCents.value,
+    linked_receipt_id: linkedReceipt.value,
+    summary,
+    notes: notes.value,
+    created_by: actorUserId,
+  };
+
+  const { data: inserted, error } = await supabaseAdmin
+    .from('maintenance_events')
+    .insert(insertBody)
+    .select(
+      'id, equipment_inventory_id, vehicle_id, kind, origin, state, ' +
+        'scheduled_for, started_at, completed_at, expected_back_at, ' +
+        'vendor_name, vendor_contact, vendor_work_order, ' +
+        'performed_by_user_id, cost_cents, linked_receipt_id, ' +
+        'summary, notes, qa_passed, next_due_at, created_at, ' +
+        'created_by, updated_at'
+    )
+    .maybeSingle();
+  if (error) {
+    console.error('[admin/maintenance/events POST] insert failed', {
+      code: (error as { code?: string }).code,
+      message: error.message,
+    });
+    return NextResponse.json(
+      { error: error.message ?? 'Insert failed.' },
+      { status: 500 }
+    );
+  }
+  if (!inserted) {
+    return NextResponse.json(
+      { error: 'Insert returned no row.' },
+      { status: 500 }
+    );
+  }
+
+  console.log('[admin/maintenance/events POST] ok', {
+    event_id: (inserted as { id: string }).id,
+    equipment_inventory_id: hasEq ? equipmentId : null,
+    vehicle_id: hasVeh ? vehicleId : null,
+    kind,
+    origin,
+    state,
+    actor_email: session.user.email,
+  });
+
+  return NextResponse.json({ event: inserted });
+}, { routeName: 'admin/maintenance/events#post' });
+
+// ──────────────────────────────────────────────────────────────
+// Body-validation helpers
+// ──────────────────────────────────────────────────────────────
+
+type Maybe<T> = { value: T | null } | { error: NextResponse };
+
+function parseOptionalIso(raw: unknown, name: string): Maybe<string> {
+  if (raw === undefined || raw === null) return { value: null };
+  if (typeof raw !== 'string') {
+    return {
+      error: NextResponse.json(
+        { error: `\`${name}\` must be a string when present.` },
+        { status: 400 }
+      ),
+    };
+  }
+  const t = Date.parse(raw);
+  if (!Number.isFinite(t)) {
+    return {
+      error: NextResponse.json(
+        { error: `\`${name}\` must be a parseable ISO timestamp.` },
+        { status: 400 }
+      ),
+    };
+  }
+  return { value: new Date(t).toISOString() };
+}
+
+function parseOptionalUuid(raw: unknown, name: string): Maybe<string> {
+  if (raw === undefined || raw === null) return { value: null };
+  if (typeof raw !== 'string' || !UUID_RE.test(raw)) {
+    return {
+      error: NextResponse.json(
+        { error: `\`${name}\` must be a valid UUID when present.` },
+        { status: 400 }
+      ),
+    };
+  }
+  return { value: raw };
+}
+
+function parseOptionalInt(
+  raw: unknown,
+  name: string,
+  min: number
+): Maybe<number> {
+  if (raw === undefined || raw === null) return { value: null };
+  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < min) {
+    return {
+      error: NextResponse.json(
+        {
+          error: `\`${name}\` must be an integer ≥ ${min} when present.`,
+        },
+        { status: 400 }
+      ),
+    };
+  }
+  return { value: raw };
+}
+
+function parseOptionalString(raw: unknown, name: string): Maybe<string> {
+  if (raw === undefined || raw === null) return { value: null };
+  if (typeof raw !== 'string') {
+    return {
+      error: NextResponse.json(
+        { error: `\`${name}\` must be a string when present.` },
+        { status: 400 }
+      ),
+    };
+  }
+  const trimmed = raw.trim();
+  return { value: trimmed.length > 0 ? trimmed : null };
+}
