@@ -137,6 +137,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       { href: '/admin/equipment/consumables', label: 'Consumables', icon: '🪣', roles: EQUIPMENT_ROLES, internalOnly: true },
       { href: '/admin/equipment', label: 'Catalogue', icon: '📦', roles: EQUIPMENT_ROLES, internalOnly: true },
       { href: '/admin/equipment/templates', label: 'Templates', icon: '📋', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment/templates/cleanup-queue', label: 'Cleanup queue', icon: '🧹', roles: EQUIPMENT_ROLES, internalOnly: true },
     ]},
 
     { label: 'Research', items: [

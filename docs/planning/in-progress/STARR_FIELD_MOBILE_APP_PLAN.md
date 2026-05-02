@@ -4892,8 +4892,33 @@ discipline.
         urgent), most-stale-first within each bucket,
         alphabetical tiebreak. Empty short-circuits
         cleanly. Auth: EQUIPMENT_ROLES.
-  - [ ] **F10.6-f-ii** — `app/admin/equipment/templates/cleanup-queue/page.tsx`
-        — table UI + sidebar link.
+  - [✓] **F10.6-f-ii** — `app/admin/equipment/templates/cleanup-queue/page.tsx`
+        + sidebar entry shipped. Per-template card layout
+        — header with name + "N of M lines stale" + archive
+        badge + "Edit template →" deep link. Body: table
+        of stale items with `#` (sort_order), retired
+        instrument name (deep-linked to catalogue), category,
+        retired_at, retired_reason, qty, required/optional
+        badge. Empty-state shows a positive "✓ Nothing to
+        clean up" with copy explaining new retirements/
+        discontinues will re-populate the list as they
+        happen. Archived templates render with a dashed
+        border + 0.85 opacity to visually de-prioritise
+        without hiding them. No inline action modals —
+        fixes happen via the existing F10.2e-ii edit page
+        (Edit row → swap to category-of-kind OR repoint at
+        a replacement specific instrument); the §5.12.3
+        version-bump + snapshot audit chain runs there
+        already so this page's "fix" path inherits the
+        history-preservation contract for free. Footer
+        suggests the canonical fix pattern (swap to
+        category-of-kind to avoid retire-risk later).
+        Sidebar 'Cleanup queue' link added below
+        Templates.
+
+      F10.6-f closes out: aggregator + page UI both
+      shipped. The §5.12.7.8 retired-gear cleanup queue
+      runs end-to-end.
 - [ ] **F10.6-g** — §5.12.7.7 Override audit panel.
 
 **F10.7 — Maintenance + calibration (Week 38–39).**
