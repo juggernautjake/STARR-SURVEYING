@@ -15,6 +15,14 @@
 // so the EM inbox doesn't fill up; schedules with
 // auto_create_event=false still get notifications.
 //
+// Phase F10.7-i-ii — second pass scans
+// equipment_inventory.next_calibration_due_at and auto-creates a
+// state='scheduled' calibration event with origin='cert_expiring'
+// for any unit whose cert is within 60 days OR overdue AND not
+// already covered by a maintenance_schedules row (specific or
+// category match). Safety net for units that slipped through the
+// schedule-rule setup.
+//
 // Vercel cron config (vercel.json):
 //   { "path": "/api/cron/maintenance-schedule-tick",
 //     "schedule": "0 8 * * *" }
@@ -93,11 +101,16 @@ interface EventRow {
 }
 
 interface ProjectedAction {
-  schedule_id: string;
+  schedule_id: string | null;
   equipment_inventory_id: string;
   kind: string;
   next_due_at: string;
-  reason: 'never_serviced' | 'next_due_anchor' | 'completed_anchor';
+  reason:
+    | 'never_serviced'
+    | 'next_due_anchor'
+    | 'completed_anchor'
+    | 'cert_expiring_fallback';
+  origin: 'recurring_schedule' | 'cert_expiring';
 }
 
 interface PendingNotification {
@@ -242,11 +255,43 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  if (targets.length === 0) {
+  // ── F10.7-i-ii — cert-expiring fallback fetch ────────────────
+  // Reads every non-retired/non-lost equipment_inventory row whose
+  // NIST cert is overdue OR within 60 days. The Pass 2 projection
+  // below uses this list to auto-create calibration events for
+  // units NOT covered by any maintenance_schedules row.
+  const certCutoffMs = now.getTime() + 60 * 24 * 60 * 60 * 1000;
+  const certCutoffIso = new Date(certCutoffMs).toISOString();
+  const { data: certUnitsRaw, error: certErr } = await supabaseAdmin
+    .from('equipment_inventory')
+    .select('id, name, category, next_calibration_due_at, current_status')
+    .not('next_calibration_due_at', 'is', null)
+    .lte('next_calibration_due_at', certCutoffIso);
+  if (certErr) {
+    console.warn(
+      '[cron/maintenance-schedule-tick] cert-expiring lookup failed',
+      { error: certErr.message }
+    );
+  }
+  const certUnits = (
+    (certUnitsRaw ?? []) as Array<{
+      id: string;
+      name: string | null;
+      category: string | null;
+      next_calibration_due_at: string;
+      current_status: string | null;
+    }>
+  ).filter(
+    (r) =>
+      r.current_status !== 'retired' && r.current_status !== 'lost'
+  );
+
+  if (targets.length === 0 && certUnits.length === 0) {
     return NextResponse.json({
       scanned: scheduleRows.length,
       projected: 0,
       created: 0,
+      notified: 0,
       skipped: 0,
       dry_run: dryRun,
     });
@@ -258,8 +303,21 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   //    not just matching kinds) but the kind set is small so the
   //    cost is dominated by the equipment_id IN clause anyway.
   const allEquipmentIds = Array.from(
-    new Set(targets.map((t) => t.equipmentId))
+    new Set([
+      ...targets.map((t) => t.equipmentId),
+      ...certUnits.map((c) => c.id),
+    ])
   );
+  if (allEquipmentIds.length === 0) {
+    return NextResponse.json({
+      scanned: scheduleRows.length,
+      projected: 0,
+      created: 0,
+      notified: 0,
+      skipped: 0,
+      dry_run: dryRun,
+    });
+  }
   const { data: events, error: eventsErr } = await supabaseAdmin
     .from('maintenance_events')
     .select(
@@ -402,8 +460,72 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       kind: schedule.kind,
       next_due_at: nextDueIso,
       reason,
+      origin: 'recurring_schedule',
     });
   }
+
+  // ── F10.7-i-ii — Pass 2: cert-expiring fallback ──────────────
+  // Runs after the schedule pass so we can consult the in-memory
+  // `actions` queue + the existing event buckets for dedup. A
+  // unit is auto-handled here only when it&apos;s NOT covered by
+  // any calibration schedule rule (specific equipment_id OR
+  // category match) AND has no open calibration event AND no
+  // pass-1 action queued for it.
+  let certExpiringSkipped = 0;
+  if (certUnits.length > 0) {
+    // Build the "covered by a calibration schedule" set in one
+    // pass. Mirrors the targets-fan-out logic above but scoped to
+    // calibration kind only.
+    const calibrationCovered = new Set<string>();
+    for (const sched of scheduleRows) {
+      if (sched.kind !== 'calibration') continue;
+      if (sched.equipment_inventory_id) {
+        calibrationCovered.add(sched.equipment_inventory_id);
+      } else if (sched.category) {
+        const ids = equipmentByCategory.get(sched.category) ?? [];
+        for (const id of ids) calibrationCovered.add(id);
+      }
+    }
+
+    // Pass-1 actions already queued for kind=calibration on a
+    // given equipment id — also dedup against these.
+    const pass1QueuedCalibration = new Set<string>(
+      actions
+        .filter((a) => a.kind === 'calibration')
+        .map((a) => a.equipment_inventory_id)
+    );
+
+    for (const unit of certUnits) {
+      if (calibrationCovered.has(unit.id)) {
+        // A schedule rule covers this — pass 1 already handled it.
+        certExpiringSkipped++;
+        continue;
+      }
+      if (pass1QueuedCalibration.has(unit.id)) {
+        // Already queued by the schedule pass (defensive — should
+        // never hit because the cover-set check above catches
+        // everything pass 1 would queue).
+        certExpiringSkipped++;
+        continue;
+      }
+      const bucket = eventsByPair.get(bucketKey(unit.id, 'calibration'));
+      if ((bucket?.open.length ?? 0) > 0) {
+        // Calibration event already open for this unit.
+        certExpiringSkipped++;
+        continue;
+      }
+
+      actions.push({
+        schedule_id: null,
+        equipment_inventory_id: unit.id,
+        kind: 'calibration',
+        next_due_at: unit.next_calibration_due_at,
+        reason: 'cert_expiring_fallback',
+        origin: 'cert_expiring',
+      });
+    }
+  }
+  skipped += certExpiringSkipped;
 
   if (actions.length === 0 || dryRun) {
     if (dryRun) {
@@ -418,8 +540,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       );
       return NextResponse.json({
         scanned: scheduleRows.length,
+        cert_units_scanned: certUnits.length,
         projected: actions.length,
         created: 0,
+        cert_expiring_created: 0,
         notified: 0,
         skipped,
         dry_run: true,
@@ -432,8 +556,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     if (pendingNotifications.length === 0) {
       return NextResponse.json({
         scanned: scheduleRows.length,
+        cert_units_scanned: certUnits.length,
         projected: 0,
         created: 0,
+        cert_expiring_created: 0,
         notified: 0,
         skipped,
         dry_run: false,
@@ -450,13 +576,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     const insertRows = actions.map((a) => ({
       equipment_inventory_id: a.equipment_inventory_id,
       kind: a.kind,
-      origin: 'recurring_schedule',
+      origin: a.origin,
       state: 'scheduled',
       scheduled_for: a.next_due_at,
-      summary: `Auto-scheduled ${a.kind.replace(/_/g, ' ')} from recurring rule`,
+      summary:
+        a.origin === 'cert_expiring'
+          ? `Auto-scheduled calibration — NIST cert expiring (no schedule rule)`
+          : `Auto-scheduled ${a.kind.replace(/_/g, ' ')} from recurring rule`,
       notes:
         `Created by /api/cron/maintenance-schedule-tick at ${nowIso}. ` +
-        `Anchor: ${a.reason}. Schedule: ${a.schedule_id}.`,
+        `Anchor: ${a.reason}.` +
+        (a.schedule_id ? ` Schedule: ${a.schedule_id}.` : ''),
     }));
 
     const { data: inserted, error: insertErr } = await supabaseAdmin
@@ -585,10 +715,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
+  const certExpiringCreated = actions.filter(
+    (a) => a.origin === 'cert_expiring'
+  ).length;
+
   console.log('[cron/maintenance-schedule-tick] tick complete', {
     scanned: scheduleRows.length,
+    cert_units_scanned: certUnits.length,
     projected: actions.length,
     created: createdCount,
+    cert_expiring_created: certExpiringCreated,
     notified: notifiedCount,
     notifications_queued: pendingNotifications.length,
     skipped,
@@ -597,8 +733,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   return NextResponse.json({
     scanned: scheduleRows.length,
+    cert_units_scanned: certUnits.length,
     projected: actions.length,
     created: createdCount,
+    cert_expiring_created: certExpiringCreated,
     notified: notifiedCount,
     skipped,
     dry_run: false,

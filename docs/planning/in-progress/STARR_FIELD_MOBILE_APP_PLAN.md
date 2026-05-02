@@ -5327,7 +5327,7 @@ sub-batches per the small-chunks discipline:
           mirroring the equipment-overdue-digest pattern.
           Returns `{ scanned, projected, created, notified,
           skipped }`.
-- [◐] **F10.7-i** — Cert-expiring auto-creation cron +
+- [✓] **F10.7-i** — Cert-expiring auto-creation cron +
       §5.12.7.1 Today blue banner integration.
     - [✓] **F10.7-i-i** — Cert-expiring Today banner. Extends
           the §5.12.7.1 Today aggregator with a fourth banner
@@ -5349,12 +5349,31 @@ sub-batches per the small-chunks discipline:
           the maintenance event triggers in seeds/233 that
           maintain `next_calibration_due_at` whenever a
           calibration event lands `state='complete'`.
-    - [ ] **F10.7-i-ii** — Cert-expiring auto-creation cron.
-          Daily scan of `equipment_inventory.next_calibration_
-          due_at` that auto-creates a `state='scheduled'`
-          calibration event with `origin='cert_expiring'` for
-          units NOT covered by a maintenance_schedules row —
-          safety net for when category defaults missed a unit.
+    - [✓] **F10.7-i-ii** — Cert-expiring auto-creation
+          cron (Pass 2). Extended the F10.7-h schedule-tick
+          cron with a second pass that walks
+          `equipment_inventory.next_calibration_due_at`
+          (≤ now() + 60 days, non-retired/lost) and
+          auto-creates a `state='scheduled'` calibration event
+          with `origin='cert_expiring'` for any unit NOT
+          covered by a maintenance_schedules row (specific
+          equipment_inventory_id OR category match). Three-
+          layer dedup: (1) calibrationCovered set built from
+          the loaded schedules guarantees pass 2 never
+          duplicates a pass-1 action, (2) pass-1 in-memory
+          queued actions are scanned defensively, (3) the
+          existing event-bucket open-count check skips units
+          with an already-open calibration event. The events
+          query is widened to cover the union of schedule
+          targets + cert units in one read so dedup is O(1)
+          per unit. Insert-mapping uses `a.origin` so pass-1
+          rows still get `origin='recurring_schedule'` and
+          pass-2 rows get `origin='cert_expiring'` with a
+          summary that flags the missing schedule. Response
+          adds `cert_units_scanned` + `cert_expiring_created`
+          counters for observability. Idempotent — reruns
+          within the day are no-ops because each pass detects
+          its own queued events.
 - [ ] **F10.7-j** — QA gate on calibration completion +
       `failed_qa` red-row surfacing on the calendar.
 - [ ] Receipt cross-link UI (Attach-receipt picker + Money-tab
