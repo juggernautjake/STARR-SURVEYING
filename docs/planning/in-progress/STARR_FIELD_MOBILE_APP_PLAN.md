@@ -5040,11 +5040,41 @@ sub-batches per the small-chunks discipline:
         `parseOptional{Iso,Uuid,Int,String}` helpers so future
         endpoints (PATCH next) inherit the same cleanup style.
         Auth: admin / developer / equipment_manager (mutating).
-  - [ ] **F10.7-c-ii** — `PATCH /[id]` for state transitions
-        + field updates (vendor info, costs, started_at,
-        completed_at, qa_passed). State machine guard refuses
-        illegal transitions (complete → in_progress without
-        explicit reopen).
+  - [✓] **F10.7-c-ii** — `PATCH /api/admin/maintenance/events/
+        [id]` shipped. State machine + field updates with
+        explicit transition gate. Allowed transitions:
+        `scheduled → in_progress | awaiting_parts |
+        awaiting_vendor | complete | cancelled`;
+        `in_progress → awaiting_parts | awaiting_vendor |
+        complete | failed_qa | cancelled`; etc. — full
+        adjacency table in the route file. `complete` and
+        `cancelled` are terminal; `complete` re-opens via
+        explicit `reopen=true` body flag (clears
+        `completed_at` + `qa_passed` for a fresh service
+        history entry on re-completion). Auto-stamps:
+        `started_at = now()` on entry to `in_progress`,
+        `completed_at = now()` on entry to `complete` (only
+        when not explicitly set in same PATCH).
+        `qa_passed=false` posted alongside `state=complete`
+        auto-routes to `state=failed_qa` per §5.12.8.
+        Calibration third-party gate fires on transition
+        into `complete` AND `kind='calibration'`: refuses
+        with typed `calibration_requires_vendor` 400 if
+        vendor_name is null, OR
+        `calibration_excludes_performed_by` 400 if
+        performed_by is set (NIST cert needs third-party).
+        Cross-checks merged state (existing + patch) so a
+        multi-field PATCH that sets vendor_name and moves
+        to complete in one shot lands cleanly. TOCTOU
+        guard via `state` row-equality on the UPDATE; on
+        miss re-reads the latest state. Validators
+        extended to `Maybe<T>` shape with explicit `set`
+        flag to distinguish "user passed null" (clear the
+        column) from "field omitted" (leave it). No-op
+        short-circuits when nothing to write.
+
+      F10.7-c closes out: POST + PATCH cover the full
+      maintenance_events CRUD surface.
 - [ ] **F10.7-d** — `POST /[id]/documents` upload + GET
       list endpoints.
 - [ ] **F10.7-e** — `GET /api/admin/maintenance/calendar`
