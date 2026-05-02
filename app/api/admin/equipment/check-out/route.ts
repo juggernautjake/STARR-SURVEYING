@@ -596,6 +596,32 @@ async function applyKitCheckout(args: {
     self_service_bypass: args.selfServiceBypass,
   });
 
+  // F10.8 — equipment_assignment notification at the parent
+  // reservation. Single notification per kit checkout so the
+  // surveyor's inbox doesn't get N+1 entries for an 8-item GPS
+  // bundle. Best-effort; failures don't roll back.
+  const parentReservationRow = (
+    flippedRows as Array<{
+      id: string;
+      equipment_inventory_id: string;
+      job_id: string;
+      reserved_to: string;
+    }>
+  ).find((r) => r.id === bundle.parent_reservation_id);
+  if (parentReservationRow) {
+    await emitAssignmentNotification({
+      reservationId: parentReservationRow.id,
+      equipmentInventoryId: parentReservationRow.equipment_inventory_id,
+      jobId: parentReservationRow.job_id,
+      reservedTo: parentReservationRow.reserved_to,
+      toUserId: args.toUser,
+      kit: {
+        parentName: resolved.parent_name,
+        childCount: bundle.child_reservations.length,
+      },
+    });
+  }
+
   return NextResponse.json({
     mode: 'kit',
     kit: {
@@ -760,14 +786,25 @@ async function emitAssignmentNotification(args: {
   jobId: string;
   reservedTo: string;
   toUserId: string;
+  /** When set, the notification copy reflects a kit checkout
+   *  ("GPS-2024 kit (8 items)") rather than a single unit. */
+  kit?: {
+    parentName: string | null;
+    childCount: number;
+  };
 }): Promise<void> {
   try {
     const [eqRes, jobRes, userRes] = await Promise.all([
-      supabaseAdmin
-        .from('equipment_inventory')
-        .select('name, qr_code_id')
-        .eq('id', args.equipmentInventoryId)
-        .maybeSingle(),
+      args.kit
+        ? Promise.resolve({
+            data: { name: args.kit.parentName, qr_code_id: null },
+            error: null,
+          })
+        : supabaseAdmin
+            .from('equipment_inventory')
+            .select('name, qr_code_id')
+            .eq('id', args.equipmentInventoryId)
+            .maybeSingle(),
       supabaseAdmin
         .from('jobs')
         .select('name, job_number')
@@ -797,12 +834,15 @@ async function emitAssignmentNotification(args: {
     const jobLabel = job?.job_number
       ? `${job.job_number}${job.name ? ` ${job.name}` : ''}`
       : job?.name ?? 'a job';
+    const kitSuffix = args.kit
+      ? ` kit (${args.kit.childCount + 1} items)`
+      : '';
     await notify({
       user_email: recipient,
       type: 'equipment_assignment',
-      title: `Checked out: ${eqName}`,
+      title: `Checked out: ${eqName}${kitSuffix}`,
       body:
-        `${eqName} is yours for ${jobLabel}, due back ` +
+        `${eqName}${kitSuffix} is yours for ${jobLabel}, due back ` +
         `${args.reservedTo}. Tap to see the loadout.`,
       icon: '📦',
       escalation_level: 'normal',

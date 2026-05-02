@@ -5546,8 +5546,18 @@ sub-batches per the small-chunks discipline:
           and continue. Kit-checkout path stays quiet at child
           rows to avoid an inbox flood — single parent
           notification will land in a follow-up.
-    - [ ] `equipment_assignment` on the kit-checkout path
-          (single notification per parent kit).
+    - [✓] `equipment_assignment` on the kit-checkout path.
+          The kit batch (parent + N children flipped to
+          checked_out in one PostgREST UPDATE) now fires ONE
+          notification at the parent reservation rather than
+          N+1 child entries flooding the surveyor&apos;s inbox.
+          The shared `emitAssignmentNotification()` helper
+          gains an optional `kit: { parentName, childCount }`
+          arg; when set, the body copy reads
+          &ldquo;GPS-2024 kit (8 items) is yours…&rdquo;
+          instead of the single-item form. Equipment-name
+          lookup short-circuits via the resolved kit context
+          so the helper still does only three batched reads.
     - [ ] `equipment_status_change` when the EM flips
           `current_status` (e.g. available → maintenance) —
           notifies any user with an active reservation that
