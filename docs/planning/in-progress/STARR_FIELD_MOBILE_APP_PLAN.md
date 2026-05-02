@@ -4940,8 +4940,40 @@ discipline.
         the row's window. Summary block reports per-kind
         counts + `truncated` flag when limit hit. Auth:
         EQUIPMENT_ROLES.
-  - [ ] **F10.6-g-ii** — `app/admin/equipment/overrides/page.tsx`
-        — table UI consuming the aggregator + sidebar link.
+  - [✓] **F10.6-g-ii** — `app/admin/equipment/overrides/page.tsx`
+        + sidebar entry shipped. Read-only audit table
+        consuming the F10.6-g-i aggregator. Filter bar
+        carries Since date scrubber (default 30d, "last
+        30d" jumper) + Both/Equipment/Personnel toggle.
+        Per-row columns: Kind (color-coded badge — amber
+        for equipment, blue for personnel), When (locale
+        timestamp), Actor (deep email or em-dash for
+        personnel-side rows where job_team has no
+        historical actor column), Target (equipment name
+        deep-linked to catalogue, or user_email),
+        Job (deep link), State badge (matches the rest
+        of the equipment-state palette), Reason +
+        secondary notes line, Window. Empty-state shows
+        a positive "✓ Clean window" with copy on widening
+        the since date. Truncated pill surfaces when the
+        aggregator caps at limit. Footer documents the
+        personnel-actor null gap + points at the future
+        polish (add `created_by` to job_team).
+        Sidebar 'Overrides audit' link added below
+        Cleanup queue.
+
+      F10.6-g closes out: aggregator + page UI shipped.
+      The §5.12.7.7 override audit panel runs end-to-end.
+
+      **F10.6 fully shipped** (apart from the deliberately
+      deferred F10.6-e-iv drag-create on the crew calendar
+      — heavier interactivity, lower payoff than the
+      shipped panels). Equipment Manager dashboards cover
+      the seven §5.12.7 panels: Today landing (b),
+      Reservations Gantt (c), Consumables low-stock + 3
+      action modals (d), Crew calendar heatmap +
+      drilldown (e), Templates cleanup queue (f),
+      Overrides audit (g).
 
 **F10.7 — Maintenance + calibration (Week 38–39).**
 - [ ] `maintenance_events` CRUD + state machine + document
