@@ -5278,9 +5278,37 @@ sub-batches per the small-chunks discipline:
           Progress states (signing → uploading → recording)
           surface inline. Auth: equipment_manager / admin /
           developer (write).
-- [ ] **F10.7-h** — Daily 3am cron — recurring schedule
+- [◐] **F10.7-h** — Daily 3am cron — recurring schedule
       due-date computation + 60/30/7-day notifications +
       auto-create events.
+    - [✓] **F10.7-h-i** — Schedule-tick cron + auto-create
+          events. New `/api/cron/maintenance-schedule-tick`
+          (Bearer CRON_SECRET, idempotent) walks every
+          `maintenance_schedules` row, fans category-targeted
+          schedules out to all matching `equipment_inventory`
+          rows, and projects `next_due_at` per (target, kind)
+          via three anchors: (1) the most-recent completed
+          event's `next_due_at` if set, (2) `completed_at +
+          frequency_months` months otherwise, (3) `now()` for
+          never-serviced units. When `days_until ≤
+          lead_time_days` AND `auto_create_event` is true AND
+          no open event already covers the target+kind,
+          INSERTs a new `state='scheduled'` row with
+          `origin='recurring_schedule'`, `scheduled_for =
+          next_due_at`, and a summary that captures the
+          anchor reason. `?dry=1` returns the projected
+          actions without writing. Vercel cron runs daily at
+          08:00 UTC (3am CST) — early enough that the EM sees
+          a populated calendar at first login. Duplicate
+          suppression keys on (equipment_id, kind) with state
+          ∈ {scheduled, in_progress, awaiting_parts,
+          awaiting_vendor} so a rerun within the day is a
+          no-op. Batched reads + single multi-row insert keep
+          the cron O(N schedules + M targets), not O(N×M).
+    - [ ] **F10.7-h-ii** — 60/30/7-day notification fan-out
+          to equipment managers (cron piggy-backs on the
+          schedule-tick scan; emits `notify()` rows when a
+          target enters one of three escalating windows).
 - [ ] **F10.7-i** — Cert-expiring auto-creation cron +
       §5.12.7.1 Today blue banner integration.
 - [ ] **F10.7-j** — QA gate on calibration completion +
