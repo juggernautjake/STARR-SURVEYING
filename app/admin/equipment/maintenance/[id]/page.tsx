@@ -526,6 +526,7 @@ export default function MaintenanceEventDetailPage() {
           eventKind={event.kind}
           existingVendorName={event.vendor_name}
           existingPerformedBy={event.performed_by_user_id}
+          existingQaPassed={event.qa_passed}
           target={transitionTarget}
           onClose={() => setTransitionTarget(null)}
           onTransitioned={(newState) => {
@@ -643,6 +644,7 @@ function TransitionModal({
   eventKind,
   existingVendorName,
   existingPerformedBy,
+  existingQaPassed,
   target,
   onClose,
   onTransitioned,
@@ -651,6 +653,7 @@ function TransitionModal({
   eventKind: string;
   existingVendorName: string | null;
   existingPerformedBy: string | null;
+  existingQaPassed: boolean | null;
   target: { state: string; isReopen: boolean };
   onClose: () => void;
   onTransitioned: (newState: string) => void;
@@ -665,10 +668,20 @@ function TransitionModal({
     target.state === 'complete' &&
     eventKind === 'calibration' &&
     !!existingPerformedBy;
+  // F10.7-j-i — calibration completion requires a fresh QA
+  // decision unless the row already carries one (e.g. a multi-
+  // PATCH workflow set qa_passed before this state transition).
+  const requiresQaDecision =
+    target.state === 'complete' &&
+    eventKind === 'calibration' &&
+    existingQaPassed === null;
 
   const [vendorName, setVendorName] = useState('');
   const [clearPerformedBy, setClearPerformedBy] = useState(true);
   const [decline_or_failed_reason, setReason] = useState('');
+  const [qaDecision, setQaDecision] = useState<
+    'unset' | 'passed' | 'failed'
+  >('unset');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -694,6 +707,19 @@ function TransitionModal({
     }
     if (performedByConflict && clearPerformedBy) {
       body.performed_by_user_id = null;
+    }
+    if (requiresQaDecision) {
+      if (qaDecision === 'unset') {
+        setError(
+          'Pick a QA decision (passed or failed) before completing ' +
+            'a calibration event.'
+        );
+        return;
+      }
+      // qa_passed=false auto-routes to failed_qa server-side per
+      // F10.7-c-ii so the EM&apos;s "Failed" choice still goes
+      // through the same complete-state PATCH.
+      body.qa_passed = qaDecision === 'passed';
     }
     // Notes for cancelled/failed_qa (terminal context).
     if (
@@ -725,6 +751,8 @@ function TransitionModal({
     target,
     requiresVendor,
     performedByConflict,
+    requiresQaDecision,
+    qaDecision,
     vendorName,
     clearPerformedBy,
     decline_or_failed_reason,
@@ -830,6 +858,51 @@ function TransitionModal({
             </label>
           ) : null}
 
+          {requiresQaDecision ? (
+            <div style={transitionStyles.field}>
+              <span style={transitionStyles.label}>
+                Post-cal QA decision (required) *
+              </span>
+              <div style={qaStyles.decisionRow}>
+                <button
+                  type="button"
+                  style={
+                    qaDecision === 'passed'
+                      ? qaStyles.passSelected
+                      : qaStyles.passUnselected
+                  }
+                  onClick={() => setQaDecision('passed')}
+                  disabled={submitting}
+                >
+                  ✓ QA passed
+                </button>
+                <button
+                  type="button"
+                  style={
+                    qaDecision === 'failed'
+                      ? qaStyles.failSelected
+                      : qaStyles.failUnselected
+                  }
+                  onClick={() => setQaDecision('failed')}
+                  disabled={submitting}
+                >
+                  ✗ QA failed
+                </button>
+              </div>
+              <span style={transitionStyles.hint}>
+                ▸ Per §5.12.8 the post-cal accuracy check must be
+                logged. &ldquo;Failed&rdquo; auto-routes the event to{' '}
+                <code style={transitionStyles.code}>failed_qa</code>{' '}
+                so the calendar surfaces it for re-work; the PATCH
+                route refuses a silent null with{' '}
+                <code style={transitionStyles.code}>
+                  calibration_requires_qa_decision
+                </code>
+                .
+              </span>
+            </div>
+          ) : null}
+
           {(target.state === 'cancelled' ||
             target.state === 'failed_qa') ? (
             <label style={transitionStyles.field}>
@@ -859,19 +932,24 @@ function TransitionModal({
           <button
             type="button"
             style={
-              isTerminal && target.state === 'cancelled'
-                ? transitionStyles.dangerBtn
-                : isTerminal && target.state === 'failed_qa'
+              (isTerminal && target.state === 'cancelled') ||
+              (isTerminal && target.state === 'failed_qa') ||
+              (requiresQaDecision && qaDecision === 'failed')
                 ? transitionStyles.dangerBtn
                 : transitionStyles.primaryBtn
             }
             onClick={handleConfirm}
-            disabled={submitting}
+            disabled={
+              submitting ||
+              (requiresQaDecision && qaDecision === 'unset')
+            }
           >
             {submitting
               ? 'Working…'
               : target.isReopen
               ? 'Re-open'
+              : requiresQaDecision && qaDecision === 'failed'
+              ? 'Move to failed_qa'
               : `Move to ${targetLabel}`}
           </button>
         </footer>
@@ -1592,6 +1670,56 @@ function transitionButtonStyle(target: string): React.CSSProperties {
   }
   return base;
 }
+
+const qaStyles: Record<string, React.CSSProperties> = {
+  decisionRow: { display: 'flex', gap: 8 },
+  passUnselected: {
+    flex: 1,
+    padding: '10px 14px',
+    border: '1px solid #15803D',
+    background: '#FFFFFF',
+    color: '#15803D',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  passSelected: {
+    flex: 1,
+    padding: '10px 14px',
+    border: '1px solid #15803D',
+    background: '#15803D',
+    color: '#FFFFFF',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 0 0 3px rgba(21, 128, 61, 0.2)',
+  },
+  failUnselected: {
+    flex: 1,
+    padding: '10px 14px',
+    border: '1px solid #B91C1C',
+    background: '#FFFFFF',
+    color: '#B91C1C',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  failSelected: {
+    flex: 1,
+    padding: '10px 14px',
+    border: '1px solid #B91C1C',
+    background: '#B91C1C',
+    color: '#FFFFFF',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 0 0 3px rgba(185, 28, 28, 0.2)',
+  },
+};
 
 const transitionStyles: Record<string, React.CSSProperties> = {
   bar: {

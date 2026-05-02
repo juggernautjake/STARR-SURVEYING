@@ -108,6 +108,7 @@ interface ExistingRow {
   completed_at: string | null;
   vendor_name: string | null;
   performed_by_user_id: string | null;
+  qa_passed: boolean | null;
 }
 
 export const PATCH = withErrorHandler(async (req: NextRequest) => {
@@ -150,7 +151,7 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     .from('maintenance_events')
     .select(
       'id, state, kind, started_at, completed_at, vendor_name, ' +
-        'performed_by_user_id'
+        'performed_by_user_id, qa_passed'
     )
     .eq('id', id)
     .maybeSingle();
@@ -337,7 +338,7 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  // ── Calibration third-party gate ──────────────────────────
+  // ── Calibration third-party + QA gate ─────────────────────
   // Fires when the resulting state == 'complete' AND the row's
   // kind is calibration. Cross-checks merged state (existing +
   // patch) so a multi-field PATCH that sets vendor_name and
@@ -372,6 +373,34 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
         { status: 400 }
       );
     }
+  }
+
+  // ── F10.7-j-i — QA gate on calibration completion ─────────
+  // Refuses the silent-null path where the EM forgot to log the
+  // post-cal accuracy check. The qa_passed boolean MUST be
+  // supplied in this PATCH OR already set on the row when the
+  // state transition lands. qa_passed=false auto-routes to
+  // failed_qa above (effectiveState mutation), so by the time we
+  // reach here `newState === 'complete'` only fires when QA is
+  // recorded as passed. The reopen path nulls qa_passed on the
+  // re-open transition, forcing a fresh decision on the next
+  // completion.
+  if (
+    newState === 'complete' &&
+    row.kind === 'calibration' &&
+    !qaPassedSet &&
+    row.qa_passed === null
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          'Calibration completion requires an explicit qa_passed ' +
+          'decision (post-cal accuracy check). Pass qa_passed: true ' +
+          'or false in the same PATCH.',
+        code: 'calibration_requires_qa_decision',
+      },
+      { status: 400 }
+    );
   }
 
   // No-op short-circuit.

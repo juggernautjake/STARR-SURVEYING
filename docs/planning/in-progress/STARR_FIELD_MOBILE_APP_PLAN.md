@@ -5374,8 +5374,31 @@ sub-batches per the small-chunks discipline:
           counters for observability. Idempotent — reruns
           within the day are no-ops because each pass detects
           its own queued events.
-- [ ] **F10.7-j** — QA gate on calibration completion +
+- [◐] **F10.7-j** — QA gate on calibration completion +
       `failed_qa` red-row surfacing on the calendar.
+    - [✓] **F10.7-j-i** — QA gate on calibration completion.
+          Server-side: F10.7-c-ii PATCH route refuses the
+          silent-null path with a typed
+          `calibration_requires_qa_decision` 400 when
+          transitioning a calibration event to complete with
+          neither a body-supplied `qa_passed` nor a row-level
+          one already set. ExistingRow now pulls `qa_passed`
+          so the gate is precise — the reopen path nulls
+          qa_passed (per F10.7-c-ii), forcing a fresh
+          decision on next completion. UI: TransitionModal
+          gains a `requiresQaDecision` flag and a paired
+          green/red "QA passed / QA failed" button group
+          that&apos;s required to enable the submit button.
+          &ldquo;QA failed&rdquo; sends `qa_passed: false` with
+          `state: complete`, which the server auto-routes to
+          `failed_qa`; the submit button label flips to
+          &ldquo;Move to failed_qa&rdquo; to make the
+          server-side route obvious before the click. The
+          calibration vendor + clear-performed-by gates from
+          F10.7-g-ii-β remain alongside this — three
+          orthogonal NIST-traceability checks fire as a unit.
+    - [ ] **F10.7-j-ii** — failed_qa red-row surfacing on the
+          calendar.
 - [ ] Receipt cross-link UI (Attach-receipt picker + Money-tab
       "Is this for equipment maintenance?" prompt).
 - [ ] Per-unit maintenance history page.
