@@ -5193,8 +5193,39 @@ sub-batches per the small-chunks discipline:
           the rest of `/admin/equipment/*`. Auth:
           `useSession` sign-in gate; the detail endpoint
           enforces EQUIPMENT_ROLES server-side.
-    - [ ] **F10.7-g-ii-β** — state-transition controls
-          (calls F10.7-c-ii PATCH).
+    - [✓] **F10.7-g-ii-β** — state-transition controls
+          shipped on the detail page. New "Transition state"
+          section above the read-only body renders a
+          `TransitionBar` button row with one button per
+          allowed next-state per the F10.7-c-ii adjacency
+          table (kept in sync via the page-side
+          `ADJACENCY` constant). Cancel + failed_qa buttons
+          tint red; complete tints green; the rest are
+          neutral. Cancelled state shows "Terminal — no
+          transitions"; complete state shows a single
+          "↺ Re-open" button that PATCHes with `state=
+          in_progress` + `reopen=true` (the route clears
+          completed_at + qa_passed automatically). Click
+          any button opens `TransitionModal` — confirm
+          dialog with state-specific copy + conditional
+          fields:
+          * Calibration → complete + no vendor_name yet
+            → required vendor_name input (NIST traceability
+            gate from §5.12.8). The PATCH route's
+            `calibration_requires_vendor` 400 is the
+            server-side fence; the modal pre-flights it.
+          * Calibration → complete + performed_by_user_id
+            still set → "Clear performed_by" checkbox
+            (default checked) so the
+            `calibration_excludes_performed_by` 400 doesn't
+            surprise the EM.
+          * Cancelled / failed_qa → optional notes field
+            for the audit trail.
+          Submit posts JSON to F10.7-c-ii PATCH with the
+          right body shape; success refetches the detail
+          page + flashes a green action banner. Errors
+          surface inline in the modal. Auth: PATCH route
+          enforces admin / equipment_manager.
     - [ ] **F10.7-g-ii-γ** — editable fields with save-to-
           PATCH integration.
     - [ ] **F10.7-g-ii-δ** — documents upload modal

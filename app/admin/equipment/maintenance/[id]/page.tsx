@@ -71,6 +71,50 @@ interface DetailResponse {
   documents: MaintenanceDocument[];
 }
 
+// F10.7-g-ii-β — state-transition adjacency mirrors the
+// PATCH route's TRANSITIONS table from F10.7-c-ii. Keeping
+// it server-side-of-record means the UI can pre-emptively
+// hide impossible buttons; the PATCH still re-validates.
+const ADJACENCY: Record<string, string[]> = {
+  scheduled: [
+    'in_progress',
+    'awaiting_parts',
+    'awaiting_vendor',
+    'complete',
+    'cancelled',
+  ],
+  in_progress: [
+    'awaiting_parts',
+    'awaiting_vendor',
+    'complete',
+    'failed_qa',
+    'cancelled',
+  ],
+  awaiting_parts: [
+    'in_progress',
+    'awaiting_vendor',
+    'complete',
+    'cancelled',
+  ],
+  awaiting_vendor: [
+    'in_progress',
+    'awaiting_parts',
+    'complete',
+    'failed_qa',
+    'cancelled',
+  ],
+  failed_qa: ['in_progress', 'cancelled'],
+  complete: [], // terminal; reopen route handled separately
+  cancelled: [], // terminal
+};
+
+type TerminalKind = 'complete' | 'cancelled' | 'failed_qa';
+const TERMINAL_STATES = new Set<TerminalKind>([
+  'complete',
+  'cancelled',
+  'failed_qa',
+]);
+
 function formatDateTime(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -98,6 +142,13 @@ export default function MaintenanceEventDetailPage() {
 
   const [data, setData] = useState<DetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // F10.7-g-ii-β — state-transition modal target.
+  const [transitionTarget, setTransitionTarget] = useState<{
+    state: string;
+    isReopen: boolean;
+  } | null>(null);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const fetchDetail = useCallback(async () => {
     if (!id) return;
@@ -169,11 +220,22 @@ export default function MaintenanceEventDetailPage() {
           <button type="button" disabled style={styles.disabledBtn}>
             Edit fields (F10.7-g-ii-γ)
           </button>
-          <button type="button" disabled style={styles.disabledBtn}>
-            Transition state (F10.7-g-ii-β)
-          </button>
         </div>
       </header>
+
+      <section style={styles.section}>
+        <h2 style={styles.h2}>Transition state</h2>
+        <TransitionBar
+          state={event.state}
+          onTransition={(targetState, isReopen) => {
+            setActionMsg(null);
+            setTransitionTarget({ state: targetState, isReopen });
+          }}
+        />
+        {actionMsg ? (
+          <div style={styles.actionMsg}>{actionMsg}</div>
+        ) : null}
+      </section>
 
       <section style={styles.section}>
         <h2 style={styles.h2}>Target</h2>
@@ -363,6 +425,24 @@ export default function MaintenanceEventDetailPage() {
           <code style={styles.code}>{event.id}</code>
         </DetailRow>
       </section>
+
+      {transitionTarget ? (
+        <TransitionModal
+          eventId={event.id}
+          eventKind={event.kind}
+          existingVendorName={event.vendor_name}
+          existingPerformedBy={event.performed_by_user_id}
+          target={transitionTarget}
+          onClose={() => setTransitionTarget(null)}
+          onTransitioned={(newState) => {
+            setTransitionTarget(null);
+            setActionMsg(
+              `✓ Moved to ${newState.replace(/_/g, ' ')}.`
+            );
+            void fetchDetail();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -381,6 +461,476 @@ function DetailRow({
     </div>
   );
 }
+
+// ────────────────────────────────────────────────────────────
+// F10.7-g-ii-β — state-transition controls
+// ────────────────────────────────────────────────────────────
+
+function TransitionBar({
+  state,
+  onTransition,
+}: {
+  state: string;
+  onTransition: (targetState: string, isReopen: boolean) => void;
+}) {
+  const allowed = ADJACENCY[state] ?? [];
+  const isComplete = state === 'complete';
+  const isCancelled = state === 'cancelled';
+
+  if (isCancelled) {
+    return (
+      <div style={transitionStyles.bar}>
+        <span style={transitionStyles.muted}>
+          Cancelled. Terminal — no transitions available.
+        </span>
+      </div>
+    );
+  }
+
+  if (isComplete) {
+    return (
+      <div style={transitionStyles.bar}>
+        <span style={transitionStyles.muted}>
+          Complete. Re-open to transition again:
+        </span>
+        <button
+          type="button"
+          style={transitionStyles.reopenBtn}
+          onClick={() => onTransition('in_progress', true)}
+        >
+          ↺ Re-open
+        </button>
+      </div>
+    );
+  }
+
+  if (allowed.length === 0) {
+    return (
+      <div style={transitionStyles.bar}>
+        <span style={transitionStyles.muted}>
+          State {state.replace(/_/g, ' ')} has no transitions
+          configured.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={transitionStyles.bar}>
+      <span style={transitionStyles.muted}>Move to:</span>
+      {allowed.map((target) => (
+        <button
+          key={target}
+          type="button"
+          style={transitionButtonStyle(target)}
+          onClick={() => onTransition(target, false)}
+        >
+          {target.replace(/_/g, ' ')}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TransitionModal({
+  eventId,
+  eventKind,
+  existingVendorName,
+  existingPerformedBy,
+  target,
+  onClose,
+  onTransitioned,
+}: {
+  eventId: string;
+  eventKind: string;
+  existingVendorName: string | null;
+  existingPerformedBy: string | null;
+  target: { state: string; isReopen: boolean };
+  onClose: () => void;
+  onTransitioned: (newState: string) => void;
+}) {
+  const { safeFetch } = usePageError('TransitionModal');
+
+  const requiresVendor =
+    target.state === 'complete' &&
+    eventKind === 'calibration' &&
+    !existingVendorName;
+  const performedByConflict =
+    target.state === 'complete' &&
+    eventKind === 'calibration' &&
+    !!existingPerformedBy;
+
+  const [vendorName, setVendorName] = useState('');
+  const [clearPerformedBy, setClearPerformedBy] = useState(true);
+  const [decline_or_failed_reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isTerminal = TERMINAL_STATES.has(target.state as TerminalKind);
+
+  const handleConfirm = useCallback(async () => {
+    setError(null);
+    const body: Record<string, unknown> = {
+      state: target.state,
+    };
+    if (target.isReopen) body.reopen = true;
+
+    if (requiresVendor) {
+      const trimmed = vendorName.trim();
+      if (!trimmed) {
+        setError(
+          'Calibration events require vendor_name on completion ' +
+            '(NIST traceability).'
+        );
+        return;
+      }
+      body.vendor_name = trimmed;
+    }
+    if (performedByConflict && clearPerformedBy) {
+      body.performed_by_user_id = null;
+    }
+    // Notes for cancelled/failed_qa (terminal context).
+    if (
+      (target.state === 'cancelled' || target.state === 'failed_qa') &&
+      decline_or_failed_reason.trim().length > 0
+    ) {
+      body.notes = decline_or_failed_reason.trim();
+    }
+
+    setSubmitting(true);
+    const res = await safeFetch<{
+      event?: { state: string };
+      error?: string;
+    }>(`/api/admin/maintenance/events/${eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    setSubmitting(false);
+    if (res?.event?.state) {
+      onTransitioned(res.event.state);
+    } else {
+      setError(
+        res?.error ??
+          'Transition failed. Check the error log; the form is unchanged.'
+      );
+    }
+  }, [
+    target,
+    requiresVendor,
+    performedByConflict,
+    vendorName,
+    clearPerformedBy,
+    decline_or_failed_reason,
+    safeFetch,
+    eventId,
+    onTransitioned,
+  ]);
+
+  const targetLabel = target.state.replace(/_/g, ' ');
+  const title = target.isReopen ? 'Re-open this event?' : `Move to ${targetLabel}?`;
+
+  return (
+    <div style={transitionStyles.backdrop} onClick={onClose}>
+      <div
+        style={transitionStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header style={transitionStyles.header}>
+          <h2 style={transitionStyles.title}>{title}</h2>
+          <button
+            type="button"
+            style={transitionStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+            disabled={submitting}
+          >
+            ✕
+          </button>
+        </header>
+        <div style={transitionStyles.body}>
+          {target.isReopen ? (
+            <p style={transitionStyles.copy}>
+              Re-opening clears <code style={transitionStyles.code}>completed_at</code>{' '}
+              and <code style={transitionStyles.code}>qa_passed</code> for
+              a fresh service-history entry on re-completion. Existing
+              vendor + cost fields are preserved.
+            </p>
+          ) : isTerminal ? (
+            <p style={transitionStyles.copy}>
+              {target.state === 'complete'
+                ? 'Marking complete stamps completed_at = now() and locks the row terminal. Re-open via the dedicated re-open flow if needed.'
+                : target.state === 'cancelled'
+                ? 'Cancelling locks the row terminal — no further transitions. Drop a note explaining why.'
+                : 'Marking failed_qa surfaces the row in the §5.12.7.1 Today red banner. The EM can re-open via in_progress.'}
+            </p>
+          ) : (
+            <p style={transitionStyles.copy}>
+              Move state from <strong>current</strong> to{' '}
+              <strong>{targetLabel}</strong>.{' '}
+              {target.state === 'in_progress'
+                ? 'Auto-stamps started_at = now() if not already set.'
+                : null}
+            </p>
+          )}
+
+          {requiresVendor ? (
+            <label style={transitionStyles.field}>
+              <span style={transitionStyles.label}>
+                Vendor name (required for calibration completion) *
+              </span>
+              <input
+                type="text"
+                value={vendorName}
+                onChange={(e) => setVendorName(e.target.value)}
+                placeholder="e.g. Trimble Service Houston"
+                style={transitionStyles.input}
+                required
+                autoFocus
+              />
+              <span style={transitionStyles.hint}>
+                ▸ NIST cert traceability requires a third-party vendor.
+                The PATCH route enforces this server-side via the
+                <code style={transitionStyles.code}>
+                  calibration_requires_vendor
+                </code>{' '}
+                gate.
+              </span>
+            </label>
+          ) : null}
+
+          {performedByConflict ? (
+            <label style={transitionStyles.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={clearPerformedBy}
+                onChange={(e) => setClearPerformedBy(e.target.checked)}
+              />
+              <span>
+                <strong>Clear performed_by_user_id</strong>
+                <span style={transitionStyles.hint}>
+                  {' '}
+                  · Calibration completion requires this field be null
+                  (NIST cert is third-party only). Untick at your own
+                  risk; the PATCH route will refuse with{' '}
+                  <code style={transitionStyles.code}>
+                    calibration_excludes_performed_by
+                  </code>
+                  .
+                </span>
+              </span>
+            </label>
+          ) : null}
+
+          {(target.state === 'cancelled' ||
+            target.state === 'failed_qa') ? (
+            <label style={transitionStyles.field}>
+              <span style={transitionStyles.label}>
+                Notes ({target.state === 'cancelled' ? 'why cancel' : 'QA failure detail'})
+              </span>
+              <textarea
+                value={decline_or_failed_reason}
+                onChange={(e) => setReason(e.target.value)}
+                style={{ ...transitionStyles.input, minHeight: 60 }}
+                placeholder="Optional but encouraged — the audit log keeps this forever."
+              />
+            </label>
+          ) : null}
+
+          {error ? <div style={transitionStyles.error}>⚠ {error}</div> : null}
+        </div>
+        <footer style={transitionStyles.footer}>
+          <button
+            type="button"
+            style={transitionStyles.secondaryBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            style={
+              isTerminal && target.state === 'cancelled'
+                ? transitionStyles.dangerBtn
+                : isTerminal && target.state === 'failed_qa'
+                ? transitionStyles.dangerBtn
+                : transitionStyles.primaryBtn
+            }
+            onClick={handleConfirm}
+            disabled={submitting}
+          >
+            {submitting
+              ? 'Working…'
+              : target.isReopen
+              ? 'Re-open'
+              : `Move to ${targetLabel}`}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function transitionButtonStyle(target: string): React.CSSProperties {
+  const base: React.CSSProperties = {
+    padding: '6px 12px',
+    border: '1px solid #1D3095',
+    background: '#FFFFFF',
+    color: '#1D3095',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: 'pointer',
+    textTransform: 'capitalize' as const,
+  };
+  if (target === 'cancelled' || target === 'failed_qa') {
+    base.borderColor = '#B91C1C';
+    base.color = '#B91C1C';
+  } else if (target === 'complete') {
+    base.borderColor = '#15803D';
+    base.color = '#15803D';
+  }
+  return base;
+}
+
+const transitionStyles: Record<string, React.CSSProperties> = {
+  bar: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    alignItems: 'center',
+    gap: 8,
+  },
+  muted: { color: '#6B7280', fontSize: 12, marginRight: 4 },
+  reopenBtn: {
+    padding: '6px 12px',
+    border: '1px solid #1D3095',
+    background: '#1D3095',
+    color: '#FFFFFF',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  backdrop: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(15, 23, 42, 0.5)',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingTop: 60,
+    zIndex: 1000,
+  },
+  modal: {
+    background: '#FFFFFF',
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: 'calc(100vh - 120px)',
+    boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '14px 20px',
+    borderBottom: '1px solid #E2E5EB',
+  },
+  title: { fontSize: 16, fontWeight: 600, margin: 0 },
+  close: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: 18,
+    color: '#6B7280',
+    cursor: 'pointer',
+    padding: 4,
+    lineHeight: 1,
+  },
+  body: {
+    padding: 20,
+    overflowY: 'auto' as const,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 14,
+  },
+  copy: { margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 },
+  field: { display: 'flex', flexDirection: 'column' as const, gap: 4 },
+  label: { fontSize: 12, fontWeight: 600, color: '#374151' },
+  input: {
+    padding: '8px 10px',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: 'inherit',
+  },
+  hint: { fontSize: 11, color: '#6B7280', fontStyle: 'italic' as const },
+  checkboxRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    fontSize: 13,
+  },
+  code: {
+    fontFamily: 'Menlo, monospace',
+    fontSize: 11,
+    background: '#F3F4F6',
+    padding: '1px 6px',
+    borderRadius: 4,
+    margin: '0 2px',
+  },
+  error: {
+    background: '#FEF2F2',
+    border: '1px solid #FCA5A5',
+    color: '#B91C1C',
+    padding: 10,
+    borderRadius: 6,
+    fontSize: 12,
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 10,
+    padding: '12px 20px',
+    borderTop: '1px solid #E2E5EB',
+    background: '#FAFBFC',
+    borderRadius: '0 0 12px 12px',
+  },
+  primaryBtn: {
+    background: '#1D3095',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  dangerBtn: {
+    background: '#B91C1C',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  secondaryBtn: {
+    background: 'transparent',
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    color: '#374151',
+  },
+};
 
 function stateBadgeStyle(state: string): React.CSSProperties {
   const map: Record<string, React.CSSProperties> = {
@@ -603,5 +1153,14 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #E2E5EB',
     borderRadius: 12,
     margin: 24,
+  },
+  actionMsg: {
+    marginTop: 12,
+    padding: '10px 14px',
+    background: '#DCFCE7',
+    border: '1px solid #86EFAC',
+    color: '#166534',
+    borderRadius: 8,
+    fontSize: 13,
   },
 };
