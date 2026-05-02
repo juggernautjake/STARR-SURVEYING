@@ -4919,7 +4919,29 @@ discipline.
       F10.6-f closes out: aggregator + page UI both
       shipped. The §5.12.7.8 retired-gear cleanup queue
       runs end-to-end.
-- [ ] **F10.6-g** — §5.12.7.7 Override audit panel.
+- [◐] **F10.6-g** — §5.12.7.7 Override audit panel. Split:
+  - [✓] **F10.6-g-i** — `GET /api/admin/equipment/overrides
+        ?since=YYYY-MM-DD&type=both|equipment|personnel
+        &limit=N` aggregator shipped. Unions every
+        `is_override=true` row across
+        `equipment_reservations` (F10.3-e soft-override) and
+        `job_team` (F10.4-c soft-override) into a single
+        time-sorted feed so admins review the
+        "nothing-is-silent" trail in one place. Default
+        since = 30 days; default type = both; default limit =
+        200 (capped 1000). Per row carries `kind` discriminator,
+        actor_email (resolved from
+        `reserved_by → registered_users.email` for equipment;
+        null on personnel side since `job_team` has no
+        historical actor column — future polish: add
+        `created_by`), target_label (equipment name OR
+        user_email), job_id, state, reason, notes (carries
+        the 'OVERRIDE: …' prefix from the insert path), and
+        the row's window. Summary block reports per-kind
+        counts + `truncated` flag when limit hit. Auth:
+        EQUIPMENT_ROLES.
+  - [ ] **F10.6-g-ii** — `app/admin/equipment/overrides/page.tsx`
+        — table UI consuming the aggregator + sidebar link.
 
 **F10.7 — Maintenance + calibration (Week 38–39).**
 - [ ] `maintenance_events` CRUD + state machine + document
