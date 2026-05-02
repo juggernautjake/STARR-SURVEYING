@@ -4847,7 +4847,28 @@ discipline.
         `/admin/equipment/` since it's a personnel-side
         view, but the sidebar groups it with Equipment
         per §5.12.7 (the EM owns crew capacity).
-  - [ ] **F10.6-e-iii** — Cell drilldown drawer.
+  - [✓] **F10.6-e-iii** — Cell drilldown drawer shipped.
+        New `GET /api/admin/personnel/crew-calendar/cell?
+        user_email=&day=` detail endpoint returns the
+        full `job_team` rows + `personnel_unavailability`
+        rows overlapping that (user × day) pair so the
+        drawer renders rich context without forcing the
+        page to fetch each row separately. Click any
+        non-empty cell opens a 480px right-side drawer
+        (mirrors the F10.6-c-iii Gantt drawer pattern):
+        backdrop dismissal + ✕ close. Header shows the
+        user + state badge + day. Body has two cards
+        sections — Unavailability (kind, window, reason,
+        is_paid, approved_by) and Assignments (job link,
+        slot_role with CREW LEAD badge when applicable,
+        state badge with OVERRIDE pill when override_
+        reason set, window, confirmed_at / declined_at +
+        decline_reason, override_reason, notes).
+        `open` cells short-circuit the drawer (nothing
+        to show until F10.6-e-iv adds drag-create);
+        unavailability shows above assignments since
+        PTO is the dominant context when both apply.
+        Loading state surfaces during the fetch.
   - [ ] **F10.6-e-iv** — Drag-create new unavailability /
         assignment (defer if scope grows).
 - [ ] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
