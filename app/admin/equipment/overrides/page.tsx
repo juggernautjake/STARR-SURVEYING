@@ -93,8 +93,8 @@ export default function OverridesAuditPage() {
           <h1 style={styles.h1}>Override audit</h1>
           <p style={styles.subtitle}>
             §5.12.7.7 — every soft-override across reservations and
-            personnel assignments. The "nothing is silent" trail
-            from F10.3-e + F10.4-c.
+            personnel assignments. The &ldquo;nothing is silent&rdquo;
+            trail from F10.3-e + F10.4-c.
           </p>
         </div>
         <button

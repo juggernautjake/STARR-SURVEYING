@@ -766,7 +766,7 @@ function ThresholdModal({
             />
             <span style={modalStyles.hint}>
               ▸ Drives the reorder-NOW gate in the F10.3-b
-              availability check + the F10.6-d-i aggregator's
+              availability check + the F10.6-d-i aggregator&apos;s
               badge tier. Use 0 to remove the floor entirely.
             </span>
           </label>

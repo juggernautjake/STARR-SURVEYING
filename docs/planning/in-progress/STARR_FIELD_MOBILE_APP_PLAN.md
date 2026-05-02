@@ -5098,8 +5098,34 @@ sub-batches per the small-chunks discipline:
       bytes off Next.js / Vercel functions (important for
       50 MB calibration PDFs). Auth: GET = EQUIPMENT_ROLES;
       POST = admin / developer / equipment_manager.
-- [ ] **F10.7-e** — `GET /api/admin/maintenance/calendar`
-      aggregator (month grid + upcoming list).
+- [✓] **F10.7-e** — `GET /api/admin/maintenance/calendar`
+      shipped. Returns the data the §5.12.7.4 month-grid
+      page needs in one roundtrip:
+      `month` window (from / to) · `days[]` one entry per
+      calendar day with the events scheduled that day ·
+      `upcoming[]` next-30-days events sorted ASC for the
+      sidebar list · `next_due_per_equipment[]`
+      schedule-driven rollup (for every
+      `maintenance_schedule`, find latest completed event
+      matching, project `next_due_at = last_completed_at +
+      frequency_months`; category schedules fan out to
+      every non-retired unit in the matching category) ·
+      `summary` with per-state counts + due-in-lead-window
+      tally for the page header. Filters `?month=YYYY-MM`
+      (default current month), optional `equipment_id`,
+      optional `kind`. Equipment names + categories
+      resolved in one batch lookup across the union of
+      month + upcoming events. Schedules-with-no-completed-
+      event-yet treat next_due_at = now() so the EM sees
+      "this never had a cal; schedule one" rather than the
+      schedule disappearing. Auth: EQUIPMENT_ROLES.
+      **Build-fix:** the F10.6-d-ii Update threshold
+      modal hint and F10.6-g-ii overrides page subtitle
+      had unescaped apostrophe + double-quote chars that
+      tripped Vercel's ESLint
+      `react/no-unescaped-entities` rule; replaced with
+      `&apos;` / `&ldquo;` / `&rdquo;` so the build
+      passes. No behavior change.
 - [ ] **F10.7-f** — `app/admin/equipment/maintenance/page.tsx`
       calendar UI + sidebar entry.
 - [ ] **F10.7-g** — Per-event detail page UI with state
