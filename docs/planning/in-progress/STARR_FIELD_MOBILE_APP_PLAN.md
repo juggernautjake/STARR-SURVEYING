@@ -5558,10 +5558,27 @@ sub-batches per the small-chunks discipline:
           instead of the single-item form. Equipment-name
           lookup short-circuits via the resolved kit context
           so the helper still does only three batched reads.
-    - [ ] `equipment_status_change` when the EM flips
-          `current_status` (e.g. available → maintenance) —
-          notifies any user with an active reservation that
-          would be affected.
+    - [✓] `equipment_status_change` when the EM flips
+          `current_status`. PATCH /api/admin/equipment/[id]
+          now reads the row&apos;s old current_status before
+          the update (skipped when the body doesn&apos;t touch
+          current_status, so common edits don&apos;t pay the
+          cost), then post-update fires
+          `equipment_status_change` notifications. Two
+          flip-classes trigger:
+            * **Disrupting** (any → maintenance / lost /
+              retired): high-escalation alert — &ldquo;X
+              active reservation(s) may need to be rebooked.&rdquo;
+            * **Restoring** (maintenance / lost / retired →
+              available / in_use): normal escalation — &ldquo;X
+              active reservation(s) can proceed as planned.&rdquo;
+          Affected reservation set = state ∈ {held,
+          checked_out} AND reserved_to ≥ now(). Recipients =
+          union of (checked_out_to_user, reservation creator).
+          UUIDs resolved to emails in one batched read; sent
+          via `notifyMany` for a single PostgREST insert.
+          Best-effort: failures log + continue. Cosmetic
+          flips (in_use ↔ loaned_out) don&apos;t fan out.
     - [ ] `equipment_overdue` source_type rename / unify with
           the existing `equipment_overdue_return` +
           `equipment_overdue_digest` types.
