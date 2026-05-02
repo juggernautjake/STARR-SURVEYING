@@ -5075,8 +5075,29 @@ sub-batches per the small-chunks discipline:
 
       F10.7-c closes out: POST + PATCH cover the full
       maintenance_events CRUD surface.
-- [ ] **F10.7-d** — `POST /[id]/documents` upload + GET
-      list endpoints.
+- [✓] **F10.7-d** — `app/api/admin/maintenance/events/[id]/
+      documents/route.ts` shipped with two handlers.
+      `GET` returns every attachment for one event ordered
+      newest-first with batched uploader display fields
+      resolved server-side so the F10.7-g detail-page
+      history tab renders without per-file roundtrips.
+      `POST` records metadata for an already-uploaded
+      file: validates `kind` against the seeds/247 enum
+      (`calibration_cert` / `work_order` / `parts_invoice`
+      / `before_photo` / `after_photo` / `qa_report` /
+      `other`), `storage_url` (≤ 2000 chars), optional
+      `filename` (≤ 255), `size_bytes` (non-negative int),
+      `description`. Pre-validates parent event exists for
+      a clean 404 (the seeds/247 FK ON DELETE CASCADE
+      handles structural orphan prevention either way).
+      Splits upload-bytes from upload-metadata
+      intentionally — the F10.7-g UI requests a signed
+      upload URL from a §5.6 file-bucket signing helper,
+      uploads bytes directly to storage, then POSTs here
+      with the resulting `storage_url`. Keeps streamed
+      bytes off Next.js / Vercel functions (important for
+      50 MB calibration PDFs). Auth: GET = EQUIPMENT_ROLES;
+      POST = admin / developer / equipment_manager.
 - [ ] **F10.7-e** — `GET /api/admin/maintenance/calendar`
       aggregator (month grid + upcoming list).
 - [ ] **F10.7-f** — `app/admin/equipment/maintenance/page.tsx`
