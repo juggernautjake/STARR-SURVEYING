@@ -4871,8 +4871,29 @@ discipline.
         Loading state surfaces during the fetch.
   - [ ] **F10.6-e-iv** — Drag-create new unavailability /
         assignment (defer if scope grows).
-- [ ] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
-      gear cleanup queue.
+- [◐] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
+      gear cleanup queue. Split:
+  - [✓] **F10.6-f-i** — `GET /api/admin/equipment/templates/
+        cleanup-queue` aggregator shipped. Walks every
+        `equipment_template_items` row pinning a specific
+        `equipment_inventory_id` (category-mode rows auto-
+        resolve at apply-time and aren't stale on
+        retirement), filters to those whose target has
+        `retired_at IS NOT NULL` (covers both F10.1e-i
+        retire AND F10.6-d-iii-γ discontinue), groups by
+        `template_id`, joins template header + total item
+        count so the page renders "3 of 8 lines stale".
+        Each stale item carries template-side fields (id,
+        kind, qty, required, notes, sort_order) +
+        equipment-side details (name, category,
+        retired_at, retired_reason, current_status) so
+        the F10.6-f-ii page UI works without per-row
+        roundtrips. Sort: archived templates last (less
+        urgent), most-stale-first within each bucket,
+        alphabetical tiebreak. Empty short-circuits
+        cleanly. Auth: EQUIPMENT_ROLES.
+  - [ ] **F10.6-f-ii** — `app/admin/equipment/templates/cleanup-queue/page.tsx`
+        — table UI + sidebar link.
 - [ ] **F10.6-g** — §5.12.7.7 Override audit panel.
 
 **F10.7 — Maintenance + calibration (Week 38–39).**
