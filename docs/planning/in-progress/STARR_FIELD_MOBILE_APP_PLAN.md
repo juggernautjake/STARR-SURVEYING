@@ -4869,8 +4869,28 @@ discipline.
         unavailability shows above assignments since
         PTO is the dominant context when both apply.
         Loading state surfaces during the fetch.
-  - [ ] **F10.6-e-iv** — Drag-create new unavailability /
+  - [◐] **F10.6-e-iv** — Drag-create new unavailability /
         assignment (defer if scope grows).
+    - [✓] **F10.6-e-iv-α** — POST /api/admin/personnel/
+          unavailability endpoint. Write path for the
+          `personnel_unavailability` table from seeds/241.
+          Validates user_email + ISO timestamps
+          (`unavailable_to` strictly &gt; `unavailable_from`,
+          mirroring the seeds/241 CHECK so we 400 cleanly
+          instead of 23514) + kind enum (pto / sick /
+          training / doctor / other) + optional reason +
+          optional is_paid. Stamps `approved_by` /
+          `approved_at` with the actor since admin /
+          equipment_manager rows are inherently approved on
+          insert; future surveyor self-serve POST will leave
+          those null until the EM confirms. Auth: admin /
+          equipment_manager. Returns the inserted row.
+    - [ ] **F10.6-e-iv-β** — Drag-create UX + modal on the
+          crew calendar grid. Mouse-down + drag across cells
+          in the same row → highlight range → mouse-up opens
+          modal (kind dropdown, optional reason, Save button).
+          POST to /unavailability or /assign per kind choice;
+          refetch on success.
 - [◐] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
       gear cleanup queue. Split:
   - [✓] **F10.6-f-i** — `GET /api/admin/equipment/templates/
