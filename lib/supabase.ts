@@ -18,6 +18,13 @@ export const supabaseAdmin = createClient(
 // The research-documents bucket name (must match seeds/102_storage_buckets.sql).
 export const RESEARCH_DOCUMENTS_BUCKET = 'research-documents';
 
+// Maintenance attachments bucket — calibration certs, work orders,
+// before/after photos, parts invoices, QA reports. Must match the
+// bucket provisioned in seeds/102 (or auto-created on first use via
+// ensureStorageBucket below). Used by the Phase F10.7-g-ii-δ
+// upload modal on the maintenance event detail page.
+export const MAINTENANCE_DOCUMENTS_BUCKET = 'maintenance-documents';
+
 // In-memory set of bucket names that have been verified to exist in this
 // process lifetime.  Avoids redundant Supabase calls on every upload.
 const _verifiedBuckets = new Set<string>();

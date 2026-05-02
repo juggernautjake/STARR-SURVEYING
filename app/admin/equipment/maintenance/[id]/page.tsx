@@ -176,6 +176,9 @@ export default function MaintenanceEventDetailPage() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  // F10.7-g-ii-δ — documents upload modal.
+  const [uploadOpen, setUploadOpen] = useState(false);
+
   const fetchDetail = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -436,13 +439,21 @@ export default function MaintenanceEventDetailPage() {
             Documents{' '}
             <span style={styles.h2Hint}>({documents.length})</span>
           </h2>
-          <button type="button" disabled style={styles.disabledBtn}>
-            Upload (F10.7-g-ii-δ)
+          <button
+            type="button"
+            onClick={() => {
+              setUploadOpen(true);
+              setActionMsg(null);
+            }}
+            style={styles.editBtn}
+          >
+            ↑ Upload document
           </button>
         </header>
         {documents.length === 0 ? (
           <div style={styles.muted}>
-            No documents attached. F10.7-g-ii-δ adds the upload modal.
+            No documents attached. Click <strong>Upload document</strong>{' '}
+            to attach a calibration cert, work order, photo, etc.
           </div>
         ) : (
           <table style={styles.table}>
@@ -522,6 +533,18 @@ export default function MaintenanceEventDetailPage() {
             setActionMsg(
               `✓ Moved to ${newState.replace(/_/g, ' ')}.`
             );
+            void fetchDetail();
+          }}
+        />
+      ) : null}
+
+      {uploadOpen ? (
+        <UploadModal
+          eventId={event.id}
+          onClose={() => setUploadOpen(false)}
+          onUploaded={(filename) => {
+            setUploadOpen(false);
+            setActionMsg(`✓ Uploaded ${filename}.`);
             void fetchDetail();
           }}
         />
@@ -1299,6 +1322,254 @@ const editStyles: Record<string, React.CSSProperties> = {
     borderTop: '1px solid #E2E5EB',
   },
 };
+
+// ────────────────────────────────────────────────────────────
+// F10.7-g-ii-δ — documents upload modal
+// ────────────────────────────────────────────────────────────
+//
+// Two-step upload-then-record flow that mirrors the research
+// document upload pattern:
+//
+//   1. POST /upload-url → server returns { signedUrl, publicUrl }.
+//   2. PUT bytes directly to signedUrl (bypasses Vercel body
+//      limits — calibration PDFs can be 50 MB).
+//   3. POST /documents → metadata row inserted with
+//      storage_url = publicUrl.
+//
+// Splitting upload from metadata-record means a network failure
+// on PUT leaves no orphan DB row; a stranded storage object is
+// the only risk (cheap to GC).
+
+const DOC_KINDS: Array<{ value: string; label: string }> = [
+  { value: 'calibration_cert', label: 'Calibration cert' },
+  { value: 'work_order', label: 'Work order' },
+  { value: 'parts_invoice', label: 'Parts invoice' },
+  { value: 'before_photo', label: 'Before photo' },
+  { value: 'after_photo', label: 'After photo' },
+  { value: 'qa_report', label: 'QA report' },
+  { value: 'other', label: 'Other' },
+];
+
+function UploadModal({
+  eventId,
+  onClose,
+  onUploaded,
+}: {
+  eventId: string;
+  onClose: () => void;
+  onUploaded: (filename: string) => void;
+}) {
+  const { safeFetch } = usePageError('UploadModal');
+
+  const [file, setFile] = useState<File | null>(null);
+  const [kind, setKind] = useState<string>('calibration_cert');
+  const [description, setDescription] = useState('');
+  const [progress, setProgress] = useState<
+    'idle' | 'signing' | 'uploading' | 'recording'
+  >('idle');
+  const [error, setError] = useState<string | null>(null);
+
+  const submitting = progress !== 'idle';
+
+  async function handleUpload() {
+    setError(null);
+    if (!file) {
+      setError('Pick a file before uploading.');
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      setError(
+        `File too large: ${(file.size / 1024 / 1024).toFixed(1)} MB ` +
+          `exceeds the 50 MB cap. Compress or split before re-uploading.`
+      );
+      return;
+    }
+
+    // ── Step 1: signed URL ────────────────────────────────────
+    setProgress('signing');
+    const urlRes = await safeFetch<{
+      signedUrl?: string;
+      storagePath?: string;
+      publicUrl?: string;
+      error?: string;
+    }>(`/api/admin/maintenance/events/${eventId}/documents/upload-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+      }),
+    });
+    if (!urlRes?.signedUrl || !urlRes?.publicUrl) {
+      setProgress('idle');
+      setError(urlRes?.error ?? 'Failed to issue upload URL.');
+      return;
+    }
+
+    // ── Step 2: PUT bytes directly to Supabase ───────────────
+    setProgress('uploading');
+    try {
+      const putRes = await fetch(urlRes.signedUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+        },
+      });
+      if (!putRes.ok) {
+        setProgress('idle');
+        setError(
+          `Upload failed (${putRes.status}). The file was not stored — ` +
+            `try again or check your connection.`
+        );
+        return;
+      }
+    } catch {
+      setProgress('idle');
+      setError(
+        'Upload failed mid-stream. Check your connection and retry.'
+      );
+      return;
+    }
+
+    // ── Step 3: record metadata ──────────────────────────────
+    setProgress('recording');
+    const trimmedDesc = description.trim();
+    const metaRes = await safeFetch<{
+      document?: { id: string };
+      error?: string;
+    }>(`/api/admin/maintenance/events/${eventId}/documents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kind,
+        storage_url: urlRes.publicUrl,
+        filename: file.name,
+        size_bytes: file.size,
+        description: trimmedDesc.length > 0 ? trimmedDesc : null,
+      }),
+    });
+    setProgress('idle');
+    if (metaRes?.document?.id) {
+      onUploaded(file.name);
+    } else {
+      setError(
+        (metaRes?.error ??
+          'Metadata insert failed. The file is in storage but the ' +
+            'document row was not recorded.') +
+          ' Contact admin if this persists.'
+      );
+    }
+  }
+
+  return (
+    <div style={transitionStyles.backdrop} onClick={onClose}>
+      <div
+        style={transitionStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header style={transitionStyles.header}>
+          <h2 style={transitionStyles.title}>Upload document</h2>
+          <button
+            type="button"
+            style={transitionStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+            disabled={submitting}
+          >
+            ✕
+          </button>
+        </header>
+        <div style={transitionStyles.body}>
+          <p style={transitionStyles.copy}>
+            Files upload directly to Supabase Storage; only the metadata
+            row hits this server. Max 50 MB per file.
+          </p>
+
+          <label style={transitionStyles.field}>
+            <span style={transitionStyles.label}>Document kind *</span>
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value)}
+              style={transitionStyles.input}
+              disabled={submitting}
+            >
+              {DOC_KINDS.map((k) => (
+                <option key={k.value} value={k.value}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={transitionStyles.field}>
+            <span style={transitionStyles.label}>File *</span>
+            <input
+              type="file"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              style={transitionStyles.input}
+              disabled={submitting}
+              autoFocus
+            />
+            {file ? (
+              <span style={transitionStyles.hint}>
+                ▸ {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+              </span>
+            ) : null}
+          </label>
+
+          <label style={transitionStyles.field}>
+            <span style={transitionStyles.label}>Description (optional)</span>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Short caption — e.g. NIST cert valid through 2027-04."
+              style={{ ...transitionStyles.input, minHeight: 60 }}
+              disabled={submitting}
+            />
+          </label>
+
+          {progress === 'signing' ? (
+            <div style={transitionStyles.copy}>
+              ⤴ Requesting upload URL…
+            </div>
+          ) : progress === 'uploading' ? (
+            <div style={transitionStyles.copy}>
+              ⇡ Streaming bytes to storage…
+            </div>
+          ) : progress === 'recording' ? (
+            <div style={transitionStyles.copy}>
+              💾 Recording metadata…
+            </div>
+          ) : null}
+
+          {error ? <div style={transitionStyles.error}>⚠ {error}</div> : null}
+        </div>
+        <footer style={transitionStyles.footer}>
+          <button
+            type="button"
+            style={transitionStyles.secondaryBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            style={transitionStyles.primaryBtn}
+            onClick={handleUpload}
+            disabled={submitting || !file}
+          >
+            {submitting ? 'Working…' : 'Upload'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
 
 function transitionButtonStyle(target: string): React.CSSProperties {
   const base: React.CSSProperties = {
