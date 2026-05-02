@@ -5327,8 +5327,34 @@ sub-batches per the small-chunks discipline:
           mirroring the equipment-overdue-digest pattern.
           Returns `{ scanned, projected, created, notified,
           skipped }`.
-- [ ] **F10.7-i** — Cert-expiring auto-creation cron +
+- [◐] **F10.7-i** — Cert-expiring auto-creation cron +
       §5.12.7.1 Today blue banner integration.
+    - [✓] **F10.7-i-i** — Cert-expiring Today banner. Extends
+          the §5.12.7.1 Today aggregator with a fourth banner
+          driven by `equipment_inventory.next_calibration_due_at`
+          (the canonical NIST-cert-expiry column from
+          seeds/233). New `loadCertExpiring(nowIso)` helper
+          reads every non-retired / non-lost row whose
+          `next_calibration_due_at ≤ now() + 60 days`, sorted
+          ASC, with `days_until` projected for the banner copy.
+          The Today page's `BannerStack` splits the result into
+          two visually distinct banners: **red** for overdue
+          certs ("⚠ N calibration cert(s) overdue · ItemA (5d
+          ago)…") since a survey with a lapsed NIST cert is
+          legally suspect, and **blue** for upcoming ("🧪 N
+          calibration cert(s) expiring within 60d · ItemA (in
+          43d)…"). Both surface the soonest-due 3 by name with
+          a `+N more` overflow. Best-effort lookup degrades to
+          empty array on Postgres errors. The data flows from
+          the maintenance event triggers in seeds/233 that
+          maintain `next_calibration_due_at` whenever a
+          calibration event lands `state='complete'`.
+    - [ ] **F10.7-i-ii** — Cert-expiring auto-creation cron.
+          Daily scan of `equipment_inventory.next_calibration_
+          due_at` that auto-creates a `state='scheduled'`
+          calibration event with `origin='cert_expiring'` for
+          units NOT covered by a maintenance_schedules row —
+          safety net for when category defaults missed a unit.
 - [ ] **F10.7-j** — QA gate on calibration completion +
       `failed_qa` red-row surfacing on the calendar.
 - [ ] Receipt cross-link UI (Attach-receipt picker + Money-tab

@@ -7,7 +7,7 @@
 // stays thin and the aggregation logic lives in one place so
 // the mobile parity surface (§5.12.9 EM home tab) can reuse it.
 //
-// Response shape — three strips + three banners:
+// Response shape — three strips + four banners:
 //
 //   strips.going_out      Strip A: state='held' AND reserved_
 //                         from::date=date, grouped by job
@@ -25,6 +25,9 @@
 //                                     reserved today
 //   banners.maintenance_starting_today  scheduled work for
 //                                       today
+//   banners.cert_expiring             equipment_inventory rows
+//                                     with next_calibration_due_at
+//                                     ≤ now() + 60 days (F10.7-i-i)
 //
 // Date defaults to today (server clock); query string accepts
 // `date=YYYY-MM-DD` so the EM can scrub forward/back.
@@ -201,11 +204,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }));
 
   // ── Banners (best-effort; failures degrade to empty arrays) ──
-  const [unstaffedPto, lowStock, maintToday] = await Promise.all([
-    loadUnstaffedPto(dayStart, dayEnd),
-    loadLowStockConsumables(dayStart, dayEnd),
-    loadMaintenanceStartingToday(dayStart, dayEnd),
-  ]);
+  const [unstaffedPto, lowStock, maintToday, certExpiring] =
+    await Promise.all([
+      loadUnstaffedPto(dayStart, dayEnd),
+      loadLowStockConsumables(dayStart, dayEnd),
+      loadMaintenanceStartingToday(dayStart, dayEnd),
+      loadCertExpiring(nowIso),
+    ]);
 
   return NextResponse.json({
     date: dateIso,
@@ -219,6 +224,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       unstaffed_pto: unstaffedPto,
       low_stock_consumables: lowStock,
       maintenance_starting_today: maintToday,
+      cert_expiring: certExpiring,
     },
     counts: {
       going_out: goingOut.length,
@@ -398,4 +404,62 @@ async function loadMaintenanceStartingToday(
     return [];
   }
   return (data ?? []) as Array<Record<string, unknown>>;
+}
+
+// F10.7-i-i — cert-expiring banner. Reads
+// equipment_inventory.next_calibration_due_at (the canonical "when
+// is this NIST cert expiring" column maintained by the F10.7-c
+// maintenance event triggers from seeds/233). Surfaces every unit
+// whose cert is already overdue OR comes due within the next
+// 60 days. The blue Today banner gives the EM long-range
+// visibility BEFORE the F10.7-h schedule cron fires the 60-day
+// notification — a unit can lapse if no maintenance_schedules row
+// exists for it; this banner is the safety net.
+async function loadCertExpiring(
+  nowIso: string
+): Promise<
+  Array<{
+    id: string;
+    name: string | null;
+    next_calibration_due_at: string;
+    days_until: number;
+  }>
+> {
+  const cutoffMs = Date.now() + 60 * 24 * 60 * 60 * 1000;
+  const cutoffIso = new Date(cutoffMs).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from('equipment_inventory')
+    .select('id, name, next_calibration_due_at, current_status')
+    .not('next_calibration_due_at', 'is', null)
+    .lte('next_calibration_due_at', cutoffIso)
+    .order('next_calibration_due_at', { ascending: true });
+  if (error) {
+    console.warn(
+      '[admin/equipment/today] cert-expiring lookup failed',
+      { error: error.message }
+    );
+    return [];
+  }
+  const rows = (data ?? []) as Array<{
+    id: string;
+    name: string | null;
+    next_calibration_due_at: string;
+    current_status: string | null;
+  }>;
+  const nowMs = new Date(nowIso).getTime();
+  return rows
+    .filter(
+      (r) =>
+        r.current_status !== 'retired' &&
+        r.current_status !== 'lost'
+    )
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      next_calibration_due_at: r.next_calibration_due_at,
+      days_until: Math.floor(
+        (new Date(r.next_calibration_due_at).getTime() - nowMs) /
+          (1000 * 60 * 60 * 24)
+      ),
+    }));
 }
