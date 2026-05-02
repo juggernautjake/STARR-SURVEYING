@@ -5526,8 +5526,35 @@ sub-batches per the small-chunks discipline:
 - [ ] Persistent scanner FAB when any check-out is open.
 - [ ] 🛠 Gear tab (role-gated 6th tab) for Equipment Manager
       mobile flows (§5.12.9.2).
-- [ ] Three new notification source_types
+- [◐] Three new notification source_types
       (`equipment_assignment` / `_overdue` / `_status_change`).
+    - [✓] `equipment_assignment` on check-out (single-item).
+          POST /api/admin/equipment/check-out emits a notify()
+          row to the receiving surveyor after the reservation
+          flips to `state='checked_out'`. New helper
+          `emitAssignmentNotification()` resolves the
+          recipient&apos;s email + equipment name + job display
+          fields in three parallel reads, then fires
+          `type='equipment_assignment'` /
+          `source_type='equipment_assignment'` /
+          `source_id=reservation_id` so the §5.12.9 mobile
+          inbox can render a &ldquo;you got X for tomorrow&apos;s
+          job&rdquo; card with the right inline actions. Body
+          includes the equipment name, job label, and
+          reserved_to date. Best-effort: the check-out is
+          committed before this runs; failures log a warning
+          and continue. Kit-checkout path stays quiet at child
+          rows to avoid an inbox flood — single parent
+          notification will land in a follow-up.
+    - [ ] `equipment_assignment` on the kit-checkout path
+          (single notification per parent kit).
+    - [ ] `equipment_status_change` when the EM flips
+          `current_status` (e.g. available → maintenance) —
+          notifies any user with an active reservation that
+          would be affected.
+    - [ ] `equipment_overdue` source_type rename / unify with
+          the existing `equipment_overdue_return` +
+          `equipment_overdue_digest` types.
 - [ ] PowerSync sync rules per §5.12.9.3.
 - [ ] Surveyor self-service paths — borrowed-from-other-crew
       event log, personal-kit flag.
