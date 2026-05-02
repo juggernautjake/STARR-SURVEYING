@@ -5226,11 +5226,58 @@ sub-batches per the small-chunks discipline:
           page + flashes a green action banner. Errors
           surface inline in the modal. Auth: PATCH route
           enforces admin / equipment_manager.
-    - [ ] **F10.7-g-ii-γ** — editable fields with save-to-
-          PATCH integration.
-    - [ ] **F10.7-g-ii-δ** — documents upload modal
+    - [✓] **F10.7-g-ii-γ** — editable fields with save-to-
+          PATCH integration. Inline edit-mode toggle replaces
+          the read-only Schedule + Vendor + Notes sections
+          with a single EditForm pre-filled from the event row.
+          Editable fields: summary (≤ 200 chars, required),
+          scheduled_for / started_at / completed_at /
+          expected_back_at / next_due_at (datetime-local with
+          a `toLocalInput` ↔ `localToIso` round-trip), vendor
+          name / contact / work-order, cost (USD dollars input
+          → integer cents), linked_receipt_id (UUID), notes,
+          and qa_passed (tristate select: unset / true / false).
+          Save diffs against the original snapshot and PATCHes
+          ONLY the changed fields — the F10.7-c-ii Maybe<T>
+          shape leaves omitted fields untouched, so over-
+          shipping the whole form would silently overwrite
+          concurrent edits. Cancel discards. On success the
+          page refetches + flashes a green banner. Server-
+          side guards (state machine, calibration NIST gate,
+          summary length) propagate inline errors. The Edit
+          button hides on cancelled events (terminal). Auth:
+          PATCH route enforces admin / equipment_manager.
+    - [✓] **F10.7-g-ii-δ** — documents upload modal
           (signed URL → bucket upload → POST F10.7-d
-          metadata).
+          metadata). Replaces the disabled "Upload" stub on
+          the maintenance event detail page with a modal:
+          file picker + kind dropdown (calibration_cert,
+          work_order, parts_invoice, before_photo, after_photo,
+          qa_report, other) + optional description. Three-step
+          flow:
+            (1) POST /api/admin/maintenance/events/[id]/documents/
+                upload-url → server returns
+                { signedUrl, storagePath, publicUrl } from
+                supabaseAdmin.storage.createSignedUploadUrl()
+                against the new MAINTENANCE_DOCUMENTS_BUCKET
+                ('maintenance-documents'). Server validates
+                parent event exists, filename ≤ 255, fileSize
+                ≤ 50 MB, calls ensureStorageBucket() so the
+                bucket auto-provisions on first use.
+            (2) Client PUTs file bytes directly to signedUrl —
+                bypasses the Vercel function body limit so
+                50 MB calibration PDFs land cleanly.
+            (3) Client POSTs metadata to F10.7-d with
+                storage_url = publicUrl + filename + size_bytes
+                + kind + description. Splitting upload from
+                metadata-record means a network failure on PUT
+                leaves no orphan DB row; a stranded storage
+                object is the only risk (cheap to GC).
+          On success the detail page refetches the document
+          list + flashes a green "Uploaded {filename}" banner.
+          Progress states (signing → uploading → recording)
+          surface inline. Auth: equipment_manager / admin /
+          developer (write).
 - [ ] **F10.7-h** — Daily 3am cron — recurring schedule
       due-date computation + 60/30/7-day notifications +
       auto-create events.
