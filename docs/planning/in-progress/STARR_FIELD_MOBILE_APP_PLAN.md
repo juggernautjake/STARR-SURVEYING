@@ -5155,8 +5155,26 @@ sub-batches per the small-chunks discipline:
       Sidebar 'Maintenance' link added between Consumables
       and Catalogue. Inline-styles per the rest of
       `/admin/equipment/*`.
-- [ ] **F10.7-g** — Per-event detail page UI with state
-      transitions + document upload.
+- [◐] **F10.7-g** — Per-event detail page UI. Split:
+  - [✓] **F10.7-g-i** — `GET /api/admin/maintenance/events/
+        [id]` shipped (added to the same route file as the
+        existing F10.7-c-ii PATCH). Returns the full event row
+        + joined display fields (equipment + vehicle minimal
+        rows; actor labels for `created_by` and
+        `performed_by_user_id`) + `maintenance_event_documents`
+        list with uploader labels resolved server-side. The 4
+        round-trips (event read · equipment / vehicle / actor
+        lookup · documents read) run in parallel via
+        `Promise.all` so the page hydrates in one slow read,
+        not four. Uploader display lookups for the documents
+        section run as a follow-up batch since the document
+        IDs aren't known until the docs read returns. Auth:
+        EQUIPMENT_ROLES (read).
+  - [ ] **F10.7-g-ii** — page UI: header (kind/state/origin
+        badges) + main detail (windows / vendor / cost /
+        notes) + state-transition controls (calls F10.7-c-ii
+        PATCH) + documents list + upload control (calls
+        F10.7-d POST).
 - [ ] **F10.7-h** — Daily 3am cron — recurring schedule
       due-date computation + 60/30/7-day notifications +
       auto-create events.

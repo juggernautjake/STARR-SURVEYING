@@ -41,6 +41,12 @@
 //   Otherwise typed `calibration_requires_vendor` 400.
 //
 // Auth: admin / developer / equipment_manager (mutating).
+//
+// GET on the same route is the F10.7-g-i detail endpoint.
+// Read-only for the F10.7-g-ii page UI; pulls the full event +
+// joined display fields + linked maintenance_event_documents in
+// one roundtrip so the detail page renders without a second
+// fetch.
 
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -518,3 +524,201 @@ function parseOptionalString(raw: unknown, name: string): Maybe<string> {
   const trimmed = raw.trim();
   return { set: true, value: trimmed.length > 0 ? trimmed : null };
 }
+
+// ──────────────────────────────────────────────────────────────
+// GET — F10.7-g-i: single-event detail
+// ──────────────────────────────────────────────────────────────
+//
+// Returns the full event row + joined display fields +
+// maintenance_event_documents in one shot. The F10.7-g-ii page
+// UI reads from here once on mount + re-reads after any
+// state-transition PATCH lands.
+//
+// Auth: EQUIPMENT_ROLES (read).
+
+export const GET = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const userRoles = (session.user as { roles?: string[] } | undefined)
+    ?.roles ?? [];
+  if (
+    !isAdmin(session.user.roles) &&
+    !userRoles.includes('tech_support') &&
+    !userRoles.includes('equipment_manager')
+  ) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const url = new URL(req.url);
+  const segments = url.pathname.split('/').filter(Boolean);
+  const id = segments[segments.length - 1];
+  if (!id || !UUID_RE.test(id)) {
+    return NextResponse.json(
+      { error: '`id` must be a valid UUID.' },
+      { status: 400 }
+    );
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('maintenance_events')
+    .select(
+      'id, equipment_inventory_id, vehicle_id, kind, origin, state, ' +
+        'scheduled_for, started_at, completed_at, expected_back_at, ' +
+        'vendor_name, vendor_contact, vendor_work_order, ' +
+        'performed_by_user_id, cost_cents, linked_receipt_id, ' +
+        'summary, notes, qa_passed, next_due_at, created_at, ' +
+        'created_by, updated_at'
+    )
+    .eq('id', id)
+    .maybeSingle();
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json(
+      { error: 'Maintenance event not found.' },
+      { status: 404 }
+    );
+  }
+  const row = data as {
+    id: string;
+    equipment_inventory_id: string | null;
+    vehicle_id: string | null;
+    created_by: string | null;
+    performed_by_user_id: string | null;
+    [k: string]: unknown;
+  };
+
+  // ── Resolve display fields in parallel ─────────────────────
+  const [equipmentRes, vehicleRes, actorsRes, docsRes] =
+    await Promise.all([
+      row.equipment_inventory_id
+        ? supabaseAdmin
+            .from('equipment_inventory')
+            .select('id, name, category, item_kind, qr_code_id')
+            .eq('id', row.equipment_inventory_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      row.vehicle_id
+        ? supabaseAdmin
+            .from('vehicles')
+            .select('id, name')
+            .eq('id', row.vehicle_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      (async () => {
+        const ids = Array.from(
+          new Set(
+            [row.created_by, row.performed_by_user_id].filter(
+              (v): v is string => !!v
+            )
+          )
+        );
+        if (ids.length === 0) {
+          return { data: [] as Array<{ id: string; email: string | null; name: string | null }>, error: null };
+        }
+        return supabaseAdmin
+          .from('registered_users')
+          .select('id, email, name')
+          .in('id', ids);
+      })(),
+      supabaseAdmin
+        .from('maintenance_event_documents')
+        .select(
+          'id, kind, storage_url, filename, size_bytes, ' +
+            'description, uploaded_by, uploaded_at'
+        )
+        .eq('event_id', id)
+        .order('uploaded_at', { ascending: false }),
+    ]);
+
+  if (equipmentRes.error) {
+    return NextResponse.json(
+      { error: equipmentRes.error.message },
+      { status: 500 }
+    );
+  }
+  if (vehicleRes.error) {
+    console.warn(
+      '[admin/maintenance/events/:id GET] vehicle lookup failed',
+      { error: vehicleRes.error.message }
+    );
+  }
+  if (actorsRes.error) {
+    return NextResponse.json(
+      { error: actorsRes.error.message },
+      { status: 500 }
+    );
+  }
+  if (docsRes.error) {
+    return NextResponse.json(
+      { error: docsRes.error.message },
+      { status: 500 }
+    );
+  }
+
+  const actorById = new Map<string, string>();
+  for (const a of (actorsRes.data ?? []) as Array<{
+    id: string;
+    email: string | null;
+    name: string | null;
+  }>) {
+    actorById.set(a.id, a.name ?? a.email ?? a.id);
+  }
+
+  // Resolve uploader display fields for the documents.
+  const uploaderIds = Array.from(
+    new Set(
+      ((docsRes.data ?? []) as Array<{ uploaded_by: string | null }>)
+        .map((d) => d.uploaded_by)
+        .filter((v): v is string => !!v)
+    )
+  );
+  const uploaderById = new Map<string, string>();
+  if (uploaderIds.length > 0) {
+    const { data: uploaders } = await supabaseAdmin
+      .from('registered_users')
+      .select('id, email, name')
+      .in('id', uploaderIds);
+    for (const u of (uploaders ?? []) as Array<{
+      id: string;
+      email: string | null;
+      name: string | null;
+    }>) {
+      uploaderById.set(u.id, u.name ?? u.email ?? u.id);
+    }
+  }
+
+  const documents = ((docsRes.data ?? []) as Array<{
+    id: string;
+    kind: string;
+    storage_url: string;
+    filename: string | null;
+    size_bytes: number | null;
+    description: string | null;
+    uploaded_by: string | null;
+    uploaded_at: string;
+  }>).map((d) => ({
+    ...d,
+    uploaded_by_label: d.uploaded_by
+      ? uploaderById.get(d.uploaded_by) ?? null
+      : null,
+  }));
+
+  return NextResponse.json({
+    event: {
+      ...row,
+      equipment: equipmentRes.data ?? null,
+      vehicle: vehicleRes.data ?? null,
+      created_by_label: row.created_by
+        ? actorById.get(row.created_by) ?? null
+        : null,
+      performed_by_label: row.performed_by_user_id
+        ? actorById.get(row.performed_by_user_id) ?? null
+        : null,
+    },
+    documents,
+  });
+}, { routeName: 'admin/maintenance/events/:id#get' });
