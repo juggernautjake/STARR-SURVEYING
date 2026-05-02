@@ -5582,7 +5582,29 @@ sub-batches per the small-chunks discipline:
     - [ ] `equipment_overdue` source_type rename / unify with
           the existing `equipment_overdue_return` +
           `equipment_overdue_digest` types.
-- [ ] PowerSync sync rules per §5.12.9.3.
+- [✓] PowerSync sync rules per §5.12.9.3. Mobile
+      `lib/db/schema.ts` gains three new Tables —
+      `equipment_reservations`, `maintenance_events`,
+      `personnel_unavailability` — registered in
+      AppSchema alphabetically. Each Table mirrors the
+      seeds/239 / 245 / 241 columns relevant to the
+      §5.12.9 mobile flows (loadout preview, "what's in
+      my truck", Me-tab PTO list, Gear tab dashboard).
+      `mobile/lib/db/sync-rules.yaml` ships the canonical
+      bucket definitions (six buckets total — equipment_
+      inventory + two reservation buckets + two
+      maintenance buckets + two unavailability buckets)
+      to paste into the PowerSync Cloud editor (or
+      commit alongside a self-hosted powersync.yaml).
+      Buckets scope by signed-in user so a single device
+      doesn&apos;t pull the company-wide ledger:
+      reservations match (checked_out_to_user = me) OR
+      (job_team membership), maintenance matches my
+      checked-out gear OR equipment_manager role, PTO
+      matches my email OR equipment_manager role. README
+      updated with the new file. Mobile UI components
+      that consume these tables (LoadoutCard, "what's
+      in my truck", Gear tab) ship as separate batches.
 - [ ] Surveyor self-service paths — borrowed-from-other-crew
       event log, personal-kit flag.
 

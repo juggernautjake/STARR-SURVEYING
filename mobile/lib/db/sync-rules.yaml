@@ -1,0 +1,130 @@
+# mobile/lib/db/sync-rules.yaml — PowerSync sync rules
+#
+# Phase F10.8 — bucket definitions for the F10 equipment / personnel
+# tables newly projected into the mobile schema.ts. Paste this YAML
+# into the PowerSync Cloud project's sync-rules editor (or commit
+# alongside a self-hosted powersync.yaml). Sync rules live OUTSIDE
+# the app bundle — the SQLite schema and the sync rules together
+# define what arrives on each device.
+#
+# DESIGN PRINCIPLE: scope every bucket to "rows the signed-in
+# surveyor genuinely needs offline" so a single device doesn't pull
+# the company-wide ledger. The §5.12.9 mobile flows require:
+#
+#   1. equipment_inventory — full read access (small, slow-changing).
+#      Already shipped in the F10.0a-i bucket; included below for
+#      completeness.
+#   2. equipment_reservations — only rows where the surveyor is on
+#      the job team OR is the checked_out_to_user. Excludes the
+#      cage-wide reservation noise of jobs they're not on.
+#   3. maintenance_events — only rows for equipment the surveyor is
+#      currently checked out on, plus open events for any role-gated
+#      equipment_manager device (Gear-tab support).
+#   4. personnel_unavailability — only rows for the signed-in
+#      surveyor's email. PTO / sick / training visibility belongs in
+#      the Me tab.
+#
+# When self-hosted: copy this file to the deployment as
+# `sync-rules.yaml` per https://docs.powersync.com/usage/sync-rules.
+# When using PowerSync Cloud: paste the bucket_definitions block
+# into the Sync Rules editor and click Deploy.
+
+# Each bucket lists the parameter queries that scope the data, then
+# the actual data queries that pull rows matching those parameters.
+# `request.user_id` is the auth.uid() of the connected mobile user.
+
+bucket_definitions:
+  # ── Equipment inventory ────────────────────────────────────────
+  # Already shipped (F10.0a-i). Re-listed for the canonical doc.
+  # Full read access — the catalogue is small (~30 units) and the
+  # scanner needs every row offline so a QR scan in dead zones
+  # still resolves.
+  equipment_inventory:
+    parameters:
+      - SELECT request.user_id() AS uid
+    data:
+      - SELECT * FROM equipment_inventory
+
+  # ── Equipment reservations (F10.8) ─────────────────────────────
+  # Reservations sync when EITHER:
+  #   * the row is checked out to the surveyor (their personal kit
+  #     for the day), OR
+  #   * the row's job has the surveyor on the team (loadout preview).
+  # The job_team JOIN is via the job_id → team membership.
+  equipment_reservations_personal:
+    parameters:
+      - SELECT user_id AS user_uuid
+        FROM registered_users
+        WHERE id = request.user_id()
+    data:
+      - SELECT *
+        FROM equipment_reservations
+        WHERE checked_out_to_user = bucket.user_uuid
+
+  equipment_reservations_team:
+    parameters:
+      - SELECT email AS surveyor_email
+        FROM registered_users
+        WHERE id = request.user_id()
+    data:
+      - SELECT er.*
+        FROM equipment_reservations AS er
+        JOIN job_team AS jt ON jt.job_id = er.job_id
+        WHERE jt.user_email = bucket.surveyor_email
+          AND jt.state IN ('proposed', 'confirmed')
+
+  # ── Maintenance events (F10.8) ─────────────────────────────────
+  # Surveyors get the events for equipment they currently hold so
+  # the loadout preview can display calibration / repair status
+  # pills. Equipment managers (role-gated 6th tab per §5.12.9.2)
+  # get every open event for the Gear tab dashboard.
+  maintenance_events_for_my_gear:
+    parameters:
+      - SELECT er.equipment_inventory_id AS eq_id
+        FROM equipment_reservations AS er
+        JOIN registered_users AS ru
+          ON ru.id = request.user_id()
+        WHERE er.checked_out_to_user = ru.id
+          AND er.state = 'checked_out'
+    data:
+      - SELECT *
+        FROM maintenance_events
+        WHERE equipment_inventory_id = bucket.eq_id
+
+  maintenance_events_em_dashboard:
+    parameters:
+      - SELECT id
+        FROM registered_users
+        WHERE id = request.user_id()
+          AND 'equipment_manager' = ANY(roles)
+    data:
+      - SELECT *
+        FROM maintenance_events
+        WHERE state IN (
+          'scheduled', 'in_progress', 'awaiting_parts',
+          'awaiting_vendor', 'failed_qa'
+        )
+
+  # ── Personnel unavailability (F10.8) ───────────────────────────
+  # Surveyors see their own PTO / sick / training rows for the Me
+  # tab. EMs see crew-wide rows for assignment-conflict awareness.
+  personnel_unavailability_self:
+    parameters:
+      - SELECT email AS surveyor_email
+        FROM registered_users
+        WHERE id = request.user_id()
+    data:
+      - SELECT *
+        FROM personnel_unavailability
+        WHERE user_email = bucket.surveyor_email
+
+  personnel_unavailability_em:
+    parameters:
+      - SELECT id
+        FROM registered_users
+        WHERE id = request.user_id()
+          AND 'equipment_manager' = ANY(roles)
+    data:
+      - SELECT *
+        FROM personnel_unavailability
+        WHERE unavailable_to >= NOW() - INTERVAL '7 days'

@@ -226,6 +226,97 @@ const equipment_inventory = new Table({
   updated_at: column.text,
 });
 
+// Phase F10.8 — sync projection of equipment_reservations
+// (seeds/239 + 240). Powers:
+//   * §5.12.9.1 pre-job loadout preview card on the job detail
+//     screen (shows what gear is reserved for tomorrow).
+//   * §5.12.9 Me-tab "what's in my truck" section
+//     (state='checked_out' AND checked_out_to_user = me).
+//   * §5.12.9 persistent scanner FAB visibility (any open
+//     check-out for me).
+// Mobile is read-only; mutating endpoints (reserve / check-out /
+// check-in / cancel) live on the admin web. PowerSync sync rules
+// must filter rows to (job has me on the team) OR (assigned to
+// me) so a single surveyor doesn't pull the whole company's
+// reservations to their phone.
+const equipment_reservations = new Table({
+  job_id: column.text,
+  equipment_inventory_id: column.text,
+  reserved_from: column.text,
+  reserved_to: column.text,
+  state: column.text, // held | checked_out | returned | cancelled | …
+  is_override: column.integer, // 0 | 1
+  override_reason: column.text,
+  // Check-in / check-out actuals (seeds/242).
+  actual_checked_out_at: column.text,
+  checked_out_by: column.text,
+  checked_out_to_user: column.text,
+  checked_out_to_vehicle: column.text,
+  checked_out_condition: column.text, // good | fair | damaged
+  checked_out_photo_url: column.text,
+  actual_returned_at: column.text,
+  returned_by: column.text,
+  returned_condition: column.text,
+  returned_photo_url: column.text,
+  // Nag silencing (seeds/244).
+  nag_silenced_until: column.text,
+  // Audit + notes.
+  notes: column.text,
+  created_by: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+// Phase F10.8 — sync projection of maintenance_events (seeds/245).
+// Mobile reads only. Powers:
+//   * §5.12.9.1 loadout preview status pills (a calibration in
+//     progress flips a unit's pill from "ready" → "in service").
+//   * §5.12.9.2 Gear tab (EM-only) — open maintenance work for
+//     this device's role-gated user.
+const maintenance_events = new Table({
+  equipment_inventory_id: column.text,
+  vehicle_id: column.text,
+  kind: column.text, // calibration | repair | …
+  origin: column.text,
+  state: column.text, // scheduled | in_progress | … | failed_qa
+  scheduled_for: column.text,
+  started_at: column.text,
+  completed_at: column.text,
+  expected_back_at: column.text,
+  vendor_name: column.text,
+  vendor_contact: column.text,
+  vendor_work_order: column.text,
+  performed_by_user_id: column.text,
+  cost_cents: column.integer,
+  linked_receipt_id: column.text,
+  summary: column.text,
+  notes: column.text,
+  qa_passed: column.integer, // 0 | 1 | NULL
+  next_due_at: column.text,
+  created_at: column.text,
+  created_by: column.text,
+  updated_at: column.text,
+});
+
+// Phase F10.8 — sync projection of personnel_unavailability
+// (seeds/241). Mobile reads only. Powers:
+//   * Me-tab "my time off" section (rows for the signed-in
+//     surveyor's email).
+//   * §5.12.9.2 EM Gear tab — crew-wide PTO awareness without
+//     leaving the phone.
+const personnel_unavailability = new Table({
+  user_email: column.text,
+  unavailable_from: column.text,
+  unavailable_to: column.text,
+  kind: column.text, // pto | sick | training | doctor | other
+  reason: column.text,
+  is_paid: column.integer, // 0 | 1
+  approved_by: column.text,
+  approved_at: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 const location_stops = new Table({
   user_id: column.text,
   // FK to job_time_entries (granular: which clock-in slice was the
@@ -779,6 +870,7 @@ const pinned_files = new Table(
 export const AppSchema = new Schema({
   daily_time_logs,
   equipment_inventory,
+  equipment_reservations,
   field_data_points,
   field_media,
   fieldbook_notes,
@@ -788,8 +880,10 @@ export const AppSchema = new Schema({
   location_pings,
   location_segments,
   location_stops,
+  maintenance_events,
   notifications,
   pending_uploads,
+  personnel_unavailability,
   pinned_files,
   point_codes,
   receipt_line_items,
