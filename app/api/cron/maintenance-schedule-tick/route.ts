@@ -8,6 +8,13 @@
 // inside the schedule's lead window AND no scheduled / in-progress
 // event already covers that target+kind.
 //
+// Phase F10.7-h-ii — same scan also fans out 60/30/7-day
+// "calibration coming up" notifications to admin +
+// equipment_manager recipients. Boundary-only firing (days_until
+// ∈ {60, 30, 7}) means each window triggers exactly once per cycle
+// so the EM inbox doesn't fill up; schedules with
+// auto_create_event=false still get notifications.
+//
 // Vercel cron config (vercel.json):
 //   { "path": "/api/cron/maintenance-schedule-tick",
 //     "schedule": "0 8 * * *" }
@@ -29,10 +36,12 @@
 //      column as the canonical "when is this due again" anchor.
 //      Fallback: completed_at + frequency_months months.
 //      Never-serviced: due now (forces an alert on first tick).
-//   3. If `next_due_at - now() ≤ lead_time_days`
+//   3. If `days_until ∈ {60, 30, 7}` (h-ii): emit a notification
+//      to every admin + equipment_manager recipient. Independent
+//      of auto_create_event so manual-only schedules still nudge.
+//   4. If `days_until ≤ lead_time_days`
 //      AND auto_create_event is true
-//      AND no existing scheduled / in_progress event already
-//          covers this target+kind for the same projected window:
+//      AND no open event already covers this target+kind:
 //      INSERT a new maintenance_event:
 //        kind = schedule.kind
 //        equipment_inventory_id = target
@@ -42,13 +51,16 @@
 //        next_due_at = NULL (gets set on the NEXT completion)
 //        summary = "Auto-scheduled <kind> from recurring rule"
 //
-// Idempotent: the duplicate-suppression check at step 3 means
-// re-running the cron within the same day is a no-op. A separate
-// debug-trigger via `?dry=1` returns the projected actions
+// Idempotent: the duplicate-suppression check at step 4 means
+// re-running the cron within the same day is a no-op for events.
+// Notifications are intentionally NOT deduplicated server-side —
+// boundary-only firing means the cron only emits 3 windows per
+// schedule per cycle anyway. A separate debug-trigger via
+// `?dry=1` returns the projected actions + notification queue
 // without writing.
 //
 // Returns:
-//   200 { scanned, projected, created, skipped, dry_run }
+//   200 { scanned, projected, created, skipped, notified, dry_run }
 //
 // Auth: `Authorization: Bearer <CRON_SECRET>`. Same pattern as
 // the F10.5-f-ii equipment-overdue-nag tick.
@@ -57,6 +69,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notifyMany } from '@/lib/notifications';
 
 interface ScheduleRow {
   id: string;
@@ -86,6 +99,19 @@ interface ProjectedAction {
   next_due_at: string;
   reason: 'never_serviced' | 'next_due_anchor' | 'completed_anchor';
 }
+
+interface PendingNotification {
+  schedule_id: string;
+  equipment_inventory_id: string;
+  kind: string;
+  days_until: number;
+  next_due_at: string;
+}
+
+// F10.7-h-ii — boundary days. Cron runs once/day so each value
+// passes through exactly once per cycle, making this the cheapest
+// possible dedup mechanism (no extra table required).
+const NOTIFICATION_WINDOWS = new Set([60, 30, 7]);
 
 const ALLOWED_KINDS_FOR_EVENT = new Set([
   'calibration',
@@ -292,6 +318,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   // ── Project per (schedule, equipment) and decide actions ───
   const actions: ProjectedAction[] = [];
+  const pendingNotifications: PendingNotification[] = [];
   let skipped = 0;
   for (const { schedule, equipmentId } of targets) {
     if (!ALLOWED_KINDS_FOR_EVENT.has(schedule.kind)) {
@@ -303,12 +330,6 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
           kind: schedule.kind,
         }
       );
-      continue;
-    }
-    if (!schedule.auto_create_event) {
-      // Manual-only schedule. h-ii notification covers it; this
-      // batch is auto-create-only so skip silently.
-      skipped++;
       continue;
     }
     const key = bucketKey(equipmentId, schedule.kind);
@@ -335,6 +356,33 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     }
 
     const days = daysUntil(nextDueIso, now);
+
+    // ── F10.7-h-ii — boundary-day notifications ───────────────
+    // Fires regardless of auto_create_event so manual-only
+    // schedules still surface to the EM at the 60/30/7-day
+    // gates. Only emit when there's no open event already
+    // covering the target+kind — once the EM is acting on it,
+    // the calendar carries the visibility.
+    if (
+      NOTIFICATION_WINDOWS.has(days) &&
+      (bucket?.open.length ?? 0) === 0
+    ) {
+      pendingNotifications.push({
+        schedule_id: schedule.id,
+        equipment_inventory_id: equipmentId,
+        kind: schedule.kind,
+        days_until: days,
+        next_due_at: nextDueIso,
+      });
+    }
+
+    // ── Auto-create event gate ───────────────────────────────
+    if (!schedule.auto_create_event) {
+      // Manual-only schedule. Notifications above still fire;
+      // skip the event creation path.
+      skipped++;
+      continue;
+    }
     if (days > schedule.lead_time_days) {
       // Outside the lead window — nothing to do.
       continue;
@@ -364,60 +412,185 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         {
           scanned: scheduleRows.length,
           projected: actions.length,
+          notifications: pendingNotifications.length,
           skipped,
         }
       );
-    }
-    return NextResponse.json({
-      scanned: scheduleRows.length,
-      projected: actions.length,
-      created: 0,
-      skipped,
-      dry_run: dryRun,
-      ...(dryRun ? { actions } : {}),
-    });
-  }
-
-  // ── Insert in one batch — failures here surface in the cron
-  //    log; partial inserts are fine because each row is
-  //    independently idempotent on the next tick.
-  const insertRows = actions.map((a) => ({
-    equipment_inventory_id: a.equipment_inventory_id,
-    kind: a.kind,
-    origin: 'recurring_schedule',
-    state: 'scheduled',
-    scheduled_for: a.next_due_at,
-    summary: `Auto-scheduled ${a.kind.replace(/_/g, ' ')} from recurring rule`,
-    notes:
-      `Created by /api/cron/maintenance-schedule-tick at ${nowIso}. ` +
-      `Anchor: ${a.reason}. Schedule: ${a.schedule_id}.`,
-  }));
-
-  const { data: inserted, error: insertErr } = await supabaseAdmin
-    .from('maintenance_events')
-    .insert(insertRows)
-    .select('id, equipment_inventory_id, kind, scheduled_for');
-  if (insertErr) {
-    console.error(
-      '[cron/maintenance-schedule-tick] insert failed',
-      { error: insertErr.message, count: insertRows.length }
-    );
-    return NextResponse.json(
-      {
-        error: insertErr.message,
+      return NextResponse.json({
         scanned: scheduleRows.length,
         projected: actions.length,
         created: 0,
+        notified: 0,
         skipped,
-      },
-      { status: 500 }
-    );
+        dry_run: true,
+        actions,
+        notifications: pendingNotifications,
+      });
+    }
+    // Live mode with no auto-create work — still fan out any
+    // pending boundary-day notifications below before returning.
+    if (pendingNotifications.length === 0) {
+      return NextResponse.json({
+        scanned: scheduleRows.length,
+        projected: 0,
+        created: 0,
+        notified: 0,
+        skipped,
+        dry_run: false,
+      });
+    }
+  }
+
+  // ── Insert in one batch (when there are actions) — failures
+  //    here surface in the cron log; partial inserts are fine
+  //    because each row is independently idempotent on the next
+  //    tick.
+  let createdCount = 0;
+  if (actions.length > 0) {
+    const insertRows = actions.map((a) => ({
+      equipment_inventory_id: a.equipment_inventory_id,
+      kind: a.kind,
+      origin: 'recurring_schedule',
+      state: 'scheduled',
+      scheduled_for: a.next_due_at,
+      summary: `Auto-scheduled ${a.kind.replace(/_/g, ' ')} from recurring rule`,
+      notes:
+        `Created by /api/cron/maintenance-schedule-tick at ${nowIso}. ` +
+        `Anchor: ${a.reason}. Schedule: ${a.schedule_id}.`,
+    }));
+
+    const { data: inserted, error: insertErr } = await supabaseAdmin
+      .from('maintenance_events')
+      .insert(insertRows)
+      .select('id, equipment_inventory_id, kind, scheduled_for');
+    if (insertErr) {
+      console.error(
+        '[cron/maintenance-schedule-tick] insert failed',
+        { error: insertErr.message, count: insertRows.length }
+      );
+      return NextResponse.json(
+        {
+          error: insertErr.message,
+          scanned: scheduleRows.length,
+          projected: actions.length,
+          created: 0,
+          notified: 0,
+          skipped,
+        },
+        { status: 500 }
+      );
+    }
+    createdCount = inserted?.length ?? 0;
+  }
+
+  // ── F10.7-h-ii — fan out boundary-day notifications ───────
+  let notifiedCount = 0;
+  if (pendingNotifications.length > 0) {
+    // Recipients: every admin + equipment_manager. Mirrors the
+    // F10.5-f-ii equipment-overdue-digest recipient lookup.
+    let recipients: string[] = [];
+    try {
+      const { data: rows, error: ruErr } = await supabaseAdmin
+        .from('registered_users')
+        .select('email, roles')
+        .or('roles.cs.{admin},roles.cs.{equipment_manager}');
+      if (ruErr) {
+        console.warn(
+          '[cron/maintenance-schedule-tick] recipients lookup failed',
+          { error: ruErr.message }
+        );
+      } else {
+        recipients = ((rows ?? []) as Array<{ email: string | null }>)
+          .map((r) => r.email)
+          .filter((e): e is string => !!e);
+      }
+    } catch (err) {
+      console.warn(
+        '[cron/maintenance-schedule-tick] recipients lookup threw',
+        { error: (err as Error).message }
+      );
+    }
+
+    if (recipients.length === 0) {
+      console.log(
+        '[cron/maintenance-schedule-tick] zero recipients; skipping fan-out',
+        { pending: pendingNotifications.length }
+      );
+    } else {
+      // Resolve equipment names in one batched read so each
+      // notification body is human-readable.
+      const eqIds = Array.from(
+        new Set(pendingNotifications.map((n) => n.equipment_inventory_id))
+      );
+      const eqNameById = new Map<string, string>();
+      if (eqIds.length > 0) {
+        const { data: items } = await supabaseAdmin
+          .from('equipment_inventory')
+          .select('id, name')
+          .in('id', eqIds);
+        for (const r of (items ?? []) as Array<{
+          id: string;
+          name: string | null;
+        }>) {
+          eqNameById.set(r.id, r.name ?? r.id);
+        }
+      }
+
+      for (const pn of pendingNotifications) {
+        const equipmentName =
+          eqNameById.get(pn.equipment_inventory_id) ??
+          pn.equipment_inventory_id;
+        const dueDate = new Date(pn.next_due_at);
+        const dueLabel = Number.isFinite(dueDate.getTime())
+          ? dueDate.toISOString().slice(0, 10)
+          : pn.next_due_at;
+        const kindLabel = pn.kind.replace(/_/g, ' ');
+        const escalation: 'low' | 'normal' | 'high' =
+          pn.days_until <= 7
+            ? 'high'
+            : pn.days_until <= 30
+            ? 'normal'
+            : 'low';
+        const icon =
+          pn.days_until <= 7 ? '⚠️' : pn.days_until <= 30 ? '🛠️' : '📅';
+        try {
+          await notifyMany(recipients, {
+            type: 'maintenance_schedule_due',
+            title: `${equipmentName} ${kindLabel} due in ${pn.days_until} days`,
+            body:
+              `${equipmentName} is due for ${kindLabel} on ${dueLabel}. ` +
+              (pn.days_until <= 7
+                ? 'Schedule the service now to keep the unit available.'
+                : pn.days_until <= 30
+                ? 'Heads-up — line up the vendor or block the unit on the calendar.'
+                : 'Long-range notice — start coordinating vendor scheduling.'),
+            icon,
+            escalation_level: escalation,
+            source_type: 'maintenance_schedule',
+            source_id: pn.schedule_id,
+            link: '/admin/equipment/maintenance',
+          });
+          notifiedCount += recipients.length;
+        } catch (err) {
+          console.warn(
+            '[cron/maintenance-schedule-tick] notifyMany failed',
+            {
+              schedule_id: pn.schedule_id,
+              equipment_inventory_id: pn.equipment_inventory_id,
+              error: (err as Error).message,
+            }
+          );
+        }
+      }
+    }
   }
 
   console.log('[cron/maintenance-schedule-tick] tick complete', {
     scanned: scheduleRows.length,
     projected: actions.length,
-    created: inserted?.length ?? 0,
+    created: createdCount,
+    notified: notifiedCount,
+    notifications_queued: pendingNotifications.length,
     skipped,
     now: nowIso,
   });
@@ -425,7 +598,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   return NextResponse.json({
     scanned: scheduleRows.length,
     projected: actions.length,
-    created: inserted?.length ?? 0,
+    created: createdCount,
+    notified: notifiedCount,
     skipped,
     dry_run: false,
   });

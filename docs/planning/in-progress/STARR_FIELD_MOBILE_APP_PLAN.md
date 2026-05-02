@@ -5278,7 +5278,7 @@ sub-batches per the small-chunks discipline:
           Progress states (signing → uploading → recording)
           surface inline. Auth: equipment_manager / admin /
           developer (write).
-- [◐] **F10.7-h** — Daily 3am cron — recurring schedule
+- [✓] **F10.7-h** — Daily 3am cron — recurring schedule
       due-date computation + 60/30/7-day notifications +
       auto-create events.
     - [✓] **F10.7-h-i** — Schedule-tick cron + auto-create
@@ -5305,10 +5305,28 @@ sub-batches per the small-chunks discipline:
           awaiting_vendor} so a rerun within the day is a
           no-op. Batched reads + single multi-row insert keep
           the cron O(N schedules + M targets), not O(N×M).
-    - [ ] **F10.7-h-ii** — 60/30/7-day notification fan-out
-          to equipment managers (cron piggy-backs on the
-          schedule-tick scan; emits `notify()` rows when a
-          target enters one of three escalating windows).
+    - [✓] **F10.7-h-ii** — 60/30/7-day notification fan-out
+          to admin + equipment_manager recipients. Same scan
+          as h-i; the per-target loop adds a boundary check
+          (`days_until ∈ {60, 30, 7}` AND no open event for
+          the target+kind) and pushes into a
+          `pendingNotifications` queue. After the auto-create
+          insert, the queue is fanned out via `notifyMany()`:
+          equipment names resolved in one batched read, body
+          tuned per window (low / normal / high escalation +
+          📅 / 🛠️ / ⚠️ icon + window-specific copy that nudges
+          coordination at 60d, action at 30d, urgency at 7d).
+          Boundary-only firing (cron runs once/day) means each
+          window triggers exactly once per cycle without an
+          extra dedup table. Schedules with
+          `auto_create_event=false` still get notifications —
+          the gate is independent of the auto-create gate.
+          `?dry=1` returns the queued notifications without
+          writing. Recipients are looked up via
+          `roles.cs.{admin},roles.cs.{equipment_manager}`
+          mirroring the equipment-overdue-digest pattern.
+          Returns `{ scanned, projected, created, notified,
+          skipped }`.
 - [ ] **F10.7-i** — Cert-expiring auto-creation cron +
       §5.12.7.1 Today blue banner integration.
 - [ ] **F10.7-j** — QA gate on calibration completion +
