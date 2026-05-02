@@ -5420,7 +5420,7 @@ sub-batches per the small-chunks discipline:
           they stand out from the soft `complete` chips.
           List shows the most-recent 10 with a +N more
           overflow hint when needed.
-- [◐] Receipt cross-link UI (Attach-receipt picker + Money-tab
+- [✓] Receipt cross-link UI (Attach-receipt picker + Money-tab
       "Is this for equipment maintenance?" prompt).
     - [✓] Maintenance-side picker. Replaces the raw-UUID
           input on the detail page&apos;s "Linked receipt" row
@@ -5440,12 +5440,31 @@ sub-batches per the small-chunks discipline:
           explicit unlink. Loading + error states surface
           inline; rows over 50 trigger a "narrow your search"
           hint.
-    - [ ] Money-tab "Is this for equipment maintenance?"
-          prompt. Receipts review modal gains a checkbox that
-          opens a maintenance-event picker mirroring the one
-          above; submission writes the same
-          `linked_receipt_id` on the chosen event so the
-          cross-link is symmetric.
+    - [✓] Money-tab "Is this for equipment maintenance?"
+          prompt. Server: `/api/admin/receipts` GET endpoint
+          now annotates each row with a
+          `linked_maintenance_events` array — one batched
+          query against `maintenance_events` keyed by
+          `linked_receipt_id` for the whole returned page,
+          plus a second batch for joined equipment names.
+          Failures degrade to "no links" so a maintenance
+          schema mismatch can&apos;t break the bookkeeper
+          queue. UI: every expanded receipt row gets a blue
+          🔧 panel above the workflow buttons. Already-linked
+          events render as Link-wrapped grid rows
+          (equipment / kind chip / state chip / summary)
+          with a per-event Detach button (PATCHes
+          linked_receipt_id=null + refetches). The "Link to
+          maintenance event" button opens a MaintenancePicker
+          modal that lists events from
+          `/api/admin/maintenance/events` (open by default,
+          completed togglable), free-text search across
+          summary / kind / equipment / state, click → PATCH
+          the event with this receipt&apos;s id. Already-
+          linked events show an "already linked" badge and
+          can&apos;t be re-clicked. Symmetric counterpart to
+          the maintenance-side picker — same one column on
+          maintenance_events carries both directions.
 - [✓] Per-unit maintenance history page. Equipment drilldown
       (`/admin/equipment/[id]`) gains a "Maintenance history"
       Section between Assignment history and Notes. Server

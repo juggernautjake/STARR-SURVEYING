@@ -60,6 +60,20 @@ export interface AdminReceiptRow extends ReceiptRow {
   job_number: string | null;
   /** Pre-signed photo URL valid for 15 min. Null if signing failed. */
   photo_signed_url: string | null;
+  /** F10.7 tail — maintenance events that link to this receipt via
+   *  `linked_receipt_id`. Empty array when none — the
+   *  bookkeeper UI uses this to show "this receipt is already
+   *  attached to N maintenance event(s)" + open the picker.
+   *  Lookup is batched across the whole returned page. */
+  linked_maintenance_events: Array<{
+    id: string;
+    summary: string;
+    kind: string;
+    state: string;
+    scheduled_for: string | null;
+    equipment_inventory_id: string | null;
+    equipment_name: string | null;
+  }>;
 }
 
 const SIGNED_URL_TTL_SEC = 60 * 15;
@@ -168,6 +182,76 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const jobIds = unique(receiptRows.map((r) => r.job_id).filter(isString));
   const jobMap = await buildJobLookup(jobIds);
 
+  // F10.7 tail — batched lookup of maintenance events that link
+  // to any of the receipts on this page, plus a second batch for
+  // the joined equipment names. Failures degrade to "no links"
+  // (best-effort) so a maintenance schema mismatch can't break
+  // the bookkeeper queue.
+  const receiptIds = receiptRows.map((r) => r.id);
+  const linkedByReceiptId = new Map<
+    string,
+    AdminReceiptRow['linked_maintenance_events']
+  >();
+  if (receiptIds.length > 0) {
+    const { data: maintRows, error: maintErr } = await supabaseAdmin
+      .from('maintenance_events')
+      .select(
+        'id, summary, kind, state, scheduled_for, ' +
+          'equipment_inventory_id, linked_receipt_id'
+      )
+      .in('linked_receipt_id', receiptIds);
+    if (maintErr) {
+      console.warn(
+        '[admin/receipts] maintenance link lookup failed',
+        { error: maintErr.message }
+      );
+    } else {
+      const maintEvents = (maintRows ?? []) as Array<{
+        id: string;
+        summary: string;
+        kind: string;
+        state: string;
+        scheduled_for: string | null;
+        equipment_inventory_id: string | null;
+        linked_receipt_id: string;
+      }>;
+      // Resolve equipment names in one batch.
+      const equipmentIds = unique(
+        maintEvents
+          .map((e) => e.equipment_inventory_id)
+          .filter(isString)
+      );
+      const equipmentNameById = new Map<string, string>();
+      if (equipmentIds.length > 0) {
+        const { data: items } = await supabaseAdmin
+          .from('equipment_inventory')
+          .select('id, name')
+          .in('id', equipmentIds);
+        for (const r of (items ?? []) as Array<{
+          id: string;
+          name: string | null;
+        }>) {
+          equipmentNameById.set(r.id, r.name ?? r.id);
+        }
+      }
+      for (const ev of maintEvents) {
+        const list = linkedByReceiptId.get(ev.linked_receipt_id) ?? [];
+        list.push({
+          id: ev.id,
+          summary: ev.summary,
+          kind: ev.kind,
+          state: ev.state,
+          scheduled_for: ev.scheduled_for,
+          equipment_inventory_id: ev.equipment_inventory_id,
+          equipment_name: ev.equipment_inventory_id
+            ? equipmentNameById.get(ev.equipment_inventory_id) ?? null
+            : null,
+        });
+        linkedByReceiptId.set(ev.linked_receipt_id, list);
+      }
+    }
+  }
+
   // (No more post-filter — resolvedUserId already constrained the query.)
   const filtered = receiptRows;
 
@@ -207,6 +291,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       job_name: job?.name ?? null,
       job_number: job?.job_number ?? null,
       photo_signed_url: signed[idx] ?? null,
+      linked_maintenance_events: linkedByReceiptId.get(r.id) ?? [],
     };
   });
 
