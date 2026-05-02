@@ -5001,9 +5001,25 @@ sub-batches per the small-chunks discipline:
         conditional on referenced tables per the
         seeds/234+236 defensive pattern. updated_at
         trigger reuses the seeds/245 helper.
-- [ ] **F10.7-b** — `GET /api/admin/maintenance/events`
-      list + filter API (per-equipment, per-state, date
-      window).
+- [✓] **F10.7-b** — `GET /api/admin/maintenance/events`
+      shipped. Filters: `equipment_id` / `vehicle_id` /
+      `state` / `kind` / `origin` (each gated against the
+      seeds/245 + 247 enums) + `since` / `until` date
+      window + `open_only=1` convenience flag (state IN
+      scheduled|in_progress|awaiting_parts|awaiting_vendor)
+      + `limit` (default 50, max 500). Order: scheduled_for
+      ASC then created_at DESC so calendar-feed callers
+      get chronological slots first + one-off rows fall
+      back to recency. Joins equipment_inventory.name +
+      vehicles.name + actor display fields
+      (created_by_label + performed_by_label) via batch
+      lookups so the F10.7-f calendar UI + F10.7-g detail
+      page render without per-row roundtrips. Summary
+      block carries `total` / `open_count` / per-`state` +
+      per-`kind` + per-`origin` counts + `truncated` flag
+      so the page header surfaces "12 open · 3 cal · 2
+      repair" without client-side reduce. Auth:
+      EQUIPMENT_ROLES.
 - [ ] **F10.7-c** — `POST /api/admin/maintenance/events`
       (create) + `PATCH /[id]` (state machine + field
       updates).
