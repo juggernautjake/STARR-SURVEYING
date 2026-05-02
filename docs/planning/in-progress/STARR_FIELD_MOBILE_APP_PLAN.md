@@ -5520,8 +5520,28 @@ sub-batches per the small-chunks discipline:
       EM can re-open or document upload).
 
 **F10.8 — Mobile UX polish (Week 39).**
-- [ ] Pre-job loadout preview card on mobile job detail
-      (§5.12.9.1).
+- [✓] Pre-job loadout preview card on mobile job detail
+      (§5.12.9.1). New `useJobLoadout(jobId, myUserId)`
+      hook in `mobile/lib/equipment.ts` issues a single
+      PowerSync useQuery that LEFT-JOINs the freshly-
+      synced `equipment_reservations` to `equipment_
+      inventory` and aggregates per-row stats client-side
+      (totals, mine, held / checked out, override count,
+      calibration overdue / due-soon counts). Companion
+      `JobLoadoutCard.tsx` renders the rollup: header
+      with item count, three-stat summary row (yours /
+      held / checked out), red/amber/blue contextual
+      banners for overdue cals, near-due cals, and EM
+      overrides, then up to 8 per-item rows with the
+      equipment name + QR/category + state pill +
+      &ldquo;yours&rdquo; badge for rows checked out to
+      the signed-in surveyor specifically. Calibration
+      lapse computed client-side via Date.parse so a
+      stale local cache still produces correct status
+      pills. Wired into `app/(tabs)/jobs/[id]/index.tsx`
+      between the Today rollup and the Client section;
+      hides itself entirely when the job has zero active
+      reservations.
 - [ ] "What's in my truck right now" Me-tab section.
 - [ ] Persistent scanner FAB when any check-out is open.
 - [ ] 🛠 Gear tab (role-gated 6th tab) for Equipment Manager

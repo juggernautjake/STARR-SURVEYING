@@ -199,3 +199,201 @@ export function useEquipmentList(filter?: EquipmentListFilter): {
     error,
   };
 }
+
+// ────────────────────────────────────────────────────────────
+// F10.8 — pre-job loadout (§5.12.9.1)
+// ────────────────────────────────────────────────────────────
+
+export type ReservationStateMobile =
+  | 'held'
+  | 'checked_out'
+  | 'returned'
+  | 'cancelled'
+  | 'in_transit';
+
+export interface JobLoadoutItem {
+  reservation_id: string;
+  state: ReservationStateMobile | string;
+  reserved_from: string;
+  reserved_to: string;
+  is_override: number; // 0 | 1
+  override_reason: string | null;
+  /** True when checked out to the signed-in surveyor specifically.
+   *  Drives the "yours" badge in the loadout card so a surveyor on
+   *  a multi-person job can see at a glance which gear is in their
+   *  hands vs. the other crew member's. */
+  is_mine: number; // 0 | 1
+  // Joined equipment columns.
+  equipment_id: string | null;
+  equipment_name: string | null;
+  equipment_category: string | null;
+  equipment_item_kind: string | null;
+  equipment_current_status: string | null;
+  equipment_qr_code_id: string | null;
+  next_calibration_due_at: string | null;
+}
+
+export interface JobLoadoutSummary {
+  /** Total active reservations on this job (state ∈ held / checked_
+   *  out / in_transit). */
+  total: number;
+  heldCount: number;
+  checkedOutCount: number;
+  /** Reservations checked out to the signed-in surveyor. Drives the
+   *  card&apos;s primary "yours: N" line. */
+  myCount: number;
+  /** Override count — surfaces a triangle warning so the surveyor
+   *  knows the EM bypassed an availability conflict to make this
+   *  reservation. */
+  overrideCount: number;
+  /** Calibration-due-within-7-days count — flips the unit&apos;s
+   *  status pill amber on the loadout. */
+  calibrationDueSoonCount: number;
+  /** Calibration-overdue count — flips the unit&apos;s status pill
+   *  red. Surveyors should NOT roll out with overdue cal gear. */
+  calibrationOverdueCount: number;
+  items: JobLoadoutItem[];
+}
+
+const EMPTY_LOADOUT: JobLoadoutSummary = {
+  total: 0,
+  heldCount: 0,
+  checkedOutCount: 0,
+  myCount: 0,
+  overrideCount: 0,
+  calibrationDueSoonCount: 0,
+  calibrationOverdueCount: 0,
+  items: [],
+};
+
+/**
+ * Load every active equipment reservation on a job, joined to the
+ * inventory row for display. Powers the §5.12.9.1 pre-job loadout
+ * preview card on the mobile job detail screen.
+ *
+ * Pass `myUserId` so the hook can flag rows checked out to the
+ * signed-in surveyor specifically (drives the "yours" badge).
+ *
+ * The query reads from PowerSync's local SQLite — every active
+ * reservation that already synced to the device renders instantly,
+ * even at the cage's metal-shed dead-zone. The PowerSync sync rule
+ * (mobile/lib/db/sync-rules.yaml) keeps the local cache scoped so
+ * a surveyor only carries reservations from their own jobs.
+ */
+export function useJobLoadout(
+  jobId: string | null | undefined,
+  myUserId: string | null | undefined
+): {
+  loadout: JobLoadoutSummary;
+  isLoading: boolean;
+  error: Error | undefined;
+} {
+  // PowerSync's useQuery doesn't support a "skip" arg; querying for
+  // an impossible job_id returns 0 rows quickly enough.
+  const queryJobId = jobId ?? '__no_match__';
+  const queryUserId = myUserId ?? '__no_user__';
+  const { data, isLoading, error } = useQuery<{
+    reservation_id: string;
+    state: string;
+    reserved_from: string;
+    reserved_to: string;
+    is_override: number;
+    override_reason: string | null;
+    is_mine: number;
+    equipment_id: string | null;
+    equipment_name: string | null;
+    equipment_category: string | null;
+    equipment_item_kind: string | null;
+    equipment_current_status: string | null;
+    equipment_qr_code_id: string | null;
+    next_calibration_due_at: string | null;
+  }>(
+    `SELECT er.id              AS reservation_id,
+            er.state            AS state,
+            er.reserved_from    AS reserved_from,
+            er.reserved_to      AS reserved_to,
+            er.is_override      AS is_override,
+            er.override_reason  AS override_reason,
+            CASE WHEN er.checked_out_to_user = ?
+                 THEN 1 ELSE 0 END               AS is_mine,
+            ei.id                               AS equipment_id,
+            ei.name                             AS equipment_name,
+            ei.category                         AS equipment_category,
+            ei.item_kind                        AS equipment_item_kind,
+            ei.current_status                   AS equipment_current_status,
+            ei.qr_code_id                       AS equipment_qr_code_id,
+            ei.next_calibration_due_at          AS next_calibration_due_at
+       FROM equipment_reservations AS er
+       LEFT JOIN equipment_inventory AS ei
+         ON ei.id = er.equipment_inventory_id
+      WHERE er.job_id = ?
+        AND er.state IN ('held', 'checked_out', 'in_transit')
+      ORDER BY ei.name COLLATE NOCASE ASC`,
+    [queryUserId, queryJobId]
+  );
+
+  const items: JobLoadoutItem[] = (data ?? []).map((r) => ({
+    reservation_id: r.reservation_id,
+    state: r.state,
+    reserved_from: r.reserved_from,
+    reserved_to: r.reserved_to,
+    is_override: r.is_override,
+    override_reason: r.override_reason,
+    is_mine: r.is_mine,
+    equipment_id: r.equipment_id,
+    equipment_name: r.equipment_name,
+    equipment_category: r.equipment_category,
+    equipment_item_kind: r.equipment_item_kind,
+    equipment_current_status: r.equipment_current_status,
+    equipment_qr_code_id: r.equipment_qr_code_id,
+    next_calibration_due_at: r.next_calibration_due_at,
+  }));
+
+  if (!jobId || items.length === 0) {
+    return {
+      loadout: EMPTY_LOADOUT,
+      isLoading: jobId ? isLoading : false,
+      error,
+    };
+  }
+
+  const nowMs = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  let heldCount = 0;
+  let checkedOutCount = 0;
+  let myCount = 0;
+  let overrideCount = 0;
+  let calibrationDueSoonCount = 0;
+  let calibrationOverdueCount = 0;
+  for (const item of items) {
+    if (item.state === 'held') heldCount += 1;
+    else if (item.state === 'checked_out') checkedOutCount += 1;
+    if (item.is_mine === 1) myCount += 1;
+    if (item.is_override === 1) overrideCount += 1;
+    if (item.next_calibration_due_at) {
+      const dueMs = Date.parse(item.next_calibration_due_at);
+      if (Number.isFinite(dueMs)) {
+        if (dueMs < nowMs) {
+          calibrationOverdueCount += 1;
+        } else if (dueMs - nowMs <= sevenDaysMs) {
+          calibrationDueSoonCount += 1;
+        }
+      }
+    }
+  }
+
+  return {
+    loadout: {
+      total: items.length,
+      heldCount,
+      checkedOutCount,
+      myCount,
+      overrideCount,
+      calibrationDueSoonCount,
+      calibrationOverdueCount,
+      items,
+    },
+    isLoading,
+    error,
+  };
+}

@@ -3,12 +3,15 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { JobLoadoutCard } from '@/lib/JobLoadoutCard';
 import { JobTodayRollupCard } from '@/lib/JobTodayRollup';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { PointCard } from '@/lib/PointCard';
 import { ReceiptRollupCard } from '@/lib/ReceiptRollupCard';
 import { StageChip } from '@/lib/StageChip';
+import { useAuth } from '@/lib/auth';
 import { useJobDataPoints } from '@/lib/dataPoints';
+import { useJobLoadout } from '@/lib/equipment';
 import { useJob, useJobTodayRollup } from '@/lib/jobs';
 import { useJobReceiptRollup } from '@/lib/receipts';
 import { colors, type Palette } from '@/lib/theme';
@@ -25,10 +28,15 @@ export default function JobDetailScreen() {
   const palette = colors[scheme];
 
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { session } = useAuth();
   const { job, isLoading } = useJob(id);
   const { rollup, isLoading: rollupLoading } = useJobReceiptRollup(id ?? null);
   const { rollup: todayRollup, isLoading: todayLoading } = useJobTodayRollup(
     id ?? null
+  );
+  const { loadout, isLoading: loadoutLoading } = useJobLoadout(
+    id ?? null,
+    session?.user.id ?? null
   );
   const { points } = useJobDataPoints(id ?? null);
 
@@ -101,6 +109,12 @@ export default function JobDetailScreen() {
               params: { jobId: job.id ?? '' },
             })
           }
+        />
+
+        <JobLoadoutCard
+          loadout={loadout}
+          palette={palette}
+          isLoading={loadoutLoading}
         />
 
         <Section title="Client" palette={palette}>
