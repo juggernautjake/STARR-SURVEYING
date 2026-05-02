@@ -5420,8 +5420,32 @@ sub-batches per the small-chunks discipline:
           they stand out from the soft `complete` chips.
           List shows the most-recent 10 with a +N more
           overflow hint when needed.
-- [ ] Receipt cross-link UI (Attach-receipt picker + Money-tab
+- [◐] Receipt cross-link UI (Attach-receipt picker + Money-tab
       "Is this for equipment maintenance?" prompt).
+    - [✓] Maintenance-side picker. Replaces the raw-UUID
+          input on the detail page&apos;s "Linked receipt" row
+          with an Attach receipt / Change button that opens
+          a modal listing receipts from
+          `GET /api/admin/receipts?status=approved` (default;
+          status filter switches to pending / all). Free-text
+          search filters client-side across vendor name /
+          category / submitter email / job number / job name.
+          Each row shows vendor / amount / date / status pill
+          / category / job / submitter, with a "current link"
+          badge on the actively-linked one. Click → PATCHes
+          the maintenance event with `linked_receipt_id`;
+          F10.7-c-ii&apos;s Maybe<T> shape means the rest of
+          the row is untouched. A Detach button next to the
+          current link sends `linked_receipt_id: null` for an
+          explicit unlink. Loading + error states surface
+          inline; rows over 50 trigger a "narrow your search"
+          hint.
+    - [ ] Money-tab "Is this for equipment maintenance?"
+          prompt. Receipts review modal gains a checkbox that
+          opens a maintenance-event picker mirroring the one
+          above; submission writes the same
+          `linked_receipt_id` on the chosen event so the
+          cross-link is symmetric.
 - [✓] Per-unit maintenance history page. Equipment drilldown
       (`/admin/equipment/[id]`) gains a "Maintenance history"
       Section between Assignment history and Notes. Server
