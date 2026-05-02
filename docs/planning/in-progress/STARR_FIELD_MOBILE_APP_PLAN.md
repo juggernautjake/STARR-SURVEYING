@@ -5374,7 +5374,7 @@ sub-batches per the small-chunks discipline:
           counters for observability. Idempotent — reruns
           within the day are no-ops because each pass detects
           its own queued events.
-- [◐] **F10.7-j** — QA gate on calibration completion +
+- [✓] **F10.7-j** — QA gate on calibration completion +
       `failed_qa` red-row surfacing on the calendar.
     - [✓] **F10.7-j-i** — QA gate on calibration completion.
           Server-side: F10.7-c-ii PATCH route refuses the
@@ -5397,8 +5397,29 @@ sub-batches per the small-chunks discipline:
           calibration vendor + clear-performed-by gates from
           F10.7-g-ii-β remain alongside this — three
           orthogonal NIST-traceability checks fire as a unit.
-    - [ ] **F10.7-j-ii** — failed_qa red-row surfacing on the
-          calendar.
+    - [✓] **F10.7-j-ii** — failed_qa red-row surfacing on the
+          calendar. Server: F10.7-e calendar aggregator gains
+          a date-unfiltered `failed_qa` query (state='failed_
+          qa', sorted DESC, limit 50, honors equipment +
+          kind filters) so events that lapsed last month
+          don&apos;t fall off the EM&apos;s radar when the
+          month scrubs forward. Equipment-name resolution
+          extends across the now three-array union (month +
+          upcoming + failed_qa). Response gains
+          `failed_qa: CalEvent[]` + `summary.failed_qa_count`.
+          UI: a dedicated `<FailedQaPanel>` renders above
+          the month-grid layout — only when count &gt; 0 —
+          with a red-tinted card containing a 4-column
+          grid (equipment / kind chip / summary / date)
+          per item, each row left-bordered with a 3px red
+          accent, click → detail page (where the EM can
+          re-open back to in_progress). The summary bar
+          gains a "N failed QA" red counter; per-event
+          chips on the day grid get a 1.5px solid-red
+          border on top of the existing pink fill so
+          they stand out from the soft `complete` chips.
+          List shows the most-recent 10 with a +N more
+          overflow hint when needed.
 - [ ] Receipt cross-link UI (Attach-receipt picker + Money-tab
       "Is this for equipment maintenance?" prompt).
 - [ ] Per-unit maintenance history page.
