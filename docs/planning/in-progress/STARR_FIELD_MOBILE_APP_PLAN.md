@@ -4517,25 +4517,626 @@ discipline.
       visible nav home — surveyors with just that role see
       the Equipment section and nothing else admin-wide,
       matching the §4.6 access matrix.
-- [ ] **F10.6-b** — §5.12.7.1 Today landing page (3 strips
-      + 3 banners).
-- [ ] **F10.6-c** — §5.12.7.2 Reservations Gantt timeline.
-- [ ] **F10.6-d** — §5.12.7.5 Consumables low-stock view.
-- [ ] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
-- [ ] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
-      gear cleanup queue.
-- [ ] **F10.6-g** — §5.12.7.7 Override audit panel.
+- [◐] **F10.6-b** — §5.12.7.1 Today landing page. Split:
+  - [✓] **F10.6-b-i** — `GET /api/admin/equipment/today?date=`
+        aggregator endpoint shipped. Returns the full
+        Today payload — three strips + three banners — in
+        one round-trip so the page UI stays thin and the
+        EM mobile-parity surface (§5.12.9 home tab) can
+        reuse it. Strips: `going_out` (state='held',
+        reserved_from in date window), `out_now`
+        (state='checked_out', sorted by reserved_to ASC,
+        each row pillged on_time / at_risk / overdue with
+        a 1h at-risk window before due), `returned`
+        (state='returned', actual_returned_at in date
+        window). Banners: `unstaffed_pto`
+        (personnel_unavailability starting today),
+        `low_stock_consumables` (consumables ≤ threshold
+        with held reservations today), `maintenance_
+        starting_today` (maintenance_events scheduled in
+        the window in any open state). Display fields
+        (equipment names, holder display names) resolved
+        in batch lookups across all strips so per-row
+        renders skip second roundtrips. Date param
+        defaults to today; YYYY-MM-DD lets the EM scrub.
+        Banner queries are fail-open — read errors degrade
+        to empty arrays so a single banner outage doesn't
+        nuke the strips. Auth: EQUIPMENT_ROLES.
+  - [✓] **F10.6-b-ii** — `app/admin/equipment/today/page.tsx`
+        + sidebar entry shipped. Renders the three strips
+        (going_out / out_now / returned) + three banners
+        (PTO red / low-stock amber / maintenance blue) from
+        the F10.6-b-i aggregator. Date scrubber input
+        +"Today" jumper +"Refresh" button at the top so the
+        EM can move forward/back without URL editing.
+        Strip B rows carry the on_time / at_risk / overdue
+        pill from the server payload and the Strip B
+        header surfaces an overdue count if non-zero.
+        Strip C is collapsed by default (it's the
+        end-of-day reconcile artefact, not the live view);
+        the header shows the spec's count guard
+        ("42 went out · 39 returned · 3 still out"). Per-
+        row condition badges (good/fair/damaged/lost) on
+        returned rows route the EM toward the §5.12.8 /
+        §5.12.11 next steps. Job-id chips deep-link to
+        `/admin/jobs/<id>`. OVERRIDE badge surfaces on
+        rows with `is_override=true`. Sidebar entry added
+        as the FIRST Equipment link (above Catalogue) since
+        Today is the dispatcher's daily-driver. Inline
+        styles per the rest of `/admin/equipment/*`. Auth:
+        `useSession` gate; the aggregator enforces the
+        EQUIPMENT_ROLES gate server-side.
+
+      F10.6-b closes out: aggregator + page UI shipped,
+      §5.12.7.1 Today landing page lives end-to-end.
+- [◐] **F10.6-c** — §5.12.7.2 Reservations Gantt timeline.
+      Split:
+  - [✓] **F10.6-c-i** — `GET /api/admin/equipment/reservations-timeline`
+        aggregator shipped. Returns every
+        `equipment_reservations` row whose
+        `[reserved_from, reserved_to)` overlaps the window
+        (default today → today+14d), grouped into
+        swimlanes per `group_by` ∈ equipment | job.
+        Filter chips: `category` (pre-resolves matching
+        equipment_ids; empty match short-circuits to []),
+        `state` (one of held/checked_out/returned/
+        cancelled), `overdue_only=1` (state='checked_out'
+        AND reserved_to < now() — the "what's late RIGHT
+        NOW" filter). Bars carry `equipment_name` +
+        `holder_email` resolved via batch lookup so the
+        F10.6-c-ii UI renders without per-row roundtrips.
+        Equipment swimlane meta carries `category` +
+        `item_kind` for the drilldown drawer; job swimlane
+        meta carries the bare `job_id`. Stable swimlane
+        ordering — alphabetical by label. Auth:
+        EQUIPMENT_ROLES. Presentation-agnostic so the
+        §5.12.9 mobile timeline + future
+        `/admin/jobs/[id]/timeline` embed reuse the same
+        payload.
+  - [✓] **F10.6-c-ii** — `app/admin/equipment/timeline/page.tsx`
+        + sidebar entry shipped. Read-only Gantt: 200px
+        label gutter + flexible bar area per swimlane row.
+        Bar `left%`/`width%` computed from the time
+        window so any window size renders without per-day
+        grid math; bars clip cleanly at the window edges
+        (clamp 0–100). Tick row across the top with a
+        date label per day. Bar colors per state — held
+        light-blue, checked_out solid blue, returned grey,
+        cancelled white-with-dashed-border-and-line-through.
+        Override outline (`is_override=true`) renders a 2px
+        amber border. Hover title carries every drilldown
+        field (equipment name + state + job + window +
+        holder + override flag) until the F10.6-c-iii
+        drawer ships. Filter bar at top: group_by toggle
+        (Equipment / Job), state dropdown, category text
+        input, overdue-only checkbox. Date scrubbers + a
+        "Reset to 14d" jumper for window control.
+        Empty-state cleanly handles no-results-in-window.
+        Sidebar 'Timeline' link added between Today and
+        Catalogue. Inline styles per the rest of
+        `/admin/equipment/*`.
+  - [✓] **F10.6-c-iii** — drilldown drawer shipped. Click
+        any bar opens a 480px right-side drawer with
+        backdrop dismissal + ✕ close + escape-key
+        equivalent (click-outside via backdrop). Drawer
+        body shows: reservation_id (truncated, monospace),
+        deep-linked job, deep-linked equipment, full
+        window (from / to with locale-formatted
+        timestamps), holder email, returned_condition (when
+        present), notes. Header carries the bar's state as
+        a colored badge (matches the Gantt color set) +
+        OVERRIDE badge when `is_override=true` + the
+        swimlane label for context. Footer has two action
+        buttons: "Open equipment" (secondary) and "Open
+        job →" (primary). Bars converted from `<div>` to
+        `<button type="button">` so keyboard nav lands on
+        each bar correctly. Aggregator extended to carry
+        `notes` on every bar so the drawer renders
+        override reasons + cancel justifications inline.
+        Filter chips on the page bar already shipped in
+        F10.6-c-ii so this batch focused on the drawer
+        itself. Drag-resize on `held` bars (with the
+        F10.5-d /extend-reservation hookup) lands as
+        F10.6-c-iv.
+  - [✓] **F10.6-c-iv** — drag-resize on held bars shipped.
+        `state='held'` bars get a 6px right-edge handle
+        (subtle gradient overlay so it's discoverable on
+        hover without cluttering the read view); other
+        states omit the handle. Mousedown captures the
+        bar-area DOM rect + the original reserved_to;
+        window-level mousemove/mouseup listeners mean the
+        cursor can leave the bar mid-gesture without
+        breaking the drag. Mouse-x position maps to a
+        timestamp via the same `(x - rectLeft) / rectWidth
+        * windowSpan` math as the static layout, snapped to
+        nearest 15-minute boundary so the EM doesn't
+        accidentally land on a sub-minute reserved_to.
+        Mouseup commits via POST F10.5-d
+        `/extend-reservation` with `source='manual'`. No-op
+        guard rejects drags < 15 min from the original
+        (avoids accidental "I just clicked the handle"
+        network calls); backward-drag rejected pre-flight
+        with a clear error toast (shrinking is a
+        cancel-and-re-reserve, not an extend). Live preview
+        — the bar's right edge follows the cursor during
+        the drag with a Starr-blue outline so the EM sees
+        the new end live before commit. Optimistic refetch
+        on success refreshes the Gantt; failure surfaces
+        a typed error toast (typically extend_collides
+        409 from the seeds/239 GiST EXCLUDE catching an
+        overlap with another active reservation). Click vs.
+        drag disambiguation: handle has its own
+        onMouseDown w/ stopPropagation so it never opens
+        the drilldown drawer; the bar's onClick guards on
+        `extending` to avoid edge-case post-drag click
+        misfires.
+
+      F10.6-c closes out: aggregator + Gantt UI + drilldown
+      drawer + drag-resize all live. The §5.12.7.2
+      timeline runs end-to-end.
+- [◐] **F10.6-d** — §5.12.7.5 Consumables low-stock view.
+      Split:
+  - [✓] **F10.6-d-i** — `GET /api/admin/equipment/consumables`
+        aggregator shipped. Pulls every non-retired
+        `item_kind='consumable'` row + sums
+        `consumed_quantity` from returned reservations in
+        the trailing 30 days, joins per equipment_id to
+        compute `daily_rate = consumed_30d / 30` and
+        `days_remaining = quantity_on_hand / daily_rate`
+        (capped at 999 to avoid surfacing "this paint will
+        last 47 years" as a real number). `reorder_badge`
+        tier:
+          `reorder_now`   days_remaining < 7 OR
+                          quantity_on_hand ≤
+                          low_stock_threshold (the latter
+                          wins regardless of rate so the
+                          reorder floor stays a hard
+                          trigger)
+          `reorder_soon`  7 ≤ days_remaining < 14
+          `ok`            ≥ 14 OR no signal yet
+        Rows without 30-day consumption (recently added
+        inventory) come back with `daily_rate=null`,
+        `days_remaining=null`, `reorder_badge='ok'` so
+        they don't false-positive into the reorder
+        queue. Sort: days_remaining ASC; null values land
+        last (alphabetical tiebreak). Summary carries
+        per-tier counts so the F10.6-d-ii page header
+        can show "3 reorder NOW · 5 reorder soon" without
+        client-side filtering. Auth: EQUIPMENT_ROLES.
+  - [✓] **F10.6-d-ii** — `app/admin/equipment/consumables/page.tsx`
+        + sidebar entry shipped. Flat table consuming the
+        F10.6-d-i aggregator. Filter chips at the top
+        (All / Reorder NOW / Reorder soon / OK) — counts
+        from the aggregator's summary block render
+        client-side without a refetch on chip toggle.
+        Sortable columns: Name / On hand / 30d used /
+        Days left (default = days_remaining ASC). Per-row
+        BadgePill (red/amber/green for the three tiers)
+        + row-level background tint matching the badge so
+        the reorder-now rows are visible at a glance.
+        Each name links to `/admin/equipment/<id>` for
+        the inventory drilldown. Days-left formatter:
+        `<1` for sub-day, `999+` for cap. Sidebar
+        'Consumables' link added between Timeline and
+        Catalogue. Inline styles per the rest of
+        `/admin/equipment/*`. Auth: useSession gate; the
+        aggregator enforces EQUIPMENT_ROLES server-side.
+  - [◐] **F10.6-d-iii** — Inline action modals. Split:
+    - [✓] **F10.6-d-iii-α** — Restock arrived shipped.
+          `POST /api/admin/equipment/[id]/restock` body
+          `{ quantity_added, cost_cents?, vendor?,
+          receipt_photo_url?, notes? }`. Refuses non-
+          consumables (typed `not_consumable` 400) +
+          retired rows (typed `retired` 409).
+          Increments `quantity_on_hand` by
+          `quantity_added`, stamps
+          `last_restocked_at=now()`, optionally updates
+          `vendor` and computes
+          `cost_per_unit_cents = round(cost_cents /
+          quantity_added)`. Best-effort
+          `equipment_events` audit row with
+          `event_type='restock'` + structured
+          `notes` field carrying the full restock
+          context (qty, per-unit cost, vendor, before
+          → after, receipt URL, free-form notes) since
+          the v1 events table has no dedicated summary/
+          photo columns. Page UI: per-row "Restock"
+          button opens a modal with required quantity,
+          optional total-cost (auto-converts to
+          per-unit), vendor (pre-filled), receipt URL,
+          and notes. Submit refetches the table +
+          flashes a success toast at the top of the
+          rows. Auth: admin / developer /
+          equipment_manager.
+    - [✓] **F10.6-d-iii-β** — Update-threshold modal
+          shipped. The existing PATCH
+          `/api/admin/equipment/[id]` endpoint already
+          validates `low_stock_threshold` (non-negative
+          integer); modal just wires to it. Per-row
+          "Threshold" outline button next to "Restock"
+          opens the modal pre-filled with the row's
+          current threshold. Live preview chip below the
+          input compares `current_on_hand` vs the
+          proposed value: red "row will flag Reorder
+          NOW" when at-or-below, green "above this
+          threshold" otherwise. Save flashes the same
+          green action banner as Restock at the top of
+          the rows. `0` is allowed (removes the floor
+          entirely).
+    - [✓] **F10.6-d-iii-γ** — Mark-discontinued modal
+          shipped. Per-row red-tinted "Discontinue" button
+          opens a confirm modal; required `reason` field
+          (audit anchor) + optional notes; warning box
+          when `current_on_hand > 0` ("count becomes
+          inaccessible after discontinue"). Submit POSTs
+          to the existing F10.1e-i `/equipment/[id]/retire`
+          endpoint — sets `retired_at=now()`, flips
+          `current_status='retired'`, writes an
+          equipment_events row with
+          `event_type='retired'` for the §5.12.7.3
+          history tab. Discontinued row drops off the
+          consumables list on the next refetch since the
+          F10.6-d-i aggregator filters
+          `retired_at IS NULL`. Templates pinning the
+          discontinued row will surface in the F10.6-f
+          §5.12.7.8 cleanup queue.
+
+      F10.6-d closes out: aggregator + page UI + all three
+      action modals shipped. The §5.12.7.5 consumables
+      surface runs end-to-end.
+- [◐] **F10.6-e** — §5.12.7.6 Crew calendar week heatmap.
+      Split:
+  - [✓] **F10.6-e-i** — `GET /api/admin/personnel/crew-calendar`
+        aggregator shipped. Returns the (user × day) cell
+        grid with state derivations so the F10.6-e-ii
+        heatmap renders without per-cell roundtrips.
+        Default window = current week's Monday → Sunday
+        (UTC); `?from=YYYY-MM-DD&to=YYYY-MM-DD` lets the
+        EM scrub forward/back.
+        Cell-state derivation per (user, day):
+          `unavailable`           any
+                                  `personnel_unavailability`
+                                  overlap (PTO / sick /
+                                  training / doctor) — hard
+                                  floor, beats every other
+                                  state
+          `confirmed`             ≥1 confirmed assignment,
+                                  no others
+          `split_shift`           ≥2 active rows on the day
+                                  (any mix of proposed +
+                                  confirmed)
+          `proposed`              ≥1 proposed, no confirmed
+          `unconfirmed_overdue`   proposed AND
+                                  `now() - created_at >
+                                  24h` (the spec's
+                                  notification grace)
+          `open`                  nothing on the day
+        Internal-user filter via `registered_users.roles`
+        — excludes users whose roles are entirely
+        `{guest, student}`. Empty-roster short-circuits to
+        `[]` so the page handles it cleanly. Each cell
+        carries `primary_assignment_id` +
+        `primary_unavailability_id` for the F10.6-e-iii
+        drilldown drawer + assignment_count /
+        unavailability_count for the split-shift badge.
+        Summary block carries per-state cell counts so
+        the page header shows "12 confirmed · 3 PTO · 1
+        overdue" without client-side reduce. Auth:
+        EQUIPMENT_ROLES.
+  - [✓] **F10.6-e-ii** — `app/admin/personnel/crew-calendar/page.tsx`
+        + sidebar entry shipped. Week-grid table: 200px
+        sticky-left user column + 7 day columns. Each cell
+        colored per the F10.6-e-i state cascade —
+        `confirmed` solid Starr green, `proposed` light
+        green, `split_shift` amber with "N×" tag,
+        `unavailable` grey with "PTO" tag,
+        `unconfirmed_overdue` red with "!" tag, `open`
+        white. Header carries Prev/Next-week navigation
+        + "This week" jumper + Refresh; the F10.6-e-i
+        aggregator handles the date math so the page
+        stays presentation-only. Summary bar at top with
+        per-state counts as a colored-swatch legend so
+        the EM scans "12 confirmed · 1 overdue" without
+        eyeballing the grid. User column shows display
+        name + email; cell tooltips give "<email> ·
+        <day> · <state>" for the full audit context
+        until the F10.6-e-iii drilldown drawer ships.
+        Sidebar 'Crew calendar' link added between
+        Timeline and Consumables. Path lives under
+        `/admin/personnel/` rather than
+        `/admin/equipment/` since it's a personnel-side
+        view, but the sidebar groups it with Equipment
+        per §5.12.7 (the EM owns crew capacity).
+  - [✓] **F10.6-e-iii** — Cell drilldown drawer shipped.
+        New `GET /api/admin/personnel/crew-calendar/cell?
+        user_email=&day=` detail endpoint returns the
+        full `job_team` rows + `personnel_unavailability`
+        rows overlapping that (user × day) pair so the
+        drawer renders rich context without forcing the
+        page to fetch each row separately. Click any
+        non-empty cell opens a 480px right-side drawer
+        (mirrors the F10.6-c-iii Gantt drawer pattern):
+        backdrop dismissal + ✕ close. Header shows the
+        user + state badge + day. Body has two cards
+        sections — Unavailability (kind, window, reason,
+        is_paid, approved_by) and Assignments (job link,
+        slot_role with CREW LEAD badge when applicable,
+        state badge with OVERRIDE pill when override_
+        reason set, window, confirmed_at / declined_at +
+        decline_reason, override_reason, notes).
+        `open` cells short-circuit the drawer (nothing
+        to show until F10.6-e-iv adds drag-create);
+        unavailability shows above assignments since
+        PTO is the dominant context when both apply.
+        Loading state surfaces during the fetch.
+  - [ ] **F10.6-e-iv** — Drag-create new unavailability /
+        assignment (defer if scope grows).
+- [◐] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
+      gear cleanup queue. Split:
+  - [✓] **F10.6-f-i** — `GET /api/admin/equipment/templates/
+        cleanup-queue` aggregator shipped. Walks every
+        `equipment_template_items` row pinning a specific
+        `equipment_inventory_id` (category-mode rows auto-
+        resolve at apply-time and aren't stale on
+        retirement), filters to those whose target has
+        `retired_at IS NOT NULL` (covers both F10.1e-i
+        retire AND F10.6-d-iii-γ discontinue), groups by
+        `template_id`, joins template header + total item
+        count so the page renders "3 of 8 lines stale".
+        Each stale item carries template-side fields (id,
+        kind, qty, required, notes, sort_order) +
+        equipment-side details (name, category,
+        retired_at, retired_reason, current_status) so
+        the F10.6-f-ii page UI works without per-row
+        roundtrips. Sort: archived templates last (less
+        urgent), most-stale-first within each bucket,
+        alphabetical tiebreak. Empty short-circuits
+        cleanly. Auth: EQUIPMENT_ROLES.
+  - [✓] **F10.6-f-ii** — `app/admin/equipment/templates/cleanup-queue/page.tsx`
+        + sidebar entry shipped. Per-template card layout
+        — header with name + "N of M lines stale" + archive
+        badge + "Edit template →" deep link. Body: table
+        of stale items with `#` (sort_order), retired
+        instrument name (deep-linked to catalogue), category,
+        retired_at, retired_reason, qty, required/optional
+        badge. Empty-state shows a positive "✓ Nothing to
+        clean up" with copy explaining new retirements/
+        discontinues will re-populate the list as they
+        happen. Archived templates render with a dashed
+        border + 0.85 opacity to visually de-prioritise
+        without hiding them. No inline action modals —
+        fixes happen via the existing F10.2e-ii edit page
+        (Edit row → swap to category-of-kind OR repoint at
+        a replacement specific instrument); the §5.12.3
+        version-bump + snapshot audit chain runs there
+        already so this page's "fix" path inherits the
+        history-preservation contract for free. Footer
+        suggests the canonical fix pattern (swap to
+        category-of-kind to avoid retire-risk later).
+        Sidebar 'Cleanup queue' link added below
+        Templates.
+
+      F10.6-f closes out: aggregator + page UI both
+      shipped. The §5.12.7.8 retired-gear cleanup queue
+      runs end-to-end.
+- [◐] **F10.6-g** — §5.12.7.7 Override audit panel. Split:
+  - [✓] **F10.6-g-i** — `GET /api/admin/equipment/overrides
+        ?since=YYYY-MM-DD&type=both|equipment|personnel
+        &limit=N` aggregator shipped. Unions every
+        `is_override=true` row across
+        `equipment_reservations` (F10.3-e soft-override) and
+        `job_team` (F10.4-c soft-override) into a single
+        time-sorted feed so admins review the
+        "nothing-is-silent" trail in one place. Default
+        since = 30 days; default type = both; default limit =
+        200 (capped 1000). Per row carries `kind` discriminator,
+        actor_email (resolved from
+        `reserved_by → registered_users.email` for equipment;
+        null on personnel side since `job_team` has no
+        historical actor column — future polish: add
+        `created_by`), target_label (equipment name OR
+        user_email), job_id, state, reason, notes (carries
+        the 'OVERRIDE: …' prefix from the insert path), and
+        the row's window. Summary block reports per-kind
+        counts + `truncated` flag when limit hit. Auth:
+        EQUIPMENT_ROLES.
+  - [✓] **F10.6-g-ii** — `app/admin/equipment/overrides/page.tsx`
+        + sidebar entry shipped. Read-only audit table
+        consuming the F10.6-g-i aggregator. Filter bar
+        carries Since date scrubber (default 30d, "last
+        30d" jumper) + Both/Equipment/Personnel toggle.
+        Per-row columns: Kind (color-coded badge — amber
+        for equipment, blue for personnel), When (locale
+        timestamp), Actor (deep email or em-dash for
+        personnel-side rows where job_team has no
+        historical actor column), Target (equipment name
+        deep-linked to catalogue, or user_email),
+        Job (deep link), State badge (matches the rest
+        of the equipment-state palette), Reason +
+        secondary notes line, Window. Empty-state shows
+        a positive "✓ Clean window" with copy on widening
+        the since date. Truncated pill surfaces when the
+        aggregator caps at limit. Footer documents the
+        personnel-actor null gap + points at the future
+        polish (add `created_by` to job_team).
+        Sidebar 'Overrides audit' link added below
+        Cleanup queue.
+
+      F10.6-g closes out: aggregator + page UI shipped.
+      The §5.12.7.7 override audit panel runs end-to-end.
+
+      **F10.6 fully shipped** (apart from the deliberately
+      deferred F10.6-e-iv drag-create on the crew calendar
+      — heavier interactivity, lower payoff than the
+      shipped panels). Equipment Manager dashboards cover
+      the seven §5.12.7 panels: Today landing (b),
+      Reservations Gantt (c), Consumables low-stock + 3
+      action modals (d), Crew calendar heatmap +
+      drilldown (e), Templates cleanup queue (f),
+      Overrides audit (g).
 
 **F10.7 — Maintenance + calibration (Week 38–39).**
-- [ ] `maintenance_events` CRUD + state machine + document
-      upload (§5.12.8).
-- [ ] §5.12.7.4 maintenance calendar (month grid + upcoming
-      list).
-- [ ] Daily 3am cron — recurring schedule due-date
-      computation + 60/30/7-day notifications + auto-create
-      events.
-- [ ] QA gate on calibration completion + `failed_qa` red-row
-      surfacing.
+Closes out the §5.12.8 schema started in F10.5-g-i and lights
+up the recurring-schedule cron + calendar UI. Split into
+sub-batches per the small-chunks discipline:
+- [✓] **F10.7-a** — `seeds/247_starr_field_maintenance_documents_schedules.sql`
+      shipped. Adds the two companion tables to seeds/245's
+      `maintenance_events`:
+      * `maintenance_event_documents` — PDF / photo
+        attachments per event (calibration certs, work
+        orders, parts invoices, before/after photos, QA
+        reports). Storage URL via the §5.6 files-bucket
+        pattern; per-event drilldown index +
+        kind-+-recency index for the §5.12.11.K chain-of-
+        custody sweep across all instruments.
+      * `maintenance_schedules` — recurring rules with
+        XOR target (specific equipment_id OR category;
+        category is the dominant pattern for "every
+        total station gets annual cal"). Carries
+        frequency_months (CHECK > 0), lead_time_days
+        (default 30), `is_hard_block` (drives §5.12.5
+        reservation hard-block when due-date lapses),
+        `auto_create_event` (drives the F10.7-h cron's
+        pre-create vs notify-only behavior). FKs
+        conditional on referenced tables per the
+        seeds/234+236 defensive pattern. updated_at
+        trigger reuses the seeds/245 helper.
+- [✓] **F10.7-b** — `GET /api/admin/maintenance/events`
+      shipped. Filters: `equipment_id` / `vehicle_id` /
+      `state` / `kind` / `origin` (each gated against the
+      seeds/245 + 247 enums) + `since` / `until` date
+      window + `open_only=1` convenience flag (state IN
+      scheduled|in_progress|awaiting_parts|awaiting_vendor)
+      + `limit` (default 50, max 500). Order: scheduled_for
+      ASC then created_at DESC so calendar-feed callers
+      get chronological slots first + one-off rows fall
+      back to recency. Joins equipment_inventory.name +
+      vehicles.name + actor display fields
+      (created_by_label + performed_by_label) via batch
+      lookups so the F10.7-f calendar UI + F10.7-g detail
+      page render without per-row roundtrips. Summary
+      block carries `total` / `open_count` / per-`state` +
+      per-`kind` + per-`origin` counts + `truncated` flag
+      so the page header surfaces "12 open · 3 cal · 2
+      repair" without client-side reduce. Auth:
+      EQUIPMENT_ROLES.
+- [◐] **F10.7-c** — `POST` + `PATCH` maintenance event CRUD
+      + state machine. Split:
+  - [✓] **F10.7-c-i** — `POST /api/admin/maintenance/events`
+        shipped. Manual-create endpoint for EM-initiated rows
+        (the F10.5-g damage/lost triage path inserts directly
+        via the helper; the F10.7-h recurring-schedule cron
+        will also POST here with origin='recurring_schedule').
+        Body validates: XOR `equipment_inventory_id` /
+        `vehicle_id` (pre-checked for cleaner error than the
+        seeds/245 CHECK), required `kind` + `summary` (≤ 200),
+        optional `origin` (default 'manual'), `state` (default
+        'scheduled'), `scheduled_for`, `expected_back_at`,
+        `vendor_name` / `_contact` / `_work_order`,
+        `performed_by_user_id`, `cost_cents`, `linked_receipt_id`,
+        `notes`. All enums gated against the seeds/245 CHECK
+        sets. Stamps `created_by` from the session. Per-field
+        validation extracted into reusable
+        `parseOptional{Iso,Uuid,Int,String}` helpers so future
+        endpoints (PATCH next) inherit the same cleanup style.
+        Auth: admin / developer / equipment_manager (mutating).
+  - [✓] **F10.7-c-ii** — `PATCH /api/admin/maintenance/events/
+        [id]` shipped. State machine + field updates with
+        explicit transition gate. Allowed transitions:
+        `scheduled → in_progress | awaiting_parts |
+        awaiting_vendor | complete | cancelled`;
+        `in_progress → awaiting_parts | awaiting_vendor |
+        complete | failed_qa | cancelled`; etc. — full
+        adjacency table in the route file. `complete` and
+        `cancelled` are terminal; `complete` re-opens via
+        explicit `reopen=true` body flag (clears
+        `completed_at` + `qa_passed` for a fresh service
+        history entry on re-completion). Auto-stamps:
+        `started_at = now()` on entry to `in_progress`,
+        `completed_at = now()` on entry to `complete` (only
+        when not explicitly set in same PATCH).
+        `qa_passed=false` posted alongside `state=complete`
+        auto-routes to `state=failed_qa` per §5.12.8.
+        Calibration third-party gate fires on transition
+        into `complete` AND `kind='calibration'`: refuses
+        with typed `calibration_requires_vendor` 400 if
+        vendor_name is null, OR
+        `calibration_excludes_performed_by` 400 if
+        performed_by is set (NIST cert needs third-party).
+        Cross-checks merged state (existing + patch) so a
+        multi-field PATCH that sets vendor_name and moves
+        to complete in one shot lands cleanly. TOCTOU
+        guard via `state` row-equality on the UPDATE; on
+        miss re-reads the latest state. Validators
+        extended to `Maybe<T>` shape with explicit `set`
+        flag to distinguish "user passed null" (clear the
+        column) from "field omitted" (leave it). No-op
+        short-circuits when nothing to write.
+
+      F10.7-c closes out: POST + PATCH cover the full
+      maintenance_events CRUD surface.
+- [✓] **F10.7-d** — `app/api/admin/maintenance/events/[id]/
+      documents/route.ts` shipped with two handlers.
+      `GET` returns every attachment for one event ordered
+      newest-first with batched uploader display fields
+      resolved server-side so the F10.7-g detail-page
+      history tab renders without per-file roundtrips.
+      `POST` records metadata for an already-uploaded
+      file: validates `kind` against the seeds/247 enum
+      (`calibration_cert` / `work_order` / `parts_invoice`
+      / `before_photo` / `after_photo` / `qa_report` /
+      `other`), `storage_url` (≤ 2000 chars), optional
+      `filename` (≤ 255), `size_bytes` (non-negative int),
+      `description`. Pre-validates parent event exists for
+      a clean 404 (the seeds/247 FK ON DELETE CASCADE
+      handles structural orphan prevention either way).
+      Splits upload-bytes from upload-metadata
+      intentionally — the F10.7-g UI requests a signed
+      upload URL from a §5.6 file-bucket signing helper,
+      uploads bytes directly to storage, then POSTs here
+      with the resulting `storage_url`. Keeps streamed
+      bytes off Next.js / Vercel functions (important for
+      50 MB calibration PDFs). Auth: GET = EQUIPMENT_ROLES;
+      POST = admin / developer / equipment_manager.
+- [✓] **F10.7-e** — `GET /api/admin/maintenance/calendar`
+      shipped. Returns the data the §5.12.7.4 month-grid
+      page needs in one roundtrip:
+      `month` window (from / to) · `days[]` one entry per
+      calendar day with the events scheduled that day ·
+      `upcoming[]` next-30-days events sorted ASC for the
+      sidebar list · `next_due_per_equipment[]`
+      schedule-driven rollup (for every
+      `maintenance_schedule`, find latest completed event
+      matching, project `next_due_at = last_completed_at +
+      frequency_months`; category schedules fan out to
+      every non-retired unit in the matching category) ·
+      `summary` with per-state counts + due-in-lead-window
+      tally for the page header. Filters `?month=YYYY-MM`
+      (default current month), optional `equipment_id`,
+      optional `kind`. Equipment names + categories
+      resolved in one batch lookup across the union of
+      month + upcoming events. Schedules-with-no-completed-
+      event-yet treat next_due_at = now() so the EM sees
+      "this never had a cal; schedule one" rather than the
+      schedule disappearing. Auth: EQUIPMENT_ROLES.
+      **Build-fix:** the F10.6-d-ii Update threshold
+      modal hint and F10.6-g-ii overrides page subtitle
+      had unescaped apostrophe + double-quote chars that
+      tripped Vercel's ESLint
+      `react/no-unescaped-entities` rule; replaced with
+      `&apos;` / `&ldquo;` / `&rdquo;` so the build
+      passes. No behavior change.
+- [ ] **F10.7-f** — `app/admin/equipment/maintenance/page.tsx`
+      calendar UI + sidebar entry.
+- [ ] **F10.7-g** — Per-event detail page UI with state
+      transitions + document upload.
+- [ ] **F10.7-h** — Daily 3am cron — recurring schedule
+      due-date computation + 60/30/7-day notifications +
+      auto-create events.
+- [ ] **F10.7-i** — Cert-expiring auto-creation cron +
+      §5.12.7.1 Today blue banner integration.
+- [ ] **F10.7-j** — QA gate on calibration completion +
+      `failed_qa` red-row surfacing on the calendar.
 - [ ] Receipt cross-link UI (Attach-receipt picker + Money-tab
       "Is this for equipment maintenance?" prompt).
 - [ ] Per-unit maintenance history page.
