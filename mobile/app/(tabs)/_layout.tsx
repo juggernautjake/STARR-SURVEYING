@@ -5,6 +5,7 @@ import { CaptureFab } from '@/lib/CaptureFab';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ScannerFab } from '@/lib/ScannerFab';
 import { useAuth } from '@/lib/auth';
+import { useIsEquipmentManager } from '@/lib/myRoles';
 import { colors } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
 
@@ -25,6 +26,7 @@ const TAB_BAR_HEIGHT = 64;
  */
 export default function TabsLayout() {
   const { session, loading } = useAuth();
+  const { isEquipmentManager } = useIsEquipmentManager();
 
   // Dark-mode default per plan §7.1 rule 7 (battery-aware). Matches
   // the default in lib/Placeholder.tsx so the tab bar and screen
@@ -96,6 +98,18 @@ export default function TabsLayout() {
           options={{
             title: 'Me',
             tabBarIcon: ({ color }) => <TabGlyph color={color} label="👤" />,
+          }}
+        />
+        {/* F10.8 — Gear tab (role-gated 6th tab). Always declared
+            so deep links resolve, but `href: null` hides it from
+            the tab bar for non-EM users. The tab&apos;s own screen
+            also enforces role gating defensively. */}
+        <Tabs.Screen
+          name="gear"
+          options={{
+            title: 'Gear',
+            tabBarIcon: ({ color }) => <TabGlyph color={color} label="🛠" />,
+            href: isEquipmentManager ? '/(tabs)/gear' : null,
           }}
         />
       </Tabs>

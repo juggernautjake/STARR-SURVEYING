@@ -5584,8 +5584,32 @@ sub-batches per the small-chunks discipline:
       `app/(tabs)/_layout.tsx` as a sibling of the Tabs
       navigator inside a flex:1 wrapper so the FAB persists
       across every tab screen.
-- [ ] 🛠 Gear tab (role-gated 6th tab) for Equipment Manager
-      mobile flows (§5.12.9.2).
+- [✓] 🛠 Gear tab (role-gated 6th tab) for Equipment Manager
+      mobile flows (§5.12.9.2). New `useMyRoles()` /
+      `useIsEquipmentManager()` hooks in `mobile/lib/myRoles.ts`
+      fetch the signed-in user&apos;s `registered_users.roles`
+      array via Supabase (anon key + RLS), with a 5-min in-
+      memory cache so consumers don&apos;t re-fetch per render.
+      Tab visibility gated in `(tabs)/_layout.tsx` — the new
+      `<Tabs.Screen name="gear">` ships with
+      `href: isEquipmentManager ? '/(tabs)/gear' : null` so
+      non-EMs don&apos;t see it but deep links still resolve.
+      The screen itself defensively re-checks the role and
+      shows an "Ask an admin to add the equipment_manager
+      role" empty state for non-EMs hitting it via deep link.
+      Dashboard contents: four tap-able stat tiles (Open
+      maintenance / Failed QA / Cert expiring 60d / Out
+      today) sourced from PowerSync local SQLite count
+      queries against the F10.8-projected `maintenance_
+      events` + `equipment_inventory` + `equipment_
+      reservations` tables. Failed QA + Cert expiring tiles
+      flip red / amber when count > 0. Each tile + an
+      "Open admin web" quick action deep-link to
+      `EXPO_PUBLIC_ADMIN_WEB_URL` (defaulting to
+      app.starrsurveying.com) for the full drilldown — mobile
+      drilldowns + scan-to-checkout land in F10.8 v2.
+      Footnote reminds the EM that PowerSync sync rules must
+      be deployed for the counts to populate.
 - [◐] Three new notification source_types
       (`equipment_assignment` / `_overdue` / `_status_change`).
     - [✓] `equipment_assignment` on check-out (single-item).
