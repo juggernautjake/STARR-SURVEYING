@@ -21,7 +21,12 @@
 //   (b) ✅ retired-equipment guard — refuse 409 on retired units
 //       so the audit log stays clean of "borrow against retired"
 //       rows that the EM would have to chase later.
-//   (c) ◐ notification fan-out — pending follow-up batch.
+//   (c) ✅ notification fan-out — best-effort notifyMany to
+//       (current job's crew leads) + (origin job's crew leads,
+//       when borrowed_from_job_id is set) + (admin /
+//       equipment_manager broadcast). Deduped via a Set;
+//       failures DO NOT roll back the audit row (the audit IS
+//       the source of truth).
 //
 // Auth: any signed-in user. The whole point of self-service is
 // that the EM doesn't need to be in the loop in real time.
@@ -38,6 +43,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notifyMany } from '@/lib/notifications';
 
 const UUID_RE =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -144,7 +150,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // retired_at column.
   const { data: equipmentGuardRow, error: guardErr } = await supabaseAdmin
     .from('equipment_inventory')
-    .select('id, retired_at')
+    .select('id, name, retired_at')
     .eq('id', equipmentId)
     .maybeSingle();
   if (guardErr) {
@@ -170,6 +176,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       { status: 409 }
     );
   }
+  const equipmentName =
+    (equipmentGuardRow as { name: string | null }).name ?? equipmentId;
 
   // ── INSERT the audit-log row ─────────────────────────────────
   // event_type='borrowed_during_field_work' per the seeds/236
@@ -204,14 +212,125 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     );
   }
 
+  // ── Notification fan-out (F10.8 slice c) ─────────────────────
+  // Best-effort. Recipients = (current job's crew leads) +
+  // (origin job's crew leads, when borrowed_from_job_id set) +
+  // (admin / equipment_manager broadcast). Deduped via a Set.
+  // Failure logs a warning and continues — the audit row IS the
+  // source of truth.
+  let notifiedCount = 0;
+  try {
+    const recipients = await resolveBorrowRecipients({
+      currentJobId,
+      borrowedFromJobId,
+    });
+    if (recipients.length > 0) {
+      const [currentJobRes, borrowedJobRes] = await Promise.all([
+        supabaseAdmin
+          .from('jobs')
+          .select('name, job_number')
+          .eq('id', currentJobId)
+          .maybeSingle(),
+        borrowedFromJobId
+          ? supabaseAdmin
+              .from('jobs')
+              .select('name, job_number')
+              .eq('id', borrowedFromJobId)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+      const currentJobLabel = formatBorrowJobLabel(currentJobRes.data);
+      const borrowedJobLabel = formatBorrowJobLabel(borrowedJobRes.data);
+      await notifyMany(recipients, {
+        type: 'equipment_borrowed_in',
+        title: `Borrow logged: ${equipmentName}`,
+        body:
+          `${actorEmail} borrowed ${equipmentName} for ${currentJobLabel}` +
+          (borrowedJobLabel ? ` from ${borrowedJobLabel}` : '') +
+          (notes ? ` — ${notes}` : '') +
+          ". The reservation isn't auto-rewritten — reconcile in the audit log.",
+        icon: '🔄',
+        escalation_level: 'normal',
+        source_type: 'equipment_event',
+        source_id: (inserted as { id: string }).id,
+        link: `/admin/equipment/${equipmentId}`,
+      });
+      notifiedCount = recipients.length;
+    }
+  } catch (err) {
+    console.warn(
+      '[admin/equipment/borrow-from-other-crew] notify fan-out failed',
+      { error: err instanceof Error ? err.message : String(err) }
+    );
+  }
+
   console.log('[admin/equipment/borrow-from-other-crew] ok', {
     event_id: (inserted as { id: string } | null)?.id,
     equipment_id: equipmentId,
     current_job_id: currentJobId,
     borrowed_from_user_id: borrowedFromUserId,
     borrowed_from_job_id: borrowedFromJobId,
+    notified: notifiedCount,
     actor_email: actorEmail,
   });
 
-  return NextResponse.json({ event: inserted });
+  return NextResponse.json({ event: inserted, notified: notifiedCount });
 }, { routeName: 'admin/equipment/borrow-from-other-crew#post' });
+
+// ────────────────────────────────────────────────────────────
+// Helpers — F10.8 slice c
+// ────────────────────────────────────────────────────────────
+
+async function resolveBorrowRecipients(args: {
+  currentJobId: string;
+  borrowedFromJobId: string | null;
+}): Promise<string[]> {
+  const recipients = new Set<string>();
+
+  // Crew leads on the affected jobs.
+  const jobIds = [args.currentJobId];
+  if (args.borrowedFromJobId) jobIds.push(args.borrowedFromJobId);
+  const { data: leads, error: leadsErr } = await supabaseAdmin
+    .from('job_team')
+    .select('user_email')
+    .in('job_id', jobIds)
+    .eq('is_crew_lead', true);
+  if (leadsErr) {
+    console.warn(
+      '[admin/equipment/borrow-from-other-crew] crew lead lookup failed',
+      { error: leadsErr.message }
+    );
+  } else {
+    for (const r of (leads ?? []) as Array<{ user_email: string | null }>) {
+      if (r.user_email) recipients.add(r.user_email);
+    }
+  }
+
+  // Admin + equipment_manager broadcast.
+  try {
+    const { data: ems } = await supabaseAdmin
+      .from('registered_users')
+      .select('email')
+      .or('roles.cs.{admin},roles.cs.{equipment_manager}');
+    for (const r of (ems ?? []) as Array<{ email: string | null }>) {
+      if (r.email) recipients.add(r.email);
+    }
+  } catch (err) {
+    console.warn(
+      '[admin/equipment/borrow-from-other-crew] EM lookup failed',
+      { error: err instanceof Error ? err.message : String(err) }
+    );
+  }
+
+  return Array.from(recipients);
+}
+
+function formatBorrowJobLabel(
+  job: { name?: string | null; job_number?: string | null } | null
+): string {
+  if (!job) return '';
+  if (job.job_number) {
+    return job.name ? `${job.job_number} ${job.name}` : job.job_number;
+  }
+  return job.name ?? '';
+}

@@ -5715,11 +5715,22 @@ sub-batches per the small-chunks discipline:
           ("Ask the EM to restore it first"). Keeps the
           audit log clean of "borrow against retired" rows
           the EM would have to chase later.
-    - [ ] **Borrow audit endpoint — notification fan-out.**
-          Deduped notifyMany() to (current job&apos;s crew
-          leads) + (origin job&apos;s crew leads) + (admin /
-          equipment_manager broadcast) so everyone affected
-          knows about the borrow within seconds.
+    - [✓] **Borrow audit endpoint — notification fan-out.**
+          New `resolveBorrowRecipients()` helper unions (job_
+          team rows where `is_crew_lead=true` for current
+          and origin jobs, when borrowed_from_job_id is set)
+          + (admin / equipment_manager broadcast via
+          `roles.cs.{admin},roles.cs.{equipment_manager}`),
+          deduped through a Set. Notify body resolves friendly
+          job labels via two parallel `jobs` lookups. Sent
+          via `notifyMany` for a single PostgREST insert with
+          `type='equipment_borrowed_in'` /
+          `source_type='equipment_event'` /
+          `source_id=<event_id>`. Best-effort: failures log
+          and continue — the audit row IS the source of
+          truth, not the inbox. Response now includes a
+          `notified` count for the mobile UI to show "logged
+          + N people notified."
     - [ ] **Mobile ScannerFab borrow CTA.** When the scanner
           resolves a QR that&apos;s NOT in the surveyor&apos;s
           truck, surface a "Borrow for current job" button
