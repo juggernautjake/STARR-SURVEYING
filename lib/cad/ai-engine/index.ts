@@ -18,3 +18,8 @@ export {
   scoreAllElements,
 } from './stage-6-confidence';
 export { runAIPipeline, type PipelineProgressFn } from './pipeline';
+export {
+  parseCallsWithClaude,
+  MissingApiKeyError,
+} from './claude-deed-parser';
+export type { ClaudeDeedParseResult } from './claude-deed-parser';
