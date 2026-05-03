@@ -5751,7 +5751,7 @@ sub-batches per the small-chunks discipline:
           `equipment_events` INSERT in a follow-up batch — the
           admin endpoint&apos;s notify code remains for the
           web reconciliation path.
-    - [◐] **Personal-kit flag.** Mobile Me-tab section for
+    - [✓] **Personal-kit flag.** Mobile Me-tab section for
           the surveyor to mark their own brought-from-home
           tools (`equipment_inventory.is_personal=true` +
           `owner_user_id`). Already in seeds/233; needs UI.
@@ -5766,7 +5766,7 @@ sub-batches per the small-chunks discipline:
               Wired into `app/(tabs)/me/index.tsx` between
               the truck section and Security so the surveyor
               can confirm their personal kit list at a glance.
-        - [◐] **Claim / release flow.** Surveyor-side action
+        - [✓] **Claim / release flow.** Surveyor-side action
               to mark an existing inventory row as personal
               (claims) or unmark (releases). Edits
               is_personal + owner_user_id; logs an
@@ -5787,13 +5787,25 @@ sub-batches per the small-chunks discipline:
                   but doesn&apos;t bubble. PowerSync sync
                   picks up the row update + the local list
                   drops the released item on the next tick.
-            - [ ] **Claim.** Mobile ScannerFab CTA — when
-                  the scanner resolves a QR that&apos;s
-                  unowned (NOT in any active reservation +
-                  NOT already personal), surface a
-                  &ldquo;Claim as personal&rdquo; alert
-                  alongside the existing Borrow / hand-to-EM
-                  branches.
+            - [✓] **Claim.** Mobile ScannerFab CTA on the
+                  not-yours branch. Buttons stack
+                  dynamically: Cancel always; Borrow when
+                  the surveyor is on the clock against a
+                  job; Claim as personal when the row
+                  isn&apos;t already someone&apos;s personal
+                  kit (`row.is_personal === 0`). When the
+                  scanned row IS already someone else&apos;s
+                  personal kit (`row.is_personal === 1`),
+                  the alert short-circuits to a
+                  &ldquo;hand it back to them&rdquo;
+                  message. `submitClaim()` updates
+                  `equipment_inventory` (is_personal=true,
+                  owner_user_id=me) + best-effort audit
+                  via equipment_events.event_type='updated'
+                  + payload.change='personal_kit_claimed'.
+                  PowerSync re-projects the row so
+                  MyPersonalKitSection picks it up on the
+                  next tick.
         - [✓] **Admin EM-dashboard filter.** Exclude
               is_personal=true rows from the EM Today
               rollup, calendar, maintenance pages, and the

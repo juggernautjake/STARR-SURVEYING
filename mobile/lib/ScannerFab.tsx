@@ -138,49 +138,60 @@ export function ScannerFab({ bottomInset = 80 }: ScannerFabProps) {
         ]
       );
     } else {
-      // F10.8 — "Borrow for current job" CTA. Only offered when
-      // the surveyor is on the clock against a specific job
-      // (active_time_entry has a job_id). When off the clock OR
-      // on overhead time, fall back to the original "hand to EM"
-      // flow since we don't know which job to attribute the
-      // borrow to.
+      // F10.8 — "Borrow for current job" + "Claim as personal"
+      // CTAs. Borrow only fires when the surveyor is on the clock
+      // against a specific job (no job → no place to attribute the
+      // borrow). Claim only fires when the row isn't already
+      // someone's personal kit (row.is_personal === 0). Both
+      // optional buttons stack into one Alert; if neither applies
+      // we keep the original "hand it to the EM" fallback.
       const currentJobId = activeTimeEntry?.job_id ?? null;
-      if (currentJobId) {
+      const cancelButton = {
+        text: 'Cancel',
+        style: 'cancel' as const,
+        onPress: () => {
+          setPendingCode(null);
+          handledCodeRef.current = null;
+          scannerRef.current?.rearm();
+        },
+      };
+
+      // Already-someone-else's-personal-kit branch — short-circuit.
+      if (row.is_personal === 1) {
         Alert.alert(
           row.name ?? 'Equipment',
-          `${row.qr_code_id ?? pendingCode} isn't on your reservation list. Borrow it for your current job?`,
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => {
-                setPendingCode(null);
-                handledCodeRef.current = null;
-                scannerRef.current?.rearm();
-              },
-            },
-            {
-              text: 'Borrow',
-              onPress: () => {
-                void submitBorrow(row.id, currentJobId, row.name);
-              },
-            },
-          ]
+          `${row.qr_code_id ?? pendingCode} is in someone else's personal kit. Hand it back to them.`,
+          [cancelButton]
         );
       } else {
+        const buttons: Array<{
+          text: string;
+          style?: 'cancel' | 'destructive' | 'default';
+          onPress?: () => void;
+        }> = [cancelButton];
+        if (currentJobId) {
+          buttons.push({
+            text: 'Borrow',
+            onPress: () => {
+              void submitBorrow(row.id, currentJobId, row.name);
+            },
+          });
+        }
+        buttons.push({
+          text: 'Claim as personal',
+          onPress: () => {
+            void submitClaim(row.id, row.name);
+          },
+        });
+
         Alert.alert(
           row.name ?? 'Equipment',
-          `${row.qr_code_id ?? pendingCode} isn't checked out to you. Hand it to the EM if you found it.`,
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                setPendingCode(null);
-                handledCodeRef.current = null;
-                scannerRef.current?.rearm();
-              },
-            },
-          ]
+          `${row.qr_code_id ?? pendingCode} isn't on your reservation list. ${
+            currentJobId
+              ? 'Borrow for your current job, or claim it as part of your personal kit?'
+              : "You're off the clock — claim as personal kit or hand it to the EM?"
+          }`,
+          buttons
         );
       }
     }
@@ -262,6 +273,91 @@ export function ScannerFab({ bottomInset = 80 }: ScannerFabProps) {
       }
     },
     [session?.user.email]
+  );
+
+  // F10.8 — claim-as-personal submitter. Updates equipment_
+  // inventory (is_personal=true, owner_user_id=me) + writes an
+  // equipment_events audit row. Mirrors the Release flow on the
+  // Me-tab MyPersonalKitSection but in the opposite direction.
+  // PowerSync sync re-projects the row so MyPersonalKitSection
+  // picks it up on the next tick.
+  const submitClaim = useCallback(
+    async (equipmentId: string, equipmentName: string | null) => {
+      if (!userId) {
+        Alert.alert(
+          'Not signed in',
+          'Re-open the app while online to claim this item.'
+        );
+        return;
+      }
+      try {
+        const { error: updateErr } = await supabase
+          .from('equipment_inventory')
+          .update({
+            is_personal: true,
+            owner_user_id: userId,
+          })
+          .eq('id', equipmentId);
+        if (updateErr) throw updateErr;
+        // Best-effort audit row.
+        try {
+          await supabase.from('equipment_events').insert({
+            equipment_id: equipmentId,
+            event_type: 'updated',
+            payload: {
+              change: 'personal_kit_claimed',
+              source: 'mobile_scanner_fab',
+              actor_email: session?.user.email ?? null,
+            },
+          });
+        } catch (auditErr) {
+          logError(
+            'ScannerFab.submitClaim',
+            'audit insert failed (non-fatal)',
+            auditErr,
+            { equipment_id: equipmentId }
+          );
+        }
+        Alert.alert(
+          'Claimed',
+          `${equipmentName ?? 'This item'} is now in your personal kit. The EM dashboards will skip it; check the Me tab to release later.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setPendingCode(null);
+                handledCodeRef.current = null;
+                scannerRef.current?.rearm();
+              },
+            },
+          ]
+        );
+      } catch (err) {
+        logError(
+          'ScannerFab.submitClaim',
+          'claim update failed',
+          err,
+          { equipment_id: equipmentId }
+        );
+        Alert.alert(
+          'Claim failed',
+          err instanceof Error
+            ? err.message
+            : 'Try again in a moment.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setPendingCode(null);
+                handledCodeRef.current = null;
+                scannerRef.current?.rearm();
+              },
+            },
+          ]
+        );
+      }
+    },
+    [session?.user.email, userId]
   );
 
   // Don&apos;t render the FAB at all when the user has nothing out.
