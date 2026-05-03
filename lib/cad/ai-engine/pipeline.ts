@@ -39,6 +39,7 @@ import {
   resolveOffsetsSync,
   type OffsetResolutionDetail,
 } from './offset-resolver';
+import { runDeliberation } from './deliberation';
 import type {
   AIJobPayload,
   AIJobResult,
@@ -230,8 +231,26 @@ export function runAIPipeline(
   // The full tier-grouped builder lands with the review-UI
   // slice. v1 packages every feature into a flat queue so the
   // result shape stays valid for downstream consumers.
-  onProgress('Packaging review queue', 97);
+  onProgress('Packaging review queue', 95);
   const reviewQueue: AIReviewQueue = stubReviewQueue(allFeatures, scores);
+
+  // ── §28 Deliberation — clarifying-question generation ──────
+  // Synchronous + deterministic. Walks deed discrepancies,
+  // ambiguous offsets, unrecognized codes, fence/building
+  // attributes, and confidence aggregation. Claude-assisted
+  // holistic analysis lands in a follow-up slice.
+  onProgress('Deliberating', 98);
+  t = Date.now();
+  const deliberationResult = runDeliberation({
+    features: allFeatures,
+    classified,
+    reconciliation,
+    offsetDetail,
+    enrichment: null,
+    scores,
+    computedAcres: null,
+  });
+  timings['deliberation'] = Date.now() - t;
 
   onProgress('Complete', 100);
 
@@ -247,7 +266,7 @@ export function runAIPipeline(
     explanations: {},
     offsetResolution: bridgeOffsetResolution(offsetDetail),
     enrichmentData: null,
-    deliberationResult: null,
+    deliberationResult,
     processingTimeMs: Date.now() - startTime,
     stageTimings: timings,
     warnings,

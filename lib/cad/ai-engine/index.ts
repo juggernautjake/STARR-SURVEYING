@@ -37,3 +37,5 @@ export type {
   OffsetResolutionDetail,
 } from './offset-resolver';
 export { fetchEnrichmentData } from './enrichment';
+export { runDeliberation } from './deliberation';
+export type { DeliberationInputs } from './deliberation';

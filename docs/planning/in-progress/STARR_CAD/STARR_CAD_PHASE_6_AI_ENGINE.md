@@ -2852,16 +2852,16 @@ interface AIStore {
 - [ ] PLSS fields auto-populated in title block from enrichment
 
 ### Deliberation & Clarifying Questions
-- [ ] Deliberation runs after stage 6 and before drawing preview
-- [ ] Deliberation generates no questions when overall confidence ≥ 90 and no blocking issues
-- [ ] Deed discrepancy (bearing off > 2°) generates blocking question
-- [ ] Unrecognized code generates optional question
-- [ ] Fence code → material question generated
-- [ ] Building code → material question generated
+- [x] Deliberation runs after stage 6 and before drawing preview (`runDeliberation` in `lib/cad/ai-engine/deliberation.ts`, called from `pipeline.ts`)
+- [x] Deliberation generates no dialog when overall confidence ≥ 90 and no blocking issues (`shouldShowDialog` flag short-circuits per §28.1)
+- [x] Deed discrepancy (bearing off > 2°) generates BLOCKING/HIGH question
+- [x] Unrecognized code generates optional MEDIUM question
+- [x] Fence code → material question generated (LOW priority)
+- [x] Building code → material question generated (LOW priority)
 - [ ] Duplicate shots → "which is final?" question generated
-- [ ] User answering blocking questions enables "Draw Now" button
+- [ ] User answering blocking questions enables "Draw Now" button (UI slice — backend ready)
 - [ ] Answers applied to pipeline re-run; scores improve after good answers
-- [ ] "Skip All Optional" dismisses all non-blocking questions
+- [ ] "Skip All Optional" dismisses all non-blocking questions (UI slice — backend ready)
 
 ### Drawing Preview & Confidence Cards
 - [ ] Two-panel layout renders (canvas left, cards right)

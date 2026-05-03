@@ -366,20 +366,61 @@ export interface OffsetResolutionResult {
 
 // ─── AI DELIBERATION ─────────────────────────────────────────────────────────
 
+export type QuestionPriority = 'BLOCKING' | 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type QuestionCategory =
+  | 'CODE_AMBIGUITY'
+  | 'POSSIBLE_TYPO'
+  | 'OFFSET_DISAMBIGUATION'
+  | 'DUPLICATE_SHOT'
+  | 'MISSING_FEATURE'
+  | 'DEED_DISCREPANCY'
+  | 'FEATURE_ATTRIBUTE'
+  | 'MONUMENT_INFO'
+  | 'AREA_MISMATCH'
+  | 'AREA_ENCLOSURE'
+  | 'CONNECTION_AMBIGUITY';
+
+export type QuestionAnswerType =
+  | 'TEXT'
+  | 'SELECT'
+  | 'CONFIRM'
+  | 'POINT_SELECT'
+  | 'NUMBER';
+
 export interface ClarifyingQuestion {
-  id:       string;
-  question: string;
-  /** e.g. 'multiple_choice', 'yes_no', 'text', 'bearing_select' */
-  type:     string;
-  options:  string[] | null;
-  answer:   string | null;
+  id:              string;
+  priority:        QuestionPriority;
+  category:        QuestionCategory;
+  /** Human-readable question text. */
+  question:        string;
+  /** Why the AI is asking this — surfaced under the question. */
+  aiReasoning:     string;
+  /** featureIds, pointIds, or annotationIds the question is
+   *  about. Drives canvas highlighting in the UI. */
+  relatedIds:      string[];
+  /** AI's best guess. Pre-fills the answer when present. */
+  suggestedAnswer: string | null;
+  answerType:      QuestionAnswerType;
+  /** Allowed values for SELECT questions. */
+  options:         string[] | null;
+  /** Set when the user answers. */
+  userAnswer:      string | null;
+  skipped:         boolean;
 }
 
 export interface DeliberationResult {
-  questions:       ClarifyingQuestion[];
-  answeredCount:   number;
-  deliberationMs:  number;
-  completedAt:     string;  // ISO 8601
+  /** 0–100 weighted average across all element scores. */
+  overallConfidence:   number;
+  questions:           ClarifyingQuestion[];
+  blockingQuestions:   ClarifyingQuestion[];
+  optionalQuestions:   ClarifyingQuestion[];
+  /** False when overallConfidence ≥ 90 AND zero blocking
+   *  questions — caller skips the dialog and proceeds straight
+   *  to the drawing preview. */
+  shouldShowDialog:    boolean;
+  deliberationMs:      number;
+  completedAt:         string;  // ISO 8601
 }
 
 // ─── AI JOB PAYLOAD & RESULT ─────────────────────────────────────────────────
