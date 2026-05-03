@@ -42,6 +42,14 @@ interface AIStore {
   openQuestionDialog: () => void;
   closeQuestionDialog: () => void;
 
+  // §30.3 element-explanation popup. Holds the featureId of the
+  // currently-open popup; null when nothing is open. Opens on
+  // a row click in the review queue and closes via the popup
+  // close button or Esc.
+  explanationFeatureId: string | null;
+  openExplanation: (featureId: string) => void;
+  closeExplanation: () => void;
+
   // Pipeline state.
   status: AIPipelineStatus;
   /** Last successful result from the pipeline. Cleared when a
@@ -98,6 +106,7 @@ export const useAIStore = create<AIStore>((set, get) => ({
   isDialogOpen: false,
   isQueuePanelOpen: false,
   isQuestionDialogOpen: false,
+  explanationFeatureId: null,
   status: 'idle',
   result: null,
   error: null,
@@ -113,6 +122,9 @@ export const useAIStore = create<AIStore>((set, get) => ({
 
   openQuestionDialog: () => set({ isQuestionDialogOpen: true }),
   closeQuestionDialog: () => set({ isQuestionDialogOpen: false }),
+
+  openExplanation: (featureId) => set({ explanationFeatureId: featureId }),
+  closeExplanation: () => set({ explanationFeatureId: null }),
 
   start: () => set({ status: 'running', error: null }),
   setResult: (result) =>
@@ -135,6 +147,7 @@ export const useAIStore = create<AIStore>((set, get) => ({
       result: null,
       error: null,
       isQuestionDialogOpen: false,
+      explanationFeatureId: null,
       lastPayload: null,
     }),
 

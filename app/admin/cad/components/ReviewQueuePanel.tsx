@@ -51,6 +51,7 @@ export default function ReviewQueuePanel() {
   const close = useAIStore((s) => s.closeQueuePanel);
   const result = useAIStore((s) => s.result);
   const setItemStatus = useAIStore((s) => s.setItemStatus);
+  const openExplanation = useAIStore((s) => s.openExplanation);
   const addFeature = useDrawingStore((s) => s.addFeature);
   const removeFeature = useDrawingStore((s) => s.removeFeature);
   const drawingFeatures = useDrawingStore((s) => s.document.features);
@@ -177,6 +178,12 @@ export default function ReviewQueuePanel() {
                           }
                           setItemStatus(item.id, status, note);
                         }}
+                        onExplain={
+                          item.featureId &&
+                          result?.explanations[item.featureId]
+                            ? () => openExplanation(item.featureId!)
+                            : null
+                        }
                       />
                     ))}
                   </ul>
@@ -192,9 +199,11 @@ export default function ReviewQueuePanel() {
 function ReviewRow({
   item,
   onAction,
+  onExplain,
 }: {
   item: ReviewItem;
   onAction: (status: ReviewItemStatus, note: string | null) => void;
+  onExplain: (() => void) | null;
 }) {
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState(item.userNote ?? '');
@@ -241,6 +250,16 @@ function ReviewRow({
         ) : null}
       </div>
       <div style={styles.actions}>
+        {onExplain ? (
+          <button
+            type="button"
+            onClick={onExplain}
+            style={styles.btnExplain}
+            title="Open the AI explanation for this element"
+          >
+            ⓘ Explain
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => onAction('ACCEPTED', null)}
@@ -427,6 +446,17 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 4,
   },
   actions: { display: 'flex', gap: 6 },
+  btnExplain: {
+    flex: 1,
+    padding: '6px 8px',
+    border: '1px solid #475569',
+    color: '#475569',
+    background: '#FFFFFF',
+    borderRadius: 6,
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
   btnAccept: {
     flex: 1,
     padding: '6px 8px',

@@ -15,6 +15,7 @@ import SettingsDialog from './components/SettingsDialog';
 import ImportDialog from './components/ImportDialog';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
+import ElementExplanationPopup from './components/ElementExplanationPopup';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -487,6 +488,10 @@ export default function CADLayout() {
       {/* Phase 6 §28.4 clarifying-question dialog — auto-opened
           when deliberation flags shouldShowDialog */}
       <QuestionDialog />
+
+      {/* Phase 6 §30.3 element-explanation popup — opened by
+          clicking a review-queue card */}
+      <ElementExplanationPopup />
 
       {/* New Drawing / Get Started dialog */}
       {showNewDrawingDialog && (
