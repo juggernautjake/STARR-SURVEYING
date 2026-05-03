@@ -5,3 +5,4 @@
 export * from './types';
 export { classifyPoints } from './stage-1-classify';
 export { assembleFeatures, kasaCircleFit } from './stage-2-assemble';
+export { parseCallsRegex, extractMonument } from './deed-parser';
