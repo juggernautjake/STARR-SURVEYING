@@ -204,11 +204,21 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }));
 
   // ── Banners (best-effort; failures degrade to empty arrays) ──
+  // F10.8 — `loadPersonalEquipmentIds()` fans the personal-kit
+  // exclusion across loaders that touch maintenance_events
+  // (which has equipment_inventory_id, not is_personal). One
+  // upfront read covers every loader so we don&apos;t reissue
+  // the same query per banner.
+  const personalEquipmentIds = await loadPersonalEquipmentIds();
   const [unstaffedPto, lowStock, maintToday, certExpiring] =
     await Promise.all([
       loadUnstaffedPto(dayStart, dayEnd),
       loadLowStockConsumables(dayStart, dayEnd),
-      loadMaintenanceStartingToday(dayStart, dayEnd),
+      loadMaintenanceStartingToday(
+        dayStart,
+        dayEnd,
+        personalEquipmentIds
+      ),
       loadCertExpiring(nowIso),
     ]);
 
@@ -382,9 +392,32 @@ async function loadLowStockConsumables(
   >;
 }
 
+// F10.8 — read every is_personal=true equipment_inventory id once
+// per request. Loaders that filter through equipment_inventory_id
+// (maintenance_events doesn&apos;t carry is_personal directly) use
+// this Set to post-filter their PostgREST results without paying
+// per-loader for the same lookup.
+async function loadPersonalEquipmentIds(): Promise<Set<string>> {
+  const { data, error } = await supabaseAdmin
+    .from('equipment_inventory')
+    .select('id')
+    .eq('is_personal', true);
+  if (error) {
+    console.warn(
+      '[admin/equipment/today] personal-kit id lookup failed',
+      { error: error.message }
+    );
+    return new Set();
+  }
+  return new Set(
+    ((data ?? []) as Array<{ id: string }>).map((r) => r.id)
+  );
+}
+
 async function loadMaintenanceStartingToday(
   dayStart: string,
-  dayEnd: string
+  dayEnd: string,
+  personalEquipmentIds: Set<string>
 ): Promise<Array<Record<string, unknown>>> {
   const { data, error } = await supabaseAdmin
     .from('maintenance_events')
@@ -403,7 +436,17 @@ async function loadMaintenanceStartingToday(
     );
     return [];
   }
-  return (data ?? []) as Array<Record<string, unknown>>;
+  // F10.8 — strip rows whose equipment is personal kit so the EM
+  // banner doesn&apos;t balloon with a surveyor&apos;s personal axe.
+  // PostgREST doesn&apos;t support a join-side WHERE clause on the
+  // anon-key path, so we filter post-fetch using the pre-loaded
+  // personal-kit id set.
+  const rows = (data ?? []) as Array<{ equipment_inventory_id: string | null }>;
+  return rows.filter(
+    (r) =>
+      !r.equipment_inventory_id ||
+      !personalEquipmentIds.has(r.equipment_inventory_id)
+  ) as Array<Record<string, unknown>>;
 }
 
 // F10.7-i-i — cert-expiring banner. Reads

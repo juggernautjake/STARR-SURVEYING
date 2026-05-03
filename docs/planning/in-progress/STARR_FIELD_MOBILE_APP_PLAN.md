@@ -5785,11 +5785,30 @@ sub-batches per the small-chunks discipline:
                   &ldquo;cal&rdquo; is just a sticker.
                   Mirrors the seeds/233 tax-summary filter
                   predicate.
-            - [ ] **Maintenance rollups filter.** Exclude
+            - [◐] **Maintenance rollups filter.** Exclude
                   personal-kit rows from
                   `loadMaintenanceStartingToday()` and the
                   `/api/admin/maintenance/calendar` event
                   queries.
+                - [✓] **Today maintenance banner.** New
+                      `loadPersonalEquipmentIds()` helper
+                      reads every `is_personal=true`
+                      equipment_inventory id once per
+                      request. The Today aggregator passes
+                      the resulting Set into
+                      `loadMaintenanceStartingToday()`,
+                      which post-filters the PostgREST
+                      result so personal-kit events
+                      don&apos;t leak into the EM&apos;s
+                      Today banner. Same Set will fan into
+                      the calendar + low-stock filters in
+                      follow-up slices.
+                - [ ] **/admin/maintenance/calendar.**
+                      Apply the same Set filter to the
+                      calendar aggregator&apos;s month +
+                      upcoming + failed_qa queries so the
+                      §5.12.7.4 calendar stays personal-
+                      kit-free.
             - [ ] **Low-stock filter.** Exclude personal-kit
                   rows from `loadLowStockConsumables()`
                   (defensive — personal kit shouldn&apos;t
