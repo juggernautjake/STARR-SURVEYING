@@ -6074,8 +6074,12 @@ side reads them.
       sidebar group with 🏛 icon. Auth: EQUIPMENT_ROLES
       for read; admin-only for the lock ritual (defensive
       gate already on the lock-tax-year endpoint).
-- [ ] "Lock equipment depreciation" button on
+- [✓] "Lock equipment depreciation" button on
       `/admin/finances` (mirrors Batch QQ mark-exported).
+      Shipped as part of the §5.12.7.7 Fleet valuation page —
+      the &ldquo;Lock {year}&rdquo; button calls
+      POST /api/admin/equipment/lock-tax-year with a dry-run
+      preview modal first.
 - [✓] Tax summary endpoint extension — adds `equipment`
       block alongside `receipts` + `mileage`; reads frozen
       `equipment_tax_elections` for locked years.
@@ -6095,7 +6099,12 @@ side reads them.
       that were promoted to capital assets don&apos;t
       double-count — their dollars land on the
       depreciation ledger via the equipment block instead.
-- [ ] Asset Detail Schedule PDF + CSV export.
+- [✓] Asset Detail Schedule PDF + CSV export. Shipped as
+      GET /api/admin/equipment/asset-detail-schedule with
+      `?format=csv` (CPA import) + `?format=html` (browser-
+      print to PDF). Wired into the Fleet valuation page
+      header as &ldquo;⤓ CSV&rdquo; + &ldquo;⎙ Print PDF&rdquo;
+      buttons.
 - [✓] Disposal flow (`POST /api/admin/equipment/dispose`)
       with kind branches.
     - [✓] **Server endpoint
