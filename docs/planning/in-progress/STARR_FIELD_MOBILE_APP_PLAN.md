@@ -5883,7 +5883,7 @@ sub-batches per the small-chunks discipline:
 Closes the Batch QQ loop — lands at the END of F10 so the
 inventory + maintenance ledgers are mature before the tax
 side reads them.
-- [◐] Tax-tie-in schema (was planned as `seeds/237`; lands
+- [✓] Tax-tie-in schema (was planned as `seeds/237`; lands
       as 249 + 250 since 237 is taken by templates).
     - [✓] **seeds/249_starr_field_equipment_tax_columns.sql.**
           ALTER TABLE adds the §5.12.10 tax + disposal
@@ -5905,11 +5905,30 @@ side reads them.
           gains an unpromoted partial index for the Batch
           QQ tax-summary `WHERE promoted_to_equipment_id IS
           NULL` filter.
-    - [ ] **seeds/250_starr_field_equipment_tax_elections.sql.**
-          New `equipment_tax_elections` table — per-asset
-          per-year frozen depreciation snapshot. Drives
-          the lock-year ritual + the Asset Detail Schedule
-          PDF.
+    - [✓] **seeds/250_starr_field_equipment_tax_elections.sql.**
+          New `equipment_tax_elections` table. Per-asset
+          per-year frozen depreciation snapshot — the
+          §5.12.10 lock-year ritual writes one row per
+          active asset per tax year, freezing the
+          depreciation_method, the per-year amount, and
+          the running accumulated total. Once locked_at
+          is set the row is treated as immutable by the
+          application so Schedule C numbers stay
+          reproducible audit-side. Columns: equipment_id
+          (FK CASCADE), tax_year (INT &gt;= 2000),
+          depreciation_method (TEXT enum mirroring
+          equipment_inventory&apos;s), depreciation_amount_
+          cents (BIGINT &gt;= 0), accumulated_depreciation_
+          cents, basis_cents (snapshot of acquired_cost
+          at lock time so later edits don&apos;t
+          retroactively change locked years), locked_at,
+          locked_by, notes. UNIQUE (equipment_id,
+          tax_year) prevents double-lock duplicates. Two
+          read-path indexes: (tax_year DESC, locked_at)
+          for the Schedule C generator + (equipment_id,
+          tax_year DESC) for the Asset Detail per-row
+          drilldown. updated_at trigger mirrors the rest
+          of the F10.x table conventions.
 - [ ] Receipt-promotion modal on bookkeeper approval
       (§5.12.10 acquisition path).
 - [ ] Section 179 / MACRS algorithm + Pub 946 constants
