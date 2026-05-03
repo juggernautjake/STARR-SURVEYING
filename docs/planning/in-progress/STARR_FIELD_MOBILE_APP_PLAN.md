@@ -6076,9 +6076,25 @@ side reads them.
       gate already on the lock-tax-year endpoint).
 - [ ] "Lock equipment depreciation" button on
       `/admin/finances` (mirrors Batch QQ mark-exported).
-- [ ] Tax summary endpoint extension — adds `equipment`
+- [✓] Tax summary endpoint extension — adds `equipment`
       block alongside `receipts` + `mileage`; reads frozen
       `equipment_tax_elections` for locked years.
+      `/api/admin/finances/tax-summary` gains
+      `equipment: { tax_year, total_depreciation_cents,
+      asset_count, by_method, by_status: { locked, live } }`
+      from a new `loadEquipmentBlock(taxYear)` helper.
+      Walks every active depreciable asset (same predicate
+      as the rollup + lock worker), reads
+      `equipment_tax_elections` rows for the year (single
+      batched query), and falls back to live
+      `depreciationForYear()` for unlocked assets. The
+      block&apos;s total folds into `totals.deductible_
+      cents` so Schedule C Line 13 reconciles. **Anti-
+      double-count guard:** the receipts query also gains
+      `is('promoted_to_equipment_id', null)` so receipts
+      that were promoted to capital assets don&apos;t
+      double-count — their dollars land on the
+      depreciation ledger via the equipment block instead.
 - [ ] Asset Detail Schedule PDF + CSV export.
 - [ ] Disposal flow (`POST /api/admin/equipment/dispose`)
       with kind branches.
