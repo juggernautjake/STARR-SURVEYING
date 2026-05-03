@@ -74,6 +74,13 @@ interface MaintenanceRow {
   summary: string;
 }
 
+interface CertExpiringRow {
+  id: string;
+  name: string | null;
+  next_calibration_due_at: string;
+  days_until: number;
+}
+
 interface TodayResponse {
   date: string;
   now: string;
@@ -86,6 +93,7 @@ interface TodayResponse {
     unstaffed_pto: UnstaffedPto[];
     low_stock_consumables: LowStockRow[];
     maintenance_starting_today: MaintenanceRow[];
+    cert_expiring: CertExpiringRow[];
   };
   counts: {
     going_out: number;
@@ -404,6 +412,52 @@ function BannerStack({
           .join(' · ')}
       </div>
     );
+  }
+  if (banners.cert_expiring.length > 0) {
+    // F10.7-i-i — split into "overdue" (red) and "upcoming" (blue)
+    // so a lapsed NIST cert can&apos;t hide behind a long upcoming
+    // list. Surveys with an expired cert are technically illegal
+    // — the EM needs to see this immediately.
+    const overdue = banners.cert_expiring.filter((c) => c.days_until < 0);
+    const upcoming = banners.cert_expiring.filter((c) => c.days_until >= 0);
+    if (overdue.length > 0) {
+      items.push(
+        <div key="cert-overdue" style={styles.bannerRed}>
+          <strong>
+            ⚠ {overdue.length} calibration cert
+            {overdue.length === 1 ? '' : 's'} overdue
+          </strong>
+          {' · '}
+          {overdue
+            .slice(0, 3)
+            .map(
+              (c) =>
+                `${c.name ?? c.id.slice(0, 8)} (${Math.abs(c.days_until)}d ago)`
+            )
+            .join(', ')}
+          {overdue.length > 3 ? ` · +${overdue.length - 3} more` : ''}
+        </div>
+      );
+    }
+    if (upcoming.length > 0) {
+      items.push(
+        <div key="cert-upcoming" style={styles.bannerBlue}>
+          <strong>
+            🧪 {upcoming.length} calibration cert
+            {upcoming.length === 1 ? '' : 's'} expiring within 60d
+          </strong>
+          {' · '}
+          {upcoming
+            .slice(0, 3)
+            .map(
+              (c) =>
+                `${c.name ?? c.id.slice(0, 8)} (in ${c.days_until}d)`
+            )
+            .join(', ')}
+          {upcoming.length > 3 ? ` · +${upcoming.length - 3} more` : ''}
+        </div>
+      );
+    }
   }
   if (items.length === 0) return null;
   return <div style={styles.bannerStack}>{items}</div>;

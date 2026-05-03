@@ -59,12 +59,14 @@ interface CalendarResponse {
   month: { from: string; to: string };
   days: DayBucket[];
   upcoming: CalEvent[];
+  failed_qa: CalEvent[];
   next_due_per_equipment: NextDueRow[];
   summary: {
     month_event_count: number;
     open_count: number;
     by_state: Record<string, number>;
     upcoming_count: number;
+    failed_qa_count: number;
     schedules_count: number;
     pairs_count: number;
     due_in_lead_window: number;
@@ -251,7 +253,18 @@ export default function MaintenanceCalendarPage() {
               {data.summary.due_in_lead_window}
             </span>
             <span style={styles.muted}>schedules in lead window</span>
+            {data.summary.failed_qa_count > 0 ? (
+              <>
+                <span style={styles.muted}>·</span>
+                <span style={styles.summaryRed}>
+                  {data.summary.failed_qa_count}
+                </span>
+                <span style={styles.muted}>failed QA</span>
+              </>
+            ) : null}
           </div>
+
+          <FailedQaPanel events={data.failed_qa} />
 
           <div style={styles.layout}>
             <section style={styles.calendarRegion}>
@@ -408,6 +421,146 @@ export default function MaintenanceCalendarPage() {
   );
 }
 
+// F10.7-j-ii — dedicated panel for failed_qa events. Sits above
+// the calendar grid so a calibration that lapsed last month
+// stays in the EM&apos;s field of view even when the month
+// scrubs forward. Click → detail page, where the EM can re-open
+// the event back to in_progress.
+function FailedQaPanel({ events }: { events: CalEvent[] }) {
+  if (events.length === 0) return null;
+  return (
+    <div style={failedQaStyles.panel}>
+      <header style={failedQaStyles.panelHeader}>
+        <span style={failedQaStyles.panelIcon}>⚠</span>
+        <strong style={failedQaStyles.panelTitle}>
+          {events.length} failed QA{' '}
+          {events.length === 1 ? 'event' : 'events'} need re-work
+        </strong>
+        <span style={failedQaStyles.panelHint}>
+          Open the detail page to re-open the event back to in_progress.
+        </span>
+      </header>
+      <ul style={failedQaStyles.list}>
+        {events.slice(0, 10).map((e) => (
+          <li key={e.id} style={failedQaStyles.item}>
+            <Link
+              href={`/admin/equipment/maintenance/${e.id}`}
+              style={failedQaStyles.itemLink}
+            >
+              <span style={failedQaStyles.itemEquip}>
+                {e.equipment_name ?? '(no equipment)'}
+              </span>
+              <span style={failedQaStyles.itemKind}>{e.kind}</span>
+              <span style={failedQaStyles.itemSummary}>{e.summary}</span>
+              <span style={failedQaStyles.itemDate}>
+                {e.scheduled_for
+                  ? e.scheduled_for.slice(0, 10)
+                  : 'no scheduled_for'}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {events.length > 10 ? (
+        <div style={failedQaStyles.overflow}>
+          +{events.length - 10} more — narrow the kind filter or scroll
+          the calendar grid for older entries.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const failedQaStyles: Record<string, React.CSSProperties> = {
+  panel: {
+    background: '#FEF2F2',
+    border: '1px solid #FCA5A5',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  panelHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap' as const,
+    marginBottom: 12,
+  },
+  panelIcon: {
+    fontSize: 18,
+    color: '#B91C1C',
+  },
+  panelTitle: {
+    color: '#7F1D1D',
+    fontSize: 14,
+    fontWeight: 600,
+  },
+  panelHint: {
+    color: '#9F1239',
+    fontSize: 11,
+    fontStyle: 'italic' as const,
+  },
+  list: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 6,
+  },
+  item: { width: '100%' },
+  itemLink: {
+    display: 'grid',
+    gridTemplateColumns: '180px 110px 1fr 90px',
+    alignItems: 'center',
+    gap: 12,
+    padding: '8px 12px',
+    background: '#FFFFFF',
+    border: '1px solid #FCA5A5',
+    borderLeft: '3px solid #B91C1C',
+    borderRadius: 6,
+    color: '#111827',
+    textDecoration: 'none',
+    fontSize: 12,
+  },
+  itemEquip: {
+    fontWeight: 600,
+    color: '#111827',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  itemKind: {
+    background: '#F3F4F6',
+    padding: '2px 8px',
+    borderRadius: 4,
+    fontSize: 11,
+    color: '#374151',
+    textTransform: 'capitalize' as const,
+    justifySelf: 'start' as const,
+  },
+  itemSummary: {
+    color: '#374151',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  itemDate: {
+    color: '#6B7280',
+    fontSize: 11,
+    fontFamily: 'Menlo, monospace',
+    textAlign: 'right' as const,
+  },
+  overflow: {
+    fontSize: 11,
+    color: '#9F1239',
+    fontStyle: 'italic' as const,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTop: '1px dashed #FCA5A5',
+  },
+};
+
 function chipStyle(state: string): React.CSSProperties {
   const map: Record<string, React.CSSProperties> = {
     scheduled: { background: '#DBEAFE', color: '#1E3A8A' },
@@ -415,7 +568,11 @@ function chipStyle(state: string): React.CSSProperties {
     awaiting_parts: { background: '#FEF3C7', color: '#78350F' },
     awaiting_vendor: { background: '#FEF3C7', color: '#78350F' },
     complete: { background: '#DCFCE7', color: '#166534' },
-    failed_qa: { background: '#FEE2E2', color: '#7F1D1D' },
+    failed_qa: {
+      background: '#FEE2E2',
+      color: '#7F1D1D',
+      border: '1.5px solid #B91C1C',
+    },
     cancelled: {
       background: '#FFFFFF',
       color: '#9CA3AF',
@@ -531,6 +688,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   summaryStrong: { color: '#111827', fontWeight: 600 },
   summaryAmber: { color: '#B45309', fontWeight: 600 },
+  summaryRed: { color: '#B91C1C', fontWeight: 700 },
   muted: { color: '#9CA3AF' },
   layout: {
     display: 'grid',

@@ -1,9 +1,11 @@
 import { Redirect, Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { CaptureFab } from '@/lib/CaptureFab';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { ScannerFab } from '@/lib/ScannerFab';
 import { useAuth } from '@/lib/auth';
+import { useIsEquipmentManager } from '@/lib/myRoles';
 import { colors } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
 
@@ -24,6 +26,7 @@ const TAB_BAR_HEIGHT = 64;
  */
 export default function TabsLayout() {
   const { session, loading } = useAuth();
+  const { isEquipmentManager } = useIsEquipmentManager();
 
   // Dark-mode default per plan §7.1 rule 7 (battery-aware). Matches
   // the default in lib/Placeholder.tsx so the tab bar and screen
@@ -35,68 +38,88 @@ export default function TabsLayout() {
   if (!session) return <Redirect href="/(auth)/sign-in" />;
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: palette.accent,
-        tabBarInactiveTintColor: palette.muted,
-        tabBarStyle: {
-          backgroundColor: palette.surface,
-          borderTopColor: palette.border,
-          height: TAB_BAR_HEIGHT,
-          // The FAB lifts 18px above this bar via negative margin in
-          // CaptureFab. allowFontScaling+overflow to make sure iOS
-          // doesn't clip the protruding circle.
-          paddingTop: 8,
-          paddingBottom: 8,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
-        },
-        headerStyle: {
-          backgroundColor: palette.surface,
-        },
-        headerTintColor: palette.text,
-      }}
-    >
-      <Tabs.Screen
-        name="jobs"
-        options={{
-          title: 'Jobs',
-          tabBarIcon: ({ color }) => <TabGlyph color={color} label="📋" />,
+    <View style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: palette.accent,
+          tabBarInactiveTintColor: palette.muted,
+          tabBarStyle: {
+            backgroundColor: palette.surface,
+            borderTopColor: palette.border,
+            height: TAB_BAR_HEIGHT,
+            // The FAB lifts 18px above this bar via negative margin in
+            // CaptureFab. allowFontScaling+overflow to make sure iOS
+            // doesn't clip the protruding circle.
+            paddingTop: 8,
+            paddingBottom: 8,
+          },
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: '500',
+          },
+          headerStyle: {
+            backgroundColor: palette.surface,
+          },
+          headerTintColor: palette.text,
         }}
-      />
-      <Tabs.Screen
-        name="capture"
-        options={{
-          title: 'Capture',
-          // Hide the default label — the FAB is the affordance.
-          tabBarLabel: () => null,
-          tabBarButton: (props) => <CaptureFab {...props} />,
-        }}
-      />
-      <Tabs.Screen
-        name="time"
-        options={{
-          title: 'Time',
-          tabBarIcon: ({ color }) => <TabGlyph color={color} label="⏱" />,
-        }}
-      />
-      <Tabs.Screen
-        name="money"
-        options={{
-          title: '$',
-          tabBarIcon: ({ color }) => <TabGlyph color={color} label="$" />,
-        }}
-      />
-      <Tabs.Screen
-        name="me"
-        options={{
-          title: 'Me',
-          tabBarIcon: ({ color }) => <TabGlyph color={color} label="👤" />,
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="jobs"
+          options={{
+            title: 'Jobs',
+            tabBarIcon: ({ color }) => <TabGlyph color={color} label="📋" />,
+          }}
+        />
+        <Tabs.Screen
+          name="capture"
+          options={{
+            title: 'Capture',
+            // Hide the default label — the FAB is the affordance.
+            tabBarLabel: () => null,
+            tabBarButton: (props) => <CaptureFab {...props} />,
+          }}
+        />
+        <Tabs.Screen
+          name="time"
+          options={{
+            title: 'Time',
+            tabBarIcon: ({ color }) => <TabGlyph color={color} label="⏱" />,
+          }}
+        />
+        <Tabs.Screen
+          name="money"
+          options={{
+            title: '$',
+            tabBarIcon: ({ color }) => <TabGlyph color={color} label="$" />,
+          }}
+        />
+        <Tabs.Screen
+          name="me"
+          options={{
+            title: 'Me',
+            tabBarIcon: ({ color }) => <TabGlyph color={color} label="👤" />,
+          }}
+        />
+        {/* F10.8 — Gear tab (role-gated 6th tab). Always declared
+            so deep links resolve, but `href: null` hides it from
+            the tab bar for non-EM users. The tab&apos;s own screen
+            also enforces role gating defensively. */}
+        <Tabs.Screen
+          name="gear"
+          options={{
+            title: 'Gear',
+            tabBarIcon: ({ color }) => <TabGlyph color={color} label="🛠" />,
+            href: isEquipmentManager ? '/(tabs)/gear' : null,
+          }}
+        />
+      </Tabs>
+
+      {/* F10.8 — persistent scanner FAB. Renders only when the
+          surveyor has any active check-out. bottomInset clears the
+          tab bar so the green circle floats above it without
+          blocking the tab buttons. */}
+      <ScannerFab bottomInset={TAB_BAR_HEIGHT + 16} />
+    </View>
   );
 }
 

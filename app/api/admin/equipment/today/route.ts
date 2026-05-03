@@ -7,7 +7,7 @@
 // stays thin and the aggregation logic lives in one place so
 // the mobile parity surface (§5.12.9 EM home tab) can reuse it.
 //
-// Response shape — three strips + three banners:
+// Response shape — three strips + four banners:
 //
 //   strips.going_out      Strip A: state='held' AND reserved_
 //                         from::date=date, grouped by job
@@ -25,6 +25,9 @@
 //                                     reserved today
 //   banners.maintenance_starting_today  scheduled work for
 //                                       today
+//   banners.cert_expiring             equipment_inventory rows
+//                                     with next_calibration_due_at
+//                                     ≤ now() + 60 days (F10.7-i-i)
 //
 // Date defaults to today (server clock); query string accepts
 // `date=YYYY-MM-DD` so the EM can scrub forward/back.
@@ -201,11 +204,23 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }));
 
   // ── Banners (best-effort; failures degrade to empty arrays) ──
-  const [unstaffedPto, lowStock, maintToday] = await Promise.all([
-    loadUnstaffedPto(dayStart, dayEnd),
-    loadLowStockConsumables(dayStart, dayEnd),
-    loadMaintenanceStartingToday(dayStart, dayEnd),
-  ]);
+  // F10.8 — `loadPersonalEquipmentIds()` fans the personal-kit
+  // exclusion across loaders that touch maintenance_events
+  // (which has equipment_inventory_id, not is_personal). One
+  // upfront read covers every loader so we don&apos;t reissue
+  // the same query per banner.
+  const personalEquipmentIds = await loadPersonalEquipmentIds();
+  const [unstaffedPto, lowStock, maintToday, certExpiring] =
+    await Promise.all([
+      loadUnstaffedPto(dayStart, dayEnd),
+      loadLowStockConsumables(dayStart, dayEnd),
+      loadMaintenanceStartingToday(
+        dayStart,
+        dayEnd,
+        personalEquipmentIds
+      ),
+      loadCertExpiring(nowIso),
+    ]);
 
   return NextResponse.json({
     date: dateIso,
@@ -219,6 +234,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       unstaffed_pto: unstaffedPto,
       low_stock_consumables: lowStock,
       maintenance_starting_today: maintToday,
+      cert_expiring: certExpiring,
     },
     counts: {
       going_out: goingOut.length,
@@ -321,12 +337,18 @@ async function loadLowStockConsumables(
   // against reservations starting today. v1 surfaces ANY
   // consumable below threshold with at-least-one held
   // reservation in the window — narrowing further is polish.
+  // F10.8 — exclude personal-kit rows defensively. A surveyor&apos;s
+  // personal supplies (their own can of WD-40) shouldn&apos;t hit
+  // the company low-stock alert. Belt-and-suspenders alongside
+  // the §5.12.9.4 rule that personal kit isn&apos;t consumables in
+  // the first place.
   const { data: stocks, error: stocksErr } = await supabaseAdmin
     .from('equipment_inventory')
     .select(
       'id, name, item_kind, quantity_on_hand, low_stock_threshold, vendor'
     )
     .eq('item_kind', 'consumable')
+    .eq('is_personal', false)
     .not('low_stock_threshold', 'is', null)
     .is('retired_at', null);
   if (stocksErr) {
@@ -376,9 +398,32 @@ async function loadLowStockConsumables(
   >;
 }
 
+// F10.8 — read every is_personal=true equipment_inventory id once
+// per request. Loaders that filter through equipment_inventory_id
+// (maintenance_events doesn&apos;t carry is_personal directly) use
+// this Set to post-filter their PostgREST results without paying
+// per-loader for the same lookup.
+async function loadPersonalEquipmentIds(): Promise<Set<string>> {
+  const { data, error } = await supabaseAdmin
+    .from('equipment_inventory')
+    .select('id')
+    .eq('is_personal', true);
+  if (error) {
+    console.warn(
+      '[admin/equipment/today] personal-kit id lookup failed',
+      { error: error.message }
+    );
+    return new Set();
+  }
+  return new Set(
+    ((data ?? []) as Array<{ id: string }>).map((r) => r.id)
+  );
+}
+
 async function loadMaintenanceStartingToday(
   dayStart: string,
-  dayEnd: string
+  dayEnd: string,
+  personalEquipmentIds: Set<string>
 ): Promise<Array<Record<string, unknown>>> {
   const { data, error } = await supabaseAdmin
     .from('maintenance_events')
@@ -397,5 +442,79 @@ async function loadMaintenanceStartingToday(
     );
     return [];
   }
-  return (data ?? []) as Array<Record<string, unknown>>;
+  // F10.8 — strip rows whose equipment is personal kit so the EM
+  // banner doesn&apos;t balloon with a surveyor&apos;s personal axe.
+  // PostgREST doesn&apos;t support a join-side WHERE clause on the
+  // anon-key path, so we filter post-fetch using the pre-loaded
+  // personal-kit id set.
+  const rows = (data ?? []) as Array<{ equipment_inventory_id: string | null }>;
+  return rows.filter(
+    (r) =>
+      !r.equipment_inventory_id ||
+      !personalEquipmentIds.has(r.equipment_inventory_id)
+  ) as Array<Record<string, unknown>>;
+}
+
+// F10.7-i-i — cert-expiring banner. Reads
+// equipment_inventory.next_calibration_due_at (the canonical "when
+// is this NIST cert expiring" column maintained by the F10.7-c
+// maintenance event triggers from seeds/233). Surfaces every unit
+// whose cert is already overdue OR comes due within the next
+// 60 days. The blue Today banner gives the EM long-range
+// visibility BEFORE the F10.7-h schedule cron fires the 60-day
+// notification — a unit can lapse if no maintenance_schedules row
+// exists for it; this banner is the safety net.
+async function loadCertExpiring(
+  nowIso: string
+): Promise<
+  Array<{
+    id: string;
+    name: string | null;
+    next_calibration_due_at: string;
+    days_until: number;
+  }>
+> {
+  const cutoffMs = Date.now() + 60 * 24 * 60 * 60 * 1000;
+  const cutoffIso = new Date(cutoffMs).toISOString();
+  // F10.8 — exclude personal-kit rows (is_personal=true) so the
+  // EM&apos;s cert-expiring banner doesn&apos;t balloon with a
+  // surveyor&apos;s personal axe whose &ldquo;cal&rdquo; is just
+  // a sticker on it. The tax-summary filter uses the same
+  // predicate (seeds/233 §depreciation rollups).
+  const { data, error } = await supabaseAdmin
+    .from('equipment_inventory')
+    .select('id, name, next_calibration_due_at, current_status')
+    .not('next_calibration_due_at', 'is', null)
+    .lte('next_calibration_due_at', cutoffIso)
+    .eq('is_personal', false)
+    .order('next_calibration_due_at', { ascending: true });
+  if (error) {
+    console.warn(
+      '[admin/equipment/today] cert-expiring lookup failed',
+      { error: error.message }
+    );
+    return [];
+  }
+  const rows = (data ?? []) as Array<{
+    id: string;
+    name: string | null;
+    next_calibration_due_at: string;
+    current_status: string | null;
+  }>;
+  const nowMs = new Date(nowIso).getTime();
+  return rows
+    .filter(
+      (r) =>
+        r.current_status !== 'retired' &&
+        r.current_status !== 'lost'
+    )
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      next_calibration_due_at: r.next_calibration_due_at,
+      days_until: Math.floor(
+        (new Date(r.next_calibration_due_at).getTime() - nowMs) /
+          (1000 * 60 * 60 * 24)
+      ),
+    }));
 }

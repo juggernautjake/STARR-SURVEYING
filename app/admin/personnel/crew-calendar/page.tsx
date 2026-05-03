@@ -129,6 +129,27 @@ export default function CrewCalendarPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<CellDetail | null>(null);
 
+  // F10.6-e-iv-β — drag-create selection state. Active during a
+  // mouse-down → mouse-up gesture across cells in the same row.
+  // dragAnchor stays where mouse-down landed; dragEnd updates on
+  // mouse-enter into other cells of the same user. mouse-up
+  // commits to the unavailability modal when the gesture spans
+  // multiple cells (single-cell mouse-up falls through to the
+  // existing onClick → openCell path).
+  const [dragAnchor, setDragAnchor] = useState<{
+    userEmail: string;
+    dayIso: string;
+  } | null>(null);
+  const [dragEnd, setDragEnd] = useState<{
+    userEmail: string;
+    dayIso: string;
+  } | null>(null);
+  const [createModal, setCreateModal] = useState<{
+    userEmail: string;
+    fromIso: string;
+    toIso: string;
+  } | null>(null);
+
   const openCell = useCallback(
     async (user: CalendarUser, day: string, cell: CalendarCell) => {
       // Skip drilldown for fully-empty 'open' cells — there's
@@ -166,6 +187,62 @@ export default function CrewCalendarPage() {
   useEffect(() => {
     void fetchCalendar();
   }, [fetchCalendar]);
+
+  // F10.6-e-iv-β — global mouse-up listener so a drag that ends
+  // outside the grid (mouse released over the header / page
+  // chrome) still clears + commits the selection. Effects on the
+  // cells themselves only see the mouse-up when it lands on a
+  // cell.
+  useEffect(() => {
+    if (!dragAnchor) return;
+    function handleUp() {
+      if (
+        dragAnchor &&
+        dragEnd &&
+        dragAnchor.userEmail === dragEnd.userEmail &&
+        dragAnchor.dayIso !== dragEnd.dayIso
+      ) {
+        const fromIso =
+          dragAnchor.dayIso < dragEnd.dayIso
+            ? dragAnchor.dayIso
+            : dragEnd.dayIso;
+        const toIso =
+          dragAnchor.dayIso < dragEnd.dayIso
+            ? dragEnd.dayIso
+            : dragAnchor.dayIso;
+        setCreateModal({
+          userEmail: dragAnchor.userEmail,
+          fromIso,
+          toIso,
+        });
+      }
+      setDragAnchor(null);
+      setDragEnd(null);
+    }
+    window.addEventListener('mouseup', handleUp);
+    return () => window.removeEventListener('mouseup', handleUp);
+  }, [dragAnchor, dragEnd]);
+
+  // Helper for the cell render: is this (user, day) inside the
+  // active drag selection? Cells outside the active row never
+  // light up — we deliberately gate the row swap so the EM can't
+  // accidentally PTO-ify two people with one drag.
+  const isInDragSelection = useCallback(
+    (userEmail: string, dayIso: string): boolean => {
+      if (!dragAnchor || !dragEnd) return false;
+      if (dragAnchor.userEmail !== userEmail) return false;
+      const lo =
+        dragAnchor.dayIso < dragEnd.dayIso
+          ? dragAnchor.dayIso
+          : dragEnd.dayIso;
+      const hi =
+        dragAnchor.dayIso < dragEnd.dayIso
+          ? dragEnd.dayIso
+          : dragAnchor.dayIso;
+      return dayIso >= lo && dayIso <= hi;
+    },
+    [dragAnchor, dragEnd]
+  );
 
   const shiftWeek = useCallback((deltaDays: number) => {
     const newFrom = isoDay(plusDays(new Date(`${from}T00:00:00.000Z`), deltaDays));
@@ -281,12 +358,45 @@ export default function CrewCalendarPage() {
                       </td>
                       {dayHeaders.map((h) => {
                         const cell = u.cells[h.iso];
+                        const inDrag = isInDragSelection(
+                          u.user_email,
+                          h.iso
+                        );
                         return (
                           <td
                             key={h.iso}
-                            style={cellStyleFor(cell.state)}
+                            style={cellStyleFor(cell.state, inDrag)}
                             title={`${u.user_email} · ${h.iso} · ${cell.state}`}
-                            onClick={() => void openCell(u, h.iso, cell)}
+                            onClick={() => {
+                              // Suppress click after a multi-cell
+                              // drag — the global mouseup handler
+                              // will have opened the create modal.
+                              if (createModal) return;
+                              void openCell(u, h.iso, cell);
+                            }}
+                            onMouseDown={(e) => {
+                              // Left button only.
+                              if (e.button !== 0) return;
+                              setDragAnchor({
+                                userEmail: u.user_email,
+                                dayIso: h.iso,
+                              });
+                              setDragEnd({
+                                userEmail: u.user_email,
+                                dayIso: h.iso,
+                              });
+                            }}
+                            onMouseEnter={() => {
+                              if (
+                                dragAnchor &&
+                                dragAnchor.userEmail === u.user_email
+                              ) {
+                                setDragEnd({
+                                  userEmail: u.user_email,
+                                  dayIso: h.iso,
+                                });
+                              }
+                            }}
                           >
                             <CellLabel cell={cell} />
                           </td>
@@ -300,9 +410,9 @@ export default function CrewCalendarPage() {
           )}
 
           <p style={styles.note}>
-            ▸ Click any cell to drill into the assignment / PTO
-            rows. Drag-create new unavailability/assignment lands
-            as F10.6-e-iv.
+            ▸ Click a cell to drill into the assignment / PTO rows.
+            Drag across multiple cells in the same row to create a
+            new unavailability window.
           </p>
         </>
       ) : loading ? (
@@ -321,6 +431,19 @@ export default function CrewCalendarPage() {
           onClose={() => {
             setDrilldown(null);
             setDetail(null);
+          }}
+        />
+      ) : null}
+
+      {createModal ? (
+        <CreateUnavailabilityModal
+          userEmail={createModal.userEmail}
+          fromIso={createModal.fromIso}
+          toIso={createModal.toIso}
+          onClose={() => setCreateModal(null)}
+          onCreated={() => {
+            setCreateModal(null);
+            void fetchCalendar();
           }}
         />
       ) : null}
@@ -720,12 +843,321 @@ function CellLabel({ cell }: { cell: CalendarCell }) {
   return null;
 }
 
-function cellStyleFor(state: CellState): React.CSSProperties {
+function cellStyleFor(
+  state: CellState,
+  inDrag = false
+): React.CSSProperties {
   return {
     ...styles.cell,
     ...CELL_STATE_STYLES[state],
+    ...(inDrag
+      ? {
+          outline: '2px solid #1D3095',
+          outlineOffset: -2,
+          background: '#DBEAFE',
+          color: '#1E3A8A',
+        }
+      : {}),
   };
 }
+
+// ────────────────────────────────────────────────────────────
+// F10.6-e-iv-β — drag-create unavailability modal
+// ────────────────────────────────────────────────────────────
+//
+// Triggered when the EM drags across multiple cells in the same
+// row. Pre-populates user_email + the day range from the drag
+// gesture; the EM picks a kind, optionally adds reason / is_paid,
+// then POSTs to /api/admin/personnel/unavailability. The cron
+// from F10.6-e-i refreshes the calendar on next fetch — we just
+// trigger a refetch via the parent on success.
+//
+// Half-open semantics for the timestamps: from = midnight of the
+// first selected day, to = midnight of the day AFTER the last
+// selected day so a single-day PTO covers 00:00–24:00 exactly
+// like the §5.12.5 reservation window pattern.
+
+const UNAVAIL_KINDS: Array<{ value: string; label: string }> = [
+  { value: 'pto', label: 'PTO (paid time off)' },
+  { value: 'sick', label: 'Sick day' },
+  { value: 'training', label: 'Training' },
+  { value: 'doctor', label: 'Doctor appointment' },
+  { value: 'other', label: 'Other' },
+];
+
+function CreateUnavailabilityModal({
+  userEmail,
+  fromIso,
+  toIso,
+  onClose,
+  onCreated,
+}: {
+  userEmail: string;
+  fromIso: string;
+  toIso: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [kind, setKind] = useState<string>('pto');
+  const [reason, setReason] = useState('');
+  const [isPaid, setIsPaid] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // PTO defaults to paid; sick/training/other default to unpaid.
+  // Updates whenever the user changes the kind so the checkbox
+  // reflects the conventional case.
+  function handleKindChange(next: string) {
+    setKind(next);
+    setIsPaid(next === 'pto');
+  }
+
+  async function handleSave() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      // Half-open window: [fromIso 00:00, dayAfter(toIso) 00:00)
+      const startMs = Date.parse(`${fromIso}T00:00:00.000Z`);
+      const lastDay = new Date(`${toIso}T00:00:00.000Z`);
+      lastDay.setUTCDate(lastDay.getUTCDate() + 1);
+      const endMs = lastDay.getTime();
+      const res = await fetch('/api/admin/personnel/unavailability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_email: userEmail,
+          unavailable_from: new Date(startMs).toISOString(),
+          unavailable_to: new Date(endMs).toISOString(),
+          kind,
+          reason: reason.trim() || undefined,
+          is_paid: isPaid,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.error ?? `request failed: ${res.status}`);
+      }
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const dayCount =
+    Math.round(
+      (Date.parse(`${toIso}T00:00:00.000Z`) -
+        Date.parse(`${fromIso}T00:00:00.000Z`)) /
+        (1000 * 60 * 60 * 24)
+    ) + 1;
+
+  return (
+    <div style={createStyles.backdrop} onClick={onClose}>
+      <div
+        style={createStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header style={createStyles.header}>
+          <h2 style={createStyles.title}>Mark unavailable</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            style={createStyles.close}
+            aria-label="Close"
+            disabled={submitting}
+          >
+            ✕
+          </button>
+        </header>
+        <div style={createStyles.body}>
+          <p style={createStyles.copy}>
+            Creating a <code style={createStyles.code}>
+              personnel_unavailability
+            </code>{' '}
+            row for <strong>{userEmail}</strong> from{' '}
+            <strong>{fromIso}</strong> to <strong>{toIso}</strong>{' '}
+            ({dayCount} {dayCount === 1 ? 'day' : 'days'}). The crew
+            calendar refreshes on save and the §5.12.7.1 Today banner
+            picks up any rows that start today.
+          </p>
+
+          <label style={createStyles.field}>
+            <span style={createStyles.label}>Kind *</span>
+            <select
+              value={kind}
+              onChange={(e) => handleKindChange(e.target.value)}
+              style={createStyles.input}
+              disabled={submitting}
+              autoFocus
+            >
+              {UNAVAIL_KINDS.map((k) => (
+                <option key={k.value} value={k.value}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={createStyles.field}>
+            <span style={createStyles.label}>Reason (optional)</span>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Short note — surfaces in the cell drilldown."
+              style={{ ...createStyles.input, minHeight: 60 }}
+              disabled={submitting}
+            />
+          </label>
+
+          <label style={createStyles.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={isPaid}
+              onChange={(e) => setIsPaid(e.target.checked)}
+              disabled={submitting}
+            />
+            <span>
+              <strong>Paid</strong>{' '}
+              <span style={createStyles.hint}>
+                · Drives the §5.13 payroll feed&apos;s &ldquo;count
+                this day toward base hours&rdquo; flag.
+              </span>
+            </span>
+          </label>
+
+          {error ? <div style={createStyles.error}>⚠ {error}</div> : null}
+        </div>
+        <footer style={createStyles.footer}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            style={createStyles.cancelBtn}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={submitting}
+            style={createStyles.saveBtn}
+          >
+            {submitting ? 'Saving…' : 'Save'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+const createStyles: Record<string, React.CSSProperties> = {
+  backdrop: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(15, 23, 42, 0.5)',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingTop: 60,
+    zIndex: 1000,
+  },
+  modal: {
+    background: '#FFFFFF',
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 520,
+    boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)',
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '14px 20px',
+    borderBottom: '1px solid #E2E5EB',
+  },
+  title: { fontSize: 16, fontWeight: 600, margin: 0 },
+  close: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: 18,
+    color: '#6B7280',
+    cursor: 'pointer',
+    padding: 4,
+    lineHeight: 1,
+  },
+  body: {
+    padding: 20,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 14,
+  },
+  copy: { margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 },
+  code: {
+    fontFamily: 'Menlo, monospace',
+    fontSize: 11,
+    background: '#F3F4F6',
+    padding: '1px 6px',
+    borderRadius: 4,
+    margin: '0 2px',
+  },
+  field: { display: 'flex', flexDirection: 'column' as const, gap: 4 },
+  label: { fontSize: 12, fontWeight: 600, color: '#374151' },
+  input: {
+    padding: '8px 10px',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: 'inherit',
+  },
+  checkboxRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    fontSize: 13,
+  },
+  hint: { fontSize: 11, color: '#6B7280', fontStyle: 'italic' as const },
+  error: {
+    background: '#FEF2F2',
+    border: '1px solid #FCA5A5',
+    color: '#B91C1C',
+    padding: 10,
+    borderRadius: 6,
+    fontSize: 12,
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 10,
+    padding: '12px 20px',
+    borderTop: '1px solid #E2E5EB',
+    background: '#FAFBFC',
+    borderRadius: '0 0 12px 12px',
+  },
+  saveBtn: {
+    background: '#1D3095',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  cancelBtn: {
+    background: 'transparent',
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    color: '#374151',
+  },
+};
 
 function legendSwatchStyle(state: CellState): React.CSSProperties {
   return {
@@ -851,6 +1283,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     fontWeight: 600,
     cursor: 'pointer',
+    userSelect: 'none' as const,
   },
   cellTag: { padding: '2px 6px' },
   empty: {

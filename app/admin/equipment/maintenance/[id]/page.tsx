@@ -179,6 +179,9 @@ export default function MaintenanceEventDetailPage() {
   // F10.7-g-ii-δ — documents upload modal.
   const [uploadOpen, setUploadOpen] = useState(false);
 
+  // F10.7 tail — attach-receipt picker modal.
+  const [attachReceiptOpen, setAttachReceiptOpen] = useState(false);
+
   const fetchDetail = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -410,14 +413,38 @@ export default function MaintenanceEventDetailPage() {
             </DetailRow>
             <DetailRow label="Linked receipt">
               {event.linked_receipt_id ? (
-                <Link
-                  href={`/admin/receipts/${event.linked_receipt_id}`}
-                  style={styles.link}
-                >
-                  {event.linked_receipt_id.slice(0, 8)}
-                </Link>
+                <span style={styles.linkedReceiptRow}>
+                  <Link
+                    href={`/admin/receipts/${event.linked_receipt_id}`}
+                    style={styles.link}
+                  >
+                    {event.linked_receipt_id.slice(0, 8)}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachReceiptOpen(true);
+                      setActionMsg(null);
+                    }}
+                    style={styles.linkBtn}
+                  >
+                    Change
+                  </button>
+                </span>
               ) : (
-                <span style={styles.muted}>—</span>
+                <span style={styles.linkedReceiptRow}>
+                  <span style={styles.muted}>—</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachReceiptOpen(true);
+                      setActionMsg(null);
+                    }}
+                    style={styles.linkBtn}
+                  >
+                    Attach receipt
+                  </button>
+                </span>
               )}
             </DetailRow>
           </section>
@@ -526,6 +553,7 @@ export default function MaintenanceEventDetailPage() {
           eventKind={event.kind}
           existingVendorName={event.vendor_name}
           existingPerformedBy={event.performed_by_user_id}
+          existingQaPassed={event.qa_passed}
           target={transitionTarget}
           onClose={() => setTransitionTarget(null)}
           onTransitioned={(newState) => {
@@ -545,6 +573,19 @@ export default function MaintenanceEventDetailPage() {
           onUploaded={(filename) => {
             setUploadOpen(false);
             setActionMsg(`✓ Uploaded ${filename}.`);
+            void fetchDetail();
+          }}
+        />
+      ) : null}
+
+      {attachReceiptOpen ? (
+        <AttachReceiptModal
+          eventId={event.id}
+          currentReceiptId={event.linked_receipt_id}
+          onClose={() => setAttachReceiptOpen(false)}
+          onAttached={(receiptId) => {
+            setAttachReceiptOpen(false);
+            setActionMsg(`✓ Linked receipt ${receiptId.slice(0, 8)}.`);
             void fetchDetail();
           }}
         />
@@ -643,6 +684,7 @@ function TransitionModal({
   eventKind,
   existingVendorName,
   existingPerformedBy,
+  existingQaPassed,
   target,
   onClose,
   onTransitioned,
@@ -651,6 +693,7 @@ function TransitionModal({
   eventKind: string;
   existingVendorName: string | null;
   existingPerformedBy: string | null;
+  existingQaPassed: boolean | null;
   target: { state: string; isReopen: boolean };
   onClose: () => void;
   onTransitioned: (newState: string) => void;
@@ -665,10 +708,20 @@ function TransitionModal({
     target.state === 'complete' &&
     eventKind === 'calibration' &&
     !!existingPerformedBy;
+  // F10.7-j-i — calibration completion requires a fresh QA
+  // decision unless the row already carries one (e.g. a multi-
+  // PATCH workflow set qa_passed before this state transition).
+  const requiresQaDecision =
+    target.state === 'complete' &&
+    eventKind === 'calibration' &&
+    existingQaPassed === null;
 
   const [vendorName, setVendorName] = useState('');
   const [clearPerformedBy, setClearPerformedBy] = useState(true);
   const [decline_or_failed_reason, setReason] = useState('');
+  const [qaDecision, setQaDecision] = useState<
+    'unset' | 'passed' | 'failed'
+  >('unset');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -694,6 +747,19 @@ function TransitionModal({
     }
     if (performedByConflict && clearPerformedBy) {
       body.performed_by_user_id = null;
+    }
+    if (requiresQaDecision) {
+      if (qaDecision === 'unset') {
+        setError(
+          'Pick a QA decision (passed or failed) before completing ' +
+            'a calibration event.'
+        );
+        return;
+      }
+      // qa_passed=false auto-routes to failed_qa server-side per
+      // F10.7-c-ii so the EM&apos;s "Failed" choice still goes
+      // through the same complete-state PATCH.
+      body.qa_passed = qaDecision === 'passed';
     }
     // Notes for cancelled/failed_qa (terminal context).
     if (
@@ -725,6 +791,8 @@ function TransitionModal({
     target,
     requiresVendor,
     performedByConflict,
+    requiresQaDecision,
+    qaDecision,
     vendorName,
     clearPerformedBy,
     decline_or_failed_reason,
@@ -830,6 +898,51 @@ function TransitionModal({
             </label>
           ) : null}
 
+          {requiresQaDecision ? (
+            <div style={transitionStyles.field}>
+              <span style={transitionStyles.label}>
+                Post-cal QA decision (required) *
+              </span>
+              <div style={qaStyles.decisionRow}>
+                <button
+                  type="button"
+                  style={
+                    qaDecision === 'passed'
+                      ? qaStyles.passSelected
+                      : qaStyles.passUnselected
+                  }
+                  onClick={() => setQaDecision('passed')}
+                  disabled={submitting}
+                >
+                  ✓ QA passed
+                </button>
+                <button
+                  type="button"
+                  style={
+                    qaDecision === 'failed'
+                      ? qaStyles.failSelected
+                      : qaStyles.failUnselected
+                  }
+                  onClick={() => setQaDecision('failed')}
+                  disabled={submitting}
+                >
+                  ✗ QA failed
+                </button>
+              </div>
+              <span style={transitionStyles.hint}>
+                ▸ Per §5.12.8 the post-cal accuracy check must be
+                logged. &ldquo;Failed&rdquo; auto-routes the event to{' '}
+                <code style={transitionStyles.code}>failed_qa</code>{' '}
+                so the calendar surfaces it for re-work; the PATCH
+                route refuses a silent null with{' '}
+                <code style={transitionStyles.code}>
+                  calibration_requires_qa_decision
+                </code>
+                .
+              </span>
+            </div>
+          ) : null}
+
           {(target.state === 'cancelled' ||
             target.state === 'failed_qa') ? (
             <label style={transitionStyles.field}>
@@ -859,19 +972,24 @@ function TransitionModal({
           <button
             type="button"
             style={
-              isTerminal && target.state === 'cancelled'
-                ? transitionStyles.dangerBtn
-                : isTerminal && target.state === 'failed_qa'
+              (isTerminal && target.state === 'cancelled') ||
+              (isTerminal && target.state === 'failed_qa') ||
+              (requiresQaDecision && qaDecision === 'failed')
                 ? transitionStyles.dangerBtn
                 : transitionStyles.primaryBtn
             }
             onClick={handleConfirm}
-            disabled={submitting}
+            disabled={
+              submitting ||
+              (requiresQaDecision && qaDecision === 'unset')
+            }
           >
             {submitting
               ? 'Working…'
               : target.isReopen
               ? 'Re-open'
+              : requiresQaDecision && qaDecision === 'failed'
+              ? 'Move to failed_qa'
               : `Move to ${targetLabel}`}
           </button>
         </footer>
@@ -1571,6 +1689,423 @@ function UploadModal({
   );
 }
 
+// ────────────────────────────────────────────────────────────
+// F10.7 tail — attach-receipt picker modal
+// ────────────────────────────────────────────────────────────
+//
+// Lists approved receipts (most-recent first) so the EM can link
+// a vendor invoice to a maintenance event without copy-pasting
+// UUIDs. Wires the selected receipt id into the existing F10.7-c-ii
+// PATCH route via { linked_receipt_id }. Pending receipts are
+// excluded by default — the maintenance ledger should reference
+// dollars that the bookkeeper has already signed off on.
+
+interface PickerReceipt {
+  id: string;
+  vendor_name: string | null;
+  transaction_at: string | null;
+  total_cents: number | null;
+  status: string;
+  category: string | null;
+  submitted_by_email: string | null;
+  job_number: string | null;
+  job_name: string | null;
+}
+
+function AttachReceiptModal({
+  eventId,
+  currentReceiptId,
+  onClose,
+  onAttached,
+}: {
+  eventId: string;
+  currentReceiptId: string | null;
+  onClose: () => void;
+  onAttached: (receiptId: string) => void;
+}) {
+  const { safeFetch } = usePageError('AttachReceiptModal');
+
+  const [statusFilter, setStatusFilter] = useState<
+    'approved' | 'pending' | 'all'
+  >('approved');
+  const [search, setSearch] = useState('');
+  const [receipts, setReceipts] = useState<PickerReceipt[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchReceipts = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams();
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    const res = await safeFetch<{
+      receipts?: PickerReceipt[];
+      error?: string;
+    }>(`/api/admin/receipts?${params.toString()}`);
+    setLoading(false);
+    if (res?.receipts) {
+      setReceipts(res.receipts);
+    } else {
+      setReceipts([]);
+      setError(res?.error ?? 'Receipt lookup failed.');
+    }
+  }, [statusFilter, safeFetch]);
+
+  useEffect(() => {
+    void fetchReceipts();
+  }, [fetchReceipts]);
+
+  const filtered = filterReceipts(receipts, search);
+
+  async function handleAttach(receiptId: string) {
+    setSubmitting(receiptId);
+    setError(null);
+    const res = await safeFetch<{
+      event?: { id: string };
+      error?: string;
+    }>(`/api/admin/maintenance/events/${eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linked_receipt_id: receiptId }),
+    });
+    setSubmitting(null);
+    if (res?.event?.id) {
+      onAttached(receiptId);
+    } else {
+      setError(res?.error ?? 'PATCH failed — link not saved.');
+    }
+  }
+
+  async function handleDetach() {
+    setSubmitting('__detach__');
+    setError(null);
+    const res = await safeFetch<{
+      event?: { id: string };
+      error?: string;
+    }>(`/api/admin/maintenance/events/${eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linked_receipt_id: null }),
+    });
+    setSubmitting(null);
+    if (res?.event?.id) {
+      onAttached('');
+    } else {
+      setError(res?.error ?? 'PATCH failed — receipt not detached.');
+    }
+  }
+
+  return (
+    <div style={transitionStyles.backdrop} onClick={onClose}>
+      <div
+        style={{ ...transitionStyles.modal, maxWidth: 720 }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header style={transitionStyles.header}>
+          <h2 style={transitionStyles.title}>
+            {currentReceiptId ? 'Change linked receipt' : 'Attach receipt'}
+          </h2>
+          <button
+            type="button"
+            style={transitionStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+            disabled={submitting !== null}
+          >
+            ✕
+          </button>
+        </header>
+        <div style={transitionStyles.body}>
+          <p style={transitionStyles.copy}>
+            Links a vendor invoice / parts receipt to this maintenance
+            event. The maintenance ledger and the receipt ledger stay
+            separate — this just records the cross-reference for audit.
+          </p>
+
+          <div style={attachStyles.toolbar}>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search vendor / category / submitter…"
+              style={{ ...transitionStyles.input, flex: 1 }}
+              disabled={loading || submitting !== null}
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter(
+                  e.target.value as 'approved' | 'pending' | 'all'
+                )
+              }
+              style={transitionStyles.input}
+              disabled={loading || submitting !== null}
+            >
+              <option value="approved">Approved only</option>
+              <option value="pending">Pending only</option>
+              <option value="all">All statuses</option>
+            </select>
+          </div>
+
+          {currentReceiptId ? (
+            <div style={attachStyles.currentRow}>
+              <span style={transitionStyles.hint}>
+                Currently linked:{' '}
+                <code style={transitionStyles.code}>
+                  {currentReceiptId.slice(0, 8)}
+                </code>
+              </span>
+              <button
+                type="button"
+                onClick={handleDetach}
+                disabled={submitting !== null}
+                style={transitionStyles.dangerBtn}
+              >
+                {submitting === '__detach__'
+                  ? 'Working…'
+                  : 'Detach receipt'}
+              </button>
+            </div>
+          ) : null}
+
+          {error ? <div style={transitionStyles.error}>⚠ {error}</div> : null}
+
+          {loading ? (
+            <div style={attachStyles.loadingHint}>Loading receipts…</div>
+          ) : filtered.length === 0 ? (
+            <div style={attachStyles.loadingHint}>
+              No receipts match. Adjust the status filter or search
+              term.
+            </div>
+          ) : (
+            <ul style={attachStyles.list}>
+              {filtered.slice(0, 50).map((r) => (
+                <li key={r.id} style={attachStyles.item}>
+                  <button
+                    type="button"
+                    onClick={() => handleAttach(r.id)}
+                    disabled={
+                      submitting !== null || r.id === currentReceiptId
+                    }
+                    style={{
+                      ...attachStyles.itemBtn,
+                      ...(r.id === currentReceiptId
+                        ? attachStyles.itemCurrent
+                        : {}),
+                    }}
+                  >
+                    <div style={attachStyles.itemTopRow}>
+                      <strong style={attachStyles.itemVendor}>
+                        {r.vendor_name ?? '(no vendor)'}
+                      </strong>
+                      <span style={attachStyles.itemAmount}>
+                        {r.total_cents !== null
+                          ? `$${(r.total_cents / 100).toFixed(2)}`
+                          : '—'}
+                      </span>
+                    </div>
+                    <div style={attachStyles.itemMetaRow}>
+                      <span style={attachStyles.itemDate}>
+                        {r.transaction_at
+                          ? r.transaction_at.slice(0, 10)
+                          : 'no date'}
+                      </span>
+                      <span style={statusPillStyle(r.status)}>
+                        {r.status}
+                      </span>
+                      {r.category ? (
+                        <span style={attachStyles.itemCategory}>
+                          {r.category}
+                        </span>
+                      ) : null}
+                      {r.job_number ? (
+                        <span style={attachStyles.itemJob}>
+                          job {r.job_number}
+                        </span>
+                      ) : null}
+                      {r.submitted_by_email ? (
+                        <span style={attachStyles.itemMeta}>
+                          {r.submitted_by_email}
+                        </span>
+                      ) : null}
+                      {r.id === currentReceiptId ? (
+                        <span style={attachStyles.itemCurrentBadge}>
+                          current link
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {filtered.length > 50 ? (
+            <div style={attachStyles.loadingHint}>
+              Showing 50 of {filtered.length}. Refine the search to
+              narrow down.
+            </div>
+          ) : null}
+        </div>
+        <footer style={transitionStyles.footer}>
+          <button
+            type="button"
+            style={transitionStyles.secondaryBtn}
+            onClick={onClose}
+            disabled={submitting !== null}
+          >
+            Cancel
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function filterReceipts(
+  receipts: PickerReceipt[] | null,
+  search: string
+): PickerReceipt[] {
+  if (!receipts) return [];
+  const trimmed = search.trim().toLowerCase();
+  if (!trimmed) return receipts;
+  return receipts.filter((r) => {
+    const haystack = [
+      r.vendor_name,
+      r.category,
+      r.submitted_by_email,
+      r.job_number,
+      r.job_name,
+    ]
+      .filter((v): v is string => !!v)
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(trimmed);
+  });
+}
+
+function statusPillStyle(status: string): React.CSSProperties {
+  const map: Record<string, React.CSSProperties> = {
+    approved: { background: '#DCFCE7', color: '#166534' },
+    pending: { background: '#FEF3C7', color: '#78350F' },
+    rejected: { background: '#FEE2E2', color: '#7F1D1D' },
+    exported: { background: '#E0E7FF', color: '#3730A3' },
+  };
+  return {
+    padding: '1px 8px',
+    borderRadius: 4,
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.04em',
+    ...(map[status] ?? { background: '#F3F4F6', color: '#374151' }),
+  };
+}
+
+const attachStyles: Record<string, React.CSSProperties> = {
+  toolbar: { display: 'flex', gap: 8, alignItems: 'center' },
+  currentRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '10px 12px',
+    background: '#FAFBFC',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+  },
+  loadingHint: {
+    padding: '14px 4px',
+    fontSize: 12,
+    color: '#6B7280',
+    fontStyle: 'italic' as const,
+    textAlign: 'center' as const,
+  },
+  list: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 6,
+    maxHeight: 360,
+    overflowY: 'auto' as const,
+  },
+  item: { width: '100%' },
+  itemBtn: {
+    width: '100%',
+    textAlign: 'left' as const,
+    padding: '10px 12px',
+    background: '#FFFFFF',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: 12,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 4,
+  },
+  itemCurrent: {
+    background: '#F0F9FF',
+    borderColor: '#1D3095',
+    cursor: 'default' as const,
+  },
+  itemTopRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  itemVendor: {
+    color: '#111827',
+    fontSize: 13,
+  },
+  itemAmount: {
+    fontFamily: 'Menlo, monospace',
+    fontSize: 12,
+    color: '#374151',
+  },
+  itemMetaRow: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: 6,
+    alignItems: 'center',
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  itemDate: {
+    fontFamily: 'Menlo, monospace',
+    color: '#6B7280',
+  },
+  itemCategory: {
+    background: '#EEF2FF',
+    color: '#3730A3',
+    padding: '1px 6px',
+    borderRadius: 4,
+  },
+  itemJob: {
+    background: '#F3F4F6',
+    color: '#374151',
+    padding: '1px 6px',
+    borderRadius: 4,
+  },
+  itemMeta: {
+    color: '#6B7280',
+  },
+  itemCurrentBadge: {
+    background: '#1D3095',
+    color: '#FFFFFF',
+    padding: '1px 6px',
+    borderRadius: 4,
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: 'uppercase' as const,
+  },
+};
+
 function transitionButtonStyle(target: string): React.CSSProperties {
   const base: React.CSSProperties = {
     padding: '6px 12px',
@@ -1592,6 +2127,56 @@ function transitionButtonStyle(target: string): React.CSSProperties {
   }
   return base;
 }
+
+const qaStyles: Record<string, React.CSSProperties> = {
+  decisionRow: { display: 'flex', gap: 8 },
+  passUnselected: {
+    flex: 1,
+    padding: '10px 14px',
+    border: '1px solid #15803D',
+    background: '#FFFFFF',
+    color: '#15803D',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  passSelected: {
+    flex: 1,
+    padding: '10px 14px',
+    border: '1px solid #15803D',
+    background: '#15803D',
+    color: '#FFFFFF',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 0 0 3px rgba(21, 128, 61, 0.2)',
+  },
+  failUnselected: {
+    flex: 1,
+    padding: '10px 14px',
+    border: '1px solid #B91C1C',
+    background: '#FFFFFF',
+    color: '#B91C1C',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  failSelected: {
+    flex: 1,
+    padding: '10px 14px',
+    border: '1px solid #B91C1C',
+    background: '#B91C1C',
+    color: '#FFFFFF',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 0 0 3px rgba(185, 28, 28, 0.2)',
+  },
+};
 
 const transitionStyles: Record<string, React.CSSProperties> = {
   bar: {
@@ -1899,6 +2484,21 @@ const styles: Record<string, React.CSSProperties> = {
   },
   rowValue: { color: '#111827', wordBreak: 'break-word' as const },
   link: { color: '#1D3095', textDecoration: 'none', fontWeight: 500 },
+  linkedReceiptRow: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 10,
+  },
+  linkBtn: {
+    background: 'transparent',
+    border: '1px solid #1D3095',
+    color: '#1D3095',
+    padding: '4px 10px',
+    borderRadius: 6,
+    fontSize: 11,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
   muted: { color: '#9CA3AF' },
   notes: {
     fontSize: 13,

@@ -12,6 +12,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
 import { usePageError } from '../hooks/usePageError';
@@ -57,6 +58,22 @@ interface AdminReceiptRow {
   job_name: string | null;
   job_number: string | null;
   photo_signed_url: string | null;
+  /** F10.9 — set when a bookkeeper-approved receipt is promoted
+   *  to a capital asset row in equipment_inventory. The Batch QQ
+   *  tax summary excludes promoted receipts on the receipts side
+   *  so the dollars don't land twice on Schedule C. */
+  promoted_to_equipment_id: string | null;
+  /** F10.7 tail — maintenance events that link to this receipt
+   *  via `linked_receipt_id`. Empty array when none. */
+  linked_maintenance_events: Array<{
+    id: string;
+    summary: string;
+    kind: string;
+    state: string;
+    scheduled_for: string | null;
+    equipment_inventory_id: string | null;
+    equipment_name: string | null;
+  }>;
 }
 
 interface ListResponse {
@@ -406,6 +423,7 @@ export default function ReceiptsApprovalPage() {
               expanded={expandedId === r.id}
               onToggle={() => setExpandedId(expandedId === r.id ? null : r.id)}
               onMutate={onMutate}
+              onRefresh={load}
               selectable={
                 tab === 'pending' &&
                 r.status === 'pending' &&
@@ -455,6 +473,10 @@ interface ReceiptRowProps {
   expanded: boolean;
   onToggle: () => void;
   onMutate: (id: string, body: Record<string, unknown>, label: string) => Promise<void>;
+  /** F10.7 tail — refetches the parent receipts list. Used after
+   *  a maintenance link/unlink to refresh the linked-events
+   *  annotation. */
+  onRefresh: () => Promise<void>;
   /** Show the bulk-select checkbox on this row. Only true on the
    *  pending tab for non-deleted, status='pending' rows. */
   selectable?: boolean;
@@ -470,9 +492,18 @@ function ReceiptRow({
   selectable,
   selected,
   onToggleSelected,
+  onRefresh,
 }: ReceiptRowProps) {
   const [rejectReason, setRejectReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const [maintenancePickerOpen, setMaintenancePickerOpen] =
+    useState(false);
+  const [maintenanceBusy, setMaintenanceBusy] = useState<string | null>(
+    null
+  );
+  const [maintenanceMsg, setMaintenanceMsg] = useState<string | null>(
+    null
+  );
 
   const wrap = async (label: string, body: Record<string, unknown>) => {
     setBusy(label);
@@ -658,6 +689,128 @@ function ReceiptRow({
             </label>
           </div>
 
+          {/* F10.7 tail — equipment-maintenance cross-link prompt.
+              Lets the bookkeeper link a receipt to a maintenance event
+              so the parts-invoice / cal cert / vendor work-order
+              dollars don't show up twice in the depreciation ledger.
+              The link writes to maintenance_events.linked_receipt_id
+              (one column carries both directions). */}
+          <div style={maintLinkStyles.panel}>
+            <div style={maintLinkStyles.headerRow}>
+              <strong style={maintLinkStyles.title}>
+                🔧 Is this for equipment maintenance?
+              </strong>
+              <button
+                type="button"
+                onClick={() => {
+                  setMaintenanceMsg(null);
+                  setMaintenancePickerOpen(true);
+                }}
+                style={maintLinkStyles.linkBtn}
+                disabled={!!busy || maintenanceBusy !== null}
+              >
+                {row.linked_maintenance_events.length > 0
+                  ? '+ Link another'
+                  : 'Link to maintenance event'}
+              </button>
+            </div>
+            {row.linked_maintenance_events.length === 0 ? (
+              <p style={maintLinkStyles.emptyHint}>
+                Click the button to attach this receipt to a calibration,
+                repair, or vendor work-order so the maintenance ledger
+                stays in sync with the receipts ledger.
+              </p>
+            ) : (
+              <ul style={maintLinkStyles.list}>
+                {row.linked_maintenance_events.map((m) => (
+                  <li key={m.id} style={maintLinkStyles.item}>
+                    <Link
+                      href={`/admin/equipment/maintenance/${m.id}`}
+                      style={maintLinkStyles.itemLink}
+                    >
+                      <span style={maintLinkStyles.itemEquip}>
+                        {m.equipment_name ?? '(no equipment)'}
+                      </span>
+                      <span style={maintLinkStyles.itemKindChip}>
+                        {m.kind}
+                      </span>
+                      <span style={maintLinkStateChip(m.state)}>
+                        {m.state.replace(/_/g, ' ')}
+                      </span>
+                      <span style={maintLinkStyles.itemSummary}>
+                        {m.summary}
+                      </span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (
+                          typeof window === 'undefined' ||
+                          !window.confirm(
+                            `Detach this receipt from "${m.summary}"? The maintenance event will keep all other fields.`
+                          )
+                        ) {
+                          return;
+                        }
+                        setMaintenanceBusy(m.id);
+                        setMaintenanceMsg(null);
+                        try {
+                          const res = await fetch(
+                            `/api/admin/maintenance/events/${m.id}`,
+                            {
+                              method: 'PATCH',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                linked_receipt_id: null,
+                              }),
+                            }
+                          );
+                          if (!res.ok) {
+                            const text = await res.text().catch(() => '');
+                            throw new Error(
+                              text || `request failed: ${res.status}`
+                            );
+                          }
+                          setMaintenanceMsg(`✓ Detached "${m.summary}".`);
+                          await onRefresh();
+                        } catch (err) {
+                          setMaintenanceMsg(
+                            `⚠ Detach failed: ${err instanceof Error ? err.message : String(err)}`
+                          );
+                        } finally {
+                          setMaintenanceBusy(null);
+                        }
+                      }}
+                      style={maintLinkStyles.itemDetachBtn}
+                      disabled={
+                        !!busy || maintenanceBusy !== null
+                      }
+                    >
+                      {maintenanceBusy === m.id
+                        ? 'Working…'
+                        : 'Detach'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {maintenanceMsg ? (
+              <div style={maintLinkStyles.msg}>{maintenanceMsg}</div>
+            ) : null}
+          </div>
+
+          {/* F10.9 — receipt-promotion panel. Capital assets
+              (category='equipment' + approved/exported status)
+              get a "Promote to asset" CTA so the dollars land
+              on the depreciation ledger instead of as a single-
+              year Schedule C expense. Hides itself for non-
+              equipment categories. */}
+          {row.category === 'equipment' ? (
+            <PromoteToAssetPanel row={row} onRefresh={onRefresh} />
+          ) : null}
+
           {/* Workflow buttons */}
           <div style={styles.actionRow}>
             {row.status === 'pending' || row.status === 'rejected' ? (
@@ -742,9 +895,1020 @@ function ReceiptRow({
           </div>
         </div>
       ) : null}
+
+      {maintenancePickerOpen ? (
+        <MaintenancePicker
+          receiptId={row.id}
+          receiptVendor={row.vendor_name}
+          alreadyLinkedIds={row.linked_maintenance_events.map((m) => m.id)}
+          onClose={() => setMaintenancePickerOpen(false)}
+          onLinked={async (summary) => {
+            setMaintenancePickerOpen(false);
+            setMaintenanceMsg(`✓ Linked to "${summary}".`);
+            await onRefresh();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
+
+interface PickerEvent {
+  id: string;
+  summary: string;
+  kind: string;
+  state: string;
+  scheduled_for: string | null;
+  equipment_inventory_id: string | null;
+  equipment_name: string | null;
+}
+
+function MaintenancePicker({
+  receiptId,
+  receiptVendor,
+  alreadyLinkedIds,
+  onClose,
+  onLinked,
+}: {
+  receiptId: string;
+  receiptVendor: string | null;
+  alreadyLinkedIds: string[];
+  onClose: () => void;
+  onLinked: (summary: string) => Promise<void>;
+}) {
+  const [includeCompleted, setIncludeCompleted] = useState(true);
+  const [search, setSearch] = useState('');
+  const [events, setEvents] = useState<PickerEvent[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState<string | null>(null);
+
+  const linkedSet = useMemo(
+    () => new Set(alreadyLinkedIds),
+    [alreadyLinkedIds]
+  );
+
+  const fetchEvents = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (!includeCompleted) params.set('open_only', 'true');
+      params.set('limit', '100');
+      const res = await fetch(`/api/admin/maintenance/events?${params.toString()}`);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.error ?? `request failed: ${res.status}`);
+      }
+      setEvents((json.events ?? []) as PickerEvent[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [includeCompleted]);
+
+  useEffect(() => {
+    void fetchEvents();
+  }, [fetchEvents]);
+
+  const filtered = useMemo(() => {
+    if (!events) return [];
+    const trimmed = search.trim().toLowerCase();
+    if (!trimmed) return events;
+    return events.filter((e) =>
+      [e.summary, e.kind, e.state, e.equipment_name]
+        .filter((v): v is string => !!v)
+        .join(' ')
+        .toLowerCase()
+        .includes(trimmed)
+    );
+  }, [events, search]);
+
+  async function handleLink(ev: PickerEvent) {
+    setSubmitting(ev.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/maintenance/events/${ev.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linked_receipt_id: receiptId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.error ?? `request failed: ${res.status}`);
+      }
+      await onLinked(ev.summary);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  return (
+    <div style={pickerStyles.backdrop} onClick={onClose}>
+      <div
+        style={pickerStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header style={pickerStyles.header}>
+          <h2 style={pickerStyles.title}>
+            Link receipt to maintenance event
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            style={pickerStyles.close}
+            aria-label="Close"
+            disabled={submitting !== null}
+          >
+            ✕
+          </button>
+        </header>
+        <div style={pickerStyles.body}>
+          <p style={pickerStyles.copy}>
+            Pick a maintenance event to attach{' '}
+            {receiptVendor ? <strong>{receiptVendor}</strong> : 'this receipt'}{' '}
+            to. The link writes to the event&apos;s{' '}
+            <code style={pickerStyles.code}>linked_receipt_id</code> field
+            so the §5.12.10 acquisition path doesn&apos;t double-count
+            the dollars at depreciation time.
+          </p>
+
+          <div style={pickerStyles.toolbar}>
+            <input
+              type="text"
+              placeholder="Search summary / kind / equipment…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ ...pickerStyles.input, flex: 1 }}
+              disabled={loading || submitting !== null}
+            />
+            <label style={pickerStyles.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={includeCompleted}
+                onChange={(e) => setIncludeCompleted(e.target.checked)}
+                disabled={loading || submitting !== null}
+              />
+              Include completed
+            </label>
+          </div>
+
+          {error ? <div style={pickerStyles.error}>⚠ {error}</div> : null}
+
+          {loading ? (
+            <div style={pickerStyles.loadingHint}>Loading events…</div>
+          ) : filtered.length === 0 ? (
+            <div style={pickerStyles.loadingHint}>
+              No maintenance events match. Adjust the search or include
+              completed events.
+            </div>
+          ) : (
+            <ul style={pickerStyles.list}>
+              {filtered.slice(0, 50).map((e) => {
+                const alreadyLinked = linkedSet.has(e.id);
+                return (
+                  <li key={e.id} style={pickerStyles.item}>
+                    <button
+                      type="button"
+                      onClick={() => handleLink(e)}
+                      disabled={
+                        submitting !== null || alreadyLinked
+                      }
+                      style={{
+                        ...pickerStyles.itemBtn,
+                        ...(alreadyLinked ? pickerStyles.itemLinked : {}),
+                      }}
+                    >
+                      <div style={pickerStyles.itemTopRow}>
+                        <strong style={pickerStyles.itemEquip}>
+                          {e.equipment_name ?? '(no equipment)'}
+                        </strong>
+                        <span style={maintLinkStateChip(e.state)}>
+                          {e.state.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <div style={pickerStyles.itemSummary}>
+                        {e.summary}
+                      </div>
+                      <div style={pickerStyles.itemMeta}>
+                        <span style={pickerStyles.itemKindChip}>
+                          {e.kind}
+                        </span>
+                        <span style={pickerStyles.itemDate}>
+                          {e.scheduled_for
+                            ? e.scheduled_for.slice(0, 10)
+                            : 'no schedule'}
+                        </span>
+                        {alreadyLinked ? (
+                          <span style={pickerStyles.itemLinkedBadge}>
+                            already linked
+                          </span>
+                        ) : null}
+                        {submitting === e.id ? (
+                          <span style={pickerStyles.itemBusy}>
+                            linking…
+                          </span>
+                        ) : null}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {filtered.length > 50 ? (
+            <div style={pickerStyles.loadingHint}>
+              Showing 50 of {filtered.length}. Refine the search to
+              narrow down.
+            </div>
+          ) : null}
+        </div>
+        <footer style={pickerStyles.footer}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting !== null}
+            style={pickerStyles.cancelBtn}
+          >
+            Cancel
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function maintLinkStateChip(state: string): React.CSSProperties {
+  const map: Record<string, React.CSSProperties> = {
+    scheduled: { background: '#DBEAFE', color: '#1E3A8A' },
+    in_progress: { background: '#1D3095', color: '#FFFFFF' },
+    awaiting_parts: { background: '#FEF3C7', color: '#78350F' },
+    awaiting_vendor: { background: '#FEF3C7', color: '#78350F' },
+    complete: { background: '#DCFCE7', color: '#166534' },
+    failed_qa: { background: '#FEE2E2', color: '#7F1D1D' },
+    cancelled: { background: '#F3F4F6', color: '#6B7280' },
+  };
+  return {
+    display: 'inline-block',
+    padding: '2px 8px',
+    borderRadius: 4,
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.04em',
+    ...(map[state] ?? { background: '#F3F4F6', color: '#374151' }),
+  };
+}
+
+const maintLinkStyles: Record<string, React.CSSProperties> = {
+  panel: {
+    marginTop: 12,
+    padding: 12,
+    background: '#F0F9FF',
+    border: '1px solid #BAE6FD',
+    borderRadius: 8,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 8,
+  },
+  headerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    flexWrap: 'wrap' as const,
+  },
+  title: {
+    color: '#0C4A6E',
+    fontSize: 13,
+  },
+  linkBtn: {
+    background: '#0C4A6E',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 12px',
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  emptyHint: {
+    margin: 0,
+    fontSize: 11,
+    color: '#475569',
+    fontStyle: 'italic' as const,
+  },
+  list: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 6,
+  },
+  item: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    background: '#FFFFFF',
+    border: '1px solid #BAE6FD',
+    borderRadius: 6,
+    padding: '6px 10px',
+  },
+  itemLink: {
+    flex: 1,
+    display: 'grid',
+    gridTemplateColumns: '180px 100px 100px 1fr',
+    alignItems: 'center',
+    gap: 12,
+    color: '#111827',
+    textDecoration: 'none',
+    fontSize: 12,
+  },
+  itemEquip: {
+    fontWeight: 600,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  itemKindChip: {
+    background: '#F3F4F6',
+    padding: '1px 8px',
+    borderRadius: 4,
+    fontSize: 11,
+    color: '#374151',
+    textTransform: 'capitalize' as const,
+    justifySelf: 'start' as const,
+  },
+  itemSummary: {
+    color: '#374151',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  itemDetachBtn: {
+    background: '#FFFFFF',
+    border: '1px solid #B91C1C',
+    color: '#B91C1C',
+    padding: '4px 10px',
+    borderRadius: 6,
+    fontSize: 11,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  msg: {
+    fontSize: 11,
+    color: '#0C4A6E',
+    fontStyle: 'italic' as const,
+    paddingTop: 4,
+  },
+};
+
+const pickerStyles: Record<string, React.CSSProperties> = {
+  backdrop: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(15, 23, 42, 0.5)',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingTop: 60,
+    zIndex: 1000,
+  },
+  modal: {
+    background: '#FFFFFF',
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 720,
+    maxHeight: 'calc(100vh - 120px)',
+    boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)',
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '14px 20px',
+    borderBottom: '1px solid #E2E5EB',
+  },
+  title: { fontSize: 16, fontWeight: 600, margin: 0 },
+  close: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: 18,
+    color: '#6B7280',
+    cursor: 'pointer',
+    padding: 4,
+    lineHeight: 1,
+  },
+  body: {
+    padding: 20,
+    overflowY: 'auto' as const,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 12,
+  },
+  copy: { margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 },
+  code: {
+    fontFamily: 'Menlo, monospace',
+    fontSize: 11,
+    background: '#F3F4F6',
+    padding: '1px 6px',
+    borderRadius: 4,
+    margin: '0 2px',
+  },
+  toolbar: {
+    display: 'flex',
+    gap: 12,
+    alignItems: 'center',
+  },
+  input: {
+    padding: '8px 10px',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: 'inherit',
+  },
+  checkboxRow: {
+    display: 'flex',
+    gap: 6,
+    alignItems: 'center',
+    fontSize: 12,
+    color: '#374151',
+  },
+  loadingHint: {
+    padding: '14px 4px',
+    fontSize: 12,
+    color: '#6B7280',
+    fontStyle: 'italic' as const,
+    textAlign: 'center' as const,
+  },
+  list: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 6,
+    maxHeight: 360,
+    overflowY: 'auto' as const,
+  },
+  item: { width: '100%' },
+  itemBtn: {
+    width: '100%',
+    textAlign: 'left' as const,
+    padding: '10px 12px',
+    background: '#FFFFFF',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 6,
+  },
+  itemLinked: {
+    background: '#F0F9FF',
+    borderColor: '#0C4A6E',
+    cursor: 'default' as const,
+  },
+  itemTopRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  itemEquip: {
+    color: '#111827',
+    fontSize: 13,
+  },
+  itemSummary: {
+    color: '#374151',
+    fontSize: 12,
+  },
+  itemMeta: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: 6,
+    alignItems: 'center',
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  itemKindChip: {
+    background: '#F3F4F6',
+    padding: '1px 6px',
+    borderRadius: 4,
+    fontSize: 11,
+    color: '#374151',
+    textTransform: 'capitalize' as const,
+  },
+  itemDate: {
+    fontFamily: 'Menlo, monospace',
+    color: '#6B7280',
+  },
+  itemLinkedBadge: {
+    background: '#0C4A6E',
+    color: '#FFFFFF',
+    padding: '1px 6px',
+    borderRadius: 4,
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: 'uppercase' as const,
+  },
+  itemBusy: {
+    color: '#0C4A6E',
+    fontStyle: 'italic' as const,
+  },
+  error: {
+    background: '#FEF2F2',
+    border: '1px solid #FCA5A5',
+    color: '#B91C1C',
+    padding: 10,
+    borderRadius: 6,
+    fontSize: 12,
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    padding: '12px 20px',
+    borderTop: '1px solid #E2E5EB',
+    background: '#FAFBFC',
+    borderRadius: '0 0 12px 12px',
+  },
+  cancelBtn: {
+    background: 'transparent',
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    color: '#374151',
+  },
+};
+
+// ────────────────────────────────────────────────────────────
+// F10.9 — Promote-to-asset panel + modal
+// ────────────────────────────────────────────────────────────
+//
+// Renders inside the expanded receipt row when category =
+// 'equipment'. Three states:
+//   * Already promoted → green badge + link to the asset.
+//   * Approved/exported but not yet promoted → "Promote to asset"
+//     button that opens a modal.
+//   * Pending/rejected → greyed hint "Approve first to promote."
+
+const ASSET_DEPRECIATION_METHODS: Array<{ value: string; label: string }> = [
+  { value: 'straight_line', label: 'Straight-line (default)' },
+  { value: 'macrs_5yr', label: 'MACRS — 5 year' },
+  { value: 'macrs_7yr', label: 'MACRS — 7 year' },
+  { value: 'section_179', label: 'Section 179 (full expense year 1)' },
+  { value: 'bonus_first_year', label: 'Bonus first-year depreciation' },
+  { value: 'none', label: 'None (do not depreciate)' },
+];
+
+const ASSET_ITEM_KINDS: Array<{ value: string; label: string }> = [
+  { value: 'durable', label: 'Durable (default)' },
+  { value: 'consumable', label: 'Consumable' },
+  { value: 'kit', label: 'Kit' },
+];
+
+function PromoteToAssetPanel({
+  row,
+  onRefresh,
+}: {
+  row: AdminReceiptRow;
+  onRefresh: () => Promise<void>;
+}) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const isApproved =
+    row.status === 'approved' || row.status === 'exported';
+
+  // Already promoted — show a confirmation badge + link.
+  if (row.promoted_to_equipment_id) {
+    return (
+      <div style={promoteStyles.panel}>
+        <div style={promoteStyles.headerRow}>
+          <strong style={promoteStyles.title}>
+            🏛 Promoted to capital asset
+          </strong>
+          <Link
+            href={`/admin/equipment/${row.promoted_to_equipment_id}`}
+            style={promoteStyles.assetLink}
+          >
+            View asset →
+          </Link>
+        </div>
+        <p style={promoteStyles.emptyHint}>
+          This receipt is on the depreciation ledger.{' '}
+          <code style={promoteStyles.code}>
+            {row.promoted_to_equipment_id.slice(0, 8)}
+          </code>
+          . The Batch QQ tax summary will skip it on the receipts
+          side so the dollars don&apos;t double-count.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={promoteStyles.panel}>
+      <div style={promoteStyles.headerRow}>
+        <strong style={promoteStyles.title}>
+          🏛 Promote to capital asset?
+        </strong>
+        <button
+          type="button"
+          onClick={() => setModalOpen(true)}
+          disabled={!isApproved}
+          style={
+            isApproved
+              ? promoteStyles.linkBtn
+              : promoteStyles.linkBtnDisabled
+          }
+        >
+          Promote to asset
+        </button>
+      </div>
+      <p style={promoteStyles.emptyHint}>
+        {isApproved
+          ? 'Creates an inventory row carrying this receipt’s total as the cost basis. The depreciation worker amortizes over multiple years instead of one.'
+          : 'Approve the receipt first; capital-asset promotion only fires on approved or exported receipts.'}
+      </p>
+
+      {modalOpen ? (
+        <PromoteToAssetModal
+          row={row}
+          onClose={() => setModalOpen(false)}
+          onPromoted={async () => {
+            setModalOpen(false);
+            await onRefresh();
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function PromoteToAssetModal({
+  row,
+  onClose,
+  onPromoted,
+}: {
+  row: AdminReceiptRow;
+  onClose: () => void;
+  onPromoted: () => Promise<void>;
+}) {
+  const [name, setName] = useState(row.vendor_name ?? '');
+  const [category, setCategory] = useState('');
+  const [itemKind, setItemKind] = useState('durable');
+  const [depreciationMethod, setDepreciationMethod] =
+    useState('straight_line');
+  const [usefulLifeMonths, setUsefulLifeMonths] = useState('');
+  const [placedInServiceAt, setPlacedInServiceAt] = useState(
+    row.transaction_at
+      ? row.transaction_at.slice(0, 10)
+      : new Date().toISOString().slice(0, 10)
+  );
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit() {
+    if (!name.trim()) {
+      setError('Name is required.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {
+        receipt_id: row.id,
+        name: name.trim(),
+        item_kind: itemKind,
+        depreciation_method: depreciationMethod,
+        placed_in_service_at: placedInServiceAt,
+      };
+      if (category.trim()) body.category = category.trim();
+      const trimmedLife = usefulLifeMonths.trim();
+      if (trimmedLife) {
+        const n = Number.parseInt(trimmedLife, 10);
+        if (!Number.isInteger(n) || n <= 0) {
+          throw new Error('Useful life must be a positive integer.');
+        }
+        body.useful_life_months = n;
+      }
+      if (notes.trim()) body.notes = notes.trim();
+
+      const res = await fetch(
+        '/api/admin/equipment/promote-from-receipt',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.error ?? `request failed: ${res.status}`);
+      }
+      await onPromoted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div style={pickerStyles.backdrop} onClick={onClose}>
+      <div
+        style={pickerStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header style={pickerStyles.header}>
+          <h2 style={pickerStyles.title}>Promote to capital asset</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            style={pickerStyles.close}
+            aria-label="Close"
+            disabled={submitting}
+          >
+            ✕
+          </button>
+        </header>
+        <div style={pickerStyles.body}>
+          <p style={pickerStyles.copy}>
+            Creates an{' '}
+            <code style={pickerStyles.code}>equipment_inventory</code>{' '}
+            row carrying{' '}
+            {row.total_cents !== null
+              ? `$${(row.total_cents / 100).toFixed(2)}`
+              : 'this receipt&apos;s total'}{' '}
+            as the cost basis. The §5.12.10 depreciation worker
+            amortizes over the chosen method instead of letting
+            the receipt land as a single-year Schedule C expense.
+          </p>
+
+          <label style={pickerStyles.checkboxRow}>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#374151',
+                width: 110,
+              }}
+            >
+              Name *
+            </span>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Trimble TSC7 #4"
+              style={{ ...pickerStyles.input, flex: 1 }}
+              disabled={submitting}
+            />
+          </label>
+          <label style={pickerStyles.checkboxRow}>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#374151',
+                width: 110,
+              }}
+            >
+              Category
+            </span>
+            <input
+              type="text"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g. total_station"
+              style={{ ...pickerStyles.input, flex: 1 }}
+              disabled={submitting}
+            />
+          </label>
+          <label style={pickerStyles.checkboxRow}>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#374151',
+                width: 110,
+              }}
+            >
+              Item kind
+            </span>
+            <select
+              value={itemKind}
+              onChange={(e) => setItemKind(e.target.value)}
+              style={{ ...pickerStyles.input, flex: 1 }}
+              disabled={submitting}
+            >
+              {ASSET_ITEM_KINDS.map((k) => (
+                <option key={k.value} value={k.value}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={pickerStyles.checkboxRow}>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#374151',
+                width: 110,
+              }}
+            >
+              Method
+            </span>
+            <select
+              value={depreciationMethod}
+              onChange={(e) => setDepreciationMethod(e.target.value)}
+              style={{ ...pickerStyles.input, flex: 1 }}
+              disabled={submitting}
+            >
+              {ASSET_DEPRECIATION_METHODS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={pickerStyles.checkboxRow}>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#374151',
+                width: 110,
+              }}
+            >
+              Useful life
+            </span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={usefulLifeMonths}
+              onChange={(e) => setUsefulLifeMonths(e.target.value)}
+              placeholder="months (optional)"
+              style={{ ...pickerStyles.input, flex: 1 }}
+              disabled={submitting}
+            />
+          </label>
+          <label style={pickerStyles.checkboxRow}>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#374151',
+                width: 110,
+              }}
+            >
+              In service
+            </span>
+            <input
+              type="date"
+              value={placedInServiceAt}
+              onChange={(e) => setPlacedInServiceAt(e.target.value)}
+              style={{ ...pickerStyles.input, flex: 1 }}
+              disabled={submitting}
+            />
+          </label>
+          <label
+            style={{
+              ...pickerStyles.checkboxRow,
+              alignItems: 'flex-start',
+            }}
+          >
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#374151',
+                width: 110,
+                paddingTop: 8,
+              }}
+            >
+              Notes
+            </span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional context for the EM."
+              style={{ ...pickerStyles.input, flex: 1, minHeight: 60 }}
+              disabled={submitting}
+            />
+          </label>
+
+          {error ? <div style={pickerStyles.error}>⚠ {error}</div> : null}
+        </div>
+        <footer style={pickerStyles.footer}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            style={pickerStyles.cancelBtn}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSubmit()}
+            disabled={submitting}
+            style={{
+              ...pickerStyles.cancelBtn,
+              background: '#0C4A6E',
+              color: '#FFFFFF',
+              borderColor: '#0C4A6E',
+            }}
+          >
+            {submitting ? 'Promoting…' : 'Promote'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+const promoteStyles: Record<string, React.CSSProperties> = {
+  panel: {
+    marginTop: 12,
+    padding: 12,
+    background: '#FEF3C7',
+    border: '1px solid #FCD34D',
+    borderRadius: 8,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 8,
+  },
+  headerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    flexWrap: 'wrap' as const,
+  },
+  title: {
+    color: '#78350F',
+    fontSize: 13,
+  },
+  emptyHint: {
+    margin: 0,
+    fontSize: 11,
+    color: '#78350F',
+    fontStyle: 'italic' as const,
+  },
+  linkBtn: {
+    background: '#78350F',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 12px',
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  linkBtnDisabled: {
+    background: 'transparent',
+    color: '#A16207',
+    border: '1px solid #A16207',
+    borderRadius: 6,
+    padding: '6px 12px',
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: 'not-allowed',
+    opacity: 0.7,
+  },
+  assetLink: {
+    color: '#78350F',
+    textDecoration: 'underline',
+    fontSize: 12,
+    fontWeight: 600,
+  },
+  code: {
+    fontFamily: 'Menlo, monospace',
+    fontSize: 11,
+    background: '#FFFFFF',
+    padding: '1px 6px',
+    borderRadius: 4,
+    margin: '0 2px',
+    color: '#78350F',
+  },
+};
 
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
   return (

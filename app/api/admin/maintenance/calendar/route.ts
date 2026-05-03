@@ -223,10 +223,39 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
   const upcomingEvents = (upcomingData ?? []) as EventRow[];
 
+  // F10.7-j-ii — failed_qa events surface independently of the
+  // current month so a calibration that failed QA last month
+  // doesn't fall off the EM's radar. Sorted DESC by scheduled_for
+  // (most recent first); state='failed_qa' is terminal-ish (re-
+  // openable to in_progress) but nothing else writes to this
+  // state via the cron. Date-filter intentionally absent.
+  let failedQaQ = supabaseAdmin
+    .from('maintenance_events')
+    .select(
+      'id, equipment_inventory_id, vehicle_id, kind, origin, state, ' +
+        'scheduled_for, started_at, completed_at, expected_back_at, ' +
+        'vendor_name, summary'
+    )
+    .eq('state', 'failed_qa')
+    .order('scheduled_for', { ascending: false })
+    .limit(50);
+  if (equipmentIdRaw) {
+    failedQaQ = failedQaQ.eq('equipment_inventory_id', equipmentIdRaw);
+  }
+  if (kindRaw) failedQaQ = failedQaQ.eq('kind', kindRaw);
+  const { data: failedQaData, error: failedQaErr } = await failedQaQ;
+  if (failedQaErr) {
+    console.warn(
+      '[admin/maintenance/calendar] failed_qa lookup failed',
+      { error: failedQaErr.message }
+    );
+  }
+  const failedQaEvents = (failedQaData ?? []) as EventRow[];
+
   // Resolve equipment names in one batch across the union.
   const allEquipmentIds = Array.from(
     new Set(
-      [...monthEvents, ...upcomingEvents]
+      [...monthEvents, ...upcomingEvents, ...failedQaEvents]
         .map((r) => r.equipment_inventory_id)
         .filter((v): v is string => !!v)
     )
@@ -257,10 +286,36 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const enrichedMonth = monthEvents.map(enrich);
   const enrichedUpcoming = upcomingEvents.map(enrich);
+  const enrichedFailedQa = failedQaEvents.map(enrich);
+
+  // F10.8 — strip rows whose equipment is personal kit so the
+  // §5.12.7.4 calendar doesn&apos;t flag a surveyor&apos;s personal
+  // axe. PostgREST doesn&apos;t support a join-side WHERE clause
+  // on the anon-key path, so we filter post-fetch using a small
+  // pre-loaded id set. The Set is bounded by the personal-kit
+  // count which is single-digit in practice.
+  const { data: personalRows } = await supabaseAdmin
+    .from('equipment_inventory')
+    .select('id')
+    .eq('is_personal', true);
+  const personalEquipmentIds = new Set(
+    ((personalRows ?? []) as Array<{ id: string }>).map((r) => r.id)
+  );
+  const filterPersonal = <T extends { equipment_inventory_id: string | null }>(
+    rows: T[]
+  ): T[] =>
+    rows.filter(
+      (r) =>
+        !r.equipment_inventory_id ||
+        !personalEquipmentIds.has(r.equipment_inventory_id)
+    );
+  const filteredMonth = filterPersonal(enrichedMonth);
+  const filteredUpcoming = filterPersonal(enrichedUpcoming);
+  const filteredFailedQa = filterPersonal(enrichedFailedQa);
 
   // Group month events by day (using scheduled_for date).
   const days = dayList(window.from, window.to).map((day) => {
-    const events = enrichedMonth.filter(
+    const events = filteredMonth.filter(
       (e) => e.scheduled_for && e.scheduled_for.slice(0, 10) === day
     );
     return { date: day, events };
@@ -408,7 +463,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // Roll-up summary.
   const byState: Record<string, number> = {};
   let openCount = 0;
-  for (const e of enrichedMonth) {
+  for (const e of filteredMonth) {
     byState[e.state] = (byState[e.state] ?? 0) + 1;
     if (OPEN_STATES.has(e.state)) openCount++;
   }
@@ -416,13 +471,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   return NextResponse.json({
     month: { from: monthFromIso, to: monthToIso },
     days,
-    upcoming: enrichedUpcoming,
+    upcoming: filteredUpcoming,
+    failed_qa: filteredFailedQa,
     next_due_per_equipment: nextDuePerEquipment,
     summary: {
-      month_event_count: enrichedMonth.length,
+      month_event_count: filteredMonth.length,
       open_count: openCount,
       by_state: byState,
-      upcoming_count: enrichedUpcoming.length,
+      upcoming_count: filteredUpcoming.length,
+      failed_qa_count: filteredFailedQa.length,
       schedules_count: schedules.length,
       pairs_count: pairs.length,
       due_in_lead_window: nextDuePerEquipment.filter(

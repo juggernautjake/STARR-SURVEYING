@@ -4869,8 +4869,43 @@ discipline.
         unavailability shows above assignments since
         PTO is the dominant context when both apply.
         Loading state surfaces during the fetch.
-  - [ ] **F10.6-e-iv** — Drag-create new unavailability /
-        assignment (defer if scope grows).
+  - [✓] **F10.6-e-iv** — Drag-create new unavailability /
+        assignment.
+    - [✓] **F10.6-e-iv-α** — POST /api/admin/personnel/
+          unavailability endpoint. Write path for the
+          `personnel_unavailability` table from seeds/241.
+          Validates user_email + ISO timestamps
+          (`unavailable_to` strictly &gt; `unavailable_from`,
+          mirroring the seeds/241 CHECK so we 400 cleanly
+          instead of 23514) + kind enum (pto / sick /
+          training / doctor / other) + optional reason +
+          optional is_paid. Stamps `approved_by` /
+          `approved_at` with the actor since admin /
+          equipment_manager rows are inherently approved on
+          insert; future surveyor self-serve POST will leave
+          those null until the EM confirms. Auth: admin /
+          equipment_manager. Returns the inserted row.
+    - [✓] **F10.6-e-iv-β** — Drag-create UX + modal on the
+          crew calendar grid. Mouse-down on a cell anchors the
+          selection; mouse-enter on other cells in the SAME
+          row extends `dragEnd` (different-row hovers are
+          ignored so the EM can&apos;t accidentally PTO two
+          people in one gesture). A global `mouseup` listener
+          commits when the gesture spans multiple cells —
+          single-cell mouseups fall through to the existing
+          onClick → drilldown drawer. Visual feedback: in-drag
+          cells get a 2px blue outline + light-blue fill +
+          `userSelect: none` on the base cell so text doesn&apos;t
+          highlight during a drag. The mouse-up commit opens a
+          `<CreateUnavailabilityModal>` pre-populated with the
+          user_email + day range. Modal: kind dropdown (PTO /
+          sick / training / doctor / other) with auto-toggling
+          is_paid (PTO defaults paid, others default unpaid),
+          optional reason textarea, Save → POSTs to
+          F10.6-e-iv-α with half-open `[fromIso 00:00,
+          dayAfter(toIso) 00:00)` so a single-day PTO covers
+          00:00–24:00 exactly like §5.12.5 reservation
+          windows. Refetches the calendar on success.
 - [◐] **F10.6-f** — §5.12.7.8 Templates-referencing-retired-
       gear cleanup queue. Split:
   - [✓] **F10.6-f-i** — `GET /api/admin/equipment/templates/
@@ -5278,42 +5313,748 @@ sub-batches per the small-chunks discipline:
           Progress states (signing → uploading → recording)
           surface inline. Auth: equipment_manager / admin /
           developer (write).
-- [ ] **F10.7-h** — Daily 3am cron — recurring schedule
+- [✓] **F10.7-h** — Daily 3am cron — recurring schedule
       due-date computation + 60/30/7-day notifications +
       auto-create events.
-- [ ] **F10.7-i** — Cert-expiring auto-creation cron +
+    - [✓] **F10.7-h-i** — Schedule-tick cron + auto-create
+          events. New `/api/cron/maintenance-schedule-tick`
+          (Bearer CRON_SECRET, idempotent) walks every
+          `maintenance_schedules` row, fans category-targeted
+          schedules out to all matching `equipment_inventory`
+          rows, and projects `next_due_at` per (target, kind)
+          via three anchors: (1) the most-recent completed
+          event's `next_due_at` if set, (2) `completed_at +
+          frequency_months` months otherwise, (3) `now()` for
+          never-serviced units. When `days_until ≤
+          lead_time_days` AND `auto_create_event` is true AND
+          no open event already covers the target+kind,
+          INSERTs a new `state='scheduled'` row with
+          `origin='recurring_schedule'`, `scheduled_for =
+          next_due_at`, and a summary that captures the
+          anchor reason. `?dry=1` returns the projected
+          actions without writing. Vercel cron runs daily at
+          08:00 UTC (3am CST) — early enough that the EM sees
+          a populated calendar at first login. Duplicate
+          suppression keys on (equipment_id, kind) with state
+          ∈ {scheduled, in_progress, awaiting_parts,
+          awaiting_vendor} so a rerun within the day is a
+          no-op. Batched reads + single multi-row insert keep
+          the cron O(N schedules + M targets), not O(N×M).
+    - [✓] **F10.7-h-ii** — 60/30/7-day notification fan-out
+          to admin + equipment_manager recipients. Same scan
+          as h-i; the per-target loop adds a boundary check
+          (`days_until ∈ {60, 30, 7}` AND no open event for
+          the target+kind) and pushes into a
+          `pendingNotifications` queue. After the auto-create
+          insert, the queue is fanned out via `notifyMany()`:
+          equipment names resolved in one batched read, body
+          tuned per window (low / normal / high escalation +
+          📅 / 🛠️ / ⚠️ icon + window-specific copy that nudges
+          coordination at 60d, action at 30d, urgency at 7d).
+          Boundary-only firing (cron runs once/day) means each
+          window triggers exactly once per cycle without an
+          extra dedup table. Schedules with
+          `auto_create_event=false` still get notifications —
+          the gate is independent of the auto-create gate.
+          `?dry=1` returns the queued notifications without
+          writing. Recipients are looked up via
+          `roles.cs.{admin},roles.cs.{equipment_manager}`
+          mirroring the equipment-overdue-digest pattern.
+          Returns `{ scanned, projected, created, notified,
+          skipped }`.
+- [✓] **F10.7-i** — Cert-expiring auto-creation cron +
       §5.12.7.1 Today blue banner integration.
-- [ ] **F10.7-j** — QA gate on calibration completion +
+    - [✓] **F10.7-i-i** — Cert-expiring Today banner. Extends
+          the §5.12.7.1 Today aggregator with a fourth banner
+          driven by `equipment_inventory.next_calibration_due_at`
+          (the canonical NIST-cert-expiry column from
+          seeds/233). New `loadCertExpiring(nowIso)` helper
+          reads every non-retired / non-lost row whose
+          `next_calibration_due_at ≤ now() + 60 days`, sorted
+          ASC, with `days_until` projected for the banner copy.
+          The Today page's `BannerStack` splits the result into
+          two visually distinct banners: **red** for overdue
+          certs ("⚠ N calibration cert(s) overdue · ItemA (5d
+          ago)…") since a survey with a lapsed NIST cert is
+          legally suspect, and **blue** for upcoming ("🧪 N
+          calibration cert(s) expiring within 60d · ItemA (in
+          43d)…"). Both surface the soonest-due 3 by name with
+          a `+N more` overflow. Best-effort lookup degrades to
+          empty array on Postgres errors. The data flows from
+          the maintenance event triggers in seeds/233 that
+          maintain `next_calibration_due_at` whenever a
+          calibration event lands `state='complete'`.
+    - [✓] **F10.7-i-ii** — Cert-expiring auto-creation
+          cron (Pass 2). Extended the F10.7-h schedule-tick
+          cron with a second pass that walks
+          `equipment_inventory.next_calibration_due_at`
+          (≤ now() + 60 days, non-retired/lost) and
+          auto-creates a `state='scheduled'` calibration event
+          with `origin='cert_expiring'` for any unit NOT
+          covered by a maintenance_schedules row (specific
+          equipment_inventory_id OR category match). Three-
+          layer dedup: (1) calibrationCovered set built from
+          the loaded schedules guarantees pass 2 never
+          duplicates a pass-1 action, (2) pass-1 in-memory
+          queued actions are scanned defensively, (3) the
+          existing event-bucket open-count check skips units
+          with an already-open calibration event. The events
+          query is widened to cover the union of schedule
+          targets + cert units in one read so dedup is O(1)
+          per unit. Insert-mapping uses `a.origin` so pass-1
+          rows still get `origin='recurring_schedule'` and
+          pass-2 rows get `origin='cert_expiring'` with a
+          summary that flags the missing schedule. Response
+          adds `cert_units_scanned` + `cert_expiring_created`
+          counters for observability. Idempotent — reruns
+          within the day are no-ops because each pass detects
+          its own queued events.
+- [✓] **F10.7-j** — QA gate on calibration completion +
       `failed_qa` red-row surfacing on the calendar.
-- [ ] Receipt cross-link UI (Attach-receipt picker + Money-tab
+    - [✓] **F10.7-j-i** — QA gate on calibration completion.
+          Server-side: F10.7-c-ii PATCH route refuses the
+          silent-null path with a typed
+          `calibration_requires_qa_decision` 400 when
+          transitioning a calibration event to complete with
+          neither a body-supplied `qa_passed` nor a row-level
+          one already set. ExistingRow now pulls `qa_passed`
+          so the gate is precise — the reopen path nulls
+          qa_passed (per F10.7-c-ii), forcing a fresh
+          decision on next completion. UI: TransitionModal
+          gains a `requiresQaDecision` flag and a paired
+          green/red "QA passed / QA failed" button group
+          that&apos;s required to enable the submit button.
+          &ldquo;QA failed&rdquo; sends `qa_passed: false` with
+          `state: complete`, which the server auto-routes to
+          `failed_qa`; the submit button label flips to
+          &ldquo;Move to failed_qa&rdquo; to make the
+          server-side route obvious before the click. The
+          calibration vendor + clear-performed-by gates from
+          F10.7-g-ii-β remain alongside this — three
+          orthogonal NIST-traceability checks fire as a unit.
+    - [✓] **F10.7-j-ii** — failed_qa red-row surfacing on the
+          calendar. Server: F10.7-e calendar aggregator gains
+          a date-unfiltered `failed_qa` query (state='failed_
+          qa', sorted DESC, limit 50, honors equipment +
+          kind filters) so events that lapsed last month
+          don&apos;t fall off the EM&apos;s radar when the
+          month scrubs forward. Equipment-name resolution
+          extends across the now three-array union (month +
+          upcoming + failed_qa). Response gains
+          `failed_qa: CalEvent[]` + `summary.failed_qa_count`.
+          UI: a dedicated `<FailedQaPanel>` renders above
+          the month-grid layout — only when count &gt; 0 —
+          with a red-tinted card containing a 4-column
+          grid (equipment / kind chip / summary / date)
+          per item, each row left-bordered with a 3px red
+          accent, click → detail page (where the EM can
+          re-open back to in_progress). The summary bar
+          gains a "N failed QA" red counter; per-event
+          chips on the day grid get a 1.5px solid-red
+          border on top of the existing pink fill so
+          they stand out from the soft `complete` chips.
+          List shows the most-recent 10 with a +N more
+          overflow hint when needed.
+- [✓] Receipt cross-link UI (Attach-receipt picker + Money-tab
       "Is this for equipment maintenance?" prompt).
-- [ ] Per-unit maintenance history page.
+    - [✓] Maintenance-side picker. Replaces the raw-UUID
+          input on the detail page&apos;s "Linked receipt" row
+          with an Attach receipt / Change button that opens
+          a modal listing receipts from
+          `GET /api/admin/receipts?status=approved` (default;
+          status filter switches to pending / all). Free-text
+          search filters client-side across vendor name /
+          category / submitter email / job number / job name.
+          Each row shows vendor / amount / date / status pill
+          / category / job / submitter, with a "current link"
+          badge on the actively-linked one. Click → PATCHes
+          the maintenance event with `linked_receipt_id`;
+          F10.7-c-ii&apos;s Maybe<T> shape means the rest of
+          the row is untouched. A Detach button next to the
+          current link sends `linked_receipt_id: null` for an
+          explicit unlink. Loading + error states surface
+          inline; rows over 50 trigger a "narrow your search"
+          hint.
+    - [✓] Money-tab "Is this for equipment maintenance?"
+          prompt. Server: `/api/admin/receipts` GET endpoint
+          now annotates each row with a
+          `linked_maintenance_events` array — one batched
+          query against `maintenance_events` keyed by
+          `linked_receipt_id` for the whole returned page,
+          plus a second batch for joined equipment names.
+          Failures degrade to "no links" so a maintenance
+          schema mismatch can&apos;t break the bookkeeper
+          queue. UI: every expanded receipt row gets a blue
+          🔧 panel above the workflow buttons. Already-linked
+          events render as Link-wrapped grid rows
+          (equipment / kind chip / state chip / summary)
+          with a per-event Detach button (PATCHes
+          linked_receipt_id=null + refetches). The "Link to
+          maintenance event" button opens a MaintenancePicker
+          modal that lists events from
+          `/api/admin/maintenance/events` (open by default,
+          completed togglable), free-text search across
+          summary / kind / equipment / state, click → PATCH
+          the event with this receipt&apos;s id. Already-
+          linked events show an "already linked" badge and
+          can&apos;t be re-clicked. Symmetric counterpart to
+          the maintenance-side picker — same one column on
+          maintenance_events carries both directions.
+- [✓] Per-unit maintenance history page. Equipment drilldown
+      (`/admin/equipment/[id]`) gains a "Maintenance history"
+      Section between Assignment history and Notes. Server
+      side: extended the F10.1 drilldown GET aggregator with a
+      third parallel query — last 50 `maintenance_events` for
+      this `equipment_inventory_id`, sorted by `scheduled_for`
+      DESC nulls last, includes kind / origin / state /
+      scheduled_for / completed_at / vendor_name / cost_cents
+      / qa_passed / next_due_at / summary. Best-effort: read
+      errors degrade to an empty array + warning banner. UI
+      side: a 7-column table (state pill linking to detail /
+      kind chip + QA-fail badge / scheduled / completed /
+      vendor / cost in dollars / summary). State pills mirror
+      the calendar's color scheme so a unit with a recent
+      `failed_qa` event jumps out. Failed-QA rows get a
+      red-tinted background + 3px left border for extra
+      prominence. Click anywhere row → detail page (where the
+      EM can re-open or document upload).
 
 **F10.8 — Mobile UX polish (Week 39).**
-- [ ] Pre-job loadout preview card on mobile job detail
-      (§5.12.9.1).
-- [ ] "What's in my truck right now" Me-tab section.
-- [ ] Persistent scanner FAB when any check-out is open.
-- [ ] 🛠 Gear tab (role-gated 6th tab) for Equipment Manager
-      mobile flows (§5.12.9.2).
-- [ ] Three new notification source_types
+- [✓] Pre-job loadout preview card on mobile job detail
+      (§5.12.9.1). New `useJobLoadout(jobId, myUserId)`
+      hook in `mobile/lib/equipment.ts` issues a single
+      PowerSync useQuery that LEFT-JOINs the freshly-
+      synced `equipment_reservations` to `equipment_
+      inventory` and aggregates per-row stats client-side
+      (totals, mine, held / checked out, override count,
+      calibration overdue / due-soon counts). Companion
+      `JobLoadoutCard.tsx` renders the rollup: header
+      with item count, three-stat summary row (yours /
+      held / checked out), red/amber/blue contextual
+      banners for overdue cals, near-due cals, and EM
+      overrides, then up to 8 per-item rows with the
+      equipment name + QR/category + state pill +
+      &ldquo;yours&rdquo; badge for rows checked out to
+      the signed-in surveyor specifically. Calibration
+      lapse computed client-side via Date.parse so a
+      stale local cache still produces correct status
+      pills. Wired into `app/(tabs)/jobs/[id]/index.tsx`
+      between the Today rollup and the Client section;
+      hides itself entirely when the job has zero active
+      reservations.
+- [✓] "What's in my truck right now" Me-tab section. New
+      `useMyCheckouts(myUserId)` hook in `mobile/lib/
+      equipment.ts` issues a single PowerSync useQuery
+      that LEFT-JOINs `equipment_reservations` to
+      `equipment_inventory` AND `jobs`, filters by
+      (state='checked_out' AND checked_out_to_user = me),
+      orders by reserved_to ASC so soonest-due rows
+      surface first, and aggregates overdue + cal-lapsed
+      counts client-side. Companion `MyTruckSection.tsx`
+      renders the rollup: header "🛻 What&apos;s in my
+      truck", summary row with item count + red "N
+      overdue" + amber "N cal lapsed" badges, then up to
+      8 per-item rows with equipment name + job number/
+      name + relative due date ("in 4h" / "tomorrow" /
+      "in 3d") + per-row red left-border for overdue
+      items. Tap a row → navigate to job detail.
+      Hides itself entirely when nothing is checked out.
+      Wired into `app/(tabs)/me/index.tsx` between the
+      header block and the Security section so it&apos;s
+      the first actionable info a surveyor sees on the
+      Me tab.
+- [✓] Persistent scanner FAB when any check-out is open.
+      New `mobile/lib/ScannerFab.tsx` consumes
+      `useMyCheckouts(myUserId)` and renders only when the
+      summary&apos;s total > 0 — the FAB hides itself when
+      the surveyor has nothing out (no point pestering them
+      with a scanner they don&apos;t need). When visible, it
+      sits absolutely-positioned in the bottom-right above
+      the tab bar (bottomInset = TAB_BAR_HEIGHT + 16) with a
+      green camera glyph + a small white badge showing the
+      checkout count. Tapping opens a fullscreen Modal
+      hosting the F10.1j QrScanner. On scan: the decoded QR
+      runs through `useEquipmentByQr` (PowerSync local
+      lookup); a match that&apos;s in the surveyor&apos;s
+      truck gets a "Open job to return / extend?" alert with
+      Cancel / Open Job actions; a match that&apos;s not
+      theirs surfaces "this isn&apos;t checked out to you,
+      hand it to the EM"; an unrecognised QR shows "not in
+      catalogue" and re-arms. Mounted in
+      `app/(tabs)/_layout.tsx` as a sibling of the Tabs
+      navigator inside a flex:1 wrapper so the FAB persists
+      across every tab screen.
+- [✓] 🛠 Gear tab (role-gated 6th tab) for Equipment Manager
+      mobile flows (§5.12.9.2). New `useMyRoles()` /
+      `useIsEquipmentManager()` hooks in `mobile/lib/myRoles.ts`
+      fetch the signed-in user&apos;s `registered_users.roles`
+      array via Supabase (anon key + RLS), with a 5-min in-
+      memory cache so consumers don&apos;t re-fetch per render.
+      Tab visibility gated in `(tabs)/_layout.tsx` — the new
+      `<Tabs.Screen name="gear">` ships with
+      `href: isEquipmentManager ? '/(tabs)/gear' : null` so
+      non-EMs don&apos;t see it but deep links still resolve.
+      The screen itself defensively re-checks the role and
+      shows an "Ask an admin to add the equipment_manager
+      role" empty state for non-EMs hitting it via deep link.
+      Dashboard contents: four tap-able stat tiles (Open
+      maintenance / Failed QA / Cert expiring 60d / Out
+      today) sourced from PowerSync local SQLite count
+      queries against the F10.8-projected `maintenance_
+      events` + `equipment_inventory` + `equipment_
+      reservations` tables. Failed QA + Cert expiring tiles
+      flip red / amber when count > 0. Each tile + an
+      "Open admin web" quick action deep-link to
+      `EXPO_PUBLIC_ADMIN_WEB_URL` (defaulting to
+      app.starrsurveying.com) for the full drilldown — mobile
+      drilldowns + scan-to-checkout land in F10.8 v2.
+      Footnote reminds the EM that PowerSync sync rules must
+      be deployed for the counts to populate.
+- [◐] Three new notification source_types
       (`equipment_assignment` / `_overdue` / `_status_change`).
-- [ ] PowerSync sync rules per §5.12.9.3.
-- [ ] Surveyor self-service paths — borrowed-from-other-crew
+    - [✓] `equipment_assignment` on check-out (single-item).
+          POST /api/admin/equipment/check-out emits a notify()
+          row to the receiving surveyor after the reservation
+          flips to `state='checked_out'`. New helper
+          `emitAssignmentNotification()` resolves the
+          recipient&apos;s email + equipment name + job display
+          fields in three parallel reads, then fires
+          `type='equipment_assignment'` /
+          `source_type='equipment_assignment'` /
+          `source_id=reservation_id` so the §5.12.9 mobile
+          inbox can render a &ldquo;you got X for tomorrow&apos;s
+          job&rdquo; card with the right inline actions. Body
+          includes the equipment name, job label, and
+          reserved_to date. Best-effort: the check-out is
+          committed before this runs; failures log a warning
+          and continue. Kit-checkout path stays quiet at child
+          rows to avoid an inbox flood — single parent
+          notification will land in a follow-up.
+    - [✓] `equipment_assignment` on the kit-checkout path.
+          The kit batch (parent + N children flipped to
+          checked_out in one PostgREST UPDATE) now fires ONE
+          notification at the parent reservation rather than
+          N+1 child entries flooding the surveyor&apos;s inbox.
+          The shared `emitAssignmentNotification()` helper
+          gains an optional `kit: { parentName, childCount }`
+          arg; when set, the body copy reads
+          &ldquo;GPS-2024 kit (8 items) is yours…&rdquo;
+          instead of the single-item form. Equipment-name
+          lookup short-circuits via the resolved kit context
+          so the helper still does only three batched reads.
+    - [✓] `equipment_status_change` when the EM flips
+          `current_status`. PATCH /api/admin/equipment/[id]
+          now reads the row&apos;s old current_status before
+          the update (skipped when the body doesn&apos;t touch
+          current_status, so common edits don&apos;t pay the
+          cost), then post-update fires
+          `equipment_status_change` notifications. Two
+          flip-classes trigger:
+            * **Disrupting** (any → maintenance / lost /
+              retired): high-escalation alert — &ldquo;X
+              active reservation(s) may need to be rebooked.&rdquo;
+            * **Restoring** (maintenance / lost / retired →
+              available / in_use): normal escalation — &ldquo;X
+              active reservation(s) can proceed as planned.&rdquo;
+          Affected reservation set = state ∈ {held,
+          checked_out} AND reserved_to ≥ now(). Recipients =
+          union of (checked_out_to_user, reservation creator).
+          UUIDs resolved to emails in one batched read; sent
+          via `notifyMany` for a single PostgREST insert.
+          Best-effort: failures log + continue. Cosmetic
+          flips (in_use ↔ loaned_out) don&apos;t fan out.
+    - [ ] `equipment_overdue` source_type rename / unify with
+          the existing `equipment_overdue_return` +
+          `equipment_overdue_digest` types.
+- [✓] PowerSync sync rules per §5.12.9.3. Mobile
+      `lib/db/schema.ts` gains three new Tables —
+      `equipment_reservations`, `maintenance_events`,
+      `personnel_unavailability` — registered in
+      AppSchema alphabetically. Each Table mirrors the
+      seeds/239 / 245 / 241 columns relevant to the
+      §5.12.9 mobile flows (loadout preview, "what's in
+      my truck", Me-tab PTO list, Gear tab dashboard).
+      `mobile/lib/db/sync-rules.yaml` ships the canonical
+      bucket definitions (six buckets total — equipment_
+      inventory + two reservation buckets + two
+      maintenance buckets + two unavailability buckets)
+      to paste into the PowerSync Cloud editor (or
+      commit alongside a self-hosted powersync.yaml).
+      Buckets scope by signed-in user so a single device
+      doesn&apos;t pull the company-wide ledger:
+      reservations match (checked_out_to_user = me) OR
+      (job_team membership), maintenance matches my
+      checked-out gear OR equipment_manager role, PTO
+      matches my email OR equipment_manager role. README
+      updated with the new file. Mobile UI components
+      that consume these tables (LoadoutCard, "what's
+      in my truck", Gear tab) ship as separate batches.
+- [◐] Surveyor self-service paths — borrowed-from-other-crew
       event log, personal-kit flag.
+    - [✓] **Borrow audit endpoint (write path).** New
+          `POST /api/admin/equipment/borrow-from-other-crew`
+          inserts ONE `equipment_events` row with
+          `event_type='borrowed_during_field_work'` (per the
+          seeds/236 canonical enum) so the chain-of-custody
+          stays preserved when a surveyor scans gear that
+          isn&apos;t on their reservation list. The
+          reservation row stays untouched — the EM
+          reconciles manually using this audit trail. Body
+          accepts equipment_id + current_job_id (required
+          UUIDs) + borrowed_from_user_id + borrowed_from_job_
+          id + notes (all optional). Auth: any signed-in user
+          (the whole point of self-service is the EM
+          isn&apos;t in the loop in real time). Payload
+          captures the borrow context for the EM&apos;s later
+          reconciliation without chasing other tables.
+    - [✓] **Borrow audit endpoint — equipment-retired guard.**
+          Single `select('id, retired_at')` maybeSingle()
+          before the audit insert. Returns 404 when the
+          equipment_id doesn&apos;t resolve, 409 with
+          `code: 'retired'` when `retired_at IS NOT NULL`
+          ("Ask the EM to restore it first"). Keeps the
+          audit log clean of "borrow against retired" rows
+          the EM would have to chase later.
+    - [✓] **Borrow audit endpoint — notification fan-out.**
+          New `resolveBorrowRecipients()` helper unions (job_
+          team rows where `is_crew_lead=true` for current
+          and origin jobs, when borrowed_from_job_id is set)
+          + (admin / equipment_manager broadcast via
+          `roles.cs.{admin},roles.cs.{equipment_manager}`),
+          deduped through a Set. Notify body resolves friendly
+          job labels via two parallel `jobs` lookups. Sent
+          via `notifyMany` for a single PostgREST insert with
+          `type='equipment_borrowed_in'` /
+          `source_type='equipment_event'` /
+          `source_id=<event_id>`. Best-effort: failures log
+          and continue — the audit row IS the source of
+          truth, not the inbox. Response now includes a
+          `notified` count for the mobile UI to show "logged
+          + N people notified."
+    - [✓] **Mobile ScannerFab borrow CTA.** When the scanner
+          resolves a QR that&apos;s NOT in the surveyor&apos;s
+          truck, the alert now branches: if the surveyor is
+          on the clock with a specific job (`useActiveTime
+          Entry().active.job_id`), the alert offers a
+          &ldquo;Borrow&rdquo; button alongside Cancel; when
+          off the clock OR on overhead time the original
+          &ldquo;hand to EM&rdquo; fallback stands (no job
+          to attribute the borrow to). Tapping Borrow inserts
+          a `borrowed_during_field_work` row directly into
+          `equipment_events` via Supabase (mobile uses
+          Supabase auth, not NextAuth, so it can&apos;t hit
+          the admin endpoint shipped earlier). On success a
+          &ldquo;Borrow logged&rdquo; confirmation surfaces,
+          on failure the error bubbles up via logError
+          + a friendly fallback. Notification fan-out from
+          the mobile path lands via the Postgres trigger
+          shipped in seeds/248 (see below) — the admin
+          endpoint&apos;s notify code remains for the web
+          reconciliation path.
+    - [✓] **Borrow notification trigger (seeds/248).**
+          Postgres `notify_mobile_borrow_event()` function
+          + AFTER INSERT trigger on equipment_events. Fires
+          ONLY when (event_type='borrowed_during_field_
+          work' AND payload.source='mobile_scanner_fab') so
+          we don&apos;t double-fire alongside the admin
+          endpoint&apos;s own notifyMany. Inserts one
+          notification per recipient (current job&apos;s
+          crew leads + origin job&apos;s crew leads when
+          payload.borrowed_from_job_id is set + admin /
+          equipment_manager broadcast, deduped via
+          DISTINCT). Body resolves equipment + job display
+          fields with fallbacks for missing joins. SECURITY
+          DEFINER so the trigger runs with elevated rights
+          — mobile&apos;s authenticated role can&apos;t
+          read registered_users / job_team directly.
+          Closes the mobile-borrow notification parity gap
+          with the admin endpoint.
+    - [✓] **Personal-kit flag.** Mobile Me-tab section for
+          the surveyor to mark their own brought-from-home
+          tools (`equipment_inventory.is_personal=true` +
+          `owner_user_id`). Already in seeds/233; needs UI.
+        - [✓] **Read-only Me-tab section.** New
+              `useMyPersonalKit(myUserId)` hook in
+              `mobile/lib/equipment.ts` queries
+              `equipment_inventory WHERE is_personal=1 AND
+              owner_user_id=me AND retired_at IS NULL`.
+              Companion `MyPersonalKitSection.tsx` lists up
+              to 8 items per row (name + qr/category +
+              brand/model). Hides itself when zero items.
+              Wired into `app/(tabs)/me/index.tsx` between
+              the truck section and Security so the surveyor
+              can confirm their personal kit list at a glance.
+        - [✓] **Claim / release flow.** Surveyor-side action
+              to mark an existing inventory row as personal
+              (claims) or unmark (releases). Edits
+              is_personal + owner_user_id; logs an
+              equipment_events row.
+            - [✓] **Release.** Each row in the personal-kit
+                  Me-tab section gets a Release button.
+                  Tap → confirmation Alert
+                  ("Release X from your personal kit? It
+                  returns to the company catalogue and the
+                  EM can manage it again.") → on confirm,
+                  the mobile updates `equipment_inventory`
+                  via Supabase (`is_personal=false`,
+                  `owner_user_id=null`) + writes an
+                  `equipment_events` row with
+                  `event_type='updated'` + `payload.change=
+                  'personal_kit_released'`. Best-effort
+                  audit: a non-fatal failure logs to Sentry
+                  but doesn&apos;t bubble. PowerSync sync
+                  picks up the row update + the local list
+                  drops the released item on the next tick.
+            - [✓] **Claim.** Mobile ScannerFab CTA on the
+                  not-yours branch. Buttons stack
+                  dynamically: Cancel always; Borrow when
+                  the surveyor is on the clock against a
+                  job; Claim as personal when the row
+                  isn&apos;t already someone&apos;s personal
+                  kit (`row.is_personal === 0`). When the
+                  scanned row IS already someone else&apos;s
+                  personal kit (`row.is_personal === 1`),
+                  the alert short-circuits to a
+                  &ldquo;hand it back to them&rdquo;
+                  message. `submitClaim()` updates
+                  `equipment_inventory` (is_personal=true,
+                  owner_user_id=me) + best-effort audit
+                  via equipment_events.event_type='updated'
+                  + payload.change='personal_kit_claimed'.
+                  PowerSync re-projects the row so
+                  MyPersonalKitSection picks it up on the
+                  next tick.
+        - [✓] **Admin EM-dashboard filter.** Exclude
+              is_personal=true rows from the EM Today
+              rollup, calendar, maintenance pages, and the
+              cert-expiring banner so personal axes
+              don&apos;t balloon the EM&apos;s open-work count.
+            - [✓] **Cert-expiring banner filter.**
+                  `loadCertExpiring()` in
+                  `/api/admin/equipment/today` adds
+                  `.eq('is_personal', false)` so the EM&apos;s
+                  cert-expiring banner doesn&apos;t flag a
+                  surveyor&apos;s personal axe whose
+                  &ldquo;cal&rdquo; is just a sticker.
+                  Mirrors the seeds/233 tax-summary filter
+                  predicate.
+            - [◐] **Maintenance rollups filter.** Exclude
+                  personal-kit rows from
+                  `loadMaintenanceStartingToday()` and the
+                  `/api/admin/maintenance/calendar` event
+                  queries.
+                - [✓] **Today maintenance banner.** New
+                      `loadPersonalEquipmentIds()` helper
+                      reads every `is_personal=true`
+                      equipment_inventory id once per
+                      request. The Today aggregator passes
+                      the resulting Set into
+                      `loadMaintenanceStartingToday()`,
+                      which post-filters the PostgREST
+                      result so personal-kit events
+                      don&apos;t leak into the EM&apos;s
+                      Today banner. Same Set will fan into
+                      the calendar + low-stock filters in
+                      follow-up slices.
+                - [✓] **/admin/maintenance/calendar.**
+                      Same Set filter applied to the
+                      calendar aggregator&apos;s month +
+                      upcoming + failed_qa lists between
+                      the enrich step and the response. A
+                      `filterPersonal()` generic strips
+                      rows whose `equipment_inventory_id`
+                      is in the personal-kit Set. Day
+                      buckets, summary counts, and the
+                      response payload all consume the
+                      filtered lists so personal-kit
+                      events disappear consistently from
+                      every surface the §5.12.7.4 calendar
+                      page renders.
+            - [✓] **Low-stock filter.** `loadLowStock
+                  Consumables()` adds `.eq('is_personal',
+                  false)` so a surveyor&apos;s personal
+                  supplies (their own can of WD-40)
+                  don&apos;t hit the EM low-stock alert.
+                  Belt-and-suspenders alongside the
+                  §5.12.9.4 rule that personal kit
+                  isn&apos;t consumables in the first place.
 
 **F10.9 — Tax + depreciation tie-in (Week 40).**
 Closes the Batch QQ loop — lands at the END of F10 so the
 inventory + maintenance ledgers are mature before the tax
 side reads them.
-- [ ] `seeds/237_starr_field_equipment_tax.sql` —
-      `equipment_tax_elections` + the new
-      `receipts.promoted_to_equipment_id` /
-      `linked_maintenance_event_id` columns.
-- [ ] Receipt-promotion modal on bookkeeper approval
+- [✓] Tax-tie-in schema (was planned as `seeds/237`; lands
+      as 249 + 250 since 237 is taken by templates).
+    - [✓] **seeds/249_starr_field_equipment_tax_columns.sql.**
+          ALTER TABLE adds the §5.12.10 tax + disposal
+          columns to `equipment_inventory`
+          (`linked_acquisition_receipt_id` FK to receipts,
+          `depreciation_method` TEXT enum default
+          'straight_line', `disposed_at`,
+          `disposal_proceeds_cents`, `disposal_kind` TEXT
+          enum, `tax_year_locked_through`) plus
+          `receipts.promoted_to_equipment_id` FK back to
+          equipment_inventory. CHECK constraints + FKs
+          guarded by DO blocks for idempotent re-apply.
+          Two indexes: linked_acquisition_receipt_id
+          partial (powers the receipt-promotion modal&apos;s
+          prior-promotion check) and (depreciation_method,
+          placed_in_service_at) partial WHERE disposed_at
+          IS NULL AND retired_at IS NULL (powers the
+          §5.12.7.7 fleet valuation rollup). Receipts side
+          gains an unpromoted partial index for the Batch
+          QQ tax-summary `WHERE promoted_to_equipment_id IS
+          NULL` filter.
+    - [✓] **seeds/250_starr_field_equipment_tax_elections.sql.**
+          New `equipment_tax_elections` table. Per-asset
+          per-year frozen depreciation snapshot — the
+          §5.12.10 lock-year ritual writes one row per
+          active asset per tax year, freezing the
+          depreciation_method, the per-year amount, and
+          the running accumulated total. Once locked_at
+          is set the row is treated as immutable by the
+          application so Schedule C numbers stay
+          reproducible audit-side. Columns: equipment_id
+          (FK CASCADE), tax_year (INT &gt;= 2000),
+          depreciation_method (TEXT enum mirroring
+          equipment_inventory&apos;s), depreciation_amount_
+          cents (BIGINT &gt;= 0), accumulated_depreciation_
+          cents, basis_cents (snapshot of acquired_cost
+          at lock time so later edits don&apos;t
+          retroactively change locked years), locked_at,
+          locked_by, notes. UNIQUE (equipment_id,
+          tax_year) prevents double-lock duplicates. Two
+          read-path indexes: (tax_year DESC, locked_at)
+          for the Schedule C generator + (equipment_id,
+          tax_year DESC) for the Asset Detail per-row
+          drilldown. updated_at trigger mirrors the rest
+          of the F10.x table conventions.
+- [✓] Receipt-promotion modal on bookkeeper approval
       (§5.12.10 acquisition path).
-- [ ] Section 179 / MACRS algorithm + Pub 946 constants
+    - [✓] **Server endpoint
+          (POST /api/admin/equipment/promote-from-receipt).**
+          Validates the receipt exists, is in
+          approved/exported state, isn&apos;t already
+          promoted, and has a non-zero total_cents.
+          Creates an `equipment_inventory` row carrying
+          `acquired_cost_cents = receipt.total_cents`,
+          `acquired_at = receipt.transaction_at ??
+          created_at`, and `linked_acquisition_receipt_id
+          = receipt.id`. Caller can pin name + category +
+          item_kind + useful_life_months +
+          depreciation_method + placed_in_service_at +
+          notes. After insert, updates
+          `receipts.promoted_to_equipment_id` to point at
+          the new asset; if that update fails, deletes
+          the freshly-inserted asset so a half-promoted
+          row doesn&apos;t survive (compensating-
+          transaction pattern since PostgREST doesn&apos;t
+          expose real transactions to the worker). Auth:
+          admin / equipment_manager.
+    - [ ] **Threshold detection.** Reads
+          EQUIPMENT_RECEIPT_THRESHOLD_CENTS from
+          app_settings ($250000 default) so the bookkeeper
+          UI knows when to offer the modal. Capability
+          stub for v1; the modal can be opened manually
+          for any receipt regardless of threshold.
+    - [✓] **Bookkeeper UI integration.** Expanded receipt
+          row gets a yellow `<PromoteToAssetPanel>` between
+          the maintenance link panel and the workflow
+          buttons — only when `category='equipment'`. Three
+          states render:
+            * Already promoted → "🏛 Promoted to capital
+              asset" badge + "View asset →" link to
+              `/admin/equipment/<id>` so the bookkeeper can
+              jump to the depreciation ledger.
+            * Approved/exported but unpromoted → "Promote
+              to asset" button → opens
+              `<PromoteToAssetModal>` with form fields
+              (name defaults to vendor_name; category;
+              item_kind dropdown; depreciation_method
+              dropdown; useful_life_months optional;
+              placed_in_service_at defaults to
+              transaction_at; notes). Submit POSTs to the
+              F10.9 endpoint and refreshes the list on
+              success.
+            * Pending/rejected → button greyed out with
+              hint "Approve the receipt first."
+          Receipts list endpoint already returns
+          `promoted_to_equipment_id` via the existing
+          `select('*')` clause, so no aggregator change
+          needed. Threshold detection ($2500 default from
+          spec) still pending — for now any equipment
+          receipt can be promoted manually.
+- [✓] Section 179 / MACRS algorithm + Pub 946 constants
       table.
+    - [✓] **Pure-function library
+          (lib/equipment/depreciation.ts).** Ships
+          `computeDepreciationSchedule(asset)` returning
+          the full year-by-year schedule for an asset, plus
+          `depreciationForYear(asset, year)` for the
+          single-row lookup the lock-year ritual + tax-
+          summary endpoint need. Six method branches:
+          section_179 (full expense year 1, capped from the
+          §179 cap table; remaining basis goes through
+          MACRS-5 — the standard hybrid path), straight_
+          line (half-year convention; year 1 + final year
+          get half a year, middle years a full year; final
+          year absorbs rounding so totals reconcile),
+          macrs_5yr + macrs_7yr (Pub 946 Table A-1 half-
+          year percentages, 6-year and 8-year stubs), bonus_
+          first_year (TCJA phase-out: 2017-22=100%, 2023=80%,
+          2024=60%, 2025=40%, 2026=20%, 2027+=0%; remaining
+          basis goes through MACRS-5; falls back to MACRS-5
+          with an audit note when phased out), none. Pub
+          946 constants tabulated by year (§179 cap +
+          bonus phase-out) so historical re-runs reproduce
+          original Schedule C numbers. Floor-on-intermediate
+          + remainder-on-last rounding strategy means every
+          schedule sums exactly to acquired_cost_cents to
+          the penny.
+    - [✓] **Lock-year worker
+          (POST /api/admin/equipment/lock-tax-year).**
+          Walks every active depreciable asset, computes
+          its depreciation for the requested tax year via
+          `computeDepreciationSchedule`, and writes one
+          `equipment_tax_elections` row per asset with
+          `locked_at` + `locked_by` stamps set. After the
+          insert, bumps each asset&apos;s
+          `tax_year_locked_through` so future PATCHes to
+          depreciation_method don&apos;t retroactively
+          change a frozen Schedule C. Auth: admin only —
+          highest-stakes bookkeeper operation. Body
+          accepts `tax_year` (required, 2000-2100) +
+          `dry_run` (returns the would-be inserts without
+          writing — drives the §5.12.7.7 fleet page&apos;s
+          preview-lock button). Idempotent via UPSERT
+          with `ignoreDuplicates: true` on the seeds/250
+          UNIQUE (equipment_id, tax_year) constraint, so
+          a re-run for the same year is a no-op rather
+          than 23505. Refuses future-year locks
+          (`code: 'future_year'`). Mixed-source
+          accumulated depreciation reconciliation — sums
+          locked prior years + live-computed prior years
+          + this year — keeps the numbers correct even
+          when a fleet straddles multiple lock cycles.
+    - [✓] **Inline rollup endpoint
+          (GET /api/admin/equipment/depreciation-rollup).**
+          Walks every active depreciable asset (not retired,
+          not disposed, depreciation_method ≠ 'none',
+          acquired_cost_cents &gt; 0) and returns the per-row
+          schedule for `?tax_year=YYYY` (defaults to current
+          year). Sources from `equipment_tax_elections` when
+          the year is locked (year ≤ asset.tax_year_locked_
+          through); falls back to the on-the-fly
+          `computeDepreciationSchedule` library when it
+          isn&apos;t. Per-asset row carries the year&apos;s
+          amount + basis + remaining + accumulated-through-
+          year, with `is_locked` flag for UI affordances.
+          Bottom-line aggregate sums all four columns. One
+          batched `equipment_tax_elections` read keyed by
+          (equipment_id IN ..., tax_year ≤ taxYear) covers
+          the whole page; mixed-source accumulation handles
+          assets that are partially locked. Auth: admin /
+          bookkeeper / equipment_manager.
 - [ ] §5.12.7.7 Fleet valuation page.
 - [ ] "Lock equipment depreciation" button on
       `/admin/finances` (mirrors Batch QQ mark-exported).

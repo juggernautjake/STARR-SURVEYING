@@ -8,11 +8,17 @@ keeps it in step with the Supabase Postgres the web admin uses.
 
 ```
 lib/db/
-├── schema.ts      # PowerSync schema — 12 tables matching plan §6.3
-├── connector.ts   # SupabaseConnector (fetchCredentials + uploadData)
-├── index.ts       # Lazy singleton + DatabaseProvider
-└── README.md      # this file
+├── schema.ts        # PowerSync schema — Tables matching the Supabase shape
+├── connector.ts     # SupabaseConnector (fetchCredentials + uploadData)
+├── index.ts         # Lazy singleton + DatabaseProvider
+├── sync-rules.yaml  # PowerSync sync rules (paste into Cloud editor)
+└── README.md        # this file
 ```
+
+> **Note** — `sync-rules.yaml` is config, not code. It must be deployed to
+> the PowerSync project (Cloud editor or self-hosted `powersync.yaml`)
+> for the rows defined there to actually sync to devices. The mobile
+> schema and the sync rules together control what arrives offline.
 
 The choice of PowerSync over WatermelonDB is documented in plan §6.1
 v3 audit pass (decision deadline = end of Phase F0).

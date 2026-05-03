@@ -32,6 +32,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notifyMany } from '@/lib/notifications';
 
 const ALLOWED_STATUSES = new Set([
   'available',
@@ -161,10 +162,11 @@ export const GET = withErrorHandler(
       );
     }
 
-    // Two parallel queries: the row + the assignment history.
-    // Photo signed URL kicks off after the row read so we don't
-    // hit storage for a row that doesn't exist.
-    const [rowRes, historyRes] = await Promise.all([
+    // Three parallel queries: the row + the assignment history +
+    // F10.7 maintenance history. Photo signed URL kicks off after
+    // the row read so we don't hit storage for a row that doesn't
+    // exist.
+    const [rowRes, historyRes, maintenanceRes] = await Promise.all([
       supabaseAdmin
         .from('equipment_inventory')
         .select(SELECT_COLUMNS)
@@ -179,6 +181,19 @@ export const GET = withErrorHandler(
         )
         .eq('equipment_inventory_id', id)
         .order('checked_out_at', {
+          ascending: false,
+          nullsFirst: false,
+        })
+        .limit(50),
+      supabaseAdmin
+        .from('maintenance_events')
+        .select(
+          'id, kind, origin, state, scheduled_for, started_at, ' +
+            'completed_at, vendor_name, cost_cents, qa_passed, ' +
+            'next_due_at, summary'
+        )
+        .eq('equipment_inventory_id', id)
+        .order('scheduled_for', {
           ascending: false,
           nullsFirst: false,
         })
@@ -220,6 +235,15 @@ export const GET = withErrorHandler(
         { id, error: historyRes.error.message }
       );
     }
+    const maintenance = maintenanceRes.error
+      ? []
+      : maintenanceRes.data ?? [];
+    if (maintenanceRes.error) {
+      console.warn(
+        '[admin/equipment/:id] maintenance history read failed',
+        { id, error: maintenanceRes.error.message }
+      );
+    }
 
     return NextResponse.json({
       item: rowRes.data,
@@ -227,6 +251,9 @@ export const GET = withErrorHandler(
       assignment_history: history,
       assignment_history_error:
         historyRes.error?.message ?? null,
+      maintenance_history: maintenance,
+      maintenance_history_error:
+        maintenanceRes.error?.message ?? null,
     });
   },
   { routeName: 'admin/equipment/:id#get' }
@@ -396,6 +423,23 @@ export const PATCH = withErrorHandler(
     // INSERT; UPDATEs need the application to refresh it.
     update.updated_at = new Date().toISOString();
 
+    // F10.8 — pre-read the current_status when the PATCH is
+    // touching it so we can fire equipment_status_change
+    // notifications to affected reservation holders. The read is
+    // SKIPPED when current_status isn't in the body so common
+    // edits (renaming, condition, photo) don't pay the cost.
+    let oldStatus: string | null = null;
+    if (typeof update.current_status === 'string') {
+      const { data: existing } = await supabaseAdmin
+        .from('equipment_inventory')
+        .select('current_status')
+        .eq('id', id)
+        .maybeSingle();
+      oldStatus =
+        (existing as { current_status?: string | null } | null)
+          ?.current_status ?? null;
+    }
+
     const { data, error } = await supabaseAdmin
       .from('equipment_inventory')
       .update(update)
@@ -433,7 +477,157 @@ export const PATCH = withErrorHandler(
       admin_email: session.user.email,
     });
 
+    // F10.8 — equipment_status_change notification fan-out.
+    // Fires when current_status flipped to a state that blocks
+    // (or restores) reservations. Affected users = anyone with an
+    // active reservation (held / checked_out, reserved_to in the
+    // future) for this unit. Best-effort; failures don't roll
+    // back the PATCH (the row is already audit-recoverable via
+    // equipment_events).
+    if (
+      typeof update.current_status === 'string' &&
+      oldStatus &&
+      oldStatus !== update.current_status
+    ) {
+      const newStatus = update.current_status as string;
+      await emitStatusChangeNotification({
+        equipmentInventoryId: id,
+        equipmentName:
+          (data as { name?: string | null } | null)?.name ?? null,
+        oldStatus,
+        newStatus,
+        actorEmail: session.user.email ?? null,
+      });
+    }
+
     return NextResponse.json({ item: data });
   },
   { routeName: 'admin/equipment/:id#patch' }
 );
+
+// ────────────────────────────────────────────────────────────
+// F10.8 — equipment_status_change notification fan-out
+// ────────────────────────────────────────────────────────────
+//
+// "Disrupting" status flips (available → maintenance / lost /
+// retired) push a notification to every user holding an active
+// reservation. "Restoring" flips (maintenance → available)
+// notify the same set so the reservation hold is back on the
+// calendar without the EM having to chase people down. No-op
+// for cosmetic flips (in_use → loaned_out) where the surveyor
+// already knows the gear is out.
+
+const STATUS_DISRUPTING = new Set(['maintenance', 'lost', 'retired']);
+const STATUS_RESTORING = new Set(['available', 'in_use']);
+
+async function emitStatusChangeNotification(args: {
+  equipmentInventoryId: string;
+  equipmentName: string | null;
+  oldStatus: string;
+  newStatus: string;
+  actorEmail: string | null;
+}): Promise<void> {
+  const becameDisrupted =
+    !STATUS_DISRUPTING.has(args.oldStatus) &&
+    STATUS_DISRUPTING.has(args.newStatus);
+  const becameRestored =
+    STATUS_DISRUPTING.has(args.oldStatus) &&
+    STATUS_RESTORING.has(args.newStatus);
+  if (!becameDisrupted && !becameRestored) return;
+
+  try {
+    const nowIso = new Date().toISOString();
+    const { data: reservations, error: resErr } = await supabaseAdmin
+      .from('equipment_reservations')
+      .select(
+        'id, job_id, reserved_from, reserved_to, state, ' +
+          'checked_out_to_user, created_by'
+      )
+      .eq('equipment_inventory_id', args.equipmentInventoryId)
+      .in('state', ['held', 'checked_out'])
+      .gte('reserved_to', nowIso);
+    if (resErr) {
+      console.warn(
+        '[admin/equipment/:id] status_change reservation lookup failed',
+        { error: resErr.message }
+      );
+      return;
+    }
+    const rows = (reservations ?? []) as Array<{
+      id: string;
+      job_id: string;
+      reserved_from: string;
+      reserved_to: string;
+      state: string;
+      checked_out_to_user: string | null;
+      created_by: string | null;
+    }>;
+    if (rows.length === 0) return;
+
+    // Resolve the union of (assignee + reservation creator) UUIDs
+    // to emails in one batched read.
+    const userIds = Array.from(
+      new Set(
+        rows
+          .flatMap((r) => [r.checked_out_to_user, r.created_by])
+          .filter((v): v is string => !!v)
+      )
+    );
+    const emailById = new Map<string, string>();
+    if (userIds.length > 0) {
+      const { data: users } = await supabaseAdmin
+        .from('registered_users')
+        .select('id, email')
+        .in('id', userIds);
+      for (const u of (users ?? []) as Array<{
+        id: string;
+        email: string | null;
+      }>) {
+        if (u.email) emailById.set(u.id, u.email);
+      }
+    }
+
+    const recipients = Array.from(
+      new Set(
+        rows
+          .flatMap((r) => [
+            r.checked_out_to_user
+              ? emailById.get(r.checked_out_to_user)
+              : undefined,
+            r.created_by ? emailById.get(r.created_by) : undefined,
+          ])
+          .filter((v): v is string => !!v)
+      )
+    );
+    if (recipients.length === 0) return;
+
+    const eqName = args.equipmentName ?? 'equipment';
+    const flipLabel = `${args.oldStatus.replace(/_/g, ' ')} → ${args.newStatus.replace(/_/g, ' ')}`;
+    await notifyMany(recipients, {
+      type: 'equipment_status_change',
+      title: becameDisrupted
+        ? `Status change: ${eqName} now ${args.newStatus.replace(/_/g, ' ')}`
+        : `Restored: ${eqName} is ${args.newStatus.replace(/_/g, ' ')} again`,
+      body:
+        `${eqName} flipped ${flipLabel}` +
+        (args.actorEmail ? ` (by ${args.actorEmail})` : '') +
+        '. ' +
+        (becameDisrupted
+          ? `${rows.length} active reservation(s) may need to be rebooked.`
+          : `${rows.length} active reservation(s) can proceed as planned.`),
+      icon: becameDisrupted ? '⚠️' : '✓',
+      escalation_level: becameDisrupted ? 'high' : 'normal',
+      source_type: 'equipment_status_change',
+      source_id: args.equipmentInventoryId,
+      link: `/admin/equipment/${args.equipmentInventoryId}`,
+    });
+  } catch (err) {
+    console.warn(
+      '[admin/equipment/:id] equipment_status_change notify failed',
+      {
+        equipment_inventory_id: args.equipmentInventoryId,
+        error: err instanceof Error ? err.message : String(err),
+      }
+    );
+  }
+}

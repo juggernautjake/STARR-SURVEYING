@@ -55,6 +55,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
 import {
   loadActiveReservationsForKit,
   resolveKit,
@@ -371,6 +372,24 @@ export const POST = withErrorHandler(
       self_service_bypass: selfServiceBypass,
     });
 
+    // F10.8 — equipment_assignment notification. Fires AFTER the
+    // check-out commits so the surveyor sees an inbox entry with
+    // the equipment + job + reserved window the next time the
+    // mobile app syncs. Best-effort: notify failure does NOT roll
+    // back the check-out (the row is audit-recoverable via
+    // equipment_events). Kit-level checkouts emit a single
+    // notification at the parent — child rows stay quiet to avoid
+    // an inbox flood.
+    await emitAssignmentNotification({
+      reservationId: (updated as { id: string }).id,
+      equipmentInventoryId: (
+        updated as { equipment_inventory_id: string }
+      ).equipment_inventory_id,
+      jobId: (updated as { job_id: string }).job_id,
+      reservedTo: (updated as { reserved_to: string }).reserved_to,
+      toUserId: toUser,
+    });
+
     return NextResponse.json({
       reservation: updated,
       previous_state: 'held',
@@ -577,6 +596,32 @@ async function applyKitCheckout(args: {
     self_service_bypass: args.selfServiceBypass,
   });
 
+  // F10.8 — equipment_assignment notification at the parent
+  // reservation. Single notification per kit checkout so the
+  // surveyor's inbox doesn't get N+1 entries for an 8-item GPS
+  // bundle. Best-effort; failures don't roll back.
+  const parentReservationRow = (
+    flippedRows as Array<{
+      id: string;
+      equipment_inventory_id: string;
+      job_id: string;
+      reserved_to: string;
+    }>
+  ).find((r) => r.id === bundle.parent_reservation_id);
+  if (parentReservationRow) {
+    await emitAssignmentNotification({
+      reservationId: parentReservationRow.id,
+      equipmentInventoryId: parentReservationRow.equipment_inventory_id,
+      jobId: parentReservationRow.job_id,
+      reservedTo: parentReservationRow.reserved_to,
+      toUserId: args.toUser,
+      kit: {
+        parentName: resolved.parent_name,
+        childCount: bundle.child_reservations.length,
+      },
+    });
+  }
+
   return NextResponse.json({
     mode: 'kit',
     kit: {
@@ -721,4 +766,97 @@ async function resolveReservation(args: {
     };
   }
   return { row: matches[0] };
+}
+
+// ────────────────────────────────────────────────────────────
+// F10.8 — equipment_assignment notification fan-out
+// ────────────────────────────────────────────────────────────
+//
+// Resolves the receiving surveyor's email + the equipment name +
+// the job display fields in three parallel reads, then fires a
+// single notify() row with source_type='equipment_assignment' so
+// the §5.12.9 mobile inbox can render a "you got X for tomorrow's
+// job" card with the right inline actions. Best-effort by design:
+// the check-out itself is committed before this runs; failures
+// here log a warning and continue.
+
+async function emitAssignmentNotification(args: {
+  reservationId: string;
+  equipmentInventoryId: string;
+  jobId: string;
+  reservedTo: string;
+  toUserId: string;
+  /** When set, the notification copy reflects a kit checkout
+   *  ("GPS-2024 kit (8 items)") rather than a single unit. */
+  kit?: {
+    parentName: string | null;
+    childCount: number;
+  };
+}): Promise<void> {
+  try {
+    const [eqRes, jobRes, userRes] = await Promise.all([
+      args.kit
+        ? Promise.resolve({
+            data: { name: args.kit.parentName, qr_code_id: null },
+            error: null,
+          })
+        : supabaseAdmin
+            .from('equipment_inventory')
+            .select('name, qr_code_id')
+            .eq('id', args.equipmentInventoryId)
+            .maybeSingle(),
+      supabaseAdmin
+        .from('jobs')
+        .select('name, job_number')
+        .eq('id', args.jobId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from('registered_users')
+        .select('email')
+        .eq('id', args.toUserId)
+        .maybeSingle(),
+    ]);
+    const recipient = (userRes.data as { email?: string | null } | null)
+      ?.email;
+    if (!recipient) {
+      console.warn(
+        '[admin/equipment/check-out] assignment notify skipped — no email',
+        { reservation_id: args.reservationId, to_user_id: args.toUserId }
+      );
+      return;
+    }
+    const eqName =
+      (eqRes.data as { name?: string | null } | null)?.name ?? 'equipment';
+    const job = jobRes.data as {
+      name?: string | null;
+      job_number?: string | null;
+    } | null;
+    const jobLabel = job?.job_number
+      ? `${job.job_number}${job.name ? ` ${job.name}` : ''}`
+      : job?.name ?? 'a job';
+    const kitSuffix = args.kit
+      ? ` kit (${args.kit.childCount + 1} items)`
+      : '';
+    await notify({
+      user_email: recipient,
+      type: 'equipment_assignment',
+      title: `Checked out: ${eqName}${kitSuffix}`,
+      body:
+        `${eqName}${kitSuffix} is yours for ${jobLabel}, due back ` +
+        `${args.reservedTo}. Tap to see the loadout.`,
+      icon: '📦',
+      escalation_level: 'normal',
+      source_type: 'equipment_assignment',
+      source_id: args.reservationId,
+      link: `/admin/jobs/${args.jobId}`,
+    });
+  } catch (err) {
+    console.warn(
+      '[admin/equipment/check-out] equipment_assignment notify failed',
+      {
+        reservation_id: args.reservationId,
+        error: err instanceof Error ? err.message : String(err),
+      }
+    );
+  }
 }
