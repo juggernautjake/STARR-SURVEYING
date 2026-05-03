@@ -17,3 +17,4 @@ export {
   getTier,
   scoreAllElements,
 } from './stage-6-confidence';
+export { runAIPipeline, type PipelineProgressFn } from './pipeline';
