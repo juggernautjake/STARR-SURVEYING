@@ -12,3 +12,8 @@ export {
   findLongestBoundaryBearing,
 } from './stage-4-placement';
 export { optimizeLabelsAiAware } from './stage-5-labels';
+export {
+  computeConfidence,
+  getTier,
+  scoreAllElements,
+} from './stage-6-confidence';
