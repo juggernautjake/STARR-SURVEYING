@@ -405,6 +405,12 @@ export interface AIJobPayload {
   generateLabels:           boolean;
   optimizeLabels:           boolean;
   includeConfidenceScoring: boolean;
+
+  /** Approximate project centroid in WGS84. Drives §27 online
+   *  enrichment (USGS 3DEP elevation today; FEMA / parcel /
+   *  PLSS land in follow-up slices). Optional — when omitted,
+   *  enrichment skips the network and returns null. */
+  projectLatLon?: { lat: number; lon: number } | null;
 }
 
 export interface AIJobResult {

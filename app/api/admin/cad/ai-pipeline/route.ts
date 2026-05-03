@@ -35,6 +35,7 @@ import {
   parseCallsWithClaude,
   MissingApiKeyError,
 } from '@/lib/cad/ai-engine/claude-deed-parser';
+import { fetchEnrichmentData } from '@/lib/cad/ai-engine/enrichment';
 import type { AIJobPayload } from '@/lib/cad/ai-engine/types';
 
 // 5 minutes — matches the research feature's Vision OCR ceiling
@@ -154,9 +155,25 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  // ── Run the pipeline ───────────────────────────────────────
+  // ── Run pipeline + §27 enrichment in parallel ──────────────
+  // The pipeline is synchronous + pure, but JS will still pump
+  // microtasks while enrichment awaits the USGS HTTP round-trip.
+  // Wrapping the pipeline call in Promise.resolve lets us await
+  // both in one shot without blocking the elevation lookup on
+  // pipeline completion.
+  const enrichmentPromise = fetchEnrichmentData({
+    latLon: body.projectLatLon ?? null,
+  });
   const result = runAIPipeline(body);
   result.warnings = [...warnings, ...result.warnings];
+  try {
+    result.enrichmentData = await enrichmentPromise;
+  } catch (err) {
+    result.warnings.push(
+      'Online enrichment failed: ' +
+        (err instanceof Error ? err.message : 'unknown')
+    );
+  }
 
   console.log('[admin/cad/ai-pipeline] ok', {
     points: body.points.length,

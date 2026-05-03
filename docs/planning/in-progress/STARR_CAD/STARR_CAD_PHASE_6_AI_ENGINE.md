@@ -2847,8 +2847,8 @@ interface AIStore {
 - [ ] County parcel data fetched for test parcel in Bell County, TX
 - [ ] PLSS data (township, range, section, abstract) returned
 - [ ] FEMA flood zone data returned with panel number
-- [ ] Elevation data returned for boundary corner points
-- [ ] All enrichment sources failing gracefully (non-blocking — warnings added)
+- [x] Elevation data returned for boundary corner points (USGS 3DEP @ `lib/cad/ai-engine/enrichment.ts`; runs in parallel with the pipeline in `app/api/admin/cad/ai-pipeline/route.ts`)
+- [x] All enrichment sources failing gracefully (non-blocking — warnings added)
 - [ ] PLSS fields auto-populated in title block from enrichment
 
 ### Deliberation & Clarifying Questions

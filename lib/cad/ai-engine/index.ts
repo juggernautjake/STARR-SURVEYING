@@ -36,3 +36,4 @@ export type {
   OffsetResolutionMethod,
   OffsetResolutionDetail,
 } from './offset-resolver';
+export { fetchEnrichmentData } from './enrichment';
