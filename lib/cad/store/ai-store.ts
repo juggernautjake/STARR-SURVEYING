@@ -14,6 +14,7 @@
 import { create } from 'zustand';
 
 import type {
+  AIJobPayload,
   AIJobResult,
   ClarifyingQuestion,
   ReviewItem,
@@ -78,15 +79,29 @@ interface AIStore {
   setQuestionSkipped: (questionId: string, skipped: boolean) => void;
   /** §28.4 — bulk-skip every non-blocking question. */
   skipAllOptionalQuestions: () => void;
+
+  /** Last payload posted to /api/admin/cad/ai-pipeline. Kept
+   *  so the §28.5 re-run path can rebuild the payload without
+   *  requiring the user to re-type the deed text or toggle
+   *  options. Cleared on `reset`. */
+  lastPayload: AIJobPayload | null;
+  setLastPayload: (payload: AIJobPayload) => void;
+  /** §28.5 — re-POST the last payload with the user's clarifying
+   *  answers folded back in. Resolves once the new result lands
+   *  in the store; rejects on network/HTTP failure. The dialog
+   *  closes automatically on success. No-op when no payload is
+   *  cached or no questions exist. */
+  rerunWithAnswers: () => Promise<void>;
 }
 
-export const useAIStore = create<AIStore>((set) => ({
+export const useAIStore = create<AIStore>((set, get) => ({
   isDialogOpen: false,
   isQueuePanelOpen: false,
   isQuestionDialogOpen: false,
   status: 'idle',
   result: null,
   error: null,
+  lastPayload: null,
 
   openDialog: () => set({ isDialogOpen: true }),
   closeDialog: () => set({ isDialogOpen: false }),
@@ -120,7 +135,63 @@ export const useAIStore = create<AIStore>((set) => ({
       result: null,
       error: null,
       isQuestionDialogOpen: false,
+      lastPayload: null,
     }),
+
+  setLastPayload: (payload) => set({ lastPayload: payload }),
+
+  rerunWithAnswers: async () => {
+    const { lastPayload, result } = get();
+    if (!lastPayload || !result?.deliberationResult) return;
+    const answered = result.deliberationResult.questions.filter(
+      (q) => q.userAnswer !== null && !q.skipped
+    );
+    if (answered.length === 0) {
+      // Nothing to apply — just close the dialog without a re-run.
+      set({ isQuestionDialogOpen: false });
+      return;
+    }
+    set({ status: 'running', error: null });
+    try {
+      const nextPayload: AIJobPayload = {
+        ...lastPayload,
+        // Carry both prior answers + the new ones so the server
+        // can render a cumulative answer log without dropping
+        // earlier rounds.
+        answers: [...lastPayload.answers, ...answered],
+      };
+      const res = await fetch('/api/admin/cad/ai-pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nextPayload),
+      });
+      const json = (await res.json().catch(() => ({}))) as
+        | AIJobResult
+        | { error?: string };
+      if (!res.ok) {
+        const msg =
+          (json as { error?: string }).error ??
+          `Pipeline re-run failed (${res.status}).`;
+        set({ status: 'error', error: msg });
+        return;
+      }
+      set({
+        status: 'done',
+        result: json as AIJobResult,
+        error: null,
+        lastPayload: nextPayload,
+        // §28.1 short-circuit re-applies on the new result.
+        isQuestionDialogOpen:
+          (json as AIJobResult).deliberationResult?.shouldShowDialog ??
+          false,
+      });
+    } catch (err) {
+      set({
+        status: 'error',
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  },
 
   setItemStatus: (itemId, nextStatus, userNote = null) =>
     set((state) => {

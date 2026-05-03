@@ -39,3 +39,4 @@ export type {
 export { fetchEnrichmentData } from './enrichment';
 export { runDeliberation } from './deliberation';
 export type { DeliberationInputs } from './deliberation';
+export { applyAnswerEffects } from './apply-answers';

@@ -34,6 +34,8 @@ export default function QuestionDialog() {
   const setAnswer = useAIStore((s) => s.setQuestionAnswer);
   const setSkipped = useAIStore((s) => s.setQuestionSkipped);
   const skipAll = useAIStore((s) => s.skipAllOptionalQuestions);
+  const rerunWithAnswers = useAIStore((s) => s.rerunWithAnswers);
+  const status = useAIStore((s) => s.status);
 
   const [stepIndex, setStepIndex] = useState(0);
 
@@ -57,6 +59,17 @@ export default function QuestionDialog() {
     (q) => q.priority === 'BLOCKING' && !q.userAnswer
   ).length;
   const canDrawNow = blockingPending === 0;
+  const answeredCount = ordered.filter(
+    (q) => q.userAnswer !== null && !q.skipped
+  ).length;
+  const isRunning = status === 'running';
+  const drawLabel = !canDrawNow
+    ? `${blockingPending} blocking left`
+    : isRunning
+      ? 'Re-running…'
+      : answeredCount > 0
+        ? `Apply ${answeredCount} & Re-run`
+        : 'Draw Now';
 
   return (
     <div style={styles.backdrop}>
@@ -163,18 +176,29 @@ export default function QuestionDialog() {
           </button>
           <button
             type="button"
-            onClick={close}
-            disabled={!canDrawNow}
+            onClick={() => {
+              if (!canDrawNow || isRunning) return;
+              if (answeredCount > 0) {
+                void rerunWithAnswers();
+              } else {
+                close();
+              }
+            }}
+            disabled={!canDrawNow || isRunning}
             style={
-              canDrawNow ? styles.drawNowBtn : styles.drawNowBtnDisabled
+              canDrawNow && !isRunning
+                ? styles.drawNowBtn
+                : styles.drawNowBtnDisabled
             }
             title={
-              canDrawNow
-                ? 'All blocking questions answered — proceed to drawing'
-                : `Answer the ${blockingPending} blocking question(s) first`
+              !canDrawNow
+                ? `Answer the ${blockingPending} blocking question(s) first`
+                : answeredCount > 0
+                  ? 'Re-run the pipeline with your answers folded back in'
+                  : 'Proceed to the drawing preview'
             }
           >
-            {canDrawNow ? 'Draw Now' : `${blockingPending} blocking left`}
+            {drawLabel}
           </button>
         </footer>
       </div>

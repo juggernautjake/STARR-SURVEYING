@@ -2860,7 +2860,7 @@ interface AIStore {
 - [x] Building code → material question generated (LOW priority)
 - [ ] Duplicate shots → "which is final?" question generated
 - [x] User answering blocking questions enables "Draw Now" button (`app/admin/cad/components/QuestionDialog.tsx`)
-- [ ] Answers applied to pipeline re-run; scores improve after good answers
+- [x] Answers applied to pipeline re-run; scores improve after good answers (`rerunWithAnswers` in `lib/cad/store/ai-store.ts` + `applyAnswerEffects` in `lib/cad/ai-engine/apply-answers.ts`; FEATURE_ATTRIBUTE answers stamp `feature.properties.material`, deed/code/offset answers logged as warnings until Stage-1 reclass + offset disambig wiring lands)
 - [x] "Skip All Optional" dismisses all non-blocking questions (`skipAllOptionalQuestions` in `lib/cad/store/ai-store.ts`)
 
 ### Drawing Preview & Confidence Cards

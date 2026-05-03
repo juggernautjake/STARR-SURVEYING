@@ -36,6 +36,7 @@ export default function AIDrawingDialog({
   const setStarted = useAIStore((s) => s.start);
   const setResult = useAIStore((s) => s.setResult);
   const setError = useAIStore((s) => s.setError);
+  const setLastPayload = useAIStore((s) => s.setLastPayload);
 
   const [deedText, setDeedText] = useState('');
   const [prompt, setPrompt] = useState('');
@@ -83,6 +84,8 @@ export default function AIDrawingDialog({
         includeConfidenceScoring: scoreConfidence,
       };
 
+      // Cache the payload so §28.5 can re-POST it with answers.
+      setLastPayload(payload);
       const res = await fetch('/api/admin/cad/ai-pipeline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

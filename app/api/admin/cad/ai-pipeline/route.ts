@@ -36,6 +36,7 @@ import {
   MissingApiKeyError,
 } from '@/lib/cad/ai-engine/claude-deed-parser';
 import { fetchEnrichmentData } from '@/lib/cad/ai-engine/enrichment';
+import { applyAnswerEffects } from '@/lib/cad/ai-engine/apply-answers';
 import type { AIJobPayload } from '@/lib/cad/ai-engine/types';
 
 // 5 minutes — matches the research feature's Vision OCR ceiling
@@ -164,7 +165,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const enrichmentPromise = fetchEnrichmentData({
     latLon: body.projectLatLon ?? null,
   });
-  const result = runAIPipeline(body);
+  let result = runAIPipeline(body);
   result.warnings = [...warnings, ...result.warnings];
   try {
     result.enrichmentData = await enrichmentPromise;
@@ -173,6 +174,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       'Online enrichment failed: ' +
         (err instanceof Error ? err.message : 'unknown')
     );
+  }
+
+  // ── §28.5 Fold clarifying-question answers back in ─────────
+  // The deliberation engine just produced a fresh question set;
+  // any answers carried in `body.answers` come from prior rounds
+  // and need their deterministic effects re-applied so the new
+  // result reflects them (e.g. fence material stays stamped).
+  if (body.answers && body.answers.length > 0) {
+    result = applyAnswerEffects(result, body.answers);
   }
 
   console.log('[admin/cad/ai-pipeline] ok', {
