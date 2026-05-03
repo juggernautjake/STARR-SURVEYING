@@ -6096,8 +6096,38 @@ side reads them.
       double-count — their dollars land on the
       depreciation ledger via the equipment block instead.
 - [ ] Asset Detail Schedule PDF + CSV export.
-- [ ] Disposal flow (`POST /api/admin/equipment/dispose`)
+- [◐] Disposal flow (`POST /api/admin/equipment/dispose`)
       with kind branches.
+    - [✓] **Server endpoint
+          (POST /api/admin/equipment/dispose).**
+          Body: equipment_id (UUID, required) +
+          disposal_kind (sold / traded / scrapped / lost /
+          stolen / donated, required) +
+          disposal_proceeds_cents (required for sold /
+          traded; optional otherwise) +
+          disposed_at (defaults today) + notes. Updates
+          equipment_inventory: disposed_at,
+          disposal_proceeds_cents, disposal_kind,
+          retired_at (defaults to now if not already set),
+          retired_reason (composed from kind + proceeds +
+          notes), current_status='retired'. Race-guarded
+          via `.is('disposed_at', null)` on the UPDATE
+          (refuses 409 when another writer beat us).
+          Writes an `equipment_events` audit row with
+          `event_type='retired'` + payload.disposal_kind /
+          proceeds / actor_email so the chain-of-custody
+          preserves the reason. §179 / MACRS recapture
+          rules NOT computed here — bookkeeper reviews the
+          Asset Detail Schedule manually for v1; recapture
+          worker is post-F10.9 polish. Auth: admin /
+          equipment_manager.
+    - [ ] **Asset Detail Schedule PDF + CSV export.**
+          Endpoint that emits the IRS Schedule C-shaped
+          asset listing for a tax year (one row per
+          asset: cost basis, accumulated depreciation,
+          this-year amount, disposal info). PDF + CSV
+          formats; hits the lock-tax-year worker first to
+          freeze the year on demand if needed.
 
 **Exit (Week 40):** A surveyor walks to the gear cage at
 6:30am. Equipment Manager scans a kit QR. The kit + its
