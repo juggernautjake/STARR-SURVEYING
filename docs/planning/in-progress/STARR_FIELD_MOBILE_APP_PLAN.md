@@ -5689,8 +5689,42 @@ sub-batches per the small-chunks discipline:
       updated with the new file. Mobile UI components
       that consume these tables (LoadoutCard, "what's
       in my truck", Gear tab) ship as separate batches.
-- [ ] Surveyor self-service paths — borrowed-from-other-crew
+- [◐] Surveyor self-service paths — borrowed-from-other-crew
       event log, personal-kit flag.
+    - [✓] **Borrow audit endpoint (write path).** New
+          `POST /api/admin/equipment/borrow-from-other-crew`
+          inserts ONE `equipment_events` row with
+          `event_type='borrowed_during_field_work'` (per the
+          seeds/236 canonical enum) so the chain-of-custody
+          stays preserved when a surveyor scans gear that
+          isn&apos;t on their reservation list. The
+          reservation row stays untouched — the EM
+          reconciles manually using this audit trail. Body
+          accepts equipment_id + current_job_id (required
+          UUIDs) + borrowed_from_user_id + borrowed_from_job_
+          id + notes (all optional). Auth: any signed-in user
+          (the whole point of self-service is the EM
+          isn&apos;t in the loop in real time). Payload
+          captures the borrow context for the EM&apos;s later
+          reconciliation without chasing other tables.
+    - [ ] **Borrow audit endpoint — equipment-retired guard.**
+          Add a 409 refusal when the scanned unit is
+          `retired_at IS NOT NULL` so a borrow log can&apos;t
+          be filed against a retired unit.
+    - [ ] **Borrow audit endpoint — notification fan-out.**
+          Deduped notifyMany() to (current job&apos;s crew
+          leads) + (origin job&apos;s crew leads) + (admin /
+          equipment_manager broadcast) so everyone affected
+          knows about the borrow within seconds.
+    - [ ] **Mobile ScannerFab borrow CTA.** When the scanner
+          resolves a QR that&apos;s NOT in the surveyor&apos;s
+          truck, surface a "Borrow for current job" button
+          that POSTs to the audit endpoint (instead of just
+          the current "hand to EM" message).
+    - [ ] **Personal-kit flag.** Mobile Me-tab section for
+          the surveyor to mark their own brought-from-home
+          tools (`equipment_inventory.is_personal=true` +
+          `owner_user_id`). Already in seeds/233; needs UI.
 
 **F10.9 — Tax + depreciation tie-in (Week 40).**
 Closes the Batch QQ loop — lands at the END of F10 so the
