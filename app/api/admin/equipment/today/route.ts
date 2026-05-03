@@ -427,11 +427,17 @@ async function loadCertExpiring(
 > {
   const cutoffMs = Date.now() + 60 * 24 * 60 * 60 * 1000;
   const cutoffIso = new Date(cutoffMs).toISOString();
+  // F10.8 — exclude personal-kit rows (is_personal=true) so the
+  // EM&apos;s cert-expiring banner doesn&apos;t balloon with a
+  // surveyor&apos;s personal axe whose &ldquo;cal&rdquo; is just
+  // a sticker on it. The tax-summary filter uses the same
+  // predicate (seeds/233 §depreciation rollups).
   const { data, error } = await supabaseAdmin
     .from('equipment_inventory')
     .select('id, name, next_calibration_due_at, current_status')
     .not('next_calibration_due_at', 'is', null)
     .lte('next_calibration_due_at', cutoffIso)
+    .eq('is_personal', false)
     .order('next_calibration_due_at', { ascending: true });
   if (error) {
     console.warn(

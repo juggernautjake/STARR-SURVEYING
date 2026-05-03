@@ -5771,11 +5771,30 @@ sub-batches per the small-chunks discipline:
               (claims) or unmark (releases). Edits
               is_personal + owner_user_id; logs an
               equipment_events row.
-        - [ ] **Admin EM-dashboard filter.** Exclude
+        - [◐] **Admin EM-dashboard filter.** Exclude
               is_personal=true rows from the EM Today
               rollup, calendar, maintenance pages, and the
               cert-expiring banner so personal axes
               don&apos;t balloon the EM&apos;s open-work count.
+            - [✓] **Cert-expiring banner filter.**
+                  `loadCertExpiring()` in
+                  `/api/admin/equipment/today` adds
+                  `.eq('is_personal', false)` so the EM&apos;s
+                  cert-expiring banner doesn&apos;t flag a
+                  surveyor&apos;s personal axe whose
+                  &ldquo;cal&rdquo; is just a sticker.
+                  Mirrors the seeds/233 tax-summary filter
+                  predicate.
+            - [ ] **Maintenance rollups filter.** Exclude
+                  personal-kit rows from
+                  `loadMaintenanceStartingToday()` and the
+                  `/api/admin/maintenance/calendar` event
+                  queries.
+            - [ ] **Low-stock filter.** Exclude personal-kit
+                  rows from `loadLowStockConsumables()`
+                  (defensive — personal kit shouldn&apos;t
+                  use the company&apos;s low-stock threshold,
+                  but make sure).
 
 **F10.9 — Tax + depreciation tie-in (Week 40).**
 Closes the Batch QQ loop — lands at the END of F10 so the
