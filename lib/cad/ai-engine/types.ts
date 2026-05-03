@@ -206,18 +206,23 @@ export interface ReconciliationResult {
 // ─── STAGE 4: PLACEMENT ──────────────────────────────────────────────────────
 
 export interface PlacementConfig {
-  /** Paper size in inches: [width, height] */
-  paperSize:      [number, number];
-  /** Drawing scale denominator (e.g. 40 for 1"=40') */
-  scale:          number;
-  /** World-space rotation applied to the entire drawing (radians) */
-  rotation:       number;
-  /** World origin offset so the drawing fits the paper */
-  originOffset:   import('../types').Point2D;
-  /** Margins in inches: [top, right, bottom, left] */
-  margins:        [number, number, number, number];
-  /** Auto-selected (true) or user-specified (false) */
-  autoSelected:   boolean;
+  /** Paper size identifier (LETTER / TABLOID / ARCH_C / ARCH_D /
+   *  ARCH_E). Drives PAPER_DIMENSIONS lookup downstream. */
+  paperSize: import('../templates/types').PaperSize;
+  /** Page orientation. */
+  orientation: 'PORTRAIT' | 'LANDSCAPE';
+  /** Drawing scale denominator (e.g. 40 for 1"=40'). */
+  scale: number;
+  /** World-space rotation applied to the entire drawing,
+   *  decimal degrees (0 = north up). */
+  rotation: number;
+  /** Shift drawing center on sheet (inches). */
+  centerOffset: import('../types').Point2D;
+  /** Selected template id. 'default' when no template was
+   *  provided to Stage 4. */
+  templateId: string;
+  /** Auto-selected by Stage 4 (true) vs user-specified (false). */
+  autoSelected: boolean;
 }
 
 // ─── STAGE 6: CONFIDENCE SCORING ─────────────────────────────────────────────
