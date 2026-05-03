@@ -192,6 +192,21 @@ export default function FleetValuationPage() {
           >
             {loading ? 'Loading…' : 'Refresh'}
           </button>
+          <a
+            href={`/api/admin/equipment/asset-detail-schedule?tax_year=${taxYear}&format=csv`}
+            style={styles.exportBtn}
+            download
+          >
+            ⤓ CSV
+          </a>
+          <a
+            href={`/api/admin/equipment/asset-detail-schedule?tax_year=${taxYear}&format=html`}
+            style={styles.exportBtn}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            ⎙ Print PDF
+          </a>
           {isAdmin ? (
             <button
               type="button"
@@ -494,6 +509,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 500,
     cursor: 'pointer',
+  },
+  exportBtn: {
+    padding: '8px 14px',
+    border: '1px solid #E2E5EB',
+    background: '#FFFFFF',
+    color: '#374151',
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+    textDecoration: 'none',
+    display: 'inline-block',
   },
   lockBtn: {
     padding: '8px 14px',
