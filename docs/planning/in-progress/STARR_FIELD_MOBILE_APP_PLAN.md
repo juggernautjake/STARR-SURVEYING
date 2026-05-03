@@ -6055,7 +6055,25 @@ side reads them.
           the whole page; mixed-source accumulation handles
           assets that are partially locked. Auth: admin /
           bookkeeper / equipment_manager.
-- [ ] §5.12.7.7 Fleet valuation page.
+- [✓] §5.12.7.7 Fleet valuation page. New
+      `/admin/equipment/fleet-valuation` consumes the
+      F10.9 rollup endpoint for the per-asset table:
+      asset name (links to drilldown) + category +
+      method chip + placed-in-service date + cost basis
+      + this-year amount (bold) + accumulated +
+      remaining + locked/live state pill. Year selector
+      defaults to current year + Refresh button. Bottom
+      summary bar with five tiles (active assets count,
+      this-year depreciation in accent color, accumulated,
+      remaining basis, original basis muted). Footer row
+      sums the table cleanly. Admin-only "Lock {year}"
+      button opens a confirmation modal that previews via
+      `dry_run=true` first (shows projected count + total
+      dollars + skipped count); confirm POSTs the live
+      lock + refreshes the rollup. Wired into the Equipment
+      sidebar group with 🏛 icon. Auth: EQUIPMENT_ROLES
+      for read; admin-only for the lock ritual (defensive
+      gate already on the lock-tax-year endpoint).
 - [ ] "Lock equipment depreciation" button on
       `/admin/finances` (mirrors Batch QQ mark-exported).
 - [ ] Tax summary endpoint extension — adds `equipment`

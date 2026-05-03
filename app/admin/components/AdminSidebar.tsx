@@ -140,6 +140,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       { href: '/admin/equipment/templates', label: 'Templates', icon: '📋', roles: EQUIPMENT_ROLES, internalOnly: true },
       { href: '/admin/equipment/templates/cleanup-queue', label: 'Cleanup queue', icon: '🧹', roles: EQUIPMENT_ROLES, internalOnly: true },
       { href: '/admin/equipment/overrides', label: 'Overrides audit', icon: '⚠️', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment/fleet-valuation', label: 'Fleet valuation', icon: '🏛', roles: EQUIPMENT_ROLES, internalOnly: true },
     ]},
 
     { label: 'Research', items: [
