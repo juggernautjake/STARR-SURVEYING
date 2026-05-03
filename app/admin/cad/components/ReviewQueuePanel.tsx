@@ -17,11 +17,17 @@
 
 import { useState } from 'react';
 
-import { useAIStore } from '@/lib/cad/store';
+import {
+  useAIStore,
+  useAnnotationStore,
+  useDrawingStore,
+} from '@/lib/cad/store';
 import type {
+  AIJobResult,
   ReviewItem,
   ReviewItemStatus,
 } from '@/lib/cad/ai-engine/types';
+import type { Feature } from '@/lib/cad/types';
 
 const TIER_ORDER: Array<1 | 2 | 3 | 4 | 5> = [1, 2, 3, 4, 5];
 
@@ -45,8 +51,55 @@ export default function ReviewQueuePanel() {
   const close = useAIStore((s) => s.closeQueuePanel);
   const result = useAIStore((s) => s.result);
   const setItemStatus = useAIStore((s) => s.setItemStatus);
+  const addFeature = useDrawingStore((s) => s.addFeature);
+  const removeFeature = useDrawingStore((s) => s.removeFeature);
+  const drawingFeatures = useDrawingStore((s) => s.document.features);
+  const addAnnotation = useAnnotationStore((s) => s.addAnnotation);
 
   if (!isOpen) return null;
+
+  /**
+   * Phase 6 apply-on-accept. Idempotently adds the feature
+   * (with an `aiConfidenceTier` property the canvas renderer
+   * can read for the §11 confidence glow) plus its linked
+   * annotations to the drawing document. Re-clicking Accept on
+   * an already-applied item is a no-op.
+   */
+  function applyReviewItem(item: ReviewItem, payload: AIJobResult) {
+    if (!item.featureId) return;
+    if (drawingFeatures[item.featureId]) return; // already applied
+    const sourceFeature = payload.features.find(
+      (f) => f.id === item.featureId
+    );
+    if (!sourceFeature) return;
+    const tagged: Feature = {
+      ...sourceFeature,
+      properties: {
+        ...sourceFeature.properties,
+        aiConfidenceTier: item.tier,
+        aiConfidence: item.confidence,
+      },
+    };
+    addFeature(tagged);
+    for (const annotation of payload.annotations) {
+      if (annotation.linkedFeatureId === item.featureId) {
+        addAnnotation(annotation);
+      }
+    }
+  }
+
+  /**
+   * Phase 6 unwind-on-reject. Removes a previously-applied
+   * feature from the drawing when the surveyor rejects after
+   * accepting. Best-effort — annotation cleanup is handled by
+   * the annotation store's own reactive cleanup; we just yank
+   * the feature here.
+   */
+  function unapplyReviewItem(item: ReviewItem) {
+    if (!item.featureId) return;
+    if (!drawingFeatures[item.featureId]) return;
+    removeFeature(item.featureId);
+  }
 
   const summary = result?.reviewQueue.summary ?? {
     totalElements: 0,
@@ -113,9 +166,17 @@ export default function ReviewQueuePanel() {
                       <ReviewRow
                         key={item.id}
                         item={item}
-                        onAction={(status, note) =>
-                          setItemStatus(item.id, status, note)
-                        }
+                        onAction={(status, note) => {
+                          if (status === 'ACCEPTED' && result) {
+                            applyReviewItem(item, result);
+                          } else if (
+                            status === 'REJECTED' &&
+                            item.status === 'ACCEPTED'
+                          ) {
+                            unapplyReviewItem(item);
+                          }
+                          setItemStatus(item.id, status, note);
+                        }}
                       />
                     ))}
                   </ul>
