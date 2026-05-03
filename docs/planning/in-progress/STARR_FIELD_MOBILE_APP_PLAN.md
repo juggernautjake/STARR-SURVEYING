@@ -5542,7 +5542,27 @@ sub-batches per the small-chunks discipline:
       between the Today rollup and the Client section;
       hides itself entirely when the job has zero active
       reservations.
-- [ ] "What's in my truck right now" Me-tab section.
+- [✓] "What's in my truck right now" Me-tab section. New
+      `useMyCheckouts(myUserId)` hook in `mobile/lib/
+      equipment.ts` issues a single PowerSync useQuery
+      that LEFT-JOINs `equipment_reservations` to
+      `equipment_inventory` AND `jobs`, filters by
+      (state='checked_out' AND checked_out_to_user = me),
+      orders by reserved_to ASC so soonest-due rows
+      surface first, and aggregates overdue + cal-lapsed
+      counts client-side. Companion `MyTruckSection.tsx`
+      renders the rollup: header "🛻 What&apos;s in my
+      truck", summary row with item count + red "N
+      overdue" + amber "N cal lapsed" badges, then up to
+      8 per-item rows with equipment name + job number/
+      name + relative due date ("in 4h" / "tomorrow" /
+      "in 3d") + per-row red left-border for overdue
+      items. Tap a row → navigate to job detail.
+      Hides itself entirely when nothing is checked out.
+      Wired into `app/(tabs)/me/index.tsx` between the
+      header block and the Security section so it&apos;s
+      the first actionable info a surveyor sees on the
+      Me tab.
 - [ ] Persistent scanner FAB when any check-out is open.
 - [ ] 🛠 Gear tab (role-gated 6th tab) for Equipment Manager
       mobile flows (§5.12.9.2).

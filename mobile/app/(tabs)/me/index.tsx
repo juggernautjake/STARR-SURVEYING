@@ -14,6 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { MyTruckSection } from '@/lib/MyTruckSection';
+import { useMyCheckouts } from '@/lib/equipment';
 import { logError, logWarn } from '@/lib/log';
 import { useAuth } from '@/lib/auth';
 import {
@@ -237,6 +239,7 @@ export default function MeScreen() {
   };
 
   const email = session?.user.email ?? 'unknown';
+  const { summary: truckSummary } = useMyCheckouts(session?.user.id ?? null);
   const kindUpper = capitalize(biometricLabel(bioKind));
   const { isTablet } = useResponsiveLayout();
   const tabletStyle = tabletContainerStyle(isTablet);
@@ -250,6 +253,8 @@ export default function MeScreen() {
             {email}
           </Text>
         </View>
+
+        <MyTruckSection summary={truckSummary} palette={palette} />
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: palette.muted }]}>Security</Text>

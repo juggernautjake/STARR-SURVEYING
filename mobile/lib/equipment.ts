@@ -397,3 +397,144 @@ export function useJobLoadout(
     error,
   };
 }
+
+// ────────────────────────────────────────────────────────────
+// F10.8 — "What's in my truck right now" (Me-tab §5.12.9.1)
+// ────────────────────────────────────────────────────────────
+
+export interface MyCheckoutItem {
+  reservation_id: string;
+  job_id: string;
+  job_name: string | null;
+  job_number: string | null;
+  reserved_from: string;
+  reserved_to: string;
+  // Joined equipment columns.
+  equipment_id: string | null;
+  equipment_name: string | null;
+  equipment_category: string | null;
+  equipment_qr_code_id: string | null;
+  next_calibration_due_at: string | null;
+}
+
+export interface MyCheckoutsSummary {
+  total: number;
+  /** Items past their reserved_to — surveyor should return them
+   *  (or extend) ASAP to avoid the §5.12.6 nag escalation. */
+  overdueCount: number;
+  /** Items with cert lapsed since check-out — the unit shouldn&apos;t
+   *  be in the field; flag for re-cert. */
+  calibrationOverdueCount: number;
+  items: MyCheckoutItem[];
+}
+
+const EMPTY_MY_CHECKOUTS: MyCheckoutsSummary = {
+  total: 0,
+  overdueCount: 0,
+  calibrationOverdueCount: 0,
+  items: [],
+};
+
+/**
+ * Returns every active check-out (state='checked_out') for the
+ * signed-in surveyor, ordered by reserved_to ASC so the
+ * soonest-due-back rows surface first. Powers the Me-tab
+ * &ldquo;what&apos;s in my truck right now&rdquo; section.
+ *
+ * Counts overdue + calibration-lapsed items client-side so the
+ * section header can render &ldquo;3 items out · 1 overdue&rdquo;
+ * without a second query. Empty when the user has nothing checked
+ * out (the section hides itself in that case).
+ */
+export function useMyCheckouts(
+  myUserId: string | null | undefined
+): {
+  summary: MyCheckoutsSummary;
+  isLoading: boolean;
+  error: Error | undefined;
+} {
+  const queryUserId = myUserId ?? '__no_user__';
+  const { data, isLoading, error } = useQuery<{
+    reservation_id: string;
+    job_id: string;
+    job_name: string | null;
+    job_number: string | null;
+    reserved_from: string;
+    reserved_to: string;
+    equipment_id: string | null;
+    equipment_name: string | null;
+    equipment_category: string | null;
+    equipment_qr_code_id: string | null;
+    next_calibration_due_at: string | null;
+  }>(
+    `SELECT er.id              AS reservation_id,
+            er.job_id           AS job_id,
+            j.name              AS job_name,
+            j.job_number        AS job_number,
+            er.reserved_from    AS reserved_from,
+            er.reserved_to      AS reserved_to,
+            ei.id               AS equipment_id,
+            ei.name             AS equipment_name,
+            ei.category         AS equipment_category,
+            ei.qr_code_id       AS equipment_qr_code_id,
+            ei.next_calibration_due_at AS next_calibration_due_at
+       FROM equipment_reservations AS er
+       LEFT JOIN equipment_inventory AS ei
+         ON ei.id = er.equipment_inventory_id
+       LEFT JOIN jobs AS j
+         ON j.id = er.job_id
+      WHERE er.checked_out_to_user = ?
+        AND er.state = 'checked_out'
+      ORDER BY er.reserved_to ASC`,
+    [queryUserId]
+  );
+
+  const items: MyCheckoutItem[] = (data ?? []).map((r) => ({
+    reservation_id: r.reservation_id,
+    job_id: r.job_id,
+    job_name: r.job_name,
+    job_number: r.job_number,
+    reserved_from: r.reserved_from,
+    reserved_to: r.reserved_to,
+    equipment_id: r.equipment_id,
+    equipment_name: r.equipment_name,
+    equipment_category: r.equipment_category,
+    equipment_qr_code_id: r.equipment_qr_code_id,
+    next_calibration_due_at: r.next_calibration_due_at,
+  }));
+
+  if (!myUserId || items.length === 0) {
+    return {
+      summary: EMPTY_MY_CHECKOUTS,
+      isLoading: myUserId ? isLoading : false,
+      error,
+    };
+  }
+
+  const nowMs = Date.now();
+  let overdueCount = 0;
+  let calibrationOverdueCount = 0;
+  for (const item of items) {
+    const reservedToMs = Date.parse(item.reserved_to);
+    if (Number.isFinite(reservedToMs) && reservedToMs < nowMs) {
+      overdueCount += 1;
+    }
+    if (item.next_calibration_due_at) {
+      const calMs = Date.parse(item.next_calibration_due_at);
+      if (Number.isFinite(calMs) && calMs < nowMs) {
+        calibrationOverdueCount += 1;
+      }
+    }
+  }
+
+  return {
+    summary: {
+      total: items.length,
+      overdueCount,
+      calibrationOverdueCount,
+      items,
+    },
+    isLoading,
+    error,
+  };
+}
