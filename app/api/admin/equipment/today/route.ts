@@ -337,12 +337,18 @@ async function loadLowStockConsumables(
   // against reservations starting today. v1 surfaces ANY
   // consumable below threshold with at-least-one held
   // reservation in the window — narrowing further is polish.
+  // F10.8 — exclude personal-kit rows defensively. A surveyor&apos;s
+  // personal supplies (their own can of WD-40) shouldn&apos;t hit
+  // the company low-stock alert. Belt-and-suspenders alongside
+  // the §5.12.9.4 rule that personal kit isn&apos;t consumables in
+  // the first place.
   const { data: stocks, error: stocksErr } = await supabaseAdmin
     .from('equipment_inventory')
     .select(
       'id, name, item_kind, quantity_on_hand, low_stock_threshold, vendor'
     )
     .eq('item_kind', 'consumable')
+    .eq('is_personal', false)
     .not('low_stock_threshold', 'is', null)
     .is('retired_at', null);
   if (stocksErr) {

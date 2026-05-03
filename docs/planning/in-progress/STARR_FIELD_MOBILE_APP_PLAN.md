@@ -5771,7 +5771,7 @@ sub-batches per the small-chunks discipline:
               (claims) or unmark (releases). Edits
               is_personal + owner_user_id; logs an
               equipment_events row.
-        - [◐] **Admin EM-dashboard filter.** Exclude
+        - [✓] **Admin EM-dashboard filter.** Exclude
               is_personal=true rows from the EM Today
               rollup, calendar, maintenance pages, and the
               cert-expiring banner so personal axes
@@ -5817,11 +5817,14 @@ sub-batches per the small-chunks discipline:
                       events disappear consistently from
                       every surface the §5.12.7.4 calendar
                       page renders.
-            - [ ] **Low-stock filter.** Exclude personal-kit
-                  rows from `loadLowStockConsumables()`
-                  (defensive — personal kit shouldn&apos;t
-                  use the company&apos;s low-stock threshold,
-                  but make sure).
+            - [✓] **Low-stock filter.** `loadLowStock
+                  Consumables()` adds `.eq('is_personal',
+                  false)` so a surveyor&apos;s personal
+                  supplies (their own can of WD-40)
+                  don&apos;t hit the EM low-stock alert.
+                  Belt-and-suspenders alongside the
+                  §5.12.9.4 rule that personal kit
+                  isn&apos;t consumables in the first place.
 
 **F10.9 — Tax + depreciation tie-in (Week 40).**
 Closes the Batch QQ loop — lands at the END of F10 so the
