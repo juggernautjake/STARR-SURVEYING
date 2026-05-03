@@ -5707,10 +5707,14 @@ sub-batches per the small-chunks discipline:
           isn&apos;t in the loop in real time). Payload
           captures the borrow context for the EM&apos;s later
           reconciliation without chasing other tables.
-    - [ ] **Borrow audit endpoint — equipment-retired guard.**
-          Add a 409 refusal when the scanned unit is
-          `retired_at IS NOT NULL` so a borrow log can&apos;t
-          be filed against a retired unit.
+    - [✓] **Borrow audit endpoint — equipment-retired guard.**
+          Single `select('id, retired_at')` maybeSingle()
+          before the audit insert. Returns 404 when the
+          equipment_id doesn&apos;t resolve, 409 with
+          `code: 'retired'` when `retired_at IS NOT NULL`
+          ("Ask the EM to restore it first"). Keeps the
+          audit log clean of "borrow against retired" rows
+          the EM would have to chase later.
     - [ ] **Borrow audit endpoint — notification fan-out.**
           Deduped notifyMany() to (current job&apos;s crew
           leads) + (origin job&apos;s crew leads) + (admin /

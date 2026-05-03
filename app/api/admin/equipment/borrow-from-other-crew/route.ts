@@ -9,17 +9,19 @@
 //     notes?:                 string,
 //   }
 //
-// Phase F10.8 (a) — surveyor self-service borrow log per
-// §5.12.9.4. Records ONE `equipment_events` row with
+// Phase F10.8 — surveyor self-service borrow log per §5.12.9.4.
+// Records ONE `equipment_events` row with
 // `event_type='borrowed_during_field_work'` so the chain-of-
 // custody is preserved when a surveyor scans gear that isn't on
 // their reservation list. The reservation row itself stays
 // untouched — the EM reconciles manually using this audit trail.
 //
-// This batch ships the bare write path: validate inputs, insert
-// the audit row, return. Equipment-retired guard + crew-lead /
-// EM notification fan-out land as separate batches so each piece
-// stays small + reviewable.
+// Built in slices for review:
+//   (a) ✅ write path — validate + insert audit row.
+//   (b) ✅ retired-equipment guard — refuse 409 on retired units
+//       so the audit log stays clean of "borrow against retired"
+//       rows that the EM would have to chase later.
+//   (c) ◐ notification fan-out — pending follow-up batch.
 //
 // Auth: any signed-in user. The whole point of self-service is
 // that the EM doesn't need to be in the loop in real time.
@@ -27,6 +29,8 @@
 // Failure modes:
 //   * 400 — missing / malformed required UUIDs, bad notes type.
 //   * 401 — no session.
+//   * 404 — equipment_id doesn't resolve.
+//   * 409 — equipment is retired (refuse to log against retired).
 //   * 500 — audit insert failed (FK / RLS).
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -130,6 +134,41 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
     const trimmed = body.notes.trim();
     notes = trimmed.length > 0 ? trimmed : null;
+  }
+
+  // ── Retired-equipment guard (F10.8 slice b) ──────────────────
+  // Refuse 409 when the scanned unit is retired so the audit log
+  // doesn't accumulate "borrow against retired" rows the EM
+  // would have to chase later. The lookup is a single
+  // maybeSingle() — we don't need the full row, just the
+  // retired_at column.
+  const { data: equipmentGuardRow, error: guardErr } = await supabaseAdmin
+    .from('equipment_inventory')
+    .select('id, retired_at')
+    .eq('id', equipmentId)
+    .maybeSingle();
+  if (guardErr) {
+    return NextResponse.json(
+      { error: guardErr.message },
+      { status: 500 }
+    );
+  }
+  if (!equipmentGuardRow) {
+    return NextResponse.json(
+      { error: 'Equipment not found.' },
+      { status: 404 }
+    );
+  }
+  if ((equipmentGuardRow as { retired_at: string | null }).retired_at) {
+    return NextResponse.json(
+      {
+        error:
+          'Equipment is retired; refusing to log a borrow event ' +
+          'against a retired unit. Ask the EM to restore it first.',
+        code: 'retired',
+      },
+      { status: 409 }
+    );
   }
 
   // ── INSERT the audit-log row ─────────────────────────────────
