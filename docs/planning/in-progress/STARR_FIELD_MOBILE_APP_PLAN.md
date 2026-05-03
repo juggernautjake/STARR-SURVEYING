@@ -5883,10 +5883,33 @@ sub-batches per the small-chunks discipline:
 Closes the Batch QQ loop — lands at the END of F10 so the
 inventory + maintenance ledgers are mature before the tax
 side reads them.
-- [ ] `seeds/237_starr_field_equipment_tax.sql` —
-      `equipment_tax_elections` + the new
-      `receipts.promoted_to_equipment_id` /
-      `linked_maintenance_event_id` columns.
+- [◐] Tax-tie-in schema (was planned as `seeds/237`; lands
+      as 249 + 250 since 237 is taken by templates).
+    - [✓] **seeds/249_starr_field_equipment_tax_columns.sql.**
+          ALTER TABLE adds the §5.12.10 tax + disposal
+          columns to `equipment_inventory`
+          (`linked_acquisition_receipt_id` FK to receipts,
+          `depreciation_method` TEXT enum default
+          'straight_line', `disposed_at`,
+          `disposal_proceeds_cents`, `disposal_kind` TEXT
+          enum, `tax_year_locked_through`) plus
+          `receipts.promoted_to_equipment_id` FK back to
+          equipment_inventory. CHECK constraints + FKs
+          guarded by DO blocks for idempotent re-apply.
+          Two indexes: linked_acquisition_receipt_id
+          partial (powers the receipt-promotion modal&apos;s
+          prior-promotion check) and (depreciation_method,
+          placed_in_service_at) partial WHERE disposed_at
+          IS NULL AND retired_at IS NULL (powers the
+          §5.12.7.7 fleet valuation rollup). Receipts side
+          gains an unpromoted partial index for the Batch
+          QQ tax-summary `WHERE promoted_to_equipment_id IS
+          NULL` filter.
+    - [ ] **seeds/250_starr_field_equipment_tax_elections.sql.**
+          New `equipment_tax_elections` table — per-asset
+          per-year frozen depreciation snapshot. Drives
+          the lock-year ritual + the Asset Detail Schedule
+          PDF.
 - [ ] Receipt-promotion modal on bookkeeper approval
       (§5.12.10 acquisition path).
 - [ ] Section 179 / MACRS algorithm + Pub 946 constants
