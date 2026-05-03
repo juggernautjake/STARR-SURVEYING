@@ -5731,11 +5731,26 @@ sub-batches per the small-chunks discipline:
           truth, not the inbox. Response now includes a
           `notified` count for the mobile UI to show "logged
           + N people notified."
-    - [ ] **Mobile ScannerFab borrow CTA.** When the scanner
+    - [✓] **Mobile ScannerFab borrow CTA.** When the scanner
           resolves a QR that&apos;s NOT in the surveyor&apos;s
-          truck, surface a "Borrow for current job" button
-          that POSTs to the audit endpoint (instead of just
-          the current "hand to EM" message).
+          truck, the alert now branches: if the surveyor is
+          on the clock with a specific job (`useActiveTime
+          Entry().active.job_id`), the alert offers a
+          &ldquo;Borrow&rdquo; button alongside Cancel; when
+          off the clock OR on overhead time the original
+          &ldquo;hand to EM&rdquo; fallback stands (no job
+          to attribute the borrow to). Tapping Borrow inserts
+          a `borrowed_during_field_work` row directly into
+          `equipment_events` via Supabase (mobile uses
+          Supabase auth, not NextAuth, so it can&apos;t hit
+          the admin endpoint shipped earlier). On success a
+          &ldquo;Borrow logged&rdquo; confirmation surfaces,
+          on failure the error bubbles up via logError
+          + a friendly fallback. Notification fan-out from
+          the mobile path will land as a Postgres trigger on
+          `equipment_events` INSERT in a follow-up batch — the
+          admin endpoint&apos;s notify code remains for the
+          web reconciliation path.
     - [ ] **Personal-kit flag.** Mobile Me-tab section for
           the surveyor to mark their own brought-from-home
           tools (`equipment_inventory.is_personal=true` +

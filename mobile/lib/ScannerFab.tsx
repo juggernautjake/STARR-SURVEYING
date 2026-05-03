@@ -33,6 +33,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEquipmentByQr, useMyCheckouts } from './equipment';
 import { QrScanner, type QrScannerHandle } from './QrScanner';
 import { useAuth } from './auth';
+import { logError } from './log';
+import { supabase } from './supabase';
+import { useActiveTimeEntry } from './timeTracking';
 
 interface ScannerFabProps {
   /** Optional bottom inset so the FAB clears the tab bar. Caller
@@ -46,6 +49,11 @@ export function ScannerFab({ bottomInset = 80 }: ScannerFabProps) {
   const { session } = useAuth();
   const userId = session?.user.id ?? null;
   const { summary } = useMyCheckouts(userId);
+  // Active time entry — drives the "Borrow for current job" CTA on
+  // not-yours matches. When no entry is open, the CTA falls back
+  // to "Hand it to the EM" (the surveyor isn't on the clock so we
+  // don't know which job to attribute the borrow to).
+  const { active: activeTimeEntry } = useActiveTimeEntry();
   const [open, setOpen] = useState(false);
   const [pendingCode, setPendingCode] = useState<string | null>(null);
   const scannerRef = useRef<QrScannerHandle>(null);
@@ -130,22 +138,131 @@ export function ScannerFab({ bottomInset = 80 }: ScannerFabProps) {
         ]
       );
     } else {
-      Alert.alert(
-        row.name ?? 'Equipment',
-        `${row.qr_code_id ?? pendingCode} isn't checked out to you. Hand it to the EM if you found it.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setPendingCode(null);
-              handledCodeRef.current = null;
-              scannerRef.current?.rearm();
+      // F10.8 — "Borrow for current job" CTA. Only offered when
+      // the surveyor is on the clock against a specific job
+      // (active_time_entry has a job_id). When off the clock OR
+      // on overhead time, fall back to the original "hand to EM"
+      // flow since we don't know which job to attribute the
+      // borrow to.
+      const currentJobId = activeTimeEntry?.job_id ?? null;
+      if (currentJobId) {
+        Alert.alert(
+          row.name ?? 'Equipment',
+          `${row.qr_code_id ?? pendingCode} isn't on your reservation list. Borrow it for your current job?`,
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => {
+                setPendingCode(null);
+                handledCodeRef.current = null;
+                scannerRef.current?.rearm();
+              },
             },
-          },
-        ]
-      );
+            {
+              text: 'Borrow',
+              onPress: () => {
+                void submitBorrow(row.id, currentJobId, row.name);
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert(
+          row.name ?? 'Equipment',
+          `${row.qr_code_id ?? pendingCode} isn't checked out to you. Hand it to the EM if you found it.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setPendingCode(null);
+                handledCodeRef.current = null;
+                scannerRef.current?.rearm();
+              },
+            },
+          ]
+        );
+      }
     }
-  }, [isLoading, pendingCode, row, summary.items]);
+  }, [
+    isLoading,
+    pendingCode,
+    row,
+    summary.items,
+    activeTimeEntry?.job_id,
+  ]);
+
+  // F10.8 — borrow submitter. Inserts a `borrowed_during_field_
+  // work` row into equipment_events directly via Supabase. The
+  // canonical admin endpoint (POST /admin/equipment/borrow-from-
+  // other-crew) ALSO fans out notifications to crew leads + EMs;
+  // mobile uses Supabase auth instead of NextAuth so it can't
+  // hit that endpoint — a Postgres trigger on equipment_events
+  // INSERT will replay the same fan-out as a follow-up batch.
+  // For now: audit row lands; notifications come from the
+  // admin reconciliation path or the (pending) trigger.
+  const submitBorrow = useCallback(
+    async (
+      equipmentId: string,
+      currentJobId: string,
+      equipmentName: string | null
+    ) => {
+      try {
+        const { error } = await supabase
+          .from('equipment_events')
+          .insert({
+            equipment_id: equipmentId,
+            event_type: 'borrowed_during_field_work',
+            job_id: currentJobId,
+            payload: {
+              actor_email: session?.user.email ?? null,
+              source: 'mobile_scanner_fab',
+            },
+          });
+        if (error) {
+          throw error;
+        }
+        Alert.alert(
+          'Borrow logged',
+          `${equipmentName ?? 'Equipment'} is now in your audit trail. The EM will reconcile during morning review.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setPendingCode(null);
+                handledCodeRef.current = null;
+                scannerRef.current?.rearm();
+              },
+            },
+          ]
+        );
+      } catch (err) {
+        logError(
+          'ScannerFab.submitBorrow',
+          'audit insert failed',
+          err,
+          { equipment_id: equipmentId, job_id: currentJobId }
+        );
+        Alert.alert(
+          'Borrow log failed',
+          err instanceof Error
+            ? err.message
+            : 'Try again, or hand it to the EM.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setPendingCode(null);
+                handledCodeRef.current = null;
+                scannerRef.current?.rearm();
+              },
+            },
+          ]
+        );
+      }
+    },
+    [session?.user.email]
+  );
 
   // Don&apos;t render the FAB at all when the user has nothing out.
   if (summary.total === 0) return null;
