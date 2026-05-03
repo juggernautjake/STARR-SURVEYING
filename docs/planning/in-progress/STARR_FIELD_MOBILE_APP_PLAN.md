@@ -6016,9 +6016,25 @@ side reads them.
           elections rows for the chosen tax_year. Reads
           the per-asset schedule via this library;
           freezes the row with locked_at/locked_by stamps.
-    - [ ] **Inline rollup endpoint** that returns the
-          unlocked-year schedule on demand for the §5.12.7.7
-          fleet valuation page + tax-summary preview.
+    - [✓] **Inline rollup endpoint
+          (GET /api/admin/equipment/depreciation-rollup).**
+          Walks every active depreciable asset (not retired,
+          not disposed, depreciation_method ≠ 'none',
+          acquired_cost_cents &gt; 0) and returns the per-row
+          schedule for `?tax_year=YYYY` (defaults to current
+          year). Sources from `equipment_tax_elections` when
+          the year is locked (year ≤ asset.tax_year_locked_
+          through); falls back to the on-the-fly
+          `computeDepreciationSchedule` library when it
+          isn&apos;t. Per-asset row carries the year&apos;s
+          amount + basis + remaining + accumulated-through-
+          year, with `is_locked` flag for UI affordances.
+          Bottom-line aggregate sums all four columns. One
+          batched `equipment_tax_elections` read keyed by
+          (equipment_id IN ..., tax_year ≤ taxYear) covers
+          the whole page; mixed-source accumulation handles
+          assets that are partially locked. Auth: admin /
+          bookkeeper / equipment_manager.
 - [ ] §5.12.7.7 Fleet valuation page.
 - [ ] "Lock equipment depreciation" button on
       `/admin/finances` (mirrors Batch QQ mark-exported).
