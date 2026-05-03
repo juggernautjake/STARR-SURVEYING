@@ -5984,8 +5984,41 @@ side reads them.
           needed. Threshold detection ($2500 default from
           spec) still pending — for now any equipment
           receipt can be promoted manually.
-- [ ] Section 179 / MACRS algorithm + Pub 946 constants
+- [◐] Section 179 / MACRS algorithm + Pub 946 constants
       table.
+    - [✓] **Pure-function library
+          (lib/equipment/depreciation.ts).** Ships
+          `computeDepreciationSchedule(asset)` returning
+          the full year-by-year schedule for an asset, plus
+          `depreciationForYear(asset, year)` for the
+          single-row lookup the lock-year ritual + tax-
+          summary endpoint need. Six method branches:
+          section_179 (full expense year 1, capped from the
+          §179 cap table; remaining basis goes through
+          MACRS-5 — the standard hybrid path), straight_
+          line (half-year convention; year 1 + final year
+          get half a year, middle years a full year; final
+          year absorbs rounding so totals reconcile),
+          macrs_5yr + macrs_7yr (Pub 946 Table A-1 half-
+          year percentages, 6-year and 8-year stubs), bonus_
+          first_year (TCJA phase-out: 2017-22=100%, 2023=80%,
+          2024=60%, 2025=40%, 2026=20%, 2027+=0%; remaining
+          basis goes through MACRS-5; falls back to MACRS-5
+          with an audit note when phased out), none. Pub
+          946 constants tabulated by year (§179 cap +
+          bonus phase-out) so historical re-runs reproduce
+          original Schedule C numbers. Floor-on-intermediate
+          + remainder-on-last rounding strategy means every
+          schedule sums exactly to acquired_cost_cents to
+          the penny.
+    - [ ] **Worker job** that walks every active asset on
+          the lock-year ritual + writes equipment_tax_
+          elections rows for the chosen tax_year. Reads
+          the per-asset schedule via this library;
+          freezes the row with locked_at/locked_by stamps.
+    - [ ] **Inline rollup endpoint** that returns the
+          unlocked-year schedule on demand for the §5.12.7.7
+          fleet valuation page + tax-summary preview.
 - [ ] §5.12.7.7 Fleet valuation page.
 - [ ] "Lock equipment depreciation" button on
       `/admin/finances` (mirrors Batch QQ mark-exported).
