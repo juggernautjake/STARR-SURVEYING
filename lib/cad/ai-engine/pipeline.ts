@@ -35,6 +35,10 @@ import { reconcileDeed } from './stage-3-reconcile';
 import { computeOptimalPlacement } from './stage-4-placement';
 import { optimizeLabelsAiAware } from './stage-5-labels';
 import { scoreAllElements } from './stage-6-confidence';
+import {
+  resolveOffsetsSync,
+  type OffsetResolutionDetail,
+} from './offset-resolver';
 import type {
   AIJobPayload,
   AIJobResult,
@@ -76,15 +80,42 @@ export function runAIPipeline(
     ]);
   }
 
+  // ── §26 Dynamic Offset Resolution (pre-Stage 1) ────────────
+  // Detects offset shots from suffix patterns + companion
+  // pairs, computes true monument positions, and folds them
+  // into the working point set so the downstream stages see
+  // the corrected coordinates. Synchronous in this slice;
+  // Claude-assisted field-note parsing lands separately.
+  onProgress('Resolving offset shots', 5);
+  let t = Date.now();
+  const offsetDetail = resolveOffsetsSync(payload.points);
+  timings['offset_resolution'] = Date.now() - t;
+  const workingPoints =
+    offsetDetail.truePoints.length > 0
+      ? [...payload.points, ...offsetDetail.truePoints]
+      : payload.points;
+  if (offsetDetail.ambiguousShots.length > 0) {
+    warnings.push(
+      `${offsetDetail.ambiguousShots.length} ambiguous offset shot(s) ` +
+        'flagged for user confirmation (insufficient bearing context).'
+    );
+  }
+  if (offsetDetail.unresolvedPointIds.length > 0) {
+    warnings.push(
+      `${offsetDetail.unresolvedPointIds.length} point(s) look offset ` +
+        "but couldn't be parsed; review the description / code."
+    );
+  }
+
   // ── Stage 1: Classify ──────────────────────────────────────
   onProgress('Classifying points', 10);
-  let t = Date.now();
-  const classified = classifyPoints(payload.points);
+  t = Date.now();
+  const classified = classifyPoints(workingPoints);
   timings['classify'] = Date.now() - t;
 
   // ── Build point groups ─────────────────────────────────────
   onProgress('Building point groups', 18);
-  const pointGroups = groupPointsByBaseName(payload.points);
+  const pointGroups = groupPointsByBaseName(workingPoints);
 
   // ── Stage 2: Assemble ──────────────────────────────────────
   onProgress('Assembling features', 28);
@@ -127,13 +158,13 @@ export function runAIPipeline(
       if (boundaryPoints.length >= 3) {
         const fieldTraverse = createTraverse(
           boundaryPoints.map((c) => c.point.id),
-          new Map(payload.points.map((p) => [p.id, p])),
+          new Map(workingPoints.map((p) => [p.id, p])),
           true
         );
         reconciliation = reconcileDeed(
           fieldTraverse,
           payload.deedData,
-          payload.points,
+          workingPoints,
           pointGroups
         );
       } else {
@@ -164,7 +195,7 @@ export function runAIPipeline(
   // ── Annotations + Stage 5: Labels ──────────────────────────
   onProgress('Generating annotations', 72);
   const annotations = payload.generateLabels
-    ? autoAnnotate(allFeatures, payload.points, [], {
+    ? autoAnnotate(allFeatures, workingPoints, [], {
         ...DEFAULT_AUTO_ANNOTATE_CONFIG,
         generateBearingDims: payload.generateLabels,
         generateCurveData: payload.generateLabels,
@@ -214,7 +245,7 @@ export function runAIPipeline(
     reviewQueue,
     scores: Object.fromEntries(scores),
     explanations: {},
-    offsetResolution: null,
+    offsetResolution: bridgeOffsetResolution(offsetDetail),
     enrichmentData: null,
     deliberationResult: null,
     processingTimeMs: Date.now() - startTime,
@@ -303,4 +334,35 @@ function stubReviewQueue(
     queue.summary.pendingCount += 1;
   }
   return queue;
+}
+
+/**
+ * Convert the §26 OffsetResolutionDetail shape into the
+ * leaner OffsetResolutionResult shape on AIJobResult. The
+ * detail rows feed the §28 clarifying-question queue (next
+ * slice); the result type just needs the projected true
+ * points + counters.
+ */
+function bridgeOffsetResolution(
+  detail: OffsetResolutionDetail
+): import('./types').OffsetResolutionResult {
+  const warnings: string[] = [];
+  if (detail.ambiguousShots.length > 0) {
+    warnings.push(
+      `${detail.ambiguousShots.length} offset shot(s) need a reference ` +
+        'bearing — flag for the surveyor to confirm.'
+    );
+  }
+  if (detail.unresolvedPointIds.length > 0) {
+    warnings.push(
+      `${detail.unresolvedPointIds.length} point(s) look offset but ` +
+        'the parser could not extract a distance + direction.'
+    );
+  }
+  return {
+    resolvedPoints: detail.truePoints,
+    unresolvedCount:
+      detail.ambiguousShots.length + detail.unresolvedPointIds.length,
+    warnings,
+  };
 }

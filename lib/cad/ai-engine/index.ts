@@ -23,3 +23,16 @@ export {
   MissingApiKeyError,
 } from './claude-deed-parser';
 export type { ClaudeDeedParseResult } from './claude-deed-parser';
+export {
+  resolveOffsetsSync,
+  detectSuffixOffsets,
+  detectCompanionPairs,
+  detectUnresolvedOffsetIndicators,
+  applyOffset,
+} from './offset-resolver';
+export type {
+  OffsetShot,
+  OffsetDirection,
+  OffsetResolutionMethod,
+  OffsetResolutionDetail,
+} from './offset-resolver';
