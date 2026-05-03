@@ -11,3 +11,4 @@ export {
   computeOptimalPlacement,
   findLongestBoundaryBearing,
 } from './stage-4-placement';
+export { optimizeLabelsAiAware } from './stage-5-labels';
