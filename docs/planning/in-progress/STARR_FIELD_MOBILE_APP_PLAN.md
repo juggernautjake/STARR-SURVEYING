@@ -5984,7 +5984,7 @@ side reads them.
           needed. Threshold detection ($2500 default from
           spec) still pending — for now any equipment
           receipt can be promoted manually.
-- [◐] Section 179 / MACRS algorithm + Pub 946 constants
+- [✓] Section 179 / MACRS algorithm + Pub 946 constants
       table.
     - [✓] **Pure-function library
           (lib/equipment/depreciation.ts).** Ships
@@ -6011,11 +6011,31 @@ side reads them.
           + remainder-on-last rounding strategy means every
           schedule sums exactly to acquired_cost_cents to
           the penny.
-    - [ ] **Worker job** that walks every active asset on
-          the lock-year ritual + writes equipment_tax_
-          elections rows for the chosen tax_year. Reads
-          the per-asset schedule via this library;
-          freezes the row with locked_at/locked_by stamps.
+    - [✓] **Lock-year worker
+          (POST /api/admin/equipment/lock-tax-year).**
+          Walks every active depreciable asset, computes
+          its depreciation for the requested tax year via
+          `computeDepreciationSchedule`, and writes one
+          `equipment_tax_elections` row per asset with
+          `locked_at` + `locked_by` stamps set. After the
+          insert, bumps each asset&apos;s
+          `tax_year_locked_through` so future PATCHes to
+          depreciation_method don&apos;t retroactively
+          change a frozen Schedule C. Auth: admin only —
+          highest-stakes bookkeeper operation. Body
+          accepts `tax_year` (required, 2000-2100) +
+          `dry_run` (returns the would-be inserts without
+          writing — drives the §5.12.7.7 fleet page&apos;s
+          preview-lock button). Idempotent via UPSERT
+          with `ignoreDuplicates: true` on the seeds/250
+          UNIQUE (equipment_id, tax_year) constraint, so
+          a re-run for the same year is a no-op rather
+          than 23505. Refuses future-year locks
+          (`code: 'future_year'`). Mixed-source
+          accumulated depreciation reconciliation — sums
+          locked prior years + live-computed prior years
+          + this year — keeps the numbers correct even
+          when a fleet straddles multiple lock cycles.
     - [✓] **Inline rollup endpoint
           (GET /api/admin/equipment/depreciation-rollup).**
           Walks every active depreciable asset (not retired,
