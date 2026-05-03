@@ -6055,15 +6055,79 @@ side reads them.
           the whole page; mixed-source accumulation handles
           assets that are partially locked. Auth: admin /
           bookkeeper / equipment_manager.
-- [ ] §5.12.7.7 Fleet valuation page.
+- [✓] §5.12.7.7 Fleet valuation page. New
+      `/admin/equipment/fleet-valuation` consumes the
+      F10.9 rollup endpoint for the per-asset table:
+      asset name (links to drilldown) + category +
+      method chip + placed-in-service date + cost basis
+      + this-year amount (bold) + accumulated +
+      remaining + locked/live state pill. Year selector
+      defaults to current year + Refresh button. Bottom
+      summary bar with five tiles (active assets count,
+      this-year depreciation in accent color, accumulated,
+      remaining basis, original basis muted). Footer row
+      sums the table cleanly. Admin-only "Lock {year}"
+      button opens a confirmation modal that previews via
+      `dry_run=true` first (shows projected count + total
+      dollars + skipped count); confirm POSTs the live
+      lock + refreshes the rollup. Wired into the Equipment
+      sidebar group with 🏛 icon. Auth: EQUIPMENT_ROLES
+      for read; admin-only for the lock ritual (defensive
+      gate already on the lock-tax-year endpoint).
 - [ ] "Lock equipment depreciation" button on
       `/admin/finances` (mirrors Batch QQ mark-exported).
-- [ ] Tax summary endpoint extension — adds `equipment`
+- [✓] Tax summary endpoint extension — adds `equipment`
       block alongside `receipts` + `mileage`; reads frozen
       `equipment_tax_elections` for locked years.
+      `/api/admin/finances/tax-summary` gains
+      `equipment: { tax_year, total_depreciation_cents,
+      asset_count, by_method, by_status: { locked, live } }`
+      from a new `loadEquipmentBlock(taxYear)` helper.
+      Walks every active depreciable asset (same predicate
+      as the rollup + lock worker), reads
+      `equipment_tax_elections` rows for the year (single
+      batched query), and falls back to live
+      `depreciationForYear()` for unlocked assets. The
+      block&apos;s total folds into `totals.deductible_
+      cents` so Schedule C Line 13 reconciles. **Anti-
+      double-count guard:** the receipts query also gains
+      `is('promoted_to_equipment_id', null)` so receipts
+      that were promoted to capital assets don&apos;t
+      double-count — their dollars land on the
+      depreciation ledger via the equipment block instead.
 - [ ] Asset Detail Schedule PDF + CSV export.
-- [ ] Disposal flow (`POST /api/admin/equipment/dispose`)
+- [◐] Disposal flow (`POST /api/admin/equipment/dispose`)
       with kind branches.
+    - [✓] **Server endpoint
+          (POST /api/admin/equipment/dispose).**
+          Body: equipment_id (UUID, required) +
+          disposal_kind (sold / traded / scrapped / lost /
+          stolen / donated, required) +
+          disposal_proceeds_cents (required for sold /
+          traded; optional otherwise) +
+          disposed_at (defaults today) + notes. Updates
+          equipment_inventory: disposed_at,
+          disposal_proceeds_cents, disposal_kind,
+          retired_at (defaults to now if not already set),
+          retired_reason (composed from kind + proceeds +
+          notes), current_status='retired'. Race-guarded
+          via `.is('disposed_at', null)` on the UPDATE
+          (refuses 409 when another writer beat us).
+          Writes an `equipment_events` audit row with
+          `event_type='retired'` + payload.disposal_kind /
+          proceeds / actor_email so the chain-of-custody
+          preserves the reason. §179 / MACRS recapture
+          rules NOT computed here — bookkeeper reviews the
+          Asset Detail Schedule manually for v1; recapture
+          worker is post-F10.9 polish. Auth: admin /
+          equipment_manager.
+    - [ ] **Asset Detail Schedule PDF + CSV export.**
+          Endpoint that emits the IRS Schedule C-shaped
+          asset listing for a tax year (one row per
+          asset: cost basis, accumulated depreciation,
+          this-year amount, disposal info). PDF + CSV
+          formats; hits the lock-tax-year worker first to
+          freeze the year on demand if needed.
 
 **Exit (Week 40):** A surveyor walks to the gear cage at
 6:30am. Equipment Manager scans a kit QR. The kit + its

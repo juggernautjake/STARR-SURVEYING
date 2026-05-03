@@ -77,6 +77,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import {
+  depreciationForYear,
+  type DepreciationMethod,
+} from '@/lib/equipment/depreciation';
 
 /** IRS standard business mileage rate (cents/mile). 2025 rate is
  *  67¢; 2026 wasn't published when this was written. Override via
@@ -202,11 +206,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .from('receipts')
       // Soft-deleted (Batch CC) + rejected + pending excluded — only
       // approved/exported rows count toward deductions.
+      // F10.9 — also exclude receipts that were promoted to a
+      // capital asset (`promoted_to_equipment_id IS NOT NULL`).
+      // Those dollars land on the depreciation ledger via the
+      // equipment block below, so leaving them in the receipts
+      // sum would double-count on Schedule C.
       .select(
         'id, user_id, vendor_name, category, tax_deductible_flag, total_cents, status, deleted_at, transaction_at, created_at, exported_at, exported_period'
       )
       .in('status', statusSet)
       .is('deleted_at', null)
+      .is('promoted_to_equipment_id', null)
       .gte('created_at', window.fromIso)
       .lte('created_at', window.toIso),
     supabaseAdmin
@@ -444,6 +454,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     })
     .sort((a, b) => b.miles - a.miles);
 
+  // ── F10.9 — equipment depreciation block ──────────────────────────────
+  // Tax-year context: explicit window.year, otherwise derive from
+  // window.fromIso. Custom from/to ranges that span calendar years
+  // get scoped to the from-year for depreciation purposes (Schedule
+  // C is annual; the bookkeeper UI uses year selectors for tax
+  // export so the calendar-year mismatch is rare).
+  const equipmentBlock = await loadEquipmentBlock(
+    window.year ?? new Date(window.fromIso).getUTCFullYear()
+  );
+
   // ── Compose response ──────────────────────────────────────────────────
   const payload = {
     period: {
@@ -469,8 +489,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       by_user: mileageByUserArr,
       by_vehicle: mileageByVehicleArr,
     },
+    equipment: equipmentBlock,
     totals: {
-      deductible_cents: receiptDeductibleCents + mileageDeductionCents,
+      // F10.9 — equipment depreciation lands on Schedule C Line 13
+      // alongside receipts/mileage. The receipts side already
+      // excludes promoted-to-equipment rows (anti-double-count
+      // filter on the receipts query) so this sum doesn&apos;t
+      // overlap with receiptDeductibleCents.
+      deductible_cents:
+        receiptDeductibleCents +
+        mileageDeductionCents +
+        equipmentBlock.total_depreciation_cents,
       expense_cents: receiptTotalCents,
     },
   };
@@ -796,4 +825,162 @@ function renderCsv(p: CsvPayload): string {
   );
 
   return lines.join('\n') + '\n';
+}
+
+// ────────────────────────────────────────────────────────────
+// F10.9 — equipment depreciation block
+// ────────────────────────────────────────────────────────────
+
+interface EquipmentBlock {
+  tax_year: number;
+  total_depreciation_cents: number;
+  asset_count: number;
+  by_method: Array<{
+    method: DepreciationMethod;
+    count: number;
+    total_cents: number;
+  }>;
+  by_status: {
+    locked: { count: number; total_cents: number };
+    live: { count: number; total_cents: number };
+  };
+}
+
+/**
+ * Walks every active depreciable asset and returns the
+ * Schedule-C-shaped depreciation block for the given tax year.
+ * Sources from `equipment_tax_elections` for locked assets +
+ * the on-the-fly depreciation library for the rest. Returns
+ * a zero-block when no assets qualify so the payload stays
+ * shape-stable.
+ */
+async function loadEquipmentBlock(taxYear: number): Promise<EquipmentBlock> {
+  const empty: EquipmentBlock = {
+    tax_year: taxYear,
+    total_depreciation_cents: 0,
+    asset_count: 0,
+    by_method: [],
+    by_status: {
+      locked: { count: 0, total_cents: 0 },
+      live: { count: 0, total_cents: 0 },
+    },
+  };
+
+  // Active depreciable assets — same predicate as the rollup
+  // endpoint + the lock-year worker.
+  const { data: assets, error: assetsErr } = await supabaseAdmin
+    .from('equipment_inventory')
+    .select(
+      'id, acquired_at, acquired_cost_cents, placed_in_service_at, ' +
+        'useful_life_months, depreciation_method, ' +
+        'tax_year_locked_through, disposed_at, retired_at'
+    )
+    .is('retired_at', null)
+    .is('disposed_at', null)
+    .neq('depreciation_method', 'none')
+    .gt('acquired_cost_cents', 0);
+  if (assetsErr) {
+    console.warn(
+      '[finances/tax-summary] equipment block: assets fetch failed',
+      { error: assetsErr.message }
+    );
+    return empty;
+  }
+  const assetRows = (assets ?? []) as Array<{
+    id: string;
+    acquired_at: string | null;
+    acquired_cost_cents: number;
+    placed_in_service_at: string | null;
+    useful_life_months: number | null;
+    depreciation_method: DepreciationMethod;
+    tax_year_locked_through: number | null;
+  }>;
+  if (assetRows.length === 0) return empty;
+
+  // Locked rows for this year — keyed by equipment_id for O(1)
+  // lookup. Only the year we care about; prior-year rows aren&apos;t
+  // needed for the totals (the rollup endpoint sums those into
+  // accumulated, not the per-year amount).
+  const { data: lockedRows } = await supabaseAdmin
+    .from('equipment_tax_elections')
+    .select(
+      'equipment_id, depreciation_amount_cents, depreciation_method'
+    )
+    .eq('tax_year', taxYear);
+  const lockedByAsset = new Map<
+    string,
+    { amount_cents: number; method: DepreciationMethod }
+  >();
+  for (const r of (lockedRows ?? []) as Array<{
+    equipment_id: string;
+    depreciation_amount_cents: number;
+    depreciation_method: DepreciationMethod;
+  }>) {
+    lockedByAsset.set(r.equipment_id, {
+      amount_cents: r.depreciation_amount_cents,
+      method: r.depreciation_method,
+    });
+  }
+
+  const block: EquipmentBlock = { ...empty, by_method: [] };
+  const byMethodMap = new Map<
+    DepreciationMethod,
+    { count: number; total_cents: number }
+  >();
+
+  for (const asset of assetRows) {
+    let amountCents = 0;
+    let method: DepreciationMethod = asset.depreciation_method;
+    let isLocked = false;
+
+    const locked = lockedByAsset.get(asset.id);
+    if (locked) {
+      amountCents = locked.amount_cents;
+      method = locked.method;
+      isLocked = true;
+    } else {
+      const placedAt =
+        asset.placed_in_service_at ?? asset.acquired_at ?? null;
+      if (placedAt && asset.acquired_cost_cents > 0) {
+        const yearRow = depreciationForYear(
+          {
+            acquired_cost_cents: asset.acquired_cost_cents,
+            placed_in_service_at: placedAt,
+            depreciation_method: asset.depreciation_method,
+            useful_life_months: asset.useful_life_months,
+          },
+          taxYear
+        );
+        if (yearRow) {
+          amountCents = yearRow.amount_cents;
+          method = yearRow.method;
+        }
+      }
+    }
+
+    if (amountCents <= 0) continue;
+
+    block.total_depreciation_cents += amountCents;
+    block.asset_count += 1;
+    if (isLocked) {
+      block.by_status.locked.count += 1;
+      block.by_status.locked.total_cents += amountCents;
+    } else {
+      block.by_status.live.count += 1;
+      block.by_status.live.total_cents += amountCents;
+    }
+    const existing = byMethodMap.get(method);
+    if (existing) {
+      existing.count += 1;
+      existing.total_cents += amountCents;
+    } else {
+      byMethodMap.set(method, { count: 1, total_cents: amountCents });
+    }
+  }
+
+  block.by_method = Array.from(byMethodMap.entries())
+    .map(([method, agg]) => ({ method, ...agg }))
+    .sort((a, b) => b.total_cents - a.total_cents);
+
+  return block;
 }
