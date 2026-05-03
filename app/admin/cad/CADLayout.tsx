@@ -13,6 +13,7 @@ import ToolOptionsBar from './components/ToolOptionsBar';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import ImportDialog from './components/ImportDialog';
+import AIDrawingDialog from './components/AIDrawingDialog';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
 import CurveCalculator from './components/CurveCalculator';
@@ -101,6 +102,7 @@ export default function CADLayout() {
   } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showAIDrawingDialog, setShowAIDrawingDialog] = useState(false);
   const [showPointTable, setShowPointTable] = useState(false);
   const [showTraversePanel, setShowTraversePanel] = useState(false);
   const [showCurveCalculator, setShowCurveCalculator] = useState(false);
@@ -323,6 +325,7 @@ export default function CADLayout() {
       {/* Top menu bar */}
       <MenuBar
         onOpenImport={() => setShowImportDialog(true)}
+        onOpenAIDrawing={() => setShowAIDrawingDialog(true)}
         onTogglePointTable={() => setShowPointTable(p => !p)}
         onToggleTraversePanel={() => setShowTraversePanel(p => !p)}
         onOpenCurveCalculator={() => setShowCurveCalculator(true)}
@@ -468,6 +471,11 @@ export default function CADLayout() {
           onClose={() => setShowImportDialog(false)}
           onImportComplete={() => { setShowImportDialog(false); setShowPointTable(true); }}
         />
+      )}
+
+      {/* Phase 6 AI drawing pipeline dialog */}
+      {showAIDrawingDialog && (
+        <AIDrawingDialog onClose={() => setShowAIDrawingDialog(false)} />
       )}
 
       {/* New Drawing / Get Started dialog */}
