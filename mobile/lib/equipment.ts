@@ -538,3 +538,60 @@ export function useMyCheckouts(
     error,
   };
 }
+
+// ────────────────────────────────────────────────────────────
+// F10.8 — personal-kit flag (§5.12.9.4)
+// ────────────────────────────────────────────────────────────
+//
+// "Personal kit" is the surveyor&apos;s own field tools — hammers,
+// machetes, gloves, anything brought from home — that the
+// company tracks for chain-of-custody but doesn&apos;t actively
+// manage. Schema lives in equipment_inventory with
+// `is_personal=true` + `owner_user_id` (seeds/233). Read-only on
+// mobile in this slice; claim / release flows ship in follow-up
+// batches.
+
+export interface PersonalKitItem {
+  id: string;
+  name: string | null;
+  category: string | null;
+  brand: string | null;
+  model: string | null;
+  qr_code_id: string | null;
+  current_status: string | null;
+  notes: string | null;
+}
+
+/**
+ * Returns every active inventory row marked as personal kit
+ * owned by the signed-in surveyor. Powers the Me-tab "My
+ * personal kit" section.
+ *
+ * Filters retired_at IS NULL so disposed items don&apos;t clutter
+ * the list — the surveyor can&apos;t do anything useful with a
+ * retired row, and surfaces the active set first.
+ */
+export function useMyPersonalKit(
+  myUserId: string | null | undefined
+): {
+  items: PersonalKitItem[];
+  isLoading: boolean;
+  error: Error | undefined;
+} {
+  const queryUserId = myUserId ?? '__no_user__';
+  const { data, isLoading, error } = useQuery<PersonalKitItem>(
+    `SELECT id, name, category, brand, model, qr_code_id,
+            current_status, notes
+       FROM equipment_inventory
+      WHERE is_personal = 1
+        AND owner_user_id = ?
+        AND retired_at IS NULL
+      ORDER BY name COLLATE NOCASE ASC`,
+    [queryUserId]
+  );
+  return {
+    items: myUserId ? (data ?? []) : [],
+    isLoading: myUserId ? isLoading : false,
+    error,
+  };
+}

@@ -5751,10 +5751,31 @@ sub-batches per the small-chunks discipline:
           `equipment_events` INSERT in a follow-up batch — the
           admin endpoint&apos;s notify code remains for the
           web reconciliation path.
-    - [ ] **Personal-kit flag.** Mobile Me-tab section for
+    - [◐] **Personal-kit flag.** Mobile Me-tab section for
           the surveyor to mark their own brought-from-home
           tools (`equipment_inventory.is_personal=true` +
           `owner_user_id`). Already in seeds/233; needs UI.
+        - [✓] **Read-only Me-tab section.** New
+              `useMyPersonalKit(myUserId)` hook in
+              `mobile/lib/equipment.ts` queries
+              `equipment_inventory WHERE is_personal=1 AND
+              owner_user_id=me AND retired_at IS NULL`.
+              Companion `MyPersonalKitSection.tsx` lists up
+              to 8 items per row (name + qr/category +
+              brand/model). Hides itself when zero items.
+              Wired into `app/(tabs)/me/index.tsx` between
+              the truck section and Security so the surveyor
+              can confirm their personal kit list at a glance.
+        - [ ] **Claim / release flow.** Surveyor-side action
+              to mark an existing inventory row as personal
+              (claims) or unmark (releases). Edits
+              is_personal + owner_user_id; logs an
+              equipment_events row.
+        - [ ] **Admin EM-dashboard filter.** Exclude
+              is_personal=true rows from the EM Today
+              rollup, calendar, maintenance pages, and the
+              cert-expiring banner so personal axes
+              don&apos;t balloon the EM&apos;s open-work count.
 
 **F10.9 — Tax + depreciation tie-in (Week 40).**
 Closes the Batch QQ loop — lands at the END of F10 so the
