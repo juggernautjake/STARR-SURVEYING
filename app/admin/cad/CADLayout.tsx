@@ -14,6 +14,7 @@ import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import ImportDialog from './components/ImportDialog';
 import AIDrawingDialog from './components/AIDrawingDialog';
+import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
 import CurveCalculator from './components/CurveCalculator';
@@ -477,6 +478,10 @@ export default function CADLayout() {
       {showAIDrawingDialog && (
         <AIDrawingDialog onClose={() => setShowAIDrawingDialog(false)} />
       )}
+
+      {/* Phase 6 review queue panel — visibility tracked in
+          useAIStore so other surfaces can pop it open */}
+      <ReviewQueuePanel />
 
       {/* New Drawing / Get Started dialog */}
       {showNewDrawingDialog && (

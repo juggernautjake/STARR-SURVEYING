@@ -9,6 +9,7 @@ import {
   useViewportStore,
   useUndoStore,
   useUIStore,
+  useAIStore,
 } from '@/lib/cad/store';
 import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { cadLog } from '@/lib/cad/logger';
@@ -47,6 +48,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
   const viewportStore = useViewportStore();
   const undoStore = useUndoStore();
   const uiStore = useUIStore();
+  const aiQueuePanelOpen = useAIStore((s) => s.isQueuePanelOpen);
+  const toggleAIQueuePanel = useAIStore((s) => s.toggleQueuePanel);
+  const aiResultLoaded = useAIStore((s) => s.result !== null);
 
   // ─── File I/O ───────────────────────────────
   function saveDocument() {
@@ -158,6 +162,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'Import…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
         { separator: true },
         { label: '🤖 Run AI Drawing Engine…', action: () => { onOpenAIDrawing?.(); setOpenMenu(null); } },
+        {
+          label: aiQueuePanelOpen ? 'Hide AI review queue' : 'Show AI review queue',
+          action: () => { toggleAIQueuePanel(); setOpenMenu(null); },
+          disabled: !aiResultLoaded,
+        },
       ],
     },
     {
