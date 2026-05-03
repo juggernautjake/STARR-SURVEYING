@@ -5803,12 +5803,20 @@ sub-batches per the small-chunks discipline:
                       Today banner. Same Set will fan into
                       the calendar + low-stock filters in
                       follow-up slices.
-                - [ ] **/admin/maintenance/calendar.**
-                      Apply the same Set filter to the
+                - [✓] **/admin/maintenance/calendar.**
+                      Same Set filter applied to the
                       calendar aggregator&apos;s month +
-                      upcoming + failed_qa queries so the
-                      §5.12.7.4 calendar stays personal-
-                      kit-free.
+                      upcoming + failed_qa lists between
+                      the enrich step and the response. A
+                      `filterPersonal()` generic strips
+                      rows whose `equipment_inventory_id`
+                      is in the personal-kit Set. Day
+                      buckets, summary counts, and the
+                      response payload all consume the
+                      filtered lists so personal-kit
+                      events disappear consistently from
+                      every surface the §5.12.7.4 calendar
+                      page renders.
             - [ ] **Low-stock filter.** Exclude personal-kit
                   rows from `loadLowStockConsumables()`
                   (defensive — personal kit shouldn&apos;t

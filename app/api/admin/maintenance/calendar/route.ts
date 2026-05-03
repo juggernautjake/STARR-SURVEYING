@@ -288,9 +288,34 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const enrichedUpcoming = upcomingEvents.map(enrich);
   const enrichedFailedQa = failedQaEvents.map(enrich);
 
+  // F10.8 — strip rows whose equipment is personal kit so the
+  // §5.12.7.4 calendar doesn&apos;t flag a surveyor&apos;s personal
+  // axe. PostgREST doesn&apos;t support a join-side WHERE clause
+  // on the anon-key path, so we filter post-fetch using a small
+  // pre-loaded id set. The Set is bounded by the personal-kit
+  // count which is single-digit in practice.
+  const { data: personalRows } = await supabaseAdmin
+    .from('equipment_inventory')
+    .select('id')
+    .eq('is_personal', true);
+  const personalEquipmentIds = new Set(
+    ((personalRows ?? []) as Array<{ id: string }>).map((r) => r.id)
+  );
+  const filterPersonal = <T extends { equipment_inventory_id: string | null }>(
+    rows: T[]
+  ): T[] =>
+    rows.filter(
+      (r) =>
+        !r.equipment_inventory_id ||
+        !personalEquipmentIds.has(r.equipment_inventory_id)
+    );
+  const filteredMonth = filterPersonal(enrichedMonth);
+  const filteredUpcoming = filterPersonal(enrichedUpcoming);
+  const filteredFailedQa = filterPersonal(enrichedFailedQa);
+
   // Group month events by day (using scheduled_for date).
   const days = dayList(window.from, window.to).map((day) => {
-    const events = enrichedMonth.filter(
+    const events = filteredMonth.filter(
       (e) => e.scheduled_for && e.scheduled_for.slice(0, 10) === day
     );
     return { date: day, events };
@@ -438,7 +463,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // Roll-up summary.
   const byState: Record<string, number> = {};
   let openCount = 0;
-  for (const e of enrichedMonth) {
+  for (const e of filteredMonth) {
     byState[e.state] = (byState[e.state] ?? 0) + 1;
     if (OPEN_STATES.has(e.state)) openCount++;
   }
@@ -446,15 +471,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   return NextResponse.json({
     month: { from: monthFromIso, to: monthToIso },
     days,
-    upcoming: enrichedUpcoming,
-    failed_qa: enrichedFailedQa,
+    upcoming: filteredUpcoming,
+    failed_qa: filteredFailedQa,
     next_due_per_equipment: nextDuePerEquipment,
     summary: {
-      month_event_count: enrichedMonth.length,
+      month_event_count: filteredMonth.length,
       open_count: openCount,
       by_state: byState,
-      upcoming_count: enrichedUpcoming.length,
-      failed_qa_count: enrichedFailedQa.length,
+      upcoming_count: filteredUpcoming.length,
+      failed_qa_count: filteredFailedQa.length,
       schedules_count: schedules.length,
       pairs_count: pairs.length,
       due_in_lead_window: nextDuePerEquipment.filter(
