@@ -957,8 +957,34 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
   function drawFeature(g: import('pixi.js').Graphics, feature: Feature) {
     g.clear();
-    const color = parseInt((feature.style.color ?? '#000000').replace('#', ''), 16);
-    const weight = feature.style.lineWeight ?? 0.75;
+    // Phase 6 §11 — AI-confidence visual treatment. Features
+    // applied from the AI review queue carry a numeric
+    // `aiConfidenceTier` property (1-5) that we use here to
+    // tint the stroke + bump the weight. Tier 5 = high
+    // confidence, drawn as-is. Tier 4 keeps the original color
+    // but bumps weight 1.4x. Tier 3 stains the line orange.
+    // Tier 2 stains red. Tier 1 stains dark red. Surveyor's
+    // own edits (no aiConfidenceTier) render with their layer
+    // color exactly as before.
+    const aiTier =
+      typeof feature.properties?.aiConfidenceTier === 'number'
+        ? (feature.properties.aiConfidenceTier as number)
+        : null;
+    const baseColor = parseInt(
+      (feature.style.color ?? '#000000').replace('#', ''),
+      16
+    );
+    const color =
+      aiTier === 3
+        ? 0xd97706
+        : aiTier === 2
+        ? 0xdc2626
+        : aiTier === 1
+        ? 0x7f1d1d
+        : baseColor;
+    const aiWeightMultiplier =
+      aiTier === 4 ? 1.4 : aiTier === 3 ? 1.6 : aiTier === 2 ? 2.0 : aiTier === 1 ? 2.4 : 1;
+    const weight = (feature.style.lineWeight ?? 0.75) * aiWeightMultiplier;
     const alpha = feature.style.opacity;
     const geom = feature.geometry;
     const { zoom } = useViewportStore.getState();
