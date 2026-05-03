@@ -5747,10 +5747,28 @@ sub-batches per the small-chunks discipline:
           &ldquo;Borrow logged&rdquo; confirmation surfaces,
           on failure the error bubbles up via logError
           + a friendly fallback. Notification fan-out from
-          the mobile path will land as a Postgres trigger on
-          `equipment_events` INSERT in a follow-up batch — the
-          admin endpoint&apos;s notify code remains for the
-          web reconciliation path.
+          the mobile path lands via the Postgres trigger
+          shipped in seeds/248 (see below) — the admin
+          endpoint&apos;s notify code remains for the web
+          reconciliation path.
+    - [✓] **Borrow notification trigger (seeds/248).**
+          Postgres `notify_mobile_borrow_event()` function
+          + AFTER INSERT trigger on equipment_events. Fires
+          ONLY when (event_type='borrowed_during_field_
+          work' AND payload.source='mobile_scanner_fab') so
+          we don&apos;t double-fire alongside the admin
+          endpoint&apos;s own notifyMany. Inserts one
+          notification per recipient (current job&apos;s
+          crew leads + origin job&apos;s crew leads when
+          payload.borrowed_from_job_id is set + admin /
+          equipment_manager broadcast, deduped via
+          DISTINCT). Body resolves equipment + job display
+          fields with fallbacks for missing joins. SECURITY
+          DEFINER so the trigger runs with elevated rights
+          — mobile&apos;s authenticated role can&apos;t
+          read registered_users / job_team directly.
+          Closes the mobile-borrow notification parity gap
+          with the admin endpoint.
     - [✓] **Personal-kit flag.** Mobile Me-tab section for
           the surveyor to mark their own brought-from-home
           tools (`equipment_inventory.is_personal=true` +
