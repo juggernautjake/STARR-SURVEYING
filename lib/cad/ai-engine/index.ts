@@ -45,3 +45,8 @@ export {
   buildAutoExplanation,
 } from './element-explanation';
 export type { GenerateExplanationsInputs } from './element-explanation';
+export { handleElementChat } from './element-chat';
+export type {
+  ElementChatRequest,
+  ElementChatResponse,
+} from './element-chat';

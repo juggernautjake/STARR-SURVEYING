@@ -17,6 +17,9 @@ import type {
   AIJobPayload,
   AIJobResult,
   ClarifyingQuestion,
+  ElementChatAction,
+  ElementChatMessage,
+  ElementExplanation,
   ReviewItem,
   ReviewItemStatus,
 } from '../ai-engine/types';
@@ -100,6 +103,21 @@ interface AIStore {
    *  closes automatically on success. No-op when no payload is
    *  cached or no questions exist. */
   rerunWithAnswers: () => Promise<void>;
+
+  /** §30.4 — element-chat per-popup loading flag. Keyed by
+   *  feature id so multiple popups (future multi-element
+   *  workflow) don't collide. */
+  chatLoadingByFeature: Record<string, boolean>;
+  /** §30.4 — POST the in-flight transcript + element context
+   *  to /api/admin/cad/element-chat, then append Claude's reply
+   *  (with optional ElementChatAction) to
+   *  `result.explanations[featureId].chatHistory`.
+   *
+   *  No geometry mutation happens in this slice — REDRAW_*
+   *  actions are stored on the message and surfaced as
+   *  warnings; execution lands in a follow-up slice once the
+   *  store-side regenerate paths are wired. */
+  sendChatMessage: (featureId: string, content: string) => Promise<void>;
 }
 
 export const useAIStore = create<AIStore>((set, get) => ({
@@ -111,6 +129,7 @@ export const useAIStore = create<AIStore>((set, get) => ({
   result: null,
   error: null,
   lastPayload: null,
+  chatLoadingByFeature: {},
 
   openDialog: () => set({ isDialogOpen: true }),
   closeDialog: () => set({ isDialogOpen: false }),
@@ -149,6 +168,7 @@ export const useAIStore = create<AIStore>((set, get) => ({
       isQuestionDialogOpen: false,
       explanationFeatureId: null,
       lastPayload: null,
+      chatLoadingByFeature: {},
     }),
 
   setLastPayload: (payload) => set({ lastPayload: payload }),
@@ -203,6 +223,94 @@ export const useAIStore = create<AIStore>((set, get) => ({
         status: 'error',
         error: err instanceof Error ? err.message : String(err),
       });
+    }
+  },
+
+  sendChatMessage: async (featureId, content) => {
+    const trimmed = content.trim();
+    if (trimmed.length === 0) return;
+    const stateNow = get();
+    const explanation = stateNow.result?.explanations[featureId] as
+      | ElementExplanation
+      | undefined;
+    const feature = stateNow.result?.features.find((f) => f.id === featureId);
+    if (!stateNow.result || !explanation || !feature) return;
+
+    const userMessage: ElementChatMessage = {
+      id: chatMessageId(),
+      role: 'USER',
+      content: trimmed,
+      timestamp: new Date().toISOString(),
+    };
+
+    set((s) =>
+      appendChatMessage(s, featureId, userMessage, true)
+    );
+
+    try {
+      const res = await fetch('/api/admin/cad/element-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feature,
+          explanation: {
+            ...explanation,
+            // Echo the just-appended user turn so the server
+            // receives the full transcript including the new
+            // message at the end of `history`.
+            chatHistory: [...explanation.chatHistory, userMessage],
+          },
+          history: [...explanation.chatHistory, userMessage],
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        reply?: string;
+        action?: ElementChatAction | null;
+        error?: string;
+      };
+      if (!res.ok) {
+        const errMsg =
+          json.error ?? `Element chat failed (${res.status}).`;
+        set((s) =>
+          appendChatMessage(
+            s,
+            featureId,
+            {
+              id: chatMessageId(),
+              role: 'AI',
+              content: `⚠ ${errMsg}`,
+              timestamp: new Date().toISOString(),
+            },
+            false
+          )
+        );
+        return;
+      }
+      const reply: ElementChatMessage = {
+        id: chatMessageId(),
+        role: 'AI',
+        content:
+          typeof json.reply === 'string' && json.reply.length > 0
+            ? json.reply
+            : '(empty reply)',
+        timestamp: new Date().toISOString(),
+        action: json.action ?? undefined,
+      };
+      set((s) => appendChatMessage(s, featureId, reply, false));
+    } catch (err) {
+      set((s) =>
+        appendChatMessage(
+          s,
+          featureId,
+          {
+            id: chatMessageId(),
+            role: 'AI',
+            content: `⚠ ${err instanceof Error ? err.message : String(err)}`,
+            timestamp: new Date().toISOString(),
+          },
+          false
+        )
+      );
     }
   },
 
@@ -338,4 +446,46 @@ function rebuildDeliberation(
       },
     },
   };
+}
+
+function appendChatMessage(
+  state: AIStore,
+  featureId: string,
+  message: ElementChatMessage,
+  loading: boolean
+): Partial<AIStore> {
+  if (!state.result) return state;
+  const explanation = state.result.explanations[featureId] as
+    | ElementExplanation
+    | undefined;
+  if (!explanation) return state;
+  const updatedExplanation: ElementExplanation = {
+    ...explanation,
+    chatHistory: [...explanation.chatHistory, message],
+  };
+  const explanations = {
+    ...state.result.explanations,
+    [featureId]: updatedExplanation,
+  };
+  const chatLoadingByFeature = {
+    ...state.chatLoadingByFeature,
+    [featureId]: loading,
+  };
+  return {
+    result: { ...state.result, explanations },
+    chatLoadingByFeature,
+  };
+}
+
+function chatMessageId(): string {
+  // Tight, dependency-free id — collision-free for the lifetime
+  // of a single browser session, which is all the chat history
+  // needs to survive (the next pipeline run regenerates the
+  // explanations + clears history).
+  return (
+    'msg_' +
+    Date.now().toString(36) +
+    '_' +
+    Math.random().toString(36).slice(2, 8)
+  );
 }

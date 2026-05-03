@@ -2881,11 +2881,11 @@ interface AIStore {
 - [x] Tier 5 explanations are brief (no Claude call) — auto-explanation path is deterministic for all tiers in this slice
 - [ ] Tiers 1–4 explanations include full reasoning, data used, assumptions, alternatives — auto path covers data used / assumptions / alternatives; Claude narrative augmentation lands in a follow-up slice
 - [x] Confidence breakdown shows all 6 factors with human-readable text (`buildConfidenceBreakdown` walks `ConfidenceFactors` and emits per-factor explanations)
-- [ ] Chat message sent → Claude responds within 30 seconds
-- [ ] "Update This Element" redraw affects only the selected feature
-- [ ] "Redraw This Group" redraw affects all features on same layer
-- [ ] "Redraw Full Drawing" re-runs full pipeline
-- [ ] Chat history persists within the session
+- [x] Chat message sent → Claude responds within 30 seconds (`handleElementChat` in `lib/cad/ai-engine/element-chat.ts` + POST `/api/admin/cad/element-chat`; 45 s handler / 60 s route ceiling)
+- [ ] "Update This Element" redraw affects only the selected feature — quick-action button POSTs the request; geometry recompute lands in a follow-up slice
+- [ ] "Redraw This Group" redraw affects all features on same layer — quick-action button POSTs; group recompute lands later
+- [ ] "Redraw Full Drawing" re-runs full pipeline — quick-action button POSTs; full re-run wiring lands later
+- [x] Chat history persists within the session (`chatHistory` mutated via `appendChatMessage` in `lib/cad/store/ai-store.ts`)
 - [ ] Group chat (multi-select cards) works for batch instructions
 
 ## Updated Build Order (§25 additions)

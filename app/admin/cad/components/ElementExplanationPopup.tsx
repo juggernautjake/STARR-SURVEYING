@@ -17,12 +17,13 @@
 //
 // Closes via the ✕ button, the backdrop click, or the Esc key.
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useAIStore } from '@/lib/cad/store';
 import type {
   ConfidenceFactorExplanation,
   ConfidenceFactors,
+  ElementChatMessage,
   ElementExplanation,
   ExplanationDataRef,
 } from '@/lib/cad/ai-engine/types';
@@ -46,6 +47,10 @@ export default function ElementExplanationPopup() {
   const featureId = useAIStore((s) => s.explanationFeatureId);
   const close = useAIStore((s) => s.closeExplanation);
   const result = useAIStore((s) => s.result);
+  const sendChatMessage = useAIStore((s) => s.sendChatMessage);
+  const chatLoading = useAIStore((s) =>
+    featureId ? Boolean(s.chatLoadingByFeature[featureId]) : false
+  );
 
   useEffect(() => {
     if (!featureId) return;
@@ -173,14 +178,151 @@ export default function ElementExplanationPopup() {
             </Section>
           ) : null}
 
-          <Section title="Chat (coming soon)">
-            <p style={styles.chatPlaceholder}>
-              Element-level chat with REDRAW THIS ELEMENT, REDRAW
-              GROUP, and REDRAW FULL DRAWING actions lands in the
-              next slice.
-            </p>
+          <Section title="Chat with the AI about this element">
+            <ChatPanel
+              messages={explanation.chatHistory}
+              loading={chatLoading}
+              onSend={(content) => {
+                if (!featureId) return;
+                void sendChatMessage(featureId, content);
+              }}
+            />
           </Section>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Chat panel
+// ────────────────────────────────────────────────────────────
+
+function ChatPanel({
+  messages,
+  loading,
+  onSend,
+}: {
+  messages: ElementChatMessage[];
+  loading: boolean;
+  onSend: (content: string) => void;
+}) {
+  const [draft, setDraft] = useState('');
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages.length, loading]);
+
+  function send() {
+    const text = draft.trim();
+    if (text.length === 0 || loading) return;
+    onSend(text);
+    setDraft('');
+  }
+
+  function quickAction(text: string) {
+    if (loading) return;
+    onSend(text);
+  }
+
+  return (
+    <div style={styles.chatBox}>
+      <div ref={scrollerRef} style={styles.chatScroller}>
+        {messages.length === 0 ? (
+          <p style={styles.chatEmpty}>
+            Ask a question about this element, or instruct a change
+            (e.g. &ldquo;use the deed radius instead&rdquo;,
+            &ldquo;change material to wood privacy&rdquo;).
+          </p>
+        ) : (
+          messages.map((m) => <ChatBubble key={m.id} message={m} />)
+        )}
+        {loading ? (
+          <div style={styles.chatTyping}>AI is thinking…</div>
+        ) : null}
+      </div>
+      <textarea
+        rows={2}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            send();
+          }
+        }}
+        placeholder="Type your question or instruction (Enter to send, Shift+Enter for newline)"
+        style={styles.chatInput}
+        disabled={loading}
+      />
+      <div style={styles.chatActions}>
+        <button
+          type="button"
+          onClick={() => quickAction('Update this element with the change you suggested above.')}
+          disabled={loading}
+          style={loading ? styles.chatBtnDisabled : styles.chatBtn}
+          title="Recompute geometry for this single feature"
+        >
+          Update This Element
+        </button>
+        <button
+          type="button"
+          onClick={() => quickAction('Redraw the entire group on this layer with the change above.')}
+          disabled={loading}
+          style={loading ? styles.chatBtnDisabled : styles.chatBtn}
+          title="Re-run for every feature on this layer"
+        >
+          Redraw This Group
+        </button>
+        <button
+          type="button"
+          onClick={() => quickAction('Re-run the full AI pipeline with the change above.')}
+          disabled={loading}
+          style={loading ? styles.chatBtnDisabled : styles.chatBtn}
+          title="Re-run the full 6-stage pipeline"
+        >
+          Redraw Full Drawing
+        </button>
+        <div style={styles.chatActionsSpacer} />
+        <button
+          type="button"
+          onClick={send}
+          disabled={loading || draft.trim().length === 0}
+          style={
+            loading || draft.trim().length === 0
+              ? styles.chatSendDisabled
+              : styles.chatSend
+          }
+        >
+          {loading ? 'Sending…' : 'Send'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChatBubble({ message }: { message: ElementChatMessage }) {
+  const isUser = message.role === 'USER';
+  return (
+    <div
+      style={{
+        ...styles.bubbleRow,
+        justifyContent: isUser ? 'flex-end' : 'flex-start',
+      }}
+    >
+      <div style={isUser ? styles.bubbleUser : styles.bubbleAi}>
+        <div style={styles.bubbleText}>{message.content}</div>
+        {message.action ? (
+          <div style={styles.bubbleAction}>
+            <strong>Proposed action:</strong> {message.action.type}
+            {message.action.description
+              ? ` — ${message.action.description}`
+              : ''}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -441,14 +583,115 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#6B7280',
     lineHeight: 1.4,
   },
-  chatPlaceholder: {
+  chatBox: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  chatScroller: {
+    maxHeight: 220,
+    overflowY: 'auto',
+    background: '#F8FAFC',
+    border: '1px solid #E2E8F0',
+    borderRadius: 6,
+    padding: 8,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  chatEmpty: {
     margin: 0,
-    padding: 12,
-    background: '#F1F5F9',
-    border: '1px dashed #94A3B8',
+    fontSize: 12,
+    color: '#6B7280',
+    fontStyle: 'italic',
+    lineHeight: 1.5,
+  },
+  chatTyping: {
+    fontSize: 11,
+    color: '#475569',
+    fontStyle: 'italic',
+    paddingLeft: 4,
+  },
+  bubbleRow: { display: 'flex' },
+  bubbleUser: {
+    maxWidth: '80%',
+    background: '#1D3095',
+    color: '#FFFFFF',
+    padding: '8px 10px',
+    borderRadius: 10,
+    fontSize: 12,
+    lineHeight: 1.4,
+  },
+  bubbleAi: {
+    maxWidth: '80%',
+    background: '#FFFFFF',
+    color: '#111827',
+    border: '1px solid #E2E8F0',
+    padding: '8px 10px',
+    borderRadius: 10,
+    fontSize: 12,
+    lineHeight: 1.4,
+  },
+  bubbleText: { whiteSpace: 'pre-wrap' },
+  bubbleAction: {
+    marginTop: 4,
+    fontSize: 10,
+    color: '#475569',
+    paddingTop: 4,
+    borderTop: '1px dashed #CBD5E1',
+  },
+  chatInput: {
+    padding: '8px 10px',
+    border: '1px solid #E2E5EB',
     borderRadius: 6,
     fontSize: 12,
-    color: '#475569',
-    lineHeight: 1.5,
+    fontFamily: 'inherit',
+    resize: 'vertical',
+  },
+  chatActions: {
+    display: 'flex',
+    gap: 6,
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  chatActionsSpacer: { flex: 1 },
+  chatBtn: {
+    background: '#FFFFFF',
+    border: '1px solid #CBD5E1',
+    borderRadius: 6,
+    padding: '6px 10px',
+    fontSize: 11,
+    color: '#1F2937',
+    cursor: 'pointer',
+  },
+  chatBtnDisabled: {
+    background: '#F1F5F9',
+    border: '1px solid #CBD5E1',
+    borderRadius: 6,
+    padding: '6px 10px',
+    fontSize: 11,
+    color: '#9CA3AF',
+    cursor: 'not-allowed',
+  },
+  chatSend: {
+    background: '#1D3095',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 14px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  chatSendDisabled: {
+    background: '#94A3B8',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 14px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'not-allowed',
+    opacity: 0.7,
   },
 };
