@@ -40,3 +40,8 @@ export { fetchEnrichmentData } from './enrichment';
 export { runDeliberation } from './deliberation';
 export type { DeliberationInputs } from './deliberation';
 export { applyAnswerEffects } from './apply-answers';
+export {
+  generateAutoExplanations,
+  buildAutoExplanation,
+} from './element-explanation';
+export type { GenerateExplanationsInputs } from './element-explanation';

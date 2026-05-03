@@ -322,12 +322,61 @@ export interface AIReviewQueue {
 
 // ─── ELEMENT EXPLANATION (per-element AI chat) ───────────────────────────────
 
+export interface ExplanationDataRef {
+  type:    'FIELD_POINT' | 'DEED_CALL' | 'ENRICHMENT' | 'FIELD_NOTE' | 'USER_ANSWER';
+  /** Display label, e.g. "Point #8 (BC01 20fnd)". */
+  label:   string;
+  /** Raw value the AI relied on. */
+  value:   string;
+  /** How heavily the data point influenced the decision. */
+  weight:  'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+export interface AlternativeOption {
+  description: string;
+  whyRejected: string;
+}
+
+export interface ConfidenceFactorExplanation {
+  factor:      keyof ConfidenceFactors;
+  /** 0–1 — same scale Stage 6 emits. */
+  score:       number;
+  explanation: string;
+}
+
+export interface ElementChatMessage {
+  id:        string;
+  role:      'USER' | 'AI';
+  content:   string;
+  timestamp: string;          // ISO 8601
+  action?:   ElementChatAction;
+}
+
+export interface ElementChatAction {
+  type:        'REDRAW_ELEMENT' | 'REDRAW_GROUP' | 'REDRAW_FULL' | 'UPDATE_ATTRIBUTE' | 'NO_ACTION';
+  description: string;
+  affectedIds: string[];
+}
+
 export interface ElementExplanation {
-  featureId:   string;
-  summary:     string;
-  reasoning:   string;
-  suggestions: string[];
-  chatHistory: { role: 'user' | 'assistant'; content: string }[];
+  featureId:    string;
+  /** ISO 8601 timestamp the explanation was generated. */
+  generatedAt:  string;
+  /** One-sentence summary, shown in the review card. */
+  summary:      string;
+  /** Full paragraph: why the AI drew it this way. */
+  reasoning:    string;
+  /** Sources that informed the decision (deterministic +
+   *  weighted). */
+  dataUsed:     ExplanationDataRef[];
+  /** Assumptions made when the AI couldn't fully verify. */
+  assumptions:  string[];
+  /** Other interpretations considered, with rejection rationale. */
+  alternatives: AlternativeOption[];
+  /** Per-factor confidence breakdown with human-readable text. */
+  confidenceBreakdown: ConfidenceFactorExplanation[];
+  /** Chat transcript — empty when no chat has happened yet. */
+  chatHistory:  ElementChatMessage[];
 }
 
 // ─── DEED OCR / IMPORT ───────────────────────────────────────────────────────

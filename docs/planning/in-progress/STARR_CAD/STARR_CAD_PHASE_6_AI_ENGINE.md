@@ -2877,10 +2877,10 @@ interface AIStore {
 - [ ] Re-analyze re-runs pipeline and refreshes all cards
 
 ### Per-Element Explanations & Chat
-- [ ] Every feature has a generated explanation
-- [ ] Tier 5 explanations are brief (no Claude call)
-- [ ] Tiers 1–4 explanations include full reasoning, data used, assumptions, alternatives
-- [ ] Confidence breakdown shows all 6 factors with human-readable text
+- [x] Every feature has a generated explanation (`generateAutoExplanations` in `lib/cad/ai-engine/element-explanation.ts`; piped through `pipeline.ts` into `result.explanations`)
+- [x] Tier 5 explanations are brief (no Claude call) — auto-explanation path is deterministic for all tiers in this slice
+- [ ] Tiers 1–4 explanations include full reasoning, data used, assumptions, alternatives — auto path covers data used / assumptions / alternatives; Claude narrative augmentation lands in a follow-up slice
+- [x] Confidence breakdown shows all 6 factors with human-readable text (`buildConfidenceBreakdown` walks `ConfidenceFactors` and emits per-factor explanations)
 - [ ] Chat message sent → Claude responds within 30 seconds
 - [ ] "Update This Element" redraw affects only the selected feature
 - [ ] "Redraw This Group" redraw affects all features on same layer

@@ -40,6 +40,7 @@ import {
   type OffsetResolutionDetail,
 } from './offset-resolver';
 import { runDeliberation } from './deliberation';
+import { generateAutoExplanations } from './element-explanation';
 import type {
   AIJobPayload,
   AIJobResult,
@@ -234,6 +235,21 @@ export function runAIPipeline(
   onProgress('Packaging review queue', 95);
   const reviewQueue: AIReviewQueue = stubReviewQueue(allFeatures, scores);
 
+  // ── §30 Auto-explanations ──────────────────────────────────
+  // Deterministic per-feature explanations sourced from Stage 6
+  // factors + Stage 3 reconciliation. Claude-assisted narrative
+  // pass + element-level chat handler land in a follow-up slice.
+  onProgress('Generating explanations', 96);
+  t = Date.now();
+  const explanations = generateAutoExplanations({
+    features: allFeatures,
+    scores,
+    classified,
+    reconciliation,
+    enrichment: null,
+  });
+  timings['explanations'] = Date.now() - t;
+
   // ── §28 Deliberation — clarifying-question generation ──────
   // Synchronous + deterministic. Walks deed discrepancies,
   // ambiguous offsets, unrecognized codes, fence/building
@@ -263,7 +279,7 @@ export function runAIPipeline(
     reconciliation,
     reviewQueue,
     scores: Object.fromEntries(scores),
-    explanations: {},
+    explanations: Object.fromEntries(explanations),
     offsetResolution: bridgeOffsetResolution(offsetDetail),
     enrichmentData: null,
     deliberationResult,
