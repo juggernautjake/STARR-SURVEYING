@@ -5766,11 +5766,34 @@ sub-batches per the small-chunks discipline:
               Wired into `app/(tabs)/me/index.tsx` between
               the truck section and Security so the surveyor
               can confirm their personal kit list at a glance.
-        - [ ] **Claim / release flow.** Surveyor-side action
+        - [◐] **Claim / release flow.** Surveyor-side action
               to mark an existing inventory row as personal
               (claims) or unmark (releases). Edits
               is_personal + owner_user_id; logs an
               equipment_events row.
+            - [✓] **Release.** Each row in the personal-kit
+                  Me-tab section gets a Release button.
+                  Tap → confirmation Alert
+                  ("Release X from your personal kit? It
+                  returns to the company catalogue and the
+                  EM can manage it again.") → on confirm,
+                  the mobile updates `equipment_inventory`
+                  via Supabase (`is_personal=false`,
+                  `owner_user_id=null`) + writes an
+                  `equipment_events` row with
+                  `event_type='updated'` + `payload.change=
+                  'personal_kit_released'`. Best-effort
+                  audit: a non-fatal failure logs to Sentry
+                  but doesn&apos;t bubble. PowerSync sync
+                  picks up the row update + the local list
+                  drops the released item on the next tick.
+            - [ ] **Claim.** Mobile ScannerFab CTA — when
+                  the scanner resolves a QR that&apos;s
+                  unowned (NOT in any active reservation +
+                  NOT already personal), surface a
+                  &ldquo;Claim as personal&rdquo; alert
+                  alongside the existing Borrow / hand-to-EM
+                  branches.
         - [✓] **Admin EM-dashboard filter.** Exclude
               is_personal=true rows from the EM Today
               rollup, calendar, maintenance pages, and the
