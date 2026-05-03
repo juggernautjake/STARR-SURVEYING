@@ -5563,7 +5563,27 @@ sub-batches per the small-chunks discipline:
       header block and the Security section so it&apos;s
       the first actionable info a surveyor sees on the
       Me tab.
-- [ ] Persistent scanner FAB when any check-out is open.
+- [✓] Persistent scanner FAB when any check-out is open.
+      New `mobile/lib/ScannerFab.tsx` consumes
+      `useMyCheckouts(myUserId)` and renders only when the
+      summary&apos;s total > 0 — the FAB hides itself when
+      the surveyor has nothing out (no point pestering them
+      with a scanner they don&apos;t need). When visible, it
+      sits absolutely-positioned in the bottom-right above
+      the tab bar (bottomInset = TAB_BAR_HEIGHT + 16) with a
+      green camera glyph + a small white badge showing the
+      checkout count. Tapping opens a fullscreen Modal
+      hosting the F10.1j QrScanner. On scan: the decoded QR
+      runs through `useEquipmentByQr` (PowerSync local
+      lookup); a match that&apos;s in the surveyor&apos;s
+      truck gets a "Open job to return / extend?" alert with
+      Cancel / Open Job actions; a match that&apos;s not
+      theirs surfaces "this isn&apos;t checked out to you,
+      hand it to the EM"; an unrecognised QR shows "not in
+      catalogue" and re-arms. Mounted in
+      `app/(tabs)/_layout.tsx` as a sibling of the Tabs
+      navigator inside a flex:1 wrapper so the FAB persists
+      across every tab screen.
 - [ ] 🛠 Gear tab (role-gated 6th tab) for Equipment Manager
       mobile flows (§5.12.9.2).
 - [◐] Three new notification source_types
