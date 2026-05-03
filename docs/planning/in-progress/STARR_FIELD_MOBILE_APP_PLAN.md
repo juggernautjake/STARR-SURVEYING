@@ -5929,8 +5929,43 @@ side reads them.
           tax_year DESC) for the Asset Detail per-row
           drilldown. updated_at trigger mirrors the rest
           of the F10.x table conventions.
-- [ ] Receipt-promotion modal on bookkeeper approval
+- [◐] Receipt-promotion modal on bookkeeper approval
       (§5.12.10 acquisition path).
+    - [✓] **Server endpoint
+          (POST /api/admin/equipment/promote-from-receipt).**
+          Validates the receipt exists, is in
+          approved/exported state, isn&apos;t already
+          promoted, and has a non-zero total_cents.
+          Creates an `equipment_inventory` row carrying
+          `acquired_cost_cents = receipt.total_cents`,
+          `acquired_at = receipt.transaction_at ??
+          created_at`, and `linked_acquisition_receipt_id
+          = receipt.id`. Caller can pin name + category +
+          item_kind + useful_life_months +
+          depreciation_method + placed_in_service_at +
+          notes. After insert, updates
+          `receipts.promoted_to_equipment_id` to point at
+          the new asset; if that update fails, deletes
+          the freshly-inserted asset so a half-promoted
+          row doesn&apos;t survive (compensating-
+          transaction pattern since PostgREST doesn&apos;t
+          expose real transactions to the worker). Auth:
+          admin / equipment_manager.
+    - [ ] **Threshold detection.** Reads
+          EQUIPMENT_RECEIPT_THRESHOLD_CENTS from
+          app_settings ($250000 default) so the bookkeeper
+          UI knows when to offer the modal. Capability
+          stub for v1; the modal can be opened manually
+          for any receipt regardless of threshold.
+    - [ ] **Bookkeeper UI integration.** When approving
+          a receipt with category='equipment' AND
+          total_cents &gt;= threshold, the approval flow
+          shows &ldquo;This looks like a capital asset.
+          Create inventory row?&rdquo; Yes → opens the
+          promotion modal (name + category + item_kind +
+          method + placed_in_service_at fields) → POSTs
+          to the endpoint above. No → leaves the receipt
+          in approved state without promotion.
 - [ ] Section 179 / MACRS algorithm + Pub 946 constants
       table.
 - [ ] §5.12.7.7 Fleet valuation page.
