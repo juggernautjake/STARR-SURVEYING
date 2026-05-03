@@ -2859,9 +2859,9 @@ interface AIStore {
 - [x] Fence code → material question generated (LOW priority)
 - [x] Building code → material question generated (LOW priority)
 - [ ] Duplicate shots → "which is final?" question generated
-- [ ] User answering blocking questions enables "Draw Now" button (UI slice — backend ready)
+- [x] User answering blocking questions enables "Draw Now" button (`app/admin/cad/components/QuestionDialog.tsx`)
 - [ ] Answers applied to pipeline re-run; scores improve after good answers
-- [ ] "Skip All Optional" dismisses all non-blocking questions (UI slice — backend ready)
+- [x] "Skip All Optional" dismisses all non-blocking questions (`skipAllOptionalQuestions` in `lib/cad/store/ai-store.ts`)
 
 ### Drawing Preview & Confidence Cards
 - [ ] Two-panel layout renders (canvas left, cards right)

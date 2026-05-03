@@ -51,6 +51,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
   const aiQueuePanelOpen = useAIStore((s) => s.isQueuePanelOpen);
   const toggleAIQueuePanel = useAIStore((s) => s.toggleQueuePanel);
   const aiResultLoaded = useAIStore((s) => s.result !== null);
+  const openAIQuestionDialog = useAIStore((s) => s.openQuestionDialog);
+  const aiQuestionsAvailable = useAIStore(
+    (s) => (s.result?.deliberationResult?.questions.length ?? 0) > 0
+  );
 
   // ─── File I/O ───────────────────────────────
   function saveDocument() {
@@ -166,6 +170,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           label: aiQueuePanelOpen ? 'Hide AI review queue' : 'Show AI review queue',
           action: () => { toggleAIQueuePanel(); setOpenMenu(null); },
           disabled: !aiResultLoaded,
+        },
+        {
+          label: 'AI clarifying questions…',
+          action: () => { openAIQuestionDialog(); setOpenMenu(null); },
+          disabled: !aiQuestionsAvailable,
         },
       ],
     },

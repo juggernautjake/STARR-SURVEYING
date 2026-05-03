@@ -14,6 +14,7 @@ import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import ImportDialog from './components/ImportDialog';
 import AIDrawingDialog from './components/AIDrawingDialog';
+import QuestionDialog from './components/QuestionDialog';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -482,6 +483,10 @@ export default function CADLayout() {
       {/* Phase 6 review queue panel — visibility tracked in
           useAIStore so other surfaces can pop it open */}
       <ReviewQueuePanel />
+
+      {/* Phase 6 §28.4 clarifying-question dialog — auto-opened
+          when deliberation flags shouldShowDialog */}
+      <QuestionDialog />
 
       {/* New Drawing / Get Started dialog */}
       {showNewDrawingDialog && (

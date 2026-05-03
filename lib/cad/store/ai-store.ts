@@ -15,6 +15,7 @@ import { create } from 'zustand';
 
 import type {
   AIJobResult,
+  ClarifyingQuestion,
   ReviewItem,
   ReviewItemStatus,
 } from '../ai-engine/types';
@@ -32,6 +33,13 @@ interface AIStore {
   openQueuePanel: () => void;
   closeQueuePanel: () => void;
   toggleQueuePanel: () => void;
+
+  // §28.4 clarifying-question dialog visibility. Auto-opened
+  // by `setResult` when deliberation flagged shouldShowDialog;
+  // manual open/close lets the user re-visit it.
+  isQuestionDialogOpen: boolean;
+  openQuestionDialog: () => void;
+  closeQuestionDialog: () => void;
 
   // Pipeline state.
   status: AIPipelineStatus;
@@ -60,11 +68,22 @@ interface AIStore {
     status: ReviewItemStatus,
     userNote?: string | null
   ) => void;
+
+  /** §28.4 — record the user's answer to a clarifying question.
+   *  Answers stay in the result object so a subsequent re-run
+   *  can fold them back into the pipeline payload. */
+  setQuestionAnswer: (questionId: string, answer: string) => void;
+  /** §28.4 — mark a question skipped (only optional questions
+   *  honor this; BLOCKING questions ignore the call). */
+  setQuestionSkipped: (questionId: string, skipped: boolean) => void;
+  /** §28.4 — bulk-skip every non-blocking question. */
+  skipAllOptionalQuestions: () => void;
 }
 
 export const useAIStore = create<AIStore>((set) => ({
   isDialogOpen: false,
   isQueuePanelOpen: false,
+  isQuestionDialogOpen: false,
   status: 'idle',
   result: null,
   error: null,
@@ -77,6 +96,9 @@ export const useAIStore = create<AIStore>((set) => ({
   toggleQueuePanel: () =>
     set((s) => ({ isQueuePanelOpen: !s.isQueuePanelOpen })),
 
+  openQuestionDialog: () => set({ isQuestionDialogOpen: true }),
+  closeQuestionDialog: () => set({ isQuestionDialogOpen: false }),
+
   start: () => set({ status: 'running', error: null }),
   setResult: (result) =>
     set({
@@ -86,9 +108,19 @@ export const useAIStore = create<AIStore>((set) => ({
       // Auto-open the review panel on first successful result
       // so the surveyor sees what the pipeline produced.
       isQueuePanelOpen: true,
+      // §28.1 short-circuit: only pop the question dialog when
+      // deliberation actually wants the user to answer something.
+      isQuestionDialogOpen:
+        result.deliberationResult?.shouldShowDialog ?? false,
     }),
   setError: (message) => set({ status: 'error', error: message }),
-  reset: () => set({ status: 'idle', result: null, error: null }),
+  reset: () =>
+    set({
+      status: 'idle',
+      result: null,
+      error: null,
+      isQuestionDialogOpen: false,
+    }),
 
   setItemStatus: (itemId, nextStatus, userNote = null) =>
     set((state) => {
@@ -151,4 +183,75 @@ export const useAIStore = create<AIStore>((set) => ({
         },
       };
     }),
+
+  setQuestionAnswer: (questionId, answer) =>
+    set((state) =>
+      mutateQuestion(state, questionId, (q) => ({
+        ...q,
+        userAnswer: answer,
+        skipped: false,
+      }))
+    ),
+
+  setQuestionSkipped: (questionId, skipped) =>
+    set((state) =>
+      mutateQuestion(state, questionId, (q) =>
+        // Blocking questions cannot be skipped per §28.4.
+        q.priority === 'BLOCKING' && skipped ? q : { ...q, skipped }
+      )
+    ),
+
+  skipAllOptionalQuestions: () =>
+    set((state) => {
+      if (!state.result?.deliberationResult) return state;
+      const deliberation = state.result.deliberationResult;
+      const questions = deliberation.questions.map((q) =>
+        q.priority === 'BLOCKING' || q.userAnswer !== null
+          ? q
+          : { ...q, skipped: true }
+      );
+      return rebuildDeliberation(state, questions);
+    }),
 }));
+
+// ────────────────────────────────────────────────────────────
+// Helpers — keep `set` callbacks readable
+// ────────────────────────────────────────────────────────────
+
+function mutateQuestion(
+  state: AIStore,
+  questionId: string,
+  mutate: (q: ClarifyingQuestion) => ClarifyingQuestion
+): Partial<AIStore> {
+  if (!state.result?.deliberationResult) return state;
+  const deliberation = state.result.deliberationResult;
+  let touched = false;
+  const questions = deliberation.questions.map((q) => {
+    if (q.id !== questionId) return q;
+    touched = true;
+    return mutate(q);
+  });
+  if (!touched) return state;
+  return rebuildDeliberation(state, questions);
+}
+
+function rebuildDeliberation(
+  state: AIStore,
+  questions: ClarifyingQuestion[]
+): Partial<AIStore> {
+  if (!state.result?.deliberationResult) return state;
+  const deliberation = state.result.deliberationResult;
+  const blocking = questions.filter((q) => q.priority === 'BLOCKING');
+  const optional = questions.filter((q) => q.priority !== 'BLOCKING');
+  return {
+    result: {
+      ...state.result,
+      deliberationResult: {
+        ...deliberation,
+        questions,
+        blockingQuestions: blocking,
+        optionalQuestions: optional,
+      },
+    },
+  };
+}
