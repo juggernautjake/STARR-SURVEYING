@@ -1239,11 +1239,11 @@ interface ExportStore {
 - [ ] "Regenerate" re-runs Claude generation with updated drawing state
 
 ### Completeness Checker
-- [ ] All 16 checks run correctly
-- [ ] Missing north arrow → error flagged
-- [ ] Unfilled title block field → error flagged
-- [ ] Tier-1 unresolved items → error flagged
-- [ ] All checks pass → "Mark Ready for RPLS Review" enabled
+- [x] All 16 checks run correctly (`checkDrawingCompleteness` in `lib/cad/delivery/completeness-checker.ts`; bearing-distance per-segment scan + legal-desc gate stay advisory until §5 + per-segment label coverage land)
+- [x] Missing north arrow → error flagged (severity ERROR; checks `titleBlock.visible` + `northArrowSizeIn`)
+- [x] Unfilled title block field → error flagged (severity ERROR; required: firmName, surveyorName, projectName, projectNumber, clientName, surveyDate)
+- [x] Tier-1 unresolved items → error flagged (severity ERROR via `checkNoPendingBlocking`; tier-1 unplaced via WARNING `checkTier1Resolved`)
+- [ ] All checks pass → "Mark Ready for RPLS Review" enabled — gate computed via `summarizeCompleteness().ready`; UI panel that consumes it lands in the next slice
 
 ### RPLS Workflow
 - [ ] Submit for review changes status to READY_FOR_REVIEW
