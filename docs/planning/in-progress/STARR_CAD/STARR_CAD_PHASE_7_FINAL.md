@@ -1246,7 +1246,7 @@ interface ExportStore {
 - [x] All checks pass → "Mark Ready for RPLS Review" enabled (`app/admin/cad/components/CompletenessPanel.tsx` consumes the checker, surfaces ✅/⚠️/❌ rows with per-row Fix CTAs (TITLE_BLOCK / REVIEW_QUEUE / LAYERS) wired to the right host surfaces, footer summary, and a Mark Ready button gated on `summary.ready`. Mounted in `CADLayout`, opened from File → ✓ Drawing completeness…)
 
 ### RPLS Workflow
-- [x] Submit for review changes status to READY_FOR_REVIEW (`useReviewWorkflowStore.markReadyForReview` in `lib/cad/store/review-workflow-store.ts`; wrapper around `runTransition` in `lib/cad/delivery/rpls-workflow.ts`. Mark Ready button on the completeness panel bootstraps a DRAFT record from the active doc + title-block context and runs the transition.)
+- [x] Submit for review changes status to READY_FOR_REVIEW (`useReviewWorkflowStore.markReadyForReview` in `lib/cad/store/review-workflow-store.ts`; wrapper around `runTransition` in `lib/cad/delivery/rpls-workflow.ts`. Completeness panel's Mark Ready opens `RPLSSubmissionDialog` (`app/admin/cad/components/RPLSSubmissionDialog.tsx`) which confirms the resolved RPLS, captures an optional message, and runs the transition with the message folded into the audit-trail note.)
 - [ ] RPLS Review Mode UI shows review-specific buttons — store transitions ready (`openForReview`, `requestChanges`, `approve`); UI surfaces land in a follow-up slice
 - [ ] "Approve & Seal" applies seal and changes status to SEALED — `seal` transition wired in store; seal-engine + UI land in §8 slice
 - [ ] Sealed drawing: seal image embedded in PDF at seal placeholder

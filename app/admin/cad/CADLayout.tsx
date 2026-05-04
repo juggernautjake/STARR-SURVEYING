@@ -17,6 +17,7 @@ import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
 import CompletenessPanel from './components/CompletenessPanel';
+import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -30,7 +31,8 @@ import ImagePanel from './components/ImagePanel';
 import HiddenItemsPanel from './components/HiddenItemsPanel';
 import LayerPreferencesPanel from './components/LayerPreferencesPanel';
 import FeatureLabelPreferencesPanel from './components/FeatureLabelPreferencesPanel';
-import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore, useAIStore, useReviewWorkflowStore } from '@/lib/cad/store';
+import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore, useAIStore } from '@/lib/cad/store';
+import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -123,6 +125,8 @@ export default function CADLayout() {
   const [showOrientationDialog, setShowOrientationDialog] = useState(false);
   const [showHiddenItems, setShowHiddenItems] = useState(false);
   const [showCompletenessPanel, setShowCompletenessPanel] = useState(false);
+  const [pendingSubmission, setPendingSubmission] =
+    useState<CompletenessSummary | null>(null);
   const [layerPrefsLayerId, setLayerPrefsLayerId] = useState<string | null>(null);
   const [featureLabelPrefsId, setFeatureLabelPrefsId] = useState<string | null>(null);
   const [recoveryPayload, setRecoveryPayload] = useState<{
@@ -512,35 +516,23 @@ export default function CADLayout() {
           }
         }}
         onMarkReady={(_checks, summary) => {
-          // §7 wiring: bootstrap a DRAFT record from the
-          // current document + title-block context, then
-          // transition to READY_FOR_REVIEW. Persistence to the
-          // document settings lands in a follow-up slice.
-          const doc = drawingStore.document;
-          const tb = doc.settings.titleBlock;
-          const review = useReviewWorkflowStore.getState();
-          review.loadOrCreate({
-            jobId: doc.id,
-            rplsId: doc.author || tb.surveyorName || 'unknown-rpls',
-            rplsName: tb.surveyorName || doc.author || 'Surveyor',
-            rplsLicense: tb.surveyorLicense || '',
-          });
-          const ok = review.markReadyForReview({
-            by: doc.author || tb.surveyorName || 'Surveyor',
-            note:
-              `Completeness checker passed: ${summary.warnings} warning(s), ` +
-              `${summary.infos} info(s).`,
-          });
-          if (!ok) {
-            cadLog.warn(
-              'RPLSWorkflow',
-              `Could not mark ready: ${review.lastError ?? 'unknown error'}`
-            );
-          }
+          // §7.2 — open the submission dialog so the surveyor
+          // can review the resolved RPLS, add a message, and
+          // explicitly confirm. The dialog runs the actual
+          // markReadyForReview transition.
+          setPendingSubmission(summary);
           window.dispatchEvent(
             new CustomEvent('cad:completenessReady', { detail: summary })
           );
         }}
+      />
+
+      {/* Phase 7 §7.2 RPLS submission dialog — opened by the
+          completeness panel after Mark Ready */}
+      <RPLSSubmissionDialog
+        open={pendingSubmission !== null}
+        summary={pendingSubmission}
+        onClose={() => setPendingSubmission(null)}
       />
 
       {/* New Drawing / Get Started dialog */}
