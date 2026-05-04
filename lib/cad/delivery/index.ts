@@ -33,6 +33,9 @@ export type {
   SealData,
   SealType,
 } from './seal-engine';
+
+export { exportToDxf } from './dxf-writer';
+export type { DxfExportOptions } from './dxf-writer';
 export type {
   CreateRecordInputs,
   RPLSReviewEvent,
