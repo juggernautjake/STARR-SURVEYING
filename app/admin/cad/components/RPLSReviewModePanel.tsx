@@ -28,9 +28,11 @@
 import { useMemo, useState } from 'react';
 
 import { useDrawingStore, useReviewWorkflowStore } from '@/lib/cad/store';
-import type {
-  RPLSReviewEvent,
-  RPLSWorkflowStatus,
+import {
+  applySeal,
+  buildSealData,
+  type RPLSReviewEvent,
+  type RPLSWorkflowStatus,
 } from '@/lib/cad/delivery';
 
 interface Props {
@@ -103,10 +105,12 @@ const EVENT_LABEL: Record<RPLSReviewEvent['event'], string> = {
 
 export default function RPLSReviewModePanel({ open, onClose }: Props) {
   const document = useDrawingStore((s) => s.document);
+  const loadDocument = useDrawingStore((s) => s.loadDocument);
   const review = useReviewWorkflowStore();
   const [comment, setComment] = useState('');
   const [pendingError, setPendingError] = useState<string | null>(null);
   const [pendingNote, setPendingNote] = useState<string | null>(null);
+  const [sealing, setSealing] = useState(false);
 
   const tb = document.settings.titleBlock;
   const actor = useMemo(
@@ -190,7 +194,7 @@ export default function RPLSReviewModePanel({ open, onClose }: Props) {
     }
   }
 
-  function runApproveAndSeal() {
+  async function runApproveAndSeal() {
     clearAcks();
     const trimmed = comment.trim();
     const okApprove = review.approve({
@@ -202,23 +206,50 @@ export default function RPLSReviewModePanel({ open, onClose }: Props) {
       return;
     }
     setComment('');
-    setPendingNote(
-      'Approved. Seal engine + drawing-hash sign-off (§8) lands in a ' +
-        'follow-up slice; click "Apply Seal" once it ships to flip the ' +
-        'status to SEALED.'
-    );
+    await runApplySeal('Approved & sealed in one step.');
   }
 
-  function runSealStub() {
+  async function runApplySeal(eventNote?: string) {
     clearAcks();
-    const ok = review.seal({ by: actor, note: 'Seal stub — §8 not yet wired.' });
-    if (ok) {
-      setPendingNote(
-        'Status flipped to SEALED. Note: seal image + drawing hash are ' +
-          'placeholders until §8 lands.'
+    const current = review.record;
+    if (!current) return;
+    if (current.rplsLicense.length === 0) {
+      setPendingError(
+        'Cannot seal — RPLS license number is missing. Update the title block.'
       );
-    } else {
-      setPendingError(review.lastError ?? 'Seal transition failed.');
+      return;
+    }
+    setSealing(true);
+    try {
+      const sealData = await buildSealData(document, {
+        rplsName: current.rplsName,
+        rplsLicense: current.rplsLicense,
+      });
+      const sealedDoc = applySeal(document, sealData);
+      loadDocument(sealedDoc);
+      const ok = review.seal({
+        by: actor,
+        note:
+          eventNote ??
+          `Seal applied. Hash: ${sealData.signatureHash.slice(0, 12)}…`,
+      });
+      if (ok) {
+        setPendingNote(
+          `Sealed at ${new Date(sealData.sealedAt).toLocaleString()}. ` +
+            `Hash ${sealData.signatureHash.slice(0, 12)}… recorded on the ` +
+            'document. Drawing is now read-only pending delivery.'
+        );
+      } else {
+        setPendingError(review.lastError ?? 'Seal transition failed.');
+      }
+    } catch (err) {
+      setPendingError(
+        err instanceof Error
+          ? `Seal failed: ${err.message}`
+          : 'Seal failed (unknown error).'
+      );
+    } finally {
+      setSealing(false);
     }
   }
 
@@ -349,11 +380,14 @@ export default function RPLSReviewModePanel({ open, onClose }: Props) {
                 </button>
                 <button
                   type="button"
-                  onClick={runApproveAndSeal}
-                  style={styles.btnPrimary}
-                  title="Approve now; seal step lands once §8 ships."
+                  onClick={() => void runApproveAndSeal()}
+                  disabled={sealing}
+                  style={
+                    sealing ? styles.btnPrimaryDisabled : styles.btnPrimary
+                  }
+                  title="Approve and apply the digital seal in one step."
                 >
-                  Approve &amp; Seal
+                  {sealing ? 'Sealing…' : 'Approve & Seal'}
                 </button>
               </>
             ) : null}
@@ -361,11 +395,14 @@ export default function RPLSReviewModePanel({ open, onClose }: Props) {
             {isApproved ? (
               <button
                 type="button"
-                onClick={runSealStub}
-                style={styles.btnPrimary}
-                title="Stubbed — flips status to SEALED with a placeholder seal."
+                onClick={() => void runApplySeal()}
+                disabled={sealing}
+                style={
+                  sealing ? styles.btnPrimaryDisabled : styles.btnPrimary
+                }
+                title="Compute the canonical drawing hash + apply the seal."
               >
-                Apply Seal (stub)
+                {sealing ? 'Sealing…' : 'Apply Seal'}
               </button>
             ) : null}
 
@@ -576,6 +613,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
+  },
+  btnPrimaryDisabled: {
+    background: '#94A3B8',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 10px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'not-allowed',
+    opacity: 0.7,
   },
   btnDanger: {
     background: '#FFFFFF',

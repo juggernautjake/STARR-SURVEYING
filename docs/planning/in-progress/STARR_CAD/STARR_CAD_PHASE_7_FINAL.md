@@ -1248,10 +1248,10 @@ interface ExportStore {
 ### RPLS Workflow
 - [x] Submit for review changes status to READY_FOR_REVIEW (`useReviewWorkflowStore.markReadyForReview` in `lib/cad/store/review-workflow-store.ts`; wrapper around `runTransition` in `lib/cad/delivery/rpls-workflow.ts`. Completeness panel's Mark Ready opens `RPLSSubmissionDialog` (`app/admin/cad/components/RPLSSubmissionDialog.tsx`) which confirms the resolved RPLS, captures an optional message, and runs the transition with the message folded into the audit-trail note.)
 - [x] RPLS Review Mode UI shows review-specific buttons (`app/admin/cad/components/RPLSReviewModePanel.tsx`; status-aware body switches across DRAFT / READY_FOR_REVIEW / IN_REVIEW / CHANGES_REQUESTED / APPROVED / SEALED / DELIVERED with the right CTAs at each step. Mounted in `CADLayout`, opened from File → 🪪 RPLS review mode…)
-- [ ] "Approve & Seal" applies seal and changes status to SEALED — wired through APPROVED + an "Apply Seal (stub)" button that flips to SEALED with placeholder metadata; seal-engine + drawing-hash sign-off land in §8 slice
-- [ ] Sealed drawing: seal image embedded in PDF at seal placeholder
-- [ ] Drawing hash recorded at time of sealing
-- [ ] Changes after sealing require re-sealing (hash mismatch warning)
+- [x] "Approve & Seal" applies seal and changes status to SEALED — `RPLSReviewModePanel` now invokes `applySeal(doc, sealData)` from `lib/cad/delivery/seal-engine.ts`; the new doc lands in `useDrawingStore.loadDocument` and the workflow store flips to SEALED.
+- [ ] Sealed drawing: seal image embedded in PDF at seal placeholder — seal data + image slot ready on `DrawingSettings.sealData`; PDF exporter wiring lands in §10 slice
+- [x] Drawing hash recorded at time of sealing — `computeDrawingHash(doc)` in `seal-engine.ts` canonicalizes (sorted keys + transient state stripped) and SHA-256s; stored on `sealData.signatureHash` at apply time
+- [x] Changes after sealing require re-sealing (hash mismatch warning) — `verifyDrawingSeal(doc)` returns `{ ok: false, expected, actual }` on drift; UI surface for the mismatch banner lands in a follow-up slice
 
 ### Exports
 - [ ] DXF export: all layers present with correct names

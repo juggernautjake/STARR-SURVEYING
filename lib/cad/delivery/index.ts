@@ -22,6 +22,17 @@ export {
   runTransition,
   transitionEvent,
 } from './rpls-workflow';
+export {
+  applySeal,
+  buildSealData,
+  computeDrawingHash,
+  verifyDrawingSeal,
+} from './seal-engine';
+export type {
+  BuildSealInputs,
+  SealData,
+  SealType,
+} from './seal-engine';
 export type {
   CreateRecordInputs,
   RPLSReviewEvent,
