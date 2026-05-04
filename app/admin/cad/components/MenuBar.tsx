@@ -34,7 +34,7 @@ interface MenuDef {
   items: MenuEntry[];
 }
 
-export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void }) {
+export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -175,6 +175,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           label: 'AI clarifying questions…',
           action: () => { openAIQuestionDialog(); setOpenMenu(null); },
           disabled: !aiQuestionsAvailable,
+        },
+        { separator: true },
+        {
+          label: '✓ Drawing completeness…',
+          action: () => { onToggleCompletenessPanel?.(); setOpenMenu(null); },
         },
       ],
     },

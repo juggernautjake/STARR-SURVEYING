@@ -1243,7 +1243,7 @@ interface ExportStore {
 - [x] Missing north arrow → error flagged (severity ERROR; checks `titleBlock.visible` + `northArrowSizeIn`)
 - [x] Unfilled title block field → error flagged (severity ERROR; required: firmName, surveyorName, projectName, projectNumber, clientName, surveyDate)
 - [x] Tier-1 unresolved items → error flagged (severity ERROR via `checkNoPendingBlocking`; tier-1 unplaced via WARNING `checkTier1Resolved`)
-- [ ] All checks pass → "Mark Ready for RPLS Review" enabled — gate computed via `summarizeCompleteness().ready`; UI panel that consumes it lands in the next slice
+- [x] All checks pass → "Mark Ready for RPLS Review" enabled (`app/admin/cad/components/CompletenessPanel.tsx` consumes the checker, surfaces ✅/⚠️/❌ rows with per-row Fix CTAs (TITLE_BLOCK / REVIEW_QUEUE / LAYERS) wired to the right host surfaces, footer summary, and a Mark Ready button gated on `summary.ready`. Mounted in `CADLayout`, opened from File → ✓ Drawing completeness…)
 
 ### RPLS Workflow
 - [ ] Submit for review changes status to READY_FOR_REVIEW

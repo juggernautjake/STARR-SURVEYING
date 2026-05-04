@@ -16,6 +16,7 @@ import ImportDialog from './components/ImportDialog';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
+import CompletenessPanel from './components/CompletenessPanel';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -29,7 +30,7 @@ import ImagePanel from './components/ImagePanel';
 import HiddenItemsPanel from './components/HiddenItemsPanel';
 import LayerPreferencesPanel from './components/LayerPreferencesPanel';
 import FeatureLabelPreferencesPanel from './components/FeatureLabelPreferencesPanel';
-import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
+import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore, useAIStore } from '@/lib/cad/store';
 import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -121,6 +122,7 @@ export default function CADLayout() {
   const [showDisplayPrefs, setShowDisplayPrefs] = useState(false);
   const [showOrientationDialog, setShowOrientationDialog] = useState(false);
   const [showHiddenItems, setShowHiddenItems] = useState(false);
+  const [showCompletenessPanel, setShowCompletenessPanel] = useState(false);
   const [layerPrefsLayerId, setLayerPrefsLayerId] = useState<string | null>(null);
   const [featureLabelPrefsId, setFeatureLabelPrefsId] = useState<string | null>(null);
   const [recoveryPayload, setRecoveryPayload] = useState<{
@@ -336,6 +338,7 @@ export default function CADLayout() {
         onOpenDrawingRotation={() => setShowDrawingRotation(true)}
         onOpenTitleBlock={() => setShowTitleBlock(true)}
         onToggleImagePanel={() => setShowImagePanel(p => !p)}
+        onToggleCompletenessPanel={() => setShowCompletenessPanel(p => !p)}
       />
 
       {/* Contextual tool options strip — with Prefs button on the right */}
@@ -492,6 +495,32 @@ export default function CADLayout() {
       {/* Phase 6 §30.3 element-explanation popup — opened by
           clicking a review-queue card */}
       <ElementExplanationPopup />
+
+      {/* Phase 7 §6.2 completeness checklist — slides in from the
+          right, gates "Mark Ready for RPLS Review" on summary.ready */}
+      <CompletenessPanel
+        open={showCompletenessPanel}
+        onClose={() => setShowCompletenessPanel(false)}
+        onFix={(hint) => {
+          if (hint === 'TITLE_BLOCK') {
+            setShowTitleBlock(true);
+          } else if (hint === 'REVIEW_QUEUE') {
+            useAIStore.getState().openQueuePanel();
+          } else if (hint === 'LAYERS') {
+            const ui = useUIStore.getState();
+            if (!ui.showLayerPanel) ui.toggleLayerPanel();
+          }
+        }}
+        onMarkReady={(_checks, summary) => {
+          // The §7 RPLS-workflow slice will hook in here. For
+          // now surface the readiness via the existing
+          // command-bar event channel so other listeners
+          // (e.g. an autosave hint) can react.
+          window.dispatchEvent(
+            new CustomEvent('cad:completenessReady', { detail: summary })
+          );
+        }}
+      />
 
       {/* New Drawing / Get Started dialog */}
       {showNewDrawingDialog && (
