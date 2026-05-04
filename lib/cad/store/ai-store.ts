@@ -23,6 +23,8 @@ import type {
   ReviewItem,
   ReviewItemStatus,
 } from '../ai-engine/types';
+import type { Feature } from '../types';
+import { useDrawingStore } from './drawing-store';
 
 export type AIPipelineStatus = 'idle' | 'running' | 'done' | 'error';
 
@@ -111,13 +113,25 @@ interface AIStore {
   /** §30.4 — POST the in-flight transcript + element context
    *  to /api/admin/cad/element-chat, then append Claude's reply
    *  (with optional ElementChatAction) to
-   *  `result.explanations[featureId].chatHistory`.
-   *
-   *  No geometry mutation happens in this slice — REDRAW_*
-   *  actions are stored on the message and surfaced as
-   *  warnings; execution lands in a follow-up slice once the
-   *  store-side regenerate paths are wired. */
+   *  `result.explanations[featureId].chatHistory`. */
   sendChatMessage: (featureId: string, content: string) => Promise<void>;
+
+  /** §30.4 — execute a structured ElementChatAction returned by
+   *  Claude. UPDATE_ATTRIBUTE mutates feature.properties on the
+   *  AI result + the live drawing store if the feature has been
+   *  applied. REDRAW_FULL re-runs the pipeline with the chat
+   *  instruction folded into `userPrompt`. REDRAW_ELEMENT and
+   *  REDRAW_GROUP land an AI message + warning marking the
+   *  feature(s) as queued for partial recompute (the partial
+   *  paths land in a follow-up slice once Stage-4-only and
+   *  group-only re-run helpers exist). */
+  executeChatAction: (
+    featureId: string,
+    action: ElementChatAction,
+    /** Optional instruction text used by REDRAW_FULL. Falls back
+     *  to action.description when omitted. */
+    instruction?: string
+  ) => Promise<void>;
 }
 
 export const useAIStore = create<AIStore>((set, get) => ({
@@ -314,6 +328,137 @@ export const useAIStore = create<AIStore>((set, get) => ({
     }
   },
 
+  executeChatAction: async (featureId, action, instruction) => {
+    if (action.type === 'NO_ACTION') return;
+
+    const stateNow = get();
+    if (!stateNow.result) return;
+
+    if (action.type === 'UPDATE_ATTRIBUTE') {
+      if (
+        !action.attributeUpdates ||
+        Object.keys(action.attributeUpdates).length === 0
+      ) {
+        appendActionAck(
+          set,
+          featureId,
+          '⚠ Update skipped — Claude returned UPDATE_ATTRIBUTE ' +
+            'without any concrete property/value pairs.'
+        );
+        return;
+      }
+      const targetIds =
+        action.affectedIds.length > 0 ? action.affectedIds : [featureId];
+      applyAttributeUpdates(set, get, targetIds, action.attributeUpdates);
+      appendActionAck(
+        set,
+        featureId,
+        `✓ Updated ${targetIds.length} feature${targetIds.length === 1 ? '' : 's'} ` +
+          `(${Object.keys(action.attributeUpdates).join(', ')}).`
+      );
+      return;
+    }
+
+    if (action.type === 'REDRAW_ELEMENT' || action.type === 'REDRAW_GROUP') {
+      const targets =
+        action.affectedIds.length > 0
+          ? action.affectedIds
+          : [featureId];
+      const label =
+        action.type === 'REDRAW_ELEMENT'
+          ? 'this element'
+          : 'this group';
+      appendActionAck(
+        set,
+        featureId,
+        `↻ Queued ${targets.length} feature${targets.length === 1 ? '' : 's'} for ` +
+          `${label} recompute. Partial-recompute lands in a ` +
+          'follow-up slice; for now use Redraw Full Drawing to ' +
+          'apply the change end-to-end.'
+      );
+      set((s) => {
+        if (!s.result) return s;
+        return {
+          result: {
+            ...s.result,
+            warnings: [
+              ...s.result.warnings,
+              `Chat action ${action.type} queued for ${targets.length} ` +
+                'feature(s); partial-recompute path not yet wired.',
+            ],
+          },
+        };
+      });
+      return;
+    }
+
+    if (action.type === 'REDRAW_FULL') {
+      const { lastPayload } = stateNow;
+      if (!lastPayload) {
+        appendActionAck(
+          set,
+          featureId,
+          '⚠ Cannot re-run — no cached payload. Re-open the AI ' +
+            'Drawing Engine dialog and run the pipeline first.'
+        );
+        return;
+      }
+      const chatInstruction =
+        instruction && instruction.trim().length > 0
+          ? instruction.trim()
+          : action.description;
+      set({ status: 'running', error: null });
+      try {
+        const augmentedPrompt = [
+          lastPayload.userPrompt ?? '',
+          chatInstruction
+            ? `Additional instruction from element chat: ${chatInstruction}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        const nextPayload: AIJobPayload = {
+          ...lastPayload,
+          userPrompt: augmentedPrompt.length > 0 ? augmentedPrompt : null,
+        };
+        const res = await fetch('/api/admin/cad/ai-pipeline', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(nextPayload),
+        });
+        const json = (await res.json().catch(() => ({}))) as
+          | AIJobResult
+          | { error?: string };
+        if (!res.ok) {
+          const msg =
+            (json as { error?: string }).error ??
+            `Full re-run failed (${res.status}).`;
+          set({ status: 'error', error: msg });
+          return;
+        }
+        set({
+          status: 'done',
+          result: json as AIJobResult,
+          error: null,
+          lastPayload: nextPayload,
+          isQuestionDialogOpen:
+            (json as AIJobResult).deliberationResult?.shouldShowDialog ??
+            false,
+          // Close the popup — the new result has fresh
+          // explanations and the surveyor needs to see the
+          // updated drawing.
+          explanationFeatureId: null,
+        });
+      } catch (err) {
+        set({
+          status: 'error',
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return;
+    }
+  },
+
   setItemStatus: (itemId, nextStatus, userNote = null) =>
     set((state) => {
       if (!state.result) return state;
@@ -488,4 +633,87 @@ function chatMessageId(): string {
     '_' +
     Math.random().toString(36).slice(2, 8)
   );
+}
+
+type SetFn = (
+  partial:
+    | Partial<AIStore>
+    | ((state: AIStore) => Partial<AIStore> | AIStore)
+) => void;
+type GetFn = () => AIStore;
+
+/**
+ * Append an AI-role acknowledgement to the live chat history
+ * for `featureId`. Used after an executeChatAction step lands
+ * (success or failure) so the surveyor sees the outcome inline
+ * without needing to read warnings on the dialog.
+ */
+function appendActionAck(
+  set: SetFn,
+  featureId: string,
+  text: string
+): void {
+  const ackMessage: ElementChatMessage = {
+    id: chatMessageId(),
+    role: 'AI',
+    content: text,
+    timestamp: new Date().toISOString(),
+  };
+  set((s) => appendChatMessage(s, featureId, ackMessage, false));
+}
+
+/**
+ * Mutate `feature.properties` for the given target ids on the
+ * AI result *and* on the live drawing store (when the feature
+ * was already applied). Numeric / boolean strings are coerced
+ * back to their primitive type so canvas styling reads them
+ * correctly.
+ */
+function applyAttributeUpdates(
+  set: SetFn,
+  get: GetFn,
+  targetIds: string[],
+  updates: Record<string, string>
+): void {
+  const coerced: Record<string, string | number | boolean> = {};
+  for (const [k, v] of Object.entries(updates)) {
+    coerced[k] = coerceAttributeValue(v);
+  }
+
+  // 1) AI result mutation — keeps explanation popups + review
+  //    queue counters in sync.
+  set((s) => {
+    if (!s.result) return s;
+    const targets = new Set(targetIds);
+    const features = s.result.features.map((f) => {
+      if (!targets.has(f.id)) return f;
+      return {
+        ...f,
+        properties: { ...f.properties, ...coerced },
+      } satisfies Feature;
+    });
+    return { result: { ...s.result, features } };
+  });
+
+  // 2) Drawing-store mutation — only writes when the feature
+  //    has already been applied via the review-queue Accept
+  //    path; otherwise it's a no-op.
+  const drawing = useDrawingStore.getState();
+  for (const id of targetIds) {
+    const live = drawing.getFeature(id);
+    if (!live) continue;
+    drawing.updateFeature(id, {
+      properties: { ...live.properties, ...coerced },
+    });
+  }
+}
+
+function coerceAttributeValue(raw: string): string | number | boolean {
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  if (raw.length > 0 && /^-?\d+(?:\.\d+)?$/.test(raw)) {
+    const num = Number.parseFloat(raw);
+    if (Number.isFinite(num)) return num;
+  }
+  return raw;
 }

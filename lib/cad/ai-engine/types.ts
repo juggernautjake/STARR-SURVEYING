@@ -356,6 +356,11 @@ export interface ElementChatAction {
   type:        'REDRAW_ELEMENT' | 'REDRAW_GROUP' | 'REDRAW_FULL' | 'UPDATE_ATTRIBUTE' | 'NO_ACTION';
   description: string;
   affectedIds: string[];
+  /** UPDATE_ATTRIBUTE only — keys map to property names on the
+   *  feature; values are the new property value. Numeric and
+   *  boolean strings are coerced when applied. Leave empty for
+   *  the other action types. */
+  attributeUpdates?: Record<string, string>;
 }
 
 export interface ElementExplanation {

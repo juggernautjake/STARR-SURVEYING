@@ -2882,9 +2882,9 @@ interface AIStore {
 - [ ] Tiers 1–4 explanations include full reasoning, data used, assumptions, alternatives — auto path covers data used / assumptions / alternatives; Claude narrative augmentation lands in a follow-up slice
 - [x] Confidence breakdown shows all 6 factors with human-readable text (`buildConfidenceBreakdown` walks `ConfidenceFactors` and emits per-factor explanations)
 - [x] Chat message sent → Claude responds within 30 seconds (`handleElementChat` in `lib/cad/ai-engine/element-chat.ts` + POST `/api/admin/cad/element-chat`; 45 s handler / 60 s route ceiling)
-- [ ] "Update This Element" redraw affects only the selected feature — quick-action button POSTs the request; geometry recompute lands in a follow-up slice
-- [ ] "Redraw This Group" redraw affects all features on same layer — quick-action button POSTs; group recompute lands later
-- [ ] "Redraw Full Drawing" re-runs full pipeline — quick-action button POSTs; full re-run wiring lands later
+- [ ] "Update This Element" redraw affects only the selected feature — UPDATE_ATTRIBUTE wired (`executeChatAction` mutates `feature.properties` on result + drawing store); REDRAW_ELEMENT geometry recompute logged as warning until partial-recompute path lands
+- [ ] "Redraw This Group" redraw affects all features on same layer — REDRAW_GROUP queued + warned; partial-recompute path lands later
+- [x] "Redraw Full Drawing" re-runs full pipeline (`executeChatAction` REDRAW_FULL re-POSTs `lastPayload` with the chat instruction folded into `userPrompt`)
 - [x] Chat history persists within the session (`chatHistory` mutated via `appendChatMessage` in `lib/cad/store/ai-store.ts`)
 - [ ] Group chat (multi-select cards) works for batch instructions
 

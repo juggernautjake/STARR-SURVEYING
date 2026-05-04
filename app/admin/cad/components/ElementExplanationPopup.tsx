@@ -48,6 +48,7 @@ export default function ElementExplanationPopup() {
   const close = useAIStore((s) => s.closeExplanation);
   const result = useAIStore((s) => s.result);
   const sendChatMessage = useAIStore((s) => s.sendChatMessage);
+  const executeChatAction = useAIStore((s) => s.executeChatAction);
   const chatLoading = useAIStore((s) =>
     featureId ? Boolean(s.chatLoadingByFeature[featureId]) : false
   );
@@ -186,6 +187,10 @@ export default function ElementExplanationPopup() {
                 if (!featureId) return;
                 void sendChatMessage(featureId, content);
               }}
+              onApplyAction={(action) => {
+                if (!featureId) return;
+                void executeChatAction(featureId, action);
+              }}
             />
           </Section>
         </div>
@@ -202,10 +207,12 @@ function ChatPanel({
   messages,
   loading,
   onSend,
+  onApplyAction,
 }: {
   messages: ElementChatMessage[];
   loading: boolean;
   onSend: (content: string) => void;
+  onApplyAction: (action: NonNullable<ElementChatMessage['action']>) => void;
 }) {
   const [draft, setDraft] = useState('');
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -238,7 +245,14 @@ function ChatPanel({
             &ldquo;change material to wood privacy&rdquo;).
           </p>
         ) : (
-          messages.map((m) => <ChatBubble key={m.id} message={m} />)
+          messages.map((m) => (
+            <ChatBubble
+              key={m.id}
+              message={m}
+              onApplyAction={onApplyAction}
+              applyDisabled={loading}
+            />
+          ))
         )}
         {loading ? (
           <div style={styles.chatTyping}>AI is thinking…</div>
@@ -304,8 +318,18 @@ function ChatPanel({
   );
 }
 
-function ChatBubble({ message }: { message: ElementChatMessage }) {
+function ChatBubble({
+  message,
+  onApplyAction,
+  applyDisabled,
+}: {
+  message: ElementChatMessage;
+  onApplyAction: (action: NonNullable<ElementChatMessage['action']>) => void;
+  applyDisabled: boolean;
+}) {
   const isUser = message.role === 'USER';
+  const action = message.action;
+  const showApply = !!action && action.type !== 'NO_ACTION';
   return (
     <div
       style={{
@@ -315,12 +339,24 @@ function ChatBubble({ message }: { message: ElementChatMessage }) {
     >
       <div style={isUser ? styles.bubbleUser : styles.bubbleAi}>
         <div style={styles.bubbleText}>{message.content}</div>
-        {message.action ? (
+        {action ? (
           <div style={styles.bubbleAction}>
-            <strong>Proposed action:</strong> {message.action.type}
-            {message.action.description
-              ? ` — ${message.action.description}`
-              : ''}
+            <strong>Proposed action:</strong> {action.type}
+            {action.description ? ` — ${action.description}` : ''}
+            {showApply ? (
+              <button
+                type="button"
+                onClick={() => onApplyAction(action)}
+                disabled={applyDisabled}
+                style={
+                  applyDisabled
+                    ? styles.bubbleApplyDisabled
+                    : styles.bubbleApply
+                }
+              >
+                Apply
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -639,6 +675,33 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#475569',
     paddingTop: 4,
     borderTop: '1px dashed #CBD5E1',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  bubbleApply: {
+    marginLeft: 'auto',
+    background: '#1D3095',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 4,
+    padding: '4px 10px',
+    fontSize: 10,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  bubbleApplyDisabled: {
+    marginLeft: 'auto',
+    background: '#94A3B8',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 4,
+    padding: '4px 10px',
+    fontSize: 10,
+    fontWeight: 600,
+    cursor: 'not-allowed',
+    opacity: 0.7,
   },
   chatInput: {
     padding: '8px 10px',

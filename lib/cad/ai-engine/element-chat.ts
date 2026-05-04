@@ -64,7 +64,8 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
   "action": null | {
     "type": "REDRAW_ELEMENT" | "REDRAW_GROUP" | "REDRAW_FULL" | "UPDATE_ATTRIBUTE" | "NO_ACTION",
     "description": "<short human-readable change summary>",
-    "affectedIds": ["<featureId>", ...]
+    "affectedIds": ["<featureId>", ...],
+    "attributeUpdates": { "<propertyName>": "<newValue>", ... }
   }
 }
 
@@ -72,7 +73,10 @@ Action selection rules:
 * NO_ACTION — answer-only; no drawing change required.
 * UPDATE_ATTRIBUTE — change a non-geometric attribute on this
   feature (layer, label, material, condition). affectedIds must
-  contain only this feature's id.
+  contain only this feature's id, and attributeUpdates MUST be
+  populated with the property name(s) + value(s) to write
+  (e.g. { "material": "Wood Privacy" }). Stringify numbers and
+  booleans.
 * REDRAW_ELEMENT — re-run geometry computation for this single
   feature (no other features change). affectedIds = [this feature id].
 * REDRAW_GROUP — re-run for every feature on the same layer or
@@ -215,11 +219,25 @@ function parseAction(
   const affectedIds = affectedRaw
     .filter((id): id is string => typeof id === 'string' && id.length > 0)
     .slice(0, 100);
+  const attributeUpdates: Record<string, string> = {};
+  if (a.attributeUpdates && typeof a.attributeUpdates === 'object') {
+    for (const [k, v] of Object.entries(
+      a.attributeUpdates as Record<string, unknown>
+    )) {
+      if (typeof k !== 'string' || k.length === 0) continue;
+      if (typeof v === 'string') attributeUpdates[k] = v;
+      else if (typeof v === 'number' || typeof v === 'boolean') {
+        attributeUpdates[k] = String(v);
+      }
+    }
+  }
   return {
     type: type as ElementChatAction['type'],
     description,
     affectedIds:
       affectedIds.length > 0 ? affectedIds : [defaultFeatureId],
+    attributeUpdates:
+      Object.keys(attributeUpdates).length > 0 ? attributeUpdates : undefined,
   };
 }
 
