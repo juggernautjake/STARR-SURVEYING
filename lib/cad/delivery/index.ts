@@ -14,3 +14,21 @@ export type {
   CompletenessSeverity,
   CompletenessSummary,
 } from './completeness-checker';
+
+export {
+  appendComment,
+  canTransition,
+  createDraftRecord,
+  runTransition,
+  transitionEvent,
+} from './rpls-workflow';
+export type {
+  CreateRecordInputs,
+  RPLSReviewEvent,
+  RPLSReviewEventType,
+  RPLSReviewRecord,
+  RPLSWorkflowStatus,
+  TransitionError,
+  TransitionInputs,
+  TransitionResult,
+} from './rpls-workflow';

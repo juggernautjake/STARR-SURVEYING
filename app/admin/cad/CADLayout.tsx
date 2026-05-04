@@ -30,7 +30,7 @@ import ImagePanel from './components/ImagePanel';
 import HiddenItemsPanel from './components/HiddenItemsPanel';
 import LayerPreferencesPanel from './components/LayerPreferencesPanel';
 import FeatureLabelPreferencesPanel from './components/FeatureLabelPreferencesPanel';
-import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore, useAIStore } from '@/lib/cad/store';
+import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore, useAIStore, useReviewWorkflowStore } from '@/lib/cad/store';
 import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -512,10 +512,31 @@ export default function CADLayout() {
           }
         }}
         onMarkReady={(_checks, summary) => {
-          // The §7 RPLS-workflow slice will hook in here. For
-          // now surface the readiness via the existing
-          // command-bar event channel so other listeners
-          // (e.g. an autosave hint) can react.
+          // §7 wiring: bootstrap a DRAFT record from the
+          // current document + title-block context, then
+          // transition to READY_FOR_REVIEW. Persistence to the
+          // document settings lands in a follow-up slice.
+          const doc = drawingStore.document;
+          const tb = doc.settings.titleBlock;
+          const review = useReviewWorkflowStore.getState();
+          review.loadOrCreate({
+            jobId: doc.id,
+            rplsId: doc.author || tb.surveyorName || 'unknown-rpls',
+            rplsName: tb.surveyorName || doc.author || 'Surveyor',
+            rplsLicense: tb.surveyorLicense || '',
+          });
+          const ok = review.markReadyForReview({
+            by: doc.author || tb.surveyorName || 'Surveyor',
+            note:
+              `Completeness checker passed: ${summary.warnings} warning(s), ` +
+              `${summary.infos} info(s).`,
+          });
+          if (!ok) {
+            cadLog.warn(
+              'RPLSWorkflow',
+              `Could not mark ready: ${review.lastError ?? 'unknown error'}`
+            );
+          }
           window.dispatchEvent(
             new CustomEvent('cad:completenessReady', { detail: summary })
           );
