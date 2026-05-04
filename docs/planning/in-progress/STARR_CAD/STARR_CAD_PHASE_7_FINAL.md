@@ -1257,7 +1257,7 @@ interface ExportStore {
 - [x] DXF export: all layers present with correct names (`exportToDxf` in `lib/cad/delivery/dxf-writer.ts` walks `doc.layers` and emits a LAYER row per layer plus the always-present "0" layer; AutoCAD-illegal name characters are stripped via `dxfSafeName`)
 - [x] DXF export: LINE entities match polyline vertices (POLYLINE → LWPOLYLINE flag 0; POLYGON → LWPOLYLINE flag 1; LINE → LINE; MIXED_GEOMETRY expanded to per-segment LINEs; smoke-tested with `npx tsx`)
 - [x] DXF export: ARC entities match arc radius/angles (ARC → ARC with degrees converted from radians; CW arcs swap start/end so the CCW DXF sweep matches the visible arc)
-- [ ] DXF export: TEXT entities present for all annotations — TEXT + IMAGE entity emission lands in the §10.3 annotation slice
+- [x] DXF export: TEXT entities present for all annotations (`exportToDxf(doc, { annotations })` walks `useAnnotationStore.annotations` and emits TEXT entities for BEARING_DISTANCE / CURVE_DATA / MONUMENT_LABEL / AREA_LABEL / TEXT / LEADER. LEADER vertices land as LWPOLYLINE; symbol-bearing features land an INSERT referencing a placeholder BLOCK in the new BLOCKS section. Smoke-tested with synthetic doc.)
 - [ ] DXF import: round-trip (export then re-import) preserves all features — DXF importer is a separate slice
 - [ ] PDF export (final): seal image embedded at correct location
 - [ ] PDF export: scale accurate (1" = specified footage)

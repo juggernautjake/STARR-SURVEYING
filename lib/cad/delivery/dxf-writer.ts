@@ -45,6 +45,9 @@ import type {
   Point2D,
   SplineGeometry,
 } from '../types';
+import type { AnnotationBase } from '../labels/annotation-types';
+import type { SymbolDefinition } from '../styles/types';
+import { findSymbol } from '../styles/symbol-library';
 
 // ────────────────────────────────────────────────────────────
 // Public API
@@ -58,6 +61,11 @@ export interface DxfExportOptions {
   /** When true, hidden features still emit. Default false —
    *  hidden geometry mirrors the on-screen render. */
   includeHidden?: boolean;
+  /** Annotations to emit as TEXT entities. Pass the live
+   *  `useAnnotationStore.annotations` map. When omitted, no
+   *  annotations are written (the entity-core slice's
+   *  behaviour). */
+  annotations?: Record<string, AnnotationBase>;
 }
 
 export function exportToDxf(
@@ -66,17 +74,24 @@ export function exportToDxf(
 ): string {
   const splineSamples = Math.max(2, options.splineSamples ?? 32);
   const includeHidden = !!options.includeHidden;
+  const annotations = options.annotations
+    ? Object.values(options.annotations).filter(
+        (a) => includeHidden || a.visible !== false
+      )
+    : [];
 
   const features = Object.values(doc.features).filter((f) =>
     includeHidden ? true : !f.hidden
   );
   const layers = Object.values(doc.layers);
+  const usedSymbols = collectUsedSymbols(features, doc);
   const extents = computeExtents(features);
 
   const lines: string[] = [];
   emitHeader(lines, extents);
   emitTables(lines, layers);
-  emitEntities(lines, features, doc, splineSamples);
+  emitBlocks(lines, usedSymbols);
+  emitEntities(lines, features, doc, splineSamples, annotations);
   emitEof(lines);
   return lines.join('\r\n') + '\r\n';
 }
@@ -143,7 +158,8 @@ function emitEntities(
   lines: string[],
   features: Feature[],
   doc: DrawingDocument,
-  splineSamples: number
+  splineSamples: number,
+  annotations: AnnotationBase[]
 ): void {
   push(lines, 0, 'SECTION');
   push(lines, 2, 'ENTITIES');
@@ -151,6 +167,11 @@ function emitEntities(
   for (const f of features) {
     const layerName = layerNameFor(f, doc);
     emitFeature(lines, f, layerName, splineSamples);
+    emitFeatureSymbol(lines, f, layerName, doc);
+  }
+
+  for (const a of annotations) {
+    emitAnnotation(lines, a, doc);
   }
 
   push(lines, 0, 'ENDSEC');
@@ -493,6 +514,301 @@ function formatValue(code: number, value: string | number): string {
 function normalizeDeg(deg: number): number {
   let d = deg % 360;
   if (d < 0) d += 360;
+  return d;
+}
+
+// ────────────────────────────────────────────────────────────
+// Symbol BLOCKS + per-feature INSERT
+// ────────────────────────────────────────────────────────────
+
+interface BlockRef {
+  symbol: SymbolDefinition;
+  blockName: string;
+}
+
+function collectUsedSymbols(
+  features: Feature[],
+  doc: DrawingDocument
+): Map<string, BlockRef> {
+  const out = new Map<string, BlockRef>();
+  for (const f of features) {
+    const symbolId = f.style?.symbolId;
+    if (!symbolId || out.has(symbolId)) continue;
+    const symbol = findSymbol(symbolId, doc.customSymbols ?? []);
+    if (!symbol) continue;
+    out.set(symbolId, { symbol, blockName: dxfSafeName(`STARR_${symbol.id}`) });
+  }
+  return out;
+}
+
+function emitBlocks(
+  lines: string[],
+  usedSymbols: Map<string, BlockRef>
+): void {
+  push(lines, 0, 'SECTION');
+  push(lines, 2, 'BLOCKS');
+  for (const { symbol, blockName } of usedSymbols.values()) {
+    push(lines, 0, 'BLOCK');
+    push(lines, 8, '0');
+    push(lines, 2, blockName);
+    push(lines, 70, 0);
+    push(lines, 10, 0);
+    push(lines, 20, 0);
+    push(lines, 30, 0);
+    push(lines, 3, blockName);
+    push(lines, 1, '');
+    emitSymbolPlaceholder(lines, symbol, blockName);
+    push(lines, 0, 'ENDBLK');
+    push(lines, 8, '0');
+  }
+  push(lines, 0, 'ENDSEC');
+}
+
+/**
+ * Block-internal geometry for a symbol. We don't (yet) parse
+ * the SymbolPath SVG `d` strings into DXF entities; instead we
+ * land a placeholder circle of `defaultSize/2` plus a TEXT
+ * label with the symbol name so downstream CAD tools can spot
+ * the placement and the surveyor can swap in a real block
+ * after import. Real path translation lands in a follow-up
+ * slice once an SVG-to-DXF helper exists.
+ */
+function emitSymbolPlaceholder(
+  lines: string[],
+  symbol: SymbolDefinition,
+  blockName: string
+): void {
+  const r = Math.max(0.05, (symbol.defaultSize ?? 1) / 2);
+  push(lines, 0, 'CIRCLE');
+  push(lines, 8, '0');
+  push(lines, 10, 0);
+  push(lines, 20, 0);
+  push(lines, 30, 0);
+  push(lines, 40, r);
+
+  push(lines, 0, 'TEXT');
+  push(lines, 8, '0');
+  push(lines, 10, 0);
+  push(lines, 20, -r * 1.5);
+  push(lines, 30, 0);
+  push(lines, 40, r * 0.6);
+  push(lines, 1, blockName);
+  push(lines, 72, 1); // center align
+  push(lines, 11, 0);
+  push(lines, 21, -r * 1.5);
+}
+
+function emitFeatureSymbol(
+  lines: string[],
+  f: Feature,
+  layerName: string,
+  doc: DrawingDocument
+): void {
+  const symbolId = f.style?.symbolId;
+  if (!symbolId) return;
+  const anchor = featureAnchor(f);
+  if (!anchor) return;
+  const symbol = findSymbol(symbolId, doc.customSymbols ?? []);
+  const blockName = dxfSafeName(`STARR_${symbolId}`);
+  const scale =
+    f.style?.symbolSize !== null && f.style?.symbolSize !== undefined
+      ? f.style.symbolSize
+      : 1;
+  const rotationDeg = ((f.style?.symbolRotation ?? 0) * 180) / Math.PI;
+
+  push(lines, 0, 'INSERT');
+  push(lines, 8, layerName);
+  push(lines, 2, blockName);
+  push(lines, 10, anchor.x);
+  push(lines, 20, anchor.y);
+  push(lines, 30, 0);
+  push(lines, 41, scale);
+  push(lines, 42, scale);
+  push(lines, 43, scale);
+  push(lines, 50, normalizeDeg(rotationDeg));
+
+  // Reference the resolved symbol so the unused-arg lint stays
+  // happy when the placeholder block is the only emission.
+  void symbol;
+}
+
+function featureAnchor(f: Feature): Point2D | null {
+  const g = f.geometry;
+  if (g.point) return g.point;
+  if (g.start) return g.start;
+  if (g.vertices && g.vertices.length > 0) return g.vertices[0];
+  if (g.circle) return g.circle.center;
+  if (g.arc) return g.arc.center;
+  if (g.ellipse) return g.ellipse.center;
+  return null;
+}
+
+// ────────────────────────────────────────────────────────────
+// Annotation TEXT emitters
+// ────────────────────────────────────────────────────────────
+
+function emitAnnotation(
+  lines: string[],
+  a: AnnotationBase,
+  doc: DrawingDocument
+): void {
+  const layerName = a.layerId
+    ? dxfSafeName(doc.layers[a.layerId]?.name ?? a.layerId)
+    : 'ANNOTATIONS';
+  switch (a.type) {
+    case 'BEARING_DISTANCE': {
+      const b = a as import('../labels/annotation-types').BearingDistanceDimension;
+      const mid = midpoint(b.startPoint, b.endPoint);
+      const angleDeg = lineAngleDeg(b.startPoint, b.endPoint);
+      const rotDeg =
+        b.textRotation === 'HORIZONTAL'
+          ? 0
+          : b.textRotation === 'UPRIGHT'
+            ? uprightAngle(angleDeg)
+            : angleDeg;
+      const combined =
+        [b.bearingText, b.distanceText].filter(Boolean).join('  ') ||
+        `${b.bearing.toFixed(2)}°  ${b.distance.toFixed(2)}'`;
+      emitText(lines, layerName, mid, combined, b.fontSize, rotDeg, 1, 1);
+      return;
+    }
+    case 'CURVE_DATA': {
+      const c = a as import('../labels/annotation-types').CurveDataAnnotation;
+      const anchor = c.customPosition ?? { x: 0, y: 0 };
+      const lineSpacing = c.lineSpacing > 0 ? c.lineSpacing : 1;
+      let cursorY = anchor.y;
+      for (const text of c.textLines) {
+        emitText(
+          lines,
+          layerName,
+          { x: anchor.x, y: cursorY },
+          text,
+          c.fontSize,
+          0,
+          0,
+          0
+        );
+        cursorY -= c.fontSize * lineSpacing;
+      }
+      return;
+    }
+    case 'MONUMENT_LABEL': {
+      const m = a as import('../labels/annotation-types').MonumentLabel;
+      const offsetX = m.offsetDistance * Math.cos(m.offsetAngle);
+      const offsetY = m.offsetDistance * Math.sin(m.offsetAngle);
+      emitText(
+        lines,
+        layerName,
+        { x: m.position.x + offsetX, y: m.position.y + offsetY },
+        m.text || m.abbreviatedText,
+        m.fontSize,
+        0,
+        0,
+        0
+      );
+      return;
+    }
+    case 'AREA_LABEL': {
+      const ar = a as import('../labels/annotation-types').AreaAnnotation;
+      emitText(
+        lines,
+        layerName,
+        ar.position,
+        ar.text,
+        ar.fontSize,
+        0,
+        1,
+        1
+      );
+      return;
+    }
+    case 'TEXT': {
+      const t = a as import('../labels/annotation-types').TextAnnotation;
+      const halign = t.alignment === 'CENTER' ? 1 : t.alignment === 'RIGHT' ? 2 : 0;
+      const valign =
+        t.verticalAlignment === 'TOP'
+          ? 3
+          : t.verticalAlignment === 'MIDDLE'
+            ? 2
+            : 0;
+      emitText(
+        lines,
+        layerName,
+        t.position,
+        t.text,
+        t.fontSize,
+        (t.rotation * 180) / Math.PI,
+        halign,
+        valign
+      );
+      return;
+    }
+    case 'LEADER': {
+      const l = a as import('../labels/annotation-types').LeaderAnnotation;
+      if (l.vertices && l.vertices.length >= 2) {
+        emitLwPolyline(lines, layerName, l.vertices, false);
+      } else if (l.arrowPoint && l.textPosition) {
+        emitLine(lines, layerName, l.arrowPoint, l.textPosition);
+      }
+      if (l.text) {
+        emitText(
+          lines,
+          layerName,
+          l.textPosition,
+          l.text,
+          l.fontSize,
+          0,
+          0,
+          0
+        );
+      }
+      return;
+    }
+    default:
+      return;
+  }
+}
+
+function emitText(
+  lines: string[],
+  layer: string,
+  position: Point2D,
+  text: string,
+  height: number,
+  rotationDeg: number,
+  halign: number,
+  valign: number
+): void {
+  push(lines, 0, 'TEXT');
+  push(lines, 8, layer);
+  push(lines, 10, position.x);
+  push(lines, 20, position.y);
+  push(lines, 30, 0);
+  push(lines, 40, Math.max(0.01, height));
+  push(lines, 1, text);
+  push(lines, 50, normalizeDeg(rotationDeg));
+  push(lines, 72, halign);
+  push(lines, 73, valign);
+  // When halign/valign are non-zero, AutoCAD reads the alignment
+  // point from group codes 11/21 instead of 10/20.
+  push(lines, 11, position.x);
+  push(lines, 21, position.y);
+  push(lines, 31, 0);
+}
+
+function midpoint(a: Point2D, b: Point2D): Point2D {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function lineAngleDeg(a: Point2D, b: Point2D): number {
+  return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+}
+
+function uprightAngle(angleDeg: number): number {
+  // Keep text right-side up: flip when the line points into the
+  // bottom half of the circle.
+  let d = normalizeDeg(angleDeg);
+  if (d > 90 && d < 270) d -= 180;
   return d;
 }
 
