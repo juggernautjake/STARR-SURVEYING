@@ -96,6 +96,44 @@ export function exportToDxf(
   return lines.join('\r\n') + '\r\n';
 }
 
+/**
+ * Trigger a browser download of the DXF for `doc`. Filename
+ * derives from `doc.name` (kebab-cased) with a `.dxf` suffix.
+ * Returns the byte size of the produced file so the caller
+ * can surface a toast.
+ *
+ * Throws when invoked outside a browser environment (no
+ * `document`); call `exportToDxf` directly from the server.
+ */
+export function downloadDxf(
+  doc: DrawingDocument,
+  options: DxfExportOptions = {}
+): { byteSize: number; filename: string } {
+  if (typeof globalThis.document === 'undefined') {
+    throw new Error('downloadDxf can only run in the browser.');
+  }
+  const dxf = exportToDxf(doc, options);
+  const filename = `${kebabCase(doc.name) || 'drawing'}.dxf`;
+  const blob = new Blob([dxf], { type: 'application/dxf' });
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(globalThis.document.createElement('a'), {
+    href: url,
+    download: filename,
+  });
+  a.click();
+  URL.revokeObjectURL(url);
+  return { byteSize: blob.size, filename };
+}
+
+function kebabCase(input: string): string {
+  return input
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 // ────────────────────────────────────────────────────────────
 // Sections
 // ────────────────────────────────────────────────────────────

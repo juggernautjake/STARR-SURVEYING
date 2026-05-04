@@ -34,7 +34,7 @@ export type {
   SealType,
 } from './seal-engine';
 
-export { exportToDxf } from './dxf-writer';
+export { exportToDxf, downloadDxf } from './dxf-writer';
 export type { DxfExportOptions } from './dxf-writer';
 export type {
   CreateRecordInputs,

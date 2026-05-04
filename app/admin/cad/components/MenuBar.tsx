@@ -3,6 +3,7 @@
 
 import { useRef, useState } from 'react';
 import {
+  useAnnotationStore,
   useDrawingStore,
   useSelectionStore,
   useToolStore,
@@ -15,6 +16,7 @@ import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv } from '@/lib/cad/persistence/export-csv';
+import { downloadDxf } from '@/lib/cad/delivery';
 import SaveToDBDialog from './SaveToDBDialog';
 
 interface MenuItem {
@@ -146,6 +148,22 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     }
   }
 
+  function exportDxf() {
+    try {
+      const annotations = useAnnotationStore.getState().annotations;
+      const { byteSize, filename } = downloadDxf(drawingStore.document, {
+        annotations,
+      });
+      cadLog.info(
+        'FileIO',
+        `Exported drawing as DXF: ${filename} (${byteSize} bytes)`
+      );
+    } catch (err) {
+      cadLog.error('FileIO', 'DXF export failed', err);
+      alert('Failed to export DXF. See the browser console for details.');
+    }
+  }
+
   const undoDesc = undoStore.undoDescription();
   const redoDesc = undoStore.redoDescription();
 
@@ -162,6 +180,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'Save to Database…', action: () => { setDbDialog('save'); setOpenMenu(null); } },
         { separator: true },
         { label: 'Export as CSV…', action: () => { exportCsv(); setOpenMenu(null); } },
+        { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Import…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
         { separator: true },
