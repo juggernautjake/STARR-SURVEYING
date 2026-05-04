@@ -1247,8 +1247,8 @@ interface ExportStore {
 
 ### RPLS Workflow
 - [x] Submit for review changes status to READY_FOR_REVIEW (`useReviewWorkflowStore.markReadyForReview` in `lib/cad/store/review-workflow-store.ts`; wrapper around `runTransition` in `lib/cad/delivery/rpls-workflow.ts`. Completeness panel's Mark Ready opens `RPLSSubmissionDialog` (`app/admin/cad/components/RPLSSubmissionDialog.tsx`) which confirms the resolved RPLS, captures an optional message, and runs the transition with the message folded into the audit-trail note.)
-- [ ] RPLS Review Mode UI shows review-specific buttons — store transitions ready (`openForReview`, `requestChanges`, `approve`); UI surfaces land in a follow-up slice
-- [ ] "Approve & Seal" applies seal and changes status to SEALED — `seal` transition wired in store; seal-engine + UI land in §8 slice
+- [x] RPLS Review Mode UI shows review-specific buttons (`app/admin/cad/components/RPLSReviewModePanel.tsx`; status-aware body switches across DRAFT / READY_FOR_REVIEW / IN_REVIEW / CHANGES_REQUESTED / APPROVED / SEALED / DELIVERED with the right CTAs at each step. Mounted in `CADLayout`, opened from File → 🪪 RPLS review mode…)
+- [ ] "Approve & Seal" applies seal and changes status to SEALED — wired through APPROVED + an "Apply Seal (stub)" button that flips to SEALED with placeholder metadata; seal-engine + drawing-hash sign-off land in §8 slice
 - [ ] Sealed drawing: seal image embedded in PDF at seal placeholder
 - [ ] Drawing hash recorded at time of sealing
 - [ ] Changes after sealing require re-sealing (hash mismatch warning)

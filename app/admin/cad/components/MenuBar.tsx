@@ -34,7 +34,7 @@ interface MenuDef {
   items: MenuEntry[];
 }
 
-export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void }) {
+export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel, onToggleReviewModePanel }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void; onToggleReviewModePanel?: () => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -180,6 +180,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         {
           label: '✓ Drawing completeness…',
           action: () => { onToggleCompletenessPanel?.(); setOpenMenu(null); },
+        },
+        {
+          label: '🪪 RPLS review mode…',
+          action: () => { onToggleReviewModePanel?.(); setOpenMenu(null); },
         },
       ],
     },

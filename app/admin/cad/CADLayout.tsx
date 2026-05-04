@@ -18,6 +18,7 @@ import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
 import CompletenessPanel from './components/CompletenessPanel';
 import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
+import RPLSReviewModePanel from './components/RPLSReviewModePanel';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -125,6 +126,7 @@ export default function CADLayout() {
   const [showOrientationDialog, setShowOrientationDialog] = useState(false);
   const [showHiddenItems, setShowHiddenItems] = useState(false);
   const [showCompletenessPanel, setShowCompletenessPanel] = useState(false);
+  const [showReviewModePanel, setShowReviewModePanel] = useState(false);
   const [pendingSubmission, setPendingSubmission] =
     useState<CompletenessSummary | null>(null);
   const [layerPrefsLayerId, setLayerPrefsLayerId] = useState<string | null>(null);
@@ -343,6 +345,7 @@ export default function CADLayout() {
         onOpenTitleBlock={() => setShowTitleBlock(true)}
         onToggleImagePanel={() => setShowImagePanel(p => !p)}
         onToggleCompletenessPanel={() => setShowCompletenessPanel(p => !p)}
+        onToggleReviewModePanel={() => setShowReviewModePanel(p => !p)}
       />
 
       {/* Contextual tool options strip — with Prefs button on the right */}
@@ -533,6 +536,13 @@ export default function CADLayout() {
         open={pendingSubmission !== null}
         summary={pendingSubmission}
         onClose={() => setPendingSubmission(null)}
+      />
+
+      {/* Phase 7 §7.3 RPLS review-mode panel — opens from the
+          File menu and switches its body based on workflow status */}
+      <RPLSReviewModePanel
+        open={showReviewModePanel}
+        onClose={() => setShowReviewModePanel(false)}
       />
 
       {/* New Drawing / Get Started dialog */}
