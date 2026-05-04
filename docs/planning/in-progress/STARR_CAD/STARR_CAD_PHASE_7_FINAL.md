@@ -1251,7 +1251,7 @@ interface ExportStore {
 - [x] "Approve & Seal" applies seal and changes status to SEALED — `RPLSReviewModePanel` now invokes `applySeal(doc, sealData)` from `lib/cad/delivery/seal-engine.ts`; the new doc lands in `useDrawingStore.loadDocument` and the workflow store flips to SEALED.
 - [ ] Sealed drawing: seal image embedded in PDF at seal placeholder — seal data + image slot ready on `DrawingSettings.sealData`; PDF exporter wiring lands in §10 slice
 - [x] Drawing hash recorded at time of sealing — `computeDrawingHash(doc)` in `seal-engine.ts` canonicalizes (sorted keys + transient state stripped) and SHA-256s; stored on `sealData.signatureHash` at apply time
-- [x] Changes after sealing require re-sealing (hash mismatch warning) — `verifyDrawingSeal(doc)` returns `{ ok: false, expected, actual }` on drift; UI surface for the mismatch banner lands in a follow-up slice
+- [x] Changes after sealing require re-sealing (hash mismatch warning) — `verifyDrawingSeal(doc)` returns `{ ok: false, expected, actual }` on drift; `app/admin/cad/components/SealHashBanner.tsx` consumes it via a 250ms-debounced effect and renders a sticky warning strip with a "Open RPLS review mode" CTA + a per-hash Dismiss latch
 
 ### Exports
 - [ ] DXF export: all layers present with correct names

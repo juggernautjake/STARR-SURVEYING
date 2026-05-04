@@ -19,6 +19,7 @@ import ElementExplanationPopup from './components/ElementExplanationPopup';
 import CompletenessPanel from './components/CompletenessPanel';
 import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import RPLSReviewModePanel from './components/RPLSReviewModePanel';
+import SealHashBanner from './components/SealHashBanner';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -332,6 +333,11 @@ export default function CADLayout() {
           <button onClick={() => setAutoSaveFailed(false)} className="ml-4 font-bold">✕</button>
         </div>
       )}
+
+      {/* Phase 7 §8.3 seal hash-mismatch banner — sticky strip
+          flagged when the active document's content has drifted
+          from the recorded seal hash */}
+      <SealHashBanner onOpenReviewMode={() => setShowReviewModePanel(true)} />
 
       {/* Top menu bar */}
       <MenuBar
