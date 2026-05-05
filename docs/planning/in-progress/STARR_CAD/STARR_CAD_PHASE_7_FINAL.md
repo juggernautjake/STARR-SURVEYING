@@ -1261,8 +1261,8 @@ interface ExportStore {
 - [ ] DXF import: round-trip (export then re-import) preserves all features — DXF importer is a separate slice
 - [ ] PDF export (final): seal image embedded at correct location
 - [ ] PDF export: scale accurate (1" = specified footage)
-- [ ] GeoJSON export: coordinates in WGS84
-- [ ] GeoJSON export: all boundary features present
+- [ ] GeoJSON export: coordinates in WGS84 — `exportToGeoJSON` ships state-plane coords (US Survey Feet) with EPSG:2277 CRS hint + metadata; WGS84 re-projection waits on a proj4 dependency
+- [x] GeoJSON export: all boundary features present (`exportToGeoJSON` in `lib/cad/delivery/geojson-writer.ts` walks `doc.features` → Point/LineString/Polygon/MultiLineString with curve sampling for circles/ellipses/arcs/splines; computed acreage stamped on POLYGON properties; smoke-tested with point + polygon + circle + arc)
 - [ ] CSV simplified: only base monument codes, B/E suffixes preserved
 - [ ] CSV full: all fields including confidence and tier
 

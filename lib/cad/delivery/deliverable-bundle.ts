@@ -41,6 +41,7 @@ import type {
 } from '../types';
 import type { AnnotationBase } from '../labels/annotation-types';
 import { exportToDxf } from './dxf-writer';
+import { exportToGeoJSON } from './geojson-writer';
 import {
   checkDrawingCompleteness,
   summarizeCompleteness,
@@ -95,6 +96,7 @@ export function buildDeliverableBundle(
   const seal = doc.settings.sealData ?? null;
 
   const dxf = exportToDxf(doc, { annotations });
+  const geojson = exportToGeoJSON(doc);
   const completenessChecks = checkDrawingCompleteness({
     doc,
     annotations,
@@ -107,6 +109,7 @@ export function buildDeliverableBundle(
 
   const files: Record<string, string> = {};
   files['drawing.dxf'] = dxf;
+  files['drawing.geojson'] = geojson;
   files['completeness-report.txt'] = renderCompletenessReport(
     completenessChecks,
     completenessSummary
@@ -269,6 +272,11 @@ function renderReadme(
   lines.push(
     '  - drawing.dxf opens in AutoCAD, Civil 3D, Land F/X, QGIS, FME, etc.'
   );
+  lines.push(
+    '  - drawing.geojson loads in QGIS / Mapbox / ArcGIS — coordinates'
+  );
+  lines.push('    ship in U.S. Survey Feet (Texas State Plane Central, NAD83);');
+  lines.push('    re-project on import if WGS84 is required.');
   if (description) {
     lines.push(
       '  - legal-description.txt contains the metes-and-bounds, survey notes,'
