@@ -45,6 +45,16 @@ export type {
   SurveyNote,
   SurveyNoteCategory,
 } from './description-generator';
+
+export {
+  buildDeliverableBundle,
+  downloadDeliverableBundle,
+} from './deliverable-bundle';
+export type {
+  DeliverableBundle,
+  DeliverableBundleInputs,
+  DeliverableManifest,
+} from './deliverable-bundle';
 export type {
   CreateRecordInputs,
   RPLSReviewEvent,

@@ -4,7 +4,9 @@
 import { useRef, useState } from 'react';
 import {
   useAnnotationStore,
+  useDeliveryStore,
   useDrawingStore,
+  useReviewWorkflowStore,
   useSelectionStore,
   useToolStore,
   useViewportStore,
@@ -16,7 +18,7 @@ import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv } from '@/lib/cad/persistence/export-csv';
-import { downloadDxf } from '@/lib/cad/delivery';
+import { downloadDxf, downloadDeliverableBundle } from '@/lib/cad/delivery';
 import SaveToDBDialog from './SaveToDBDialog';
 
 interface MenuItem {
@@ -164,6 +166,30 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     }
   }
 
+  async function exportDeliverable() {
+    try {
+      const annotations = useAnnotationStore.getState().annotations;
+      const description = useDeliveryStore.getState().description;
+      const reviewRecord = useReviewWorkflowStore.getState().record;
+      const { filename, byteSize, manifest } = await downloadDeliverableBundle({
+        doc: drawingStore.document,
+        annotations,
+        description,
+        reviewRecord,
+      });
+      cadLog.info(
+        'FileIO',
+        `Exported deliverable bundle: ${filename} (${byteSize} bytes; ` +
+          `${manifest.fileList.length} files; status ${manifest.status})`
+      );
+    } catch (err) {
+      cadLog.error('FileIO', 'Deliverable bundle export failed', err);
+      alert(
+        'Failed to export deliverable bundle. See the browser console for details.'
+      );
+    }
+  }
+
   const undoDesc = undoStore.undoDescription();
   const redoDesc = undoStore.redoDescription();
 
@@ -181,6 +207,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { separator: true },
         { label: 'Export as CSV…', action: () => { exportCsv(); setOpenMenu(null); } },
         { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
+        { label: '📦 Download deliverable bundle…', action: () => { void exportDeliverable(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Import…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
         { separator: true },
