@@ -36,6 +36,15 @@ export type {
 
 export { exportToDxf, downloadDxf } from './dxf-writer';
 export type { DxfExportOptions } from './dxf-writer';
+
+export { generateSurveyDescription } from './description-generator';
+export type {
+  DescriptionRevision,
+  GenerateDescriptionOptions,
+  SurveyDescription,
+  SurveyNote,
+  SurveyNoteCategory,
+} from './description-generator';
 export type {
   CreateRecordInputs,
   RPLSReviewEvent,

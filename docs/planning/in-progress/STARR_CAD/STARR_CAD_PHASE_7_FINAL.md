@@ -1229,14 +1229,14 @@ interface ExportStore {
 - [ ] "Select Element to Chat About" focuses chat on that element
 
 ### Survey Description Generation
-- [ ] Legal description generated in correct Texas metes-and-bounds format
-- [ ] All bearing/distance legs present and correct
-- [ ] POB monument description matches drawing
-- [ ] Area statement included with correct acreage
-- [ ] FEMA flood zone note auto-populated from enrichment data
-- [ ] PLSS fields auto-filled in title block
-- [ ] User can edit any field manually
-- [ ] "Regenerate" re-runs Claude generation with updated drawing state
+- [x] Legal description generated in correct Texas metes-and-bounds format (`generateSurveyDescription` in `lib/cad/delivery/description-generator.ts` wraps the existing `generateLegalDescription` helper with boundary-polygon discovery, area roll-up, basis-of-bearings sniffer, and standard survey notes)
+- [x] All bearing/distance legs present and correct (boundary polygon → synthetic `Traverse` via `createTraverse`; smoke-tested with a 4-leg unit square — bearings + distances match)
+- [ ] POB monument description matches drawing — POB anchor is generic until point-feature → boundary-vertex linkage lands in a follow-up slice (synthetic survey points have no codeDefinition)
+- [x] Area statement included with correct acreage (square-feet + acres via shoelace; "CONTAINING N square feet (X.XXXX acres), more or less.")
+- [x] FEMA flood zone note auto-populated from enrichment data — sniffer reads zone + panel + panel date out of `titleBlock.notes`; text composes with or without a panel reference
+- [x] PLSS fields auto-filled in title block — county / abstract / survey / township / range / section sniffers populate the SurveyDescription record from `titleBlock.notes`
+- [ ] User can edit any field manually — UI dialog lands in next slice
+- [ ] "Regenerate" re-runs Claude generation with updated drawing state — Claude-augmented narrative pass is a follow-up slice
 
 ### Completeness Checker
 - [x] All 16 checks run correctly (`checkDrawingCompleteness` in `lib/cad/delivery/completeness-checker.ts`; bearing-distance per-segment scan + legal-desc gate stay advisory until §5 + per-segment label coverage land)
