@@ -1235,11 +1235,11 @@ interface ExportStore {
 - [x] Area statement included with correct acreage (square-feet + acres via shoelace; "CONTAINING N square feet (X.XXXX acres), more or less.")
 - [x] FEMA flood zone note auto-populated from enrichment data — sniffer reads zone + panel + panel date out of `titleBlock.notes`; text composes with or without a panel reference
 - [x] PLSS fields auto-filled in title block — county / abstract / survey / township / range / section sniffers populate the SurveyDescription record from `titleBlock.notes`
-- [ ] User can edit any field manually — UI dialog lands in next slice
-- [ ] "Regenerate" re-runs Claude generation with updated drawing state — Claude-augmented narrative pass is a follow-up slice
+- [x] User can edit any field manually (`app/admin/cad/components/SurveyDescriptionPanel.tsx` — Edit toggles per-section editable textareas for Legal Description / Certification / Notes; Apply Title-Block writes county / abstract / survey / flood / dates back into `useDrawingStore.updateSettings.titleBlock.notes` and stamps a USER revision)
+- [ ] "Regenerate" re-runs Claude generation with updated drawing state — `Regenerate` button re-runs the deterministic generator while preserving the prior revision history; Claude-augmented narrative pass is a follow-up slice
 
 ### Completeness Checker
-- [x] All 16 checks run correctly (`checkDrawingCompleteness` in `lib/cad/delivery/completeness-checker.ts`; bearing-distance per-segment scan + legal-desc gate stay advisory until §5 + per-segment label coverage land)
+- [x] All 16 checks run correctly (`checkDrawingCompleteness` in `lib/cad/delivery/completeness-checker.ts`; legal-desc check now reads `useDeliveryStore.description !== null` via `CompletenessPanel`. Bearing-distance per-segment scan stays advisory until per-segment label coverage lands.)
 - [x] Missing north arrow → error flagged (severity ERROR; checks `titleBlock.visible` + `northArrowSizeIn`)
 - [x] Unfilled title block field → error flagged (severity ERROR; required: firmName, surveyorName, projectName, projectNumber, clientName, surveyDate)
 - [x] Tier-1 unresolved items → error flagged (severity ERROR via `checkNoPendingBlocking`; tier-1 unplaced via WARNING `checkTier1Resolved`)

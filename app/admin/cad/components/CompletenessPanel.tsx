@@ -33,6 +33,7 @@ import {
 import {
   useAIStore,
   useAnnotationStore,
+  useDeliveryStore,
   useDrawingStore,
 } from '@/lib/cad/store';
 
@@ -72,6 +73,9 @@ export default function CompletenessPanel({
   const document = useDrawingStore((s) => s.document);
   const annotations = useAnnotationStore((s) => s.annotations);
   const queue = useAIStore((s) => s.result?.reviewQueue ?? null);
+  const hasLegalDescription = useDeliveryStore(
+    (s) => s.description !== null
+  );
 
   const checks = useMemo(
     () =>
@@ -79,8 +83,9 @@ export default function CompletenessPanel({
         doc: document,
         annotations,
         queue,
+        hasLegalDescription,
       }),
-    [document, annotations, queue]
+    [document, annotations, queue, hasLegalDescription]
   );
   const summary = useMemo(() => summarizeCompleteness(checks), [checks]);
 

@@ -15,3 +15,4 @@ export { useTemplateStore } from './template-store';
 export { useAIStore } from './ai-store';
 export type { AIPipelineStatus } from './ai-store';
 export { useReviewWorkflowStore } from './review-workflow-store';
+export { useDeliveryStore } from './delivery-store';

@@ -20,6 +20,7 @@ import CompletenessPanel from './components/CompletenessPanel';
 import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import RPLSReviewModePanel from './components/RPLSReviewModePanel';
 import SealHashBanner from './components/SealHashBanner';
+import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -128,6 +129,7 @@ export default function CADLayout() {
   const [showHiddenItems, setShowHiddenItems] = useState(false);
   const [showCompletenessPanel, setShowCompletenessPanel] = useState(false);
   const [showReviewModePanel, setShowReviewModePanel] = useState(false);
+  const [showDescriptionPanel, setShowDescriptionPanel] = useState(false);
   const [pendingSubmission, setPendingSubmission] =
     useState<CompletenessSummary | null>(null);
   const [layerPrefsLayerId, setLayerPrefsLayerId] = useState<string | null>(null);
@@ -352,6 +354,7 @@ export default function CADLayout() {
         onToggleImagePanel={() => setShowImagePanel(p => !p)}
         onToggleCompletenessPanel={() => setShowCompletenessPanel(p => !p)}
         onToggleReviewModePanel={() => setShowReviewModePanel(p => !p)}
+        onToggleDescriptionPanel={() => setShowDescriptionPanel(p => !p)}
       />
 
       {/* Contextual tool options strip — with Prefs button on the right */}
@@ -549,6 +552,13 @@ export default function CADLayout() {
       <RPLSReviewModePanel
         open={showReviewModePanel}
         onClose={() => setShowReviewModePanel(false)}
+      />
+
+      {/* Phase 7 §5.5 survey-description panel — generate +
+          edit the metes-and-bounds + notes + certification */}
+      <SurveyDescriptionPanel
+        open={showDescriptionPanel}
+        onClose={() => setShowDescriptionPanel(false)}
       />
 
       {/* New Drawing / Get Started dialog */}
