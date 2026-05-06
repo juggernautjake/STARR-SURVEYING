@@ -22,6 +22,7 @@ import RPLSReviewModePanel from './components/RPLSReviewModePanel';
 import SealHashBanner from './components/SealHashBanner';
 import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
 import DeliveryHydrator from './components/DeliveryHydrator';
+import DrawingChatPanel from './components/DrawingChatPanel';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -565,6 +566,10 @@ export default function CADLayout() {
         open={showDescriptionPanel}
         onClose={() => setShowDescriptionPanel(false)}
       />
+
+      {/* Phase 7 §4 drawing chat panel — Claude-backed
+          assistant for whole-drawing Q&A and actions */}
+      <DrawingChatPanel />
 
       {/* New Drawing / Get Started dialog */}
       {showNewDrawingDialog && (

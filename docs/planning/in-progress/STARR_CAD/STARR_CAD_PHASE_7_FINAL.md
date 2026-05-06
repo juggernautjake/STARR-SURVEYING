@@ -1221,12 +1221,12 @@ interface ExportStore {
 - [ ] Manual attribute edit (change layer in property panel) → canvas updates immediately
 
 ### AI Drawing Assistant
-- [ ] Chat sends message, receives response within 30 seconds
-- [ ] Layer reassignment chat command updates feature layer and canvas
-- [ ] Style change command updates feature line type
-- [ ] "Redraw boundary" command triggers stage 2 re-run for boundary layer
-- [ ] Chat history persists through the session
-- [ ] "Select Element to Chat About" focuses chat on that element
+- [x] Chat sends message, receives response within 30 seconds (`handleDrawingChat` in `lib/cad/ai-engine/drawing-chat.ts` + POST `/api/admin/cad/drawing-chat`; 45 s handler / 60 s route ceiling. Snapshot fed to Claude includes feature counts by type, populated layers, title-block + paper settings, and seal status.)
+- [ ] Layer reassignment chat command updates feature layer and canvas — `useDrawingChatStore.applyAction` handles UPDATE_TITLE_BLOCK + UPDATE_SETTING + REGENERATE_PIPELINE + REDRAW_LAYER (queued); per-feature layer reassignment lands when partial-recompute ships
+- [ ] Style change command updates feature line type — falls under the partial-recompute follow-up
+- [ ] "Redraw boundary" command triggers stage 2 re-run for boundary layer — REDRAW_LAYER is parsed + queued; partial-recompute path lands later
+- [x] Chat history persists through the session (`useDrawingChatStore` keeps the transcript in memory; cleared via Clear button or `reset()`. Cross-session persistence is a follow-up.)
+- [ ] "Select Element to Chat About" focuses chat on that element — element-level chat already lives in §30.4; cross-link from the drawing chat lands later
 
 ### Survey Description Generation
 - [x] Legal description generated in correct Texas metes-and-bounds format (`generateSurveyDescription` in `lib/cad/delivery/description-generator.ts` wraps the existing `generateLegalDescription` helper with boundary-polygon discovery, area roll-up, basis-of-bearings sniffer, and standard survey notes)

@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import {
   useAnnotationStore,
   useDeliveryStore,
+  useDrawingChatStore,
   useDrawingStore,
   useReviewWorkflowStore,
   useSelectionStore,
@@ -59,6 +60,8 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
   const aiQuestionsAvailable = useAIStore(
     (s) => (s.result?.deliberationResult?.questions.length ?? 0) > 0
   );
+  const drawingChatOpen = useDrawingChatStore((s) => s.isOpen);
+  const toggleDrawingChat = useDrawingChatStore((s) => s.toggle);
 
   // ─── File I/O ───────────────────────────────
   function saveDocument() {
@@ -282,6 +285,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           label: 'AI clarifying questions…',
           action: () => { openAIQuestionDialog(); setOpenMenu(null); },
           disabled: !aiQuestionsAvailable,
+        },
+        {
+          label: drawingChatOpen ? 'Hide AI drawing chat' : '💬 AI drawing chat…',
+          action: () => { toggleDrawingChat(); setOpenMenu(null); },
         },
         { separator: true },
         {
