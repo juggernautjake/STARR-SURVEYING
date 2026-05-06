@@ -7,11 +7,9 @@
 // thin convenience API the UI can call without importing the
 // transition rules.
 //
-// Persistence to `DrawingDocument.settings` lands in a
-// follow-up slice (it requires bumping the document schema +
-// migration). For now the record lives only in-memory across
-// the session, which is enough to wire the Mark Ready /
-// RPLS Review Mode UIs.
+// Persisted onto `DrawingDocument.settings.reviewRecord` so
+// the audit trail rides with the document file (and the
+// existing autosave pipeline picks it up automatically).
 
 import { create } from 'zustand';
 
@@ -23,6 +21,7 @@ import {
   type RPLSReviewRecord,
   type RPLSWorkflowStatus,
 } from '../delivery/rpls-workflow';
+import { useDrawingStore } from './drawing-store';
 
 interface TransitionArgs {
   by:        string;
@@ -36,9 +35,13 @@ interface ReviewWorkflowStore {
   /** Most recent transition error. Cleared on success. */
   lastError: string | null;
 
-  /** Replace the record (used when persistence lands and we
-   *  hydrate from `DrawingDocument.settings`). */
+  /** Replace the record. Use when restoring from a snapshot
+   *  outside the normal hydration flow (e.g. import / undo). */
   loadRecord: (record: RPLSReviewRecord) => void;
+  /** Hydrate from `doc.settings.reviewRecord` without writing
+   *  back. Called by `DeliveryHydrator` whenever the active
+   *  document id changes. */
+  hydrateFromDocument: (record: RPLSReviewRecord | null) => void;
   /** Initialize a fresh DRAFT record for the given job /
    *  RPLS pair when no record exists yet. No-op when a record
    *  is already loaded — that path goes through `loadRecord`. */
@@ -69,11 +72,19 @@ export const useReviewWorkflowStore = create<ReviewWorkflowStore>(
     record: null,
     lastError: null,
 
-    loadRecord: (record) => set({ record, lastError: null }),
+    loadRecord: (record) => {
+      set({ record, lastError: null });
+      persistRecord(record);
+    },
+
+    hydrateFromDocument: (record) =>
+      set({ record, lastError: null }),
 
     loadOrCreate: (inputs) => {
       if (get().record) return;
-      set({ record: createDraftRecord(inputs), lastError: null });
+      const fresh = createDraftRecord(inputs);
+      set({ record: fresh, lastError: null });
+      persistRecord(fresh);
     },
 
     markReadyForReview: (args) => transition('READY_FOR_REVIEW', args, set, get),
@@ -87,12 +98,15 @@ export const useReviewWorkflowStore = create<ReviewWorkflowStore>(
     addComment: ({ by, note, revisionId }) =>
       set((s) => {
         if (!s.record) return s;
-        return {
-          record: appendComment(s.record, by, note, revisionId),
-        };
+        const next = appendComment(s.record, by, note, revisionId);
+        persistRecord(next);
+        return { record: next };
       }),
 
-    reset: () => set({ record: null, lastError: null }),
+    reset: () => {
+      set({ record: null, lastError: null });
+      persistRecord(null);
+    },
   })
 );
 
@@ -129,5 +143,10 @@ function transition(
     return false;
   }
   set({ record: result.record, lastError: null });
+  persistRecord(result.record);
   return true;
+}
+
+function persistRecord(record: RPLSReviewRecord | null): void {
+  useDrawingStore.getState().updateSettings({ reviewRecord: record });
 }

@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import {
   useAnnotationStore,
   useDeliveryStore,
+  useDrawingChatStore,
   useDrawingStore,
   useReviewWorkflowStore,
   useSelectionStore,
@@ -18,7 +19,9 @@ import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv } from '@/lib/cad/persistence/export-csv';
-import { downloadDxf, downloadGeoJSON, downloadDeliverableBundle } from '@/lib/cad/delivery';
+import { clearAutosave } from '@/lib/cad/persistence/autosave';
+import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON } from '@/lib/cad/delivery';
+import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import SaveToDBDialog from './SaveToDBDialog';
 
 interface MenuItem {
@@ -38,7 +41,7 @@ interface MenuDef {
   items: MenuEntry[];
 }
 
-export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel, onToggleReviewModePanel, onToggleDescriptionPanel }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void; onToggleReviewModePanel?: () => void; onToggleDescriptionPanel?: () => void }) {
+export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel, onToggleReviewModePanel, onToggleDescriptionPanel, onOpenRecentRecoveries }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void; onToggleReviewModePanel?: () => void; onToggleDescriptionPanel?: () => void; onOpenRecentRecoveries?: () => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -59,6 +62,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
   const aiQuestionsAvailable = useAIStore(
     (s) => (s.result?.deliberationResult?.questions.length ?? 0) > 0
   );
+  const drawingChatOpen = useDrawingChatStore((s) => s.isOpen);
+  const toggleDrawingChat = useDrawingChatStore((s) => s.toggle);
+  const aiSidebarOpen = useUIStore((s) => s.showAISidebar);
+  const toggleAISidebar = useUIStore((s) => s.toggleAISidebar);
 
   // ─── File I/O ───────────────────────────────
   function saveDocument() {
@@ -73,6 +80,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       a.click();
       URL.revokeObjectURL(url);
       drawingStore.markClean();
+      // §16 — manual save supersedes the in-flight autosave;
+      // drop the slot so a stale crash recovery doesn't pop on
+      // the next reload.
+      void clearAutosave(drawingStore.document.id);
       cadLog.info('FileIO', `Saved drawing: ${drawingStore.document.name}`);
     } catch (err) {
       cadLog.error('FileIO', 'Failed to save document', err);
@@ -166,6 +177,103 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     }
   }
 
+  async function openGeoJson() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.geojson,.json,application/geo+json,application/json';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const result = importFromGeoJSON(text);
+        result.document.name = file.name.replace(/\.(geojson|json)$/i, '');
+        drawingStore.loadDocument(result.document);
+        const warnSuffix =
+          result.warnings.length > 0
+            ? ` with ${result.warnings.length} warning(s); see console`
+            : '';
+        cadLog.info(
+          'FileIO',
+          `Imported GeoJSON: ${result.stats.featuresEmitted} feature(s), ` +
+            `${result.stats.layersParsed} layer(s)${warnSuffix}`
+        );
+        if (result.warnings.length > 0) {
+          for (const w of result.warnings) cadLog.warn('FileIO', w);
+        }
+      } catch (err) {
+        cadLog.error('FileIO', 'GeoJSON import failed', err);
+        alert('Failed to import GeoJSON. See the browser console for details.');
+      }
+    };
+    input.click();
+  }
+
+  async function openDxf() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.dxf,application/dxf,application/vnd.dxf';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const result = importFromDxf(text);
+        result.document.name = file.name.replace(/\.dxf$/i, '');
+        drawingStore.loadDocument(result.document);
+        const warnSuffix =
+          result.warnings.length > 0
+            ? ` with ${result.warnings.length} warning(s); see console`
+            : '';
+        cadLog.info(
+          'FileIO',
+          `Imported DXF: ${result.stats.featuresEmitted} features, ` +
+            `${result.stats.layersParsed} layers${warnSuffix}`
+        );
+        if (result.warnings.length > 0) {
+          for (const w of result.warnings) cadLog.warn('FileIO', w);
+        }
+      } catch (err) {
+        cadLog.error('FileIO', 'DXF import failed', err);
+        alert('Failed to import DXF. See the browser console for details.');
+      }
+    };
+    input.click();
+  }
+
+  function exportPdf() {
+    try {
+      const { byteSize, filename } = downloadPdf(drawingStore.document);
+      cadLog.info(
+        'FileIO',
+        `Exported drawing as PDF: ${filename} (${byteSize} bytes)`
+      );
+    } catch (err) {
+      cadLog.error('FileIO', 'PDF export failed', err);
+      alert('Failed to export PDF. See the browser console for details.');
+    }
+  }
+
+  function exportFieldCards() {
+    try {
+      const result = downloadSleeveCards(
+        drawingStore.document,
+        MASTER_CODE_LIBRARY
+      );
+      cadLog.info(
+        'FileIO',
+        `Exported field reference cards: ${result.filename} ` +
+          `(${result.codesIncluded} codes, ${result.cardCount} cards, ` +
+          `${result.pageCount} pages, ${result.byteSize} bytes)`
+      );
+    } catch (err) {
+      cadLog.error('FileIO', 'Field reference cards export failed', err);
+      alert(
+        'Failed to export field reference cards. See the browser console.'
+      );
+    }
+  }
+
   function exportGeoJSON() {
     try {
       const { byteSize, filename } = downloadGeoJSON(drawingStore.document);
@@ -213,6 +321,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'New Drawing', shortcut: 'Ctrl+N', action: () => { window.dispatchEvent(new CustomEvent('cad:openNewDrawingDialog')); setOpenMenu(null); } },
         { label: 'Open…', shortcut: 'Ctrl+O', action: openFileDialog },
         { label: 'Open from Database…', action: () => { setDbDialog('open'); setOpenMenu(null); } },
+        { label: 'Recover unsaved drawings…', action: () => { onOpenRecentRecoveries?.(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Save', shortcut: 'Ctrl+S', action: saveDocument },
         { label: 'Save As…', action: saveDocument },
@@ -220,7 +329,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { separator: true },
         { label: 'Export as CSV…', action: () => { exportCsv(); setOpenMenu(null); } },
         { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
+        { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
+        { label: 'Export as PDF (sealed)…', action: () => { exportPdf(); setOpenMenu(null); } },
+        { label: '🪪 Field reference cards…', action: () => { exportFieldCards(); setOpenMenu(null); } },
         { label: 'Export as GeoJSON…', action: () => { exportGeoJSON(); setOpenMenu(null); } },
+        { label: 'Import GeoJSON…', action: () => { void openGeoJson(); setOpenMenu(null); } },
         { label: '📦 Download deliverable bundle…', action: () => { void exportDeliverable(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Import…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
@@ -235,6 +348,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           label: 'AI clarifying questions…',
           action: () => { openAIQuestionDialog(); setOpenMenu(null); },
           disabled: !aiQuestionsAvailable,
+        },
+        {
+          label: drawingChatOpen ? 'Hide AI drawing chat' : '💬 AI drawing chat…',
+          action: () => { toggleDrawingChat(); setOpenMenu(null); },
+        },
+        {
+          label: aiSidebarOpen ? 'Hide AI sidebar' : '🧠 AI sidebar (tabs)',
+          action: () => { toggleAISidebar(); setOpenMenu(null); },
         },
         { separator: true },
         {

@@ -37,8 +37,27 @@ export type {
 export { exportToDxf, downloadDxf } from './dxf-writer';
 export type { DxfExportOptions } from './dxf-writer';
 
+export { importFromDxf } from './dxf-reader';
+export type { DxfImportResult } from './dxf-reader';
+
 export { exportToGeoJSON, downloadGeoJSON } from './geojson-writer';
 export type { GeoJsonExportOptions } from './geojson-writer';
+
+export { importFromGeoJSON } from './geojson-reader';
+export type { GeoJsonImportResult } from './geojson-reader';
+
+export { exportToPdf, downloadPdf } from './pdf-writer';
+export type { PdfExportOptions, PdfExportResult } from './pdf-writer';
+
+export {
+  collectCodesUsed,
+  downloadSleeveCards,
+  generateSleeveCards,
+} from './sleeve-cards';
+export type {
+  SleeveCardOptions,
+  SleeveCardResult,
+} from './sleeve-cards';
 
 export { generateSurveyDescription } from './description-generator';
 export type {

@@ -52,6 +52,9 @@ export default function ElementExplanationPopup() {
   const chatLoading = useAIStore((s) =>
     featureId ? Boolean(s.chatLoadingByFeature[featureId]) : false
   );
+  const isStale = useAIStore((s) =>
+    featureId ? s.staleExplanationIds.includes(featureId) : false
+  );
 
   useEffect(() => {
     if (!featureId) return;
@@ -125,6 +128,14 @@ export default function ElementExplanationPopup() {
         </div>
 
         <div style={styles.body}>
+          {isStale ? (
+            <div style={styles.staleBanner}>
+              ⚠ This explanation drifted from the live geometry. The
+              feature was edited on the canvas after the AI generated
+              this writeup. Re-run the pipeline (or use the chat below
+              with REGENERATE_PIPELINE) to refresh the analysis.
+            </div>
+          ) : null}
           <Section title="Why I drew it this way">
             <p style={styles.paragraph}>{explanation.reasoning}</p>
           </Section>
@@ -517,6 +528,15 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     padding: 4,
     lineHeight: 1,
+  },
+  staleBanner: {
+    padding: 10,
+    background: '#FEF3C7',
+    border: '1px solid #FDE68A',
+    color: '#78350F',
+    borderRadius: 6,
+    fontSize: 12,
+    lineHeight: 1.5,
   },
   confidenceBarOuter: {
     height: 6,

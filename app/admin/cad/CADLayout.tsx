@@ -21,6 +21,11 @@ import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import RPLSReviewModePanel from './components/RPLSReviewModePanel';
 import SealHashBanner from './components/SealHashBanner';
 import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
+import DeliveryHydrator from './components/DeliveryHydrator';
+import DrawingChatPanel from './components/DrawingChatPanel';
+import RecentRecoveriesDialog from './components/RecentRecoveriesDialog';
+import AISidebar from './components/AISidebar';
+import BidirectionalSync from './components/BidirectionalSync';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -34,11 +39,45 @@ import ImagePanel from './components/ImagePanel';
 import HiddenItemsPanel from './components/HiddenItemsPanel';
 import LayerPreferencesPanel from './components/LayerPreferencesPanel';
 import FeatureLabelPreferencesPanel from './components/FeatureLabelPreferencesPanel';
-import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore, useAIStore } from '@/lib/cad/store';
+import {
+  useUIStore,
+  useDrawingStore,
+  useSelectionStore,
+  useUndoStore,
+  useAIStore,
+  useDeliveryStore,
+  useDrawingChatStore,
+  useReviewWorkflowStore,
+} from '@/lib/cad/store';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
+import {
+  clearAutosave,
+  readAutosave,
+  writeAutosave,
+} from '@/lib/cad/persistence/autosave';
+import {
+  buildSettingsPatch as buildCompassSettingsPatch,
+  consumePendingCompassJob,
+  isStale as isCompassPayloadStale,
+  type CompassJobImport,
+} from '@/lib/cad/integrations/compass';
+import {
+  buildSyncPayload as buildCompassSyncPayload,
+  sendCompassSync,
+} from '@/lib/cad/integrations/compass-sync';
+import {
+  buildForgePayload,
+  sendForgeSync,
+  shouldSync as shouldForgeSync,
+} from '@/lib/cad/integrations/forge-sync';
+import {
+  buildOrbitPayload,
+  sendOrbitSync,
+  shouldSync as shouldOrbitSync,
+} from '@/lib/cad/integrations/orbit-sync';
 
 // CanvasViewport requires browser APIs; load it client-side only
 const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
@@ -50,53 +89,10 @@ const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
   ),
 });
 
-const AUTOSAVE_DB = 'starr-cad';
-const AUTOSAVE_STORE = 'autosave';
-const AUTOSAVE_KEY = 'current';
 /** Fallback periodic interval (ms) — overridden by autoSaveIntervalSec setting */
 const DEFAULT_AUTOSAVE_INTERVAL_MS = 60_000;
 /** Debounce delay (ms) after a document change before writing to IndexedDB */
 const AUTOSAVE_DEBOUNCE_MS = 5_000;
-
-/** Open (or create) the IndexedDB autosave store */
-function openAutosaveDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(AUTOSAVE_DB, 1);
-    req.onupgradeneeded = () => {
-      req.result.createObjectStore(AUTOSAVE_STORE);
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-/** Write a value to the autosave store */
-async function writeAutosave(value: unknown): Promise<void> {
-  const db = await openAutosaveDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(AUTOSAVE_STORE, 'readwrite');
-    tx.objectStore(AUTOSAVE_STORE).put(value, AUTOSAVE_KEY);
-    tx.oncomplete = () => { db.close(); resolve(); };
-    tx.onerror = () => { db.close(); reject(tx.error); };
-  });
-}
-
-/** Read the autosave entry from IndexedDB */
-async function readAutosave(): Promise<{ savedAt: string; document: unknown } | null> {
-  try {
-    const db = await openAutosaveDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(AUTOSAVE_STORE, 'readonly');
-      const req = tx.objectStore(AUTOSAVE_STORE).get(AUTOSAVE_KEY);
-      req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => resolve(null);
-      tx.oncomplete = () => db.close();
-      tx.onerror = () => db.close();
-    });
-  } catch {
-    return null;
-  }
-}
 
 export default function CADLayout() {
   const { showLayerPanel, showPropertyPanel } = useUIStore();
@@ -130,6 +126,9 @@ export default function CADLayout() {
   const [showCompletenessPanel, setShowCompletenessPanel] = useState(false);
   const [showReviewModePanel, setShowReviewModePanel] = useState(false);
   const [showDescriptionPanel, setShowDescriptionPanel] = useState(false);
+  const [showRecentRecoveries, setShowRecentRecoveries] = useState(false);
+  const [compassNotice, setCompassNotice] =
+    useState<{ payload: CompassJobImport; stale: boolean } | null>(null);
   const [pendingSubmission, setPendingSubmission] =
     useState<CompletenessSummary | null>(null);
   const [layerPrefsLayerId, setLayerPrefsLayerId] = useState<string | null>(null);
@@ -163,8 +162,35 @@ export default function CADLayout() {
       }
     }
 
+    // ── §17.1 Compass → CAD bootstrap ───────────────────────
+    // Compass writes a `CompassJobImport` payload to
+    // `starr-cad-pending-compass` when the user clicks "Open
+    // in CAD" on a finalized job. We patch the title block
+    // and surface a small notice with one-click links to the
+    // field / deed files.
+    const compassPayload = consumePendingCompassJob();
+    if (compassPayload) {
+      const patch = buildCompassSettingsPatch(
+        compassPayload,
+        drawingStore.document.settings
+      );
+      drawingStore.updateSettings(patch);
+      setCompassNotice({
+        payload: compassPayload,
+        stale: isCompassPayloadStale(compassPayload),
+      });
+      cadLog.info(
+        'CompassImport',
+        `Applied Compass hand-off for job ${compassPayload.jobId} ` +
+          `(${compassPayload.fieldFiles.length} field / ` +
+          `${compassPayload.deedFiles.length} deed file(s))`
+      );
+    }
+
     // ── Existing crash-recovery autosave check ──────────────────────────────
-    readAutosave().then((saved) => {
+    // Per-doc keying lets us check the active drawing without
+    // pulling in autosaves for unrelated jobs.
+    readAutosave(drawingStore.document.id).then((saved) => {
       if (!saved?.savedAt) {
         // No autosave — show new drawing dialog if starting blank
         if (drawingStore.document.layerOrder.length === 0) {
@@ -244,6 +270,121 @@ export default function CADLayout() {
     return () => window.removeEventListener('cad:toggleHiddenItems', handler);
   }, []);
 
+  // §17.2 / §17.3 — auto-sync to Compass + Forge on
+  // workflow transitions. We subscribe to the workflow store
+  // directly (not via the hook) so the effect fires once per
+  // transition rather than on every render. The refs guard
+  // against re-firing for the same status during a single
+  // browser session.
+  const lastSyncedStatusRef = useRef<string | null>(null);
+  const lastForgeSyncedRef = useRef<string | null>(null);
+  const lastOrbitSyncedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const unsubscribe = useReviewWorkflowStore.subscribe((state) => {
+      const status = state.record?.status;
+      if (status !== 'SEALED' && status !== 'DELIVERED') return;
+      const cacheKey = `${state.record!.jobId}:${status}`;
+      if (lastSyncedStatusRef.current === cacheKey) return;
+      lastSyncedStatusRef.current = cacheKey;
+      const payload = buildCompassSyncPayload({
+        doc: useDrawingStore.getState().document,
+        reviewRecord: state.record,
+        description: useDeliveryStore.getState().description,
+        automatic: true,
+      });
+      if (!payload) return;
+      void sendCompassSync(payload).then((response) => {
+        if (response.ok) {
+          cadLog.info(
+            'CompassSync',
+            `Synced ${status} for job ${payload.jobId}` +
+              (response.forwardedTo
+                ? ` → ${response.forwardedTo}`
+                : ' (logged; webhook not configured)')
+          );
+        } else {
+          cadLog.warn(
+            'CompassSync',
+            `Sync ${status} for job ${payload.jobId} failed: ${response.message ?? 'unknown'}`
+          );
+        }
+      });
+
+      // §17.3 / §17.4 — Forge + Orbit sync only fire on
+      // DELIVERED (their downstream UIs only want the final
+      // as-built, not interim seal events).
+      if (!shouldForgeSync(state.record)) return;
+      const forgeKey = `${state.record!.jobId}:DELIVERED`;
+      if (lastForgeSyncedRef.current === forgeKey) return;
+      lastForgeSyncedRef.current = forgeKey;
+      void buildForgePayload({
+        doc: useDrawingStore.getState().document,
+        reviewRecord: state.record,
+        automatic: true,
+      })
+        .then(async (forgePayload) => {
+          if (!forgePayload) return;
+          const response = await sendForgeSync(forgePayload);
+          if (response.ok) {
+            cadLog.info(
+              'ForgeSync',
+              `Pushed ${forgePayload.slices.length} slice(s) for ` +
+                `job ${forgePayload.jobId}` +
+                (response.forwardedTo
+                  ? ` → ${response.forwardedTo}`
+                  : ' (logged; webhook not configured)')
+            );
+          } else {
+            cadLog.warn(
+              'ForgeSync',
+              `Forge sync for job ${forgePayload.jobId} failed: ` +
+                `${response.message ?? 'unknown'}`
+            );
+          }
+        })
+        .catch((err) => {
+          cadLog.warn(
+            'ForgeSync',
+            `Forge payload build failed: ${err instanceof Error ? err.message : String(err)}`
+          );
+        });
+
+      // §17.4 — Orbit sync fires alongside Forge on
+      // DELIVERED. Independent ref so a Forge failure
+      // doesn't suppress the Orbit push (and vice versa).
+      if (!shouldOrbitSync(state.record)) return;
+      const orbitKey = `${state.record!.jobId}:DELIVERED`;
+      if (lastOrbitSyncedRef.current === orbitKey) return;
+      lastOrbitSyncedRef.current = orbitKey;
+      const orbitPayload = buildOrbitPayload({
+        doc: useDrawingStore.getState().document,
+        reviewRecord: state.record,
+        automatic: true,
+      });
+      if (orbitPayload) {
+        void sendOrbitSync(orbitPayload).then((response) => {
+          if (response.ok) {
+            cadLog.info(
+              'OrbitSync',
+              `Pushed boundary + ${orbitPayload.monumentRefs.length} ` +
+                `monument(s) for job ${orbitPayload.jobId}` +
+                (response.forwardedTo
+                  ? ` → ${response.forwardedTo}`
+                  : ' (logged; webhook not configured)')
+            );
+          } else {
+            cadLog.warn(
+              'OrbitSync',
+              `Orbit sync for job ${orbitPayload.jobId} failed: ` +
+                `${response.message ?? 'unknown'}`
+            );
+          }
+        });
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   // ─── Autosave helpers ────────────────────────────────────────────────────────
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -256,7 +397,9 @@ export default function CADLayout() {
         savedAt: new Date().toISOString(),
         document: drawingStore.document,
       };
-      await writeAutosave(payload);
+      // Per-doc keying — switching drawings no longer kicks
+      // the prior autosave out of the slot.
+      await writeAutosave(drawingStore.document.id, payload);
       setAutoSaveFailed(false);
       cadLog.debug('AutoSave', `Auto-saved drawing: ${drawingStore.document.name}`);
     } catch (err) {
@@ -286,6 +429,15 @@ export default function CADLayout() {
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden bg-white select-none">
+      {/* Phase 7 delivery hydrator — keeps useDeliveryStore +
+          useReviewWorkflowStore in sync with the active doc. */}
+      <DeliveryHydrator />
+
+      {/* Phase 7 §3.3 bidirectional element sync — flags AI
+          explanations stale + review-queue items MODIFIED on
+          manual canvas edits. */}
+      <BidirectionalSync />
+
       {/* Crash-recovery dialog — offered when an autosave newer than current document is found */}
       {recoveryPayload && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 animate-[fadeIn_150ms_ease-out]">
@@ -341,6 +493,88 @@ export default function CADLayout() {
           from the recorded seal hash */}
       <SealHashBanner onOpenReviewMode={() => setShowReviewModePanel(true)} />
 
+      {/* Phase 7 §17.1 Compass hand-off notice */}
+      {compassNotice ? (
+        <div
+          role="status"
+          className="bg-indigo-50 border-b border-indigo-200 text-indigo-900 text-xs px-4 py-2 flex items-center gap-3"
+        >
+          <span aria-hidden>🧭</span>
+          <div className="flex-1 min-w-0">
+            <strong>Compass job loaded:</strong>{' '}
+            {compassNotice.payload.jobName ||
+              compassNotice.payload.jobId}
+            {compassNotice.payload.address ? (
+              <span className="text-indigo-700">
+                {' '}
+                · {compassNotice.payload.address}
+              </span>
+            ) : null}
+            {compassNotice.stale ? (
+              <span className="text-amber-700">
+                {' '}
+                · ⚠ payload is &gt; 24h old
+              </span>
+            ) : null}
+            {compassNotice.payload.fieldFiles.length > 0 ? (
+              <span className="ml-2">
+                Field files:{' '}
+                {compassNotice.payload.fieldFiles.map((f, i) => (
+                  <a
+                    key={f.url}
+                    href={f.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    {f.name}
+                    {i < compassNotice.payload.fieldFiles.length - 1
+                      ? ', '
+                      : ''}
+                  </a>
+                ))}
+              </span>
+            ) : null}
+            {compassNotice.payload.deedFiles.length > 0 ? (
+              <span className="ml-2">
+                · Deeds:{' '}
+                {compassNotice.payload.deedFiles.map((f, i) => (
+                  <a
+                    key={f.url}
+                    href={f.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    {f.name}
+                    {i < compassNotice.payload.deedFiles.length - 1
+                      ? ', '
+                      : ''}
+                  </a>
+                ))}
+              </span>
+            ) : null}
+          </div>
+          {compassNotice.payload.fieldFiles.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShowImportDialog(true)}
+              className="px-3 py-1 bg-indigo-700 text-white rounded text-xs font-semibold hover:bg-indigo-600"
+            >
+              Open import
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setCompassNotice(null)}
+            className="text-indigo-700 hover:text-indigo-900 font-bold px-2"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      ) : null}
+
       {/* Top menu bar */}
       <MenuBar
         onOpenImport={() => setShowImportDialog(true)}
@@ -355,6 +589,7 @@ export default function CADLayout() {
         onToggleCompletenessPanel={() => setShowCompletenessPanel(p => !p)}
         onToggleReviewModePanel={() => setShowReviewModePanel(p => !p)}
         onToggleDescriptionPanel={() => setShowDescriptionPanel(p => !p)}
+        onOpenRecentRecoveries={() => setShowRecentRecoveries(true)}
       />
 
       {/* Contextual tool options strip — with Prefs button on the right */}
@@ -559,6 +794,27 @@ export default function CADLayout() {
       <SurveyDescriptionPanel
         open={showDescriptionPanel}
         onClose={() => setShowDescriptionPanel(false)}
+      />
+
+      {/* Phase 7 §4 drawing chat panel — Claude-backed
+          assistant for whole-drawing Q&A and actions */}
+      <DrawingChatPanel />
+
+      {/* Phase 7 §16 recent crash recoveries — picker over
+          all per-doc autosave slots so dropped tabs don't
+          lose work even when reopening a different drawing */}
+      <RecentRecoveriesDialog
+        open={showRecentRecoveries}
+        onClose={() => setShowRecentRecoveries(false)}
+      />
+
+      {/* Phase 7 §3 unified AI sidebar — tabbed view with
+          quick-access entry points to the existing detail
+          panels. Visibility tracked in `useUIStore`. */}
+      <AISidebar
+        onOpenReviewPanel={() => useAIStore.getState().openQueuePanel()}
+        onOpenAssistantPanel={() => useDrawingChatStore.getState().open()}
+        onOpenCompletenessPanel={() => setShowCompletenessPanel(true)}
       />
 
       {/* New Drawing / Get Started dialog */}

@@ -42,6 +42,7 @@ import type {
 import type { AnnotationBase } from '../labels/annotation-types';
 import { exportToDxf } from './dxf-writer';
 import { exportToGeoJSON } from './geojson-writer';
+import { exportToPdf } from './pdf-writer';
 import {
   checkDrawingCompleteness,
   summarizeCompleteness,
@@ -67,6 +68,14 @@ export interface DeliverableBundleInputs {
   reviewRecord:  RPLSReviewRecord | null;
 }
 
+export interface DeliverableBundleOptions {
+  /** When true and running in a browser, also include
+   *  `drawing.pdf` (sealed final-quality output). Defaults to
+   *  false so server callers don't accidentally hit the
+   *  jsPDF browser-only path. */
+  withPdf?: boolean;
+}
+
 export interface DeliverableManifest {
   jobId:        string;
   projectName:  string;
@@ -80,6 +89,9 @@ export interface DeliverableManifest {
 
 export interface DeliverableBundle {
   files:    Record<string, string>;
+  /** Binary attachments (e.g. `drawing.pdf`). Lives separately
+   *  from `files` so JSZip can pick the right addition path. */
+  blobs:    Record<string, Blob>;
   manifest: DeliverableManifest;
   /** Suggested filename for the zipped bundle. */
   filename: string;
@@ -90,13 +102,19 @@ export interface DeliverableBundle {
 // ────────────────────────────────────────────────────────────
 
 export function buildDeliverableBundle(
-  inputs: DeliverableBundleInputs
+  inputs: DeliverableBundleInputs,
+  options: DeliverableBundleOptions = {}
 ): DeliverableBundle {
   const { doc, annotations, description, reviewRecord } = inputs;
   const seal = doc.settings.sealData ?? null;
 
   const dxf = exportToDxf(doc, { annotations });
   const geojson = exportToGeoJSON(doc);
+  const blobs: Record<string, Blob> = {};
+  if (options.withPdf && typeof globalThis.document !== 'undefined') {
+    const pdf = exportToPdf(doc);
+    blobs['drawing.pdf'] = pdf.blob;
+  }
   const completenessChecks = checkDrawingCompleteness({
     doc,
     annotations,
@@ -127,8 +145,13 @@ export function buildDeliverableBundle(
 
   // Fix the file list now so the manifest + README list every
   // file we actually ship — including manifest.json + README.txt
-  // themselves, which are added below.
-  const fileList = [...Object.keys(files), 'metadata.json', 'README.txt'];
+  // themselves (added below) and any binary attachments.
+  const fileList = [
+    ...Object.keys(files),
+    ...Object.keys(blobs),
+    'metadata.json',
+    'README.txt',
+  ];
 
   const manifest: DeliverableManifest = {
     jobId: doc.id,
@@ -144,7 +167,7 @@ export function buildDeliverableBundle(
   files['README.txt'] = renderReadme(doc, description, manifest, seal);
 
   const filename = buildBundleFilename(manifest);
-  return { files, manifest, filename };
+  return { files, blobs, manifest, filename };
 }
 
 /**
@@ -154,15 +177,19 @@ export function buildDeliverableBundle(
  * browser environment.
  */
 export async function downloadDeliverableBundle(
-  inputs: DeliverableBundleInputs
+  inputs: DeliverableBundleInputs,
+  options: DeliverableBundleOptions = { withPdf: true }
 ): Promise<{ filename: string; byteSize: number; manifest: DeliverableManifest }> {
   if (typeof globalThis.document === 'undefined') {
     throw new Error('downloadDeliverableBundle can only run in the browser.');
   }
-  const bundle = buildDeliverableBundle(inputs);
+  const bundle = buildDeliverableBundle(inputs, options);
   const zip = new JSZip();
   for (const [name, content] of Object.entries(bundle.files)) {
     zip.file(name, content);
+  }
+  for (const [name, blob] of Object.entries(bundle.blobs)) {
+    zip.file(name, blob);
   }
   const blob = await zip.generateAsync({ type: 'blob' });
   const url = URL.createObjectURL(blob);
@@ -269,6 +296,11 @@ function renderReadme(
   }
   lines.push('');
   lines.push('NOTES');
+  if (manifest.fileList.includes('drawing.pdf')) {
+    lines.push(
+      '  - drawing.pdf is the sealed final-quality print. Open in any PDF viewer.'
+    );
+  }
   lines.push(
     '  - drawing.dxf opens in AutoCAD, Civil 3D, Land F/X, QGIS, FME, etc.'
   );

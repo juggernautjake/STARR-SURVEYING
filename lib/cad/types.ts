@@ -199,6 +199,14 @@ export interface DrawingSettings {
   // pre-Phase-7 documents.
   sealed?: boolean;
   sealData?: import('./delivery/seal-engine').SealData | null;
+
+  // Phase 7 §5 + §7 — Persisted delivery state. The
+  // SurveyDescription and RPLSReviewRecord live on the doc so
+  // they survive a reload + travel with the file when it's
+  // saved or autosaved. Both are optional and defaulted to
+  // null when absent.
+  surveyDescription?: import('./delivery/description-generator').SurveyDescription | null;
+  reviewRecord?: import('./delivery/rpls-workflow').RPLSReviewRecord | null;
 }
 
 // ─── TITLE BLOCK ───

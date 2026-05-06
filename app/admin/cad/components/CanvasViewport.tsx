@@ -8,11 +8,23 @@ import {
   useToolStore,
   useViewportStore,
   useUndoStore,
+  useUIStore,
+  useAIStore,
   makeAddFeatureEntry,
   makeRemoveFeatureEntry,
   makeBatchEntry,
 } from '@/lib/cad/store';
 import { findSnapPoint } from '@/lib/cad/geometry/snap';
+import {
+  buildFeatureIndex,
+  cullFeaturesToViewport,
+  cullFeaturesWithIndex,
+  expandBBox,
+  lodSimplificationThreshold,
+  shouldUseLOD,
+  simplifyPolyline,
+  type BoundingBox as LodBoundingBox,
+} from '@/lib/cad/geometry/lod';
 import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/geometry/bounds';
 import { boundsContains, boundsOverlap } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon } from '@/lib/cad/geometry/point';
@@ -227,6 +239,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const snapResultRef = useRef<ReturnType<typeof findSnapPoint>>(null);
   const rafRef = useRef<number>(0);
+  /** §19.1 — memoized spatial index for the active document.
+   *  Stamped with the `features` object reference so a single
+   *  Object.is check tells us whether to rebuild. */
+  const featureIndexCacheRef = useRef<
+    | (ReturnType<typeof buildFeatureIndex> & {
+        featuresById: Record<string, Feature>;
+      })
+    | null
+  >(null);
   const gripDragRef = useRef<{
     featureId: string;
     vertexIndex: number;
@@ -897,6 +918,36 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const visibleFeatures = drawingStore.getVisibleFeatures();
     const visibleIds = new Set(visibleFeatures.map((f) => f.id));
 
+    // Phase 7 §19 — frustum culling. Compute the world-space
+    // viewport bbox (with a 20% padding so features just
+    // outside the screen don't pop on pan), filter the
+    // layer-visible feature list to those that overlap, and
+    // hide the rest via `g.visible = false` so we keep the
+    // Graphics objects around without re-tessellating them.
+    //
+    // §19.1 — accelerate the cull with a uniform-grid spatial
+    // index rebuilt only when `doc.features` mutates. The
+    // index lookup is sub-millisecond at every realistic
+    // zoom level so big drawings stop paying the O(n) cost
+    // on each render.
+    const indexCache = ensureFeatureIndex(visibleFeatures, doc.features);
+    const viewportBBox = computeViewportWorldBBox();
+    const culledFeatures = viewportBBox
+      ? cullFeaturesWithIndex(
+          visibleFeatures,
+          indexCache.index,
+          indexCache.bboxByFeatureId,
+          viewportBBox
+        )
+      : visibleFeatures;
+    const culledIds = new Set(culledFeatures.map((f) => f.id));
+    const { zoom } = useViewportStore.getState();
+    const worldPerPixel = zoom > 0 ? 1 / zoom : 0;
+    const lodActive = shouldUseLOD(worldPerPixel);
+    const simplifyEpsilon = lodActive
+      ? lodSimplificationThreshold(worldPerPixel)
+      : 0;
+
     // Lazily-maintained per-layer sub-containers (for per-layer rotation)
     const layerContainers = pixi._layerContainers;
 
@@ -906,6 +957,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.parent?.removeChild(g);
         g.destroy();
         pixi.featureGraphics.delete(id);
+      } else if (!culledIds.has(id)) {
+        g.visible = false;
+      } else {
+        g.visible = true;
       }
     }
 
@@ -926,7 +981,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     }
 
-    for (const feature of visibleFeatures) {
+    for (const feature of culledFeatures) {
       const layer = doc.layers[feature.layerId];
       const layerRotDeg = layer?.rotationDeg ?? 0;
 
@@ -950,12 +1005,66 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.parent?.removeChild(g);
         parentContainer.addChild(g);
       }
+      g.visible = true;
 
-      drawFeature(g, feature);
+      drawFeature(g, feature, simplifyEpsilon);
     }
   }
 
-  function drawFeature(g: import('pixi.js').Graphics, feature: Feature) {
+  /** Memoized feature spatial index. Rebuilds when the
+   *  document's features-by-id object changes identity (any
+   *  add / remove / mutation goes through `useDrawingStore`
+   *  which always returns a new object). Stable across pan /
+   *  zoom so the per-frame cost is one Map lookup. */
+  function ensureFeatureIndex(
+    visibleFeatures: ReadonlyArray<Feature>,
+    featuresById: Record<string, Feature>
+  ) {
+    const cache = featureIndexCacheRef.current;
+    if (cache && cache.featuresById === featuresById) {
+      return cache;
+    }
+    const next = buildFeatureIndex(visibleFeatures);
+    const stamped = { ...next, featuresById };
+    featureIndexCacheRef.current = stamped;
+    return stamped;
+  }
+
+  /** Convert the screen viewport into a world-space bbox the
+   *  LOD culler can read. Returns null when the viewport
+   *  hasn't been sized yet (canvas not mounted). */
+  function computeViewportWorldBBox(): LodBoundingBox | null {
+    const { screenWidth, screenHeight } = useViewportStore.getState();
+    if (screenWidth <= 0 || screenHeight <= 0) return null;
+    // Sample the four screen corners + run them through s2w
+    // (which applies the drawing-rotation inverse). Rotated
+    // viewports get an axis-aligned envelope from min/max of
+    // the corner set.
+    const corners = [
+      s2w(0, 0),
+      s2w(screenWidth, 0),
+      s2w(0, screenHeight),
+      s2w(screenWidth, screenHeight),
+    ];
+    let minX = corners[0].wx;
+    let minY = corners[0].wy;
+    let maxX = corners[0].wx;
+    let maxY = corners[0].wy;
+    for (let i = 1; i < corners.length; i += 1) {
+      const c = corners[i];
+      if (c.wx < minX) minX = c.wx;
+      if (c.wy < minY) minY = c.wy;
+      if (c.wx > maxX) maxX = c.wx;
+      if (c.wy > maxY) maxY = c.wy;
+    }
+    return expandBBox({ minX, minY, maxX, maxY }, 0.2);
+  }
+
+  function drawFeature(
+    g: import('pixi.js').Graphics,
+    feature: Feature,
+    simplifyEpsilon: number = 0
+  ) {
     g.clear();
     // Phase 6 §11 — AI-confidence visual treatment. Features
     // applied from the AI review queue carry a numeric
@@ -1009,8 +1118,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         break;
       }
       case 'POLYLINE': {
-        const verts = geom.vertices!;
-        if (verts.length < 2) break;
+        const rawVerts = geom.vertices!;
+        if (rawVerts.length < 2) break;
+        // Phase 7 §19 — when LOD is active drop sub-pixel
+        // wobble before tessellating. The 0 path is a
+        // no-op (returns the input unchanged).
+        const verts =
+          simplifyEpsilon > 0 && rawVerts.length > 4
+            ? simplifyPolyline(rawVerts, simplifyEpsilon)
+            : rawVerts;
         g.lineStyle(weight, color, alpha);
         const first = w2s(verts[0].x, verts[0].y);
         g.moveTo(first.sx, first.sy);
@@ -1021,7 +1137,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         break;
       }
       case 'POLYGON': {
-        const verts = geom.vertices!;
+        const rawVerts = geom.vertices!;
+        if (rawVerts.length < 3) break;
+        const verts =
+          simplifyEpsilon > 0 && rawVerts.length > 4
+            ? simplifyPolyline(rawVerts, simplifyEpsilon)
+            : rawVerts;
         if (verts.length < 3) break;
         g.lineStyle(weight, color, alpha);
         const first = w2s(verts[0].x, verts[0].y);
@@ -2015,7 +2136,30 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const pixi = pixiRef.current;
     if (!pixi) return;
 
-    const visibleFeatures = drawingStore.getVisibleFeatures();
+    const layerVisibleFeatures = drawingStore.getVisibleFeatures();
+    // Phase 7 §19 — skip out-of-viewport features so we don't
+    // tessellate labels the surveyor can't see. Keep the
+    // unculled set in `keepLabelIds` so labels only get
+    // destroyed when they leave the layer-visible set, not
+    // when they leave the viewport (which would churn during
+    // pan).
+    const docNow = useDrawingStore.getState().document;
+    const indexCache = ensureFeatureIndex(layerVisibleFeatures, docNow.features);
+    const viewportBBox = computeViewportWorldBBox();
+    const visibleFeatures = viewportBBox
+      ? cullFeaturesWithIndex(
+          layerVisibleFeatures,
+          indexCache.index,
+          indexCache.bboxByFeatureId,
+          viewportBBox
+        )
+      : layerVisibleFeatures;
+    const keepLabelIds = new Set<string>();
+    for (const f of layerVisibleFeatures) {
+      const labels = f.textLabels;
+      if (!labels) continue;
+      for (const l of labels) keepLabelIds.add(`${f.id}:${l.id}`);
+    }
     const activeLabelIds = new Set<string>();
     const { zoom } = useViewportStore.getState();
     const doc = useDrawingStore.getState().document;
@@ -2155,12 +2299,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     }
 
-    // Remove label texts that are no longer active
+    // Phase 7 §19 — destroy texts only when they fall off the
+    // layer-visible list; flip viewport-culled texts to
+    // `visible = false` so re-pan doesn't re-allocate them.
     for (const [key, textObj] of pixi.labelTexts) {
-      if (!activeLabelIds.has(key)) {
+      if (!keepLabelIds.has(key)) {
         pixi.labelLayer.removeChild(textObj);
         textObj.destroy();
         pixi.labelTexts.delete(key);
+      } else if (!activeLabelIds.has(key)) {
+        textObj.visible = false;
+      } else {
+        textObj.visible = true;
       }
     }
   }
@@ -2174,7 +2324,28 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { zoom } = useViewportStore.getState();
     const doc = useDrawingStore.getState().document;
     const drawingScale = doc.settings.drawingScale ?? 50;
-    const visibleFeatures = drawingStore.getVisibleFeatures().filter(f => f.type === 'TEXT');
+    const layerVisible = drawingStore.getVisibleFeatures().filter(f => f.type === 'TEXT');
+    // Phase 7 §19 — viewport cull TEXT features the same way
+    // we cull geometry. Keep the layer-visible set so off-
+    // viewport text objects survive across pans without
+    // re-allocating, and only the in-viewport ones get
+    // re-tessellated. The index is the cached one that was
+    // (re)built in renderFeatures earlier this frame.
+    const indexCache = featureIndexCacheRef.current;
+    const viewportBBox = computeViewportWorldBBox();
+    const visibleFeatures =
+      viewportBBox && indexCache
+        ? cullFeaturesWithIndex(
+            layerVisible,
+            indexCache.index,
+            indexCache.bboxByFeatureId,
+            viewportBBox
+          )
+        : viewportBBox
+          ? cullFeaturesToViewport(layerVisible, viewportBBox)
+          : layerVisible;
+    const keepKeys = new Set<string>();
+    for (const f of layerVisible) keepKeys.add(`text:${f.id}`);
     const activeKeys = new Set<string>();
 
     for (const feature of visibleFeatures) {
@@ -2226,12 +2397,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       textObj.visible = true;
     }
 
-    // Remove text objects for non-visible TEXT features
+    // Phase 7 §19 — destroy only when leaving the layer-visible
+    // set; flip viewport-culled texts to `visible = false` so
+    // re-pan doesn't re-allocate them.
     for (const [key, textObj] of pixi.labelTexts) {
-      if (key.startsWith('text:') && !activeKeys.has(key)) {
+      if (!key.startsWith('text:')) continue;
+      if (!keepKeys.has(key)) {
         pixi.labelLayer.removeChild(textObj);
         textObj.destroy();
         pixi.labelTexts.delete(key);
+      } else if (!activeKeys.has(key)) {
+        textObj.visible = false;
       }
     }
   }
@@ -2480,6 +2656,43 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.endFill();
       }
     }
+
+    // §29.3 — hover ring around the feature whose card the
+    // surveyor is hovering in the AI sidebar. Tier-colored
+    // rectangle around the cached bbox; sits on top of every
+    // selection mark so it stays visible.
+    drawSidebarHoverRing(g);
+  }
+
+  function drawSidebarHoverRing(g: import('pixi.js').Graphics): void {
+    const hoveredId = useUIStore.getState().hoveredFeatureId;
+    if (!hoveredId) return;
+    const cache = featureIndexCacheRef.current;
+    const bbox = cache?.bboxByFeatureId.get(hoveredId);
+    if (!bbox) return;
+    const result = useAIStore.getState().result;
+    const score = result?.scores?.[hoveredId];
+    const tier = (score?.tier ?? 3) as 1 | 2 | 3 | 4 | 5;
+    const tierColor =
+      tier === 5
+        ? 0x16a34a
+        : tier === 4
+          ? 0x65a30d
+          : tier === 3
+            ? 0xd97706
+            : tier === 2
+              ? 0xdc2626
+              : 0x7f1d1d;
+    const min = w2s(bbox.minX, bbox.minY);
+    const max = w2s(bbox.maxX, bbox.maxY);
+    const x = Math.min(min.sx, max.sx) - 6;
+    const y = Math.min(min.sy, max.sy) - 6;
+    const w = Math.abs(max.sx - min.sx) + 12;
+    const h = Math.abs(max.sy - min.sy) + 12;
+    g.lineStyle(2, tierColor, 0.9);
+    g.drawRoundedRect(x, y, w, h, 4);
+    g.lineStyle(4, tierColor, 0.25);
+    g.drawRoundedRect(x - 2, y - 2, w + 4, h + 4, 6);
   }
 
   function getFeatureVertices(feature: Feature): Point2D[] {
@@ -3199,10 +3412,32 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { wx, wy } = screenToDrawingWorld(sx, sy);
     const worldTol = HIT_TOLERANCE_PX / viewportStore.zoom;
     // Exclude features on locked layers from selection
-    const features = drawingStore.getVisibleFeatures().filter((f) => {
+    const layerVisible = drawingStore.getVisibleFeatures().filter((f) => {
       const layer = drawingStore.getLayer(f.layerId);
       return !layer?.locked;
     });
+
+    // §19.1 — narrow with the spatial index. The cursor's
+    // hit envelope is a (worldTol)-padded square at (wx,wy);
+    // any feature whose bbox overlaps it is a candidate. The
+    // hit-test loops below still run their geometry-precise
+    // checks on each candidate, so the narrowing is purely
+    // an O(n) → O(cell footprint) speedup.
+    const indexCache = ensureFeatureIndex(
+      layerVisible,
+      drawingStore.document.features
+    );
+    const queryBox: LodBoundingBox = {
+      minX: wx - worldTol,
+      minY: wy - worldTol,
+      maxX: wx + worldTol,
+      maxY: wy + worldTol,
+    };
+    const candidateIds = new Set(indexCache.index.query(queryBox));
+    const features =
+      candidateIds.size > 0 && indexCache.index.count > 0
+        ? layerVisible.filter((f) => candidateIds.has(f.id))
+        : layerVisible;
 
     // Priority: points > line endpoints > lines > polygons
     for (const feature of features) {
@@ -3707,9 +3942,33 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { settings } = drawingStore.document;
 
     if (settings.snapEnabled) {
+      // §19.1 — narrow the feature list with the spatial
+      // index before handing it to the snap engine. We pad
+      // the query bbox by `snapRadius / zoom` so segments
+      // whose bbox just clips the cursor radius still count
+      // (snap targets endpoints and midpoints lying inside
+      // the radius, which can be on a feature whose bbox
+      // overlaps the cursor by less than the radius).
+      const layerVisible = drawingStore.getVisibleFeatures();
+      const indexCache = ensureFeatureIndex(
+        layerVisible,
+        drawingStore.document.features
+      );
+      const worldRadius = settings.snapRadius / Math.max(0.0001, viewportStore.zoom);
+      const queryBox: LodBoundingBox = {
+        minX: cursor.x - worldRadius,
+        minY: cursor.y - worldRadius,
+        maxX: cursor.x + worldRadius,
+        maxY: cursor.y + worldRadius,
+      };
+      const candidateIds = new Set(indexCache.index.query(queryBox));
+      const candidates =
+        candidateIds.size > 0 && indexCache.index.count > 0
+          ? layerVisible.filter((f) => candidateIds.has(f.id))
+          : layerVisible;
       const snap = findSnapPoint(
         cursor,
-        drawingStore.getVisibleFeatures(),
+        candidates,
         settings.snapRadius,
         viewportStore.zoom,
         settings.snapTypes,

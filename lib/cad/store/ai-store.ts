@@ -93,6 +93,18 @@ interface AIStore {
   /** §28.4 — bulk-skip every non-blocking question. */
   skipAllOptionalQuestions: () => void;
 
+  /** §3.3 — feature ids whose AI explanation has drifted
+   *  from the live geometry (typically because the surveyor
+   *  manually moved / grip-edited the feature on the canvas).
+   *  Surfaced as a ⚠ chip on the Explanations sidebar tab +
+   *  a banner inside the explanation popup. Cleared
+   *  automatically whenever a fresh pipeline run lands new
+   *  explanations. */
+  staleExplanationIds: string[];
+  markExplanationStale: (featureId: string) => void;
+  clearExplanationStale: (featureId: string) => void;
+  clearAllStaleExplanations: () => void;
+
   /** Last payload posted to /api/admin/cad/ai-pipeline. Kept
    *  so the §28.5 re-run path can rebuild the payload without
    *  requiring the user to re-type the deed text or toggle
@@ -144,6 +156,7 @@ export const useAIStore = create<AIStore>((set, get) => ({
   error: null,
   lastPayload: null,
   chatLoadingByFeature: {},
+  staleExplanationIds: [],
 
   openDialog: () => set({ isDialogOpen: true }),
   closeDialog: () => set({ isDialogOpen: false }),
@@ -172,6 +185,9 @@ export const useAIStore = create<AIStore>((set, get) => ({
       // deliberation actually wants the user to answer something.
       isQuestionDialogOpen:
         result.deliberationResult?.shouldShowDialog ?? false,
+      // §3.3 — fresh pipeline run produces fresh explanations
+      // so any prior stale flags are now stale themselves.
+      staleExplanationIds: [],
     }),
   setError: (message) => set({ status: 'error', error: message }),
   reset: () =>
@@ -536,6 +552,31 @@ export const useAIStore = create<AIStore>((set, get) => ({
         // Blocking questions cannot be skipped per §28.4.
         q.priority === 'BLOCKING' && skipped ? q : { ...q, skipped }
       )
+    ),
+
+  markExplanationStale: (featureId) =>
+    set((s) =>
+      s.staleExplanationIds.includes(featureId)
+        ? s
+        : { staleExplanationIds: [...s.staleExplanationIds, featureId] }
+    ),
+
+  clearExplanationStale: (featureId) =>
+    set((s) =>
+      s.staleExplanationIds.includes(featureId)
+        ? {
+            staleExplanationIds: s.staleExplanationIds.filter(
+              (id) => id !== featureId
+            ),
+          }
+        : s
+    ),
+
+  clearAllStaleExplanations: () =>
+    set((s) =>
+      s.staleExplanationIds.length === 0
+        ? s
+        : { staleExplanationIds: [] }
     ),
 
   skipAllOptionalQuestions: () =>
