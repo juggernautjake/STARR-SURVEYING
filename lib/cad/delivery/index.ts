@@ -37,6 +37,9 @@ export type {
 export { exportToDxf, downloadDxf } from './dxf-writer';
 export type { DxfExportOptions } from './dxf-writer';
 
+export { importFromDxf } from './dxf-reader';
+export type { DxfImportResult } from './dxf-reader';
+
 export { exportToGeoJSON, downloadGeoJSON } from './geojson-writer';
 export type { GeoJsonExportOptions } from './geojson-writer';
 

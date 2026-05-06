@@ -1258,7 +1258,7 @@ interface ExportStore {
 - [x] DXF export: LINE entities match polyline vertices (POLYLINE → LWPOLYLINE flag 0; POLYGON → LWPOLYLINE flag 1; LINE → LINE; MIXED_GEOMETRY expanded to per-segment LINEs; smoke-tested with `npx tsx`)
 - [x] DXF export: ARC entities match arc radius/angles (ARC → ARC with degrees converted from radians; CW arcs swap start/end so the CCW DXF sweep matches the visible arc)
 - [x] DXF export: TEXT entities present for all annotations (`exportToDxf(doc, { annotations })` walks `useAnnotationStore.annotations` and emits TEXT entities for BEARING_DISTANCE / CURVE_DATA / MONUMENT_LABEL / AREA_LABEL / TEXT / LEADER. LEADER vertices land as LWPOLYLINE; symbol-bearing features land an INSERT referencing a placeholder BLOCK in the new BLOCKS section. Smoke-tested with synthetic doc.)
-- [ ] DXF import: round-trip (export then re-import) preserves all features — DXF importer is a separate slice
+- [x] DXF import: round-trip (export then re-import) preserves all features (`importFromDxf` in `lib/cad/delivery/dxf-reader.ts` parses HEADER/TABLES/ENTITIES sections; reverses POINT / LINE / LWPOLYLINE / legacy POLYLINE / CIRCLE / ARC / ELLIPSE; re-keys layers by name → fresh layerId; smoke-tested via writer→reader round-trip with all six entity types preserving layers + colors. SPLINE / TEXT / INSERT round-trip lands when the writer's BLOCKS / TEXT slice gets a reverse pass.)
 - [ ] PDF export (final): seal image embedded at correct location
 - [ ] PDF export: scale accurate (1" = specified footage)
 - [ ] GeoJSON export: coordinates in WGS84 — `exportToGeoJSON` ships state-plane coords (US Survey Feet) with EPSG:2277 CRS hint + metadata; WGS84 re-projection waits on a proj4 dependency
