@@ -2092,7 +2092,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const pixi = pixiRef.current;
     if (!pixi) return;
 
-    const visibleFeatures = drawingStore.getVisibleFeatures();
+    const layerVisibleFeatures = drawingStore.getVisibleFeatures();
+    // Phase 7 §19 — skip out-of-viewport features so we don't
+    // tessellate labels the surveyor can't see. Keep the
+    // unculled set in `keepLabelIds` so labels only get
+    // destroyed when they leave the layer-visible set, not
+    // when they leave the viewport (which would churn during
+    // pan).
+    const viewportBBox = computeViewportWorldBBox();
+    const visibleFeatures = viewportBBox
+      ? cullFeaturesToViewport(layerVisibleFeatures, viewportBBox)
+      : layerVisibleFeatures;
+    const keepLabelIds = new Set<string>();
+    for (const f of layerVisibleFeatures) {
+      const labels = f.textLabels;
+      if (!labels) continue;
+      for (const l of labels) keepLabelIds.add(`${f.id}:${l.id}`);
+    }
     const activeLabelIds = new Set<string>();
     const { zoom } = useViewportStore.getState();
     const doc = useDrawingStore.getState().document;
@@ -2232,12 +2248,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     }
 
-    // Remove label texts that are no longer active
+    // Phase 7 §19 — destroy texts only when they fall off the
+    // layer-visible list; flip viewport-culled texts to
+    // `visible = false` so re-pan doesn't re-allocate them.
     for (const [key, textObj] of pixi.labelTexts) {
-      if (!activeLabelIds.has(key)) {
+      if (!keepLabelIds.has(key)) {
         pixi.labelLayer.removeChild(textObj);
         textObj.destroy();
         pixi.labelTexts.delete(key);
+      } else if (!activeLabelIds.has(key)) {
+        textObj.visible = false;
+      } else {
+        textObj.visible = true;
       }
     }
   }
@@ -2251,7 +2273,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { zoom } = useViewportStore.getState();
     const doc = useDrawingStore.getState().document;
     const drawingScale = doc.settings.drawingScale ?? 50;
-    const visibleFeatures = drawingStore.getVisibleFeatures().filter(f => f.type === 'TEXT');
+    const layerVisible = drawingStore.getVisibleFeatures().filter(f => f.type === 'TEXT');
+    // Phase 7 §19 — viewport cull TEXT features the same way
+    // we cull geometry. Keep the layer-visible set so off-
+    // viewport text objects survive across pans without
+    // re-allocating, and only the in-viewport ones get
+    // re-tessellated.
+    const viewportBBox = computeViewportWorldBBox();
+    const visibleFeatures = viewportBBox
+      ? cullFeaturesToViewport(layerVisible, viewportBBox)
+      : layerVisible;
+    const keepKeys = new Set<string>();
+    for (const f of layerVisible) keepKeys.add(`text:${f.id}`);
     const activeKeys = new Set<string>();
 
     for (const feature of visibleFeatures) {
@@ -2303,12 +2336,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       textObj.visible = true;
     }
 
-    // Remove text objects for non-visible TEXT features
+    // Phase 7 §19 — destroy only when leaving the layer-visible
+    // set; flip viewport-culled texts to `visible = false` so
+    // re-pan doesn't re-allocate them.
     for (const [key, textObj] of pixi.labelTexts) {
-      if (key.startsWith('text:') && !activeKeys.has(key)) {
+      if (!key.startsWith('text:')) continue;
+      if (!keepKeys.has(key)) {
         pixi.labelLayer.removeChild(textObj);
         textObj.destroy();
         pixi.labelTexts.delete(key);
+      } else if (!activeKeys.has(key)) {
+        textObj.visible = false;
       }
     }
   }
