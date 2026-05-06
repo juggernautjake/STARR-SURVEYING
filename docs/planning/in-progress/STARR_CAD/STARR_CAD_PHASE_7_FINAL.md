@@ -1264,6 +1264,7 @@ interface ExportStore {
 - [x] PDF export: scale accurate (1" = specified footage) — paper size + orientation pulled from `doc.settings.paperSize` / `paperOrientation`; world → paper transform fits drawing extent into the drawable area with a 0.5" margin and a 1" title strip; renders to actual inches via jsPDF unit:'in'.
 - [ ] GeoJSON export: coordinates in WGS84 — `exportToGeoJSON` ships state-plane coords (US Survey Feet) with EPSG:2277 CRS hint + metadata; WGS84 re-projection waits on a proj4 dependency
 - [x] GeoJSON export: all boundary features present (`exportToGeoJSON` in `lib/cad/delivery/geojson-writer.ts` walks `doc.features` → Point/LineString/Polygon/MultiLineString with curve sampling for circles/ellipses/arcs/splines; computed acreage stamped on POLYGON properties; smoke-tested with point + polygon + circle + arc)
+- [x] GeoJSON import: round-trip — `importFromGeoJSON` in `lib/cad/delivery/geojson-reader.ts` walks FeatureCollection / Feature / bare Geometry / GeometryCollection; expands MultiPoint / MultiLineString / MultiPolygon; strips closing-vertex on Polygon outer rings; surfaces hole-drop + non-numeric-coord warnings. Layer table rebuilt from `properties.layerName` / `layerColor` (with neutral default), `crs.properties.name` stamped onto `titleBlock.notes`. Smoke-tested via writer→reader (4 features round-trip; layers + colors preserved).
 - [ ] CSV simplified: only base monument codes, B/E suffixes preserved
 - [ ] CSV full: all fields including confidence and tier
 

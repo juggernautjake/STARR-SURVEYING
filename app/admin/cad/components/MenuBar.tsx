@@ -20,7 +20,7 @@ import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv } from '@/lib/cad/persistence/export-csv';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
-import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, importFromDxf } from '@/lib/cad/delivery';
+import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, importFromDxf, importFromGeoJSON } from '@/lib/cad/delivery';
 import SaveToDBDialog from './SaveToDBDialog';
 
 interface MenuItem {
@@ -174,6 +174,38 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     }
   }
 
+  async function openGeoJson() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.geojson,.json,application/geo+json,application/json';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const result = importFromGeoJSON(text);
+        result.document.name = file.name.replace(/\.(geojson|json)$/i, '');
+        drawingStore.loadDocument(result.document);
+        const warnSuffix =
+          result.warnings.length > 0
+            ? ` with ${result.warnings.length} warning(s); see console`
+            : '';
+        cadLog.info(
+          'FileIO',
+          `Imported GeoJSON: ${result.stats.featuresEmitted} feature(s), ` +
+            `${result.stats.layersParsed} layer(s)${warnSuffix}`
+        );
+        if (result.warnings.length > 0) {
+          for (const w of result.warnings) cadLog.warn('FileIO', w);
+        }
+      } catch (err) {
+        cadLog.error('FileIO', 'GeoJSON import failed', err);
+        alert('Failed to import GeoJSON. See the browser console for details.');
+      }
+    };
+    input.click();
+  }
+
   async function openDxf() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -276,6 +308,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
         { label: 'Export as PDF (sealed)…', action: () => { exportPdf(); setOpenMenu(null); } },
         { label: 'Export as GeoJSON…', action: () => { exportGeoJSON(); setOpenMenu(null); } },
+        { label: 'Import GeoJSON…', action: () => { void openGeoJson(); setOpenMenu(null); } },
         { label: '📦 Download deliverable bundle…', action: () => { void exportDeliverable(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Import…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
