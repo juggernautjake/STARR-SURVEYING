@@ -24,6 +24,7 @@ import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
 import DeliveryHydrator from './components/DeliveryHydrator';
 import DrawingChatPanel from './components/DrawingChatPanel';
 import RecentRecoveriesDialog from './components/RecentRecoveriesDialog';
+import AISidebar from './components/AISidebar';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -44,6 +45,7 @@ import {
   useUndoStore,
   useAIStore,
   useDeliveryStore,
+  useDrawingChatStore,
   useReviewWorkflowStore,
 } from '@/lib/cad/store';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
@@ -798,6 +800,15 @@ export default function CADLayout() {
       <RecentRecoveriesDialog
         open={showRecentRecoveries}
         onClose={() => setShowRecentRecoveries(false)}
+      />
+
+      {/* Phase 7 §3 unified AI sidebar — tabbed view with
+          quick-access entry points to the existing detail
+          panels. Visibility tracked in `useUIStore`. */}
+      <AISidebar
+        onOpenReviewPanel={() => useAIStore.getState().openQueuePanel()}
+        onOpenAssistantPanel={() => useDrawingChatStore.getState().open()}
+        onOpenCompletenessPanel={() => setShowCompletenessPanel(true)}
       />
 
       {/* New Drawing / Get Started dialog */}

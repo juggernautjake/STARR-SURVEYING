@@ -64,6 +64,8 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
   );
   const drawingChatOpen = useDrawingChatStore((s) => s.isOpen);
   const toggleDrawingChat = useDrawingChatStore((s) => s.toggle);
+  const aiSidebarOpen = useUIStore((s) => s.showAISidebar);
+  const toggleAISidebar = useUIStore((s) => s.toggleAISidebar);
 
   // ─── File I/O ───────────────────────────────
   function saveDocument() {
@@ -350,6 +352,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         {
           label: drawingChatOpen ? 'Hide AI drawing chat' : '💬 AI drawing chat…',
           action: () => { toggleDrawingChat(); setOpenMenu(null); },
+        },
+        {
+          label: aiSidebarOpen ? 'Hide AI sidebar' : '🧠 AI sidebar (tabs)',
+          action: () => { toggleAISidebar(); setOpenMenu(null); },
         },
         { separator: true },
         {

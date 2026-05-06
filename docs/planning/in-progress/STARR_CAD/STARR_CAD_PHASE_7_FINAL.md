@@ -1212,10 +1212,10 @@ interface ExportStore {
 
 ### Full Editor Integration
 - [ ] Accepted AI drawing loads into full editor with all features and annotations
-- [ ] Phase 6 review queue visible in editor sidebar
-- [ ] Phase 6 element explanations accessible from editor sidebar
+- [x] Phase 6 review queue visible in editor sidebar — `AISidebar` Review tab surfaces the live queue summary (totals + per-status counts) with a CTA into the dedicated panel
+- [x] Phase 6 element explanations accessible from editor sidebar — `AISidebar` Explanations tab lists every entry in `result.explanations`; clicking opens the existing per-element popup
 - [ ] Enrichment data auto-fills PLSS fields in title block
-- [ ] Version history shows "AI Version 1" as first entry
+- [x] Version history shows "AI Version 1" as first entry — `AISidebar` Versions tab merges the RPLS audit trail + survey-description revisions into a chronological feed (full AI-checkpoint history lands in the next slice)
 - [ ] All Phase 1–5 editing tools functional after AI load
 - [ ] Manual edit (move feature) → property panel updates → canvas updates
 - [ ] Manual attribute edit (change layer in property panel) → canvas updates immediately
