@@ -40,7 +40,7 @@ interface MenuDef {
   items: MenuEntry[];
 }
 
-export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel, onToggleReviewModePanel, onToggleDescriptionPanel }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void; onToggleReviewModePanel?: () => void; onToggleDescriptionPanel?: () => void }) {
+export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel, onToggleReviewModePanel, onToggleDescriptionPanel, onOpenRecentRecoveries }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void; onToggleReviewModePanel?: () => void; onToggleDescriptionPanel?: () => void; onOpenRecentRecoveries?: () => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -298,6 +298,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'New Drawing', shortcut: 'Ctrl+N', action: () => { window.dispatchEvent(new CustomEvent('cad:openNewDrawingDialog')); setOpenMenu(null); } },
         { label: 'Open…', shortcut: 'Ctrl+O', action: openFileDialog },
         { label: 'Open from Database…', action: () => { setDbDialog('open'); setOpenMenu(null); } },
+        { label: 'Recover unsaved drawings…', action: () => { onOpenRecentRecoveries?.(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Save', shortcut: 'Ctrl+S', action: saveDocument },
         { label: 'Save As…', action: saveDocument },

@@ -1274,7 +1274,7 @@ interface ExportStore {
 - [ ] File → Save writes .starr file to disk
 - [ ] Ctrl+Z / Ctrl+Y work in desktop app
 - [x] Auto-save writes .autosave file every 60 seconds — `lib/cad/persistence/autosave.ts` keys per-doc (`autosave:<docId>`) so switching drawings no longer drops the prior autosave; legacy `'current'` slot migrates transparently on first read; `clearAutosave` fires on manual save so stale recoveries don't pop on reload. Browser path uses IndexedDB; Electron-side fs persistence lands when the desktop wrapper ships.
-- [x] Crash recovery dialog appears when .autosave is newer than .starr — existing dialog now reads the doc-keyed slot via `readAutosave(docId)`; behavior unchanged otherwise.
+- [x] Crash recovery dialog appears when .autosave is newer than .starr — existing mount-time dialog reads the doc-keyed slot via `readAutosave(docId)`; new `RecentRecoveriesDialog` (`File → Recover unsaved drawings…`) walks every keyed slot via `listAutosaves()` so dropped tabs don't lose work even when the surveyor reopens a different drawing. Each row shows the saved-at relative time + Restore / Discard buttons; Restore loads through `validateAndMigrateDocument` + zooms to extents.
 
 ### Performance
 - [ ] 500-point drawing renders at 60fps at all zoom levels — perf instrumentation lands in a follow-up slice once the canvas wires the LOD helpers

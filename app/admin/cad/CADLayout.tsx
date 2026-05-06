@@ -23,6 +23,7 @@ import SealHashBanner from './components/SealHashBanner';
 import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
 import DeliveryHydrator from './components/DeliveryHydrator';
 import DrawingChatPanel from './components/DrawingChatPanel';
+import RecentRecoveriesDialog from './components/RecentRecoveriesDialog';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -94,6 +95,7 @@ export default function CADLayout() {
   const [showCompletenessPanel, setShowCompletenessPanel] = useState(false);
   const [showReviewModePanel, setShowReviewModePanel] = useState(false);
   const [showDescriptionPanel, setShowDescriptionPanel] = useState(false);
+  const [showRecentRecoveries, setShowRecentRecoveries] = useState(false);
   const [pendingSubmission, setPendingSubmission] =
     useState<CompletenessSummary | null>(null);
   const [layerPrefsLayerId, setLayerPrefsLayerId] = useState<string | null>(null);
@@ -327,6 +329,7 @@ export default function CADLayout() {
         onToggleCompletenessPanel={() => setShowCompletenessPanel(p => !p)}
         onToggleReviewModePanel={() => setShowReviewModePanel(p => !p)}
         onToggleDescriptionPanel={() => setShowDescriptionPanel(p => !p)}
+        onOpenRecentRecoveries={() => setShowRecentRecoveries(true)}
       />
 
       {/* Contextual tool options strip — with Prefs button on the right */}
@@ -536,6 +539,14 @@ export default function CADLayout() {
       {/* Phase 7 §4 drawing chat panel — Claude-backed
           assistant for whole-drawing Q&A and actions */}
       <DrawingChatPanel />
+
+      {/* Phase 7 §16 recent crash recoveries — picker over
+          all per-doc autosave slots so dropped tabs don't
+          lose work even when reopening a different drawing */}
+      <RecentRecoveriesDialog
+        open={showRecentRecoveries}
+        onClose={() => setShowRecentRecoveries(false)}
+      />
 
       {/* New Drawing / Get Started dialog */}
       {showNewDrawingDialog && (
