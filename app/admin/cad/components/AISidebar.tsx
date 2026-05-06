@@ -140,6 +140,7 @@ function QueueTab({
 }) {
   const queue = useAIStore((s) => s.result?.reviewQueue ?? null);
   const openExplanation = useAIStore((s) => s.openExplanation);
+  const setHoveredFeatureId = useUIStore((s) => s.setHoveredFeatureId);
   const [sort, setSort] = useState<CardSortOrder>('CONFIDENCE_ASC');
   const [search, setSearch] = useState('');
 
@@ -249,6 +250,10 @@ function QueueTab({
               onClick={() => {
                 if (item.featureId) openExplanation(item.featureId);
               }}
+              onHoverChange={(hovered) => {
+                if (!item.featureId) return;
+                setHoveredFeatureId(hovered ? item.featureId : null);
+              }}
             />
           ))}
         </ul>
@@ -273,6 +278,7 @@ function ConfidenceCard({
   flags,
   status,
   onClick,
+  onHoverChange,
 }: {
   title: string;
   category: string;
@@ -281,6 +287,7 @@ function ConfidenceCard({
   flags: string[];
   status: string;
   onClick: () => void;
+  onHoverChange: (hovered: boolean) => void;
 }) {
   const colors = TIER_COLORS[tier];
   return (
@@ -288,6 +295,10 @@ function ConfidenceCard({
       <button
         type="button"
         onClick={onClick}
+        onMouseEnter={() => onHoverChange(true)}
+        onMouseLeave={() => onHoverChange(false)}
+        onFocus={() => onHoverChange(true)}
+        onBlur={() => onHoverChange(false)}
         style={{
           ...styles.card,
           borderLeft: `3px solid ${colors.border}`,

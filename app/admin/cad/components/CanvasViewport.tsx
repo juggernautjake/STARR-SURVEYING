@@ -8,6 +8,8 @@ import {
   useToolStore,
   useViewportStore,
   useUndoStore,
+  useUIStore,
+  useAIStore,
   makeAddFeatureEntry,
   makeRemoveFeatureEntry,
   makeBatchEntry,
@@ -2654,6 +2656,43 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.endFill();
       }
     }
+
+    // §29.3 — hover ring around the feature whose card the
+    // surveyor is hovering in the AI sidebar. Tier-colored
+    // rectangle around the cached bbox; sits on top of every
+    // selection mark so it stays visible.
+    drawSidebarHoverRing(g);
+  }
+
+  function drawSidebarHoverRing(g: import('pixi.js').Graphics): void {
+    const hoveredId = useUIStore.getState().hoveredFeatureId;
+    if (!hoveredId) return;
+    const cache = featureIndexCacheRef.current;
+    const bbox = cache?.bboxByFeatureId.get(hoveredId);
+    if (!bbox) return;
+    const result = useAIStore.getState().result;
+    const score = result?.scores?.[hoveredId];
+    const tier = (score?.tier ?? 3) as 1 | 2 | 3 | 4 | 5;
+    const tierColor =
+      tier === 5
+        ? 0x16a34a
+        : tier === 4
+          ? 0x65a30d
+          : tier === 3
+            ? 0xd97706
+            : tier === 2
+              ? 0xdc2626
+              : 0x7f1d1d;
+    const min = w2s(bbox.minX, bbox.minY);
+    const max = w2s(bbox.maxX, bbox.maxY);
+    const x = Math.min(min.sx, max.sx) - 6;
+    const y = Math.min(min.sy, max.sy) - 6;
+    const w = Math.abs(max.sx - min.sx) + 12;
+    const h = Math.abs(max.sy - min.sy) + 12;
+    g.lineStyle(2, tierColor, 0.9);
+    g.drawRoundedRect(x, y, w, h, 4);
+    g.lineStyle(4, tierColor, 0.25);
+    g.drawRoundedRect(x - 2, y - 2, w + 4, h + 4, 6);
   }
 
   function getFeatureVertices(feature: Feature): Point2D[] {

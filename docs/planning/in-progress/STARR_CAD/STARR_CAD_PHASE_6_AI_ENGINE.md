@@ -2868,7 +2868,7 @@ interface AIStore {
 - [x] Cards sorted by confidence ascending by default (least confident first) — `CONFIDENCE_ASC` is the initial sort.
 - [x] Card border color matches tier color correctly — `TIER_COLORS` maps tier 1–5 to red→green; left-border uses the tier color.
 - [x] Confidence bar fills correctly for each score — per-card bar fills `confidence%` with the tier-colored gradient stop.
-- [ ] Hovering a card highlights the feature on the canvas — pulsing-ring hover bridge lands when the canvas grows a feature-highlight channel.
+- [x] Hovering a card highlights the feature on the canvas — `useUIStore.hoveredFeatureId` carries the bridge; the AISidebar `ConfidenceCard` sets it on `onMouseEnter` / `onFocus`; CanvasViewport's `drawSidebarHoverRing` reads the cached feature bbox and draws a tier-colored 2-px outline + a soft 4-px halo around the matching feature on the existing `selectionGraphics` layer.
 - [x] Clicking a card opens the element explanation popup — wired through `useAIStore.openExplanation(featureId)`.
 - [x] Sort controls change card order correctly (all 4+ sort modes) — `CONFIDENCE_ASC / CONFIDENCE_DESC / ALPHA / TIER / CATEGORY`.
 - [x] Search filters cards by text match on title/description — title + category + flags substring filter.

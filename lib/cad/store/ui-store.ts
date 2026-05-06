@@ -19,6 +19,11 @@ interface UIStore {
   // editor). One open/close switch + the active tab.
   showAISidebar: boolean;
   aiSidebarTab: AISidebarTab;
+  /** §29.3 — feature hovered in the confidence-card list.
+   *  CanvasViewport reads this and draws a tier-colored
+   *  highlight ring around the matching feature so cards ↔
+   *  canvas stay visually correlated. */
+  hoveredFeatureId: string | null;
 
   toggleLayerPanel: () => void;
   togglePropertyPanel: () => void;
@@ -27,6 +32,7 @@ interface UIStore {
   openAISidebar: (tab?: AISidebarTab) => void;
   closeAISidebar: () => void;
   setAISidebarTab: (tab: AISidebarTab) => void;
+  setHoveredFeatureId: (featureId: string | null) => void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -37,6 +43,7 @@ export const useUIStore = create<UIStore>((set) => ({
   commandBarFocused: false,
   showAISidebar: false,
   aiSidebarTab: 'queue',
+  hoveredFeatureId: null,
 
   toggleLayerPanel: () => set((s) => ({ showLayerPanel: !s.showLayerPanel })),
   togglePropertyPanel: () => set((s) => ({ showPropertyPanel: !s.showPropertyPanel })),
@@ -46,4 +53,5 @@ export const useUIStore = create<UIStore>((set) => ({
     set((s) => ({ showAISidebar: true, aiSidebarTab: tab ?? s.aiSidebarTab })),
   closeAISidebar: () => set({ showAISidebar: false }),
   setAISidebarTab: (tab) => set({ aiSidebarTab: tab }),
+  setHoveredFeatureId: (featureId) => set({ hoveredFeatureId: featureId }),
 }));
