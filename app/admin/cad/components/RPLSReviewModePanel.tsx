@@ -27,13 +27,19 @@
 
 import { useMemo, useState } from 'react';
 
-import { useDrawingStore, useReviewWorkflowStore } from '@/lib/cad/store';
+import {
+  useDeliveryStore,
+  useDrawingStore,
+  useReviewWorkflowStore,
+} from '@/lib/cad/store';
 import {
   applySeal,
   buildSealData,
   type RPLSReviewEvent,
   type RPLSWorkflowStatus,
 } from '@/lib/cad/delivery';
+
+import SealImageUploader from './SealImageUploader';
 
 interface Props {
   open: boolean;
@@ -221,9 +227,12 @@ export default function RPLSReviewModePanel({ open, onClose }: Props) {
     }
     setSealing(true);
     try {
+      const cachedSealImage = useDeliveryStore.getState().sealImage;
       const sealData = await buildSealData(document, {
         rplsName: current.rplsName,
         rplsLicense: current.rplsLicense,
+        sealImage: cachedSealImage,
+        sealType: cachedSealImage ? 'DIGITAL_IMAGE' : 'PLACEHOLDER',
       });
       const sealedDoc = applySeal(document, sealData);
       loadDocument(sealedDoc);
@@ -329,6 +338,11 @@ export default function RPLSReviewModePanel({ open, onClose }: Props) {
 
       {!isTerminal ? (
         <>
+          {(isInReview || isApproved) ? (
+            <div style={{ padding: '0 16px 8px' }}>
+              <SealImageUploader />
+            </div>
+          ) : null}
           <h3 style={styles.sectionTitle}>Comment / Note</h3>
           <textarea
             rows={3}

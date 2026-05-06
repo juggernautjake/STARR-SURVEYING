@@ -22,11 +22,22 @@ interface DeliveryStore {
    *  panel's Edit mode to land per-field changes without
    *  rebuilding the whole record. */
   patchDescription: (patch: Partial<SurveyDescription>) => void;
+
+  /** §8.3 — RPLS seal image cached for the session. Stored as
+   *  a data URL (PNG / JPG / SVG). The next `applySeal` call
+   *  reads it from here and embeds in `sealData.sealImage`,
+   *  which the PDF exporter then drops onto the seal block.
+   *  Per-user persistence lands in a follow-up slice once we
+   *  wire user settings. */
+  sealImage: string | null;
+  setSealImage: (image: string | null) => void;
+
   reset: () => void;
 }
 
 export const useDeliveryStore = create<DeliveryStore>((set) => ({
   description: null,
+  sealImage: null,
   setDescription: (description) => set({ description }),
   patchDescription: (patch) =>
     set((state) =>
@@ -34,5 +45,6 @@ export const useDeliveryStore = create<DeliveryStore>((set) => ({
         ? { description: { ...state.description, ...patch } }
         : state
     ),
-  reset: () => set({ description: null }),
+  setSealImage: (image) => set({ sealImage: image }),
+  reset: () => set({ description: null, sealImage: null }),
 }));
