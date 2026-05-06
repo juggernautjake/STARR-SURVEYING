@@ -65,6 +65,11 @@ import {
   buildSyncPayload as buildCompassSyncPayload,
   sendCompassSync,
 } from '@/lib/cad/integrations/compass-sync';
+import {
+  buildForgePayload,
+  sendForgeSync,
+  shouldSync as shouldForgeSync,
+} from '@/lib/cad/integrations/forge-sync';
 
 // CanvasViewport requires browser APIs; load it client-side only
 const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
@@ -257,12 +262,14 @@ export default function CADLayout() {
     return () => window.removeEventListener('cad:toggleHiddenItems', handler);
   }, []);
 
-  // §17.2 — auto-sync to Compass on SEALED / DELIVERED. We
-  // subscribe to the workflow store directly (not via the
-  // hook) so the effect fires once per transition rather than
-  // on every render. A small ref guards against re-firing for
-  // the same status during a single browser session.
+  // §17.2 / §17.3 — auto-sync to Compass + Forge on
+  // workflow transitions. We subscribe to the workflow store
+  // directly (not via the hook) so the effect fires once per
+  // transition rather than on every render. The refs guard
+  // against re-firing for the same status during a single
+  // browser session.
   const lastSyncedStatusRef = useRef<string | null>(null);
+  const lastForgeSyncedRef = useRef<string | null>(null);
   useEffect(() => {
     const unsubscribe = useReviewWorkflowStore.subscribe((state) => {
       const status = state.record?.status;
@@ -293,6 +300,44 @@ export default function CADLayout() {
           );
         }
       });
+
+      // §17.3 — Forge sync only fires on DELIVERED (the
+      // construction surface only wants the final as-built).
+      if (!shouldForgeSync(state.record)) return;
+      const forgeKey = `${state.record!.jobId}:DELIVERED`;
+      if (lastForgeSyncedRef.current === forgeKey) return;
+      lastForgeSyncedRef.current = forgeKey;
+      void buildForgePayload({
+        doc: useDrawingStore.getState().document,
+        reviewRecord: state.record,
+        automatic: true,
+      })
+        .then(async (forgePayload) => {
+          if (!forgePayload) return;
+          const response = await sendForgeSync(forgePayload);
+          if (response.ok) {
+            cadLog.info(
+              'ForgeSync',
+              `Pushed ${forgePayload.slices.length} slice(s) for ` +
+                `job ${forgePayload.jobId}` +
+                (response.forwardedTo
+                  ? ` → ${response.forwardedTo}`
+                  : ' (logged; webhook not configured)')
+            );
+          } else {
+            cadLog.warn(
+              'ForgeSync',
+              `Forge sync for job ${forgePayload.jobId} failed: ` +
+                `${response.message ?? 'unknown'}`
+            );
+          }
+        })
+        .catch((err) => {
+          cadLog.warn(
+            'ForgeSync',
+            `Forge payload build failed: ${err instanceof Error ? err.message : String(err)}`
+          );
+        });
     });
     return unsubscribe;
   }, []);
