@@ -70,6 +70,11 @@ import {
   sendForgeSync,
   shouldSync as shouldForgeSync,
 } from '@/lib/cad/integrations/forge-sync';
+import {
+  buildOrbitPayload,
+  sendOrbitSync,
+  shouldSync as shouldOrbitSync,
+} from '@/lib/cad/integrations/orbit-sync';
 
 // CanvasViewport requires browser APIs; load it client-side only
 const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
@@ -270,6 +275,7 @@ export default function CADLayout() {
   // browser session.
   const lastSyncedStatusRef = useRef<string | null>(null);
   const lastForgeSyncedRef = useRef<string | null>(null);
+  const lastOrbitSyncedRef = useRef<string | null>(null);
   useEffect(() => {
     const unsubscribe = useReviewWorkflowStore.subscribe((state) => {
       const status = state.record?.status;
@@ -301,8 +307,9 @@ export default function CADLayout() {
         }
       });
 
-      // §17.3 — Forge sync only fires on DELIVERED (the
-      // construction surface only wants the final as-built).
+      // §17.3 / §17.4 — Forge + Orbit sync only fire on
+      // DELIVERED (their downstream UIs only want the final
+      // as-built, not interim seal events).
       if (!shouldForgeSync(state.record)) return;
       const forgeKey = `${state.record!.jobId}:DELIVERED`;
       if (lastForgeSyncedRef.current === forgeKey) return;
@@ -338,6 +345,39 @@ export default function CADLayout() {
             `Forge payload build failed: ${err instanceof Error ? err.message : String(err)}`
           );
         });
+
+      // §17.4 — Orbit sync fires alongside Forge on
+      // DELIVERED. Independent ref so a Forge failure
+      // doesn't suppress the Orbit push (and vice versa).
+      if (!shouldOrbitSync(state.record)) return;
+      const orbitKey = `${state.record!.jobId}:DELIVERED`;
+      if (lastOrbitSyncedRef.current === orbitKey) return;
+      lastOrbitSyncedRef.current = orbitKey;
+      const orbitPayload = buildOrbitPayload({
+        doc: useDrawingStore.getState().document,
+        reviewRecord: state.record,
+        automatic: true,
+      });
+      if (orbitPayload) {
+        void sendOrbitSync(orbitPayload).then((response) => {
+          if (response.ok) {
+            cadLog.info(
+              'OrbitSync',
+              `Pushed boundary + ${orbitPayload.monumentRefs.length} ` +
+                `monument(s) for job ${orbitPayload.jobId}` +
+                (response.forwardedTo
+                  ? ` → ${response.forwardedTo}`
+                  : ' (logged; webhook not configured)')
+            );
+          } else {
+            cadLog.warn(
+              'OrbitSync',
+              `Orbit sync for job ${orbitPayload.jobId} failed: ` +
+                `${response.message ?? 'unknown'}`
+            );
+          }
+        });
+      }
     });
     return unsubscribe;
   }, []);
