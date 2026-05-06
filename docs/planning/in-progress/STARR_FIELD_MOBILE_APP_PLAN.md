@@ -6074,8 +6074,12 @@ side reads them.
       sidebar group with 🏛 icon. Auth: EQUIPMENT_ROLES
       for read; admin-only for the lock ritual (defensive
       gate already on the lock-tax-year endpoint).
-- [ ] "Lock equipment depreciation" button on
+- [✓] "Lock equipment depreciation" button on
       `/admin/finances` (mirrors Batch QQ mark-exported).
+      Shipped as part of the §5.12.7.7 Fleet valuation page —
+      the &ldquo;Lock {year}&rdquo; button calls
+      POST /api/admin/equipment/lock-tax-year with a dry-run
+      preview modal first.
 - [✓] Tax summary endpoint extension — adds `equipment`
       block alongside `receipts` + `mileage`; reads frozen
       `equipment_tax_elections` for locked years.
@@ -6095,8 +6099,13 @@ side reads them.
       that were promoted to capital assets don&apos;t
       double-count — their dollars land on the
       depreciation ledger via the equipment block instead.
-- [ ] Asset Detail Schedule PDF + CSV export.
-- [◐] Disposal flow (`POST /api/admin/equipment/dispose`)
+- [✓] Asset Detail Schedule PDF + CSV export. Shipped as
+      GET /api/admin/equipment/asset-detail-schedule with
+      `?format=csv` (CPA import) + `?format=html` (browser-
+      print to PDF). Wired into the Fleet valuation page
+      header as &ldquo;⤓ CSV&rdquo; + &ldquo;⎙ Print PDF&rdquo;
+      buttons.
+- [✓] Disposal flow (`POST /api/admin/equipment/dispose`)
       with kind branches.
     - [✓] **Server endpoint
           (POST /api/admin/equipment/dispose).**
@@ -6121,13 +6130,27 @@ side reads them.
           Asset Detail Schedule manually for v1; recapture
           worker is post-F10.9 polish. Auth: admin /
           equipment_manager.
-    - [ ] **Asset Detail Schedule PDF + CSV export.**
-          Endpoint that emits the IRS Schedule C-shaped
-          asset listing for a tax year (one row per
-          asset: cost basis, accumulated depreciation,
-          this-year amount, disposal info). PDF + CSV
-          formats; hits the lock-tax-year worker first to
-          freeze the year on demand if needed.
+    - [✓] **Asset Detail Schedule PDF + CSV export.** New
+          `GET /api/admin/equipment/asset-detail-schedule`
+          emits the IRS-Schedule-C-shaped per-asset listing
+          for `?tax_year=YYYY` in two formats:
+            * `format=csv` (default) — CSV the CPA imports
+              into tax-prep software. Header + one row per
+              asset (id, name, category, method, acquired_at,
+              placed_in_service_at, cost basis, year amount,
+              accumulated, remaining, disposal info, locked
+              flag) + footer TOTAL row.
+            * `format=html` — print-friendly HTML the
+              bookkeeper browser-prints to PDF for the audit
+              binder (no server-side PDF lib needed). Inline
+              CSS, locked badge per row, footer totals.
+          Skips assets disposed before the tax year, future-
+          dated acquisitions. Uses the same locked-then-live
+          accumulation logic as the rollup endpoint so the
+          numbers reconcile to the fleet valuation page.
+          Auth: admin / bookkeeper / equipment_manager.
+          Wired into the Fleet valuation page header as
+          "⤓ CSV" + "⎙ Print PDF" buttons.
 
 **Exit (Week 40):** A surveyor walks to the gear cage at
 6:30am. Equipment Manager scans a kit QR. The kit + its

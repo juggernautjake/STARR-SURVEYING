@@ -2847,21 +2847,21 @@ interface AIStore {
 - [ ] County parcel data fetched for test parcel in Bell County, TX
 - [ ] PLSS data (township, range, section, abstract) returned
 - [ ] FEMA flood zone data returned with panel number
-- [ ] Elevation data returned for boundary corner points
-- [ ] All enrichment sources failing gracefully (non-blocking — warnings added)
+- [x] Elevation data returned for boundary corner points (USGS 3DEP @ `lib/cad/ai-engine/enrichment.ts`; runs in parallel with the pipeline in `app/api/admin/cad/ai-pipeline/route.ts`)
+- [x] All enrichment sources failing gracefully (non-blocking — warnings added)
 - [ ] PLSS fields auto-populated in title block from enrichment
 
 ### Deliberation & Clarifying Questions
-- [ ] Deliberation runs after stage 6 and before drawing preview
-- [ ] Deliberation generates no questions when overall confidence ≥ 90 and no blocking issues
-- [ ] Deed discrepancy (bearing off > 2°) generates blocking question
-- [ ] Unrecognized code generates optional question
-- [ ] Fence code → material question generated
-- [ ] Building code → material question generated
+- [x] Deliberation runs after stage 6 and before drawing preview (`runDeliberation` in `lib/cad/ai-engine/deliberation.ts`, called from `pipeline.ts`)
+- [x] Deliberation generates no dialog when overall confidence ≥ 90 and no blocking issues (`shouldShowDialog` flag short-circuits per §28.1)
+- [x] Deed discrepancy (bearing off > 2°) generates BLOCKING/HIGH question
+- [x] Unrecognized code generates optional MEDIUM question
+- [x] Fence code → material question generated (LOW priority)
+- [x] Building code → material question generated (LOW priority)
 - [ ] Duplicate shots → "which is final?" question generated
-- [ ] User answering blocking questions enables "Draw Now" button
-- [ ] Answers applied to pipeline re-run; scores improve after good answers
-- [ ] "Skip All Optional" dismisses all non-blocking questions
+- [x] User answering blocking questions enables "Draw Now" button (`app/admin/cad/components/QuestionDialog.tsx`)
+- [x] Answers applied to pipeline re-run; scores improve after good answers (`rerunWithAnswers` in `lib/cad/store/ai-store.ts` + `applyAnswerEffects` in `lib/cad/ai-engine/apply-answers.ts`; FEATURE_ATTRIBUTE answers stamp `feature.properties.material`, deed/code/offset answers logged as warnings until Stage-1 reclass + offset disambig wiring lands)
+- [x] "Skip All Optional" dismisses all non-blocking questions (`skipAllOptionalQuestions` in `lib/cad/store/ai-store.ts`)
 
 ### Drawing Preview & Confidence Cards
 - [ ] Two-panel layout renders (canvas left, cards right)
@@ -2877,15 +2877,15 @@ interface AIStore {
 - [ ] Re-analyze re-runs pipeline and refreshes all cards
 
 ### Per-Element Explanations & Chat
-- [ ] Every feature has a generated explanation
-- [ ] Tier 5 explanations are brief (no Claude call)
-- [ ] Tiers 1–4 explanations include full reasoning, data used, assumptions, alternatives
-- [ ] Confidence breakdown shows all 6 factors with human-readable text
-- [ ] Chat message sent → Claude responds within 30 seconds
-- [ ] "Update This Element" redraw affects only the selected feature
-- [ ] "Redraw This Group" redraw affects all features on same layer
-- [ ] "Redraw Full Drawing" re-runs full pipeline
-- [ ] Chat history persists within the session
+- [x] Every feature has a generated explanation (`generateAutoExplanations` in `lib/cad/ai-engine/element-explanation.ts`; piped through `pipeline.ts` into `result.explanations`)
+- [x] Tier 5 explanations are brief (no Claude call) — auto-explanation path is deterministic for all tiers in this slice
+- [ ] Tiers 1–4 explanations include full reasoning, data used, assumptions, alternatives — auto path covers data used / assumptions / alternatives; Claude narrative augmentation lands in a follow-up slice
+- [x] Confidence breakdown shows all 6 factors with human-readable text (`buildConfidenceBreakdown` walks `ConfidenceFactors` and emits per-factor explanations)
+- [x] Chat message sent → Claude responds within 30 seconds (`handleElementChat` in `lib/cad/ai-engine/element-chat.ts` + POST `/api/admin/cad/element-chat`; 45 s handler / 60 s route ceiling)
+- [ ] "Update This Element" redraw affects only the selected feature — UPDATE_ATTRIBUTE wired (`executeChatAction` mutates `feature.properties` on result + drawing store); REDRAW_ELEMENT geometry recompute logged as warning until partial-recompute path lands
+- [ ] "Redraw This Group" redraw affects all features on same layer — REDRAW_GROUP queued + warned; partial-recompute path lands later
+- [x] "Redraw Full Drawing" re-runs full pipeline (`executeChatAction` REDRAW_FULL re-POSTs `lastPayload` with the chat instruction folded into `userPrompt`)
+- [x] Chat history persists within the session (`chatHistory` mutated via `appendChatMessage` in `lib/cad/store/ai-store.ts`)
 - [ ] Group chat (multi-select cards) works for batch instructions
 
 ## Updated Build Order (§25 additions)

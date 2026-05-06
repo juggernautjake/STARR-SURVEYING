@@ -3,17 +3,22 @@
 
 import { useRef, useState } from 'react';
 import {
+  useAnnotationStore,
+  useDeliveryStore,
   useDrawingStore,
+  useReviewWorkflowStore,
   useSelectionStore,
   useToolStore,
   useViewportStore,
   useUndoStore,
   useUIStore,
+  useAIStore,
 } from '@/lib/cad/store';
 import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv } from '@/lib/cad/persistence/export-csv';
+import { downloadDxf, downloadGeoJSON, downloadDeliverableBundle } from '@/lib/cad/delivery';
 import SaveToDBDialog from './SaveToDBDialog';
 
 interface MenuItem {
@@ -33,7 +38,7 @@ interface MenuDef {
   items: MenuEntry[];
 }
 
-export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel }: { onOpenImport?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void }) {
+export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel, onToggleReviewModePanel, onToggleDescriptionPanel }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void; onToggleReviewModePanel?: () => void; onToggleDescriptionPanel?: () => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -47,6 +52,13 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
   const viewportStore = useViewportStore();
   const undoStore = useUndoStore();
   const uiStore = useUIStore();
+  const aiQueuePanelOpen = useAIStore((s) => s.isQueuePanelOpen);
+  const toggleAIQueuePanel = useAIStore((s) => s.toggleQueuePanel);
+  const aiResultLoaded = useAIStore((s) => s.result !== null);
+  const openAIQuestionDialog = useAIStore((s) => s.openQuestionDialog);
+  const aiQuestionsAvailable = useAIStore(
+    (s) => (s.result?.deliberationResult?.questions.length ?? 0) > 0
+  );
 
   // ─── File I/O ───────────────────────────────
   function saveDocument() {
@@ -138,6 +150,59 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
     }
   }
 
+  function exportDxf() {
+    try {
+      const annotations = useAnnotationStore.getState().annotations;
+      const { byteSize, filename } = downloadDxf(drawingStore.document, {
+        annotations,
+      });
+      cadLog.info(
+        'FileIO',
+        `Exported drawing as DXF: ${filename} (${byteSize} bytes)`
+      );
+    } catch (err) {
+      cadLog.error('FileIO', 'DXF export failed', err);
+      alert('Failed to export DXF. See the browser console for details.');
+    }
+  }
+
+  function exportGeoJSON() {
+    try {
+      const { byteSize, filename } = downloadGeoJSON(drawingStore.document);
+      cadLog.info(
+        'FileIO',
+        `Exported drawing as GeoJSON: ${filename} (${byteSize} bytes)`
+      );
+    } catch (err) {
+      cadLog.error('FileIO', 'GeoJSON export failed', err);
+      alert('Failed to export GeoJSON. See the browser console for details.');
+    }
+  }
+
+  async function exportDeliverable() {
+    try {
+      const annotations = useAnnotationStore.getState().annotations;
+      const description = useDeliveryStore.getState().description;
+      const reviewRecord = useReviewWorkflowStore.getState().record;
+      const { filename, byteSize, manifest } = await downloadDeliverableBundle({
+        doc: drawingStore.document,
+        annotations,
+        description,
+        reviewRecord,
+      });
+      cadLog.info(
+        'FileIO',
+        `Exported deliverable bundle: ${filename} (${byteSize} bytes; ` +
+          `${manifest.fileList.length} files; status ${manifest.status})`
+      );
+    } catch (err) {
+      cadLog.error('FileIO', 'Deliverable bundle export failed', err);
+      alert(
+        'Failed to export deliverable bundle. See the browser console for details.'
+      );
+    }
+  }
+
   const undoDesc = undoStore.undoDescription();
   const redoDesc = undoStore.redoDescription();
 
@@ -154,8 +219,36 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
         { label: 'Save to Database…', action: () => { setDbDialog('save'); setOpenMenu(null); } },
         { separator: true },
         { label: 'Export as CSV…', action: () => { exportCsv(); setOpenMenu(null); } },
+        { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
+        { label: 'Export as GeoJSON…', action: () => { exportGeoJSON(); setOpenMenu(null); } },
+        { label: '📦 Download deliverable bundle…', action: () => { void exportDeliverable(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Import…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
+        { separator: true },
+        { label: '🤖 Run AI Drawing Engine…', action: () => { onOpenAIDrawing?.(); setOpenMenu(null); } },
+        {
+          label: aiQueuePanelOpen ? 'Hide AI review queue' : 'Show AI review queue',
+          action: () => { toggleAIQueuePanel(); setOpenMenu(null); },
+          disabled: !aiResultLoaded,
+        },
+        {
+          label: 'AI clarifying questions…',
+          action: () => { openAIQuestionDialog(); setOpenMenu(null); },
+          disabled: !aiQuestionsAvailable,
+        },
+        { separator: true },
+        {
+          label: '📜 Survey description…',
+          action: () => { onToggleDescriptionPanel?.(); setOpenMenu(null); },
+        },
+        {
+          label: '✓ Drawing completeness…',
+          action: () => { onToggleCompletenessPanel?.(); setOpenMenu(null); },
+        },
+        {
+          label: '🪪 RPLS review mode…',
+          action: () => { onToggleReviewModePanel?.(); setOpenMenu(null); },
+        },
       ],
     },
     {

@@ -206,18 +206,23 @@ export interface ReconciliationResult {
 // ─── STAGE 4: PLACEMENT ──────────────────────────────────────────────────────
 
 export interface PlacementConfig {
-  /** Paper size in inches: [width, height] */
-  paperSize:      [number, number];
-  /** Drawing scale denominator (e.g. 40 for 1"=40') */
-  scale:          number;
-  /** World-space rotation applied to the entire drawing (radians) */
-  rotation:       number;
-  /** World origin offset so the drawing fits the paper */
-  originOffset:   import('../types').Point2D;
-  /** Margins in inches: [top, right, bottom, left] */
-  margins:        [number, number, number, number];
-  /** Auto-selected (true) or user-specified (false) */
-  autoSelected:   boolean;
+  /** Paper size identifier (LETTER / TABLOID / ARCH_C / ARCH_D /
+   *  ARCH_E). Drives PAPER_DIMENSIONS lookup downstream. */
+  paperSize: import('../templates/types').PaperSize;
+  /** Page orientation. */
+  orientation: 'PORTRAIT' | 'LANDSCAPE';
+  /** Drawing scale denominator (e.g. 40 for 1"=40'). */
+  scale: number;
+  /** World-space rotation applied to the entire drawing,
+   *  decimal degrees (0 = north up). */
+  rotation: number;
+  /** Shift drawing center on sheet (inches). */
+  centerOffset: import('../types').Point2D;
+  /** Selected template id. 'default' when no template was
+   *  provided to Stage 4. */
+  templateId: string;
+  /** Auto-selected by Stage 4 (true) vs user-specified (false). */
+  autoSelected: boolean;
 }
 
 // ─── STAGE 6: CONFIDENCE SCORING ─────────────────────────────────────────────
@@ -317,12 +322,66 @@ export interface AIReviewQueue {
 
 // ─── ELEMENT EXPLANATION (per-element AI chat) ───────────────────────────────
 
+export interface ExplanationDataRef {
+  type:    'FIELD_POINT' | 'DEED_CALL' | 'ENRICHMENT' | 'FIELD_NOTE' | 'USER_ANSWER';
+  /** Display label, e.g. "Point #8 (BC01 20fnd)". */
+  label:   string;
+  /** Raw value the AI relied on. */
+  value:   string;
+  /** How heavily the data point influenced the decision. */
+  weight:  'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+export interface AlternativeOption {
+  description: string;
+  whyRejected: string;
+}
+
+export interface ConfidenceFactorExplanation {
+  factor:      keyof ConfidenceFactors;
+  /** 0–1 — same scale Stage 6 emits. */
+  score:       number;
+  explanation: string;
+}
+
+export interface ElementChatMessage {
+  id:        string;
+  role:      'USER' | 'AI';
+  content:   string;
+  timestamp: string;          // ISO 8601
+  action?:   ElementChatAction;
+}
+
+export interface ElementChatAction {
+  type:        'REDRAW_ELEMENT' | 'REDRAW_GROUP' | 'REDRAW_FULL' | 'UPDATE_ATTRIBUTE' | 'NO_ACTION';
+  description: string;
+  affectedIds: string[];
+  /** UPDATE_ATTRIBUTE only — keys map to property names on the
+   *  feature; values are the new property value. Numeric and
+   *  boolean strings are coerced when applied. Leave empty for
+   *  the other action types. */
+  attributeUpdates?: Record<string, string>;
+}
+
 export interface ElementExplanation {
-  featureId:   string;
-  summary:     string;
-  reasoning:   string;
-  suggestions: string[];
-  chatHistory: { role: 'user' | 'assistant'; content: string }[];
+  featureId:    string;
+  /** ISO 8601 timestamp the explanation was generated. */
+  generatedAt:  string;
+  /** One-sentence summary, shown in the review card. */
+  summary:      string;
+  /** Full paragraph: why the AI drew it this way. */
+  reasoning:    string;
+  /** Sources that informed the decision (deterministic +
+   *  weighted). */
+  dataUsed:     ExplanationDataRef[];
+  /** Assumptions made when the AI couldn't fully verify. */
+  assumptions:  string[];
+  /** Other interpretations considered, with rejection rationale. */
+  alternatives: AlternativeOption[];
+  /** Per-factor confidence breakdown with human-readable text. */
+  confidenceBreakdown: ConfidenceFactorExplanation[];
+  /** Chat transcript — empty when no chat has happened yet. */
+  chatHistory:  ElementChatMessage[];
 }
 
 // ─── DEED OCR / IMPORT ───────────────────────────────────────────────────────
@@ -361,20 +420,61 @@ export interface OffsetResolutionResult {
 
 // ─── AI DELIBERATION ─────────────────────────────────────────────────────────
 
+export type QuestionPriority = 'BLOCKING' | 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type QuestionCategory =
+  | 'CODE_AMBIGUITY'
+  | 'POSSIBLE_TYPO'
+  | 'OFFSET_DISAMBIGUATION'
+  | 'DUPLICATE_SHOT'
+  | 'MISSING_FEATURE'
+  | 'DEED_DISCREPANCY'
+  | 'FEATURE_ATTRIBUTE'
+  | 'MONUMENT_INFO'
+  | 'AREA_MISMATCH'
+  | 'AREA_ENCLOSURE'
+  | 'CONNECTION_AMBIGUITY';
+
+export type QuestionAnswerType =
+  | 'TEXT'
+  | 'SELECT'
+  | 'CONFIRM'
+  | 'POINT_SELECT'
+  | 'NUMBER';
+
 export interface ClarifyingQuestion {
-  id:       string;
-  question: string;
-  /** e.g. 'multiple_choice', 'yes_no', 'text', 'bearing_select' */
-  type:     string;
-  options:  string[] | null;
-  answer:   string | null;
+  id:              string;
+  priority:        QuestionPriority;
+  category:        QuestionCategory;
+  /** Human-readable question text. */
+  question:        string;
+  /** Why the AI is asking this — surfaced under the question. */
+  aiReasoning:     string;
+  /** featureIds, pointIds, or annotationIds the question is
+   *  about. Drives canvas highlighting in the UI. */
+  relatedIds:      string[];
+  /** AI's best guess. Pre-fills the answer when present. */
+  suggestedAnswer: string | null;
+  answerType:      QuestionAnswerType;
+  /** Allowed values for SELECT questions. */
+  options:         string[] | null;
+  /** Set when the user answers. */
+  userAnswer:      string | null;
+  skipped:         boolean;
 }
 
 export interface DeliberationResult {
-  questions:       ClarifyingQuestion[];
-  answeredCount:   number;
-  deliberationMs:  number;
-  completedAt:     string;  // ISO 8601
+  /** 0–100 weighted average across all element scores. */
+  overallConfidence:   number;
+  questions:           ClarifyingQuestion[];
+  blockingQuestions:   ClarifyingQuestion[];
+  optionalQuestions:   ClarifyingQuestion[];
+  /** False when overallConfidence ≥ 90 AND zero blocking
+   *  questions — caller skips the dialog and proceeds straight
+   *  to the drawing preview. */
+  shouldShowDialog:    boolean;
+  deliberationMs:      number;
+  completedAt:         string;  // ISO 8601
 }
 
 // ─── AI JOB PAYLOAD & RESULT ─────────────────────────────────────────────────
@@ -400,6 +500,12 @@ export interface AIJobPayload {
   generateLabels:           boolean;
   optimizeLabels:           boolean;
   includeConfidenceScoring: boolean;
+
+  /** Approximate project centroid in WGS84. Drives §27 online
+   *  enrichment (USGS 3DEP elevation today; FEMA / parcel /
+   *  PLSS land in follow-up slices). Optional — when omitted,
+   *  enrichment skips the network and returns null. */
+  projectLatLon?: { lat: number; lon: number } | null;
 }
 
 export interface AIJobResult {

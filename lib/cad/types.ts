@@ -190,6 +190,15 @@ export interface DrawingSettings {
 
   // Title block / survey info overlay
   titleBlock: TitleBlockConfig;
+
+  // Phase 7 §8 — RPLS digital seal. `sealed=true` when the
+  // RPLS has applied their seal; `sealData` carries the seal
+  // metadata + content hash so the PDF exporter can embed the
+  // image and any post-seal mutation can detect a hash drift.
+  // Both fields are optional for backward compatibility with
+  // pre-Phase-7 documents.
+  sealed?: boolean;
+  sealData?: import('./delivery/seal-engine').SealData | null;
 }
 
 // ─── TITLE BLOCK ───

@@ -13,6 +13,15 @@ import ToolOptionsBar from './components/ToolOptionsBar';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import ImportDialog from './components/ImportDialog';
+import AIDrawingDialog from './components/AIDrawingDialog';
+import QuestionDialog from './components/QuestionDialog';
+import ElementExplanationPopup from './components/ElementExplanationPopup';
+import CompletenessPanel from './components/CompletenessPanel';
+import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
+import RPLSReviewModePanel from './components/RPLSReviewModePanel';
+import SealHashBanner from './components/SealHashBanner';
+import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
+import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
 import CurveCalculator from './components/CurveCalculator';
@@ -25,7 +34,8 @@ import ImagePanel from './components/ImagePanel';
 import HiddenItemsPanel from './components/HiddenItemsPanel';
 import LayerPreferencesPanel from './components/LayerPreferencesPanel';
 import FeatureLabelPreferencesPanel from './components/FeatureLabelPreferencesPanel';
-import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
+import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore, useAIStore } from '@/lib/cad/store';
+import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -101,6 +111,7 @@ export default function CADLayout() {
   } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showAIDrawingDialog, setShowAIDrawingDialog] = useState(false);
   const [showPointTable, setShowPointTable] = useState(false);
   const [showTraversePanel, setShowTraversePanel] = useState(false);
   const [showCurveCalculator, setShowCurveCalculator] = useState(false);
@@ -116,6 +127,11 @@ export default function CADLayout() {
   const [showDisplayPrefs, setShowDisplayPrefs] = useState(false);
   const [showOrientationDialog, setShowOrientationDialog] = useState(false);
   const [showHiddenItems, setShowHiddenItems] = useState(false);
+  const [showCompletenessPanel, setShowCompletenessPanel] = useState(false);
+  const [showReviewModePanel, setShowReviewModePanel] = useState(false);
+  const [showDescriptionPanel, setShowDescriptionPanel] = useState(false);
+  const [pendingSubmission, setPendingSubmission] =
+    useState<CompletenessSummary | null>(null);
   const [layerPrefsLayerId, setLayerPrefsLayerId] = useState<string | null>(null);
   const [featureLabelPrefsId, setFeatureLabelPrefsId] = useState<string | null>(null);
   const [recoveryPayload, setRecoveryPayload] = useState<{
@@ -320,9 +336,15 @@ export default function CADLayout() {
         </div>
       )}
 
+      {/* Phase 7 §8.3 seal hash-mismatch banner — sticky strip
+          flagged when the active document's content has drifted
+          from the recorded seal hash */}
+      <SealHashBanner onOpenReviewMode={() => setShowReviewModePanel(true)} />
+
       {/* Top menu bar */}
       <MenuBar
         onOpenImport={() => setShowImportDialog(true)}
+        onOpenAIDrawing={() => setShowAIDrawingDialog(true)}
         onTogglePointTable={() => setShowPointTable(p => !p)}
         onToggleTraversePanel={() => setShowTraversePanel(p => !p)}
         onOpenCurveCalculator={() => setShowCurveCalculator(true)}
@@ -330,6 +352,9 @@ export default function CADLayout() {
         onOpenDrawingRotation={() => setShowDrawingRotation(true)}
         onOpenTitleBlock={() => setShowTitleBlock(true)}
         onToggleImagePanel={() => setShowImagePanel(p => !p)}
+        onToggleCompletenessPanel={() => setShowCompletenessPanel(p => !p)}
+        onToggleReviewModePanel={() => setShowReviewModePanel(p => !p)}
+        onToggleDescriptionPanel={() => setShowDescriptionPanel(p => !p)}
       />
 
       {/* Contextual tool options strip — with Prefs button on the right */}
@@ -469,6 +494,72 @@ export default function CADLayout() {
           onImportComplete={() => { setShowImportDialog(false); setShowPointTable(true); }}
         />
       )}
+
+      {/* Phase 6 AI drawing pipeline dialog */}
+      {showAIDrawingDialog && (
+        <AIDrawingDialog onClose={() => setShowAIDrawingDialog(false)} />
+      )}
+
+      {/* Phase 6 review queue panel — visibility tracked in
+          useAIStore so other surfaces can pop it open */}
+      <ReviewQueuePanel />
+
+      {/* Phase 6 §28.4 clarifying-question dialog — auto-opened
+          when deliberation flags shouldShowDialog */}
+      <QuestionDialog />
+
+      {/* Phase 6 §30.3 element-explanation popup — opened by
+          clicking a review-queue card */}
+      <ElementExplanationPopup />
+
+      {/* Phase 7 §6.2 completeness checklist — slides in from the
+          right, gates "Mark Ready for RPLS Review" on summary.ready */}
+      <CompletenessPanel
+        open={showCompletenessPanel}
+        onClose={() => setShowCompletenessPanel(false)}
+        onFix={(hint) => {
+          if (hint === 'TITLE_BLOCK') {
+            setShowTitleBlock(true);
+          } else if (hint === 'REVIEW_QUEUE') {
+            useAIStore.getState().openQueuePanel();
+          } else if (hint === 'LAYERS') {
+            const ui = useUIStore.getState();
+            if (!ui.showLayerPanel) ui.toggleLayerPanel();
+          }
+        }}
+        onMarkReady={(_checks, summary) => {
+          // §7.2 — open the submission dialog so the surveyor
+          // can review the resolved RPLS, add a message, and
+          // explicitly confirm. The dialog runs the actual
+          // markReadyForReview transition.
+          setPendingSubmission(summary);
+          window.dispatchEvent(
+            new CustomEvent('cad:completenessReady', { detail: summary })
+          );
+        }}
+      />
+
+      {/* Phase 7 §7.2 RPLS submission dialog — opened by the
+          completeness panel after Mark Ready */}
+      <RPLSSubmissionDialog
+        open={pendingSubmission !== null}
+        summary={pendingSubmission}
+        onClose={() => setPendingSubmission(null)}
+      />
+
+      {/* Phase 7 §7.3 RPLS review-mode panel — opens from the
+          File menu and switches its body based on workflow status */}
+      <RPLSReviewModePanel
+        open={showReviewModePanel}
+        onClose={() => setShowReviewModePanel(false)}
+      />
+
+      {/* Phase 7 §5.5 survey-description panel — generate +
+          edit the metes-and-bounds + notes + certification */}
+      <SurveyDescriptionPanel
+        open={showDescriptionPanel}
+        onClose={() => setShowDescriptionPanel(false)}
+      />
 
       {/* New Drawing / Get Started dialog */}
       {showNewDrawingDialog && (

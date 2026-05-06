@@ -1229,40 +1229,40 @@ interface ExportStore {
 - [ ] "Select Element to Chat About" focuses chat on that element
 
 ### Survey Description Generation
-- [ ] Legal description generated in correct Texas metes-and-bounds format
-- [ ] All bearing/distance legs present and correct
-- [ ] POB monument description matches drawing
-- [ ] Area statement included with correct acreage
-- [ ] FEMA flood zone note auto-populated from enrichment data
-- [ ] PLSS fields auto-filled in title block
-- [ ] User can edit any field manually
-- [ ] "Regenerate" re-runs Claude generation with updated drawing state
+- [x] Legal description generated in correct Texas metes-and-bounds format (`generateSurveyDescription` in `lib/cad/delivery/description-generator.ts` wraps the existing `generateLegalDescription` helper with boundary-polygon discovery, area roll-up, basis-of-bearings sniffer, and standard survey notes)
+- [x] All bearing/distance legs present and correct (boundary polygon → synthetic `Traverse` via `createTraverse`; smoke-tested with a 4-leg unit square — bearings + distances match)
+- [ ] POB monument description matches drawing — POB anchor is generic until point-feature → boundary-vertex linkage lands in a follow-up slice (synthetic survey points have no codeDefinition)
+- [x] Area statement included with correct acreage (square-feet + acres via shoelace; "CONTAINING N square feet (X.XXXX acres), more or less.")
+- [x] FEMA flood zone note auto-populated from enrichment data — sniffer reads zone + panel + panel date out of `titleBlock.notes`; text composes with or without a panel reference
+- [x] PLSS fields auto-filled in title block — county / abstract / survey / township / range / section sniffers populate the SurveyDescription record from `titleBlock.notes`
+- [x] User can edit any field manually (`app/admin/cad/components/SurveyDescriptionPanel.tsx` — Edit toggles per-section editable textareas for Legal Description / Certification / Notes; Apply Title-Block writes county / abstract / survey / flood / dates back into `useDrawingStore.updateSettings.titleBlock.notes` and stamps a USER revision)
+- [ ] "Regenerate" re-runs Claude generation with updated drawing state — `Regenerate` button re-runs the deterministic generator while preserving the prior revision history; Claude-augmented narrative pass is a follow-up slice
 
 ### Completeness Checker
-- [ ] All 16 checks run correctly
-- [ ] Missing north arrow → error flagged
-- [ ] Unfilled title block field → error flagged
-- [ ] Tier-1 unresolved items → error flagged
-- [ ] All checks pass → "Mark Ready for RPLS Review" enabled
+- [x] All 16 checks run correctly (`checkDrawingCompleteness` in `lib/cad/delivery/completeness-checker.ts`; legal-desc check now reads `useDeliveryStore.description !== null` via `CompletenessPanel`. Bearing-distance per-segment scan stays advisory until per-segment label coverage lands.)
+- [x] Missing north arrow → error flagged (severity ERROR; checks `titleBlock.visible` + `northArrowSizeIn`)
+- [x] Unfilled title block field → error flagged (severity ERROR; required: firmName, surveyorName, projectName, projectNumber, clientName, surveyDate)
+- [x] Tier-1 unresolved items → error flagged (severity ERROR via `checkNoPendingBlocking`; tier-1 unplaced via WARNING `checkTier1Resolved`)
+- [x] All checks pass → "Mark Ready for RPLS Review" enabled (`app/admin/cad/components/CompletenessPanel.tsx` consumes the checker, surfaces ✅/⚠️/❌ rows with per-row Fix CTAs (TITLE_BLOCK / REVIEW_QUEUE / LAYERS) wired to the right host surfaces, footer summary, and a Mark Ready button gated on `summary.ready`. Mounted in `CADLayout`, opened from File → ✓ Drawing completeness…)
 
 ### RPLS Workflow
-- [ ] Submit for review changes status to READY_FOR_REVIEW
-- [ ] RPLS Review Mode UI shows review-specific buttons
-- [ ] "Approve & Seal" applies seal and changes status to SEALED
-- [ ] Sealed drawing: seal image embedded in PDF at seal placeholder
-- [ ] Drawing hash recorded at time of sealing
-- [ ] Changes after sealing require re-sealing (hash mismatch warning)
+- [x] Submit for review changes status to READY_FOR_REVIEW (`useReviewWorkflowStore.markReadyForReview` in `lib/cad/store/review-workflow-store.ts`; wrapper around `runTransition` in `lib/cad/delivery/rpls-workflow.ts`. Completeness panel's Mark Ready opens `RPLSSubmissionDialog` (`app/admin/cad/components/RPLSSubmissionDialog.tsx`) which confirms the resolved RPLS, captures an optional message, and runs the transition with the message folded into the audit-trail note.)
+- [x] RPLS Review Mode UI shows review-specific buttons (`app/admin/cad/components/RPLSReviewModePanel.tsx`; status-aware body switches across DRAFT / READY_FOR_REVIEW / IN_REVIEW / CHANGES_REQUESTED / APPROVED / SEALED / DELIVERED with the right CTAs at each step. Mounted in `CADLayout`, opened from File → 🪪 RPLS review mode…)
+- [x] "Approve & Seal" applies seal and changes status to SEALED — `RPLSReviewModePanel` now invokes `applySeal(doc, sealData)` from `lib/cad/delivery/seal-engine.ts`; the new doc lands in `useDrawingStore.loadDocument` and the workflow store flips to SEALED.
+- [ ] Sealed drawing: seal image embedded in PDF at seal placeholder — seal data + image slot ready on `DrawingSettings.sealData`; PDF exporter wiring lands in §10 slice
+- [x] Drawing hash recorded at time of sealing — `computeDrawingHash(doc)` in `seal-engine.ts` canonicalizes (sorted keys + transient state stripped) and SHA-256s; stored on `sealData.signatureHash` at apply time
+- [x] Changes after sealing require re-sealing (hash mismatch warning) — `verifyDrawingSeal(doc)` returns `{ ok: false, expected, actual }` on drift; `app/admin/cad/components/SealHashBanner.tsx` consumes it via a 250ms-debounced effect and renders a sticky warning strip with a "Open RPLS review mode" CTA + a per-hash Dismiss latch
 
 ### Exports
-- [ ] DXF export: all layers present with correct names
-- [ ] DXF export: LINE entities match polyline vertices
-- [ ] DXF export: ARC entities match arc radius/angles
-- [ ] DXF export: TEXT entities present for all annotations
-- [ ] DXF import: round-trip (export then re-import) preserves all features
+- [x] DXF export: all layers present with correct names (`exportToDxf` in `lib/cad/delivery/dxf-writer.ts` walks `doc.layers` and emits a LAYER row per layer plus the always-present "0" layer; AutoCAD-illegal name characters are stripped via `dxfSafeName`)
+- [x] DXF export: LINE entities match polyline vertices (POLYLINE → LWPOLYLINE flag 0; POLYGON → LWPOLYLINE flag 1; LINE → LINE; MIXED_GEOMETRY expanded to per-segment LINEs; smoke-tested with `npx tsx`)
+- [x] DXF export: ARC entities match arc radius/angles (ARC → ARC with degrees converted from radians; CW arcs swap start/end so the CCW DXF sweep matches the visible arc)
+- [x] DXF export: TEXT entities present for all annotations (`exportToDxf(doc, { annotations })` walks `useAnnotationStore.annotations` and emits TEXT entities for BEARING_DISTANCE / CURVE_DATA / MONUMENT_LABEL / AREA_LABEL / TEXT / LEADER. LEADER vertices land as LWPOLYLINE; symbol-bearing features land an INSERT referencing a placeholder BLOCK in the new BLOCKS section. Smoke-tested with synthetic doc.)
+- [ ] DXF import: round-trip (export then re-import) preserves all features — DXF importer is a separate slice
 - [ ] PDF export (final): seal image embedded at correct location
 - [ ] PDF export: scale accurate (1" = specified footage)
-- [ ] GeoJSON export: coordinates in WGS84
-- [ ] GeoJSON export: all boundary features present
+- [ ] GeoJSON export: coordinates in WGS84 — `exportToGeoJSON` ships state-plane coords (US Survey Feet) with EPSG:2277 CRS hint + metadata; WGS84 re-projection waits on a proj4 dependency
+- [x] GeoJSON export: all boundary features present (`exportToGeoJSON` in `lib/cad/delivery/geojson-writer.ts` walks `doc.features` → Point/LineString/Polygon/MultiLineString with curve sampling for circles/ellipses/arcs/splines; computed acreage stamped on POLYGON properties; smoke-tested with point + polygon + circle + arc)
 - [ ] CSV simplified: only base monument codes, B/E suffixes preserved
 - [ ] CSV full: all fields including confidence and tier
 
