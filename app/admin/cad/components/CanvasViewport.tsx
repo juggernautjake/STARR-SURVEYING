@@ -13,6 +13,14 @@ import {
   makeBatchEntry,
 } from '@/lib/cad/store';
 import { findSnapPoint } from '@/lib/cad/geometry/snap';
+import {
+  cullFeaturesToViewport,
+  expandBBox,
+  lodSimplificationThreshold,
+  shouldUseLOD,
+  simplifyPolyline,
+  type BoundingBox as LodBoundingBox,
+} from '@/lib/cad/geometry/lod';
 import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/geometry/bounds';
 import { boundsContains, boundsOverlap } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon } from '@/lib/cad/geometry/point';
@@ -897,6 +905,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const visibleFeatures = drawingStore.getVisibleFeatures();
     const visibleIds = new Set(visibleFeatures.map((f) => f.id));
 
+    // Phase 7 §19 — frustum culling. Compute the world-space
+    // viewport bbox (with a 20% padding so features just
+    // outside the screen don't pop on pan), filter the
+    // layer-visible feature list to those that overlap, and
+    // hide the rest via `g.visible = false` so we keep the
+    // Graphics objects around without re-tessellating them.
+    const viewportBBox = computeViewportWorldBBox();
+    const culledFeatures = viewportBBox
+      ? cullFeaturesToViewport(visibleFeatures, viewportBBox)
+      : visibleFeatures;
+    const culledIds = new Set(culledFeatures.map((f) => f.id));
+    const { zoom } = useViewportStore.getState();
+    const worldPerPixel = zoom > 0 ? 1 / zoom : 0;
+    const lodActive = shouldUseLOD(worldPerPixel);
+    const simplifyEpsilon = lodActive
+      ? lodSimplificationThreshold(worldPerPixel)
+      : 0;
+
     // Lazily-maintained per-layer sub-containers (for per-layer rotation)
     const layerContainers = pixi._layerContainers;
 
@@ -906,6 +932,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.parent?.removeChild(g);
         g.destroy();
         pixi.featureGraphics.delete(id);
+      } else if (!culledIds.has(id)) {
+        g.visible = false;
+      } else {
+        g.visible = true;
       }
     }
 
@@ -926,7 +956,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     }
 
-    for (const feature of visibleFeatures) {
+    for (const feature of culledFeatures) {
       const layer = doc.layers[feature.layerId];
       const layerRotDeg = layer?.rotationDeg ?? 0;
 
@@ -950,12 +980,47 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.parent?.removeChild(g);
         parentContainer.addChild(g);
       }
+      g.visible = true;
 
-      drawFeature(g, feature);
+      drawFeature(g, feature, simplifyEpsilon);
     }
   }
 
-  function drawFeature(g: import('pixi.js').Graphics, feature: Feature) {
+  /** Convert the screen viewport into a world-space bbox the
+   *  LOD culler can read. Returns null when the viewport
+   *  hasn't been sized yet (canvas not mounted). */
+  function computeViewportWorldBBox(): LodBoundingBox | null {
+    const { screenWidth, screenHeight } = useViewportStore.getState();
+    if (screenWidth <= 0 || screenHeight <= 0) return null;
+    // Sample the four screen corners + run them through s2w
+    // (which applies the drawing-rotation inverse). Rotated
+    // viewports get an axis-aligned envelope from min/max of
+    // the corner set.
+    const corners = [
+      s2w(0, 0),
+      s2w(screenWidth, 0),
+      s2w(0, screenHeight),
+      s2w(screenWidth, screenHeight),
+    ];
+    let minX = corners[0].wx;
+    let minY = corners[0].wy;
+    let maxX = corners[0].wx;
+    let maxY = corners[0].wy;
+    for (let i = 1; i < corners.length; i += 1) {
+      const c = corners[i];
+      if (c.wx < minX) minX = c.wx;
+      if (c.wy < minY) minY = c.wy;
+      if (c.wx > maxX) maxX = c.wx;
+      if (c.wy > maxY) maxY = c.wy;
+    }
+    return expandBBox({ minX, minY, maxX, maxY }, 0.2);
+  }
+
+  function drawFeature(
+    g: import('pixi.js').Graphics,
+    feature: Feature,
+    simplifyEpsilon: number = 0
+  ) {
     g.clear();
     // Phase 6 §11 — AI-confidence visual treatment. Features
     // applied from the AI review queue carry a numeric
@@ -1009,8 +1074,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         break;
       }
       case 'POLYLINE': {
-        const verts = geom.vertices!;
-        if (verts.length < 2) break;
+        const rawVerts = geom.vertices!;
+        if (rawVerts.length < 2) break;
+        // Phase 7 §19 — when LOD is active drop sub-pixel
+        // wobble before tessellating. The 0 path is a
+        // no-op (returns the input unchanged).
+        const verts =
+          simplifyEpsilon > 0 && rawVerts.length > 4
+            ? simplifyPolyline(rawVerts, simplifyEpsilon)
+            : rawVerts;
         g.lineStyle(weight, color, alpha);
         const first = w2s(verts[0].x, verts[0].y);
         g.moveTo(first.sx, first.sy);
@@ -1021,7 +1093,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         break;
       }
       case 'POLYGON': {
-        const verts = geom.vertices!;
+        const rawVerts = geom.vertices!;
+        if (rawVerts.length < 3) break;
+        const verts =
+          simplifyEpsilon > 0 && rawVerts.length > 4
+            ? simplifyPolyline(rawVerts, simplifyEpsilon)
+            : rawVerts;
         if (verts.length < 3) break;
         g.lineStyle(weight, color, alpha);
         const first = w2s(verts[0].x, verts[0].y);

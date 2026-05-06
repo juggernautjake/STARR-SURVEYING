@@ -1278,8 +1278,8 @@ interface ExportStore {
 ### Performance
 - [ ] 500-point drawing renders at 60fps at all zoom levels — perf instrumentation lands in a follow-up slice once the canvas wires the LOD helpers
 - [ ] Snap hit-testing on 500-point drawing < 10ms — needs canvas-side R-tree integration (current `lod.ts` ships flat-list culling; rbush dependency lands later if needed)
-- [x] LOD activates at low zoom: symbols become dots, fps maintained — `shouldUseLOD(viewportScale)` + `lodSimplificationThreshold(viewportScale)` + Douglas-Peucker `simplifyPolyline` exposed from `lib/cad/geometry/lod.ts`. Canvas wire-in is the next slice.
-- [x] Annotation culling: only visible annotations rendered — `cullAnnotationsToViewport` + `computeAnnotationBBox` cover BEARING_DISTANCE / CURVE_DATA / MONUMENT_LABEL / AREA_LABEL / TEXT / LEADER. Smoke-tested with `npx tsx`.
+- [x] LOD activates at low zoom: symbols become dots, fps maintained — `CanvasViewport.renderFeatures` now reads `worldUnitsPerPixel = 1 / zoom`, runs `shouldUseLOD` + `lodSimplificationThreshold`, and threads the epsilon into `drawFeature`. POLYLINE / POLYGON paths run Douglas-Peucker (`simplifyPolyline`) on the source vertices when active and the polyline has > 4 vertices. Out-of-viewport features keep their Graphics objects but get `g.visible = false` so re-pan doesn't re-tessellate.
+- [x] Annotation culling: only visible annotations rendered — `cullAnnotationsToViewport` + `computeAnnotationBBox` cover BEARING_DISTANCE / CURVE_DATA / MONUMENT_LABEL / AREA_LABEL / TEXT / LEADER. Smoke-tested with `npx tsx`. Canvas-side wire-in for annotation rendering lands in a follow-up slice (current `renderLabels` doesn't yet read the cull list).
 
 ---
 
