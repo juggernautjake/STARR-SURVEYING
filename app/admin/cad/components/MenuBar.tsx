@@ -18,7 +18,7 @@ import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv } from '@/lib/cad/persistence/export-csv';
-import { downloadDxf, downloadGeoJSON, downloadDeliverableBundle, importFromDxf } from '@/lib/cad/delivery';
+import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, importFromDxf } from '@/lib/cad/delivery';
 import SaveToDBDialog from './SaveToDBDialog';
 
 interface MenuItem {
@@ -198,6 +198,19 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     input.click();
   }
 
+  function exportPdf() {
+    try {
+      const { byteSize, filename } = downloadPdf(drawingStore.document);
+      cadLog.info(
+        'FileIO',
+        `Exported drawing as PDF: ${filename} (${byteSize} bytes)`
+      );
+    } catch (err) {
+      cadLog.error('FileIO', 'PDF export failed', err);
+      alert('Failed to export PDF. See the browser console for details.');
+    }
+  }
+
   function exportGeoJSON() {
     try {
       const { byteSize, filename } = downloadGeoJSON(drawingStore.document);
@@ -253,6 +266,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'Export as CSV…', action: () => { exportCsv(); setOpenMenu(null); } },
         { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
         { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
+        { label: 'Export as PDF (sealed)…', action: () => { exportPdf(); setOpenMenu(null); } },
         { label: 'Export as GeoJSON…', action: () => { exportGeoJSON(); setOpenMenu(null); } },
         { label: '📦 Download deliverable bundle…', action: () => { void exportDeliverable(); setOpenMenu(null); } },
         { separator: true },

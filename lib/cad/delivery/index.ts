@@ -43,6 +43,9 @@ export type { DxfImportResult } from './dxf-reader';
 export { exportToGeoJSON, downloadGeoJSON } from './geojson-writer';
 export type { GeoJsonExportOptions } from './geojson-writer';
 
+export { exportToPdf, downloadPdf } from './pdf-writer';
+export type { PdfExportOptions, PdfExportResult } from './pdf-writer';
+
 export { generateSurveyDescription } from './description-generator';
 export type {
   DescriptionRevision,
