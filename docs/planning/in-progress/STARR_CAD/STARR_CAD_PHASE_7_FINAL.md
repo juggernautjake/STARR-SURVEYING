@@ -1217,8 +1217,8 @@ interface ExportStore {
 - [ ] Enrichment data auto-fills PLSS fields in title block
 - [x] Version history shows "AI Version 1" as first entry — `AISidebar` Versions tab merges the RPLS audit trail + survey-description revisions into a chronological feed (full AI-checkpoint history lands in the next slice)
 - [ ] All Phase 1–5 editing tools functional after AI load
-- [ ] Manual edit (move feature) → property panel updates → canvas updates
-- [ ] Manual attribute edit (change layer in property panel) → canvas updates immediately
+- [x] Manual edit (move feature) → property panel updates → canvas updates — `BidirectionalSync` (`app/admin/cad/components/BidirectionalSync.tsx`) subscribes to `useDrawingStore.document.features`, diffs object identity per tick, and on any mutation marks the matching AI explanation stale (`useAIStore.markExplanationStale`) + flips its review-queue item to MODIFIED (skipping REJECTED). Sidebar Explanations tab shows a ⚠ chip + count banner; popup shows a yellow "drifted from live geometry" banner.
+- [x] Manual attribute edit (change layer in property panel) → canvas updates immediately — same path; the diff catches `layerId` / `style` / `properties` reference changes alongside geometry mutations.
 
 ### AI Drawing Assistant
 - [x] Chat sends message, receives response within 30 seconds (`handleDrawingChat` in `lib/cad/ai-engine/drawing-chat.ts` + POST `/api/admin/cad/drawing-chat`; 45 s handler / 60 s route ceiling. Snapshot fed to Claude includes feature counts by type, populated layers, title-block + paper settings, and seal status.)

@@ -25,6 +25,7 @@ import DeliveryHydrator from './components/DeliveryHydrator';
 import DrawingChatPanel from './components/DrawingChatPanel';
 import RecentRecoveriesDialog from './components/RecentRecoveriesDialog';
 import AISidebar from './components/AISidebar';
+import BidirectionalSync from './components/BidirectionalSync';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -431,6 +432,11 @@ export default function CADLayout() {
       {/* Phase 7 delivery hydrator — keeps useDeliveryStore +
           useReviewWorkflowStore in sync with the active doc. */}
       <DeliveryHydrator />
+
+      {/* Phase 7 §3.3 bidirectional element sync — flags AI
+          explanations stale + review-queue items MODIFIED on
+          manual canvas edits. */}
+      <BidirectionalSync />
 
       {/* Crash-recovery dialog — offered when an autosave newer than current document is found */}
       {recoveryPayload && (

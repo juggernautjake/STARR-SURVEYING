@@ -189,6 +189,8 @@ function ExplanationsTab() {
   const explanations = useAIStore((s) => s.result?.explanations ?? null);
   const reviewQueue = useAIStore((s) => s.result?.reviewQueue ?? null);
   const open = useAIStore((s) => s.openExplanation);
+  const staleIds = useAIStore((s) => s.staleExplanationIds);
+  const staleSet = useMemo(() => new Set(staleIds), [staleIds]);
   const list = useMemo(() => {
     if (!explanations) return [];
     return Object.values(explanations).map((e) => ({
@@ -199,8 +201,9 @@ function ExplanationsTab() {
         e.featureId,
       summary: e.summary,
       generatedAt: e.generatedAt,
+      stale: staleSet.has(e.featureId),
     }));
-  }, [explanations, reviewQueue]);
+  }, [explanations, reviewQueue, staleSet]);
 
   if (list.length === 0) {
     return (
@@ -211,24 +214,43 @@ function ExplanationsTab() {
       </p>
     );
   }
+  const staleCount = list.filter((r) => r.stale).length;
   return (
-    <ul style={styles.explanationList}>
-      {list.map((row) => (
-        <li key={row.id} style={styles.explanationRow}>
-          <button
-            type="button"
-            onClick={() => open(row.id)}
-            style={styles.explanationBtn}
-            title={row.summary}
-          >
-            <strong style={styles.explanationTitle}>{row.title}</strong>
-            <span style={styles.explanationSummary}>
-              {truncate(row.summary, 120)}
-            </span>
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div style={styles.column}>
+      {staleCount > 0 ? (
+        <div style={styles.staleBanner}>
+          ⚠ {staleCount} explanation{staleCount === 1 ? '' : 's'} drifted
+          from the live geometry — manual canvas edits since the last
+          AI run. Re-run to refresh.
+        </div>
+      ) : null}
+      <ul style={styles.explanationList}>
+        {list.map((row) => (
+          <li key={row.id} style={styles.explanationRow}>
+            <button
+              type="button"
+              onClick={() => open(row.id)}
+              style={
+                row.stale
+                  ? styles.explanationBtnStale
+                  : styles.explanationBtn
+              }
+              title={row.summary}
+            >
+              <span style={styles.explanationTitleRow}>
+                <strong style={styles.explanationTitle}>{row.title}</strong>
+                {row.stale ? (
+                  <span style={styles.staleChip}>⚠ stale</span>
+                ) : null}
+              </span>
+              <span style={styles.explanationSummary}>
+                {truncate(row.summary, 120)}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -531,8 +553,44 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 2,
   },
+  explanationBtnStale: {
+    width: '100%',
+    textAlign: 'left',
+    background: '#FFFBEB',
+    border: '1px solid #FDE68A',
+    borderRadius: 6,
+    padding: 8,
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+  },
+  explanationTitleRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 6,
+  },
   explanationTitle: { fontSize: 12, color: '#1F2937' },
+  staleChip: {
+    fontSize: 10,
+    color: '#B45309',
+    background: '#FEF3C7',
+    padding: '1px 6px',
+    borderRadius: 4,
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+  },
   explanationSummary: { fontSize: 11, color: '#6B7280', lineHeight: 1.4 },
+  staleBanner: {
+    background: '#FEF3C7',
+    border: '1px solid #FDE68A',
+    color: '#78350F',
+    padding: 8,
+    borderRadius: 6,
+    fontSize: 11,
+    lineHeight: 1.4,
+  },
   versionList: {
     listStyle: 'none',
     padding: 0,
