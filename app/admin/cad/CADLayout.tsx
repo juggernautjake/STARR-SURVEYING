@@ -21,6 +21,7 @@ import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import RPLSReviewModePanel from './components/RPLSReviewModePanel';
 import SealHashBanner from './components/SealHashBanner';
 import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
+import DeliveryHydrator from './components/DeliveryHydrator';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
@@ -286,6 +287,10 @@ export default function CADLayout() {
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden bg-white select-none">
+      {/* Phase 7 delivery hydrator — keeps useDeliveryStore +
+          useReviewWorkflowStore in sync with the active doc. */}
+      <DeliveryHydrator />
+
       {/* Crash-recovery dialog — offered when an autosave newer than current document is found */}
       {recoveryPayload && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 animate-[fadeIn_150ms_ease-out]">
