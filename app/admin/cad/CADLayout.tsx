@@ -41,6 +41,11 @@ import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
+import {
+  clearAutosave,
+  readAutosave,
+  writeAutosave,
+} from '@/lib/cad/persistence/autosave';
 
 // CanvasViewport requires browser APIs; load it client-side only
 const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
@@ -52,53 +57,10 @@ const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
   ),
 });
 
-const AUTOSAVE_DB = 'starr-cad';
-const AUTOSAVE_STORE = 'autosave';
-const AUTOSAVE_KEY = 'current';
 /** Fallback periodic interval (ms) — overridden by autoSaveIntervalSec setting */
 const DEFAULT_AUTOSAVE_INTERVAL_MS = 60_000;
 /** Debounce delay (ms) after a document change before writing to IndexedDB */
 const AUTOSAVE_DEBOUNCE_MS = 5_000;
-
-/** Open (or create) the IndexedDB autosave store */
-function openAutosaveDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(AUTOSAVE_DB, 1);
-    req.onupgradeneeded = () => {
-      req.result.createObjectStore(AUTOSAVE_STORE);
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-/** Write a value to the autosave store */
-async function writeAutosave(value: unknown): Promise<void> {
-  const db = await openAutosaveDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(AUTOSAVE_STORE, 'readwrite');
-    tx.objectStore(AUTOSAVE_STORE).put(value, AUTOSAVE_KEY);
-    tx.oncomplete = () => { db.close(); resolve(); };
-    tx.onerror = () => { db.close(); reject(tx.error); };
-  });
-}
-
-/** Read the autosave entry from IndexedDB */
-async function readAutosave(): Promise<{ savedAt: string; document: unknown } | null> {
-  try {
-    const db = await openAutosaveDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(AUTOSAVE_STORE, 'readonly');
-      const req = tx.objectStore(AUTOSAVE_STORE).get(AUTOSAVE_KEY);
-      req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => resolve(null);
-      tx.oncomplete = () => db.close();
-      tx.onerror = () => db.close();
-    });
-  } catch {
-    return null;
-  }
-}
 
 export default function CADLayout() {
   const { showLayerPanel, showPropertyPanel } = useUIStore();
@@ -166,7 +128,9 @@ export default function CADLayout() {
     }
 
     // ── Existing crash-recovery autosave check ──────────────────────────────
-    readAutosave().then((saved) => {
+    // Per-doc keying lets us check the active drawing without
+    // pulling in autosaves for unrelated jobs.
+    readAutosave(drawingStore.document.id).then((saved) => {
       if (!saved?.savedAt) {
         // No autosave — show new drawing dialog if starting blank
         if (drawingStore.document.layerOrder.length === 0) {
@@ -258,7 +222,9 @@ export default function CADLayout() {
         savedAt: new Date().toISOString(),
         document: drawingStore.document,
       };
-      await writeAutosave(payload);
+      // Per-doc keying — switching drawings no longer kicks
+      // the prior autosave out of the slot.
+      await writeAutosave(drawingStore.document.id, payload);
       setAutoSaveFailed(false);
       cadLog.debug('AutoSave', `Auto-saved drawing: ${drawingStore.document.name}`);
     } catch (err) {

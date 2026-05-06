@@ -19,6 +19,7 @@ import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv } from '@/lib/cad/persistence/export-csv';
+import { clearAutosave } from '@/lib/cad/persistence/autosave';
 import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, importFromDxf } from '@/lib/cad/delivery';
 import SaveToDBDialog from './SaveToDBDialog';
 
@@ -76,6 +77,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       a.click();
       URL.revokeObjectURL(url);
       drawingStore.markClean();
+      // §16 — manual save supersedes the in-flight autosave;
+      // drop the slot so a stale crash recovery doesn't pop on
+      // the next reload.
+      void clearAutosave(drawingStore.document.id);
       cadLog.info('FileIO', `Saved drawing: ${drawingStore.document.name}`);
     } catch (err) {
       cadLog.error('FileIO', 'Failed to save document', err);
