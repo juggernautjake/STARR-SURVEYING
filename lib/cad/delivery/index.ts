@@ -49,6 +49,16 @@ export type { GeoJsonImportResult } from './geojson-reader';
 export { exportToPdf, downloadPdf } from './pdf-writer';
 export type { PdfExportOptions, PdfExportResult } from './pdf-writer';
 
+export {
+  collectCodesUsed,
+  downloadSleeveCards,
+  generateSleeveCards,
+} from './sleeve-cards';
+export type {
+  SleeveCardOptions,
+  SleeveCardResult,
+} from './sleeve-cards';
+
 export { generateSurveyDescription } from './description-generator';
 export type {
   DescriptionRevision,

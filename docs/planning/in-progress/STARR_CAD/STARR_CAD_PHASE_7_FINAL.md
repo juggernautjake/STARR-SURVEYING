@@ -1267,6 +1267,7 @@ interface ExportStore {
 - [x] GeoJSON import: round-trip — `importFromGeoJSON` in `lib/cad/delivery/geojson-reader.ts` walks FeatureCollection / Feature / bare Geometry / GeometryCollection; expands MultiPoint / MultiLineString / MultiPolygon; strips closing-vertex on Polygon outer rings; surfaces hole-drop + non-numeric-coord warnings. Layer table rebuilt from `properties.layerName` / `layerColor` (with neutral default), `crs.properties.name` stamped onto `titleBlock.notes`. Smoke-tested via writer→reader (4 features round-trip; layers + colors preserved).
 - [ ] CSV simplified: only base monument codes, B/E suffixes preserved
 - [ ] CSV full: all fields including confidence and tier
+- [x] Field reference sleeve cards (§20): laminate-friendly 3.5"×2" cards via `generateSleeveCards` in `lib/cad/delivery/sleeve-cards.ts`. 4 codes per card; tiles 2 across × 5 down on Letter portrait; `collectCodesUsed` walks `feature.properties.rawCode` against MASTER_CODE_LIBRARY for the active job. File → 🪪 Field reference cards…
 
 ### Electron Desktop
 - [ ] App opens without internet access

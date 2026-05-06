@@ -20,7 +20,8 @@ import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv } from '@/lib/cad/persistence/export-csv';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
-import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, importFromDxf, importFromGeoJSON } from '@/lib/cad/delivery';
+import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON } from '@/lib/cad/delivery';
+import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import SaveToDBDialog from './SaveToDBDialog';
 
 interface MenuItem {
@@ -251,6 +252,26 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     }
   }
 
+  function exportFieldCards() {
+    try {
+      const result = downloadSleeveCards(
+        drawingStore.document,
+        MASTER_CODE_LIBRARY
+      );
+      cadLog.info(
+        'FileIO',
+        `Exported field reference cards: ${result.filename} ` +
+          `(${result.codesIncluded} codes, ${result.cardCount} cards, ` +
+          `${result.pageCount} pages, ${result.byteSize} bytes)`
+      );
+    } catch (err) {
+      cadLog.error('FileIO', 'Field reference cards export failed', err);
+      alert(
+        'Failed to export field reference cards. See the browser console.'
+      );
+    }
+  }
+
   function exportGeoJSON() {
     try {
       const { byteSize, filename } = downloadGeoJSON(drawingStore.document);
@@ -308,6 +329,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
         { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
         { label: 'Export as PDF (sealed)…', action: () => { exportPdf(); setOpenMenu(null); } },
+        { label: '🪪 Field reference cards…', action: () => { exportFieldCards(); setOpenMenu(null); } },
         { label: 'Export as GeoJSON…', action: () => { exportGeoJSON(); setOpenMenu(null); } },
         { label: 'Import GeoJSON…', action: () => { void openGeoJson(); setOpenMenu(null); } },
         { label: '📦 Download deliverable bundle…', action: () => { void exportDeliverable(); setOpenMenu(null); } },
