@@ -1268,6 +1268,7 @@ interface ExportStore {
 - [ ] CSV simplified: only base monument codes, B/E suffixes preserved
 - [ ] CSV full: all fields including confidence and tier
 - [x] Field reference sleeve cards (§20): laminate-friendly 3.5"×2" cards via `generateSleeveCards` in `lib/cad/delivery/sleeve-cards.ts`. 4 codes per card; tiles 2 across × 5 down on Letter portrait; `collectCodesUsed` walks `feature.properties.rawCode` against MASTER_CODE_LIBRARY for the active job. File → 🪪 Field reference cards…
+- [x] Compass → CAD bootstrap (§17.1): `lib/cad/integrations/compass.ts` exposes `parseCompassJob`, `consumePendingCompassJob` (reads + clears `starr-cad-pending-compass`), `buildSettingsPatch`, `isStale`. CADLayout consumes the payload on mount, patches the title block via `updateSettings`, and renders a sticky indigo notice with one-click links to the field/deed files + an "Open import" CTA that pops the existing import dialog. Stale-payload (>24h) warning included. Smoke-tested via `npx tsx`.
 
 ### Electron Desktop
 - [ ] App opens without internet access

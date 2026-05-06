@@ -47,6 +47,12 @@ import {
   readAutosave,
   writeAutosave,
 } from '@/lib/cad/persistence/autosave';
+import {
+  buildSettingsPatch as buildCompassSettingsPatch,
+  consumePendingCompassJob,
+  isStale as isCompassPayloadStale,
+  type CompassJobImport,
+} from '@/lib/cad/integrations/compass';
 
 // CanvasViewport requires browser APIs; load it client-side only
 const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
@@ -96,6 +102,8 @@ export default function CADLayout() {
   const [showReviewModePanel, setShowReviewModePanel] = useState(false);
   const [showDescriptionPanel, setShowDescriptionPanel] = useState(false);
   const [showRecentRecoveries, setShowRecentRecoveries] = useState(false);
+  const [compassNotice, setCompassNotice] =
+    useState<{ payload: CompassJobImport; stale: boolean } | null>(null);
   const [pendingSubmission, setPendingSubmission] =
     useState<CompletenessSummary | null>(null);
   const [layerPrefsLayerId, setLayerPrefsLayerId] = useState<string | null>(null);
@@ -127,6 +135,31 @@ export default function CADLayout() {
         cadLog.error('ReconImport', 'Failed to load pending RECON drawing — falling through to autosave', err);
         // Fall through to the normal autosave flow below
       }
+    }
+
+    // ── §17.1 Compass → CAD bootstrap ───────────────────────
+    // Compass writes a `CompassJobImport` payload to
+    // `starr-cad-pending-compass` when the user clicks "Open
+    // in CAD" on a finalized job. We patch the title block
+    // and surface a small notice with one-click links to the
+    // field / deed files.
+    const compassPayload = consumePendingCompassJob();
+    if (compassPayload) {
+      const patch = buildCompassSettingsPatch(
+        compassPayload,
+        drawingStore.document.settings
+      );
+      drawingStore.updateSettings(patch);
+      setCompassNotice({
+        payload: compassPayload,
+        stale: isCompassPayloadStale(compassPayload),
+      });
+      cadLog.info(
+        'CompassImport',
+        `Applied Compass hand-off for job ${compassPayload.jobId} ` +
+          `(${compassPayload.fieldFiles.length} field / ` +
+          `${compassPayload.deedFiles.length} deed file(s))`
+      );
     }
 
     // ── Existing crash-recovery autosave check ──────────────────────────────
@@ -314,6 +347,88 @@ export default function CADLayout() {
           flagged when the active document's content has drifted
           from the recorded seal hash */}
       <SealHashBanner onOpenReviewMode={() => setShowReviewModePanel(true)} />
+
+      {/* Phase 7 §17.1 Compass hand-off notice */}
+      {compassNotice ? (
+        <div
+          role="status"
+          className="bg-indigo-50 border-b border-indigo-200 text-indigo-900 text-xs px-4 py-2 flex items-center gap-3"
+        >
+          <span aria-hidden>🧭</span>
+          <div className="flex-1 min-w-0">
+            <strong>Compass job loaded:</strong>{' '}
+            {compassNotice.payload.jobName ||
+              compassNotice.payload.jobId}
+            {compassNotice.payload.address ? (
+              <span className="text-indigo-700">
+                {' '}
+                · {compassNotice.payload.address}
+              </span>
+            ) : null}
+            {compassNotice.stale ? (
+              <span className="text-amber-700">
+                {' '}
+                · ⚠ payload is &gt; 24h old
+              </span>
+            ) : null}
+            {compassNotice.payload.fieldFiles.length > 0 ? (
+              <span className="ml-2">
+                Field files:{' '}
+                {compassNotice.payload.fieldFiles.map((f, i) => (
+                  <a
+                    key={f.url}
+                    href={f.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    {f.name}
+                    {i < compassNotice.payload.fieldFiles.length - 1
+                      ? ', '
+                      : ''}
+                  </a>
+                ))}
+              </span>
+            ) : null}
+            {compassNotice.payload.deedFiles.length > 0 ? (
+              <span className="ml-2">
+                · Deeds:{' '}
+                {compassNotice.payload.deedFiles.map((f, i) => (
+                  <a
+                    key={f.url}
+                    href={f.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    {f.name}
+                    {i < compassNotice.payload.deedFiles.length - 1
+                      ? ', '
+                      : ''}
+                  </a>
+                ))}
+              </span>
+            ) : null}
+          </div>
+          {compassNotice.payload.fieldFiles.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShowImportDialog(true)}
+              className="px-3 py-1 bg-indigo-700 text-white rounded text-xs font-semibold hover:bg-indigo-600"
+            >
+              Open import
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setCompassNotice(null)}
+            className="text-indigo-700 hover:text-indigo-900 font-bold px-2"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      ) : null}
 
       {/* Top menu bar */}
       <MenuBar
