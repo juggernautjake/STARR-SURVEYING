@@ -30,6 +30,11 @@ import type {
   LeaderAnnotation,
 } from '../labels/annotation-types';
 import type { Feature, Point2D } from '../types';
+import {
+  createSpatialIndex,
+  type SpatialIndex,
+  type SpatialItem,
+} from './spatial-index';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -163,6 +168,10 @@ export function computeFeatureBBox(f: Feature): BoundingBox {
  * viewport. Stable order (input order preserved). Callers
  * pass an already-padded viewport bbox if they want a
  * pre-pop hysteresis margin.
+ *
+ * Linear scan — O(n). For drawings with thousands of
+ * features, prefer `cullFeaturesWithIndex` once a spatial
+ * index has been built.
  */
 export function cullFeaturesToViewport(
   features: Iterable<Feature>,
@@ -172,6 +181,59 @@ export function cullFeaturesToViewport(
   for (const f of features) {
     if (f.hidden) continue;
     const bbox = computeFeatureBBox(f);
+    if (bboxesOverlap(bbox, viewport)) out.push(f);
+  }
+  return out;
+}
+
+/**
+ * Build a spatial index keyed by feature id over the
+ * supplied list. Hidden features are skipped and empty
+ * bboxes are dropped so the index extent stays tight.
+ */
+export function buildFeatureIndex(
+  features: Iterable<Feature>
+): { index: SpatialIndex; bboxByFeatureId: Map<string, BoundingBox> } {
+  const items: SpatialItem[] = [];
+  const bboxByFeatureId = new Map<string, BoundingBox>();
+  for (const f of features) {
+    if (f.hidden) continue;
+    const bbox = computeFeatureBBox(f);
+    if (isEmptyBBox(bbox)) continue;
+    items.push({ id: f.id, bbox });
+    bboxByFeatureId.set(f.id, bbox);
+  }
+  return { index: createSpatialIndex(items), bboxByFeatureId };
+}
+
+/**
+ * Index-accelerated viewport cull. The caller passes the
+ * spatial index + the bbox cache produced by
+ * `buildFeatureIndex` so we can do precise bbox-vs-viewport
+ * intersection per candidate without re-walking each
+ * feature's geometry.
+ *
+ * Falls back to the linear `cullFeaturesToViewport` when the
+ * index is empty (e.g. after `clear()`-style rebuilds), so
+ * callers don't need branch logic.
+ */
+export function cullFeaturesWithIndex(
+  features: ReadonlyArray<Feature>,
+  index: SpatialIndex,
+  bboxByFeatureId: Map<string, BoundingBox>,
+  viewport: BoundingBox
+): Feature[] {
+  if (index.count === 0) {
+    return cullFeaturesToViewport(features, viewport);
+  }
+  const candidateIds = new Set(index.query(viewport));
+  if (candidateIds.size === 0) return [];
+  const out: Feature[] = [];
+  for (const f of features) {
+    if (f.hidden) continue;
+    if (!candidateIds.has(f.id)) continue;
+    const bbox = bboxByFeatureId.get(f.id);
+    if (!bbox) continue;
     if (bboxesOverlap(bbox, viewport)) out.push(f);
   }
   return out;

@@ -14,7 +14,9 @@ import {
 } from '@/lib/cad/store';
 import { findSnapPoint } from '@/lib/cad/geometry/snap';
 import {
+  buildFeatureIndex,
   cullFeaturesToViewport,
+  cullFeaturesWithIndex,
   expandBBox,
   lodSimplificationThreshold,
   shouldUseLOD,
@@ -235,6 +237,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const snapResultRef = useRef<ReturnType<typeof findSnapPoint>>(null);
   const rafRef = useRef<number>(0);
+  /** §19.1 — memoized spatial index for the active document.
+   *  Stamped with the `features` object reference so a single
+   *  Object.is check tells us whether to rebuild. */
+  const featureIndexCacheRef = useRef<
+    | (ReturnType<typeof buildFeatureIndex> & {
+        featuresById: Record<string, Feature>;
+      })
+    | null
+  >(null);
   const gripDragRef = useRef<{
     featureId: string;
     vertexIndex: number;
@@ -911,9 +922,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // layer-visible feature list to those that overlap, and
     // hide the rest via `g.visible = false` so we keep the
     // Graphics objects around without re-tessellating them.
+    //
+    // §19.1 — accelerate the cull with a uniform-grid spatial
+    // index rebuilt only when `doc.features` mutates. The
+    // index lookup is sub-millisecond at every realistic
+    // zoom level so big drawings stop paying the O(n) cost
+    // on each render.
+    const indexCache = ensureFeatureIndex(visibleFeatures, doc.features);
     const viewportBBox = computeViewportWorldBBox();
     const culledFeatures = viewportBBox
-      ? cullFeaturesToViewport(visibleFeatures, viewportBBox)
+      ? cullFeaturesWithIndex(
+          visibleFeatures,
+          indexCache.index,
+          indexCache.bboxByFeatureId,
+          viewportBBox
+        )
       : visibleFeatures;
     const culledIds = new Set(culledFeatures.map((f) => f.id));
     const { zoom } = useViewportStore.getState();
@@ -984,6 +1007,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       drawFeature(g, feature, simplifyEpsilon);
     }
+  }
+
+  /** Memoized feature spatial index. Rebuilds when the
+   *  document's features-by-id object changes identity (any
+   *  add / remove / mutation goes through `useDrawingStore`
+   *  which always returns a new object). Stable across pan /
+   *  zoom so the per-frame cost is one Map lookup. */
+  function ensureFeatureIndex(
+    visibleFeatures: ReadonlyArray<Feature>,
+    featuresById: Record<string, Feature>
+  ) {
+    const cache = featureIndexCacheRef.current;
+    if (cache && cache.featuresById === featuresById) {
+      return cache;
+    }
+    const next = buildFeatureIndex(visibleFeatures);
+    const stamped = { ...next, featuresById };
+    featureIndexCacheRef.current = stamped;
+    return stamped;
   }
 
   /** Convert the screen viewport into a world-space bbox the
@@ -2099,9 +2141,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // destroyed when they leave the layer-visible set, not
     // when they leave the viewport (which would churn during
     // pan).
+    const docNow = useDrawingStore.getState().document;
+    const indexCache = ensureFeatureIndex(layerVisibleFeatures, docNow.features);
     const viewportBBox = computeViewportWorldBBox();
     const visibleFeatures = viewportBBox
-      ? cullFeaturesToViewport(layerVisibleFeatures, viewportBBox)
+      ? cullFeaturesWithIndex(
+          layerVisibleFeatures,
+          indexCache.index,
+          indexCache.bboxByFeatureId,
+          viewportBBox
+        )
       : layerVisibleFeatures;
     const keepLabelIds = new Set<string>();
     for (const f of layerVisibleFeatures) {
@@ -2278,11 +2327,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // we cull geometry. Keep the layer-visible set so off-
     // viewport text objects survive across pans without
     // re-allocating, and only the in-viewport ones get
-    // re-tessellated.
+    // re-tessellated. The index is the cached one that was
+    // (re)built in renderFeatures earlier this frame.
+    const indexCache = featureIndexCacheRef.current;
     const viewportBBox = computeViewportWorldBBox();
-    const visibleFeatures = viewportBBox
-      ? cullFeaturesToViewport(layerVisible, viewportBBox)
-      : layerVisible;
+    const visibleFeatures =
+      viewportBBox && indexCache
+        ? cullFeaturesWithIndex(
+            layerVisible,
+            indexCache.index,
+            indexCache.bboxByFeatureId,
+            viewportBBox
+          )
+        : viewportBBox
+          ? cullFeaturesToViewport(layerVisible, viewportBBox)
+          : layerVisible;
     const keepKeys = new Set<string>();
     for (const f of layerVisible) keepKeys.add(`text:${f.id}`);
     const activeKeys = new Set<string>();
