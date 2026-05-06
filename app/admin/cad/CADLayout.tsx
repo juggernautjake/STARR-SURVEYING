@@ -37,7 +37,15 @@ import ImagePanel from './components/ImagePanel';
 import HiddenItemsPanel from './components/HiddenItemsPanel';
 import LayerPreferencesPanel from './components/LayerPreferencesPanel';
 import FeatureLabelPreferencesPanel from './components/FeatureLabelPreferencesPanel';
-import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore, useAIStore } from '@/lib/cad/store';
+import {
+  useUIStore,
+  useDrawingStore,
+  useSelectionStore,
+  useUndoStore,
+  useAIStore,
+  useDeliveryStore,
+  useReviewWorkflowStore,
+} from '@/lib/cad/store';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
 import { cadLog } from '@/lib/cad/logger';
@@ -53,6 +61,10 @@ import {
   isStale as isCompassPayloadStale,
   type CompassJobImport,
 } from '@/lib/cad/integrations/compass';
+import {
+  buildSyncPayload as buildCompassSyncPayload,
+  sendCompassSync,
+} from '@/lib/cad/integrations/compass-sync';
 
 // CanvasViewport requires browser APIs; load it client-side only
 const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
@@ -243,6 +255,46 @@ export default function CADLayout() {
     const handler = () => setShowHiddenItems((v) => !v);
     window.addEventListener('cad:toggleHiddenItems', handler);
     return () => window.removeEventListener('cad:toggleHiddenItems', handler);
+  }, []);
+
+  // §17.2 — auto-sync to Compass on SEALED / DELIVERED. We
+  // subscribe to the workflow store directly (not via the
+  // hook) so the effect fires once per transition rather than
+  // on every render. A small ref guards against re-firing for
+  // the same status during a single browser session.
+  const lastSyncedStatusRef = useRef<string | null>(null);
+  useEffect(() => {
+    const unsubscribe = useReviewWorkflowStore.subscribe((state) => {
+      const status = state.record?.status;
+      if (status !== 'SEALED' && status !== 'DELIVERED') return;
+      const cacheKey = `${state.record!.jobId}:${status}`;
+      if (lastSyncedStatusRef.current === cacheKey) return;
+      lastSyncedStatusRef.current = cacheKey;
+      const payload = buildCompassSyncPayload({
+        doc: useDrawingStore.getState().document,
+        reviewRecord: state.record,
+        description: useDeliveryStore.getState().description,
+        automatic: true,
+      });
+      if (!payload) return;
+      void sendCompassSync(payload).then((response) => {
+        if (response.ok) {
+          cadLog.info(
+            'CompassSync',
+            `Synced ${status} for job ${payload.jobId}` +
+              (response.forwardedTo
+                ? ` → ${response.forwardedTo}`
+                : ' (logged; webhook not configured)')
+          );
+        } else {
+          cadLog.warn(
+            'CompassSync',
+            `Sync ${status} for job ${payload.jobId} failed: ${response.message ?? 'unknown'}`
+          );
+        }
+      });
+    });
+    return unsubscribe;
   }, []);
 
   // ─── Autosave helpers ────────────────────────────────────────────────────────
