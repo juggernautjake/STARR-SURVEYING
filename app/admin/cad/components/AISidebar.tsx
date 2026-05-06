@@ -14,7 +14,7 @@
 // content into the sidebar so the dedicated overlays can
 // retire.
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import {
   useAIStore,
@@ -110,12 +110,84 @@ export default function AISidebar({
 // Tabs
 // ────────────────────────────────────────────────────────────
 
+type CardSortOrder =
+  | 'CONFIDENCE_ASC'
+  | 'CONFIDENCE_DESC'
+  | 'ALPHA'
+  | 'TIER'
+  | 'CATEGORY';
+
+const SORT_LABELS: Record<CardSortOrder, string> = {
+  CONFIDENCE_ASC: 'Lowest first',
+  CONFIDENCE_DESC: 'Highest first',
+  ALPHA: 'Alphabetical',
+  TIER: 'By tier',
+  CATEGORY: 'By category',
+};
+
+const TIER_COLORS: Record<1 | 2 | 3 | 4 | 5, { border: string; bar: string }> = {
+  5: { border: '#16A34A', bar: '#22C55E' },
+  4: { border: '#65A30D', bar: '#84CC16' },
+  3: { border: '#D97706', bar: '#F59E0B' },
+  2: { border: '#DC2626', bar: '#EF4444' },
+  1: { border: '#7F1D1D', bar: '#B91C1C' },
+};
+
 function QueueTab({
   onOpenReviewPanel,
 }: {
   onOpenReviewPanel?: () => void;
 }) {
-  const summary = useAIStore((s) => s.result?.reviewQueue.summary ?? null);
+  const queue = useAIStore((s) => s.result?.reviewQueue ?? null);
+  const openExplanation = useAIStore((s) => s.openExplanation);
+  const [sort, setSort] = useState<CardSortOrder>('CONFIDENCE_ASC');
+  const [search, setSearch] = useState('');
+
+  const summary = queue?.summary ?? null;
+  const cards = useMemo(() => {
+    if (!queue) return [];
+    const items = [
+      ...queue.tiers[1],
+      ...queue.tiers[2],
+      ...queue.tiers[3],
+      ...queue.tiers[4],
+      ...queue.tiers[5],
+    ];
+    const filtered = search.trim().length
+      ? items.filter((it) => {
+          const q = search.trim().toLowerCase();
+          return (
+            it.title.toLowerCase().includes(q) ||
+            it.category.toLowerCase().includes(q) ||
+            it.flags.some((f) => f.toLowerCase().includes(q))
+          );
+        })
+      : items;
+    const sorted = [...filtered];
+    switch (sort) {
+      case 'CONFIDENCE_ASC':
+        sorted.sort((a, b) => a.confidence - b.confidence);
+        break;
+      case 'CONFIDENCE_DESC':
+        sorted.sort((a, b) => b.confidence - a.confidence);
+        break;
+      case 'ALPHA':
+        sorted.sort((a, b) => a.title.localeCompare(b.title));
+        break;
+      case 'TIER':
+        sorted.sort((a, b) => a.tier - b.tier);
+        break;
+      case 'CATEGORY':
+        sorted.sort(
+          (a, b) =>
+            a.category.localeCompare(b.category) ||
+            a.confidence - b.confidence
+        );
+        break;
+    }
+    return sorted;
+  }, [queue, sort, search]);
+
   if (!summary) {
     return (
       <p style={styles.empty}>
@@ -124,6 +196,7 @@ function QueueTab({
       </p>
     );
   }
+
   return (
     <div style={styles.column}>
       <div style={styles.statRow}>
@@ -133,6 +206,54 @@ function QueueTab({
         <Stat label="Rejected" value={summary.rejectedCount} accent="#7F1D1D" />
         <Stat label="Pending"  value={summary.pendingCount}  accent="#92400E" />
       </div>
+
+      <div style={styles.toolStrip}>
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as CardSortOrder)}
+          style={styles.sortSelect}
+          aria-label="Sort cards"
+        >
+          {(Object.keys(SORT_LABELS) as CardSortOrder[]).map((k) => (
+            <option key={k} value={k}>
+              {SORT_LABELS[k]}
+            </option>
+          ))}
+        </select>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search…"
+          style={styles.searchInput}
+          aria-label="Filter cards"
+        />
+      </div>
+
+      {cards.length === 0 ? (
+        <p style={styles.empty}>
+          No cards match the current filter. Clear the search to
+          see every review item.
+        </p>
+      ) : (
+        <ul style={styles.cardList}>
+          {cards.map((item) => (
+            <ConfidenceCard
+              key={item.id}
+              title={item.title}
+              category={item.category}
+              confidence={item.confidence}
+              tier={item.tier}
+              flags={item.flags}
+              status={item.status}
+              onClick={() => {
+                if (item.featureId) openExplanation(item.featureId);
+              }}
+            />
+          ))}
+        </ul>
+      )}
+
       <button
         type="button"
         onClick={onOpenReviewPanel}
@@ -140,12 +261,66 @@ function QueueTab({
       >
         Open the full review queue →
       </button>
-      <p style={styles.hint}>
-        The full tier-grouped queue with Accept / Modify / Reject
-        controls is still served by the dedicated panel; this
-        tab is a quick snapshot.
-      </p>
     </div>
+  );
+}
+
+function ConfidenceCard({
+  title,
+  category,
+  confidence,
+  tier,
+  flags,
+  status,
+  onClick,
+}: {
+  title: string;
+  category: string;
+  confidence: number;
+  tier: 1 | 2 | 3 | 4 | 5;
+  flags: string[];
+  status: string;
+  onClick: () => void;
+}) {
+  const colors = TIER_COLORS[tier];
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        style={{
+          ...styles.card,
+          borderLeft: `3px solid ${colors.border}`,
+          opacity: status === 'REJECTED' ? 0.55 : 1,
+        }}
+        title={`${category} · Tier ${tier} · ${status}`}
+      >
+        <div style={styles.cardHeader}>
+          <span style={styles.cardTitle}>{title}</span>
+          <span style={styles.cardScore}>{confidence}%</span>
+        </div>
+        <div style={styles.cardBarOuter}>
+          <div
+            style={{
+              ...styles.cardBarInner,
+              width: `${Math.max(0, Math.min(100, confidence))}%`,
+              background: colors.bar,
+            }}
+          />
+        </div>
+        <div style={styles.cardMeta}>
+          <span style={styles.cardCategory}>{category}</span>
+          {flags.slice(0, 3).map((flag, i) => (
+            <span key={i} style={styles.cardFlag}>
+              {flag}
+            </span>
+          ))}
+          {flags.length > 3 ? (
+            <span style={styles.cardFlag}>+{flags.length - 3}</span>
+          ) : null}
+        </div>
+      </button>
+    </li>
   );
 }
 
@@ -614,4 +789,98 @@ const styles: Record<string, React.CSSProperties> = {
   versionAt: { color: '#6B7280' },
   versionLabel: { color: '#1F2937' },
   versionBy: { color: '#475569', fontStyle: 'italic' },
+  toolStrip: {
+    display: 'flex',
+    gap: 6,
+    alignItems: 'center',
+  },
+  sortSelect: {
+    flex: 1,
+    fontSize: 11,
+    padding: '4px 6px',
+    border: '1px solid #CBD5E1',
+    borderRadius: 6,
+    background: '#FFFFFF',
+    color: '#1F2937',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 11,
+    padding: '4px 8px',
+    border: '1px solid #CBD5E1',
+    borderRadius: 6,
+    background: '#FFFFFF',
+    color: '#1F2937',
+  },
+  cardList: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  card: {
+    width: '100%',
+    textAlign: 'left',
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: 6,
+    padding: '8px 10px',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  cardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  cardTitle: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#111827',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    flex: 1,
+    minWidth: 0,
+  },
+  cardScore: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#111827',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  cardBarOuter: {
+    height: 4,
+    background: '#E5E7EB',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  cardBarInner: { height: '100%', borderRadius: 2 },
+  cardMeta: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  cardCategory: {
+    fontSize: 10,
+    background: '#EEF2FF',
+    color: '#3730A3',
+    padding: '1px 6px',
+    borderRadius: 4,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  cardFlag: {
+    fontSize: 10,
+    background: '#FEF3C7',
+    color: '#78350F',
+    padding: '1px 6px',
+    borderRadius: 4,
+  },
 };

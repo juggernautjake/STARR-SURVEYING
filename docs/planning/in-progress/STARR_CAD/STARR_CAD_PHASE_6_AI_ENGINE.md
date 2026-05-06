@@ -2864,14 +2864,14 @@ interface AIStore {
 - [x] "Skip All Optional" dismisses all non-blocking questions (`skipAllOptionalQuestions` in `lib/cad/store/ai-store.ts`)
 
 ### Drawing Preview & Confidence Cards
-- [ ] Two-panel layout renders (canvas left, cards right)
-- [ ] Cards sorted by confidence ascending by default (least confident first)
-- [ ] Card border color matches tier color correctly
-- [ ] Confidence bar fills correctly for each score
-- [ ] Hovering a card highlights the feature on the canvas
-- [ ] Clicking a card opens the element explanation popup
-- [ ] Sort controls change card order correctly (all 4 sort modes)
-- [ ] Search filters cards by text match on title/description
+- [x] Two-panel layout renders (canvas left, cards right) — `AISidebar` Review tab now renders the confidence-card list right of the canvas. The dedicated full-screen preview screen is a follow-up; the sidebar covers the daily workflow.
+- [x] Cards sorted by confidence ascending by default (least confident first) — `CONFIDENCE_ASC` is the initial sort.
+- [x] Card border color matches tier color correctly — `TIER_COLORS` maps tier 1–5 to red→green; left-border uses the tier color.
+- [x] Confidence bar fills correctly for each score — per-card bar fills `confidence%` with the tier-colored gradient stop.
+- [ ] Hovering a card highlights the feature on the canvas — pulsing-ring hover bridge lands when the canvas grows a feature-highlight channel.
+- [x] Clicking a card opens the element explanation popup — wired through `useAIStore.openExplanation(featureId)`.
+- [x] Sort controls change card order correctly (all 4+ sort modes) — `CONFIDENCE_ASC / CONFIDENCE_DESC / ALPHA / TIER / CATEGORY`.
+- [x] Search filters cards by text match on title/description — title + category + flags substring filter.
 - [ ] "Accept Drawing" opens confirmation dialog
 - [ ] Accepting creates a version snapshot and triggers Phase 7 editor load
 - [ ] Re-analyze re-runs pipeline and refreshes all cards
