@@ -3373,10 +3373,32 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { wx, wy } = screenToDrawingWorld(sx, sy);
     const worldTol = HIT_TOLERANCE_PX / viewportStore.zoom;
     // Exclude features on locked layers from selection
-    const features = drawingStore.getVisibleFeatures().filter((f) => {
+    const layerVisible = drawingStore.getVisibleFeatures().filter((f) => {
       const layer = drawingStore.getLayer(f.layerId);
       return !layer?.locked;
     });
+
+    // §19.1 — narrow with the spatial index. The cursor's
+    // hit envelope is a (worldTol)-padded square at (wx,wy);
+    // any feature whose bbox overlaps it is a candidate. The
+    // hit-test loops below still run their geometry-precise
+    // checks on each candidate, so the narrowing is purely
+    // an O(n) → O(cell footprint) speedup.
+    const indexCache = ensureFeatureIndex(
+      layerVisible,
+      drawingStore.document.features
+    );
+    const queryBox: LodBoundingBox = {
+      minX: wx - worldTol,
+      minY: wy - worldTol,
+      maxX: wx + worldTol,
+      maxY: wy + worldTol,
+    };
+    const candidateIds = new Set(indexCache.index.query(queryBox));
+    const features =
+      candidateIds.size > 0 && indexCache.index.count > 0
+        ? layerVisible.filter((f) => candidateIds.has(f.id))
+        : layerVisible;
 
     // Priority: points > line endpoints > lines > polygons
     for (const feature of features) {
@@ -3881,9 +3903,33 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { settings } = drawingStore.document;
 
     if (settings.snapEnabled) {
+      // §19.1 — narrow the feature list with the spatial
+      // index before handing it to the snap engine. We pad
+      // the query bbox by `snapRadius / zoom` so segments
+      // whose bbox just clips the cursor radius still count
+      // (snap targets endpoints and midpoints lying inside
+      // the radius, which can be on a feature whose bbox
+      // overlaps the cursor by less than the radius).
+      const layerVisible = drawingStore.getVisibleFeatures();
+      const indexCache = ensureFeatureIndex(
+        layerVisible,
+        drawingStore.document.features
+      );
+      const worldRadius = settings.snapRadius / Math.max(0.0001, viewportStore.zoom);
+      const queryBox: LodBoundingBox = {
+        minX: cursor.x - worldRadius,
+        minY: cursor.y - worldRadius,
+        maxX: cursor.x + worldRadius,
+        maxY: cursor.y + worldRadius,
+      };
+      const candidateIds = new Set(indexCache.index.query(queryBox));
+      const candidates =
+        candidateIds.size > 0 && indexCache.index.count > 0
+          ? layerVisible.filter((f) => candidateIds.has(f.id))
+          : layerVisible;
       const snap = findSnapPoint(
         cursor,
-        drawingStore.getVisibleFeatures(),
+        candidates,
         settings.snapRadius,
         viewportStore.zoom,
         settings.snapTypes,
