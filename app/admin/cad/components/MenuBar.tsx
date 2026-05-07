@@ -1,7 +1,7 @@
 'use client';
 // app/admin/cad/components/MenuBar.tsx — Top application menu bar
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   useAnnotationStore,
   useDeliveryStore,
@@ -90,6 +90,16 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       alert('Failed to save the drawing. See the browser console for details.');
     }
   }
+
+  // Phase 8 §2.3 — let the hotkey dispatcher trigger save
+  // without coupling its module to the MenuBar's local
+  // `saveDocument` closure.
+  useEffect(() => {
+    const handler = () => saveDocument();
+    window.addEventListener('cad:saveDocument', handler);
+    return () => window.removeEventListener('cad:saveDocument', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function openFileDialog() {
     const input = Object.assign(document.createElement('input'), {

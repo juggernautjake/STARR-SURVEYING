@@ -51,6 +51,7 @@ import {
 } from '@/lib/cad/store';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
+import { useHotkeys } from './hooks/useHotkeys';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import {
@@ -119,6 +120,8 @@ export default function CADLayout() {
 
   // Register beforeunload guard (shows native "Leave site?" dialog when dirty)
   useUnsavedChangesGuard();
+  // Phase 8 §2.3 — wire the hotkey engine + dispatcher.
+  useHotkeys();
   const [showNewDrawingDialog, setShowNewDrawingDialog] = useState(false);
   const [showDisplayPrefs, setShowDisplayPrefs] = useState(false);
   const [showOrientationDialog, setShowOrientationDialog] = useState(false);
@@ -268,6 +271,20 @@ export default function CADLayout() {
     const handler = () => setShowHiddenItems((v) => !v);
     window.addEventListener('cad:toggleHiddenItems', handler);
     return () => window.removeEventListener('cad:toggleHiddenItems', handler);
+  }, []);
+
+  // Phase 8 §2.3 — bridge hotkey-only events into local UI
+  // state. These dispatchers fire from `useHotkeys` so the
+  // engine module stays free of CADLayout-specific imports.
+  useEffect(() => {
+    const aiHandler = () => setShowAIDrawingDialog(true);
+    const completenessHandler = () => setShowCompletenessPanel(true);
+    window.addEventListener('cad:openAIDrawingDialog', aiHandler);
+    window.addEventListener('cad:openCompletenessPanel', completenessHandler);
+    return () => {
+      window.removeEventListener('cad:openAIDrawingDialog', aiHandler);
+      window.removeEventListener('cad:openCompletenessPanel', completenessHandler);
+    };
   }, []);
 
   // §17.2 / §17.3 — auto-sync to Compass + Forge on

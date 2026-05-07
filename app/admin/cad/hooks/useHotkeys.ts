@@ -1,0 +1,275 @@
+'use client';
+// app/admin/cad/hooks/useHotkeys.ts
+//
+// Phase 8 §2.3 — React layer for the hotkey engine.
+//
+// Owns the engine instance, registers a window-level
+// `keydown` listener, filters events so typing in inputs /
+// textareas / contenteditable doesn't accidentally trigger
+// global shortcuts, and dispatches matched actions into the
+// existing tool / undo / drawing / AI stores.
+//
+// The dispatcher lives here so the engine module stays free
+// of store imports and React-only UI primitives. Adding a
+// new bindable action is a single switch case below + a
+// registry entry in `lib/cad/hotkeys/registry.ts`.
+
+import { useEffect, useRef } from 'react';
+
+import {
+  createHotkeyEngine,
+  DEFAULT_ACTIONS,
+  type BindableAction,
+  type HotkeyEngine,
+} from '@/lib/cad/hotkeys';
+import {
+  useAIStore,
+  useDrawingChatStore,
+  useDrawingStore,
+  useHotkeysStore,
+  useSelectionStore,
+  useToolStore,
+  useUIStore,
+  useUndoStore,
+} from '@/lib/cad/store';
+import type { ToolType } from '@/lib/cad/types';
+
+interface UseHotkeysOptions {
+  /** Optional override callback. When supplied, it
+   *  intercepts every dispatched action; returning true
+   *  marks the event handled so the default dispatcher
+   *  skips it. Useful for surfaces (e.g. a dialog) that
+   *  need to consume Escape themselves. */
+  onAction?: (action: BindableAction) => boolean;
+}
+
+/** Map a `tool.*` action id to the corresponding ToolType.
+ *  Returning `null` means the action has no tool bound (UI
+ *  follows up later). */
+function toolForAction(actionId: string): ToolType | null {
+  switch (actionId) {
+    case 'tool.select':   return 'SELECT';
+    case 'tool.pan':      return 'PAN';
+    case 'tool.point':    return 'DRAW_POINT';
+    case 'tool.line':     return 'DRAW_LINE';
+    case 'tool.polyline': return 'DRAW_POLYLINE';
+    case 'tool.polygon':  return 'DRAW_POLYGON';
+    case 'tool.arc':      return 'DRAW_ARC';
+    case 'tool.spline':   return 'DRAW_SPLINE_FIT';
+    case 'tool.text':     return 'DRAW_TEXT';
+    case 'tool.move':     return 'MOVE';
+    case 'tool.copyTool': return 'COPY';
+    case 'tool.rotate':   return 'ROTATE';
+    case 'tool.mirror':   return 'MIRROR';
+    case 'tool.scale':    return 'SCALE';
+    case 'tool.offset':   return 'OFFSET';
+    case 'tool.fillet':   return 'CURB_RETURN';
+    case 'tool.erase':    return 'ERASE';
+    case 'tool.inverse':  return 'INVERSE';
+    case 'tool.forward':  return 'FORWARD_POINT';
+    default:              return null;
+  }
+}
+
+/** True when the event target is an editable surface that
+ *  should swallow the keystroke (typed text, contenteditable
+ *  document, etc.). The engine's GLOBAL hotkeys still fire
+ *  for Ctrl/Cmd + key combinations even inside inputs so
+ *  Save / Undo keep working in the title-block panel etc. */
+function shouldIgnoreEventTarget(event: KeyboardEvent): boolean {
+  const target = event.target as HTMLElement | null;
+  if (!target) return false;
+  const tag = target.tagName?.toUpperCase?.() ?? '';
+  const isEditable =
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    target.isContentEditable === true;
+  if (!isEditable) return false;
+  // Allow modifier-prefixed shortcuts to pass through to the
+  // engine so Ctrl+S, Ctrl+Z, Ctrl+K, etc. still work even
+  // when the surveyor's cursor is in a form field.
+  if (event.ctrlKey || event.metaKey || event.altKey) return false;
+  return true;
+}
+
+export function useHotkeys(options: UseHotkeysOptions = {}): void {
+  const engineRef = useRef<HotkeyEngine | null>(null);
+  // The hook subscribes to userBindings so a settings-page
+  // change rebuilds the engine tree on the fly.
+  const userBindings = useHotkeysStore((s) => s.userBindings);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
+  useEffect(() => {
+    const engine = createHotkeyEngine({
+      actions: DEFAULT_ACTIONS,
+      userBindings,
+      getContext: () => useHotkeysStore.getState().activeContext,
+      onAction: (action) => {
+        // Caller-side override gets first crack.
+        if (optionsRef.current.onAction?.(action)) return;
+        dispatchDefaultAction(action);
+      },
+    });
+    engineRef.current = engine;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (shouldIgnoreEventTarget(event)) return;
+      const handled = engine.handleKeyEvent(event);
+      if (handled) {
+        // Hotkeys with modifiers (Ctrl+S, Ctrl+Z, etc.) and
+        // function keys (F2, F3) usually have a browser
+        // default we want to suppress. Single-character
+        // bindings like `s` for select tool also benefit
+        // from preventDefault so they don't accidentally
+        // type into a stray contenteditable.
+        event.preventDefault();
+      }
+    };
+
+    const onBlur = () => engine.flushPending();
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('blur', onBlur);
+      engineRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Push live binding changes into the existing engine
+  // without recreating it.
+  useEffect(() => {
+    engineRef.current?.setUserBindings(userBindings);
+  }, [userBindings]);
+}
+
+// ────────────────────────────────────────────────────────────
+// Default dispatcher
+// ────────────────────────────────────────────────────────────
+
+function dispatchDefaultAction(action: BindableAction): void {
+  // Tool actions fan out through one switch.
+  const tool = toolForAction(action.id);
+  if (tool) {
+    useToolStore.getState().setTool(tool);
+    return;
+  }
+
+  switch (action.id) {
+    // ── File ──────────────────────────────────────────
+    case 'file.new':
+      window.dispatchEvent(new CustomEvent('cad:openNewDrawingDialog'));
+      return;
+    case 'file.save':
+    case 'file.saveAs':
+      window.dispatchEvent(new CustomEvent('cad:saveDocument'));
+      return;
+    case 'file.print':
+      window.dispatchEvent(new CustomEvent('cad:openPrintDialog'));
+      return;
+
+    // ── Edit ──────────────────────────────────────────
+    case 'edit.undo':
+      useUndoStore.getState().undo();
+      return;
+    case 'edit.redo':
+    case 'edit.redo2':
+      useUndoStore.getState().redo();
+      return;
+    case 'edit.deselect':
+      useSelectionStore.getState().deselectAll();
+      useToolStore.getState().resetToolState();
+      return;
+    case 'edit.delete':
+      window.dispatchEvent(new CustomEvent('cad:deleteSelection'));
+      return;
+    case 'edit.selectAll':
+      window.dispatchEvent(new CustomEvent('cad:selectAll'));
+      return;
+    case 'edit.cut':
+      window.dispatchEvent(new CustomEvent('cad:clipboardCut'));
+      return;
+    case 'edit.copy':
+      window.dispatchEvent(new CustomEvent('cad:clipboardCopy'));
+      return;
+    case 'edit.paste':
+      window.dispatchEvent(new CustomEvent('cad:clipboardPaste'));
+      return;
+
+    // ── View / Zoom ──────────────────────────────────
+    case 'view.zoomExtents':
+      window.dispatchEvent(new CustomEvent('cad:zoomExtents'));
+      return;
+    case 'view.zoomSelection':
+      window.dispatchEvent(new CustomEvent('cad:zoomSelection'));
+      return;
+    case 'view.zoomIn':
+      window.dispatchEvent(new CustomEvent('cad:zoomIn'));
+      return;
+    case 'view.zoomOut':
+      window.dispatchEvent(new CustomEvent('cad:zoomOut'));
+      return;
+
+    // ── Snap toggles ─────────────────────────────────
+    case 'snap.toggle': {
+      const drawing = useDrawingStore.getState();
+      drawing.updateSettings({
+        snapEnabled: !drawing.document.settings.snapEnabled,
+      });
+      return;
+    }
+    case 'snap.grid': {
+      const drawing = useDrawingStore.getState();
+      drawing.updateSettings({
+        gridVisible: !drawing.document.settings.gridVisible,
+      });
+      return;
+    }
+    case 'snap.ortho':
+      window.dispatchEvent(new CustomEvent('cad:toggleOrtho'));
+      return;
+
+    // ── Layers ───────────────────────────────────────
+    case 'layer.panel':
+      useUIStore.getState().toggleLayerPanel();
+      return;
+
+    // ── AI ───────────────────────────────────────────
+    case 'ai.start':
+      window.dispatchEvent(new CustomEvent('cad:openAIDrawingDialog'));
+      return;
+    case 'ai.chat':
+      useDrawingChatStore.getState().open();
+      return;
+
+    // ── App ──────────────────────────────────────────
+    case 'view.settings':
+      window.dispatchEvent(new CustomEvent('cad:openSettings'));
+      return;
+    case 'view.commandBar':
+      useUIStore.getState().setCommandBarFocused(true);
+      window.dispatchEvent(new CustomEvent('cad:focusCommandBar'));
+      return;
+    case 'view.commandPalette':
+      window.dispatchEvent(new CustomEvent('cad:openCommandPalette'));
+      return;
+
+    default: {
+      // Annotation tool actions that don't yet have a
+      // ToolType land here; surface them via a custom
+      // event so future surfaces can listen.
+      window.dispatchEvent(
+        new CustomEvent('cad:hotkey', { detail: { actionId: action.id } })
+      );
+      // Reference useAIStore so the lint rule doesn't trim
+      // it from the import (we'll wire AI shortcuts through
+      // it in a follow-up slice once the AI surface grows
+      // bindable verbs).
+      void useAIStore;
+    }
+  }
+}
