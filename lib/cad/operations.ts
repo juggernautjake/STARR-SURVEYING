@@ -348,6 +348,195 @@ export function extendFeatureTo(featureId: string, worldPt: Point2D): boolean {
   return true;
 }
 
+/**
+ * Result of attempting a `joinSelection`. `joined` is the
+ * new POLYLINE feature when the walk succeeded. When it
+ * couldn't, `reason` carries a short user-facing message.
+ */
+export interface JoinResult {
+  ok: boolean;
+  joined?: Feature;
+  removedIds?: string[];
+  reason?: string;
+}
+
+/**
+ * Merge two or more selected LINE / POLYLINE features into a
+ * single POLYLINE by walking shared endpoints. Endpoints are
+ * considered the same when they're within `tolerance` world
+ * units of each other (default 0.01 ≈ 1/8" at survey foot
+ * precision; tight enough to avoid false-positive joins,
+ * loose enough to absorb floating-point drift from imports).
+ *
+ * The walk requires the selection to form a single Euler
+ * path — i.e. exactly two "open" endpoints (used by one
+ * feature) and every interior endpoint shared by exactly
+ * two features. Branches or fragments bail out cleanly with
+ * a `reason` string instead of guessing.
+ *
+ * Removes the source features and adds the joined POLYLINE
+ * as a single batch undo entry. Selection is replaced with
+ * the new feature so the surveyor can immediately keep
+ * working.
+ */
+export function joinSelection(tolerance = 0.01): JoinResult {
+  const selectionStore = useSelectionStore.getState();
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const ids = Array.from(selectionStore.selectedIds);
+  if (ids.length < 2) {
+    return { ok: false, reason: 'Select at least 2 lines or polylines to join.' };
+  }
+
+  // Pull the source features as (id, vertices[]) tuples.
+  // Reject anything that isn't a vertex-chain so a stray
+  // POINT or CIRCLE in the selection doesn't blow up the walk.
+  type Source = { id: string; verts: Point2D[]; feature: Feature };
+  const sources: Source[] = [];
+  for (const id of ids) {
+    const f = drawingStore.getFeature(id);
+    if (!f) continue;
+    const g = f.geometry;
+    let verts: Point2D[] | null = null;
+    if (g.type === 'LINE' && g.start && g.end) verts = [g.start, g.end];
+    else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) verts = g.vertices.slice();
+    if (!verts) {
+      return { ok: false, reason: `Feature "${f.id}" isn't a line or polyline; only those can be joined.` };
+    }
+    sources.push({ id, verts, feature: f });
+  }
+  if (sources.length < 2) {
+    return { ok: false, reason: 'Select at least 2 lines or polylines to join.' };
+  }
+
+  // Cluster endpoints within `tolerance` so coincident
+  // endpoints map to the same node id. We only care about
+  // the two endpoints of each source — interior vertices of
+  // a polyline are never used as join nodes (joining can't
+  // attach to the middle of a polyline; that's what SPLIT
+  // is for).
+  type Endpoint = { sourceIdx: number; whichEnd: 'START' | 'END'; pt: Point2D };
+  const endpoints: Endpoint[] = [];
+  for (let i = 0; i < sources.length; i += 1) {
+    endpoints.push({ sourceIdx: i, whichEnd: 'START', pt: sources[i].verts[0] });
+    endpoints.push({ sourceIdx: i, whichEnd: 'END', pt: sources[i].verts[sources[i].verts.length - 1] });
+  }
+
+  const tolSq = tolerance * tolerance;
+  // node[i] = canonical index for endpoints[i] (smallest j
+  // such that endpoints[j] coincides with endpoints[i]).
+  const node = new Array(endpoints.length).fill(0).map((_, i) => i);
+  for (let i = 0; i < endpoints.length; i += 1) {
+    for (let j = 0; j < i; j += 1) {
+      if (node[j] !== j) continue;
+      const dx = endpoints[i].pt.x - endpoints[j].pt.x;
+      const dy = endpoints[i].pt.y - endpoints[j].pt.y;
+      if (dx * dx + dy * dy <= tolSq) {
+        node[i] = j;
+        break;
+      }
+    }
+  }
+
+  // Build adjacency — nodeId → list of (sourceIdx, whichEnd).
+  const adj = new Map<number, Array<{ sourceIdx: number; whichEnd: 'START' | 'END' }>>();
+  for (let i = 0; i < endpoints.length; i += 1) {
+    const n = node[i];
+    if (!adj.has(n)) adj.set(n, []);
+    adj.get(n)!.push({ sourceIdx: endpoints[i].sourceIdx, whichEnd: endpoints[i].whichEnd });
+  }
+
+  // Find the open endpoints (degree 1). For an Euler path
+  // there must be exactly two, or zero (closed loop).
+  const openNodes: number[] = [];
+  for (const [n, list] of adj.entries()) {
+    if (list.length === 1) openNodes.push(n);
+    else if (list.length > 2) {
+      return { ok: false, reason: 'Selection branches at one or more endpoints — joins must form a single chain.' };
+    }
+  }
+  if (openNodes.length !== 0 && openNodes.length !== 2) {
+    return { ok: false, reason: 'Selection has more than one disconnected piece; pick features that form one chain.' };
+  }
+
+  // Walk from one chain end (or any node, for a closed loop).
+  const visited = new Set<number>();
+  const startNode = openNodes.length === 2 ? openNodes[0] : (adj.keys().next().value as number);
+  let currentNode = startNode;
+  const orderedSources: Array<{ sourceIdx: number; reversed: boolean }> = [];
+
+  while (orderedSources.length < sources.length) {
+    const list = adj.get(currentNode) ?? [];
+    const next = list.find((e) => !visited.has(e.sourceIdx));
+    if (!next) break;
+    visited.add(next.sourceIdx);
+    orderedSources.push({ sourceIdx: next.sourceIdx, reversed: next.whichEnd === 'END' });
+    // Move to the OTHER endpoint of this source.
+    const otherEnd = next.whichEnd === 'START' ? 'END' : 'START';
+    const otherEndpointIdx = next.sourceIdx * 2 + (otherEnd === 'START' ? 0 : 1);
+    currentNode = node[otherEndpointIdx];
+  }
+
+  if (orderedSources.length !== sources.length) {
+    return { ok: false, reason: 'Could not walk the full selection as a single chain.' };
+  }
+
+  // Concatenate vertices in walk order, reversing as needed.
+  // Skip the first vertex of each subsequent source because
+  // it coincides (within tolerance) with the previous
+  // source's last vertex — keeping both would emit a
+  // duplicate junction vertex.
+  const merged: Point2D[] = [];
+  for (let i = 0; i < orderedSources.length; i += 1) {
+    const { sourceIdx, reversed } = orderedSources[i];
+    const verts = sources[sourceIdx].verts;
+    const seq = reversed ? [...verts].reverse() : verts;
+    if (i === 0) {
+      for (const v of seq) merged.push({ ...v });
+    } else {
+      for (let k = 1; k < seq.length; k += 1) merged.push({ ...seq[k] });
+    }
+  }
+  if (merged.length < 2) {
+    return { ok: false, reason: 'Walk produced fewer than 2 vertices.' };
+  }
+
+  // Build the joined feature. Inherit style + properties
+  // from the first walked source so the result reads as
+  // "extension of feature A".
+  const baseFeature = sources[orderedSources[0].sourceIdx].feature;
+  const joined: Feature = {
+    ...baseFeature,
+    id: generateId(),
+    type: 'POLYLINE',
+    style: JSON.parse(JSON.stringify(baseFeature.style)),
+    properties: JSON.parse(JSON.stringify(baseFeature.properties)),
+    geometry: { type: 'POLYLINE', vertices: merged },
+  };
+  // Strip any polylineGroupId since the merged feature is
+  // standalone (its source group identity is gone).
+  if (joined.properties.polylineGroupId) {
+    delete (joined.properties as Record<string, unknown>).polylineGroupId;
+  }
+
+  // Apply: remove the sources, add the joined feature, push
+  // one batch undo entry.
+  const removedIds: string[] = [];
+  for (const s of sources) {
+    drawingStore.removeFeature(s.id);
+    removedIds.push(s.id);
+  }
+  drawingStore.addFeature(joined);
+  const ops = [
+    ...sources.map((s) => ({ type: 'REMOVE_FEATURE' as const, data: s.feature })),
+    { type: 'ADD_FEATURE' as const, data: joined },
+  ];
+  undoStore.pushUndo(makeBatchEntry(`Join ${sources.length}`, ops));
+  selectionStore.selectMultiple([joined.id], 'REPLACE');
+
+  return { ok: true, joined, removedIds };
+}
+
 // ─────────────────────────────────────────────
 // Trim — remove the section of a vertex-chain feature between
 // the two intersections adjacent to the cursor along the chain.

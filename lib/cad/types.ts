@@ -490,6 +490,7 @@ export type ToolType =
   | 'SPLIT'
   | 'TRIM'
   | 'EXTEND'
+  | 'JOIN'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'

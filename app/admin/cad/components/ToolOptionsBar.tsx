@@ -21,6 +21,7 @@ import {
   invertSelection,
   arraySelectionRectangular,
   arraySelectionPolar,
+  joinSelection,
 } from '@/lib/cad/operations';
 import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
 import { OFFSET_PRESETS } from '@/lib/cad/geometry/offset';
@@ -137,6 +138,7 @@ export default function ToolOptionsBar() {
   const showSplit = activeTool === 'SPLIT';
   const showTrim = activeTool === 'TRIM';
   const showExtend = activeTool === 'EXTEND';
+  const showJoin = activeTool === 'JOIN';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -768,6 +770,45 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click near the end of a line or polyline — that end (closer of the two) lengthens along its tangent until it hits the next feature. The bright green ghost shows the extension; a grey ring means nothing lies in the extension direction.
+          </span>
+        </>
+      )}
+
+      {/* ── JOIN tool options ──────────────────────────────────────────────── */}
+      {showJoin && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Apply Join"
+            description="Merge the selected lines / polylines into one POLYLINE. Endpoints within 0.01 ft are treated as coincident. Selection must form a single chain — branches or fragments are rejected with a console message."
+            side="bottom"
+            delay={400}
+          >
+            <button
+              className="px-2.5 h-6 rounded text-[11px] bg-fuchsia-700 border border-fuchsia-600 text-white hover:bg-fuchsia-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={selCount < 2}
+              onClick={() => {
+                const result = joinSelection();
+                if (!result.ok) {
+                  // Surface failure reason via the command bar
+                  // output channel so the surveyor sees why it
+                  // didn't merge.
+                  window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                    detail: { text: `JOIN — ${result.reason ?? 'failed'}` },
+                  }));
+                }
+              }}
+            >
+              Join {selCount >= 2 ? `${selCount}` : ''}
+            </button>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0
+              ? 'Click features to add them to the chain'
+              : selCount === 1
+                ? 'Click another feature to extend the chain'
+                : 'Click empty space (or press Apply) to merge into one POLYLINE'}
           </span>
         </>
       )}
@@ -1679,6 +1720,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   SPLIT: 'Split',
   TRIM: 'Trim',
   EXTEND: 'Extend',
+  JOIN: 'Join',
   SCALE: 'Scale',
   ERASE: 'Erase',
   OFFSET: 'Offset',

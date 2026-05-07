@@ -70,6 +70,7 @@ import {
   splitFeatureAt,
   trimFeatureAt,
   extendFeatureTo,
+  joinSelection,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -3307,6 +3308,48 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For JOIN: highlight every selected vertex-chain feature
+    // and drop a magenta dot at every endpoint so the
+    // surveyor sees how many endpoints will need to align.
+    // We don't try to compute the joined polyline here — the
+    // operation is fast and runs on click commit anyway, and
+    // partial-selection states can be ambiguous.
+    if (activeTool === 'JOIN') {
+      const drawing = useDrawingStore.getState();
+      const selIds = Array.from(useSelectionStore.getState().selectedIds);
+      g.lineStyle(2, 0xff66ff, 0.6);
+      for (const id of selIds) {
+        const f = drawing.getFeature(id);
+        if (!f) continue;
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        if (!chain) continue;
+        // Draw the chain in a light magenta
+        const p0 = w2s(chain[0].x, chain[0].y);
+        g.moveTo(p0.sx, p0.sy);
+        for (let i = 1; i < chain.length; i += 1) {
+          const p = w2s(chain[i].x, chain[i].y);
+          g.lineTo(p.sx, p.sy);
+        }
+        // Endpoints — bright magenta dots
+        g.beginFill(0xff66ff, 0.95);
+        const ep0 = w2s(chain[0].x, chain[0].y);
+        const ep1 = w2s(chain[chain.length - 1].x, chain[chain.length - 1].y);
+        g.drawCircle(ep0.sx, ep0.sy, 4);
+        g.drawCircle(ep1.sx, ep1.sy, 4);
+        g.endFill();
+      }
+      // Crosshair on cursor + a small "+" marker so the user
+      // knows clicking adds to the selection.
+      const cs = w2s(previewPoint.x, previewPoint.y);
+      g.lineStyle(1, 0xff66ff, 0.65);
+      g.moveTo(cs.sx - 5, cs.sy); g.lineTo(cs.sx + 5, cs.sy);
+      g.moveTo(cs.sx, cs.sy - 5); g.lineTo(cs.sx, cs.sy + 5);
+      return;
+    }
+
     // For EXTEND: show the extended geometry — a green ghost
     // line from the chain's nearest endpoint along its
     // tangent direction to the closest target intersection.
@@ -6311,6 +6354,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (!hit) break;
           extendFeatureTo(hit, worldPt);
+          break;
+        }
+
+        case 'JOIN': {
+          // JOIN: when a feature is hit, add it to the
+          // current selection then attempt the merge. With
+          // the JOIN tool active, single clicks build up a
+          // chain selection; the toolbar Apply button or a
+          // click on the canvas with 2+ items selected
+          // commits.
+          const hit = hitTest(sx, sy);
+          if (hit) {
+            // Add to selection (toggle if already selected).
+            selectionStore.select(hit, 'TOGGLE');
+            break;
+          }
+          // Empty click — try to commit the join.
+          if (selectionStore.selectedIds.size >= 2) {
+            const result = joinSelection();
+            if (!result.ok) {
+              cadLog.info('CanvasViewport', `JOIN: ${result.reason ?? 'failed'}`);
+            }
+          }
           break;
         }
 
