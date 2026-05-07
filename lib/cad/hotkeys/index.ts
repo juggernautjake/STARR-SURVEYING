@@ -12,6 +12,8 @@ export {
   normalizeKeyboardEvent,
 } from './key-format';
 export type { NormalizedKey } from './key-format';
+export { createHotkeyEngine } from './engine';
+export type { HotkeyEngine, HotkeyEngineConfig } from './engine';
 export type {
   ActionCategory,
   ActionContext,
