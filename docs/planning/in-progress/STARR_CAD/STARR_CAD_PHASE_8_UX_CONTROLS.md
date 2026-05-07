@@ -1266,10 +1266,10 @@ This section documents cross-cutting UX issues found in Phases 1–7 that Phase 
 - [x] Hovering a toolbar button 2 seconds → tooltip appears (`TooltipProvider` + `useUITooltip` in `app/admin/cad/components/TooltipProvider.tsx`; per-kind delay table — UI/SHORTCUT 600 ms, LAYER 1000 ms, FEATURE 800 ms; default 600 ms keeps the surveyor moving fast)
 - [x] Tooltip tracks with mouse movement — `onMouseMove` swaps the position immediately while visible; pre-show timer keeps the latest position
 - [x] Moving mouse off button → tooltip disappears immediately — `onMouseLeave` cancels any pending timer + flips visibility off
-- [ ] Hovering a feature on canvas 1 second → feature tooltip appears — canvas-side hover handler + `useTooltipApi` lands in the next slice (provider + delay infra ready)
-- [ ] LINE feature tooltip shows bearing, length, from/to point names — `buildFeatureTooltip` next slice
-- [ ] ARC feature tooltip shows R, Δ, L, CB — same
-- [ ] POINT feature tooltip shows name, code, N/E coordinates — same
+- [x] Hovering a feature on canvas 1 second → feature tooltip appears — `updateFeatureHover` runs on every pointermove in `CanvasViewport`, hit-tests the cursor, threads the result into `useUIStore.hoveredFeatureId`, and dispatches `useTooltipApi.showTooltip` with the FEATURE kind so the provider's 800 ms delay applies. Mouseleave clears both the hover state and the tooltip.
+- [x] LINE feature tooltip shows bearing, length, from/to point names — `buildFeatureTooltip` (`app/admin/cad/components/featureTooltip.tsx`) renders bearing (formatted via `formatBearing`), length (2-decimal feet), and from/to point names resolved by `findPointName` against the doc's POINT features.
+- [x] ARC feature tooltip shows R, Δ, L, CB — Δ in degrees from the arc's anticlockwise sweep, L = R · Δ, chord = 2R·sin(Δ/2), CB derived from the start→end inverse bearing.
+- [x] POINT feature tooltip shows name, code, N/E coordinates — N/E pulled from `geometry.point`; name + code from `properties.pointName` / `properties.rawCode`.
 - [x] "Tooltips Enabled" toggle in settings → all tooltips suppressed — `useUIStore.uiTooltipsEnabled` + `featureTooltipsEnabled` gate every show; settings UI lands later but the toggles are wired
 - [x] After disabling UI tooltips, feature tooltips still work (separate toggle) — provider partitions enabled state by tooltip kind so muting UI keeps FEATURE alive
 

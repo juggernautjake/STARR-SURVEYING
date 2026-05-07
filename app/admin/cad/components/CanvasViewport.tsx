@@ -3,6 +3,8 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useDynamicCursor } from '../hooks/useDynamicCursor';
+import { useTooltipApi } from './TooltipProvider';
+import { buildFeatureTooltip } from './featureTooltip';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -185,6 +187,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Phase 8 §4 — apply the resolved cursor to the canvas
   // element on every store change relevant to the resolver.
   useDynamicCursor(canvasRef);
+  // Phase 8 §6 — feature-hover tooltip bridge. The tooltip
+  // API lives on a context provider mounted at the editor
+  // root; we read it once and cache in a ref so the
+  // pointermove hot path doesn't re-subscribe every render.
+  const tooltipApi = useTooltipApi();
+  const tooltipApiRef = useRef(tooltipApi);
+  tooltipApiRef.current = tooltipApi;
+  const lastHoverFeatureRef = useRef<string | null>(null);
   const pixiRef = useRef<{
     app: import('pixi.js').Application;
     paperLayer: import('pixi.js').Container;
@@ -3520,6 +3530,48 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     return null;
   }
 
+  // Phase 8 §6 — pointermove → feature hover state +
+  // tooltip dispatch. Called by `handleMouseMove` after the
+  // pan / drag short-circuits clear so a drag never lights
+  // up the tooltip mid-move.
+  function updateFeatureHover(
+    sx: number,
+    sy: number,
+    clientX: number,
+    clientY: number
+  ): void {
+    const tool = useToolStore.getState().state.activeTool;
+    // Hover tooltip is only meaningful while the surveyor
+    // is in a non-draw, non-pan tool. Drawing tools want
+    // the snap indicator; pan / box-select want clean
+    // gestures.
+    const interactiveTool =
+      tool === 'SELECT' || tool === 'BOX_SELECT';
+    const candidate = interactiveTool ? hitTest(sx, sy) : null;
+    if (candidate !== lastHoverFeatureRef.current) {
+      lastHoverFeatureRef.current = candidate;
+      useUIStore.getState().setHoveredFeatureId(candidate);
+    }
+    const api = tooltipApiRef.current;
+    if (!api) return;
+    if (!candidate) {
+      api.hideTooltip();
+      return;
+    }
+    const doc = useDrawingStore.getState().document;
+    const feature = doc.features[candidate];
+    if (!feature) {
+      api.hideTooltip();
+      return;
+    }
+    api.showTooltip(
+      buildFeatureTooltip(feature, doc),
+      clientX,
+      clientY,
+      'FEATURE'
+    );
+  }
+
   // ─────────────────────────────────────────────
   // Hit test: Text labels
   // ─────────────────────────────────────────────
@@ -4873,6 +4925,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       lastMouseRef.current = { x: sx, y: sy };
 
+      // Phase 8 §6 — feature-hover tooltip + bridge into
+      // `useUIStore.hoveredFeatureId`. We hit-test the
+      // cursor (lock-aware via the existing helper),
+      // promote the result into the shared hover state for
+      // the AI sidebar's bidirectional bridge, and drive
+      // the Tooltip provider with a per-feature content
+      // builder.
+      updateFeatureHover(sx, sy, e.clientX, e.clientY);
+
       const worldPt = getSnappedWorld(sx, sy);
 
       // Label drag update
@@ -6173,6 +6234,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             hoveredIdRef.current = null;
             selectionStore.setHovered(null);
           }
+          // Phase 8 §6 — drop the feature-hover tooltip too.
+          if (lastHoverFeatureRef.current !== null) {
+            lastHoverFeatureRef.current = null;
+            useUIStore.getState().setHoveredFeatureId(null);
+          }
+          tooltipApiRef.current?.hideTooltip();
           if (hoveredTBElemRef.current !== null) {
             hoveredTBElemRef.current = null;
             selectionStore.setHoveredTBElem(null);
