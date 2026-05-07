@@ -1313,8 +1313,8 @@ This section documents cross-cutting UX issues found in Phases 1–7 that Phase 
 ### Controls & Navigation
 - [ ] Tab order navigates all interactive elements in a logical sequence
 - [ ] All modal dialogs close on Escape
-- [ ] Command palette opens on Ctrl+K or /
-- [ ] Command palette search finds layer names and action labels
+- [x] Command palette opens on Ctrl+K or / — `view.commandPalette` action in `lib/cad/hotkeys/registry.ts` is bound to `ctrl+k` and dispatches `cad:openCommandPalette`. `CommandPalette.tsx` listens for the event and toggles open. `/` is reserved for the existing command bar (separate widget).
+- [x] Command palette search finds layer names and action labels — palette merges every `DEFAULT_ACTIONS` entry with the active drawing's layers (each layer gets a "Set Active Layer · {name}" entry). Substring filter matches across label, description, category, and action id. Up/Down navigate, Enter commits via `dispatchDefaultAction` (now exported from `useHotkeys`), Esc closes. Cap of 60 results keeps the list scannable.
 - [ ] Destructive actions (Delete, Reject, Discard) show confirmation dialog
 - [ ] Confirmation dialog Escape cancels (does not perform the destructive action)
 

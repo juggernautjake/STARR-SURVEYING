@@ -11,6 +11,7 @@ import CommandBar from './components/CommandBar';
 import StatusBar from './components/StatusBar';
 import ToolOptionsBar from './components/ToolOptionsBar';
 import UndoRedoButtons from './components/UndoRedoButtons';
+import CommandPalette from './components/CommandPalette';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import ImportDialog from './components/ImportDialog';
@@ -850,6 +851,11 @@ export default function CADLayout() {
           onImport={() => { setShowNewDrawingDialog(false); setShowImportDialog(true); }}
         />
       )}
+
+      {/* Phase 8 §10.6 — Command palette (Ctrl+K). Self-mounts
+          on `cad:openCommandPalette`; renders nothing until
+          opened so it has zero idle cost. */}
+      <CommandPalette />
     </div>
     </TooltipProvider>
   );

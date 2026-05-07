@@ -151,7 +151,13 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
 // Default dispatcher
 // ────────────────────────────────────────────────────────────
 
-function dispatchDefaultAction(action: BindableAction): void {
+/**
+ * Dispatch a `BindableAction` against the canonical store /
+ * event surface. Exported so the command palette (Ctrl+K)
+ * can fire any registry action by id without re-implementing
+ * the switch.
+ */
+export function dispatchDefaultAction(action: BindableAction): void {
   // Tool actions fan out through one switch.
   const tool = toolForAction(action.id);
   if (tool) {
