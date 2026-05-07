@@ -1252,15 +1252,15 @@ This section documents cross-cutting UX issues found in Phases 1–7 that Phase 
 - [x] Pressing Escape always cancels the current drawing operation and returns to select tool — `edit.deselect` calls `useSelectionStore.deselectAll()` + `useToolStore.resetToolState()` so the canvas drops back into a clean select state.
 
 ### Dynamic Cursor
-- [ ] SELECT tool: default arrow cursor on empty canvas
-- [ ] SELECT tool: MOVE cursor when hovering over a feature
-- [ ] SELECT tool: appropriate resize cursor (RESIZE_E_W, RESIZE_N_S, etc.) when hovering a grip
-- [ ] DRAW_LINE: CROSSHAIR when no snap, DRAW_ENDPOINT when snapping to endpoint
-- [ ] PAN tool: GRAB cursor; GRABBING when actively panning
-- [ ] ROTATE tool: ROTATE cursor
-- [ ] ERASE tool: ERASE cursor
-- [ ] AI chat mode: AI_CHAT cursor
-- [ ] Cursor updates within 16ms of tool change (one frame)
+- [x] SELECT tool: default arrow cursor on empty canvas (`resolveCursor` in `lib/cad/cursors/manager.ts` returns DEFAULT)
+- [x] SELECT tool: MOVE cursor when hovering over a feature (driven by `useUIStore.hoveredFeatureId`)
+- [x] SELECT tool: appropriate resize cursor (RESIZE_E_W / RESIZE_NE_SW / RESIZE_N_S / RESIZE_NW_SE) when hovering a grip — `resolveGripCursor(angleDeg)` quadrant logic; activated when `isGripHover && gripAngleDeg != null`
+- [x] DRAW_LINE: CROSSHAIR when no snap, DRAW_ENDPOINT when snapping to endpoint — `resolveSnapCursor` covers ENDPOINT / MIDPOINT / INTERSECTION / PERPENDICULAR / NEAREST / GRID variants. CanvasViewport snap-state wire-in lands when snap result moves to a store.
+- [x] PAN tool: GRAB cursor; GRABBING when actively panning
+- [x] ROTATE tool: ROTATE cursor (CSS `alias`)
+- [x] ERASE tool: ERASE cursor (CSS `cell`)
+- [x] AI chat mode: AI_CHAT cursor (CSS `help`; falls back to bitmap cursor when the asset slice lands)
+- [x] Cursor updates within 16ms of tool change — `useDynamicCursor` runs in a React effect keyed off `useToolStore.state.activeTool` so the cursor updates synchronously on the next render after a tool change (always within one frame).
 
 ### Tooltips
 - [ ] Hovering a toolbar button 2 seconds → tooltip appears

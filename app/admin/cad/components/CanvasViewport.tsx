@@ -2,6 +2,7 @@
 // app/admin/cad/components/CanvasViewport.tsx — PixiJS canvas rendering engine
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { useDynamicCursor } from '../hooks/useDynamicCursor';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -181,6 +182,9 @@ interface CanvasViewportProps {
 export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsumed }: CanvasViewportProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Phase 8 §4 — apply the resolved cursor to the canvas
+  // element on every store change relevant to the resolver.
+  useDynamicCursor(canvasRef);
   const pixiRef = useRef<{
     app: import('pixi.js').Application;
     paperLayer: import('pixi.js').Container;
