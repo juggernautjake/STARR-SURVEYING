@@ -65,6 +65,7 @@ import {
   rotateSelection,
   scaleSelection,
   duplicateSelection,
+  arraySelectionRectangular,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -3302,6 +3303,65 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For ARRAY: ghost-preview every cell of the rectangular array.
+    if (activeTool === 'ARRAY') {
+      const selIds = Array.from(useSelectionStore.getState().selectedIds);
+      if (selIds.length === 0) return;
+      const ts = useToolStore.getState().state;
+      const rows = Math.max(1, Math.floor(ts.arrayRows));
+      const cols = Math.max(1, Math.floor(ts.arrayCols));
+      const rowSp = ts.arrayRowSpacing;
+      const colSp = ts.arrayColSpacing;
+      if (!Number.isFinite(rowSp) || !Number.isFinite(colSp)) return;
+      const totalCells = rows * cols;
+      if (totalCells <= 1) return;
+
+      const drawing = useDrawingStore.getState();
+      const features = selIds.map((id) => drawing.getFeature(id)).filter(Boolean) as Feature[];
+      if (features.length === 0) return;
+
+      g.lineStyle(1.25, 0x88ddff, 0.5);
+      for (let r = 0; r < rows; r += 1) {
+        for (let c = 0; c < cols; c += 1) {
+          if (r === 0 && c === 0) continue; // original
+          const dx = c * colSp;
+          const dy = r * rowSp;
+          for (const f of features) {
+            drawTransformedFeaturePreview(g, f, (p) => translate(p, dx, dy), w2s);
+          }
+        }
+      }
+
+      // Cell-corner markers — draw a small dot at each grid
+      // origin so the user can see the spacing directly.
+      const allPts: Point2D[] = [];
+      for (const f of features) {
+        const fg = f.geometry;
+        if (fg.type === 'POINT' && fg.point) allPts.push(fg.point);
+        else if (fg.type === 'LINE' && fg.start && fg.end) allPts.push(fg.start, fg.end);
+        else if (fg.vertices) allPts.push(...fg.vertices);
+        else if (fg.type === 'CIRCLE' && fg.circle) allPts.push(fg.circle.center);
+        else if (fg.type === 'ELLIPSE' && fg.ellipse) allPts.push(fg.ellipse.center);
+        else if (fg.type === 'ARC' && fg.arc) allPts.push(fg.arc.center);
+        else if (fg.type === 'SPLINE' && fg.spline) allPts.push(...fg.spline.controlPoints);
+      }
+      let cxw = 0, cyw = 0;
+      for (const p of allPts) { cxw += p.x; cyw += p.y; }
+      if (allPts.length > 0) {
+        cxw /= allPts.length;
+        cyw /= allPts.length;
+        g.beginFill(0x88ddff, 0.55);
+        for (let r = 0; r < rows; r += 1) {
+          for (let c = 0; c < cols; c += 1) {
+            const p = w2s(cxw + c * colSp, cyw + r * rowSp);
+            g.drawCircle(p.sx, p.sy, 2.5);
+          }
+        }
+        g.endFill();
+      }
+      return;
+    }
+
     // ── OFFSET preview ────────────────────────────────────────────────────
     if (activeTool === 'OFFSET') {
       const offsetState = useToolStore.getState().state;
@@ -5718,6 +5778,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             break;
           }
           invertSelection(worldPt, toolState.copyMode);
+          break;
+        }
+
+        case 'ARRAY': {
+          // ARRAY commits immediately on any canvas click
+          // using the current rows/cols/spacing parameters
+          // from the toolbar. Auto-selects the clicked
+          // feature when nothing is selected so single-click
+          // arrays work.
+          if (selectionStore.selectedIds.size === 0) {
+            const hit = hitTest(sx, sy);
+            if (hit) selectionStore.select(hit, 'REPLACE');
+            break;
+          }
+          arraySelectionRectangular(
+            toolState.arrayRows,
+            toolState.arrayCols,
+            toolState.arrayRowSpacing,
+            toolState.arrayColSpacing,
+          );
           break;
         }
 

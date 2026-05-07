@@ -19,6 +19,7 @@ import {
   flipSelectionVertical,
   flipSelectionByDirection,
   invertSelection,
+  arraySelectionRectangular,
 } from '@/lib/cad/operations';
 import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
 import { OFFSET_PRESETS } from '@/lib/cad/geometry/offset';
@@ -131,6 +132,7 @@ export default function ToolOptionsBar() {
   const showMirror = activeTool === 'MIRROR';
   const showFlip = activeTool === 'FLIP';
   const showInvert = activeTool === 'INVERT';
+  const showArray = activeTool === 'ARRAY';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -732,6 +734,104 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             {selCount === 0 ? 'Select features first' : 'Click any point to use as the inversion center'}
+          </span>
+        </>
+      )}
+
+      {/* ── ARRAY tool options ─────────────────────────────────────────────── */}
+      {showArray && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Array Grid"
+            description="Number of rows × columns in the rectangular array. The original counts as row 0, col 0; the remaining cells are placed at row × row-spacing and col × col-spacing offsets."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">Rows:</span>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                step={1}
+                className="w-12 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                value={ts.arrayRows}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value);
+                  if (!isNaN(v)) toolStore.setArrayRows(v);
+                }}
+              />
+              <span className="text-[11px] text-gray-500">×</span>
+              <span className="text-[11px] text-gray-400 shrink-0">Cols:</span>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                step={1}
+                className="w-12 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                value={ts.arrayCols}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value);
+                  if (!isNaN(v)) toolStore.setArrayCols(v);
+                }}
+              />
+            </div>
+          </Tooltip>
+          <Sep />
+          <Tooltip
+            label="Array Spacing"
+            description="Distance between row origins (vertical) and column origins (horizontal) in world units. Negative values mirror the array direction (e.g. negative col spacing arrays to the left)."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">↕</span>
+              <input
+                type="number"
+                step={1}
+                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                value={ts.arrayRowSpacing}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v)) toolStore.setArrayRowSpacing(v);
+                }}
+              />
+              <span className="text-[11px] text-gray-400 shrink-0">↔</span>
+              <input
+                type="number"
+                step={1}
+                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                value={ts.arrayColSpacing}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v)) toolStore.setArrayColSpacing(v);
+                }}
+              />
+            </div>
+          </Tooltip>
+          <Sep />
+          <Tooltip
+            label="Apply Array"
+            description="Replicate the selection in a rectangular grid using the current rows × cols × spacing. Same as clicking on the canvas with the ARRAY tool active."
+            side="bottom"
+            delay={400}
+          >
+            <button
+              className="px-2.5 h-6 rounded text-[11px] bg-cyan-700 border border-cyan-600 text-white hover:bg-cyan-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={selCount === 0 || (ts.arrayRows * ts.arrayCols) <= 1}
+              onClick={() => arraySelectionRectangular(ts.arrayRows, ts.arrayCols, ts.arrayRowSpacing, ts.arrayColSpacing)}
+            >
+              Array {ts.arrayRows}×{ts.arrayCols}
+            </button>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0
+              ? 'Select features first'
+              : (ts.arrayRows * ts.arrayCols) <= 1
+                ? 'Set rows × cols ≥ 2 to array'
+                : `Click canvas or Apply to add ${ts.arrayRows * ts.arrayCols - 1} cop${(ts.arrayRows * ts.arrayCols - 1) === 1 ? 'y' : 'ies'}`}
           </span>
         </>
       )}
@@ -1401,6 +1501,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   MIRROR: 'Mirror',
   FLIP: 'Flip',
   INVERT: 'Invert',
+  ARRAY: 'Array',
   SCALE: 'Scale',
   ERASE: 'Erase',
   OFFSET: 'Offset',

@@ -161,6 +161,77 @@ export function flipSelectionHorizontal(): void {
  * when true the originals are preserved and the flipped
  * features are added as new entities (returned in selection).
  */
+/**
+ * Build a rectangular array of the current selection.
+ * `rows` × `cols` copies are placed at world-unit offsets
+ * `(col * colSpacing, row * rowSpacing)` from the original.
+ * The original selection (row 0, col 0) stays in place; the
+ * remaining `rows*cols - 1` cells are added as new features
+ * and recorded in a single batch undo entry. polylineGroupId
+ * properties are remapped so each copy gets its own group,
+ * matching the duplicate-selection convention.
+ */
+export function arraySelectionRectangular(
+  rows: number,
+  cols: number,
+  rowSpacing: number,
+  colSpacing: number,
+): void {
+  const selectionStore = useSelectionStore.getState();
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const ids = Array.from(selectionStore.selectedIds);
+  if (ids.length === 0) return;
+  const totalCells = Math.max(1, Math.floor(rows)) * Math.max(1, Math.floor(cols));
+  if (totalCells <= 1) return;
+  if (!Number.isFinite(rowSpacing) || !Number.isFinite(colSpacing)) return;
+
+  const sourceFeatures = ids
+    .map((id) => drawingStore.getFeature(id))
+    .filter(Boolean) as Feature[];
+  if (sourceFeatures.length === 0) return;
+
+  // For every (row, col) pair that isn't (0, 0), clone every
+  // selected feature and translate by (col * colSpacing,
+  // row * rowSpacing). polylineGroupIds collapse per-cell
+  // so each copy is its own group, preventing accidental
+  // co-selection later.
+  const newFeatures: Feature[] = [];
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      if (r === 0 && c === 0) continue; // original
+      const dx = c * colSpacing;
+      const dy = r * rowSpacing;
+      const cellGroupMap = new Map<string, string>();
+      for (const f of sourceFeatures) {
+        const cloned: Feature = JSON.parse(JSON.stringify(f));
+        cloned.id = generateId();
+        const translated = transformFeature(cloned, (p) => translate(p, dx, dy));
+        const oldGroupId = f.properties.polylineGroupId as string | undefined;
+        if (oldGroupId) {
+          if (!cellGroupMap.has(oldGroupId)) cellGroupMap.set(oldGroupId, generateId());
+          translated.properties = {
+            ...translated.properties,
+            polylineGroupId: cellGroupMap.get(oldGroupId)!,
+          };
+        }
+        newFeatures.push(translated);
+      }
+    }
+  }
+
+  if (newFeatures.length === 0) return;
+  drawingStore.addFeatures(newFeatures);
+  const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
+  undoStore.pushUndo(makeBatchEntry(`Array ${rows}×${cols}`, ops));
+  // Replace the selection with the original + every copy so
+  // the user can chain ops on the whole grid.
+  selectionStore.selectMultiple(
+    [...ids, ...newFeatures.map((f) => f.id)],
+    'REPLACE',
+  );
+}
+
 export function flipSelectionByDirection(
   direction: 'H' | 'V' | 'D1' | 'D2',
   copy = false,

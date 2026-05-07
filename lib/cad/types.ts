@@ -486,6 +486,7 @@ export type ToolType =
   | 'FLIP'
   | 'INVERT'
   | 'SCALE'
+  | 'ARRAY'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
@@ -602,6 +603,20 @@ export interface ToolState {
    * - `D2`: flip across the anti-diagonal y=-x (NW↔SE).
    */
   flipDirection: 'H' | 'V' | 'D1' | 'D2';
+
+  // ── ARRAY tool ──
+  /**
+   * Number of rows in a rectangular array. Total array size
+   * is `arrayRows * arrayCols` copies (the original counts
+   * as row 0, col 0).
+   */
+  arrayRows: number;
+  /** Number of columns in a rectangular array. */
+  arrayCols: number;
+  /** Spacing between row origins in world units (vertical). */
+  arrayRowSpacing: number;
+  /** Spacing between column origins in world units (horizontal). */
+  arrayColSpacing: number;
 }
 
 // --- UNDO ---

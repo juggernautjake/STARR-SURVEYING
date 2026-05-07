@@ -18,6 +18,7 @@ import {
   RotateCcw,
   FlipHorizontal2,
   FlipVertical2,
+  Grid3x3,
   Eraser,
   Expand,
   ZoomIn,
@@ -250,6 +251,7 @@ function buildToolGroups(
       icon: <Copy size={16} />,
       variants: [
         { tool: 'COPY', label: 'Copy (interactive)', description: 'Pick a base point, then place copies at each clicked location.', shortcut: 'CO', icon: <Copy size={14} /> },
+        { tool: 'ARRAY', label: 'Array (rectangular)', description: 'Replicate the selection in a rows × cols grid with adjustable spacing. Set the parameters in the options bar then click the canvas (or press Apply) to commit.', shortcut: 'AR', icon: <Grid3x3 size={14} /> },
         {
           label: 'Duplicate in-place',
           description: 'Duplicate the selection offset by 10 units (same as Ctrl+D).',

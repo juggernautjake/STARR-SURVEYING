@@ -34,6 +34,10 @@ interface ToolStore {
   setMirrorAxisMode: (mode: 'TWO_POINTS' | 'PICK_LINE' | 'ANGLE') => void;
   setMirrorAngle: (deg: number) => void;
   setFlipDirection: (dir: 'H' | 'V' | 'D1' | 'D2') => void;
+  setArrayRows: (rows: number) => void;
+  setArrayCols: (cols: number) => void;
+  setArrayRowSpacing: (spacing: number) => void;
+  setArrayColSpacing: (spacing: number) => void;
   resetToolState: () => void;
 }
 
@@ -75,6 +79,10 @@ const defaultToolState: ToolState = {
   mirrorAxisMode: 'TWO_POINTS',
   mirrorAngle: 0,
   flipDirection: 'H',
+  arrayRows: 2,
+  arrayCols: 3,
+  arrayRowSpacing: 50,
+  arrayColSpacing: 50,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -106,6 +114,10 @@ export const useToolStore = create<ToolStore>((set) => ({
         mirrorAxisMode: s.state.mirrorAxisMode,
         mirrorAngle: s.state.mirrorAngle,
         flipDirection: s.state.flipDirection,
+        arrayRows: s.state.arrayRows,
+        arrayCols: s.state.arrayCols,
+        arrayRowSpacing: s.state.arrayRowSpacing,
+        arrayColSpacing: s.state.arrayColSpacing,
       },
     })),
 
@@ -222,6 +234,38 @@ export const useToolStore = create<ToolStore>((set) => ({
   setFlipDirection: (dir) =>
     set((s) => ({ state: { ...s.state, flipDirection: dir } })),
 
+  setArrayRows: (rows) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        arrayRows: Math.max(1, Math.min(100, Math.floor(Number.isFinite(rows) ? rows : 1))),
+      },
+    })),
+
+  setArrayCols: (cols) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        arrayCols: Math.max(1, Math.min(100, Math.floor(Number.isFinite(cols) ? cols : 1))),
+      },
+    })),
+
+  setArrayRowSpacing: (spacing) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        arrayRowSpacing: Number.isFinite(spacing) ? spacing : 0,
+      },
+    })),
+
+  setArrayColSpacing: (spacing) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        arrayColSpacing: Number.isFinite(spacing) ? spacing : 0,
+      },
+    })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -245,6 +289,10 @@ export const useToolStore = create<ToolStore>((set) => ({
         mirrorAxisMode: s.state.mirrorAxisMode,
         mirrorAngle: s.state.mirrorAngle,
         flipDirection: s.state.flipDirection,
+        arrayRows: s.state.arrayRows,
+        arrayCols: s.state.arrayCols,
+        arrayRowSpacing: s.state.arrayRowSpacing,
+        arrayColSpacing: s.state.arrayColSpacing,
       },
     })),
 }));
