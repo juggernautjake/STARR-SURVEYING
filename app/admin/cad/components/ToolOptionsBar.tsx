@@ -20,6 +20,7 @@ import {
   flipSelectionByDirection,
   invertSelection,
   arraySelectionRectangular,
+  arraySelectionPolar,
 } from '@/lib/cad/operations';
 import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
 import { OFFSET_PRESETS } from '@/lib/cad/geometry/offset';
@@ -742,97 +743,237 @@ export default function ToolOptionsBar() {
       {showArray && (
         <>
           <Sep />
+          {/* Mode picker — RECT or POLAR */}
           <Tooltip
-            label="Array Grid"
-            description="Number of rows × columns in the rectangular array. The original counts as row 0, col 0; the remaining cells are placed at row × row-spacing and col × col-spacing offsets."
+            label="Array Layout"
+            description="Rectangular: rows × cols grid with row/col spacing. Polar: count copies around a center point, evenly spaced across an angle span."
             side="bottom"
             delay={400}
           >
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-gray-400 shrink-0">Rows:</span>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                step={1}
-                className="w-12 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
-                value={ts.arrayRows}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value);
-                  if (!isNaN(v)) toolStore.setArrayRows(v);
-                }}
-              />
-              <span className="text-[11px] text-gray-500">×</span>
-              <span className="text-[11px] text-gray-400 shrink-0">Cols:</span>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                step={1}
-                className="w-12 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
-                value={ts.arrayCols}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value);
-                  if (!isNaN(v)) toolStore.setArrayCols(v);
-                }}
-              />
+            <div className="flex items-center gap-0.5">
+              {(['RECT', 'POLAR'] as const).map((m) => (
+                <button
+                  key={m}
+                  className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                    ${ts.arrayMode === m
+                      ? 'bg-cyan-600 border-cyan-500 text-white'
+                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                  onClick={() => toolStore.setArrayMode(m)}
+                >
+                  {m === 'RECT' ? '▦ Rect' : '◯ Polar'}
+                </button>
+              ))}
             </div>
           </Tooltip>
           <Sep />
-          <Tooltip
-            label="Array Spacing"
-            description="Distance between row origins (vertical) and column origins (horizontal) in world units. Negative values mirror the array direction (e.g. negative col spacing arrays to the left)."
-            side="bottom"
-            delay={400}
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-gray-400 shrink-0">↕</span>
-              <input
-                type="number"
-                step={1}
-                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
-                value={ts.arrayRowSpacing}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v)) toolStore.setArrayRowSpacing(v);
-                }}
+          {ts.arrayMode === 'RECT' ? (
+            <>
+              <Tooltip
+                label="Array Grid"
+                description="Number of rows × columns. The original counts as row 0, col 0; the remaining cells are placed at row × row-spacing and col × col-spacing offsets."
+                side="bottom"
+                delay={400}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400 shrink-0">Rows:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    step={1}
+                    className="w-12 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                    value={ts.arrayRows}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      if (!isNaN(v)) toolStore.setArrayRows(v);
+                    }}
+                  />
+                  <span className="text-[11px] text-gray-500">×</span>
+                  <span className="text-[11px] text-gray-400 shrink-0">Cols:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    step={1}
+                    className="w-12 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                    value={ts.arrayCols}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      if (!isNaN(v)) toolStore.setArrayCols(v);
+                    }}
+                  />
+                </div>
+              </Tooltip>
+              <Sep />
+              <Tooltip
+                label="Array Spacing"
+                description="Distance between row origins (vertical) and column origins (horizontal) in world units. Negative values mirror the array direction."
+                side="bottom"
+                delay={400}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400 shrink-0">↕</span>
+                  <input
+                    type="number"
+                    step={1}
+                    className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                    value={ts.arrayRowSpacing}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v)) toolStore.setArrayRowSpacing(v);
+                    }}
+                  />
+                  <span className="text-[11px] text-gray-400 shrink-0">↔</span>
+                  <input
+                    type="number"
+                    step={1}
+                    className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                    value={ts.arrayColSpacing}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v)) toolStore.setArrayColSpacing(v);
+                    }}
+                  />
+                </div>
+              </Tooltip>
+              <Sep />
+              <Tooltip label="Apply Array" description="Replicate the selection in a rectangular grid using the current rows × cols × spacing." side="bottom" delay={400}>
+                <button
+                  className="px-2.5 h-6 rounded text-[11px] bg-cyan-700 border border-cyan-600 text-white hover:bg-cyan-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={selCount === 0 || (ts.arrayRows * ts.arrayCols) <= 1}
+                  onClick={() => arraySelectionRectangular(ts.arrayRows, ts.arrayCols, ts.arrayRowSpacing, ts.arrayColSpacing)}
+                >
+                  Array {ts.arrayRows}×{ts.arrayCols}
+                </button>
+              </Tooltip>
+              <Sep />
+              <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+                {selCount === 0
+                  ? 'Select features first'
+                  : (ts.arrayRows * ts.arrayCols) <= 1
+                    ? 'Set rows × cols ≥ 2 to array'
+                    : `Click canvas or Apply to add ${ts.arrayRows * ts.arrayCols - 1} cop${(ts.arrayRows * ts.arrayCols - 1) === 1 ? 'y' : 'ies'}`}
+              </span>
+            </>
+          ) : (
+            <>
+              <Tooltip
+                label="Polar Array"
+                description="Number of copies (including original) and total angle span. 360° wraps a full circle; smaller angles sweep an arc. Negative angle sweeps clockwise."
+                side="bottom"
+                delay={400}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400 shrink-0">Count:</span>
+                  <input
+                    type="number"
+                    min={2}
+                    max={360}
+                    step={1}
+                    className="w-14 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                    value={ts.arrayPolarCount}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      if (!isNaN(v)) toolStore.setArrayPolarCount(v);
+                    }}
+                  />
+                  <span className="text-[11px] text-gray-400 shrink-0">∠</span>
+                  <input
+                    type="number"
+                    min={-360}
+                    max={360}
+                    step={1}
+                    className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                    value={ts.arrayPolarAngleDeg}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v)) toolStore.setArrayPolarAngleDeg(v);
+                    }}
+                  />
+                  <span className="text-[10px] text-gray-500">°</span>
+                  <div className="flex gap-0.5">
+                    {[90, 180, 270, 360].map((a) => (
+                      <button
+                        key={a}
+                        className={`px-1.5 h-6 rounded text-[10px] border transition-colors
+                          ${Math.abs(ts.arrayPolarAngleDeg - a) < 0.01
+                            ? 'bg-cyan-600 border-cyan-500 text-white'
+                            : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                        onClick={() => toolStore.setArrayPolarAngleDeg(a)}
+                      >
+                        {a}°
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Tooltip>
+              <Sep />
+              <ToggleBtn
+                active={ts.arrayPolarRotate}
+                onClick={() => toolStore.setArrayPolarRotate(!ts.arrayPolarRotate)}
+                label="Rotate Items"
+                tooltipLabel="Rotate Items"
+                tooltipDesc="When ON, each polar copy is rotated to match its radial position (CAD default). When OFF, copies keep the original orientation — useful for symbols like manhole covers that must stay upright."
+                color="bg-cyan-700"
               />
-              <span className="text-[11px] text-gray-400 shrink-0">↔</span>
-              <input
-                type="number"
-                step={1}
-                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
-                value={ts.arrayColSpacing}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v)) toolStore.setArrayColSpacing(v);
-                }}
-              />
-            </div>
-          </Tooltip>
-          <Sep />
-          <Tooltip
-            label="Apply Array"
-            description="Replicate the selection in a rectangular grid using the current rows × cols × spacing. Same as clicking on the canvas with the ARRAY tool active."
-            side="bottom"
-            delay={400}
-          >
-            <button
-              className="px-2.5 h-6 rounded text-[11px] bg-cyan-700 border border-cyan-600 text-white hover:bg-cyan-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={selCount === 0 || (ts.arrayRows * ts.arrayCols) <= 1}
-              onClick={() => arraySelectionRectangular(ts.arrayRows, ts.arrayCols, ts.arrayRowSpacing, ts.arrayColSpacing)}
-            >
-              Array {ts.arrayRows}×{ts.arrayCols}
-            </button>
-          </Tooltip>
-          <Sep />
-          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
-            {selCount === 0
-              ? 'Select features first'
-              : (ts.arrayRows * ts.arrayCols) <= 1
-                ? 'Set rows × cols ≥ 2 to array'
-                : `Click canvas or Apply to add ${ts.arrayRows * ts.arrayCols - 1} cop${(ts.arrayRows * ts.arrayCols - 1) === 1 ? 'y' : 'ies'}`}
-          </span>
+              <Sep />
+              {/* Center pivot helper — set the polar center to the selection centroid */}
+              <Tooltip
+                label="Center of Mass"
+                description="Set the polar array center to the bounding-box centroid of the selected elements. Otherwise, click anywhere on the canvas to set the center, then click again to commit."
+                side="bottom"
+                delay={400}
+              >
+                <button
+                  className="px-2.5 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors whitespace-nowrap disabled:opacity-50"
+                  disabled={selCount === 0}
+                  onClick={() => {
+                    const ids = Array.from(selectionStore.selectedIds);
+                    if (!ids.length) return;
+                    toolStore.setArrayPolarCenter(computeSelectionCentroid(ids));
+                  }}
+                >
+                  ⊕ Center of Mass
+                </button>
+              </Tooltip>
+              <Sep />
+              <Tooltip label="Apply Polar Array" description="Commit the polar array using the current count, angle span, and center. Disabled until a center has been picked (click the canvas or use Center of Mass)." side="bottom" delay={400}>
+                <button
+                  className="px-2.5 h-6 rounded text-[11px] bg-cyan-700 border border-cyan-600 text-white hover:bg-cyan-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={selCount === 0 || ts.arrayPolarCount < 2 || !ts.arrayPolarCenter}
+                  onClick={() => {
+                    if (!ts.arrayPolarCenter) return;
+                    arraySelectionPolar(
+                      ts.arrayPolarCount,
+                      ts.arrayPolarAngleDeg,
+                      ts.arrayPolarCenter,
+                      ts.arrayPolarRotate,
+                    );
+                    toolStore.setArrayPolarCenter(null);
+                  }}
+                >
+                  Polar ×{ts.arrayPolarCount}
+                </button>
+              </Tooltip>
+              {ts.arrayPolarCenter && (
+                <button
+                  className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+                  onClick={() => toolStore.setArrayPolarCenter(null)}
+                  title="Clear locked-in center"
+                >
+                  ✕
+                </button>
+              )}
+              <Sep />
+              <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+                {selCount === 0
+                  ? 'Select features first'
+                  : !ts.arrayPolarCenter
+                    ? 'Click canvas to set center (or use Center of Mass)'
+                    : `Click canvas or Apply to add ${ts.arrayPolarCount - 1} cop${ts.arrayPolarCount - 1 === 1 ? 'y' : 'ies'}`}
+              </span>
+            </>
+          )}
         </>
       )}
 

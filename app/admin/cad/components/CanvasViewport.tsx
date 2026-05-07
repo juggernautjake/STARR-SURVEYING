@@ -66,6 +66,7 @@ import {
   scaleSelection,
   duplicateSelection,
   arraySelectionRectangular,
+  arraySelectionPolar,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -3303,11 +3304,67 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
-    // For ARRAY: ghost-preview every cell of the rectangular array.
+    // For ARRAY: ghost-preview every cell of the array
+    // (rectangular grid OR polar fan, depending on mode).
     if (activeTool === 'ARRAY') {
       const selIds = Array.from(useSelectionStore.getState().selectedIds);
       if (selIds.length === 0) return;
       const ts = useToolStore.getState().state;
+      const drawing = useDrawingStore.getState();
+      const features = selIds.map((id) => drawing.getFeature(id)).filter(Boolean) as Feature[];
+      if (features.length === 0) return;
+
+      if (ts.arrayMode === 'POLAR') {
+        const count = ts.arrayPolarCount;
+        const angleSpan = ts.arrayPolarAngleDeg;
+        if (!Number.isFinite(count) || count < 2) return;
+        if (!Number.isFinite(angleSpan)) return;
+        // Center: use the locked-in center if the surveyor
+        // has already clicked; otherwise follow the cursor so
+        // they can see the array form before committing.
+        const center = ts.arrayPolarCenter ?? previewPoint;
+
+        const isFull = Math.abs(Math.abs(angleSpan) - 360) < 1e-9;
+        const stepDeg = isFull ? angleSpan / count : angleSpan / (count - 1);
+
+        // Ghost geometry — every copy except the original (i=0)
+        g.lineStyle(1.25, 0x88ddff, 0.5);
+        for (let i = 1; i < count; i += 1) {
+          const angleRad = (stepDeg * i * Math.PI) / 180;
+          for (const f of features) {
+            if (ts.arrayPolarRotate) {
+              drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, angleRad), w2s);
+            } else {
+              const allPts: Point2D[] = [];
+              const fg = f.geometry;
+              if (fg.type === 'POINT' && fg.point) allPts.push(fg.point);
+              else if (fg.type === 'LINE' && fg.start && fg.end) allPts.push(fg.start, fg.end);
+              else if (fg.vertices) allPts.push(...fg.vertices);
+              else if (fg.type === 'CIRCLE' && fg.circle) allPts.push(fg.circle.center);
+              else if (fg.type === 'ELLIPSE' && fg.ellipse) allPts.push(fg.ellipse.center);
+              else if (fg.type === 'ARC' && fg.arc) allPts.push(fg.arc.center);
+              else if (fg.type === 'SPLINE' && fg.spline) allPts.push(...fg.spline.controlPoints);
+              let cx = 0, cy = 0;
+              for (const p of allPts) { cx += p.x; cy += p.y; }
+              if (allPts.length > 0) { cx /= allPts.length; cy /= allPts.length; }
+              const rotated = rotate({ x: cx, y: cy }, center, angleRad);
+              const dx = rotated.x - cx;
+              const dy = rotated.y - cy;
+              drawTransformedFeaturePreview(g, f, (p) => translate(p, dx, dy), w2s);
+            }
+          }
+        }
+
+        // Center marker + faint sweep arc to show the angle span
+        const cs = w2s(center.x, center.y);
+        g.lineStyle(1.5, 0x88ddff, 0.85);
+        g.drawCircle(cs.sx, cs.sy, 4);
+        g.moveTo(cs.sx - 8, cs.sy); g.lineTo(cs.sx + 8, cs.sy);
+        g.moveTo(cs.sx, cs.sy - 8); g.lineTo(cs.sx, cs.sy + 8);
+        return;
+      }
+
+      // RECT branch (default)
       const rows = Math.max(1, Math.floor(ts.arrayRows));
       const cols = Math.max(1, Math.floor(ts.arrayCols));
       const rowSp = ts.arrayRowSpacing;
@@ -3315,10 +3372,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (!Number.isFinite(rowSp) || !Number.isFinite(colSp)) return;
       const totalCells = rows * cols;
       if (totalCells <= 1) return;
-
-      const drawing = useDrawingStore.getState();
-      const features = selIds.map((id) => drawing.getFeature(id)).filter(Boolean) as Feature[];
-      if (features.length === 0) return;
 
       g.lineStyle(1.25, 0x88ddff, 0.5);
       for (let r = 0; r < rows; r += 1) {
@@ -5782,14 +5835,32 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
 
         case 'ARRAY': {
-          // ARRAY commits immediately on any canvas click
-          // using the current rows/cols/spacing parameters
-          // from the toolbar. Auto-selects the clicked
-          // feature when nothing is selected so single-click
-          // arrays work.
+          // ARRAY: click commits using the current mode +
+          // parameters from the toolbar. Auto-selects the
+          // clicked feature when the selection is empty.
           if (selectionStore.selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
             if (hit) selectionStore.select(hit, 'REPLACE');
+            break;
+          }
+          if (toolState.arrayMode === 'POLAR') {
+            // POLAR: first click sets the center; the second
+            // click commits with the current count/angle.
+            // Re-arming the center for chained arrays only
+            // requires another click after commit because
+            // arrayPolarCenter resets via setArrayPolarCenter
+            // null below.
+            if (!toolState.arrayPolarCenter) {
+              toolStore.setArrayPolarCenter(worldPt);
+              break;
+            }
+            arraySelectionPolar(
+              toolState.arrayPolarCount,
+              toolState.arrayPolarAngleDeg,
+              toolState.arrayPolarCenter,
+              toolState.arrayPolarRotate,
+            );
+            toolStore.setArrayPolarCenter(null);
             break;
           }
           arraySelectionRectangular(

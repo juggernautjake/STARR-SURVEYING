@@ -34,10 +34,15 @@ interface ToolStore {
   setMirrorAxisMode: (mode: 'TWO_POINTS' | 'PICK_LINE' | 'ANGLE') => void;
   setMirrorAngle: (deg: number) => void;
   setFlipDirection: (dir: 'H' | 'V' | 'D1' | 'D2') => void;
+  setArrayMode: (mode: 'RECT' | 'POLAR') => void;
   setArrayRows: (rows: number) => void;
   setArrayCols: (cols: number) => void;
   setArrayRowSpacing: (spacing: number) => void;
   setArrayColSpacing: (spacing: number) => void;
+  setArrayPolarCount: (count: number) => void;
+  setArrayPolarAngleDeg: (deg: number) => void;
+  setArrayPolarRotate: (enabled: boolean) => void;
+  setArrayPolarCenter: (center: Point2D | null) => void;
   resetToolState: () => void;
 }
 
@@ -79,10 +84,15 @@ const defaultToolState: ToolState = {
   mirrorAxisMode: 'TWO_POINTS',
   mirrorAngle: 0,
   flipDirection: 'H',
+  arrayMode: 'RECT',
   arrayRows: 2,
   arrayCols: 3,
   arrayRowSpacing: 50,
   arrayColSpacing: 50,
+  arrayPolarCount: 6,
+  arrayPolarAngleDeg: 360,
+  arrayPolarRotate: true,
+  arrayPolarCenter: null,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -114,10 +124,15 @@ export const useToolStore = create<ToolStore>((set) => ({
         mirrorAxisMode: s.state.mirrorAxisMode,
         mirrorAngle: s.state.mirrorAngle,
         flipDirection: s.state.flipDirection,
+        arrayMode: s.state.arrayMode,
         arrayRows: s.state.arrayRows,
         arrayCols: s.state.arrayCols,
         arrayRowSpacing: s.state.arrayRowSpacing,
         arrayColSpacing: s.state.arrayColSpacing,
+        arrayPolarCount: s.state.arrayPolarCount,
+        arrayPolarAngleDeg: s.state.arrayPolarAngleDeg,
+        arrayPolarRotate: s.state.arrayPolarRotate,
+        // arrayPolarCenter resets on tool switch — bound to a single pick session.
       },
     })),
 
@@ -266,6 +281,32 @@ export const useToolStore = create<ToolStore>((set) => ({
       },
     })),
 
+  setArrayMode: (mode) =>
+    set((s) => ({ state: { ...s.state, arrayMode: mode } })),
+
+  setArrayPolarCount: (count) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        arrayPolarCount: Math.max(2, Math.min(360, Math.floor(Number.isFinite(count) ? count : 2))),
+      },
+    })),
+
+  setArrayPolarAngleDeg: (deg) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        // Allow negative for CW sweeps; cap magnitude at 360.
+        arrayPolarAngleDeg: Number.isFinite(deg) ? Math.max(-360, Math.min(360, deg)) : 360,
+      },
+    })),
+
+  setArrayPolarRotate: (enabled) =>
+    set((s) => ({ state: { ...s.state, arrayPolarRotate: enabled } })),
+
+  setArrayPolarCenter: (center) =>
+    set((s) => ({ state: { ...s.state, arrayPolarCenter: center } })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -289,10 +330,15 @@ export const useToolStore = create<ToolStore>((set) => ({
         mirrorAxisMode: s.state.mirrorAxisMode,
         mirrorAngle: s.state.mirrorAngle,
         flipDirection: s.state.flipDirection,
+        arrayMode: s.state.arrayMode,
         arrayRows: s.state.arrayRows,
         arrayCols: s.state.arrayCols,
         arrayRowSpacing: s.state.arrayRowSpacing,
         arrayColSpacing: s.state.arrayColSpacing,
+        arrayPolarCount: s.state.arrayPolarCount,
+        arrayPolarAngleDeg: s.state.arrayPolarAngleDeg,
+        arrayPolarRotate: s.state.arrayPolarRotate,
+        arrayPolarCenter: null, // resets on tool reset
       },
     })),
 }));

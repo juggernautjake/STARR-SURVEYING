@@ -232,6 +232,91 @@ export function arraySelectionRectangular(
   );
 }
 
+/**
+ * Build a polar array of the current selection. `count` is
+ * the total number of copies including the original. Copies
+ * are placed evenly across `angleSpanDeg` (CCW positive,
+ * negative sweeps CW). When `rotateItems` is true (default),
+ * each copy is rotated to match its radial position so it
+ * stays radially aligned — matching CAD convention. When
+ * false, copies keep the source orientation (useful for
+ * symbols like manhole covers that should stay upright).
+ *
+ * The original (selection at angle 0) stays in place; the
+ * remaining `count - 1` cells are added as new features.
+ */
+export function arraySelectionPolar(
+  count: number,
+  angleSpanDeg: number,
+  center: Point2D,
+  rotateItems = true,
+): void {
+  const selectionStore = useSelectionStore.getState();
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const ids = Array.from(selectionStore.selectedIds);
+  if (ids.length === 0) return;
+  if (!Number.isFinite(count) || count < 2) return;
+  if (!Number.isFinite(angleSpanDeg)) return;
+
+  const sourceFeatures = ids
+    .map((id) => drawingStore.getFeature(id))
+    .filter(Boolean) as Feature[];
+  if (sourceFeatures.length === 0) return;
+
+  // Full-circle (360°) arrays divide by `count` so copies
+  // wrap evenly without doubling up at start/end. Partial
+  // arcs divide by `count - 1` so the first copy sits at
+  // angle 0 and the last copy at the full span.
+  const isFull = Math.abs(Math.abs(angleSpanDeg) - 360) < 1e-9;
+  const stepDeg = isFull ? angleSpanDeg / count : angleSpanDeg / (count - 1);
+
+  const newFeatures: Feature[] = [];
+  for (let i = 1; i < count; i += 1) {
+    const angleRad = (stepDeg * i * Math.PI) / 180;
+    const cellGroupMap = new Map<string, string>();
+    for (const f of sourceFeatures) {
+      const cloned: Feature = JSON.parse(JSON.stringify(f));
+      cloned.id = generateId();
+      // Step 1: rotate around center. If rotateItems is
+      // false, we instead translate by the chord vector
+      // between original and rotated centroid, keeping the
+      // original orientation.
+      let transformed: Feature;
+      if (rotateItems) {
+        transformed = transformFeature(cloned, (p) => rotate(p, center, angleRad));
+      } else {
+        const allPts = getFeaturePoints(cloned);
+        let cx = 0, cy = 0;
+        for (const p of allPts) { cx += p.x; cy += p.y; }
+        if (allPts.length > 0) { cx /= allPts.length; cy /= allPts.length; }
+        const rotated = rotate({ x: cx, y: cy }, center, angleRad);
+        const dx = rotated.x - cx;
+        const dy = rotated.y - cy;
+        transformed = transformFeature(cloned, (p) => translate(p, dx, dy));
+      }
+      const oldGroupId = f.properties.polylineGroupId as string | undefined;
+      if (oldGroupId) {
+        if (!cellGroupMap.has(oldGroupId)) cellGroupMap.set(oldGroupId, generateId());
+        transformed.properties = {
+          ...transformed.properties,
+          polylineGroupId: cellGroupMap.get(oldGroupId)!,
+        };
+      }
+      newFeatures.push(transformed);
+    }
+  }
+
+  if (newFeatures.length === 0) return;
+  drawingStore.addFeatures(newFeatures);
+  const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
+  undoStore.pushUndo(makeBatchEntry(`Polar Array ×${count}`, ops));
+  selectionStore.selectMultiple(
+    [...ids, ...newFeatures.map((f) => f.id)],
+    'REPLACE',
+  );
+}
+
 export function flipSelectionByDirection(
   direction: 'H' | 'V' | 'D1' | 'D2',
   copy = false,

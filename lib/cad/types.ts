@@ -606,6 +606,11 @@ export interface ToolState {
 
   // ── ARRAY tool ──
   /**
+   * Array layout — rectangular grid (rows × cols) or polar
+   * (count copies around a center). Defaults to RECT.
+   */
+  arrayMode: 'RECT' | 'POLAR';
+  /**
    * Number of rows in a rectangular array. Total array size
    * is `arrayRows * arrayCols` copies (the original counts
    * as row 0, col 0).
@@ -617,6 +622,30 @@ export interface ToolState {
   arrayRowSpacing: number;
   /** Spacing between column origins in world units (horizontal). */
   arrayColSpacing: number;
+  /**
+   * Number of copies in a polar array (including the
+   * original). Range 2–360. The copies are equally spaced
+   * across `arrayPolarAngleDeg`.
+   */
+  arrayPolarCount: number;
+  /**
+   * Total angular span of a polar array in degrees. 360 =
+   * full circle (default), <360 sweeps a partial arc. CCW
+   * positive (math convention).
+   */
+  arrayPolarAngleDeg: number;
+  /**
+   * Whether to rotate each polar copy so it stays aligned
+   * with the radial direction (true), or keep the original
+   * orientation (false). Default true matches CAD convention.
+   */
+  arrayPolarRotate: boolean;
+  /**
+   * Center of the polar array. Captured on the first click
+   * when the surveyor activates the ARRAY tool in POLAR
+   * mode. `null` means "awaiting center pick".
+   */
+  arrayPolarCenter: Point2D | null;
 }
 
 // --- UNDO ---
