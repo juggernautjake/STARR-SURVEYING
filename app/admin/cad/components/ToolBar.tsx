@@ -289,11 +289,13 @@ function buildToolGroups(
     {
       mainTool: 'MIRROR',
       label: 'Mirror',
-      description: 'Mirror/flip selected features. Click two points to define the mirror axis, or use instant Flip H/V variants.',
+      description: 'Mirror, Flip, and Invert tools. Mirror reflects across an axis (two points / picked line / angle). Flip is a one-click reflection through the centroid. Invert is a 180° point-inversion through a clicked center.',
       shortcut: 'MI',
       icon: <FlipHorizontal2 size={16} />,
       variants: [
-        { tool: 'MIRROR', label: 'Mirror (pick line)', description: 'Click two points to define the mirror axis. The selection is reflected across that line.', shortcut: 'MI', icon: <FlipHorizontal2 size={14} /> },
+        { tool: 'MIRROR', label: 'Mirror (custom axis)', description: 'Reflect the selection across an axis. The axis can be defined by two clicks, by picking an existing line, or by typing an angle and clicking an anchor point. Honours Copy Mode.', shortcut: 'MI', icon: <FlipHorizontal2 size={14} /> },
+        { tool: 'FLIP',   label: 'Flip',                description: 'One-click reflection through the selection centroid. Pick H / V / D1 / D2 in the options bar then click the canvas (or press Apply). Honours Copy Mode.', shortcut: 'FL', icon: <FlipVertical2 size={14} /> },
+        { tool: 'INVERT', label: 'Invert',              description: 'Point inversion — equivalent to a 180° rotation around a clicked center. Click anywhere on the canvas to use that point as the inversion center. Honours Copy Mode.', shortcut: 'IV', icon: <RotateCcw size={14} /> },
         {
           label: 'Flip Horizontal',
           description: 'Instantly mirror the selection horizontally across its own center.',

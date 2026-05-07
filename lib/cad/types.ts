@@ -483,6 +483,8 @@ export type ToolType =
   | 'COPY'
   | 'ROTATE'
   | 'MIRROR'
+  | 'FLIP'
+  | 'INVERT'
   | 'SCALE'
   | 'ERASE'
   | 'DRAW_ARC'
@@ -567,6 +569,32 @@ export interface ToolState {
    * WHOLE mode and we never recorded a segment).
    */
   offsetSourceSegmentIndex: number | null;
+
+  // ── MIRROR tool ──
+  /**
+   * How the MIRROR tool defines its reflection axis:
+   * - `TWO_POINTS`: classic two-click flow (default).
+   * - `PICK_LINE`: single click on an existing LINE / POLYLINE
+   *    segment in the drawing — that segment becomes the
+   *    mirror axis.
+   * - `ANGLE`: single click sets an anchor; the axis runs
+   *    through the anchor at `mirrorAngle` degrees from
+   *    horizontal (CCW positive — standard math convention).
+   */
+  mirrorAxisMode: 'TWO_POINTS' | 'PICK_LINE' | 'ANGLE';
+  /** Axis angle in degrees from horizontal for `ANGLE` mode. */
+  mirrorAngle: number;
+
+  // ── FLIP tool ──
+  /**
+   * Direction of the FLIP tool's reflection axis through the
+   * selection centroid:
+   * - `H`: flip across the horizontal axis (top↔bottom).
+   * - `V`: flip across the vertical axis (left↔right).
+   * - `D1`: flip across the diagonal y=x (NE↔SW).
+   * - `D2`: flip across the anti-diagonal y=-x (NW↔SE).
+   */
+  flipDirection: 'H' | 'V' | 'D1' | 'D2';
 }
 
 // --- UNDO ---

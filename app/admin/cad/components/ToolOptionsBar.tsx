@@ -17,6 +17,8 @@ import {
   applyInteractiveOffset,
   flipSelectionHorizontal,
   flipSelectionVertical,
+  flipSelectionByDirection,
+  invertSelection,
 } from '@/lib/cad/operations';
 import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
 import { OFFSET_PRESETS } from '@/lib/cad/geometry/offset';
@@ -127,6 +129,8 @@ export default function ToolOptionsBar() {
   const showRotateAngle = activeTool === 'ROTATE';
   const showScaleFactor = activeTool === 'SCALE';
   const showMirror = activeTool === 'MIRROR';
+  const showFlip = activeTool === 'FLIP';
+  const showInvert = activeTool === 'INVERT';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -492,9 +496,80 @@ export default function ToolOptionsBar() {
       {showMirror && (
         <>
           <Sep />
+          {/* Axis-mode picker */}
           <Tooltip
-            label="Mirror Quick Axis"
-            description="Apply a mirror immediately through the selection's centroid. Vertical axis flips left↔right, horizontal flips up↔down. Honours Copy Mode — when ON, the original is preserved and the mirrored copy is added."
+            label="Mirror Axis"
+            description="Two Points: classic two-click axis. Pick Line: click an existing line/edge to use as the axis. Angle: click an anchor point to mirror at the typed angle through it."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-0.5">
+              {(['TWO_POINTS', 'PICK_LINE', 'ANGLE'] as const).map((m) => (
+                <button
+                  key={m}
+                  className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                    ${ts.mirrorAxisMode === m
+                      ? 'bg-pink-600 border-pink-500 text-white'
+                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                  onClick={() => {
+                    toolStore.setMirrorAxisMode(m);
+                    toolStore.clearDrawingPoints();
+                  }}
+                >
+                  {m === 'TWO_POINTS' ? '∶∶ Two Pts' : m === 'PICK_LINE' ? '┃ Pick Line' : '∠ Angle'}
+                </button>
+              ))}
+            </div>
+          </Tooltip>
+          {ts.mirrorAxisMode === 'ANGLE' && (
+            <>
+              <Sep />
+              <Tooltip
+                label="Axis Angle"
+                description="Angle of the mirror axis from horizontal in degrees. CCW positive. Range 0–179° (180° wraps back to 0°)."
+                side="bottom"
+                delay={400}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400 shrink-0">∠</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={179}
+                    step={1}
+                    className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-pink-500"
+                    value={ts.mirrorAngle}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v)) toolStore.setMirrorAngle(v);
+                    }}
+                  />
+                  <span className="text-[10px] text-gray-500">°</span>
+                  <div className="flex gap-0.5">
+                    {[0, 45, 90, 135].map((a) => (
+                      <button
+                        key={a}
+                        className={`px-1.5 h-6 rounded text-[10px] border transition-colors
+                          ${Math.abs(ts.mirrorAngle - a) < 0.01
+                            ? 'bg-pink-600 border-pink-500 text-white'
+                            : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                        onClick={() => toolStore.setMirrorAngle(a)}
+                      >
+                        {a}°
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Tooltip>
+            </>
+          )}
+          <Sep />
+          {/* Quick centroid presets — same as the existing
+              flipSelection helpers, work regardless of axis
+              mode and respect Copy Mode. */}
+          <Tooltip
+            label="Quick Mirror"
+            description="Apply a mirror immediately through the selection's centroid. Honours Copy Mode."
             side="bottom"
             delay={400}
           >
@@ -527,11 +602,100 @@ export default function ToolOptionsBar() {
             </div>
           </Tooltip>
           <Sep />
-          {/* Phase indicator — surfaces what step the user is on for the two-click axis flow */}
+          {/* Phase indicator — describes the next click depending on axis mode. */}
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             {selCount === 0
               ? 'Select features first'
-              : 'Click two points to define a custom mirror axis'}
+              : ts.mirrorAxisMode === 'PICK_LINE'
+                ? 'Click an existing line / edge to use as the axis'
+                : ts.mirrorAxisMode === 'ANGLE'
+                  ? 'Click an anchor point to mirror through'
+                  : 'Click two points to define a custom mirror axis'}
+          </span>
+        </>
+      )}
+
+      {/* ── FLIP tool options ─────────────────────────────────────────────── */}
+      {showFlip && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Flip Direction"
+            description="H: top↔bottom across horizontal axis. V: left↔right across vertical axis. D1: across the y=x diagonal. D2: across the y=-x anti-diagonal. All flip through the selection centroid. Click the canvas (or use Apply) to commit; honours Copy Mode."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">Direction:</span>
+              <div className="flex gap-0.5">
+                {(['H', 'V', 'D1', 'D2'] as const).map((d) => (
+                  <button
+                    key={d}
+                    className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                      ${ts.flipDirection === d
+                        ? 'bg-fuchsia-600 border-fuchsia-500 text-white'
+                        : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                    onClick={() => toolStore.setFlipDirection(d)}
+                  >
+                    {d === 'H' ? '↕ H' : d === 'V' ? '↔ V' : d === 'D1' ? '⤢ D1' : '⤩ D2'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Tooltip>
+          <Sep />
+          <Tooltip
+            label="Apply Flip"
+            description="Apply the flip immediately through the selection's centroid using the chosen direction. Same as clicking on the canvas with the FLIP tool active."
+            side="bottom"
+            delay={400}
+          >
+            <button
+              className="px-2.5 h-6 rounded text-[11px] bg-fuchsia-700 border border-fuchsia-600 text-white hover:bg-fuchsia-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={selCount === 0}
+              onClick={() => flipSelectionByDirection(ts.flipDirection, copyMode)}
+            >
+              Flip
+            </button>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0 ? 'Select features first' : 'Click canvas or press Apply to flip'}
+          </span>
+        </>
+      )}
+
+      {/* ── INVERT tool options ──────────────────────────────────────────── */}
+      {showInvert && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Invert (Point Inversion)"
+            description="Click a point on the canvas to invert the selection through it (a 180° rotation around the clicked center). Honours Copy Mode."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-amber-400 shrink-0">⊙ Invert</span>
+              <button
+                className="px-2.5 h-6 rounded text-[11px] bg-amber-700 border border-amber-600 text-white hover:bg-amber-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={selCount === 0}
+                onClick={() => {
+                  if (selCount === 0) return;
+                  // Apply via centroid as a quick path.
+                  const ids = Array.from(useSelectionStore.getState().selectedIds);
+                  const c = computeSelectionCentroid(ids);
+                  invertSelection(c, copyMode);
+                }}
+                title="Invert through selection centroid"
+              >
+                Through Centroid
+              </button>
+            </div>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0 ? 'Select features first' : 'Click any point to use as the inversion center'}
           </span>
         </>
       )}
@@ -1121,6 +1285,8 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   COPY: 'Copy',
   ROTATE: 'Rotate',
   MIRROR: 'Mirror',
+  FLIP: 'Flip',
+  INVERT: 'Invert',
   SCALE: 'Scale',
   ERASE: 'Erase',
   OFFSET: 'Offset',

@@ -30,6 +30,9 @@ interface ToolStore {
   setOffsetScaleLineWeight: (enabled: boolean) => void;
   setOffsetSegmentMode: (mode: 'WHOLE' | 'SEGMENT') => void;
   setOffsetSourceSegmentIndex: (index: number | null) => void;
+  setMirrorAxisMode: (mode: 'TWO_POINTS' | 'PICK_LINE' | 'ANGLE') => void;
+  setMirrorAngle: (deg: number) => void;
+  setFlipDirection: (dir: 'H' | 'V' | 'D1' | 'D2') => void;
   resetToolState: () => void;
 }
 
@@ -67,6 +70,9 @@ const defaultToolState: ToolState = {
   offsetScaleLineWeight: false,
   offsetSegmentMode: 'WHOLE',
   offsetSourceSegmentIndex: null,
+  mirrorAxisMode: 'TWO_POINTS',
+  mirrorAngle: 0,
+  flipDirection: 'H',
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -94,6 +100,9 @@ export const useToolStore = create<ToolStore>((set) => ({
         offsetSegmentMode: s.state.offsetSegmentMode,
         // Don't preserve segment index across tool switches —
         // it's bound to a specific source pick session.
+        mirrorAxisMode: s.state.mirrorAxisMode,
+        mirrorAngle: s.state.mirrorAngle,
+        flipDirection: s.state.flipDirection,
       },
     })),
 
@@ -183,6 +192,22 @@ export const useToolStore = create<ToolStore>((set) => ({
   setOffsetSourceSegmentIndex: (index) =>
     set((s) => ({ state: { ...s.state, offsetSourceSegmentIndex: index } })),
 
+  setMirrorAxisMode: (mode) =>
+    set((s) => ({ state: { ...s.state, mirrorAxisMode: mode } })),
+
+  setMirrorAngle: (deg) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        // Clamp to a sensible 0–179 range — angles 180+ wrap
+        // back to the same axis (180 = 0, 270 = 90, etc.).
+        mirrorAngle: Number.isFinite(deg) ? ((deg % 180) + 180) % 180 : 0,
+      },
+    })),
+
+  setFlipDirection: (dir) =>
+    set((s) => ({ state: { ...s.state, flipDirection: dir } })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -202,6 +227,9 @@ export const useToolStore = create<ToolStore>((set) => ({
         offsetSegmentMode: s.state.offsetSegmentMode,
         // Reset segment index — picking a new source restarts the segment selection.
         offsetSourceSegmentIndex: null,
+        mirrorAxisMode: s.state.mirrorAxisMode,
+        mirrorAngle: s.state.mirrorAngle,
+        flipDirection: s.state.flipDirection,
       },
     })),
 }));

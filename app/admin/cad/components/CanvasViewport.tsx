@@ -58,7 +58,7 @@ import {
   scaleSplineAroundCentroid,
 } from '@/lib/cad/geometry/offset';
 import { computeCurbReturn } from '@/lib/cad/geometry/curb-return';
-import { applyInteractiveOffset } from '@/lib/cad/operations';
+import { applyInteractiveOffset, flipSelectionByDirection, invertSelection } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
   drawEllipse as drawEllipseCurve,
@@ -199,23 +199,38 @@ interface CanvasViewportProps {
 }
 
 /**
- * Render a faint ghost of `feature` reflected across the line
- * defined by `lineA` → `lineB` so the user can see exactly
- * where MIRROR will land before committing the second click.
- * Caller must have set `g.lineStyle(...)` already; this only
- * issues moveTo/lineTo/drawCircle calls. World→screen
- * conversion is delegated to `w2s` (kept out of the helper so
- * the same routine can be used by other transform previews
- * later).
+ * Resolve a mirror-axis [start, end] from a feature picked
+ * under the cursor. Uses the closest segment for any vertex-
+ * chain feature, the (start, end) pair for LINE, and falls
+ * back to null for non-linear geometry. The returned points
+ * define the line direction only — `mirror()` ignores the
+ * specific length and just uses the direction vector.
  */
-function drawMirroredFeaturePreview(
+function pickAxisFromFeature(
+  feature: import('@/lib/cad/types').Feature,
+  cursor: import('@/lib/cad/types').Point2D,
+): [import('@/lib/cad/types').Point2D, import('@/lib/cad/types').Point2D] | null {
+  const idx = findClosestSegmentIndex(feature, cursor);
+  if (idx == null) return null;
+  return getSegmentEndpoints(feature, idx);
+}
+
+/**
+ * Render a faint ghost of `feature` after applying
+ * `transformFn` so the user can see exactly where a transform
+ * (mirror, move, copy, flip, invert, rotate, scale) will land
+ * before committing. Caller must have set `g.lineStyle(...)`
+ * already; this only issues moveTo/lineTo/drawCircle calls.
+ * World→screen conversion is delegated to `w2s` so this
+ * helper stays decoupled from the component's render context.
+ */
+function drawTransformedFeaturePreview(
   g: import('pixi.js').Graphics,
   feature: import('@/lib/cad/types').Feature,
-  lineA: import('@/lib/cad/types').Point2D,
-  lineB: import('@/lib/cad/types').Point2D,
+  transformFn: (p: import('@/lib/cad/types').Point2D) => import('@/lib/cad/types').Point2D,
   w2s: (wx: number, wy: number) => { sx: number; sy: number },
 ): void {
-  const ghost = transformFeature(feature, (p) => mirror(p, lineA, lineB));
+  const ghost = transformFeature(feature, transformFn);
   const gg = ghost.geometry;
 
   if (gg.type === 'POINT' && gg.point) {
@@ -2967,7 +2982,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     if (!previewPoint) return;
 
-    // For MOVE/COPY: show line from base point to cursor
+    // For MOVE/COPY: show line from base point to cursor + ghost of the moved/copied selection
     if (
       (activeTool === 'MOVE' || activeTool === 'COPY') &&
       toolState.basePoint &&
@@ -2982,10 +2997,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Base point cross
       g.moveTo(bx - 5, by); g.lineTo(bx + 5, by);
       g.moveTo(bx, by - 5); g.lineTo(bx, by + 5);
+
+      // Ghost preview of the destination selection.
+      const dx = previewPoint.x - bp.x;
+      const dy = previewPoint.y - bp.y;
+      if (dx !== 0 || dy !== 0) {
+        const selIds = Array.from(useSelectionStore.getState().selectedIds);
+        if (selIds.length > 0) {
+          const drawing = useDrawingStore.getState();
+          // COPY ghosts use a brighter cyan-ish hue so the
+          // viewer reads "new feature being added"; MOVE ghosts
+          // share the selection color so they read "this is
+          // where the same feature is going."
+          const ghostColor = activeTool === 'COPY' ? 0x66ffcc : selColor;
+          g.lineStyle(1.25, ghostColor, 0.55);
+          for (const id of selIds) {
+            const f = drawing.getFeature(id);
+            if (!f) continue;
+            drawTransformedFeaturePreview(g, f, (p) => translate(p, dx, dy), w2s);
+          }
+        }
+      }
       return;
     }
 
-    // For ROTATE: show line from center to cursor + angle arc indicator
+    // For ROTATE: show line from center to cursor + angle arc indicator + ghost of rotated selection
     if (activeTool === 'ROTATE' && toolState.rotateCenter) {
       const center = toolState.rotateCenter;
       const { sx: cx, sy: cy } = w2s(center.x, center.y);
@@ -3000,10 +3036,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       g.beginFill(0xff8800, 0.6);
       g.drawCircle(x2, y2, 4);
       g.endFill();
+
+      // Ghost preview — angle = atan2 of (cursor - center).
+      // Until the user clicks a reference point we treat
+      // angle 0 as horizontal, so the cursor angle drives the
+      // rotation directly. This mirrors how the toolbar input
+      // interprets degrees.
+      const angleRad = Math.atan2(previewPoint.y - center.y, previewPoint.x - center.x);
+      if (angleRad !== 0 && Number.isFinite(angleRad)) {
+        const selIds = Array.from(useSelectionStore.getState().selectedIds);
+        if (selIds.length > 0) {
+          const drawing = useDrawingStore.getState();
+          g.lineStyle(1.25, 0xffaa55, 0.55);
+          for (const id of selIds) {
+            const f = drawing.getFeature(id);
+            if (!f) continue;
+            drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, angleRad), w2s);
+          }
+        }
+      }
       return;
     }
 
-    // For SCALE: show line from base point to cursor
+    // For SCALE: show line from base point to cursor + ghost of scaled selection
     if (activeTool === 'SCALE' && toolState.basePoint) {
       const bp = toolState.basePoint;
       const { sx: bx, sy: by } = w2s(bp.x, bp.y);
@@ -3014,33 +3069,228 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Base point cross
       g.moveTo(bx - 8, by); g.lineTo(bx + 8, by);
       g.moveTo(bx, by - 8); g.lineTo(bx, by + 8);
+
+      // Ghost preview — factor is the ratio of cursor distance
+      // from base point to a unit reference. We pick the unit
+      // reference so factor = 1 when the cursor sits on a
+      // small arbitrary radius near the base, and grows /
+      // shrinks linearly with distance. This gives the user
+      // a visceral "drag-out-to-grow" feel.
+      const refDist = 50; // world-unit reference for factor=1
+      const cursorDist = Math.hypot(previewPoint.x - bp.x, previewPoint.y - bp.y);
+      const factor = cursorDist / refDist;
+      if (factor > 0 && factor !== 1 && Number.isFinite(factor)) {
+        const selIds = Array.from(useSelectionStore.getState().selectedIds);
+        if (selIds.length > 0) {
+          const drawing = useDrawingStore.getState();
+          g.lineStyle(1.25, 0x55ddaa, 0.55);
+          for (const id of selIds) {
+            const f = drawing.getFeature(id);
+            if (!f) continue;
+            drawTransformedFeaturePreview(g, f, (p) => scale(p, bp, factor), w2s);
+          }
+        }
+      }
       return;
     }
 
-    // For MIRROR: show mirror axis + ghost of the mirrored selection
-    if (activeTool === 'MIRROR' && drawingPoints.length === 1) {
-      const lineA = drawingPoints[0];
-      const { sx: ax, sy: ay } = w2s(lineA.x, lineA.y);
-      const { sx: bx, sy: by } = w2s(previewPoint.x, previewPoint.y);
-      // Mirror axis (dashed magenta)
-      g.lineStyle(1.5, 0xff00ff, 0.7);
-      g.moveTo(ax, ay);
-      g.lineTo(bx, by);
+    // For MIRROR: show axis + ghost based on current axis mode
+    if (activeTool === 'MIRROR') {
+      const { mirrorAxisMode, mirrorAngle } = useToolStore.getState().state;
+      let axisA: Point2D | null = null;
+      let axisB: Point2D | null = null;
+      let axisLabel = '';
 
-      // Ghost preview of the mirrored selection so the user
-      // can see exactly where the result will land before
-      // committing the second click. Skips work when nothing
-      // is selected (the OFFSET-style "click to select first"
-      // path will handle that when the click commits).
-      const selIds = Array.from(useSelectionStore.getState().selectedIds);
-      if (selIds.length > 0) {
+      if (mirrorAxisMode === 'PICK_LINE') {
+        // Hit-test under the cursor for a line / polyline /
+        // polygon segment to use as the axis. Highlight the
+        // chosen segment so the user knows what they're aiming
+        // at.
+        const ids = useDrawingStore.getState().getAllFeatures().map((f) => f.id);
+        // Use the same hit-test the click handler will use —
+        // we replicate the logic here without reaching into
+        // the closure since hitTest isn't accessible.
+        // Simplest: rely on the selection stack's getFeature
+        // calls and our own `pickAxisFromFeature`; just walk
+        // visible features and pick the one whose closest
+        // segment is nearest the cursor.
+        let bestId: string | null = null;
+        let bestDist = Infinity;
         const drawing = useDrawingStore.getState();
-        g.lineStyle(1.25, 0xff66ff, 0.55);
-        for (const id of selIds) {
+        for (const id of ids) {
           const f = drawing.getFeature(id);
           if (!f) continue;
-          drawMirroredFeaturePreview(g, f, lineA, previewPoint, w2s);
+          const ep = pickAxisFromFeature(f, previewPoint);
+          if (!ep) continue;
+          // Use perpendicular distance to that segment.
+          const dx = ep[1].x - ep[0].x;
+          const dy = ep[1].y - ep[0].y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          const t = Math.max(0, Math.min(1, ((previewPoint.x - ep[0].x) * dx + (previewPoint.y - ep[0].y) * dy) / len2));
+          const px = ep[0].x + t * dx;
+          const py = ep[0].y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          // Convert to screen px to apply hit tolerance
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 12) {
+            bestDist = dPx;
+            bestId = id;
+          }
         }
+        if (bestId) {
+          const ep = pickAxisFromFeature(drawing.getFeature(bestId)!, previewPoint);
+          if (ep) {
+            axisA = ep[0];
+            axisB = ep[1];
+            // Highlight the picked segment in lime so the
+            // user reads "this is the axis I'm about to use."
+            const a = w2s(ep[0].x, ep[0].y);
+            const b = w2s(ep[1].x, ep[1].y);
+            g.lineStyle(2.5, 0x99ff44, 0.55);
+            g.moveTo(a.sx, a.sy);
+            g.lineTo(b.sx, b.sy);
+          }
+        }
+        axisLabel = 'Pick a line to use as axis';
+      } else if (mirrorAxisMode === 'ANGLE') {
+        // Anchor follows the cursor; axis line shoots out
+        // both ways at `mirrorAngle` degrees so the user can
+        // see the orientation before committing.
+        const rad = (mirrorAngle * Math.PI) / 180;
+        axisA = previewPoint;
+        axisB = {
+          x: previewPoint.x + Math.cos(rad),
+          y: previewPoint.y + Math.sin(rad),
+        };
+        axisLabel = `Axis at ${mirrorAngle.toFixed(1)}°`;
+      } else if (drawingPoints.length === 1) {
+        // TWO_POINTS — first click placed; cursor is the
+        // second axis point.
+        axisA = drawingPoints[0];
+        axisB = previewPoint;
+      }
+
+      if (axisA && axisB) {
+        const a = axisA;
+        const b = axisB;
+        // Draw the axis line — extend beyond endpoints so the
+        // user sees the full reflection plane, not just the
+        // two clicked points.
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len = Math.hypot(dx, dy);
+        if (len > 1e-10) {
+          const ux = dx / len;
+          const uy = dy / len;
+          const extend = 1e6; // arbitrary large number to overshoot the viewport
+          const fa = w2s(a.x - ux * extend, a.y - uy * extend);
+          const fb = w2s(b.x + ux * extend, b.y + uy * extend);
+          g.lineStyle(1.5, 0xff00ff, 0.7);
+          g.moveTo(fa.sx, fa.sy);
+          g.lineTo(fb.sx, fb.sy);
+        }
+
+        // Ghost preview of the reflected selection.
+        const selIds = Array.from(useSelectionStore.getState().selectedIds);
+        if (selIds.length > 0) {
+          const drawing = useDrawingStore.getState();
+          g.lineStyle(1.25, 0xff66ff, 0.55);
+          for (const id of selIds) {
+            const f = drawing.getFeature(id);
+            if (!f) continue;
+            drawTransformedFeaturePreview(g, f, (p) => mirror(p, a, b), w2s);
+          }
+        }
+      } else if (axisLabel) {
+        // No axis yet — just show a hint dot at the cursor
+        const { sx, sy } = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0xff66ff, 0.5);
+        g.drawCircle(sx, sy, 4);
+        g.endFill();
+      }
+      return;
+    }
+
+    // For FLIP: ghost-preview the flip across selection centroid
+    if (activeTool === 'FLIP') {
+      const selIds = Array.from(useSelectionStore.getState().selectedIds);
+      if (selIds.length === 0) return;
+      const drawing = useDrawingStore.getState();
+      const features = selIds.map((id) => drawing.getFeature(id)).filter(Boolean) as Feature[];
+      if (features.length === 0) return;
+      // Compute centroid of all selected points
+      const allPts: Point2D[] = [];
+      for (const f of features) {
+        const g_ = f.geometry;
+        if (g_.type === 'POINT' && g_.point) allPts.push(g_.point);
+        else if (g_.type === 'LINE' && g_.start && g_.end) allPts.push(g_.start, g_.end);
+        else if (g_.vertices) allPts.push(...g_.vertices);
+      }
+      if (allPts.length === 0) return;
+      let cx = 0, cy = 0;
+      for (const p of allPts) { cx += p.x; cy += p.y; }
+      cx /= allPts.length;
+      cy /= allPts.length;
+      const c: Point2D = { x: cx, y: cy };
+
+      // Build the same axis the operation will use.
+      const D = 1;
+      let axisA: Point2D, axisB: Point2D;
+      switch (toolState.flipDirection) {
+        case 'H':  axisA = { x: c.x - D, y: c.y };     axisB = { x: c.x + D, y: c.y };     break;
+        case 'V':  axisA = { x: c.x, y: c.y - D };     axisB = { x: c.x, y: c.y + D };     break;
+        case 'D1': axisA = { x: c.x - D, y: c.y - D }; axisB = { x: c.x + D, y: c.y + D }; break;
+        case 'D2': axisA = { x: c.x - D, y: c.y + D }; axisB = { x: c.x + D, y: c.y - D }; break;
+        default:   axisA = { x: c.x - D, y: c.y };     axisB = { x: c.x + D, y: c.y };
+      }
+
+      // Draw extended axis line through centroid
+      const dxA = axisB.x - axisA.x;
+      const dyA = axisB.y - axisA.y;
+      const lenA = Math.hypot(dxA, dyA);
+      if (lenA > 1e-10) {
+        const ux = dxA / lenA;
+        const uy = dyA / lenA;
+        const extend = 1e6;
+        const fa = w2s(axisA.x - ux * extend, axisA.y - uy * extend);
+        const fb = w2s(axisB.x + ux * extend, axisB.y + uy * extend);
+        g.lineStyle(1.5, 0xff00ff, 0.6);
+        g.moveTo(fa.sx, fa.sy);
+        g.lineTo(fb.sx, fb.sy);
+      }
+
+      // Centroid marker
+      const cs = w2s(c.x, c.y);
+      g.lineStyle(1, 0xff66ff, 0.85);
+      g.drawCircle(cs.sx, cs.sy, 3);
+
+      // Ghost preview
+      g.lineStyle(1.25, 0xff66ff, 0.55);
+      for (const f of features) {
+        drawTransformedFeaturePreview(g, f, (p) => mirror(p, axisA, axisB), w2s);
+      }
+      return;
+    }
+
+    // For INVERT: ghost-preview the 180° rotation around the cursor
+    if (activeTool === 'INVERT') {
+      const selIds = Array.from(useSelectionStore.getState().selectedIds);
+      if (selIds.length === 0) return;
+      const drawing = useDrawingStore.getState();
+      const center = previewPoint;
+      const cs = w2s(center.x, center.y);
+      // Inversion-center marker (small ring)
+      g.lineStyle(1.5, 0xffaa00, 0.85);
+      g.drawCircle(cs.sx, cs.sy, 5);
+      g.moveTo(cs.sx - 8, cs.sy); g.lineTo(cs.sx + 8, cs.sy);
+      g.moveTo(cs.sx, cs.sy - 8); g.lineTo(cs.sx, cs.sy + 8);
+      // Ghost preview — point inversion = rotate 180°
+      g.lineStyle(1.25, 0xffcc66, 0.55);
+      for (const id of selIds) {
+        const f = drawing.getFeature(id);
+        if (!f) continue;
+        drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, Math.PI), w2s);
       }
       return;
     }
@@ -5225,14 +5475,60 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (hit) selectionStore.select(hit, 'REPLACE');
             break;
           }
-          if (toolState.drawingPoints.length === 0) {
-            toolStore.addDrawingPoint(worldPt);
+
+          const { mirrorAxisMode, mirrorAngle } = toolState;
+
+          // Resolve the (lineA, lineB) axis according to mode.
+          // PICK_LINE: hit-test under the cursor, use that
+          //   feature's nearest segment as the axis. Falls back
+          //   to TWO_POINTS behaviour if the hit isn't a line/
+          //   polyline.
+          // ANGLE: single click sets the anchor; axis runs
+          //   through the anchor at `mirrorAngle` degrees.
+          // TWO_POINTS: classic two-click flow.
+          let lineA: Point2D | null = null;
+          let lineB: Point2D | null = null;
+
+          if (mirrorAxisMode === 'PICK_LINE') {
+            const hit = hitTest(sx, sy);
+            if (hit) {
+              const lineFeat = drawingStore.getFeature(hit);
+              if (lineFeat) {
+                const ep = pickAxisFromFeature(lineFeat, worldPt);
+                if (ep) {
+                  lineA = ep[0];
+                  lineB = ep[1];
+                }
+              }
+            }
+            if (!lineA || !lineB) {
+              cadLog.info('CanvasViewport', 'MIRROR PICK_LINE: no eligible line under cursor');
+              break;
+            }
+          } else if (mirrorAxisMode === 'ANGLE') {
+            const rad = (mirrorAngle * Math.PI) / 180;
+            lineA = worldPt;
+            lineB = {
+              x: worldPt.x + Math.cos(rad),
+              y: worldPt.y + Math.sin(rad),
+            };
           } else {
-            const lineA = toolState.drawingPoints[0];
-            const lineB = worldPt;
+            // TWO_POINTS — collect first click, then commit on second.
+            if (toolState.drawingPoints.length === 0) {
+              toolStore.addDrawingPoint(worldPt);
+              break;
+            }
+            lineA = toolState.drawingPoints[0];
+            lineB = worldPt;
+          }
+
+          {
+            if (!lineA || !lineB) break;
+            const a = lineA;
+            const b = lineB;
             const selectedIds = Array.from(selectionStore.selectedIds);
             if (selectedIds.length === 0) break;
-            const reflect = (p: Point2D): Point2D => mirror(p, lineA, lineB);
+            const reflect = (p: Point2D): Point2D => mirror(p, a, b);
 
             if (toolState.copyMode) {
               // Copy mode: clone every selected feature, mirror
@@ -5273,6 +5569,33 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }
             toolStore.clearDrawingPoints();
           }
+          break;
+        }
+
+        case 'FLIP': {
+          // FLIP commits immediately on any click using the
+          // active direction. Auto-selects the clicked feature
+          // when nothing is selected so the user can do
+          // single-click flips.
+          if (selectionStore.selectedIds.size === 0) {
+            const hit = hitTest(sx, sy);
+            if (hit) selectionStore.select(hit, 'REPLACE');
+            break;
+          }
+          flipSelectionByDirection(toolState.flipDirection, toolState.copyMode);
+          break;
+        }
+
+        case 'INVERT': {
+          // INVERT uses the clicked point as the inversion
+          // center (= 180° rotation pivot). Auto-selects
+          // when empty selection so single-click works.
+          if (selectionStore.selectedIds.size === 0) {
+            const hit = hitTest(sx, sy);
+            if (hit) selectionStore.select(hit, 'REPLACE');
+            break;
+          }
+          invertSelection(worldPt, toolState.copyMode);
           break;
         }
 

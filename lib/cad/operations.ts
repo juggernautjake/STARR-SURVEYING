@@ -154,6 +154,139 @@ export function flipSelectionHorizontal(): void {
   }
 }
 
+/**
+ * Flip the selection through one of four axes — H, V, or the
+ * two diagonals D1 (y=x, NE↔SW) and D2 (y=-x, NW↔SE) — all
+ * passing through the selection's centroid. Honours `copy`:
+ * when true the originals are preserved and the flipped
+ * features are added as new entities (returned in selection).
+ */
+export function flipSelectionByDirection(
+  direction: 'H' | 'V' | 'D1' | 'D2',
+  copy = false,
+): void {
+  const selectionStore = useSelectionStore.getState();
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const ids = Array.from(selectionStore.selectedIds);
+  if (ids.length === 0) return;
+  const centroid = computeSelectionCentroid(ids);
+
+  // Build the mirror-line endpoints for each direction.
+  // Distance is arbitrary because `mirror` only uses the line
+  // direction; we pick a unit vector for clarity.
+  const D = 1;
+  let lineA: Point2D;
+  let lineB: Point2D;
+  switch (direction) {
+    case 'H':
+      // Horizontal axis through centroid (flips top↔bottom).
+      lineA = { x: centroid.x - D, y: centroid.y };
+      lineB = { x: centroid.x + D, y: centroid.y };
+      break;
+    case 'V':
+      // Vertical axis through centroid (flips left↔right).
+      lineA = { x: centroid.x, y: centroid.y - D };
+      lineB = { x: centroid.x, y: centroid.y + D };
+      break;
+    case 'D1':
+      // Diagonal y=x — slope +1 through centroid.
+      lineA = { x: centroid.x - D, y: centroid.y - D };
+      lineB = { x: centroid.x + D, y: centroid.y + D };
+      break;
+    case 'D2':
+      // Anti-diagonal y=-x — slope -1 through centroid.
+      lineA = { x: centroid.x - D, y: centroid.y + D };
+      lineB = { x: centroid.x + D, y: centroid.y - D };
+      break;
+  }
+  const reflect = (p: Point2D): Point2D => mirror(p, lineA, lineB);
+
+  if (copy) {
+    const newFeatures: Feature[] = [];
+    for (const id of ids) {
+      const f = drawingStore.getFeature(id);
+      if (!f) continue;
+      const cloned: Feature = JSON.parse(JSON.stringify(f));
+      cloned.id = generateId();
+      const flipped = transformFeature(cloned, reflect);
+      newFeatures.push({ ...cloned, geometry: flipped.geometry });
+    }
+    if (newFeatures.length > 0) {
+      drawingStore.addFeatures(newFeatures);
+      const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
+      undoStore.pushUndo(makeBatchEntry(`Flip ${direction} (copy)`, ops));
+      selectionStore.selectMultiple(newFeatures.map((f) => f.id), 'REPLACE');
+    }
+    return;
+  }
+
+  const ops = ids
+    .map((id) => {
+      const f = drawingStore.getFeature(id);
+      if (!f) return null;
+      const newF = transformFeature(f, reflect);
+      drawingStore.updateFeature(id, { geometry: newF.geometry });
+      return { type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } };
+    })
+    .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
+
+  if (ops.length > 0) {
+    undoStore.pushUndo(makeBatchEntry(`Flip ${direction}`, ops));
+  }
+}
+
+/**
+ * Invert the selection through `center` — point inversion,
+ * equivalent to a 180° rotation around the center. Each
+ * point P maps to P' such that center is the midpoint of PP'.
+ * Honours `copy`: when true, originals stay and inverted
+ * copies are added.
+ */
+export function invertSelection(center: Point2D, copy = false): void {
+  const selectionStore = useSelectionStore.getState();
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const ids = Array.from(selectionStore.selectedIds);
+  if (ids.length === 0) return;
+
+  // Point inversion = rotate 180° around center.
+  const invert = (p: Point2D): Point2D => rotate(p, center, Math.PI);
+
+  if (copy) {
+    const newFeatures: Feature[] = [];
+    for (const id of ids) {
+      const f = drawingStore.getFeature(id);
+      if (!f) continue;
+      const cloned: Feature = JSON.parse(JSON.stringify(f));
+      cloned.id = generateId();
+      const inverted = transformFeature(cloned, invert);
+      newFeatures.push({ ...cloned, geometry: inverted.geometry });
+    }
+    if (newFeatures.length > 0) {
+      drawingStore.addFeatures(newFeatures);
+      const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
+      undoStore.pushUndo(makeBatchEntry('Invert (copy)', ops));
+      selectionStore.selectMultiple(newFeatures.map((f) => f.id), 'REPLACE');
+    }
+    return;
+  }
+
+  const ops = ids
+    .map((id) => {
+      const f = drawingStore.getFeature(id);
+      if (!f) return null;
+      const newF = transformFeature(f, invert);
+      drawingStore.updateFeature(id, { geometry: newF.geometry });
+      return { type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } };
+    })
+    .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
+
+  if (ops.length > 0) {
+    undoStore.pushUndo(makeBatchEntry('Invert', ops));
+  }
+}
+
 export function flipSelectionVertical(): void {
   const selectionStore = useSelectionStore.getState();
   const drawingStore = useDrawingStore.getState();
