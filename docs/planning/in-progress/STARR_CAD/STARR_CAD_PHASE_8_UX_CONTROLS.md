@@ -1284,12 +1284,13 @@ This section documents cross-cutting UX issues found in Phases 1–7 that Phase 
 - [ ] All changes captured in undo stack with descriptive labels
 
 ### Undo/Redo Buttons
-- [ ] Undo button disabled when nothing to undo
-- [ ] Redo button disabled when nothing to redo
-- [ ] Undo button tooltip shows "Undo [last action label]"
-- [ ] Redo button tooltip shows "Redo [next action label]"
-- [ ] Clicking Undo button: same effect as Ctrl+Z
-- [ ] Clicking Redo button: same effect as Ctrl+Y
+- [x] Undo button disabled when nothing to undo — `app/admin/cad/components/UndoRedoButtons.tsx` reads `useUndoStore().canUndo()` to drive disabled state + opacity styling.
+- [x] Redo button disabled when nothing to redo — symmetric `canRedo()` check on the redo button.
+- [x] Undo button tooltip shows "Undo [last action label]" — Tooltip `label` resolves to `Undo ${undoDescription()}` (falls back to plain "Undo" when stack empty).
+- [x] Redo button tooltip shows "Redo [next action label]" — same pattern with `redoDescription()`.
+- [x] Clicking Undo button: same effect as Ctrl+Z — onClick delegates to `useUndoStore().undo()`, which is the same action wired to the Ctrl+Z hotkey + Edit menu entry.
+- [x] Clicking Redo button: same effect as Ctrl+Y — onClick delegates to `useUndoStore().redo()` (also bound to Ctrl+Y / Ctrl+Shift+Z via the hotkey registry).
+- Wired into the toolbar strip in `CADLayout.tsx` between the menu bar and `ToolOptionsBar`, so the buttons are visible on every drawing without opening Edit.
 
 ### Settings
 - [ ] Settings page opens via Ctrl+, and via menu

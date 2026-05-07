@@ -10,6 +10,7 @@ import PropertyPanel from './components/PropertyPanel';
 import CommandBar from './components/CommandBar';
 import StatusBar from './components/StatusBar';
 import ToolOptionsBar from './components/ToolOptionsBar';
+import UndoRedoButtons from './components/UndoRedoButtons';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import ImportDialog from './components/ImportDialog';
@@ -611,8 +612,14 @@ export default function CADLayout() {
         onOpenRecentRecoveries={() => setShowRecentRecoveries(true)}
       />
 
-      {/* Contextual tool options strip — with Prefs button on the right */}
+      {/* Contextual tool options strip — with Undo/Redo on the left and Prefs button on the right */}
       <div className="relative flex items-stretch shrink-0">
+        {/* Undo / Redo — toolbar-level affordance for the
+            Edit-menu actions; tooltips read the next undo/redo
+            description so users know what they're reverting. */}
+        <div className="border-b border-gray-700 shrink-0">
+          <UndoRedoButtons />
+        </div>
         <div className="flex-1 min-w-0">
           <ToolOptionsBar />
         </div>
