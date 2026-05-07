@@ -15,6 +15,8 @@ import {
   duplicateSelection,
   computeSelectionCentroid,
   applyInteractiveOffset,
+  flipSelectionHorizontal,
+  flipSelectionVertical,
 } from '@/lib/cad/operations';
 import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
 import { OFFSET_PRESETS } from '@/lib/cad/geometry/offset';
@@ -124,6 +126,7 @@ export default function ToolOptionsBar() {
   const showPolySides = activeTool === 'DRAW_REGULAR_POLYGON';
   const showRotateAngle = activeTool === 'ROTATE';
   const showScaleFactor = activeTool === 'SCALE';
+  const showMirror = activeTool === 'MIRROR';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -482,6 +485,54 @@ export default function ToolOptionsBar() {
           <Sep />
           {/* Distort: non-uniform scale */}
           <DistortInputs />
+        </>
+      )}
+
+      {/* ── MIRROR tool options ─────────────────────────────────────────────── */}
+      {showMirror && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Mirror Quick Axis"
+            description="Apply a mirror immediately through the selection's centroid. Vertical axis flips left↔right, horizontal flips up↔down. Honours Copy Mode — when ON, the original is preserved and the mirrored copy is added."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">Quick:</span>
+              <div className="flex gap-0.5">
+                <button
+                  className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+                  onClick={() => {
+                    if (selCount === 0) return;
+                    if (copyMode) duplicateSelection(0, 0);
+                    flipSelectionHorizontal();
+                  }}
+                  title="Mirror across vertical axis through centroid"
+                >
+                  ↔ Vertical
+                </button>
+                <button
+                  className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+                  onClick={() => {
+                    if (selCount === 0) return;
+                    if (copyMode) duplicateSelection(0, 0);
+                    flipSelectionVertical();
+                  }}
+                  title="Mirror across horizontal axis through centroid"
+                >
+                  ↕ Horizontal
+                </button>
+              </div>
+            </div>
+          </Tooltip>
+          <Sep />
+          {/* Phase indicator — surfaces what step the user is on for the two-click axis flow */}
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0
+              ? 'Select features first'
+              : 'Click two points to define a custom mirror axis'}
+          </span>
         </>
       )}
 

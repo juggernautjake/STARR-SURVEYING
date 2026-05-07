@@ -198,6 +198,132 @@ interface CanvasViewportProps {
   onPlaceImageConsumed?: () => void;
 }
 
+/**
+ * Render a faint ghost of `feature` reflected across the line
+ * defined by `lineA` → `lineB` so the user can see exactly
+ * where MIRROR will land before committing the second click.
+ * Caller must have set `g.lineStyle(...)` already; this only
+ * issues moveTo/lineTo/drawCircle calls. World→screen
+ * conversion is delegated to `w2s` (kept out of the helper so
+ * the same routine can be used by other transform previews
+ * later).
+ */
+function drawMirroredFeaturePreview(
+  g: import('pixi.js').Graphics,
+  feature: import('@/lib/cad/types').Feature,
+  lineA: import('@/lib/cad/types').Point2D,
+  lineB: import('@/lib/cad/types').Point2D,
+  w2s: (wx: number, wy: number) => { sx: number; sy: number },
+): void {
+  const ghost = transformFeature(feature, (p) => mirror(p, lineA, lineB));
+  const gg = ghost.geometry;
+
+  if (gg.type === 'POINT' && gg.point) {
+    const sp = w2s(gg.point.x, gg.point.y);
+    g.drawCircle(sp.sx, sp.sy, 3);
+    return;
+  }
+  if (gg.type === 'LINE' && gg.start && gg.end) {
+    const a = w2s(gg.start.x, gg.start.y);
+    const b = w2s(gg.end.x, gg.end.y);
+    g.moveTo(a.sx, a.sy);
+    g.lineTo(b.sx, b.sy);
+    return;
+  }
+  if ((gg.type === 'POLYLINE' || gg.type === 'POLYGON') && gg.vertices && gg.vertices.length >= 2) {
+    const p0 = w2s(gg.vertices[0].x, gg.vertices[0].y);
+    g.moveTo(p0.sx, p0.sy);
+    for (let i = 1; i < gg.vertices.length; i += 1) {
+      const p = w2s(gg.vertices[i].x, gg.vertices[i].y);
+      g.lineTo(p.sx, p.sy);
+    }
+    if (gg.type === 'POLYGON') g.lineTo(p0.sx, p0.sy);
+    return;
+  }
+  if (gg.type === 'CIRCLE' && gg.circle) {
+    const sp = w2s(gg.circle.center.x, gg.circle.center.y);
+    const radiusPx = gg.circle.radius * useViewportStore.getState().zoom;
+    g.drawCircle(sp.sx, sp.sy, radiusPx);
+    return;
+  }
+  if (gg.type === 'ELLIPSE' && gg.ellipse) {
+    const e = gg.ellipse;
+    const cosR = Math.cos(e.rotation);
+    const sinR = Math.sin(e.rotation);
+    const samples = 64;
+    for (let i = 0; i <= samples; i += 1) {
+      const t = (i / samples) * Math.PI * 2;
+      const lx = e.radiusX * Math.cos(t);
+      const ly = e.radiusY * Math.sin(t);
+      const wx = e.center.x + lx * cosR - ly * sinR;
+      const wy = e.center.y + lx * sinR + ly * cosR;
+      const sp = w2s(wx, wy);
+      if (i === 0) g.moveTo(sp.sx, sp.sy);
+      else g.lineTo(sp.sx, sp.sy);
+    }
+    return;
+  }
+  if (gg.type === 'ARC' && gg.arc) {
+    const a = gg.arc;
+    const sp = w2s(a.center.x, a.center.y);
+    const radiusPx = a.radius * useViewportStore.getState().zoom;
+    const steps = 32;
+    let startA = a.startAngle;
+    let endA = a.endAngle;
+    if (a.anticlockwise) {
+      if (endA <= startA) endA += Math.PI * 2;
+    } else {
+      if (startA <= endA) startA += Math.PI * 2;
+      [startA, endA] = [endA, startA];
+    }
+    const span = endA - startA;
+    for (let i = 0; i <= steps; i += 1) {
+      const t = i / steps;
+      const angle = startA + span * t;
+      const px = sp.sx + radiusPx * Math.cos(angle);
+      const py = sp.sy - radiusPx * Math.sin(angle);
+      if (i === 0) g.moveTo(px, py);
+      else g.lineTo(px, py);
+    }
+    return;
+  }
+  if (gg.type === 'SPLINE' && gg.spline && gg.spline.controlPoints.length >= 4) {
+    const cps = gg.spline.controlPoints;
+    const segCount = Math.floor((cps.length - 1) / 3);
+    const stepsPerSeg = 24;
+    let started = false;
+    for (let seg = 0; seg < segCount; seg += 1) {
+      const p0 = cps[seg * 3];
+      const p1 = cps[seg * 3 + 1];
+      const p2 = cps[seg * 3 + 2];
+      const p3 = cps[seg * 3 + 3];
+      const startStep = started ? 1 : 0;
+      for (let i = startStep; i <= stepsPerSeg; i += 1) {
+        const t = i / stepsPerSeg;
+        const u = 1 - t;
+        const wx = u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x;
+        const wy = u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y;
+        const sp = w2s(wx, wy);
+        if (!started) {
+          g.moveTo(sp.sx, sp.sy);
+          started = true;
+        } else {
+          g.lineTo(sp.sx, sp.sy);
+        }
+      }
+    }
+    return;
+  }
+  if (gg.type === 'MIXED_GEOMETRY' && gg.vertices && gg.vertices.length >= 2) {
+    const p0 = w2s(gg.vertices[0].x, gg.vertices[0].y);
+    g.moveTo(p0.sx, p0.sy);
+    for (let i = 1; i < gg.vertices.length; i += 1) {
+      const p = w2s(gg.vertices[i].x, gg.vertices[i].y);
+      g.lineTo(p.sx, p.sy);
+    }
+  }
+}
+
 export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsumed }: CanvasViewportProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -2891,14 +3017,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
-    // For MIRROR: show mirror line preview
+    // For MIRROR: show mirror axis + ghost of the mirrored selection
     if (activeTool === 'MIRROR' && drawingPoints.length === 1) {
       const lineA = drawingPoints[0];
       const { sx: ax, sy: ay } = w2s(lineA.x, lineA.y);
       const { sx: bx, sy: by } = w2s(previewPoint.x, previewPoint.y);
+      // Mirror axis (dashed magenta)
       g.lineStyle(1.5, 0xff00ff, 0.7);
       g.moveTo(ax, ay);
       g.lineTo(bx, by);
+
+      // Ghost preview of the mirrored selection so the user
+      // can see exactly where the result will land before
+      // committing the second click. Skips work when nothing
+      // is selected (the OFFSET-style "click to select first"
+      // path will handle that when the click commits).
+      const selIds = Array.from(useSelectionStore.getState().selectedIds);
+      if (selIds.length > 0) {
+        const drawing = useDrawingStore.getState();
+        g.lineStyle(1.25, 0xff66ff, 0.55);
+        for (const id of selIds) {
+          const f = drawing.getFeature(id);
+          if (!f) continue;
+          drawMirroredFeaturePreview(g, f, lineA, previewPoint, w2s);
+        }
+      }
       return;
     }
 
@@ -5089,17 +5232,45 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const lineB = worldPt;
             const selectedIds = Array.from(selectionStore.selectedIds);
             if (selectedIds.length === 0) break;
-            const ops = selectedIds.flatMap((id) => {
-              const f = drawingStore.getFeature(id);
-              if (!f) {
-                cadLog.warn('CanvasViewport', `MIRROR: feature "${id}" not found — skipped`);
-                return [];
+            const reflect = (p: Point2D): Point2D => mirror(p, lineA, lineB);
+
+            if (toolState.copyMode) {
+              // Copy mode: clone every selected feature, mirror
+              // the clone in place, and add it as a new feature.
+              // Originals stay untouched. Resulting set is
+              // selected so the user can chain more ops.
+              const newFeatures: Feature[] = [];
+              for (const id of selectedIds) {
+                const f = drawingStore.getFeature(id);
+                if (!f) {
+                  cadLog.warn('CanvasViewport', `MIRROR: feature "${id}" not found — skipped`);
+                  continue;
+                }
+                const cloned: Feature = JSON.parse(JSON.stringify(f));
+                cloned.id = generateId();
+                const mirrored = transformFeature(cloned, reflect);
+                newFeatures.push({ ...cloned, geometry: mirrored.geometry });
               }
-              const newF = transformFeature(f, (p) => mirror(p, lineA, lineB));
-              drawingStore.updateFeature(id, { geometry: newF.geometry });
-              return [{ type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } }];
-            });
-            if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Mirror', ops));
+              if (newFeatures.length > 0) {
+                drawingStore.addFeatures(newFeatures);
+                const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
+                undoStore.pushUndo(makeBatchEntry('Mirror Copy', ops));
+                selectionStore.selectMultiple(newFeatures.map((f) => f.id), 'REPLACE');
+              }
+            } else {
+              // Default: mirror in place
+              const ops = selectedIds.flatMap((id) => {
+                const f = drawingStore.getFeature(id);
+                if (!f) {
+                  cadLog.warn('CanvasViewport', `MIRROR: feature "${id}" not found — skipped`);
+                  return [];
+                }
+                const newF = transformFeature(f, reflect);
+                drawingStore.updateFeature(id, { geometry: newF.geometry });
+                return [{ type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } }];
+              });
+              if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Mirror', ops));
+            }
             toolStore.clearDrawingPoints();
           }
           break;
