@@ -58,7 +58,14 @@ import {
   scaleSplineAroundCentroid,
 } from '@/lib/cad/geometry/offset';
 import { computeCurbReturn } from '@/lib/cad/geometry/curb-return';
-import { applyInteractiveOffset, flipSelectionByDirection, invertSelection } from '@/lib/cad/operations';
+import {
+  applyInteractiveOffset,
+  flipSelectionByDirection,
+  invertSelection,
+  rotateSelection,
+  scaleSelection,
+  duplicateSelection,
+} from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
   drawEllipse as drawEllipseCurve,
@@ -5450,7 +5457,34 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             break;
           }
           if (!toolState.rotateCenter) {
+            // Click 1: set the pivot
             toolStore.setRotateCenter(worldPt);
+          } else {
+            // Click 2: commit the rotation. Angle =
+            // atan2(cursor − center) — matches the live ghost
+            // preview so what the user sees is what they get.
+            const center = toolState.rotateCenter;
+            const angleRad = Math.atan2(worldPt.y - center.y, worldPt.x - center.x);
+            if (!Number.isFinite(angleRad) || Math.abs(angleRad) < 1e-9) {
+              // Cursor sits on the pivot — nothing to do.
+              break;
+            }
+            const angleDeg = (angleRad * 180) / Math.PI;
+            const ids = Array.from(selectionStore.selectedIds);
+            if (ids.length === 0) break;
+            if (toolState.copyMode) {
+              // Duplicate then rotate the duplicates so
+              // originals stay put. selectMultiple is called
+              // by duplicateSelection which leaves the new
+              // copies selected — rotateSelection then rotates
+              // those.
+              duplicateSelection(0, 0);
+              rotateSelection(angleDeg, center);
+            } else {
+              rotateSelection(angleDeg, center);
+            }
+            // Reset for chaining
+            toolStore.setRotateCenter(null);
           }
           break;
         }
@@ -5463,7 +5497,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             break;
           }
           if (!toolState.basePoint) {
+            // Click 1: set the pivot
             toolStore.setBasePoint(worldPt);
+          } else {
+            // Click 2: commit the scale. Factor = dist /
+            // refDist, matching the live ghost preview so the
+            // commit lands exactly where the ghost showed.
+            const pivot = toolState.basePoint;
+            const refDist = 50; // world-unit reference for factor=1
+            const cursorDist = Math.hypot(worldPt.x - pivot.x, worldPt.y - pivot.y);
+            const factor = cursorDist / refDist;
+            if (!Number.isFinite(factor) || factor <= 0 || Math.abs(factor - 1) < 1e-9) {
+              break;
+            }
+            const ids = Array.from(selectionStore.selectedIds);
+            if (ids.length === 0) break;
+            if (toolState.copyMode) {
+              duplicateSelection(0, 0);
+              scaleSelection(factor);
+            } else {
+              scaleSelection(factor);
+            }
+            // Reset for chaining
+            toolStore.setBasePoint(null);
           }
           break;
         }

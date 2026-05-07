@@ -431,6 +431,24 @@ export default function ToolOptionsBar() {
               ⊞ Center of Page
             </button>
           </Tooltip>
+          <Sep />
+          {/* Phase indicator — surfaces the next required click in the interactive flow */}
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0
+              ? 'Select features first'
+              : !ts.rotateCenter
+                ? 'Click pivot point (or use a preset)'
+                : 'Click to commit angle (cursor angle from pivot)'}
+          </span>
+          {ts.rotateCenter && (
+            <button
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => toolStore.setRotateCenter(null)}
+              title="Cancel pivot — reset to phase 1"
+            >
+              ✕
+            </button>
+          )}
         </>
       )}
 
@@ -489,6 +507,24 @@ export default function ToolOptionsBar() {
           <Sep />
           {/* Distort: non-uniform scale */}
           <DistortInputs />
+          <Sep />
+          {/* Phase indicator — surfaces the next required click in the interactive flow */}
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0
+              ? 'Select features first'
+              : !ts.basePoint
+                ? 'Click pivot point (or use a preset)'
+                : 'Click to commit factor (50 units = ×1, drag farther grows, closer shrinks)'}
+          </span>
+          {ts.basePoint && (
+            <button
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => toolStore.setBasePoint(null)}
+              title="Cancel pivot — reset to phase 1"
+            >
+              ✕
+            </button>
+          )}
         </>
       )}
 

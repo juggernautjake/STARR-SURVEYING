@@ -12,7 +12,7 @@ interface ToolStore {
   clearDrawingPoints: () => void;
   setBasePoint: (point: Point2D | null) => void;
   setDisplacement: (point: Point2D) => void;
-  setRotateCenter: (point: Point2D) => void;
+  setRotateCenter: (point: Point2D | null) => void;
   setRotateAngle: (angle: number) => void;
   setBoxSelect: (start: Point2D | null, end: Point2D | null, active: boolean) => void;
   setRegularPolygonSides: (sides: number) => void;
