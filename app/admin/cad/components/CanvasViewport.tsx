@@ -69,6 +69,7 @@ import {
   arraySelectionPolar,
   splitFeatureAt,
   trimFeatureAt,
+  extendFeatureTo,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -3306,6 +3307,137 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For EXTEND: show the extended geometry — a green ghost
+    // line from the chain's nearest endpoint along its
+    // tangent direction to the closest target intersection.
+    // No target found = no ghost (just the source highlighted)
+    // so the surveyor knows the click would be a no-op.
+    if (activeTool === 'EXTEND') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+
+      // Hit-test for any LINE / POLYLINE under the cursor.
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        if (!chain) continue;
+        for (let i = 0; i + 1 < chain.length; i += 1) {
+          const a = chain[i];
+          const b = chain[i + 1];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+          }
+        }
+      }
+
+      if (!bestId || !bestChain) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+
+      // Pick the endpoint nearer to the cursor — that's the
+      // end the operation will extend.
+      const chain = bestChain;
+      const startPt = chain[0];
+      const endPt = chain[chain.length - 1];
+      const dStart = Math.hypot(previewPoint.x - startPt.x, previewPoint.y - startPt.y);
+      const dEnd = Math.hypot(previewPoint.x - endPt.x, previewPoint.y - endPt.y);
+      const extendStart = dStart < dEnd;
+      const anchor = extendStart ? startPt : endPt;
+      const tangentSrc = extendStart ? chain[1] : chain[chain.length - 2];
+      const tx0 = anchor.x - tangentSrc.x;
+      const ty0 = anchor.y - tangentSrc.y;
+      const tlen = Math.hypot(tx0, ty0);
+      if (tlen < 1e-10) return;
+      const tx = tx0 / tlen;
+      const ty = ty0 / tlen;
+
+      // Find the closest forward target intersection.
+      let bestS = Infinity;
+      let bestTargetPt: Point2D | null = null;
+      for (const t of all) {
+        if (t.id === bestId) continue;
+        const tg = t.geometry;
+        let segs: Array<[Point2D, Point2D]> | null = null;
+        if (tg.type === 'LINE' && tg.start && tg.end) segs = [[tg.start, tg.end]];
+        else if ((tg.type === 'POLYLINE' || tg.type === 'MIXED_GEOMETRY') && tg.vertices && tg.vertices.length >= 2) {
+          segs = [];
+          for (let k = 0; k + 1 < tg.vertices.length; k += 1) segs.push([tg.vertices[k], tg.vertices[k + 1]]);
+        } else if (tg.type === 'POLYGON' && tg.vertices && tg.vertices.length >= 2) {
+          segs = [];
+          for (let k = 0; k < tg.vertices.length; k += 1) segs!.push([tg.vertices[k], tg.vertices[(k + 1) % tg.vertices.length]]);
+        }
+        if (!segs) continue;
+        for (const [c, d] of segs) {
+          const dxCd = d.x - c.x;
+          const dyCd = d.y - c.y;
+          const denom = tx * dyCd - ty * dxCd;
+          if (Math.abs(denom) < 1e-10) continue;
+          const cxAx = c.x - anchor.x;
+          const cyAy = c.y - anchor.y;
+          const s = (cxAx * dyCd - cyAy * dxCd) / denom;
+          const u = (cxAx * ty - cyAy * tx) / denom;
+          if (s <= 1e-6) continue;
+          if (u < -1e-6 || u > 1 + 1e-6) continue;
+          if (s < bestS) {
+            bestS = s;
+            bestTargetPt = { x: anchor.x + s * tx, y: anchor.y + s * ty };
+          }
+        }
+      }
+
+      // Highlight the source chain in faint green so the
+      // surveyor knows what they're aiming at.
+      g.lineStyle(2, 0x77ff77, 0.45);
+      const p0 = w2s(chain[0].x, chain[0].y);
+      g.moveTo(p0.sx, p0.sy);
+      for (let i = 1; i < chain.length; i += 1) {
+        const p = w2s(chain[i].x, chain[i].y);
+        g.lineTo(p.sx, p.sy);
+      }
+
+      if (!bestTargetPt) {
+        // No forward intersection — flag the anchor with a
+        // grey ring so the user can see no-op state.
+        const ap = w2s(anchor.x, anchor.y);
+        g.lineStyle(1.5, 0x888888, 0.7);
+        g.drawCircle(ap.sx, ap.sy, 5);
+        return;
+      }
+
+      // Bright green extension preview: anchor → target intersection.
+      const ap = w2s(anchor.x, anchor.y);
+      const tp = w2s(bestTargetPt.x, bestTargetPt.y);
+      g.lineStyle(2, 0x44ff44, 0.95);
+      g.moveTo(ap.sx, ap.sy);
+      g.lineTo(tp.sx, tp.sy);
+      // Mark the new endpoint with a small filled circle.
+      g.beginFill(0x44ff44, 0.95);
+      g.drawCircle(tp.sx, tp.sy, 4);
+      g.endFill();
+      return;
+    }
+
     // For TRIM: highlight the portion of the feature that
     // would be removed (between the two adjacent
     // intersections, or back to an endpoint when only one
@@ -6166,6 +6298,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (!hit) break;
           trimFeatureAt(hit, worldPt);
+          break;
+        }
+
+        case 'EXTEND': {
+          // EXTEND: click on the end of a LINE or POLYLINE
+          // (cursor closer to one endpoint than the other) to
+          // lengthen that end along its tangent until it hits
+          // another feature. No-op when the cursor isn't on
+          // a vertex-chain feature or no target lies in the
+          // extension direction.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          extendFeatureTo(hit, worldPt);
           break;
         }
 

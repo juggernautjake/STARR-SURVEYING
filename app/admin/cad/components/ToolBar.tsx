@@ -21,6 +21,7 @@ import {
   Grid3x3,
   Scissors,
   ScissorsLineDashed,
+  MoveUpRight,
   Eraser,
   Expand,
   ZoomIn,
@@ -358,8 +359,9 @@ function buildToolGroups(
       shortcut: 'SP',
       icon: <Scissors size={16} />,
       variants: [
-        { tool: 'SPLIT', label: 'Split (click)', description: 'Click anywhere on a line/polyline/polygon to break it into two pieces at that point. POLYGON splits open into a single POLYLINE walking the perimeter.', shortcut: 'SP', icon: <Scissors size={14} /> },
-        { tool: 'TRIM',  label: 'Trim',          description: 'Click a portion of a line or polyline that lies between two crossings with other features — the clicked section is removed. When only one side has a crossing, the remainder on that side stays. When the source has no crossings, the click deletes it.', shortcut: 'TR', icon: <ScissorsLineDashed size={14} /> },
+        { tool: 'SPLIT',  label: 'Split (click)', description: 'Click anywhere on a line/polyline/polygon to break it into two pieces at that point. POLYGON splits open into a single POLYLINE walking the perimeter.', shortcut: 'SP', icon: <Scissors size={14} /> },
+        { tool: 'TRIM',   label: 'Trim',          description: 'Click a portion of a line or polyline that lies between two crossings with other features — the clicked section is removed. When only one side has a crossing, the remainder on that side stays. When the source has no crossings, the click deletes it.', shortcut: 'TR', icon: <ScissorsLineDashed size={14} /> },
+        { tool: 'EXTEND', label: 'Extend',        description: 'Click on the end of a line or polyline (cursor closer to one endpoint than the other) to lengthen that end along its tangent until it hits another feature. No-op if no target lies in the extension direction.', shortcut: 'EX', icon: <MoveUpRight size={14} /> },
       ],
     },
 

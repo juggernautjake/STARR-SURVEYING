@@ -234,6 +234,120 @@ export function arraySelectionRectangular(
   );
 }
 
+/**
+ * Extend a LINE or POLYLINE feature so that the endpoint
+ * nearest `worldPt` is lengthened along its tangent
+ * direction until it meets the closest target feature. The
+ * tangent comes from the segment incident to that endpoint,
+ * pointing outward. Targets can be LINE / POLYLINE / POLYGON
+ * / MIXED_GEOMETRY (curved targets are out of scope for this
+ * slice — same as TRIM).
+ *
+ * If no target is found in the extension direction the
+ * operation is a no-op (the surveyor just clicked into space
+ * with no feature in front of the line). Returns true on a
+ * successful mutation.
+ */
+export function extendFeatureTo(featureId: string, worldPt: Point2D): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+
+  let chain: Point2D[] | null = null;
+  if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
+  else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else return false;
+  if (!chain) return false;
+
+  // Decide which endpoint to extend — the one closer to the
+  // cursor. Tangent direction points OUT of the chain at
+  // that endpoint (i.e. continues the last segment beyond
+  // its endpoint). The extended-from "anchor" is the chain's
+  // current endpoint; the extended-to point is the closest
+  // target intersection along the ray.
+  const startPt = chain[0];
+  const endPt = chain[chain.length - 1];
+  const dStart = Math.hypot(worldPt.x - startPt.x, worldPt.y - startPt.y);
+  const dEnd = Math.hypot(worldPt.x - endPt.x, worldPt.y - endPt.y);
+  const extendStart = dStart < dEnd;
+  const anchor = extendStart ? startPt : endPt;
+  const tangentSrc = extendStart ? chain[1] : chain[chain.length - 2];
+  // Tangent unit vector pointing AWAY from the chain (i.e.
+  // start → out-of-chain for the start case, end → out-of-
+  // chain for the end case).
+  const tx0 = anchor.x - tangentSrc.x;
+  const ty0 = anchor.y - tangentSrc.y;
+  const tlen = Math.hypot(tx0, ty0);
+  if (tlen < 1e-10) return false;
+  const tx = tx0 / tlen;
+  const ty = ty0 / tlen;
+
+  // Ray-segment intersections: solve anchor + s*(tx,ty) on
+  // line (c, d) for s >= 0 (along extension direction) and
+  // u in [0, 1] (within target segment). Pick the smallest
+  // positive s. We exclude any hit at s ≈ 0 because that's
+  // the existing endpoint already touching another feature
+  // (no real extension to perform).
+  //
+  // Canonical 2D ray-segment derivation:
+  //   anchor + s*T = c + u*(d - c)
+  //   denom = Tx*(dy-cy) - Ty*(dx-cx)
+  //   s     = ((cx-Ax)*(dy-cy) - (cy-Ay)*(dx-cx)) / denom
+  //   u     = ((cx-Ax)*Ty     - (cy-Ay)*Tx)        / denom
+  const targets = drawingStore.getAllFeatures().filter((t) => t.id !== featureId && getFeatureSegments(t) !== null);
+  let bestS = Infinity;
+  let bestPt: Point2D | null = null;
+  for (const t of targets) {
+    const segs = getFeatureSegments(t);
+    if (!segs) continue;
+    for (const [c, d] of segs) {
+      const dxCd = d.x - c.x;
+      const dyCd = d.y - c.y;
+      const denom = tx * dyCd - ty * dxCd;
+      if (Math.abs(denom) < 1e-10) continue;
+      const cxAx = c.x - anchor.x;
+      const cyAy = c.y - anchor.y;
+      const s = (cxAx * dyCd - cyAy * dxCd) / denom;
+      const u = (cxAx * ty - cyAy * tx) / denom;
+      if (s <= 1e-6) continue; // skip backwards or zero hits
+      if (u < -1e-6 || u > 1 + 1e-6) continue;
+      if (s < bestS) {
+        bestS = s;
+        bestPt = { x: anchor.x + s * tx, y: anchor.y + s * ty };
+      }
+    }
+  }
+  if (!bestPt) return false;
+
+  // Build the new geometry — replace the relevant endpoint.
+  let newGeom: Feature['geometry'];
+  if (g.type === 'LINE' && g.start && g.end) {
+    newGeom = {
+      type: 'LINE',
+      start: extendStart ? bestPt : g.start,
+      end: extendStart ? g.end : bestPt,
+    };
+  } else if (g.type === 'POLYLINE' && g.vertices) {
+    const newVerts = g.vertices.slice();
+    if (extendStart) newVerts[0] = bestPt;
+    else newVerts[newVerts.length - 1] = bestPt;
+    newGeom = { type: 'POLYLINE', vertices: newVerts };
+  } else {
+    return false;
+  }
+
+  const before = f;
+  drawingStore.updateFeatureGeometry(featureId, newGeom);
+  const after = drawingStore.getFeature(featureId);
+  if (!after) return false;
+  undoStore.pushUndo(makeBatchEntry('Extend', [
+    { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
+  ]));
+  return true;
+}
+
 // ─────────────────────────────────────────────
 // Trim — remove the section of a vertex-chain feature between
 // the two intersections adjacent to the cursor along the chain.

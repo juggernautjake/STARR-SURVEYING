@@ -136,6 +136,7 @@ export default function ToolOptionsBar() {
   const showArray = activeTool === 'ARRAY';
   const showSplit = activeTool === 'SPLIT';
   const showTrim = activeTool === 'TRIM';
+  const showExtend = activeTool === 'EXTEND';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -757,6 +758,16 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click a line or polyline portion that crosses another feature — the section between the two adjacent crossings (highlighted red) gets removed. No crossings = whole feature deleted.
+          </span>
+        </>
+      )}
+
+      {/* ── EXTEND tool options ────────────────────────────────────────────── */}
+      {showExtend && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click near the end of a line or polyline — that end (closer of the two) lengthens along its tangent until it hits the next feature. The bright green ghost shows the extension; a grey ring means nothing lies in the extension direction.
           </span>
         </>
       )}
@@ -1667,6 +1678,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   ARRAY: 'Array',
   SPLIT: 'Split',
   TRIM: 'Trim',
+  EXTEND: 'Extend',
   SCALE: 'Scale',
   ERASE: 'Erase',
   OFFSET: 'Offset',

@@ -489,6 +489,7 @@ export type ToolType =
   | 'ARRAY'
   | 'SPLIT'
   | 'TRIM'
+  | 'EXTEND'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
