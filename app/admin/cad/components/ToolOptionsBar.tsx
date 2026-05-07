@@ -505,12 +505,46 @@ export default function ToolOptionsBar() {
             <Tooltip label="Cancel Selection" description="Deselect the current offset source and pick a new object." side="bottom" delay={400}>
               <button
                 className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
-                onClick={() => toolStore.setOffsetSourceId(null)}
+                onClick={() => {
+                  toolStore.setOffsetSourceId(null);
+                  toolStore.setOffsetSourceSegmentIndex(null);
+                }}
               >
                 ✕
               </button>
             </Tooltip>
           )}
+          <Sep />
+          {/* Target — whole feature or single segment.
+              Curved sources (circle, ellipse, arc, spline)
+              ignore SEGMENT and fall through to whole-shape. */}
+          <Tooltip
+            label="Offset Target"
+            description="Whole: offset the entire feature as one. Segment: offset only the polyline edge nearest the cursor at pick time as a standalone line. Curved sources always offset as a whole."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-0.5">
+              {(['WHOLE', 'SEGMENT'] as const).map((m) => (
+                <button
+                  key={m}
+                  className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                    ${ts.offsetSegmentMode === m
+                      ? 'bg-teal-600 border-teal-500 text-white'
+                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                  onClick={() => {
+                    toolStore.setOffsetSegmentMode(m);
+                    // Switching modes mid-pick clears the
+                    // captured segment index so the next
+                    // phase-1 click recaptures correctly.
+                    toolStore.setOffsetSourceSegmentIndex(null);
+                  }}
+                >
+                  {m === 'WHOLE' ? '◇ Whole' : '┃ Segment'}
+                </button>
+              ))}
+            </div>
+          </Tooltip>
           <Sep />
           {/* Mode selector — PARALLEL vs SCALE */}
           <Tooltip

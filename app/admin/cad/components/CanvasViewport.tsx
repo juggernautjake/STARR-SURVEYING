@@ -43,6 +43,9 @@ import {
   computeSideFromCursor,
   computeDistanceToFeature,
   isOffsetableFeature,
+  isSegmentableFeature,
+  findClosestSegmentIndex,
+  getSegmentEndpoints,
   offsetPolyline,
   offsetArc,
   offsetCircle,
@@ -2909,6 +2912,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         offsetCornerHandling,
         offsetMode,
         offsetScaleFactor,
+        offsetSegmentMode,
+        offsetSourceSegmentIndex,
       } = offsetState;
 
       if (!offsetSourceId) {
@@ -2919,6 +2924,98 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Phase 2: Show offset preview
       const sourceFeat = useDrawingStore.getState().getFeature(offsetSourceId);
       if (!sourceFeat) return;
+
+      // ── Per-segment preview ────────────────────────────
+      // When SEGMENT mode locked in a segment at phase-1
+      // pick time, only render the offset of that segment
+      // and highlight the chosen edge so the user sees what
+      // is about to be emitted.
+      const segmentActive =
+        offsetSegmentMode === 'SEGMENT' &&
+        offsetSourceSegmentIndex != null &&
+        isSegmentableFeature(sourceFeat);
+
+      if (segmentActive) {
+        const ep = getSegmentEndpoints(sourceFeat, offsetSourceSegmentIndex!);
+        if (!ep) return;
+
+        // Highlight source segment in a distinct hue
+        const a = w2s(ep[0].x, ep[0].y);
+        const b = w2s(ep[1].x, ep[1].y);
+        g.lineStyle(2.5, 0xffaa00, 0.5);
+        g.moveTo(a.sx, a.sy);
+        g.lineTo(b.sx, b.sy);
+
+        // SCALE-mode segment preview
+        if (offsetMode === 'SCALE') {
+          let factor = offsetScaleFactor;
+          if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return;
+          if (offsetSide === 'RIGHT') factor = 1 / factor;
+          // Pivot = centroid of the entire source feature,
+          // matching the per-segment SCALE branch in
+          // operations.ts so preview and emitted result agree.
+          const pts: Array<{ x: number; y: number }> = [];
+          const sg = sourceFeat.geometry;
+          if (sg.type === 'LINE' && sg.start && sg.end) pts.push(sg.start, sg.end);
+          else if (sg.vertices) pts.push(...sg.vertices);
+          let cx = 0, cy = 0;
+          for (const p of pts) { cx += p.x; cy += p.y; }
+          if (pts.length > 0) { cx /= pts.length; cy /= pts.length; }
+          const sx0 = cx + (ep[0].x - cx) * factor;
+          const sy0 = cy + (ep[0].y - cy) * factor;
+          const sx1 = cx + (ep[1].x - cx) * factor;
+          const sy1 = cy + (ep[1].y - cy) * factor;
+          const s = w2s(sx0, sy0);
+          const e = w2s(sx1, sy1);
+          g.lineStyle(1.5, 0x00ccff, 0.85);
+          g.moveTo(s.sx, s.sy);
+          g.lineTo(e.sx, e.sy);
+          return;
+        }
+
+        // PARALLEL-mode segment preview
+        const dynamicDist = offsetDistance > 0
+          ? offsetDistance
+          : (() => {
+              const dx = ep[1].x - ep[0].x;
+              const dy = ep[1].y - ep[0].y;
+              const len2 = dx * dx + dy * dy;
+              if (len2 < 1e-20) return Math.hypot(previewPoint.x - ep[0].x, previewPoint.y - ep[0].y);
+              const t = Math.max(0, Math.min(1, ((previewPoint.x - ep[0].x) * dx + (previewPoint.y - ep[0].y) * dy) / len2));
+              const px = ep[0].x + t * dx;
+              const py = ep[0].y + t * dy;
+              return Math.hypot(previewPoint.x - px, previewPoint.y - py);
+            })();
+        if (dynamicDist <= 0) return;
+
+        const autoSide: 'LEFT' | 'RIGHT' = (() => {
+          const cross = (ep[1].x - ep[0].x) * (previewPoint.y - ep[0].y) -
+                        (ep[1].y - ep[0].y) * (previewPoint.x - ep[0].x);
+          return cross >= 0 ? 'LEFT' : 'RIGHT';
+        })();
+        const previewSides: Array<'LEFT' | 'RIGHT'> = offsetSide === 'BOTH'
+          ? ['LEFT', 'RIGHT']
+          : offsetDistance === 0
+            ? [autoSide]
+            : [offsetSide as 'LEFT' | 'RIGHT'];
+
+        g.lineStyle(1.5, 0x00ccff, 0.85);
+        for (const s of previewSides) {
+          const cfg = { distance: dynamicDist, side: s, cornerHandling: offsetCornerHandling as 'MITER' | 'ROUND' | 'CHAMFER', miterLimit: 4, maintainLink: false, targetLayerId: null };
+          const verts = offsetPolyline([ep[0], ep[1]], cfg);
+          if (verts.length >= 2) {
+            const sa = w2s(verts[0].x, verts[0].y);
+            const sb = w2s(verts[1].x, verts[1].y);
+            g.moveTo(sa.sx, sa.sy);
+            g.lineTo(sb.sx, sb.sy);
+          }
+        }
+        const { sx: cxp, sy: cyp } = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x00ccff, 0.85);
+        g.drawCircle(cxp, cyp, 4);
+        g.endFill();
+        return;
+      }
 
       // SCALE mode preview — proportional resize around the
       // feature's centroid using the live `offsetScaleFactor`.
@@ -5017,6 +5114,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             offsetMode,
             offsetScaleFactor,
             offsetScaleLineWeight,
+            offsetSegmentMode,
+            offsetSourceSegmentIndex,
           } = toolState;
 
           if (!offsetSourceId) {
@@ -5026,6 +5125,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               const f = drawingStore.getFeature(hit);
               if (f && isOffsetableFeature(f)) {
                 toolStore.setOffsetSourceId(hit);
+                // Capture which segment the cursor is closest
+                // to so SEGMENT mode can isolate it on commit.
+                // Curved features return null and fall through
+                // to whole-shape offset.
+                if (offsetSegmentMode === 'SEGMENT' && isSegmentableFeature(f)) {
+                  toolStore.setOffsetSourceSegmentIndex(findClosestSegmentIndex(f, worldPt));
+                } else {
+                  toolStore.setOffsetSourceSegmentIndex(null);
+                }
                 selectionStore.select(hit, 'REPLACE');
               }
             }
@@ -5034,8 +5142,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const sourceFeat = drawingStore.getFeature(offsetSourceId);
             if (!sourceFeat) {
               toolStore.setOffsetSourceId(null);
+              toolStore.setOffsetSourceSegmentIndex(null);
               break;
             }
+
+            const useSegment =
+              offsetSegmentMode === 'SEGMENT' &&
+              offsetSourceSegmentIndex != null &&
+              isSegmentableFeature(sourceFeat);
 
             if (offsetMode === 'SCALE') {
               if (offsetScaleFactor <= 0 || offsetScaleFactor === 1) break;
@@ -5048,17 +5162,42 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   mode: 'SCALE',
                   scaleFactor: offsetScaleFactor,
                   scaleLineWeight: offsetScaleLineWeight,
+                  segmentIndex: useSegment ? offsetSourceSegmentIndex : undefined,
                 },
               );
               toolStore.setOffsetSourceId(null);
+              toolStore.setOffsetSourceSegmentIndex(null);
               selectionStore.deselectAll();
               break;
             }
 
             // Determine effective distance (dynamic from cursor or locked value)
-            const effectiveDist = offsetDistance > 0
-              ? offsetDistance
-              : computeDistanceToFeature(sourceFeat, worldPt);
+            // For segment-mode we measure against just the
+            // chosen segment so the cursor-driven dynamic
+            // distance behaves intuitively.
+            let effectiveDist = offsetDistance;
+            if (effectiveDist <= 0) {
+              if (useSegment) {
+                const ep = getSegmentEndpoints(sourceFeat, offsetSourceSegmentIndex!);
+                if (ep) {
+                  const dx = ep[1].x - ep[0].x;
+                  const dy = ep[1].y - ep[0].y;
+                  const len2 = dx * dx + dy * dy;
+                  if (len2 < 1e-20) {
+                    effectiveDist = Math.hypot(worldPt.x - ep[0].x, worldPt.y - ep[0].y);
+                  } else {
+                    const t = Math.max(0, Math.min(1, ((worldPt.x - ep[0].x) * dx + (worldPt.y - ep[0].y) * dy) / len2));
+                    const px = ep[0].x + t * dx;
+                    const py = ep[0].y + t * dy;
+                    effectiveDist = Math.hypot(worldPt.x - px, worldPt.y - py);
+                  }
+                } else {
+                  effectiveDist = computeDistanceToFeature(sourceFeat, worldPt);
+                }
+              } else {
+                effectiveDist = computeDistanceToFeature(sourceFeat, worldPt);
+              }
+            }
 
             if (effectiveDist <= 0) break;
 
@@ -5066,14 +5205,32 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // but still apply BOTH sides; when LEFT/RIGHT forced, use that.
             let effectiveSide: 'LEFT' | 'RIGHT' | 'BOTH' = offsetSide;
             if (offsetSide !== 'BOTH' && offsetDistance === 0) {
-              // In dynamic distance mode, auto-determine side from cursor
-              effectiveSide = computeSideFromCursor(sourceFeat, worldPt);
+              if (useSegment) {
+                const ep = getSegmentEndpoints(sourceFeat, offsetSourceSegmentIndex!);
+                if (ep) {
+                  const cross = (ep[1].x - ep[0].x) * (worldPt.y - ep[0].y) -
+                                (ep[1].y - ep[0].y) * (worldPt.x - ep[0].x);
+                  effectiveSide = cross >= 0 ? 'LEFT' : 'RIGHT';
+                } else {
+                  effectiveSide = computeSideFromCursor(sourceFeat, worldPt);
+                }
+              } else {
+                // In dynamic distance mode, auto-determine side from cursor
+                effectiveSide = computeSideFromCursor(sourceFeat, worldPt);
+              }
             }
 
-            applyInteractiveOffset(offsetSourceId, effectiveDist, effectiveSide, offsetCornerHandling);
+            applyInteractiveOffset(
+              offsetSourceId,
+              effectiveDist,
+              effectiveSide,
+              offsetCornerHandling,
+              useSegment ? { segmentIndex: offsetSourceSegmentIndex ?? undefined } : undefined,
+            );
 
             // Reset source selection so user can pick the next feature
             toolStore.setOffsetSourceId(null);
+            toolStore.setOffsetSourceSegmentIndex(null);
             selectionStore.deselectAll();
           }
           break;

@@ -28,6 +28,8 @@ interface ToolStore {
   setOffsetMode: (mode: 'PARALLEL' | 'SCALE') => void;
   setOffsetScaleFactor: (factor: number) => void;
   setOffsetScaleLineWeight: (enabled: boolean) => void;
+  setOffsetSegmentMode: (mode: 'WHOLE' | 'SEGMENT') => void;
+  setOffsetSourceSegmentIndex: (index: number | null) => void;
   resetToolState: () => void;
 }
 
@@ -63,6 +65,8 @@ const defaultToolState: ToolState = {
   offsetMode: 'PARALLEL',
   offsetScaleFactor: 1.5,
   offsetScaleLineWeight: false,
+  offsetSegmentMode: 'WHOLE',
+  offsetSourceSegmentIndex: null,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -87,6 +91,9 @@ export const useToolStore = create<ToolStore>((set) => ({
         offsetMode: s.state.offsetMode,
         offsetScaleFactor: s.state.offsetScaleFactor,
         offsetScaleLineWeight: s.state.offsetScaleLineWeight,
+        offsetSegmentMode: s.state.offsetSegmentMode,
+        // Don't preserve segment index across tool switches —
+        // it's bound to a specific source pick session.
       },
     })),
 
@@ -170,6 +177,12 @@ export const useToolStore = create<ToolStore>((set) => ({
   setOffsetScaleLineWeight: (enabled) =>
     set((s) => ({ state: { ...s.state, offsetScaleLineWeight: enabled } })),
 
+  setOffsetSegmentMode: (mode) =>
+    set((s) => ({ state: { ...s.state, offsetSegmentMode: mode } })),
+
+  setOffsetSourceSegmentIndex: (index) =>
+    set((s) => ({ state: { ...s.state, offsetSourceSegmentIndex: index } })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -186,6 +199,9 @@ export const useToolStore = create<ToolStore>((set) => ({
         offsetMode: s.state.offsetMode,
         offsetScaleFactor: s.state.offsetScaleFactor,
         offsetScaleLineWeight: s.state.offsetScaleLineWeight,
+        offsetSegmentMode: s.state.offsetSegmentMode,
+        // Reset segment index — picking a new source restarts the segment selection.
+        offsetSourceSegmentIndex: null,
       },
     })),
 }));

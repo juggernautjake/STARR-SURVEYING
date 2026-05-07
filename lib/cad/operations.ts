@@ -17,6 +17,9 @@ import {
   scalePolylineAroundCentroid,
   scaleSplineAroundCentroid,
   resolveScaleFactor,
+  getSegmentEndpoints,
+  isSegmentableFeature,
+  pointsCentroid,
 } from './geometry/offset';
 import { useDrawingStore } from './store/drawing-store';
 import { useSelectionStore } from './store/selection-store';
@@ -443,6 +446,14 @@ export function applyInteractiveOffset(
     mode?: OffsetMode;
     scaleFactor?: number;
     scaleLineWeight?: boolean;
+    /**
+     * When set, offset only the segment at this index (LINE
+     * always 0; POLYLINE/POLYGON/MIXED_GEOMETRY 0-based). Emits
+     * a single LINE feature parallel to that segment instead
+     * of a whole-feature offset. Curved geometry ignores this
+     * field and falls through to the whole-shape path.
+     */
+    segmentIndex?: number;
   },
 ): void {
   const mode: OffsetMode = opts?.mode ?? 'PARALLEL';
@@ -464,6 +475,7 @@ export function applyInteractiveOffset(
       mode,
       scaleFactor: opts?.scaleFactor,
       scaleLineWeight: opts?.scaleLineWeight ?? false,
+      segmentIndex: opts?.segmentIndex,
     });
     for (const nf of newFeatures) {
       drawingStore.addFeature(nf);
@@ -472,9 +484,10 @@ export function applyInteractiveOffset(
   }
 
   if (addOps.length > 0) {
+    const segSuffix = opts?.segmentIndex != null ? ' (segment)' : '';
     const label = mode === 'SCALE'
-      ? `Offset ×${(opts?.scaleFactor ?? 1).toFixed(3)}`
-      : `Offset ${distance.toFixed(2)}`;
+      ? `Offset ×${(opts?.scaleFactor ?? 1).toFixed(3)}${segSuffix}`
+      : `Offset ${distance.toFixed(2)}${segSuffix}`;
     undoStore.pushUndo(makeBatchEntry(label, addOps));
   }
 }
@@ -502,6 +515,7 @@ function buildOffsetFeatures(
     mode?: OffsetMode;
     scaleFactor?: number;
     scaleLineWeight?: boolean;
+    segmentIndex?: number;
   },
 ): Feature[] {
   const g = f.geometry;
@@ -516,6 +530,24 @@ function buildOffsetFeatures(
     mode,
     scaleFactor: extra?.scaleFactor,
   };
+
+  // ── Per-segment dispatch ────────────────────────────────
+  // When `segmentIndex` is set on a segmentable source we emit
+  // a single LINE parallel to that segment regardless of mode.
+  // PARALLEL uses perpendicular distance + LEFT/RIGHT side.
+  // SCALE scales the segment around the SOURCE FEATURE's
+  // centroid (so partial offsets stay coherent with the rest
+  // of the shape's geometry).
+  if (extra?.segmentIndex != null && isSegmentableFeature(f)) {
+    return buildSegmentOffsetFeatures(
+      f,
+      extra.segmentIndex,
+      mode,
+      baseConfig,
+      extra?.scaleFactor,
+      extra?.scaleLineWeight ?? false,
+    );
+  }
 
   // ── SCALE mode dispatch ────────────────────────────────
   if (mode === 'SCALE') {
@@ -636,6 +668,96 @@ function buildOffsetFeatures(
   }
 
   return [];
+}
+
+/**
+ * Produce 0 or 1 features from a single segment of `f`.
+ * Always emits a LINE feature parallel to the chosen segment
+ * regardless of the source's geometry container, because the
+ * surveyor's intent here is to break out one edge as a
+ * standalone offset (not to recreate the whole polyline /
+ * polygon shape).
+ *
+ * Mode handling:
+ * - PARALLEL: standard perpendicular offset of the two
+ *   endpoints by `distance` along the chosen `side`.
+ * - SCALE: scale the segment endpoints around the source
+ *   feature's centroid by `scaleFactor`. The result is the
+ *   matching segment from a hypothetically-scaled copy of
+ *   the whole shape, which keeps partial offsets coherent
+ *   with neighbours in compound features.
+ *
+ * `scaleLineWeight` applies in both modes — when true the
+ * new LINE feature's stroke is multiplied by `scaleFactor`
+ * (SCALE) or kept unchanged (PARALLEL).
+ */
+function buildSegmentOffsetFeatures(
+  f: Feature,
+  segmentIndex: number,
+  mode: OffsetMode,
+  baseConfig: {
+    distance: number;
+    side: 'LEFT' | 'RIGHT';
+    cornerHandling: 'MITER' | 'ROUND' | 'CHAMFER';
+    miterLimit: number;
+    maintainLink: boolean;
+    targetLayerId: string | null;
+    mode: OffsetMode;
+    scaleFactor?: number;
+  },
+  scaleFactor: number | undefined,
+  scaleLineWeight: boolean,
+): Feature[] {
+  const ep = getSegmentEndpoints(f, segmentIndex);
+  if (!ep) return [];
+
+  let start: Point2D;
+  let end: Point2D;
+
+  if (mode === 'SCALE') {
+    const factor = resolveScaleFactor(baseConfig);
+    if (factor <= 0 || factor === 1) return [];
+    const allPts = getFeaturePoints(f);
+    const pivot = allPts.length > 0 ? pointsCentroid(allPts) : { x: 0, y: 0 };
+    start = {
+      x: pivot.x + (ep[0].x - pivot.x) * factor,
+      y: pivot.y + (ep[0].y - pivot.y) * factor,
+    };
+    end = {
+      x: pivot.x + (ep[1].x - pivot.x) * factor,
+      y: pivot.y + (ep[1].y - pivot.y) * factor,
+    };
+  } else {
+    if (baseConfig.distance <= 0) return [];
+    const verts = offsetPolyline([ep[0], ep[1]], baseConfig);
+    if (verts.length < 2) return [];
+    start = verts[0];
+    end = verts[1];
+  }
+
+  const factorForWeight = mode === 'SCALE' && typeof scaleFactor === 'number' ? scaleFactor : 1;
+  const cloneFeature = (): Feature => JSON.parse(JSON.stringify(f));
+  const sourceWeight = f.style?.lineWeight ?? null;
+  const weightedStyle =
+    scaleLineWeight && sourceWeight != null && factorForWeight !== 1
+      ? { ...f.style, lineWeight: sourceWeight * factorForWeight, isOverride: true }
+      : { ...f.style };
+
+  const newFeature: Feature = {
+    ...cloneFeature(),
+    id: generateId(),
+    type: 'LINE',
+    geometry: { type: 'LINE', start, end },
+    style: weightedStyle,
+  };
+  // Strip group affiliation — the segment offset is a
+  // standalone LINE, not a member of the source's polyline /
+  // polygon group.
+  newFeature.featureGroupId = null;
+  if (newFeature.properties.polylineGroupId) {
+    delete (newFeature.properties as Record<string, unknown>).polylineGroupId;
+  }
+  return [newFeature];
 }
 
 /**

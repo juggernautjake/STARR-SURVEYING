@@ -525,6 +525,87 @@ export function computeDistanceToFeature(feature: Feature, cursor: Point2D): num
 }
 
 /**
+ * Returns true if this feature has discrete linear segments
+ * the per-segment offset path can isolate. LINE counts as a
+ * single-segment chain (segment 0 is the whole feature),
+ * POLYLINE/POLYGON/MIXED_GEOMETRY have N-1 (open) or N
+ * (closed-polygon) segments. Curved geometry (CIRCLE, ELLIPSE,
+ * ARC, SPLINE) returns `false` — segment-mode falls back to
+ * WHOLE for those.
+ */
+export function isSegmentableFeature(feature: Feature): boolean {
+  const t = feature.geometry.type;
+  return (
+    t === 'LINE' ||
+    t === 'POLYLINE' ||
+    t === 'POLYGON' ||
+    t === 'MIXED_GEOMETRY'
+  );
+}
+
+/**
+ * Locate the index of the segment closest to `cursor`.
+ * Returns `null` for non-segmentable geometry. For LINE the
+ * answer is always 0. POLYGON wraps so the last segment
+ * connects vertex N-1 → vertex 0 and is index N-1.
+ */
+export function findClosestSegmentIndex(
+  feature: Feature,
+  cursor: Point2D
+): number | null {
+  const g = feature.geometry;
+  if (g.type === 'LINE') return 0;
+  if (
+    (g.type === 'POLYLINE' || g.type === 'POLYGON' || g.type === 'MIXED_GEOMETRY') &&
+    g.vertices &&
+    g.vertices.length >= 2
+  ) {
+    const isClosed = g.type === 'POLYGON';
+    const segCount = isClosed ? g.vertices.length : g.vertices.length - 1;
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < segCount; i += 1) {
+      const j = (i + 1) % g.vertices.length;
+      const d = pointToSegmentDistance(cursor, g.vertices[i], g.vertices[j]);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+  return null;
+}
+
+/**
+ * Resolve the two world-space endpoints of segment `index`
+ * within `feature`. Returns `null` when the index is out of
+ * range or the feature has no segment list. Useful for
+ * preview drawing and per-segment offset emission.
+ */
+export function getSegmentEndpoints(
+  feature: Feature,
+  index: number
+): [Point2D, Point2D] | null {
+  const g = feature.geometry;
+  if (g.type === 'LINE' && g.start && g.end) {
+    return index === 0 ? [g.start, g.end] : null;
+  }
+  if (
+    (g.type === 'POLYLINE' || g.type === 'POLYGON' || g.type === 'MIXED_GEOMETRY') &&
+    g.vertices &&
+    g.vertices.length >= 2
+  ) {
+    const isClosed = g.type === 'POLYGON';
+    const segCount = isClosed ? g.vertices.length : g.vertices.length - 1;
+    if (index < 0 || index >= segCount) return null;
+    const j = (index + 1) % g.vertices.length;
+    return [g.vertices[index], g.vertices[j]];
+  }
+  return null;
+}
+
+/**
  * Returns true if this feature type supports the offset
  * operation. Covers every shape kind the writer / reader
  * round-trip + the mixed-geometry container.

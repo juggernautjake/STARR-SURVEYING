@@ -552,6 +552,21 @@ export interface ToolState {
    * line weight (visual stroke stays the same).
    */
   offsetScaleLineWeight: boolean;
+  /**
+   * Whether the offset applies to the entire feature
+   * (`WHOLE`) or just the segment closest to the cursor at
+   * phase-1 click time (`SEGMENT`). Only LINE / POLYLINE /
+   * POLYGON / MIXED_GEOMETRY honour SEGMENT — curved shapes
+   * fall through to WHOLE.
+   */
+  offsetSegmentMode: 'WHOLE' | 'SEGMENT';
+  /**
+   * Index into the source feature's segment list captured
+   * when the user picks the source. `null` means the cursor
+   * was not over a vertex-chain feature (or the user is in
+   * WHOLE mode and we never recorded a segment).
+   */
+  offsetSourceSegmentIndex: number | null;
 }
 
 // --- UNDO ---
