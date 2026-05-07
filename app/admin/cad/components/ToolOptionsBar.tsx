@@ -749,7 +749,9 @@ export default function ToolOptionsBar() {
             {ts.offsetSourceId
               ? ts.offsetMode === 'SCALE'
                 ? '⟳ Click to commit scale offset'
-                : '⟳ Click side to place offset'
+                : ts.offsetMode === 'TRANSLATE'
+                  ? '⟳ Click anywhere to commit translate offset'
+                  : '⟳ Click side to place offset'
               : '① Click object to offset'}
           </span>
           {ts.offsetSourceId && (
@@ -797,15 +799,15 @@ export default function ToolOptionsBar() {
             </div>
           </Tooltip>
           <Sep />
-          {/* Mode selector — PARALLEL vs SCALE */}
+          {/* Mode selector — PARALLEL vs SCALE vs TRANSLATE */}
           <Tooltip
             label="Offset Mode"
-            description="Parallel: perpendicular offset by distance. Scale: proportional resize around the feature's centroid (similar shape, bigger or smaller)."
+            description="Parallel: perpendicular offset by distance. Scale: proportional resize around the feature's centroid. Translate: programmatic vector offset — type a distance and azimuth (bearing) to copy the source by that exact vector."
             side="bottom"
             delay={400}
           >
             <div className="flex items-center gap-0.5">
-              {(['PARALLEL', 'SCALE'] as const).map((m) => (
+              {(['PARALLEL', 'SCALE', 'TRANSLATE'] as const).map((m) => (
                 <button
                   key={m}
                   className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
@@ -814,14 +816,14 @@ export default function ToolOptionsBar() {
                       : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
                   onClick={() => toolStore.setOffsetMode(m)}
                 >
-                  {m === 'PARALLEL' ? '∥ Parallel' : '⤢ Scale'}
+                  {m === 'PARALLEL' ? '∥ Parallel' : m === 'SCALE' ? '⤢ Scale' : '➜ Translate'}
                 </button>
               ))}
             </div>
           </Tooltip>
           <Sep />
-          {/* Mode-specific input — distance for PARALLEL, factor for SCALE */}
-          {ts.offsetMode === 'PARALLEL' ? (
+          {/* Mode-specific input — distance for PARALLEL, factor for SCALE, distance + bearing for TRANSLATE */}
+          {ts.offsetMode === 'PARALLEL' && (
             <Tooltip
               label="Offset Distance"
               description="Distance to offset. Set to 0 to pick the distance dynamically by mouse position."
@@ -844,7 +846,8 @@ export default function ToolOptionsBar() {
                 />
               </div>
             </Tooltip>
-          ) : (
+          )}
+          {ts.offsetMode === 'SCALE' && (
             <Tooltip
               label="Scale Factor"
               description="Multiplier for the proportional resize. >1 enlarges, <1 shrinks. Side ▷ Right inverts (acts as 1/factor) so you can shrink without retyping."
@@ -868,38 +871,103 @@ export default function ToolOptionsBar() {
               </div>
             </Tooltip>
           )}
-          <Sep />
-          {/* Side selector — for PARALLEL it picks the offset
-              direction; for SCALE it acts as a sign-flip
-              (RIGHT inverts the scale factor). */}
-          <Tooltip
-            label="Offset Side"
-            description={
-              ts.offsetMode === 'SCALE'
-                ? "Side ◁ Left applies the factor as-is. Side ▷ Right inverts (1/factor) so the same number can be used for both 'blow up' and 'shrink'. 'Both' creates two offsets simultaneously (parallel only)."
-                : "Which side of the object to create the offset on. 'Both' creates offsets on both sides simultaneously."
-            }
-            side="bottom"
-            delay={400}
-          >
-            <div className="flex items-center gap-0.5">
-              {(['LEFT', 'RIGHT', 'BOTH'] as const)
-                .filter((s) => ts.offsetMode === 'PARALLEL' || s !== 'BOTH')
-                .map((s) => (
-                  <button
-                    key={s}
-                    className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
-                      ${ts.offsetSide === s
-                        ? 'bg-blue-600 border-blue-500 text-white'
-                        : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
-                    onClick={() => toolStore.setOffsetSide(s)}
-                    title={s === 'LEFT' ? 'Left / outside' : s === 'RIGHT' ? 'Right / inside' : 'Both sides'}
-                  >
-                    {s === 'LEFT' ? '◁ Left' : s === 'RIGHT' ? 'Right ▷' : '⇔ Both'}
-                  </button>
-                ))}
-            </div>
-          </Tooltip>
+          {ts.offsetMode === 'TRANSLATE' && (
+            <Tooltip
+              label="Vector Distance + Bearing"
+              description="Programmatic offset by a survey-style vector. Distance is the length in feet; bearing is an azimuth in degrees (0° = North, clockwise). Click anywhere on the canvas to commit; the source is copied by the exact vector regardless of cursor position."
+              side="bottom"
+              delay={400}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-gray-400 shrink-0">Dist:</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-orange-500"
+                  value={ts.offsetDistance}
+                  title={`${ts.offsetDistance} units`}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v) && v >= 0) toolStore.setOffsetDistance(v);
+                  }}
+                />
+                <span className="text-[11px] text-gray-400 shrink-0">∠ Az:</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={360}
+                  step={1}
+                  className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-orange-500"
+                  value={ts.offsetBearingDeg}
+                  title={`Azimuth: ${ts.offsetBearingDeg}° (0=N, clockwise)`}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v)) toolStore.setOffsetBearingDeg(v);
+                  }}
+                />
+                <span className="text-[10px] text-gray-500">°</span>
+                {/* Quick azimuth presets — N / E / S / W */}
+                <div className="flex gap-0.5">
+                  {[
+                    { label: 'N', deg: 0 },
+                    { label: 'E', deg: 90 },
+                    { label: 'S', deg: 180 },
+                    { label: 'W', deg: 270 },
+                  ].map((p) => (
+                    <button
+                      key={p.label}
+                      className={`px-1.5 h-6 rounded text-[10px] border transition-colors
+                        ${Math.abs(ts.offsetBearingDeg - p.deg) < 0.01
+                          ? 'bg-orange-600 border-orange-500 text-white'
+                          : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                      onClick={() => toolStore.setOffsetBearingDeg(p.deg)}
+                      title={`${p.label} = ${p.deg}°`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </Tooltip>
+          )}
+          {/* Side selector — only meaningful for PARALLEL
+              (perpendicular direction) and SCALE (sign-flip
+              for shrink). TRANSLATE encodes direction in the
+              azimuth itself, so the side picker is hidden. */}
+          {ts.offsetMode !== 'TRANSLATE' && (
+            <>
+              <Sep />
+              <Tooltip
+                label="Offset Side"
+                description={
+                  ts.offsetMode === 'SCALE'
+                    ? "Side ◁ Left applies the factor as-is. Side ▷ Right inverts (1/factor) so the same number can be used for both 'blow up' and 'shrink'. 'Both' creates two offsets simultaneously (parallel only)."
+                    : "Which side of the object to create the offset on. 'Both' creates offsets on both sides simultaneously."
+                }
+                side="bottom"
+                delay={400}
+              >
+                <div className="flex items-center gap-0.5">
+                  {(['LEFT', 'RIGHT', 'BOTH'] as const)
+                    .filter((s) => ts.offsetMode === 'PARALLEL' || s !== 'BOTH')
+                    .map((s) => (
+                      <button
+                        key={s}
+                        className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                          ${ts.offsetSide === s
+                            ? 'bg-blue-600 border-blue-500 text-white'
+                            : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                        onClick={() => toolStore.setOffsetSide(s)}
+                        title={s === 'LEFT' ? 'Left / outside' : s === 'RIGHT' ? 'Right / inside' : 'Both sides'}
+                      >
+                        {s === 'LEFT' ? '◁ Left' : s === 'RIGHT' ? 'Right ▷' : '⇔ Both'}
+                      </button>
+                    ))}
+                </div>
+              </Tooltip>
+            </>
+          )}
           {ts.offsetMode === 'PARALLEL' && (
             <>
               <Sep />
@@ -946,7 +1014,8 @@ export default function ToolOptionsBar() {
           {/* Quick-apply when a source is selected */}
           {ts.offsetSourceId && (
             (ts.offsetMode === 'PARALLEL' && ts.offsetDistance > 0) ||
-            (ts.offsetMode === 'SCALE' && ts.offsetScaleFactor > 0 && ts.offsetScaleFactor !== 1)
+            (ts.offsetMode === 'SCALE' && ts.offsetScaleFactor > 0 && ts.offsetScaleFactor !== 1) ||
+            (ts.offsetMode === 'TRANSLATE' && ts.offsetDistance > 0)
           ) && (
             <>
               <Sep />
@@ -962,6 +1031,7 @@ export default function ToolOptionsBar() {
                       offsetMode: mode,
                       offsetScaleFactor: factor,
                       offsetScaleLineWeight: scaleWeight,
+                      offsetBearingDeg: bearing,
                     } = toolStore.state;
                     if (!sid) return;
                     if (mode === 'SCALE') {
@@ -970,6 +1040,14 @@ export default function ToolOptionsBar() {
                           mode: 'SCALE',
                           scaleFactor: factor,
                           scaleLineWeight: scaleWeight,
+                        });
+                        toolStore.setOffsetSourceId(null);
+                      }
+                    } else if (mode === 'TRANSLATE') {
+                      if (dist > 0) {
+                        applyInteractiveOffset(sid, dist, side, corner, {
+                          mode: 'TRANSLATE',
+                          bearingDeg: bearing,
                         });
                         toolStore.setOffsetSourceId(null);
                       }

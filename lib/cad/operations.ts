@@ -587,6 +587,13 @@ export function applyInteractiveOffset(
      * field and falls through to the whole-shape path.
      */
     segmentIndex?: number;
+    /**
+     * Azimuth in degrees (0 = North, clockwise) used by
+     * TRANSLATE mode. Combined with `distance` it defines
+     * the translation vector. Ignored in PARALLEL / SCALE
+     * modes.
+     */
+    bearingDeg?: number;
   },
 ): void {
   const mode: OffsetMode = opts?.mode ?? 'PARALLEL';
@@ -595,6 +602,11 @@ export function applyInteractiveOffset(
     const f = opts?.scaleFactor;
     if (typeof f !== 'number' || !Number.isFinite(f) || f <= 0) return;
   }
+  if (mode === 'TRANSLATE') {
+    if (distance <= 0) return;
+    const b = opts?.bearingDeg;
+    if (typeof b !== 'number' || !Number.isFinite(b)) return;
+  }
   const drawingStore = useDrawingStore.getState();
   const undoStore = useUndoStore.getState();
   const f = drawingStore.getFeature(sourceId);
@@ -602,13 +614,18 @@ export function applyInteractiveOffset(
 
   const addOps: { type: 'ADD_FEATURE'; data: Feature }[] = [];
 
-  const sides: Array<'LEFT' | 'RIGHT'> = side === 'BOTH' ? ['LEFT', 'RIGHT'] : [side];
+  // TRANSLATE mode is direction-driven, not side-driven, so
+  // we only run it once regardless of the `side` argument.
+  // PARALLEL and SCALE keep the LEFT/RIGHT/BOTH semantics.
+  const sides: Array<'LEFT' | 'RIGHT'> =
+    mode === 'TRANSLATE' ? ['LEFT'] : side === 'BOTH' ? ['LEFT', 'RIGHT'] : [side];
   for (const s of sides) {
     const newFeatures = buildOffsetFeatures(f, distance, s, cornerHandling, false, {
       mode,
       scaleFactor: opts?.scaleFactor,
       scaleLineWeight: opts?.scaleLineWeight ?? false,
       segmentIndex: opts?.segmentIndex,
+      bearingDeg: opts?.bearingDeg,
     });
     for (const nf of newFeatures) {
       drawingStore.addFeature(nf);
@@ -620,7 +637,9 @@ export function applyInteractiveOffset(
     const segSuffix = opts?.segmentIndex != null ? ' (segment)' : '';
     const label = mode === 'SCALE'
       ? `Offset ×${(opts?.scaleFactor ?? 1).toFixed(3)}${segSuffix}`
-      : `Offset ${distance.toFixed(2)}${segSuffix}`;
+      : mode === 'TRANSLATE'
+        ? `Offset ${distance.toFixed(2)} @ ${(opts?.bearingDeg ?? 0).toFixed(1)}°${segSuffix}`
+        : `Offset ${distance.toFixed(2)}${segSuffix}`;
     undoStore.pushUndo(makeBatchEntry(label, addOps));
   }
 }
@@ -649,6 +668,7 @@ function buildOffsetFeatures(
     scaleFactor?: number;
     scaleLineWeight?: boolean;
     segmentIndex?: number;
+    bearingDeg?: number;
   },
 ): Feature[] {
   const g = f.geometry;
@@ -662,6 +682,7 @@ function buildOffsetFeatures(
     targetLayerId: null,
     mode,
     scaleFactor: extra?.scaleFactor,
+    bearingDeg: extra?.bearingDeg,
   };
 
   // ── Per-segment dispatch ────────────────────────────────
@@ -670,7 +691,9 @@ function buildOffsetFeatures(
   // PARALLEL uses perpendicular distance + LEFT/RIGHT side.
   // SCALE scales the segment around the SOURCE FEATURE's
   // centroid (so partial offsets stay coherent with the rest
-  // of the shape's geometry).
+  // of the shape's geometry). TRANSLATE applies the
+  // bearing-vector translation to the chosen segment only,
+  // emitting a parallel LINE feature.
   if (extra?.segmentIndex != null && isSegmentableFeature(f)) {
     return buildSegmentOffsetFeatures(
       f,
@@ -679,6 +702,7 @@ function buildOffsetFeatures(
       baseConfig,
       extra?.scaleFactor,
       extra?.scaleLineWeight ?? false,
+      extra?.bearingDeg,
     );
   }
 
@@ -687,6 +711,11 @@ function buildOffsetFeatures(
     const factor = resolveScaleFactor(baseConfig);
     if (factor <= 0 || factor === 1) return [];
     return buildScaledFeatures(f, factor, extra?.scaleLineWeight ?? false);
+  }
+
+  // ── TRANSLATE mode dispatch ───────────────────────────
+  if (mode === 'TRANSLATE') {
+    return buildTranslatedFeatures(f, distance, extra?.bearingDeg ?? 0);
   }
 
   // LINE / POLYLINE / POLYGON
@@ -804,6 +833,44 @@ function buildOffsetFeatures(
 }
 
 /**
+ * Convert a survey-style azimuth (degrees, 0 = North,
+ * clockwise) and length into a world-space displacement
+ * vector. World coordinates are math convention (+x East,
+ * +y North), so:
+ *   dx = length * sin(azimuth_rad)
+ *   dy = length * cos(azimuth_rad)
+ */
+function bearingVector(azimuthDeg: number, length: number): { dx: number; dy: number } {
+  const rad = (azimuthDeg * Math.PI) / 180;
+  return {
+    dx: length * Math.sin(rad),
+    dy: length * Math.cos(rad),
+  };
+}
+
+/**
+ * Produce 1 feature from `f` by translating it by
+ * (`distance`, `bearingDeg`). Emits the same geometry type
+ * as the source so a translated POLYGON stays a POLYGON
+ * (unlike SCALE / PARALLEL which sometimes have to fall
+ * back). Always returns a fresh feature with a new id; the
+ * source stays untouched.
+ */
+function buildTranslatedFeatures(
+  f: Feature,
+  distance: number,
+  bearingDeg: number,
+): Feature[] {
+  if (distance <= 0 || !Number.isFinite(bearingDeg)) return [];
+  const { dx, dy } = bearingVector(bearingDeg, distance);
+  if (dx === 0 && dy === 0) return [];
+  const cloned: Feature = JSON.parse(JSON.stringify(f));
+  cloned.id = generateId();
+  const translated = transformFeature(cloned, (p) => translate(p, dx, dy));
+  return [{ ...cloned, geometry: translated.geometry }];
+}
+
+/**
  * Produce 0 or 1 features from a single segment of `f`.
  * Always emits a LINE feature parallel to the chosen segment
  * regardless of the source's geometry container, because the
@@ -837,9 +904,11 @@ function buildSegmentOffsetFeatures(
     targetLayerId: string | null;
     mode: OffsetMode;
     scaleFactor?: number;
+    bearingDeg?: number;
   },
   scaleFactor: number | undefined,
   scaleLineWeight: boolean,
+  bearingDeg: number | undefined,
 ): Feature[] {
   const ep = getSegmentEndpoints(f, segmentIndex);
   if (!ep) return [];
@@ -860,6 +929,11 @@ function buildSegmentOffsetFeatures(
       x: pivot.x + (ep[1].x - pivot.x) * factor,
       y: pivot.y + (ep[1].y - pivot.y) * factor,
     };
+  } else if (mode === 'TRANSLATE') {
+    if (baseConfig.distance <= 0 || typeof bearingDeg !== 'number') return [];
+    const { dx, dy } = bearingVector(bearingDeg, baseConfig.distance);
+    start = { x: ep[0].x + dx, y: ep[0].y + dy };
+    end = { x: ep[1].x + dx, y: ep[1].y + dy };
   } else {
     if (baseConfig.distance <= 0) return [];
     const verts = offsetPolyline([ep[0], ep[1]], baseConfig);

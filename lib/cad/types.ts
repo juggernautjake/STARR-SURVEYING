@@ -545,7 +545,7 @@ export interface ToolState {
   offsetCornerHandling: 'MITER' | 'ROUND' | 'CHAMFER'; // Corner join style
   /** PARALLEL = perpendicular offset, SCALE = proportional resize around centroid. */
   offsetMode: OffsetMode;
-  /** Scale factor for SCALE mode. >1 enlarges, <1 shrinks. Ignored in PARALLEL mode. */
+  /** Scale factor for SCALE mode. >1 enlarges, <1 shrinks. Ignored in PARALLEL / TRANSLATE modes. */
   offsetScaleFactor: number;
   /**
    * When SCALE mode is active, controls whether the line
@@ -569,6 +569,13 @@ export interface ToolState {
    * WHOLE mode and we never recorded a segment).
    */
   offsetSourceSegmentIndex: number | null;
+  /**
+   * Azimuth in degrees (0 = North, clockwise) used in
+   * TRANSLATE mode. The translation vector is
+   * `(distance, bearing)` so this controls the direction; the
+   * length comes from `offsetDistance`.
+   */
+  offsetBearingDeg: number;
 
   // ── MIRROR tool ──
   /**
@@ -995,12 +1002,13 @@ export interface Traverse {
   area: AreaResult | null;
 }
 
-export type OffsetMode = 'PARALLEL' | 'SCALE';
+export type OffsetMode = 'PARALLEL' | 'SCALE' | 'TRANSLATE';
 
 export interface OffsetConfig {
   /** Perpendicular distance in feet for PARALLEL mode. For
    *  SCALE mode this field is ignored — the resize uses
-   *  `scaleFactor` instead. */
+   *  `scaleFactor` instead. For TRANSLATE mode this is the
+   *  vector length (along `bearing`). */
   distance: number;
   side: 'LEFT' | 'RIGHT';
   cornerHandling: 'MITER' | 'ROUND' | 'CHAMFER';
@@ -1011,8 +1019,13 @@ export interface OffsetConfig {
    *  for backward compatibility with pre-§OFFSET-VAMP code. */
   mode?: OffsetMode;
   /** Multiplier for SCALE mode (>1 expand, <1 shrink, =1
-   *  no-op). Ignored in PARALLEL mode. */
+   *  no-op). Ignored in PARALLEL / TRANSLATE modes. */
   scaleFactor?: number;
+  /** Azimuth in degrees (0 = North, clockwise) used by
+   *  TRANSLATE mode to define the direction of the translation
+   *  vector. The vector length is `distance`. Ignored in
+   *  PARALLEL / SCALE modes. */
+  bearingDeg?: number;
 }
 
 export interface MixedSegment {

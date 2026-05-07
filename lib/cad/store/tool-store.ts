@@ -25,11 +25,12 @@ interface ToolStore {
   setOffsetDistance: (dist: number) => void;
   setOffsetSide: (side: 'LEFT' | 'RIGHT' | 'BOTH') => void;
   setOffsetCornerHandling: (mode: 'MITER' | 'ROUND' | 'CHAMFER') => void;
-  setOffsetMode: (mode: 'PARALLEL' | 'SCALE') => void;
+  setOffsetMode: (mode: 'PARALLEL' | 'SCALE' | 'TRANSLATE') => void;
   setOffsetScaleFactor: (factor: number) => void;
   setOffsetScaleLineWeight: (enabled: boolean) => void;
   setOffsetSegmentMode: (mode: 'WHOLE' | 'SEGMENT') => void;
   setOffsetSourceSegmentIndex: (index: number | null) => void;
+  setOffsetBearingDeg: (deg: number) => void;
   setMirrorAxisMode: (mode: 'TWO_POINTS' | 'PICK_LINE' | 'ANGLE') => void;
   setMirrorAngle: (deg: number) => void;
   setFlipDirection: (dir: 'H' | 'V' | 'D1' | 'D2') => void;
@@ -70,6 +71,7 @@ const defaultToolState: ToolState = {
   offsetScaleLineWeight: false,
   offsetSegmentMode: 'WHOLE',
   offsetSourceSegmentIndex: null,
+  offsetBearingDeg: 0,
   mirrorAxisMode: 'TWO_POINTS',
   mirrorAngle: 0,
   flipDirection: 'H',
@@ -100,6 +102,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         offsetSegmentMode: s.state.offsetSegmentMode,
         // Don't preserve segment index across tool switches —
         // it's bound to a specific source pick session.
+        offsetBearingDeg: s.state.offsetBearingDeg,
         mirrorAxisMode: s.state.mirrorAxisMode,
         mirrorAngle: s.state.mirrorAngle,
         flipDirection: s.state.flipDirection,
@@ -192,6 +195,17 @@ export const useToolStore = create<ToolStore>((set) => ({
   setOffsetSourceSegmentIndex: (index) =>
     set((s) => ({ state: { ...s.state, offsetSourceSegmentIndex: index } })),
 
+  setOffsetBearingDeg: (deg) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        // Normalise to [0, 360) so toolbar input always lands
+        // in a canonical range — survey azimuths wrap on full
+        // turns; we collapse multiples of 360 here.
+        offsetBearingDeg: Number.isFinite(deg) ? ((deg % 360) + 360) % 360 : 0,
+      },
+    })),
+
   setMirrorAxisMode: (mode) =>
     set((s) => ({ state: { ...s.state, mirrorAxisMode: mode } })),
 
@@ -227,6 +241,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         offsetSegmentMode: s.state.offsetSegmentMode,
         // Reset segment index — picking a new source restarts the segment selection.
         offsetSourceSegmentIndex: null,
+        offsetBearingDeg: s.state.offsetBearingDeg,
         mirrorAxisMode: s.state.mirrorAxisMode,
         mirrorAngle: s.state.mirrorAngle,
         flipDirection: s.state.flipDirection,

@@ -3417,6 +3417,72 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // TRANSLATE mode preview — programmatic vector offset.
+      // Renders the source ghosted at the (distance, bearing)
+      // displacement plus an arrow + label so the surveyor
+      // can sanity-check the bearing input before committing.
+      if (offsetMode === 'TRANSLATE') {
+        const dist = offsetDistance;
+        if (!Number.isFinite(dist) || dist <= 0) return;
+        const bearing = offsetState.offsetBearingDeg;
+        if (!Number.isFinite(bearing)) return;
+        // Survey azimuth: 0° = North, CW. World coords are
+        // math convention, so dx = sin(rad), dy = cos(rad).
+        const rad = (bearing * Math.PI) / 180;
+        const dx = dist * Math.sin(rad);
+        const dy = dist * Math.cos(rad);
+        if (dx === 0 && dy === 0) return;
+
+        // Compute source feature centroid for arrow anchor
+        const sg = sourceFeat.geometry;
+        const pts: Array<{ x: number; y: number }> = [];
+        if (sg.type === 'POINT' && sg.point) pts.push(sg.point);
+        else if (sg.type === 'LINE' && sg.start && sg.end) pts.push(sg.start, sg.end);
+        else if (sg.vertices) pts.push(...sg.vertices);
+        else if (sg.type === 'CIRCLE' && sg.circle) pts.push(sg.circle.center);
+        else if (sg.type === 'ELLIPSE' && sg.ellipse) pts.push(sg.ellipse.center);
+        else if (sg.type === 'ARC' && sg.arc) pts.push(sg.arc.center);
+        else if (sg.type === 'SPLINE' && sg.spline) pts.push(...sg.spline.controlPoints);
+        let cxw = 0, cyw = 0;
+        for (const p of pts) { cxw += p.x; cyw += p.y; }
+        if (pts.length > 0) { cxw /= pts.length; cyw /= pts.length; }
+
+        // Direction arrow anchored at source centroid →
+        // displaced centroid, so the user sees both magnitude
+        // and direction at a glance.
+        const fromS = w2s(cxw, cyw);
+        const toS = w2s(cxw + dx, cyw + dy);
+        g.lineStyle(1.5, 0xffaa55, 0.85);
+        g.moveTo(fromS.sx, fromS.sy);
+        g.lineTo(toS.sx, toS.sy);
+        // Arrowhead at destination
+        const ah = 8;
+        const ang = Math.atan2(toS.sy - fromS.sy, toS.sx - fromS.sx);
+        g.moveTo(toS.sx, toS.sy);
+        g.lineTo(toS.sx - ah * Math.cos(ang - Math.PI / 6), toS.sy - ah * Math.sin(ang - Math.PI / 6));
+        g.moveTo(toS.sx, toS.sy);
+        g.lineTo(toS.sx - ah * Math.cos(ang + Math.PI / 6), toS.sy - ah * Math.sin(ang + Math.PI / 6));
+
+        // Ghost preview of the translated feature(s).
+        const useSegment =
+          offsetSegmentMode === 'SEGMENT' &&
+          offsetSourceSegmentIndex != null &&
+          isSegmentableFeature(sourceFeat);
+        g.lineStyle(1.5, 0x00ccff, 0.75);
+        if (useSegment) {
+          const ep = getSegmentEndpoints(sourceFeat, offsetSourceSegmentIndex!);
+          if (ep) {
+            const a = w2s(ep[0].x + dx, ep[0].y + dy);
+            const b = w2s(ep[1].x + dx, ep[1].y + dy);
+            g.moveTo(a.sx, a.sy);
+            g.lineTo(b.sx, b.sy);
+          }
+        } else {
+          drawTransformedFeaturePreview(g, sourceFeat, (p) => translate(p, dx, dy), w2s);
+        }
+        return;
+      }
+
       // SCALE mode preview — proportional resize around the
       // feature's centroid using the live `offsetScaleFactor`.
       // Treats `RIGHT` as the inverse of `LEFT` so the side
@@ -5666,6 +5732,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             offsetScaleLineWeight,
             offsetSegmentMode,
             offsetSourceSegmentIndex,
+            offsetBearingDeg,
           } = toolState;
 
           if (!offsetSourceId) {
@@ -5712,6 +5779,30 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   mode: 'SCALE',
                   scaleFactor: offsetScaleFactor,
                   scaleLineWeight: offsetScaleLineWeight,
+                  segmentIndex: useSegment ? offsetSourceSegmentIndex : undefined,
+                },
+              );
+              toolStore.setOffsetSourceId(null);
+              toolStore.setOffsetSourceSegmentIndex(null);
+              selectionStore.deselectAll();
+              break;
+            }
+
+            if (offsetMode === 'TRANSLATE') {
+              // Programmatic vector offset — distance + azimuth
+              // entered in the toolbar. The click here just
+              // commits; the cursor position is ignored
+              // (placement is computed from the source's own
+              // location plus the bearing vector).
+              if (offsetDistance <= 0) break;
+              applyInteractiveOffset(
+                offsetSourceId,
+                offsetDistance,
+                offsetSide,
+                offsetCornerHandling,
+                {
+                  mode: 'TRANSLATE',
+                  bearingDeg: offsetBearingDeg,
                   segmentIndex: useSegment ? offsetSourceSegmentIndex : undefined,
                 },
               );
