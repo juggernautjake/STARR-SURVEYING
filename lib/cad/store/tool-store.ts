@@ -25,6 +25,9 @@ interface ToolStore {
   setOffsetDistance: (dist: number) => void;
   setOffsetSide: (side: 'LEFT' | 'RIGHT' | 'BOTH') => void;
   setOffsetCornerHandling: (mode: 'MITER' | 'ROUND' | 'CHAMFER') => void;
+  setOffsetMode: (mode: 'PARALLEL' | 'SCALE') => void;
+  setOffsetScaleFactor: (factor: number) => void;
+  setOffsetScaleLineWeight: (enabled: boolean) => void;
   resetToolState: () => void;
 }
 
@@ -57,6 +60,9 @@ const defaultToolState: ToolState = {
   offsetDistance: 0,
   offsetSide: 'LEFT',
   offsetCornerHandling: 'MITER',
+  offsetMode: 'PARALLEL',
+  offsetScaleFactor: 1.5,
+  offsetScaleLineWeight: false,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -78,6 +84,9 @@ export const useToolStore = create<ToolStore>((set) => ({
         offsetDistance: s.state.offsetDistance,
         offsetSide: s.state.offsetSide,
         offsetCornerHandling: s.state.offsetCornerHandling,
+        offsetMode: s.state.offsetMode,
+        offsetScaleFactor: s.state.offsetScaleFactor,
+        offsetScaleLineWeight: s.state.offsetScaleLineWeight,
       },
     })),
 
@@ -147,6 +156,20 @@ export const useToolStore = create<ToolStore>((set) => ({
   setOffsetCornerHandling: (mode) =>
     set((s) => ({ state: { ...s.state, offsetCornerHandling: mode } })),
 
+  setOffsetMode: (mode) =>
+    set((s) => ({ state: { ...s.state, offsetMode: mode } })),
+
+  setOffsetScaleFactor: (factor) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        offsetScaleFactor: Number.isFinite(factor) && factor > 0 ? factor : 1,
+      },
+    })),
+
+  setOffsetScaleLineWeight: (enabled) =>
+    set((s) => ({ state: { ...s.state, offsetScaleLineWeight: enabled } })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -160,6 +183,9 @@ export const useToolStore = create<ToolStore>((set) => ({
         offsetDistance: s.state.offsetDistance,
         offsetSide: s.state.offsetSide,
         offsetCornerHandling: s.state.offsetCornerHandling,
+        offsetMode: s.state.offsetMode,
+        offsetScaleFactor: s.state.offsetScaleFactor,
+        offsetScaleLineWeight: s.state.offsetScaleLineWeight,
       },
     })),
 }));

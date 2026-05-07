@@ -495,7 +495,11 @@ export default function ToolOptionsBar() {
               ? 'bg-blue-700/40 border-blue-500 text-blue-300'
               : 'bg-gray-700 border-gray-600 text-gray-300'}`}
           >
-            {ts.offsetSourceId ? '⟳ Click side to place offset' : '① Click object to offset'}
+            {ts.offsetSourceId
+              ? ts.offsetMode === 'SCALE'
+                ? '⟳ Click to commit scale offset'
+                : '⟳ Click side to place offset'
+              : '① Click object to offset'}
           </span>
           {ts.offsetSourceId && (
             <Tooltip label="Cancel Selection" description="Deselect the current offset source and pick a new object." side="bottom" delay={400}>
@@ -508,82 +512,183 @@ export default function ToolOptionsBar() {
             </Tooltip>
           )}
           <Sep />
-          {/* Distance input */}
+          {/* Mode selector — PARALLEL vs SCALE */}
           <Tooltip
-            label="Offset Distance"
-            description="Distance to offset. Set to 0 to pick the distance dynamically by mouse position."
+            label="Offset Mode"
+            description="Parallel: perpendicular offset by distance. Scale: proportional resize around the feature's centroid (similar shape, bigger or smaller)."
             side="bottom"
             delay={400}
           >
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-gray-400 shrink-0">Dist:</span>
-              <input
-                type="number"
-                min={0}
-                step={0.5}
-                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-blue-500"
-                value={ts.offsetDistance}
-                title={ts.offsetDistance === 0 ? 'Dynamic (follow cursor)' : `${ts.offsetDistance} units`}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v)) toolStore.setOffsetDistance(v);
-                }}
-              />
-            </div>
-          </Tooltip>
-          <Sep />
-          {/* Side selector */}
-          <Tooltip label="Offset Side" description="Which side of the object to create the offset on. 'Both' creates offsets on both sides simultaneously." side="bottom" delay={400}>
             <div className="flex items-center gap-0.5">
-              {(['LEFT', 'RIGHT', 'BOTH'] as const).map((s) => (
+              {(['PARALLEL', 'SCALE'] as const).map((m) => (
                 <button
-                  key={s}
+                  key={m}
                   className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
-                    ${ts.offsetSide === s
-                      ? 'bg-blue-600 border-blue-500 text-white'
+                    ${ts.offsetMode === m
+                      ? 'bg-orange-600 border-orange-500 text-white'
                       : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
-                  onClick={() => toolStore.setOffsetSide(s)}
-                  title={s === 'LEFT' ? 'Left / outside' : s === 'RIGHT' ? 'Right / inside' : 'Both sides'}
+                  onClick={() => toolStore.setOffsetMode(m)}
                 >
-                  {s === 'LEFT' ? '◁ Left' : s === 'RIGHT' ? 'Right ▷' : '⇔ Both'}
+                  {m === 'PARALLEL' ? '∥ Parallel' : '⤢ Scale'}
                 </button>
               ))}
             </div>
           </Tooltip>
           <Sep />
-          {/* Corner handling */}
-          <Tooltip label="Corner Style" description="How corners are joined in the offset polyline: Miter (sharp), Round (arc), or Chamfer (beveled)." side="bottom" delay={400}>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-gray-400 shrink-0">Corner:</span>
-              <div className="flex items-center gap-0.5">
-                {(['MITER', 'ROUND', 'CHAMFER'] as const).map((m) => (
+          {/* Mode-specific input — distance for PARALLEL, factor for SCALE */}
+          {ts.offsetMode === 'PARALLEL' ? (
+            <Tooltip
+              label="Offset Distance"
+              description="Distance to offset. Set to 0 to pick the distance dynamically by mouse position."
+              side="bottom"
+              delay={400}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-gray-400 shrink-0">Dist:</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-blue-500"
+                  value={ts.offsetDistance}
+                  title={ts.offsetDistance === 0 ? 'Dynamic (follow cursor)' : `${ts.offsetDistance} units`}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v)) toolStore.setOffsetDistance(v);
+                  }}
+                />
+              </div>
+            </Tooltip>
+          ) : (
+            <Tooltip
+              label="Scale Factor"
+              description="Multiplier for the proportional resize. >1 enlarges, <1 shrinks. Side ▷ Right inverts (acts as 1/factor) so you can shrink without retyping."
+              side="bottom"
+              delay={400}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-gray-400 shrink-0">×</span>
+                <input
+                  type="number"
+                  min={0.01}
+                  step={0.05}
+                  className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-orange-500"
+                  value={ts.offsetScaleFactor}
+                  title={`Scale factor: ${ts.offsetScaleFactor}`}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v) && v > 0) toolStore.setOffsetScaleFactor(v);
+                  }}
+                />
+              </div>
+            </Tooltip>
+          )}
+          <Sep />
+          {/* Side selector — for PARALLEL it picks the offset
+              direction; for SCALE it acts as a sign-flip
+              (RIGHT inverts the scale factor). */}
+          <Tooltip
+            label="Offset Side"
+            description={
+              ts.offsetMode === 'SCALE'
+                ? "Side ◁ Left applies the factor as-is. Side ▷ Right inverts (1/factor) so the same number can be used for both 'blow up' and 'shrink'. 'Both' creates two offsets simultaneously (parallel only)."
+                : "Which side of the object to create the offset on. 'Both' creates offsets on both sides simultaneously."
+            }
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-0.5">
+              {(['LEFT', 'RIGHT', 'BOTH'] as const)
+                .filter((s) => ts.offsetMode === 'PARALLEL' || s !== 'BOTH')
+                .map((s) => (
                   <button
-                    key={m}
-                    className={`px-2 h-6 rounded text-[11px] border transition-colors
-                      ${ts.offsetCornerHandling === m
-                        ? 'bg-indigo-600 border-indigo-500 text-white'
+                    key={s}
+                    className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                      ${ts.offsetSide === s
+                        ? 'bg-blue-600 border-blue-500 text-white'
                         : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
-                    onClick={() => toolStore.setOffsetCornerHandling(m)}
+                    onClick={() => toolStore.setOffsetSide(s)}
+                    title={s === 'LEFT' ? 'Left / outside' : s === 'RIGHT' ? 'Right / inside' : 'Both sides'}
                   >
-                    {m === 'MITER' ? '⌐ Miter' : m === 'ROUND' ? '◜ Round' : '/ Chamfer'}
+                    {s === 'LEFT' ? '◁ Left' : s === 'RIGHT' ? 'Right ▷' : '⇔ Both'}
                   </button>
                 ))}
-              </div>
             </div>
           </Tooltip>
+          {ts.offsetMode === 'PARALLEL' && (
+            <>
+              <Sep />
+              {/* Corner handling */}
+              <Tooltip label="Corner Style" description="How corners are joined in the offset polyline: Miter (sharp), Round (arc), or Chamfer (beveled)." side="bottom" delay={400}>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400 shrink-0">Corner:</span>
+                  <div className="flex items-center gap-0.5">
+                    {(['MITER', 'ROUND', 'CHAMFER'] as const).map((m) => (
+                      <button
+                        key={m}
+                        className={`px-2 h-6 rounded text-[11px] border transition-colors
+                          ${ts.offsetCornerHandling === m
+                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                        onClick={() => toolStore.setOffsetCornerHandling(m)}
+                      >
+                        {m === 'MITER' ? '⌐ Miter' : m === 'ROUND' ? '◜ Round' : '/ Chamfer'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Tooltip>
+            </>
+          )}
+          {ts.offsetMode === 'SCALE' && (
+            <>
+              <Sep />
+              {/* Line weight scaling toggle (SCALE mode only) */}
+              <ToggleBtn
+                active={ts.offsetScaleLineWeight}
+                onClick={() => toolStore.setOffsetScaleLineWeight(!ts.offsetScaleLineWeight)}
+                label="Scale Stroke"
+                tooltipLabel="Scale Line Weight"
+                tooltipDesc="When ON, the offset feature's line weight scales with the geometry (a 2× scale also doubles the stroke). When OFF (default), the stroke stays the same so the new feature reads at the same visual weight as the source."
+                color="bg-orange-700"
+              />
+            </>
+          )}
           <Sep />
-          {/* Presets */}
-          <OffsetPresetsDropdown />
+          {/* Presets — PARALLEL only (SCALE has no canonical
+              survey distances). */}
+          {ts.offsetMode === 'PARALLEL' && <OffsetPresetsDropdown />}
           {/* Quick-apply when a source is selected */}
-          {ts.offsetSourceId && ts.offsetDistance > 0 && (
+          {ts.offsetSourceId && (
+            (ts.offsetMode === 'PARALLEL' && ts.offsetDistance > 0) ||
+            (ts.offsetMode === 'SCALE' && ts.offsetScaleFactor > 0 && ts.offsetScaleFactor !== 1)
+          ) && (
             <>
               <Sep />
               <Tooltip label="Apply Offset" description="Apply the offset to the selected object with the current settings." side="bottom" delay={400}>
                 <button
                   className="px-2.5 h-6 rounded text-[11px] bg-blue-700 border border-blue-600 text-white hover:bg-blue-600 transition-colors whitespace-nowrap"
                   onClick={() => {
-                    const { offsetSourceId: sid, offsetDistance: dist, offsetSide: side, offsetCornerHandling: corner } = toolStore.state;
-                    if (sid && dist > 0) {
+                    const {
+                      offsetSourceId: sid,
+                      offsetDistance: dist,
+                      offsetSide: side,
+                      offsetCornerHandling: corner,
+                      offsetMode: mode,
+                      offsetScaleFactor: factor,
+                      offsetScaleLineWeight: scaleWeight,
+                    } = toolStore.state;
+                    if (!sid) return;
+                    if (mode === 'SCALE') {
+                      if (factor > 0 && factor !== 1) {
+                        applyInteractiveOffset(sid, 0, side, corner, {
+                          mode: 'SCALE',
+                          scaleFactor: factor,
+                          scaleLineWeight: scaleWeight,
+                        });
+                        toolStore.setOffsetSourceId(null);
+                      }
+                    } else if (dist > 0) {
                       applyInteractiveOffset(sid, dist, side, corner);
                       toolStore.setOffsetSourceId(null);
                     }

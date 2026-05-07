@@ -538,9 +538,20 @@ export interface ToolState {
 
   // Offset tool state
   offsetSourceId: string | null;   // Feature being offset (null = awaiting selection)
-  offsetDistance: number;          // Distance; 0 = dynamic (follow cursor)
+  offsetDistance: number;          // Distance; 0 = dynamic (follow cursor) — used in PARALLEL mode
   offsetSide: 'LEFT' | 'RIGHT' | 'BOTH'; // Which side(s) to create offset on
   offsetCornerHandling: 'MITER' | 'ROUND' | 'CHAMFER'; // Corner join style
+  /** PARALLEL = perpendicular offset, SCALE = proportional resize around centroid. */
+  offsetMode: OffsetMode;
+  /** Scale factor for SCALE mode. >1 enlarges, <1 shrinks. Ignored in PARALLEL mode. */
+  offsetScaleFactor: number;
+  /**
+   * When SCALE mode is active, controls whether the line
+   * weight scales along with the geometry. Default `false`
+   * means the offset feature inherits the source's exact
+   * line weight (visual stroke stays the same).
+   */
+  offsetScaleLineWeight: boolean;
 }
 
 // --- UNDO ---
@@ -941,13 +952,24 @@ export interface Traverse {
   area: AreaResult | null;
 }
 
+export type OffsetMode = 'PARALLEL' | 'SCALE';
+
 export interface OffsetConfig {
+  /** Perpendicular distance in feet for PARALLEL mode. For
+   *  SCALE mode this field is ignored — the resize uses
+   *  `scaleFactor` instead. */
   distance: number;
   side: 'LEFT' | 'RIGHT';
   cornerHandling: 'MITER' | 'ROUND' | 'CHAMFER';
   miterLimit: number;
   maintainLink: boolean;
   targetLayerId: string | null;
+  /** Offset interpretation. Defaults to PARALLEL when omitted
+   *  for backward compatibility with pre-§OFFSET-VAMP code. */
+  mode?: OffsetMode;
+  /** Multiplier for SCALE mode (>1 expand, <1 shrink, =1
+   *  no-op). Ignored in PARALLEL mode. */
+  scaleFactor?: number;
 }
 
 export interface MixedSegment {

@@ -1228,6 +1228,8 @@ This section documents cross-cutting UX issues found in Phases 1–7 that Phase 
 | 3 | Layer panel has no tooltips explaining visibility/lock icons | Layer icon tooltips added |
 | 4 | Curve calculator dialog has no per-field help | UITooltips added to all curve calculator inputs |
 | 4 | Offset tool: no visual feedback about which side the offset will land on | Preview arrow added to offset tool cursor |
+| 4 | Offset tool only handled LINE/POLYLINE/POLYGON/CIRCLE/ARC; SPLINE degraded to faceted POLYLINE; ELLIPSE + MIXED_GEOMETRY unsupported | Native `offsetEllipse` + `offsetSpline` (Tiller-Hanson bisector tangents) so curves stay editable; MIXED_GEOMETRY routed through polyline path; `isOffsetableFeature` extended (`lib/cad/geometry/offset.ts` + `lib/cad/operations.ts`) |
+| 4 | Offset tool always created a perpendicular parallel — could not "blow up" or "shrink" a shape proportionally | New `OffsetMode` (`PARALLEL` ∥ `SCALE`) + `OffsetConfig.scaleFactor`; SCALE branch resizes around centroid via `scalePolylineAroundCentroid` / `scaleCircleAroundCenter` / `scaleEllipseAroundCenter` / `scaleArcAroundCenter` / `scaleSplineAroundCentroid`. Side ▷ Right inverts factor (`resolveScaleFactor`) so one number drives both blow-up and shrink. SCALE-mode preview rendered in `CanvasViewport`; UI toggle + factor input + `Scale Stroke` line-weight pass-through control wired into `ToolOptionsBar` |
 | 5 | Print dialog has many options with no explanatory tooltips | UITooltips added to all print options |
 | 6 | AI progress panel doesn't show estimated time remaining | Progress panel extended with time estimate |
 | 6 | Review queue item flags are icon-only with no description | Flag icons now have tooltips |

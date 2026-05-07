@@ -1,5 +1,13 @@
 // lib/cad/geometry/offset.ts — Parallel offset engine
-import type { Point2D, OffsetConfig, ArcDefinition, CircleGeometry, ArcGeometry, Feature } from '../types';
+import type {
+  Point2D,
+  OffsetConfig,
+  CircleGeometry,
+  EllipseGeometry,
+  ArcGeometry,
+  SplineGeometry,
+  Feature,
+} from '../types';
 import { lineLineIntersection } from './intersection';
 import { tessellateArc } from './arc-render';
 import { pointToSegmentDistance } from './point';
@@ -124,6 +132,225 @@ export function offsetCircle(circle: CircleGeometry, config: OffsetConfig): Circ
 }
 
 /**
+ * Create a parallel ellipse by adjusting both semi-axes by
+ * the offset distance. The result is a true offset only when
+ * the source is a circle; for a non-uniform ellipse this is
+ * an approximation that's accurate to surveying tolerances
+ * when `distance` is much smaller than `min(radiusX,
+ * radiusY)`. The exact offset of an ellipse is a quartic
+ * curve (not another ellipse) — stored as an ellipse here
+ * so the result stays editable in the same tools that
+ * created the source.
+ *
+ * LEFT = outward (axes grow), RIGHT = inward (axes shrink).
+ * Returns null when shrinking would collapse either axis.
+ */
+export function offsetEllipse(
+  ellipse: EllipseGeometry,
+  config: OffsetConfig
+): EllipseGeometry | null {
+  const delta = config.side === 'LEFT' ? config.distance : -config.distance;
+  const radiusX = ellipse.radiusX + delta;
+  const radiusY = ellipse.radiusY + delta;
+  if (radiusX <= 0 || radiusY <= 0) return null;
+  return { ...ellipse, radiusX, radiusY };
+}
+
+/**
+ * Create a parallel spline whose control points are
+ * perpendicular-offset from the source. Implementation: the
+ * Tiller-Hanson approximation — each control point is
+ * displaced along the bisector of its neighbouring tangents
+ * by the offset distance.
+ *
+ * Visual fidelity is excellent when curvature is moderate
+ * (typical for survey curves); degrades for tight loops, in
+ * which case the result is still a valid cubic-bezier chain
+ * but may slightly over- or under-shoot the geometric
+ * parallel. For extreme accuracy needs, callers can fall
+ * back to the tessellate → `offsetPolyline` path that
+ * `operations.ts` ships today.
+ *
+ * Returns null when the source has fewer than 4 control
+ * points (no full cubic segment).
+ */
+export function offsetSpline(
+  spline: SplineGeometry,
+  config: OffsetConfig
+): SplineGeometry | null {
+  const cps = spline.controlPoints;
+  if (cps.length < 4) return null;
+  const sign = config.side === 'LEFT' ? 1 : -1;
+  const d = config.distance * sign;
+  const out: Point2D[] = new Array(cps.length);
+  for (let i = 0; i < cps.length; i += 1) {
+    // Compute the bisector tangent at this control point —
+    // average of the segment leading in (i-1 → i) and
+    // leading out (i → i+1). At endpoints, fall back to the
+    // single available segment.
+    const inDir = i > 0 ? subNorm(cps[i], cps[i - 1]) : null;
+    const outDir =
+      i < cps.length - 1 ? subNorm(cps[i + 1], cps[i]) : null;
+    let tx: number;
+    let ty: number;
+    if (inDir && outDir) {
+      tx = (inDir.x + outDir.x) / 2;
+      ty = (inDir.y + outDir.y) / 2;
+      const m = Math.hypot(tx, ty);
+      if (m < 1e-10) {
+        // Tangents cancel (cusp). Fall back to the leading-
+        // out tangent so the offset stays meaningful.
+        tx = outDir.x;
+        ty = outDir.y;
+      } else {
+        tx /= m;
+        ty /= m;
+      }
+    } else if (inDir) {
+      tx = inDir.x;
+      ty = inDir.y;
+    } else if (outDir) {
+      tx = outDir.x;
+      ty = outDir.y;
+    } else {
+      // Single-point degenerate — keep the point.
+      out[i] = { ...cps[i] };
+      continue;
+    }
+    // Perpendicular: rotate +90° (CCW) for LEFT, -90° (CW)
+    // for RIGHT. The `sign` baked into `d` flips the
+    // direction.
+    out[i] = {
+      x: cps[i].x + (-ty) * d,
+      y: cps[i].y + tx * d,
+    };
+  }
+  return { ...spline, controlPoints: out };
+}
+
+function subNorm(a: Point2D, b: Point2D): Point2D | null {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  const m = Math.hypot(dx, dy);
+  if (m < 1e-10) return null;
+  return { x: dx / m, y: dy / m };
+}
+
+// ────────────────────────────────────────────────────────────
+// Scale-offset path — proportional resize around the
+// feature's centroid. Treats the offset operation as a
+// uniform scale rather than a perpendicular distance, so the
+// surveyor can blow a shape up or shrink it down while
+// keeping the same proportions and orientation.
+// ────────────────────────────────────────────────────────────
+
+/** Centroid of an arbitrary point list (arithmetic mean).
+ *  Returns `{ x: 0, y: 0 }` when the list is empty so the
+ *  scale path stays defined for degenerate inputs. */
+export function pointsCentroid(points: ReadonlyArray<Point2D>): Point2D {
+  if (points.length === 0) return { x: 0, y: 0 };
+  let sx = 0;
+  let sy = 0;
+  for (const p of points) {
+    sx += p.x;
+    sy += p.y;
+  }
+  return { x: sx / points.length, y: sy / points.length };
+}
+
+function scalePointAround(
+  p: Point2D,
+  origin: Point2D,
+  factor: number
+): Point2D {
+  return {
+    x: origin.x + (p.x - origin.x) * factor,
+    y: origin.y + (p.y - origin.y) * factor,
+  };
+}
+
+/** Scale a polyline around its own centroid. The result is
+ *  geometrically similar to the source (same angles, same
+ *  proportions) but bigger / smaller per `factor`. */
+export function scalePolylineAroundCentroid(
+  vertices: ReadonlyArray<Point2D>,
+  factor: number
+): Point2D[] {
+  if (vertices.length === 0 || factor <= 0) return [];
+  const c = pointsCentroid(vertices);
+  return vertices.map((v) => scalePointAround(v, c, factor));
+}
+
+export function scaleCircleAroundCenter(
+  circle: CircleGeometry,
+  factor: number
+): CircleGeometry | null {
+  if (factor <= 0) return null;
+  return { ...circle, radius: circle.radius * factor };
+}
+
+export function scaleEllipseAroundCenter(
+  ellipse: EllipseGeometry,
+  factor: number
+): EllipseGeometry | null {
+  if (factor <= 0) return null;
+  return {
+    ...ellipse,
+    radiusX: ellipse.radiusX * factor,
+    radiusY: ellipse.radiusY * factor,
+  };
+}
+
+export function scaleArcAroundCenter(
+  arc: ArcGeometry,
+  factor: number
+): ArcGeometry | null {
+  if (factor <= 0) return null;
+  return { ...arc, radius: arc.radius * factor };
+}
+
+export function scaleSplineAroundCentroid(
+  spline: SplineGeometry,
+  factor: number
+): SplineGeometry | null {
+  if (factor <= 0 || spline.controlPoints.length === 0) return null;
+  const c = pointsCentroid(spline.controlPoints);
+  return {
+    ...spline,
+    controlPoints: spline.controlPoints.map((p) =>
+      scalePointAround(p, c, factor)
+    ),
+  };
+}
+
+/**
+ * Resolve the effective scale factor from an `OffsetConfig`
+ * when the caller is in SCALE mode. Defaults to 1 (no-op)
+ * when the field is omitted; treats `LEFT` as "blow up" and
+ * `RIGHT` as "shrink" so the existing side toggle works as
+ * a sign flip without surfacing a fresh control. The
+ * shrink path inverts: factor=0.75 with side=RIGHT becomes
+ * factor=1/0.75 with side=LEFT (so the "RIGHT 0.75" UX
+ * shrinks to 75 %). The default sign convention assumes
+ * the caller always passes a factor > 0; values ≤ 0
+ * resolve to 1 to keep the operation well-defined.
+ */
+export function resolveScaleFactor(config: OffsetConfig): number {
+  const raw = config.scaleFactor;
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) {
+    return 1;
+  }
+  // When the caller passed a factor <1 we leave it alone
+  // (shrink). When factor >1 we leave it alone (blow up).
+  // The `side` flag only matters when the surveyor toggled
+  // it from LEFT (default) to RIGHT in the picker; in that
+  // case we invert so RIGHT acts as the inverse operation
+  // (RIGHT 1.5 = scale by 1/1.5 ≈ 0.667).
+  if (config.side === 'RIGHT' && raw !== 1) return 1 / raw;
+  return raw;
+}
+
+/**
  * Determine which side of a feature the cursor is on.
  * Returns 'LEFT' or 'RIGHT' based on cursor position relative to the feature geometry.
  */
@@ -160,9 +387,63 @@ export function computeSideFromCursor(feature: Feature, cursor: Point2D): 'LEFT'
     return dist >= g.circle.radius ? 'LEFT' : 'RIGHT';
   }
 
+  if (g.type === 'ELLIPSE' && g.ellipse) {
+    // Map the cursor into the ellipse's local axis-aligned
+    // frame and compare against the unit circle.
+    const e = g.ellipse;
+    const cosR = Math.cos(-e.rotation);
+    const sinR = Math.sin(-e.rotation);
+    const dx = cursor.x - e.center.x;
+    const dy = cursor.y - e.center.y;
+    const lx = (dx * cosR - dy * sinR) / e.radiusX;
+    const ly = (dx * sinR + dy * cosR) / e.radiusY;
+    return Math.hypot(lx, ly) >= 1 ? 'LEFT' : 'RIGHT';
+  }
+
   if (g.type === 'ARC' && g.arc) {
     const dist = Math.hypot(cursor.x - g.arc.center.x, cursor.y - g.arc.center.y);
     return dist >= g.arc.radius ? 'LEFT' : 'RIGHT';
+  }
+
+  if (g.type === 'SPLINE' && g.spline) {
+    // Find the closest control-point segment and use its
+    // direction. The tangent of a cubic-bezier segment
+    // varies along the curve but the chord between
+    // neighbouring control points is a good enough proxy
+    // for which side the cursor sits on.
+    const cps = g.spline.controlPoints;
+    if (cps.length < 2) return 'LEFT';
+    let minDist = Infinity;
+    let bestI = 0;
+    for (let i = 0; i + 1 < cps.length; i += 1) {
+      const d = pointToSegmentDistance(cursor, cps[i], cps[i + 1]);
+      if (d < minDist) {
+        minDist = d;
+        bestI = i;
+      }
+    }
+    const a = cps[bestI];
+    const b = cps[bestI + 1];
+    const cross = (b.x - a.x) * (cursor.y - a.y) - (b.y - a.y) * (cursor.x - a.x);
+    return cross >= 0 ? 'LEFT' : 'RIGHT';
+  }
+
+  if (g.type === 'MIXED_GEOMETRY' && g.vertices && g.vertices.length >= 2) {
+    let minDist = Infinity;
+    let bestI = 0;
+    for (let i = 0; i + 1 < g.vertices.length; i += 1) {
+      const d = pointToSegmentDistance(cursor, g.vertices[i], g.vertices[i + 1]);
+      if (d < minDist) {
+        minDist = d;
+        bestI = i;
+      }
+    }
+    const v0 = g.vertices[bestI];
+    const v1 = g.vertices[bestI + 1];
+    const cross =
+      (v1.x - v0.x) * (cursor.y - v0.y) -
+      (v1.y - v0.y) * (cursor.x - v0.x);
+    return cross >= 0 ? 'LEFT' : 'RIGHT';
   }
 
   return 'LEFT';
@@ -194,17 +475,70 @@ export function computeDistanceToFeature(feature: Feature, cursor: Point2D): num
     return Math.abs(Math.hypot(cursor.x - g.circle.center.x, cursor.y - g.circle.center.y) - g.circle.radius);
   }
 
+  if (g.type === 'ELLIPSE' && g.ellipse) {
+    // Approximate by sampling 64 points on the ellipse and
+    // taking the minimum distance — exact distance to an
+    // ellipse needs an iterative root-finder, but for
+    // cursor-side detection the sampled minimum is plenty
+    // accurate at 5° resolution.
+    const e = g.ellipse;
+    const cosR = Math.cos(e.rotation);
+    const sinR = Math.sin(e.rotation);
+    let min = Infinity;
+    for (let i = 0; i < 64; i += 1) {
+      const t = (i / 64) * Math.PI * 2;
+      const px = e.radiusX * Math.cos(t);
+      const py = e.radiusY * Math.sin(t);
+      const wx = e.center.x + px * cosR - py * sinR;
+      const wy = e.center.y + px * sinR + py * cosR;
+      const d = Math.hypot(cursor.x - wx, cursor.y - wy);
+      if (d < min) min = d;
+    }
+    return min;
+  }
+
   if (g.type === 'ARC' && g.arc) {
     return Math.abs(Math.hypot(cursor.x - g.arc.center.x, cursor.y - g.arc.center.y) - g.arc.radius);
+  }
+
+  if (g.type === 'SPLINE' && g.spline) {
+    const cps = g.spline.controlPoints;
+    if (cps.length < 2) return 0;
+    let min = Infinity;
+    for (let i = 0; i + 1 < cps.length; i += 1) {
+      const d = pointToSegmentDistance(cursor, cps[i], cps[i + 1]);
+      if (d < min) min = d;
+    }
+    return min;
+  }
+
+  if (g.type === 'MIXED_GEOMETRY' && g.vertices && g.vertices.length >= 2) {
+    let min = Infinity;
+    for (let i = 0; i + 1 < g.vertices.length; i += 1) {
+      const d = pointToSegmentDistance(cursor, g.vertices[i], g.vertices[i + 1]);
+      if (d < min) min = d;
+    }
+    return min;
   }
 
   return 0;
 }
 
 /**
- * Returns true if this feature type supports the offset operation.
+ * Returns true if this feature type supports the offset
+ * operation. Covers every shape kind the writer / reader
+ * round-trip + the mixed-geometry container.
  */
 export function isOffsetableFeature(feature: Feature): boolean {
   const t = feature.geometry.type;
-  return t === 'LINE' || t === 'POLYLINE' || t === 'POLYGON' || t === 'CIRCLE' || t === 'ARC' || t === 'SPLINE';
+  return (
+    t === 'LINE' ||
+    t === 'POLYLINE' ||
+    t === 'POLYGON' ||
+    t === 'CIRCLE' ||
+    t === 'ELLIPSE' ||
+    t === 'ARC' ||
+    t === 'SPLINE' ||
+    t === 'MIXED_GEOMETRY'
+  );
 }

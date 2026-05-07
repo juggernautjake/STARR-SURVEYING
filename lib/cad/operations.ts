@@ -2,10 +2,22 @@
 // Used by FeatureContextMenu, ToolBar variants, and keyboard shortcuts.
 
 import { generateId } from './types';
-import type { Feature, Point2D } from './types';
+import type { Feature, OffsetMode, Point2D } from './types';
 import { rotate, mirror, scale, transformFeature, translate } from './geometry/transform';
 import { computeBounds } from './geometry/bounds';
-import { offsetPolyline, offsetArc, offsetCircle } from './geometry/offset';
+import {
+  offsetPolyline,
+  offsetArc,
+  offsetCircle,
+  offsetEllipse,
+  offsetSpline,
+  scaleArcAroundCenter,
+  scaleCircleAroundCenter,
+  scaleEllipseAroundCenter,
+  scalePolylineAroundCentroid,
+  scaleSplineAroundCentroid,
+  resolveScaleFactor,
+} from './geometry/offset';
 import { useDrawingStore } from './store/drawing-store';
 import { useSelectionStore } from './store/selection-store';
 import { useUndoStore, makeBatchEntry, makeAddFeatureEntry, makeRemoveFeatureEntry } from './store/undo-store';
@@ -393,7 +405,6 @@ export function offsetSelectionByDistance(distance: number): void {
   for (const id of ids) {
     const f = drawingStore.getFeature(id);
     if (!f) continue;
-    const g = f.geometry;
 
     const newFeatures = buildOffsetFeatures(f, absDist, side, 'MITER', false);
     for (const nf of newFeatures) {
@@ -409,18 +420,37 @@ export function offsetSelectionByDistance(distance: number): void {
 
 /**
  * Apply an offset to a single feature and add the result to the drawing.
- * @param sourceId  Feature to offset
- * @param distance  Offset distance (must be > 0)
- * @param side      'LEFT' | 'RIGHT' | 'BOTH'
- * @param cornerHandling  Corner join style
+ * Supports both PARALLEL (perpendicular distance) and SCALE
+ * (proportional resize around centroid) modes.
+ *
+ * @param sourceId       Feature to offset
+ * @param distance       Offset distance for PARALLEL mode (must be > 0)
+ * @param side           'LEFT' | 'RIGHT' | 'BOTH' — direction in PARALLEL mode, sign-flip toggle in SCALE mode
+ * @param cornerHandling Corner join style (PARALLEL only)
+ * @param opts           Optional bundle:
+ *                         - `mode`: 'PARALLEL' (default) or 'SCALE'
+ *                         - `scaleFactor`: multiplier for SCALE mode (>1 enlarges, <1 shrinks)
+ *                         - `scaleLineWeight`: when true in SCALE mode, multiplies the offset
+ *                           feature's line weight by `scaleFactor`. Default: false (line weight
+ *                           unchanged).
  */
 export function applyInteractiveOffset(
   sourceId: string,
   distance: number,
   side: 'LEFT' | 'RIGHT' | 'BOTH',
   cornerHandling: 'MITER' | 'ROUND' | 'CHAMFER',
+  opts?: {
+    mode?: OffsetMode;
+    scaleFactor?: number;
+    scaleLineWeight?: boolean;
+  },
 ): void {
-  if (distance <= 0) return;
+  const mode: OffsetMode = opts?.mode ?? 'PARALLEL';
+  if (mode === 'PARALLEL' && distance <= 0) return;
+  if (mode === 'SCALE') {
+    const f = opts?.scaleFactor;
+    if (typeof f !== 'number' || !Number.isFinite(f) || f <= 0) return;
+  }
   const drawingStore = useDrawingStore.getState();
   const undoStore = useUndoStore.getState();
   const f = drawingStore.getFeature(sourceId);
@@ -430,7 +460,11 @@ export function applyInteractiveOffset(
 
   const sides: Array<'LEFT' | 'RIGHT'> = side === 'BOTH' ? ['LEFT', 'RIGHT'] : [side];
   for (const s of sides) {
-    const newFeatures = buildOffsetFeatures(f, distance, s, cornerHandling, false);
+    const newFeatures = buildOffsetFeatures(f, distance, s, cornerHandling, false, {
+      mode,
+      scaleFactor: opts?.scaleFactor,
+      scaleLineWeight: opts?.scaleLineWeight ?? false,
+    });
     for (const nf of newFeatures) {
       drawingStore.addFeature(nf);
       addOps.push({ type: 'ADD_FEATURE', data: nf });
@@ -438,13 +472,25 @@ export function applyInteractiveOffset(
   }
 
   if (addOps.length > 0) {
-    undoStore.pushUndo(makeBatchEntry(`Offset ${distance.toFixed(2)}`, addOps));
+    const label = mode === 'SCALE'
+      ? `Offset ×${(opts?.scaleFactor ?? 1).toFixed(3)}`
+      : `Offset ${distance.toFixed(2)}`;
+    undoStore.pushUndo(makeBatchEntry(label, addOps));
   }
 }
 
 /**
  * Internal: produce 0 or more offset Feature objects from a source feature.
  * Returns an empty array if the geometry type is unsupported or offset is invalid.
+ *
+ * `extra.mode === 'SCALE'` swaps the perpendicular-distance
+ * dispatch for a centroid-anchored proportional resize using
+ * the helpers in `geometry/offset.ts`. When SCALE produces a
+ * feature it optionally applies the same scale factor to the
+ * source's line weight (`extra.scaleLineWeight`); when that
+ * flag is false (the default) the offset feature inherits the
+ * exact line weight of the source so the visual stroke stays
+ * the same regardless of geometric scaling.
  */
 function buildOffsetFeatures(
   f: Feature,
@@ -452,9 +498,31 @@ function buildOffsetFeatures(
   side: 'LEFT' | 'RIGHT',
   cornerHandling: 'MITER' | 'ROUND' | 'CHAMFER',
   maintainLink: boolean,
+  extra?: {
+    mode?: OffsetMode;
+    scaleFactor?: number;
+    scaleLineWeight?: boolean;
+  },
 ): Feature[] {
   const g = f.geometry;
-  const baseConfig = { distance, side, cornerHandling, miterLimit: 4, maintainLink, targetLayerId: null };
+  const mode: OffsetMode = extra?.mode ?? 'PARALLEL';
+  const baseConfig = {
+    distance,
+    side,
+    cornerHandling,
+    miterLimit: 4,
+    maintainLink,
+    targetLayerId: null,
+    mode,
+    scaleFactor: extra?.scaleFactor,
+  };
+
+  // ── SCALE mode dispatch ────────────────────────────────
+  if (mode === 'SCALE') {
+    const factor = resolveScaleFactor(baseConfig);
+    if (factor <= 0 || factor === 1) return [];
+    return buildScaledFeatures(f, factor, extra?.scaleLineWeight ?? false);
+  }
 
   // LINE / POLYLINE / POLYGON
   let verts: Point2D[] | null = null;
@@ -504,8 +572,37 @@ function buildOffsetFeatures(
     return [newFeature];
   }
 
-  // SPLINE — tessellate to polyline, offset, store as POLYLINE
+  // ELLIPSE — radial axis adjustment (Tiller-Hanson-style
+  // approximation; surveying tolerances are tight enough
+  // that this is fine when distance ≪ min(radiusX, radiusY)).
+  if (g.type === 'ELLIPSE' && g.ellipse) {
+    const newEllipse = offsetEllipse(g.ellipse, baseConfig);
+    if (!newEllipse) return [];
+    const newFeature: Feature = {
+      ...JSON.parse(JSON.stringify(f)),
+      id: generateId(),
+      geometry: { ...f.geometry, ellipse: newEllipse },
+    };
+    return [newFeature];
+  }
+
+  // SPLINE — native offset that returns a SPLINE (preserves
+  // editability). Falls back to the tessellate → polyline
+  // path when the bezier offset produced an invalid chain
+  // (e.g. fewer than 4 control points after collapsing
+  // duplicate fit points).
   if (g.type === 'SPLINE' && g.spline && g.spline.controlPoints.length >= 4) {
+    const offsetSplineGeom = offsetSpline(g.spline, baseConfig);
+    if (offsetSplineGeom && offsetSplineGeom.controlPoints.length >= 4) {
+      const newFeature: Feature = {
+        ...JSON.parse(JSON.stringify(f)),
+        id: generateId(),
+        geometry: { ...f.geometry, spline: offsetSplineGeom },
+      };
+      return [newFeature];
+    }
+    // Fallback — tessellate + polyline-offset path. The
+    // result is faceted but never crashes.
     const pts = tessellateSpline(g.spline.controlPoints);
     if (pts.length < 2) return [];
     const offsetVerts = offsetPolyline(pts, baseConfig);
@@ -517,6 +614,142 @@ function buildOffsetFeatures(
       geometry: { type: 'POLYLINE', vertices: offsetVerts },
     };
     return [newFeature];
+  }
+
+  // MIXED_GEOMETRY — treat the vertex chain as a polyline
+  // for offset purposes (the AI engine emits these for
+  // arc-segment-and-line-segment composites).
+  if (
+    g.type === 'MIXED_GEOMETRY' &&
+    g.vertices &&
+    g.vertices.length >= 2
+  ) {
+    const offsetVerts = offsetPolyline(g.vertices, baseConfig);
+    if (offsetVerts.length < 2) return [];
+    const newFeature: Feature = {
+      ...JSON.parse(JSON.stringify(f)),
+      id: generateId(),
+      type: 'POLYLINE',
+      geometry: { type: 'POLYLINE', vertices: offsetVerts },
+    };
+    return [newFeature];
+  }
+
+  return [];
+}
+
+/**
+ * Produce 0 or 1 features from `f` by uniformly scaling its
+ * geometry by `factor` around the feature's own centroid (or
+ * center, for shapes that have one). Honours the
+ * `scaleLineWeight` flag — when true, the new feature's line
+ * weight is multiplied by `factor` so the stroke grows or
+ * shrinks together with the geometry; when false the source
+ * weight is preserved exactly. Returns an empty array when
+ * the geometry type is unsupported or the result would
+ * collapse.
+ */
+function buildScaledFeatures(
+  f: Feature,
+  factor: number,
+  scaleLineWeight: boolean,
+): Feature[] {
+  if (factor <= 0 || factor === 1) return [];
+  const g = f.geometry;
+  const cloneFeature = (): Feature => JSON.parse(JSON.stringify(f));
+  const applyLineWeight = (nf: Feature): Feature => {
+    if (!scaleLineWeight) return nf;
+    const sourceWeight = nf.style?.lineWeight ?? null;
+    if (sourceWeight == null) return nf;
+    return {
+      ...nf,
+      style: { ...nf.style, lineWeight: sourceWeight * factor, isOverride: true },
+    };
+  };
+
+  // LINE
+  if (g.type === 'LINE' && g.start && g.end) {
+    const verts = scalePolylineAroundCentroid([g.start, g.end], factor);
+    if (verts.length < 2) return [];
+    const newFeature: Feature = {
+      ...cloneFeature(),
+      id: generateId(),
+      geometry: { ...g, start: verts[0], end: verts[1] },
+    };
+    return [applyLineWeight(newFeature)];
+  }
+
+  // POLYLINE / POLYGON
+  if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices && g.vertices.length >= 2) {
+    const verts = scalePolylineAroundCentroid(g.vertices, factor);
+    if (verts.length < 2) return [];
+    const newFeature: Feature = {
+      ...cloneFeature(),
+      id: generateId(),
+      geometry: { ...g, vertices: verts },
+    };
+    return [applyLineWeight(newFeature)];
+  }
+
+  // CIRCLE
+  if (g.type === 'CIRCLE' && g.circle) {
+    const c = scaleCircleAroundCenter(g.circle, factor);
+    if (!c) return [];
+    const newFeature: Feature = {
+      ...cloneFeature(),
+      id: generateId(),
+      geometry: { ...g, circle: c },
+    };
+    return [applyLineWeight(newFeature)];
+  }
+
+  // ELLIPSE
+  if (g.type === 'ELLIPSE' && g.ellipse) {
+    const e = scaleEllipseAroundCenter(g.ellipse, factor);
+    if (!e) return [];
+    const newFeature: Feature = {
+      ...cloneFeature(),
+      id: generateId(),
+      geometry: { ...g, ellipse: e },
+    };
+    return [applyLineWeight(newFeature)];
+  }
+
+  // ARC
+  if (g.type === 'ARC' && g.arc) {
+    const a = scaleArcAroundCenter(g.arc, factor);
+    if (!a) return [];
+    const newFeature: Feature = {
+      ...cloneFeature(),
+      id: generateId(),
+      geometry: { ...g, arc: a },
+    };
+    return [applyLineWeight(newFeature)];
+  }
+
+  // SPLINE
+  if (g.type === 'SPLINE' && g.spline) {
+    const s = scaleSplineAroundCentroid(g.spline, factor);
+    if (!s) return [];
+    const newFeature: Feature = {
+      ...cloneFeature(),
+      id: generateId(),
+      geometry: { ...g, spline: s },
+    };
+    return [applyLineWeight(newFeature)];
+  }
+
+  // MIXED_GEOMETRY — scale the vertex chain like a polyline.
+  if (g.type === 'MIXED_GEOMETRY' && g.vertices && g.vertices.length >= 2) {
+    const verts = scalePolylineAroundCentroid(g.vertices, factor);
+    if (verts.length < 2) return [];
+    const newFeature: Feature = {
+      ...cloneFeature(),
+      id: generateId(),
+      type: 'POLYLINE',
+      geometry: { type: 'POLYLINE', vertices: verts },
+    };
+    return [applyLineWeight(newFeature)];
   }
 
   return [];

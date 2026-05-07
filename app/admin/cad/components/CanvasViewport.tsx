@@ -39,7 +39,21 @@ import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } fro
 import { inverseBearingDistance, forwardPoint, formatBearing } from '@/lib/cad/geometry/bearing';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
 import { cadLog } from '@/lib/cad/logger';
-import { computeSideFromCursor, computeDistanceToFeature, isOffsetableFeature, offsetPolyline, offsetArc, offsetCircle } from '@/lib/cad/geometry/offset';
+import {
+  computeSideFromCursor,
+  computeDistanceToFeature,
+  isOffsetableFeature,
+  offsetPolyline,
+  offsetArc,
+  offsetCircle,
+  offsetEllipse,
+  offsetSpline,
+  scaleArcAroundCenter,
+  scaleCircleAroundCenter,
+  scaleEllipseAroundCenter,
+  scalePolylineAroundCentroid,
+  scaleSplineAroundCentroid,
+} from '@/lib/cad/geometry/offset';
 import { computeCurbReturn } from '@/lib/cad/geometry/curb-return';
 import { applyInteractiveOffset } from '@/lib/cad/operations';
 import {
@@ -2888,7 +2902,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // ── OFFSET preview ────────────────────────────────────────────────────
     if (activeTool === 'OFFSET') {
       const offsetState = useToolStore.getState().state;
-      const { offsetSourceId, offsetDistance, offsetSide, offsetCornerHandling } = offsetState;
+      const {
+        offsetSourceId,
+        offsetDistance,
+        offsetSide,
+        offsetCornerHandling,
+        offsetMode,
+        offsetScaleFactor,
+      } = offsetState;
 
       if (!offsetSourceId) {
         // Phase 1: Highlight hovered offsettable features
@@ -2898,6 +2919,136 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Phase 2: Show offset preview
       const sourceFeat = useDrawingStore.getState().getFeature(offsetSourceId);
       if (!sourceFeat) return;
+
+      // SCALE mode preview — proportional resize around the
+      // feature's centroid using the live `offsetScaleFactor`.
+      // Treats `RIGHT` as the inverse of `LEFT` so the side
+      // toggle still flips between "blow up" and "shrink".
+      if (offsetMode === 'SCALE') {
+        let factor = offsetScaleFactor;
+        if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return;
+        if (offsetSide === 'RIGHT') factor = 1 / factor;
+
+        g.lineStyle(1.5, 0xffaa00, 0.8);
+        const sg = sourceFeat.geometry;
+
+        if (sg.type === 'LINE' && sg.start && sg.end) {
+          const verts = scalePolylineAroundCentroid([sg.start, sg.end], factor);
+          if (verts.length >= 2) {
+            const s = w2s(verts[0].x, verts[0].y);
+            const e = w2s(verts[1].x, verts[1].y);
+            g.moveTo(s.sx, s.sy);
+            g.lineTo(e.sx, e.sy);
+          }
+        } else if ((sg.type === 'POLYLINE' || sg.type === 'POLYGON') && sg.vertices && sg.vertices.length >= 2) {
+          const verts = scalePolylineAroundCentroid(sg.vertices, factor);
+          if (verts.length >= 2) {
+            const p0 = w2s(verts[0].x, verts[0].y);
+            g.moveTo(p0.sx, p0.sy);
+            for (let i = 1; i < verts.length; i += 1) {
+              const p = w2s(verts[i].x, verts[i].y);
+              g.lineTo(p.sx, p.sy);
+            }
+            if (sg.type === 'POLYGON') g.lineTo(p0.sx, p0.sy);
+          }
+        } else if (sg.type === 'CIRCLE' && sg.circle) {
+          const c = scaleCircleAroundCenter(sg.circle, factor);
+          if (c) {
+            const sp = w2s(c.center.x, c.center.y);
+            const radiusPx = c.radius * useViewportStore.getState().zoom;
+            g.drawCircle(sp.sx, sp.sy, radiusPx);
+          }
+        } else if (sg.type === 'ELLIPSE' && sg.ellipse) {
+          const e = scaleEllipseAroundCenter(sg.ellipse, factor);
+          if (e) {
+            const cosR = Math.cos(e.rotation);
+            const sinR = Math.sin(e.rotation);
+            const samples = 64;
+            for (let i = 0; i <= samples; i += 1) {
+              const t = (i / samples) * Math.PI * 2;
+              const lx = e.radiusX * Math.cos(t);
+              const ly = e.radiusY * Math.sin(t);
+              const wx = e.center.x + lx * cosR - ly * sinR;
+              const wy = e.center.y + lx * sinR + ly * cosR;
+              const sp = w2s(wx, wy);
+              if (i === 0) g.moveTo(sp.sx, sp.sy);
+              else g.lineTo(sp.sx, sp.sy);
+            }
+          }
+        } else if (sg.type === 'ARC' && sg.arc) {
+          const a = scaleArcAroundCenter(sg.arc, factor);
+          if (a) {
+            const sp = w2s(a.center.x, a.center.y);
+            const radiusPx = a.radius * useViewportStore.getState().zoom;
+            const steps = 32;
+            let startA = a.startAngle;
+            let endA = a.endAngle;
+            if (a.anticlockwise) {
+              if (endA <= startA) endA += Math.PI * 2;
+            } else {
+              if (startA <= endA) startA += Math.PI * 2;
+              [startA, endA] = [endA, startA];
+            }
+            const span = endA - startA;
+            for (let i = 0; i <= steps; i += 1) {
+              const t = i / steps;
+              const angle = startA + span * t;
+              const px = sp.sx + radiusPx * Math.cos(angle);
+              const py = sp.sy - radiusPx * Math.sin(angle);
+              if (i === 0) g.moveTo(px, py);
+              else g.lineTo(px, py);
+            }
+          }
+        } else if (sg.type === 'SPLINE' && sg.spline) {
+          const s = scaleSplineAroundCentroid(sg.spline, factor);
+          if (s && s.controlPoints.length >= 4) {
+            const cps = s.controlPoints;
+            const segCount = Math.floor((cps.length - 1) / 3);
+            const stepsPerSeg = 24;
+            let started = false;
+            for (let seg = 0; seg < segCount; seg += 1) {
+              const p0 = cps[seg * 3];
+              const p1 = cps[seg * 3 + 1];
+              const p2 = cps[seg * 3 + 2];
+              const p3 = cps[seg * 3 + 3];
+              const startStep = started ? 1 : 0;
+              for (let i = startStep; i <= stepsPerSeg; i += 1) {
+                const t = i / stepsPerSeg;
+                const u = 1 - t;
+                const wx =
+                  u * u * u * p0.x +
+                  3 * u * u * t * p1.x +
+                  3 * u * t * t * p2.x +
+                  t * t * t * p3.x;
+                const wy =
+                  u * u * u * p0.y +
+                  3 * u * u * t * p1.y +
+                  3 * u * t * t * p2.y +
+                  t * t * t * p3.y;
+                const sp = w2s(wx, wy);
+                if (!started) {
+                  g.moveTo(sp.sx, sp.sy);
+                  started = true;
+                } else {
+                  g.lineTo(sp.sx, sp.sy);
+                }
+              }
+            }
+          }
+        } else if (sg.type === 'MIXED_GEOMETRY' && sg.vertices && sg.vertices.length >= 2) {
+          const verts = scalePolylineAroundCentroid(sg.vertices, factor);
+          if (verts.length >= 2) {
+            const p0 = w2s(verts[0].x, verts[0].y);
+            g.moveTo(p0.sx, p0.sy);
+            for (let i = 1; i < verts.length; i += 1) {
+              const p = w2s(verts[i].x, verts[i].y);
+              g.lineTo(p.sx, p.sy);
+            }
+          }
+        }
+
+        return;
+      }
 
       const dynamicDist = offsetDistance > 0
         ? offsetDistance
@@ -2979,6 +3130,69 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               const py = c.sy - radiusPx * Math.sin(angle); // y-flip for screen coords
               if (i === 0) g.moveTo(px, py);
               else g.lineTo(px, py);
+            }
+          }
+        } else if (sg.type === 'ELLIPSE' && sg.ellipse) {
+          const newEllipse = offsetEllipse(sg.ellipse, cfg);
+          if (newEllipse) {
+            const cosR = Math.cos(newEllipse.rotation);
+            const sinR = Math.sin(newEllipse.rotation);
+            const samples = 64;
+            for (let i = 0; i <= samples; i += 1) {
+              const t = (i / samples) * Math.PI * 2;
+              const lx = newEllipse.radiusX * Math.cos(t);
+              const ly = newEllipse.radiusY * Math.sin(t);
+              const wx = newEllipse.center.x + lx * cosR - ly * sinR;
+              const wy = newEllipse.center.y + lx * sinR + ly * cosR;
+              const sp = w2s(wx, wy);
+              if (i === 0) g.moveTo(sp.sx, sp.sy);
+              else g.lineTo(sp.sx, sp.sy);
+            }
+          }
+        } else if (sg.type === 'SPLINE' && sg.spline) {
+          const newSpline = offsetSpline(sg.spline, cfg);
+          if (newSpline && newSpline.controlPoints.length >= 4) {
+            const cps = newSpline.controlPoints;
+            const segCount = Math.floor((cps.length - 1) / 3);
+            const stepsPerSeg = 24;
+            let started = false;
+            for (let seg = 0; seg < segCount; seg += 1) {
+              const p0 = cps[seg * 3];
+              const p1 = cps[seg * 3 + 1];
+              const p2 = cps[seg * 3 + 2];
+              const p3 = cps[seg * 3 + 3];
+              const startStep = started ? 1 : 0;
+              for (let i = startStep; i <= stepsPerSeg; i += 1) {
+                const t = i / stepsPerSeg;
+                const u = 1 - t;
+                const wx =
+                  u * u * u * p0.x +
+                  3 * u * u * t * p1.x +
+                  3 * u * t * t * p2.x +
+                  t * t * t * p3.x;
+                const wy =
+                  u * u * u * p0.y +
+                  3 * u * u * t * p1.y +
+                  3 * u * t * t * p2.y +
+                  t * t * t * p3.y;
+                const sp = w2s(wx, wy);
+                if (!started) {
+                  g.moveTo(sp.sx, sp.sy);
+                  started = true;
+                } else {
+                  g.lineTo(sp.sx, sp.sy);
+                }
+              }
+            }
+          }
+        } else if (sg.type === 'MIXED_GEOMETRY' && sg.vertices) {
+          const verts = offsetPolyline(sg.vertices, cfg);
+          if (verts.length >= 2) {
+            const p0 = w2s(verts[0].x, verts[0].y);
+            g.moveTo(p0.sx, p0.sy);
+            for (let i = 1; i < verts.length; i++) {
+              const p = w2s(verts[i].x, verts[i].y);
+              g.lineTo(p.sx, p.sy);
             }
           }
         }
@@ -4795,7 +5009,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
 
         case 'OFFSET': {
-          const { offsetSourceId, offsetDistance, offsetSide, offsetCornerHandling } = toolState;
+          const {
+            offsetSourceId,
+            offsetDistance,
+            offsetSide,
+            offsetCornerHandling,
+            offsetMode,
+            offsetScaleFactor,
+            offsetScaleLineWeight,
+          } = toolState;
 
           if (!offsetSourceId) {
             // Phase 1: Select the feature to offset
@@ -4812,6 +5034,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const sourceFeat = drawingStore.getFeature(offsetSourceId);
             if (!sourceFeat) {
               toolStore.setOffsetSourceId(null);
+              break;
+            }
+
+            if (offsetMode === 'SCALE') {
+              if (offsetScaleFactor <= 0 || offsetScaleFactor === 1) break;
+              applyInteractiveOffset(
+                offsetSourceId,
+                0,
+                offsetSide,
+                offsetCornerHandling,
+                {
+                  mode: 'SCALE',
+                  scaleFactor: offsetScaleFactor,
+                  scaleLineWeight: offsetScaleLineWeight,
+                },
+              );
+              toolStore.setOffsetSourceId(null);
+              selectionStore.deselectAll();
               break;
             }
 
