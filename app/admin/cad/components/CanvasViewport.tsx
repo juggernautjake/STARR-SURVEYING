@@ -67,6 +67,7 @@ import {
   duplicateSelection,
   arraySelectionRectangular,
   arraySelectionPolar,
+  splitFeatureAt,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -3304,6 +3305,87 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For SPLIT: highlight the feature under the cursor and
+    // mark the closest point on it where the split would
+    // land. No ghost geometry — the operation just bisects
+    // the feature, so showing the hit feature + the split
+    // point is enough feedback for the surveyor to aim.
+    if (activeTool === 'SPLIT') {
+      // Hit-test the cursor for any vertex-chain feature.
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestPt: Point2D | null = null;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if ((fg.type === 'POLYLINE' || fg.type === 'POLYGON') && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+          isClosed = fg.type === 'POLYGON';
+        }
+        if (!chain) continue;
+        for (let i = 0; i + (isClosed ? 0 : 1) < chain.length; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          const t = Math.max(0, Math.min(1, ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          // Pixel tolerance — keep hit responsive at all zooms.
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestPt = { x: px, y: py };
+          }
+        }
+      }
+      if (bestId && bestPt) {
+        // Highlight the picked feature in lime so the user
+        // sees what they're aiming at.
+        const f = drawing.getFeature(bestId);
+        if (f) {
+          const fg = f.geometry;
+          g.lineStyle(2.5, 0x99ff44, 0.5);
+          if (fg.type === 'LINE' && fg.start && fg.end) {
+            const a = w2s(fg.start.x, fg.start.y);
+            const b = w2s(fg.end.x, fg.end.y);
+            g.moveTo(a.sx, a.sy);
+            g.lineTo(b.sx, b.sy);
+          } else if (fg.vertices && fg.vertices.length >= 2) {
+            const p0 = w2s(fg.vertices[0].x, fg.vertices[0].y);
+            g.moveTo(p0.sx, p0.sy);
+            for (let i = 1; i < fg.vertices.length; i += 1) {
+              const p = w2s(fg.vertices[i].x, fg.vertices[i].y);
+              g.lineTo(p.sx, p.sy);
+            }
+            if (fg.type === 'POLYGON') g.lineTo(p0.sx, p0.sy);
+          }
+        }
+        // Split point marker — lime ring + crosshair.
+        const sp = w2s(bestPt.x, bestPt.y);
+        g.lineStyle(2, 0x66ff00, 0.95);
+        g.drawCircle(sp.sx, sp.sy, 6);
+        g.moveTo(sp.sx - 9, sp.sy); g.lineTo(sp.sx + 9, sp.sy);
+        g.moveTo(sp.sx, sp.sy - 9); g.lineTo(sp.sx, sp.sy + 9);
+      } else {
+        // No eligible feature — show a small "no target" dot
+        // so the user knows the cursor isn't picking anything.
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+      }
+      return;
+    }
+
     // For ARRAY: ghost-preview every cell of the array
     // (rectangular grid OR polar fan, depending on mode).
     if (activeTool === 'ARRAY') {
@@ -5869,6 +5951,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             toolState.arrayRowSpacing,
             toolState.arrayColSpacing,
           );
+          break;
+        }
+
+        case 'SPLIT': {
+          // SPLIT: click anywhere on a vertex-chain feature
+          // (LINE / POLYLINE / POLYGON) to break it at that
+          // point. The feature under the cursor is hit-
+          // tested directly — we don't require a prior
+          // selection.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          splitFeatureAt(hit, worldPt);
           break;
         }
 

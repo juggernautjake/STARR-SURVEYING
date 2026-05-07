@@ -134,6 +134,7 @@ export default function ToolOptionsBar() {
   const showFlip = activeTool === 'FLIP';
   const showInvert = activeTool === 'INVERT';
   const showArray = activeTool === 'ARRAY';
+  const showSplit = activeTool === 'SPLIT';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -735,6 +736,16 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             {selCount === 0 ? 'Select features first' : 'Click any point to use as the inversion center'}
+          </span>
+        </>
+      )}
+
+      {/* ── SPLIT tool options ─────────────────────────────────────────────── */}
+      {showSplit && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any line, polyline, or polygon to break it at the cursor point. The lime ring marks the split location.
           </span>
         </>
       )}
@@ -1643,6 +1654,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   FLIP: 'Flip',
   INVERT: 'Invert',
   ARRAY: 'Array',
+  SPLIT: 'Split',
   SCALE: 'Scale',
   ERASE: 'Erase',
   OFFSET: 'Offset',

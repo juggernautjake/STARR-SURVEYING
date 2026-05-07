@@ -19,6 +19,7 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   Grid3x3,
+  Scissors,
   Eraser,
   Expand,
   ZoomIn,
@@ -347,6 +348,16 @@ function buildToolGroups(
           icon: <Eraser size={14} />,
           action: () => deleteSelection(),
         },
+      ],
+    },
+    {
+      mainTool: 'SPLIT',
+      label: 'Split',
+      description: 'Break a line, polyline, or polygon at the clicked point. The closest point on the geometry to the cursor is the split location; for polylines the new vertex is inserted in the chosen segment.',
+      shortcut: 'SP',
+      icon: <Scissors size={16} />,
+      variants: [
+        { tool: 'SPLIT', label: 'Split (click)', description: 'Click anywhere on a line/polyline/polygon to break it into two pieces at that point. POLYGON splits open into a single POLYLINE walking the perimeter.', shortcut: 'SP', icon: <Scissors size={14} /> },
       ],
     },
 

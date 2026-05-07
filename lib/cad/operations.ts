@@ -5,6 +5,7 @@ import { generateId } from './types';
 import type { Feature, OffsetMode, Point2D } from './types';
 import { rotate, mirror, scale, transformFeature, translate } from './geometry/transform';
 import { computeBounds } from './geometry/bounds';
+import { closestPointOnSegment } from './geometry/point';
 import {
   offsetPolyline,
   offsetArc,
@@ -230,6 +231,162 @@ export function arraySelectionRectangular(
     [...ids, ...newFeatures.map((f) => f.id)],
     'REPLACE',
   );
+}
+
+/**
+ * Split a LINE / POLYLINE / POLYGON feature at the closest
+ * point on its geometry to `worldPt`. Emits two new features
+ * (or one for POLYGON, since the split opens it into a
+ * single polyline) and removes the original. Skips features
+ * that are not vertex-chain shapes.
+ *
+ * - LINE: emits two LINEs (start → split, split → end). If
+ *   the split point coincides with an endpoint within `eps`,
+ *   the operation is a no-op so we don't create degenerate
+ *   zero-length segments.
+ * - POLYLINE: emits two POLYLINEs (vertices up to split
+ *   inclusive, split through end). The split vertex is
+ *   inserted on the chosen segment if it's not already an
+ *   existing vertex.
+ * - POLYGON: opens the polygon into one POLYLINE that starts
+ *   at the split point and walks the perimeter back to the
+ *   split point. (Splitting a closed shape yields a single
+ *   open chain, not two separate ones — that's the expected
+ *   CAD convention.)
+ */
+export function splitFeatureAt(featureId: string, worldPt: Point2D): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  const eps = 1e-6;
+
+  // Resolve the closest segment + the world-space split point.
+  let splitPt: Point2D | null = null;
+  let segIdx = -1;
+  let chain: Point2D[] | null = null;
+  let isClosed = false;
+
+  if (g.type === 'LINE' && g.start && g.end) {
+    chain = [g.start, g.end];
+  } else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+    isClosed = g.type === 'POLYGON';
+  } else {
+    return false;
+  }
+
+  // Walk every segment, find the closest point.
+  let bestDist = Infinity;
+  for (let i = 0; i + (isClosed ? 0 : 1) < chain.length; i += 1) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    const cp = closestPointOnSegment(worldPt, a, b);
+    const d = Math.hypot(worldPt.x - cp.point.x, worldPt.y - cp.point.y);
+    if (d < bestDist) {
+      bestDist = d;
+      splitPt = cp.point;
+      segIdx = i;
+    }
+  }
+  if (!splitPt || segIdx < 0) return false;
+
+  // No-op when the split lands exactly on an existing endpoint
+  // — splitting a feature into "the whole thing + nothing" is
+  // never what the surveyor meant.
+  const endpointA = chain[segIdx];
+  const endpointB = chain[(segIdx + 1) % chain.length];
+  const onA = Math.hypot(splitPt.x - endpointA.x, splitPt.y - endpointA.y) < eps;
+  const onB = Math.hypot(splitPt.x - endpointB.x, splitPt.y - endpointB.y) < eps;
+
+  const cloneStyle = (): typeof f.style => JSON.parse(JSON.stringify(f.style));
+  const cloneProps = (): typeof f.properties => JSON.parse(JSON.stringify(f.properties));
+
+  const newFeatures: Feature[] = [];
+
+  if (g.type === 'LINE' && g.start && g.end) {
+    if (onA || onB) return false;
+    newFeatures.push({
+      ...f,
+      id: generateId(),
+      type: 'LINE',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'LINE', start: g.start, end: splitPt },
+    });
+    newFeatures.push({
+      ...f,
+      id: generateId(),
+      type: 'LINE',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'LINE', start: splitPt, end: g.end },
+    });
+  } else if (g.type === 'POLYLINE' && chain) {
+    // Build first half: vertices [0..segIdx] + splitPt (skip
+    // splitPt if it's already endpoint A; skip the last
+    // appended point if it's already endpoint B of the segment).
+    const firstHalf: Point2D[] = chain.slice(0, segIdx + 1);
+    if (!onA) firstHalf.push(splitPt);
+    const secondHalf: Point2D[] = [];
+    if (!onB) secondHalf.push(splitPt);
+    secondHalf.push(...chain.slice(segIdx + 1));
+    if (firstHalf.length < 2 || secondHalf.length < 2) return false;
+    newFeatures.push({
+      ...f,
+      id: generateId(),
+      type: 'POLYLINE',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'POLYLINE', vertices: firstHalf },
+    });
+    newFeatures.push({
+      ...f,
+      id: generateId(),
+      type: 'POLYLINE',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'POLYLINE', vertices: secondHalf },
+    });
+  } else if (g.type === 'POLYGON' && chain) {
+    // Open the polygon into one polyline starting at splitPt,
+    // walking the perimeter (possibly wrapping the vertex
+    // array), and ending back at splitPt.
+    const N = chain.length;
+    const opened: Point2D[] = [];
+    if (!onB) opened.push(splitPt);
+    // Walk from segIdx+1 forward (wrap) back to segIdx+1.
+    for (let k = 0; k < N; k += 1) {
+      const idx = (segIdx + 1 + k) % N;
+      opened.push(chain[idx]);
+    }
+    if (!onA) opened.push(splitPt);
+    if (opened.length < 2) return false;
+    newFeatures.push({
+      ...f,
+      id: generateId(),
+      type: 'POLYLINE',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'POLYLINE', vertices: opened },
+    });
+  }
+
+  if (newFeatures.length === 0) return false;
+
+  drawingStore.removeFeature(featureId);
+  drawingStore.addFeatures(newFeatures);
+  const ops = [
+    { type: 'REMOVE_FEATURE' as const, data: f },
+    ...newFeatures.map((nf) => ({ type: 'ADD_FEATURE' as const, data: nf })),
+  ];
+  undoStore.pushUndo(makeBatchEntry('Split', ops));
+  // Replace the selection with the new pieces so the user
+  // can immediately operate on either half.
+  selectionStore.selectMultiple(newFeatures.map((nf) => nf.id), 'REPLACE');
+  return true;
 }
 
 /**

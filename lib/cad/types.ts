@@ -487,6 +487,7 @@ export type ToolType =
   | 'INVERT'
   | 'SCALE'
   | 'ARRAY'
+  | 'SPLIT'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
