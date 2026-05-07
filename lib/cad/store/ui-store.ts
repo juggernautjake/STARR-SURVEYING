@@ -24,6 +24,12 @@ interface UIStore {
    *  highlight ring around the matching feature so cards ↔
    *  canvas stay visually correlated. */
   hoveredFeatureId: string | null;
+  /** §5 — global tooltip toggles. UI tooltips fire on
+   *  buttons / form controls; feature tooltips on the
+   *  canvas hover. Both default on; the surveyor can mute
+   *  either independently from the upcoming Settings page. */
+  uiTooltipsEnabled: boolean;
+  featureTooltipsEnabled: boolean;
 
   toggleLayerPanel: () => void;
   togglePropertyPanel: () => void;
@@ -33,6 +39,8 @@ interface UIStore {
   closeAISidebar: () => void;
   setAISidebarTab: (tab: AISidebarTab) => void;
   setHoveredFeatureId: (featureId: string | null) => void;
+  setUITooltipsEnabled: (enabled: boolean) => void;
+  setFeatureTooltipsEnabled: (enabled: boolean) => void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -44,6 +52,8 @@ export const useUIStore = create<UIStore>((set) => ({
   showAISidebar: false,
   aiSidebarTab: 'queue',
   hoveredFeatureId: null,
+  uiTooltipsEnabled: true,
+  featureTooltipsEnabled: true,
 
   toggleLayerPanel: () => set((s) => ({ showLayerPanel: !s.showLayerPanel })),
   togglePropertyPanel: () => set((s) => ({ showPropertyPanel: !s.showPropertyPanel })),
@@ -54,4 +64,6 @@ export const useUIStore = create<UIStore>((set) => ({
   closeAISidebar: () => set({ showAISidebar: false }),
   setAISidebarTab: (tab) => set({ aiSidebarTab: tab }),
   setHoveredFeatureId: (featureId) => set({ hoveredFeatureId: featureId }),
+  setUITooltipsEnabled: (enabled) => set({ uiTooltipsEnabled: enabled }),
+  setFeatureTooltipsEnabled: (enabled) => set({ featureTooltipsEnabled: enabled }),
 }));

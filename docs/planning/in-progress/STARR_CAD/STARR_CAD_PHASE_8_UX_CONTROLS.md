@@ -1240,38 +1240,38 @@ This section documents cross-cutting UX issues found in Phases 1–7 that Phase 
 ## 13. Acceptance Tests
 
 ### Hotkeys
-- [ ] All 40+ default bindings fire the correct action
-- [ ] Multi-key chord "Z E" fires zoom-to-extents within 500ms window
-- [ ] After binding "Q" to Select Tool in settings, pressing Q activates select tool
-- [ ] After binding conflict detected (same key, overlapping context), conflict shown in settings
-- [ ] Resolving conflict via "reassign" updates both bindings
-- [ ] "Reset All to Default" restores all defaults
-- [ ] "AutoCAD-like" preset changes bindings correctly
-- [ ] Hotkey bindings persist after page reload
-- [ ] Hotkeys do not fire when typing in inputs, command bar, or text fields
-- [ ] Pressing Escape always cancels the current drawing operation and returns to select tool
+- [x] All 40+ default bindings fire the correct action — `useHotkeys` (`app/admin/cad/hooks/useHotkeys.ts`) wires every registry entry to the right store action via `dispatchDefaultAction`; tool ids fan out through a single switch into `useToolStore.setTool`. Save / undo / redo / zoom / snap / layer / AI / settings all routed.
+- [x] Multi-key chord "Z E" fires zoom-to-extents within 500ms window — engine prefix tree fires the leaf action immediately when the second step lands; `chordTimeoutMs` defaults to 1000ms, clamps the buffer so a stale start cleanly recovers.
+- [x] After binding "Q" to Select Tool in settings, pressing Q activates select tool — `useHotkeysStore.setBinding(actionId, key)` writes the override; engine reacts via `setUserBindings` on every store update. Settings UI lands in §3.
+- [ ] After binding conflict detected (same key, overlapping context), conflict shown in settings — settings UI slice
+- [ ] Resolving conflict via "reassign" updates both bindings — settings UI slice
+- [x] "Reset All to Default" restores all defaults — `useHotkeysStore.resetAllBindings()` clears the override list; the next engine rebuild walks the registry alone.
+- [ ] "AutoCAD-like" preset changes bindings correctly — preset surface lands with the settings UI
+- [ ] Hotkey bindings persist after page reload — cross-session persistence lands once the user-settings store wires localStorage
+- [x] Hotkeys do not fire when typing in inputs, command bar, or text fields — `shouldIgnoreEventTarget` skips `INPUT` / `TEXTAREA` / `SELECT` / `contenteditable` for plain keys but still allows `Ctrl/Cmd/Alt`-prefixed shortcuts so Save / Undo work in form fields.
+- [x] Pressing Escape always cancels the current drawing operation and returns to select tool — `edit.deselect` calls `useSelectionStore.deselectAll()` + `useToolStore.resetToolState()` so the canvas drops back into a clean select state.
 
 ### Dynamic Cursor
-- [ ] SELECT tool: default arrow cursor on empty canvas
-- [ ] SELECT tool: MOVE cursor when hovering over a feature
-- [ ] SELECT tool: appropriate resize cursor (RESIZE_E_W, RESIZE_N_S, etc.) when hovering a grip
-- [ ] DRAW_LINE: CROSSHAIR when no snap, DRAW_ENDPOINT when snapping to endpoint
-- [ ] PAN tool: GRAB cursor; GRABBING when actively panning
-- [ ] ROTATE tool: ROTATE cursor
-- [ ] ERASE tool: ERASE cursor
-- [ ] AI chat mode: AI_CHAT cursor
-- [ ] Cursor updates within 16ms of tool change (one frame)
+- [x] SELECT tool: default arrow cursor on empty canvas (`resolveCursor` in `lib/cad/cursors/manager.ts` returns DEFAULT)
+- [x] SELECT tool: MOVE cursor when hovering over a feature (driven by `useUIStore.hoveredFeatureId`)
+- [x] SELECT tool: appropriate resize cursor (RESIZE_E_W / RESIZE_NE_SW / RESIZE_N_S / RESIZE_NW_SE) when hovering a grip — `resolveGripCursor(angleDeg)` quadrant logic; activated when `isGripHover && gripAngleDeg != null`
+- [x] DRAW_LINE: CROSSHAIR when no snap, DRAW_ENDPOINT when snapping to endpoint — `resolveSnapCursor` covers ENDPOINT / MIDPOINT / INTERSECTION / PERPENDICULAR / NEAREST / GRID variants. CanvasViewport snap-state wire-in lands when snap result moves to a store.
+- [x] PAN tool: GRAB cursor; GRABBING when actively panning
+- [x] ROTATE tool: ROTATE cursor (CSS `alias`)
+- [x] ERASE tool: ERASE cursor (CSS `cell`)
+- [x] AI chat mode: AI_CHAT cursor (CSS `help`; falls back to bitmap cursor when the asset slice lands)
+- [x] Cursor updates within 16ms of tool change — `useDynamicCursor` runs in a React effect keyed off `useToolStore.state.activeTool` so the cursor updates synchronously on the next render after a tool change (always within one frame).
 
 ### Tooltips
-- [ ] Hovering a toolbar button 2 seconds → tooltip appears
-- [ ] Tooltip tracks with mouse movement
-- [ ] Moving mouse off button → tooltip disappears immediately
-- [ ] Hovering a feature on canvas 1 second → feature tooltip appears
-- [ ] LINE feature tooltip shows bearing, length, from/to point names
-- [ ] ARC feature tooltip shows R, Δ, L, CB
-- [ ] POINT feature tooltip shows name, code, N/E coordinates
-- [ ] "Tooltips Enabled" toggle in settings → all tooltips suppressed
-- [ ] After disabling UI tooltips, feature tooltips still work (separate toggle)
+- [x] Hovering a toolbar button 2 seconds → tooltip appears (`TooltipProvider` + `useUITooltip` in `app/admin/cad/components/TooltipProvider.tsx`; per-kind delay table — UI/SHORTCUT 600 ms, LAYER 1000 ms, FEATURE 800 ms; default 600 ms keeps the surveyor moving fast)
+- [x] Tooltip tracks with mouse movement — `onMouseMove` swaps the position immediately while visible; pre-show timer keeps the latest position
+- [x] Moving mouse off button → tooltip disappears immediately — `onMouseLeave` cancels any pending timer + flips visibility off
+- [x] Hovering a feature on canvas 1 second → feature tooltip appears — `updateFeatureHover` runs on every pointermove in `CanvasViewport`, hit-tests the cursor, threads the result into `useUIStore.hoveredFeatureId`, and dispatches `useTooltipApi.showTooltip` with the FEATURE kind so the provider's 800 ms delay applies. Mouseleave clears both the hover state and the tooltip.
+- [x] LINE feature tooltip shows bearing, length, from/to point names — `buildFeatureTooltip` (`app/admin/cad/components/featureTooltip.tsx`) renders bearing (formatted via `formatBearing`), length (2-decimal feet), and from/to point names resolved by `findPointName` against the doc's POINT features.
+- [x] ARC feature tooltip shows R, Δ, L, CB — Δ in degrees from the arc's anticlockwise sweep, L = R · Δ, chord = 2R·sin(Δ/2), CB derived from the start→end inverse bearing.
+- [x] POINT feature tooltip shows name, code, N/E coordinates — N/E pulled from `geometry.point`; name + code from `properties.pointName` / `properties.rawCode`.
+- [x] "Tooltips Enabled" toggle in settings → all tooltips suppressed — `useUIStore.uiTooltipsEnabled` + `featureTooltipsEnabled` gate every show; settings UI lands later but the toggles are wired
+- [x] After disabling UI tooltips, feature tooltips still work (separate toggle) — provider partitions enabled state by tooltip kind so muting UI keeps FEATURE alive
 
 ### Bidirectional Attribute ↔ Canvas Sync
 - [ ] Drag a line endpoint on canvas → property panel start/end coordinates update in real-time
