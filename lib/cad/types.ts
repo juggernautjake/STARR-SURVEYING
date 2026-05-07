@@ -483,7 +483,12 @@ export type ToolType =
   | 'COPY'
   | 'ROTATE'
   | 'MIRROR'
+  | 'FLIP'
+  | 'INVERT'
   | 'SCALE'
+  | 'ARRAY'
+  | 'SPLIT'
+  | 'TRIM'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
@@ -538,9 +543,111 @@ export interface ToolState {
 
   // Offset tool state
   offsetSourceId: string | null;   // Feature being offset (null = awaiting selection)
-  offsetDistance: number;          // Distance; 0 = dynamic (follow cursor)
+  offsetDistance: number;          // Distance; 0 = dynamic (follow cursor) — used in PARALLEL mode
   offsetSide: 'LEFT' | 'RIGHT' | 'BOTH'; // Which side(s) to create offset on
   offsetCornerHandling: 'MITER' | 'ROUND' | 'CHAMFER'; // Corner join style
+  /** PARALLEL = perpendicular offset, SCALE = proportional resize around centroid. */
+  offsetMode: OffsetMode;
+  /** Scale factor for SCALE mode. >1 enlarges, <1 shrinks. Ignored in PARALLEL / TRANSLATE modes. */
+  offsetScaleFactor: number;
+  /**
+   * When SCALE mode is active, controls whether the line
+   * weight scales along with the geometry. Default `false`
+   * means the offset feature inherits the source's exact
+   * line weight (visual stroke stays the same).
+   */
+  offsetScaleLineWeight: boolean;
+  /**
+   * Whether the offset applies to the entire feature
+   * (`WHOLE`) or just the segment closest to the cursor at
+   * phase-1 click time (`SEGMENT`). Only LINE / POLYLINE /
+   * POLYGON / MIXED_GEOMETRY honour SEGMENT — curved shapes
+   * fall through to WHOLE.
+   */
+  offsetSegmentMode: 'WHOLE' | 'SEGMENT';
+  /**
+   * Index into the source feature's segment list captured
+   * when the user picks the source. `null` means the cursor
+   * was not over a vertex-chain feature (or the user is in
+   * WHOLE mode and we never recorded a segment).
+   */
+  offsetSourceSegmentIndex: number | null;
+  /**
+   * Azimuth in degrees (0 = North, clockwise) used in
+   * TRANSLATE mode. The translation vector is
+   * `(distance, bearing)` so this controls the direction; the
+   * length comes from `offsetDistance`.
+   */
+  offsetBearingDeg: number;
+
+  // ── MIRROR tool ──
+  /**
+   * How the MIRROR tool defines its reflection axis:
+   * - `TWO_POINTS`: classic two-click flow (default).
+   * - `PICK_LINE`: single click on an existing LINE / POLYLINE
+   *    segment in the drawing — that segment becomes the
+   *    mirror axis.
+   * - `ANGLE`: single click sets an anchor; the axis runs
+   *    through the anchor at `mirrorAngle` degrees from
+   *    horizontal (CCW positive — standard math convention).
+   */
+  mirrorAxisMode: 'TWO_POINTS' | 'PICK_LINE' | 'ANGLE';
+  /** Axis angle in degrees from horizontal for `ANGLE` mode. */
+  mirrorAngle: number;
+
+  // ── FLIP tool ──
+  /**
+   * Direction of the FLIP tool's reflection axis through the
+   * selection centroid:
+   * - `H`: flip across the horizontal axis (top↔bottom).
+   * - `V`: flip across the vertical axis (left↔right).
+   * - `D1`: flip across the diagonal y=x (NE↔SW).
+   * - `D2`: flip across the anti-diagonal y=-x (NW↔SE).
+   */
+  flipDirection: 'H' | 'V' | 'D1' | 'D2';
+
+  // ── ARRAY tool ──
+  /**
+   * Array layout — rectangular grid (rows × cols) or polar
+   * (count copies around a center). Defaults to RECT.
+   */
+  arrayMode: 'RECT' | 'POLAR';
+  /**
+   * Number of rows in a rectangular array. Total array size
+   * is `arrayRows * arrayCols` copies (the original counts
+   * as row 0, col 0).
+   */
+  arrayRows: number;
+  /** Number of columns in a rectangular array. */
+  arrayCols: number;
+  /** Spacing between row origins in world units (vertical). */
+  arrayRowSpacing: number;
+  /** Spacing between column origins in world units (horizontal). */
+  arrayColSpacing: number;
+  /**
+   * Number of copies in a polar array (including the
+   * original). Range 2–360. The copies are equally spaced
+   * across `arrayPolarAngleDeg`.
+   */
+  arrayPolarCount: number;
+  /**
+   * Total angular span of a polar array in degrees. 360 =
+   * full circle (default), <360 sweeps a partial arc. CCW
+   * positive (math convention).
+   */
+  arrayPolarAngleDeg: number;
+  /**
+   * Whether to rotate each polar copy so it stays aligned
+   * with the radial direction (true), or keep the original
+   * orientation (false). Default true matches CAD convention.
+   */
+  arrayPolarRotate: boolean;
+  /**
+   * Center of the polar array. Captured on the first click
+   * when the surveyor activates the ARRAY tool in POLAR
+   * mode. `null` means "awaiting center pick".
+   */
+  arrayPolarCenter: Point2D | null;
 }
 
 // --- UNDO ---
@@ -941,13 +1048,30 @@ export interface Traverse {
   area: AreaResult | null;
 }
 
+export type OffsetMode = 'PARALLEL' | 'SCALE' | 'TRANSLATE';
+
 export interface OffsetConfig {
+  /** Perpendicular distance in feet for PARALLEL mode. For
+   *  SCALE mode this field is ignored — the resize uses
+   *  `scaleFactor` instead. For TRANSLATE mode this is the
+   *  vector length (along `bearing`). */
   distance: number;
   side: 'LEFT' | 'RIGHT';
   cornerHandling: 'MITER' | 'ROUND' | 'CHAMFER';
   miterLimit: number;
   maintainLink: boolean;
   targetLayerId: string | null;
+  /** Offset interpretation. Defaults to PARALLEL when omitted
+   *  for backward compatibility with pre-§OFFSET-VAMP code. */
+  mode?: OffsetMode;
+  /** Multiplier for SCALE mode (>1 expand, <1 shrink, =1
+   *  no-op). Ignored in PARALLEL / TRANSLATE modes. */
+  scaleFactor?: number;
+  /** Azimuth in degrees (0 = North, clockwise) used by
+   *  TRANSLATE mode to define the direction of the translation
+   *  vector. The vector length is `distance`. Ignored in
+   *  PARALLEL / SCALE modes. */
+  bearingDeg?: number;
 }
 
 export interface MixedSegment {

@@ -12,7 +12,7 @@ interface ToolStore {
   clearDrawingPoints: () => void;
   setBasePoint: (point: Point2D | null) => void;
   setDisplacement: (point: Point2D) => void;
-  setRotateCenter: (point: Point2D) => void;
+  setRotateCenter: (point: Point2D | null) => void;
   setRotateAngle: (angle: number) => void;
   setBoxSelect: (start: Point2D | null, end: Point2D | null, active: boolean) => void;
   setRegularPolygonSides: (sides: number) => void;
@@ -25,6 +25,24 @@ interface ToolStore {
   setOffsetDistance: (dist: number) => void;
   setOffsetSide: (side: 'LEFT' | 'RIGHT' | 'BOTH') => void;
   setOffsetCornerHandling: (mode: 'MITER' | 'ROUND' | 'CHAMFER') => void;
+  setOffsetMode: (mode: 'PARALLEL' | 'SCALE' | 'TRANSLATE') => void;
+  setOffsetScaleFactor: (factor: number) => void;
+  setOffsetScaleLineWeight: (enabled: boolean) => void;
+  setOffsetSegmentMode: (mode: 'WHOLE' | 'SEGMENT') => void;
+  setOffsetSourceSegmentIndex: (index: number | null) => void;
+  setOffsetBearingDeg: (deg: number) => void;
+  setMirrorAxisMode: (mode: 'TWO_POINTS' | 'PICK_LINE' | 'ANGLE') => void;
+  setMirrorAngle: (deg: number) => void;
+  setFlipDirection: (dir: 'H' | 'V' | 'D1' | 'D2') => void;
+  setArrayMode: (mode: 'RECT' | 'POLAR') => void;
+  setArrayRows: (rows: number) => void;
+  setArrayCols: (cols: number) => void;
+  setArrayRowSpacing: (spacing: number) => void;
+  setArrayColSpacing: (spacing: number) => void;
+  setArrayPolarCount: (count: number) => void;
+  setArrayPolarAngleDeg: (deg: number) => void;
+  setArrayPolarRotate: (enabled: boolean) => void;
+  setArrayPolarCenter: (center: Point2D | null) => void;
   resetToolState: () => void;
 }
 
@@ -57,6 +75,24 @@ const defaultToolState: ToolState = {
   offsetDistance: 0,
   offsetSide: 'LEFT',
   offsetCornerHandling: 'MITER',
+  offsetMode: 'PARALLEL',
+  offsetScaleFactor: 1.5,
+  offsetScaleLineWeight: false,
+  offsetSegmentMode: 'WHOLE',
+  offsetSourceSegmentIndex: null,
+  offsetBearingDeg: 0,
+  mirrorAxisMode: 'TWO_POINTS',
+  mirrorAngle: 0,
+  flipDirection: 'H',
+  arrayMode: 'RECT',
+  arrayRows: 2,
+  arrayCols: 3,
+  arrayRowSpacing: 50,
+  arrayColSpacing: 50,
+  arrayPolarCount: 6,
+  arrayPolarAngleDeg: 360,
+  arrayPolarRotate: true,
+  arrayPolarCenter: null,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -78,6 +114,25 @@ export const useToolStore = create<ToolStore>((set) => ({
         offsetDistance: s.state.offsetDistance,
         offsetSide: s.state.offsetSide,
         offsetCornerHandling: s.state.offsetCornerHandling,
+        offsetMode: s.state.offsetMode,
+        offsetScaleFactor: s.state.offsetScaleFactor,
+        offsetScaleLineWeight: s.state.offsetScaleLineWeight,
+        offsetSegmentMode: s.state.offsetSegmentMode,
+        // Don't preserve segment index across tool switches —
+        // it's bound to a specific source pick session.
+        offsetBearingDeg: s.state.offsetBearingDeg,
+        mirrorAxisMode: s.state.mirrorAxisMode,
+        mirrorAngle: s.state.mirrorAngle,
+        flipDirection: s.state.flipDirection,
+        arrayMode: s.state.arrayMode,
+        arrayRows: s.state.arrayRows,
+        arrayCols: s.state.arrayCols,
+        arrayRowSpacing: s.state.arrayRowSpacing,
+        arrayColSpacing: s.state.arrayColSpacing,
+        arrayPolarCount: s.state.arrayPolarCount,
+        arrayPolarAngleDeg: s.state.arrayPolarAngleDeg,
+        arrayPolarRotate: s.state.arrayPolarRotate,
+        // arrayPolarCenter resets on tool switch — bound to a single pick session.
       },
     })),
 
@@ -147,6 +202,111 @@ export const useToolStore = create<ToolStore>((set) => ({
   setOffsetCornerHandling: (mode) =>
     set((s) => ({ state: { ...s.state, offsetCornerHandling: mode } })),
 
+  setOffsetMode: (mode) =>
+    set((s) => ({ state: { ...s.state, offsetMode: mode } })),
+
+  setOffsetScaleFactor: (factor) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        offsetScaleFactor: Number.isFinite(factor) && factor > 0 ? factor : 1,
+      },
+    })),
+
+  setOffsetScaleLineWeight: (enabled) =>
+    set((s) => ({ state: { ...s.state, offsetScaleLineWeight: enabled } })),
+
+  setOffsetSegmentMode: (mode) =>
+    set((s) => ({ state: { ...s.state, offsetSegmentMode: mode } })),
+
+  setOffsetSourceSegmentIndex: (index) =>
+    set((s) => ({ state: { ...s.state, offsetSourceSegmentIndex: index } })),
+
+  setOffsetBearingDeg: (deg) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        // Normalise to [0, 360) so toolbar input always lands
+        // in a canonical range — survey azimuths wrap on full
+        // turns; we collapse multiples of 360 here.
+        offsetBearingDeg: Number.isFinite(deg) ? ((deg % 360) + 360) % 360 : 0,
+      },
+    })),
+
+  setMirrorAxisMode: (mode) =>
+    set((s) => ({ state: { ...s.state, mirrorAxisMode: mode } })),
+
+  setMirrorAngle: (deg) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        // Clamp to a sensible 0–179 range — angles 180+ wrap
+        // back to the same axis (180 = 0, 270 = 90, etc.).
+        mirrorAngle: Number.isFinite(deg) ? ((deg % 180) + 180) % 180 : 0,
+      },
+    })),
+
+  setFlipDirection: (dir) =>
+    set((s) => ({ state: { ...s.state, flipDirection: dir } })),
+
+  setArrayRows: (rows) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        arrayRows: Math.max(1, Math.min(100, Math.floor(Number.isFinite(rows) ? rows : 1))),
+      },
+    })),
+
+  setArrayCols: (cols) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        arrayCols: Math.max(1, Math.min(100, Math.floor(Number.isFinite(cols) ? cols : 1))),
+      },
+    })),
+
+  setArrayRowSpacing: (spacing) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        arrayRowSpacing: Number.isFinite(spacing) ? spacing : 0,
+      },
+    })),
+
+  setArrayColSpacing: (spacing) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        arrayColSpacing: Number.isFinite(spacing) ? spacing : 0,
+      },
+    })),
+
+  setArrayMode: (mode) =>
+    set((s) => ({ state: { ...s.state, arrayMode: mode } })),
+
+  setArrayPolarCount: (count) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        arrayPolarCount: Math.max(2, Math.min(360, Math.floor(Number.isFinite(count) ? count : 2))),
+      },
+    })),
+
+  setArrayPolarAngleDeg: (deg) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        // Allow negative for CW sweeps; cap magnitude at 360.
+        arrayPolarAngleDeg: Number.isFinite(deg) ? Math.max(-360, Math.min(360, deg)) : 360,
+      },
+    })),
+
+  setArrayPolarRotate: (enabled) =>
+    set((s) => ({ state: { ...s.state, arrayPolarRotate: enabled } })),
+
+  setArrayPolarCenter: (center) =>
+    set((s) => ({ state: { ...s.state, arrayPolarCenter: center } })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -160,6 +320,25 @@ export const useToolStore = create<ToolStore>((set) => ({
         offsetDistance: s.state.offsetDistance,
         offsetSide: s.state.offsetSide,
         offsetCornerHandling: s.state.offsetCornerHandling,
+        offsetMode: s.state.offsetMode,
+        offsetScaleFactor: s.state.offsetScaleFactor,
+        offsetScaleLineWeight: s.state.offsetScaleLineWeight,
+        offsetSegmentMode: s.state.offsetSegmentMode,
+        // Reset segment index — picking a new source restarts the segment selection.
+        offsetSourceSegmentIndex: null,
+        offsetBearingDeg: s.state.offsetBearingDeg,
+        mirrorAxisMode: s.state.mirrorAxisMode,
+        mirrorAngle: s.state.mirrorAngle,
+        flipDirection: s.state.flipDirection,
+        arrayMode: s.state.arrayMode,
+        arrayRows: s.state.arrayRows,
+        arrayCols: s.state.arrayCols,
+        arrayRowSpacing: s.state.arrayRowSpacing,
+        arrayColSpacing: s.state.arrayColSpacing,
+        arrayPolarCount: s.state.arrayPolarCount,
+        arrayPolarAngleDeg: s.state.arrayPolarAngleDeg,
+        arrayPolarRotate: s.state.arrayPolarRotate,
+        arrayPolarCenter: null, // resets on tool reset
       },
     })),
 }));

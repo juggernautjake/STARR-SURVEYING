@@ -15,6 +15,12 @@ import {
   duplicateSelection,
   computeSelectionCentroid,
   applyInteractiveOffset,
+  flipSelectionHorizontal,
+  flipSelectionVertical,
+  flipSelectionByDirection,
+  invertSelection,
+  arraySelectionRectangular,
+  arraySelectionPolar,
 } from '@/lib/cad/operations';
 import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
 import { OFFSET_PRESETS } from '@/lib/cad/geometry/offset';
@@ -124,6 +130,12 @@ export default function ToolOptionsBar() {
   const showPolySides = activeTool === 'DRAW_REGULAR_POLYGON';
   const showRotateAngle = activeTool === 'ROTATE';
   const showScaleFactor = activeTool === 'SCALE';
+  const showMirror = activeTool === 'MIRROR';
+  const showFlip = activeTool === 'FLIP';
+  const showInvert = activeTool === 'INVERT';
+  const showArray = activeTool === 'ARRAY';
+  const showSplit = activeTool === 'SPLIT';
+  const showTrim = activeTool === 'TRIM';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -424,6 +436,24 @@ export default function ToolOptionsBar() {
               ⊞ Center of Page
             </button>
           </Tooltip>
+          <Sep />
+          {/* Phase indicator — surfaces the next required click in the interactive flow */}
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0
+              ? 'Select features first'
+              : !ts.rotateCenter
+                ? 'Click pivot point (or use a preset)'
+                : 'Click to commit angle (cursor angle from pivot)'}
+          </span>
+          {ts.rotateCenter && (
+            <button
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => toolStore.setRotateCenter(null)}
+              title="Cancel pivot — reset to phase 1"
+            >
+              ✕
+            </button>
+          )}
         </>
       )}
 
@@ -482,6 +512,490 @@ export default function ToolOptionsBar() {
           <Sep />
           {/* Distort: non-uniform scale */}
           <DistortInputs />
+          <Sep />
+          {/* Phase indicator — surfaces the next required click in the interactive flow */}
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0
+              ? 'Select features first'
+              : !ts.basePoint
+                ? 'Click pivot point (or use a preset)'
+                : 'Click to commit factor (50 units = ×1, drag farther grows, closer shrinks)'}
+          </span>
+          {ts.basePoint && (
+            <button
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => toolStore.setBasePoint(null)}
+              title="Cancel pivot — reset to phase 1"
+            >
+              ✕
+            </button>
+          )}
+        </>
+      )}
+
+      {/* ── MIRROR tool options ─────────────────────────────────────────────── */}
+      {showMirror && (
+        <>
+          <Sep />
+          {/* Axis-mode picker */}
+          <Tooltip
+            label="Mirror Axis"
+            description="Two Points: classic two-click axis. Pick Line: click an existing line/edge to use as the axis. Angle: click an anchor point to mirror at the typed angle through it."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-0.5">
+              {(['TWO_POINTS', 'PICK_LINE', 'ANGLE'] as const).map((m) => (
+                <button
+                  key={m}
+                  className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                    ${ts.mirrorAxisMode === m
+                      ? 'bg-pink-600 border-pink-500 text-white'
+                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                  onClick={() => {
+                    toolStore.setMirrorAxisMode(m);
+                    toolStore.clearDrawingPoints();
+                  }}
+                >
+                  {m === 'TWO_POINTS' ? '∶∶ Two Pts' : m === 'PICK_LINE' ? '┃ Pick Line' : '∠ Angle'}
+                </button>
+              ))}
+            </div>
+          </Tooltip>
+          {ts.mirrorAxisMode === 'ANGLE' && (
+            <>
+              <Sep />
+              <Tooltip
+                label="Axis Angle"
+                description="Angle of the mirror axis from horizontal in degrees. CCW positive. Range 0–179° (180° wraps back to 0°)."
+                side="bottom"
+                delay={400}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400 shrink-0">∠</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={179}
+                    step={1}
+                    className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-pink-500"
+                    value={ts.mirrorAngle}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v)) toolStore.setMirrorAngle(v);
+                    }}
+                  />
+                  <span className="text-[10px] text-gray-500">°</span>
+                  <div className="flex gap-0.5">
+                    {[0, 45, 90, 135].map((a) => (
+                      <button
+                        key={a}
+                        className={`px-1.5 h-6 rounded text-[10px] border transition-colors
+                          ${Math.abs(ts.mirrorAngle - a) < 0.01
+                            ? 'bg-pink-600 border-pink-500 text-white'
+                            : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                        onClick={() => toolStore.setMirrorAngle(a)}
+                      >
+                        {a}°
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Tooltip>
+            </>
+          )}
+          <Sep />
+          {/* Quick centroid presets — same as the existing
+              flipSelection helpers, work regardless of axis
+              mode and respect Copy Mode. */}
+          <Tooltip
+            label="Quick Mirror"
+            description="Apply a mirror immediately through the selection's centroid. Honours Copy Mode."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">Quick:</span>
+              <div className="flex gap-0.5">
+                <button
+                  className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+                  onClick={() => {
+                    if (selCount === 0) return;
+                    if (copyMode) duplicateSelection(0, 0);
+                    flipSelectionHorizontal();
+                  }}
+                  title="Mirror across vertical axis through centroid"
+                >
+                  ↔ Vertical
+                </button>
+                <button
+                  className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+                  onClick={() => {
+                    if (selCount === 0) return;
+                    if (copyMode) duplicateSelection(0, 0);
+                    flipSelectionVertical();
+                  }}
+                  title="Mirror across horizontal axis through centroid"
+                >
+                  ↕ Horizontal
+                </button>
+              </div>
+            </div>
+          </Tooltip>
+          <Sep />
+          {/* Phase indicator — describes the next click depending on axis mode. */}
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0
+              ? 'Select features first'
+              : ts.mirrorAxisMode === 'PICK_LINE'
+                ? 'Click an existing line / edge to use as the axis'
+                : ts.mirrorAxisMode === 'ANGLE'
+                  ? 'Click an anchor point to mirror through'
+                  : 'Click two points to define a custom mirror axis'}
+          </span>
+        </>
+      )}
+
+      {/* ── FLIP tool options ─────────────────────────────────────────────── */}
+      {showFlip && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Flip Direction"
+            description="H: top↔bottom across horizontal axis. V: left↔right across vertical axis. D1: across the y=x diagonal. D2: across the y=-x anti-diagonal. All flip through the selection centroid. Click the canvas (or use Apply) to commit; honours Copy Mode."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">Direction:</span>
+              <div className="flex gap-0.5">
+                {(['H', 'V', 'D1', 'D2'] as const).map((d) => (
+                  <button
+                    key={d}
+                    className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                      ${ts.flipDirection === d
+                        ? 'bg-fuchsia-600 border-fuchsia-500 text-white'
+                        : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                    onClick={() => toolStore.setFlipDirection(d)}
+                  >
+                    {d === 'H' ? '↕ H' : d === 'V' ? '↔ V' : d === 'D1' ? '⤢ D1' : '⤩ D2'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Tooltip>
+          <Sep />
+          <Tooltip
+            label="Apply Flip"
+            description="Apply the flip immediately through the selection's centroid using the chosen direction. Same as clicking on the canvas with the FLIP tool active."
+            side="bottom"
+            delay={400}
+          >
+            <button
+              className="px-2.5 h-6 rounded text-[11px] bg-fuchsia-700 border border-fuchsia-600 text-white hover:bg-fuchsia-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={selCount === 0}
+              onClick={() => flipSelectionByDirection(ts.flipDirection, copyMode)}
+            >
+              Flip
+            </button>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0 ? 'Select features first' : 'Click canvas or press Apply to flip'}
+          </span>
+        </>
+      )}
+
+      {/* ── INVERT tool options ──────────────────────────────────────────── */}
+      {showInvert && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Invert (Point Inversion)"
+            description="Click a point on the canvas to invert the selection through it (a 180° rotation around the clicked center). Honours Copy Mode."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-amber-400 shrink-0">⊙ Invert</span>
+              <button
+                className="px-2.5 h-6 rounded text-[11px] bg-amber-700 border border-amber-600 text-white hover:bg-amber-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={selCount === 0}
+                onClick={() => {
+                  if (selCount === 0) return;
+                  // Apply via centroid as a quick path.
+                  const ids = Array.from(useSelectionStore.getState().selectedIds);
+                  const c = computeSelectionCentroid(ids);
+                  invertSelection(c, copyMode);
+                }}
+                title="Invert through selection centroid"
+              >
+                Through Centroid
+              </button>
+            </div>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0 ? 'Select features first' : 'Click any point to use as the inversion center'}
+          </span>
+        </>
+      )}
+
+      {/* ── SPLIT tool options ─────────────────────────────────────────────── */}
+      {showSplit && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any line, polyline, or polygon to break it at the cursor point. The lime ring marks the split location.
+          </span>
+        </>
+      )}
+
+      {/* ── TRIM tool options ──────────────────────────────────────────────── */}
+      {showTrim && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click a line or polyline portion that crosses another feature — the section between the two adjacent crossings (highlighted red) gets removed. No crossings = whole feature deleted.
+          </span>
+        </>
+      )}
+
+      {/* ── ARRAY tool options ─────────────────────────────────────────────── */}
+      {showArray && (
+        <>
+          <Sep />
+          {/* Mode picker — RECT or POLAR */}
+          <Tooltip
+            label="Array Layout"
+            description="Rectangular: rows × cols grid with row/col spacing. Polar: count copies around a center point, evenly spaced across an angle span."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-0.5">
+              {(['RECT', 'POLAR'] as const).map((m) => (
+                <button
+                  key={m}
+                  className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                    ${ts.arrayMode === m
+                      ? 'bg-cyan-600 border-cyan-500 text-white'
+                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                  onClick={() => toolStore.setArrayMode(m)}
+                >
+                  {m === 'RECT' ? '▦ Rect' : '◯ Polar'}
+                </button>
+              ))}
+            </div>
+          </Tooltip>
+          <Sep />
+          {ts.arrayMode === 'RECT' ? (
+            <>
+              <Tooltip
+                label="Array Grid"
+                description="Number of rows × columns. The original counts as row 0, col 0; the remaining cells are placed at row × row-spacing and col × col-spacing offsets."
+                side="bottom"
+                delay={400}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400 shrink-0">Rows:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    step={1}
+                    className="w-12 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                    value={ts.arrayRows}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      if (!isNaN(v)) toolStore.setArrayRows(v);
+                    }}
+                  />
+                  <span className="text-[11px] text-gray-500">×</span>
+                  <span className="text-[11px] text-gray-400 shrink-0">Cols:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    step={1}
+                    className="w-12 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                    value={ts.arrayCols}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      if (!isNaN(v)) toolStore.setArrayCols(v);
+                    }}
+                  />
+                </div>
+              </Tooltip>
+              <Sep />
+              <Tooltip
+                label="Array Spacing"
+                description="Distance between row origins (vertical) and column origins (horizontal) in world units. Negative values mirror the array direction."
+                side="bottom"
+                delay={400}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400 shrink-0">↕</span>
+                  <input
+                    type="number"
+                    step={1}
+                    className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                    value={ts.arrayRowSpacing}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v)) toolStore.setArrayRowSpacing(v);
+                    }}
+                  />
+                  <span className="text-[11px] text-gray-400 shrink-0">↔</span>
+                  <input
+                    type="number"
+                    step={1}
+                    className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                    value={ts.arrayColSpacing}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v)) toolStore.setArrayColSpacing(v);
+                    }}
+                  />
+                </div>
+              </Tooltip>
+              <Sep />
+              <Tooltip label="Apply Array" description="Replicate the selection in a rectangular grid using the current rows × cols × spacing." side="bottom" delay={400}>
+                <button
+                  className="px-2.5 h-6 rounded text-[11px] bg-cyan-700 border border-cyan-600 text-white hover:bg-cyan-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={selCount === 0 || (ts.arrayRows * ts.arrayCols) <= 1}
+                  onClick={() => arraySelectionRectangular(ts.arrayRows, ts.arrayCols, ts.arrayRowSpacing, ts.arrayColSpacing)}
+                >
+                  Array {ts.arrayRows}×{ts.arrayCols}
+                </button>
+              </Tooltip>
+              <Sep />
+              <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+                {selCount === 0
+                  ? 'Select features first'
+                  : (ts.arrayRows * ts.arrayCols) <= 1
+                    ? 'Set rows × cols ≥ 2 to array'
+                    : `Click canvas or Apply to add ${ts.arrayRows * ts.arrayCols - 1} cop${(ts.arrayRows * ts.arrayCols - 1) === 1 ? 'y' : 'ies'}`}
+              </span>
+            </>
+          ) : (
+            <>
+              <Tooltip
+                label="Polar Array"
+                description="Number of copies (including original) and total angle span. 360° wraps a full circle; smaller angles sweep an arc. Negative angle sweeps clockwise."
+                side="bottom"
+                delay={400}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400 shrink-0">Count:</span>
+                  <input
+                    type="number"
+                    min={2}
+                    max={360}
+                    step={1}
+                    className="w-14 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                    value={ts.arrayPolarCount}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      if (!isNaN(v)) toolStore.setArrayPolarCount(v);
+                    }}
+                  />
+                  <span className="text-[11px] text-gray-400 shrink-0">∠</span>
+                  <input
+                    type="number"
+                    min={-360}
+                    max={360}
+                    step={1}
+                    className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                    value={ts.arrayPolarAngleDeg}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v)) toolStore.setArrayPolarAngleDeg(v);
+                    }}
+                  />
+                  <span className="text-[10px] text-gray-500">°</span>
+                  <div className="flex gap-0.5">
+                    {[90, 180, 270, 360].map((a) => (
+                      <button
+                        key={a}
+                        className={`px-1.5 h-6 rounded text-[10px] border transition-colors
+                          ${Math.abs(ts.arrayPolarAngleDeg - a) < 0.01
+                            ? 'bg-cyan-600 border-cyan-500 text-white'
+                            : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                        onClick={() => toolStore.setArrayPolarAngleDeg(a)}
+                      >
+                        {a}°
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Tooltip>
+              <Sep />
+              <ToggleBtn
+                active={ts.arrayPolarRotate}
+                onClick={() => toolStore.setArrayPolarRotate(!ts.arrayPolarRotate)}
+                label="Rotate Items"
+                tooltipLabel="Rotate Items"
+                tooltipDesc="When ON, each polar copy is rotated to match its radial position (CAD default). When OFF, copies keep the original orientation — useful for symbols like manhole covers that must stay upright."
+                color="bg-cyan-700"
+              />
+              <Sep />
+              {/* Center pivot helper — set the polar center to the selection centroid */}
+              <Tooltip
+                label="Center of Mass"
+                description="Set the polar array center to the bounding-box centroid of the selected elements. Otherwise, click anywhere on the canvas to set the center, then click again to commit."
+                side="bottom"
+                delay={400}
+              >
+                <button
+                  className="px-2.5 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors whitespace-nowrap disabled:opacity-50"
+                  disabled={selCount === 0}
+                  onClick={() => {
+                    const ids = Array.from(selectionStore.selectedIds);
+                    if (!ids.length) return;
+                    toolStore.setArrayPolarCenter(computeSelectionCentroid(ids));
+                  }}
+                >
+                  ⊕ Center of Mass
+                </button>
+              </Tooltip>
+              <Sep />
+              <Tooltip label="Apply Polar Array" description="Commit the polar array using the current count, angle span, and center. Disabled until a center has been picked (click the canvas or use Center of Mass)." side="bottom" delay={400}>
+                <button
+                  className="px-2.5 h-6 rounded text-[11px] bg-cyan-700 border border-cyan-600 text-white hover:bg-cyan-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={selCount === 0 || ts.arrayPolarCount < 2 || !ts.arrayPolarCenter}
+                  onClick={() => {
+                    if (!ts.arrayPolarCenter) return;
+                    arraySelectionPolar(
+                      ts.arrayPolarCount,
+                      ts.arrayPolarAngleDeg,
+                      ts.arrayPolarCenter,
+                      ts.arrayPolarRotate,
+                    );
+                    toolStore.setArrayPolarCenter(null);
+                  }}
+                >
+                  Polar ×{ts.arrayPolarCount}
+                </button>
+              </Tooltip>
+              {ts.arrayPolarCenter && (
+                <button
+                  className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+                  onClick={() => toolStore.setArrayPolarCenter(null)}
+                  title="Clear locked-in center"
+                >
+                  ✕
+                </button>
+              )}
+              <Sep />
+              <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+                {selCount === 0
+                  ? 'Select features first'
+                  : !ts.arrayPolarCenter
+                    ? 'Click canvas to set center (or use Center of Mass)'
+                    : `Click canvas or Apply to add ${ts.arrayPolarCount - 1} cop${ts.arrayPolarCount - 1 === 1 ? 'y' : 'ies'}`}
+              </span>
+            </>
+          )}
         </>
       )}
 
@@ -495,95 +1009,312 @@ export default function ToolOptionsBar() {
               ? 'bg-blue-700/40 border-blue-500 text-blue-300'
               : 'bg-gray-700 border-gray-600 text-gray-300'}`}
           >
-            {ts.offsetSourceId ? '⟳ Click side to place offset' : '① Click object to offset'}
+            {ts.offsetSourceId
+              ? ts.offsetMode === 'SCALE'
+                ? '⟳ Click to commit scale offset'
+                : ts.offsetMode === 'TRANSLATE'
+                  ? '⟳ Click anywhere to commit translate offset'
+                  : '⟳ Click side to place offset'
+              : '① Click object to offset'}
           </span>
           {ts.offsetSourceId && (
             <Tooltip label="Cancel Selection" description="Deselect the current offset source and pick a new object." side="bottom" delay={400}>
               <button
                 className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
-                onClick={() => toolStore.setOffsetSourceId(null)}
+                onClick={() => {
+                  toolStore.setOffsetSourceId(null);
+                  toolStore.setOffsetSourceSegmentIndex(null);
+                }}
               >
                 ✕
               </button>
             </Tooltip>
           )}
           <Sep />
-          {/* Distance input */}
+          {/* Target — whole feature or single segment.
+              Curved sources (circle, ellipse, arc, spline)
+              ignore SEGMENT and fall through to whole-shape. */}
           <Tooltip
-            label="Offset Distance"
-            description="Distance to offset. Set to 0 to pick the distance dynamically by mouse position."
+            label="Offset Target"
+            description="Whole: offset the entire feature as one. Segment: offset only the polyline edge nearest the cursor at pick time as a standalone line. Curved sources always offset as a whole."
             side="bottom"
             delay={400}
           >
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-gray-400 shrink-0">Dist:</span>
-              <input
-                type="number"
-                min={0}
-                step={0.5}
-                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-blue-500"
-                value={ts.offsetDistance}
-                title={ts.offsetDistance === 0 ? 'Dynamic (follow cursor)' : `${ts.offsetDistance} units`}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v)) toolStore.setOffsetDistance(v);
-                }}
-              />
-            </div>
-          </Tooltip>
-          <Sep />
-          {/* Side selector */}
-          <Tooltip label="Offset Side" description="Which side of the object to create the offset on. 'Both' creates offsets on both sides simultaneously." side="bottom" delay={400}>
             <div className="flex items-center gap-0.5">
-              {(['LEFT', 'RIGHT', 'BOTH'] as const).map((s) => (
+              {(['WHOLE', 'SEGMENT'] as const).map((m) => (
                 <button
-                  key={s}
+                  key={m}
                   className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
-                    ${ts.offsetSide === s
-                      ? 'bg-blue-600 border-blue-500 text-white'
+                    ${ts.offsetSegmentMode === m
+                      ? 'bg-teal-600 border-teal-500 text-white'
                       : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
-                  onClick={() => toolStore.setOffsetSide(s)}
-                  title={s === 'LEFT' ? 'Left / outside' : s === 'RIGHT' ? 'Right / inside' : 'Both sides'}
+                  onClick={() => {
+                    toolStore.setOffsetSegmentMode(m);
+                    // Switching modes mid-pick clears the
+                    // captured segment index so the next
+                    // phase-1 click recaptures correctly.
+                    toolStore.setOffsetSourceSegmentIndex(null);
+                  }}
                 >
-                  {s === 'LEFT' ? '◁ Left' : s === 'RIGHT' ? 'Right ▷' : '⇔ Both'}
+                  {m === 'WHOLE' ? '◇ Whole' : '┃ Segment'}
                 </button>
               ))}
             </div>
           </Tooltip>
           <Sep />
-          {/* Corner handling */}
-          <Tooltip label="Corner Style" description="How corners are joined in the offset polyline: Miter (sharp), Round (arc), or Chamfer (beveled)." side="bottom" delay={400}>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-gray-400 shrink-0">Corner:</span>
-              <div className="flex items-center gap-0.5">
-                {(['MITER', 'ROUND', 'CHAMFER'] as const).map((m) => (
-                  <button
-                    key={m}
-                    className={`px-2 h-6 rounded text-[11px] border transition-colors
-                      ${ts.offsetCornerHandling === m
-                        ? 'bg-indigo-600 border-indigo-500 text-white'
-                        : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
-                    onClick={() => toolStore.setOffsetCornerHandling(m)}
-                  >
-                    {m === 'MITER' ? '⌐ Miter' : m === 'ROUND' ? '◜ Round' : '/ Chamfer'}
-                  </button>
-                ))}
-              </div>
+          {/* Mode selector — PARALLEL vs SCALE vs TRANSLATE */}
+          <Tooltip
+            label="Offset Mode"
+            description="Parallel: perpendicular offset by distance. Scale: proportional resize around the feature's centroid. Translate: programmatic vector offset — type a distance and azimuth (bearing) to copy the source by that exact vector."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-0.5">
+              {(['PARALLEL', 'SCALE', 'TRANSLATE'] as const).map((m) => (
+                <button
+                  key={m}
+                  className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                    ${ts.offsetMode === m
+                      ? 'bg-orange-600 border-orange-500 text-white'
+                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                  onClick={() => toolStore.setOffsetMode(m)}
+                >
+                  {m === 'PARALLEL' ? '∥ Parallel' : m === 'SCALE' ? '⤢ Scale' : '➜ Translate'}
+                </button>
+              ))}
             </div>
           </Tooltip>
           <Sep />
-          {/* Presets */}
-          <OffsetPresetsDropdown />
+          {/* Mode-specific input — distance for PARALLEL, factor for SCALE, distance + bearing for TRANSLATE */}
+          {ts.offsetMode === 'PARALLEL' && (
+            <Tooltip
+              label="Offset Distance"
+              description="Distance to offset. Set to 0 to pick the distance dynamically by mouse position."
+              side="bottom"
+              delay={400}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-gray-400 shrink-0">Dist:</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-blue-500"
+                  value={ts.offsetDistance}
+                  title={ts.offsetDistance === 0 ? 'Dynamic (follow cursor)' : `${ts.offsetDistance} units`}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v)) toolStore.setOffsetDistance(v);
+                  }}
+                />
+              </div>
+            </Tooltip>
+          )}
+          {ts.offsetMode === 'SCALE' && (
+            <Tooltip
+              label="Scale Factor"
+              description="Multiplier for the proportional resize. >1 enlarges, <1 shrinks. Side ▷ Right inverts (acts as 1/factor) so you can shrink without retyping."
+              side="bottom"
+              delay={400}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-gray-400 shrink-0">×</span>
+                <input
+                  type="number"
+                  min={0.01}
+                  step={0.05}
+                  className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-orange-500"
+                  value={ts.offsetScaleFactor}
+                  title={`Scale factor: ${ts.offsetScaleFactor}`}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v) && v > 0) toolStore.setOffsetScaleFactor(v);
+                  }}
+                />
+              </div>
+            </Tooltip>
+          )}
+          {ts.offsetMode === 'TRANSLATE' && (
+            <Tooltip
+              label="Vector Distance + Bearing"
+              description="Programmatic offset by a survey-style vector. Distance is the length in feet; bearing is an azimuth in degrees (0° = North, clockwise). Click anywhere on the canvas to commit; the source is copied by the exact vector regardless of cursor position."
+              side="bottom"
+              delay={400}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-gray-400 shrink-0">Dist:</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-orange-500"
+                  value={ts.offsetDistance}
+                  title={`${ts.offsetDistance} units`}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v) && v >= 0) toolStore.setOffsetDistance(v);
+                  }}
+                />
+                <span className="text-[11px] text-gray-400 shrink-0">∠ Az:</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={360}
+                  step={1}
+                  className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-orange-500"
+                  value={ts.offsetBearingDeg}
+                  title={`Azimuth: ${ts.offsetBearingDeg}° (0=N, clockwise)`}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v)) toolStore.setOffsetBearingDeg(v);
+                  }}
+                />
+                <span className="text-[10px] text-gray-500">°</span>
+                {/* Quick azimuth presets — N / E / S / W */}
+                <div className="flex gap-0.5">
+                  {[
+                    { label: 'N', deg: 0 },
+                    { label: 'E', deg: 90 },
+                    { label: 'S', deg: 180 },
+                    { label: 'W', deg: 270 },
+                  ].map((p) => (
+                    <button
+                      key={p.label}
+                      className={`px-1.5 h-6 rounded text-[10px] border transition-colors
+                        ${Math.abs(ts.offsetBearingDeg - p.deg) < 0.01
+                          ? 'bg-orange-600 border-orange-500 text-white'
+                          : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                      onClick={() => toolStore.setOffsetBearingDeg(p.deg)}
+                      title={`${p.label} = ${p.deg}°`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </Tooltip>
+          )}
+          {/* Side selector — only meaningful for PARALLEL
+              (perpendicular direction) and SCALE (sign-flip
+              for shrink). TRANSLATE encodes direction in the
+              azimuth itself, so the side picker is hidden. */}
+          {ts.offsetMode !== 'TRANSLATE' && (
+            <>
+              <Sep />
+              <Tooltip
+                label="Offset Side"
+                description={
+                  ts.offsetMode === 'SCALE'
+                    ? "Side ◁ Left applies the factor as-is. Side ▷ Right inverts (1/factor) so the same number can be used for both 'blow up' and 'shrink'. 'Both' creates two offsets simultaneously (parallel only)."
+                    : "Which side of the object to create the offset on. 'Both' creates offsets on both sides simultaneously."
+                }
+                side="bottom"
+                delay={400}
+              >
+                <div className="flex items-center gap-0.5">
+                  {(['LEFT', 'RIGHT', 'BOTH'] as const)
+                    .filter((s) => ts.offsetMode === 'PARALLEL' || s !== 'BOTH')
+                    .map((s) => (
+                      <button
+                        key={s}
+                        className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                          ${ts.offsetSide === s
+                            ? 'bg-blue-600 border-blue-500 text-white'
+                            : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                        onClick={() => toolStore.setOffsetSide(s)}
+                        title={s === 'LEFT' ? 'Left / outside' : s === 'RIGHT' ? 'Right / inside' : 'Both sides'}
+                      >
+                        {s === 'LEFT' ? '◁ Left' : s === 'RIGHT' ? 'Right ▷' : '⇔ Both'}
+                      </button>
+                    ))}
+                </div>
+              </Tooltip>
+            </>
+          )}
+          {ts.offsetMode === 'PARALLEL' && (
+            <>
+              <Sep />
+              {/* Corner handling */}
+              <Tooltip label="Corner Style" description="How corners are joined in the offset polyline: Miter (sharp), Round (arc), or Chamfer (beveled)." side="bottom" delay={400}>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400 shrink-0">Corner:</span>
+                  <div className="flex items-center gap-0.5">
+                    {(['MITER', 'ROUND', 'CHAMFER'] as const).map((m) => (
+                      <button
+                        key={m}
+                        className={`px-2 h-6 rounded text-[11px] border transition-colors
+                          ${ts.offsetCornerHandling === m
+                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                        onClick={() => toolStore.setOffsetCornerHandling(m)}
+                      >
+                        {m === 'MITER' ? '⌐ Miter' : m === 'ROUND' ? '◜ Round' : '/ Chamfer'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Tooltip>
+            </>
+          )}
+          {ts.offsetMode === 'SCALE' && (
+            <>
+              <Sep />
+              {/* Line weight scaling toggle (SCALE mode only) */}
+              <ToggleBtn
+                active={ts.offsetScaleLineWeight}
+                onClick={() => toolStore.setOffsetScaleLineWeight(!ts.offsetScaleLineWeight)}
+                label="Scale Stroke"
+                tooltipLabel="Scale Line Weight"
+                tooltipDesc="When ON, the offset feature's line weight scales with the geometry (a 2× scale also doubles the stroke). When OFF (default), the stroke stays the same so the new feature reads at the same visual weight as the source."
+                color="bg-orange-700"
+              />
+            </>
+          )}
+          <Sep />
+          {/* Presets — PARALLEL only (SCALE has no canonical
+              survey distances). */}
+          {ts.offsetMode === 'PARALLEL' && <OffsetPresetsDropdown />}
           {/* Quick-apply when a source is selected */}
-          {ts.offsetSourceId && ts.offsetDistance > 0 && (
+          {ts.offsetSourceId && (
+            (ts.offsetMode === 'PARALLEL' && ts.offsetDistance > 0) ||
+            (ts.offsetMode === 'SCALE' && ts.offsetScaleFactor > 0 && ts.offsetScaleFactor !== 1) ||
+            (ts.offsetMode === 'TRANSLATE' && ts.offsetDistance > 0)
+          ) && (
             <>
               <Sep />
               <Tooltip label="Apply Offset" description="Apply the offset to the selected object with the current settings." side="bottom" delay={400}>
                 <button
                   className="px-2.5 h-6 rounded text-[11px] bg-blue-700 border border-blue-600 text-white hover:bg-blue-600 transition-colors whitespace-nowrap"
                   onClick={() => {
-                    const { offsetSourceId: sid, offsetDistance: dist, offsetSide: side, offsetCornerHandling: corner } = toolStore.state;
-                    if (sid && dist > 0) {
+                    const {
+                      offsetSourceId: sid,
+                      offsetDistance: dist,
+                      offsetSide: side,
+                      offsetCornerHandling: corner,
+                      offsetMode: mode,
+                      offsetScaleFactor: factor,
+                      offsetScaleLineWeight: scaleWeight,
+                      offsetBearingDeg: bearing,
+                    } = toolStore.state;
+                    if (!sid) return;
+                    if (mode === 'SCALE') {
+                      if (factor > 0 && factor !== 1) {
+                        applyInteractiveOffset(sid, 0, side, corner, {
+                          mode: 'SCALE',
+                          scaleFactor: factor,
+                          scaleLineWeight: scaleWeight,
+                        });
+                        toolStore.setOffsetSourceId(null);
+                      }
+                    } else if (mode === 'TRANSLATE') {
+                      if (dist > 0) {
+                        applyInteractiveOffset(sid, dist, side, corner, {
+                          mode: 'TRANSLATE',
+                          bearingDeg: bearing,
+                        });
+                        toolStore.setOffsetSourceId(null);
+                      }
+                    } else if (dist > 0) {
                       applyInteractiveOffset(sid, dist, side, corner);
                       toolStore.setOffsetSourceId(null);
                     }
@@ -931,6 +1662,11 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   COPY: 'Copy',
   ROTATE: 'Rotate',
   MIRROR: 'Mirror',
+  FLIP: 'Flip',
+  INVERT: 'Invert',
+  ARRAY: 'Array',
+  SPLIT: 'Split',
+  TRIM: 'Trim',
   SCALE: 'Scale',
   ERASE: 'Erase',
   OFFSET: 'Offset',

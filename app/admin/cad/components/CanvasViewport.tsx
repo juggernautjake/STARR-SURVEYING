@@ -39,9 +39,37 @@ import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } fro
 import { inverseBearingDistance, forwardPoint, formatBearing } from '@/lib/cad/geometry/bearing';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
 import { cadLog } from '@/lib/cad/logger';
-import { computeSideFromCursor, computeDistanceToFeature, isOffsetableFeature, offsetPolyline, offsetArc, offsetCircle } from '@/lib/cad/geometry/offset';
+import {
+  computeSideFromCursor,
+  computeDistanceToFeature,
+  isOffsetableFeature,
+  isSegmentableFeature,
+  findClosestSegmentIndex,
+  getSegmentEndpoints,
+  offsetPolyline,
+  offsetArc,
+  offsetCircle,
+  offsetEllipse,
+  offsetSpline,
+  scaleArcAroundCenter,
+  scaleCircleAroundCenter,
+  scaleEllipseAroundCenter,
+  scalePolylineAroundCentroid,
+  scaleSplineAroundCentroid,
+} from '@/lib/cad/geometry/offset';
 import { computeCurbReturn } from '@/lib/cad/geometry/curb-return';
-import { applyInteractiveOffset } from '@/lib/cad/operations';
+import {
+  applyInteractiveOffset,
+  flipSelectionByDirection,
+  invertSelection,
+  rotateSelection,
+  scaleSelection,
+  duplicateSelection,
+  arraySelectionRectangular,
+  arraySelectionPolar,
+  splitFeatureAt,
+  trimFeatureAt,
+} from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
   drawEllipse as drawEllipseCurve,
@@ -179,6 +207,147 @@ interface CanvasViewportProps {
   pendingPlaceImageId?: string | null;
   /** Called after the pending image id has been consumed (image placed or dialog dismissed). */
   onPlaceImageConsumed?: () => void;
+}
+
+/**
+ * Resolve a mirror-axis [start, end] from a feature picked
+ * under the cursor. Uses the closest segment for any vertex-
+ * chain feature, the (start, end) pair for LINE, and falls
+ * back to null for non-linear geometry. The returned points
+ * define the line direction only — `mirror()` ignores the
+ * specific length and just uses the direction vector.
+ */
+function pickAxisFromFeature(
+  feature: import('@/lib/cad/types').Feature,
+  cursor: import('@/lib/cad/types').Point2D,
+): [import('@/lib/cad/types').Point2D, import('@/lib/cad/types').Point2D] | null {
+  const idx = findClosestSegmentIndex(feature, cursor);
+  if (idx == null) return null;
+  return getSegmentEndpoints(feature, idx);
+}
+
+/**
+ * Render a faint ghost of `feature` after applying
+ * `transformFn` so the user can see exactly where a transform
+ * (mirror, move, copy, flip, invert, rotate, scale) will land
+ * before committing. Caller must have set `g.lineStyle(...)`
+ * already; this only issues moveTo/lineTo/drawCircle calls.
+ * World→screen conversion is delegated to `w2s` so this
+ * helper stays decoupled from the component's render context.
+ */
+function drawTransformedFeaturePreview(
+  g: import('pixi.js').Graphics,
+  feature: import('@/lib/cad/types').Feature,
+  transformFn: (p: import('@/lib/cad/types').Point2D) => import('@/lib/cad/types').Point2D,
+  w2s: (wx: number, wy: number) => { sx: number; sy: number },
+): void {
+  const ghost = transformFeature(feature, transformFn);
+  const gg = ghost.geometry;
+
+  if (gg.type === 'POINT' && gg.point) {
+    const sp = w2s(gg.point.x, gg.point.y);
+    g.drawCircle(sp.sx, sp.sy, 3);
+    return;
+  }
+  if (gg.type === 'LINE' && gg.start && gg.end) {
+    const a = w2s(gg.start.x, gg.start.y);
+    const b = w2s(gg.end.x, gg.end.y);
+    g.moveTo(a.sx, a.sy);
+    g.lineTo(b.sx, b.sy);
+    return;
+  }
+  if ((gg.type === 'POLYLINE' || gg.type === 'POLYGON') && gg.vertices && gg.vertices.length >= 2) {
+    const p0 = w2s(gg.vertices[0].x, gg.vertices[0].y);
+    g.moveTo(p0.sx, p0.sy);
+    for (let i = 1; i < gg.vertices.length; i += 1) {
+      const p = w2s(gg.vertices[i].x, gg.vertices[i].y);
+      g.lineTo(p.sx, p.sy);
+    }
+    if (gg.type === 'POLYGON') g.lineTo(p0.sx, p0.sy);
+    return;
+  }
+  if (gg.type === 'CIRCLE' && gg.circle) {
+    const sp = w2s(gg.circle.center.x, gg.circle.center.y);
+    const radiusPx = gg.circle.radius * useViewportStore.getState().zoom;
+    g.drawCircle(sp.sx, sp.sy, radiusPx);
+    return;
+  }
+  if (gg.type === 'ELLIPSE' && gg.ellipse) {
+    const e = gg.ellipse;
+    const cosR = Math.cos(e.rotation);
+    const sinR = Math.sin(e.rotation);
+    const samples = 64;
+    for (let i = 0; i <= samples; i += 1) {
+      const t = (i / samples) * Math.PI * 2;
+      const lx = e.radiusX * Math.cos(t);
+      const ly = e.radiusY * Math.sin(t);
+      const wx = e.center.x + lx * cosR - ly * sinR;
+      const wy = e.center.y + lx * sinR + ly * cosR;
+      const sp = w2s(wx, wy);
+      if (i === 0) g.moveTo(sp.sx, sp.sy);
+      else g.lineTo(sp.sx, sp.sy);
+    }
+    return;
+  }
+  if (gg.type === 'ARC' && gg.arc) {
+    const a = gg.arc;
+    const sp = w2s(a.center.x, a.center.y);
+    const radiusPx = a.radius * useViewportStore.getState().zoom;
+    const steps = 32;
+    let startA = a.startAngle;
+    let endA = a.endAngle;
+    if (a.anticlockwise) {
+      if (endA <= startA) endA += Math.PI * 2;
+    } else {
+      if (startA <= endA) startA += Math.PI * 2;
+      [startA, endA] = [endA, startA];
+    }
+    const span = endA - startA;
+    for (let i = 0; i <= steps; i += 1) {
+      const t = i / steps;
+      const angle = startA + span * t;
+      const px = sp.sx + radiusPx * Math.cos(angle);
+      const py = sp.sy - radiusPx * Math.sin(angle);
+      if (i === 0) g.moveTo(px, py);
+      else g.lineTo(px, py);
+    }
+    return;
+  }
+  if (gg.type === 'SPLINE' && gg.spline && gg.spline.controlPoints.length >= 4) {
+    const cps = gg.spline.controlPoints;
+    const segCount = Math.floor((cps.length - 1) / 3);
+    const stepsPerSeg = 24;
+    let started = false;
+    for (let seg = 0; seg < segCount; seg += 1) {
+      const p0 = cps[seg * 3];
+      const p1 = cps[seg * 3 + 1];
+      const p2 = cps[seg * 3 + 2];
+      const p3 = cps[seg * 3 + 3];
+      const startStep = started ? 1 : 0;
+      for (let i = startStep; i <= stepsPerSeg; i += 1) {
+        const t = i / stepsPerSeg;
+        const u = 1 - t;
+        const wx = u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x;
+        const wy = u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y;
+        const sp = w2s(wx, wy);
+        if (!started) {
+          g.moveTo(sp.sx, sp.sy);
+          started = true;
+        } else {
+          g.lineTo(sp.sx, sp.sy);
+        }
+      }
+    }
+    return;
+  }
+  if (gg.type === 'MIXED_GEOMETRY' && gg.vertices && gg.vertices.length >= 2) {
+    const p0 = w2s(gg.vertices[0].x, gg.vertices[0].y);
+    g.moveTo(p0.sx, p0.sy);
+    for (let i = 1; i < gg.vertices.length; i += 1) {
+      const p = w2s(gg.vertices[i].x, gg.vertices[i].y);
+      g.lineTo(p.sx, p.sy);
+    }
+  }
 }
 
 export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsumed }: CanvasViewportProps = {}) {
@@ -2824,7 +2993,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     if (!previewPoint) return;
 
-    // For MOVE/COPY: show line from base point to cursor
+    // For MOVE/COPY: show line from base point to cursor + ghost of the moved/copied selection
     if (
       (activeTool === 'MOVE' || activeTool === 'COPY') &&
       toolState.basePoint &&
@@ -2839,10 +3008,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Base point cross
       g.moveTo(bx - 5, by); g.lineTo(bx + 5, by);
       g.moveTo(bx, by - 5); g.lineTo(bx, by + 5);
+
+      // Ghost preview of the destination selection.
+      const dx = previewPoint.x - bp.x;
+      const dy = previewPoint.y - bp.y;
+      if (dx !== 0 || dy !== 0) {
+        const selIds = Array.from(useSelectionStore.getState().selectedIds);
+        if (selIds.length > 0) {
+          const drawing = useDrawingStore.getState();
+          // COPY ghosts use a brighter cyan-ish hue so the
+          // viewer reads "new feature being added"; MOVE ghosts
+          // share the selection color so they read "this is
+          // where the same feature is going."
+          const ghostColor = activeTool === 'COPY' ? 0x66ffcc : selColor;
+          g.lineStyle(1.25, ghostColor, 0.55);
+          for (const id of selIds) {
+            const f = drawing.getFeature(id);
+            if (!f) continue;
+            drawTransformedFeaturePreview(g, f, (p) => translate(p, dx, dy), w2s);
+          }
+        }
+      }
       return;
     }
 
-    // For ROTATE: show line from center to cursor + angle arc indicator
+    // For ROTATE: show line from center to cursor + angle arc indicator + ghost of rotated selection
     if (activeTool === 'ROTATE' && toolState.rotateCenter) {
       const center = toolState.rotateCenter;
       const { sx: cx, sy: cy } = w2s(center.x, center.y);
@@ -2857,10 +3047,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       g.beginFill(0xff8800, 0.6);
       g.drawCircle(x2, y2, 4);
       g.endFill();
+
+      // Ghost preview — angle = atan2 of (cursor - center).
+      // Until the user clicks a reference point we treat
+      // angle 0 as horizontal, so the cursor angle drives the
+      // rotation directly. This mirrors how the toolbar input
+      // interprets degrees.
+      const angleRad = Math.atan2(previewPoint.y - center.y, previewPoint.x - center.x);
+      if (angleRad !== 0 && Number.isFinite(angleRad)) {
+        const selIds = Array.from(useSelectionStore.getState().selectedIds);
+        if (selIds.length > 0) {
+          const drawing = useDrawingStore.getState();
+          g.lineStyle(1.25, 0xffaa55, 0.55);
+          for (const id of selIds) {
+            const f = drawing.getFeature(id);
+            if (!f) continue;
+            drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, angleRad), w2s);
+          }
+        }
+      }
       return;
     }
 
-    // For SCALE: show line from base point to cursor
+    // For SCALE: show line from base point to cursor + ghost of scaled selection
     if (activeTool === 'SCALE' && toolState.basePoint) {
       const bp = toolState.basePoint;
       const { sx: bx, sy: by } = w2s(bp.x, bp.y);
@@ -2871,24 +3080,626 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Base point cross
       g.moveTo(bx - 8, by); g.lineTo(bx + 8, by);
       g.moveTo(bx, by - 8); g.lineTo(bx, by + 8);
+
+      // Ghost preview — factor is the ratio of cursor distance
+      // from base point to a unit reference. We pick the unit
+      // reference so factor = 1 when the cursor sits on a
+      // small arbitrary radius near the base, and grows /
+      // shrinks linearly with distance. This gives the user
+      // a visceral "drag-out-to-grow" feel.
+      const refDist = 50; // world-unit reference for factor=1
+      const cursorDist = Math.hypot(previewPoint.x - bp.x, previewPoint.y - bp.y);
+      const factor = cursorDist / refDist;
+      if (factor > 0 && factor !== 1 && Number.isFinite(factor)) {
+        const selIds = Array.from(useSelectionStore.getState().selectedIds);
+        if (selIds.length > 0) {
+          const drawing = useDrawingStore.getState();
+          g.lineStyle(1.25, 0x55ddaa, 0.55);
+          for (const id of selIds) {
+            const f = drawing.getFeature(id);
+            if (!f) continue;
+            drawTransformedFeaturePreview(g, f, (p) => scale(p, bp, factor), w2s);
+          }
+        }
+      }
       return;
     }
 
-    // For MIRROR: show mirror line preview
-    if (activeTool === 'MIRROR' && drawingPoints.length === 1) {
-      const lineA = drawingPoints[0];
-      const { sx: ax, sy: ay } = w2s(lineA.x, lineA.y);
-      const { sx: bx, sy: by } = w2s(previewPoint.x, previewPoint.y);
-      g.lineStyle(1.5, 0xff00ff, 0.7);
-      g.moveTo(ax, ay);
-      g.lineTo(bx, by);
+    // For MIRROR: show axis + ghost based on current axis mode
+    if (activeTool === 'MIRROR') {
+      const { mirrorAxisMode, mirrorAngle } = useToolStore.getState().state;
+      let axisA: Point2D | null = null;
+      let axisB: Point2D | null = null;
+      let axisLabel = '';
+
+      if (mirrorAxisMode === 'PICK_LINE') {
+        // Hit-test under the cursor for a line / polyline /
+        // polygon segment to use as the axis. Highlight the
+        // chosen segment so the user knows what they're aiming
+        // at.
+        const ids = useDrawingStore.getState().getAllFeatures().map((f) => f.id);
+        // Use the same hit-test the click handler will use —
+        // we replicate the logic here without reaching into
+        // the closure since hitTest isn't accessible.
+        // Simplest: rely on the selection stack's getFeature
+        // calls and our own `pickAxisFromFeature`; just walk
+        // visible features and pick the one whose closest
+        // segment is nearest the cursor.
+        let bestId: string | null = null;
+        let bestDist = Infinity;
+        const drawing = useDrawingStore.getState();
+        for (const id of ids) {
+          const f = drawing.getFeature(id);
+          if (!f) continue;
+          const ep = pickAxisFromFeature(f, previewPoint);
+          if (!ep) continue;
+          // Use perpendicular distance to that segment.
+          const dx = ep[1].x - ep[0].x;
+          const dy = ep[1].y - ep[0].y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          const t = Math.max(0, Math.min(1, ((previewPoint.x - ep[0].x) * dx + (previewPoint.y - ep[0].y) * dy) / len2));
+          const px = ep[0].x + t * dx;
+          const py = ep[0].y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          // Convert to screen px to apply hit tolerance
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 12) {
+            bestDist = dPx;
+            bestId = id;
+          }
+        }
+        if (bestId) {
+          const ep = pickAxisFromFeature(drawing.getFeature(bestId)!, previewPoint);
+          if (ep) {
+            axisA = ep[0];
+            axisB = ep[1];
+            // Highlight the picked segment in lime so the
+            // user reads "this is the axis I'm about to use."
+            const a = w2s(ep[0].x, ep[0].y);
+            const b = w2s(ep[1].x, ep[1].y);
+            g.lineStyle(2.5, 0x99ff44, 0.55);
+            g.moveTo(a.sx, a.sy);
+            g.lineTo(b.sx, b.sy);
+          }
+        }
+        axisLabel = 'Pick a line to use as axis';
+      } else if (mirrorAxisMode === 'ANGLE') {
+        // Anchor follows the cursor; axis line shoots out
+        // both ways at `mirrorAngle` degrees so the user can
+        // see the orientation before committing.
+        const rad = (mirrorAngle * Math.PI) / 180;
+        axisA = previewPoint;
+        axisB = {
+          x: previewPoint.x + Math.cos(rad),
+          y: previewPoint.y + Math.sin(rad),
+        };
+        axisLabel = `Axis at ${mirrorAngle.toFixed(1)}°`;
+      } else if (drawingPoints.length === 1) {
+        // TWO_POINTS — first click placed; cursor is the
+        // second axis point.
+        axisA = drawingPoints[0];
+        axisB = previewPoint;
+      }
+
+      if (axisA && axisB) {
+        const a = axisA;
+        const b = axisB;
+        // Draw the axis line — extend beyond endpoints so the
+        // user sees the full reflection plane, not just the
+        // two clicked points.
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len = Math.hypot(dx, dy);
+        if (len > 1e-10) {
+          const ux = dx / len;
+          const uy = dy / len;
+          const extend = 1e6; // arbitrary large number to overshoot the viewport
+          const fa = w2s(a.x - ux * extend, a.y - uy * extend);
+          const fb = w2s(b.x + ux * extend, b.y + uy * extend);
+          g.lineStyle(1.5, 0xff00ff, 0.7);
+          g.moveTo(fa.sx, fa.sy);
+          g.lineTo(fb.sx, fb.sy);
+        }
+
+        // Ghost preview of the reflected selection.
+        const selIds = Array.from(useSelectionStore.getState().selectedIds);
+        if (selIds.length > 0) {
+          const drawing = useDrawingStore.getState();
+          g.lineStyle(1.25, 0xff66ff, 0.55);
+          for (const id of selIds) {
+            const f = drawing.getFeature(id);
+            if (!f) continue;
+            drawTransformedFeaturePreview(g, f, (p) => mirror(p, a, b), w2s);
+          }
+        }
+      } else if (axisLabel) {
+        // No axis yet — just show a hint dot at the cursor
+        const { sx, sy } = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0xff66ff, 0.5);
+        g.drawCircle(sx, sy, 4);
+        g.endFill();
+      }
+      return;
+    }
+
+    // For FLIP: ghost-preview the flip across selection centroid
+    if (activeTool === 'FLIP') {
+      const selIds = Array.from(useSelectionStore.getState().selectedIds);
+      if (selIds.length === 0) return;
+      const drawing = useDrawingStore.getState();
+      const features = selIds.map((id) => drawing.getFeature(id)).filter(Boolean) as Feature[];
+      if (features.length === 0) return;
+      // Compute centroid of all selected points
+      const allPts: Point2D[] = [];
+      for (const f of features) {
+        const g_ = f.geometry;
+        if (g_.type === 'POINT' && g_.point) allPts.push(g_.point);
+        else if (g_.type === 'LINE' && g_.start && g_.end) allPts.push(g_.start, g_.end);
+        else if (g_.vertices) allPts.push(...g_.vertices);
+      }
+      if (allPts.length === 0) return;
+      let cx = 0, cy = 0;
+      for (const p of allPts) { cx += p.x; cy += p.y; }
+      cx /= allPts.length;
+      cy /= allPts.length;
+      const c: Point2D = { x: cx, y: cy };
+
+      // Build the same axis the operation will use.
+      const D = 1;
+      let axisA: Point2D, axisB: Point2D;
+      switch (toolState.flipDirection) {
+        case 'H':  axisA = { x: c.x - D, y: c.y };     axisB = { x: c.x + D, y: c.y };     break;
+        case 'V':  axisA = { x: c.x, y: c.y - D };     axisB = { x: c.x, y: c.y + D };     break;
+        case 'D1': axisA = { x: c.x - D, y: c.y - D }; axisB = { x: c.x + D, y: c.y + D }; break;
+        case 'D2': axisA = { x: c.x - D, y: c.y + D }; axisB = { x: c.x + D, y: c.y - D }; break;
+        default:   axisA = { x: c.x - D, y: c.y };     axisB = { x: c.x + D, y: c.y };
+      }
+
+      // Draw extended axis line through centroid
+      const dxA = axisB.x - axisA.x;
+      const dyA = axisB.y - axisA.y;
+      const lenA = Math.hypot(dxA, dyA);
+      if (lenA > 1e-10) {
+        const ux = dxA / lenA;
+        const uy = dyA / lenA;
+        const extend = 1e6;
+        const fa = w2s(axisA.x - ux * extend, axisA.y - uy * extend);
+        const fb = w2s(axisB.x + ux * extend, axisB.y + uy * extend);
+        g.lineStyle(1.5, 0xff00ff, 0.6);
+        g.moveTo(fa.sx, fa.sy);
+        g.lineTo(fb.sx, fb.sy);
+      }
+
+      // Centroid marker
+      const cs = w2s(c.x, c.y);
+      g.lineStyle(1, 0xff66ff, 0.85);
+      g.drawCircle(cs.sx, cs.sy, 3);
+
+      // Ghost preview
+      g.lineStyle(1.25, 0xff66ff, 0.55);
+      for (const f of features) {
+        drawTransformedFeaturePreview(g, f, (p) => mirror(p, axisA, axisB), w2s);
+      }
+      return;
+    }
+
+    // For INVERT: ghost-preview the 180° rotation around the cursor
+    if (activeTool === 'INVERT') {
+      const selIds = Array.from(useSelectionStore.getState().selectedIds);
+      if (selIds.length === 0) return;
+      const drawing = useDrawingStore.getState();
+      const center = previewPoint;
+      const cs = w2s(center.x, center.y);
+      // Inversion-center marker (small ring)
+      g.lineStyle(1.5, 0xffaa00, 0.85);
+      g.drawCircle(cs.sx, cs.sy, 5);
+      g.moveTo(cs.sx - 8, cs.sy); g.lineTo(cs.sx + 8, cs.sy);
+      g.moveTo(cs.sx, cs.sy - 8); g.lineTo(cs.sx, cs.sy + 8);
+      // Ghost preview — point inversion = rotate 180°
+      g.lineStyle(1.25, 0xffcc66, 0.55);
+      for (const id of selIds) {
+        const f = drawing.getFeature(id);
+        if (!f) continue;
+        drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, Math.PI), w2s);
+      }
+      return;
+    }
+
+    // For TRIM: highlight the portion of the feature that
+    // would be removed (between the two adjacent
+    // intersections, or back to an endpoint when only one
+    // side has a crossing). Surveyors need to see the
+    // doomed section explicitly so a misclick doesn't
+    // amputate the wrong leg.
+    if (activeTool === 'TRIM') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+
+      // Hit-test for any LINE / POLYLINE under the cursor.
+      // POLYGON is not a valid trim source (the wrap-around
+      // case is ambiguous when there's no crossing) so we
+      // skip it here too.
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        if (!chain) continue;
+        for (let i = 0; i + 1 < chain.length; i += 1) {
+          const a = chain[i];
+          const b = chain[i + 1];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+          }
+        }
+      }
+
+      if (!bestId || !bestChain) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+
+      // Compute cursor's chain parameter + adjacent
+      // intersections, exactly like trimFeatureAt does.
+      const chain = bestChain;
+      const targets = all.filter((t) => t.id !== bestId);
+      const ints: Array<{ chainParam: number; pt: Point2D }> = [];
+      for (let i = 0; i + 1 < chain.length; i += 1) {
+        const a = chain[i];
+        const b = chain[i + 1];
+        const dxA = b.x - a.x;
+        const dyA = b.y - a.y;
+        const len2 = dxA * dxA + dyA * dyA;
+        if (len2 < 1e-20) continue;
+        for (const t of targets) {
+          const tg = t.geometry;
+          let segs: Array<[Point2D, Point2D]> | null = null;
+          if (tg.type === 'LINE' && tg.start && tg.end) segs = [[tg.start, tg.end]];
+          else if ((tg.type === 'POLYLINE' || tg.type === 'MIXED_GEOMETRY') && tg.vertices && tg.vertices.length >= 2) {
+            segs = [];
+            for (let k = 0; k + 1 < tg.vertices.length; k += 1) segs.push([tg.vertices[k], tg.vertices[k + 1]]);
+          } else if (tg.type === 'POLYGON' && tg.vertices && tg.vertices.length >= 2) {
+            segs = [];
+            for (let k = 0; k < tg.vertices.length; k += 1) segs!.push([tg.vertices[k], tg.vertices[(k + 1) % tg.vertices.length]]);
+          }
+          if (!segs) continue;
+          for (const [c, d] of segs) {
+            // Inline segmentSegmentIntersection
+            const denom = (a.x - b.x) * (c.y - d.y) - (a.y - b.y) * (c.x - d.x);
+            if (Math.abs(denom) < 1e-10) continue;
+            const tParam = ((a.x - c.x) * (c.y - d.y) - (a.y - c.y) * (c.x - d.x)) / denom;
+            const uParam = -((a.x - b.x) * (a.y - c.y) - (a.y - b.y) * (a.x - c.x)) / denom;
+            if (tParam < 0 || tParam > 1 || uParam < 0 || uParam > 1) continue;
+            const ipt = { x: a.x + tParam * (b.x - a.x), y: a.y + tParam * (b.y - a.y) };
+            ints.push({ chainParam: i + tParam, pt: ipt });
+          }
+        }
+      }
+      ints.sort((p, q) => p.chainParam - q.chainParam);
+
+      // Cursor chain param
+      let cursorParam = 0;
+      let curBestDist = Infinity;
+      for (let i = 0; i + 1 < chain.length; i += 1) {
+        const a = chain[i];
+        const b = chain[i + 1];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len2 = dx * dx + dy * dy;
+        if (len2 < 1e-20) continue;
+        let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const px = a.x + t * dx;
+        const py = a.y + t * dy;
+        const dd = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+        if (dd < curBestDist) {
+          curBestDist = dd;
+          cursorParam = i + t;
+        }
+      }
+
+      const eps = 1e-6;
+      let leftP = -1;
+      let rightP = chain.length - 1 + 1; // beyond end
+      let hasLeft = false;
+      let hasRight = false;
+      for (const it of ints) {
+        if (it.chainParam <= cursorParam - eps) {
+          if (it.chainParam > leftP) { leftP = it.chainParam; hasLeft = true; }
+        } else if (it.chainParam >= cursorParam + eps) {
+          if (it.chainParam < rightP) { rightP = it.chainParam; hasRight = true; }
+        }
+      }
+
+      // Build the doomed-segment vertex list.
+      // - Both crossings present: from leftP to rightP.
+      // - Only left: from leftP to chain end.
+      // - Only right: from chain start to rightP.
+      // - Neither: whole chain (will be deleted).
+      let pStart: number;
+      let pEnd: number;
+      if (hasLeft && hasRight) { pStart = leftP; pEnd = rightP; }
+      else if (hasLeft) { pStart = leftP; pEnd = chain.length - 1; }
+      else if (hasRight) { pStart = 0; pEnd = rightP; }
+      else { pStart = 0; pEnd = chain.length - 1; }
+
+      // Inline a tiny chain slicer to render the doomed
+      // section without recomputing in operations.ts.
+      const sliceVerts: Point2D[] = [];
+      const sStartSeg = Math.floor(pStart);
+      const sStartT = pStart - sStartSeg;
+      const sEndSeg = Math.floor(pEnd);
+      const sEndT = pEnd - sEndSeg;
+      const a0 = chain[Math.max(0, Math.min(chain.length - 1, sStartSeg))];
+      if (sStartSeg + 1 < chain.length) {
+        const b0 = chain[sStartSeg + 1];
+        sliceVerts.push({
+          x: a0.x + sStartT * (b0.x - a0.x),
+          y: a0.y + sStartT * (b0.y - a0.y),
+        });
+      } else {
+        sliceVerts.push({ ...a0 });
+      }
+      for (let k = sStartSeg + 1; k <= sEndSeg; k += 1) {
+        if (k < 0 || k >= chain.length) continue;
+        sliceVerts.push({ ...chain[k] });
+      }
+      if (sEndSeg + 1 < chain.length && sEndT > 0) {
+        const a1 = chain[sEndSeg];
+        const b1 = chain[sEndSeg + 1];
+        sliceVerts.push({
+          x: a1.x + sEndT * (b1.x - a1.x),
+          y: a1.y + sEndT * (b1.y - a1.y),
+        });
+      }
+
+      // Render the doomed section in red so the surveyor
+      // sees what's about to disappear.
+      if (sliceVerts.length >= 2) {
+        g.lineStyle(2.5, 0xff5555, 0.8);
+        const p0 = w2s(sliceVerts[0].x, sliceVerts[0].y);
+        g.moveTo(p0.sx, p0.sy);
+        for (let i = 1; i < sliceVerts.length; i += 1) {
+          const p = w2s(sliceVerts[i].x, sliceVerts[i].y);
+          g.lineTo(p.sx, p.sy);
+        }
+      }
+
+      // Mark each crossing intersection on the chain so the
+      // surveyor can see where the trim will land.
+      g.beginFill(0xff5555, 0.95);
+      for (const it of ints) {
+        const ip = w2s(it.pt.x, it.pt.y);
+        g.drawCircle(ip.sx, ip.sy, 4);
+      }
+      g.endFill();
+      return;
+    }
+
+    // For SPLIT: highlight the feature under the cursor and
+    // mark the closest point on it where the split would
+    // land. No ghost geometry — the operation just bisects
+    // the feature, so showing the hit feature + the split
+    // point is enough feedback for the surveyor to aim.
+    if (activeTool === 'SPLIT') {
+      // Hit-test the cursor for any vertex-chain feature.
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestPt: Point2D | null = null;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if ((fg.type === 'POLYLINE' || fg.type === 'POLYGON') && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+          isClosed = fg.type === 'POLYGON';
+        }
+        if (!chain) continue;
+        for (let i = 0; i + (isClosed ? 0 : 1) < chain.length; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          const t = Math.max(0, Math.min(1, ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          // Pixel tolerance — keep hit responsive at all zooms.
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestPt = { x: px, y: py };
+          }
+        }
+      }
+      if (bestId && bestPt) {
+        // Highlight the picked feature in lime so the user
+        // sees what they're aiming at.
+        const f = drawing.getFeature(bestId);
+        if (f) {
+          const fg = f.geometry;
+          g.lineStyle(2.5, 0x99ff44, 0.5);
+          if (fg.type === 'LINE' && fg.start && fg.end) {
+            const a = w2s(fg.start.x, fg.start.y);
+            const b = w2s(fg.end.x, fg.end.y);
+            g.moveTo(a.sx, a.sy);
+            g.lineTo(b.sx, b.sy);
+          } else if (fg.vertices && fg.vertices.length >= 2) {
+            const p0 = w2s(fg.vertices[0].x, fg.vertices[0].y);
+            g.moveTo(p0.sx, p0.sy);
+            for (let i = 1; i < fg.vertices.length; i += 1) {
+              const p = w2s(fg.vertices[i].x, fg.vertices[i].y);
+              g.lineTo(p.sx, p.sy);
+            }
+            if (fg.type === 'POLYGON') g.lineTo(p0.sx, p0.sy);
+          }
+        }
+        // Split point marker — lime ring + crosshair.
+        const sp = w2s(bestPt.x, bestPt.y);
+        g.lineStyle(2, 0x66ff00, 0.95);
+        g.drawCircle(sp.sx, sp.sy, 6);
+        g.moveTo(sp.sx - 9, sp.sy); g.lineTo(sp.sx + 9, sp.sy);
+        g.moveTo(sp.sx, sp.sy - 9); g.lineTo(sp.sx, sp.sy + 9);
+      } else {
+        // No eligible feature — show a small "no target" dot
+        // so the user knows the cursor isn't picking anything.
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+      }
+      return;
+    }
+
+    // For ARRAY: ghost-preview every cell of the array
+    // (rectangular grid OR polar fan, depending on mode).
+    if (activeTool === 'ARRAY') {
+      const selIds = Array.from(useSelectionStore.getState().selectedIds);
+      if (selIds.length === 0) return;
+      const ts = useToolStore.getState().state;
+      const drawing = useDrawingStore.getState();
+      const features = selIds.map((id) => drawing.getFeature(id)).filter(Boolean) as Feature[];
+      if (features.length === 0) return;
+
+      if (ts.arrayMode === 'POLAR') {
+        const count = ts.arrayPolarCount;
+        const angleSpan = ts.arrayPolarAngleDeg;
+        if (!Number.isFinite(count) || count < 2) return;
+        if (!Number.isFinite(angleSpan)) return;
+        // Center: use the locked-in center if the surveyor
+        // has already clicked; otherwise follow the cursor so
+        // they can see the array form before committing.
+        const center = ts.arrayPolarCenter ?? previewPoint;
+
+        const isFull = Math.abs(Math.abs(angleSpan) - 360) < 1e-9;
+        const stepDeg = isFull ? angleSpan / count : angleSpan / (count - 1);
+
+        // Ghost geometry — every copy except the original (i=0)
+        g.lineStyle(1.25, 0x88ddff, 0.5);
+        for (let i = 1; i < count; i += 1) {
+          const angleRad = (stepDeg * i * Math.PI) / 180;
+          for (const f of features) {
+            if (ts.arrayPolarRotate) {
+              drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, angleRad), w2s);
+            } else {
+              const allPts: Point2D[] = [];
+              const fg = f.geometry;
+              if (fg.type === 'POINT' && fg.point) allPts.push(fg.point);
+              else if (fg.type === 'LINE' && fg.start && fg.end) allPts.push(fg.start, fg.end);
+              else if (fg.vertices) allPts.push(...fg.vertices);
+              else if (fg.type === 'CIRCLE' && fg.circle) allPts.push(fg.circle.center);
+              else if (fg.type === 'ELLIPSE' && fg.ellipse) allPts.push(fg.ellipse.center);
+              else if (fg.type === 'ARC' && fg.arc) allPts.push(fg.arc.center);
+              else if (fg.type === 'SPLINE' && fg.spline) allPts.push(...fg.spline.controlPoints);
+              let cx = 0, cy = 0;
+              for (const p of allPts) { cx += p.x; cy += p.y; }
+              if (allPts.length > 0) { cx /= allPts.length; cy /= allPts.length; }
+              const rotated = rotate({ x: cx, y: cy }, center, angleRad);
+              const dx = rotated.x - cx;
+              const dy = rotated.y - cy;
+              drawTransformedFeaturePreview(g, f, (p) => translate(p, dx, dy), w2s);
+            }
+          }
+        }
+
+        // Center marker + faint sweep arc to show the angle span
+        const cs = w2s(center.x, center.y);
+        g.lineStyle(1.5, 0x88ddff, 0.85);
+        g.drawCircle(cs.sx, cs.sy, 4);
+        g.moveTo(cs.sx - 8, cs.sy); g.lineTo(cs.sx + 8, cs.sy);
+        g.moveTo(cs.sx, cs.sy - 8); g.lineTo(cs.sx, cs.sy + 8);
+        return;
+      }
+
+      // RECT branch (default)
+      const rows = Math.max(1, Math.floor(ts.arrayRows));
+      const cols = Math.max(1, Math.floor(ts.arrayCols));
+      const rowSp = ts.arrayRowSpacing;
+      const colSp = ts.arrayColSpacing;
+      if (!Number.isFinite(rowSp) || !Number.isFinite(colSp)) return;
+      const totalCells = rows * cols;
+      if (totalCells <= 1) return;
+
+      g.lineStyle(1.25, 0x88ddff, 0.5);
+      for (let r = 0; r < rows; r += 1) {
+        for (let c = 0; c < cols; c += 1) {
+          if (r === 0 && c === 0) continue; // original
+          const dx = c * colSp;
+          const dy = r * rowSp;
+          for (const f of features) {
+            drawTransformedFeaturePreview(g, f, (p) => translate(p, dx, dy), w2s);
+          }
+        }
+      }
+
+      // Cell-corner markers — draw a small dot at each grid
+      // origin so the user can see the spacing directly.
+      const allPts: Point2D[] = [];
+      for (const f of features) {
+        const fg = f.geometry;
+        if (fg.type === 'POINT' && fg.point) allPts.push(fg.point);
+        else if (fg.type === 'LINE' && fg.start && fg.end) allPts.push(fg.start, fg.end);
+        else if (fg.vertices) allPts.push(...fg.vertices);
+        else if (fg.type === 'CIRCLE' && fg.circle) allPts.push(fg.circle.center);
+        else if (fg.type === 'ELLIPSE' && fg.ellipse) allPts.push(fg.ellipse.center);
+        else if (fg.type === 'ARC' && fg.arc) allPts.push(fg.arc.center);
+        else if (fg.type === 'SPLINE' && fg.spline) allPts.push(...fg.spline.controlPoints);
+      }
+      let cxw = 0, cyw = 0;
+      for (const p of allPts) { cxw += p.x; cyw += p.y; }
+      if (allPts.length > 0) {
+        cxw /= allPts.length;
+        cyw /= allPts.length;
+        g.beginFill(0x88ddff, 0.55);
+        for (let r = 0; r < rows; r += 1) {
+          for (let c = 0; c < cols; c += 1) {
+            const p = w2s(cxw + c * colSp, cyw + r * rowSp);
+            g.drawCircle(p.sx, p.sy, 2.5);
+          }
+        }
+        g.endFill();
+      }
       return;
     }
 
     // ── OFFSET preview ────────────────────────────────────────────────────
     if (activeTool === 'OFFSET') {
       const offsetState = useToolStore.getState().state;
-      const { offsetSourceId, offsetDistance, offsetSide, offsetCornerHandling } = offsetState;
+      const {
+        offsetSourceId,
+        offsetDistance,
+        offsetSide,
+        offsetCornerHandling,
+        offsetMode,
+        offsetScaleFactor,
+        offsetSegmentMode,
+        offsetSourceSegmentIndex,
+      } = offsetState;
 
       if (!offsetSourceId) {
         // Phase 1: Highlight hovered offsettable features
@@ -2898,6 +3709,294 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Phase 2: Show offset preview
       const sourceFeat = useDrawingStore.getState().getFeature(offsetSourceId);
       if (!sourceFeat) return;
+
+      // ── Per-segment preview ────────────────────────────
+      // When SEGMENT mode locked in a segment at phase-1
+      // pick time, only render the offset of that segment
+      // and highlight the chosen edge so the user sees what
+      // is about to be emitted.
+      const segmentActive =
+        offsetSegmentMode === 'SEGMENT' &&
+        offsetSourceSegmentIndex != null &&
+        isSegmentableFeature(sourceFeat);
+
+      if (segmentActive) {
+        const ep = getSegmentEndpoints(sourceFeat, offsetSourceSegmentIndex!);
+        if (!ep) return;
+
+        // Highlight source segment in a distinct hue
+        const a = w2s(ep[0].x, ep[0].y);
+        const b = w2s(ep[1].x, ep[1].y);
+        g.lineStyle(2.5, 0xffaa00, 0.5);
+        g.moveTo(a.sx, a.sy);
+        g.lineTo(b.sx, b.sy);
+
+        // SCALE-mode segment preview
+        if (offsetMode === 'SCALE') {
+          let factor = offsetScaleFactor;
+          if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return;
+          if (offsetSide === 'RIGHT') factor = 1 / factor;
+          // Pivot = centroid of the entire source feature,
+          // matching the per-segment SCALE branch in
+          // operations.ts so preview and emitted result agree.
+          const pts: Array<{ x: number; y: number }> = [];
+          const sg = sourceFeat.geometry;
+          if (sg.type === 'LINE' && sg.start && sg.end) pts.push(sg.start, sg.end);
+          else if (sg.vertices) pts.push(...sg.vertices);
+          let cx = 0, cy = 0;
+          for (const p of pts) { cx += p.x; cy += p.y; }
+          if (pts.length > 0) { cx /= pts.length; cy /= pts.length; }
+          const sx0 = cx + (ep[0].x - cx) * factor;
+          const sy0 = cy + (ep[0].y - cy) * factor;
+          const sx1 = cx + (ep[1].x - cx) * factor;
+          const sy1 = cy + (ep[1].y - cy) * factor;
+          const s = w2s(sx0, sy0);
+          const e = w2s(sx1, sy1);
+          g.lineStyle(1.5, 0x00ccff, 0.85);
+          g.moveTo(s.sx, s.sy);
+          g.lineTo(e.sx, e.sy);
+          return;
+        }
+
+        // PARALLEL-mode segment preview
+        const dynamicDist = offsetDistance > 0
+          ? offsetDistance
+          : (() => {
+              const dx = ep[1].x - ep[0].x;
+              const dy = ep[1].y - ep[0].y;
+              const len2 = dx * dx + dy * dy;
+              if (len2 < 1e-20) return Math.hypot(previewPoint.x - ep[0].x, previewPoint.y - ep[0].y);
+              const t = Math.max(0, Math.min(1, ((previewPoint.x - ep[0].x) * dx + (previewPoint.y - ep[0].y) * dy) / len2));
+              const px = ep[0].x + t * dx;
+              const py = ep[0].y + t * dy;
+              return Math.hypot(previewPoint.x - px, previewPoint.y - py);
+            })();
+        if (dynamicDist <= 0) return;
+
+        const autoSide: 'LEFT' | 'RIGHT' = (() => {
+          const cross = (ep[1].x - ep[0].x) * (previewPoint.y - ep[0].y) -
+                        (ep[1].y - ep[0].y) * (previewPoint.x - ep[0].x);
+          return cross >= 0 ? 'LEFT' : 'RIGHT';
+        })();
+        const previewSides: Array<'LEFT' | 'RIGHT'> = offsetSide === 'BOTH'
+          ? ['LEFT', 'RIGHT']
+          : offsetDistance === 0
+            ? [autoSide]
+            : [offsetSide as 'LEFT' | 'RIGHT'];
+
+        g.lineStyle(1.5, 0x00ccff, 0.85);
+        for (const s of previewSides) {
+          const cfg = { distance: dynamicDist, side: s, cornerHandling: offsetCornerHandling as 'MITER' | 'ROUND' | 'CHAMFER', miterLimit: 4, maintainLink: false, targetLayerId: null };
+          const verts = offsetPolyline([ep[0], ep[1]], cfg);
+          if (verts.length >= 2) {
+            const sa = w2s(verts[0].x, verts[0].y);
+            const sb = w2s(verts[1].x, verts[1].y);
+            g.moveTo(sa.sx, sa.sy);
+            g.lineTo(sb.sx, sb.sy);
+          }
+        }
+        const { sx: cxp, sy: cyp } = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x00ccff, 0.85);
+        g.drawCircle(cxp, cyp, 4);
+        g.endFill();
+        return;
+      }
+
+      // TRANSLATE mode preview — programmatic vector offset.
+      // Renders the source ghosted at the (distance, bearing)
+      // displacement plus an arrow + label so the surveyor
+      // can sanity-check the bearing input before committing.
+      if (offsetMode === 'TRANSLATE') {
+        const dist = offsetDistance;
+        if (!Number.isFinite(dist) || dist <= 0) return;
+        const bearing = offsetState.offsetBearingDeg;
+        if (!Number.isFinite(bearing)) return;
+        // Survey azimuth: 0° = North, CW. World coords are
+        // math convention, so dx = sin(rad), dy = cos(rad).
+        const rad = (bearing * Math.PI) / 180;
+        const dx = dist * Math.sin(rad);
+        const dy = dist * Math.cos(rad);
+        if (dx === 0 && dy === 0) return;
+
+        // Compute source feature centroid for arrow anchor
+        const sg = sourceFeat.geometry;
+        const pts: Array<{ x: number; y: number }> = [];
+        if (sg.type === 'POINT' && sg.point) pts.push(sg.point);
+        else if (sg.type === 'LINE' && sg.start && sg.end) pts.push(sg.start, sg.end);
+        else if (sg.vertices) pts.push(...sg.vertices);
+        else if (sg.type === 'CIRCLE' && sg.circle) pts.push(sg.circle.center);
+        else if (sg.type === 'ELLIPSE' && sg.ellipse) pts.push(sg.ellipse.center);
+        else if (sg.type === 'ARC' && sg.arc) pts.push(sg.arc.center);
+        else if (sg.type === 'SPLINE' && sg.spline) pts.push(...sg.spline.controlPoints);
+        let cxw = 0, cyw = 0;
+        for (const p of pts) { cxw += p.x; cyw += p.y; }
+        if (pts.length > 0) { cxw /= pts.length; cyw /= pts.length; }
+
+        // Direction arrow anchored at source centroid →
+        // displaced centroid, so the user sees both magnitude
+        // and direction at a glance.
+        const fromS = w2s(cxw, cyw);
+        const toS = w2s(cxw + dx, cyw + dy);
+        g.lineStyle(1.5, 0xffaa55, 0.85);
+        g.moveTo(fromS.sx, fromS.sy);
+        g.lineTo(toS.sx, toS.sy);
+        // Arrowhead at destination
+        const ah = 8;
+        const ang = Math.atan2(toS.sy - fromS.sy, toS.sx - fromS.sx);
+        g.moveTo(toS.sx, toS.sy);
+        g.lineTo(toS.sx - ah * Math.cos(ang - Math.PI / 6), toS.sy - ah * Math.sin(ang - Math.PI / 6));
+        g.moveTo(toS.sx, toS.sy);
+        g.lineTo(toS.sx - ah * Math.cos(ang + Math.PI / 6), toS.sy - ah * Math.sin(ang + Math.PI / 6));
+
+        // Ghost preview of the translated feature(s).
+        const useSegment =
+          offsetSegmentMode === 'SEGMENT' &&
+          offsetSourceSegmentIndex != null &&
+          isSegmentableFeature(sourceFeat);
+        g.lineStyle(1.5, 0x00ccff, 0.75);
+        if (useSegment) {
+          const ep = getSegmentEndpoints(sourceFeat, offsetSourceSegmentIndex!);
+          if (ep) {
+            const a = w2s(ep[0].x + dx, ep[0].y + dy);
+            const b = w2s(ep[1].x + dx, ep[1].y + dy);
+            g.moveTo(a.sx, a.sy);
+            g.lineTo(b.sx, b.sy);
+          }
+        } else {
+          drawTransformedFeaturePreview(g, sourceFeat, (p) => translate(p, dx, dy), w2s);
+        }
+        return;
+      }
+
+      // SCALE mode preview — proportional resize around the
+      // feature's centroid using the live `offsetScaleFactor`.
+      // Treats `RIGHT` as the inverse of `LEFT` so the side
+      // toggle still flips between "blow up" and "shrink".
+      if (offsetMode === 'SCALE') {
+        let factor = offsetScaleFactor;
+        if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return;
+        if (offsetSide === 'RIGHT') factor = 1 / factor;
+
+        g.lineStyle(1.5, 0xffaa00, 0.8);
+        const sg = sourceFeat.geometry;
+
+        if (sg.type === 'LINE' && sg.start && sg.end) {
+          const verts = scalePolylineAroundCentroid([sg.start, sg.end], factor);
+          if (verts.length >= 2) {
+            const s = w2s(verts[0].x, verts[0].y);
+            const e = w2s(verts[1].x, verts[1].y);
+            g.moveTo(s.sx, s.sy);
+            g.lineTo(e.sx, e.sy);
+          }
+        } else if ((sg.type === 'POLYLINE' || sg.type === 'POLYGON') && sg.vertices && sg.vertices.length >= 2) {
+          const verts = scalePolylineAroundCentroid(sg.vertices, factor);
+          if (verts.length >= 2) {
+            const p0 = w2s(verts[0].x, verts[0].y);
+            g.moveTo(p0.sx, p0.sy);
+            for (let i = 1; i < verts.length; i += 1) {
+              const p = w2s(verts[i].x, verts[i].y);
+              g.lineTo(p.sx, p.sy);
+            }
+            if (sg.type === 'POLYGON') g.lineTo(p0.sx, p0.sy);
+          }
+        } else if (sg.type === 'CIRCLE' && sg.circle) {
+          const c = scaleCircleAroundCenter(sg.circle, factor);
+          if (c) {
+            const sp = w2s(c.center.x, c.center.y);
+            const radiusPx = c.radius * useViewportStore.getState().zoom;
+            g.drawCircle(sp.sx, sp.sy, radiusPx);
+          }
+        } else if (sg.type === 'ELLIPSE' && sg.ellipse) {
+          const e = scaleEllipseAroundCenter(sg.ellipse, factor);
+          if (e) {
+            const cosR = Math.cos(e.rotation);
+            const sinR = Math.sin(e.rotation);
+            const samples = 64;
+            for (let i = 0; i <= samples; i += 1) {
+              const t = (i / samples) * Math.PI * 2;
+              const lx = e.radiusX * Math.cos(t);
+              const ly = e.radiusY * Math.sin(t);
+              const wx = e.center.x + lx * cosR - ly * sinR;
+              const wy = e.center.y + lx * sinR + ly * cosR;
+              const sp = w2s(wx, wy);
+              if (i === 0) g.moveTo(sp.sx, sp.sy);
+              else g.lineTo(sp.sx, sp.sy);
+            }
+          }
+        } else if (sg.type === 'ARC' && sg.arc) {
+          const a = scaleArcAroundCenter(sg.arc, factor);
+          if (a) {
+            const sp = w2s(a.center.x, a.center.y);
+            const radiusPx = a.radius * useViewportStore.getState().zoom;
+            const steps = 32;
+            let startA = a.startAngle;
+            let endA = a.endAngle;
+            if (a.anticlockwise) {
+              if (endA <= startA) endA += Math.PI * 2;
+            } else {
+              if (startA <= endA) startA += Math.PI * 2;
+              [startA, endA] = [endA, startA];
+            }
+            const span = endA - startA;
+            for (let i = 0; i <= steps; i += 1) {
+              const t = i / steps;
+              const angle = startA + span * t;
+              const px = sp.sx + radiusPx * Math.cos(angle);
+              const py = sp.sy - radiusPx * Math.sin(angle);
+              if (i === 0) g.moveTo(px, py);
+              else g.lineTo(px, py);
+            }
+          }
+        } else if (sg.type === 'SPLINE' && sg.spline) {
+          const s = scaleSplineAroundCentroid(sg.spline, factor);
+          if (s && s.controlPoints.length >= 4) {
+            const cps = s.controlPoints;
+            const segCount = Math.floor((cps.length - 1) / 3);
+            const stepsPerSeg = 24;
+            let started = false;
+            for (let seg = 0; seg < segCount; seg += 1) {
+              const p0 = cps[seg * 3];
+              const p1 = cps[seg * 3 + 1];
+              const p2 = cps[seg * 3 + 2];
+              const p3 = cps[seg * 3 + 3];
+              const startStep = started ? 1 : 0;
+              for (let i = startStep; i <= stepsPerSeg; i += 1) {
+                const t = i / stepsPerSeg;
+                const u = 1 - t;
+                const wx =
+                  u * u * u * p0.x +
+                  3 * u * u * t * p1.x +
+                  3 * u * t * t * p2.x +
+                  t * t * t * p3.x;
+                const wy =
+                  u * u * u * p0.y +
+                  3 * u * u * t * p1.y +
+                  3 * u * t * t * p2.y +
+                  t * t * t * p3.y;
+                const sp = w2s(wx, wy);
+                if (!started) {
+                  g.moveTo(sp.sx, sp.sy);
+                  started = true;
+                } else {
+                  g.lineTo(sp.sx, sp.sy);
+                }
+              }
+            }
+          }
+        } else if (sg.type === 'MIXED_GEOMETRY' && sg.vertices && sg.vertices.length >= 2) {
+          const verts = scalePolylineAroundCentroid(sg.vertices, factor);
+          if (verts.length >= 2) {
+            const p0 = w2s(verts[0].x, verts[0].y);
+            g.moveTo(p0.sx, p0.sy);
+            for (let i = 1; i < verts.length; i += 1) {
+              const p = w2s(verts[i].x, verts[i].y);
+              g.lineTo(p.sx, p.sy);
+            }
+          }
+        }
+
+        return;
+      }
 
       const dynamicDist = offsetDistance > 0
         ? offsetDistance
@@ -2979,6 +4078,69 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               const py = c.sy - radiusPx * Math.sin(angle); // y-flip for screen coords
               if (i === 0) g.moveTo(px, py);
               else g.lineTo(px, py);
+            }
+          }
+        } else if (sg.type === 'ELLIPSE' && sg.ellipse) {
+          const newEllipse = offsetEllipse(sg.ellipse, cfg);
+          if (newEllipse) {
+            const cosR = Math.cos(newEllipse.rotation);
+            const sinR = Math.sin(newEllipse.rotation);
+            const samples = 64;
+            for (let i = 0; i <= samples; i += 1) {
+              const t = (i / samples) * Math.PI * 2;
+              const lx = newEllipse.radiusX * Math.cos(t);
+              const ly = newEllipse.radiusY * Math.sin(t);
+              const wx = newEllipse.center.x + lx * cosR - ly * sinR;
+              const wy = newEllipse.center.y + lx * sinR + ly * cosR;
+              const sp = w2s(wx, wy);
+              if (i === 0) g.moveTo(sp.sx, sp.sy);
+              else g.lineTo(sp.sx, sp.sy);
+            }
+          }
+        } else if (sg.type === 'SPLINE' && sg.spline) {
+          const newSpline = offsetSpline(sg.spline, cfg);
+          if (newSpline && newSpline.controlPoints.length >= 4) {
+            const cps = newSpline.controlPoints;
+            const segCount = Math.floor((cps.length - 1) / 3);
+            const stepsPerSeg = 24;
+            let started = false;
+            for (let seg = 0; seg < segCount; seg += 1) {
+              const p0 = cps[seg * 3];
+              const p1 = cps[seg * 3 + 1];
+              const p2 = cps[seg * 3 + 2];
+              const p3 = cps[seg * 3 + 3];
+              const startStep = started ? 1 : 0;
+              for (let i = startStep; i <= stepsPerSeg; i += 1) {
+                const t = i / stepsPerSeg;
+                const u = 1 - t;
+                const wx =
+                  u * u * u * p0.x +
+                  3 * u * u * t * p1.x +
+                  3 * u * t * t * p2.x +
+                  t * t * t * p3.x;
+                const wy =
+                  u * u * u * p0.y +
+                  3 * u * u * t * p1.y +
+                  3 * u * t * t * p2.y +
+                  t * t * t * p3.y;
+                const sp = w2s(wx, wy);
+                if (!started) {
+                  g.moveTo(sp.sx, sp.sy);
+                  started = true;
+                } else {
+                  g.lineTo(sp.sx, sp.sy);
+                }
+              }
+            }
+          }
+        } else if (sg.type === 'MIXED_GEOMETRY' && sg.vertices) {
+          const verts = offsetPolyline(sg.vertices, cfg);
+          if (verts.length >= 2) {
+            const p0 = w2s(verts[0].x, verts[0].y);
+            g.moveTo(p0.sx, p0.sy);
+            for (let i = 1; i < verts.length; i++) {
+              const p = w2s(verts[i].x, verts[i].y);
+              g.lineTo(p.sx, p.sy);
             }
           }
         }
@@ -4746,7 +5908,34 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             break;
           }
           if (!toolState.rotateCenter) {
+            // Click 1: set the pivot
             toolStore.setRotateCenter(worldPt);
+          } else {
+            // Click 2: commit the rotation. Angle =
+            // atan2(cursor − center) — matches the live ghost
+            // preview so what the user sees is what they get.
+            const center = toolState.rotateCenter;
+            const angleRad = Math.atan2(worldPt.y - center.y, worldPt.x - center.x);
+            if (!Number.isFinite(angleRad) || Math.abs(angleRad) < 1e-9) {
+              // Cursor sits on the pivot — nothing to do.
+              break;
+            }
+            const angleDeg = (angleRad * 180) / Math.PI;
+            const ids = Array.from(selectionStore.selectedIds);
+            if (ids.length === 0) break;
+            if (toolState.copyMode) {
+              // Duplicate then rotate the duplicates so
+              // originals stay put. selectMultiple is called
+              // by duplicateSelection which leaves the new
+              // copies selected — rotateSelection then rotates
+              // those.
+              duplicateSelection(0, 0);
+              rotateSelection(angleDeg, center);
+            } else {
+              rotateSelection(angleDeg, center);
+            }
+            // Reset for chaining
+            toolStore.setRotateCenter(null);
           }
           break;
         }
@@ -4759,7 +5948,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             break;
           }
           if (!toolState.basePoint) {
+            // Click 1: set the pivot
             toolStore.setBasePoint(worldPt);
+          } else {
+            // Click 2: commit the scale. Factor = dist /
+            // refDist, matching the live ghost preview so the
+            // commit lands exactly where the ghost showed.
+            const pivot = toolState.basePoint;
+            const refDist = 50; // world-unit reference for factor=1
+            const cursorDist = Math.hypot(worldPt.x - pivot.x, worldPt.y - pivot.y);
+            const factor = cursorDist / refDist;
+            if (!Number.isFinite(factor) || factor <= 0 || Math.abs(factor - 1) < 1e-9) {
+              break;
+            }
+            const ids = Array.from(selectionStore.selectedIds);
+            if (ids.length === 0) break;
+            if (toolState.copyMode) {
+              duplicateSelection(0, 0);
+              scaleSelection(factor);
+            } else {
+              scaleSelection(factor);
+            }
+            // Reset for chaining
+            toolStore.setBasePoint(null);
           }
           break;
         }
@@ -4771,31 +5982,206 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (hit) selectionStore.select(hit, 'REPLACE');
             break;
           }
-          if (toolState.drawingPoints.length === 0) {
-            toolStore.addDrawingPoint(worldPt);
+
+          const { mirrorAxisMode, mirrorAngle } = toolState;
+
+          // Resolve the (lineA, lineB) axis according to mode.
+          // PICK_LINE: hit-test under the cursor, use that
+          //   feature's nearest segment as the axis. Falls back
+          //   to TWO_POINTS behaviour if the hit isn't a line/
+          //   polyline.
+          // ANGLE: single click sets the anchor; axis runs
+          //   through the anchor at `mirrorAngle` degrees.
+          // TWO_POINTS: classic two-click flow.
+          let lineA: Point2D | null = null;
+          let lineB: Point2D | null = null;
+
+          if (mirrorAxisMode === 'PICK_LINE') {
+            const hit = hitTest(sx, sy);
+            if (hit) {
+              const lineFeat = drawingStore.getFeature(hit);
+              if (lineFeat) {
+                const ep = pickAxisFromFeature(lineFeat, worldPt);
+                if (ep) {
+                  lineA = ep[0];
+                  lineB = ep[1];
+                }
+              }
+            }
+            if (!lineA || !lineB) {
+              cadLog.info('CanvasViewport', 'MIRROR PICK_LINE: no eligible line under cursor');
+              break;
+            }
+          } else if (mirrorAxisMode === 'ANGLE') {
+            const rad = (mirrorAngle * Math.PI) / 180;
+            lineA = worldPt;
+            lineB = {
+              x: worldPt.x + Math.cos(rad),
+              y: worldPt.y + Math.sin(rad),
+            };
           } else {
-            const lineA = toolState.drawingPoints[0];
-            const lineB = worldPt;
+            // TWO_POINTS — collect first click, then commit on second.
+            if (toolState.drawingPoints.length === 0) {
+              toolStore.addDrawingPoint(worldPt);
+              break;
+            }
+            lineA = toolState.drawingPoints[0];
+            lineB = worldPt;
+          }
+
+          {
+            if (!lineA || !lineB) break;
+            const a = lineA;
+            const b = lineB;
             const selectedIds = Array.from(selectionStore.selectedIds);
             if (selectedIds.length === 0) break;
-            const ops = selectedIds.flatMap((id) => {
-              const f = drawingStore.getFeature(id);
-              if (!f) {
-                cadLog.warn('CanvasViewport', `MIRROR: feature "${id}" not found — skipped`);
-                return [];
+            const reflect = (p: Point2D): Point2D => mirror(p, a, b);
+
+            if (toolState.copyMode) {
+              // Copy mode: clone every selected feature, mirror
+              // the clone in place, and add it as a new feature.
+              // Originals stay untouched. Resulting set is
+              // selected so the user can chain more ops.
+              const newFeatures: Feature[] = [];
+              for (const id of selectedIds) {
+                const f = drawingStore.getFeature(id);
+                if (!f) {
+                  cadLog.warn('CanvasViewport', `MIRROR: feature "${id}" not found — skipped`);
+                  continue;
+                }
+                const cloned: Feature = JSON.parse(JSON.stringify(f));
+                cloned.id = generateId();
+                const mirrored = transformFeature(cloned, reflect);
+                newFeatures.push({ ...cloned, geometry: mirrored.geometry });
               }
-              const newF = transformFeature(f, (p) => mirror(p, lineA, lineB));
-              drawingStore.updateFeature(id, { geometry: newF.geometry });
-              return [{ type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } }];
-            });
-            if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Mirror', ops));
+              if (newFeatures.length > 0) {
+                drawingStore.addFeatures(newFeatures);
+                const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
+                undoStore.pushUndo(makeBatchEntry('Mirror Copy', ops));
+                selectionStore.selectMultiple(newFeatures.map((f) => f.id), 'REPLACE');
+              }
+            } else {
+              // Default: mirror in place
+              const ops = selectedIds.flatMap((id) => {
+                const f = drawingStore.getFeature(id);
+                if (!f) {
+                  cadLog.warn('CanvasViewport', `MIRROR: feature "${id}" not found — skipped`);
+                  return [];
+                }
+                const newF = transformFeature(f, reflect);
+                drawingStore.updateFeature(id, { geometry: newF.geometry });
+                return [{ type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } }];
+              });
+              if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Mirror', ops));
+            }
             toolStore.clearDrawingPoints();
           }
           break;
         }
 
+        case 'FLIP': {
+          // FLIP commits immediately on any click using the
+          // active direction. Auto-selects the clicked feature
+          // when nothing is selected so the user can do
+          // single-click flips.
+          if (selectionStore.selectedIds.size === 0) {
+            const hit = hitTest(sx, sy);
+            if (hit) selectionStore.select(hit, 'REPLACE');
+            break;
+          }
+          flipSelectionByDirection(toolState.flipDirection, toolState.copyMode);
+          break;
+        }
+
+        case 'INVERT': {
+          // INVERT uses the clicked point as the inversion
+          // center (= 180° rotation pivot). Auto-selects
+          // when empty selection so single-click works.
+          if (selectionStore.selectedIds.size === 0) {
+            const hit = hitTest(sx, sy);
+            if (hit) selectionStore.select(hit, 'REPLACE');
+            break;
+          }
+          invertSelection(worldPt, toolState.copyMode);
+          break;
+        }
+
+        case 'ARRAY': {
+          // ARRAY: click commits using the current mode +
+          // parameters from the toolbar. Auto-selects the
+          // clicked feature when the selection is empty.
+          if (selectionStore.selectedIds.size === 0) {
+            const hit = hitTest(sx, sy);
+            if (hit) selectionStore.select(hit, 'REPLACE');
+            break;
+          }
+          if (toolState.arrayMode === 'POLAR') {
+            // POLAR: first click sets the center; the second
+            // click commits with the current count/angle.
+            // Re-arming the center for chained arrays only
+            // requires another click after commit because
+            // arrayPolarCenter resets via setArrayPolarCenter
+            // null below.
+            if (!toolState.arrayPolarCenter) {
+              toolStore.setArrayPolarCenter(worldPt);
+              break;
+            }
+            arraySelectionPolar(
+              toolState.arrayPolarCount,
+              toolState.arrayPolarAngleDeg,
+              toolState.arrayPolarCenter,
+              toolState.arrayPolarRotate,
+            );
+            toolStore.setArrayPolarCenter(null);
+            break;
+          }
+          arraySelectionRectangular(
+            toolState.arrayRows,
+            toolState.arrayCols,
+            toolState.arrayRowSpacing,
+            toolState.arrayColSpacing,
+          );
+          break;
+        }
+
+        case 'SPLIT': {
+          // SPLIT: click anywhere on a vertex-chain feature
+          // (LINE / POLYLINE / POLYGON) to break it at that
+          // point. The feature under the cursor is hit-
+          // tested directly — we don't require a prior
+          // selection.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          splitFeatureAt(hit, worldPt);
+          break;
+        }
+
+        case 'TRIM': {
+          // TRIM: click a portion of a LINE or POLYLINE that
+          // lies between two intersections with other features.
+          // The clicked section is removed, leaving the two
+          // remaining halves (or one, if there's only an
+          // intersection on one side). When the source has
+          // no crossings at all, the click deletes it.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          trimFeatureAt(hit, worldPt);
+          break;
+        }
+
         case 'OFFSET': {
-          const { offsetSourceId, offsetDistance, offsetSide, offsetCornerHandling } = toolState;
+          const {
+            offsetSourceId,
+            offsetDistance,
+            offsetSide,
+            offsetCornerHandling,
+            offsetMode,
+            offsetScaleFactor,
+            offsetScaleLineWeight,
+            offsetSegmentMode,
+            offsetSourceSegmentIndex,
+            offsetBearingDeg,
+          } = toolState;
 
           if (!offsetSourceId) {
             // Phase 1: Select the feature to offset
@@ -4804,6 +6190,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               const f = drawingStore.getFeature(hit);
               if (f && isOffsetableFeature(f)) {
                 toolStore.setOffsetSourceId(hit);
+                // Capture which segment the cursor is closest
+                // to so SEGMENT mode can isolate it on commit.
+                // Curved features return null and fall through
+                // to whole-shape offset.
+                if (offsetSegmentMode === 'SEGMENT' && isSegmentableFeature(f)) {
+                  toolStore.setOffsetSourceSegmentIndex(findClosestSegmentIndex(f, worldPt));
+                } else {
+                  toolStore.setOffsetSourceSegmentIndex(null);
+                }
                 selectionStore.select(hit, 'REPLACE');
               }
             }
@@ -4812,13 +6207,86 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const sourceFeat = drawingStore.getFeature(offsetSourceId);
             if (!sourceFeat) {
               toolStore.setOffsetSourceId(null);
+              toolStore.setOffsetSourceSegmentIndex(null);
+              break;
+            }
+
+            const useSegment =
+              offsetSegmentMode === 'SEGMENT' &&
+              offsetSourceSegmentIndex != null &&
+              isSegmentableFeature(sourceFeat);
+
+            if (offsetMode === 'SCALE') {
+              if (offsetScaleFactor <= 0 || offsetScaleFactor === 1) break;
+              applyInteractiveOffset(
+                offsetSourceId,
+                0,
+                offsetSide,
+                offsetCornerHandling,
+                {
+                  mode: 'SCALE',
+                  scaleFactor: offsetScaleFactor,
+                  scaleLineWeight: offsetScaleLineWeight,
+                  segmentIndex: useSegment ? offsetSourceSegmentIndex : undefined,
+                },
+              );
+              toolStore.setOffsetSourceId(null);
+              toolStore.setOffsetSourceSegmentIndex(null);
+              selectionStore.deselectAll();
+              break;
+            }
+
+            if (offsetMode === 'TRANSLATE') {
+              // Programmatic vector offset — distance + azimuth
+              // entered in the toolbar. The click here just
+              // commits; the cursor position is ignored
+              // (placement is computed from the source's own
+              // location plus the bearing vector).
+              if (offsetDistance <= 0) break;
+              applyInteractiveOffset(
+                offsetSourceId,
+                offsetDistance,
+                offsetSide,
+                offsetCornerHandling,
+                {
+                  mode: 'TRANSLATE',
+                  bearingDeg: offsetBearingDeg,
+                  segmentIndex: useSegment ? offsetSourceSegmentIndex : undefined,
+                },
+              );
+              toolStore.setOffsetSourceId(null);
+              toolStore.setOffsetSourceSegmentIndex(null);
+              selectionStore.deselectAll();
               break;
             }
 
             // Determine effective distance (dynamic from cursor or locked value)
-            const effectiveDist = offsetDistance > 0
-              ? offsetDistance
-              : computeDistanceToFeature(sourceFeat, worldPt);
+            // For segment-mode we measure against just the
+            // chosen segment so the cursor-driven dynamic
+            // distance behaves intuitively.
+            let effectiveDist = offsetDistance;
+            if (effectiveDist <= 0) {
+              if (useSegment) {
+                const ep = getSegmentEndpoints(sourceFeat, offsetSourceSegmentIndex!);
+                if (ep) {
+                  const dx = ep[1].x - ep[0].x;
+                  const dy = ep[1].y - ep[0].y;
+                  const len2 = dx * dx + dy * dy;
+                  if (len2 < 1e-20) {
+                    effectiveDist = Math.hypot(worldPt.x - ep[0].x, worldPt.y - ep[0].y);
+                  } else {
+                    const t = Math.max(0, Math.min(1, ((worldPt.x - ep[0].x) * dx + (worldPt.y - ep[0].y) * dy) / len2));
+                    const px = ep[0].x + t * dx;
+                    const py = ep[0].y + t * dy;
+                    effectiveDist = Math.hypot(worldPt.x - px, worldPt.y - py);
+                  }
+                } else {
+                  effectiveDist = computeDistanceToFeature(sourceFeat, worldPt);
+                }
+              } else {
+                effectiveDist = computeDistanceToFeature(sourceFeat, worldPt);
+              }
+            }
 
             if (effectiveDist <= 0) break;
 
@@ -4826,14 +6294,32 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // but still apply BOTH sides; when LEFT/RIGHT forced, use that.
             let effectiveSide: 'LEFT' | 'RIGHT' | 'BOTH' = offsetSide;
             if (offsetSide !== 'BOTH' && offsetDistance === 0) {
-              // In dynamic distance mode, auto-determine side from cursor
-              effectiveSide = computeSideFromCursor(sourceFeat, worldPt);
+              if (useSegment) {
+                const ep = getSegmentEndpoints(sourceFeat, offsetSourceSegmentIndex!);
+                if (ep) {
+                  const cross = (ep[1].x - ep[0].x) * (worldPt.y - ep[0].y) -
+                                (ep[1].y - ep[0].y) * (worldPt.x - ep[0].x);
+                  effectiveSide = cross >= 0 ? 'LEFT' : 'RIGHT';
+                } else {
+                  effectiveSide = computeSideFromCursor(sourceFeat, worldPt);
+                }
+              } else {
+                // In dynamic distance mode, auto-determine side from cursor
+                effectiveSide = computeSideFromCursor(sourceFeat, worldPt);
+              }
             }
 
-            applyInteractiveOffset(offsetSourceId, effectiveDist, effectiveSide, offsetCornerHandling);
+            applyInteractiveOffset(
+              offsetSourceId,
+              effectiveDist,
+              effectiveSide,
+              offsetCornerHandling,
+              useSegment ? { segmentIndex: offsetSourceSegmentIndex ?? undefined } : undefined,
+            );
 
             // Reset source selection so user can pick the next feature
             toolStore.setOffsetSourceId(null);
+            toolStore.setOffsetSourceSegmentIndex(null);
             selectionStore.deselectAll();
           }
           break;

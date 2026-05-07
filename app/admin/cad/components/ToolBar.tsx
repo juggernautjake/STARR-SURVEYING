@@ -18,6 +18,9 @@ import {
   RotateCcw,
   FlipHorizontal2,
   FlipVertical2,
+  Grid3x3,
+  Scissors,
+  ScissorsLineDashed,
   Eraser,
   Expand,
   ZoomIn,
@@ -250,6 +253,7 @@ function buildToolGroups(
       icon: <Copy size={16} />,
       variants: [
         { tool: 'COPY', label: 'Copy (interactive)', description: 'Pick a base point, then place copies at each clicked location.', shortcut: 'CO', icon: <Copy size={14} /> },
+        { tool: 'ARRAY', label: 'Array (rectangular)', description: 'Replicate the selection in a rows × cols grid with adjustable spacing. Set the parameters in the options bar then click the canvas (or press Apply) to commit.', shortcut: 'AR', icon: <Grid3x3 size={14} /> },
         {
           label: 'Duplicate in-place',
           description: 'Duplicate the selection offset by 10 units (same as Ctrl+D).',
@@ -289,11 +293,13 @@ function buildToolGroups(
     {
       mainTool: 'MIRROR',
       label: 'Mirror',
-      description: 'Mirror/flip selected features. Click two points to define the mirror axis, or use instant Flip H/V variants.',
+      description: 'Mirror, Flip, and Invert tools. Mirror reflects across an axis (two points / picked line / angle). Flip is a one-click reflection through the centroid. Invert is a 180° point-inversion through a clicked center.',
       shortcut: 'MI',
       icon: <FlipHorizontal2 size={16} />,
       variants: [
-        { tool: 'MIRROR', label: 'Mirror (pick line)', description: 'Click two points to define the mirror axis. The selection is reflected across that line.', shortcut: 'MI', icon: <FlipHorizontal2 size={14} /> },
+        { tool: 'MIRROR', label: 'Mirror (custom axis)', description: 'Reflect the selection across an axis. The axis can be defined by two clicks, by picking an existing line, or by typing an angle and clicking an anchor point. Honours Copy Mode.', shortcut: 'MI', icon: <FlipHorizontal2 size={14} /> },
+        { tool: 'FLIP',   label: 'Flip',                description: 'One-click reflection through the selection centroid. Pick H / V / D1 / D2 in the options bar then click the canvas (or press Apply). Honours Copy Mode.', shortcut: 'FL', icon: <FlipVertical2 size={14} /> },
+        { tool: 'INVERT', label: 'Invert',              description: 'Point inversion — equivalent to a 180° rotation around a clicked center. Click anywhere on the canvas to use that point as the inversion center. Honours Copy Mode.', shortcut: 'IV', icon: <RotateCcw size={14} /> },
         {
           label: 'Flip Horizontal',
           description: 'Instantly mirror the selection horizontally across its own center.',
@@ -343,6 +349,17 @@ function buildToolGroups(
           icon: <Eraser size={14} />,
           action: () => deleteSelection(),
         },
+      ],
+    },
+    {
+      mainTool: 'SPLIT',
+      label: 'Split',
+      description: 'Break a line, polyline, or polygon at the clicked point. The closest point on the geometry to the cursor is the split location; for polylines the new vertex is inserted in the chosen segment.',
+      shortcut: 'SP',
+      icon: <Scissors size={16} />,
+      variants: [
+        { tool: 'SPLIT', label: 'Split (click)', description: 'Click anywhere on a line/polyline/polygon to break it into two pieces at that point. POLYGON splits open into a single POLYLINE walking the perimeter.', shortcut: 'SP', icon: <Scissors size={14} /> },
+        { tool: 'TRIM',  label: 'Trim',          description: 'Click a portion of a line or polyline that lies between two crossings with other features — the clicked section is removed. When only one side has a crossing, the remainder on that side stays. When the source has no crossings, the click deletes it.', shortcut: 'TR', icon: <ScissorsLineDashed size={14} /> },
       ],
     },
 
