@@ -1,7 +1,7 @@
 'use client';
 // app/admin/cad/components/PropertyPanel.tsx — Selected feature properties panel
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Feature } from '@/lib/cad/types';
@@ -18,10 +18,16 @@ function CoordInput({
   label,
   value,
   onChange,
+  onCommit,
 }: {
   label: string;
   value: number;
+  /** Called on every keystroke for live canvas update. */
   onChange: (v: number) => void;
+  /** Called on blur / Enter so the caller can record an undo
+   *  entry covering the whole edit (focus → blur), instead
+   *  of one entry per keystroke. */
+  onCommit?: () => void;
 }) {
   const [local, setLocal] = useState(fmtCoord(value));
   useEffect(() => setLocal(fmtCoord(value)), [value]);
@@ -41,6 +47,7 @@ function CoordInput({
           const safe = isNaN(v) ? value : v;
           setLocal(fmtCoord(safe));
           onChange(safe);
+          onCommit?.();
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') e.currentTarget.blur();
@@ -126,10 +133,33 @@ export default function PropertyPanel() {
     });
   }
 
-  // Real-time coordinate editing — updates canvas immediately on every keystroke.
+  // Real-time coordinate editing — updates canvas immediately
+  // on every keystroke. The before-snapshot is captured on the
+  // first keystroke of an editing session and converted into a
+  // single undo entry on blur (`commitCoordEdit`), so users get
+  // one undo step per edit session instead of one per
+  // character typed.
+  const coordEditSnapshotRef = useRef<{ id: string; before: import('@/lib/cad/types').Feature } | null>(null);
+
+  // Reset the in-flight snapshot whenever the active selection
+  // changes, so a half-typed edit on feature A doesn't leak
+  // into an undo entry for feature B.
+  useEffect(() => {
+    coordEditSnapshotRef.current = null;
+  }, [single?.id]);
+
   function updateCoord(index: number, axis: 'x' | 'y', value: number) {
     if (!single) return;
     const before = drawingStore.getFeature(single.id)!;
+    if (!coordEditSnapshotRef.current || coordEditSnapshotRef.current.id !== single.id) {
+      // Snapshot the feature at the start of this edit session
+      // so commitCoordEdit can build the right MODIFY_FEATURE
+      // operation regardless of how many keystrokes follow.
+      coordEditSnapshotRef.current = {
+        id: single.id,
+        before: JSON.parse(JSON.stringify(before)),
+      };
+    }
     const geom = { ...before.geometry };
     switch (geom.type) {
       case 'POINT':
@@ -148,6 +178,23 @@ export default function PropertyPanel() {
       }
     }
     drawingStore.updateFeatureGeometry(single.id, geom);
+  }
+
+  function commitCoordEdit() {
+    const snap = coordEditSnapshotRef.current;
+    if (!snap) return;
+    const after = drawingStore.getFeature(snap.id);
+    coordEditSnapshotRef.current = null;
+    if (!after) return;
+    // Skip when nothing actually changed (e.g. user focused
+    // and blurred without typing).
+    if (JSON.stringify(snap.before.geometry) === JSON.stringify(after.geometry)) return;
+    undoStore.pushUndo({
+      id: generateId(),
+      description: 'Edit coordinates',
+      timestamp: Date.now(),
+      operations: [{ type: 'MODIFY_FEATURE', data: { id: snap.id, before: snap.before, after } }],
+    });
   }
 
   const { document: doc } = drawingStore;
@@ -358,8 +405,8 @@ export default function PropertyPanel() {
                 const { a, b } = worldToDisplay(geom.point!.x, geom.point!.y);
                 return (
                   <>
-                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(val, b)); updateCoord(0, 'y', displayToWorldY(val, b)); }} />
-                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(a, val)); updateCoord(0, 'y', displayToWorldY(a, val)); }} />
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(val, b)); updateCoord(0, 'y', displayToWorldY(val, b)); }} onCommit={commitCoordEdit} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(a, val)); updateCoord(0, 'y', displayToWorldY(a, val)); }} onCommit={commitCoordEdit} />
                   </>
                 );
               })()}
@@ -372,8 +419,8 @@ export default function PropertyPanel() {
                 const { a, b } = worldToDisplay(geom.start!.x, geom.start!.y);
                 return (
                   <>
-                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(val, b)); updateCoord(0, 'y', displayToWorldY(val, b)); }} />
-                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(a, val)); updateCoord(0, 'y', displayToWorldY(a, val)); }} />
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(val, b)); updateCoord(0, 'y', displayToWorldY(val, b)); }} onCommit={commitCoordEdit} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(a, val)); updateCoord(0, 'y', displayToWorldY(a, val)); }} onCommit={commitCoordEdit} />
                   </>
                 );
               })()}
@@ -382,8 +429,8 @@ export default function PropertyPanel() {
                 const { a, b } = worldToDisplay(geom.end!.x, geom.end!.y);
                 return (
                   <>
-                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(1, 'x', displayToWorldX(val, b)); updateCoord(1, 'y', displayToWorldY(val, b)); }} />
-                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(1, 'x', displayToWorldX(a, val)); updateCoord(1, 'y', displayToWorldY(a, val)); }} />
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(1, 'x', displayToWorldX(val, b)); updateCoord(1, 'y', displayToWorldY(val, b)); }} onCommit={commitCoordEdit} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(1, 'x', displayToWorldX(a, val)); updateCoord(1, 'y', displayToWorldY(a, val)); }} onCommit={commitCoordEdit} />
                   </>
                 );
               })()}
@@ -414,8 +461,8 @@ export default function PropertyPanel() {
                 const { a, b } = worldToDisplay(geom.point!.x, geom.point!.y);
                 return (
                   <>
-                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(val, b)); updateCoord(0, 'y', displayToWorldY(val, b)); }} />
-                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(a, val)); updateCoord(0, 'y', displayToWorldY(a, val)); }} />
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(val, b)); updateCoord(0, 'y', displayToWorldY(val, b)); }} onCommit={commitCoordEdit} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(a, val)); updateCoord(0, 'y', displayToWorldY(a, val)); }} onCommit={commitCoordEdit} />
                   </>
                 );
               })()}
@@ -431,8 +478,8 @@ export default function PropertyPanel() {
                 return (
                   <div key={i} className="space-y-0.5">
                     <div className="text-gray-600 text-[9px]">V{i + 1}</div>
-                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(i, 'x', displayToWorldX(val, b)); updateCoord(i, 'y', displayToWorldY(val, b)); }} />
-                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(i, 'x', displayToWorldX(a, val)); updateCoord(i, 'y', displayToWorldY(a, val)); }} />
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(i, 'x', displayToWorldX(val, b)); updateCoord(i, 'y', displayToWorldY(val, b)); }} onCommit={commitCoordEdit} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(i, 'x', displayToWorldX(a, val)); updateCoord(i, 'y', displayToWorldY(a, val)); }} onCommit={commitCoordEdit} />
                   </div>
                 );
               })}

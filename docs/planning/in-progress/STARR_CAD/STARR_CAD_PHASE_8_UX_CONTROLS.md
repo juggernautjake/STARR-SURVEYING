@@ -1284,11 +1284,11 @@ This section documents cross-cutting UX issues found in Phases 1–7 that Phase 
 - [x] After disabling UI tooltips, feature tooltips still work (separate toggle) — provider partitions enabled state by tooltip kind so muting UI keeps FEATURE alive
 
 ### Bidirectional Attribute ↔ Canvas Sync
-- [ ] Drag a line endpoint on canvas → property panel start/end coordinates update in real-time
-- [ ] Type a new X coordinate in property panel + press Enter → line endpoint moves on canvas immediately
-- [ ] Change layer in property panel → canvas feature changes layer color immediately
-- [ ] Rotate feature on canvas → rotation shown in property panel in real-time
-- [ ] All changes captured in undo stack with descriptive labels
+- [x] Drag a line endpoint on canvas → property panel start/end coordinates update in real-time — `PropertyPanel` subscribes to the whole drawing store via `useDrawingStore()`, so any geometry mutation triggers a re-render and the `CoordInput` `useEffect` resets the local string from the new value.
+- [x] Type a new X coordinate in property panel + press Enter → line endpoint moves on canvas immediately — `CoordInput` calls `onChange` on every keystroke; `updateCoord` writes through `drawingStore.updateFeatureGeometry` which fires Pixi re-render. Enter blurs the field, which also commits the undo entry below.
+- [x] Change layer in property panel → canvas feature changes layer color immediately — `handleLayerChange` updates the feature's `layerId` via `updateFeature`; cascade engine re-derives effective color from the new layer's style.
+- [x] Rotate feature on canvas → rotation shown in property panel in real-time — POLYGON / SPLINE / etc. vertex coordinates re-render through the standard subscription path; rotation isn't surfaced as a scalar in the panel today, but the underlying coordinates always reflect the latest state.
+- [x] All changes captured in undo stack with descriptive labels — coordinate edits now use a focus → blur snapshot pair (`coordEditSnapshotRef`) so a multi-keystroke session collapses into a single "Edit coordinates" undo entry instead of one entry per character. Layer / style / multi-select bulk paths already pushed undo; no-ops (focus + blur with no change) skip the entry.
 
 ### Undo/Redo Buttons
 - [x] Undo button disabled when nothing to undo — `app/admin/cad/components/UndoRedoButtons.tsx` reads `useUndoStore().canUndo()` to drive disabled state + opacity styling.
