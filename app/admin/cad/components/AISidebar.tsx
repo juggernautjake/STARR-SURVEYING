@@ -24,6 +24,7 @@ import {
   useUIStore,
   type AISidebarTab,
 } from '@/lib/cad/store';
+import { useUITooltip } from './TooltipProvider';
 import {
   checkDrawingCompleteness,
   summarizeCompleteness,
@@ -40,12 +41,44 @@ interface Props {
   onOpenCompletenessPanel?:  () => void;
 }
 
-const TABS: ReadonlyArray<{ id: AISidebarTab; label: string; emoji: string }> = [
-  { id: 'queue', label: 'Review', emoji: '📋' },
-  { id: 'assistant', label: 'Chat', emoji: '💬' },
-  { id: 'explanations', label: 'Why', emoji: '🧠' },
-  { id: 'versions', label: 'Versions', emoji: '⏱' },
-  { id: 'checklist', label: 'Checklist', emoji: '✓' },
+interface TabSpec {
+  id: AISidebarTab;
+  label: string;
+  emoji: string;
+  description: string;
+}
+
+const TABS: ReadonlyArray<TabSpec> = [
+  {
+    id: 'queue',
+    label: 'Review',
+    emoji: '📋',
+    description: 'Confidence cards for every AI-generated feature, sorted lowest-first.',
+  },
+  {
+    id: 'assistant',
+    label: 'Chat',
+    emoji: '💬',
+    description: 'Ask the drawing assistant questions or trigger structured actions.',
+  },
+  {
+    id: 'explanations',
+    label: 'Why',
+    emoji: '🧠',
+    description: 'Per-feature explanation list — why the AI drew it that way.',
+  },
+  {
+    id: 'versions',
+    label: 'Versions',
+    emoji: '⏱',
+    description: 'Audit trail of seal events + survey-description revisions.',
+  },
+  {
+    id: 'checklist',
+    label: 'Checklist',
+    emoji: '✓',
+    description: 'Drawing-completeness checks that gate the RPLS submission.',
+  },
 ];
 
 export default function AISidebar({
@@ -76,16 +109,12 @@ export default function AISidebar({
 
       <nav style={styles.tabStrip} aria-label="AI sidebar tabs">
         {TABS.map((t) => (
-          <button
+          <SidebarTabButton
             key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            style={tab === t.id ? styles.tabActive : styles.tab}
-            title={t.label}
-          >
-            <span style={styles.tabEmoji}>{t.emoji}</span>
-            {t.label}
-          </button>
+            spec={t}
+            active={tab === t.id}
+            onSelect={() => setTab(t.id)}
+          />
         ))}
       </nav>
 
@@ -103,6 +132,35 @@ export default function AISidebar({
         )}
       </div>
     </aside>
+  );
+}
+
+function SidebarTabButton({
+  spec,
+  active,
+  onSelect,
+}: {
+  spec: TabSpec;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const tooltip = useUITooltip(
+    <>
+      <strong>{spec.label}</strong>
+      <br />
+      {spec.description}
+    </>
+  );
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      style={active ? styles.tabActive : styles.tab}
+      {...tooltip}
+    >
+      <span style={styles.tabEmoji}>{spec.emoji}</span>
+      {spec.label}
+    </button>
   );
 }
 

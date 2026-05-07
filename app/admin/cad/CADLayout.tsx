@@ -20,6 +20,7 @@ import CompletenessPanel from './components/CompletenessPanel';
 import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import RPLSReviewModePanel from './components/RPLSReviewModePanel';
 import SealHashBanner from './components/SealHashBanner';
+import { TooltipProvider } from './components/TooltipProvider';
 import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
 import DeliveryHydrator from './components/DeliveryHydrator';
 import DrawingChatPanel from './components/DrawingChatPanel';
@@ -445,6 +446,7 @@ export default function CADLayout() {
   }, [drawingStore.document.settings.autoSaveIntervalSec, drawingStore.document.settings.autoSaveEnabled]);
 
   return (
+    <TooltipProvider>
     <div className="flex flex-col h-screen w-full overflow-hidden bg-white select-none">
       {/* Phase 7 delivery hydrator — keeps useDeliveryStore +
           useReviewWorkflowStore in sync with the active doc. */}
@@ -842,5 +844,6 @@ export default function CADLayout() {
         />
       )}
     </div>
+    </TooltipProvider>
   );
 }

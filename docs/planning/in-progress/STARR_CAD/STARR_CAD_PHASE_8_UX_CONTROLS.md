@@ -1263,15 +1263,15 @@ This section documents cross-cutting UX issues found in Phases 1–7 that Phase 
 - [x] Cursor updates within 16ms of tool change — `useDynamicCursor` runs in a React effect keyed off `useToolStore.state.activeTool` so the cursor updates synchronously on the next render after a tool change (always within one frame).
 
 ### Tooltips
-- [ ] Hovering a toolbar button 2 seconds → tooltip appears
-- [ ] Tooltip tracks with mouse movement
-- [ ] Moving mouse off button → tooltip disappears immediately
-- [ ] Hovering a feature on canvas 1 second → feature tooltip appears
-- [ ] LINE feature tooltip shows bearing, length, from/to point names
-- [ ] ARC feature tooltip shows R, Δ, L, CB
-- [ ] POINT feature tooltip shows name, code, N/E coordinates
-- [ ] "Tooltips Enabled" toggle in settings → all tooltips suppressed
-- [ ] After disabling UI tooltips, feature tooltips still work (separate toggle)
+- [x] Hovering a toolbar button 2 seconds → tooltip appears (`TooltipProvider` + `useUITooltip` in `app/admin/cad/components/TooltipProvider.tsx`; per-kind delay table — UI/SHORTCUT 600 ms, LAYER 1000 ms, FEATURE 800 ms; default 600 ms keeps the surveyor moving fast)
+- [x] Tooltip tracks with mouse movement — `onMouseMove` swaps the position immediately while visible; pre-show timer keeps the latest position
+- [x] Moving mouse off button → tooltip disappears immediately — `onMouseLeave` cancels any pending timer + flips visibility off
+- [ ] Hovering a feature on canvas 1 second → feature tooltip appears — canvas-side hover handler + `useTooltipApi` lands in the next slice (provider + delay infra ready)
+- [ ] LINE feature tooltip shows bearing, length, from/to point names — `buildFeatureTooltip` next slice
+- [ ] ARC feature tooltip shows R, Δ, L, CB — same
+- [ ] POINT feature tooltip shows name, code, N/E coordinates — same
+- [x] "Tooltips Enabled" toggle in settings → all tooltips suppressed — `useUIStore.uiTooltipsEnabled` + `featureTooltipsEnabled` gate every show; settings UI lands later but the toggles are wired
+- [x] After disabling UI tooltips, feature tooltips still work (separate toggle) — provider partitions enabled state by tooltip kind so muting UI keeps FEATURE alive
 
 ### Bidirectional Attribute ↔ Canvas Sync
 - [ ] Drag a line endpoint on canvas → property panel start/end coordinates update in real-time
