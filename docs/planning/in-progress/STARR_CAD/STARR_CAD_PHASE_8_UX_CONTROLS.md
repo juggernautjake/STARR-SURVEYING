@@ -1257,7 +1257,7 @@ This section documents cross-cutting UX issues found in Phases 1–7 that Phase 
 - [ ] Resolving conflict via "reassign" updates both bindings — settings UI slice
 - [x] "Reset All to Default" restores all defaults — `useHotkeysStore.resetAllBindings()` clears the override list; the next engine rebuild walks the registry alone.
 - [ ] "AutoCAD-like" preset changes bindings correctly — preset surface lands with the settings UI
-- [ ] Hotkey bindings persist after page reload — cross-session persistence lands once the user-settings store wires localStorage
+- [x] Hotkey bindings persist after page reload — `useHotkeysStore` (`lib/cad/store/hotkeys-store.ts`) now wraps zustand's `persist` middleware with a `partialize` allow-list that writes only `userBindings` to `localStorage` under the `starr-cad-hotkeys` key. `activeContext` stays session-scoped (always recomputed from focus). The same partialize-based pattern was applied to `useUIStore` for the two tooltip toggles (`uiTooltipsEnabled` / `featureTooltipsEnabled`) so the surveyor's mute preferences survive a refresh.
 - [x] Hotkeys do not fire when typing in inputs, command bar, or text fields — `shouldIgnoreEventTarget` skips `INPUT` / `TEXTAREA` / `SELECT` / `contenteditable` for plain keys but still allows `Ctrl/Cmd/Alt`-prefixed shortcuts so Save / Undo work in form fields.
 - [x] Pressing Escape always cancels the current drawing operation and returns to select tool — `edit.deselect` calls `useSelectionStore.deselectAll()` + `useToolStore.resetToolState()` so the canvas drops back into a clean select state.
 

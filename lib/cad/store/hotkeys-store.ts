@@ -12,6 +12,7 @@
 // the array reference changes.
 
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 import type {
   ActionContext,
@@ -32,29 +33,46 @@ interface HotkeysStore {
   setActiveContext: (context: ActionContext) => void;
 }
 
-export const useHotkeysStore = create<HotkeysStore>((set) => ({
-  userBindings: [],
-  activeContext: 'CANVAS',
+/**
+ * Phase 8 §11 — `userBindings` persists across page reloads
+ * via the `persist` middleware so a surveyor's customised
+ * hotkeys survive a refresh. `activeContext` is session-
+ * scoped (always recomputed from focus) so it's deliberately
+ * excluded from the persisted slice.
+ */
+export const useHotkeysStore = create<HotkeysStore>()(
+  persist(
+    (set) => ({
+      userBindings: [],
+      activeContext: 'CANVAS',
 
-  setBinding: (actionId, key) =>
-    set((s) => {
-      const others = s.userBindings.filter((b) => b.actionId !== actionId);
-      // Null key removes the binding without leaving a stub
-      // entry — `engine.setUserBindings` only honors entries
-      // that flip the default; null in `userBindings` would
-      // confuse the merge logic.
-      if (key === null) {
-        return { userBindings: others };
-      }
-      return { userBindings: [...others, { actionId, key }] };
+      setBinding: (actionId, key) =>
+        set((s) => {
+          const others = s.userBindings.filter((b) => b.actionId !== actionId);
+          // Null key removes the binding without leaving a stub
+          // entry — `engine.setUserBindings` only honors entries
+          // that flip the default; null in `userBindings` would
+          // confuse the merge logic.
+          if (key === null) {
+            return { userBindings: others };
+          }
+          return { userBindings: [...others, { actionId, key }] };
+        }),
+
+      removeBinding: (actionId) =>
+        set((s) => ({
+          userBindings: s.userBindings.filter((b) => b.actionId !== actionId),
+        })),
+
+      resetAllBindings: () => set({ userBindings: [] }),
+
+      setActiveContext: (context) => set({ activeContext: context }),
     }),
-
-  removeBinding: (actionId) =>
-    set((s) => ({
-      userBindings: s.userBindings.filter((b) => b.actionId !== actionId),
-    })),
-
-  resetAllBindings: () => set({ userBindings: [] }),
-
-  setActiveContext: (context) => set({ activeContext: context }),
-}));
+    {
+      name: 'starr-cad-hotkeys',
+      version: 1,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (s) => ({ userBindings: s.userBindings }),
+    }
+  )
+);

@@ -1,5 +1,6 @@
 // lib/cad/store/ui-store.ts — UI panel visibility state
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type AISidebarTab =
   | 'queue'
@@ -43,27 +44,58 @@ interface UIStore {
   setFeatureTooltipsEnabled: (enabled: boolean) => void;
 }
 
-export const useUIStore = create<UIStore>((set) => ({
-  showLayerPanel: true,
-  showPropertyPanel: true,
-  showCommandBar: true,
-  showStatusBar: true,
-  commandBarFocused: false,
-  showAISidebar: false,
-  aiSidebarTab: 'queue',
-  hoveredFeatureId: null,
-  uiTooltipsEnabled: true,
-  featureTooltipsEnabled: true,
+/**
+ * The UI store keeps two kinds of state:
+ *
+ *   - **Session-scoped** (panel visibility, AI sidebar tab,
+ *     hovered feature id, command-bar focus). These are
+ *     fluid and shouldn't survive a reload — opening a fresh
+ *     drawing should always present the default workspace.
+ *
+ *   - **Persistent preferences** (the two tooltip toggles).
+ *     A surveyor who turns off feature hover-tooltips
+ *     expects them to stay off after a refresh.
+ *
+ * Phase 8 §11 → split via `persist` middleware with a
+ * `partialize` allow-list that only writes the persistent
+ * keys to localStorage. Session-scoped state is reset to
+ * defaults on every reload exactly like before.
+ */
+export const useUIStore = create<UIStore>()(
+  persist(
+    (set) => ({
+      showLayerPanel: true,
+      showPropertyPanel: true,
+      showCommandBar: true,
+      showStatusBar: true,
+      commandBarFocused: false,
+      showAISidebar: false,
+      aiSidebarTab: 'queue',
+      hoveredFeatureId: null,
+      uiTooltipsEnabled: true,
+      featureTooltipsEnabled: true,
 
-  toggleLayerPanel: () => set((s) => ({ showLayerPanel: !s.showLayerPanel })),
-  togglePropertyPanel: () => set((s) => ({ showPropertyPanel: !s.showPropertyPanel })),
-  setCommandBarFocused: (focused) => set({ commandBarFocused: focused }),
-  toggleAISidebar: () => set((s) => ({ showAISidebar: !s.showAISidebar })),
-  openAISidebar: (tab) =>
-    set((s) => ({ showAISidebar: true, aiSidebarTab: tab ?? s.aiSidebarTab })),
-  closeAISidebar: () => set({ showAISidebar: false }),
-  setAISidebarTab: (tab) => set({ aiSidebarTab: tab }),
-  setHoveredFeatureId: (featureId) => set({ hoveredFeatureId: featureId }),
-  setUITooltipsEnabled: (enabled) => set({ uiTooltipsEnabled: enabled }),
-  setFeatureTooltipsEnabled: (enabled) => set({ featureTooltipsEnabled: enabled }),
-}));
+      toggleLayerPanel: () => set((s) => ({ showLayerPanel: !s.showLayerPanel })),
+      togglePropertyPanel: () => set((s) => ({ showPropertyPanel: !s.showPropertyPanel })),
+      setCommandBarFocused: (focused) => set({ commandBarFocused: focused }),
+      toggleAISidebar: () => set((s) => ({ showAISidebar: !s.showAISidebar })),
+      openAISidebar: (tab) =>
+        set((s) => ({ showAISidebar: true, aiSidebarTab: tab ?? s.aiSidebarTab })),
+      closeAISidebar: () => set({ showAISidebar: false }),
+      setAISidebarTab: (tab) => set({ aiSidebarTab: tab }),
+      setHoveredFeatureId: (featureId) => set({ hoveredFeatureId: featureId }),
+      setUITooltipsEnabled: (enabled) => set({ uiTooltipsEnabled: enabled }),
+      setFeatureTooltipsEnabled: (enabled) => set({ featureTooltipsEnabled: enabled }),
+    }),
+    {
+      name: 'starr-cad-ui',
+      version: 1,
+      storage: createJSONStorage(() => localStorage),
+      // Allow-list — only the surveyor-visible toggles persist.
+      partialize: (s) => ({
+        uiTooltipsEnabled: s.uiTooltipsEnabled,
+        featureTooltipsEnabled: s.featureTooltipsEnabled,
+      }),
+    }
+  )
+);
