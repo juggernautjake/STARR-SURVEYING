@@ -488,6 +488,7 @@ export type ToolType =
   | 'SCALE'
   | 'ARRAY'
   | 'SPLIT'
+  | 'TRIM'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'

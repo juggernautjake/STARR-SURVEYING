@@ -68,6 +68,7 @@ import {
   arraySelectionRectangular,
   arraySelectionPolar,
   splitFeatureAt,
+  trimFeatureAt,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -3305,6 +3306,195 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For TRIM: highlight the portion of the feature that
+    // would be removed (between the two adjacent
+    // intersections, or back to an endpoint when only one
+    // side has a crossing). Surveyors need to see the
+    // doomed section explicitly so a misclick doesn't
+    // amputate the wrong leg.
+    if (activeTool === 'TRIM') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+
+      // Hit-test for any LINE / POLYLINE under the cursor.
+      // POLYGON is not a valid trim source (the wrap-around
+      // case is ambiguous when there's no crossing) so we
+      // skip it here too.
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        if (!chain) continue;
+        for (let i = 0; i + 1 < chain.length; i += 1) {
+          const a = chain[i];
+          const b = chain[i + 1];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+          }
+        }
+      }
+
+      if (!bestId || !bestChain) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+
+      // Compute cursor's chain parameter + adjacent
+      // intersections, exactly like trimFeatureAt does.
+      const chain = bestChain;
+      const targets = all.filter((t) => t.id !== bestId);
+      const ints: Array<{ chainParam: number; pt: Point2D }> = [];
+      for (let i = 0; i + 1 < chain.length; i += 1) {
+        const a = chain[i];
+        const b = chain[i + 1];
+        const dxA = b.x - a.x;
+        const dyA = b.y - a.y;
+        const len2 = dxA * dxA + dyA * dyA;
+        if (len2 < 1e-20) continue;
+        for (const t of targets) {
+          const tg = t.geometry;
+          let segs: Array<[Point2D, Point2D]> | null = null;
+          if (tg.type === 'LINE' && tg.start && tg.end) segs = [[tg.start, tg.end]];
+          else if ((tg.type === 'POLYLINE' || tg.type === 'MIXED_GEOMETRY') && tg.vertices && tg.vertices.length >= 2) {
+            segs = [];
+            for (let k = 0; k + 1 < tg.vertices.length; k += 1) segs.push([tg.vertices[k], tg.vertices[k + 1]]);
+          } else if (tg.type === 'POLYGON' && tg.vertices && tg.vertices.length >= 2) {
+            segs = [];
+            for (let k = 0; k < tg.vertices.length; k += 1) segs!.push([tg.vertices[k], tg.vertices[(k + 1) % tg.vertices.length]]);
+          }
+          if (!segs) continue;
+          for (const [c, d] of segs) {
+            // Inline segmentSegmentIntersection
+            const denom = (a.x - b.x) * (c.y - d.y) - (a.y - b.y) * (c.x - d.x);
+            if (Math.abs(denom) < 1e-10) continue;
+            const tParam = ((a.x - c.x) * (c.y - d.y) - (a.y - c.y) * (c.x - d.x)) / denom;
+            const uParam = -((a.x - b.x) * (a.y - c.y) - (a.y - b.y) * (a.x - c.x)) / denom;
+            if (tParam < 0 || tParam > 1 || uParam < 0 || uParam > 1) continue;
+            const ipt = { x: a.x + tParam * (b.x - a.x), y: a.y + tParam * (b.y - a.y) };
+            ints.push({ chainParam: i + tParam, pt: ipt });
+          }
+        }
+      }
+      ints.sort((p, q) => p.chainParam - q.chainParam);
+
+      // Cursor chain param
+      let cursorParam = 0;
+      let curBestDist = Infinity;
+      for (let i = 0; i + 1 < chain.length; i += 1) {
+        const a = chain[i];
+        const b = chain[i + 1];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len2 = dx * dx + dy * dy;
+        if (len2 < 1e-20) continue;
+        let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const px = a.x + t * dx;
+        const py = a.y + t * dy;
+        const dd = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+        if (dd < curBestDist) {
+          curBestDist = dd;
+          cursorParam = i + t;
+        }
+      }
+
+      const eps = 1e-6;
+      let leftP = -1;
+      let rightP = chain.length - 1 + 1; // beyond end
+      let hasLeft = false;
+      let hasRight = false;
+      for (const it of ints) {
+        if (it.chainParam <= cursorParam - eps) {
+          if (it.chainParam > leftP) { leftP = it.chainParam; hasLeft = true; }
+        } else if (it.chainParam >= cursorParam + eps) {
+          if (it.chainParam < rightP) { rightP = it.chainParam; hasRight = true; }
+        }
+      }
+
+      // Build the doomed-segment vertex list.
+      // - Both crossings present: from leftP to rightP.
+      // - Only left: from leftP to chain end.
+      // - Only right: from chain start to rightP.
+      // - Neither: whole chain (will be deleted).
+      let pStart: number;
+      let pEnd: number;
+      if (hasLeft && hasRight) { pStart = leftP; pEnd = rightP; }
+      else if (hasLeft) { pStart = leftP; pEnd = chain.length - 1; }
+      else if (hasRight) { pStart = 0; pEnd = rightP; }
+      else { pStart = 0; pEnd = chain.length - 1; }
+
+      // Inline a tiny chain slicer to render the doomed
+      // section without recomputing in operations.ts.
+      const sliceVerts: Point2D[] = [];
+      const sStartSeg = Math.floor(pStart);
+      const sStartT = pStart - sStartSeg;
+      const sEndSeg = Math.floor(pEnd);
+      const sEndT = pEnd - sEndSeg;
+      const a0 = chain[Math.max(0, Math.min(chain.length - 1, sStartSeg))];
+      if (sStartSeg + 1 < chain.length) {
+        const b0 = chain[sStartSeg + 1];
+        sliceVerts.push({
+          x: a0.x + sStartT * (b0.x - a0.x),
+          y: a0.y + sStartT * (b0.y - a0.y),
+        });
+      } else {
+        sliceVerts.push({ ...a0 });
+      }
+      for (let k = sStartSeg + 1; k <= sEndSeg; k += 1) {
+        if (k < 0 || k >= chain.length) continue;
+        sliceVerts.push({ ...chain[k] });
+      }
+      if (sEndSeg + 1 < chain.length && sEndT > 0) {
+        const a1 = chain[sEndSeg];
+        const b1 = chain[sEndSeg + 1];
+        sliceVerts.push({
+          x: a1.x + sEndT * (b1.x - a1.x),
+          y: a1.y + sEndT * (b1.y - a1.y),
+        });
+      }
+
+      // Render the doomed section in red so the surveyor
+      // sees what's about to disappear.
+      if (sliceVerts.length >= 2) {
+        g.lineStyle(2.5, 0xff5555, 0.8);
+        const p0 = w2s(sliceVerts[0].x, sliceVerts[0].y);
+        g.moveTo(p0.sx, p0.sy);
+        for (let i = 1; i < sliceVerts.length; i += 1) {
+          const p = w2s(sliceVerts[i].x, sliceVerts[i].y);
+          g.lineTo(p.sx, p.sy);
+        }
+      }
+
+      // Mark each crossing intersection on the chain so the
+      // surveyor can see where the trim will land.
+      g.beginFill(0xff5555, 0.95);
+      for (const it of ints) {
+        const ip = w2s(it.pt.x, it.pt.y);
+        g.drawCircle(ip.sx, ip.sy, 4);
+      }
+      g.endFill();
+      return;
+    }
+
     // For SPLIT: highlight the feature under the cursor and
     // mark the closest point on it where the split would
     // land. No ghost geometry — the operation just bisects
@@ -5963,6 +6153,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (!hit) break;
           splitFeatureAt(hit, worldPt);
+          break;
+        }
+
+        case 'TRIM': {
+          // TRIM: click a portion of a LINE or POLYLINE that
+          // lies between two intersections with other features.
+          // The clicked section is removed, leaving the two
+          // remaining halves (or one, if there's only an
+          // intersection on one side). When the source has
+          // no crossings at all, the click deletes it.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          trimFeatureAt(hit, worldPt);
           break;
         }
 

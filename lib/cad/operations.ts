@@ -6,6 +6,7 @@ import type { Feature, OffsetMode, Point2D } from './types';
 import { rotate, mirror, scale, transformFeature, translate } from './geometry/transform';
 import { computeBounds } from './geometry/bounds';
 import { closestPointOnSegment } from './geometry/point';
+import { segmentSegmentIntersection } from './geometry/intersection';
 import {
   offsetPolyline,
   offsetArc,
@@ -231,6 +232,285 @@ export function arraySelectionRectangular(
     [...ids, ...newFeatures.map((f) => f.id)],
     'REPLACE',
   );
+}
+
+// ─────────────────────────────────────────────
+// Trim — remove the section of a vertex-chain feature between
+// the two intersections adjacent to the cursor along the chain.
+// Source must be LINE or POLYLINE; targets can be LINE,
+// POLYLINE, or POLYGON. POLYGON sources are skipped because
+// the wrap-around case would silently produce surprises (the
+// "removed segment" of a closed loop is ambiguous when no
+// intersection exists). Surveyors can SPLIT first to open the
+// polygon, then TRIM.
+// ─────────────────────────────────────────────
+
+interface ChainIntersection {
+  /** Index of the segment on the source chain that contains this intersection. */
+  segIdx: number;
+  /** Parameter along that segment, 0..1. */
+  segT: number;
+  /** Continuous chain parameter — segIdx + segT. Used for sorting. */
+  chainParam: number;
+  /** World-space coordinates of the intersection. */
+  pt: Point2D;
+}
+
+/**
+ * Extract every line segment of a feature's outline as
+ * [from, to] pairs. Used by `trimFeatureAt` to find
+ * intersections of the source against every other vertex-
+ * chain feature in the drawing. Curved features (CIRCLE,
+ * ELLIPSE, ARC, SPLINE) return null — segment-segment
+ * intersection of curves needs a heavier algorithm and is
+ * out of scope for this slice.
+ */
+function getFeatureSegments(f: Feature): Array<[Point2D, Point2D]> | null {
+  const g = f.geometry;
+  if (g.type === 'LINE' && g.start && g.end) return [[g.start, g.end]];
+  if ((g.type === 'POLYLINE' || g.type === 'MIXED_GEOMETRY') && g.vertices && g.vertices.length >= 2) {
+    const out: Array<[Point2D, Point2D]> = [];
+    for (let i = 0; i + 1 < g.vertices.length; i += 1) {
+      out.push([g.vertices[i], g.vertices[i + 1]]);
+    }
+    return out;
+  }
+  if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
+    const out: Array<[Point2D, Point2D]> = [];
+    for (let i = 0; i < g.vertices.length; i += 1) {
+      out.push([g.vertices[i], g.vertices[(i + 1) % g.vertices.length]]);
+    }
+    return out;
+  }
+  return null;
+}
+
+/**
+ * Walk every segment of `chain` against every segment of
+ * every feature in `targets`, returning the sorted list of
+ * intersections by continuous chain parameter. Endpoint-
+ * coincident hits (segT = 0 or 1) are kept — they're valid
+ * trim boundaries.
+ */
+function findChainIntersections(
+  chain: Point2D[],
+  targets: Feature[],
+): ChainIntersection[] {
+  const out: ChainIntersection[] = [];
+  for (let i = 0; i + 1 < chain.length; i += 1) {
+    const a = chain[i];
+    const b = chain[i + 1];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    if (len2 < 1e-20) continue;
+    for (const t of targets) {
+      const segs = getFeatureSegments(t);
+      if (!segs) continue;
+      for (const [c, d] of segs) {
+        const pt = segmentSegmentIntersection(a, b, c, d);
+        if (!pt) continue;
+        const segT = ((pt.x - a.x) * dx + (pt.y - a.y) * dy) / len2;
+        out.push({ segIdx: i, segT, chainParam: i + segT, pt });
+      }
+    }
+  }
+  return out.sort((a, b) => a.chainParam - b.chainParam);
+}
+
+/**
+ * Compute the continuous chain parameter for the closest
+ * point on `chain` to `worldPt`. Mirrors the math in
+ * `findChainIntersections` so cursor and intersections share
+ * the same parameter space.
+ */
+function chainParamFromPoint(chain: Point2D[], worldPt: Point2D): number {
+  let bestParam = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i + 1 < chain.length; i += 1) {
+    const a = chain[i];
+    const b = chain[i + 1];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    if (len2 < 1e-20) continue;
+    let t = ((worldPt.x - a.x) * dx + (worldPt.y - a.y) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const px = a.x + t * dx;
+    const py = a.y + t * dy;
+    const d = Math.hypot(worldPt.x - px, worldPt.y - py);
+    if (d < bestDist) {
+      bestDist = d;
+      bestParam = i + t;
+    }
+  }
+  return bestParam;
+}
+
+/**
+ * Slice `chain` from chain parameter `pStart` (inclusive) to
+ * `pEnd` (inclusive), returning the world-space vertex list.
+ * Drops collinear duplicates at endpoints. Returns an empty
+ * array when the slice is degenerate (length < 2).
+ */
+function sliceChain(chain: Point2D[], pStart: number, pEnd: number): Point2D[] {
+  if (pEnd <= pStart) return [];
+  const out: Point2D[] = [];
+
+  const startSeg = Math.floor(pStart);
+  const startT = pStart - startSeg;
+  const endSeg = Math.floor(pEnd);
+  const endT = pEnd - endSeg;
+
+  // Start point — interpolated unless we're exactly on a vertex.
+  const a0 = chain[Math.max(0, Math.min(chain.length - 1, startSeg))];
+  if (startSeg + 1 < chain.length) {
+    const b0 = chain[startSeg + 1];
+    out.push({
+      x: a0.x + startT * (b0.x - a0.x),
+      y: a0.y + startT * (b0.y - a0.y),
+    });
+  } else {
+    out.push({ ...a0 });
+  }
+
+  // Intermediate vertices — every chain[k] with startSeg < k <= endSeg.
+  for (let k = startSeg + 1; k <= endSeg; k += 1) {
+    if (k < 0 || k >= chain.length) continue;
+    const v = chain[k];
+    const last = out[out.length - 1];
+    // Skip near-duplicates that can arise when the slice
+    // boundary lands exactly on an existing vertex.
+    if (!last || Math.hypot(v.x - last.x, v.y - last.y) > 1e-9) {
+      out.push({ ...v });
+    }
+  }
+
+  // End point — interpolated unless we're exactly on a vertex.
+  if (endSeg + 1 < chain.length && endT > 0) {
+    const a1 = chain[endSeg];
+    const b1 = chain[endSeg + 1];
+    const ep = {
+      x: a1.x + endT * (b1.x - a1.x),
+      y: a1.y + endT * (b1.y - a1.y),
+    };
+    const last = out[out.length - 1];
+    if (!last || Math.hypot(ep.x - last.x, ep.y - last.y) > 1e-9) {
+      out.push(ep);
+    }
+  }
+
+  return out.length >= 2 ? out : [];
+}
+
+/**
+ * Trim a LINE or POLYLINE feature at the cursor position,
+ * removing the section between the two adjacent
+ * intersections with other vertex-chain features. When only
+ * one side has an intersection, the remainder on that side
+ * stays and the other half is discarded. When no
+ * intersections exist at all, the source is deleted entirely.
+ *
+ * Returns true on a successful mutation.
+ */
+export function trimFeatureAt(featureId: string, worldPt: Point2D): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+
+  // Resolve the source chain.
+  let chain: Point2D[] | null = null;
+  if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
+  else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else return false;
+  if (!chain) return false;
+
+  // Collect intersections against every other vertex-chain feature.
+  const targets = drawingStore.getAllFeatures().filter((t) => t.id !== featureId && getFeatureSegments(t) !== null);
+  const ints = findChainIntersections(chain, targets);
+
+  // No crossings — surveyor's intent is "remove this whole feature."
+  if (ints.length === 0) {
+    drawingStore.removeFeature(featureId);
+    selectionStore.deselectAll();
+    undoStore.pushUndo(makeRemoveFeatureEntry(f));
+    return true;
+  }
+
+  // Find the cursor's chain parameter and the adjacent
+  // intersections (one before, one after).
+  const cursorParam = chainParamFromPoint(chain, worldPt);
+  const eps = 1e-6;
+  let leftInt: ChainIntersection | null = null;
+  let rightInt: ChainIntersection | null = null;
+  for (const it of ints) {
+    if (it.chainParam <= cursorParam - eps) {
+      if (!leftInt || it.chainParam > leftInt.chainParam) leftInt = it;
+    } else if (it.chainParam >= cursorParam + eps) {
+      if (!rightInt || it.chainParam < rightInt.chainParam) rightInt = it;
+    }
+  }
+
+  // No intersection on either side — leave the feature alone.
+  if (!leftInt && !rightInt) return false;
+
+  const cloneStyle = (): typeof f.style => JSON.parse(JSON.stringify(f.style));
+  const cloneProps = (): typeof f.properties => JSON.parse(JSON.stringify(f.properties));
+  const buildFeature = (verts: Point2D[]): Feature => {
+    if (verts.length === 2) {
+      return {
+        ...f,
+        id: generateId(),
+        type: 'LINE',
+        style: cloneStyle(),
+        properties: cloneProps(),
+        geometry: { type: 'LINE', start: verts[0], end: verts[1] },
+      };
+    }
+    return {
+      ...f,
+      id: generateId(),
+      type: 'POLYLINE',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'POLYLINE', vertices: verts },
+    };
+  };
+
+  const newFeatures: Feature[] = [];
+  // Left half — chain[0] up to leftInt
+  if (leftInt) {
+    const verts = sliceChain(chain, 0, leftInt.chainParam);
+    if (verts.length >= 2) newFeatures.push(buildFeature(verts));
+  }
+  // Right half — rightInt to chain[end]
+  if (rightInt) {
+    const endParam = chain.length - 1;
+    const verts = sliceChain(chain, rightInt.chainParam, endParam);
+    if (verts.length >= 2) newFeatures.push(buildFeature(verts));
+  }
+
+  // If both halves collapsed (degenerate cursor right next
+  // to a corner), bail without mutation.
+  if (newFeatures.length === 0) {
+    drawingStore.removeFeature(featureId);
+    selectionStore.deselectAll();
+    undoStore.pushUndo(makeRemoveFeatureEntry(f));
+    return true;
+  }
+
+  drawingStore.removeFeature(featureId);
+  drawingStore.addFeatures(newFeatures);
+  const ops = [
+    { type: 'REMOVE_FEATURE' as const, data: f },
+    ...newFeatures.map((nf) => ({ type: 'ADD_FEATURE' as const, data: nf })),
+  ];
+  undoStore.pushUndo(makeBatchEntry('Trim', ops));
+  selectionStore.selectMultiple(newFeatures.map((nf) => nf.id), 'REPLACE');
+  return true;
 }
 
 /**

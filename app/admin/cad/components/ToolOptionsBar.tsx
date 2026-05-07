@@ -135,6 +135,7 @@ export default function ToolOptionsBar() {
   const showInvert = activeTool === 'INVERT';
   const showArray = activeTool === 'ARRAY';
   const showSplit = activeTool === 'SPLIT';
+  const showTrim = activeTool === 'TRIM';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -746,6 +747,16 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click any line, polyline, or polygon to break it at the cursor point. The lime ring marks the split location.
+          </span>
+        </>
+      )}
+
+      {/* ── TRIM tool options ──────────────────────────────────────────────── */}
+      {showTrim && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click a line or polyline portion that crosses another feature — the section between the two adjacent crossings (highlighted red) gets removed. No crossings = whole feature deleted.
           </span>
         </>
       )}
@@ -1655,6 +1666,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   INVERT: 'Invert',
   ARRAY: 'Array',
   SPLIT: 'Split',
+  TRIM: 'Trim',
   SCALE: 'Scale',
   ERASE: 'Erase',
   OFFSET: 'Offset',
