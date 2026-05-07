@@ -139,6 +139,7 @@ export default function ToolOptionsBar() {
   const showTrim = activeTool === 'TRIM';
   const showExtend = activeTool === 'EXTEND';
   const showJoin = activeTool === 'JOIN';
+  const showFillet = activeTool === 'FILLET';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -770,6 +771,51 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click near the end of a line or polyline — that end (closer of the two) lengthens along its tangent until it hits the next feature. The bright green ghost shows the extension; a grey ring means nothing lies in the extension direction.
+          </span>
+        </>
+      )}
+
+      {/* ── FILLET tool options ────────────────────────────────────────────── */}
+      {showFillet && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Fillet Radius"
+            description="Radius of the fillet arc in feet. The arc is tangent to both lines at distance radius / tan(half-angle) from their intersection. The lines must each be at least that long; otherwise the fillet bails with an error."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">R:</span>
+              <input
+                type="number"
+                min={0.01}
+                step={0.5}
+                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-amber-500"
+                value={ts.filletRadius}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v > 0) toolStore.setFilletRadius(v);
+                }}
+              />
+              <span className="text-[10px] text-gray-500">ft</span>
+            </div>
+          </Tooltip>
+          <Sep />
+          {ts.filletPickedLineId && (
+            <button
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => toolStore.setFilletPickedLine(null, null)}
+              title="Cancel — restart line picking"
+            >
+              ✕
+            </button>
+          )}
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {!ts.filletPickedLineId
+              ? 'Click first line on the side you want to keep'
+              : 'Click second line on the side you want to keep — cyan ghost shows the fillet'}
           </span>
         </>
       )}
@@ -1721,6 +1767,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   TRIM: 'Trim',
   EXTEND: 'Extend',
   JOIN: 'Join',
+  FILLET: 'Fillet',
   SCALE: 'Scale',
   ERASE: 'Erase',
   OFFSET: 'Offset',

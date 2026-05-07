@@ -43,6 +43,8 @@ interface ToolStore {
   setArrayPolarAngleDeg: (deg: number) => void;
   setArrayPolarRotate: (enabled: boolean) => void;
   setArrayPolarCenter: (center: Point2D | null) => void;
+  setFilletRadius: (r: number) => void;
+  setFilletPickedLine: (id: string | null, click: Point2D | null) => void;
   resetToolState: () => void;
 }
 
@@ -93,6 +95,9 @@ const defaultToolState: ToolState = {
   arrayPolarAngleDeg: 360,
   arrayPolarRotate: true,
   arrayPolarCenter: null,
+  filletRadius: 5,
+  filletPickedLineId: null,
+  filletPickedClickPoint: null,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -133,6 +138,8 @@ export const useToolStore = create<ToolStore>((set) => ({
         arrayPolarAngleDeg: s.state.arrayPolarAngleDeg,
         arrayPolarRotate: s.state.arrayPolarRotate,
         // arrayPolarCenter resets on tool switch — bound to a single pick session.
+        filletRadius: s.state.filletRadius,
+        // filletPickedLineId resets on tool switch — bound to a two-click session.
       },
     })),
 
@@ -307,6 +314,23 @@ export const useToolStore = create<ToolStore>((set) => ({
   setArrayPolarCenter: (center) =>
     set((s) => ({ state: { ...s.state, arrayPolarCenter: center } })),
 
+  setFilletRadius: (r) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        filletRadius: Number.isFinite(r) && r > 0 ? r : 0.01,
+      },
+    })),
+
+  setFilletPickedLine: (id, click) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        filletPickedLineId: id,
+        filletPickedClickPoint: click,
+      },
+    })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -339,6 +363,9 @@ export const useToolStore = create<ToolStore>((set) => ({
         arrayPolarAngleDeg: s.state.arrayPolarAngleDeg,
         arrayPolarRotate: s.state.arrayPolarRotate,
         arrayPolarCenter: null, // resets on tool reset
+        filletRadius: s.state.filletRadius,
+        filletPickedLineId: null,
+        filletPickedClickPoint: null,
       },
     })),
 }));

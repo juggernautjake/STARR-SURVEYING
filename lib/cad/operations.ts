@@ -6,7 +6,7 @@ import type { Feature, OffsetMode, Point2D } from './types';
 import { rotate, mirror, scale, transformFeature, translate } from './geometry/transform';
 import { computeBounds } from './geometry/bounds';
 import { closestPointOnSegment } from './geometry/point';
-import { segmentSegmentIntersection } from './geometry/intersection';
+import { segmentSegmentIntersection, lineLineIntersection } from './geometry/intersection';
 import {
   offsetPolyline,
   offsetArc,
@@ -346,6 +346,256 @@ export function extendFeatureTo(featureId: string, worldPt: Point2D): boolean {
     { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
   ]));
   return true;
+}
+
+/**
+ * Result of attempting a `filletTwoLines`. Same convention
+ * as JoinResult — `ok: false` carries a short user-facing
+ * `reason` so the UI can surface the failure.
+ */
+export interface FilletResult {
+  ok: boolean;
+  arc?: Feature;
+  trimmedIds?: string[];
+  reason?: string;
+}
+
+/**
+ * Place a circular fillet of `radius` between two LINE
+ * features at their (extended) intersection. The two line
+ * click points decide which side of each line is kept —
+ * surveyors point at the leg they want to retain.
+ *
+ * Algorithm:
+ * 1. Find the infinite-line intersection P of line1 + line2.
+ * 2. For each line, compute a unit "keep" direction pointing
+ *    from P toward the click. The keep direction also serves
+ *    as the tangent direction at the fillet's tangent point.
+ * 3. Half-angle θ between the two keep directions:
+ *      cos(2θ) = u1 · u2
+ *    Skip when the lines are parallel or aimed straight at
+ *    each other (degenerate fillets).
+ * 4. Tangent-point distance from P along each leg:
+ *      t = radius / tan(θ)
+ *    Tangent point on leg i = P + t * uᵢ.
+ * 5. Arc center = (PT1 + PT2)/2 displaced along the bisector
+ *    by `radius / sin(θ)` from P, on the side AWAY from the
+ *    cusp (i.e. away from P, into the "keep" wedge).
+ * 6. Trim each line so its endpoint nearest P moves to its
+ *    tangent point; keep the half containing the click.
+ * 7. Insert a new ARC feature spanning from PT1 to PT2,
+ *    direction picked so the arc bulges toward P rather than
+ *    away (sweeps through the "cut" wedge between the legs).
+ */
+export function filletTwoLines(
+  line1Id: string,
+  click1: Point2D,
+  line2Id: string,
+  click2: Point2D,
+  radius: number,
+): FilletResult {
+  if (!Number.isFinite(radius) || radius <= 0) {
+    return { ok: false, reason: 'Fillet radius must be > 0.' };
+  }
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f1 = drawingStore.getFeature(line1Id);
+  const f2 = drawingStore.getFeature(line2Id);
+  if (!f1 || !f2) return { ok: false, reason: 'Lines not found.' };
+  if (f1.geometry.type !== 'LINE' || f2.geometry.type !== 'LINE') {
+    return { ok: false, reason: 'FILLET currently supports LINE features only.' };
+  }
+  const a1 = f1.geometry.start!;
+  const b1 = f1.geometry.end!;
+  const a2 = f2.geometry.start!;
+  const b2 = f2.geometry.end!;
+
+  // Infinite-line intersection of the two source lines.
+  const P = lineLineIntersection(a1, b1, a2, b2);
+  if (!P) return { ok: false, reason: 'Lines are parallel — no fillet possible.' };
+
+  // Unit "keep" direction for each line: from P toward whichever
+  // endpoint the click is closer to. Surveyors aim at the leg
+  // they want to retain.
+  const keepDir = (line: { start: Point2D; end: Point2D }, click: Point2D): { x: number; y: number } | null => {
+    const dStart = Math.hypot(click.x - line.start.x, click.y - line.start.y);
+    const dEnd = Math.hypot(click.x - line.end.x, click.y - line.end.y);
+    const keepEnd = dEnd < dStart ? line.end : line.start;
+    const dx = keepEnd.x - P.x;
+    const dy = keepEnd.y - P.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-10) return null;
+    return { x: dx / len, y: dy / len };
+  };
+  const u1 = keepDir({ start: a1, end: b1 }, click1);
+  const u2 = keepDir({ start: a2, end: b2 }, click2);
+  if (!u1 || !u2) {
+    return { ok: false, reason: 'Click points are too close to the intersection — pick the leg you want to keep.' };
+  }
+
+  // Half-angle θ between the keep directions. cos(2θ) = u1·u2.
+  // We work with sin(θ), cos(θ), tan(θ) directly via the half-
+  // angle identities so we never need atan and stay numerically
+  // stable.
+  let cos2t = u1.x * u2.x + u1.y * u2.y;
+  cos2t = Math.max(-1, Math.min(1, cos2t));
+  // Degenerate cases: lines run the same direction (angle 0,
+  // can't fillet) or anti-parallel (angle 180°, also degenerate
+  // for fillet — the legs continue through each other).
+  if (cos2t > 1 - 1e-9) {
+    return { ok: false, reason: 'Lines run in the same direction — no corner to fillet.' };
+  }
+  if (cos2t < -1 + 1e-9) {
+    return { ok: false, reason: 'Lines are anti-parallel — no corner to fillet.' };
+  }
+  // sin(θ) > 0 and cos(θ) > 0 because θ is the half-angle of
+  // the wedge the surveyor chose, always in (0, π/2).
+  const sinT = Math.sqrt((1 - cos2t) / 2);
+  const cosT = Math.sqrt((1 + cos2t) / 2);
+  if (sinT < 1e-9 || cosT < 1e-9) {
+    return { ok: false, reason: 'Wedge angle is degenerate.' };
+  }
+  const tanT = sinT / cosT;
+
+  // Tangent point distance from P, along each keep direction.
+  const t = radius / tanT;
+  const PT1: Point2D = { x: P.x + t * u1.x, y: P.y + t * u1.y };
+  const PT2: Point2D = { x: P.x + t * u2.x, y: P.y + t * u2.y };
+
+  // Bisector direction (unit) pointing from P INTO the wedge
+  // the surveyor kept. Adding u1 + u2 and normalising works
+  // because sum-of-unit-vectors lies along the angular bisector.
+  const bx = u1.x + u2.x;
+  const by = u1.y + u2.y;
+  const blen = Math.hypot(bx, by);
+  if (blen < 1e-10) {
+    return { ok: false, reason: 'Bisector is degenerate.' };
+  }
+  const ubx = bx / blen;
+  const uby = by / blen;
+
+  // Arc center distance from P. With the half-angle θ, distance
+  // from P to center = radius / sin(θ).
+  const centerDist = radius / sinT;
+  const centerPt: Point2D = { x: P.x + centerDist * ubx, y: P.y + centerDist * uby };
+
+  // Validate that each line is long enough to absorb the trim
+  // (i.e. the tangent point must lie between P and the kept
+  // endpoint, not beyond it). This guards against radii that
+  // are larger than either line's length.
+  const lengthFromP = (line: { start: Point2D; end: Point2D }, click: Point2D): number => {
+    const dStart = Math.hypot(click.x - line.start.x, click.y - line.start.y);
+    const dEnd = Math.hypot(click.x - line.end.x, click.y - line.end.y);
+    const keepEnd = dEnd < dStart ? line.end : line.start;
+    return Math.hypot(keepEnd.x - P.x, keepEnd.y - P.y);
+  };
+  const len1 = lengthFromP({ start: a1, end: b1 }, click1);
+  const len2 = lengthFromP({ start: a2, end: b2 }, click2);
+  if (t > len1 - 1e-6 || t > len2 - 1e-6) {
+    return {
+      ok: false,
+      reason: `Radius too large for these lines — needs ≤ ${Math.min(len1, len2).toFixed(3)} ft (current ${t.toFixed(3)}).`,
+    };
+  }
+
+  // Build the trimmed lines. Keep the half containing the click.
+  const trimLineToTangent = (line: Feature, tangent: Point2D, click: Point2D): Feature => {
+    if (line.geometry.type !== 'LINE') return line;
+    const ls = line.geometry.start!;
+    const le = line.geometry.end!;
+    const dStart = Math.hypot(click.x - ls.x, click.y - ls.y);
+    const dEnd = Math.hypot(click.x - le.x, click.y - le.y);
+    // Move whichever endpoint is closer to P (the FAR one
+    // from the click) onto the tangent point.
+    const swapStart = dStart > dEnd;
+    return {
+      ...line,
+      id: generateId(),
+      style: JSON.parse(JSON.stringify(line.style)),
+      properties: JSON.parse(JSON.stringify(line.properties)),
+      geometry: {
+        type: 'LINE',
+        start: swapStart ? tangent : ls,
+        end: swapStart ? le : tangent,
+      },
+    };
+  };
+  const trimmed1 = trimLineToTangent(f1, PT1, click1);
+  const trimmed2 = trimLineToTangent(f2, PT2, click2);
+
+  // Build the arc. anticlockwise flag picks the short arc
+  // through the cusp side (between PT1 and PT2 the short way,
+  // not the long way around). We compute startAngle from PT1
+  // around centerPt, endAngle from PT2 around centerPt. The
+  // arc should bulge toward P (the cusp), so its midpoint
+  // sits on the bisector pointing FROM centerPt TOWARD P.
+  const startAngle = Math.atan2(PT1.y - centerPt.y, PT1.x - centerPt.x);
+  const endAngle = Math.atan2(PT2.y - centerPt.y, PT2.x - centerPt.x);
+  // Pick anticlockwise so that the arc swept from start to end
+  // bulges back toward P. We test by comparing the arc midpoint
+  // for each direction and seeing which one is closer to P.
+  const midForCcw = arcMidpoint(centerPt, radius, startAngle, endAngle, true);
+  const midForCw = arcMidpoint(centerPt, radius, startAngle, endAngle, false);
+  const distCcw = Math.hypot(midForCcw.x - P.x, midForCcw.y - P.y);
+  const distCw = Math.hypot(midForCw.x - P.x, midForCw.y - P.y);
+  const anticlockwise = distCcw < distCw;
+
+  const arcFeature: Feature = {
+    ...f1,
+    id: generateId(),
+    type: 'ARC',
+    style: JSON.parse(JSON.stringify(f1.style)),
+    properties: JSON.parse(JSON.stringify(f1.properties)),
+    geometry: {
+      type: 'ARC',
+      arc: { center: centerPt, radius, startAngle, endAngle, anticlockwise },
+    },
+  };
+
+  // Apply the mutation as a single batch.
+  drawingStore.removeFeature(f1.id);
+  drawingStore.removeFeature(f2.id);
+  drawingStore.addFeature(trimmed1);
+  drawingStore.addFeature(trimmed2);
+  drawingStore.addFeature(arcFeature);
+  const ops = [
+    { type: 'REMOVE_FEATURE' as const, data: f1 },
+    { type: 'REMOVE_FEATURE' as const, data: f2 },
+    { type: 'ADD_FEATURE' as const, data: trimmed1 },
+    { type: 'ADD_FEATURE' as const, data: trimmed2 },
+    { type: 'ADD_FEATURE' as const, data: arcFeature },
+  ];
+  undoStore.pushUndo(makeBatchEntry(`Fillet R=${radius}`, ops));
+  selectionStore.selectMultiple([trimmed1.id, trimmed2.id, arcFeature.id], 'REPLACE');
+
+  return { ok: true, arc: arcFeature, trimmedIds: [trimmed1.id, trimmed2.id] };
+}
+
+/** Return the world-space midpoint of an arc going from
+ *  startAngle to endAngle around `center` with the given
+ *  direction. Used by the FILLET picker to choose the
+ *  anticlockwise flag that bulges toward the cusp. */
+function arcMidpoint(
+  center: Point2D,
+  radius: number,
+  startAngle: number,
+  endAngle: number,
+  anticlockwise: boolean,
+): Point2D {
+  let s = startAngle;
+  let e = endAngle;
+  if (anticlockwise) {
+    if (e <= s) e += 2 * Math.PI;
+  } else {
+    if (s <= e) s += 2 * Math.PI;
+    [s, e] = [e, s];
+  }
+  const mid = (s + e) / 2;
+  return {
+    x: center.x + radius * Math.cos(mid),
+    y: center.y + radius * Math.sin(mid),
+  };
 }
 
 /**

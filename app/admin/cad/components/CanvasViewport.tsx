@@ -71,6 +71,7 @@ import {
   trimFeatureAt,
   extendFeatureTo,
   joinSelection,
+  filletTwoLines,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -209,6 +210,116 @@ interface CanvasViewportProps {
   pendingPlaceImageId?: string | null;
   /** Called after the pending image id has been consumed (image placed or dialog dismissed). */
   onPlaceImageConsumed?: () => void;
+}
+
+/**
+ * Same fillet geometry as `filletTwoLines` in operations.ts
+ * but pure — no side effects, returns the arc center / radius
+ * / start+end angles + tangent points so the canvas preview
+ * can sketch the result while the surveyor is hovering. Returns
+ * null for any degenerate input (parallel lines, anti-parallel,
+ * radius too large, etc).
+ */
+function computeFilletPreview(
+  l1a: import('@/lib/cad/types').Point2D,
+  l1b: import('@/lib/cad/types').Point2D,
+  click1: import('@/lib/cad/types').Point2D,
+  l2a: import('@/lib/cad/types').Point2D,
+  l2b: import('@/lib/cad/types').Point2D,
+  click2: import('@/lib/cad/types').Point2D,
+  radius: number,
+): {
+  center: import('@/lib/cad/types').Point2D;
+  radius: number;
+  startAngle: number;
+  endAngle: number;
+  anticlockwise: boolean;
+  tangent1: import('@/lib/cad/types').Point2D;
+  tangent2: import('@/lib/cad/types').Point2D;
+} | null {
+  if (!Number.isFinite(radius) || radius <= 0) return null;
+  // Infinite-line intersection.
+  const denom = (l1a.x - l1b.x) * (l2a.y - l2b.y) - (l1a.y - l1b.y) * (l2a.x - l2b.x);
+  if (Math.abs(denom) < 1e-10) return null;
+  const tParam = ((l1a.x - l2a.x) * (l2a.y - l2b.y) - (l1a.y - l2a.y) * (l2a.x - l2b.x)) / denom;
+  const P = { x: l1a.x + tParam * (l1b.x - l1a.x), y: l1a.y + tParam * (l1b.y - l1a.y) };
+
+  const keepDir = (a: import('@/lib/cad/types').Point2D, b: import('@/lib/cad/types').Point2D, click: import('@/lib/cad/types').Point2D) => {
+    const dStart = Math.hypot(click.x - a.x, click.y - a.y);
+    const dEnd = Math.hypot(click.x - b.x, click.y - b.y);
+    const keepEnd = dEnd < dStart ? b : a;
+    const dx = keepEnd.x - P.x;
+    const dy = keepEnd.y - P.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-10) return null;
+    return { x: dx / len, y: dy / len };
+  };
+  const u1 = keepDir(l1a, l1b, click1);
+  const u2 = keepDir(l2a, l2b, click2);
+  if (!u1 || !u2) return null;
+
+  let cos2t = u1.x * u2.x + u1.y * u2.y;
+  cos2t = Math.max(-1, Math.min(1, cos2t));
+  if (cos2t > 1 - 1e-9 || cos2t < -1 + 1e-9) return null;
+  const sinT = Math.sqrt((1 - cos2t) / 2);
+  const cosT = Math.sqrt((1 + cos2t) / 2);
+  if (sinT < 1e-9 || cosT < 1e-9) return null;
+  const tanT = sinT / cosT;
+  const t = radius / tanT;
+
+  const PT1 = { x: P.x + t * u1.x, y: P.y + t * u1.y };
+  const PT2 = { x: P.x + t * u2.x, y: P.y + t * u2.y };
+
+  const k1 = keepEndOf(l1a, l1b, click1);
+  const k2 = keepEndOf(l2a, l2b, click2);
+  const len1 = Math.hypot(k1.x - P.x, k1.y - P.y);
+  const len2 = Math.hypot(k2.x - P.x, k2.y - P.y);
+  if (t > len1 - 1e-6 || t > len2 - 1e-6) return null;
+
+  const bx = u1.x + u2.x;
+  const by = u1.y + u2.y;
+  const blen = Math.hypot(bx, by);
+  if (blen < 1e-10) return null;
+  const ubx = bx / blen;
+  const uby = by / blen;
+  const centerDist = radius / sinT;
+  const center = { x: P.x + centerDist * ubx, y: P.y + centerDist * uby };
+
+  const startAngle = Math.atan2(PT1.y - center.y, PT1.x - center.x);
+  const endAngle = Math.atan2(PT2.y - center.y, PT2.x - center.x);
+  // Pick anticlockwise so the arc bulges back toward P.
+  const arcMid = (cw: boolean) => {
+    let s = startAngle;
+    let e = endAngle;
+    if (!cw) {
+      if (e <= s) e += 2 * Math.PI;
+    } else {
+      if (s <= e) s += 2 * Math.PI;
+      [s, e] = [e, s];
+    }
+    const m = (s + e) / 2;
+    return { x: center.x + radius * Math.cos(m), y: center.y + radius * Math.sin(m) };
+  };
+  const midCcw = arcMid(false);
+  const midCw = arcMid(true);
+  const dCcw = Math.hypot(midCcw.x - P.x, midCcw.y - P.y);
+  const dCw = Math.hypot(midCw.x - P.x, midCw.y - P.y);
+  return {
+    center, radius,
+    startAngle, endAngle,
+    anticlockwise: dCcw < dCw,
+    tangent1: PT1, tangent2: PT2,
+  };
+}
+
+function keepEndOf(
+  a: import('@/lib/cad/types').Point2D,
+  b: import('@/lib/cad/types').Point2D,
+  click: import('@/lib/cad/types').Point2D,
+): import('@/lib/cad/types').Point2D {
+  const dStart = Math.hypot(click.x - a.x, click.y - a.y);
+  const dEnd = Math.hypot(click.x - b.x, click.y - b.y);
+  return dEnd < dStart ? b : a;
 }
 
 /**
@@ -3308,6 +3419,118 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For FILLET: highlight the picked line(s) and ghost the
+    // arc when both are picked OR (during phase 2) when the
+    // cursor is hovering a candidate second line.
+    if (activeTool === 'FILLET') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+      const all = drawing.getAllFeatures();
+
+      // Highlight the already-picked first line in lime so the
+      // surveyor sees the locked-in selection.
+      if (ts.filletPickedLineId) {
+        const f = drawing.getFeature(ts.filletPickedLineId);
+        if (f && f.geometry.type === 'LINE' && f.geometry.start && f.geometry.end) {
+          const a = w2s(f.geometry.start.x, f.geometry.start.y);
+          const b = w2s(f.geometry.end.x, f.geometry.end.y);
+          g.lineStyle(2.5, 0x99ff44, 0.6);
+          g.moveTo(a.sx, a.sy);
+          g.lineTo(b.sx, b.sy);
+          // Click marker
+          if (ts.filletPickedClickPoint) {
+            const cp = w2s(ts.filletPickedClickPoint.x, ts.filletPickedClickPoint.y);
+            g.beginFill(0x99ff44, 0.95);
+            g.drawCircle(cp.sx, cp.sy, 4);
+            g.endFill();
+          }
+        }
+      }
+
+      // Hit-test for the cursor's candidate line.
+      let hoverId: string | null = null;
+      let hoverDist = Infinity;
+      for (const f of all) {
+        if (f.geometry.type !== 'LINE') continue;
+        const fg = f.geometry;
+        if (!fg.start || !fg.end) continue;
+        const dx = fg.end.x - fg.start.x;
+        const dy = fg.end.y - fg.start.y;
+        const len2 = dx * dx + dy * dy;
+        if (len2 < 1e-20) continue;
+        let t = ((previewPoint.x - fg.start.x) * dx + (previewPoint.y - fg.start.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const px = fg.start.x + t * dx;
+        const py = fg.start.y + t * dy;
+        const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+        const dPx = d * useViewportStore.getState().zoom;
+        if (dPx < hoverDist && dPx < 14) {
+          hoverDist = dPx;
+          hoverId = f.id;
+        }
+      }
+      if (hoverId && hoverId !== ts.filletPickedLineId) {
+        const f = drawing.getFeature(hoverId);
+        if (f && f.geometry.type === 'LINE' && f.geometry.start && f.geometry.end) {
+          const a = w2s(f.geometry.start.x, f.geometry.start.y);
+          const b = w2s(f.geometry.end.x, f.geometry.end.y);
+          g.lineStyle(2, 0x88ff88, 0.45);
+          g.moveTo(a.sx, a.sy);
+          g.lineTo(b.sx, b.sy);
+        }
+      }
+
+      // Phase 2 preview — both lines picked, sketch the
+      // resulting arc + trimmed lines.
+      if (ts.filletPickedLineId && hoverId && hoverId !== ts.filletPickedLineId && ts.filletPickedClickPoint) {
+        const f1 = drawing.getFeature(ts.filletPickedLineId);
+        const f2 = drawing.getFeature(hoverId);
+        if (
+          f1 && f2 &&
+          f1.geometry.type === 'LINE' && f2.geometry.type === 'LINE' &&
+          f1.geometry.start && f1.geometry.end && f2.geometry.start && f2.geometry.end
+        ) {
+          const previewArc = computeFilletPreview(
+            f1.geometry.start, f1.geometry.end, ts.filletPickedClickPoint,
+            f2.geometry.start, f2.geometry.end, previewPoint,
+            ts.filletRadius,
+          );
+          if (previewArc) {
+            // Bright cyan arc + tangent stubs
+            g.lineStyle(2, 0x44ddff, 0.85);
+            // Arc samples
+            let s = previewArc.startAngle;
+            let e = previewArc.endAngle;
+            if (previewArc.anticlockwise) {
+              if (e <= s) e += 2 * Math.PI;
+            } else {
+              if (s <= e) s += 2 * Math.PI;
+              [s, e] = [e, s];
+            }
+            const samples = 32;
+            const span = e - s;
+            for (let i = 0; i <= samples; i += 1) {
+              const a = s + span * (i / samples);
+              const wx = previewArc.center.x + previewArc.radius * Math.cos(a);
+              const wy = previewArc.center.y + previewArc.radius * Math.sin(a);
+              const sp = w2s(wx, wy);
+              if (i === 0) g.moveTo(sp.sx, sp.sy);
+              else g.lineTo(sp.sx, sp.sy);
+            }
+            // Tangent point markers
+            g.beginFill(0x44ddff, 0.95);
+            const t1 = w2s(previewArc.tangent1.x, previewArc.tangent1.y);
+            const t2 = w2s(previewArc.tangent2.x, previewArc.tangent2.y);
+            g.drawCircle(t1.sx, t1.sy, 3);
+            g.drawCircle(t2.sx, t2.sy, 3);
+            g.endFill();
+          }
+        }
+      }
+
+      return;
+    }
+
     // For JOIN: highlight every selected vertex-chain feature
     // and drop a magenta dot at every endpoint so the
     // surveyor sees how many endpoints will need to align.
@@ -6354,6 +6577,42 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (!hit) break;
           extendFeatureTo(hit, worldPt);
+          break;
+        }
+
+        case 'FILLET': {
+          // FILLET: two-click flow. Click 1 picks the first
+          // line + remembers the click point so we know which
+          // leg to keep. Click 2 picks the second line and
+          // commits the operation with the toolbar's radius.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const f = drawingStore.getFeature(hit);
+          if (!f || f.geometry.type !== 'LINE') {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'FILLET — pick a LINE feature.' },
+            }));
+            break;
+          }
+          if (!toolState.filletPickedLineId) {
+            toolStore.setFilletPickedLine(hit, worldPt);
+            selectionStore.select(hit, 'REPLACE');
+            break;
+          }
+          if (toolState.filletPickedLineId === hit) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'FILLET — pick a different second line.' },
+            }));
+            break;
+          }
+          const click1 = toolState.filletPickedClickPoint!;
+          const result = filletTwoLines(toolState.filletPickedLineId, click1, hit, worldPt, toolState.filletRadius);
+          if (!result.ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: `FILLET — ${result.reason ?? 'failed'}` },
+            }));
+          }
+          toolStore.setFilletPickedLine(null, null);
           break;
         }
 

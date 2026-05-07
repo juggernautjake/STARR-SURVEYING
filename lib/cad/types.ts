@@ -491,6 +491,7 @@ export type ToolType =
   | 'TRIM'
   | 'EXTEND'
   | 'JOIN'
+  | 'FILLET'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
@@ -650,6 +651,17 @@ export interface ToolState {
    * mode. `null` means "awaiting center pick".
    */
   arrayPolarCenter: Point2D | null;
+
+  // ── FILLET tool ──
+  /** Radius of the fillet arc in world units (feet). */
+  filletRadius: number;
+  /**
+   * The first line picked during the FILLET tool's two-click
+   * flow. Stored along with the click point so the operation
+   * knows which side of each line to keep.
+   */
+  filletPickedLineId: string | null;
+  filletPickedClickPoint: Point2D | null;
 }
 
 // --- UNDO ---
