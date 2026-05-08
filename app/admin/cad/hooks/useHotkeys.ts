@@ -22,6 +22,7 @@ import {
   type BindableAction,
   type HotkeyEngine,
 } from '@/lib/cad/hotkeys';
+import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
 import {
   useAIStore,
   useDrawingChatStore,
@@ -262,6 +263,20 @@ export function dispatchDefaultAction(action: BindableAction): void {
       return;
     case 'view.commandPalette':
       window.dispatchEvent(new CustomEvent('cad:openCommandPalette'));
+      return;
+
+    // ── Preset switchers ────────────────────────────
+    case 'preset.autocad':
+      applyHotkeyPreset('AUTOCAD');
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'Hotkeys — AutoCAD-style preset applied. Persisted across reloads.' },
+      }));
+      return;
+    case 'preset.reset':
+      applyHotkeyPreset('DEFAULT');
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'Hotkeys — reset to registry defaults.' },
+      }));
       return;
 
     default: {

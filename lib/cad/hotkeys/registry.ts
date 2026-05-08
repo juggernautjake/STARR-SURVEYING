@@ -77,6 +77,14 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'view.settings',     category: 'APP',        label: 'Open Settings',        description: 'Open the Settings page',                      defaultKey: 'ctrl+comma',   isChord: false, context: 'GLOBAL' },
   { id: 'view.commandBar',   category: 'APP',        label: 'Focus Command Bar',    description: 'Move focus to the command bar',               defaultKey: 'ctrl+shift+k', isChord: false, context: 'GLOBAL' },
   { id: 'view.commandPalette', category: 'APP',      label: 'Open Command Palette', description: 'Open the searchable command palette',         defaultKey: 'ctrl+k',       isChord: false, context: 'GLOBAL' },
+
+  // Preset switchers — surfaced via the command palette so
+  // the surveyor can swap between AutoCAD aliases and the
+  // built-in defaults without diving into a settings dialog.
+  // Persistence rides on `useHotkeysStore`'s `persist`
+  // middleware so the choice survives page reloads.
+  { id: 'preset.autocad',    category: 'APP',        label: 'Apply AutoCAD-style Hotkeys', description: 'Rewrite hotkeys to AutoCAD chord aliases (L for line, M for move, RO for rotate, etc.). Persists across reloads.', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  { id: 'preset.reset',      category: 'APP',        label: 'Reset Hotkeys to Defaults',   description: 'Clear every customised hotkey binding and fall back to the registry defaults. Persists across reloads.',                       defaultKey: '', isChord: false, context: 'GLOBAL' },
 ];
 
 /** Build a lookup map keyed by action id. Stable across
