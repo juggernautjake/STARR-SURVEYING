@@ -28,6 +28,7 @@ import {
   Ruler,
   Unlink,
   ArrowLeftRight,
+  Paintbrush,
   Eraser,
   Expand,
   ZoomIn,
@@ -374,6 +375,7 @@ function buildToolGroups(
         { tool: 'DIVIDE',  label: 'Divide',       description: 'Drop station markers (POINT features) at equal arc-length intervals along a LINE / POLYLINE / POLYGON. Set the count in the options bar — the source stays untouched, only point markers are added. Useful for fence-post layouts, station marks, lot-frontage segmentation.', shortcut: 'DV', icon: <Ruler size={14} /> },
         { tool: 'EXPLODE', label: 'Explode',      description: 'Burst a POLYLINE or POLYGON into individual LINE features — one per segment. POLYGON includes the closing leg. Useful after CSV imports when you need to edit individual boundary segments. Style and properties carry over to every new line.', shortcut: 'XP', icon: <Unlink size={14} /> },
         { tool: 'REVERSE', label: 'Reverse',      description: 'Flip the direction of a LINE / POLYLINE / POLYGON. Useful when offset side, division order, or label rotation depends on direction and the import got it backwards. Cyan square marks the current start; arrowhead marks the current end.', shortcut: 'RV', icon: <ArrowLeftRight size={14} /> },
+        { tool: 'MATCH_PROPERTIES', label: 'Match Properties', description: 'Copy style + layer assignment from one feature to another. Click a "model" feature to lock it in (cyan outline), then click each target (lime outline) to paint the source style onto it. Stays in apply mode until Esc — paint as many targets as needed.', shortcut: 'MP', icon: <Paintbrush size={14} /> },
       ],
     },
 

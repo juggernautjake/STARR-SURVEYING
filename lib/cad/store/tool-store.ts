@@ -49,6 +49,7 @@ interface ToolStore {
   setChamferDistance2: (d: number) => void;
   setChamferPickedLine: (id: string | null, click: Point2D | null) => void;
   setDivideCount: (count: number) => void;
+  setMatchPropertiesSourceId: (id: string | null) => void;
   resetToolState: () => void;
 }
 
@@ -107,6 +108,7 @@ const defaultToolState: ToolState = {
   chamferPickedLineId: null,
   chamferPickedClickPoint: null,
   divideCount: 4,
+  matchPropertiesSourceId: null,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -153,6 +155,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         chamferDistance2: s.state.chamferDistance2,
         // chamferPickedLineId resets on tool switch.
         divideCount: s.state.divideCount,
+        // matchPropertiesSourceId resets on tool switch — bound to a single pick session.
       },
     })),
 
@@ -377,6 +380,9 @@ export const useToolStore = create<ToolStore>((set) => ({
       },
     })),
 
+  setMatchPropertiesSourceId: (id) =>
+    set((s) => ({ state: { ...s.state, matchPropertiesSourceId: id } })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -417,6 +423,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         chamferPickedLineId: null,
         chamferPickedClickPoint: null,
         divideCount: s.state.divideCount,
+        matchPropertiesSourceId: null,
       },
     })),
 }));

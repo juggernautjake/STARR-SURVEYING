@@ -145,6 +145,7 @@ export default function ToolOptionsBar() {
   const showDivide = activeTool === 'DIVIDE';
   const showExplode = activeTool === 'EXPLODE';
   const showReverse = activeTool === 'REVERSE';
+  const showMatchProperties = activeTool === 'MATCH_PROPERTIES';
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showDim = activeTool === 'DIM';
@@ -809,6 +810,27 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click two points to place a permanent bearing + distance annotation. The TEXT label rotates parallel to the dimension line and offsets 6 ft perpendicular so it reads clear of the geometry.
+          </span>
+        </>
+      )}
+
+      {/* ── MATCH_PROPERTIES tool options ──────────────────────────────────── */}
+      {showMatchProperties && (
+        <>
+          <Sep />
+          {ts.matchPropertiesSourceId && (
+            <button
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => toolStore.setMatchPropertiesSourceId(null)}
+              title="Clear source — pick a new model feature"
+            >
+              ✕
+            </button>
+          )}
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {!ts.matchPropertiesSourceId
+              ? 'Click a feature to lock it in as the model style.'
+              : 'Click each target feature to paint the source style + layer onto it. Esc to finish.'}
           </span>
         </>
       )}
@@ -1943,6 +1965,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   DIVIDE: 'Divide',
   EXPLODE: 'Explode',
   REVERSE: 'Reverse',
+  MATCH_PROPERTIES: 'Match Properties',
   MEASURE_AREA: 'Measure Area',
   DIM: 'Dimension',
   SCALE: 'Scale',

@@ -496,6 +496,7 @@ export type ToolType =
   | 'DIVIDE'
   | 'EXPLODE'
   | 'REVERSE'
+  | 'MATCH_PROPERTIES'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
@@ -688,6 +689,14 @@ export interface ToolState {
    * equal arc-length intervals along the source. Range 2–100.
    */
   divideCount: number;
+
+  // ── MATCH_PROPERTIES tool ──
+  /**
+   * The source feature whose style + layer the surveyor is
+   * copying from. Set on the first click of the
+   * MATCH_PROPERTIES tool; cleared on tool reset.
+   */
+  matchPropertiesSourceId: string | null;
 }
 
 // --- UNDO ---

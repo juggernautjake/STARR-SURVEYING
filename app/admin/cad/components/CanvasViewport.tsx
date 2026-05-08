@@ -77,6 +77,7 @@ import {
   divideFeatureBy,
   explodeFeature,
   reverseFeature,
+  matchPropertiesTo,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -4154,6 +4155,97 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For MATCH_PROPERTIES: highlight the locked-in source
+    // in cyan + the hovered target candidate in lime so the
+    // surveyor sees both feature outlines before clicking.
+    if (activeTool === 'MATCH_PROPERTIES') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+      const all = drawing.getAllFeatures();
+
+      const drawFeatureOutline = (
+        f: import('@/lib/cad/types').Feature,
+        color: number,
+        alpha: number,
+      ) => {
+        const fg = f.geometry;
+        g.lineStyle(2, color, alpha);
+        if (fg.type === 'LINE' && fg.start && fg.end) {
+          const a = w2s(fg.start.x, fg.start.y);
+          const b = w2s(fg.end.x, fg.end.y);
+          g.moveTo(a.sx, a.sy);
+          g.lineTo(b.sx, b.sy);
+        } else if ((fg.type === 'POLYLINE' || fg.type === 'POLYGON' || fg.type === 'MIXED_GEOMETRY') && fg.vertices && fg.vertices.length >= 2) {
+          const p0 = w2s(fg.vertices[0].x, fg.vertices[0].y);
+          g.moveTo(p0.sx, p0.sy);
+          for (let i = 1; i < fg.vertices.length; i += 1) {
+            const p = w2s(fg.vertices[i].x, fg.vertices[i].y);
+            g.lineTo(p.sx, p.sy);
+          }
+          if (fg.type === 'POLYGON') g.lineTo(p0.sx, p0.sy);
+        } else if (fg.type === 'CIRCLE' && fg.circle) {
+          const sp = w2s(fg.circle.center.x, fg.circle.center.y);
+          const radiusPx = fg.circle.radius * useViewportStore.getState().zoom;
+          g.drawCircle(sp.sx, sp.sy, radiusPx);
+        } else if (fg.type === 'POINT' && fg.point) {
+          const sp = w2s(fg.point.x, fg.point.y);
+          g.drawCircle(sp.sx, sp.sy, 5);
+        }
+      };
+
+      // Source — locked-in cyan outline so the surveyor sees
+      // the style being copied.
+      if (ts.matchPropertiesSourceId) {
+        const src = drawing.getFeature(ts.matchPropertiesSourceId);
+        if (src) drawFeatureOutline(src, 0x44ddff, 0.85);
+      }
+
+      // Hovered target — lime outline so the surveyor sees
+      // what's about to be painted.
+      let hoverId: string | null = null;
+      let hoverDist = Infinity;
+      for (const f of all) {
+        if (f.id === ts.matchPropertiesSourceId) continue;
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if ((fg.type === 'POLYLINE' || fg.type === 'POLYGON' || fg.type === 'MIXED_GEOMETRY') && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'POINT' && fg.point) {
+          const d = Math.hypot(previewPoint.x - fg.point.x, previewPoint.y - fg.point.y);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < hoverDist && dPx < 14) {
+            hoverDist = dPx;
+            hoverId = f.id;
+          }
+          continue;
+        }
+        if (!chain) continue;
+        for (let i = 0; i + 1 < chain.length; i += 1) {
+          const a = chain[i];
+          const b = chain[i + 1];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < hoverDist && dPx < 14) {
+            hoverDist = dPx;
+            hoverId = f.id;
+          }
+        }
+      }
+      if (hoverId) {
+        const target = drawing.getFeature(hoverId);
+        if (target) drawFeatureOutline(target, 0x99ff44, 0.65);
+      }
+      return;
+    }
+
     // For REVERSE: highlight the hovered feature with a
     // directional arrowhead at the current end so the
     // surveyor sees the existing direction. Clicking will
@@ -7146,6 +7238,38 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'REVERSE — feature direction flipped.' },
+            }));
+          }
+          break;
+        }
+
+        case 'MATCH_PROPERTIES': {
+          // MATCH_PROPERTIES: first click sets the source
+          // feature; every subsequent click updates the
+          // clicked target to match the source's style +
+          // layer. Stays in "apply" mode until the surveyor
+          // hits Esc / switches tools, so a single source
+          // can paint dozens of targets.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          if (!toolState.matchPropertiesSourceId) {
+            toolStore.setMatchPropertiesSourceId(hit);
+            selectionStore.select(hit, 'REPLACE');
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'MATCH PROPERTIES — source locked. Click any feature to apply the source style. Esc to finish.' },
+            }));
+            break;
+          }
+          if (toolState.matchPropertiesSourceId === hit) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'MATCH PROPERTIES — pick a different target (clicking the source has no effect).' },
+            }));
+            break;
+          }
+          const ok = matchPropertiesTo(toolState.matchPropertiesSourceId, hit);
+          if (ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'MATCH PROPERTIES — applied. Click another target or press Esc to finish.' },
             }));
           }
           break;

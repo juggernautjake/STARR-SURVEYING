@@ -361,6 +361,37 @@ export interface FilletResult {
 }
 
 /**
+ * Copy the style + layer assignment from `sourceId` onto
+ * `targetId`. Geometry is left intact. Surveyors use this
+ * after cleanup to harmonise look-and-feel: pick one
+ * "model" line that already has the right color / line
+ * weight / line type / layer, then click each target line
+ * to make it match.
+ *
+ * The clone is deep so subsequent edits to either feature's
+ * style stay independent. Returns true on success.
+ */
+export function matchPropertiesTo(sourceId: string, targetId: string): boolean {
+  if (sourceId === targetId) return false;
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const source = drawingStore.getFeature(sourceId);
+  const target = drawingStore.getFeature(targetId);
+  if (!source || !target) return false;
+  const before = target;
+  drawingStore.updateFeature(targetId, {
+    style: JSON.parse(JSON.stringify(source.style)),
+    layerId: source.layerId,
+  });
+  const after = drawingStore.getFeature(targetId);
+  if (!after) return false;
+  undoStore.pushUndo(makeBatchEntry('Match Properties', [
+    { type: 'MODIFY_FEATURE', data: { id: targetId, before, after } },
+  ]));
+  return true;
+}
+
+/**
  * Reverse the vertex order of a LINE / POLYLINE / POLYGON /
  * MIXED_GEOMETRY feature. Useful when a direction-dependent
  * downstream operation (offset side, DIVIDE numbering, label
