@@ -74,6 +74,7 @@ import {
   joinSelection,
   filletTwoLines,
   chamferTwoLines,
+  divideFeatureBy,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -4151,6 +4152,103 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For DIVIDE: highlight the hovered feature in lime + drop
+    // ghost station markers at every (count-1) interval so
+    // the surveyor sees exactly where the POINTs will land
+    // before clicking.
+    if (activeTool === 'DIVIDE') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if ((fg.type === 'POLYLINE' || fg.type === 'POLYGON') && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+          isClosed = fg.type === 'POLYGON';
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestIsClosed = isClosed;
+          }
+        }
+      }
+      if (!bestId || !bestChain) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Highlight the hovered feature
+      g.lineStyle(2.5, 0x99ff44, 0.55);
+      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestChain.length; i += 1) {
+        const sp = w2s(bestChain[i].x, bestChain[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+
+      // Replicate `pointAlongChain` from operations.ts so the
+      // ghost markers land in the same world-space positions
+      // the click will produce.
+      const segCnt = bestIsClosed ? bestChain.length : bestChain.length - 1;
+      const segLens: number[] = [];
+      let total = 0;
+      for (let i = 0; i < segCnt; i += 1) {
+        const a = bestChain[i];
+        const b = bestChain[(i + 1) % bestChain.length];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        segLens.push(len);
+        total += len;
+      }
+      g.beginFill(0x66ff00, 0.95);
+      for (let k = 1; k < ts.divideCount; k += 1) {
+        const target = (k / ts.divideCount) * total;
+        let acc = 0;
+        for (let i = 0; i < segCnt; i += 1) {
+          const len = segLens[i];
+          if (acc + len >= target || i === segCnt - 1) {
+            const localT = len > 1e-12 ? (target - acc) / len : 0;
+            const a = bestChain[i];
+            const b = bestChain[(i + 1) % bestChain.length];
+            const wx = a.x + (b.x - a.x) * localT;
+            const wy = a.y + (b.y - a.y) * localT;
+            const sp = w2s(wx, wy);
+            g.drawCircle(sp.sx, sp.sy, 4);
+            break;
+          }
+          acc += len;
+        }
+      }
+      g.endFill();
+      return;
+    }
+
     // For SPLIT: highlight the feature under the cursor and
     // mark the closest point on it where the split would
     // land. No ghost geometry — the operation just bisects
@@ -6809,6 +6907,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (!hit) break;
           splitFeatureAt(hit, worldPt);
+          break;
+        }
+
+        case 'DIVIDE': {
+          // DIVIDE: click any vertex-chain feature to drop
+          // count-1 POINT features at equal arc-length
+          // intervals. The source stays untouched — DIVIDE
+          // is a station-marker tool, not a destructive op.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const ok = divideFeatureBy(hit, toolState.divideCount);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'DIVIDE — pick a LINE, POLYLINE, or POLYGON feature.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: `DIVIDE — placed ${toolState.divideCount - 1} station marker${toolState.divideCount - 1 === 1 ? '' : 's'} along the feature.` },
+            }));
+          }
           break;
         }
 

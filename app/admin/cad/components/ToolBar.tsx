@@ -25,6 +25,7 @@ import {
   Link2,
   CornerDownRight,
   Triangle,
+  Ruler,
   Eraser,
   Expand,
   ZoomIn,
@@ -368,6 +369,7 @@ function buildToolGroups(
         { tool: 'JOIN',   label: 'Join',          description: 'Merge two or more selected lines/polylines that form a single chain into one POLYLINE. Click features to build up the selection then click empty space (or press Apply) to commit. Endpoints must coincide within 0.01 ft.', shortcut: 'JN', icon: <Link2 size={14} /> },
         { tool: 'FILLET',  label: 'Fillet',       description: 'Round the corner between two LINE features with a circular arc of the radius set in the options bar. Click each line on the side you want to keep — the lines trim back to the arc tangent points and a new ARC feature is inserted between.', shortcut: 'FT', icon: <CornerDownRight size={14} /> },
         { tool: 'CHAMFER', label: 'Chamfer',      description: 'Bevel the corner between two LINE features with a straight LINE. Click each line on the side you want to keep — the lines trim back by Distance 1 / Distance 2 from the corner, and a new straight bevel connects the trim points. Equal distances = symmetric chamfer; unequal = asymmetric.', shortcut: 'CF', icon: <Triangle size={14} /> },
+        { tool: 'DIVIDE',  label: 'Divide',       description: 'Drop station markers (POINT features) at equal arc-length intervals along a LINE / POLYLINE / POLYGON. Set the count in the options bar — the source stays untouched, only point markers are added. Useful for fence-post layouts, station marks, lot-frontage segmentation.', shortcut: 'DV', icon: <Ruler size={14} /> },
       ],
     },
 

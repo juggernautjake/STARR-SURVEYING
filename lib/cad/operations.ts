@@ -360,6 +360,106 @@ export interface FilletResult {
   reason?: string;
 }
 
+/**
+ * Walk a vertex chain and return the world-space point at
+ * `t * totalArcLength`, where `t ∈ [0, 1]`. Used by
+ * `divideFeatureBy` to drop POINT features at equal
+ * intervals along a LINE / POLYLINE / POLYGON. POLYGON
+ * closes back to the first vertex; LINE / POLYLINE walk
+ * once end-to-end.
+ */
+function pointAlongChain(chain: Point2D[], t: number, isClosed: boolean): Point2D {
+  if (chain.length < 2) return chain[0] ? { ...chain[0] } : { x: 0, y: 0 };
+  const segCount = isClosed ? chain.length : chain.length - 1;
+  let total = 0;
+  const segLens: number[] = [];
+  for (let i = 0; i < segCount; i += 1) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    segLens.push(len);
+    total += len;
+  }
+  if (total < 1e-12) return { ...chain[0] };
+  const target = Math.max(0, Math.min(1, t)) * total;
+  let acc = 0;
+  for (let i = 0; i < segCount; i += 1) {
+    const len = segLens[i];
+    if (acc + len >= target || i === segCount - 1) {
+      const localT = len > 1e-12 ? (target - acc) / len : 0;
+      const a = chain[i];
+      const b = chain[(i + 1) % chain.length];
+      return {
+        x: a.x + (b.x - a.x) * localT,
+        y: a.y + (b.y - a.y) * localT,
+      };
+    }
+    acc += len;
+  }
+  return { ...chain[chain.length - 1] };
+}
+
+/**
+ * Divide a LINE / POLYLINE / POLYGON feature into `count`
+ * equal arc-length segments by dropping `count - 1` POINT
+ * features at the dividing positions. The source feature
+ * stays untouched — DIVIDE never mutates geometry, it only
+ * adds station markers. Surveyors use it for fence-post
+ * layouts, station marks along centerlines, lot-frontage
+ * segmentation, etc.
+ *
+ * For POLYGON sources the walk closes back through the
+ * vertex 0 → vertex N-1 leg so the divisions stay evenly
+ * spaced around the perimeter.
+ */
+export function divideFeatureBy(featureId: string, count: number): boolean {
+  if (!Number.isFinite(count) || count < 2) return false;
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let chain: Point2D[] | null = null;
+  let isClosed = false;
+  if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
+  else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+
+  // Drop count-1 markers at t = 1/N, 2/N, ..., (N-1)/N.
+  const stationLayer = f.layerId;
+  const newPoints: Feature[] = [];
+  for (let i = 1; i < count; i += 1) {
+    const t = i / count;
+    const pt = pointAlongChain(chain, t, isClosed);
+    const pf: Feature = {
+      id: generateId(),
+      type: 'POINT',
+      geometry: { type: 'POINT', point: pt },
+      layerId: stationLayer,
+      style: JSON.parse(JSON.stringify(f.style)),
+      properties: {
+        // Stamp station metadata so a future LIST tool can
+        // show the surveyor exactly which leg + interval the
+        // marker came from.
+        divideSourceId: featureId,
+        divideStationOf: count,
+        divideStationIndex: i,
+      },
+    };
+    newPoints.push(pf);
+  }
+  if (newPoints.length === 0) return false;
+  drawingStore.addFeatures(newPoints);
+  const ops = newPoints.map((p) => ({ type: 'ADD_FEATURE' as const, data: p }));
+  undoStore.pushUndo(makeBatchEntry(`Divide ÷${count}`, ops));
+  return true;
+}
+
 /** Result of attempting a `chamferTwoLines`. `bevel` is the
  *  new straight LINE that connects the two trim points. */
 export interface ChamferResult {

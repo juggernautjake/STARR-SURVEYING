@@ -48,6 +48,7 @@ interface ToolStore {
   setChamferDistance1: (d: number) => void;
   setChamferDistance2: (d: number) => void;
   setChamferPickedLine: (id: string | null, click: Point2D | null) => void;
+  setDivideCount: (count: number) => void;
   resetToolState: () => void;
 }
 
@@ -105,6 +106,7 @@ const defaultToolState: ToolState = {
   chamferDistance2: 5,
   chamferPickedLineId: null,
   chamferPickedClickPoint: null,
+  divideCount: 4,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -150,6 +152,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         chamferDistance1: s.state.chamferDistance1,
         chamferDistance2: s.state.chamferDistance2,
         // chamferPickedLineId resets on tool switch.
+        divideCount: s.state.divideCount,
       },
     })),
 
@@ -366,6 +369,14 @@ export const useToolStore = create<ToolStore>((set) => ({
       },
     })),
 
+  setDivideCount: (count) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        divideCount: Math.max(2, Math.min(100, Math.floor(Number.isFinite(count) ? count : 4))),
+      },
+    })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -405,6 +416,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         chamferDistance2: s.state.chamferDistance2,
         chamferPickedLineId: null,
         chamferPickedClickPoint: null,
+        divideCount: s.state.divideCount,
       },
     })),
 }));

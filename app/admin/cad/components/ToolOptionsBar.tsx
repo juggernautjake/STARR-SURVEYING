@@ -142,6 +142,7 @@ export default function ToolOptionsBar() {
   const showJoin = activeTool === 'JOIN';
   const showFillet = activeTool === 'FILLET';
   const showChamfer = activeTool === 'CHAMFER';
+  const showDivide = activeTool === 'DIVIDE';
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showDim = activeTool === 'DIM';
@@ -806,6 +807,40 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click two points to place a permanent bearing + distance annotation. The TEXT label rotates parallel to the dimension line and offsets 6 ft perpendicular so it reads clear of the geometry.
+          </span>
+        </>
+      )}
+
+      {/* ── DIVIDE tool options ────────────────────────────────────────────── */}
+      {showDivide && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Divide Count"
+            description="Number of equal-length segments to divide the feature into. Drops count − 1 POINT markers at equal arc-length intervals along the source. Range 2–100."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">÷</span>
+              <input
+                type="number"
+                min={2}
+                max={100}
+                step={1}
+                className="w-14 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-lime-500"
+                value={ts.divideCount}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value);
+                  if (!isNaN(v)) toolStore.setDivideCount(v);
+                }}
+              />
+              <span className="text-[11px] text-gray-500">→ {ts.divideCount - 1} markers</span>
+            </div>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any line / polyline / polygon to drop {ts.divideCount - 1} station marker{ts.divideCount - 1 === 1 ? '' : 's'} at equal arc-length intervals. The source stays untouched.
           </span>
         </>
       )}
@@ -1883,6 +1918,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   JOIN: 'Join',
   FILLET: 'Fillet',
   CHAMFER: 'Chamfer',
+  DIVIDE: 'Divide',
   MEASURE_AREA: 'Measure Area',
   DIM: 'Dimension',
   SCALE: 'Scale',

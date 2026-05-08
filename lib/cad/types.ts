@@ -493,6 +493,7 @@ export type ToolType =
   | 'JOIN'
   | 'FILLET'
   | 'CHAMFER'
+  | 'DIVIDE'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
@@ -677,6 +678,14 @@ export interface ToolState {
    */
   chamferPickedLineId: string | null;
   chamferPickedClickPoint: Point2D | null;
+
+  // ── DIVIDE tool ──
+  /**
+   * Number of equal segments to divide a vertex-chain feature
+   * into. The DIVIDE tool drops `count - 1` POINT features at
+   * equal arc-length intervals along the source. Range 2–100.
+   */
+  divideCount: number;
 }
 
 // --- UNDO ---
