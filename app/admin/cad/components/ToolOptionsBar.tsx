@@ -146,6 +146,7 @@ export default function ToolOptionsBar() {
   const showExplode = activeTool === 'EXPLODE';
   const showReverse = activeTool === 'REVERSE';
   const showMatchProperties = activeTool === 'MATCH_PROPERTIES';
+  const showPointAtDistance = activeTool === 'POINT_AT_DISTANCE';
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showDim = activeTool === 'DIM';
@@ -810,6 +811,64 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click two points to place a permanent bearing + distance annotation. The TEXT label rotates parallel to the dimension line and offsets 6 ft perpendicular so it reads clear of the geometry.
+          </span>
+        </>
+      )}
+
+      {/* ── POINT_AT_DISTANCE tool options ─────────────────────────────────── */}
+      {showPointAtDistance && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Distance Along Feature"
+            description="Arc-length offset (feet) from the chosen end. Distances larger than the feature's total length clamp to the far endpoint so the marker always lands on the geometry."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">Dist:</span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                className="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-lime-500"
+                value={ts.pointAtDistanceValue}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v >= 0) toolStore.setPointAtDistanceValue(v);
+                }}
+              />
+              <span className="text-[10px] text-gray-500">ft</span>
+            </div>
+          </Tooltip>
+          <Sep />
+          <Tooltip
+            label="Origin End"
+            description="From the START (vertex 0) or END (last vertex) of the feature. The cyan square in the live preview marks the chosen origin."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-0.5">
+              {[
+                { label: '◇ Start', val: false },
+                { label: 'End ◇', val: true },
+              ].map((o) => (
+                <button
+                  key={o.label}
+                  className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                    ${ts.pointAtDistanceFromEnd === o.val
+                      ? 'bg-lime-600 border-lime-500 text-white'
+                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                  onClick={() => toolStore.setPointAtDistanceFromEnd(o.val)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any line / polyline / polygon — the lime ring shows the predicted commit point.
           </span>
         </>
       )}
@@ -1966,6 +2025,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   EXPLODE: 'Explode',
   REVERSE: 'Reverse',
   MATCH_PROPERTIES: 'Match Properties',
+  POINT_AT_DISTANCE: 'Point at Distance',
   MEASURE_AREA: 'Measure Area',
   DIM: 'Dimension',
   SCALE: 'Scale',

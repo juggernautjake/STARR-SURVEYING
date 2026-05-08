@@ -78,6 +78,7 @@ import {
   explodeFeature,
   reverseFeature,
   matchPropertiesTo,
+  pointAtDistanceAlong,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -4155,6 +4156,116 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For POINT_AT_DISTANCE: highlight the hovered chain in
+    // lime + a small ring at the predicted commit point.
+    // Shows from-end vs from-start visually so the surveyor
+    // can confirm the direction before clicking.
+    if (activeTool === 'POINT_AT_DISTANCE') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+          isClosed = true;
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dxAB = b.x - a.x;
+          const dyAB = b.y - a.y;
+          const len2 = dxAB * dxAB + dyAB * dyAB;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dxAB + (previewPoint.y - a.y) * dyAB) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dxAB;
+          const py = a.y + t * dyAB;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestIsClosed = isClosed;
+          }
+        }
+      }
+      if (!bestId || !bestChain) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Outline the hovered feature in lime
+      g.lineStyle(2.5, 0x99ff44, 0.55);
+      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestChain.length; i += 1) {
+        const sp = w2s(bestChain[i].x, bestChain[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+      // Mark the chosen origin endpoint with a square so the
+      // surveyor sees from-START vs from-END at a glance.
+      const origin = ts.pointAtDistanceFromEnd
+        ? bestChain[bestChain.length - 1]
+        : bestChain[0];
+      const oS = w2s(origin.x, origin.y);
+      g.lineStyle(2, 0x44ddff, 0.95);
+      g.beginFill(0x44ddff, 0.95);
+      g.drawRect(oS.sx - 5, oS.sy - 5, 10, 10);
+      g.endFill();
+      // Compute the predicted commit point using the same
+      // arc-length math as the operation. Replicates
+      // `pointAlongChain` inline.
+      const segCount = bestIsClosed ? bestChain.length : bestChain.length - 1;
+      let total = 0;
+      const segLens: number[] = [];
+      for (let i = 0; i < segCount; i += 1) {
+        const a = bestChain[i];
+        const b = bestChain[(i + 1) % bestChain.length];
+        const lenSeg = Math.hypot(b.x - a.x, b.y - a.y);
+        segLens.push(lenSeg);
+        total += lenSeg;
+      }
+      if (total > 1e-12) {
+        const clamped = Math.min(ts.pointAtDistanceValue, total);
+        const tNorm = ts.pointAtDistanceFromEnd ? 1 - clamped / total : clamped / total;
+        const target = Math.max(0, Math.min(1, tNorm)) * total;
+        let acc = 0;
+        for (let i = 0; i < segCount; i += 1) {
+          const lenSeg = segLens[i];
+          if (acc + lenSeg >= target || i === segCount - 1) {
+            const localT = lenSeg > 1e-12 ? (target - acc) / lenSeg : 0;
+            const a = bestChain[i];
+            const b = bestChain[(i + 1) % bestChain.length];
+            const wx = a.x + (b.x - a.x) * localT;
+            const wy = a.y + (b.y - a.y) * localT;
+            const sp = w2s(wx, wy);
+            g.lineStyle(2, 0x66ff00, 0.95);
+            g.beginFill(0x66ff00, 0.95);
+            g.drawCircle(sp.sx, sp.sy, 5);
+            g.endFill();
+            break;
+          }
+          acc += lenSeg;
+        }
+      }
+      return;
+    }
+
     // For MATCH_PROPERTIES: highlight the locked-in source
     // in cyan + the hovered target candidate in lime so the
     // surveyor sees both feature outlines before clicking.
@@ -7238,6 +7349,33 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'REVERSE — feature direction flipped.' },
+            }));
+          }
+          break;
+        }
+
+        case 'POINT_AT_DISTANCE': {
+          // POINT_AT_DISTANCE: click any vertex-chain feature
+          // to drop ONE POINT at the toolbar's `value` arc-
+          // length from the chosen end (start or end). The
+          // source stays untouched. Common surveyor workflow
+          // for inserting a station marker at a known offset.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const ok = pointAtDistanceAlong(
+            hit,
+            toolState.pointAtDistanceValue,
+            toolState.pointAtDistanceFromEnd,
+          );
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'POINT @ DIST — pick a LINE / POLYLINE / POLYGON.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: {
+                text: `POINT @ DIST — placed marker ${toolState.pointAtDistanceValue.toFixed(2)}′ from ${toolState.pointAtDistanceFromEnd ? 'END' : 'START'}.`,
+              },
             }));
           }
           break;

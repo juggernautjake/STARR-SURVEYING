@@ -497,6 +497,7 @@ export type ToolType =
   | 'EXPLODE'
   | 'REVERSE'
   | 'MATCH_PROPERTIES'
+  | 'POINT_AT_DISTANCE'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
@@ -697,6 +698,21 @@ export interface ToolState {
    * MATCH_PROPERTIES tool; cleared on tool reset.
    */
   matchPropertiesSourceId: string | null;
+
+  // ── POINT_AT_DISTANCE tool ──
+  /**
+   * Arc-length offset (feet) from the chosen end of a
+   * vertex-chain feature. Default 50 ft. Range 0+; values
+   * larger than the feature's total length clamp to the far
+   * endpoint at commit time.
+   */
+  pointAtDistanceValue: number;
+  /**
+   * When true, the offset is measured from the END of the
+   * feature (toward the start). Default false — measure
+   * from START.
+   */
+  pointAtDistanceFromEnd: boolean;
 }
 
 // --- UNDO ---

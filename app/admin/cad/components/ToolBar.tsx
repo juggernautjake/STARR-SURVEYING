@@ -29,6 +29,7 @@ import {
   Unlink,
   ArrowLeftRight,
   Paintbrush,
+  Crosshair,
   Eraser,
   Expand,
   ZoomIn,
@@ -376,6 +377,7 @@ function buildToolGroups(
         { tool: 'EXPLODE', label: 'Explode',      description: 'Burst a POLYLINE or POLYGON into individual LINE features — one per segment. POLYGON includes the closing leg. Useful after CSV imports when you need to edit individual boundary segments. Style and properties carry over to every new line.', shortcut: 'XP', icon: <Unlink size={14} /> },
         { tool: 'REVERSE', label: 'Reverse',      description: 'Flip the direction of a LINE / POLYLINE / POLYGON. Useful when offset side, division order, or label rotation depends on direction and the import got it backwards. Cyan square marks the current start; arrowhead marks the current end.', shortcut: 'RV', icon: <ArrowLeftRight size={14} /> },
         { tool: 'MATCH_PROPERTIES', label: 'Match Properties', description: 'Copy style + layer assignment from one feature to another. Click a "model" feature to lock it in (cyan outline), then click each target (lime outline) to paint the source style onto it. Stays in apply mode until Esc — paint as many targets as needed.', shortcut: 'MP', icon: <Paintbrush size={14} /> },
+        { tool: 'POINT_AT_DISTANCE', label: 'Point at Distance', description: 'Drop a single POINT at exact arc-length distance from the START or END of any LINE / POLYLINE / POLYGON. Type the distance + pick the origin direction in the options bar. Single-shot version of DIVIDE — perfect for "set MAG nail at 47.5 ft from the NE corner".', shortcut: 'PD', icon: <Crosshair size={14} /> },
       ],
     },
 

@@ -361,6 +361,72 @@ export interface FilletResult {
 }
 
 /**
+ * Drop a single POINT feature at exact arc-length `distance`
+ * from one end of `featureId`. Single-shot version of
+ * DIVIDE — surveyors use it for inserting a station marker
+ * at a known offset (e.g. "set MAG nail at 47.5 ft from the
+ * NE corner along the boundary").
+ *
+ * Distance > total length clamps to the far endpoint so the
+ * marker lands on the geometry instead of vanishing into
+ * empty space; distance ≤ 0 lands on the chosen end. POLYGON
+ * sources are supported and walk the closing leg as part of
+ * the arc-length budget.
+ */
+export function pointAtDistanceAlong(
+  featureId: string,
+  distance: number,
+  fromEnd: boolean,
+): boolean {
+  if (!Number.isFinite(distance) || distance < 0) return false;
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let chain: Point2D[] | null = null;
+  let isClosed = false;
+  if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
+  else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+
+  // Compute total arc length so we can convert the input
+  // distance into a normalised parameter for pointAlongChain.
+  const segCount = isClosed ? chain.length : chain.length - 1;
+  let total = 0;
+  for (let i = 0; i < segCount; i += 1) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    total += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  if (total < 1e-12) return false;
+  const clamped = Math.min(distance, total);
+  const t = fromEnd ? 1 - clamped / total : clamped / total;
+  const pt = pointAlongChain(chain, t, isClosed);
+
+  const newPoint: Feature = {
+    id: generateId(),
+    type: 'POINT',
+    geometry: { type: 'POINT', point: pt },
+    layerId: f.layerId,
+    style: JSON.parse(JSON.stringify(f.style)),
+    properties: {
+      pointAtDistanceSourceId: featureId,
+      pointAtDistanceValue: clamped,
+      pointAtDistanceFromEnd: fromEnd,
+    },
+  };
+  drawingStore.addFeature(newPoint);
+  undoStore.pushUndo(makeAddFeatureEntry(newPoint));
+  return true;
+}
+
+/**
  * Copy the style + layer assignment from `sourceId` onto
  * `targetId`. Geometry is left intact. Surveyors use this
  * after cleanup to harmonise look-and-feel: pick one
