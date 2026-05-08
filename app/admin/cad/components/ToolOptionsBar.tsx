@@ -148,6 +148,7 @@ export default function ToolOptionsBar() {
   const showMatchProperties = activeTool === 'MATCH_PROPERTIES';
   const showPointAtDistance = activeTool === 'POINT_AT_DISTANCE';
   const showPerpendicular = activeTool === 'PERPENDICULAR';
+  const showSmoothPolyline = activeTool === 'SMOOTH_POLYLINE';
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showDim = activeTool === 'DIM';
@@ -812,6 +813,16 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click two points to place a permanent bearing + distance annotation. The TEXT label rotates parallel to the dimension line and offsets 6 ft perpendicular so it reads clear of the geometry.
+          </span>
+        </>
+      )}
+
+      {/* ── SMOOTH_POLYLINE tool options ───────────────────────────────────── */}
+      {showSmoothPolyline && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any POLYLINE / POLYGON (≥ 3 vertices) to replace it with a smooth SPLINE that passes through the same vertices. Lavender ghost shows the curve before clicking.
           </span>
         </>
       )}
@@ -2049,6 +2060,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   MATCH_PROPERTIES: 'Match Properties',
   POINT_AT_DISTANCE: 'Point at Distance',
   PERPENDICULAR: 'Perpendicular',
+  SMOOTH_POLYLINE: 'Smooth Polyline',
   MEASURE_AREA: 'Measure Area',
   DIM: 'Dimension',
   SCALE: 'Scale',

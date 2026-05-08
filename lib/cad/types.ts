@@ -499,6 +499,7 @@ export type ToolType =
   | 'MATCH_PROPERTIES'
   | 'POINT_AT_DISTANCE'
   | 'PERPENDICULAR'
+  | 'SMOOTH_POLYLINE'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'

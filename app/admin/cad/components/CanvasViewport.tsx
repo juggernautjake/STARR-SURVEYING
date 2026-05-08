@@ -80,6 +80,7 @@ import {
   matchPropertiesTo,
   pointAtDistanceAlong,
   dropPerpendicular,
+  smoothPolyline,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -4157,6 +4158,107 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For SMOOTH_POLYLINE: highlight the hovered POLYLINE /
+    // POLYGON in faint cyan + ghost the predicted spline in
+    // bright cyan so the surveyor sees the curve before
+    // committing.
+    if (activeTool === 'SMOOTH_POLYLINE') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestVerts: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 3) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 3) {
+          chain = fg.vertices;
+          isClosed = true;
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestVerts = chain;
+            bestIsClosed = isClosed;
+          }
+        }
+      }
+      if (!bestId || !bestVerts) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Faint outline of the source so the surveyor knows
+      // what they're picking
+      g.lineStyle(1.5, 0xaa88ff, 0.4);
+      const sp0 = w2s(bestVerts[0].x, bestVerts[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestVerts.length; i += 1) {
+        const sp = w2s(bestVerts[i].x, bestVerts[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+
+      // Ghost smoothed spline — sample the bezier control
+      // points and trace a curve through them.
+      const cps = fitPointsToBezier(bestVerts, bestIsClosed);
+      if (cps.length >= 4) {
+        const segCount = Math.floor((cps.length - 1) / 3);
+        const stepsPerSeg = 24;
+        let started = false;
+        g.lineStyle(2, 0xaa88ff, 0.95);
+        for (let seg = 0; seg < segCount; seg += 1) {
+          const p0 = cps[seg * 3];
+          const p1 = cps[seg * 3 + 1];
+          const p2 = cps[seg * 3 + 2];
+          const p3 = cps[seg * 3 + 3];
+          const startStep = started ? 1 : 0;
+          for (let i = startStep; i <= stepsPerSeg; i += 1) {
+            const t = i / stepsPerSeg;
+            const u = 1 - t;
+            const wx = u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x;
+            const wy = u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y;
+            const sp = w2s(wx, wy);
+            if (!started) {
+              g.moveTo(sp.sx, sp.sy);
+              started = true;
+            } else {
+              g.lineTo(sp.sx, sp.sy);
+            }
+          }
+        }
+      }
+      // Mark every original vertex with a small dot so the
+      // surveyor sees the SPLINE will pass through them.
+      g.beginFill(0xaa88ff, 0.95);
+      for (const v of bestVerts) {
+        const sp = w2s(v.x, v.y);
+        g.drawCircle(sp.sx, sp.sy, 3);
+      }
+      g.endFill();
+      return;
+    }
+
     // For PERPENDICULAR: phase 1 marks a candidate source
     // point at the cursor (filled cyan dot); phase 2 ghosts
     // the perpendicular line from the locked-in source to
@@ -7499,6 +7601,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'REVERSE — feature direction flipped.' },
+            }));
+          }
+          break;
+        }
+
+        case 'SMOOTH_POLYLINE': {
+          // SMOOTH_POLYLINE: click a POLYLINE / POLYGON to
+          // replace it with a SPLINE that interpolates the
+          // same vertices. Imported topo / contour traces
+          // are the typical use case.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const ok = smoothPolyline(hit);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'SMOOTH — pick a POLYLINE or POLYGON with ≥ 3 vertices.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'SMOOTH — converted to spline.' },
             }));
           }
           break;

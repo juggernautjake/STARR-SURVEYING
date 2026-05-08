@@ -7,6 +7,7 @@ import { rotate, mirror, scale, transformFeature, translate } from './geometry/t
 import { computeBounds } from './geometry/bounds';
 import { closestPointOnSegment } from './geometry/point';
 import { segmentSegmentIntersection, lineLineIntersection } from './geometry/intersection';
+import { fitPointsToBezier } from './geometry/curve-render';
 import {
   offsetPolyline,
   offsetArc,
@@ -358,6 +359,59 @@ export interface FilletResult {
   arc?: Feature;
   trimmedIds?: string[];
   reason?: string;
+}
+
+/**
+ * Convert a POLYLINE / POLYGON feature into a smooth SPLINE
+ * by fitting cubic-bezier control points through the source's
+ * vertices (Catmull-Rom-style interpolation via the existing
+ * `fitPointsToBezier` helper). Useful when boundary lines come
+ * in as linear segments and the surveyor wants curves —
+ * imported topo lines, contour traces, road centerlines.
+ *
+ * Source must have ≥ 3 vertices to yield a meaningful spline.
+ * The original feature is removed and replaced by the new
+ * SPLINE; style + properties are cloned. Returns true on
+ * success.
+ */
+export function smoothPolyline(featureId: string): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let vertices: Point2D[] | null = null;
+  let isClosed = false;
+  if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 3) vertices = g.vertices.slice();
+  else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 3) {
+    vertices = g.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+  const controlPoints = fitPointsToBezier(vertices, isClosed);
+  if (controlPoints.length < 4) return false;
+
+  const splineFeature: Feature = {
+    ...f,
+    id: generateId(),
+    type: 'SPLINE',
+    style: JSON.parse(JSON.stringify(f.style)),
+    properties: JSON.parse(JSON.stringify(f.properties)),
+    geometry: {
+      type: 'SPLINE',
+      spline: { controlPoints, isClosed },
+    },
+  };
+  drawingStore.removeFeature(featureId);
+  drawingStore.addFeature(splineFeature);
+  undoStore.pushUndo(makeBatchEntry('Smooth Polyline', [
+    { type: 'REMOVE_FEATURE', data: f },
+    { type: 'ADD_FEATURE', data: splineFeature },
+  ]));
+  selectionStore.selectMultiple([splineFeature.id], 'REPLACE');
+  return true;
 }
 
 /**
