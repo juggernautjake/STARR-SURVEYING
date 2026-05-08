@@ -37,6 +37,7 @@ import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel, CircleGeome
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
 import { inverseBearingDistance, forwardPoint, formatBearing } from '@/lib/cad/geometry/bearing';
+import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
 import { cadLog } from '@/lib/cad/logger';
 import {
@@ -3465,6 +3466,61 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         if (!f) continue;
         drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, Math.PI), w2s);
       }
+      return;
+    }
+
+    // For MEASURE_AREA: live polygon preview — already-placed
+    // vertices form a closed magenta loop with a translucent
+    // fill; the cursor's last leg + close-back leg are
+    // highlighted so the surveyor can see the next-click
+    // shape and predict the area before clicking.
+    if (activeTool === 'MEASURE_AREA' && drawingPoints.length >= 1) {
+      // Build the closed polygon (existing vertices + cursor)
+      const verts = [...drawingPoints, previewPoint];
+      // Translucent fill so the surveyor reads the area at a
+      // glance — only when ≥ 3 vertices form a real polygon.
+      if (verts.length >= 3) {
+        g.beginFill(0xff66cc, 0.12);
+        const p0 = w2s(verts[0].x, verts[0].y);
+        g.moveTo(p0.sx, p0.sy);
+        for (let i = 1; i < verts.length; i += 1) {
+          const p = w2s(verts[i].x, verts[i].y);
+          g.lineTo(p.sx, p.sy);
+        }
+        g.lineTo(p0.sx, p0.sy); // close back
+        g.endFill();
+      }
+      // Outline — magenta polyline through every vertex
+      g.lineStyle(1.5, 0xff66cc, 0.85);
+      const sp0 = w2s(drawingPoints[0].x, drawingPoints[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < drawingPoints.length; i += 1) {
+        const sp = w2s(drawingPoints[i].x, drawingPoints[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      // Live leg from last vertex to cursor
+      const lastVert = drawingPoints[drawingPoints.length - 1];
+      const lastS = w2s(lastVert.x, lastVert.y);
+      const cs = w2s(previewPoint.x, previewPoint.y);
+      g.lineStyle(2, 0xff44aa, 0.95);
+      g.moveTo(lastS.sx, lastS.sy);
+      g.lineTo(cs.sx, cs.sy);
+      // Close-back leg from cursor to first vertex (only when ≥ 2 vertices already placed)
+      if (drawingPoints.length >= 2) {
+        g.lineStyle(1.25, 0xff66cc, 0.55);
+        g.moveTo(cs.sx, cs.sy);
+        g.lineTo(sp0.sx, sp0.sy);
+      }
+      // Vertex markers
+      g.beginFill(0xff66cc, 0.95);
+      for (const v of drawingPoints) {
+        const sp = w2s(v.x, v.y);
+        g.drawCircle(sp.sx, sp.sy, 4);
+      }
+      g.endFill();
+      // Cursor marker
+      g.lineStyle(1.5, 0xff44aa, 0.95);
+      g.drawCircle(cs.sx, cs.sy, 5);
       return;
     }
 
@@ -7052,6 +7108,42 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }));
           }
           // Actual point placement is handled via cad:forwardPoint event from CommandBar
+          break;
+        }
+
+        case 'MEASURE_AREA': {
+          // MEASURE_AREA — surveyor clicks points to define a
+          // polygon. Each click adds a vertex to the chain and
+          // logs the running perimeter + area (computed by
+          // closing the polygon back to vertex 0). Esc clears,
+          // double-click commits and emits the final summary.
+          const { drawingPoints: dpts } = toolState;
+          toolStore.addDrawingPoint(worldPt);
+          const updated = [...dpts, worldPt];
+          if (updated.length >= 2) {
+            // Perimeter (open chain length plus the close-back leg).
+            let perim = 0;
+            for (let i = 0; i + 1 < updated.length; i += 1) {
+              perim += Math.hypot(updated[i + 1].x - updated[i].x, updated[i + 1].y - updated[i].y);
+            }
+            const closeLeg = updated.length >= 3
+              ? Math.hypot(updated[0].x - updated[updated.length - 1].x, updated[0].y - updated[updated.length - 1].y)
+              : 0;
+            const closedPerim = perim + closeLeg;
+            // Area only meaningful for ≥ 3 points.
+            const area = updated.length >= 3 ? computeAreaFromPoints2D(updated) : null;
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: {
+                text: area
+                  ? `MEASURE AREA — vertices: ${updated.length}, perimeter: ${closedPerim.toFixed(2)}′, area: ${area.squareFeet.toFixed(2)} sq ft (${area.acres.toFixed(4)} ac)`
+                  : `MEASURE AREA — vertex ${updated.length} placed; need ≥ 3 vertices for area.`,
+              },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'MEASURE AREA — first vertex set. Click each polygon vertex; Esc to finish.' },
+            }));
+          }
           break;
         }
 

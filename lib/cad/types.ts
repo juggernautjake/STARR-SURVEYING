@@ -502,6 +502,7 @@ export type ToolType =
   | 'OFFSET'
   | 'INVERSE'
   | 'FORWARD_POINT'
+  | 'MEASURE_AREA'
   | 'DRAW_TEXT'
   | 'DRAW_IMAGE';
 

@@ -142,6 +142,7 @@ export default function ToolOptionsBar() {
   const showFillet = activeTool === 'FILLET';
   const showChamfer = activeTool === 'CHAMFER';
   const showInverse = activeTool === 'INVERSE';
+  const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -783,6 +784,16 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click to set the base point, then click again to measure each leg. Bearing + distance + running total stream into the command bar; press Esc to finish.
+          </span>
+        </>
+      )}
+
+      {/* ── MEASURE_AREA tool options ──────────────────────────────────────── */}
+      {showMeasureArea && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click polygon vertices to read live perimeter + area (sq ft + acres). Magenta fill previews the polygon; press Esc to finish.
           </span>
         </>
       )}
@@ -1845,6 +1856,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   JOIN: 'Join',
   FILLET: 'Fillet',
   CHAMFER: 'Chamfer',
+  MEASURE_AREA: 'Measure Area',
   SCALE: 'Scale',
   ERASE: 'Erase',
   OFFSET: 'Offset',

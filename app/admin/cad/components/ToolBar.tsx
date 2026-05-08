@@ -400,12 +400,13 @@ function buildToolGroups(
     {
       mainTool: 'INVERSE',
       label: 'Inverse',
-      description: 'Click two points to compute bearing and distance between them. Right-click for Forward Point tool.',
+      description: 'Continuous measure path. Click points to read bearing + distance + running total per leg. Right-click for Forward Point or Measure Area tools.',
       shortcut: 'INV',
       icon: <ArrowRightLeft size={16} />,
       variants: [
-        { tool: 'INVERSE', label: 'Inverse (bearing & distance)', description: 'Click point A then point B — bearing and distance are shown in the status bar and command bar.', shortcut: 'INV', icon: <ArrowRightLeft size={14} /> },
+        { tool: 'INVERSE', label: 'Inverse (bearing & distance)', description: 'Continuous measure path. First click sets the base; each subsequent click logs bearing + distance + running total to the command bar. The chain stays visible on canvas; press Esc to finish.', shortcut: 'INV', icon: <ArrowRightLeft size={14} /> },
         { tool: 'FORWARD_POINT', label: 'Forward Point', description: 'Click a base point, type bearing and distance in the command bar to place a new point.', shortcut: 'FP', icon: <Navigation size={14} /> },
+        { tool: 'MEASURE_AREA', label: 'Measure Area', description: 'Click polygon vertices to compute live perimeter + area (sq ft + acres) in the command bar. Translucent magenta fill previews the polygon as you click; press Esc to finish.', shortcut: 'AA', icon: <Pentagon size={14} /> },
       ],
     },
     {
