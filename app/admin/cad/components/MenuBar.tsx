@@ -16,6 +16,7 @@ import {
   useAIStore,
 } from '@/lib/cad/store';
 import { computeBounds } from '@/lib/cad/geometry/bounds';
+import { reverseFeature, explodeFeature, smoothPolyline, simplifyPolylineFeature } from '@/lib/cad/operations';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv } from '@/lib/cad/persistence/export-csv';
@@ -408,6 +409,46 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           selectionStore.selectMultiple(ids, 'REPLACE');
         }},
         { label: 'Deselect All', shortcut: 'Esc', action: () => selectionStore.deselectAll() },
+        { separator: true },
+        // ── Line-editing operations on the single-feature
+        // selection. Disabled when zero / multiple features are
+        // selected, or the single feature isn't a vertex chain.
+        // Surveyors who navigate via menu rather than the
+        // toolbar SPLIT flyout still see these operations here.
+        ...(() => {
+          const selIds = Array.from(selectionStore.selectedIds);
+          const single = selIds.length === 1 ? drawingStore.getFeature(selIds[0]) : null;
+          const isLine = single?.geometry.type === 'LINE';
+          const isPolyline = single?.geometry.type === 'POLYLINE';
+          const isPolygon = single?.geometry.type === 'POLYGON';
+          const isVertexChain = isLine || isPolyline || isPolygon || single?.geometry.type === 'MIXED_GEOMETRY';
+          const canSmoothOrSimplify =
+            (isPolyline || isPolygon) &&
+            !!single?.geometry.vertices &&
+            single.geometry.vertices.length >= 3;
+          return [
+            {
+              label: 'Reverse Direction',
+              disabled: !isVertexChain,
+              action: () => { if (single) reverseFeature(single.id); },
+            },
+            {
+              label: 'Explode (Polyline → Lines)',
+              disabled: !(isPolyline || isPolygon || single?.geometry.type === 'MIXED_GEOMETRY'),
+              action: () => { if (single) explodeFeature(single.id); },
+            },
+            {
+              label: 'Smooth → Spline',
+              disabled: !canSmoothOrSimplify,
+              action: () => { if (single) smoothPolyline(single.id); },
+            },
+            {
+              label: 'Simplify (RDP, 0.5 ft)',
+              disabled: !canSmoothOrSimplify,
+              action: () => { if (single) simplifyPolylineFeature(single.id, 0.5); },
+            },
+          ];
+        })(),
       ],
     },
     {
