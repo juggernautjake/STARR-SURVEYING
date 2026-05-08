@@ -75,6 +75,7 @@ import {
   filletTwoLines,
   chamferTwoLines,
   divideFeatureBy,
+  explodeFeature,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -4152,6 +4153,78 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For EXPLODE: highlight the hovered POLYLINE/POLYGON
+    // and mark every vertex with a small dot — visualising
+    // exactly where the feature will break.
+    if (activeTool === 'EXPLODE') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+          isClosed = true;
+        } else if (fg.type === 'MIXED_GEOMETRY' && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestIsClosed = isClosed;
+          }
+        }
+      }
+      if (!bestId || !bestChain) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Draw the chain in alternating colors so the surveyor
+      // sees the segment boundaries clearly.
+      const segCount = bestIsClosed ? bestChain.length : bestChain.length - 1;
+      for (let i = 0; i < segCount; i += 1) {
+        const a = bestChain[i];
+        const b = bestChain[(i + 1) % bestChain.length];
+        const aS = w2s(a.x, a.y);
+        const bS = w2s(b.x, b.y);
+        g.lineStyle(2.5, i % 2 === 0 ? 0xffaa44 : 0x44ddff, 0.7);
+        g.moveTo(aS.sx, aS.sy);
+        g.lineTo(bS.sx, bS.sy);
+      }
+      // Vertex markers — mark every breakpoint with a small ring.
+      g.lineStyle(1.5, 0xffffff, 0.95);
+      for (const v of bestChain) {
+        const sp = w2s(v.x, v.y);
+        g.drawCircle(sp.sx, sp.sy, 4);
+      }
+      return;
+    }
+
     // For DIVIDE: highlight the hovered feature in lime + drop
     // ghost station markers at every (count-1) interval so
     // the surveyor sees exactly where the POINTs will land
@@ -6925,6 +6998,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: `DIVIDE — placed ${toolState.divideCount - 1} station marker${toolState.divideCount - 1 === 1 ? '' : 's'} along the feature.` },
+            }));
+          }
+          break;
+        }
+
+        case 'EXPLODE': {
+          // EXPLODE: click a POLYLINE / POLYGON to burst it
+          // into individual LINE features. POLYGON includes
+          // the closing leg.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const ok = explodeFeature(hit);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'EXPLODE — pick a POLYLINE or POLYGON.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'EXPLODE — burst into individual line segments.' },
             }));
           }
           break;

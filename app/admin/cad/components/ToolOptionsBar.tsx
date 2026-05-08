@@ -143,6 +143,7 @@ export default function ToolOptionsBar() {
   const showFillet = activeTool === 'FILLET';
   const showChamfer = activeTool === 'CHAMFER';
   const showDivide = activeTool === 'DIVIDE';
+  const showExplode = activeTool === 'EXPLODE';
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showDim = activeTool === 'DIM';
@@ -807,6 +808,16 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click two points to place a permanent bearing + distance annotation. The TEXT label rotates parallel to the dimension line and offsets 6 ft perpendicular so it reads clear of the geometry.
+          </span>
+        </>
+      )}
+
+      {/* ── EXPLODE tool options ───────────────────────────────────────────── */}
+      {showExplode && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any POLYLINE or POLYGON to burst it into individual LINE features. Vertex markers (white rings) show every breakpoint; alternating orange/cyan strokes mark each future segment. Style and properties carry over.
           </span>
         </>
       )}
@@ -1919,6 +1930,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   FILLET: 'Fillet',
   CHAMFER: 'Chamfer',
   DIVIDE: 'Divide',
+  EXPLODE: 'Explode',
   MEASURE_AREA: 'Measure Area',
   DIM: 'Dimension',
   SCALE: 'Scale',

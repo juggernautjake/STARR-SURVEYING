@@ -361,6 +361,71 @@ export interface FilletResult {
 }
 
 /**
+ * Burst a POLYLINE / POLYGON / MIXED_GEOMETRY feature into a
+ * collection of individual LINE features — one per segment.
+ * POLYGON includes the closing leg (vertex N-1 → vertex 0).
+ * Source feature is removed and the new lines are recorded
+ * in a single batch undo entry. Style + properties are
+ * cloned to every new line so the visual result reads as
+ * the same shape, just with editable per-segment handles.
+ *
+ * LINE sources are a no-op (already a single segment).
+ * Curved sources (CIRCLE / ELLIPSE / ARC / SPLINE) are out
+ * of scope — bursting them would lose the parametric
+ * geometry. Returns true on a successful mutation.
+ */
+export function explodeFeature(featureId: string): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+
+  let chain: Point2D[] | null = null;
+  let isClosed = false;
+  if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+  } else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+    isClosed = true;
+  } else if (g.type === 'MIXED_GEOMETRY' && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+  } else {
+    return false;
+  }
+
+  const segCount = isClosed ? chain.length : chain.length - 1;
+  if (segCount < 1) return false;
+
+  const newLines: Feature[] = [];
+  for (let i = 0; i < segCount; i += 1) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    if (Math.hypot(b.x - a.x, b.y - a.y) < 1e-9) continue; // skip degenerate
+    newLines.push({
+      ...f,
+      id: generateId(),
+      type: 'LINE',
+      style: JSON.parse(JSON.stringify(f.style)),
+      properties: JSON.parse(JSON.stringify(f.properties)),
+      geometry: { type: 'LINE', start: a, end: b },
+    });
+  }
+  if (newLines.length === 0) return false;
+
+  drawingStore.removeFeature(featureId);
+  drawingStore.addFeatures(newLines);
+  const ops = [
+    { type: 'REMOVE_FEATURE' as const, data: f },
+    ...newLines.map((nl) => ({ type: 'ADD_FEATURE' as const, data: nl })),
+  ];
+  undoStore.pushUndo(makeBatchEntry(`Explode (${newLines.length} lines)`, ops));
+  selectionStore.selectMultiple(newLines.map((nl) => nl.id), 'REPLACE');
+  return true;
+}
+
+/**
  * Walk a vertex chain and return the world-space point at
  * `t * totalArcLength`, where `t ∈ [0, 1]`. Used by
  * `divideFeatureBy` to drop POINT features at equal

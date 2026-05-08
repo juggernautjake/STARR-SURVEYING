@@ -26,6 +26,7 @@ import {
   CornerDownRight,
   Triangle,
   Ruler,
+  Unlink,
   Eraser,
   Expand,
   ZoomIn,
@@ -370,6 +371,7 @@ function buildToolGroups(
         { tool: 'FILLET',  label: 'Fillet',       description: 'Round the corner between two LINE features with a circular arc of the radius set in the options bar. Click each line on the side you want to keep — the lines trim back to the arc tangent points and a new ARC feature is inserted between.', shortcut: 'FT', icon: <CornerDownRight size={14} /> },
         { tool: 'CHAMFER', label: 'Chamfer',      description: 'Bevel the corner between two LINE features with a straight LINE. Click each line on the side you want to keep — the lines trim back by Distance 1 / Distance 2 from the corner, and a new straight bevel connects the trim points. Equal distances = symmetric chamfer; unequal = asymmetric.', shortcut: 'CF', icon: <Triangle size={14} /> },
         { tool: 'DIVIDE',  label: 'Divide',       description: 'Drop station markers (POINT features) at equal arc-length intervals along a LINE / POLYLINE / POLYGON. Set the count in the options bar — the source stays untouched, only point markers are added. Useful for fence-post layouts, station marks, lot-frontage segmentation.', shortcut: 'DV', icon: <Ruler size={14} /> },
+        { tool: 'EXPLODE', label: 'Explode',      description: 'Burst a POLYLINE or POLYGON into individual LINE features — one per segment. POLYGON includes the closing leg. Useful after CSV imports when you need to edit individual boundary segments. Style and properties carry over to every new line.', shortcut: 'XP', icon: <Unlink size={14} /> },
       ],
     },
 
