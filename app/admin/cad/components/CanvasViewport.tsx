@@ -8304,6 +8304,30 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       useToolStore.getState().clearDrawingPoints();
     };
 
+    // Phase 8 §10.4 — Delete-key dispatch. The hotkey
+    // dispatcher fires `cad:deleteSelection` for the
+    // edit.delete action; the listener wraps a confirm
+    // dialog around bulk deletes (5+ features) so a stray
+    // Ctrl+A → Delete can't quietly wipe the drawing.
+    // Singletons skip the prompt — Ctrl+Z still works.
+    const onDeleteSelection = async () => {
+      const ids = Array.from(useSelectionStore.getState().selectedIds);
+      if (ids.length === 0) return;
+      const { deleteSelection } = await import('@/lib/cad/operations');
+      const { confirmAction } = await import('./ConfirmDialog');
+      if (ids.length >= 5) {
+        const ok = await confirmAction({
+          title: `Delete ${ids.length} features?`,
+          message: 'This permanently removes the selected features from the drawing. You can undo with Ctrl+Z.',
+          confirmLabel: 'Delete',
+          danger: true,
+        });
+        if (!ok) return;
+      }
+      deleteSelection();
+    };
+    window.addEventListener('cad:deleteSelection', onDeleteSelection);
+
     window.addEventListener('cad:forwardPoint', onForwardPoint);
     window.addEventListener('cad:curbReturn', onCurbReturn);
 
@@ -8316,6 +8340,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:scale', onScale);
       window.removeEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
       window.removeEventListener('cad:startInteractiveScale', onStartInteractiveScale);
+      window.removeEventListener('cad:deleteSelection', onDeleteSelection);
       window.removeEventListener('cad:forwardPoint', onForwardPoint);
       window.removeEventListener('cad:curbReturn', onCurbReturn);
     };

@@ -24,6 +24,7 @@ import {
   joinSelection,
 } from '@/lib/cad/operations';
 import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
+import { confirmAction } from './ConfirmDialog';
 import { OFFSET_PRESETS } from '@/lib/cad/geometry/offset';
 
 // Line weight constraints
@@ -1570,7 +1571,22 @@ export default function ToolOptionsBar() {
               >
                 <button
                   className="px-2.5 h-6 rounded text-[11px] bg-gray-700 border border-red-900/50 text-red-400 hover:bg-red-900/30 transition-colors whitespace-nowrap"
-                  onClick={() => deleteSelection()}
+                  onClick={async () => {
+                    // Bulk deletes (5+ features) ask for
+                    // confirmation so a stray Ctrl+A → Delete
+                    // can't quietly wipe a drawing. Singletons
+                    // skip the prompt — Ctrl+Z still works.
+                    if (selCount >= 5) {
+                      const ok = await confirmAction({
+                        title: `Delete ${selCount} features?`,
+                        message: 'This permanently removes the selected features from the drawing. You can undo with Ctrl+Z.',
+                        confirmLabel: 'Delete',
+                        danger: true,
+                      });
+                      if (!ok) return;
+                    }
+                    deleteSelection();
+                  }}
                 >
                   Delete ({selCount})
                 </button>

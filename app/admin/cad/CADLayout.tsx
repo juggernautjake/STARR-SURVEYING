@@ -12,6 +12,7 @@ import StatusBar from './components/StatusBar';
 import ToolOptionsBar from './components/ToolOptionsBar';
 import UndoRedoButtons from './components/UndoRedoButtons';
 import CommandPalette from './components/CommandPalette';
+import ConfirmDialog from './components/ConfirmDialog';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import ImportDialog from './components/ImportDialog';
@@ -856,6 +857,12 @@ export default function CADLayout() {
           on `cad:openCommandPalette`; renders nothing until
           opened so it has zero idle cost. */}
       <CommandPalette />
+
+      {/* Phase 8 §10.4 — Global confirm dialog. Listens for
+          `cad:openConfirmDialog` so any module can call
+          `confirmAction()` and await the surveyor's choice
+          without prop-drilling a dialog handle. */}
+      <ConfirmDialog />
     </div>
     </TooltipProvider>
   );

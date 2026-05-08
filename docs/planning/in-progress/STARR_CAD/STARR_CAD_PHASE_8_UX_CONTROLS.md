@@ -1323,8 +1323,8 @@ This section documents cross-cutting UX issues found in Phases 1–7 that Phase 
 - [ ] All modal dialogs close on Escape
 - [x] Command palette opens on Ctrl+K or / — `view.commandPalette` action in `lib/cad/hotkeys/registry.ts` is bound to `ctrl+k` and dispatches `cad:openCommandPalette`. `CommandPalette.tsx` listens for the event and toggles open. `/` is reserved for the existing command bar (separate widget).
 - [x] Command palette search finds layer names and action labels — palette merges every `DEFAULT_ACTIONS` entry with the active drawing's layers (each layer gets a "Set Active Layer · {name}" entry). Substring filter matches across label, description, category, and action id. Up/Down navigate, Enter commits via `dispatchDefaultAction` (now exported from `useHotkeys`), Esc closes. Cap of 60 results keeps the list scannable.
-- [ ] Destructive actions (Delete, Reject, Discard) show confirmation dialog
-- [ ] Confirmation dialog Escape cancels (does not perform the destructive action)
+- [x] Destructive actions (Delete, Reject, Discard) show confirmation dialog — `app/admin/cad/components/ConfirmDialog.tsx` is mounted globally in `CADLayout` and exposes `confirmAction(opts) → Promise<boolean>`. Bulk deletes (≥ 5 features) prompt before removing; the toolbar Delete button + the Delete-key event listener both route through it. Single-feature deletes skip the prompt (Ctrl+Z still works).
+- [x] Confirmation dialog Escape cancels (does not perform the destructive action) — Esc resolves the pending Promise to `false`; backdrop click does the same. Enter shortcut commits the confirm button. Cancel button is auto-focused when the action is non-destructive; confirm button is auto-focused when `danger: true` so the surveyor's keyboard rhythm matches the visual emphasis.
 
 ---
 
