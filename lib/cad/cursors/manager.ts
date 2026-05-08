@@ -89,11 +89,48 @@ export function resolveCursor(ctx: CursorContext): CursorType {
     case 'MIRROR':
       return 'CROSSHAIR';
 
+    case 'FLIP':
+    case 'INVERT':
+    case 'ARRAY':
+      // Selection-based one-click ops — crosshair so the
+      // surveyor knows the click commits at the cursor.
+      return 'CROSSHAIR';
+
     case 'OFFSET':
       return 'OFFSET';
 
     case 'CURB_RETURN':
       return 'CROSSHAIR';
+
+    // Cut / heal kit
+    case 'SPLIT':
+      return 'CROSSHAIR';
+    case 'TRIM':
+      return 'TRIM';
+    case 'EXTEND':
+      return 'EXTEND';
+    case 'JOIN':
+      return 'CROSSHAIR';
+    case 'FILLET':
+    case 'CHAMFER':
+      return 'CROSSHAIR';
+
+    // Decompose / station-marker tools
+    case 'DIVIDE':
+    case 'EXPLODE':
+    case 'POINT_AT_DISTANCE':
+      return 'CROSSHAIR';
+
+    // Style / direction operations
+    case 'REVERSE':
+    case 'MATCH_PROPERTIES':
+    case 'SMOOTH_POLYLINE':
+    case 'SIMPLIFY_POLYLINE':
+      return 'CROSSHAIR';
+
+    // Construction / geometry helpers
+    case 'PERPENDICULAR':
+      return 'DRAW_PERPENDICULAR';
 
     case 'ERASE':
       return 'ERASE';
@@ -102,6 +139,8 @@ export function resolveCursor(ctx: CursorContext): CursorType {
       return 'TEXT';
 
     case 'INVERSE':
+    case 'MEASURE_AREA':
+    case 'DIM':
       return 'MEASURE';
 
     case 'FORWARD_POINT':
