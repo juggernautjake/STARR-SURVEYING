@@ -498,6 +498,7 @@ export type ToolType =
   | 'REVERSE'
   | 'MATCH_PROPERTIES'
   | 'POINT_AT_DISTANCE'
+  | 'PERPENDICULAR'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
@@ -713,6 +714,15 @@ export interface ToolState {
    * from START.
    */
   pointAtDistanceFromEnd: boolean;
+
+  // ── PERPENDICULAR tool ──
+  /**
+   * The source point of the perpendicular drop. Set on the
+   * first click (either an explicit world coordinate or the
+   * snapped position of a clicked POINT feature). Cleared on
+   * tool reset.
+   */
+  perpendicularSourcePoint: Point2D | null;
 }
 
 // --- UNDO ---

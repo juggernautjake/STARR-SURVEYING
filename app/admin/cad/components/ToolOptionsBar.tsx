@@ -147,6 +147,7 @@ export default function ToolOptionsBar() {
   const showReverse = activeTool === 'REVERSE';
   const showMatchProperties = activeTool === 'MATCH_PROPERTIES';
   const showPointAtDistance = activeTool === 'POINT_AT_DISTANCE';
+  const showPerpendicular = activeTool === 'PERPENDICULAR';
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showDim = activeTool === 'DIM';
@@ -811,6 +812,27 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click two points to place a permanent bearing + distance annotation. The TEXT label rotates parallel to the dimension line and offsets 6 ft perpendicular so it reads clear of the geometry.
+          </span>
+        </>
+      )}
+
+      {/* ── PERPENDICULAR tool options ─────────────────────────────────────── */}
+      {showPerpendicular && (
+        <>
+          <Sep />
+          {ts.perpendicularSourcePoint && (
+            <button
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => toolStore.setPerpendicularSourcePoint(null)}
+              title="Clear source — restart point picking"
+            >
+              ✕
+            </button>
+          )}
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {!ts.perpendicularSourcePoint
+              ? 'Click the source point — snaps to an existing POINT feature when one is in range, otherwise uses the clicked world position.'
+              : 'Click a LINE / POLYLINE / POLYGON — the cyan dashed line shows the perpendicular foot on the hovered segment.'}
           </span>
         </>
       )}
@@ -2026,6 +2048,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   REVERSE: 'Reverse',
   MATCH_PROPERTIES: 'Match Properties',
   POINT_AT_DISTANCE: 'Point at Distance',
+  PERPENDICULAR: 'Perpendicular',
   MEASURE_AREA: 'Measure Area',
   DIM: 'Dimension',
   SCALE: 'Scale',

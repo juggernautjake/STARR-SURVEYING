@@ -361,6 +361,101 @@ export interface FilletResult {
 }
 
 /**
+ * Drop a perpendicular from `sourcePoint` to the closest
+ * point on the chosen segment of `targetFeatureId`. The
+ * "foot of perpendicular" — the point on the target line
+ * closest to the source — is computed by parametric
+ * projection onto the target's nearest segment.
+ *
+ * Emits a new LINE feature from sourcePoint → foot. Style +
+ * layer inherit from the target so the perpendicular reads
+ * as belonging to the same drawing context.
+ *
+ * Targets must be vertex-chain features (LINE / POLYLINE /
+ * POLYGON / MIXED_GEOMETRY); curved targets are out of
+ * scope (they need a different parametric solve per type).
+ *
+ * `cursorHint` is an optional cursor world position that
+ * disambiguates which segment of a multi-segment target to
+ * project onto. When omitted, the closest segment to
+ * `sourcePoint` itself is used.
+ */
+export function dropPerpendicular(
+  sourcePoint: Point2D,
+  targetFeatureId: string,
+  cursorHint?: Point2D,
+): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const target = drawingStore.getFeature(targetFeatureId);
+  if (!target) return false;
+  const tg = target.geometry;
+  let chain: Point2D[] | null = null;
+  let isClosed = false;
+  if (tg.type === 'LINE' && tg.start && tg.end) chain = [tg.start, tg.end];
+  else if ((tg.type === 'POLYLINE' || tg.type === 'MIXED_GEOMETRY') && tg.vertices && tg.vertices.length >= 2) chain = tg.vertices.slice();
+  else if (tg.type === 'POLYGON' && tg.vertices && tg.vertices.length >= 2) {
+    chain = tg.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+
+  // Find the closest segment to the cursor hint (or to the
+  // source point if no hint). Project the SOURCE onto that
+  // segment to compute the perpendicular foot.
+  const aimPoint = cursorHint ?? sourcePoint;
+  const segCount = isClosed ? chain.length : chain.length - 1;
+  let bestSegIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < segCount; i += 1) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    const cp = closestPointOnSegment(aimPoint, a, b);
+    const d = Math.hypot(aimPoint.x - cp.point.x, aimPoint.y - cp.point.y);
+    if (d < bestDist) {
+      bestDist = d;
+      bestSegIdx = i;
+    }
+  }
+  const segA = chain[bestSegIdx];
+  const segB = chain[(bestSegIdx + 1) % chain.length];
+  // Project the SOURCE onto the line through (segA, segB).
+  // We allow t to fall outside [0, 1] so the perpendicular
+  // hits the infinite line — surveyors typically want this
+  // when projecting onto a centerline that doesn't quite
+  // reach the source. Caller can clamp later if needed.
+  const dxAB = segB.x - segA.x;
+  const dyAB = segB.y - segA.y;
+  const len2 = dxAB * dxAB + dyAB * dyAB;
+  if (len2 < 1e-20) return false;
+  const tParam = ((sourcePoint.x - segA.x) * dxAB + (sourcePoint.y - segA.y) * dyAB) / len2;
+  const foot: Point2D = {
+    x: segA.x + tParam * dxAB,
+    y: segA.y + tParam * dyAB,
+  };
+  if (Math.hypot(foot.x - sourcePoint.x, foot.y - sourcePoint.y) < 1e-9) {
+    return false; // source already lies on the line
+  }
+
+  const perpFeature: Feature = {
+    id: generateId(),
+    type: 'LINE',
+    geometry: { type: 'LINE', start: sourcePoint, end: foot },
+    layerId: target.layerId,
+    style: JSON.parse(JSON.stringify(target.style)),
+    properties: {
+      perpendicularTargetId: targetFeatureId,
+      perpendicularFootX: foot.x,
+      perpendicularFootY: foot.y,
+    },
+  };
+  drawingStore.addFeature(perpFeature);
+  undoStore.pushUndo(makeAddFeatureEntry(perpFeature));
+  return true;
+}
+
+/**
  * Drop a single POINT feature at exact arc-length `distance`
  * from one end of `featureId`. Single-shot version of
  * DIVIDE — surveyors use it for inserting a station marker

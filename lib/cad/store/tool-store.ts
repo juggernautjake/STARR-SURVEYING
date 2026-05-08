@@ -52,6 +52,7 @@ interface ToolStore {
   setMatchPropertiesSourceId: (id: string | null) => void;
   setPointAtDistanceValue: (v: number) => void;
   setPointAtDistanceFromEnd: (v: boolean) => void;
+  setPerpendicularSourcePoint: (p: Point2D | null) => void;
   resetToolState: () => void;
 }
 
@@ -113,6 +114,7 @@ const defaultToolState: ToolState = {
   matchPropertiesSourceId: null,
   pointAtDistanceValue: 50,
   pointAtDistanceFromEnd: false,
+  perpendicularSourcePoint: null,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -162,6 +164,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         // matchPropertiesSourceId resets on tool switch — bound to a single pick session.
         pointAtDistanceValue: s.state.pointAtDistanceValue,
         pointAtDistanceFromEnd: s.state.pointAtDistanceFromEnd,
+        // perpendicularSourcePoint resets on tool switch.
       },
     })),
 
@@ -400,6 +403,9 @@ export const useToolStore = create<ToolStore>((set) => ({
   setPointAtDistanceFromEnd: (v) =>
     set((s) => ({ state: { ...s.state, pointAtDistanceFromEnd: v } })),
 
+  setPerpendicularSourcePoint: (p) =>
+    set((s) => ({ state: { ...s.state, perpendicularSourcePoint: p } })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -443,6 +449,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         matchPropertiesSourceId: null,
         pointAtDistanceValue: s.state.pointAtDistanceValue,
         pointAtDistanceFromEnd: s.state.pointAtDistanceFromEnd,
+        perpendicularSourcePoint: null,
       },
     })),
 }));

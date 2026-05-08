@@ -79,6 +79,7 @@ import {
   reverseFeature,
   matchPropertiesTo,
   pointAtDistanceAlong,
+  dropPerpendicular,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -4156,6 +4157,155 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For PERPENDICULAR: phase 1 marks a candidate source
+    // point at the cursor (filled cyan dot); phase 2 ghosts
+    // the perpendicular line from the locked-in source to
+    // the foot on whichever line is under the cursor.
+    if (activeTool === 'PERPENDICULAR') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+
+      if (!ts.perpendicularSourcePoint) {
+        // Phase 1 — show candidate source dot at the cursor
+        // (snapping to a hovered POINT feature when one is in
+        // range so the surveyor can see the snap).
+        let snappedSrc: Point2D = previewPoint;
+        const hitId = (() => {
+          const all = drawing.getAllFeatures();
+          let bestId: string | null = null;
+          let bestDist = Infinity;
+          for (const f of all) {
+            if (f.geometry.type !== 'POINT' || !f.geometry.point) continue;
+            const d = Math.hypot(previewPoint.x - f.geometry.point.x, previewPoint.y - f.geometry.point.y);
+            const dPx = d * useViewportStore.getState().zoom;
+            if (dPx < bestDist && dPx < 14) {
+              bestDist = dPx;
+              bestId = f.id;
+            }
+          }
+          return bestId;
+        })();
+        const hitFeat = hitId ? drawing.getFeature(hitId) : null;
+        if (hitFeat && hitFeat.geometry.type === 'POINT' && hitFeat.geometry.point) {
+          snappedSrc = hitFeat.geometry.point;
+        }
+        const sp = w2s(snappedSrc.x, snappedSrc.y);
+        g.lineStyle(2, 0x44ddff, 0.95);
+        g.beginFill(0x44ddff, 0.95);
+        g.drawCircle(sp.sx, sp.sy, 5);
+        g.endFill();
+        return;
+      }
+
+      // Phase 2 — source locked in. Find the line under the
+      // cursor; project the source perpendicular onto it.
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if ((fg.type === 'POLYLINE' || fg.type === 'MIXED_GEOMETRY') && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+          isClosed = true;
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dxAB = b.x - a.x;
+          const dyAB = b.y - a.y;
+          const len2 = dxAB * dxAB + dyAB * dyAB;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dxAB + (previewPoint.y - a.y) * dyAB) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dxAB;
+          const py = a.y + t * dyAB;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestIsClosed = isClosed;
+          }
+        }
+      }
+      // Always render the source dot regardless of hover
+      const src = ts.perpendicularSourcePoint;
+      const srcS = w2s(src.x, src.y);
+      g.lineStyle(2, 0x44ddff, 0.95);
+      g.beginFill(0x44ddff, 0.95);
+      g.drawCircle(srcS.sx, srcS.sy, 5);
+      g.endFill();
+
+      if (!bestId || !bestChain) {
+        // No valid target — hint to the surveyor by drawing
+        // an open ring at the cursor.
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.lineStyle(1.5, 0x888888, 0.7);
+        g.drawCircle(cs.sx, cs.sy, 5);
+        return;
+      }
+      // Highlight the hovered target chain in lime
+      g.lineStyle(2.5, 0x99ff44, 0.55);
+      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestChain.length; i += 1) {
+        const sp = w2s(bestChain[i].x, bestChain[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+
+      // Find the foot of perpendicular by projecting source
+      // onto the closest segment.
+      const segCount = bestIsClosed ? bestChain.length : bestChain.length - 1;
+      let bestSegIdx = 0;
+      let bestSegDist = Infinity;
+      for (let i = 0; i < segCount; i += 1) {
+        const a = bestChain[i];
+        const b = bestChain[(i + 1) % bestChain.length];
+        const dxAB = b.x - a.x;
+        const dyAB = b.y - a.y;
+        const len2 = dxAB * dxAB + dyAB * dyAB;
+        if (len2 < 1e-20) continue;
+        let t = ((previewPoint.x - a.x) * dxAB + (previewPoint.y - a.y) * dyAB) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const px = a.x + t * dxAB;
+        const py = a.y + t * dyAB;
+        const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+        if (d < bestSegDist) {
+          bestSegDist = d;
+          bestSegIdx = i;
+        }
+      }
+      const segA = bestChain[bestSegIdx];
+      const segB = bestChain[(bestSegIdx + 1) % bestChain.length];
+      const dxAB = segB.x - segA.x;
+      const dyAB = segB.y - segA.y;
+      const len2 = dxAB * dxAB + dyAB * dyAB;
+      if (len2 < 1e-20) return;
+      const tParam = ((src.x - segA.x) * dxAB + (src.y - segA.y) * dyAB) / len2;
+      const footX = segA.x + tParam * dxAB;
+      const footY = segA.y + tParam * dyAB;
+      const footS = w2s(footX, footY);
+      // Draw the perpendicular line in cyan
+      g.lineStyle(2, 0x44ddff, 0.95);
+      g.moveTo(srcS.sx, srcS.sy);
+      g.lineTo(footS.sx, footS.sy);
+      // Foot marker — small filled circle + tiny perpendicular tick
+      g.beginFill(0x44ddff, 0.95);
+      g.drawCircle(footS.sx, footS.sy, 4);
+      g.endFill();
+      return;
+    }
+
     // For POINT_AT_DISTANCE: highlight the hovered chain in
     // lime + a small ring at the predicted commit point.
     // Shows from-end vs from-start visually so the surveyor
@@ -7351,6 +7501,47 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               detail: { text: 'REVERSE — feature direction flipped.' },
             }));
           }
+          break;
+        }
+
+        case 'PERPENDICULAR': {
+          // PERPENDICULAR: first click sets the source point
+          // (snapping to a clicked POINT feature when one is
+          // hit, otherwise to the world cursor). Second click
+          // picks a target line; we drop a perpendicular LINE
+          // from the source to the foot of perpendicular on
+          // that line.
+          if (!toolState.perpendicularSourcePoint) {
+            const hit = hitTest(sx, sy);
+            const f = hit ? drawingStore.getFeature(hit) : null;
+            const src: Point2D =
+              f && f.geometry.type === 'POINT' && f.geometry.point
+                ? { ...f.geometry.point }
+                : { ...worldPt };
+            toolStore.setPerpendicularSourcePoint(src);
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'PERPENDICULAR — source set. Click a line / polyline / polygon to drop the perpendicular.' },
+            }));
+            break;
+          }
+          const hit = hitTest(sx, sy);
+          if (!hit) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'PERPENDICULAR — pick a LINE / POLYLINE / POLYGON for the target.' },
+            }));
+            break;
+          }
+          const ok = dropPerpendicular(toolState.perpendicularSourcePoint, hit, worldPt);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'PERPENDICULAR — target must be a vertex-chain feature; source must not lie on the line.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'PERPENDICULAR — line placed.' },
+            }));
+          }
+          toolStore.setPerpendicularSourcePoint(null);
           break;
         }
 

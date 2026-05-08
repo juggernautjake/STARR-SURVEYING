@@ -30,6 +30,7 @@ import {
   ArrowLeftRight,
   Paintbrush,
   Crosshair,
+  CornerRightDown,
   Eraser,
   Expand,
   ZoomIn,
@@ -378,6 +379,7 @@ function buildToolGroups(
         { tool: 'REVERSE', label: 'Reverse',      description: 'Flip the direction of a LINE / POLYLINE / POLYGON. Useful when offset side, division order, or label rotation depends on direction and the import got it backwards. Cyan square marks the current start; arrowhead marks the current end.', shortcut: 'RV', icon: <ArrowLeftRight size={14} /> },
         { tool: 'MATCH_PROPERTIES', label: 'Match Properties', description: 'Copy style + layer assignment from one feature to another. Click a "model" feature to lock it in (cyan outline), then click each target (lime outline) to paint the source style onto it. Stays in apply mode until Esc — paint as many targets as needed.', shortcut: 'MP', icon: <Paintbrush size={14} /> },
         { tool: 'POINT_AT_DISTANCE', label: 'Point at Distance', description: 'Drop a single POINT at exact arc-length distance from the START or END of any LINE / POLYLINE / POLYGON. Type the distance + pick the origin direction in the options bar. Single-shot version of DIVIDE — perfect for "set MAG nail at 47.5 ft from the NE corner".', shortcut: 'PD', icon: <Crosshair size={14} /> },
+        { tool: 'PERPENDICULAR', label: 'Perpendicular', description: 'Drop a perpendicular line from a clicked point to a target line. First click sets the source (snaps to existing POINT features); second click picks any LINE / POLYLINE / POLYGON — a new LINE is placed from the source to the foot of perpendicular on the target. Useful for plotting building setbacks, foundation lines, station markers projected to centerlines.', shortcut: 'PR', icon: <CornerRightDown size={14} /> },
       ],
     },
 
