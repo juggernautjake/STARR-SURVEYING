@@ -141,6 +141,7 @@ export default function ToolOptionsBar() {
   const showJoin = activeTool === 'JOIN';
   const showFillet = activeTool === 'FILLET';
   const showChamfer = activeTool === 'CHAMFER';
+  const showInverse = activeTool === 'INVERSE';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -772,6 +773,16 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click near the end of a line or polyline — that end (closer of the two) lengthens along its tangent until it hits the next feature. The bright green ghost shows the extension; a grey ring means nothing lies in the extension direction.
+          </span>
+        </>
+      )}
+
+      {/* ── INVERSE tool options ───────────────────────────────────────────── */}
+      {showInverse && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click to set the base point, then click again to measure each leg. Bearing + distance + running total stream into the command bar; press Esc to finish.
           </span>
         </>
       )}

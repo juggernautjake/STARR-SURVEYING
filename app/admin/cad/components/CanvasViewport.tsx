@@ -3468,6 +3468,41 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For INVERSE: render the running measure-path chain plus
+    // a live leg from the last clicked point to the cursor so
+    // the surveyor can sight the bearing+distance before
+    // committing each click. Bearing+distance values land in
+    // the command bar on every click via the click handler.
+    if (activeTool === 'INVERSE' && drawingPoints.length >= 1) {
+      // Faint chain through every clicked point
+      g.lineStyle(1.5, 0xffcc66, 0.55);
+      const p0 = w2s(drawingPoints[0].x, drawingPoints[0].y);
+      g.moveTo(p0.sx, p0.sy);
+      for (let i = 1; i < drawingPoints.length; i += 1) {
+        const p = w2s(drawingPoints[i].x, drawingPoints[i].y);
+        g.lineTo(p.sx, p.sy);
+      }
+      // Endpoint markers — small filled dots at every node
+      g.beginFill(0xffcc66, 0.95);
+      for (const wp of drawingPoints) {
+        const sp = w2s(wp.x, wp.y);
+        g.drawCircle(sp.sx, sp.sy, 4);
+      }
+      g.endFill();
+      // Live leg — bright orange dashed-look from last node to cursor
+      const last = drawingPoints[drawingPoints.length - 1];
+      const ls = w2s(last.x, last.y);
+      const cs = w2s(previewPoint.x, previewPoint.y);
+      g.lineStyle(2, 0xffaa33, 0.95);
+      g.moveTo(ls.sx, ls.sy);
+      g.lineTo(cs.sx, cs.sy);
+      // Tip marker — hollow circle at the cursor end so the
+      // user knows that's the new node about to be added.
+      g.lineStyle(1.5, 0xffaa33, 0.95);
+      g.drawCircle(cs.sx, cs.sy, 5);
+      return;
+    }
+
     // For CHAMFER: same flow as FILLET preview but ghosts a
     // straight bevel between the two trim points instead of
     // an arc.
@@ -6969,22 +7004,40 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
 
         case 'INVERSE': {
-          // Click A → click B: show bearing and distance in the command bar output area.
+          // INVERSE — continuous measure-path. Each click adds
+          // a node to the chain; from the second click onward
+          // we log bearing + distance from the previous node
+          // and accumulate the total. The running chain stays
+          // on canvas as a faint poly until the surveyor hits
+          // Esc (which calls toolStore.clearDrawingPoints via
+          // resetToolState).
           const { drawingPoints: dpts } = toolState;
           if (dpts.length === 0) {
-            // First click: record the from-point
             toolStore.addDrawingPoint(worldPt);
-          } else {
-            // Second click: compute and display result
-            const from = dpts[0];
-            const { azimuth, distance } = inverseBearingDistance(from, worldPt);
-            const bearingStr = formatBearing(azimuth);
-            const distStr = distance.toFixed(2);
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: `INVERSE — Bearing: ${bearingStr}  Distance: ${distStr}′` },
+              detail: { text: 'INVERSE — base point set. Click again to measure each leg; press Esc to finish.' },
             }));
-            toolStore.clearDrawingPoints();
+            break;
           }
+          const prev = dpts[dpts.length - 1];
+          const { azimuth, distance } = inverseBearingDistance(prev, worldPt);
+          const bearingStr = formatBearing(azimuth);
+          const distStr = distance.toFixed(2);
+          // Compute running total distance after this leg.
+          let totalLegs = 0;
+          for (let i = 0; i + 1 < dpts.length; i += 1) {
+            totalLegs += Math.hypot(dpts[i + 1].x - dpts[i].x, dpts[i + 1].y - dpts[i].y);
+          }
+          const runningTotal = totalLegs + distance;
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: {
+              text: `INVERSE leg ${dpts.length} — Bearing: ${bearingStr}  Distance: ${distStr}′  (Total: ${runningTotal.toFixed(2)}′)`,
+            },
+          }));
+          // Advance the chain so the next click measures from
+          // here. The surveyor can chain as many legs as they
+          // want; Esc clears.
+          toolStore.addDrawingPoint(worldPt);
           break;
         }
 
