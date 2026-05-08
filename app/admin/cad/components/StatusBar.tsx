@@ -5,6 +5,17 @@ import { useState, useEffect, useRef } from 'react';
 import { useDrawingStore, useViewportStore, useSelectionStore, useToolStore } from '@/lib/cad/store';
 import { formatDistance, formatCoordinates, formatAngle } from '@/lib/cad/geometry/units';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import type { SnapType } from '@/lib/cad/types';
+
+const SNAP_TYPE_INFO: Array<{ type: SnapType; label: string; hint: string }> = [
+  { type: 'ENDPOINT',      label: 'Endpoint',      hint: 'Snap to the start / end of any line, polyline, or arc.' },
+  { type: 'MIDPOINT',      label: 'Midpoint',      hint: 'Snap to the midpoint of any line / arc.' },
+  { type: 'INTERSECTION',  label: 'Intersection',  hint: 'Snap to where two features cross.' },
+  { type: 'CENTER',        label: 'Center',        hint: 'Snap to the center of a circle, arc, or ellipse.' },
+  { type: 'PERPENDICULAR', label: 'Perpendicular', hint: 'Snap to the perpendicular foot from the cursor to a line / arc.' },
+  { type: 'NEAREST',       label: 'Nearest',       hint: 'Snap to the nearest point along any feature outline.' },
+  { type: 'GRID',          label: 'Grid',          hint: 'Snap to the nearest grid intersection.' },
+];
 
 const TOOL_LABELS: Record<string, string> = {
   SELECT: 'Select',
@@ -42,6 +53,7 @@ export default function StatusBar() {
   const { document: doc, activeLayerId } = drawingStore;
   const activeLayer = doc.layers[activeLayerId];
   const { snapEnabled, gridVisible, drawingScale } = doc.settings;
+  const enabledSnapTypes = doc.settings.snapTypes ?? [];
   const prefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
   const selCount = selectionStore.selectionCount();
   const { activeTool, drawingPoints, basePoint, rotateCenter, orthoEnabled, polarEnabled, polarAngle, copyMode } = toolStore.state;
@@ -53,6 +65,36 @@ export default function StatusBar() {
   const [zoomEditing, setZoomEditing] = useState(false);
   const [zoomInputValue, setZoomInputValue] = useState('');
   const zoomInputRef = useRef<HTMLInputElement>(null);
+
+  // Quick-snap popover state — anchored to the chevron next
+  // to the Snap: ON/OFF toggle.
+  const [snapPopoverOpen, setSnapPopoverOpen] = useState(false);
+  const snapPopoverRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!snapPopoverOpen) return undefined;
+    const onClickOutside = (e: MouseEvent) => {
+      if (snapPopoverRef.current && !snapPopoverRef.current.contains(e.target as Node)) {
+        setSnapPopoverOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSnapPopoverOpen(false);
+    };
+    window.addEventListener('mousedown', onClickOutside);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onClickOutside);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [snapPopoverOpen]);
+
+  function toggleSnapType(type: SnapType) {
+    const current = doc.settings.snapTypes ?? [];
+    const next = current.includes(type)
+      ? current.filter((t) => t !== type)
+      : [...current, type];
+    drawingStore.updateSettings({ snapTypes: next });
+  }
 
   // Sync input value whenever the external zoom changes (not while editing)
   useEffect(() => {
@@ -210,14 +252,78 @@ export default function StatusBar() {
         </>
       )}
 
-      {/* Snap toggle */}
-      <button
-        onClick={toggleSnap}
-        className={`hover:text-white transition-colors shrink-0 ${snapEnabled ? 'text-green-400' : 'text-gray-500'}`}
-        title="Toggle snap (F3)"
-      >
-        Snap: {snapEnabled ? 'ON' : 'OFF'}
-      </button>
+      {/* Snap toggle + per-type popover */}
+      <div className="relative flex items-center gap-0.5 shrink-0" ref={snapPopoverRef}>
+        <button
+          onClick={toggleSnap}
+          className={`hover:text-white transition-colors ${snapEnabled ? 'text-green-400' : 'text-gray-500'}`}
+          title="Toggle snap on/off (F3)"
+        >
+          Snap: {snapEnabled ? 'ON' : 'OFF'}
+        </button>
+        <button
+          onClick={() => setSnapPopoverOpen((v) => !v)}
+          className={`hover:text-white transition-colors px-0.5 ${snapPopoverOpen ? 'text-white' : 'text-gray-500'}`}
+          title="Toggle individual snap types"
+          aria-label="Snap type options"
+        >
+          ▾
+        </button>
+        {snapPopoverOpen && (
+          <div
+            className="absolute bottom-full left-0 mb-1 w-[260px] bg-gray-900 border border-gray-700 rounded-lg shadow-2xl z-[150] p-2 animate-[fadeIn_120ms_ease-out]"
+            role="menu"
+          >
+            <div className="text-[10px] uppercase tracking-wider text-gray-500 px-2 py-1 font-semibold flex items-center justify-between">
+              <span>Active Snap Types</span>
+              <span className="text-gray-600 normal-case tracking-normal text-[10px]">{enabledSnapTypes.length} of {SNAP_TYPE_INFO.length}</span>
+            </div>
+            <div className="max-h-72 overflow-y-auto">
+              {SNAP_TYPE_INFO.map((s) => {
+                const enabled = enabledSnapTypes.includes(s.type);
+                return (
+                  <button
+                    key={s.type}
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={enabled}
+                    className="w-full flex items-start gap-2 px-2 py-1.5 text-left text-xs hover:bg-gray-800 rounded transition-colors"
+                    onClick={() => toggleSnapType(s.type)}
+                  >
+                    <span className={`mt-0.5 inline-block w-3 h-3 border rounded-sm shrink-0 ${enabled ? 'bg-green-500 border-green-400' : 'border-gray-600 bg-gray-800'}`}>
+                      {enabled && (
+                        <svg viewBox="0 0 12 12" className="w-full h-full" fill="none" stroke="white" strokeWidth="2">
+                          <path d="M2 6 L5 9 L10 3" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className={`block ${enabled ? 'text-gray-200' : 'text-gray-400'}`}>{s.label}</span>
+                      <span className="block text-[10px] text-gray-500">{s.hint}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="border-t border-gray-700 mt-1 px-2 pt-1.5 pb-0.5 flex items-center gap-2">
+              <button
+                type="button"
+                className="flex-1 text-[10px] py-0.5 px-1.5 rounded bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+                onClick={() => drawingStore.updateSettings({ snapTypes: SNAP_TYPE_INFO.map((s) => s.type) })}
+              >
+                Enable all
+              </button>
+              <button
+                type="button"
+                className="flex-1 text-[10px] py-0.5 px-1.5 rounded bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+                onClick={() => drawingStore.updateSettings({ snapTypes: [] })}
+              >
+                Disable all
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <span className="text-gray-600">|</span>
 
