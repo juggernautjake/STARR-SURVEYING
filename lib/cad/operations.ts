@@ -360,6 +360,150 @@ export interface FilletResult {
   reason?: string;
 }
 
+/** Result of attempting a `chamferTwoLines`. `bevel` is the
+ *  new straight LINE that connects the two trim points. */
+export interface ChamferResult {
+  ok: boolean;
+  bevel?: Feature;
+  trimmedIds?: string[];
+  reason?: string;
+}
+
+/**
+ * Place a straight chamfer between two LINE features at
+ * their (extended) intersection. `dist1` trims line1 back
+ * from the intersection along its keep direction; `dist2`
+ * trims line2. Setting them equal produces a symmetric
+ * chamfer; unequal distances produce an asymmetric bevel —
+ * useful for surveyors who need a specific corner cut to
+ * match a road-design table.
+ *
+ * Algorithm — vastly simpler than fillet:
+ * 1. Find infinite-line intersection P of the two lines.
+ * 2. Compute unit "keep" directions u1, u2 from each click.
+ * 3. Trim points: T1 = P + dist1*u1, T2 = P + dist2*u2.
+ * 4. Trim each line so its end nearest P moves to T_i.
+ * 5. Insert a new LINE feature connecting T1 → T2.
+ *
+ * Returns false with a `reason` for parallel lines, lines
+ * shorter than the requested distance, or degenerate clicks.
+ */
+export function chamferTwoLines(
+  line1Id: string,
+  click1: Point2D,
+  line2Id: string,
+  click2: Point2D,
+  dist1: number,
+  dist2: number,
+): ChamferResult {
+  if (!Number.isFinite(dist1) || dist1 <= 0 || !Number.isFinite(dist2) || dist2 <= 0) {
+    return { ok: false, reason: 'Chamfer distances must be > 0.' };
+  }
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f1 = drawingStore.getFeature(line1Id);
+  const f2 = drawingStore.getFeature(line2Id);
+  if (!f1 || !f2) return { ok: false, reason: 'Lines not found.' };
+  if (f1.geometry.type !== 'LINE' || f2.geometry.type !== 'LINE') {
+    return { ok: false, reason: 'CHAMFER currently supports LINE features only.' };
+  }
+  const a1 = f1.geometry.start!;
+  const b1 = f1.geometry.end!;
+  const a2 = f2.geometry.start!;
+  const b2 = f2.geometry.end!;
+
+  const P = lineLineIntersection(a1, b1, a2, b2);
+  if (!P) return { ok: false, reason: 'Lines are parallel — no chamfer possible.' };
+
+  // Unit "keep" direction from P toward whichever endpoint
+  // the click is closer to. Same convention as fillet.
+  const keepDir = (line: { start: Point2D; end: Point2D }, click: Point2D): { x: number; y: number } | null => {
+    const dStart = Math.hypot(click.x - line.start.x, click.y - line.start.y);
+    const dEnd = Math.hypot(click.x - line.end.x, click.y - line.end.y);
+    const keepEnd = dEnd < dStart ? line.end : line.start;
+    const dx = keepEnd.x - P.x;
+    const dy = keepEnd.y - P.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-10) return null;
+    return { x: dx / len, y: dy / len };
+  };
+  const u1 = keepDir({ start: a1, end: b1 }, click1);
+  const u2 = keepDir({ start: a2, end: b2 }, click2);
+  if (!u1 || !u2) {
+    return { ok: false, reason: 'Click points are too close to the intersection — pick the leg you want to keep.' };
+  }
+
+  // Length of the keep leg from P. Validates the trim
+  // distance is achievable.
+  const lengthFromP = (line: { start: Point2D; end: Point2D }, click: Point2D): number => {
+    const dStart = Math.hypot(click.x - line.start.x, click.y - line.start.y);
+    const dEnd = Math.hypot(click.x - line.end.x, click.y - line.end.y);
+    const keepEnd = dEnd < dStart ? line.end : line.start;
+    return Math.hypot(keepEnd.x - P.x, keepEnd.y - P.y);
+  };
+  const len1 = lengthFromP({ start: a1, end: b1 }, click1);
+  const len2 = lengthFromP({ start: a2, end: b2 }, click2);
+  if (dist1 > len1 - 1e-6) {
+    return { ok: false, reason: `Distance 1 (${dist1.toFixed(3)}) exceeds line 1 length (${len1.toFixed(3)} ft).` };
+  }
+  if (dist2 > len2 - 1e-6) {
+    return { ok: false, reason: `Distance 2 (${dist2.toFixed(3)}) exceeds line 2 length (${len2.toFixed(3)} ft).` };
+  }
+
+  const T1: Point2D = { x: P.x + dist1 * u1.x, y: P.y + dist1 * u1.y };
+  const T2: Point2D = { x: P.x + dist2 * u2.x, y: P.y + dist2 * u2.y };
+
+  const trimLineToTangent = (line: Feature, tangent: Point2D, click: Point2D): Feature => {
+    if (line.geometry.type !== 'LINE') return line;
+    const ls = line.geometry.start!;
+    const le = line.geometry.end!;
+    const dStart = Math.hypot(click.x - ls.x, click.y - ls.y);
+    const dEnd = Math.hypot(click.x - le.x, click.y - le.y);
+    const swapStart = dStart > dEnd;
+    return {
+      ...line,
+      id: generateId(),
+      style: JSON.parse(JSON.stringify(line.style)),
+      properties: JSON.parse(JSON.stringify(line.properties)),
+      geometry: {
+        type: 'LINE',
+        start: swapStart ? tangent : ls,
+        end: swapStart ? le : tangent,
+      },
+    };
+  };
+  const trimmed1 = trimLineToTangent(f1, T1, click1);
+  const trimmed2 = trimLineToTangent(f2, T2, click2);
+
+  const bevel: Feature = {
+    ...f1,
+    id: generateId(),
+    type: 'LINE',
+    style: JSON.parse(JSON.stringify(f1.style)),
+    properties: JSON.parse(JSON.stringify(f1.properties)),
+    geometry: { type: 'LINE', start: T1, end: T2 },
+  };
+
+  drawingStore.removeFeature(f1.id);
+  drawingStore.removeFeature(f2.id);
+  drawingStore.addFeature(trimmed1);
+  drawingStore.addFeature(trimmed2);
+  drawingStore.addFeature(bevel);
+  const ops = [
+    { type: 'REMOVE_FEATURE' as const, data: f1 },
+    { type: 'REMOVE_FEATURE' as const, data: f2 },
+    { type: 'ADD_FEATURE' as const, data: trimmed1 },
+    { type: 'ADD_FEATURE' as const, data: trimmed2 },
+    { type: 'ADD_FEATURE' as const, data: bevel },
+  ];
+  const label = dist1 === dist2 ? `Chamfer ${dist1}` : `Chamfer ${dist1}/${dist2}`;
+  undoStore.pushUndo(makeBatchEntry(label, ops));
+  selectionStore.selectMultiple([trimmed1.id, trimmed2.id, bevel.id], 'REPLACE');
+
+  return { ok: true, bevel, trimmedIds: [trimmed1.id, trimmed2.id] };
+}
+
 /**
  * Place a circular fillet of `radius` between two LINE
  * features at their (extended) intersection. The two line

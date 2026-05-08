@@ -140,6 +140,7 @@ export default function ToolOptionsBar() {
   const showExtend = activeTool === 'EXTEND';
   const showJoin = activeTool === 'JOIN';
   const showFillet = activeTool === 'FILLET';
+  const showChamfer = activeTool === 'CHAMFER';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -771,6 +772,70 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click near the end of a line or polyline — that end (closer of the two) lengthens along its tangent until it hits the next feature. The bright green ghost shows the extension; a grey ring means nothing lies in the extension direction.
+          </span>
+        </>
+      )}
+
+      {/* ── CHAMFER tool options ───────────────────────────────────────────── */}
+      {showChamfer && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Chamfer Distances"
+            description="How far to trim each line back from the corner along its keep direction. Equal distances produce a symmetric chamfer (45° relative to a right-angle corner); unequal distances produce an asymmetric bevel — useful when matching a road-design table or property setback callout."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">D1:</span>
+              <input
+                type="number"
+                min={0.01}
+                step={0.5}
+                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-amber-500"
+                value={ts.chamferDistance1}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v > 0) toolStore.setChamferDistance1(v);
+                }}
+              />
+              <span className="text-[11px] text-gray-400 shrink-0">D2:</span>
+              <input
+                type="number"
+                min={0.01}
+                step={0.5}
+                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-amber-500"
+                value={ts.chamferDistance2}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v > 0) toolStore.setChamferDistance2(v);
+                }}
+              />
+              <button
+                className="px-1.5 h-6 rounded text-[10px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+                onClick={() => toolStore.setChamferDistance2(ts.chamferDistance1)}
+                title="Make D2 equal D1 (symmetric chamfer)"
+              >
+                = D1
+              </button>
+              <span className="text-[10px] text-gray-500">ft</span>
+            </div>
+          </Tooltip>
+          <Sep />
+          {ts.chamferPickedLineId && (
+            <button
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => toolStore.setChamferPickedLine(null, null)}
+              title="Cancel — restart line picking"
+            >
+              ✕
+            </button>
+          )}
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {!ts.chamferPickedLineId
+              ? 'Click first line on the side you want to keep'
+              : 'Click second line on the side you want to keep — cyan ghost shows the bevel'}
           </span>
         </>
       )}
@@ -1768,6 +1833,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   EXTEND: 'Extend',
   JOIN: 'Join',
   FILLET: 'Fillet',
+  CHAMFER: 'Chamfer',
   SCALE: 'Scale',
   ERASE: 'Erase',
   OFFSET: 'Offset',

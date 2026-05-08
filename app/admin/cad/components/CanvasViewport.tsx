@@ -72,6 +72,7 @@ import {
   extendFeatureTo,
   joinSelection,
   filletTwoLines,
+  chamferTwoLines,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -320,6 +321,54 @@ function keepEndOf(
   const dStart = Math.hypot(click.x - a.x, click.y - a.y);
   const dEnd = Math.hypot(click.x - b.x, click.y - b.y);
   return dEnd < dStart ? b : a;
+}
+
+/**
+ * Pure helper mirroring `chamferTwoLines` from operations.ts.
+ * Returns the two trim points + the connecting bevel line so
+ * the canvas can sketch a live preview while the surveyor
+ * hovers candidate second lines.
+ */
+function computeChamferPreview(
+  l1a: import('@/lib/cad/types').Point2D,
+  l1b: import('@/lib/cad/types').Point2D,
+  click1: import('@/lib/cad/types').Point2D,
+  l2a: import('@/lib/cad/types').Point2D,
+  l2b: import('@/lib/cad/types').Point2D,
+  click2: import('@/lib/cad/types').Point2D,
+  dist1: number,
+  dist2: number,
+): { tangent1: import('@/lib/cad/types').Point2D; tangent2: import('@/lib/cad/types').Point2D } | null {
+  if (!Number.isFinite(dist1) || dist1 <= 0 || !Number.isFinite(dist2) || dist2 <= 0) return null;
+  const denom = (l1a.x - l1b.x) * (l2a.y - l2b.y) - (l1a.y - l1b.y) * (l2a.x - l2b.x);
+  if (Math.abs(denom) < 1e-10) return null;
+  const tParam = ((l1a.x - l2a.x) * (l2a.y - l2b.y) - (l1a.y - l2a.y) * (l2a.x - l2b.x)) / denom;
+  const P = { x: l1a.x + tParam * (l1b.x - l1a.x), y: l1a.y + tParam * (l1b.y - l1a.y) };
+
+  const keepDir = (a: import('@/lib/cad/types').Point2D, b: import('@/lib/cad/types').Point2D, click: import('@/lib/cad/types').Point2D) => {
+    const dStart = Math.hypot(click.x - a.x, click.y - a.y);
+    const dEnd = Math.hypot(click.x - b.x, click.y - b.y);
+    const keepEnd = dEnd < dStart ? b : a;
+    const dx = keepEnd.x - P.x;
+    const dy = keepEnd.y - P.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-10) return null;
+    return { x: dx / len, y: dy / len };
+  };
+  const u1 = keepDir(l1a, l1b, click1);
+  const u2 = keepDir(l2a, l2b, click2);
+  if (!u1 || !u2) return null;
+
+  const k1 = keepEndOf(l1a, l1b, click1);
+  const k2 = keepEndOf(l2a, l2b, click2);
+  const len1 = Math.hypot(k1.x - P.x, k1.y - P.y);
+  const len2 = Math.hypot(k2.x - P.x, k2.y - P.y);
+  if (dist1 > len1 - 1e-6 || dist2 > len2 - 1e-6) return null;
+
+  return {
+    tangent1: { x: P.x + dist1 * u1.x, y: P.y + dist1 * u1.y },
+    tangent2: { x: P.x + dist2 * u2.x, y: P.y + dist2 * u2.y },
+  };
 }
 
 /**
@@ -3415,6 +3464,92 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const f = drawing.getFeature(id);
         if (!f) continue;
         drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, Math.PI), w2s);
+      }
+      return;
+    }
+
+    // For CHAMFER: same flow as FILLET preview but ghosts a
+    // straight bevel between the two trim points instead of
+    // an arc.
+    if (activeTool === 'CHAMFER') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+      const all = drawing.getAllFeatures();
+
+      if (ts.chamferPickedLineId) {
+        const f = drawing.getFeature(ts.chamferPickedLineId);
+        if (f && f.geometry.type === 'LINE' && f.geometry.start && f.geometry.end) {
+          const a = w2s(f.geometry.start.x, f.geometry.start.y);
+          const b = w2s(f.geometry.end.x, f.geometry.end.y);
+          g.lineStyle(2.5, 0x99ff44, 0.6);
+          g.moveTo(a.sx, a.sy);
+          g.lineTo(b.sx, b.sy);
+          if (ts.chamferPickedClickPoint) {
+            const cp = w2s(ts.chamferPickedClickPoint.x, ts.chamferPickedClickPoint.y);
+            g.beginFill(0x99ff44, 0.95);
+            g.drawCircle(cp.sx, cp.sy, 4);
+            g.endFill();
+          }
+        }
+      }
+
+      let hoverId: string | null = null;
+      let hoverDist = Infinity;
+      for (const f of all) {
+        if (f.geometry.type !== 'LINE') continue;
+        const fg = f.geometry;
+        if (!fg.start || !fg.end) continue;
+        const dx = fg.end.x - fg.start.x;
+        const dy = fg.end.y - fg.start.y;
+        const len2 = dx * dx + dy * dy;
+        if (len2 < 1e-20) continue;
+        let t = ((previewPoint.x - fg.start.x) * dx + (previewPoint.y - fg.start.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const px = fg.start.x + t * dx;
+        const py = fg.start.y + t * dy;
+        const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+        const dPx = d * useViewportStore.getState().zoom;
+        if (dPx < hoverDist && dPx < 14) {
+          hoverDist = dPx;
+          hoverId = f.id;
+        }
+      }
+      if (hoverId && hoverId !== ts.chamferPickedLineId) {
+        const f = drawing.getFeature(hoverId);
+        if (f && f.geometry.type === 'LINE' && f.geometry.start && f.geometry.end) {
+          const a = w2s(f.geometry.start.x, f.geometry.start.y);
+          const b = w2s(f.geometry.end.x, f.geometry.end.y);
+          g.lineStyle(2, 0x88ff88, 0.45);
+          g.moveTo(a.sx, a.sy);
+          g.lineTo(b.sx, b.sy);
+        }
+      }
+
+      if (ts.chamferPickedLineId && hoverId && hoverId !== ts.chamferPickedLineId && ts.chamferPickedClickPoint) {
+        const f1 = drawing.getFeature(ts.chamferPickedLineId);
+        const f2 = drawing.getFeature(hoverId);
+        if (
+          f1 && f2 &&
+          f1.geometry.type === 'LINE' && f2.geometry.type === 'LINE' &&
+          f1.geometry.start && f1.geometry.end && f2.geometry.start && f2.geometry.end
+        ) {
+          const previewBevel = computeChamferPreview(
+            f1.geometry.start, f1.geometry.end, ts.chamferPickedClickPoint,
+            f2.geometry.start, f2.geometry.end, previewPoint,
+            ts.chamferDistance1, ts.chamferDistance2,
+          );
+          if (previewBevel) {
+            g.lineStyle(2, 0x44ddff, 0.85);
+            const t1 = w2s(previewBevel.tangent1.x, previewBevel.tangent1.y);
+            const t2 = w2s(previewBevel.tangent2.x, previewBevel.tangent2.y);
+            g.moveTo(t1.sx, t1.sy);
+            g.lineTo(t2.sx, t2.sy);
+            g.beginFill(0x44ddff, 0.95);
+            g.drawCircle(t1.sx, t1.sy, 3);
+            g.drawCircle(t2.sx, t2.sy, 3);
+            g.endFill();
+          }
+        }
       }
       return;
     }
@@ -6613,6 +6748,44 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }));
           }
           toolStore.setFilletPickedLine(null, null);
+          break;
+        }
+
+        case 'CHAMFER': {
+          // CHAMFER: identical two-click flow to FILLET but
+          // produces a straight LINE bevel instead of an ARC.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const f = drawingStore.getFeature(hit);
+          if (!f || f.geometry.type !== 'LINE') {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'CHAMFER — pick a LINE feature.' },
+            }));
+            break;
+          }
+          if (!toolState.chamferPickedLineId) {
+            toolStore.setChamferPickedLine(hit, worldPt);
+            selectionStore.select(hit, 'REPLACE');
+            break;
+          }
+          if (toolState.chamferPickedLineId === hit) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'CHAMFER — pick a different second line.' },
+            }));
+            break;
+          }
+          const cClick1 = toolState.chamferPickedClickPoint!;
+          const cResult = chamferTwoLines(
+            toolState.chamferPickedLineId, cClick1,
+            hit, worldPt,
+            toolState.chamferDistance1, toolState.chamferDistance2,
+          );
+          if (!cResult.ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: `CHAMFER — ${cResult.reason ?? 'failed'}` },
+            }));
+          }
+          toolStore.setChamferPickedLine(null, null);
           break;
         }
 

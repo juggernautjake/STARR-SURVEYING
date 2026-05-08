@@ -492,6 +492,7 @@ export type ToolType =
   | 'EXTEND'
   | 'JOIN'
   | 'FILLET'
+  | 'CHAMFER'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
@@ -662,6 +663,18 @@ export interface ToolState {
    */
   filletPickedLineId: string | null;
   filletPickedClickPoint: Point2D | null;
+
+  // ── CHAMFER tool ──
+  /** Distance trimmed back from the corner along line 1 (feet). */
+  chamferDistance1: number;
+  /** Distance trimmed back from the corner along line 2 (feet). Setting equal to distance1 produces a symmetric chamfer. */
+  chamferDistance2: number;
+  /**
+   * The first line picked during the CHAMFER two-click flow.
+   * Same convention as `filletPickedLineId`.
+   */
+  chamferPickedLineId: string | null;
+  chamferPickedClickPoint: Point2D | null;
 }
 
 // --- UNDO ---

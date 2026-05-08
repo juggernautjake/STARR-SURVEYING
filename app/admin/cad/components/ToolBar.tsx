@@ -24,6 +24,7 @@ import {
   MoveUpRight,
   Link2,
   CornerDownRight,
+  Triangle,
   Eraser,
   Expand,
   ZoomIn,
@@ -365,7 +366,8 @@ function buildToolGroups(
         { tool: 'TRIM',   label: 'Trim',          description: 'Click a portion of a line or polyline that lies between two crossings with other features — the clicked section is removed. When only one side has a crossing, the remainder on that side stays. When the source has no crossings, the click deletes it.', shortcut: 'TR', icon: <ScissorsLineDashed size={14} /> },
         { tool: 'EXTEND', label: 'Extend',        description: 'Click on the end of a line or polyline (cursor closer to one endpoint than the other) to lengthen that end along its tangent until it hits another feature. No-op if no target lies in the extension direction.', shortcut: 'EX', icon: <MoveUpRight size={14} /> },
         { tool: 'JOIN',   label: 'Join',          description: 'Merge two or more selected lines/polylines that form a single chain into one POLYLINE. Click features to build up the selection then click empty space (or press Apply) to commit. Endpoints must coincide within 0.01 ft.', shortcut: 'JN', icon: <Link2 size={14} /> },
-        { tool: 'FILLET', label: 'Fillet',        description: 'Round the corner between two LINE features with a circular arc of the radius set in the options bar. Click each line on the side you want to keep — the lines trim back to the arc tangent points and a new ARC feature is inserted between.', shortcut: 'FT', icon: <CornerDownRight size={14} /> },
+        { tool: 'FILLET',  label: 'Fillet',       description: 'Round the corner between two LINE features with a circular arc of the radius set in the options bar. Click each line on the side you want to keep — the lines trim back to the arc tangent points and a new ARC feature is inserted between.', shortcut: 'FT', icon: <CornerDownRight size={14} /> },
+        { tool: 'CHAMFER', label: 'Chamfer',      description: 'Bevel the corner between two LINE features with a straight LINE. Click each line on the side you want to keep — the lines trim back by Distance 1 / Distance 2 from the corner, and a new straight bevel connects the trim points. Equal distances = symmetric chamfer; unequal = asymmetric.', shortcut: 'CF', icon: <Triangle size={14} /> },
       ],
     },
 

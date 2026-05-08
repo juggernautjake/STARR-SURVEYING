@@ -45,6 +45,9 @@ interface ToolStore {
   setArrayPolarCenter: (center: Point2D | null) => void;
   setFilletRadius: (r: number) => void;
   setFilletPickedLine: (id: string | null, click: Point2D | null) => void;
+  setChamferDistance1: (d: number) => void;
+  setChamferDistance2: (d: number) => void;
+  setChamferPickedLine: (id: string | null, click: Point2D | null) => void;
   resetToolState: () => void;
 }
 
@@ -98,6 +101,10 @@ const defaultToolState: ToolState = {
   filletRadius: 5,
   filletPickedLineId: null,
   filletPickedClickPoint: null,
+  chamferDistance1: 5,
+  chamferDistance2: 5,
+  chamferPickedLineId: null,
+  chamferPickedClickPoint: null,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -140,6 +147,9 @@ export const useToolStore = create<ToolStore>((set) => ({
         // arrayPolarCenter resets on tool switch — bound to a single pick session.
         filletRadius: s.state.filletRadius,
         // filletPickedLineId resets on tool switch — bound to a two-click session.
+        chamferDistance1: s.state.chamferDistance1,
+        chamferDistance2: s.state.chamferDistance2,
+        // chamferPickedLineId resets on tool switch.
       },
     })),
 
@@ -331,6 +341,31 @@ export const useToolStore = create<ToolStore>((set) => ({
       },
     })),
 
+  setChamferDistance1: (d) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        chamferDistance1: Number.isFinite(d) && d > 0 ? d : 0.01,
+      },
+    })),
+
+  setChamferDistance2: (d) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        chamferDistance2: Number.isFinite(d) && d > 0 ? d : 0.01,
+      },
+    })),
+
+  setChamferPickedLine: (id, click) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        chamferPickedLineId: id,
+        chamferPickedClickPoint: click,
+      },
+    })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -366,6 +401,10 @@ export const useToolStore = create<ToolStore>((set) => ({
         filletRadius: s.state.filletRadius,
         filletPickedLineId: null,
         filletPickedClickPoint: null,
+        chamferDistance1: s.state.chamferDistance1,
+        chamferDistance2: s.state.chamferDistance2,
+        chamferPickedLineId: null,
+        chamferPickedClickPoint: null,
       },
     })),
 }));
