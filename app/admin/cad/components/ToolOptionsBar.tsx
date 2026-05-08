@@ -150,6 +150,7 @@ export default function ToolOptionsBar() {
   const showPerpendicular = activeTool === 'PERPENDICULAR';
   const showSmoothPolyline = activeTool === 'SMOOTH_POLYLINE';
   const showSimplifyPolyline = activeTool === 'SIMPLIFY_POLYLINE';
+  const showInsertVertex = activeTool === 'INSERT_VERTEX';
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showDim = activeTool === 'DIM';
@@ -814,6 +815,16 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click two points to place a permanent bearing + distance annotation. The TEXT label rotates parallel to the dimension line and offsets 6 ft perpendicular so it reads clear of the geometry.
+          </span>
+        </>
+      )}
+
+      {/* ── INSERT_VERTEX tool options ─────────────────────────────────────── */}
+      {showInsertVertex && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click on any POLYLINE or POLYGON edge to insert a new vertex at the click point. The cyan ring shows where the vertex will land. Endpoint-coincident clicks are no-ops.
           </span>
         </>
       )}
@@ -2096,6 +2107,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   PERPENDICULAR: 'Perpendicular',
   SMOOTH_POLYLINE: 'Smooth Polyline',
   SIMPLIFY_POLYLINE: 'Simplify Polyline',
+  INSERT_VERTEX: 'Insert Vertex',
   MEASURE_AREA: 'Measure Area',
   DIM: 'Dimension',
   SCALE: 'Scale',

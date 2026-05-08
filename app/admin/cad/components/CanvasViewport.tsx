@@ -82,6 +82,7 @@ import {
   dropPerpendicular,
   smoothPolyline,
   simplifyPolylineFeature,
+  insertVertexAt,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -4162,6 +4163,84 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For INSERT_VERTEX: highlight the hovered POLYLINE /
+    // POLYGON in faint cyan and drop a small filled cyan
+    // marker at the closest point on the geometry — that's
+    // where the new vertex will land.
+    if (activeTool === 'INSERT_VERTEX') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      let bestInsertPt: Point2D | null = null;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'MIXED_GEOMETRY' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+          isClosed = true;
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestIsClosed = isClosed;
+            bestInsertPt = { x: px, y: py };
+          }
+        }
+      }
+      if (!bestId || !bestChain || !bestInsertPt) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Faint outline of the source
+      g.lineStyle(2, 0x44ddff, 0.45);
+      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestChain.length; i += 1) {
+        const sp = w2s(bestChain[i].x, bestChain[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+      // Existing vertices — small dim dots
+      g.beginFill(0x44ddff, 0.45);
+      for (const v of bestChain) {
+        const sp = w2s(v.x, v.y);
+        g.drawCircle(sp.sx, sp.sy, 2);
+      }
+      g.endFill();
+      // Insert position — bright cyan ring + crosshair
+      const ip = w2s(bestInsertPt.x, bestInsertPt.y);
+      g.lineStyle(2, 0x44ddff, 0.95);
+      g.drawCircle(ip.sx, ip.sy, 5);
+      g.moveTo(ip.sx - 8, ip.sy); g.lineTo(ip.sx + 8, ip.sy);
+      g.moveTo(ip.sx, ip.sy - 8); g.lineTo(ip.sx, ip.sy + 8);
+      return;
+    }
+
     // For SIMPLIFY_POLYLINE: highlight the hovered chain in
     // faint orange, then run RDP at the toolbar tolerance
     // and ghost the predicted reduced chain in bright orange
@@ -7692,6 +7771,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'REVERSE — feature direction flipped.' },
+            }));
+          }
+          break;
+        }
+
+        case 'INSERT_VERTEX': {
+          // INSERT_VERTEX: click on a POLYLINE / POLYGON
+          // edge to insert a new vertex at the click point.
+          // No-op when the click lands on an existing vertex.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const ok = insertVertexAt(hit, worldPt);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'INSERT VERTEX — pick a POLYLINE or POLYGON edge (clicks on existing vertices are no-ops).' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'INSERT VERTEX — vertex inserted on the closest segment.' },
             }));
           }
           break;

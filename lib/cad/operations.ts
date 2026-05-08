@@ -363,6 +363,89 @@ export interface FilletResult {
 }
 
 /**
+ * Insert a new vertex into a POLYLINE / POLYGON /
+ * MIXED_GEOMETRY feature at the closest point on its
+ * geometry to `worldPt`. Useful when the surveyor wants to
+ * add a corner where an imported polyline is missing one
+ * (e.g. a property boundary that needs a new monument call-
+ * out partway down a leg).
+ *
+ * - LINE sources are not supported — splitting a LINE adds a
+ *   vertex by definition, but the result has to be a POLYLINE
+ *   (since LINE has only start/end). Surveyors should use the
+ *   SPLIT tool instead.
+ * - The new vertex lands on the closest segment; existing
+ *   vertices are kept in order.
+ * - Endpoint-coincident clicks are no-ops to avoid creating
+ *   degenerate adjacent duplicates.
+ *
+ * Returns true on a successful mutation.
+ */
+export function insertVertexAt(featureId: string, worldPt: Point2D): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let isClosed = false;
+  let chain: Point2D[] | null = null;
+  if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else if (g.type === 'MIXED_GEOMETRY' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+
+  const eps = 1e-6;
+  const segCount = isClosed ? chain.length : chain.length - 1;
+  let bestIdx = 0;
+  let bestPt: Point2D | null = null;
+  let bestDist = Infinity;
+  for (let i = 0; i < segCount; i += 1) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    const cp = closestPointOnSegment(worldPt, a, b);
+    const d = Math.hypot(worldPt.x - cp.point.x, worldPt.y - cp.point.y);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+      bestPt = cp.point;
+    }
+  }
+  if (!bestPt) return false;
+  // Skip when the click lands exactly on an existing vertex.
+  const segA = chain[bestIdx];
+  const segB = chain[(bestIdx + 1) % chain.length];
+  if (
+    Math.hypot(bestPt.x - segA.x, bestPt.y - segA.y) < eps ||
+    Math.hypot(bestPt.x - segB.x, bestPt.y - segB.y) < eps
+  ) {
+    return false;
+  }
+
+  // Build the new vertex array — bestPt slots in between
+  // bestIdx and (bestIdx + 1).
+  const newVertices = [
+    ...chain.slice(0, bestIdx + 1),
+    bestPt,
+    ...chain.slice(bestIdx + 1),
+  ];
+  const before = f;
+  const newGeom: Feature['geometry'] = isClosed
+    ? { ...g, type: 'POLYGON', vertices: newVertices }
+    : { ...g, type: g.type, vertices: newVertices };
+  drawingStore.updateFeatureGeometry(featureId, newGeom);
+  const after = drawingStore.getFeature(featureId);
+  if (!after) return false;
+  undoStore.pushUndo(makeBatchEntry('Insert Vertex', [
+    { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
+  ]));
+  return true;
+}
+
+/**
  * Reduce the vertex count of a POLYLINE / POLYGON feature
  * via Ramer-Douglas-Peucker, dropping any vertex whose
  * perpendicular distance to its kept neighbours is smaller

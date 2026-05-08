@@ -501,6 +501,7 @@ export type ToolType =
   | 'PERPENDICULAR'
   | 'SMOOTH_POLYLINE'
   | 'SIMPLIFY_POLYLINE'
+  | 'INSERT_VERTEX'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'

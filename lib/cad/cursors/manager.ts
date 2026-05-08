@@ -119,6 +119,7 @@ export function resolveCursor(ctx: CursorContext): CursorType {
     case 'DIVIDE':
     case 'EXPLODE':
     case 'POINT_AT_DISTANCE':
+    case 'INSERT_VERTEX':
       return 'CROSSHAIR';
 
     // Style / direction operations
