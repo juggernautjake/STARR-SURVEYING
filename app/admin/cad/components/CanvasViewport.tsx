@@ -81,6 +81,7 @@ import {
   pointAtDistanceAlong,
   dropPerpendicular,
   smoothPolyline,
+  simplifyPolylineFeature,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -98,6 +99,8 @@ import {
   arcGripPoints,
   splineGripPoints,
   fitPointsToBezier,
+} from '@/lib/cad/geometry/curve-render';
+import {
   bezierToFitPoints,
   getSplineHandles,
   insertInflectionPoint,
@@ -105,6 +108,7 @@ import {
   arcFrom3Points,
   type GraphicsLike,
 } from '@/lib/cad/geometry/curve-render';
+import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
 import InteractiveOpPanel from './InteractiveOpPanel';
@@ -4158,6 +4162,93 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For SIMPLIFY_POLYLINE: highlight the hovered chain in
+    // faint orange, then run RDP at the toolbar tolerance
+    // and ghost the predicted reduced chain in bright orange
+    // so the surveyor sees both vertex counts at a glance.
+    if (activeTool === 'SIMPLIFY_POLYLINE') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestVerts: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 3) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 3) {
+          chain = fg.vertices;
+          isClosed = true;
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestVerts = chain;
+            bestIsClosed = isClosed;
+          }
+        }
+      }
+      if (!bestId || !bestVerts) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Faint source outline + every vertex as a small dot
+      g.lineStyle(1.5, 0xff8844, 0.35);
+      const sp0 = w2s(bestVerts[0].x, bestVerts[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestVerts.length; i += 1) {
+        const sp = w2s(bestVerts[i].x, bestVerts[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+      g.beginFill(0xff8844, 0.35);
+      for (const v of bestVerts) {
+        const sp = w2s(v.x, v.y);
+        g.drawCircle(sp.sx, sp.sy, 2);
+      }
+      g.endFill();
+      // Predicted reduced chain — full-strength orange + larger dots
+      const reduced = simplifyPolylineFn(bestVerts, ts.simplifyTolerance, bestIsClosed);
+      if (reduced.length >= 2 && reduced.length < bestVerts.length) {
+        g.lineStyle(2, 0xff8844, 0.95);
+        const rp0 = w2s(reduced[0].x, reduced[0].y);
+        g.moveTo(rp0.sx, rp0.sy);
+        for (let i = 1; i < reduced.length; i += 1) {
+          const sp = w2s(reduced[i].x, reduced[i].y);
+          g.lineTo(sp.sx, sp.sy);
+        }
+        if (bestIsClosed) g.lineTo(rp0.sx, rp0.sy);
+        g.beginFill(0xff8844, 0.95);
+        for (const v of reduced) {
+          const sp = w2s(v.x, v.y);
+          g.drawCircle(sp.sx, sp.sy, 4);
+        }
+        g.endFill();
+      }
+      return;
+    }
+
     // For SMOOTH_POLYLINE: highlight the hovered POLYLINE /
     // POLYGON in faint cyan + ghost the predicted spline in
     // bright cyan so the surveyor sees the curve before
@@ -7601,6 +7692,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'REVERSE — feature direction flipped.' },
+            }));
+          }
+          break;
+        }
+
+        case 'SIMPLIFY_POLYLINE': {
+          // SIMPLIFY_POLYLINE: click any POLYLINE / POLYGON
+          // to drop redundant vertices via RDP at the
+          // toolbar tolerance. Useful for cleaning up GPS
+          // traces, scanned-PDF traces, polygons-from-pixel-
+          // trace, or any other noisy import.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const beforeF = drawingStore.getFeature(hit);
+          const ok = simplifyPolylineFeature(hit, toolState.simplifyTolerance);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'SIMPLIFY — pick a POLYLINE / POLYGON; tolerance may be too small to drop any vertices.' },
+            }));
+          } else {
+            const afterF = drawingStore.getFeature(hit);
+            const beforeN = (beforeF?.geometry.vertices?.length ?? 0);
+            const afterN = (afterF?.geometry.vertices?.length ?? 0);
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: `SIMPLIFY — reduced ${beforeN} → ${afterN} vertices (tolerance ${toolState.simplifyTolerance}′).` },
             }));
           }
           break;

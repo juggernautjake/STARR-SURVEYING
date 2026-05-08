@@ -149,6 +149,7 @@ export default function ToolOptionsBar() {
   const showPointAtDistance = activeTool === 'POINT_AT_DISTANCE';
   const showPerpendicular = activeTool === 'PERPENDICULAR';
   const showSmoothPolyline = activeTool === 'SMOOTH_POLYLINE';
+  const showSimplifyPolyline = activeTool === 'SIMPLIFY_POLYLINE';
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showDim = activeTool === 'DIM';
@@ -813,6 +814,39 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click two points to place a permanent bearing + distance annotation. The TEXT label rotates parallel to the dimension line and offsets 6 ft perpendicular so it reads clear of the geometry.
+          </span>
+        </>
+      )}
+
+      {/* ── SIMPLIFY_POLYLINE tool options ─────────────────────────────────── */}
+      {showSimplifyPolyline && (
+        <>
+          <Sep />
+          <Tooltip
+            label="RDP Tolerance"
+            description="Distance tolerance for the Ramer-Douglas-Peucker simplification, in feet. Vertices closer than this to the line through their kept neighbours get dropped. Smaller = more vertices preserved (precise); larger = more aggressive pruning (smoother)."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">Tol:</span>
+              <input
+                type="number"
+                min={0.01}
+                step={0.1}
+                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-orange-500"
+                value={ts.simplifyTolerance}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v > 0) toolStore.setSimplifyTolerance(v);
+                }}
+              />
+              <span className="text-[10px] text-gray-500">ft</span>
+            </div>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any POLYLINE / POLYGON. Faint orange shows the source; bright orange shows the predicted reduced chain.
           </span>
         </>
       )}
@@ -2061,6 +2095,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   POINT_AT_DISTANCE: 'Point at Distance',
   PERPENDICULAR: 'Perpendicular',
   SMOOTH_POLYLINE: 'Smooth Polyline',
+  SIMPLIFY_POLYLINE: 'Simplify Polyline',
   MEASURE_AREA: 'Measure Area',
   DIM: 'Dimension',
   SCALE: 'Scale',

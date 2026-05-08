@@ -500,6 +500,7 @@ export type ToolType =
   | 'POINT_AT_DISTANCE'
   | 'PERPENDICULAR'
   | 'SMOOTH_POLYLINE'
+  | 'SIMPLIFY_POLYLINE'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
@@ -724,6 +725,16 @@ export interface ToolState {
    * tool reset.
    */
   perpendicularSourcePoint: Point2D | null;
+
+  // ── SIMPLIFY_POLYLINE tool ──
+  /**
+   * Distance tolerance for Ramer-Douglas-Peucker
+   * simplification. Vertices closer than this to the line
+   * through their kept neighbours get dropped. Default 0.5
+   * ft (good for typical surveyed boundaries; reduce for
+   * tight tolerance work, increase for noisy GPS traces).
+   */
+  simplifyTolerance: number;
 }
 
 // --- UNDO ---

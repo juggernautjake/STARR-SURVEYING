@@ -53,6 +53,7 @@ interface ToolStore {
   setPointAtDistanceValue: (v: number) => void;
   setPointAtDistanceFromEnd: (v: boolean) => void;
   setPerpendicularSourcePoint: (p: Point2D | null) => void;
+  setSimplifyTolerance: (v: number) => void;
   resetToolState: () => void;
 }
 
@@ -115,6 +116,7 @@ const defaultToolState: ToolState = {
   pointAtDistanceValue: 50,
   pointAtDistanceFromEnd: false,
   perpendicularSourcePoint: null,
+  simplifyTolerance: 0.5,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -165,6 +167,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         pointAtDistanceValue: s.state.pointAtDistanceValue,
         pointAtDistanceFromEnd: s.state.pointAtDistanceFromEnd,
         // perpendicularSourcePoint resets on tool switch.
+        simplifyTolerance: s.state.simplifyTolerance,
       },
     })),
 
@@ -406,6 +409,14 @@ export const useToolStore = create<ToolStore>((set) => ({
   setPerpendicularSourcePoint: (p) =>
     set((s) => ({ state: { ...s.state, perpendicularSourcePoint: p } })),
 
+  setSimplifyTolerance: (v) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        simplifyTolerance: Number.isFinite(v) && v > 0 ? v : 0.01,
+      },
+    })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -450,6 +461,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         pointAtDistanceValue: s.state.pointAtDistanceValue,
         pointAtDistanceFromEnd: s.state.pointAtDistanceFromEnd,
         perpendicularSourcePoint: null,
+        simplifyTolerance: s.state.simplifyTolerance,
       },
     })),
 }));

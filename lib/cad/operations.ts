@@ -8,6 +8,7 @@ import { computeBounds } from './geometry/bounds';
 import { closestPointOnSegment } from './geometry/point';
 import { segmentSegmentIntersection, lineLineIntersection } from './geometry/intersection';
 import { fitPointsToBezier } from './geometry/curve-render';
+import { simplifyPolyline } from './geometry/simplify';
 import {
   offsetPolyline,
   offsetArc,
@@ -359,6 +360,56 @@ export interface FilletResult {
   arc?: Feature;
   trimmedIds?: string[];
   reason?: string;
+}
+
+/**
+ * Reduce the vertex count of a POLYLINE / POLYGON feature
+ * via Ramer-Douglas-Peucker, dropping any vertex whose
+ * perpendicular distance to its kept neighbours is smaller
+ * than `tolerance`. Useful for cleaning up noisy imports —
+ * GPS traces, scanned-PDF traces, polygons-from-pixel-trace.
+ *
+ * Returns true on a successful mutation. No-op when the
+ * tolerance produces no reduction (every vertex matters at
+ * the chosen tolerance).
+ */
+export function simplifyPolylineFeature(
+  featureId: string,
+  tolerance: number,
+): boolean {
+  if (!Number.isFinite(tolerance) || tolerance <= 0) return false;
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let isClosed = false;
+  let verts: Point2D[] | null = null;
+  if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 3) verts = g.vertices.slice();
+  else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 3) {
+    verts = g.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+
+  const reduced = simplifyPolyline(verts, tolerance, isClosed);
+  // Reject no-op simplifications so the surveyor doesn't
+  // log a meaningless undo entry.
+  if (reduced.length === verts.length) return false;
+  if (reduced.length < 2) return false;
+
+  const before = f;
+  const newGeom: Feature['geometry'] = isClosed
+    ? { ...g, type: 'POLYGON', vertices: reduced }
+    : { ...g, type: 'POLYLINE', vertices: reduced };
+  drawingStore.updateFeatureGeometry(featureId, newGeom);
+  const after = drawingStore.getFeature(featureId);
+  if (!after) return false;
+  undoStore.pushUndo(makeBatchEntry(`Simplify (${verts.length} → ${reduced.length})`, [
+    { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
+  ]));
+  return true;
 }
 
 /**
