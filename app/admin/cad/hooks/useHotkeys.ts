@@ -268,6 +268,53 @@ export function dispatchDefaultAction(action: BindableAction): void {
       window.dispatchEvent(new CustomEvent('cad:openShortcutHelp'));
       return;
 
+    case 'view.stats': {
+      // Drawing stats — feature count by type, total polygon
+      // area, total line length, layer count. Fires through
+      // the command bar so the surveyor can copy the result
+      // out of the output channel.
+      const drawing = useDrawingStore.getState();
+      const features = drawing.getAllFeatures();
+      const byType: Record<string, number> = {};
+      let totalLineLength = 0;
+      let totalPolygonArea = 0;
+      for (const f of features) {
+        const t = f.geometry.type;
+        byType[t] = (byType[t] ?? 0) + 1;
+        if (t === 'LINE' && f.geometry.start && f.geometry.end) {
+          totalLineLength += Math.hypot(
+            f.geometry.end.x - f.geometry.start.x,
+            f.geometry.end.y - f.geometry.start.y,
+          );
+        } else if (t === 'POLYLINE' && f.geometry.vertices) {
+          for (let i = 0; i + 1 < f.geometry.vertices.length; i += 1) {
+            totalLineLength += Math.hypot(
+              f.geometry.vertices[i + 1].x - f.geometry.vertices[i].x,
+              f.geometry.vertices[i + 1].y - f.geometry.vertices[i].y,
+            );
+          }
+        } else if (t === 'POLYGON' && f.geometry.vertices && f.geometry.vertices.length >= 3) {
+          // Shoelace area
+          let dbl = 0;
+          const v = f.geometry.vertices;
+          for (let i = 0; i < v.length; i += 1) {
+            const j = (i + 1) % v.length;
+            dbl += v[i].x * v[j].y - v[j].x * v[i].y;
+          }
+          totalPolygonArea += Math.abs(dbl / 2);
+        }
+      }
+      const layerCount = Object.keys(drawing.document.layers).length;
+      const typeSummary = Object.entries(byType)
+        .sort((a, b) => b[1] - a[1])
+        .map(([type, n]) => `${n} ${type.toLowerCase()}`)
+        .join(', ');
+      const acres = totalPolygonArea / 43560;
+      const text = `Drawing — ${features.length} features (${typeSummary}); ${layerCount} layer${layerCount === 1 ? '' : 's'}; line length ${totalLineLength.toFixed(2)}′; polygon area ${totalPolygonArea.toFixed(2)} sq ft (${acres.toFixed(4)} ac).`;
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', { detail: { text } }));
+      return;
+    }
+
     // ── Preset switchers ────────────────────────────
     case 'preset.autocad':
       applyHotkeyPreset('AUTOCAD');

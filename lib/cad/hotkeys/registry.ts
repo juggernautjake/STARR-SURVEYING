@@ -78,6 +78,7 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'view.commandBar',   category: 'APP',        label: 'Focus Command Bar',    description: 'Move focus to the command bar',               defaultKey: 'ctrl+shift+k', isChord: false, context: 'GLOBAL' },
   { id: 'view.commandPalette', category: 'APP',      label: 'Open Command Palette', description: 'Open the searchable command palette',         defaultKey: 'ctrl+k',       isChord: false, context: 'GLOBAL' },
   { id: 'view.shortcutHelp', category: 'APP',        label: 'Keyboard Shortcuts',   description: 'Show a cheat-sheet of every keyboard binding grouped by category', defaultKey: 'shift+slash',  isChord: false, context: 'GLOBAL' },
+  { id: 'view.stats',        category: 'APP',        label: 'Drawing Stats',         description: 'Print a summary of the current drawing (feature count, total polygon area, total line length, layer count) to the command bar.', defaultKey: '', isChord: false, context: 'GLOBAL' },
 
   // Preset switchers — surfaced via the command palette so
   // the surveyor can swap between AutoCAD aliases and the
