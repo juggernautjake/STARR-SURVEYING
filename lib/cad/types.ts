@@ -495,6 +495,7 @@ export type ToolType =
   | 'CHAMFER'
   | 'DIVIDE'
   | 'EXPLODE'
+  | 'REVERSE'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'

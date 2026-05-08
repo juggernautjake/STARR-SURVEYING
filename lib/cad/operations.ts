@@ -361,6 +361,46 @@ export interface FilletResult {
 }
 
 /**
+ * Reverse the vertex order of a LINE / POLYLINE / POLYGON /
+ * MIXED_GEOMETRY feature. Useful when a direction-dependent
+ * downstream operation (offset side, DIVIDE numbering, label
+ * rotation) was set up against the import's direction and
+ * the surveyor needs to flip it without redrawing.
+ *
+ * LINE swaps start and end. Vertex chains reverse the
+ * `vertices[]` array. Curved sources are out of scope (their
+ * parametric form encodes direction differently per type).
+ * Returns true on success.
+ */
+export function reverseFeature(featureId: string): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let newGeom: Feature['geometry'];
+  if (g.type === 'LINE' && g.start && g.end) {
+    newGeom = { type: 'LINE', start: g.end, end: g.start };
+  } else if (
+    (g.type === 'POLYLINE' || g.type === 'POLYGON' || g.type === 'MIXED_GEOMETRY') &&
+    g.vertices &&
+    g.vertices.length >= 2
+  ) {
+    newGeom = { ...g, vertices: g.vertices.slice().reverse() };
+  } else {
+    return false;
+  }
+  const before = f;
+  drawingStore.updateFeatureGeometry(featureId, newGeom);
+  const after = drawingStore.getFeature(featureId);
+  if (!after) return false;
+  undoStore.pushUndo(makeBatchEntry('Reverse', [
+    { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
+  ]));
+  return true;
+}
+
+/**
  * Burst a POLYLINE / POLYGON / MIXED_GEOMETRY feature into a
  * collection of individual LINE features — one per segment.
  * POLYGON includes the closing leg (vertex N-1 → vertex 0).

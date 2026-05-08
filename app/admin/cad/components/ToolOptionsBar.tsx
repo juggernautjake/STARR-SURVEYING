@@ -144,6 +144,7 @@ export default function ToolOptionsBar() {
   const showChamfer = activeTool === 'CHAMFER';
   const showDivide = activeTool === 'DIVIDE';
   const showExplode = activeTool === 'EXPLODE';
+  const showReverse = activeTool === 'REVERSE';
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showDim = activeTool === 'DIM';
@@ -808,6 +809,16 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click two points to place a permanent bearing + distance annotation. The TEXT label rotates parallel to the dimension line and offsets 6 ft perpendicular so it reads clear of the geometry.
+          </span>
+        </>
+      )}
+
+      {/* ── REVERSE tool options ───────────────────────────────────────────── */}
+      {showReverse && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any LINE / POLYLINE / POLYGON to flip its direction. The cyan square marks the current start; the arrowhead marks the current end. Useful when offset side, DIVIDE numbering, or label rotation went the wrong way.
           </span>
         </>
       )}
@@ -1931,6 +1942,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   CHAMFER: 'Chamfer',
   DIVIDE: 'Divide',
   EXPLODE: 'Explode',
+  REVERSE: 'Reverse',
   MEASURE_AREA: 'Measure Area',
   DIM: 'Dimension',
   SCALE: 'Scale',

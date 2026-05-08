@@ -76,6 +76,7 @@ import {
   chamferTwoLines,
   divideFeatureBy,
   explodeFeature,
+  reverseFeature,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -4153,6 +4154,115 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For REVERSE: highlight the hovered feature with a
+    // directional arrowhead at the current end so the
+    // surveyor sees the existing direction. Clicking will
+    // flip it — the arrow swaps to the other end after
+    // commit on the next render.
+    if (activeTool === 'REVERSE') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestStart: Point2D | null = null;
+      let bestEnd: Point2D | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if ((fg.type === 'POLYLINE' || fg.type === 'POLYGON' || fg.type === 'MIXED_GEOMETRY') && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+        }
+        if (!chain) continue;
+        for (let i = 0; i + 1 < chain.length; i += 1) {
+          const a = chain[i];
+          const b = chain[i + 1];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestStart = chain[0];
+            bestEnd = chain[chain.length - 1];
+          }
+        }
+      }
+      if (!bestId || !bestChain || !bestStart || !bestEnd) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Outline the feature in cyan
+      g.lineStyle(2, 0x44ddff, 0.55);
+      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestChain.length; i += 1) {
+        const sp = w2s(bestChain[i].x, bestChain[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      // START marker (square) + END marker (circle with arrowhead)
+      const sStart = w2s(bestStart.x, bestStart.y);
+      const sEnd = w2s(bestEnd.x, bestEnd.y);
+      g.lineStyle(2, 0x44ddff, 0.95);
+      g.beginFill(0x44ddff, 0.95);
+      g.drawRect(sStart.sx - 5, sStart.sy - 5, 10, 10);
+      g.endFill();
+      // Arrowhead at END pointing along the last segment direction
+      const lastA = bestChain[bestChain.length - 2];
+      const lastB = bestEnd;
+      const tipDx = lastB.x - lastA.x;
+      const tipDy = lastB.y - lastA.y;
+      const tipLen = Math.hypot(tipDx, tipDy);
+      if (tipLen > 1e-10) {
+        const ux = tipDx / tipLen;
+        const uy = tipDy / tipLen;
+        const arrowLen = 14;
+        const arrowWide = 6;
+        // Convert direction to screen — y axis flips since
+        // screen-space y grows downward. We use the Pixi
+        // world→screen transform, so the perpendicular needs
+        // to come from the screen-space delta.
+        const sLastA = w2s(lastA.x, lastA.y);
+        const sDx = sEnd.sx - sLastA.sx;
+        const sDy = sEnd.sy - sLastA.sy;
+        const sLen = Math.hypot(sDx, sDy);
+        if (sLen > 1e-6) {
+          const sux = sDx / sLen;
+          const suy = sDy / sLen;
+          const tip = { x: sEnd.sx, y: sEnd.sy };
+          const baseX = tip.x - arrowLen * sux;
+          const baseY = tip.y - arrowLen * suy;
+          // Perpendicular in screen space
+          const perpX = -suy;
+          const perpY = sux;
+          const wing1 = { x: baseX + arrowWide * perpX, y: baseY + arrowWide * perpY };
+          const wing2 = { x: baseX - arrowWide * perpX, y: baseY - arrowWide * perpY };
+          g.lineStyle(2, 0x44ddff, 0.95);
+          g.moveTo(wing1.x, wing1.y);
+          g.lineTo(tip.x, tip.y);
+          g.lineTo(wing2.x, wing2.y);
+        }
+        // Reference unused vars to silence lint
+        void ux;
+        void uy;
+      } else {
+        g.drawCircle(sEnd.sx, sEnd.sy, 5);
+      }
+      return;
+    }
+
     // For EXPLODE: highlight the hovered POLYLINE/POLYGON
     // and mark every vertex with a small dot — visualising
     // exactly where the feature will break.
@@ -7017,6 +7127,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'EXPLODE — burst into individual line segments.' },
+            }));
+          }
+          break;
+        }
+
+        case 'REVERSE': {
+          // REVERSE: click any vertex-chain feature to flip
+          // its direction (LINE swaps endpoints, POLYLINE /
+          // POLYGON / MIXED reverse vertex order).
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const ok = reverseFeature(hit);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'REVERSE — pick a LINE, POLYLINE, or POLYGON.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'REVERSE — feature direction flipped.' },
             }));
           }
           break;
