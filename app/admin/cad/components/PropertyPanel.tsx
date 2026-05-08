@@ -8,6 +8,7 @@ import type { Feature } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import { formatDistance } from '@/lib/cad/geometry/units';
+import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
 
 // ── Inline editable coordinate input ────────────────────────────────────────
 function fmtCoord(n: number): string {
@@ -493,12 +494,22 @@ export default function PropertyPanel() {
                 </div>
               )}
               {geom.type === 'POLYGON' && geom.vertices.length >= 3 && (
-                <div className="font-mono text-[10px] text-gray-400 pt-0.5">
-                  P: {formatDistance(geom.vertices.reduce((sum, v, i) => {
-                    const n = geom.vertices![(i + 1) % geom.vertices!.length];
-                    return sum + Math.hypot(n.x - v.x, n.y - v.y);
-                  }, 0), displayPrefs)}
-                </div>
+                <>
+                  <div className="font-mono text-[10px] text-gray-400 pt-0.5">
+                    P: {formatDistance(geom.vertices.reduce((sum, v, i) => {
+                      const n = geom.vertices![(i + 1) % geom.vertices!.length];
+                      return sum + Math.hypot(n.x - v.x, n.y - v.y);
+                    }, 0), displayPrefs)}
+                  </div>
+                  {(() => {
+                    const a = computeAreaFromPoints2D(geom.vertices);
+                    return (
+                      <div className="font-mono text-[10px] text-gray-400">
+                        A: {a.squareFeet.toFixed(2)} sq ft ({a.acres.toFixed(4)} ac)
+                      </div>
+                    );
+                  })()}
+                </>
               )}
             </div>
           )}
