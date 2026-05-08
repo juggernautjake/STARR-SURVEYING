@@ -503,6 +503,7 @@ export type ToolType =
   | 'INVERSE'
   | 'FORWARD_POINT'
   | 'MEASURE_AREA'
+  | 'DIM'
   | 'DRAW_TEXT'
   | 'DRAW_IMAGE';
 

@@ -407,6 +407,7 @@ function buildToolGroups(
         { tool: 'INVERSE', label: 'Inverse (bearing & distance)', description: 'Continuous measure path. First click sets the base; each subsequent click logs bearing + distance + running total to the command bar. The chain stays visible on canvas; press Esc to finish.', shortcut: 'INV', icon: <ArrowRightLeft size={14} /> },
         { tool: 'FORWARD_POINT', label: 'Forward Point', description: 'Click a base point, type bearing and distance in the command bar to place a new point.', shortcut: 'FP', icon: <Navigation size={14} /> },
         { tool: 'MEASURE_AREA', label: 'Measure Area', description: 'Click polygon vertices to compute live perimeter + area (sq ft + acres) in the command bar. Translucent magenta fill previews the polygon as you click; press Esc to finish.', shortcut: 'AA', icon: <Pentagon size={14} /> },
+        { tool: 'DIM', label: 'Dimension', description: 'Click two points to place a permanent bearing + distance annotation on the drawing. The TEXT label is positioned at the midpoint, rotated parallel to the dimension line, and offset 6 ft perpendicular so it reads clear of the geometry.', shortcut: 'DI', icon: <ArrowRightLeft size={14} /> },
       ],
     },
     {

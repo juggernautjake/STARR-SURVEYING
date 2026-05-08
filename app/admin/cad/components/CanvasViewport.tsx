@@ -3469,6 +3469,38 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For DIM: live preview of the dimension line + the
+    // bearing/distance string the surveyor is about to commit
+    // to a TEXT feature. Only renders after the first click.
+    if (activeTool === 'DIM' && drawingPoints.length === 1) {
+      const from = drawingPoints[0];
+      const to = previewPoint;
+      const fromS = w2s(from.x, from.y);
+      const toS = w2s(to.x, to.y);
+      // Dimension line — bright cyan with hollow endpoints so
+      // the surveyor reads "this is the measurement extent."
+      g.lineStyle(1.5, 0x44ddff, 0.85);
+      g.moveTo(fromS.sx, fromS.sy);
+      g.lineTo(toS.sx, toS.sy);
+      g.drawCircle(fromS.sx, fromS.sy, 4);
+      g.drawCircle(toS.sx, toS.sy, 4);
+      // Midpoint marker — small filled dot where the TEXT
+      // feature's anchor will land (with a tiny perpendicular
+      // offset). Surveyor can predict the placement before
+      // clicking.
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const len = Math.hypot(dx, dy);
+      const offset = 6;
+      const pxOff = len > 1e-9 ? -dy / len * offset : 0;
+      const pyOff = len > 1e-9 ?  dx / len * offset : 0;
+      const midS = w2s((from.x + to.x) / 2 + pxOff, (from.y + to.y) / 2 + pyOff);
+      g.beginFill(0x44ddff, 0.95);
+      g.drawCircle(midS.sx, midS.sy, 3);
+      g.endFill();
+      return;
+    }
+
     // For MEASURE_AREA: live polygon preview — already-placed
     // vertices form a closed magenta loop with a translucent
     // fill; the cursor's last leg + close-back leg are
@@ -7108,6 +7140,75 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }));
           }
           // Actual point placement is handled via cad:forwardPoint event from CommandBar
+          break;
+        }
+
+        case 'DIM': {
+          // DIM — two-click bearing + distance annotation. The
+          // first click sets the from-point; the second
+          // computes the inverse and places a TEXT feature at
+          // the midpoint of the two clicks, offset
+          // perpendicular by ~12 ft so the label sits clear
+          // of any line drawn between the same endpoints.
+          const dpts = toolState.drawingPoints;
+          if (dpts.length === 0) {
+            toolStore.addDrawingPoint(worldPt);
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'DIM — base point set. Click the second point to place the bearing + distance annotation.' },
+            }));
+            break;
+          }
+          const from = dpts[0];
+          const to = worldPt;
+          const { azimuth, distance } = inverseBearingDistance(from, to);
+          const bearingStr = formatBearing(azimuth);
+          const distStr = distance.toFixed(2);
+          const midX = (from.x + to.x) / 2;
+          const midY = (from.y + to.y) / 2;
+          // Perpendicular offset — push the text 6 world units
+          // off the centerline so it doesn't sit on top of any
+          // line drawn between the same endpoints.
+          const dx = to.x - from.x;
+          const dy = to.y - from.y;
+          const len = Math.hypot(dx, dy);
+          const offset = 6;
+          const px = len > 1e-9 ? -dy / len * offset : 0;
+          const py = len > 1e-9 ?  dx / len * offset : 0;
+          // Rotate the text along the dimension line so it
+          // reads parallel to the geometry (math convention,
+          // CCW positive).
+          const rotation = len > 1e-9 ? Math.atan2(dy, dx) : 0;
+          const { activeLayerId, getActiveLayerStyle } = drawingStore;
+          const layerStyle = getActiveLayerStyle();
+          const dimFeature: Feature = {
+            id: generateId(),
+            type: 'TEXT',
+            geometry: {
+              type: 'TEXT',
+              point: { x: midX + px, y: midY + py },
+              textContent: `${bearingStr}  ${distStr}'`,
+              textRotation: rotation,
+            },
+            layerId: activeLayerId,
+            style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+            properties: {
+              fontSize: 10,
+              fontFamily: 'Arial',
+              fontWeight: 'normal',
+              fontStyle: 'normal',
+              textAlign: 'center',
+              dimensionFromX: from.x,
+              dimensionFromY: from.y,
+              dimensionToX: to.x,
+              dimensionToY: to.y,
+            },
+          };
+          drawingStore.addFeature(dimFeature);
+          undoStore.pushUndo(makeAddFeatureEntry(dimFeature));
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: { text: `DIM — placed annotation: ${bearingStr}  ${distStr}'` },
+          }));
+          toolStore.clearDrawingPoints();
           break;
         }
 

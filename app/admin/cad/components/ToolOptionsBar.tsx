@@ -143,6 +143,7 @@ export default function ToolOptionsBar() {
   const showChamfer = activeTool === 'CHAMFER';
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
+  const showDim = activeTool === 'DIM';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -794,6 +795,16 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click polygon vertices to read live perimeter + area (sq ft + acres). Magenta fill previews the polygon; press Esc to finish.
+          </span>
+        </>
+      )}
+
+      {/* ── DIM tool options ───────────────────────────────────────────────── */}
+      {showDim && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click two points to place a permanent bearing + distance annotation. The TEXT label rotates parallel to the dimension line and offsets 6 ft perpendicular so it reads clear of the geometry.
           </span>
         </>
       )}
@@ -1857,6 +1868,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   FILLET: 'Fillet',
   CHAMFER: 'Chamfer',
   MEASURE_AREA: 'Measure Area',
+  DIM: 'Dimension',
   SCALE: 'Scale',
   ERASE: 'Erase',
   OFFSET: 'Offset',
