@@ -13,6 +13,7 @@ import ToolOptionsBar from './components/ToolOptionsBar';
 import UndoRedoButtons from './components/UndoRedoButtons';
 import CommandPalette from './components/CommandPalette';
 import ConfirmDialog from './components/ConfirmDialog';
+import KeyboardShortcutOverlay from './components/KeyboardShortcutOverlay';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import ImportDialog from './components/ImportDialog';
@@ -863,6 +864,13 @@ export default function CADLayout() {
           `confirmAction()` and await the surveyor's choice
           without prop-drilling a dialog handle. */}
       <ConfirmDialog />
+
+      {/* Phase 8 §10.5 — Keyboard-shortcut cheat sheet (Shift
+          + ?). Listens for `cad:openShortcutHelp`; renders
+          nothing until opened. Reads merged default + user
+          bindings from useHotkeysStore so user customisations
+          show with their override key. */}
+      <KeyboardShortcutOverlay />
     </div>
     </TooltipProvider>
   );

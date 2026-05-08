@@ -264,6 +264,9 @@ export function dispatchDefaultAction(action: BindableAction): void {
     case 'view.commandPalette':
       window.dispatchEvent(new CustomEvent('cad:openCommandPalette'));
       return;
+    case 'view.shortcutHelp':
+      window.dispatchEvent(new CustomEvent('cad:openShortcutHelp'));
+      return;
 
     // ── Preset switchers ────────────────────────────
     case 'preset.autocad':
