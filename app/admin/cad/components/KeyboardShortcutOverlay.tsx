@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { DEFAULT_ACTIONS } from '@/lib/cad/hotkeys/registry';
+import { findHotkeyConflicts, findConflictForAction } from '@/lib/cad/hotkeys/conflicts';
 import { useHotkeysStore } from '@/lib/cad/store';
 import type { ActionCategory, BindableAction } from '@/lib/cad/hotkeys/types';
 
@@ -87,6 +88,15 @@ export default function KeyboardShortcutOverlay() {
     return map;
   }, []);
 
+  // Detect any (key, context) collisions in the merged
+  // binding map. Surveyors see a red badge on every action
+  // that's part of a conflict + a header pill summarising
+  // the count.
+  const conflicts = useMemo(
+    () => findHotkeyConflicts(DEFAULT_ACTIONS, userBindings),
+    [userBindings],
+  );
+
   if (!open) return null;
 
   return (
@@ -98,8 +108,18 @@ export default function KeyboardShortcutOverlay() {
         className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-[860px] max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col animate-[scaleIn_150ms_cubic-bezier(0.16,1,0.3,1)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-4 py-2.5 border-b border-gray-700 flex items-center justify-between">
-          <h2 className="text-sm text-white font-semibold">Keyboard Shortcuts</h2>
+        <div className="px-4 py-2.5 border-b border-gray-700 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm text-white font-semibold">Keyboard Shortcuts</h2>
+            {conflicts.length > 0 && (
+              <span
+                className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-900/40 border border-red-800/60 text-red-300 font-semibold"
+                title={`${conflicts.length} hotkey collision${conflicts.length === 1 ? '' : 's'} — open a conflict's row to see which actions share the key`}
+              >
+                {conflicts.length} conflict{conflicts.length === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2 text-[11px] text-gray-500">
             <kbd className="bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5 font-mono">Esc</kbd>
             <span>close</span>
@@ -118,13 +138,28 @@ export default function KeyboardShortcutOverlay() {
                   {actions.map((a) => {
                     const key = activeKeys[a.id];
                     if (!key) return null; // skip preset switchers etc.
+                    const conflict = findConflictForAction(a.id, conflicts);
+                    const partners = conflict
+                      ? conflict.actionIds.filter((id) => id !== a.id)
+                      : [];
                     return (
                       <div
                         key={a.id}
                         className="flex items-center justify-between gap-3 text-[11px] py-0.5"
+                        title={
+                          partners.length > 0
+                            ? `Conflict: this key also fires ${partners.join(', ')} in the ${conflict!.context.toLowerCase()} context.`
+                            : undefined
+                        }
                       >
-                        <span className="text-gray-300 truncate">{a.label}</span>
-                        <kbd className="bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5 text-[10px] font-mono text-gray-400 shrink-0">
+                        <span className={`truncate ${conflict ? 'text-red-300' : 'text-gray-300'}`}>{a.label}</span>
+                        <kbd
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-mono shrink-0 border ${
+                            conflict
+                              ? 'bg-red-900/40 border-red-800/60 text-red-300'
+                              : 'bg-gray-800 border-gray-700 text-gray-400'
+                          }`}
+                        >
                           {formatShortcut(key)}
                         </kbd>
                       </div>
