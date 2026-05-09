@@ -1212,6 +1212,257 @@ useEffect(() => {
 
 ---
 
+## 11.5 Unit-Aware Input System
+
+**Goal:** Every numeric / angular field in the entire app — modal dialogs, ToolOptionsBar parameters, the command bar, the Property panel, the Settings dialog — accepts a free-form value with optional unit suffix and parses it into a single canonical internal representation. The surveyor types `6in`, `0.5ft`, `12'`, `6"`, `150` (default unit), `12 inches`, `2 m` and gets back a single number in the canonical unit (US Survey Feet for length, sq ft for area, decimal-degree azimuth for angles). Same for angles: typing `45.5`, `45°30'00"`, `N 45-30-00 E`, or the DMS-packed shorthand `45.3000` ("45° 30' 00\"") all resolve to the same internal azimuth.
+
+The surveyor never has to think about "is this field expecting feet or inches?" — the field tells them via a small inline unit chip / dropdown, and the parser accepts whatever the surveyor types. Drop-downs let a surveyor pin a field to "always inches" (or "always meters", "always acres") for a session if they're working in a non-default unit and don't want to keep typing the suffix.
+
+### 11.5.1 Linear Distance Parser
+
+Module: `lib/cad/units/parse-length.ts`
+
+```ts
+export type LinearUnit = 'FT' | 'IN' | 'MILE' | 'M' | 'CM' | 'MM';
+
+export interface ParsedLength {
+  /** Canonical value in US Survey Feet (the world coordinate unit). */
+  feet: number;
+  /** The unit the surveyor typed (or `defaultUnit` if no suffix). */
+  sourceUnit: LinearUnit;
+  /** Numeric value in the source unit (pre-conversion). */
+  sourceValue: number;
+  /** True when the input contained an explicit unit suffix. */
+  hadExplicitUnit: boolean;
+}
+
+export function parseLength(
+  input: string,
+  defaultUnit: LinearUnit = 'FT',
+): ParsedLength | null;
+```
+
+**Suffix recognition (case-insensitive, optional whitespace):**
+
+| Unit       | Accepted suffix forms |
+|------------|----------------------|
+| Feet       | `ft`, `feet`, `foot`, `'`, `′` |
+| Inches     | `in`, `inch`, `inches`, `"`, `″`, `''` |
+| Miles      | `mi`, `mile`, `miles` |
+| Meters     | `m`, `meter`, `meters`, `metre`, `metres` |
+| Centimeters| `cm`, `centimeter`, `centimeters` |
+| Millimeters| `mm`, `millimeter`, `millimeters` |
+
+**Compound forms (also parsed):**
+- `5'6"` → 5.5 ft
+- `5 ft 6 in` → 5.5 ft
+- `5'-6"` → 5.5 ft (the architectural hyphen)
+- `1/2"` → 0.0417 ft (fraction → decimal first)
+- `1 1/2 ft` → 1.5 ft
+
+**Rejected inputs return `null`:**
+- Empty string, NaN, negative without explicit `-`, two unit suffixes without compound form, unknown suffix.
+
+### 11.5.2 Area Parser
+
+Module: `lib/cad/units/parse-area.ts`
+
+```ts
+export type AreaUnit = 'SQ_FT' | 'ACRES' | 'SQ_M' | 'HECTARES';
+
+export interface ParsedArea {
+  /** Canonical value in square feet. */
+  sqft: number;
+  sourceUnit: AreaUnit;
+  sourceValue: number;
+  hadExplicitUnit: boolean;
+}
+
+export function parseArea(
+  input: string,
+  defaultUnit: AreaUnit = 'SQ_FT',
+): ParsedArea | null;
+```
+
+**Suffix recognition:**
+
+| Unit          | Accepted suffix forms |
+|---------------|----------------------|
+| Square feet   | `sf`, `sqft`, `sq ft`, `sq.ft`, `sq feet`, `square feet`, `ft²`, `ft^2` |
+| Acres         | `ac`, `acre`, `acres`, `a` (only when the value looks like a small acreage; ambiguous bare `a` falls back to `sf`) |
+| Square meters | `sqm`, `sq m`, `m²`, `m^2`, `square meters` |
+| Hectares      | `ha`, `hectare`, `hectares` |
+
+### 11.5.3 Angular / Bearing Parser
+
+Module: `lib/cad/units/parse-angle.ts` (extends the existing `parseBearing`)
+
+```ts
+export type AngleMode = 'BEARING' | 'AZIMUTH' | 'AUTO';
+
+export interface ParsedAngle {
+  /** Canonical value: decimal-degree azimuth (0 = North, clockwise). */
+  azimuth: number;
+  /** What the surveyor's input represented. */
+  sourceMode: 'BEARING' | 'AZIMUTH';
+  /** Original DMS components when the input had them (preserved for round-trip display). */
+  components: { deg: number; min: number; sec: number } | null;
+  /** True when the input contained explicit DMS markers (° ' " or - separators). */
+  hadDmsMarkers: boolean;
+}
+
+export function parseAngle(
+  input: string,
+  mode: AngleMode = 'AUTO',
+): ParsedAngle | null;
+```
+
+**Auto-detect rules (`mode === 'AUTO'`):**
+
+1. If the input starts with `N` or `S` and ends with `E` or `W` → quadrant **bearing**.
+2. If it contains `°` / `'` / `"` / a hyphen-separated DMS pattern (`45-30-00`) → **azimuth in DMS**.
+3. **DMS-packed numeric shortcut** (the surveyor types `101.4523`, expecting `101° 45' 23"`):
+   - Triggered when the input is a bare decimal number with **exactly 4 fractional digits** (or 6 for tenth-of-a-second).
+   - Split as `DDD.MMSS[T]` → `deg = floor(int)`, `min = floor(frac * 100)`, `sec = round((frac * 10000) % 100)`.
+   - Validation: `min < 60 && sec < 60`. If either fails, fall back to plain decimal-degree interpretation.
+   - This matches the convention used by Trimble Survey Office, Carlson, and many state-DOT data files.
+4. Otherwise → plain decimal degrees.
+
+**Examples** (input → `azimuth`, `sourceMode`):
+
+| Input | Resolves to | Source |
+|-------|-------------|--------|
+| `45.5` | 45.5° | AZIMUTH (decimal) |
+| `45.3000` | 45.5° (= 45° 30' 00") | AZIMUTH (DMS-packed) |
+| `45°30'00"` | 45.5° | AZIMUTH (DMS) |
+| `45-30-00` | 45.5° | AZIMUTH (hyphen-DMS) |
+| `N 45°30'00" E` | 45.5° | BEARING |
+| `N 45-30 E` | 45.5° (sec defaults to 0) | BEARING |
+| `S 45.5 E` | 134.5° | BEARING |
+
+When the surveyor's preference is `bearingFormat: 'QUADRANT'`, displays use `formatBearing(azimuth)`; when `'AZIMUTH'`, displays use `formatAzimuth(azimuth)` — the parser is preference-agnostic, only the display layer is opinionated.
+
+### 11.5.4 `<UnitInput>` React Component
+
+Module: `app/admin/cad/components/UnitInput.tsx`
+
+A drop-in replacement for `<input type="number">` everywhere a parameter lives:
+
+```tsx
+<UnitInput
+  kind="length"            // "length" | "area" | "angle"
+  value={radiusFeet}        // Always canonical (feet / sqft / azimuth)
+  onChange={setRadiusFeet}
+  defaultUnit="FT"          // Drives the placeholder + dropdown initial
+  showUnitDropdown          // Optional small chip → dropdown
+  angleMode="AZIMUTH"       // For kind="angle": "BEARING" | "AZIMUTH" | "AUTO"
+  placeholder="e.g. 6in or 0.5ft"
+  onValid={(parsed) => …}   // Callback with the full ParsedLength/Area/Angle
+/>
+```
+
+**Behaviour:**
+
+- On blur (or Enter), parse the input. On parse failure, the component re-displays the surveyor's raw input and shows a red ring + tooltip (`"Couldn't parse — try '6in', '0.5ft', or '12.5'"`).
+- On parse success, the input is **canonicalised** to the surveyor's preferred display format (so `6in` resolves to `0.5 ft` and the field re-renders as `0.5 ft`). A small "raw input preserved" chip lets the surveyor revert.
+- The unit dropdown lets the surveyor lock the field to a unit (e.g. always inches for fillet radius) — that lock persists for the session via `useUIStore.fieldUnitLocks` (a Map<fieldKey, LinearUnit>).
+- For `kind="angle"`, the format toggle (Bearing ↔ Azimuth) is exposed as a small chip; switching reformats the displayed value but keeps the canonical azimuth identical.
+- Keyboard shortcut: `Tab` to commit + advance; `Esc` to revert to the last-committed value.
+
+### 11.5.5 Wiring Targets
+
+Every field below should switch to `<UnitInput>` as part of the rollout:
+
+**Length-typed fields (default unit FT unless noted):**
+
+- Offset distance (`OffsetDistanceInput` in `ToolOptionsBar`)
+- Fillet radius (`tool.fillet`)
+- Chamfer distance 1 / distance 2 (`tool.chamfer`)
+- Divide-into-equal-parts segment length (`tool.divide` when in distance mode)
+- Point-at-distance distance (`tool.pointAtDist`)
+- Simplify polyline tolerance (`tool.simplify`, default IN)
+- Polyline / polygon explicit-segment length (command bar `@dist<angle`)
+- Drawing scale (Settings → Document, default IN-per-FT)
+- Title-block scale label override
+- Scale-bar length (in paper inches, default IN)
+- Tooltip delay (already correctly using ms)
+- Snap radius
+- Grid major spacing
+- Auto-save interval (already correctly using s)
+- Property panel coordinate edits (X / Y / Northing / Easting / Z / radius / chord length)
+
+**Area-typed fields:**
+
+- Area-label override (`AreaAnnotation` config UI)
+- Acreage shown / total area in title block
+- Lot net area override
+
+**Angle-typed fields:**
+
+- Drawing rotation (Settings → Document, mode `AZIMUTH`)
+- Bearing input on every command bar `@dist<bearing` step (mode `AUTO`)
+- Title-block "north arrow rotation offset" (mode `AZIMUTH`)
+- Curve data field overrides (chord bearing, tangent in / out bearings)
+- Mirror-axis angle input (`tool.mirror` ANGLE mode)
+- Polar-array start angle / sweep angle (`tool.array` polar mode)
+- Translate-mode offset bearing (`tool.offset` TRANSLATE mode)
+- B/D dimension explicit-bearing override (`FeaturePropertiesDialog` for LINE features)
+
+### 11.5.6 Command-Bar Integration
+
+The existing command bar already accepts `@dx,dy` (relative XY in current display unit) and `@dist<bearing` (polar). The parser layer plugs in:
+
+- `@6in,12in` → `(0.5 ft, 1.0 ft)` relative offset
+- `@5'6",10'` → `(5.5 ft, 10 ft)` relative offset
+- `@10<45.3000` → `(7.07 ft, 7.07 ft)` polar (DMS-packed)
+- `@10ft<N45-30-00E` → same as above with explicit bearing
+
+Command-bar errors surface in the existing `cad:commandOutput` stream so the surveyor sees `"Couldn't parse 'foo' as a length — try '6in' or '0.5ft'"` directly under the input.
+
+### 11.5.7 Settings Surface
+
+Settings → Interaction adds:
+
+- **Default linear unit for inputs** — overrides the per-document `linearUnit` for parser fallback (so a surveyor whose docs are in feet but who routinely types fillet radii in inches can pin the input default).
+- **Default angle mode for inputs** — `AUTO` (recommended) | `AZIMUTH` | `BEARING`. Drives `<UnitInput kind="angle">` behaviour app-wide.
+- **DMS-packed shortcut** — toggle to disable the `45.3000 → 45°30'00"` heuristic for surveyors who only ever want decimal degrees.
+
+These persist via the existing `useUIStore` `partialize` allow-list (`fieldUnitLocks`, `defaultLinearUnit`, `defaultAngleMode`, `dmsPackedEnabled`).
+
+### 11.5.8 Acceptance Tests
+
+- [x] `parseLength("6in")` returns 0.5 ft, sourceUnit `'IN'`, hadExplicitUnit true — covered by `__tests__/cad/units/parse-length.test.ts`.
+- [x] `parseLength("0.5ft")` returns 0.5 ft, sourceUnit `'FT'`.
+- [x] `parseLength("150")` with default `'FT'` returns 150 ft, hadExplicitUnit false.
+- [x] `parseLength("5'6\"")` returns 5.5 ft (compound).
+- [x] `parseLength("1 1/2 ft")` returns 1.5 ft (mixed-number fraction).
+- [x] `parseLength("inches", …)` returns null (no number) — also covers the `"5min"` partial-match defence.
+- [x] `parseArea("2.5ac")` returns 108,900 sqft — covered by `__tests__/cad/units/parse-area.test.ts`.
+- [x] `parseArea("1 hectare")` returns 107,639 sqft (±1 sqft).
+- [x] `parseAngle("45.3000")` (AUTO) returns azimuth 45.5°, sourceMode AZIMUTH, components `{45,30,0}`.
+- [x] `parseAngle("45.5")` (AUTO) returns azimuth 45.5°, sourceMode AZIMUTH, components null.
+- [x] `parseAngle("N 45-30-00 E")` (AUTO) returns azimuth 45.5°, sourceMode BEARING.
+- [x] `parseAngle("S 45°30' E")` returns azimuth 134.5° — `parseDmsBody` strips trailing minute markers without losing the body parse.
+- [x] `parseAngle("400.0")` (decimal) returns null (out of range).
+- [x] `parseAngle("99.6000")` falls back to decimal (sec >= 60 invalidates DMS-packed) — verified in tests.
+- [ ] `<UnitInput kind="length">` accepts every suffix variant from §11.5.1 and re-formats on blur to the surveyor's preferred unit — component lands in `app/admin/cad/components/UnitInput.tsx`; rollout into individual ToolOptionsBar / dialog inputs is a follow-up slice.
+- [ ] `<UnitInput kind="angle" angleMode="AZIMUTH">` accepts both DMS and decimal input, displays per `bearingFormat` preference — component supports it; needs the rollout to surface preference-driven re-formatting in a real input.
+- [ ] Field-level unit lock persists across reloads (via `useUIStore.fieldUnitLocks`) — store key not yet wired; rollout slice.
+- [ ] Command bar `@6in,12in` resolves to `(0.5 ft, 1.0 ft)` — rollout slice (extend the existing polar/relative parsers through `parseLength`).
+- [ ] Command bar `@10<45.3000` resolves correctly with DMS-packed shortcut — rollout slice.
+- [ ] Settings toggle "DMS-packed shortcut" off → `45.3000` parses as `45.3°` (not `45°18'00"`) — parser supports the toggle (`opts.dmsPackedEnabled`); needs UI wiring + persisted setting.
+
+### 11.5.9 Implementation Sequence
+
+1. **Foundation** — `lib/cad/units/parse-length.ts`, `parse-area.ts`, `parse-angle.ts` with full test coverage. No UI changes yet.
+2. **Component** — `<UnitInput>` shared React component with display formatting + dropdown + lock chip.
+3. **Rollout — toolbar parameters** — replace every numeric input in `ToolOptionsBar` with `<UnitInput>`. Smallest blast radius, most user-visible win.
+4. **Rollout — modal dialogs** — `FeaturePropertiesDialog`, `DrawingRotationDialog`, `OrientationDialog`, `SettingsDialog`, `ScaleBarEditorModal`, `TitleBlockPanel`.
+5. **Rollout — command bar** — extend the polar / relative parsers to feed through `parseLength` + `parseAngle`.
+6. **Settings surface** — Interaction tab toggles + per-field lock chip.
+
+---
+
 ## 12. Phase 1–7 Gap Audit & Fixes
 
 This section documents cross-cutting UX issues found in Phases 1–7 that Phase 8 resolves:
