@@ -1,6 +1,7 @@
 'use client';
 // lib/cad/store/import-store.ts — State for the import wizard dialog
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { ImportResult } from '../import/import-pipeline';
 import type { CSVImportConfig, ImportPreset, ParsedImportRow } from '../import/types';
 import { DEFAULT_CSV_CONFIG, BUILT_IN_PRESETS } from '../import/types';
@@ -56,7 +57,15 @@ function detectFileType(fileName: string): FileType {
   return 'CSV';
 }
 
-export const useImportStore = create<ImportStore>((set, get) => ({
+/**
+ * Phase 8 §9 — only `customPresets` persists across reloads.
+ * Everything else (open / step / current file / preview rows /
+ * import result) is session-scoped: a fresh import wizard
+ * should always start at step 1 with no file loaded.
+ */
+export const useImportStore = create<ImportStore>()(
+  persist(
+    (set, get) => ({
   isOpen: false,
   step: 'FILE_SELECT',
   file: null,
@@ -147,4 +156,12 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       previewRows: [],
       importResult: null,
     }),
-}));
+    }),
+    {
+      name: 'starr-cad-import',
+      version: 1,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (s) => ({ customPresets: s.customPresets }),
+    }
+  )
+);
