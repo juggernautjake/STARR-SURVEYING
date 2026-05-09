@@ -18,8 +18,12 @@ export const DEFAULT_MONUMENT_LABEL_CONFIG: MonumentLabelConfig = {
 };
 
 /**
- * Monument text from code + action. Produces strings like:
- *   "1/2\" IRF", "5/8\" IRS w/Cap", "1/2\" IRS", "Mag Nail Found", "PK Nail Found"
+ * Monument text from code + action. The **full** string is the
+ * surveyor-readable long form that lands on a plat
+ * ("1/2\" Iron Rod Found", "5/8\" Iron Rod Set w/Cap"); the
+ * **abbreviated** string is the conventional shorthand the
+ * label optimiser falls back to when space is tight
+ * ("1/2\" IRF", "5/8\" IRS").
  */
 export function getMonumentText(point: SurveyPoint): { full: string; abbreviated: string } {
   const action = point.monumentAction;
@@ -27,12 +31,6 @@ export function getMonumentText(point: SurveyPoint): { full: string; abbreviated
 
   // Monument size/type from numeric code (rough lookup)
   const numCode = parseInt(point.resolvedNumericCode ?? '0', 10);
-
-  // Action suffix
-  const actionSuffix = action === 'FOUND' ? ' Found'
-    : action === 'SET' ? '' // set is implied
-    : action === 'CALCULATED' ? ' (Calc)'
-    : '';
 
   // Material from category code
   const isBoundaryControl = point.codeDefinition?.category === 'BOUNDARY_CONTROL';
@@ -45,12 +43,26 @@ export function getMonumentText(point: SurveyPoint): { full: string; abbreviated
   // Iron rod size lookup
   const ROD_SIZES: Record<number, string> = { 2: '1/2"', 4: '3/4"', 7: '5/8"' };
   const rodSize = ROD_SIZES[numCode] ?? '1/2"';
-  const rodType = action === 'FOUND' ? 'IRF' : 'IRS';
+
   const hasCap = code.includes('CAP') || (numCode >= 5 && numCode <= 9);
   const capSuffix = hasCap && action !== 'FOUND' ? ' w/Cap' : '';
 
-  const full = `${rodSize} ${rodType}${capSuffix}${actionSuffix}`;
-  const abbreviated = `${rodSize} ${rodType}`;
+  // Long-form action phrase for the plat-style label.
+  const longAction =
+    action === 'FOUND'      ? 'Iron Rod Found'
+    : action === 'SET'        ? `Iron Rod Set${capSuffix}`
+    : action === 'CALCULATED' ? 'Iron Rod (Calc)'
+    : 'Iron Rod';
+
+  // Abbreviated form keeps the conventional surveyor shorthand.
+  const shortAction =
+    action === 'FOUND'      ? 'IRF'
+    : action === 'SET'        ? 'IRS'
+    : action === 'CALCULATED' ? 'IRC'
+    : 'IR';
+
+  const full = `${rodSize} ${longAction}`;
+  const abbreviated = `${rodSize} ${shortAction}`;
   return { full, abbreviated };
 }
 
