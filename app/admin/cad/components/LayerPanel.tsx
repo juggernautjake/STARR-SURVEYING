@@ -48,9 +48,22 @@ export default function LayerPanel() {
   /** Currently renaming group id. */
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [renameGroupValue, setRenameGroupValue] = useState('');
+  // Layer name filter — case-insensitive substring match against
+  // layer name. Hides any layer whose name doesn't match. Empty
+  // string shows all layers (default).
+  const [filterText, setFilterText] = useState('');
   const renameGroupRef = useRef<HTMLInputElement>(null);
 
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
+  // Apply the filter text — case-insensitive substring match
+  // on layer name. Empty filter passes everything through. The
+  // active layer is always kept visible so the surveyor doesn't
+  // lose context after typing a filter that excludes their
+  // current selection.
+  const filterTrim = filterText.trim().toLowerCase();
+  const filteredLayers = filterTrim.length === 0
+    ? layers
+    : layers.filter((l) => l.name.toLowerCase().includes(filterTrim) || l.id === activeLayerId);
 
   // Track selected and hovered feature IDs for layer highlighting
   const selectedIds    = selectionStore.selectedIds;
@@ -200,12 +213,29 @@ export default function LayerPanel() {
       className="flex flex-col h-full text-gray-200 text-xs"
       onClick={contextMenu ? closeContextMenu : undefined}
     >
-      <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700">
-        Layers
+      <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700 flex items-center justify-between">
+        <span>Layers</span>
+        <span className="text-gray-500 normal-case tracking-normal text-[10px]">
+          {filterTrim.length > 0 ? `${filteredLayers.length} of ${layers.length}` : `${layers.length}`}
+        </span>
+      </div>
+
+      {/* Filter input — case-insensitive name match. The
+          active layer is always kept visible regardless of
+          the filter so the surveyor can't lose context. */}
+      <div className="px-2 py-1 border-b border-gray-700">
+        <input
+          type="text"
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setFilterText(''); (e.target as HTMLInputElement).blur(); } }}
+          placeholder="Filter layers…"
+          className="w-full bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5 text-[11px] text-gray-200 placeholder:text-gray-500 outline-none focus:border-blue-500"
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {layers.map((layer) => {
+        {filteredLayers.map((layer) => {
           const isExpanded = expandedLayers.has(layer.id);
           // All features on this layer
           const layerFeatures = Object.values(doc.features).filter((f) => f.layerId === layer.id && !f.hidden);
