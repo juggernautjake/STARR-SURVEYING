@@ -8,6 +8,7 @@ import { FileText, Upload, X } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import { PHASE3_DEFAULT_LAYERS } from '@/lib/cad/styles/default-layers';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface Props {
   onClose: () => void;
@@ -25,6 +26,7 @@ const PAPER_SIZES = [
 type PaperSize = (typeof PAPER_SIZES)[number]['value'];
 
 export default function NewDrawingDialog({ onClose, onImport }: Props) {
+  useEscapeToClose(onClose);
   const drawingStore = useDrawingStore();
   const [drawingName, setDrawingName] = useState('Untitled Drawing');
   const [paperSize, setPaperSize] = useState<PaperSize>('TABLOID');

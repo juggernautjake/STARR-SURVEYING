@@ -37,6 +37,7 @@ import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel, CircleGeome
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
 import { inverseBearingDistance, forwardPoint, formatBearing } from '@/lib/cad/geometry/bearing';
+import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
 import { cadLog } from '@/lib/cad/logger';
 import {
@@ -69,6 +70,20 @@ import {
   arraySelectionPolar,
   splitFeatureAt,
   trimFeatureAt,
+  extendFeatureTo,
+  joinSelection,
+  filletTwoLines,
+  chamferTwoLines,
+  divideFeatureBy,
+  explodeFeature,
+  reverseFeature,
+  matchPropertiesTo,
+  pointAtDistanceAlong,
+  dropPerpendicular,
+  smoothPolyline,
+  simplifyPolylineFeature,
+  insertVertexAt,
+  removeVertexAt,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -86,6 +101,8 @@ import {
   arcGripPoints,
   splineGripPoints,
   fitPointsToBezier,
+} from '@/lib/cad/geometry/curve-render';
+import {
   bezierToFitPoints,
   getSplineHandles,
   insertInflectionPoint,
@@ -93,6 +110,7 @@ import {
   arcFrom3Points,
   type GraphicsLike,
 } from '@/lib/cad/geometry/curve-render';
+import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
 import InteractiveOpPanel from './InteractiveOpPanel';
@@ -207,6 +225,164 @@ interface CanvasViewportProps {
   pendingPlaceImageId?: string | null;
   /** Called after the pending image id has been consumed (image placed or dialog dismissed). */
   onPlaceImageConsumed?: () => void;
+}
+
+/**
+ * Same fillet geometry as `filletTwoLines` in operations.ts
+ * but pure — no side effects, returns the arc center / radius
+ * / start+end angles + tangent points so the canvas preview
+ * can sketch the result while the surveyor is hovering. Returns
+ * null for any degenerate input (parallel lines, anti-parallel,
+ * radius too large, etc).
+ */
+function computeFilletPreview(
+  l1a: import('@/lib/cad/types').Point2D,
+  l1b: import('@/lib/cad/types').Point2D,
+  click1: import('@/lib/cad/types').Point2D,
+  l2a: import('@/lib/cad/types').Point2D,
+  l2b: import('@/lib/cad/types').Point2D,
+  click2: import('@/lib/cad/types').Point2D,
+  radius: number,
+): {
+  center: import('@/lib/cad/types').Point2D;
+  radius: number;
+  startAngle: number;
+  endAngle: number;
+  anticlockwise: boolean;
+  tangent1: import('@/lib/cad/types').Point2D;
+  tangent2: import('@/lib/cad/types').Point2D;
+} | null {
+  if (!Number.isFinite(radius) || radius <= 0) return null;
+  // Infinite-line intersection.
+  const denom = (l1a.x - l1b.x) * (l2a.y - l2b.y) - (l1a.y - l1b.y) * (l2a.x - l2b.x);
+  if (Math.abs(denom) < 1e-10) return null;
+  const tParam = ((l1a.x - l2a.x) * (l2a.y - l2b.y) - (l1a.y - l2a.y) * (l2a.x - l2b.x)) / denom;
+  const P = { x: l1a.x + tParam * (l1b.x - l1a.x), y: l1a.y + tParam * (l1b.y - l1a.y) };
+
+  const keepDir = (a: import('@/lib/cad/types').Point2D, b: import('@/lib/cad/types').Point2D, click: import('@/lib/cad/types').Point2D) => {
+    const dStart = Math.hypot(click.x - a.x, click.y - a.y);
+    const dEnd = Math.hypot(click.x - b.x, click.y - b.y);
+    const keepEnd = dEnd < dStart ? b : a;
+    const dx = keepEnd.x - P.x;
+    const dy = keepEnd.y - P.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-10) return null;
+    return { x: dx / len, y: dy / len };
+  };
+  const u1 = keepDir(l1a, l1b, click1);
+  const u2 = keepDir(l2a, l2b, click2);
+  if (!u1 || !u2) return null;
+
+  let cos2t = u1.x * u2.x + u1.y * u2.y;
+  cos2t = Math.max(-1, Math.min(1, cos2t));
+  if (cos2t > 1 - 1e-9 || cos2t < -1 + 1e-9) return null;
+  const sinT = Math.sqrt((1 - cos2t) / 2);
+  const cosT = Math.sqrt((1 + cos2t) / 2);
+  if (sinT < 1e-9 || cosT < 1e-9) return null;
+  const tanT = sinT / cosT;
+  const t = radius / tanT;
+
+  const PT1 = { x: P.x + t * u1.x, y: P.y + t * u1.y };
+  const PT2 = { x: P.x + t * u2.x, y: P.y + t * u2.y };
+
+  const k1 = keepEndOf(l1a, l1b, click1);
+  const k2 = keepEndOf(l2a, l2b, click2);
+  const len1 = Math.hypot(k1.x - P.x, k1.y - P.y);
+  const len2 = Math.hypot(k2.x - P.x, k2.y - P.y);
+  if (t > len1 - 1e-6 || t > len2 - 1e-6) return null;
+
+  const bx = u1.x + u2.x;
+  const by = u1.y + u2.y;
+  const blen = Math.hypot(bx, by);
+  if (blen < 1e-10) return null;
+  const ubx = bx / blen;
+  const uby = by / blen;
+  const centerDist = radius / sinT;
+  const center = { x: P.x + centerDist * ubx, y: P.y + centerDist * uby };
+
+  const startAngle = Math.atan2(PT1.y - center.y, PT1.x - center.x);
+  const endAngle = Math.atan2(PT2.y - center.y, PT2.x - center.x);
+  // Pick anticlockwise so the arc bulges back toward P.
+  const arcMid = (cw: boolean) => {
+    let s = startAngle;
+    let e = endAngle;
+    if (!cw) {
+      if (e <= s) e += 2 * Math.PI;
+    } else {
+      if (s <= e) s += 2 * Math.PI;
+      [s, e] = [e, s];
+    }
+    const m = (s + e) / 2;
+    return { x: center.x + radius * Math.cos(m), y: center.y + radius * Math.sin(m) };
+  };
+  const midCcw = arcMid(false);
+  const midCw = arcMid(true);
+  const dCcw = Math.hypot(midCcw.x - P.x, midCcw.y - P.y);
+  const dCw = Math.hypot(midCw.x - P.x, midCw.y - P.y);
+  return {
+    center, radius,
+    startAngle, endAngle,
+    anticlockwise: dCcw < dCw,
+    tangent1: PT1, tangent2: PT2,
+  };
+}
+
+function keepEndOf(
+  a: import('@/lib/cad/types').Point2D,
+  b: import('@/lib/cad/types').Point2D,
+  click: import('@/lib/cad/types').Point2D,
+): import('@/lib/cad/types').Point2D {
+  const dStart = Math.hypot(click.x - a.x, click.y - a.y);
+  const dEnd = Math.hypot(click.x - b.x, click.y - b.y);
+  return dEnd < dStart ? b : a;
+}
+
+/**
+ * Pure helper mirroring `chamferTwoLines` from operations.ts.
+ * Returns the two trim points + the connecting bevel line so
+ * the canvas can sketch a live preview while the surveyor
+ * hovers candidate second lines.
+ */
+function computeChamferPreview(
+  l1a: import('@/lib/cad/types').Point2D,
+  l1b: import('@/lib/cad/types').Point2D,
+  click1: import('@/lib/cad/types').Point2D,
+  l2a: import('@/lib/cad/types').Point2D,
+  l2b: import('@/lib/cad/types').Point2D,
+  click2: import('@/lib/cad/types').Point2D,
+  dist1: number,
+  dist2: number,
+): { tangent1: import('@/lib/cad/types').Point2D; tangent2: import('@/lib/cad/types').Point2D } | null {
+  if (!Number.isFinite(dist1) || dist1 <= 0 || !Number.isFinite(dist2) || dist2 <= 0) return null;
+  const denom = (l1a.x - l1b.x) * (l2a.y - l2b.y) - (l1a.y - l1b.y) * (l2a.x - l2b.x);
+  if (Math.abs(denom) < 1e-10) return null;
+  const tParam = ((l1a.x - l2a.x) * (l2a.y - l2b.y) - (l1a.y - l2a.y) * (l2a.x - l2b.x)) / denom;
+  const P = { x: l1a.x + tParam * (l1b.x - l1a.x), y: l1a.y + tParam * (l1b.y - l1a.y) };
+
+  const keepDir = (a: import('@/lib/cad/types').Point2D, b: import('@/lib/cad/types').Point2D, click: import('@/lib/cad/types').Point2D) => {
+    const dStart = Math.hypot(click.x - a.x, click.y - a.y);
+    const dEnd = Math.hypot(click.x - b.x, click.y - b.y);
+    const keepEnd = dEnd < dStart ? b : a;
+    const dx = keepEnd.x - P.x;
+    const dy = keepEnd.y - P.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-10) return null;
+    return { x: dx / len, y: dy / len };
+  };
+  const u1 = keepDir(l1a, l1b, click1);
+  const u2 = keepDir(l2a, l2b, click2);
+  if (!u1 || !u2) return null;
+
+  const k1 = keepEndOf(l1a, l1b, click1);
+  const k2 = keepEndOf(l2a, l2b, click2);
+  const len1 = Math.hypot(k1.x - P.x, k1.y - P.y);
+  const len2 = Math.hypot(k2.x - P.x, k2.y - P.y);
+  if (dist1 > len1 - 1e-6 || dist2 > len2 - 1e-6) return null;
+
+  return {
+    tangent1: { x: P.x + dist1 * u1.x, y: P.y + dist1 * u1.y },
+    tangent2: { x: P.x + dist2 * u2.x, y: P.y + dist2 * u2.y },
+  };
 }
 
 /**
@@ -394,6 +570,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     imageSprites: Map<string, import('pixi.js').Sprite>;
     /** Texture cache keyed by projectImage.id */
     imageTextures: Map<string, import('pixi.js').Texture>;
+    /** Single sprite for the firm-logo overlay in the title-
+     *  block header. Lazy-created on first render with a logo
+     *  set; texture is rebuilt whenever the data-URL changes. */
+    tbLogoSprite: import('pixi.js').Sprite | null;
+    /** Cached data URL the current `tbLogoSprite` texture was
+     *  built from. When the surveyor swaps logos in Settings
+     *  this string changes, triggering a texture rebuild. */
+    tbLogoTextureKey: string | null;
     paperGraphics: import('pixi.js').Graphics;
     gridGraphics: import('pixi.js').Graphics;
     selectionGraphics: import('pixi.js').Graphics;
@@ -741,6 +925,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           labelTexts: new Map(),
           imageSprites: new Map(),
           imageTextures: new Map(),
+          tbLogoSprite: null,
+          tbLogoTextureKey: null,
           paperGraphics,
           gridGraphics,
           selectionGraphics,
@@ -1724,16 +1910,70 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     tbg.moveTo(tbScrLeft,  tbScrTop + headerH);
     tbg.lineTo(tbScrRight, tbScrTop + headerH);
 
-    // Firm name (white, bold) — left side of header
+    // Firm name (white, bold) OR firm logo (when uploaded) —
+    // left side of header. The logo lives in `useUIStore` so
+    // it applies firm-wide on every drawing; when present we
+    // draw the image instead of the text.
+    const firmLogoUrl = useUIStore.getState().firmLogoDataUrl;
     const hFontSz  = Math.max(headerH * 0.52, 7);
-    const firmTxt  = mkTBTextTB((tb.firmName || 'SURVEY FIRM').toUpperCase(), {
-      fontFamily: 'Arial', fontSize: hFontSz, fill: 0xffffff,
-      fontWeight: 'bold', letterSpacing: 2,
-    });
-    firmTxt.anchor.set(0, 0.5);
-    firmTxt.position.set(tbScrLeft + 10, tbScrTop + headerH / 2);
-    // Track header fields for click-to-edit (split the header roughly in half)
     const headerSplitX = tbScrLeft + tbW * 0.55;
+    if (!firmLogoUrl) {
+      // Tear down any prior logo sprite so a remove-from-Settings
+      // takes effect on the next render.
+      if (pixi.tbLogoSprite) {
+        const parent = pixi.tbLogoSprite.parent;
+        if (parent) parent.removeChild(pixi.tbLogoSprite);
+        pixi.tbLogoSprite = null;
+        pixi.tbLogoTextureKey = null;
+      }
+      const firmTxt  = mkTBTextTB((tb.firmName || 'SURVEY FIRM').toUpperCase(), {
+        fontFamily: 'Arial', fontSize: hFontSz, fill: 0xffffff,
+        fontWeight: 'bold', letterSpacing: 2,
+      });
+      firmTxt.anchor.set(0, 0.5);
+      firmTxt.position.set(tbScrLeft + 10, tbScrTop + headerH / 2);
+    } else {
+      // Logo render — reuse a single Sprite, swap the texture
+      // when the data URL changes. Keep ~6 px of padding on
+      // every side so the logo doesn't kiss the header edges.
+      try {
+        if (pixi.tbLogoTextureKey !== firmLogoUrl) {
+          const tex = pixi.TextureClass.from(firmLogoUrl);
+          if (!pixi.tbLogoSprite) {
+            pixi.tbLogoSprite = new pixi.SpriteClass(tex);
+            pixi.tbLogoSprite.anchor.set(0, 0.5);
+            tbc.addChild(pixi.tbLogoSprite);
+          } else {
+            pixi.tbLogoSprite.texture = tex;
+          }
+          pixi.tbLogoTextureKey = firmLogoUrl;
+        } else if (pixi.tbLogoSprite && pixi.tbLogoSprite.parent !== tbc) {
+          // Container was rebuilt — re-attach the sprite
+          tbc.addChild(pixi.tbLogoSprite);
+        }
+        const sprite = pixi.tbLogoSprite!;
+        const tex = sprite.texture;
+        const padY = 6;
+        const padX = 10;
+        const maxLogoH = headerH - padY * 2;
+        const maxLogoW = (headerSplitX - tbScrLeft) - padX * 2;
+        const texW = Math.max(1, tex.width || 1);
+        const texH = Math.max(1, tex.height || 1);
+        const fit = Math.min(maxLogoW / texW, maxLogoH / texH);
+        sprite.scale.set(fit, fit);
+        sprite.position.set(tbScrLeft + padX, tbScrTop + headerH / 2);
+      } catch {
+        // Texture failed to load — fall back to firm-name text
+        // so the title block still has a header label.
+        const firmTxt  = mkTBTextTB((tb.firmName || 'SURVEY FIRM').toUpperCase(), {
+          fontFamily: 'Arial', fontSize: hFontSz, fill: 0xffffff,
+          fontWeight: 'bold', letterSpacing: 2,
+        });
+        firmTxt.anchor.set(0, 0.5);
+        firmTxt.position.set(tbScrLeft + 10, tbScrTop + headerH / 2);
+      }
+    }
+    // Track header fields for click-to-edit (split the header roughly in half)
     tbFieldBoundsRef.current.push({ key: 'firmName',   label: 'Firm Name',   editValue: tb.firmName   || '', screenX: tbScrLeft,    screenY: tbScrTop, w: headerSplitX - tbScrLeft,  h: headerH });
     tbFieldBoundsRef.current.push({ key: 'surveyType', label: 'Survey Type', editValue: tb.surveyType || '', screenX: headerSplitX, screenY: tbScrTop, w: tbScrRight - headerSplitX, h: headerH });
 
@@ -3306,6 +3546,499 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For DIM: live preview of the dimension line + the
+    // bearing/distance string the surveyor is about to commit
+    // to a TEXT feature. Only renders after the first click.
+    if (activeTool === 'DIM' && drawingPoints.length === 1) {
+      const from = drawingPoints[0];
+      const to = previewPoint;
+      const fromS = w2s(from.x, from.y);
+      const toS = w2s(to.x, to.y);
+      // Dimension line — bright cyan with hollow endpoints so
+      // the surveyor reads "this is the measurement extent."
+      g.lineStyle(1.5, 0x44ddff, 0.85);
+      g.moveTo(fromS.sx, fromS.sy);
+      g.lineTo(toS.sx, toS.sy);
+      g.drawCircle(fromS.sx, fromS.sy, 4);
+      g.drawCircle(toS.sx, toS.sy, 4);
+      // Midpoint marker — small filled dot where the TEXT
+      // feature's anchor will land (with a tiny perpendicular
+      // offset). Surveyor can predict the placement before
+      // clicking.
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const len = Math.hypot(dx, dy);
+      const offset = 6;
+      const pxOff = len > 1e-9 ? -dy / len * offset : 0;
+      const pyOff = len > 1e-9 ?  dx / len * offset : 0;
+      const midS = w2s((from.x + to.x) / 2 + pxOff, (from.y + to.y) / 2 + pyOff);
+      g.beginFill(0x44ddff, 0.95);
+      g.drawCircle(midS.sx, midS.sy, 3);
+      g.endFill();
+      return;
+    }
+
+    // For MEASURE_AREA: live polygon preview — already-placed
+    // vertices form a closed magenta loop with a translucent
+    // fill; the cursor's last leg + close-back leg are
+    // highlighted so the surveyor can see the next-click
+    // shape and predict the area before clicking.
+    if (activeTool === 'MEASURE_AREA' && drawingPoints.length >= 1) {
+      // Build the closed polygon (existing vertices + cursor)
+      const verts = [...drawingPoints, previewPoint];
+      // Translucent fill so the surveyor reads the area at a
+      // glance — only when ≥ 3 vertices form a real polygon.
+      if (verts.length >= 3) {
+        g.beginFill(0xff66cc, 0.12);
+        const p0 = w2s(verts[0].x, verts[0].y);
+        g.moveTo(p0.sx, p0.sy);
+        for (let i = 1; i < verts.length; i += 1) {
+          const p = w2s(verts[i].x, verts[i].y);
+          g.lineTo(p.sx, p.sy);
+        }
+        g.lineTo(p0.sx, p0.sy); // close back
+        g.endFill();
+      }
+      // Outline — magenta polyline through every vertex
+      g.lineStyle(1.5, 0xff66cc, 0.85);
+      const sp0 = w2s(drawingPoints[0].x, drawingPoints[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < drawingPoints.length; i += 1) {
+        const sp = w2s(drawingPoints[i].x, drawingPoints[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      // Live leg from last vertex to cursor
+      const lastVert = drawingPoints[drawingPoints.length - 1];
+      const lastS = w2s(lastVert.x, lastVert.y);
+      const cs = w2s(previewPoint.x, previewPoint.y);
+      g.lineStyle(2, 0xff44aa, 0.95);
+      g.moveTo(lastS.sx, lastS.sy);
+      g.lineTo(cs.sx, cs.sy);
+      // Close-back leg from cursor to first vertex (only when ≥ 2 vertices already placed)
+      if (drawingPoints.length >= 2) {
+        g.lineStyle(1.25, 0xff66cc, 0.55);
+        g.moveTo(cs.sx, cs.sy);
+        g.lineTo(sp0.sx, sp0.sy);
+      }
+      // Vertex markers
+      g.beginFill(0xff66cc, 0.95);
+      for (const v of drawingPoints) {
+        const sp = w2s(v.x, v.y);
+        g.drawCircle(sp.sx, sp.sy, 4);
+      }
+      g.endFill();
+      // Cursor marker
+      g.lineStyle(1.5, 0xff44aa, 0.95);
+      g.drawCircle(cs.sx, cs.sy, 5);
+      return;
+    }
+
+    // For INVERSE: render the running measure-path chain plus
+    // a live leg from the last clicked point to the cursor so
+    // the surveyor can sight the bearing+distance before
+    // committing each click. Bearing+distance values land in
+    // the command bar on every click via the click handler.
+    if (activeTool === 'INVERSE' && drawingPoints.length >= 1) {
+      // Faint chain through every clicked point
+      g.lineStyle(1.5, 0xffcc66, 0.55);
+      const p0 = w2s(drawingPoints[0].x, drawingPoints[0].y);
+      g.moveTo(p0.sx, p0.sy);
+      for (let i = 1; i < drawingPoints.length; i += 1) {
+        const p = w2s(drawingPoints[i].x, drawingPoints[i].y);
+        g.lineTo(p.sx, p.sy);
+      }
+      // Endpoint markers — small filled dots at every node
+      g.beginFill(0xffcc66, 0.95);
+      for (const wp of drawingPoints) {
+        const sp = w2s(wp.x, wp.y);
+        g.drawCircle(sp.sx, sp.sy, 4);
+      }
+      g.endFill();
+      // Live leg — bright orange dashed-look from last node to cursor
+      const last = drawingPoints[drawingPoints.length - 1];
+      const ls = w2s(last.x, last.y);
+      const cs = w2s(previewPoint.x, previewPoint.y);
+      g.lineStyle(2, 0xffaa33, 0.95);
+      g.moveTo(ls.sx, ls.sy);
+      g.lineTo(cs.sx, cs.sy);
+      // Tip marker — hollow circle at the cursor end so the
+      // user knows that's the new node about to be added.
+      g.lineStyle(1.5, 0xffaa33, 0.95);
+      g.drawCircle(cs.sx, cs.sy, 5);
+      return;
+    }
+
+    // For CHAMFER: same flow as FILLET preview but ghosts a
+    // straight bevel between the two trim points instead of
+    // an arc.
+    if (activeTool === 'CHAMFER') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+      const all = drawing.getAllFeatures();
+
+      if (ts.chamferPickedLineId) {
+        const f = drawing.getFeature(ts.chamferPickedLineId);
+        if (f && f.geometry.type === 'LINE' && f.geometry.start && f.geometry.end) {
+          const a = w2s(f.geometry.start.x, f.geometry.start.y);
+          const b = w2s(f.geometry.end.x, f.geometry.end.y);
+          g.lineStyle(2.5, 0x99ff44, 0.6);
+          g.moveTo(a.sx, a.sy);
+          g.lineTo(b.sx, b.sy);
+          if (ts.chamferPickedClickPoint) {
+            const cp = w2s(ts.chamferPickedClickPoint.x, ts.chamferPickedClickPoint.y);
+            g.beginFill(0x99ff44, 0.95);
+            g.drawCircle(cp.sx, cp.sy, 4);
+            g.endFill();
+          }
+        }
+      }
+
+      let hoverId: string | null = null;
+      let hoverDist = Infinity;
+      for (const f of all) {
+        if (f.geometry.type !== 'LINE') continue;
+        const fg = f.geometry;
+        if (!fg.start || !fg.end) continue;
+        const dx = fg.end.x - fg.start.x;
+        const dy = fg.end.y - fg.start.y;
+        const len2 = dx * dx + dy * dy;
+        if (len2 < 1e-20) continue;
+        let t = ((previewPoint.x - fg.start.x) * dx + (previewPoint.y - fg.start.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const px = fg.start.x + t * dx;
+        const py = fg.start.y + t * dy;
+        const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+        const dPx = d * useViewportStore.getState().zoom;
+        if (dPx < hoverDist && dPx < 14) {
+          hoverDist = dPx;
+          hoverId = f.id;
+        }
+      }
+      if (hoverId && hoverId !== ts.chamferPickedLineId) {
+        const f = drawing.getFeature(hoverId);
+        if (f && f.geometry.type === 'LINE' && f.geometry.start && f.geometry.end) {
+          const a = w2s(f.geometry.start.x, f.geometry.start.y);
+          const b = w2s(f.geometry.end.x, f.geometry.end.y);
+          g.lineStyle(2, 0x88ff88, 0.45);
+          g.moveTo(a.sx, a.sy);
+          g.lineTo(b.sx, b.sy);
+        }
+      }
+
+      if (ts.chamferPickedLineId && hoverId && hoverId !== ts.chamferPickedLineId && ts.chamferPickedClickPoint) {
+        const f1 = drawing.getFeature(ts.chamferPickedLineId);
+        const f2 = drawing.getFeature(hoverId);
+        if (
+          f1 && f2 &&
+          f1.geometry.type === 'LINE' && f2.geometry.type === 'LINE' &&
+          f1.geometry.start && f1.geometry.end && f2.geometry.start && f2.geometry.end
+        ) {
+          const previewBevel = computeChamferPreview(
+            f1.geometry.start, f1.geometry.end, ts.chamferPickedClickPoint,
+            f2.geometry.start, f2.geometry.end, previewPoint,
+            ts.chamferDistance1, ts.chamferDistance2,
+          );
+          if (previewBevel) {
+            g.lineStyle(2, 0x44ddff, 0.85);
+            const t1 = w2s(previewBevel.tangent1.x, previewBevel.tangent1.y);
+            const t2 = w2s(previewBevel.tangent2.x, previewBevel.tangent2.y);
+            g.moveTo(t1.sx, t1.sy);
+            g.lineTo(t2.sx, t2.sy);
+            g.beginFill(0x44ddff, 0.95);
+            g.drawCircle(t1.sx, t1.sy, 3);
+            g.drawCircle(t2.sx, t2.sy, 3);
+            g.endFill();
+          }
+        }
+      }
+      return;
+    }
+
+    // For FILLET: highlight the picked line(s) and ghost the
+    // arc when both are picked OR (during phase 2) when the
+    // cursor is hovering a candidate second line.
+    if (activeTool === 'FILLET') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+      const all = drawing.getAllFeatures();
+
+      // Highlight the already-picked first line in lime so the
+      // surveyor sees the locked-in selection.
+      if (ts.filletPickedLineId) {
+        const f = drawing.getFeature(ts.filletPickedLineId);
+        if (f && f.geometry.type === 'LINE' && f.geometry.start && f.geometry.end) {
+          const a = w2s(f.geometry.start.x, f.geometry.start.y);
+          const b = w2s(f.geometry.end.x, f.geometry.end.y);
+          g.lineStyle(2.5, 0x99ff44, 0.6);
+          g.moveTo(a.sx, a.sy);
+          g.lineTo(b.sx, b.sy);
+          // Click marker
+          if (ts.filletPickedClickPoint) {
+            const cp = w2s(ts.filletPickedClickPoint.x, ts.filletPickedClickPoint.y);
+            g.beginFill(0x99ff44, 0.95);
+            g.drawCircle(cp.sx, cp.sy, 4);
+            g.endFill();
+          }
+        }
+      }
+
+      // Hit-test for the cursor's candidate line.
+      let hoverId: string | null = null;
+      let hoverDist = Infinity;
+      for (const f of all) {
+        if (f.geometry.type !== 'LINE') continue;
+        const fg = f.geometry;
+        if (!fg.start || !fg.end) continue;
+        const dx = fg.end.x - fg.start.x;
+        const dy = fg.end.y - fg.start.y;
+        const len2 = dx * dx + dy * dy;
+        if (len2 < 1e-20) continue;
+        let t = ((previewPoint.x - fg.start.x) * dx + (previewPoint.y - fg.start.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const px = fg.start.x + t * dx;
+        const py = fg.start.y + t * dy;
+        const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+        const dPx = d * useViewportStore.getState().zoom;
+        if (dPx < hoverDist && dPx < 14) {
+          hoverDist = dPx;
+          hoverId = f.id;
+        }
+      }
+      if (hoverId && hoverId !== ts.filletPickedLineId) {
+        const f = drawing.getFeature(hoverId);
+        if (f && f.geometry.type === 'LINE' && f.geometry.start && f.geometry.end) {
+          const a = w2s(f.geometry.start.x, f.geometry.start.y);
+          const b = w2s(f.geometry.end.x, f.geometry.end.y);
+          g.lineStyle(2, 0x88ff88, 0.45);
+          g.moveTo(a.sx, a.sy);
+          g.lineTo(b.sx, b.sy);
+        }
+      }
+
+      // Phase 2 preview — both lines picked, sketch the
+      // resulting arc + trimmed lines.
+      if (ts.filletPickedLineId && hoverId && hoverId !== ts.filletPickedLineId && ts.filletPickedClickPoint) {
+        const f1 = drawing.getFeature(ts.filletPickedLineId);
+        const f2 = drawing.getFeature(hoverId);
+        if (
+          f1 && f2 &&
+          f1.geometry.type === 'LINE' && f2.geometry.type === 'LINE' &&
+          f1.geometry.start && f1.geometry.end && f2.geometry.start && f2.geometry.end
+        ) {
+          const previewArc = computeFilletPreview(
+            f1.geometry.start, f1.geometry.end, ts.filletPickedClickPoint,
+            f2.geometry.start, f2.geometry.end, previewPoint,
+            ts.filletRadius,
+          );
+          if (previewArc) {
+            // Bright cyan arc + tangent stubs
+            g.lineStyle(2, 0x44ddff, 0.85);
+            // Arc samples
+            let s = previewArc.startAngle;
+            let e = previewArc.endAngle;
+            if (previewArc.anticlockwise) {
+              if (e <= s) e += 2 * Math.PI;
+            } else {
+              if (s <= e) s += 2 * Math.PI;
+              [s, e] = [e, s];
+            }
+            const samples = 32;
+            const span = e - s;
+            for (let i = 0; i <= samples; i += 1) {
+              const a = s + span * (i / samples);
+              const wx = previewArc.center.x + previewArc.radius * Math.cos(a);
+              const wy = previewArc.center.y + previewArc.radius * Math.sin(a);
+              const sp = w2s(wx, wy);
+              if (i === 0) g.moveTo(sp.sx, sp.sy);
+              else g.lineTo(sp.sx, sp.sy);
+            }
+            // Tangent point markers
+            g.beginFill(0x44ddff, 0.95);
+            const t1 = w2s(previewArc.tangent1.x, previewArc.tangent1.y);
+            const t2 = w2s(previewArc.tangent2.x, previewArc.tangent2.y);
+            g.drawCircle(t1.sx, t1.sy, 3);
+            g.drawCircle(t2.sx, t2.sy, 3);
+            g.endFill();
+          }
+        }
+      }
+
+      return;
+    }
+
+    // For JOIN: highlight every selected vertex-chain feature
+    // and drop a magenta dot at every endpoint so the
+    // surveyor sees how many endpoints will need to align.
+    // We don't try to compute the joined polyline here — the
+    // operation is fast and runs on click commit anyway, and
+    // partial-selection states can be ambiguous.
+    if (activeTool === 'JOIN') {
+      const drawing = useDrawingStore.getState();
+      const selIds = Array.from(useSelectionStore.getState().selectedIds);
+      g.lineStyle(2, 0xff66ff, 0.6);
+      for (const id of selIds) {
+        const f = drawing.getFeature(id);
+        if (!f) continue;
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        if (!chain) continue;
+        // Draw the chain in a light magenta
+        const p0 = w2s(chain[0].x, chain[0].y);
+        g.moveTo(p0.sx, p0.sy);
+        for (let i = 1; i < chain.length; i += 1) {
+          const p = w2s(chain[i].x, chain[i].y);
+          g.lineTo(p.sx, p.sy);
+        }
+        // Endpoints — bright magenta dots
+        g.beginFill(0xff66ff, 0.95);
+        const ep0 = w2s(chain[0].x, chain[0].y);
+        const ep1 = w2s(chain[chain.length - 1].x, chain[chain.length - 1].y);
+        g.drawCircle(ep0.sx, ep0.sy, 4);
+        g.drawCircle(ep1.sx, ep1.sy, 4);
+        g.endFill();
+      }
+      // Crosshair on cursor + a small "+" marker so the user
+      // knows clicking adds to the selection.
+      const cs = w2s(previewPoint.x, previewPoint.y);
+      g.lineStyle(1, 0xff66ff, 0.65);
+      g.moveTo(cs.sx - 5, cs.sy); g.lineTo(cs.sx + 5, cs.sy);
+      g.moveTo(cs.sx, cs.sy - 5); g.lineTo(cs.sx, cs.sy + 5);
+      return;
+    }
+
+    // For EXTEND: show the extended geometry — a green ghost
+    // line from the chain's nearest endpoint along its
+    // tangent direction to the closest target intersection.
+    // No target found = no ghost (just the source highlighted)
+    // so the surveyor knows the click would be a no-op.
+    if (activeTool === 'EXTEND') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+
+      // Hit-test for any LINE / POLYLINE under the cursor.
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        if (!chain) continue;
+        for (let i = 0; i + 1 < chain.length; i += 1) {
+          const a = chain[i];
+          const b = chain[i + 1];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+          }
+        }
+      }
+
+      if (!bestId || !bestChain) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+
+      // Pick the endpoint nearer to the cursor — that's the
+      // end the operation will extend.
+      const chain = bestChain;
+      const startPt = chain[0];
+      const endPt = chain[chain.length - 1];
+      const dStart = Math.hypot(previewPoint.x - startPt.x, previewPoint.y - startPt.y);
+      const dEnd = Math.hypot(previewPoint.x - endPt.x, previewPoint.y - endPt.y);
+      const extendStart = dStart < dEnd;
+      const anchor = extendStart ? startPt : endPt;
+      const tangentSrc = extendStart ? chain[1] : chain[chain.length - 2];
+      const tx0 = anchor.x - tangentSrc.x;
+      const ty0 = anchor.y - tangentSrc.y;
+      const tlen = Math.hypot(tx0, ty0);
+      if (tlen < 1e-10) return;
+      const tx = tx0 / tlen;
+      const ty = ty0 / tlen;
+
+      // Find the closest forward target intersection.
+      let bestS = Infinity;
+      let bestTargetPt: Point2D | null = null;
+      for (const t of all) {
+        if (t.id === bestId) continue;
+        const tg = t.geometry;
+        let segs: Array<[Point2D, Point2D]> | null = null;
+        if (tg.type === 'LINE' && tg.start && tg.end) segs = [[tg.start, tg.end]];
+        else if ((tg.type === 'POLYLINE' || tg.type === 'MIXED_GEOMETRY') && tg.vertices && tg.vertices.length >= 2) {
+          segs = [];
+          for (let k = 0; k + 1 < tg.vertices.length; k += 1) segs.push([tg.vertices[k], tg.vertices[k + 1]]);
+        } else if (tg.type === 'POLYGON' && tg.vertices && tg.vertices.length >= 2) {
+          segs = [];
+          for (let k = 0; k < tg.vertices.length; k += 1) segs!.push([tg.vertices[k], tg.vertices[(k + 1) % tg.vertices.length]]);
+        }
+        if (!segs) continue;
+        for (const [c, d] of segs) {
+          const dxCd = d.x - c.x;
+          const dyCd = d.y - c.y;
+          const denom = tx * dyCd - ty * dxCd;
+          if (Math.abs(denom) < 1e-10) continue;
+          const cxAx = c.x - anchor.x;
+          const cyAy = c.y - anchor.y;
+          const s = (cxAx * dyCd - cyAy * dxCd) / denom;
+          const u = (cxAx * ty - cyAy * tx) / denom;
+          if (s <= 1e-6) continue;
+          if (u < -1e-6 || u > 1 + 1e-6) continue;
+          if (s < bestS) {
+            bestS = s;
+            bestTargetPt = { x: anchor.x + s * tx, y: anchor.y + s * ty };
+          }
+        }
+      }
+
+      // Highlight the source chain in faint green so the
+      // surveyor knows what they're aiming at.
+      g.lineStyle(2, 0x77ff77, 0.45);
+      const p0 = w2s(chain[0].x, chain[0].y);
+      g.moveTo(p0.sx, p0.sy);
+      for (let i = 1; i < chain.length; i += 1) {
+        const p = w2s(chain[i].x, chain[i].y);
+        g.lineTo(p.sx, p.sy);
+      }
+
+      if (!bestTargetPt) {
+        // No forward intersection — flag the anchor with a
+        // grey ring so the user can see no-op state.
+        const ap = w2s(anchor.x, anchor.y);
+        g.lineStyle(1.5, 0x888888, 0.7);
+        g.drawCircle(ap.sx, ap.sy, 5);
+        return;
+      }
+
+      // Bright green extension preview: anchor → target intersection.
+      const ap = w2s(anchor.x, anchor.y);
+      const tp = w2s(bestTargetPt.x, bestTargetPt.y);
+      g.lineStyle(2, 0x44ff44, 0.95);
+      g.moveTo(ap.sx, ap.sy);
+      g.lineTo(tp.sx, tp.sy);
+      // Mark the new endpoint with a small filled circle.
+      g.beginFill(0x44ff44, 0.95);
+      g.drawCircle(tp.sx, tp.sy, 4);
+      g.endFill();
+      return;
+    }
+
     // For TRIM: highlight the portion of the feature that
     // would be removed (between the two adjacent
     // intersections, or back to an endpoint when only one
@@ -3490,6 +4223,976 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       for (const it of ints) {
         const ip = w2s(it.pt.x, it.pt.y);
         g.drawCircle(ip.sx, ip.sy, 4);
+      }
+      g.endFill();
+      return;
+    }
+
+    // For REMOVE_VERTEX: highlight the hovered POLYLINE /
+    // POLYGON in faint red and mark the closest vertex
+    // within pick radius with a red X. When the chain has
+    // already shrunk to its minimum (2 / 3 vertices) every
+    // vertex shows a grey "no-op" indicator instead.
+    if (activeTool === 'REMOVE_VERTEX') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestVertexIdx = -1;
+      let bestVertexDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'MIXED_GEOMETRY' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 3) {
+          chain = fg.vertices;
+          isClosed = true;
+        }
+        if (!chain) continue;
+        for (let i = 0; i < chain.length; i += 1) {
+          const v = chain[i];
+          const d = Math.hypot(previewPoint.x - v.x, previewPoint.y - v.y);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestVertexDist && dPx < 18) {
+            bestVertexDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestIsClosed = isClosed;
+            bestVertexIdx = i;
+          }
+        }
+      }
+      if (!bestId || !bestChain || bestVertexIdx < 0) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Outline the chosen feature in faint red
+      g.lineStyle(2, 0xff5566, 0.45);
+      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestChain.length; i += 1) {
+        const sp = w2s(bestChain[i].x, bestChain[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+      // Existing vertices — small dim red dots
+      g.beginFill(0xff5566, 0.55);
+      for (const v of bestChain) {
+        const sp = w2s(v.x, v.y);
+        g.drawCircle(sp.sx, sp.sy, 3);
+      }
+      g.endFill();
+      // Target vertex — bright X (or grey ring when at min count)
+      const minVerts = bestIsClosed ? 3 : 2;
+      const blocked = bestChain.length <= minVerts;
+      const tv = bestChain[bestVertexIdx];
+      const tvS = w2s(tv.x, tv.y);
+      if (blocked) {
+        g.lineStyle(1.5, 0x888888, 0.85);
+        g.drawCircle(tvS.sx, tvS.sy, 7);
+      } else {
+        g.lineStyle(2.5, 0xff3344, 0.95);
+        g.moveTo(tvS.sx - 7, tvS.sy - 7); g.lineTo(tvS.sx + 7, tvS.sy + 7);
+        g.moveTo(tvS.sx - 7, tvS.sy + 7); g.lineTo(tvS.sx + 7, tvS.sy - 7);
+      }
+      return;
+    }
+
+    // For INSERT_VERTEX: highlight the hovered POLYLINE /
+    // POLYGON in faint cyan and drop a small filled cyan
+    // marker at the closest point on the geometry — that's
+    // where the new vertex will land.
+    if (activeTool === 'INSERT_VERTEX') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      let bestInsertPt: Point2D | null = null;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'MIXED_GEOMETRY' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+          isClosed = true;
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestIsClosed = isClosed;
+            bestInsertPt = { x: px, y: py };
+          }
+        }
+      }
+      if (!bestId || !bestChain || !bestInsertPt) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Faint outline of the source
+      g.lineStyle(2, 0x44ddff, 0.45);
+      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestChain.length; i += 1) {
+        const sp = w2s(bestChain[i].x, bestChain[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+      // Existing vertices — small dim dots
+      g.beginFill(0x44ddff, 0.45);
+      for (const v of bestChain) {
+        const sp = w2s(v.x, v.y);
+        g.drawCircle(sp.sx, sp.sy, 2);
+      }
+      g.endFill();
+      // Insert position — bright cyan ring + crosshair
+      const ip = w2s(bestInsertPt.x, bestInsertPt.y);
+      g.lineStyle(2, 0x44ddff, 0.95);
+      g.drawCircle(ip.sx, ip.sy, 5);
+      g.moveTo(ip.sx - 8, ip.sy); g.lineTo(ip.sx + 8, ip.sy);
+      g.moveTo(ip.sx, ip.sy - 8); g.lineTo(ip.sx, ip.sy + 8);
+      return;
+    }
+
+    // For SIMPLIFY_POLYLINE: highlight the hovered chain in
+    // faint orange, then run RDP at the toolbar tolerance
+    // and ghost the predicted reduced chain in bright orange
+    // so the surveyor sees both vertex counts at a glance.
+    if (activeTool === 'SIMPLIFY_POLYLINE') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestVerts: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 3) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 3) {
+          chain = fg.vertices;
+          isClosed = true;
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestVerts = chain;
+            bestIsClosed = isClosed;
+          }
+        }
+      }
+      if (!bestId || !bestVerts) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Faint source outline + every vertex as a small dot
+      g.lineStyle(1.5, 0xff8844, 0.35);
+      const sp0 = w2s(bestVerts[0].x, bestVerts[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestVerts.length; i += 1) {
+        const sp = w2s(bestVerts[i].x, bestVerts[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+      g.beginFill(0xff8844, 0.35);
+      for (const v of bestVerts) {
+        const sp = w2s(v.x, v.y);
+        g.drawCircle(sp.sx, sp.sy, 2);
+      }
+      g.endFill();
+      // Predicted reduced chain — full-strength orange + larger dots
+      const reduced = simplifyPolylineFn(bestVerts, ts.simplifyTolerance, bestIsClosed);
+      if (reduced.length >= 2 && reduced.length < bestVerts.length) {
+        g.lineStyle(2, 0xff8844, 0.95);
+        const rp0 = w2s(reduced[0].x, reduced[0].y);
+        g.moveTo(rp0.sx, rp0.sy);
+        for (let i = 1; i < reduced.length; i += 1) {
+          const sp = w2s(reduced[i].x, reduced[i].y);
+          g.lineTo(sp.sx, sp.sy);
+        }
+        if (bestIsClosed) g.lineTo(rp0.sx, rp0.sy);
+        g.beginFill(0xff8844, 0.95);
+        for (const v of reduced) {
+          const sp = w2s(v.x, v.y);
+          g.drawCircle(sp.sx, sp.sy, 4);
+        }
+        g.endFill();
+      }
+      return;
+    }
+
+    // For SMOOTH_POLYLINE: highlight the hovered POLYLINE /
+    // POLYGON in faint cyan + ghost the predicted spline in
+    // bright cyan so the surveyor sees the curve before
+    // committing.
+    if (activeTool === 'SMOOTH_POLYLINE') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestVerts: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 3) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 3) {
+          chain = fg.vertices;
+          isClosed = true;
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestVerts = chain;
+            bestIsClosed = isClosed;
+          }
+        }
+      }
+      if (!bestId || !bestVerts) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Faint outline of the source so the surveyor knows
+      // what they're picking
+      g.lineStyle(1.5, 0xaa88ff, 0.4);
+      const sp0 = w2s(bestVerts[0].x, bestVerts[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestVerts.length; i += 1) {
+        const sp = w2s(bestVerts[i].x, bestVerts[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+
+      // Ghost smoothed spline — sample the bezier control
+      // points and trace a curve through them.
+      const cps = fitPointsToBezier(bestVerts, bestIsClosed);
+      if (cps.length >= 4) {
+        const segCount = Math.floor((cps.length - 1) / 3);
+        const stepsPerSeg = 24;
+        let started = false;
+        g.lineStyle(2, 0xaa88ff, 0.95);
+        for (let seg = 0; seg < segCount; seg += 1) {
+          const p0 = cps[seg * 3];
+          const p1 = cps[seg * 3 + 1];
+          const p2 = cps[seg * 3 + 2];
+          const p3 = cps[seg * 3 + 3];
+          const startStep = started ? 1 : 0;
+          for (let i = startStep; i <= stepsPerSeg; i += 1) {
+            const t = i / stepsPerSeg;
+            const u = 1 - t;
+            const wx = u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x;
+            const wy = u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y;
+            const sp = w2s(wx, wy);
+            if (!started) {
+              g.moveTo(sp.sx, sp.sy);
+              started = true;
+            } else {
+              g.lineTo(sp.sx, sp.sy);
+            }
+          }
+        }
+      }
+      // Mark every original vertex with a small dot so the
+      // surveyor sees the SPLINE will pass through them.
+      g.beginFill(0xaa88ff, 0.95);
+      for (const v of bestVerts) {
+        const sp = w2s(v.x, v.y);
+        g.drawCircle(sp.sx, sp.sy, 3);
+      }
+      g.endFill();
+      return;
+    }
+
+    // For PERPENDICULAR: phase 1 marks a candidate source
+    // point at the cursor (filled cyan dot); phase 2 ghosts
+    // the perpendicular line from the locked-in source to
+    // the foot on whichever line is under the cursor.
+    if (activeTool === 'PERPENDICULAR') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+
+      if (!ts.perpendicularSourcePoint) {
+        // Phase 1 — show candidate source dot at the cursor
+        // (snapping to a hovered POINT feature when one is in
+        // range so the surveyor can see the snap).
+        let snappedSrc: Point2D = previewPoint;
+        const hitId = (() => {
+          const all = drawing.getAllFeatures();
+          let bestId: string | null = null;
+          let bestDist = Infinity;
+          for (const f of all) {
+            if (f.geometry.type !== 'POINT' || !f.geometry.point) continue;
+            const d = Math.hypot(previewPoint.x - f.geometry.point.x, previewPoint.y - f.geometry.point.y);
+            const dPx = d * useViewportStore.getState().zoom;
+            if (dPx < bestDist && dPx < 14) {
+              bestDist = dPx;
+              bestId = f.id;
+            }
+          }
+          return bestId;
+        })();
+        const hitFeat = hitId ? drawing.getFeature(hitId) : null;
+        if (hitFeat && hitFeat.geometry.type === 'POINT' && hitFeat.geometry.point) {
+          snappedSrc = hitFeat.geometry.point;
+        }
+        const sp = w2s(snappedSrc.x, snappedSrc.y);
+        g.lineStyle(2, 0x44ddff, 0.95);
+        g.beginFill(0x44ddff, 0.95);
+        g.drawCircle(sp.sx, sp.sy, 5);
+        g.endFill();
+        return;
+      }
+
+      // Phase 2 — source locked in. Find the line under the
+      // cursor; project the source perpendicular onto it.
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if ((fg.type === 'POLYLINE' || fg.type === 'MIXED_GEOMETRY') && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+          isClosed = true;
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dxAB = b.x - a.x;
+          const dyAB = b.y - a.y;
+          const len2 = dxAB * dxAB + dyAB * dyAB;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dxAB + (previewPoint.y - a.y) * dyAB) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dxAB;
+          const py = a.y + t * dyAB;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestIsClosed = isClosed;
+          }
+        }
+      }
+      // Always render the source dot regardless of hover
+      const src = ts.perpendicularSourcePoint;
+      const srcS = w2s(src.x, src.y);
+      g.lineStyle(2, 0x44ddff, 0.95);
+      g.beginFill(0x44ddff, 0.95);
+      g.drawCircle(srcS.sx, srcS.sy, 5);
+      g.endFill();
+
+      if (!bestId || !bestChain) {
+        // No valid target — hint to the surveyor by drawing
+        // an open ring at the cursor.
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.lineStyle(1.5, 0x888888, 0.7);
+        g.drawCircle(cs.sx, cs.sy, 5);
+        return;
+      }
+      // Highlight the hovered target chain in lime
+      g.lineStyle(2.5, 0x99ff44, 0.55);
+      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestChain.length; i += 1) {
+        const sp = w2s(bestChain[i].x, bestChain[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+
+      // Find the foot of perpendicular by projecting source
+      // onto the closest segment.
+      const segCount = bestIsClosed ? bestChain.length : bestChain.length - 1;
+      let bestSegIdx = 0;
+      let bestSegDist = Infinity;
+      for (let i = 0; i < segCount; i += 1) {
+        const a = bestChain[i];
+        const b = bestChain[(i + 1) % bestChain.length];
+        const dxAB = b.x - a.x;
+        const dyAB = b.y - a.y;
+        const len2 = dxAB * dxAB + dyAB * dyAB;
+        if (len2 < 1e-20) continue;
+        let t = ((previewPoint.x - a.x) * dxAB + (previewPoint.y - a.y) * dyAB) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const px = a.x + t * dxAB;
+        const py = a.y + t * dyAB;
+        const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+        if (d < bestSegDist) {
+          bestSegDist = d;
+          bestSegIdx = i;
+        }
+      }
+      const segA = bestChain[bestSegIdx];
+      const segB = bestChain[(bestSegIdx + 1) % bestChain.length];
+      const dxAB = segB.x - segA.x;
+      const dyAB = segB.y - segA.y;
+      const len2 = dxAB * dxAB + dyAB * dyAB;
+      if (len2 < 1e-20) return;
+      const tParam = ((src.x - segA.x) * dxAB + (src.y - segA.y) * dyAB) / len2;
+      const footX = segA.x + tParam * dxAB;
+      const footY = segA.y + tParam * dyAB;
+      const footS = w2s(footX, footY);
+      // Draw the perpendicular line in cyan
+      g.lineStyle(2, 0x44ddff, 0.95);
+      g.moveTo(srcS.sx, srcS.sy);
+      g.lineTo(footS.sx, footS.sy);
+      // Foot marker — small filled circle + tiny perpendicular tick
+      g.beginFill(0x44ddff, 0.95);
+      g.drawCircle(footS.sx, footS.sy, 4);
+      g.endFill();
+      return;
+    }
+
+    // For POINT_AT_DISTANCE: highlight the hovered chain in
+    // lime + a small ring at the predicted commit point.
+    // Shows from-end vs from-start visually so the surveyor
+    // can confirm the direction before clicking.
+    if (activeTool === 'POINT_AT_DISTANCE') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+          isClosed = true;
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dxAB = b.x - a.x;
+          const dyAB = b.y - a.y;
+          const len2 = dxAB * dxAB + dyAB * dyAB;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dxAB + (previewPoint.y - a.y) * dyAB) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dxAB;
+          const py = a.y + t * dyAB;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestIsClosed = isClosed;
+          }
+        }
+      }
+      if (!bestId || !bestChain) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Outline the hovered feature in lime
+      g.lineStyle(2.5, 0x99ff44, 0.55);
+      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestChain.length; i += 1) {
+        const sp = w2s(bestChain[i].x, bestChain[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+      // Mark the chosen origin endpoint with a square so the
+      // surveyor sees from-START vs from-END at a glance.
+      const origin = ts.pointAtDistanceFromEnd
+        ? bestChain[bestChain.length - 1]
+        : bestChain[0];
+      const oS = w2s(origin.x, origin.y);
+      g.lineStyle(2, 0x44ddff, 0.95);
+      g.beginFill(0x44ddff, 0.95);
+      g.drawRect(oS.sx - 5, oS.sy - 5, 10, 10);
+      g.endFill();
+      // Compute the predicted commit point using the same
+      // arc-length math as the operation. Replicates
+      // `pointAlongChain` inline.
+      const segCount = bestIsClosed ? bestChain.length : bestChain.length - 1;
+      let total = 0;
+      const segLens: number[] = [];
+      for (let i = 0; i < segCount; i += 1) {
+        const a = bestChain[i];
+        const b = bestChain[(i + 1) % bestChain.length];
+        const lenSeg = Math.hypot(b.x - a.x, b.y - a.y);
+        segLens.push(lenSeg);
+        total += lenSeg;
+      }
+      if (total > 1e-12) {
+        const clamped = Math.min(ts.pointAtDistanceValue, total);
+        const tNorm = ts.pointAtDistanceFromEnd ? 1 - clamped / total : clamped / total;
+        const target = Math.max(0, Math.min(1, tNorm)) * total;
+        let acc = 0;
+        for (let i = 0; i < segCount; i += 1) {
+          const lenSeg = segLens[i];
+          if (acc + lenSeg >= target || i === segCount - 1) {
+            const localT = lenSeg > 1e-12 ? (target - acc) / lenSeg : 0;
+            const a = bestChain[i];
+            const b = bestChain[(i + 1) % bestChain.length];
+            const wx = a.x + (b.x - a.x) * localT;
+            const wy = a.y + (b.y - a.y) * localT;
+            const sp = w2s(wx, wy);
+            g.lineStyle(2, 0x66ff00, 0.95);
+            g.beginFill(0x66ff00, 0.95);
+            g.drawCircle(sp.sx, sp.sy, 5);
+            g.endFill();
+            break;
+          }
+          acc += lenSeg;
+        }
+      }
+      return;
+    }
+
+    // For MATCH_PROPERTIES: highlight the locked-in source
+    // in cyan + the hovered target candidate in lime so the
+    // surveyor sees both feature outlines before clicking.
+    if (activeTool === 'MATCH_PROPERTIES') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+      const all = drawing.getAllFeatures();
+
+      const drawFeatureOutline = (
+        f: import('@/lib/cad/types').Feature,
+        color: number,
+        alpha: number,
+      ) => {
+        const fg = f.geometry;
+        g.lineStyle(2, color, alpha);
+        if (fg.type === 'LINE' && fg.start && fg.end) {
+          const a = w2s(fg.start.x, fg.start.y);
+          const b = w2s(fg.end.x, fg.end.y);
+          g.moveTo(a.sx, a.sy);
+          g.lineTo(b.sx, b.sy);
+        } else if ((fg.type === 'POLYLINE' || fg.type === 'POLYGON' || fg.type === 'MIXED_GEOMETRY') && fg.vertices && fg.vertices.length >= 2) {
+          const p0 = w2s(fg.vertices[0].x, fg.vertices[0].y);
+          g.moveTo(p0.sx, p0.sy);
+          for (let i = 1; i < fg.vertices.length; i += 1) {
+            const p = w2s(fg.vertices[i].x, fg.vertices[i].y);
+            g.lineTo(p.sx, p.sy);
+          }
+          if (fg.type === 'POLYGON') g.lineTo(p0.sx, p0.sy);
+        } else if (fg.type === 'CIRCLE' && fg.circle) {
+          const sp = w2s(fg.circle.center.x, fg.circle.center.y);
+          const radiusPx = fg.circle.radius * useViewportStore.getState().zoom;
+          g.drawCircle(sp.sx, sp.sy, radiusPx);
+        } else if (fg.type === 'POINT' && fg.point) {
+          const sp = w2s(fg.point.x, fg.point.y);
+          g.drawCircle(sp.sx, sp.sy, 5);
+        }
+      };
+
+      // Source — locked-in cyan outline so the surveyor sees
+      // the style being copied.
+      if (ts.matchPropertiesSourceId) {
+        const src = drawing.getFeature(ts.matchPropertiesSourceId);
+        if (src) drawFeatureOutline(src, 0x44ddff, 0.85);
+      }
+
+      // Hovered target — lime outline so the surveyor sees
+      // what's about to be painted.
+      let hoverId: string | null = null;
+      let hoverDist = Infinity;
+      for (const f of all) {
+        if (f.id === ts.matchPropertiesSourceId) continue;
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if ((fg.type === 'POLYLINE' || fg.type === 'POLYGON' || fg.type === 'MIXED_GEOMETRY') && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'POINT' && fg.point) {
+          const d = Math.hypot(previewPoint.x - fg.point.x, previewPoint.y - fg.point.y);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < hoverDist && dPx < 14) {
+            hoverDist = dPx;
+            hoverId = f.id;
+          }
+          continue;
+        }
+        if (!chain) continue;
+        for (let i = 0; i + 1 < chain.length; i += 1) {
+          const a = chain[i];
+          const b = chain[i + 1];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < hoverDist && dPx < 14) {
+            hoverDist = dPx;
+            hoverId = f.id;
+          }
+        }
+      }
+      if (hoverId) {
+        const target = drawing.getFeature(hoverId);
+        if (target) drawFeatureOutline(target, 0x99ff44, 0.65);
+      }
+      return;
+    }
+
+    // For REVERSE: highlight the hovered feature with a
+    // directional arrowhead at the current end so the
+    // surveyor sees the existing direction. Clicking will
+    // flip it — the arrow swaps to the other end after
+    // commit on the next render.
+    if (activeTool === 'REVERSE') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestStart: Point2D | null = null;
+      let bestEnd: Point2D | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if ((fg.type === 'POLYLINE' || fg.type === 'POLYGON' || fg.type === 'MIXED_GEOMETRY') && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+        }
+        if (!chain) continue;
+        for (let i = 0; i + 1 < chain.length; i += 1) {
+          const a = chain[i];
+          const b = chain[i + 1];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestStart = chain[0];
+            bestEnd = chain[chain.length - 1];
+          }
+        }
+      }
+      if (!bestId || !bestChain || !bestStart || !bestEnd) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Outline the feature in cyan
+      g.lineStyle(2, 0x44ddff, 0.55);
+      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestChain.length; i += 1) {
+        const sp = w2s(bestChain[i].x, bestChain[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      // START marker (square) + END marker (circle with arrowhead)
+      const sStart = w2s(bestStart.x, bestStart.y);
+      const sEnd = w2s(bestEnd.x, bestEnd.y);
+      g.lineStyle(2, 0x44ddff, 0.95);
+      g.beginFill(0x44ddff, 0.95);
+      g.drawRect(sStart.sx - 5, sStart.sy - 5, 10, 10);
+      g.endFill();
+      // Arrowhead at END pointing along the last segment direction
+      const lastA = bestChain[bestChain.length - 2];
+      const lastB = bestEnd;
+      const tipDx = lastB.x - lastA.x;
+      const tipDy = lastB.y - lastA.y;
+      const tipLen = Math.hypot(tipDx, tipDy);
+      if (tipLen > 1e-10) {
+        const ux = tipDx / tipLen;
+        const uy = tipDy / tipLen;
+        const arrowLen = 14;
+        const arrowWide = 6;
+        // Convert direction to screen — y axis flips since
+        // screen-space y grows downward. We use the Pixi
+        // world→screen transform, so the perpendicular needs
+        // to come from the screen-space delta.
+        const sLastA = w2s(lastA.x, lastA.y);
+        const sDx = sEnd.sx - sLastA.sx;
+        const sDy = sEnd.sy - sLastA.sy;
+        const sLen = Math.hypot(sDx, sDy);
+        if (sLen > 1e-6) {
+          const sux = sDx / sLen;
+          const suy = sDy / sLen;
+          const tip = { x: sEnd.sx, y: sEnd.sy };
+          const baseX = tip.x - arrowLen * sux;
+          const baseY = tip.y - arrowLen * suy;
+          // Perpendicular in screen space
+          const perpX = -suy;
+          const perpY = sux;
+          const wing1 = { x: baseX + arrowWide * perpX, y: baseY + arrowWide * perpY };
+          const wing2 = { x: baseX - arrowWide * perpX, y: baseY - arrowWide * perpY };
+          g.lineStyle(2, 0x44ddff, 0.95);
+          g.moveTo(wing1.x, wing1.y);
+          g.lineTo(tip.x, tip.y);
+          g.lineTo(wing2.x, wing2.y);
+        }
+        // Reference unused vars to silence lint
+        void ux;
+        void uy;
+      } else {
+        g.drawCircle(sEnd.sx, sEnd.sy, 5);
+      }
+      return;
+    }
+
+    // For EXPLODE: highlight the hovered POLYLINE/POLYGON
+    // and mark every vertex with a small dot — visualising
+    // exactly where the feature will break.
+    if (activeTool === 'EXPLODE') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+          isClosed = true;
+        } else if (fg.type === 'MIXED_GEOMETRY' && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestIsClosed = isClosed;
+          }
+        }
+      }
+      if (!bestId || !bestChain) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Draw the chain in alternating colors so the surveyor
+      // sees the segment boundaries clearly.
+      const segCount = bestIsClosed ? bestChain.length : bestChain.length - 1;
+      for (let i = 0; i < segCount; i += 1) {
+        const a = bestChain[i];
+        const b = bestChain[(i + 1) % bestChain.length];
+        const aS = w2s(a.x, a.y);
+        const bS = w2s(b.x, b.y);
+        g.lineStyle(2.5, i % 2 === 0 ? 0xffaa44 : 0x44ddff, 0.7);
+        g.moveTo(aS.sx, aS.sy);
+        g.lineTo(bS.sx, bS.sy);
+      }
+      // Vertex markers — mark every breakpoint with a small ring.
+      g.lineStyle(1.5, 0xffffff, 0.95);
+      for (const v of bestChain) {
+        const sp = w2s(v.x, v.y);
+        g.drawCircle(sp.sx, sp.sy, 4);
+      }
+      return;
+    }
+
+    // For DIVIDE: highlight the hovered feature in lime + drop
+    // ghost station markers at every (count-1) interval so
+    // the surveyor sees exactly where the POINTs will land
+    // before clicking.
+    if (activeTool === 'DIVIDE') {
+      const drawing = useDrawingStore.getState();
+      const ts = useToolStore.getState().state;
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+        else if ((fg.type === 'POLYLINE' || fg.type === 'POLYGON') && fg.vertices && fg.vertices.length >= 2) {
+          chain = fg.vertices;
+          isClosed = fg.type === 'POLYGON';
+        }
+        if (!chain) continue;
+        const segCount = isClosed ? chain.length : chain.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = chain[i];
+          const b = chain[(i + 1) % chain.length];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-20) continue;
+          let t = ((previewPoint.x - a.x) * dx + (previewPoint.y - a.y) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestDist && dPx < 14) {
+            bestDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestIsClosed = isClosed;
+          }
+        }
+      }
+      if (!bestId || !bestChain) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Highlight the hovered feature
+      g.lineStyle(2.5, 0x99ff44, 0.55);
+      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestChain.length; i += 1) {
+        const sp = w2s(bestChain[i].x, bestChain[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+
+      // Replicate `pointAlongChain` from operations.ts so the
+      // ghost markers land in the same world-space positions
+      // the click will produce.
+      const segCnt = bestIsClosed ? bestChain.length : bestChain.length - 1;
+      const segLens: number[] = [];
+      let total = 0;
+      for (let i = 0; i < segCnt; i += 1) {
+        const a = bestChain[i];
+        const b = bestChain[(i + 1) % bestChain.length];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        segLens.push(len);
+        total += len;
+      }
+      g.beginFill(0x66ff00, 0.95);
+      for (let k = 1; k < ts.divideCount; k += 1) {
+        const target = (k / ts.divideCount) * total;
+        let acc = 0;
+        for (let i = 0; i < segCnt; i += 1) {
+          const len = segLens[i];
+          if (acc + len >= target || i === segCnt - 1) {
+            const localT = len > 1e-12 ? (target - acc) / len : 0;
+            const a = bestChain[i];
+            const b = bestChain[(i + 1) % bestChain.length];
+            const wx = a.x + (b.x - a.x) * localT;
+            const wy = a.y + (b.y - a.y) * localT;
+            const sp = w2s(wx, wy);
+            g.drawCircle(sp.sx, sp.sy, 4);
+            break;
+          }
+          acc += len;
+        }
       }
       g.endFill();
       return;
@@ -6156,6 +7859,337 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           break;
         }
 
+        case 'DIVIDE': {
+          // DIVIDE: click any vertex-chain feature to drop
+          // count-1 POINT features at equal arc-length
+          // intervals. The source stays untouched — DIVIDE
+          // is a station-marker tool, not a destructive op.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const ok = divideFeatureBy(hit, toolState.divideCount);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'DIVIDE — pick a LINE, POLYLINE, or POLYGON feature.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: `DIVIDE — placed ${toolState.divideCount - 1} station marker${toolState.divideCount - 1 === 1 ? '' : 's'} along the feature.` },
+            }));
+          }
+          break;
+        }
+
+        case 'EXPLODE': {
+          // EXPLODE: click a POLYLINE / POLYGON to burst it
+          // into individual LINE features. POLYGON includes
+          // the closing leg.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const ok = explodeFeature(hit);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'EXPLODE — pick a POLYLINE or POLYGON.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'EXPLODE — burst into individual line segments.' },
+            }));
+          }
+          break;
+        }
+
+        case 'REVERSE': {
+          // REVERSE: click any vertex-chain feature to flip
+          // its direction (LINE swaps endpoints, POLYLINE /
+          // POLYGON / MIXED reverse vertex order).
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const ok = reverseFeature(hit);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'REVERSE — pick a LINE, POLYLINE, or POLYGON.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'REVERSE — feature direction flipped.' },
+            }));
+          }
+          break;
+        }
+
+        case 'REMOVE_VERTEX': {
+          // REMOVE_VERTEX: click near a vertex on a POLYLINE
+          // / POLYGON to delete it. Pick radius is 14 px in
+          // screen space converted to world units.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const pickRadiusWorld = 14 / useViewportStore.getState().zoom;
+          const ok = removeVertexAt(hit, worldPt, pickRadiusWorld);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'REMOVE VERTEX — click within 14 px of a vertex on a POLYLINE / POLYGON. Cannot drop below 2 (line) / 3 (polygon) vertices.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'REMOVE VERTEX — vertex deleted.' },
+            }));
+          }
+          break;
+        }
+
+        case 'LIST': {
+          // LIST: dump a comprehensive description of the
+          // clicked feature into the command bar — type,
+          // layer, vertex count, length / area, key
+          // properties. Surveyors use it to verify imported
+          // geometry without diving through panels.
+          const hit = hitTest(sx, sy);
+          if (!hit) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'LIST — click any feature to print its details to the command bar.' },
+            }));
+            break;
+          }
+          const f = drawingStore.getFeature(hit);
+          if (!f) break;
+          const layer = drawingStore.document.layers[f.layerId];
+          const layerName = layer?.name ?? f.layerId;
+          const fg = f.geometry;
+          const parts: string[] = [];
+          parts.push(`LIST — ${fg.type} on layer "${layerName}" (id ${f.id.slice(0, 8)})`);
+          if (fg.type === 'LINE' && fg.start && fg.end) {
+            const len = Math.hypot(fg.end.x - fg.start.x, fg.end.y - fg.start.y);
+            parts.push(`length ${len.toFixed(2)}′`);
+            parts.push(`from (${fg.start.x.toFixed(2)}, ${fg.start.y.toFixed(2)}) to (${fg.end.x.toFixed(2)}, ${fg.end.y.toFixed(2)})`);
+          } else if ((fg.type === 'POLYLINE' || fg.type === 'POLYGON' || fg.type === 'MIXED_GEOMETRY') && fg.vertices) {
+            const v = fg.vertices;
+            parts.push(`${v.length} vertices`);
+            // Perimeter
+            let perim = 0;
+            for (let i = 0; i + 1 < v.length; i += 1) perim += Math.hypot(v[i + 1].x - v[i].x, v[i + 1].y - v[i].y);
+            if (fg.type === 'POLYGON' && v.length >= 3) {
+              perim += Math.hypot(v[0].x - v[v.length - 1].x, v[0].y - v[v.length - 1].y);
+              parts.push(`perimeter ${perim.toFixed(2)}′`);
+              // Shoelace area
+              let dbl = 0;
+              for (let i = 0; i < v.length; i += 1) {
+                const j = (i + 1) % v.length;
+                dbl += v[i].x * v[j].y - v[j].x * v[i].y;
+              }
+              const area = Math.abs(dbl / 2);
+              parts.push(`area ${area.toFixed(2)} sq ft (${(area / 43560).toFixed(4)} ac)`);
+            } else {
+              parts.push(`length ${perim.toFixed(2)}′`);
+            }
+          } else if (fg.type === 'CIRCLE' && fg.circle) {
+            parts.push(`center (${fg.circle.center.x.toFixed(2)}, ${fg.circle.center.y.toFixed(2)})`);
+            parts.push(`radius ${fg.circle.radius.toFixed(2)}′`);
+            parts.push(`area ${(Math.PI * fg.circle.radius * fg.circle.radius).toFixed(2)} sq ft`);
+          } else if (fg.type === 'ELLIPSE' && fg.ellipse) {
+            parts.push(`center (${fg.ellipse.center.x.toFixed(2)}, ${fg.ellipse.center.y.toFixed(2)})`);
+            parts.push(`radii ${fg.ellipse.radiusX.toFixed(2)} × ${fg.ellipse.radiusY.toFixed(2)}′`);
+            parts.push(`rotation ${(fg.ellipse.rotation * 180 / Math.PI).toFixed(2)}°`);
+          } else if (fg.type === 'ARC' && fg.arc) {
+            const sweep = Math.abs(fg.arc.endAngle - fg.arc.startAngle);
+            parts.push(`center (${fg.arc.center.x.toFixed(2)}, ${fg.arc.center.y.toFixed(2)})`);
+            parts.push(`radius ${fg.arc.radius.toFixed(2)}′`);
+            parts.push(`sweep ${(sweep * 180 / Math.PI).toFixed(2)}°`);
+            parts.push(`arc length ${(fg.arc.radius * sweep).toFixed(2)}′`);
+          } else if (fg.type === 'SPLINE' && fg.spline) {
+            parts.push(`${fg.spline.controlPoints.length} control points (${fg.spline.isClosed ? 'closed' : 'open'})`);
+          } else if (fg.type === 'POINT' && fg.point) {
+            parts.push(`(${fg.point.x.toFixed(2)}, ${fg.point.y.toFixed(2)})`);
+          } else if (fg.type === 'TEXT' && fg.point) {
+            parts.push(`"${fg.textContent ?? ''}" at (${fg.point.x.toFixed(2)}, ${fg.point.y.toFixed(2)})`);
+          }
+          // Key style + properties
+          const style = f.style;
+          if (style?.color) parts.push(`color ${style.color}`);
+          if (style?.lineWeight != null) parts.push(`weight ${style.lineWeight}pt`);
+          if (style?.opacity != null && style.opacity < 1) parts.push(`opacity ${(style.opacity * 100).toFixed(0)}%`);
+          // Key custom properties (skip the noisy CAD-internal ones)
+          const skipKeys = new Set([
+            'polylineGroupId',
+            'divideSourceId', 'divideStationOf', 'divideStationIndex',
+            'pointAtDistanceSourceId', 'pointAtDistanceValue', 'pointAtDistanceFromEnd',
+            'perpendicularTargetId', 'perpendicularFootX', 'perpendicularFootY',
+            'dimensionFromX', 'dimensionFromY', 'dimensionToX', 'dimensionToY',
+            'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'textAlign',
+          ]);
+          const interesting = Object.entries(f.properties).filter(([k]) => !skipKeys.has(k));
+          if (interesting.length > 0) {
+            parts.push('props: ' + interesting.map(([k, v]) => `${k}=${String(v)}`).join(', '));
+          }
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: { text: parts.join('  ·  ') },
+          }));
+          break;
+        }
+
+        case 'INSERT_VERTEX': {
+          // INSERT_VERTEX: click on a POLYLINE / POLYGON
+          // edge to insert a new vertex at the click point.
+          // No-op when the click lands on an existing vertex.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const ok = insertVertexAt(hit, worldPt);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'INSERT VERTEX — pick a POLYLINE or POLYGON edge (clicks on existing vertices are no-ops).' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'INSERT VERTEX — vertex inserted on the closest segment.' },
+            }));
+          }
+          break;
+        }
+
+        case 'SIMPLIFY_POLYLINE': {
+          // SIMPLIFY_POLYLINE: click any POLYLINE / POLYGON
+          // to drop redundant vertices via RDP at the
+          // toolbar tolerance. Useful for cleaning up GPS
+          // traces, scanned-PDF traces, polygons-from-pixel-
+          // trace, or any other noisy import.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const beforeF = drawingStore.getFeature(hit);
+          const ok = simplifyPolylineFeature(hit, toolState.simplifyTolerance);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'SIMPLIFY — pick a POLYLINE / POLYGON; tolerance may be too small to drop any vertices.' },
+            }));
+          } else {
+            const afterF = drawingStore.getFeature(hit);
+            const beforeN = (beforeF?.geometry.vertices?.length ?? 0);
+            const afterN = (afterF?.geometry.vertices?.length ?? 0);
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: `SIMPLIFY — reduced ${beforeN} → ${afterN} vertices (tolerance ${toolState.simplifyTolerance}′).` },
+            }));
+          }
+          break;
+        }
+
+        case 'SMOOTH_POLYLINE': {
+          // SMOOTH_POLYLINE: click a POLYLINE / POLYGON to
+          // replace it with a SPLINE that interpolates the
+          // same vertices. Imported topo / contour traces
+          // are the typical use case.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const ok = smoothPolyline(hit);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'SMOOTH — pick a POLYLINE or POLYGON with ≥ 3 vertices.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'SMOOTH — converted to spline.' },
+            }));
+          }
+          break;
+        }
+
+        case 'PERPENDICULAR': {
+          // PERPENDICULAR: first click sets the source point
+          // (snapping to a clicked POINT feature when one is
+          // hit, otherwise to the world cursor). Second click
+          // picks a target line; we drop a perpendicular LINE
+          // from the source to the foot of perpendicular on
+          // that line.
+          if (!toolState.perpendicularSourcePoint) {
+            const hit = hitTest(sx, sy);
+            const f = hit ? drawingStore.getFeature(hit) : null;
+            const src: Point2D =
+              f && f.geometry.type === 'POINT' && f.geometry.point
+                ? { ...f.geometry.point }
+                : { ...worldPt };
+            toolStore.setPerpendicularSourcePoint(src);
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'PERPENDICULAR — source set. Click a line / polyline / polygon to drop the perpendicular.' },
+            }));
+            break;
+          }
+          const hit = hitTest(sx, sy);
+          if (!hit) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'PERPENDICULAR — pick a LINE / POLYLINE / POLYGON for the target.' },
+            }));
+            break;
+          }
+          const ok = dropPerpendicular(toolState.perpendicularSourcePoint, hit, worldPt);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'PERPENDICULAR — target must be a vertex-chain feature; source must not lie on the line.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'PERPENDICULAR — line placed.' },
+            }));
+          }
+          toolStore.setPerpendicularSourcePoint(null);
+          break;
+        }
+
+        case 'POINT_AT_DISTANCE': {
+          // POINT_AT_DISTANCE: click any vertex-chain feature
+          // to drop ONE POINT at the toolbar's `value` arc-
+          // length from the chosen end (start or end). The
+          // source stays untouched. Common surveyor workflow
+          // for inserting a station marker at a known offset.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const ok = pointAtDistanceAlong(
+            hit,
+            toolState.pointAtDistanceValue,
+            toolState.pointAtDistanceFromEnd,
+          );
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'POINT @ DIST — pick a LINE / POLYLINE / POLYGON.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: {
+                text: `POINT @ DIST — placed marker ${toolState.pointAtDistanceValue.toFixed(2)}′ from ${toolState.pointAtDistanceFromEnd ? 'END' : 'START'}.`,
+              },
+            }));
+          }
+          break;
+        }
+
+        case 'MATCH_PROPERTIES': {
+          // MATCH_PROPERTIES: first click sets the source
+          // feature; every subsequent click updates the
+          // clicked target to match the source's style +
+          // layer. Stays in "apply" mode until the surveyor
+          // hits Esc / switches tools, so a single source
+          // can paint dozens of targets.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          if (!toolState.matchPropertiesSourceId) {
+            toolStore.setMatchPropertiesSourceId(hit);
+            selectionStore.select(hit, 'REPLACE');
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'MATCH PROPERTIES — source locked. Click any feature to apply the source style. Esc to finish.' },
+            }));
+            break;
+          }
+          if (toolState.matchPropertiesSourceId === hit) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'MATCH PROPERTIES — pick a different target (clicking the source has no effect).' },
+            }));
+            break;
+          }
+          const ok = matchPropertiesTo(toolState.matchPropertiesSourceId, hit);
+          if (ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'MATCH PROPERTIES — applied. Click another target or press Esc to finish.' },
+            }));
+          }
+          break;
+        }
+
         case 'TRIM': {
           // TRIM: click a portion of a LINE or POLYLINE that
           // lies between two intersections with other features.
@@ -6166,6 +8200,116 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (!hit) break;
           trimFeatureAt(hit, worldPt);
+          break;
+        }
+
+        case 'EXTEND': {
+          // EXTEND: click on the end of a LINE or POLYLINE
+          // (cursor closer to one endpoint than the other) to
+          // lengthen that end along its tangent until it hits
+          // another feature. No-op when the cursor isn't on
+          // a vertex-chain feature or no target lies in the
+          // extension direction.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          extendFeatureTo(hit, worldPt);
+          break;
+        }
+
+        case 'FILLET': {
+          // FILLET: two-click flow. Click 1 picks the first
+          // line + remembers the click point so we know which
+          // leg to keep. Click 2 picks the second line and
+          // commits the operation with the toolbar's radius.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const f = drawingStore.getFeature(hit);
+          if (!f || f.geometry.type !== 'LINE') {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'FILLET — pick a LINE feature.' },
+            }));
+            break;
+          }
+          if (!toolState.filletPickedLineId) {
+            toolStore.setFilletPickedLine(hit, worldPt);
+            selectionStore.select(hit, 'REPLACE');
+            break;
+          }
+          if (toolState.filletPickedLineId === hit) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'FILLET — pick a different second line.' },
+            }));
+            break;
+          }
+          const click1 = toolState.filletPickedClickPoint!;
+          const result = filletTwoLines(toolState.filletPickedLineId, click1, hit, worldPt, toolState.filletRadius);
+          if (!result.ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: `FILLET — ${result.reason ?? 'failed'}` },
+            }));
+          }
+          toolStore.setFilletPickedLine(null, null);
+          break;
+        }
+
+        case 'CHAMFER': {
+          // CHAMFER: identical two-click flow to FILLET but
+          // produces a straight LINE bevel instead of an ARC.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const f = drawingStore.getFeature(hit);
+          if (!f || f.geometry.type !== 'LINE') {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'CHAMFER — pick a LINE feature.' },
+            }));
+            break;
+          }
+          if (!toolState.chamferPickedLineId) {
+            toolStore.setChamferPickedLine(hit, worldPt);
+            selectionStore.select(hit, 'REPLACE');
+            break;
+          }
+          if (toolState.chamferPickedLineId === hit) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'CHAMFER — pick a different second line.' },
+            }));
+            break;
+          }
+          const cClick1 = toolState.chamferPickedClickPoint!;
+          const cResult = chamferTwoLines(
+            toolState.chamferPickedLineId, cClick1,
+            hit, worldPt,
+            toolState.chamferDistance1, toolState.chamferDistance2,
+          );
+          if (!cResult.ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: `CHAMFER — ${cResult.reason ?? 'failed'}` },
+            }));
+          }
+          toolStore.setChamferPickedLine(null, null);
+          break;
+        }
+
+        case 'JOIN': {
+          // JOIN: when a feature is hit, add it to the
+          // current selection then attempt the merge. With
+          // the JOIN tool active, single clicks build up a
+          // chain selection; the toolbar Apply button or a
+          // click on the canvas with 2+ items selected
+          // commits.
+          const hit = hitTest(sx, sy);
+          if (hit) {
+            // Add to selection (toggle if already selected).
+            selectionStore.select(hit, 'TOGGLE');
+            break;
+          }
+          // Empty click — try to commit the join.
+          if (selectionStore.selectedIds.size >= 2) {
+            const result = joinSelection();
+            if (!result.ok) {
+              cadLog.info('CanvasViewport', `JOIN: ${result.reason ?? 'failed'}`);
+            }
+          }
           break;
         }
 
@@ -6326,22 +8470,40 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
 
         case 'INVERSE': {
-          // Click A → click B: show bearing and distance in the command bar output area.
+          // INVERSE — continuous measure-path. Each click adds
+          // a node to the chain; from the second click onward
+          // we log bearing + distance from the previous node
+          // and accumulate the total. The running chain stays
+          // on canvas as a faint poly until the surveyor hits
+          // Esc (which calls toolStore.clearDrawingPoints via
+          // resetToolState).
           const { drawingPoints: dpts } = toolState;
           if (dpts.length === 0) {
-            // First click: record the from-point
             toolStore.addDrawingPoint(worldPt);
-          } else {
-            // Second click: compute and display result
-            const from = dpts[0];
-            const { azimuth, distance } = inverseBearingDistance(from, worldPt);
-            const bearingStr = formatBearing(azimuth);
-            const distStr = distance.toFixed(2);
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: `INVERSE — Bearing: ${bearingStr}  Distance: ${distStr}′` },
+              detail: { text: 'INVERSE — base point set. Click again to measure each leg; press Esc to finish.' },
             }));
-            toolStore.clearDrawingPoints();
+            break;
           }
+          const prev = dpts[dpts.length - 1];
+          const { azimuth, distance } = inverseBearingDistance(prev, worldPt);
+          const bearingStr = formatBearing(azimuth);
+          const distStr = distance.toFixed(2);
+          // Compute running total distance after this leg.
+          let totalLegs = 0;
+          for (let i = 0; i + 1 < dpts.length; i += 1) {
+            totalLegs += Math.hypot(dpts[i + 1].x - dpts[i].x, dpts[i + 1].y - dpts[i].y);
+          }
+          const runningTotal = totalLegs + distance;
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: {
+              text: `INVERSE leg ${dpts.length} — Bearing: ${bearingStr}  Distance: ${distStr}′  (Total: ${runningTotal.toFixed(2)}′)`,
+            },
+          }));
+          // Advance the chain so the next click measures from
+          // here. The surveyor can chain as many legs as they
+          // want; Esc clears.
+          toolStore.addDrawingPoint(worldPt);
           break;
         }
 
@@ -6356,6 +8518,111 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }));
           }
           // Actual point placement is handled via cad:forwardPoint event from CommandBar
+          break;
+        }
+
+        case 'DIM': {
+          // DIM — two-click bearing + distance annotation. The
+          // first click sets the from-point; the second
+          // computes the inverse and places a TEXT feature at
+          // the midpoint of the two clicks, offset
+          // perpendicular by ~12 ft so the label sits clear
+          // of any line drawn between the same endpoints.
+          const dpts = toolState.drawingPoints;
+          if (dpts.length === 0) {
+            toolStore.addDrawingPoint(worldPt);
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'DIM — base point set. Click the second point to place the bearing + distance annotation.' },
+            }));
+            break;
+          }
+          const from = dpts[0];
+          const to = worldPt;
+          const { azimuth, distance } = inverseBearingDistance(from, to);
+          const bearingStr = formatBearing(azimuth);
+          const distStr = distance.toFixed(2);
+          const midX = (from.x + to.x) / 2;
+          const midY = (from.y + to.y) / 2;
+          // Perpendicular offset — push the text 6 world units
+          // off the centerline so it doesn't sit on top of any
+          // line drawn between the same endpoints.
+          const dx = to.x - from.x;
+          const dy = to.y - from.y;
+          const len = Math.hypot(dx, dy);
+          const offset = 6;
+          const px = len > 1e-9 ? -dy / len * offset : 0;
+          const py = len > 1e-9 ?  dx / len * offset : 0;
+          // Rotate the text along the dimension line so it
+          // reads parallel to the geometry (math convention,
+          // CCW positive).
+          const rotation = len > 1e-9 ? Math.atan2(dy, dx) : 0;
+          const { activeLayerId, getActiveLayerStyle } = drawingStore;
+          const layerStyle = getActiveLayerStyle();
+          const dimFeature: Feature = {
+            id: generateId(),
+            type: 'TEXT',
+            geometry: {
+              type: 'TEXT',
+              point: { x: midX + px, y: midY + py },
+              textContent: `${bearingStr}  ${distStr}'`,
+              textRotation: rotation,
+            },
+            layerId: activeLayerId,
+            style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+            properties: {
+              fontSize: 10,
+              fontFamily: 'Arial',
+              fontWeight: 'normal',
+              fontStyle: 'normal',
+              textAlign: 'center',
+              dimensionFromX: from.x,
+              dimensionFromY: from.y,
+              dimensionToX: to.x,
+              dimensionToY: to.y,
+            },
+          };
+          drawingStore.addFeature(dimFeature);
+          undoStore.pushUndo(makeAddFeatureEntry(dimFeature));
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: { text: `DIM — placed annotation: ${bearingStr}  ${distStr}'` },
+          }));
+          toolStore.clearDrawingPoints();
+          break;
+        }
+
+        case 'MEASURE_AREA': {
+          // MEASURE_AREA — surveyor clicks points to define a
+          // polygon. Each click adds a vertex to the chain and
+          // logs the running perimeter + area (computed by
+          // closing the polygon back to vertex 0). Esc clears,
+          // double-click commits and emits the final summary.
+          const { drawingPoints: dpts } = toolState;
+          toolStore.addDrawingPoint(worldPt);
+          const updated = [...dpts, worldPt];
+          if (updated.length >= 2) {
+            // Perimeter (open chain length plus the close-back leg).
+            let perim = 0;
+            for (let i = 0; i + 1 < updated.length; i += 1) {
+              perim += Math.hypot(updated[i + 1].x - updated[i].x, updated[i + 1].y - updated[i].y);
+            }
+            const closeLeg = updated.length >= 3
+              ? Math.hypot(updated[0].x - updated[updated.length - 1].x, updated[0].y - updated[updated.length - 1].y)
+              : 0;
+            const closedPerim = perim + closeLeg;
+            // Area only meaningful for ≥ 3 points.
+            const area = updated.length >= 3 ? computeAreaFromPoints2D(updated) : null;
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: {
+                text: area
+                  ? `MEASURE AREA — vertices: ${updated.length}, perimeter: ${closedPerim.toFixed(2)}′, area: ${area.squareFeet.toFixed(2)} sq ft (${area.acres.toFixed(4)} ac)`
+                  : `MEASURE AREA — vertex ${updated.length} placed; need ≥ 3 vertices for area.`,
+              },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'MEASURE AREA — first vertex set. Click each polygon vertex; Esc to finish.' },
+            }));
+          }
           break;
         }
 
@@ -7415,6 +9682,30 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       useToolStore.getState().clearDrawingPoints();
     };
 
+    // Phase 8 §10.4 — Delete-key dispatch. The hotkey
+    // dispatcher fires `cad:deleteSelection` for the
+    // edit.delete action; the listener wraps a confirm
+    // dialog around bulk deletes (5+ features) so a stray
+    // Ctrl+A → Delete can't quietly wipe the drawing.
+    // Singletons skip the prompt — Ctrl+Z still works.
+    const onDeleteSelection = async () => {
+      const ids = Array.from(useSelectionStore.getState().selectedIds);
+      if (ids.length === 0) return;
+      const { deleteSelection } = await import('@/lib/cad/operations');
+      const { confirmAction } = await import('./ConfirmDialog');
+      if (ids.length >= 5) {
+        const ok = await confirmAction({
+          title: `Delete ${ids.length} features?`,
+          message: 'This permanently removes the selected features from the drawing. You can undo with Ctrl+Z.',
+          confirmLabel: 'Delete',
+          danger: true,
+        });
+        if (!ok) return;
+      }
+      deleteSelection();
+    };
+    window.addEventListener('cad:deleteSelection', onDeleteSelection);
+
     window.addEventListener('cad:forwardPoint', onForwardPoint);
     window.addEventListener('cad:curbReturn', onCurbReturn);
 
@@ -7427,6 +9718,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:scale', onScale);
       window.removeEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
       window.removeEventListener('cad:startInteractiveScale', onStartInteractiveScale);
+      window.removeEventListener('cad:deleteSelection', onDeleteSelection);
       window.removeEventListener('cad:forwardPoint', onForwardPoint);
       window.removeEventListener('cad:curbReturn', onCurbReturn);
     };

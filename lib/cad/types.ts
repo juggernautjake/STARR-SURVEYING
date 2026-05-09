@@ -489,6 +489,21 @@ export type ToolType =
   | 'ARRAY'
   | 'SPLIT'
   | 'TRIM'
+  | 'EXTEND'
+  | 'JOIN'
+  | 'FILLET'
+  | 'CHAMFER'
+  | 'DIVIDE'
+  | 'EXPLODE'
+  | 'REVERSE'
+  | 'MATCH_PROPERTIES'
+  | 'POINT_AT_DISTANCE'
+  | 'PERPENDICULAR'
+  | 'SMOOTH_POLYLINE'
+  | 'SIMPLIFY_POLYLINE'
+  | 'INSERT_VERTEX'
+  | 'REMOVE_VERTEX'
+  | 'LIST'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
@@ -498,6 +513,8 @@ export type ToolType =
   | 'OFFSET'
   | 'INVERSE'
   | 'FORWARD_POINT'
+  | 'MEASURE_AREA'
+  | 'DIM'
   | 'DRAW_TEXT'
   | 'DRAW_IMAGE';
 
@@ -648,6 +665,79 @@ export interface ToolState {
    * mode. `null` means "awaiting center pick".
    */
   arrayPolarCenter: Point2D | null;
+
+  // ── FILLET tool ──
+  /** Radius of the fillet arc in world units (feet). */
+  filletRadius: number;
+  /**
+   * The first line picked during the FILLET tool's two-click
+   * flow. Stored along with the click point so the operation
+   * knows which side of each line to keep.
+   */
+  filletPickedLineId: string | null;
+  filletPickedClickPoint: Point2D | null;
+
+  // ── CHAMFER tool ──
+  /** Distance trimmed back from the corner along line 1 (feet). */
+  chamferDistance1: number;
+  /** Distance trimmed back from the corner along line 2 (feet). Setting equal to distance1 produces a symmetric chamfer. */
+  chamferDistance2: number;
+  /**
+   * The first line picked during the CHAMFER two-click flow.
+   * Same convention as `filletPickedLineId`.
+   */
+  chamferPickedLineId: string | null;
+  chamferPickedClickPoint: Point2D | null;
+
+  // ── DIVIDE tool ──
+  /**
+   * Number of equal segments to divide a vertex-chain feature
+   * into. The DIVIDE tool drops `count - 1` POINT features at
+   * equal arc-length intervals along the source. Range 2–100.
+   */
+  divideCount: number;
+
+  // ── MATCH_PROPERTIES tool ──
+  /**
+   * The source feature whose style + layer the surveyor is
+   * copying from. Set on the first click of the
+   * MATCH_PROPERTIES tool; cleared on tool reset.
+   */
+  matchPropertiesSourceId: string | null;
+
+  // ── POINT_AT_DISTANCE tool ──
+  /**
+   * Arc-length offset (feet) from the chosen end of a
+   * vertex-chain feature. Default 50 ft. Range 0+; values
+   * larger than the feature's total length clamp to the far
+   * endpoint at commit time.
+   */
+  pointAtDistanceValue: number;
+  /**
+   * When true, the offset is measured from the END of the
+   * feature (toward the start). Default false — measure
+   * from START.
+   */
+  pointAtDistanceFromEnd: boolean;
+
+  // ── PERPENDICULAR tool ──
+  /**
+   * The source point of the perpendicular drop. Set on the
+   * first click (either an explicit world coordinate or the
+   * snapped position of a clicked POINT feature). Cleared on
+   * tool reset.
+   */
+  perpendicularSourcePoint: Point2D | null;
+
+  // ── SIMPLIFY_POLYLINE tool ──
+  /**
+   * Distance tolerance for Ramer-Douglas-Peucker
+   * simplification. Vertices closer than this to the line
+   * through their kept neighbours get dropped. Default 0.5
+   * ft (good for typical surveyed boundaries; reduce for
+   * tight tolerance work, increase for noisy GPS traces).
+   */
+  simplifyTolerance: number;
 }
 
 // --- UNDO ---

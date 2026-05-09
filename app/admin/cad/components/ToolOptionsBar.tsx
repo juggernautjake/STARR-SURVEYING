@@ -21,8 +21,10 @@ import {
   invertSelection,
   arraySelectionRectangular,
   arraySelectionPolar,
+  joinSelection,
 } from '@/lib/cad/operations';
 import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
+import { confirmAction } from './ConfirmDialog';
 import { OFFSET_PRESETS } from '@/lib/cad/geometry/offset';
 
 // Line weight constraints
@@ -136,6 +138,24 @@ export default function ToolOptionsBar() {
   const showArray = activeTool === 'ARRAY';
   const showSplit = activeTool === 'SPLIT';
   const showTrim = activeTool === 'TRIM';
+  const showExtend = activeTool === 'EXTEND';
+  const showJoin = activeTool === 'JOIN';
+  const showFillet = activeTool === 'FILLET';
+  const showChamfer = activeTool === 'CHAMFER';
+  const showDivide = activeTool === 'DIVIDE';
+  const showExplode = activeTool === 'EXPLODE';
+  const showReverse = activeTool === 'REVERSE';
+  const showMatchProperties = activeTool === 'MATCH_PROPERTIES';
+  const showPointAtDistance = activeTool === 'POINT_AT_DISTANCE';
+  const showPerpendicular = activeTool === 'PERPENDICULAR';
+  const showSmoothPolyline = activeTool === 'SMOOTH_POLYLINE';
+  const showSimplifyPolyline = activeTool === 'SIMPLIFY_POLYLINE';
+  const showInsertVertex = activeTool === 'INSERT_VERTEX';
+  const showRemoveVertex = activeTool === 'REMOVE_VERTEX';
+  const showList = activeTool === 'LIST';
+  const showInverse = activeTool === 'INVERSE';
+  const showMeasureArea = activeTool === 'MEASURE_AREA';
+  const showDim = activeTool === 'DIM';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
@@ -761,6 +781,421 @@ export default function ToolOptionsBar() {
         </>
       )}
 
+      {/* ── EXTEND tool options ────────────────────────────────────────────── */}
+      {showExtend && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click near the end of a line or polyline — that end (closer of the two) lengthens along its tangent until it hits the next feature. The bright green ghost shows the extension; a grey ring means nothing lies in the extension direction.
+          </span>
+        </>
+      )}
+
+      {/* ── INVERSE tool options ───────────────────────────────────────────── */}
+      {showInverse && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click to set the base point, then click again to measure each leg. Bearing + distance + running total stream into the command bar; press Esc to finish.
+          </span>
+        </>
+      )}
+
+      {/* ── MEASURE_AREA tool options ──────────────────────────────────────── */}
+      {showMeasureArea && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click polygon vertices to read live perimeter + area (sq ft + acres). Magenta fill previews the polygon; press Esc to finish.
+          </span>
+        </>
+      )}
+
+      {/* ── DIM tool options ───────────────────────────────────────────────── */}
+      {showDim && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click two points to place a permanent bearing + distance annotation. The TEXT label rotates parallel to the dimension line and offsets 6 ft perpendicular so it reads clear of the geometry.
+          </span>
+        </>
+      )}
+
+      {/* ── REMOVE_VERTEX tool options ─────────────────────────────────────── */}
+      {showRemoveVertex && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click within 14 px of a vertex on a POLYLINE / POLYGON to delete it. Red X marks the target; grey ring means the chain is at minimum vertices and can’t shrink further.
+          </span>
+        </>
+      )}
+
+      {/* ── LIST tool options ──────────────────────────────────────────────── */}
+      {showList && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any feature — its type, layer, dimensions, and key properties print to the command bar. Non-destructive; no selection required.
+          </span>
+        </>
+      )}
+
+      {/* ── INSERT_VERTEX tool options ─────────────────────────────────────── */}
+      {showInsertVertex && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click on any POLYLINE or POLYGON edge to insert a new vertex at the click point. The cyan ring shows where the vertex will land. Endpoint-coincident clicks are no-ops.
+          </span>
+        </>
+      )}
+
+      {/* ── SIMPLIFY_POLYLINE tool options ─────────────────────────────────── */}
+      {showSimplifyPolyline && (
+        <>
+          <Sep />
+          <Tooltip
+            label="RDP Tolerance"
+            description="Distance tolerance for the Ramer-Douglas-Peucker simplification, in feet. Vertices closer than this to the line through their kept neighbours get dropped. Smaller = more vertices preserved (precise); larger = more aggressive pruning (smoother)."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">Tol:</span>
+              <input
+                type="number"
+                min={0.01}
+                step={0.1}
+                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-orange-500"
+                value={ts.simplifyTolerance}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v > 0) toolStore.setSimplifyTolerance(v);
+                }}
+              />
+              <span className="text-[10px] text-gray-500">ft</span>
+            </div>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any POLYLINE / POLYGON. Faint orange shows the source; bright orange shows the predicted reduced chain.
+          </span>
+        </>
+      )}
+
+      {/* ── SMOOTH_POLYLINE tool options ───────────────────────────────────── */}
+      {showSmoothPolyline && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any POLYLINE / POLYGON (≥ 3 vertices) to replace it with a smooth SPLINE that passes through the same vertices. Lavender ghost shows the curve before clicking.
+          </span>
+        </>
+      )}
+
+      {/* ── PERPENDICULAR tool options ─────────────────────────────────────── */}
+      {showPerpendicular && (
+        <>
+          <Sep />
+          {ts.perpendicularSourcePoint && (
+            <button
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => toolStore.setPerpendicularSourcePoint(null)}
+              title="Clear source — restart point picking"
+            >
+              ✕
+            </button>
+          )}
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {!ts.perpendicularSourcePoint
+              ? 'Click the source point — snaps to an existing POINT feature when one is in range, otherwise uses the clicked world position.'
+              : 'Click a LINE / POLYLINE / POLYGON — the cyan dashed line shows the perpendicular foot on the hovered segment.'}
+          </span>
+        </>
+      )}
+
+      {/* ── POINT_AT_DISTANCE tool options ─────────────────────────────────── */}
+      {showPointAtDistance && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Distance Along Feature"
+            description="Arc-length offset (feet) from the chosen end. Distances larger than the feature's total length clamp to the far endpoint so the marker always lands on the geometry."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">Dist:</span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                className="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-lime-500"
+                value={ts.pointAtDistanceValue}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v >= 0) toolStore.setPointAtDistanceValue(v);
+                }}
+              />
+              <span className="text-[10px] text-gray-500">ft</span>
+            </div>
+          </Tooltip>
+          <Sep />
+          <Tooltip
+            label="Origin End"
+            description="From the START (vertex 0) or END (last vertex) of the feature. The cyan square in the live preview marks the chosen origin."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-0.5">
+              {[
+                { label: '◇ Start', val: false },
+                { label: 'End ◇', val: true },
+              ].map((o) => (
+                <button
+                  key={o.label}
+                  className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                    ${ts.pointAtDistanceFromEnd === o.val
+                      ? 'bg-lime-600 border-lime-500 text-white'
+                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                  onClick={() => toolStore.setPointAtDistanceFromEnd(o.val)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any line / polyline / polygon — the lime ring shows the predicted commit point.
+          </span>
+        </>
+      )}
+
+      {/* ── MATCH_PROPERTIES tool options ──────────────────────────────────── */}
+      {showMatchProperties && (
+        <>
+          <Sep />
+          {ts.matchPropertiesSourceId && (
+            <button
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => toolStore.setMatchPropertiesSourceId(null)}
+              title="Clear source — pick a new model feature"
+            >
+              ✕
+            </button>
+          )}
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {!ts.matchPropertiesSourceId
+              ? 'Click a feature to lock it in as the model style.'
+              : 'Click each target feature to paint the source style + layer onto it. Esc to finish.'}
+          </span>
+        </>
+      )}
+
+      {/* ── REVERSE tool options ───────────────────────────────────────────── */}
+      {showReverse && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any LINE / POLYLINE / POLYGON to flip its direction. The cyan square marks the current start; the arrowhead marks the current end. Useful when offset side, DIVIDE numbering, or label rotation went the wrong way.
+          </span>
+        </>
+      )}
+
+      {/* ── EXPLODE tool options ───────────────────────────────────────────── */}
+      {showExplode && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any POLYLINE or POLYGON to burst it into individual LINE features. Vertex markers (white rings) show every breakpoint; alternating orange/cyan strokes mark each future segment. Style and properties carry over.
+          </span>
+        </>
+      )}
+
+      {/* ── DIVIDE tool options ────────────────────────────────────────────── */}
+      {showDivide && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Divide Count"
+            description="Number of equal-length segments to divide the feature into. Drops count − 1 POINT markers at equal arc-length intervals along the source. Range 2–100."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">÷</span>
+              <input
+                type="number"
+                min={2}
+                max={100}
+                step={1}
+                className="w-14 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-lime-500"
+                value={ts.divideCount}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value);
+                  if (!isNaN(v)) toolStore.setDivideCount(v);
+                }}
+              />
+              <span className="text-[11px] text-gray-500">→ {ts.divideCount - 1} markers</span>
+            </div>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any line / polyline / polygon to drop {ts.divideCount - 1} station marker{ts.divideCount - 1 === 1 ? '' : 's'} at equal arc-length intervals. The source stays untouched.
+          </span>
+        </>
+      )}
+
+      {/* ── CHAMFER tool options ───────────────────────────────────────────── */}
+      {showChamfer && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Chamfer Distances"
+            description="How far to trim each line back from the corner along its keep direction. Equal distances produce a symmetric chamfer (45° relative to a right-angle corner); unequal distances produce an asymmetric bevel — useful when matching a road-design table or property setback callout."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">D1:</span>
+              <input
+                type="number"
+                min={0.01}
+                step={0.5}
+                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-amber-500"
+                value={ts.chamferDistance1}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v > 0) toolStore.setChamferDistance1(v);
+                }}
+              />
+              <span className="text-[11px] text-gray-400 shrink-0">D2:</span>
+              <input
+                type="number"
+                min={0.01}
+                step={0.5}
+                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-amber-500"
+                value={ts.chamferDistance2}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v > 0) toolStore.setChamferDistance2(v);
+                }}
+              />
+              <button
+                className="px-1.5 h-6 rounded text-[10px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+                onClick={() => toolStore.setChamferDistance2(ts.chamferDistance1)}
+                title="Make D2 equal D1 (symmetric chamfer)"
+              >
+                = D1
+              </button>
+              <span className="text-[10px] text-gray-500">ft</span>
+            </div>
+          </Tooltip>
+          <Sep />
+          {ts.chamferPickedLineId && (
+            <button
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => toolStore.setChamferPickedLine(null, null)}
+              title="Cancel — restart line picking"
+            >
+              ✕
+            </button>
+          )}
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {!ts.chamferPickedLineId
+              ? 'Click first line on the side you want to keep'
+              : 'Click second line on the side you want to keep — cyan ghost shows the bevel'}
+          </span>
+        </>
+      )}
+
+      {/* ── FILLET tool options ────────────────────────────────────────────── */}
+      {showFillet && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Fillet Radius"
+            description="Radius of the fillet arc in feet. The arc is tangent to both lines at distance radius / tan(half-angle) from their intersection. The lines must each be at least that long; otherwise the fillet bails with an error."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">R:</span>
+              <input
+                type="number"
+                min={0.01}
+                step={0.5}
+                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-amber-500"
+                value={ts.filletRadius}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v > 0) toolStore.setFilletRadius(v);
+                }}
+              />
+              <span className="text-[10px] text-gray-500">ft</span>
+            </div>
+          </Tooltip>
+          <Sep />
+          {ts.filletPickedLineId && (
+            <button
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => toolStore.setFilletPickedLine(null, null)}
+              title="Cancel — restart line picking"
+            >
+              ✕
+            </button>
+          )}
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {!ts.filletPickedLineId
+              ? 'Click first line on the side you want to keep'
+              : 'Click second line on the side you want to keep — cyan ghost shows the fillet'}
+          </span>
+        </>
+      )}
+
+      {/* ── JOIN tool options ──────────────────────────────────────────────── */}
+      {showJoin && (
+        <>
+          <Sep />
+          <Tooltip
+            label="Apply Join"
+            description="Merge the selected lines / polylines into one POLYLINE. Endpoints within 0.01 ft are treated as coincident. Selection must form a single chain — branches or fragments are rejected with a console message."
+            side="bottom"
+            delay={400}
+          >
+            <button
+              className="px-2.5 h-6 rounded text-[11px] bg-fuchsia-700 border border-fuchsia-600 text-white hover:bg-fuchsia-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={selCount < 2}
+              onClick={() => {
+                const result = joinSelection();
+                if (!result.ok) {
+                  // Surface failure reason via the command bar
+                  // output channel so the surveyor sees why it
+                  // didn't merge.
+                  window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                    detail: { text: `JOIN — ${result.reason ?? 'failed'}` },
+                  }));
+                }
+              }}
+            >
+              Join {selCount >= 2 ? `${selCount}` : ''}
+            </button>
+          </Tooltip>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            {selCount === 0
+              ? 'Click features to add them to the chain'
+              : selCount === 1
+                ? 'Click another feature to extend the chain'
+                : 'Click empty space (or press Apply) to merge into one POLYLINE'}
+          </span>
+        </>
+      )}
+
       {/* ── ARRAY tool options ─────────────────────────────────────────────── */}
       {showArray && (
         <>
@@ -1374,7 +1809,22 @@ export default function ToolOptionsBar() {
               >
                 <button
                   className="px-2.5 h-6 rounded text-[11px] bg-gray-700 border border-red-900/50 text-red-400 hover:bg-red-900/30 transition-colors whitespace-nowrap"
-                  onClick={() => deleteSelection()}
+                  onClick={async () => {
+                    // Bulk deletes (5+ features) ask for
+                    // confirmation so a stray Ctrl+A → Delete
+                    // can't quietly wipe a drawing. Singletons
+                    // skip the prompt — Ctrl+Z still works.
+                    if (selCount >= 5) {
+                      const ok = await confirmAction({
+                        title: `Delete ${selCount} features?`,
+                        message: 'This permanently removes the selected features from the drawing. You can undo with Ctrl+Z.',
+                        confirmLabel: 'Delete',
+                        danger: true,
+                      });
+                      if (!ok) return;
+                    }
+                    deleteSelection();
+                  }}
                 >
                   Delete ({selCount})
                 </button>
@@ -1667,6 +2117,23 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   ARRAY: 'Array',
   SPLIT: 'Split',
   TRIM: 'Trim',
+  EXTEND: 'Extend',
+  JOIN: 'Join',
+  FILLET: 'Fillet',
+  CHAMFER: 'Chamfer',
+  DIVIDE: 'Divide',
+  EXPLODE: 'Explode',
+  REVERSE: 'Reverse',
+  MATCH_PROPERTIES: 'Match Properties',
+  POINT_AT_DISTANCE: 'Point at Distance',
+  PERPENDICULAR: 'Perpendicular',
+  SMOOTH_POLYLINE: 'Smooth Polyline',
+  SIMPLIFY_POLYLINE: 'Simplify Polyline',
+  INSERT_VERTEX: 'Insert Vertex',
+  REMOVE_VERTEX: 'Remove Vertex',
+  LIST: 'List',
+  MEASURE_AREA: 'Measure Area',
+  DIM: 'Dimension',
   SCALE: 'Scale',
   ERASE: 'Erase',
   OFFSET: 'Offset',

@@ -22,6 +22,7 @@ import {
   type BindableAction,
   type HotkeyEngine,
 } from '@/lib/cad/hotkeys';
+import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
 import {
   useAIStore,
   useDrawingChatStore,
@@ -64,6 +65,25 @@ function toolForAction(actionId: string): ToolType | null {
     case 'tool.scale':    return 'SCALE';
     case 'tool.offset':   return 'OFFSET';
     case 'tool.fillet':   return 'CURB_RETURN';
+    case 'tool.chamfer':  return 'CHAMFER';
+    case 'tool.split':    return 'SPLIT';
+    case 'tool.join':     return 'JOIN';
+    case 'tool.divide':   return 'DIVIDE';
+    case 'tool.explode':  return 'EXPLODE';
+    case 'tool.reverse':  return 'REVERSE';
+    case 'tool.matchProps':    return 'MATCH_PROPERTIES';
+    case 'tool.pointAtDist':   return 'POINT_AT_DISTANCE';
+    case 'tool.perpendicular': return 'PERPENDICULAR';
+    case 'tool.smooth':   return 'SMOOTH_POLYLINE';
+    case 'tool.simplify': return 'SIMPLIFY_POLYLINE';
+    case 'tool.insertVertex':  return 'INSERT_VERTEX';
+    case 'tool.removeVertex':  return 'REMOVE_VERTEX';
+    case 'tool.list':     return 'LIST';
+    case 'tool.array':    return 'ARRAY';
+    case 'tool.flip':     return 'FLIP';
+    case 'tool.invert':   return 'INVERT';
+    case 'tool.measureArea': return 'MEASURE_AREA';
+    case 'tool.dim':      return 'DIM';
     case 'tool.erase':    return 'ERASE';
     case 'tool.inverse':  return 'INVERSE';
     case 'tool.forward':  return 'FORWARD_POINT';
@@ -244,6 +264,59 @@ export function dispatchDefaultAction(action: BindableAction): void {
       useUIStore.getState().toggleLayerPanel();
       return;
 
+    case 'layer.isolateBySelection': {
+      // Hide every layer that doesn't contain at least one
+      // currently-selected feature. The active layer is kept
+      // visible regardless so the surveyor can keep drawing
+      // without re-toggling. No-op when nothing is selected
+      // — print a hint to the command bar instead.
+      const selStore = useSelectionStore.getState();
+      const drawingStore = useDrawingStore.getState();
+      const ids = Array.from(selStore.selectedIds);
+      if (ids.length === 0) {
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: 'Isolate by Selection — select features first.' },
+        }));
+        return;
+      }
+      const keepLayers = new Set<string>();
+      keepLayers.add(drawingStore.activeLayerId);
+      for (const id of ids) {
+        const f = drawingStore.getFeature(id);
+        if (f) keepLayers.add(f.layerId);
+      }
+      let hiddenCount = 0;
+      for (const layerId of drawingStore.document.layerOrder) {
+        const wasVisible = drawingStore.document.layers[layerId]?.visible !== false;
+        const shouldBeVisible = keepLayers.has(layerId);
+        if (wasVisible !== shouldBeVisible) {
+          drawingStore.updateLayer(layerId, { visible: shouldBeVisible });
+        }
+        if (!shouldBeVisible) hiddenCount += 1;
+      }
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: {
+          text: `Isolated ${keepLayers.size} layer${keepLayers.size === 1 ? '' : 's'}; hid ${hiddenCount}.`,
+        },
+      }));
+      return;
+    }
+
+    case 'layer.showAll': {
+      const drawingStore = useDrawingStore.getState();
+      let restored = 0;
+      for (const layerId of drawingStore.document.layerOrder) {
+        if (!drawingStore.document.layers[layerId]?.visible) {
+          drawingStore.updateLayer(layerId, { visible: true });
+          restored += 1;
+        }
+      }
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: restored === 0 ? 'All layers already visible.' : `Restored ${restored} hidden layer${restored === 1 ? '' : 's'}.` },
+      }));
+      return;
+    }
+
     // ── AI ───────────────────────────────────────────
     case 'ai.start':
       window.dispatchEvent(new CustomEvent('cad:openAIDrawingDialog'));
@@ -262,6 +335,70 @@ export function dispatchDefaultAction(action: BindableAction): void {
       return;
     case 'view.commandPalette':
       window.dispatchEvent(new CustomEvent('cad:openCommandPalette'));
+      return;
+    case 'view.shortcutHelp':
+      window.dispatchEvent(new CustomEvent('cad:openShortcutHelp'));
+      return;
+
+    case 'view.stats': {
+      // Drawing stats — feature count by type, total polygon
+      // area, total line length, layer count. Fires through
+      // the command bar so the surveyor can copy the result
+      // out of the output channel.
+      const drawing = useDrawingStore.getState();
+      const features = drawing.getAllFeatures();
+      const byType: Record<string, number> = {};
+      let totalLineLength = 0;
+      let totalPolygonArea = 0;
+      for (const f of features) {
+        const t = f.geometry.type;
+        byType[t] = (byType[t] ?? 0) + 1;
+        if (t === 'LINE' && f.geometry.start && f.geometry.end) {
+          totalLineLength += Math.hypot(
+            f.geometry.end.x - f.geometry.start.x,
+            f.geometry.end.y - f.geometry.start.y,
+          );
+        } else if (t === 'POLYLINE' && f.geometry.vertices) {
+          for (let i = 0; i + 1 < f.geometry.vertices.length; i += 1) {
+            totalLineLength += Math.hypot(
+              f.geometry.vertices[i + 1].x - f.geometry.vertices[i].x,
+              f.geometry.vertices[i + 1].y - f.geometry.vertices[i].y,
+            );
+          }
+        } else if (t === 'POLYGON' && f.geometry.vertices && f.geometry.vertices.length >= 3) {
+          // Shoelace area
+          let dbl = 0;
+          const v = f.geometry.vertices;
+          for (let i = 0; i < v.length; i += 1) {
+            const j = (i + 1) % v.length;
+            dbl += v[i].x * v[j].y - v[j].x * v[i].y;
+          }
+          totalPolygonArea += Math.abs(dbl / 2);
+        }
+      }
+      const layerCount = Object.keys(drawing.document.layers).length;
+      const typeSummary = Object.entries(byType)
+        .sort((a, b) => b[1] - a[1])
+        .map(([type, n]) => `${n} ${type.toLowerCase()}`)
+        .join(', ');
+      const acres = totalPolygonArea / 43560;
+      const text = `Drawing — ${features.length} features (${typeSummary}); ${layerCount} layer${layerCount === 1 ? '' : 's'}; line length ${totalLineLength.toFixed(2)}′; polygon area ${totalPolygonArea.toFixed(2)} sq ft (${acres.toFixed(4)} ac).`;
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', { detail: { text } }));
+      return;
+    }
+
+    // ── Preset switchers ────────────────────────────
+    case 'preset.autocad':
+      applyHotkeyPreset('AUTOCAD');
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'Hotkeys — AutoCAD-style preset applied. Persisted across reloads.' },
+      }));
+      return;
+    case 'preset.reset':
+      applyHotkeyPreset('DEFAULT');
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'Hotkeys — reset to registry defaults.' },
+      }));
       return;
 
     default: {

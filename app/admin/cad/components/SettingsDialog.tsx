@@ -1,14 +1,20 @@
 'use client';
 // app/admin/cad/components/SettingsDialog.tsx — Drawing settings & preferences
-// Comprehensive settings dialog with 8 tabs covering all configurable options.
+// Comprehensive settings dialog covering all configurable options.
 
-import { useState } from 'react';
-import { X, Grid, Sliders, Palette, MousePointer2, Eye, Save, FileText, Crosshair } from 'lucide-react';
-import { useDrawingStore } from '@/lib/cad/store';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { X, Grid, Sliders, Palette, MousePointer2, Eye, Save, FileText, Crosshair, Keyboard } from 'lucide-react';
+import { useDrawingStore, useHotkeysStore, useUIStore } from '@/lib/cad/store';
 import type { SnapType } from '@/lib/cad/types';
 import { DEFAULT_DRAWING_SETTINGS } from '@/lib/cad/constants';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '@/lib/cad/styles/types';
+import { DEFAULT_ACTIONS } from '@/lib/cad/hotkeys/registry';
+import { findHotkeyConflicts, findConflictForAction } from '@/lib/cad/hotkeys/conflicts';
+import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
+import { normalizeKeyboardEvent } from '@/lib/cad/hotkeys/key-format';
+import type { ActionCategory, BindableAction } from '@/lib/cad/hotkeys/types';
 import Tooltip from './Tooltip';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface Props {
   onClose: () => void;
@@ -24,7 +30,7 @@ const ALL_SNAP_TYPES: { type: SnapType; label: string; description: string }[] =
   { type: 'GRID', label: 'Grid', description: 'Snaps to the nearest grid intersection point. The grid spacing is configured in the Grid tab. Disable if you need freeform placement.' },
 ];
 
-const TABS = ['Display', 'Grid', 'Appearance', 'Interaction', 'Snap', 'Labels', 'Auto-Save', 'Document'] as const;
+const TABS = ['Display', 'Grid', 'Appearance', 'Interaction', 'Snap', 'Labels', 'Auto-Save', 'Document', 'Hotkeys'] as const;
 type Tab = typeof TABS[number];
 
 // ── Toggle switch component ──────────────────────────────────────────────────
@@ -207,6 +213,7 @@ function ButtonGroup<T extends string>({
 
 // ── Main component ───────────────────────────────────────────────────────────
 export default function SettingsDialog({ onClose }: Props) {
+  useEscapeToClose(onClose);
   const drawingStore = useDrawingStore();
   const { settings } = drawingStore.document;
   const gsc = drawingStore.document.globalStyleConfig;
@@ -700,6 +707,12 @@ export default function SettingsDialog({ onClose }: Props) {
                   Reset interaction settings to defaults
                 </button>
               </div>
+
+              {/* Tooltip delay — global hover delay before any
+                  Tooltip appears. Persisted in localStorage via
+                  the ui-store partialize allow-list, takes
+                  effect immediately. */}
+              <TooltipDelaySection />
             </div>
           )}
 
@@ -966,6 +979,8 @@ export default function SettingsDialog({ onClose }: Props) {
                 />
               </div>
 
+              <FirmLogoSection />
+
               <div className="border-t border-gray-700 pt-3 text-gray-500 text-[10px] space-y-1">
                 <div className="text-[9px] font-semibold uppercase tracking-wider text-gray-600 mb-1">Document Info</div>
                 <div className="flex justify-between">
@@ -991,6 +1006,8 @@ export default function SettingsDialog({ onClose }: Props) {
               </div>
             </div>
           )}
+
+          {activeTab === 'Hotkeys' && <HotkeysTab />}
         </div>
 
         {/* Footer */}
@@ -1006,4 +1023,450 @@ export default function SettingsDialog({ onClose }: Props) {
       </div>
     </div>
   );
+}
+
+// ────────────────────────────────────────────────────────────
+// Tooltip delay slider — pulled from the persisted ui-store
+// so changes survive a refresh. Tooltips that pass an explicit
+// `delay` prop override this; everything else uses it as the
+// default.
+// ────────────────────────────────────────────────────────────
+
+function TooltipDelaySection() {
+  const tooltipDelay = useUIStore((s) => s.tooltipDelayMs);
+  const setTooltipDelay = useUIStore((s) => s.setTooltipDelayMs);
+  return (
+    <div className="border-t border-gray-700 pt-3">
+      <SliderInput
+        label="Tooltip Delay"
+        description="(milliseconds before any tooltip appears)"
+        value={tooltipDelay}
+        onChange={(v) => setTooltipDelay(v)}
+        min={100}
+        max={3000}
+        step={50}
+        tooltip="Global hover delay (in ms) for every tooltip in the app — toolbar buttons, layer rows, settings labels, command-bar hints. Range 100 ms (very fast) to 3000 ms (long pause). Persists across browser refreshes."
+      />
+      <p className="text-gray-500 mt-1 text-[10px]">
+        Tooltips that pass an explicit delay (e.g. the canvas feature-hover info) override this global default.
+      </p>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Firm logo section — uploads a PNG / JPG / SVG and stores
+// it as a base64 data URL in `useUIStore.firmLogoDataUrl`
+// (persisted via the ui-store partialize allow-list). The
+// logo is firm-wide rather than per-document, so it shows
+// on every drawing's title block header until the surveyor
+// clears it. Raster images are downscaled through a canvas
+// to a max edge of 256 px before being stored — keeps the
+// localStorage footprint tiny while still rendering crisply
+// in the title block (which is at most ~1 inch tall).
+// ────────────────────────────────────────────────────────────
+
+const LOGO_MAX_EDGE_PX = 256;
+
+async function fileToLogoDataUrl(file: File): Promise<string | null> {
+  const isSvg = file.type === 'image/svg+xml' || /\.svg$/i.test(file.name);
+  // SVGs are vector — keep them as-is so they stay sharp.
+  if (isSvg) {
+    return new Promise<string | null>((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(typeof r.result === 'string' ? r.result : null);
+      r.onerror = () => resolve(null);
+      r.readAsDataURL(file);
+    });
+  }
+  // Raster — load → downscale via canvas → re-encode as PNG
+  // (PNG preserves transparency; logos typically have it).
+  return new Promise<string | null>((resolve) => {
+    const r = new FileReader();
+    r.onload = () => {
+      if (typeof r.result !== 'string') {
+        resolve(null);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, LOGO_MAX_EDGE_PX / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(r.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/png'));
+        } catch {
+          resolve(r.result as string);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = r.result;
+    };
+    r.onerror = () => resolve(null);
+    r.readAsDataURL(file);
+  });
+}
+
+function FirmLogoSection() {
+  const firmLogoDataUrl = useUIStore((s) => s.firmLogoDataUrl);
+  const setFirmLogoDataUrl = useUIStore((s) => s.setFirmLogoDataUrl);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleUpload = async (file: File) => {
+    setError(null);
+    if (!/^image\//.test(file.type) && !/\.(png|jpe?g|svg)$/i.test(file.name)) {
+      setError('Please choose a PNG, JPG, or SVG image.');
+      return;
+    }
+    const dataUrl = await fileToLogoDataUrl(file);
+    if (!dataUrl) {
+      setError('Failed to read the image — try a different file.');
+      return;
+    }
+    setFirmLogoDataUrl(dataUrl);
+  };
+
+  return (
+    <div className="border-t border-gray-700 pt-3">
+      <Tooltip
+        label="Firm Logo"
+        description="Upload your firm's logo (PNG, JPG, or SVG). It replaces the firm-name text in every drawing's title block header until cleared. Stored locally in your browser, so it persists across reloads but doesn't sync to other devices."
+        side="right"
+        delay={400}
+      >
+        <label className="block text-gray-400 mb-1.5">Firm Logo</label>
+      </Tooltip>
+      <div className="flex items-center gap-3">
+        <div className="w-20 h-12 bg-gray-900 border border-gray-700 rounded flex items-center justify-center overflow-hidden">
+          {firmLogoDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={firmLogoDataUrl}
+              alt="Firm logo preview"
+              className="max-w-full max-h-full object-contain"
+            />
+          ) : (
+            <span className="text-[9px] uppercase tracking-wider text-gray-600">No Logo</span>
+          )}
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/svg+xml"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleUpload(f);
+              // Reset so picking the same file twice still fires
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }}
+          />
+          <button
+            type="button"
+            className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {firmLogoDataUrl ? 'Replace…' : 'Upload Logo…'}
+          </button>
+          {firmLogoDataUrl && (
+            <button
+              type="button"
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-red-900/40 hover:border-red-800/60 hover:text-red-300 transition-colors"
+              onClick={() => setFirmLogoDataUrl(null)}
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+      {error && <p className="text-red-400 text-[10px] mt-1.5">{error}</p>}
+      <p className="text-gray-500 text-[10px] mt-1.5 leading-relaxed">
+        Raster logos are downscaled to {LOGO_MAX_EDGE_PX} px on the longest edge before storing — plenty of resolution for the title block, with a small enough footprint to fit in browser storage.
+      </p>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Hotkeys tab — categorised list of every bindable action
+// with its current key (default OR user override) and a
+// red badge on conflicts. Click any key badge to enter
+// capture mode; the next non-modifier keydown becomes the
+// new binding. If the captured key is already in use by
+// another action in an overlapping context the displaced
+// action is automatically unbound — the conflict is
+// resolved on the spot rather than left as a red badge for
+// the surveyor to chase. Esc cancels capture; Backspace /
+// Delete clear the binding. Cross-session persistence
+// flows through `useHotkeysStore`'s `persist` middleware.
+// ────────────────────────────────────────────────────────────
+
+const CATEGORY_ORDER_HK: ActionCategory[] = [
+  'FILE', 'EDIT', 'TOOLS', 'DRAW', 'MODIFY', 'SELECTION',
+  'ZOOM_PAN', 'VIEW', 'SNAP', 'LAYERS', 'ANNOTATIONS',
+  'SURVEY_MATH', 'AI', 'APP',
+];
+
+const CATEGORY_LABEL_HK: Record<ActionCategory, string> = {
+  FILE: 'File',
+  EDIT: 'Edit',
+  TOOLS: 'Tools',
+  DRAW: 'Draw',
+  MODIFY: 'Modify',
+  SELECTION: 'Selection',
+  ZOOM_PAN: 'Zoom & Pan',
+  VIEW: 'View',
+  SNAP: 'Snap',
+  LAYERS: 'Layers',
+  ANNOTATIONS: 'Annotations',
+  SURVEY_MATH: 'Survey Math',
+  AI: 'AI',
+  APP: 'App',
+};
+
+function HotkeysTab() {
+  const userBindings = useHotkeysStore((s) => s.userBindings);
+  const setBinding = useHotkeysStore((s) => s.setBinding);
+  const [capturingId, setCapturingId] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const conflicts = useMemo(
+    () => findHotkeyConflicts(DEFAULT_ACTIONS, userBindings),
+    [userBindings],
+  );
+  const activeKeys = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const a of DEFAULT_ACTIONS) {
+      if (a.defaultKey) out[a.id] = a.defaultKey;
+    }
+    for (const u of userBindings) {
+      if (u.key) out[u.actionId] = u.key;
+      else delete out[u.actionId];
+    }
+    return out;
+  }, [userBindings]);
+  const grouped = useMemo(() => {
+    const map = new Map<ActionCategory, BindableAction[]>();
+    for (const a of DEFAULT_ACTIONS) {
+      const arr = map.get(a.category) ?? [];
+      arr.push(a);
+      map.set(a.category, arr);
+    }
+    return map;
+  }, []);
+
+  // Show a status line for ~3 s after a successful capture so
+  // the surveyor sees that conflicts were auto-resolved.
+  const flashStatus = (msg: string) => {
+    setStatusMsg(msg);
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    statusTimerRef.current = setTimeout(() => setStatusMsg(null), 3500);
+  };
+
+  // Capture-mode key listener. Mounted only while a row is in
+  // capture mode; uses the capture phase + stopPropagation so
+  // the global hotkey engine doesn't also fire on the keypress
+  // we're trying to rebind.
+  useEffect(() => {
+    if (!capturingId) return;
+    const targetAction = DEFAULT_ACTIONS.find((a) => a.id === capturingId);
+    if (!targetAction) return;
+
+    const onKey = (event: KeyboardEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      // Esc cancels capture without writing a binding.
+      if (event.key === 'Escape') {
+        setCapturingId(null);
+        return;
+      }
+      // Backspace / Delete clears the binding for this action.
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        setBinding(capturingId, null);
+        flashStatus(`Cleared binding for "${targetAction.label}".`);
+        setCapturingId(null);
+        return;
+      }
+
+      const norm = normalizeKeyboardEvent(event);
+      // Ignore pure modifier presses — keep listening so the
+      // surveyor can still hold Ctrl while choosing the final
+      // key.
+      if (norm.isModifierOnly || !norm.base) return;
+
+      const newKey = norm.key;
+      // Find any other action that currently owns this key in
+      // an overlapping context — that's the one we'll have to
+      // displace to satisfy "reassign updates both bindings".
+      const displaced: { id: string; label: string }[] = [];
+      for (const other of DEFAULT_ACTIONS) {
+        if (other.id === capturingId) continue;
+        if (activeKeys[other.id] !== newKey) continue;
+        if (
+          other.context === targetAction.context ||
+          other.context === 'GLOBAL' ||
+          targetAction.context === 'GLOBAL'
+        ) {
+          displaced.push({ id: other.id, label: other.label });
+        }
+      }
+
+      // Order matters — clear the displaced bindings first so
+      // there's no transient state where two actions share the
+      // key. (zustand batches synchronous sets, but we're
+      // explicit here for clarity.)
+      for (const d of displaced) setBinding(d.id, null);
+      setBinding(capturingId, newKey);
+
+      if (displaced.length === 0) {
+        flashStatus(`Bound "${targetAction.label}" → ${formatHotkeyDisplay(newKey)}.`);
+      } else {
+        const names = displaced.map((d) => `"${d.label}"`).join(', ');
+        flashStatus(`Bound "${targetAction.label}" → ${formatHotkeyDisplay(newKey)}. Unbound ${names}.`);
+      }
+      setCapturingId(null);
+    };
+
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [capturingId, setBinding, activeKeys]);
+
+  return (
+    <div className="space-y-3 animate-[fadeIn_150ms_ease-out]">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold text-gray-300 flex items-center gap-2">
+          <Keyboard size={14} />
+          Keyboard Shortcuts
+        </h3>
+        <div className="flex items-center gap-2">
+          {conflicts.length > 0 && (
+            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-900/40 border border-red-800/60 text-red-300 font-semibold">
+              {conflicts.length} conflict{conflicts.length === 1 ? '' : 's'}
+            </span>
+          )}
+          <button
+            type="button"
+            className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+            onClick={() => applyHotkeyPreset('AUTOCAD')}
+            title="Replace bindings with AutoCAD-style aliases (L for line, M for move, etc.)"
+          >
+            Apply AutoCAD Preset
+          </button>
+          <button
+            type="button"
+            className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+            onClick={() => applyHotkeyPreset('DEFAULT')}
+            title="Clear every customisation and fall back to registry defaults"
+          >
+            Reset to Defaults
+          </button>
+        </div>
+      </div>
+      <p className="text-[10px] text-gray-500 leading-relaxed">
+        Click any shortcut to rebind it — the next key you press becomes the new binding. If the chosen key is already in use, the displaced action is unbound automatically so the conflict is resolved in one step. Press <kbd className="font-mono px-1 rounded bg-gray-800 border border-gray-700">Esc</kbd> to cancel, <kbd className="font-mono px-1 rounded bg-gray-800 border border-gray-700">Backspace</kbd> to clear. Bindings persist across reloads.
+      </p>
+      {statusMsg && (
+        <div className="text-[11px] px-2 py-1 rounded bg-blue-900/30 border border-blue-800/60 text-blue-200 animate-[fadeIn_150ms_ease-out]">
+          {statusMsg}
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+        {CATEGORY_ORDER_HK.map((cat) => {
+          const actions = grouped.get(cat);
+          if (!actions || actions.length === 0) return null;
+          return (
+            <section key={cat}>
+              <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1 font-semibold">
+                {CATEGORY_LABEL_HK[cat]}
+              </div>
+              <div className="space-y-0.5">
+                {actions.map((a) => {
+                  const key = activeKeys[a.id];
+                  const conflict = findConflictForAction(a.id, conflicts);
+                  const isCapturing = capturingId === a.id;
+                  const badgeBase = 'rounded px-1.5 py-0.5 text-[10px] font-mono shrink-0 border transition-colors';
+                  let badgeClass: string;
+                  if (isCapturing) {
+                    badgeClass = `${badgeBase} bg-blue-900/40 border-blue-700 text-blue-200 animate-pulse`;
+                  } else if (conflict) {
+                    badgeClass = `${badgeBase} bg-red-900/40 border-red-800/60 text-red-300 hover:bg-red-900/60 cursor-pointer`;
+                  } else if (!key) {
+                    badgeClass = `${badgeBase} bg-gray-900 border-gray-800 text-gray-600 hover:bg-gray-800 hover:text-gray-400 cursor-pointer italic`;
+                  } else {
+                    badgeClass = `${badgeBase} bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-white cursor-pointer`;
+                  }
+                  return (
+                    <div
+                      key={a.id}
+                      className="flex items-center justify-between gap-3 text-[11px] py-0.5"
+                      title={
+                        conflict
+                          ? `Conflict: also fires ${conflict.actionIds.filter((id) => id !== a.id).join(', ')} in the ${conflict.context.toLowerCase()} context. Click to rebind.`
+                          : 'Click to rebind'
+                      }
+                    >
+                      <span className={`truncate ${conflict ? 'text-red-300' : 'text-gray-300'}`}>{a.label}</span>
+                      <button
+                        type="button"
+                        className={badgeClass}
+                        onClick={() => setCapturingId(isCapturing ? null : a.id)}
+                      >
+                        {isCapturing ? 'Press a key…' : key ? formatHotkeyDisplay(key) : 'unbound'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function formatHotkeyDisplay(s: string): string {
+  return s
+    .split(' ')
+    .map((step) =>
+      step
+        .split('+')
+        .map((part) => {
+          const p = part.trim();
+          if (p === 'ctrl') return 'Ctrl';
+          if (p === 'shift') return 'Shift';
+          if (p === 'alt') return 'Alt';
+          if (p === 'meta') return '⌘';
+          if (p === 'escape') return 'Esc';
+          if (p === 'space') return 'Space';
+          if (p === 'comma') return ',';
+          if (p === 'period') return '.';
+          if (p === 'slash') return '/';
+          if (p === 'backslash') return '\\';
+          if (p === 'minus') return '-';
+          if (p === 'equal') return '=';
+          if (p === 'leftbracket') return '[';
+          if (p === 'rightbracket') return ']';
+          if (p === 'semicolon') return ';';
+          if (p === 'quote') return "'";
+          if (p === 'backtick') return '`';
+          if (p === 'delete') return 'Del';
+          if (p.length === 1) return p.toUpperCase();
+          return p;
+        })
+        .join('+')
+    )
+    .join(' ');
 }

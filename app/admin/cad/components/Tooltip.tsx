@@ -2,6 +2,7 @@
 // app/admin/cad/components/Tooltip.tsx — Reusable rich hover tooltip with smooth animations
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useUIStore } from '@/lib/cad/store';
 
 export interface TooltipProps {
   /** Primary label shown in bold */
@@ -12,7 +13,8 @@ export interface TooltipProps {
   shortcut?: string;
   /** Which side of the trigger to show the tooltip */
   side?: 'right' | 'left' | 'top' | 'bottom';
-  /** Delay in ms before showing (default 600) */
+  /** Delay override in ms. When omitted the tooltip uses the
+   *  global `useUIStore.tooltipDelayMs` setting (default 600). */
   delay?: number;
   children: React.ReactNode;
   className?: string;
@@ -25,11 +27,13 @@ export default function Tooltip({
   description,
   shortcut,
   side = 'right',
-  delay = 600,
+  delay,
   children,
   className,
   disabled,
 }: TooltipProps) {
+  const globalDelay = useUIStore((s) => s.tooltipDelayMs);
+  const effectiveDelay = delay ?? globalDelay;
   const [mounted, setMounted] = useState(false);
   const [animateIn, setAnimateIn] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -44,8 +48,8 @@ export default function Tooltip({
       setMounted(true);
       // Trigger animation on next frame after mount
       animTimerRef.current = setTimeout(() => setAnimateIn(true), 10);
-    }, delay);
-  }, [delay, disabled]);
+    }, effectiveDelay);
+  }, [effectiveDelay, disabled]);
 
   const hide = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);

@@ -20,6 +20,7 @@ import {
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { cadLog } from '@/lib/cad/logger';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface Props {
   open: boolean;
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export default function RecentRecoveriesDialog({ open, onClose }: Props) {
+  useEscapeToClose(onClose);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();

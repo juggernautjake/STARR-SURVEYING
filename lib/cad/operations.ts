@@ -6,7 +6,9 @@ import type { Feature, OffsetMode, Point2D } from './types';
 import { rotate, mirror, scale, transformFeature, translate } from './geometry/transform';
 import { computeBounds } from './geometry/bounds';
 import { closestPointOnSegment } from './geometry/point';
-import { segmentSegmentIntersection } from './geometry/intersection';
+import { segmentSegmentIntersection, lineLineIntersection } from './geometry/intersection';
+import { fitPointsToBezier } from './geometry/curve-render';
+import { simplifyPolyline } from './geometry/simplify';
 import {
   offsetPolyline,
   offsetArc,
@@ -232,6 +234,1351 @@ export function arraySelectionRectangular(
     [...ids, ...newFeatures.map((f) => f.id)],
     'REPLACE',
   );
+}
+
+/**
+ * Extend a LINE or POLYLINE feature so that the endpoint
+ * nearest `worldPt` is lengthened along its tangent
+ * direction until it meets the closest target feature. The
+ * tangent comes from the segment incident to that endpoint,
+ * pointing outward. Targets can be LINE / POLYLINE / POLYGON
+ * / MIXED_GEOMETRY (curved targets are out of scope for this
+ * slice — same as TRIM).
+ *
+ * If no target is found in the extension direction the
+ * operation is a no-op (the surveyor just clicked into space
+ * with no feature in front of the line). Returns true on a
+ * successful mutation.
+ */
+export function extendFeatureTo(featureId: string, worldPt: Point2D): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+
+  let chain: Point2D[] | null = null;
+  if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
+  else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else return false;
+  if (!chain) return false;
+
+  // Decide which endpoint to extend — the one closer to the
+  // cursor. Tangent direction points OUT of the chain at
+  // that endpoint (i.e. continues the last segment beyond
+  // its endpoint). The extended-from "anchor" is the chain's
+  // current endpoint; the extended-to point is the closest
+  // target intersection along the ray.
+  const startPt = chain[0];
+  const endPt = chain[chain.length - 1];
+  const dStart = Math.hypot(worldPt.x - startPt.x, worldPt.y - startPt.y);
+  const dEnd = Math.hypot(worldPt.x - endPt.x, worldPt.y - endPt.y);
+  const extendStart = dStart < dEnd;
+  const anchor = extendStart ? startPt : endPt;
+  const tangentSrc = extendStart ? chain[1] : chain[chain.length - 2];
+  // Tangent unit vector pointing AWAY from the chain (i.e.
+  // start → out-of-chain for the start case, end → out-of-
+  // chain for the end case).
+  const tx0 = anchor.x - tangentSrc.x;
+  const ty0 = anchor.y - tangentSrc.y;
+  const tlen = Math.hypot(tx0, ty0);
+  if (tlen < 1e-10) return false;
+  const tx = tx0 / tlen;
+  const ty = ty0 / tlen;
+
+  // Ray-segment intersections: solve anchor + s*(tx,ty) on
+  // line (c, d) for s >= 0 (along extension direction) and
+  // u in [0, 1] (within target segment). Pick the smallest
+  // positive s. We exclude any hit at s ≈ 0 because that's
+  // the existing endpoint already touching another feature
+  // (no real extension to perform).
+  //
+  // Canonical 2D ray-segment derivation:
+  //   anchor + s*T = c + u*(d - c)
+  //   denom = Tx*(dy-cy) - Ty*(dx-cx)
+  //   s     = ((cx-Ax)*(dy-cy) - (cy-Ay)*(dx-cx)) / denom
+  //   u     = ((cx-Ax)*Ty     - (cy-Ay)*Tx)        / denom
+  const targets = drawingStore.getAllFeatures().filter((t) => t.id !== featureId && getFeatureSegments(t) !== null);
+  let bestS = Infinity;
+  let bestPt: Point2D | null = null;
+  for (const t of targets) {
+    const segs = getFeatureSegments(t);
+    if (!segs) continue;
+    for (const [c, d] of segs) {
+      const dxCd = d.x - c.x;
+      const dyCd = d.y - c.y;
+      const denom = tx * dyCd - ty * dxCd;
+      if (Math.abs(denom) < 1e-10) continue;
+      const cxAx = c.x - anchor.x;
+      const cyAy = c.y - anchor.y;
+      const s = (cxAx * dyCd - cyAy * dxCd) / denom;
+      const u = (cxAx * ty - cyAy * tx) / denom;
+      if (s <= 1e-6) continue; // skip backwards or zero hits
+      if (u < -1e-6 || u > 1 + 1e-6) continue;
+      if (s < bestS) {
+        bestS = s;
+        bestPt = { x: anchor.x + s * tx, y: anchor.y + s * ty };
+      }
+    }
+  }
+  if (!bestPt) return false;
+
+  // Build the new geometry — replace the relevant endpoint.
+  let newGeom: Feature['geometry'];
+  if (g.type === 'LINE' && g.start && g.end) {
+    newGeom = {
+      type: 'LINE',
+      start: extendStart ? bestPt : g.start,
+      end: extendStart ? g.end : bestPt,
+    };
+  } else if (g.type === 'POLYLINE' && g.vertices) {
+    const newVerts = g.vertices.slice();
+    if (extendStart) newVerts[0] = bestPt;
+    else newVerts[newVerts.length - 1] = bestPt;
+    newGeom = { type: 'POLYLINE', vertices: newVerts };
+  } else {
+    return false;
+  }
+
+  const before = f;
+  drawingStore.updateFeatureGeometry(featureId, newGeom);
+  const after = drawingStore.getFeature(featureId);
+  if (!after) return false;
+  undoStore.pushUndo(makeBatchEntry('Extend', [
+    { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
+  ]));
+  return true;
+}
+
+/**
+ * Result of attempting a `filletTwoLines`. Same convention
+ * as JoinResult — `ok: false` carries a short user-facing
+ * `reason` so the UI can surface the failure.
+ */
+export interface FilletResult {
+  ok: boolean;
+  arc?: Feature;
+  trimmedIds?: string[];
+  reason?: string;
+}
+
+/**
+ * Remove the vertex closest to `worldPt` from a POLYLINE /
+ * POLYGON / MIXED_GEOMETRY feature. The closest vertex must
+ * be within `pickRadiusWorld` of the cursor; otherwise the
+ * operation bails (so the surveyor doesn't accidentally
+ * delete a far-away vertex when they meant something else).
+ *
+ * Won't remove a vertex if doing so would leave the feature
+ * with too few vertices for its geometry type:
+ *   - POLYLINE / MIXED_GEOMETRY → minimum 2 vertices
+ *   - POLYGON → minimum 3 vertices
+ *
+ * Returns true on a successful mutation.
+ */
+export function removeVertexAt(
+  featureId: string,
+  worldPt: Point2D,
+  pickRadiusWorld: number,
+): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let isClosed = false;
+  let chain: Point2D[] | null = null;
+  if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else if (g.type === 'MIXED_GEOMETRY' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 3) {
+    chain = g.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+
+  // Find the closest vertex to the cursor.
+  let bestIdx = -1;
+  let bestDist = Infinity;
+  for (let i = 0; i < chain.length; i += 1) {
+    const v = chain[i];
+    const d = Math.hypot(worldPt.x - v.x, worldPt.y - v.y);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+    }
+  }
+  if (bestIdx < 0) return false;
+  if (bestDist > pickRadiusWorld) return false;
+  const minVerts = isClosed ? 3 : 2;
+  if (chain.length <= minVerts) return false;
+
+  const newVertices = [...chain.slice(0, bestIdx), ...chain.slice(bestIdx + 1)];
+  const before = f;
+  const newGeom: Feature['geometry'] = isClosed
+    ? { ...g, type: 'POLYGON', vertices: newVertices }
+    : { ...g, type: g.type, vertices: newVertices };
+  drawingStore.updateFeatureGeometry(featureId, newGeom);
+  const after = drawingStore.getFeature(featureId);
+  if (!after) return false;
+  undoStore.pushUndo(makeBatchEntry('Remove Vertex', [
+    { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
+  ]));
+  return true;
+}
+
+/**
+ * Insert a new vertex into a POLYLINE / POLYGON /
+ * MIXED_GEOMETRY feature at the closest point on its
+ * geometry to `worldPt`. Useful when the surveyor wants to
+ * add a corner where an imported polyline is missing one
+ * (e.g. a property boundary that needs a new monument call-
+ * out partway down a leg).
+ *
+ * - LINE sources are not supported — splitting a LINE adds a
+ *   vertex by definition, but the result has to be a POLYLINE
+ *   (since LINE has only start/end). Surveyors should use the
+ *   SPLIT tool instead.
+ * - The new vertex lands on the closest segment; existing
+ *   vertices are kept in order.
+ * - Endpoint-coincident clicks are no-ops to avoid creating
+ *   degenerate adjacent duplicates.
+ *
+ * Returns true on a successful mutation.
+ */
+export function insertVertexAt(featureId: string, worldPt: Point2D): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let isClosed = false;
+  let chain: Point2D[] | null = null;
+  if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else if (g.type === 'MIXED_GEOMETRY' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+
+  const eps = 1e-6;
+  const segCount = isClosed ? chain.length : chain.length - 1;
+  let bestIdx = 0;
+  let bestPt: Point2D | null = null;
+  let bestDist = Infinity;
+  for (let i = 0; i < segCount; i += 1) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    const cp = closestPointOnSegment(worldPt, a, b);
+    const d = Math.hypot(worldPt.x - cp.point.x, worldPt.y - cp.point.y);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+      bestPt = cp.point;
+    }
+  }
+  if (!bestPt) return false;
+  // Skip when the click lands exactly on an existing vertex.
+  const segA = chain[bestIdx];
+  const segB = chain[(bestIdx + 1) % chain.length];
+  if (
+    Math.hypot(bestPt.x - segA.x, bestPt.y - segA.y) < eps ||
+    Math.hypot(bestPt.x - segB.x, bestPt.y - segB.y) < eps
+  ) {
+    return false;
+  }
+
+  // Build the new vertex array — bestPt slots in between
+  // bestIdx and (bestIdx + 1).
+  const newVertices = [
+    ...chain.slice(0, bestIdx + 1),
+    bestPt,
+    ...chain.slice(bestIdx + 1),
+  ];
+  const before = f;
+  const newGeom: Feature['geometry'] = isClosed
+    ? { ...g, type: 'POLYGON', vertices: newVertices }
+    : { ...g, type: g.type, vertices: newVertices };
+  drawingStore.updateFeatureGeometry(featureId, newGeom);
+  const after = drawingStore.getFeature(featureId);
+  if (!after) return false;
+  undoStore.pushUndo(makeBatchEntry('Insert Vertex', [
+    { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
+  ]));
+  return true;
+}
+
+/**
+ * Reduce the vertex count of a POLYLINE / POLYGON feature
+ * via Ramer-Douglas-Peucker, dropping any vertex whose
+ * perpendicular distance to its kept neighbours is smaller
+ * than `tolerance`. Useful for cleaning up noisy imports —
+ * GPS traces, scanned-PDF traces, polygons-from-pixel-trace.
+ *
+ * Returns true on a successful mutation. No-op when the
+ * tolerance produces no reduction (every vertex matters at
+ * the chosen tolerance).
+ */
+export function simplifyPolylineFeature(
+  featureId: string,
+  tolerance: number,
+): boolean {
+  if (!Number.isFinite(tolerance) || tolerance <= 0) return false;
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let isClosed = false;
+  let verts: Point2D[] | null = null;
+  if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 3) verts = g.vertices.slice();
+  else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 3) {
+    verts = g.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+
+  const reduced = simplifyPolyline(verts, tolerance, isClosed);
+  // Reject no-op simplifications so the surveyor doesn't
+  // log a meaningless undo entry.
+  if (reduced.length === verts.length) return false;
+  if (reduced.length < 2) return false;
+
+  const before = f;
+  const newGeom: Feature['geometry'] = isClosed
+    ? { ...g, type: 'POLYGON', vertices: reduced }
+    : { ...g, type: 'POLYLINE', vertices: reduced };
+  drawingStore.updateFeatureGeometry(featureId, newGeom);
+  const after = drawingStore.getFeature(featureId);
+  if (!after) return false;
+  undoStore.pushUndo(makeBatchEntry(`Simplify (${verts.length} → ${reduced.length})`, [
+    { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
+  ]));
+  return true;
+}
+
+/**
+ * Convert a POLYLINE / POLYGON feature into a smooth SPLINE
+ * by fitting cubic-bezier control points through the source's
+ * vertices (Catmull-Rom-style interpolation via the existing
+ * `fitPointsToBezier` helper). Useful when boundary lines come
+ * in as linear segments and the surveyor wants curves —
+ * imported topo lines, contour traces, road centerlines.
+ *
+ * Source must have ≥ 3 vertices to yield a meaningful spline.
+ * The original feature is removed and replaced by the new
+ * SPLINE; style + properties are cloned. Returns true on
+ * success.
+ */
+export function smoothPolyline(featureId: string): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let vertices: Point2D[] | null = null;
+  let isClosed = false;
+  if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 3) vertices = g.vertices.slice();
+  else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 3) {
+    vertices = g.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+  const controlPoints = fitPointsToBezier(vertices, isClosed);
+  if (controlPoints.length < 4) return false;
+
+  const splineFeature: Feature = {
+    ...f,
+    id: generateId(),
+    type: 'SPLINE',
+    style: JSON.parse(JSON.stringify(f.style)),
+    properties: JSON.parse(JSON.stringify(f.properties)),
+    geometry: {
+      type: 'SPLINE',
+      spline: { controlPoints, isClosed },
+    },
+  };
+  drawingStore.removeFeature(featureId);
+  drawingStore.addFeature(splineFeature);
+  undoStore.pushUndo(makeBatchEntry('Smooth Polyline', [
+    { type: 'REMOVE_FEATURE', data: f },
+    { type: 'ADD_FEATURE', data: splineFeature },
+  ]));
+  selectionStore.selectMultiple([splineFeature.id], 'REPLACE');
+  return true;
+}
+
+/**
+ * Drop a perpendicular from `sourcePoint` to the closest
+ * point on the chosen segment of `targetFeatureId`. The
+ * "foot of perpendicular" — the point on the target line
+ * closest to the source — is computed by parametric
+ * projection onto the target's nearest segment.
+ *
+ * Emits a new LINE feature from sourcePoint → foot. Style +
+ * layer inherit from the target so the perpendicular reads
+ * as belonging to the same drawing context.
+ *
+ * Targets must be vertex-chain features (LINE / POLYLINE /
+ * POLYGON / MIXED_GEOMETRY); curved targets are out of
+ * scope (they need a different parametric solve per type).
+ *
+ * `cursorHint` is an optional cursor world position that
+ * disambiguates which segment of a multi-segment target to
+ * project onto. When omitted, the closest segment to
+ * `sourcePoint` itself is used.
+ */
+export function dropPerpendicular(
+  sourcePoint: Point2D,
+  targetFeatureId: string,
+  cursorHint?: Point2D,
+): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const target = drawingStore.getFeature(targetFeatureId);
+  if (!target) return false;
+  const tg = target.geometry;
+  let chain: Point2D[] | null = null;
+  let isClosed = false;
+  if (tg.type === 'LINE' && tg.start && tg.end) chain = [tg.start, tg.end];
+  else if ((tg.type === 'POLYLINE' || tg.type === 'MIXED_GEOMETRY') && tg.vertices && tg.vertices.length >= 2) chain = tg.vertices.slice();
+  else if (tg.type === 'POLYGON' && tg.vertices && tg.vertices.length >= 2) {
+    chain = tg.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+
+  // Find the closest segment to the cursor hint (or to the
+  // source point if no hint). Project the SOURCE onto that
+  // segment to compute the perpendicular foot.
+  const aimPoint = cursorHint ?? sourcePoint;
+  const segCount = isClosed ? chain.length : chain.length - 1;
+  let bestSegIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < segCount; i += 1) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    const cp = closestPointOnSegment(aimPoint, a, b);
+    const d = Math.hypot(aimPoint.x - cp.point.x, aimPoint.y - cp.point.y);
+    if (d < bestDist) {
+      bestDist = d;
+      bestSegIdx = i;
+    }
+  }
+  const segA = chain[bestSegIdx];
+  const segB = chain[(bestSegIdx + 1) % chain.length];
+  // Project the SOURCE onto the line through (segA, segB).
+  // We allow t to fall outside [0, 1] so the perpendicular
+  // hits the infinite line — surveyors typically want this
+  // when projecting onto a centerline that doesn't quite
+  // reach the source. Caller can clamp later if needed.
+  const dxAB = segB.x - segA.x;
+  const dyAB = segB.y - segA.y;
+  const len2 = dxAB * dxAB + dyAB * dyAB;
+  if (len2 < 1e-20) return false;
+  const tParam = ((sourcePoint.x - segA.x) * dxAB + (sourcePoint.y - segA.y) * dyAB) / len2;
+  const foot: Point2D = {
+    x: segA.x + tParam * dxAB,
+    y: segA.y + tParam * dyAB,
+  };
+  if (Math.hypot(foot.x - sourcePoint.x, foot.y - sourcePoint.y) < 1e-9) {
+    return false; // source already lies on the line
+  }
+
+  const perpFeature: Feature = {
+    id: generateId(),
+    type: 'LINE',
+    geometry: { type: 'LINE', start: sourcePoint, end: foot },
+    layerId: target.layerId,
+    style: JSON.parse(JSON.stringify(target.style)),
+    properties: {
+      perpendicularTargetId: targetFeatureId,
+      perpendicularFootX: foot.x,
+      perpendicularFootY: foot.y,
+    },
+  };
+  drawingStore.addFeature(perpFeature);
+  undoStore.pushUndo(makeAddFeatureEntry(perpFeature));
+  return true;
+}
+
+/**
+ * Drop a single POINT feature at exact arc-length `distance`
+ * from one end of `featureId`. Single-shot version of
+ * DIVIDE — surveyors use it for inserting a station marker
+ * at a known offset (e.g. "set MAG nail at 47.5 ft from the
+ * NE corner along the boundary").
+ *
+ * Distance > total length clamps to the far endpoint so the
+ * marker lands on the geometry instead of vanishing into
+ * empty space; distance ≤ 0 lands on the chosen end. POLYGON
+ * sources are supported and walk the closing leg as part of
+ * the arc-length budget.
+ */
+export function pointAtDistanceAlong(
+  featureId: string,
+  distance: number,
+  fromEnd: boolean,
+): boolean {
+  if (!Number.isFinite(distance) || distance < 0) return false;
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let chain: Point2D[] | null = null;
+  let isClosed = false;
+  if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
+  else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+
+  // Compute total arc length so we can convert the input
+  // distance into a normalised parameter for pointAlongChain.
+  const segCount = isClosed ? chain.length : chain.length - 1;
+  let total = 0;
+  for (let i = 0; i < segCount; i += 1) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    total += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  if (total < 1e-12) return false;
+  const clamped = Math.min(distance, total);
+  const t = fromEnd ? 1 - clamped / total : clamped / total;
+  const pt = pointAlongChain(chain, t, isClosed);
+
+  const newPoint: Feature = {
+    id: generateId(),
+    type: 'POINT',
+    geometry: { type: 'POINT', point: pt },
+    layerId: f.layerId,
+    style: JSON.parse(JSON.stringify(f.style)),
+    properties: {
+      pointAtDistanceSourceId: featureId,
+      pointAtDistanceValue: clamped,
+      pointAtDistanceFromEnd: fromEnd,
+    },
+  };
+  drawingStore.addFeature(newPoint);
+  undoStore.pushUndo(makeAddFeatureEntry(newPoint));
+  return true;
+}
+
+/**
+ * Copy the style + layer assignment from `sourceId` onto
+ * `targetId`. Geometry is left intact. Surveyors use this
+ * after cleanup to harmonise look-and-feel: pick one
+ * "model" line that already has the right color / line
+ * weight / line type / layer, then click each target line
+ * to make it match.
+ *
+ * The clone is deep so subsequent edits to either feature's
+ * style stay independent. Returns true on success.
+ */
+export function matchPropertiesTo(sourceId: string, targetId: string): boolean {
+  if (sourceId === targetId) return false;
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const source = drawingStore.getFeature(sourceId);
+  const target = drawingStore.getFeature(targetId);
+  if (!source || !target) return false;
+  const before = target;
+  drawingStore.updateFeature(targetId, {
+    style: JSON.parse(JSON.stringify(source.style)),
+    layerId: source.layerId,
+  });
+  const after = drawingStore.getFeature(targetId);
+  if (!after) return false;
+  undoStore.pushUndo(makeBatchEntry('Match Properties', [
+    { type: 'MODIFY_FEATURE', data: { id: targetId, before, after } },
+  ]));
+  return true;
+}
+
+/**
+ * Reverse the vertex order of a LINE / POLYLINE / POLYGON /
+ * MIXED_GEOMETRY feature. Useful when a direction-dependent
+ * downstream operation (offset side, DIVIDE numbering, label
+ * rotation) was set up against the import's direction and
+ * the surveyor needs to flip it without redrawing.
+ *
+ * LINE swaps start and end. Vertex chains reverse the
+ * `vertices[]` array. Curved sources are out of scope (their
+ * parametric form encodes direction differently per type).
+ * Returns true on success.
+ */
+export function reverseFeature(featureId: string): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let newGeom: Feature['geometry'];
+  if (g.type === 'LINE' && g.start && g.end) {
+    newGeom = { type: 'LINE', start: g.end, end: g.start };
+  } else if (
+    (g.type === 'POLYLINE' || g.type === 'POLYGON' || g.type === 'MIXED_GEOMETRY') &&
+    g.vertices &&
+    g.vertices.length >= 2
+  ) {
+    newGeom = { ...g, vertices: g.vertices.slice().reverse() };
+  } else {
+    return false;
+  }
+  const before = f;
+  drawingStore.updateFeatureGeometry(featureId, newGeom);
+  const after = drawingStore.getFeature(featureId);
+  if (!after) return false;
+  undoStore.pushUndo(makeBatchEntry('Reverse', [
+    { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
+  ]));
+  return true;
+}
+
+/**
+ * Burst a POLYLINE / POLYGON / MIXED_GEOMETRY feature into a
+ * collection of individual LINE features — one per segment.
+ * POLYGON includes the closing leg (vertex N-1 → vertex 0).
+ * Source feature is removed and the new lines are recorded
+ * in a single batch undo entry. Style + properties are
+ * cloned to every new line so the visual result reads as
+ * the same shape, just with editable per-segment handles.
+ *
+ * LINE sources are a no-op (already a single segment).
+ * Curved sources (CIRCLE / ELLIPSE / ARC / SPLINE) are out
+ * of scope — bursting them would lose the parametric
+ * geometry. Returns true on a successful mutation.
+ */
+export function explodeFeature(featureId: string): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+
+  let chain: Point2D[] | null = null;
+  let isClosed = false;
+  if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+  } else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+    isClosed = true;
+  } else if (g.type === 'MIXED_GEOMETRY' && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+  } else {
+    return false;
+  }
+
+  const segCount = isClosed ? chain.length : chain.length - 1;
+  if (segCount < 1) return false;
+
+  const newLines: Feature[] = [];
+  for (let i = 0; i < segCount; i += 1) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    if (Math.hypot(b.x - a.x, b.y - a.y) < 1e-9) continue; // skip degenerate
+    newLines.push({
+      ...f,
+      id: generateId(),
+      type: 'LINE',
+      style: JSON.parse(JSON.stringify(f.style)),
+      properties: JSON.parse(JSON.stringify(f.properties)),
+      geometry: { type: 'LINE', start: a, end: b },
+    });
+  }
+  if (newLines.length === 0) return false;
+
+  drawingStore.removeFeature(featureId);
+  drawingStore.addFeatures(newLines);
+  const ops = [
+    { type: 'REMOVE_FEATURE' as const, data: f },
+    ...newLines.map((nl) => ({ type: 'ADD_FEATURE' as const, data: nl })),
+  ];
+  undoStore.pushUndo(makeBatchEntry(`Explode (${newLines.length} lines)`, ops));
+  selectionStore.selectMultiple(newLines.map((nl) => nl.id), 'REPLACE');
+  return true;
+}
+
+/**
+ * Walk a vertex chain and return the world-space point at
+ * `t * totalArcLength`, where `t ∈ [0, 1]`. Used by
+ * `divideFeatureBy` to drop POINT features at equal
+ * intervals along a LINE / POLYLINE / POLYGON. POLYGON
+ * closes back to the first vertex; LINE / POLYLINE walk
+ * once end-to-end.
+ */
+function pointAlongChain(chain: Point2D[], t: number, isClosed: boolean): Point2D {
+  if (chain.length < 2) return chain[0] ? { ...chain[0] } : { x: 0, y: 0 };
+  const segCount = isClosed ? chain.length : chain.length - 1;
+  let total = 0;
+  const segLens: number[] = [];
+  for (let i = 0; i < segCount; i += 1) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    segLens.push(len);
+    total += len;
+  }
+  if (total < 1e-12) return { ...chain[0] };
+  const target = Math.max(0, Math.min(1, t)) * total;
+  let acc = 0;
+  for (let i = 0; i < segCount; i += 1) {
+    const len = segLens[i];
+    if (acc + len >= target || i === segCount - 1) {
+      const localT = len > 1e-12 ? (target - acc) / len : 0;
+      const a = chain[i];
+      const b = chain[(i + 1) % chain.length];
+      return {
+        x: a.x + (b.x - a.x) * localT,
+        y: a.y + (b.y - a.y) * localT,
+      };
+    }
+    acc += len;
+  }
+  return { ...chain[chain.length - 1] };
+}
+
+/**
+ * Divide a LINE / POLYLINE / POLYGON feature into `count`
+ * equal arc-length segments by dropping `count - 1` POINT
+ * features at the dividing positions. The source feature
+ * stays untouched — DIVIDE never mutates geometry, it only
+ * adds station markers. Surveyors use it for fence-post
+ * layouts, station marks along centerlines, lot-frontage
+ * segmentation, etc.
+ *
+ * For POLYGON sources the walk closes back through the
+ * vertex 0 → vertex N-1 leg so the divisions stay evenly
+ * spaced around the perimeter.
+ */
+export function divideFeatureBy(featureId: string, count: number): boolean {
+  if (!Number.isFinite(count) || count < 2) return false;
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let chain: Point2D[] | null = null;
+  let isClosed = false;
+  if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
+  else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
+    chain = g.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+
+  // Drop count-1 markers at t = 1/N, 2/N, ..., (N-1)/N.
+  const stationLayer = f.layerId;
+  const newPoints: Feature[] = [];
+  for (let i = 1; i < count; i += 1) {
+    const t = i / count;
+    const pt = pointAlongChain(chain, t, isClosed);
+    const pf: Feature = {
+      id: generateId(),
+      type: 'POINT',
+      geometry: { type: 'POINT', point: pt },
+      layerId: stationLayer,
+      style: JSON.parse(JSON.stringify(f.style)),
+      properties: {
+        // Stamp station metadata so a future LIST tool can
+        // show the surveyor exactly which leg + interval the
+        // marker came from.
+        divideSourceId: featureId,
+        divideStationOf: count,
+        divideStationIndex: i,
+      },
+    };
+    newPoints.push(pf);
+  }
+  if (newPoints.length === 0) return false;
+  drawingStore.addFeatures(newPoints);
+  const ops = newPoints.map((p) => ({ type: 'ADD_FEATURE' as const, data: p }));
+  undoStore.pushUndo(makeBatchEntry(`Divide ÷${count}`, ops));
+  return true;
+}
+
+/** Result of attempting a `chamferTwoLines`. `bevel` is the
+ *  new straight LINE that connects the two trim points. */
+export interface ChamferResult {
+  ok: boolean;
+  bevel?: Feature;
+  trimmedIds?: string[];
+  reason?: string;
+}
+
+/**
+ * Place a straight chamfer between two LINE features at
+ * their (extended) intersection. `dist1` trims line1 back
+ * from the intersection along its keep direction; `dist2`
+ * trims line2. Setting them equal produces a symmetric
+ * chamfer; unequal distances produce an asymmetric bevel —
+ * useful for surveyors who need a specific corner cut to
+ * match a road-design table.
+ *
+ * Algorithm — vastly simpler than fillet:
+ * 1. Find infinite-line intersection P of the two lines.
+ * 2. Compute unit "keep" directions u1, u2 from each click.
+ * 3. Trim points: T1 = P + dist1*u1, T2 = P + dist2*u2.
+ * 4. Trim each line so its end nearest P moves to T_i.
+ * 5. Insert a new LINE feature connecting T1 → T2.
+ *
+ * Returns false with a `reason` for parallel lines, lines
+ * shorter than the requested distance, or degenerate clicks.
+ */
+export function chamferTwoLines(
+  line1Id: string,
+  click1: Point2D,
+  line2Id: string,
+  click2: Point2D,
+  dist1: number,
+  dist2: number,
+): ChamferResult {
+  if (!Number.isFinite(dist1) || dist1 <= 0 || !Number.isFinite(dist2) || dist2 <= 0) {
+    return { ok: false, reason: 'Chamfer distances must be > 0.' };
+  }
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f1 = drawingStore.getFeature(line1Id);
+  const f2 = drawingStore.getFeature(line2Id);
+  if (!f1 || !f2) return { ok: false, reason: 'Lines not found.' };
+  if (f1.geometry.type !== 'LINE' || f2.geometry.type !== 'LINE') {
+    return { ok: false, reason: 'CHAMFER currently supports LINE features only.' };
+  }
+  const a1 = f1.geometry.start!;
+  const b1 = f1.geometry.end!;
+  const a2 = f2.geometry.start!;
+  const b2 = f2.geometry.end!;
+
+  const P = lineLineIntersection(a1, b1, a2, b2);
+  if (!P) return { ok: false, reason: 'Lines are parallel — no chamfer possible.' };
+
+  // Unit "keep" direction from P toward whichever endpoint
+  // the click is closer to. Same convention as fillet.
+  const keepDir = (line: { start: Point2D; end: Point2D }, click: Point2D): { x: number; y: number } | null => {
+    const dStart = Math.hypot(click.x - line.start.x, click.y - line.start.y);
+    const dEnd = Math.hypot(click.x - line.end.x, click.y - line.end.y);
+    const keepEnd = dEnd < dStart ? line.end : line.start;
+    const dx = keepEnd.x - P.x;
+    const dy = keepEnd.y - P.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-10) return null;
+    return { x: dx / len, y: dy / len };
+  };
+  const u1 = keepDir({ start: a1, end: b1 }, click1);
+  const u2 = keepDir({ start: a2, end: b2 }, click2);
+  if (!u1 || !u2) {
+    return { ok: false, reason: 'Click points are too close to the intersection — pick the leg you want to keep.' };
+  }
+
+  // Length of the keep leg from P. Validates the trim
+  // distance is achievable.
+  const lengthFromP = (line: { start: Point2D; end: Point2D }, click: Point2D): number => {
+    const dStart = Math.hypot(click.x - line.start.x, click.y - line.start.y);
+    const dEnd = Math.hypot(click.x - line.end.x, click.y - line.end.y);
+    const keepEnd = dEnd < dStart ? line.end : line.start;
+    return Math.hypot(keepEnd.x - P.x, keepEnd.y - P.y);
+  };
+  const len1 = lengthFromP({ start: a1, end: b1 }, click1);
+  const len2 = lengthFromP({ start: a2, end: b2 }, click2);
+  if (dist1 > len1 - 1e-6) {
+    return { ok: false, reason: `Distance 1 (${dist1.toFixed(3)}) exceeds line 1 length (${len1.toFixed(3)} ft).` };
+  }
+  if (dist2 > len2 - 1e-6) {
+    return { ok: false, reason: `Distance 2 (${dist2.toFixed(3)}) exceeds line 2 length (${len2.toFixed(3)} ft).` };
+  }
+
+  const T1: Point2D = { x: P.x + dist1 * u1.x, y: P.y + dist1 * u1.y };
+  const T2: Point2D = { x: P.x + dist2 * u2.x, y: P.y + dist2 * u2.y };
+
+  const trimLineToTangent = (line: Feature, tangent: Point2D, click: Point2D): Feature => {
+    if (line.geometry.type !== 'LINE') return line;
+    const ls = line.geometry.start!;
+    const le = line.geometry.end!;
+    const dStart = Math.hypot(click.x - ls.x, click.y - ls.y);
+    const dEnd = Math.hypot(click.x - le.x, click.y - le.y);
+    const swapStart = dStart > dEnd;
+    return {
+      ...line,
+      id: generateId(),
+      style: JSON.parse(JSON.stringify(line.style)),
+      properties: JSON.parse(JSON.stringify(line.properties)),
+      geometry: {
+        type: 'LINE',
+        start: swapStart ? tangent : ls,
+        end: swapStart ? le : tangent,
+      },
+    };
+  };
+  const trimmed1 = trimLineToTangent(f1, T1, click1);
+  const trimmed2 = trimLineToTangent(f2, T2, click2);
+
+  const bevel: Feature = {
+    ...f1,
+    id: generateId(),
+    type: 'LINE',
+    style: JSON.parse(JSON.stringify(f1.style)),
+    properties: JSON.parse(JSON.stringify(f1.properties)),
+    geometry: { type: 'LINE', start: T1, end: T2 },
+  };
+
+  drawingStore.removeFeature(f1.id);
+  drawingStore.removeFeature(f2.id);
+  drawingStore.addFeature(trimmed1);
+  drawingStore.addFeature(trimmed2);
+  drawingStore.addFeature(bevel);
+  const ops = [
+    { type: 'REMOVE_FEATURE' as const, data: f1 },
+    { type: 'REMOVE_FEATURE' as const, data: f2 },
+    { type: 'ADD_FEATURE' as const, data: trimmed1 },
+    { type: 'ADD_FEATURE' as const, data: trimmed2 },
+    { type: 'ADD_FEATURE' as const, data: bevel },
+  ];
+  const label = dist1 === dist2 ? `Chamfer ${dist1}` : `Chamfer ${dist1}/${dist2}`;
+  undoStore.pushUndo(makeBatchEntry(label, ops));
+  selectionStore.selectMultiple([trimmed1.id, trimmed2.id, bevel.id], 'REPLACE');
+
+  return { ok: true, bevel, trimmedIds: [trimmed1.id, trimmed2.id] };
+}
+
+/**
+ * Place a circular fillet of `radius` between two LINE
+ * features at their (extended) intersection. The two line
+ * click points decide which side of each line is kept —
+ * surveyors point at the leg they want to retain.
+ *
+ * Algorithm:
+ * 1. Find the infinite-line intersection P of line1 + line2.
+ * 2. For each line, compute a unit "keep" direction pointing
+ *    from P toward the click. The keep direction also serves
+ *    as the tangent direction at the fillet's tangent point.
+ * 3. Half-angle θ between the two keep directions:
+ *      cos(2θ) = u1 · u2
+ *    Skip when the lines are parallel or aimed straight at
+ *    each other (degenerate fillets).
+ * 4. Tangent-point distance from P along each leg:
+ *      t = radius / tan(θ)
+ *    Tangent point on leg i = P + t * uᵢ.
+ * 5. Arc center = (PT1 + PT2)/2 displaced along the bisector
+ *    by `radius / sin(θ)` from P, on the side AWAY from the
+ *    cusp (i.e. away from P, into the "keep" wedge).
+ * 6. Trim each line so its endpoint nearest P moves to its
+ *    tangent point; keep the half containing the click.
+ * 7. Insert a new ARC feature spanning from PT1 to PT2,
+ *    direction picked so the arc bulges toward P rather than
+ *    away (sweeps through the "cut" wedge between the legs).
+ */
+export function filletTwoLines(
+  line1Id: string,
+  click1: Point2D,
+  line2Id: string,
+  click2: Point2D,
+  radius: number,
+): FilletResult {
+  if (!Number.isFinite(radius) || radius <= 0) {
+    return { ok: false, reason: 'Fillet radius must be > 0.' };
+  }
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f1 = drawingStore.getFeature(line1Id);
+  const f2 = drawingStore.getFeature(line2Id);
+  if (!f1 || !f2) return { ok: false, reason: 'Lines not found.' };
+  if (f1.geometry.type !== 'LINE' || f2.geometry.type !== 'LINE') {
+    return { ok: false, reason: 'FILLET currently supports LINE features only.' };
+  }
+  const a1 = f1.geometry.start!;
+  const b1 = f1.geometry.end!;
+  const a2 = f2.geometry.start!;
+  const b2 = f2.geometry.end!;
+
+  // Infinite-line intersection of the two source lines.
+  const P = lineLineIntersection(a1, b1, a2, b2);
+  if (!P) return { ok: false, reason: 'Lines are parallel — no fillet possible.' };
+
+  // Unit "keep" direction for each line: from P toward whichever
+  // endpoint the click is closer to. Surveyors aim at the leg
+  // they want to retain.
+  const keepDir = (line: { start: Point2D; end: Point2D }, click: Point2D): { x: number; y: number } | null => {
+    const dStart = Math.hypot(click.x - line.start.x, click.y - line.start.y);
+    const dEnd = Math.hypot(click.x - line.end.x, click.y - line.end.y);
+    const keepEnd = dEnd < dStart ? line.end : line.start;
+    const dx = keepEnd.x - P.x;
+    const dy = keepEnd.y - P.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-10) return null;
+    return { x: dx / len, y: dy / len };
+  };
+  const u1 = keepDir({ start: a1, end: b1 }, click1);
+  const u2 = keepDir({ start: a2, end: b2 }, click2);
+  if (!u1 || !u2) {
+    return { ok: false, reason: 'Click points are too close to the intersection — pick the leg you want to keep.' };
+  }
+
+  // Half-angle θ between the keep directions. cos(2θ) = u1·u2.
+  // We work with sin(θ), cos(θ), tan(θ) directly via the half-
+  // angle identities so we never need atan and stay numerically
+  // stable.
+  let cos2t = u1.x * u2.x + u1.y * u2.y;
+  cos2t = Math.max(-1, Math.min(1, cos2t));
+  // Degenerate cases: lines run the same direction (angle 0,
+  // can't fillet) or anti-parallel (angle 180°, also degenerate
+  // for fillet — the legs continue through each other).
+  if (cos2t > 1 - 1e-9) {
+    return { ok: false, reason: 'Lines run in the same direction — no corner to fillet.' };
+  }
+  if (cos2t < -1 + 1e-9) {
+    return { ok: false, reason: 'Lines are anti-parallel — no corner to fillet.' };
+  }
+  // sin(θ) > 0 and cos(θ) > 0 because θ is the half-angle of
+  // the wedge the surveyor chose, always in (0, π/2).
+  const sinT = Math.sqrt((1 - cos2t) / 2);
+  const cosT = Math.sqrt((1 + cos2t) / 2);
+  if (sinT < 1e-9 || cosT < 1e-9) {
+    return { ok: false, reason: 'Wedge angle is degenerate.' };
+  }
+  const tanT = sinT / cosT;
+
+  // Tangent point distance from P, along each keep direction.
+  const t = radius / tanT;
+  const PT1: Point2D = { x: P.x + t * u1.x, y: P.y + t * u1.y };
+  const PT2: Point2D = { x: P.x + t * u2.x, y: P.y + t * u2.y };
+
+  // Bisector direction (unit) pointing from P INTO the wedge
+  // the surveyor kept. Adding u1 + u2 and normalising works
+  // because sum-of-unit-vectors lies along the angular bisector.
+  const bx = u1.x + u2.x;
+  const by = u1.y + u2.y;
+  const blen = Math.hypot(bx, by);
+  if (blen < 1e-10) {
+    return { ok: false, reason: 'Bisector is degenerate.' };
+  }
+  const ubx = bx / blen;
+  const uby = by / blen;
+
+  // Arc center distance from P. With the half-angle θ, distance
+  // from P to center = radius / sin(θ).
+  const centerDist = radius / sinT;
+  const centerPt: Point2D = { x: P.x + centerDist * ubx, y: P.y + centerDist * uby };
+
+  // Validate that each line is long enough to absorb the trim
+  // (i.e. the tangent point must lie between P and the kept
+  // endpoint, not beyond it). This guards against radii that
+  // are larger than either line's length.
+  const lengthFromP = (line: { start: Point2D; end: Point2D }, click: Point2D): number => {
+    const dStart = Math.hypot(click.x - line.start.x, click.y - line.start.y);
+    const dEnd = Math.hypot(click.x - line.end.x, click.y - line.end.y);
+    const keepEnd = dEnd < dStart ? line.end : line.start;
+    return Math.hypot(keepEnd.x - P.x, keepEnd.y - P.y);
+  };
+  const len1 = lengthFromP({ start: a1, end: b1 }, click1);
+  const len2 = lengthFromP({ start: a2, end: b2 }, click2);
+  if (t > len1 - 1e-6 || t > len2 - 1e-6) {
+    return {
+      ok: false,
+      reason: `Radius too large for these lines — needs ≤ ${Math.min(len1, len2).toFixed(3)} ft (current ${t.toFixed(3)}).`,
+    };
+  }
+
+  // Build the trimmed lines. Keep the half containing the click.
+  const trimLineToTangent = (line: Feature, tangent: Point2D, click: Point2D): Feature => {
+    if (line.geometry.type !== 'LINE') return line;
+    const ls = line.geometry.start!;
+    const le = line.geometry.end!;
+    const dStart = Math.hypot(click.x - ls.x, click.y - ls.y);
+    const dEnd = Math.hypot(click.x - le.x, click.y - le.y);
+    // Move whichever endpoint is closer to P (the FAR one
+    // from the click) onto the tangent point.
+    const swapStart = dStart > dEnd;
+    return {
+      ...line,
+      id: generateId(),
+      style: JSON.parse(JSON.stringify(line.style)),
+      properties: JSON.parse(JSON.stringify(line.properties)),
+      geometry: {
+        type: 'LINE',
+        start: swapStart ? tangent : ls,
+        end: swapStart ? le : tangent,
+      },
+    };
+  };
+  const trimmed1 = trimLineToTangent(f1, PT1, click1);
+  const trimmed2 = trimLineToTangent(f2, PT2, click2);
+
+  // Build the arc. anticlockwise flag picks the short arc
+  // through the cusp side (between PT1 and PT2 the short way,
+  // not the long way around). We compute startAngle from PT1
+  // around centerPt, endAngle from PT2 around centerPt. The
+  // arc should bulge toward P (the cusp), so its midpoint
+  // sits on the bisector pointing FROM centerPt TOWARD P.
+  const startAngle = Math.atan2(PT1.y - centerPt.y, PT1.x - centerPt.x);
+  const endAngle = Math.atan2(PT2.y - centerPt.y, PT2.x - centerPt.x);
+  // Pick anticlockwise so that the arc swept from start to end
+  // bulges back toward P. We test by comparing the arc midpoint
+  // for each direction and seeing which one is closer to P.
+  const midForCcw = arcMidpoint(centerPt, radius, startAngle, endAngle, true);
+  const midForCw = arcMidpoint(centerPt, radius, startAngle, endAngle, false);
+  const distCcw = Math.hypot(midForCcw.x - P.x, midForCcw.y - P.y);
+  const distCw = Math.hypot(midForCw.x - P.x, midForCw.y - P.y);
+  const anticlockwise = distCcw < distCw;
+
+  const arcFeature: Feature = {
+    ...f1,
+    id: generateId(),
+    type: 'ARC',
+    style: JSON.parse(JSON.stringify(f1.style)),
+    properties: JSON.parse(JSON.stringify(f1.properties)),
+    geometry: {
+      type: 'ARC',
+      arc: { center: centerPt, radius, startAngle, endAngle, anticlockwise },
+    },
+  };
+
+  // Apply the mutation as a single batch.
+  drawingStore.removeFeature(f1.id);
+  drawingStore.removeFeature(f2.id);
+  drawingStore.addFeature(trimmed1);
+  drawingStore.addFeature(trimmed2);
+  drawingStore.addFeature(arcFeature);
+  const ops = [
+    { type: 'REMOVE_FEATURE' as const, data: f1 },
+    { type: 'REMOVE_FEATURE' as const, data: f2 },
+    { type: 'ADD_FEATURE' as const, data: trimmed1 },
+    { type: 'ADD_FEATURE' as const, data: trimmed2 },
+    { type: 'ADD_FEATURE' as const, data: arcFeature },
+  ];
+  undoStore.pushUndo(makeBatchEntry(`Fillet R=${radius}`, ops));
+  selectionStore.selectMultiple([trimmed1.id, trimmed2.id, arcFeature.id], 'REPLACE');
+
+  return { ok: true, arc: arcFeature, trimmedIds: [trimmed1.id, trimmed2.id] };
+}
+
+/** Return the world-space midpoint of an arc going from
+ *  startAngle to endAngle around `center` with the given
+ *  direction. Used by the FILLET picker to choose the
+ *  anticlockwise flag that bulges toward the cusp. */
+function arcMidpoint(
+  center: Point2D,
+  radius: number,
+  startAngle: number,
+  endAngle: number,
+  anticlockwise: boolean,
+): Point2D {
+  let s = startAngle;
+  let e = endAngle;
+  if (anticlockwise) {
+    if (e <= s) e += 2 * Math.PI;
+  } else {
+    if (s <= e) s += 2 * Math.PI;
+    [s, e] = [e, s];
+  }
+  const mid = (s + e) / 2;
+  return {
+    x: center.x + radius * Math.cos(mid),
+    y: center.y + radius * Math.sin(mid),
+  };
+}
+
+/**
+ * Result of attempting a `joinSelection`. `joined` is the
+ * new POLYLINE feature when the walk succeeded. When it
+ * couldn't, `reason` carries a short user-facing message.
+ */
+export interface JoinResult {
+  ok: boolean;
+  joined?: Feature;
+  removedIds?: string[];
+  reason?: string;
+}
+
+/**
+ * Merge two or more selected LINE / POLYLINE features into a
+ * single POLYLINE by walking shared endpoints. Endpoints are
+ * considered the same when they're within `tolerance` world
+ * units of each other (default 0.01 ≈ 1/8" at survey foot
+ * precision; tight enough to avoid false-positive joins,
+ * loose enough to absorb floating-point drift from imports).
+ *
+ * The walk requires the selection to form a single Euler
+ * path — i.e. exactly two "open" endpoints (used by one
+ * feature) and every interior endpoint shared by exactly
+ * two features. Branches or fragments bail out cleanly with
+ * a `reason` string instead of guessing.
+ *
+ * Removes the source features and adds the joined POLYLINE
+ * as a single batch undo entry. Selection is replaced with
+ * the new feature so the surveyor can immediately keep
+ * working.
+ */
+export function joinSelection(tolerance = 0.01): JoinResult {
+  const selectionStore = useSelectionStore.getState();
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const ids = Array.from(selectionStore.selectedIds);
+  if (ids.length < 2) {
+    return { ok: false, reason: 'Select at least 2 lines or polylines to join.' };
+  }
+
+  // Pull the source features as (id, vertices[]) tuples.
+  // Reject anything that isn't a vertex-chain so a stray
+  // POINT or CIRCLE in the selection doesn't blow up the walk.
+  type Source = { id: string; verts: Point2D[]; feature: Feature };
+  const sources: Source[] = [];
+  for (const id of ids) {
+    const f = drawingStore.getFeature(id);
+    if (!f) continue;
+    const g = f.geometry;
+    let verts: Point2D[] | null = null;
+    if (g.type === 'LINE' && g.start && g.end) verts = [g.start, g.end];
+    else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) verts = g.vertices.slice();
+    if (!verts) {
+      return { ok: false, reason: `Feature "${f.id}" isn't a line or polyline; only those can be joined.` };
+    }
+    sources.push({ id, verts, feature: f });
+  }
+  if (sources.length < 2) {
+    return { ok: false, reason: 'Select at least 2 lines or polylines to join.' };
+  }
+
+  // Cluster endpoints within `tolerance` so coincident
+  // endpoints map to the same node id. We only care about
+  // the two endpoints of each source — interior vertices of
+  // a polyline are never used as join nodes (joining can't
+  // attach to the middle of a polyline; that's what SPLIT
+  // is for).
+  type Endpoint = { sourceIdx: number; whichEnd: 'START' | 'END'; pt: Point2D };
+  const endpoints: Endpoint[] = [];
+  for (let i = 0; i < sources.length; i += 1) {
+    endpoints.push({ sourceIdx: i, whichEnd: 'START', pt: sources[i].verts[0] });
+    endpoints.push({ sourceIdx: i, whichEnd: 'END', pt: sources[i].verts[sources[i].verts.length - 1] });
+  }
+
+  const tolSq = tolerance * tolerance;
+  // node[i] = canonical index for endpoints[i] (smallest j
+  // such that endpoints[j] coincides with endpoints[i]).
+  const node = new Array(endpoints.length).fill(0).map((_, i) => i);
+  for (let i = 0; i < endpoints.length; i += 1) {
+    for (let j = 0; j < i; j += 1) {
+      if (node[j] !== j) continue;
+      const dx = endpoints[i].pt.x - endpoints[j].pt.x;
+      const dy = endpoints[i].pt.y - endpoints[j].pt.y;
+      if (dx * dx + dy * dy <= tolSq) {
+        node[i] = j;
+        break;
+      }
+    }
+  }
+
+  // Build adjacency — nodeId → list of (sourceIdx, whichEnd).
+  const adj = new Map<number, Array<{ sourceIdx: number; whichEnd: 'START' | 'END' }>>();
+  for (let i = 0; i < endpoints.length; i += 1) {
+    const n = node[i];
+    if (!adj.has(n)) adj.set(n, []);
+    adj.get(n)!.push({ sourceIdx: endpoints[i].sourceIdx, whichEnd: endpoints[i].whichEnd });
+  }
+
+  // Find the open endpoints (degree 1). For an Euler path
+  // there must be exactly two, or zero (closed loop).
+  const openNodes: number[] = [];
+  for (const [n, list] of adj.entries()) {
+    if (list.length === 1) openNodes.push(n);
+    else if (list.length > 2) {
+      return { ok: false, reason: 'Selection branches at one or more endpoints — joins must form a single chain.' };
+    }
+  }
+  if (openNodes.length !== 0 && openNodes.length !== 2) {
+    return { ok: false, reason: 'Selection has more than one disconnected piece; pick features that form one chain.' };
+  }
+
+  // Walk from one chain end (or any node, for a closed loop).
+  const visited = new Set<number>();
+  const startNode = openNodes.length === 2 ? openNodes[0] : (adj.keys().next().value as number);
+  let currentNode = startNode;
+  const orderedSources: Array<{ sourceIdx: number; reversed: boolean }> = [];
+
+  while (orderedSources.length < sources.length) {
+    const list = adj.get(currentNode) ?? [];
+    const next = list.find((e) => !visited.has(e.sourceIdx));
+    if (!next) break;
+    visited.add(next.sourceIdx);
+    orderedSources.push({ sourceIdx: next.sourceIdx, reversed: next.whichEnd === 'END' });
+    // Move to the OTHER endpoint of this source.
+    const otherEnd = next.whichEnd === 'START' ? 'END' : 'START';
+    const otherEndpointIdx = next.sourceIdx * 2 + (otherEnd === 'START' ? 0 : 1);
+    currentNode = node[otherEndpointIdx];
+  }
+
+  if (orderedSources.length !== sources.length) {
+    return { ok: false, reason: 'Could not walk the full selection as a single chain.' };
+  }
+
+  // Concatenate vertices in walk order, reversing as needed.
+  // Skip the first vertex of each subsequent source because
+  // it coincides (within tolerance) with the previous
+  // source's last vertex — keeping both would emit a
+  // duplicate junction vertex.
+  const merged: Point2D[] = [];
+  for (let i = 0; i < orderedSources.length; i += 1) {
+    const { sourceIdx, reversed } = orderedSources[i];
+    const verts = sources[sourceIdx].verts;
+    const seq = reversed ? [...verts].reverse() : verts;
+    if (i === 0) {
+      for (const v of seq) merged.push({ ...v });
+    } else {
+      for (let k = 1; k < seq.length; k += 1) merged.push({ ...seq[k] });
+    }
+  }
+  if (merged.length < 2) {
+    return { ok: false, reason: 'Walk produced fewer than 2 vertices.' };
+  }
+
+  // Build the joined feature. Inherit style + properties
+  // from the first walked source so the result reads as
+  // "extension of feature A".
+  const baseFeature = sources[orderedSources[0].sourceIdx].feature;
+  const joined: Feature = {
+    ...baseFeature,
+    id: generateId(),
+    type: 'POLYLINE',
+    style: JSON.parse(JSON.stringify(baseFeature.style)),
+    properties: JSON.parse(JSON.stringify(baseFeature.properties)),
+    geometry: { type: 'POLYLINE', vertices: merged },
+  };
+  // Strip any polylineGroupId since the merged feature is
+  // standalone (its source group identity is gone).
+  if (joined.properties.polylineGroupId) {
+    delete (joined.properties as Record<string, unknown>).polylineGroupId;
+  }
+
+  // Apply: remove the sources, add the joined feature, push
+  // one batch undo entry.
+  const removedIds: string[] = [];
+  for (const s of sources) {
+    drawingStore.removeFeature(s.id);
+    removedIds.push(s.id);
+  }
+  drawingStore.addFeature(joined);
+  const ops = [
+    ...sources.map((s) => ({ type: 'REMOVE_FEATURE' as const, data: s.feature })),
+    { type: 'ADD_FEATURE' as const, data: joined },
+  ];
+  undoStore.pushUndo(makeBatchEntry(`Join ${sources.length}`, ops));
+  selectionStore.selectMultiple([joined.id], 'REPLACE');
+
+  return { ok: true, joined, removedIds };
 }
 
 // ─────────────────────────────────────────────

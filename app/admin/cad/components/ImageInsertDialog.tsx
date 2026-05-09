@@ -8,6 +8,7 @@ import { X, Upload, Clipboard, ImageIcon } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { ProjectImage } from '@/lib/cad/types';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 const ACCEPTED_MIME = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'];
 
@@ -43,6 +44,7 @@ function sanitizeName(raw: string): string {
 }
 
 export default function ImageInsertDialog({ worldX, worldY, onClose, onInsert }: Props) {
+  useEscapeToClose(onClose);
   const drawingStore = useDrawingStore();
   const [dragOver, setDragOver] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);

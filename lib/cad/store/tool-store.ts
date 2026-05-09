@@ -43,6 +43,17 @@ interface ToolStore {
   setArrayPolarAngleDeg: (deg: number) => void;
   setArrayPolarRotate: (enabled: boolean) => void;
   setArrayPolarCenter: (center: Point2D | null) => void;
+  setFilletRadius: (r: number) => void;
+  setFilletPickedLine: (id: string | null, click: Point2D | null) => void;
+  setChamferDistance1: (d: number) => void;
+  setChamferDistance2: (d: number) => void;
+  setChamferPickedLine: (id: string | null, click: Point2D | null) => void;
+  setDivideCount: (count: number) => void;
+  setMatchPropertiesSourceId: (id: string | null) => void;
+  setPointAtDistanceValue: (v: number) => void;
+  setPointAtDistanceFromEnd: (v: boolean) => void;
+  setPerpendicularSourcePoint: (p: Point2D | null) => void;
+  setSimplifyTolerance: (v: number) => void;
   resetToolState: () => void;
 }
 
@@ -93,6 +104,19 @@ const defaultToolState: ToolState = {
   arrayPolarAngleDeg: 360,
   arrayPolarRotate: true,
   arrayPolarCenter: null,
+  filletRadius: 5,
+  filletPickedLineId: null,
+  filletPickedClickPoint: null,
+  chamferDistance1: 5,
+  chamferDistance2: 5,
+  chamferPickedLineId: null,
+  chamferPickedClickPoint: null,
+  divideCount: 4,
+  matchPropertiesSourceId: null,
+  pointAtDistanceValue: 50,
+  pointAtDistanceFromEnd: false,
+  perpendicularSourcePoint: null,
+  simplifyTolerance: 0.5,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -133,6 +157,17 @@ export const useToolStore = create<ToolStore>((set) => ({
         arrayPolarAngleDeg: s.state.arrayPolarAngleDeg,
         arrayPolarRotate: s.state.arrayPolarRotate,
         // arrayPolarCenter resets on tool switch — bound to a single pick session.
+        filletRadius: s.state.filletRadius,
+        // filletPickedLineId resets on tool switch — bound to a two-click session.
+        chamferDistance1: s.state.chamferDistance1,
+        chamferDistance2: s.state.chamferDistance2,
+        // chamferPickedLineId resets on tool switch.
+        divideCount: s.state.divideCount,
+        // matchPropertiesSourceId resets on tool switch — bound to a single pick session.
+        pointAtDistanceValue: s.state.pointAtDistanceValue,
+        pointAtDistanceFromEnd: s.state.pointAtDistanceFromEnd,
+        // perpendicularSourcePoint resets on tool switch.
+        simplifyTolerance: s.state.simplifyTolerance,
       },
     })),
 
@@ -307,6 +342,81 @@ export const useToolStore = create<ToolStore>((set) => ({
   setArrayPolarCenter: (center) =>
     set((s) => ({ state: { ...s.state, arrayPolarCenter: center } })),
 
+  setFilletRadius: (r) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        filletRadius: Number.isFinite(r) && r > 0 ? r : 0.01,
+      },
+    })),
+
+  setFilletPickedLine: (id, click) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        filletPickedLineId: id,
+        filletPickedClickPoint: click,
+      },
+    })),
+
+  setChamferDistance1: (d) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        chamferDistance1: Number.isFinite(d) && d > 0 ? d : 0.01,
+      },
+    })),
+
+  setChamferDistance2: (d) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        chamferDistance2: Number.isFinite(d) && d > 0 ? d : 0.01,
+      },
+    })),
+
+  setChamferPickedLine: (id, click) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        chamferPickedLineId: id,
+        chamferPickedClickPoint: click,
+      },
+    })),
+
+  setDivideCount: (count) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        divideCount: Math.max(2, Math.min(100, Math.floor(Number.isFinite(count) ? count : 4))),
+      },
+    })),
+
+  setMatchPropertiesSourceId: (id) =>
+    set((s) => ({ state: { ...s.state, matchPropertiesSourceId: id } })),
+
+  setPointAtDistanceValue: (v) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        pointAtDistanceValue: Number.isFinite(v) && v >= 0 ? v : 0,
+      },
+    })),
+
+  setPointAtDistanceFromEnd: (v) =>
+    set((s) => ({ state: { ...s.state, pointAtDistanceFromEnd: v } })),
+
+  setPerpendicularSourcePoint: (p) =>
+    set((s) => ({ state: { ...s.state, perpendicularSourcePoint: p } })),
+
+  setSimplifyTolerance: (v) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        simplifyTolerance: Number.isFinite(v) && v > 0 ? v : 0.01,
+      },
+    })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -339,6 +449,19 @@ export const useToolStore = create<ToolStore>((set) => ({
         arrayPolarAngleDeg: s.state.arrayPolarAngleDeg,
         arrayPolarRotate: s.state.arrayPolarRotate,
         arrayPolarCenter: null, // resets on tool reset
+        filletRadius: s.state.filletRadius,
+        filletPickedLineId: null,
+        filletPickedClickPoint: null,
+        chamferDistance1: s.state.chamferDistance1,
+        chamferDistance2: s.state.chamferDistance2,
+        chamferPickedLineId: null,
+        chamferPickedClickPoint: null,
+        divideCount: s.state.divideCount,
+        matchPropertiesSourceId: null,
+        pointAtDistanceValue: s.state.pointAtDistanceValue,
+        pointAtDistanceFromEnd: s.state.pointAtDistanceFromEnd,
+        perpendicularSourcePoint: null,
+        simplifyTolerance: s.state.simplifyTolerance,
       },
     })),
 }));

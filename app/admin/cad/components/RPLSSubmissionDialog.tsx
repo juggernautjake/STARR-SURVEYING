@@ -18,6 +18,7 @@ import { useState } from 'react';
 
 import { useDrawingStore, useReviewWorkflowStore } from '@/lib/cad/store';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface Props {
   open: boolean;
@@ -33,6 +34,7 @@ export default function RPLSSubmissionDialog({
   summary,
   onClose,
 }: Props) {
+  useEscapeToClose(onClose);
   const document = useDrawingStore((s) => s.document);
   const review = useReviewWorkflowStore();
 

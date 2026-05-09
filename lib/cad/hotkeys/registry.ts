@@ -49,6 +49,24 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'tool.trim',         category: 'TOOLS',      label: 'Trim',                 description: 'Trim lines to cutting edges',                 defaultKey: 't r',          isChord: true,  context: 'CANVAS' },
   { id: 'tool.extend',       category: 'TOOLS',      label: 'Extend',               description: 'Extend lines to boundary edges',              defaultKey: 'e x',          isChord: true,  context: 'CANVAS' },
   { id: 'tool.fillet',       category: 'TOOLS',      label: 'Fillet / Curb Return', description: 'Create a curb return or fillet',              defaultKey: 'f',            isChord: false, context: 'CANVAS' },
+  { id: 'tool.chamfer',      category: 'TOOLS',      label: 'Chamfer',              description: 'Bevel the corner between two LINEs with a straight LINE.',     defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.split',        category: 'TOOLS',      label: 'Split',                description: 'Break a line / polyline / polygon at the clicked point.',      defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.join',         category: 'TOOLS',      label: 'Join',                 description: 'Merge selected lines / polylines into one POLYLINE.',           defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.divide',       category: 'TOOLS',      label: 'Divide',               description: 'Drop POINT markers at equal arc-length intervals along a feature.', defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.explode',      category: 'TOOLS',      label: 'Explode',              description: 'Burst a POLYLINE / POLYGON into individual LINE features.',     defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.reverse',      category: 'TOOLS',      label: 'Reverse Direction',    description: 'Flip the direction of a LINE / POLYLINE / POLYGON.',           defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.matchProps',   category: 'TOOLS',      label: 'Match Properties',     description: 'Copy style + layer from one feature to another.',              defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.pointAtDist',  category: 'TOOLS',      label: 'Point at Distance',    description: 'Drop a POINT at exact arc-length from the start or end of a feature.', defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.perpendicular',category: 'TOOLS',      label: 'Perpendicular',        description: 'Drop a perpendicular line from a point to a target line.',     defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.smooth',       category: 'TOOLS',      label: 'Smooth (Polyline → Spline)', description: 'Convert a POLYLINE / POLYGON to a smooth SPLINE.',     defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.simplify',     category: 'TOOLS',      label: 'Simplify (RDP)',       description: 'Drop redundant vertices from a POLYLINE / POLYGON via Ramer-Douglas-Peucker.', defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.insertVertex', category: 'TOOLS',      label: 'Insert Vertex',        description: 'Insert a new vertex on a POLYLINE / POLYGON edge at the click point.', defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.removeVertex', category: 'TOOLS',      label: 'Remove Vertex',        description: 'Delete the closest vertex of a POLYLINE / POLYGON within pick radius.', defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.list',         category: 'TOOLS',      label: 'List (probe feature)', description: 'Click any feature to print its details to the command bar.',  defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.array',        category: 'TOOLS',      label: 'Array (rect / polar)', description: 'Replicate the selection in a rectangular grid or polar fan.',  defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.flip',         category: 'TOOLS',      label: 'Flip',                 description: 'Reflect the selection through its centroid (H / V / D1 / D2).', defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.invert',       category: 'TOOLS',      label: 'Invert',               description: 'Point-invert (180° rotate) the selection through a clicked center.', defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'tool.measureArea',  category: 'SURVEY_MATH',label: 'Measure Area',         description: 'Click polygon vertices to read live perimeter + area.',         defaultKey: '', isChord: false, context: 'CANVAS' },
   { id: 'tool.erase',        category: 'TOOLS',      label: 'Erase',                description: 'Erase features',                              defaultKey: 'e',            isChord: false, context: 'CANVAS' },
   { id: 'tool.dim',          category: 'ANNOTATIONS',label: 'Bearing/Dist Dim',     description: 'Place a bearing/distance dimension',          defaultKey: 'd',            isChord: false, context: 'CANVAS' },
   { id: 'tool.leader',       category: 'ANNOTATIONS',label: 'Leader',               description: 'Place a leader annotation',                   defaultKey: 'l d',          isChord: true,  context: 'CANVAS' },
@@ -68,6 +86,8 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
 
   // Layers
   { id: 'layer.panel',       category: 'LAYERS',     label: 'Toggle Layer Panel',   description: 'Show or hide the layer panel',                defaultKey: 'f2',           isChord: false, context: 'GLOBAL' },
+  { id: 'layer.isolateBySelection', category: 'LAYERS', label: 'Isolate Layers by Selection', description: 'Show only layers that contain at least one currently-selected feature; hide everything else.', defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'layer.showAll',     category: 'LAYERS',     label: 'Show All Layers',      description: 'Restore visibility on every layer in the document.', defaultKey: '', isChord: false, context: 'GLOBAL' },
 
   // AI
   { id: 'ai.start',          category: 'AI',         label: 'Start AI Drawing',     description: 'Open the AI drawing wizard',                  defaultKey: 'ctrl+shift+a', isChord: false, context: 'GLOBAL' },
@@ -77,6 +97,16 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'view.settings',     category: 'APP',        label: 'Open Settings',        description: 'Open the Settings page',                      defaultKey: 'ctrl+comma',   isChord: false, context: 'GLOBAL' },
   { id: 'view.commandBar',   category: 'APP',        label: 'Focus Command Bar',    description: 'Move focus to the command bar',               defaultKey: 'ctrl+shift+k', isChord: false, context: 'GLOBAL' },
   { id: 'view.commandPalette', category: 'APP',      label: 'Open Command Palette', description: 'Open the searchable command palette',         defaultKey: 'ctrl+k',       isChord: false, context: 'GLOBAL' },
+  { id: 'view.shortcutHelp', category: 'APP',        label: 'Keyboard Shortcuts',   description: 'Show a cheat-sheet of every keyboard binding grouped by category', defaultKey: 'shift+slash',  isChord: false, context: 'GLOBAL' },
+  { id: 'view.stats',        category: 'APP',        label: 'Drawing Stats',         description: 'Print a summary of the current drawing (feature count, total polygon area, total line length, layer count) to the command bar.', defaultKey: '', isChord: false, context: 'GLOBAL' },
+
+  // Preset switchers — surfaced via the command palette so
+  // the surveyor can swap between AutoCAD aliases and the
+  // built-in defaults without diving into a settings dialog.
+  // Persistence rides on `useHotkeysStore`'s `persist`
+  // middleware so the choice survives page reloads.
+  { id: 'preset.autocad',    category: 'APP',        label: 'Apply AutoCAD-style Hotkeys', description: 'Rewrite hotkeys to AutoCAD chord aliases (L for line, M for move, RO for rotate, etc.). Persists across reloads.', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  { id: 'preset.reset',      category: 'APP',        label: 'Reset Hotkeys to Defaults',   description: 'Clear every customised hotkey binding and fall back to the registry defaults. Persists across reloads.',                       defaultKey: '', isChord: false, context: 'GLOBAL' },
 ];
 
 /** Build a lookup map keyed by action id. Stable across

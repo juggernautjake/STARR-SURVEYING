@@ -10,6 +10,7 @@ import type { Feature, Point2D } from '@/lib/cad/types';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance } from '@/lib/cad/geometry/units';
 import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface Props {
   featureId: string;
@@ -68,6 +69,7 @@ function CoordInput({
 }
 
 export default function FeaturePropertiesDialog({ featureId, onClose, initialX, initialY }: Props) {
+  useEscapeToClose(onClose);
   const drawingStore = useDrawingStore();
   const undoStore = useUndoStore();
 

@@ -110,6 +110,25 @@ export default function CommandPalette() {
     setActiveIndex(0);
   }, [query]);
 
+  // When the surveyor hasn't typed anything, render section
+  // headers between categories so the 80+ entries are
+  // scannable. Once they start typing, fall back to a flat
+  // filtered list since cross-category fuzzy matches read
+  // better without dividers.
+  const showSections = query.trim().length === 0;
+  const sectionDividerIndices = useMemo(() => {
+    if (!showSections) return new Set<number>();
+    const out = new Set<number>();
+    let prevCategory: string | null = null;
+    filtered.forEach((it, idx) => {
+      if (it.category !== prevCategory) {
+        out.add(idx);
+        prevCategory = it.category;
+      }
+    });
+    return out;
+  }, [filtered, showSections]);
+
   // Auto-focus the input when the palette opens.
   useEffect(() => {
     if (!open) return undefined;
@@ -178,16 +197,21 @@ export default function CommandPalette() {
             </div>
           ) : (
             filtered.map((it, idx) => (
-              <button
-                key={`${it.kind}-${it.id}`}
-                type="button"
-                className={`w-full px-3 py-2 flex items-center gap-3 text-left text-xs border-l-2 transition-colors
-                  ${idx === activeIndex
-                    ? 'bg-blue-700/30 border-blue-500'
-                    : 'border-transparent hover:bg-gray-800'}`}
-                onClick={() => commit(idx)}
-                onMouseEnter={() => setActiveIndex(idx)}
-              >
+              <div key={`${it.kind}-${it.id}`}>
+                {sectionDividerIndices.has(idx) && (
+                  <div className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-wider text-gray-500 font-semibold bg-gray-900 sticky top-0 z-10 border-t border-gray-800 first:border-t-0">
+                    {it.category}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className={`w-full px-3 py-2 flex items-center gap-3 text-left text-xs border-l-2 transition-colors
+                    ${idx === activeIndex
+                      ? 'bg-blue-700/30 border-blue-500'
+                      : 'border-transparent hover:bg-gray-800'}`}
+                  onClick={() => commit(idx)}
+                  onMouseEnter={() => setActiveIndex(idx)}
+                >
                 {it.kind === 'LAYER' ? (
                   <span
                     className="w-3 h-3 rounded-sm border border-gray-600 shrink-0"
@@ -206,7 +230,8 @@ export default function CommandPalette() {
                     {formatShortcut(it.shortcut)}
                   </kbd>
                 )}
-              </button>
+                </button>
+              </div>
             ))
           )}
         </div>

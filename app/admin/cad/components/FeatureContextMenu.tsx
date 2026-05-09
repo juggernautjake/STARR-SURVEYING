@@ -20,6 +20,7 @@ import {
   Check,
   Box,
   BoxSelect,
+  Slash,
 } from 'lucide-react';
 import {
   useDrawingStore,
@@ -47,6 +48,11 @@ import {
   translateSelection,
   offsetSelectionByDistance,
   alignSelection,
+  reverseFeature,
+  explodeFeature,
+  smoothPolyline,
+  simplifyPolylineFeature,
+  divideFeatureBy,
 } from '@/lib/cad/operations';
 import { insertInflectionPoint, findClosestSplineParam } from '@/lib/cad/geometry/curve-render';
 import { generateId } from '@/lib/cad/types';
@@ -507,6 +513,77 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
           action: handleScaleByFactor,
         },
         { separator: true, id: 's2' },
+        // ── Edit submenu — line-editing operations that
+        // apply to vertex-chain features. Shown only when
+        // the right-clicked feature is one of the supported
+        // types so the surveyor doesn't see an inert menu.
+        ...((feature.geometry.type === 'LINE' ||
+            feature.geometry.type === 'POLYLINE' ||
+            feature.geometry.type === 'POLYGON' ||
+            feature.geometry.type === 'MIXED_GEOMETRY')
+          ? [
+              {
+                id: 'edit',
+                label: 'Edit',
+                icon: <Slash size={12} />,
+                submenu: [
+                  // Reverse — works on every vertex-chain.
+                  {
+                    id: 'reverse',
+                    label: 'Reverse Direction',
+                    action: () => { reverseFeature(feature.id); onClose(); },
+                  },
+                  // Explode — POLYLINE / POLYGON / MIXED only.
+                  ...(feature.geometry.type !== 'LINE'
+                    ? [{
+                        id: 'explode',
+                        label: 'Explode (burst into LINEs)',
+                        action: () => { explodeFeature(feature.id); onClose(); },
+                      }]
+                    : []),
+                  // Smooth → Spline. Requires ≥ 3 vertices on a chain feature.
+                  ...((feature.geometry.type === 'POLYLINE' || feature.geometry.type === 'POLYGON') && feature.geometry.vertices && feature.geometry.vertices.length >= 3
+                    ? [{
+                        id: 'smooth',
+                        label: 'Smooth → Spline',
+                        action: () => { smoothPolyline(feature.id); onClose(); },
+                      }]
+                    : []),
+                  // Simplify (RDP). Same eligibility as smooth.
+                  ...((feature.geometry.type === 'POLYLINE' || feature.geometry.type === 'POLYGON') && feature.geometry.vertices && feature.geometry.vertices.length >= 3
+                    ? [{
+                        id: 'simplify',
+                        label: 'Simplify (RDP, 0.5 ft)',
+                        action: () => { simplifyPolylineFeature(feature.id, 0.5); onClose(); },
+                      }]
+                    : []),
+                  // Divide — works on every vertex-chain.
+                  {
+                    id: 'divide4',
+                    label: 'Divide ÷4 (3 markers)',
+                    action: () => { divideFeatureBy(feature.id, 4); onClose(); },
+                  },
+                  {
+                    id: 'divide10',
+                    label: 'Divide ÷10 (9 markers)',
+                    action: () => { divideFeatureBy(feature.id, 10); onClose(); },
+                  },
+                  {
+                    id: 'divideCustom',
+                    label: 'Divide…',
+                    action: () => {
+                      const input = window.prompt('Number of equal segments (2–100):', '4');
+                      if (input === null) { onClose(); return; }
+                      const n = parseInt(input);
+                      if (!isNaN(n) && n >= 2 && n <= 100) divideFeatureBy(feature.id, n);
+                      onClose();
+                    },
+                  },
+                ],
+              } as MenuItemDef,
+              { separator: true, id: 's2b' } as { separator: true; id: string },
+            ]
+          : []),
         {
           id: 'moveToLayer',
           label: 'Move to Layer',

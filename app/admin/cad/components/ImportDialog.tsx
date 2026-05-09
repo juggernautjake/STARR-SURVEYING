@@ -14,6 +14,8 @@ import {
   Info,
   RefreshCw,
   Table2,
+  Save,
+  Trash2,
 } from 'lucide-react';
 import { useImportStore, usePointStore, useDrawingStore, useUndoStore, makeBatchEntry } from '@/lib/cad/store';
 import { parseCSV } from '@/lib/cad/import/csv-parser';
@@ -26,6 +28,7 @@ import type { Feature, UndoOperation } from '@/lib/cad/types';
 import { generateId } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 import { PHASE3_DEFAULT_LAYERS } from '@/lib/cad/styles/default-layers';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface ImportDialogProps {
   onClose: () => void;
@@ -131,25 +134,7 @@ function FileSelectStep() {
       )}
 
       {/* Preset selector */}
-      {(fileType === 'CSV' || fileType === 'TXT') && (
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Column Preset</label>
-          <select
-            className="w-full bg-gray-700 text-gray-200 text-sm px-3 py-2 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
-            onChange={e => {
-              const preset = BUILT_IN_PRESETS.find(p => p.id === e.target.value);
-              if (preset) useImportStore.getState().selectPreset(preset);
-            }}
-          >
-            {BUILT_IN_PRESETS.filter(p => p.isBuiltIn).map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-            {useImportStore.getState().customPresets.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </div>
-      )}
+      {(fileType === 'CSV' || fileType === 'TXT') && <PresetPicker />}
 
       {/* Raw preview */}
       {rawText && (
@@ -160,6 +145,144 @@ function FileSelectStep() {
           </pre>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Preset picker — built-ins + persisted custom presets ───
+//
+// The picker subscribes to `customPresets` and `selectedPreset`
+// so a freshly-saved preset shows up in the dropdown without
+// closing the dialog. Custom presets persist across reloads
+// via the `persist` middleware on `useImportStore` (Phase 8
+// §9). A trash icon next to each custom preset lets the
+// surveyor delete it from the saved list inline.
+function PresetPicker() {
+  const customPresets = useImportStore((s) => s.customPresets);
+  const selectedPreset = useImportStore((s) => s.selectedPreset);
+  const selectPreset = useImportStore((s) => s.selectPreset);
+  const deleteCustomPreset = useImportStore((s) => s.deleteCustomPreset);
+
+  return (
+    <div>
+      <label className="block text-xs text-gray-400 mb-1">Column Preset</label>
+      <select
+        value={selectedPreset?.id ?? ''}
+        className="w-full bg-gray-700 text-gray-200 text-sm px-3 py-2 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+        onChange={(e) => {
+          const all = [...BUILT_IN_PRESETS, ...customPresets];
+          const preset = all.find((p) => p.id === e.target.value);
+          if (preset) selectPreset(preset);
+        }}
+      >
+        <optgroup label="Built-in">
+          {BUILT_IN_PRESETS.filter((p) => p.isBuiltIn).map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </optgroup>
+        {customPresets.length > 0 && (
+          <optgroup label="Saved">
+            {customPresets.map((p) => (
+              <option key={p.id} value={p.id}>★ {p.name}</option>
+            ))}
+          </optgroup>
+        )}
+      </select>
+      {customPresets.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {customPresets.map((p) => (
+            <span
+              key={p.id}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-[10px] text-gray-400"
+            >
+              <span className="truncate max-w-[120px]">{p.name}</span>
+              <button
+                type="button"
+                title={`Delete saved preset "${p.name}"`}
+                aria-label={`Delete preset ${p.name}`}
+                className="text-gray-500 hover:text-red-400 transition-colors"
+                onClick={() => deleteCustomPreset(p.id)}
+              >
+                <Trash2 size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Inline form for saving the current column-mapping
+// configuration as a named preset. Lives at the bottom of
+// the column-mapping step where the user has just dialled
+// in delimiter / coordinate order / column indices.
+function SavePresetSection() {
+  const config = useImportStore((s) => s.config);
+  const customPresets = useImportStore((s) => s.customPresets);
+  const saveCustomPreset = useImportStore((s) => s.saveCustomPreset);
+  const [name, setName] = useState('');
+  const [flash, setFlash] = useState<string | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const trimmedName = name.trim();
+  const nameTaken = trimmedName.length > 0
+    && customPresets.some((p) => p.name.toLowerCase() === trimmedName.toLowerCase());
+  const canSave = trimmedName.length > 0 && !nameTaken;
+
+  const onSave = () => {
+    if (!canSave) return;
+    saveCustomPreset(trimmedName, config);
+    setName('');
+    setFlash(`Saved "${trimmedName}" — pick it from the Column Preset dropdown next time.`);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlash(null), 4000);
+  };
+
+  return (
+    <div className="border-t border-gray-700 pt-3">
+      <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1.5">
+        <Save size={11} />
+        Save current configuration as a preset
+      </label>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && canSave) {
+              e.preventDefault();
+              onSave();
+            }
+          }}
+          placeholder="e.g. ProjectX boundary import"
+          className="flex-1 bg-gray-700 text-gray-200 text-xs px-2 py-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+        />
+        <button
+          type="button"
+          disabled={!canSave}
+          onClick={onSave}
+          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+            canSave
+              ? 'bg-blue-600 text-white hover:bg-blue-500'
+              : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          Save Preset
+        </button>
+      </div>
+      {nameTaken && (
+        <p className="text-[10px] text-amber-400 mt-1">
+          A preset named &quot;{trimmedName}&quot; already exists — pick a different name or delete the old one above.
+        </p>
+      )}
+      {flash && !nameTaken && (
+        <p className="text-[10px] text-green-400 mt-1">{flash}</p>
+      )}
+      <p className="text-[10px] text-gray-500 mt-1">
+        Saved presets persist across browser reloads and appear in the Column Preset dropdown the next time you open the import wizard.
+      </p>
     </div>
   );
 }
@@ -280,6 +403,8 @@ function ColumnMappingStep() {
           </div>
         </div>
       )}
+
+      <SavePresetSection />
     </div>
   );
 }
@@ -445,6 +570,7 @@ function CompleteStep({ result, onViewPoints }: { result: ReturnType<typeof proc
 
 // ─── Main Dialog ───
 export default function ImportDialog({ onClose, onImportComplete }: ImportDialogProps) {
+  useEscapeToClose(onClose);
   const importStore = useImportStore();
   const pointStore = usePointStore();
   const drawingStore = useDrawingStore();
