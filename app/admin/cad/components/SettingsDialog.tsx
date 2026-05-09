@@ -9,6 +9,7 @@ import type { SnapType } from '@/lib/cad/types';
 import { DEFAULT_DRAWING_SETTINGS } from '@/lib/cad/constants';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '@/lib/cad/styles/types';
 import Tooltip from './Tooltip';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface Props {
   onClose: () => void;
@@ -207,6 +208,7 @@ function ButtonGroup<T extends string>({
 
 // ── Main component ───────────────────────────────────────────────────────────
 export default function SettingsDialog({ onClose }: Props) {
+  useEscapeToClose(onClose);
   const drawingStore = useDrawingStore();
   const { settings } = drawingStore.document;
   const gsc = drawingStore.document.globalStyleConfig;

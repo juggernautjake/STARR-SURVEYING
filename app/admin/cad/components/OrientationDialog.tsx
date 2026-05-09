@@ -39,6 +39,7 @@ import type { ReferenceLine, BearingCandidate } from '@/lib/cad/geometry/orient'
 import { parseBearing, formatBearing, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import type { Feature, UndoOperation } from '@/lib/cad/types';
 import Tooltip from './Tooltip';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface Props {
   onClose: () => void;
@@ -138,6 +139,7 @@ function ConfBar({ value }: { value: number }) {
 // Main dialog
 // ─────────────────────────────────────────────────────────────────────────────
 export default function OrientationDialog({ onClose }: Props) {
+  useEscapeToClose(onClose);
   const drawingStore = useDrawingStore();
   const undoStore = useUndoStore();
 

@@ -6,6 +6,7 @@ import { useState, useCallback } from 'react';
 import { X, RotateCcw, RotateCw, Compass, RefreshCw } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import Tooltip from './Tooltip';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface Props {
   onClose: () => void;
@@ -14,6 +15,7 @@ interface Props {
 const QUICK_ANGLES = [0, 15, 30, 45, 60, 90, 180, 270];
 
 export default function DrawingRotationDialog({ onClose }: Props) {
+  useEscapeToClose(onClose);
   const drawingStore = useDrawingStore();
   const currentDeg = drawingStore.document.settings.drawingRotationDeg ?? 0;
   const [inputVal, setInputVal] = useState(String(currentDeg));

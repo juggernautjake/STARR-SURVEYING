@@ -3,6 +3,7 @@
 
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import type { PaperSize } from '@/lib/cad/templates/types';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface Props {
   onClose: () => void;
@@ -18,6 +19,7 @@ const PAPER_SIZE_LABELS: Record<PaperSize, string> = {
 };
 
 export default function PrintDialog({ onClose }: Props) {
+  useEscapeToClose(onClose);
   const store = useTemplateStore();
   const cfg = store.printConfig;
 

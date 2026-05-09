@@ -21,6 +21,7 @@ import { useState } from 'react';
 
 import { usePointStore, useAIStore } from '@/lib/cad/store';
 import type { AIJobPayload, AIJobResult } from '@/lib/cad/ai-engine/types';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface AIDrawingDialogProps {
   onClose: () => void;
@@ -29,6 +30,7 @@ interface AIDrawingDialogProps {
 export default function AIDrawingDialog({
   onClose,
 }: AIDrawingDialogProps) {
+  useEscapeToClose(onClose);
   const points = usePointStore((s) => Object.values(s.points));
   const status = useAIStore((s) => s.status);
   const error = useAIStore((s) => s.error);

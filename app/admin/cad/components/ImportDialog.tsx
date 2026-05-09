@@ -26,6 +26,7 @@ import type { Feature, UndoOperation } from '@/lib/cad/types';
 import { generateId } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 import { PHASE3_DEFAULT_LAYERS } from '@/lib/cad/styles/default-layers';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface ImportDialogProps {
   onClose: () => void;
@@ -445,6 +446,7 @@ function CompleteStep({ result, onViewPoints }: { result: ReturnType<typeof proc
 
 // ─── Main Dialog ───
 export default function ImportDialog({ onClose, onImportComplete }: ImportDialogProps) {
+  useEscapeToClose(onClose);
   const importStore = useImportStore();
   const pointStore = usePointStore();
   const drawingStore = useDrawingStore();
