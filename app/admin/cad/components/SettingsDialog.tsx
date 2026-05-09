@@ -1,13 +1,17 @@
 'use client';
 // app/admin/cad/components/SettingsDialog.tsx — Drawing settings & preferences
-// Comprehensive settings dialog with 8 tabs covering all configurable options.
+// Comprehensive settings dialog covering all configurable options.
 
-import { useState } from 'react';
-import { X, Grid, Sliders, Palette, MousePointer2, Eye, Save, FileText, Crosshair } from 'lucide-react';
-import { useDrawingStore } from '@/lib/cad/store';
+import { useMemo, useState } from 'react';
+import { X, Grid, Sliders, Palette, MousePointer2, Eye, Save, FileText, Crosshair, Keyboard } from 'lucide-react';
+import { useDrawingStore, useHotkeysStore } from '@/lib/cad/store';
 import type { SnapType } from '@/lib/cad/types';
 import { DEFAULT_DRAWING_SETTINGS } from '@/lib/cad/constants';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '@/lib/cad/styles/types';
+import { DEFAULT_ACTIONS } from '@/lib/cad/hotkeys/registry';
+import { findHotkeyConflicts, findConflictForAction } from '@/lib/cad/hotkeys/conflicts';
+import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
+import type { ActionCategory, BindableAction } from '@/lib/cad/hotkeys/types';
 import Tooltip from './Tooltip';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
@@ -25,7 +29,7 @@ const ALL_SNAP_TYPES: { type: SnapType; label: string; description: string }[] =
   { type: 'GRID', label: 'Grid', description: 'Snaps to the nearest grid intersection point. The grid spacing is configured in the Grid tab. Disable if you need freeform placement.' },
 ];
 
-const TABS = ['Display', 'Grid', 'Appearance', 'Interaction', 'Snap', 'Labels', 'Auto-Save', 'Document'] as const;
+const TABS = ['Display', 'Grid', 'Appearance', 'Interaction', 'Snap', 'Labels', 'Auto-Save', 'Document', 'Hotkeys'] as const;
 type Tab = typeof TABS[number];
 
 // ── Toggle switch component ──────────────────────────────────────────────────
@@ -993,6 +997,8 @@ export default function SettingsDialog({ onClose }: Props) {
               </div>
             </div>
           )}
+
+          {activeTab === 'Hotkeys' && <HotkeysTab />}
         </div>
 
         {/* Footer */}
@@ -1008,4 +1014,178 @@ export default function SettingsDialog({ onClose }: Props) {
       </div>
     </div>
   );
+}
+
+// ────────────────────────────────────────────────────────────
+// Hotkeys tab — categorised list of every bindable action
+// with its current key (default OR user override) and a
+// red badge on conflicts. Read-only at this stage; capture-
+// mode editing is a follow-up. Cross-session persistence
+// already happens in `useHotkeysStore` via the `persist`
+// middleware, so the AutoCAD preset + any future user
+// overrides survive a refresh.
+// ────────────────────────────────────────────────────────────
+
+const CATEGORY_ORDER_HK: ActionCategory[] = [
+  'FILE', 'EDIT', 'TOOLS', 'DRAW', 'MODIFY', 'SELECTION',
+  'ZOOM_PAN', 'VIEW', 'SNAP', 'LAYERS', 'ANNOTATIONS',
+  'SURVEY_MATH', 'AI', 'APP',
+];
+
+const CATEGORY_LABEL_HK: Record<ActionCategory, string> = {
+  FILE: 'File',
+  EDIT: 'Edit',
+  TOOLS: 'Tools',
+  DRAW: 'Draw',
+  MODIFY: 'Modify',
+  SELECTION: 'Selection',
+  ZOOM_PAN: 'Zoom & Pan',
+  VIEW: 'View',
+  SNAP: 'Snap',
+  LAYERS: 'Layers',
+  ANNOTATIONS: 'Annotations',
+  SURVEY_MATH: 'Survey Math',
+  AI: 'AI',
+  APP: 'App',
+};
+
+function HotkeysTab() {
+  const userBindings = useHotkeysStore((s) => s.userBindings);
+  const conflicts = useMemo(
+    () => findHotkeyConflicts(DEFAULT_ACTIONS, userBindings),
+    [userBindings],
+  );
+  const activeKeys = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const a of DEFAULT_ACTIONS) {
+      if (a.defaultKey) out[a.id] = a.defaultKey;
+    }
+    for (const u of userBindings) {
+      if (u.key) out[u.actionId] = u.key;
+      else delete out[u.actionId];
+    }
+    return out;
+  }, [userBindings]);
+  const grouped = useMemo(() => {
+    const map = new Map<ActionCategory, BindableAction[]>();
+    for (const a of DEFAULT_ACTIONS) {
+      const arr = map.get(a.category) ?? [];
+      arr.push(a);
+      map.set(a.category, arr);
+    }
+    return map;
+  }, []);
+
+  return (
+    <div className="space-y-3 animate-[fadeIn_150ms_ease-out]">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold text-gray-300 flex items-center gap-2">
+          <Keyboard size={14} />
+          Keyboard Shortcuts
+        </h3>
+        <div className="flex items-center gap-2">
+          {conflicts.length > 0 && (
+            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-900/40 border border-red-800/60 text-red-300 font-semibold">
+              {conflicts.length} conflict{conflicts.length === 1 ? '' : 's'}
+            </span>
+          )}
+          <button
+            type="button"
+            className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+            onClick={() => applyHotkeyPreset('AUTOCAD')}
+            title="Replace bindings with AutoCAD-style aliases (L for line, M for move, etc.)"
+          >
+            Apply AutoCAD Preset
+          </button>
+          <button
+            type="button"
+            className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+            onClick={() => applyHotkeyPreset('DEFAULT')}
+            title="Clear every customisation and fall back to registry defaults"
+          >
+            Reset to Defaults
+          </button>
+        </div>
+      </div>
+      <p className="text-[10px] text-gray-500 leading-relaxed">
+        Cross-session persistence is wired through localStorage. Conflicts highlight every action that shares a key with another in the same context — pick one of them and re-bind. Capture-mode editing lands in a follow-up; for now use the presets above to swap whole binding sets.
+      </p>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+        {CATEGORY_ORDER_HK.map((cat) => {
+          const actions = grouped.get(cat);
+          if (!actions || actions.length === 0) return null;
+          return (
+            <section key={cat}>
+              <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1 font-semibold">
+                {CATEGORY_LABEL_HK[cat]}
+              </div>
+              <div className="space-y-0.5">
+                {actions.map((a) => {
+                  const key = activeKeys[a.id];
+                  if (!key) return null;
+                  const conflict = findConflictForAction(a.id, conflicts);
+                  return (
+                    <div
+                      key={a.id}
+                      className="flex items-center justify-between gap-3 text-[11px] py-0.5"
+                      title={
+                        conflict
+                          ? `Conflict: also fires ${conflict.actionIds.filter((id) => id !== a.id).join(', ')} in the ${conflict.context.toLowerCase()} context.`
+                          : undefined
+                      }
+                    >
+                      <span className={`truncate ${conflict ? 'text-red-300' : 'text-gray-300'}`}>{a.label}</span>
+                      <kbd
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-mono shrink-0 border ${
+                          conflict
+                            ? 'bg-red-900/40 border-red-800/60 text-red-300'
+                            : 'bg-gray-800 border-gray-700 text-gray-400'
+                        }`}
+                      >
+                        {formatHotkeyDisplay(key)}
+                      </kbd>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function formatHotkeyDisplay(s: string): string {
+  return s
+    .split(' ')
+    .map((step) =>
+      step
+        .split('+')
+        .map((part) => {
+          const p = part.trim();
+          if (p === 'ctrl') return 'Ctrl';
+          if (p === 'shift') return 'Shift';
+          if (p === 'alt') return 'Alt';
+          if (p === 'meta') return '⌘';
+          if (p === 'escape') return 'Esc';
+          if (p === 'space') return 'Space';
+          if (p === 'comma') return ',';
+          if (p === 'period') return '.';
+          if (p === 'slash') return '/';
+          if (p === 'backslash') return '\\';
+          if (p === 'minus') return '-';
+          if (p === 'equal') return '=';
+          if (p === 'leftbracket') return '[';
+          if (p === 'rightbracket') return ']';
+          if (p === 'semicolon') return ';';
+          if (p === 'quote') return "'";
+          if (p === 'backtick') return '`';
+          if (p === 'delete') return 'Del';
+          if (p.length === 1) return p.toUpperCase();
+          return p;
+        })
+        .join('+')
+    )
+    .join(' ');
 }

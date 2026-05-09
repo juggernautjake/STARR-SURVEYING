@@ -1308,8 +1308,8 @@ This section documents cross-cutting UX issues found in Phases 1–7 that Phase 
 - Wired into the toolbar strip in `CADLayout.tsx` between the menu bar and `ToolOptionsBar`, so the buttons are visible on every drawing without opening Edit.
 
 ### Settings
-- [ ] Settings page opens via Ctrl+, and via menu
-- [ ] All 9 setting categories navigate correctly
+- [x] Settings page opens via Ctrl+, and via menu — `view.settings` action (`ctrl+comma`) dispatches `cad:openSettings` which `CADLayout` listens for; the `Settings & Preferences…` entry in the MenuBar fires the same event. Both paths open the existing `SettingsDialog`.
+- [x] All 9 setting categories navigate correctly — `SettingsDialog` now ships 9 tabs: Display, Grid, Appearance, Interaction, Snap, Labels, Auto-Save, Document, **Hotkeys** (new). Tab switching is local to the dialog (`activeTab` state); each tab's content lives in a sibling render block. The new Hotkeys tab embeds the cheat-sheet view (categorised list with conflict badges + AutoCAD / Reset preset buttons) so customisation is surfaced from a single Settings entry point.
 - [ ] Changing theme to Dark: app immediately updates
 - [ ] Changing units to Meters: coordinate display updates
 - [ ] Changing tooltip delay: new delay takes effect without reload
