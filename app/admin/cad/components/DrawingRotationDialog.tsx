@@ -2,10 +2,11 @@
 // app/admin/cad/components/DrawingRotationDialog.tsx
 // Dialog for rotating the drawing view (visual only — does not alter survey data).
 
-import { useState, useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { X, RotateCcw, RotateCw, Compass, RefreshCw } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import Tooltip from './Tooltip';
+import UnitInput from './UnitInput';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -21,24 +22,22 @@ export default function DrawingRotationDialog({ onClose }: Props) {
   useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const currentDeg = drawingStore.document.settings.drawingRotationDeg ?? 0;
-  const [inputVal, setInputVal] = useState(String(currentDeg));
-
-  const parsedDeg = parseFloat(inputVal);
-  const isValid = !isNaN(parsedDeg) && isFinite(parsedDeg);
-  const normalized = isValid ? ((parsedDeg % 360) + 360) % 360 : currentDeg;
+  // Live azimuth tracked here; UnitInput parses + canonicalises before
+  // surfacing the value through onChange.
+  const [draftDeg, setDraftDeg] = useState(currentDeg);
+  const normalized = ((draftDeg % 360) + 360) % 360;
 
   const apply = useCallback(
     (deg: number) => {
       const clamped = ((deg % 360) + 360) % 360;
       drawingStore.updateSettings({ drawingRotationDeg: clamped });
-      setInputVal(String(Math.round(clamped * 1000) / 1000));
+      setDraftDeg(clamped);
     },
     [drawingStore],
   );
 
   function handleApply() {
-    if (!isValid) return;
-    apply(parsedDeg);
+    apply(draftDeg);
   }
 
   return (
@@ -63,24 +62,25 @@ export default function DrawingRotationDialog({ onClose }: Props) {
             The north arrow automatically compensates to always indicate true north.
           </p>
 
-          {/* Angle input */}
+          {/* Angle input — UnitInput accepts decimal degrees, DMS-packed
+              (45.3000 = 45°30'00"), DMS markers, hyphen-DMS, or quadrant
+              bearings. Internally always stored as decimal-degree azimuth. */}
           <div className="space-y-1">
-            <label className="text-xs text-gray-400 font-medium">Rotation Angle (degrees, clockwise)</label>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                step="0.01"
-                min="-360"
-                max="360"
-                value={inputVal}
-                onChange={(e) => setInputVal(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleApply(); }}
-                className="flex-1 bg-gray-700 border border-gray-500 rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-400"
-                placeholder="0"
-              />
+            <label className="text-xs text-gray-400 font-medium">Rotation Angle (clockwise)</label>
+            <div className="flex gap-2 items-stretch">
+              <div className="flex-1">
+                <UnitInput
+                  kind="angle"
+                  angleMode="AZIMUTH"
+                  value={draftDeg}
+                  onChange={(v) => setDraftDeg(v)}
+                  description={'Accepts decimal degrees (45.5), DMS-packed (45.3000 = 45°30\'00"), DMS markers (45°30\'), or hyphen-DMS (45-30-00).'}
+                  showUnitDropdown={false}
+                />
+              </div>
               <Tooltip label="Rotate 1° counter-clockwise">
                 <button
-                  onClick={() => { apply(normalized - 1); setInputVal(String(((normalized - 1 + 360) % 360))); }}
+                  onClick={() => apply(normalized - 1)}
                   className="p-1.5 rounded bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-300 hover:text-white transition-colors"
                 >
                   <RotateCcw size={15} />
@@ -88,16 +88,13 @@ export default function DrawingRotationDialog({ onClose }: Props) {
               </Tooltip>
               <Tooltip label="Rotate 1° clockwise">
                 <button
-                  onClick={() => { apply(normalized + 1); setInputVal(String((normalized + 1) % 360)); }}
+                  onClick={() => apply(normalized + 1)}
                   className="p-1.5 rounded bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-300 hover:text-white transition-colors"
                 >
                   <RotateCw size={15} />
                 </button>
               </Tooltip>
             </div>
-            {!isValid && inputVal !== '' && (
-              <p className="text-xs text-red-400">Enter a valid number.</p>
-            )}
           </div>
 
           {/* Quick angles */}
@@ -107,7 +104,7 @@ export default function DrawingRotationDialog({ onClose }: Props) {
               {QUICK_ANGLES.map((a) => (
                 <button
                   key={a}
-                  onClick={() => { apply(a); setInputVal(String(a)); }}
+                  onClick={() => apply(a)}
                   className={`px-2.5 py-1 text-xs rounded border transition-colors ${
                     Math.abs(normalized - a) < 0.01
                       ? 'bg-blue-600 border-blue-500 text-white'
@@ -139,7 +136,7 @@ export default function DrawingRotationDialog({ onClose }: Props) {
         <div className="flex gap-2 justify-between px-4 py-3 border-t border-gray-600">
           <Tooltip label="Reset rotation to 0° (standard orientation)">
             <button
-              onClick={() => { apply(0); setInputVal('0'); }}
+              onClick={() => apply(0)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded transition-colors"
             >
               <RefreshCw size={13} />
@@ -155,8 +152,7 @@ export default function DrawingRotationDialog({ onClose }: Props) {
             </button>
             <button
               onClick={() => { handleApply(); onClose(); }}
-              disabled={!isValid}
-              className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded transition-colors"
+              className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
             >
               Apply
             </button>

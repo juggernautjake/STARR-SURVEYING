@@ -103,6 +103,91 @@ export function computeSelectionCentroid(featureIds: string[]): Point2D {
 }
 
 // ─────────────────────────────────────────────
+// Arc helpers — used by split / divide / reverse /
+// pointAtDistanceAlong so every arc-edit tool shares the
+// same parameterisation. `t` is the normalised arc-length
+// parameter in [0, 1] from startAngle towards endAngle in
+// the arc's traversal direction (anticlockwise toggle).
+// ─────────────────────────────────────────────
+
+/** Signed angular span of an arc, in radians. Positive when
+ *  the arc traverses counter-clockwise, negative when it
+ *  traverses clockwise. Always in (-2π, 2π). */
+function arcSweep(arc: { startAngle: number; endAngle: number; anticlockwise: boolean }): number {
+  const TAU = 2 * Math.PI;
+  const raw = arc.endAngle - arc.startAngle;
+  // Normalise to the traversal direction: CCW arcs have a
+  // positive signed sweep, CW arcs have a negative one.
+  if (arc.anticlockwise) {
+    let s = raw;
+    while (s <= 0) s += TAU;
+    while (s > TAU) s -= TAU;
+    return s;
+  }
+  let s = raw;
+  while (s >= 0) s -= TAU;
+  while (s < -TAU) s += TAU;
+  return s;
+}
+
+function arcLength(arc: { radius: number; startAngle: number; endAngle: number; anticlockwise: boolean }): number {
+  return Math.abs(arc.radius * arcSweep(arc));
+}
+
+function pointAtArcParam(
+  arc: { center: Point2D; radius: number; startAngle: number; endAngle: number; anticlockwise: boolean },
+  t: number,
+): Point2D {
+  const tt = Math.max(0, Math.min(1, t));
+  const sweep = arcSweep(arc);
+  const a = arc.startAngle + tt * sweep;
+  return {
+    x: arc.center.x + arc.radius * Math.cos(a),
+    y: arc.center.y + arc.radius * Math.sin(a),
+  };
+}
+
+/** Closest-point projection: returns the parameter t in
+ *  [0, 1] of the arc point closest to `worldPt`, plus the
+ *  projected world coords. When `worldPt` projects outside
+ *  the arc's angular span, t is clamped to 0 or 1 and the
+ *  point lands on the nearer endpoint. */
+function arcParamFromPoint(
+  arc: { center: Point2D; radius: number; startAngle: number; endAngle: number; anticlockwise: boolean },
+  worldPt: Point2D,
+): { t: number; point: Point2D } {
+  const TAU = 2 * Math.PI;
+  const dx = worldPt.x - arc.center.x;
+  const dy = worldPt.y - arc.center.y;
+  const angle = Math.atan2(dy, dx);
+  const sweep = arcSweep(arc);
+  // Express the candidate angle as a delta from startAngle in
+  // the traversal direction so it can be compared against
+  // sweep to decide inside-vs-outside.
+  let delta = angle - arc.startAngle;
+  if (arc.anticlockwise) {
+    while (delta < 0) delta += TAU;
+    while (delta > TAU) delta -= TAU;
+  } else {
+    while (delta > 0) delta -= TAU;
+    while (delta < -TAU) delta += TAU;
+  }
+  const sweepAbs = Math.abs(sweep);
+  const deltaAbs = Math.abs(delta);
+  let t: number;
+  if (deltaAbs <= sweepAbs) {
+    t = sweepAbs === 0 ? 0 : deltaAbs / sweepAbs;
+  } else {
+    // Outside the angular span — pick whichever endpoint is
+    // closer by comparing the wrap-around distance.
+    const fromStart = deltaAbs;
+    const fromEnd = Math.abs(TAU - deltaAbs);
+    t = fromStart <= fromEnd ? 0 : 1;
+  }
+  return { t, point: pointAtArcParam(arc, t) };
+}
+
+// ─────────────────────────────────────────────
 // Transform operations
 // ─────────────────────────────────────────────
 
@@ -734,28 +819,43 @@ export function pointAtDistanceAlong(
   const g = f.geometry;
   let chain: Point2D[] | null = null;
   let isClosed = false;
+  let arcGeom: typeof g.arc | null = null;
   if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
   else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
   else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
     chain = g.vertices.slice();
     isClosed = true;
+  } else if (g.type === 'ARC' && g.arc) {
+    arcGeom = g.arc;
   } else {
     return false;
   }
 
-  // Compute total arc length so we can convert the input
-  // distance into a normalised parameter for pointAlongChain.
-  const segCount = isClosed ? chain.length : chain.length - 1;
-  let total = 0;
-  for (let i = 0; i < segCount; i += 1) {
-    const a = chain[i];
-    const b = chain[(i + 1) % chain.length];
-    total += Math.hypot(b.x - a.x, b.y - a.y);
+  // Total arc-length used to convert the surveyor's distance
+  // into a normalised parameter the geometry walker can use.
+  let total: number;
+  let pt: Point2D;
+  let clamped: number;
+  if (arcGeom) {
+    total = arcLength(arcGeom);
+    if (total < 1e-12) return false;
+    clamped = Math.min(distance, total);
+    const t = fromEnd ? 1 - clamped / total : clamped / total;
+    pt = pointAtArcParam(arcGeom, t);
+  } else {
+    if (!chain) return false;
+    const segCount = isClosed ? chain.length : chain.length - 1;
+    total = 0;
+    for (let i = 0; i < segCount; i += 1) {
+      const a = chain[i];
+      const b = chain[(i + 1) % chain.length];
+      total += Math.hypot(b.x - a.x, b.y - a.y);
+    }
+    if (total < 1e-12) return false;
+    clamped = Math.min(distance, total);
+    const t = fromEnd ? 1 - clamped / total : clamped / total;
+    pt = pointAlongChain(chain, t, isClosed);
   }
-  if (total < 1e-12) return false;
-  const clamped = Math.min(distance, total);
-  const t = fromEnd ? 1 - clamped / total : clamped / total;
-  const pt = pointAlongChain(chain, t, isClosed);
 
   const newPoint: Feature = {
     id: generateId(),
@@ -832,6 +932,32 @@ export function reverseFeature(featureId: string): boolean {
     g.vertices.length >= 2
   ) {
     newGeom = { ...g, vertices: g.vertices.slice().reverse() };
+  } else if (g.type === 'ARC' && g.arc) {
+    // Swap start ↔ end angle and toggle the traversal
+    // direction so the arc geometry traces the same
+    // physical curve in the opposite direction.
+    newGeom = {
+      type: 'ARC',
+      arc: {
+        center: g.arc.center,
+        radius: g.arc.radius,
+        startAngle: g.arc.endAngle,
+        endAngle: g.arc.startAngle,
+        anticlockwise: !g.arc.anticlockwise,
+      },
+    };
+  } else if (g.type === 'SPLINE' && g.spline && g.spline.controlPoints.length >= 2) {
+    // Reverse the control-point list. For a closed cubic
+    // spline (3N+1 points where last == first) the reversal
+    // still terminates on the same vertex; for open splines
+    // it just flips the direction of travel.
+    newGeom = {
+      type: 'SPLINE',
+      spline: {
+        controlPoints: g.spline.controlPoints.slice().reverse(),
+        isClosed: g.spline.isClosed,
+      },
+    };
   } else {
     return false;
   }
@@ -971,11 +1097,14 @@ export function divideFeatureBy(featureId: string, count: number): boolean {
   const g = f.geometry;
   let chain: Point2D[] | null = null;
   let isClosed = false;
+  let arcGeom: typeof g.arc | null = null;
   if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
   else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
   else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
     chain = g.vertices.slice();
     isClosed = true;
+  } else if (g.type === 'ARC' && g.arc) {
+    arcGeom = g.arc;
   } else {
     return false;
   }
@@ -985,7 +1114,9 @@ export function divideFeatureBy(featureId: string, count: number): boolean {
   const newPoints: Feature[] = [];
   for (let i = 1; i < count; i += 1) {
     const t = i / count;
-    const pt = pointAlongChain(chain, t, isClosed);
+    const pt = arcGeom
+      ? pointAtArcParam(arcGeom, t)
+      : pointAlongChain(chain!, t, isClosed);
     const pf: Feature = {
       id: generateId(),
       type: 'POINT',
@@ -1861,11 +1992,12 @@ export function trimFeatureAt(featureId: string, worldPt: Point2D): boolean {
 }
 
 /**
- * Split a LINE / POLYLINE / POLYGON feature at the closest
- * point on its geometry to `worldPt`. Emits two new features
- * (or one for POLYGON, since the split opens it into a
- * single polyline) and removes the original. Skips features
- * that are not vertex-chain shapes.
+ * Split a LINE / POLYLINE / POLYGON / ARC feature at the
+ * closest point on its geometry to `worldPt`. Emits two new
+ * features (or one for POLYGON, since the split opens it into
+ * a single polyline) and removes the original. Skips
+ * geometry types we don't support (CIRCLE / ELLIPSE / SPLINE /
+ * POINT / TEXT / IMAGE).
  *
  * - LINE: emits two LINEs (start → split, split → end). If
  *   the split point coincides with an endpoint within `eps`,
@@ -1880,6 +2012,11 @@ export function trimFeatureAt(featureId: string, worldPt: Point2D): boolean {
  *   split point. (Splitting a closed shape yields a single
  *   open chain, not two separate ones — that's the expected
  *   CAD convention.)
+ * - ARC: emits two ARCs that share the projected split
+ *   point as endpoint. Both inherit the source's traversal
+ *   direction (anticlockwise flag) so the curve matches
+ *   visually pre/post split. No-op when the projection
+ *   lands on an existing endpoint.
  */
 export function splitFeatureAt(featureId: string, worldPt: Point2D): boolean {
   const drawingStore = useDrawingStore.getState();
@@ -1889,6 +2026,55 @@ export function splitFeatureAt(featureId: string, worldPt: Point2D): boolean {
   if (!f) return false;
   const g = f.geometry;
   const eps = 1e-6;
+
+  // ARC — handled separately since the geometry is parametric
+  // rather than a polyline chain.
+  if (g.type === 'ARC' && g.arc) {
+    const arc = g.arc;
+    const proj = arcParamFromPoint(arc, worldPt);
+    if (proj.t <= eps || proj.t >= 1 - eps) return false; // landed on an endpoint
+    const sweep = arcSweep(arc);
+    const splitAngle = arc.startAngle + proj.t * sweep;
+    const cloneStyle = (): typeof f.style => JSON.parse(JSON.stringify(f.style));
+    const cloneProps = (): typeof f.properties => JSON.parse(JSON.stringify(f.properties));
+    const arcA: Feature = {
+      ...f,
+      id: generateId(),
+      type: 'ARC',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'ARC', arc: {
+        center: arc.center,
+        radius: arc.radius,
+        startAngle: arc.startAngle,
+        endAngle: splitAngle,
+        anticlockwise: arc.anticlockwise,
+      } },
+    };
+    const arcB: Feature = {
+      ...f,
+      id: generateId(),
+      type: 'ARC',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'ARC', arc: {
+        center: arc.center,
+        radius: arc.radius,
+        startAngle: splitAngle,
+        endAngle: arc.endAngle,
+        anticlockwise: arc.anticlockwise,
+      } },
+    };
+    drawingStore.removeFeature(featureId);
+    drawingStore.addFeatures([arcA, arcB]);
+    undoStore.pushUndo(makeBatchEntry('Split arc', [
+      { type: 'REMOVE_FEATURE', data: f },
+      { type: 'ADD_FEATURE', data: arcA },
+      { type: 'ADD_FEATURE', data: arcB },
+    ]));
+    selectionStore.selectMultiple([arcA.id, arcB.id], 'REPLACE');
+    return true;
+  }
 
   // Resolve the closest segment + the world-space split point.
   let splitPt: Point2D | null = null;
