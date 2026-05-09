@@ -83,6 +83,7 @@ import {
   smoothPolyline,
   simplifyPolylineFeature,
   insertVertexAt,
+  removeVertexAt,
 } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -4163,6 +4164,82 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
+    // For REMOVE_VERTEX: highlight the hovered POLYLINE /
+    // POLYGON in faint red and mark the closest vertex
+    // within pick radius with a red X. When the chain has
+    // already shrunk to its minimum (2 / 3 vertices) every
+    // vertex shows a grey "no-op" indicator instead.
+    if (activeTool === 'REMOVE_VERTEX') {
+      const drawing = useDrawingStore.getState();
+      const all = drawing.getAllFeatures();
+      let bestId: string | null = null;
+      let bestChain: Point2D[] | null = null;
+      let bestIsClosed = false;
+      let bestVertexIdx = -1;
+      let bestVertexDist = Infinity;
+      for (const f of all) {
+        const fg = f.geometry;
+        let chain: Point2D[] | null = null;
+        let isClosed = false;
+        if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'MIXED_GEOMETRY' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 3) {
+          chain = fg.vertices;
+          isClosed = true;
+        }
+        if (!chain) continue;
+        for (let i = 0; i < chain.length; i += 1) {
+          const v = chain[i];
+          const d = Math.hypot(previewPoint.x - v.x, previewPoint.y - v.y);
+          const dPx = d * useViewportStore.getState().zoom;
+          if (dPx < bestVertexDist && dPx < 18) {
+            bestVertexDist = dPx;
+            bestId = f.id;
+            bestChain = chain;
+            bestIsClosed = isClosed;
+            bestVertexIdx = i;
+          }
+        }
+      }
+      if (!bestId || !bestChain || bestVertexIdx < 0) {
+        const cs = w2s(previewPoint.x, previewPoint.y);
+        g.beginFill(0x666666, 0.5);
+        g.drawCircle(cs.sx, cs.sy, 3);
+        g.endFill();
+        return;
+      }
+      // Outline the chosen feature in faint red
+      g.lineStyle(2, 0xff5566, 0.45);
+      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+      g.moveTo(sp0.sx, sp0.sy);
+      for (let i = 1; i < bestChain.length; i += 1) {
+        const sp = w2s(bestChain[i].x, bestChain[i].y);
+        g.lineTo(sp.sx, sp.sy);
+      }
+      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
+      // Existing vertices — small dim red dots
+      g.beginFill(0xff5566, 0.55);
+      for (const v of bestChain) {
+        const sp = w2s(v.x, v.y);
+        g.drawCircle(sp.sx, sp.sy, 3);
+      }
+      g.endFill();
+      // Target vertex — bright X (or grey ring when at min count)
+      const minVerts = bestIsClosed ? 3 : 2;
+      const blocked = bestChain.length <= minVerts;
+      const tv = bestChain[bestVertexIdx];
+      const tvS = w2s(tv.x, tv.y);
+      if (blocked) {
+        g.lineStyle(1.5, 0x888888, 0.85);
+        g.drawCircle(tvS.sx, tvS.sy, 7);
+      } else {
+        g.lineStyle(2.5, 0xff3344, 0.95);
+        g.moveTo(tvS.sx - 7, tvS.sy - 7); g.lineTo(tvS.sx + 7, tvS.sy + 7);
+        g.moveTo(tvS.sx - 7, tvS.sy + 7); g.lineTo(tvS.sx + 7, tvS.sy - 7);
+      }
+      return;
+    }
+
     // For INSERT_VERTEX: highlight the hovered POLYLINE /
     // POLYGON in faint cyan and drop a small filled cyan
     // marker at the closest point on the geometry — that's
@@ -7771,6 +7848,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'REVERSE — feature direction flipped.' },
+            }));
+          }
+          break;
+        }
+
+        case 'REMOVE_VERTEX': {
+          // REMOVE_VERTEX: click near a vertex on a POLYLINE
+          // / POLYGON to delete it. Pick radius is 14 px in
+          // screen space converted to world units.
+          const hit = hitTest(sx, sy);
+          if (!hit) break;
+          const pickRadiusWorld = 14 / useViewportStore.getState().zoom;
+          const ok = removeVertexAt(hit, worldPt, pickRadiusWorld);
+          if (!ok) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'REMOVE VERTEX — click within 14 px of a vertex on a POLYLINE / POLYGON. Cannot drop below 2 (line) / 3 (polygon) vertices.' },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'REMOVE VERTEX — vertex deleted.' },
             }));
           }
           break;

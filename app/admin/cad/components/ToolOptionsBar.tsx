@@ -151,6 +151,7 @@ export default function ToolOptionsBar() {
   const showSmoothPolyline = activeTool === 'SMOOTH_POLYLINE';
   const showSimplifyPolyline = activeTool === 'SIMPLIFY_POLYLINE';
   const showInsertVertex = activeTool === 'INSERT_VERTEX';
+  const showRemoveVertex = activeTool === 'REMOVE_VERTEX';
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showDim = activeTool === 'DIM';
@@ -815,6 +816,16 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click two points to place a permanent bearing + distance annotation. The TEXT label rotates parallel to the dimension line and offsets 6 ft perpendicular so it reads clear of the geometry.
+          </span>
+        </>
+      )}
+
+      {/* ── REMOVE_VERTEX tool options ─────────────────────────────────────── */}
+      {showRemoveVertex && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click within 14 px of a vertex on a POLYLINE / POLYGON to delete it. Red X marks the target; grey ring means the chain is at minimum vertices and can’t shrink further.
           </span>
         </>
       )}
@@ -2108,6 +2119,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   SMOOTH_POLYLINE: 'Smooth Polyline',
   SIMPLIFY_POLYLINE: 'Simplify Polyline',
   INSERT_VERTEX: 'Insert Vertex',
+  REMOVE_VERTEX: 'Remove Vertex',
   MEASURE_AREA: 'Measure Area',
   DIM: 'Dimension',
   SCALE: 'Scale',

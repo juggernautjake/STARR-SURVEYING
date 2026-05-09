@@ -363,6 +363,71 @@ export interface FilletResult {
 }
 
 /**
+ * Remove the vertex closest to `worldPt` from a POLYLINE /
+ * POLYGON / MIXED_GEOMETRY feature. The closest vertex must
+ * be within `pickRadiusWorld` of the cursor; otherwise the
+ * operation bails (so the surveyor doesn't accidentally
+ * delete a far-away vertex when they meant something else).
+ *
+ * Won't remove a vertex if doing so would leave the feature
+ * with too few vertices for its geometry type:
+ *   - POLYLINE / MIXED_GEOMETRY → minimum 2 vertices
+ *   - POLYGON → minimum 3 vertices
+ *
+ * Returns true on a successful mutation.
+ */
+export function removeVertexAt(
+  featureId: string,
+  worldPt: Point2D,
+  pickRadiusWorld: number,
+): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+  let isClosed = false;
+  let chain: Point2D[] | null = null;
+  if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else if (g.type === 'MIXED_GEOMETRY' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
+  else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 3) {
+    chain = g.vertices.slice();
+    isClosed = true;
+  } else {
+    return false;
+  }
+
+  // Find the closest vertex to the cursor.
+  let bestIdx = -1;
+  let bestDist = Infinity;
+  for (let i = 0; i < chain.length; i += 1) {
+    const v = chain[i];
+    const d = Math.hypot(worldPt.x - v.x, worldPt.y - v.y);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+    }
+  }
+  if (bestIdx < 0) return false;
+  if (bestDist > pickRadiusWorld) return false;
+  const minVerts = isClosed ? 3 : 2;
+  if (chain.length <= minVerts) return false;
+
+  const newVertices = [...chain.slice(0, bestIdx), ...chain.slice(bestIdx + 1)];
+  const before = f;
+  const newGeom: Feature['geometry'] = isClosed
+    ? { ...g, type: 'POLYGON', vertices: newVertices }
+    : { ...g, type: g.type, vertices: newVertices };
+  drawingStore.updateFeatureGeometry(featureId, newGeom);
+  const after = drawingStore.getFeature(featureId);
+  if (!after) return false;
+  undoStore.pushUndo(makeBatchEntry('Remove Vertex', [
+    { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
+  ]));
+  return true;
+}
+
+/**
  * Insert a new vertex into a POLYLINE / POLYGON /
  * MIXED_GEOMETRY feature at the closest point on its
  * geometry to `worldPt`. Useful when the surveyor wants to

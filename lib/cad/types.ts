@@ -502,6 +502,7 @@ export type ToolType =
   | 'SMOOTH_POLYLINE'
   | 'SIMPLIFY_POLYLINE'
   | 'INSERT_VERTEX'
+  | 'REMOVE_VERTEX'
   | 'ERASE'
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'

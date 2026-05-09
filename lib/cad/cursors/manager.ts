@@ -121,6 +121,8 @@ export function resolveCursor(ctx: CursorContext): CursorType {
     case 'POINT_AT_DISTANCE':
     case 'INSERT_VERTEX':
       return 'CROSSHAIR';
+    case 'REMOVE_VERTEX':
+      return 'ERASE';
 
     // Style / direction operations
     case 'REVERSE':
