@@ -4,7 +4,7 @@
 
 import { useMemo, useState } from 'react';
 import { X, Grid, Sliders, Palette, MousePointer2, Eye, Save, FileText, Crosshair, Keyboard } from 'lucide-react';
-import { useDrawingStore, useHotkeysStore } from '@/lib/cad/store';
+import { useDrawingStore, useHotkeysStore, useUIStore } from '@/lib/cad/store';
 import type { SnapType } from '@/lib/cad/types';
 import { DEFAULT_DRAWING_SETTINGS } from '@/lib/cad/constants';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '@/lib/cad/styles/types';
@@ -706,6 +706,12 @@ export default function SettingsDialog({ onClose }: Props) {
                   Reset interaction settings to defaults
                 </button>
               </div>
+
+              {/* Tooltip delay — global hover delay before any
+                  Tooltip appears. Persisted in localStorage via
+                  the ui-store partialize allow-list, takes
+                  effect immediately. */}
+              <TooltipDelaySection />
             </div>
           )}
 
@@ -1012,6 +1018,35 @@ export default function SettingsDialog({ onClose }: Props) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Tooltip delay slider — pulled from the persisted ui-store
+// so changes survive a refresh. Tooltips that pass an explicit
+// `delay` prop override this; everything else uses it as the
+// default.
+// ────────────────────────────────────────────────────────────
+
+function TooltipDelaySection() {
+  const tooltipDelay = useUIStore((s) => s.tooltipDelayMs);
+  const setTooltipDelay = useUIStore((s) => s.setTooltipDelayMs);
+  return (
+    <div className="border-t border-gray-700 pt-3">
+      <SliderInput
+        label="Tooltip Delay"
+        description="(milliseconds before any tooltip appears)"
+        value={tooltipDelay}
+        onChange={(v) => setTooltipDelay(v)}
+        min={100}
+        max={3000}
+        step={50}
+        tooltip="Global hover delay (in ms) for every tooltip in the app — toolbar buttons, layer rows, settings labels, command-bar hints. Range 100 ms (very fast) to 3000 ms (long pause). Persists across browser refreshes."
+      />
+      <p className="text-gray-500 mt-1 text-[10px]">
+        Tooltips that pass an explicit delay (e.g. the canvas feature-hover info) override this global default.
+      </p>
     </div>
   );
 }
