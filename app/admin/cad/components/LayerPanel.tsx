@@ -565,6 +565,35 @@ export default function LayerPanel() {
             Layer Preferences
           </button>
           <div className="border-t border-gray-700 my-0.5" />
+          {/* Isolate / show-all — surveyors regularly want to
+              focus on one layer (boundary work hides topo, etc.).
+              Isolate hides every other layer; Show All restores
+              full visibility. Both update the layer store
+              directly, so the canvas re-renders immediately. */}
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
+            onClick={() => {
+              const target = contextMenu.layerId;
+              for (const id of doc.layerOrder) {
+                store.updateLayer(id, { visible: id === target });
+              }
+              setContextMenu(null);
+            }}
+          >
+            Isolate Layer
+          </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
+            onClick={() => {
+              for (const id of doc.layerOrder) {
+                if (!doc.layers[id]?.visible) store.updateLayer(id, { visible: true });
+              }
+              setContextMenu(null);
+            }}
+          >
+            Show All Layers
+          </button>
+          <div className="border-t border-gray-700 my-0.5" />
           {/* Per-layer rotation */}
           {rotatingLayerId === contextMenu.layerId ? (
             <div className="px-3 py-1.5 flex items-center gap-1.5">
