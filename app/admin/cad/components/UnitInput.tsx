@@ -71,6 +71,17 @@ interface CommonProps {
   autoFocus?: boolean;
   /** id used to scope `data-autofocus`. */
   autoFocusKey?: string;
+  /**
+   * Compact mode — strips the label / error-paragraph wrapper for
+   * inline toolbar use. The error message becomes a `title` tooltip
+   * on the input + a red ring; visual real estate stays the same as
+   * a plain `<input type="number">`. Default false.
+   */
+  compact?: boolean;
+  /** Override the input's class name (useful for compact toolbar widths). */
+  inputClassName?: string;
+  /** Override the focus ring color hex when valid (default blue-500). */
+  focusBorderClass?: string;
 }
 
 interface LengthProps extends CommonProps {
@@ -199,9 +210,69 @@ export default function UnitInput(props: UnitInputProps) {
   }
 
   const placeholder = props.placeholder ?? defaultPlaceholder(props);
+  const focusBorder = props.focusBorderClass ?? 'focus:border-blue-500';
   const ringClass = error
     ? 'border-red-500 focus:border-red-400'
-    : 'border-gray-600 focus:border-blue-500';
+    : `border-gray-600 ${focusBorder}`;
+  const inputClass =
+    props.inputClassName
+      ?? `flex-1 min-w-0 bg-gray-700 text-white text-xs px-2 py-1.5 rounded outline-none border ${ringClass} transition-colors disabled:opacity-50 disabled:cursor-not-allowed`;
+  // When the caller supplied an inputClassName we still need to splice
+  // in the dynamic ring colour, since their override usually hard-codes
+  // border-gray-600.
+  const finalInputClass = props.inputClassName
+    ? `${inputClass} ${error ? 'border-red-500 focus:border-red-400' : `border-gray-600 ${focusBorder}`}`
+    : inputClass;
+
+  // Compact mode — single input + optional dropdown, no label /
+  // helper paragraph. Toolbar callers use this.
+  if (props.compact) {
+    return (
+      <>
+        <input
+          ref={inputRef}
+          id={reactId}
+          type="text"
+          inputMode="decimal"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={(e) => commit(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder}
+          disabled={props.disabled}
+          autoFocus={props.autoFocus}
+          aria-invalid={error != null}
+          title={error ?? props.description}
+          data-autofocus={props.autoFocusKey}
+          className={finalInputClass}
+        />
+        {props.showUnitDropdown && props.kind === 'length' && (
+          <UnitDropdown
+            options={LENGTH_UNITS}
+            value={(unitOverride as LinearUnit | undefined) ?? props.defaultUnit ?? 'FT'}
+            onChange={(u) => setUnitOverride(u)}
+            ariaLabel="Length unit"
+          />
+        )}
+        {props.showUnitDropdown && props.kind === 'area' && (
+          <UnitDropdown
+            options={AREA_UNITS}
+            value={(unitOverride as AreaUnit | undefined) ?? props.defaultUnit ?? 'SQ_FT'}
+            onChange={(u) => setUnitOverride(u)}
+            ariaLabel="Area unit"
+          />
+        )}
+        {props.showUnitDropdown && props.kind === 'angle' && (
+          <UnitDropdown
+            options={ANGLE_MODES}
+            value={angleModeOverride ?? props.angleMode ?? 'AUTO'}
+            onChange={(m) => setAngleModeOverride(m as AngleMode)}
+            ariaLabel="Angle mode"
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <div className={`relative ${props.className ?? ''}`}>
@@ -227,7 +298,7 @@ export default function UnitInput(props: UnitInputProps) {
           aria-describedby={error ? `${reactId}-error` : undefined}
           title={props.description}
           data-autofocus={props.autoFocusKey}
-          className={`flex-1 min-w-0 bg-gray-700 text-white text-xs px-2 py-1.5 rounded outline-none border ${ringClass} transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+          className={finalInputClass}
         />
         {props.showUnitDropdown !== false && props.kind === 'length' && (
           <UnitDropdown
