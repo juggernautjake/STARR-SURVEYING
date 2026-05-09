@@ -570,6 +570,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     imageSprites: Map<string, import('pixi.js').Sprite>;
     /** Texture cache keyed by projectImage.id */
     imageTextures: Map<string, import('pixi.js').Texture>;
+    /** Single sprite for the firm-logo overlay in the title-
+     *  block header. Lazy-created on first render with a logo
+     *  set; texture is rebuilt whenever the data-URL changes. */
+    tbLogoSprite: import('pixi.js').Sprite | null;
+    /** Cached data URL the current `tbLogoSprite` texture was
+     *  built from. When the surveyor swaps logos in Settings
+     *  this string changes, triggering a texture rebuild. */
+    tbLogoTextureKey: string | null;
     paperGraphics: import('pixi.js').Graphics;
     gridGraphics: import('pixi.js').Graphics;
     selectionGraphics: import('pixi.js').Graphics;
@@ -917,6 +925,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           labelTexts: new Map(),
           imageSprites: new Map(),
           imageTextures: new Map(),
+          tbLogoSprite: null,
+          tbLogoTextureKey: null,
           paperGraphics,
           gridGraphics,
           selectionGraphics,
@@ -1900,16 +1910,70 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     tbg.moveTo(tbScrLeft,  tbScrTop + headerH);
     tbg.lineTo(tbScrRight, tbScrTop + headerH);
 
-    // Firm name (white, bold) — left side of header
+    // Firm name (white, bold) OR firm logo (when uploaded) —
+    // left side of header. The logo lives in `useUIStore` so
+    // it applies firm-wide on every drawing; when present we
+    // draw the image instead of the text.
+    const firmLogoUrl = useUIStore.getState().firmLogoDataUrl;
     const hFontSz  = Math.max(headerH * 0.52, 7);
-    const firmTxt  = mkTBTextTB((tb.firmName || 'SURVEY FIRM').toUpperCase(), {
-      fontFamily: 'Arial', fontSize: hFontSz, fill: 0xffffff,
-      fontWeight: 'bold', letterSpacing: 2,
-    });
-    firmTxt.anchor.set(0, 0.5);
-    firmTxt.position.set(tbScrLeft + 10, tbScrTop + headerH / 2);
-    // Track header fields for click-to-edit (split the header roughly in half)
     const headerSplitX = tbScrLeft + tbW * 0.55;
+    if (!firmLogoUrl) {
+      // Tear down any prior logo sprite so a remove-from-Settings
+      // takes effect on the next render.
+      if (pixi.tbLogoSprite) {
+        const parent = pixi.tbLogoSprite.parent;
+        if (parent) parent.removeChild(pixi.tbLogoSprite);
+        pixi.tbLogoSprite = null;
+        pixi.tbLogoTextureKey = null;
+      }
+      const firmTxt  = mkTBTextTB((tb.firmName || 'SURVEY FIRM').toUpperCase(), {
+        fontFamily: 'Arial', fontSize: hFontSz, fill: 0xffffff,
+        fontWeight: 'bold', letterSpacing: 2,
+      });
+      firmTxt.anchor.set(0, 0.5);
+      firmTxt.position.set(tbScrLeft + 10, tbScrTop + headerH / 2);
+    } else {
+      // Logo render — reuse a single Sprite, swap the texture
+      // when the data URL changes. Keep ~6 px of padding on
+      // every side so the logo doesn't kiss the header edges.
+      try {
+        if (pixi.tbLogoTextureKey !== firmLogoUrl) {
+          const tex = pixi.TextureClass.from(firmLogoUrl);
+          if (!pixi.tbLogoSprite) {
+            pixi.tbLogoSprite = new pixi.SpriteClass(tex);
+            pixi.tbLogoSprite.anchor.set(0, 0.5);
+            tbc.addChild(pixi.tbLogoSprite);
+          } else {
+            pixi.tbLogoSprite.texture = tex;
+          }
+          pixi.tbLogoTextureKey = firmLogoUrl;
+        } else if (pixi.tbLogoSprite && pixi.tbLogoSprite.parent !== tbc) {
+          // Container was rebuilt — re-attach the sprite
+          tbc.addChild(pixi.tbLogoSprite);
+        }
+        const sprite = pixi.tbLogoSprite!;
+        const tex = sprite.texture;
+        const padY = 6;
+        const padX = 10;
+        const maxLogoH = headerH - padY * 2;
+        const maxLogoW = (headerSplitX - tbScrLeft) - padX * 2;
+        const texW = Math.max(1, tex.width || 1);
+        const texH = Math.max(1, tex.height || 1);
+        const fit = Math.min(maxLogoW / texW, maxLogoH / texH);
+        sprite.scale.set(fit, fit);
+        sprite.position.set(tbScrLeft + padX, tbScrTop + headerH / 2);
+      } catch {
+        // Texture failed to load — fall back to firm-name text
+        // so the title block still has a header label.
+        const firmTxt  = mkTBTextTB((tb.firmName || 'SURVEY FIRM').toUpperCase(), {
+          fontFamily: 'Arial', fontSize: hFontSz, fill: 0xffffff,
+          fontWeight: 'bold', letterSpacing: 2,
+        });
+        firmTxt.anchor.set(0, 0.5);
+        firmTxt.position.set(tbScrLeft + 10, tbScrTop + headerH / 2);
+      }
+    }
+    // Track header fields for click-to-edit (split the header roughly in half)
     tbFieldBoundsRef.current.push({ key: 'firmName',   label: 'Firm Name',   editValue: tb.firmName   || '', screenX: tbScrLeft,    screenY: tbScrTop, w: headerSplitX - tbScrLeft,  h: headerH });
     tbFieldBoundsRef.current.push({ key: 'surveyType', label: 'Survey Type', editValue: tb.surveyType || '', screenX: headerSplitX, screenY: tbScrTop, w: tbScrRight - headerSplitX, h: headerH });
 

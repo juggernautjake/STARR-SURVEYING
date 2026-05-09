@@ -35,6 +35,13 @@ interface UIStore {
    *  appears. Default 600 ms; range 100–3000. Tooltips that
    *  pass an explicit `delay` prop override this. */
   tooltipDelayMs: number;
+  /** §9 — firm-wide branding logo, stored as a base64 data
+   *  URL so it round-trips through `localStorage` without a
+   *  separate asset pipeline. When present, the title-block
+   *  header replaces the firm-name text with this image on
+   *  every drawing. Null = no logo (fall back to the firm
+   *  name text). */
+  firmLogoDataUrl: string | null;
 
   toggleLayerPanel: () => void;
   togglePropertyPanel: () => void;
@@ -47,6 +54,7 @@ interface UIStore {
   setUITooltipsEnabled: (enabled: boolean) => void;
   setFeatureTooltipsEnabled: (enabled: boolean) => void;
   setTooltipDelayMs: (ms: number) => void;
+  setFirmLogoDataUrl: (dataUrl: string | null) => void;
 }
 
 /**
@@ -80,6 +88,7 @@ export const useUIStore = create<UIStore>()(
       uiTooltipsEnabled: true,
       featureTooltipsEnabled: true,
       tooltipDelayMs: 600,
+      firmLogoDataUrl: null,
 
       toggleLayerPanel: () => set((s) => ({ showLayerPanel: !s.showLayerPanel })),
       togglePropertyPanel: () => set((s) => ({ showPropertyPanel: !s.showPropertyPanel })),
@@ -95,16 +104,29 @@ export const useUIStore = create<UIStore>()(
       setTooltipDelayMs: (ms) => set({
         tooltipDelayMs: Number.isFinite(ms) ? Math.max(100, Math.min(3000, Math.round(ms))) : 600,
       }),
+      setFirmLogoDataUrl: (dataUrl) => set({
+        // Cap the persisted blob at ~1 MB so a giant logo
+        // doesn't blow out localStorage (5 MB quota in most
+        // browsers). Caller is expected to downscale before
+        // calling — this is just a backstop.
+        firmLogoDataUrl:
+          dataUrl == null
+            ? null
+            : dataUrl.length > 1_500_000
+              ? null
+              : dataUrl,
+      }),
     }),
     {
       name: 'starr-cad-ui',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       // Allow-list — only the surveyor-visible toggles persist.
       partialize: (s) => ({
         uiTooltipsEnabled: s.uiTooltipsEnabled,
         featureTooltipsEnabled: s.featureTooltipsEnabled,
         tooltipDelayMs: s.tooltipDelayMs,
+        firmLogoDataUrl: s.firmLogoDataUrl,
       }),
     }
   )

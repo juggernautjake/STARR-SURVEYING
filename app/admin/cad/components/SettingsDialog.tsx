@@ -979,6 +979,8 @@ export default function SettingsDialog({ onClose }: Props) {
                 />
               </div>
 
+              <FirmLogoSection />
+
               <div className="border-t border-gray-700 pt-3 text-gray-500 text-[10px] space-y-1">
                 <div className="text-[9px] font-semibold uppercase tracking-wider text-gray-600 mb-1">Document Info</div>
                 <div className="flex justify-between">
@@ -1047,6 +1049,150 @@ function TooltipDelaySection() {
       />
       <p className="text-gray-500 mt-1 text-[10px]">
         Tooltips that pass an explicit delay (e.g. the canvas feature-hover info) override this global default.
+      </p>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Firm logo section — uploads a PNG / JPG / SVG and stores
+// it as a base64 data URL in `useUIStore.firmLogoDataUrl`
+// (persisted via the ui-store partialize allow-list). The
+// logo is firm-wide rather than per-document, so it shows
+// on every drawing's title block header until the surveyor
+// clears it. Raster images are downscaled through a canvas
+// to a max edge of 256 px before being stored — keeps the
+// localStorage footprint tiny while still rendering crisply
+// in the title block (which is at most ~1 inch tall).
+// ────────────────────────────────────────────────────────────
+
+const LOGO_MAX_EDGE_PX = 256;
+
+async function fileToLogoDataUrl(file: File): Promise<string | null> {
+  const isSvg = file.type === 'image/svg+xml' || /\.svg$/i.test(file.name);
+  // SVGs are vector — keep them as-is so they stay sharp.
+  if (isSvg) {
+    return new Promise<string | null>((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(typeof r.result === 'string' ? r.result : null);
+      r.onerror = () => resolve(null);
+      r.readAsDataURL(file);
+    });
+  }
+  // Raster — load → downscale via canvas → re-encode as PNG
+  // (PNG preserves transparency; logos typically have it).
+  return new Promise<string | null>((resolve) => {
+    const r = new FileReader();
+    r.onload = () => {
+      if (typeof r.result !== 'string') {
+        resolve(null);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, LOGO_MAX_EDGE_PX / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(r.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/png'));
+        } catch {
+          resolve(r.result as string);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = r.result;
+    };
+    r.onerror = () => resolve(null);
+    r.readAsDataURL(file);
+  });
+}
+
+function FirmLogoSection() {
+  const firmLogoDataUrl = useUIStore((s) => s.firmLogoDataUrl);
+  const setFirmLogoDataUrl = useUIStore((s) => s.setFirmLogoDataUrl);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleUpload = async (file: File) => {
+    setError(null);
+    if (!/^image\//.test(file.type) && !/\.(png|jpe?g|svg)$/i.test(file.name)) {
+      setError('Please choose a PNG, JPG, or SVG image.');
+      return;
+    }
+    const dataUrl = await fileToLogoDataUrl(file);
+    if (!dataUrl) {
+      setError('Failed to read the image — try a different file.');
+      return;
+    }
+    setFirmLogoDataUrl(dataUrl);
+  };
+
+  return (
+    <div className="border-t border-gray-700 pt-3">
+      <Tooltip
+        label="Firm Logo"
+        description="Upload your firm's logo (PNG, JPG, or SVG). It replaces the firm-name text in every drawing's title block header until cleared. Stored locally in your browser, so it persists across reloads but doesn't sync to other devices."
+        side="right"
+        delay={400}
+      >
+        <label className="block text-gray-400 mb-1.5">Firm Logo</label>
+      </Tooltip>
+      <div className="flex items-center gap-3">
+        <div className="w-20 h-12 bg-gray-900 border border-gray-700 rounded flex items-center justify-center overflow-hidden">
+          {firmLogoDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={firmLogoDataUrl}
+              alt="Firm logo preview"
+              className="max-w-full max-h-full object-contain"
+            />
+          ) : (
+            <span className="text-[9px] uppercase tracking-wider text-gray-600">No Logo</span>
+          )}
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/svg+xml"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleUpload(f);
+              // Reset so picking the same file twice still fires
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }}
+          />
+          <button
+            type="button"
+            className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {firmLogoDataUrl ? 'Replace…' : 'Upload Logo…'}
+          </button>
+          {firmLogoDataUrl && (
+            <button
+              type="button"
+              className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-red-900/40 hover:border-red-800/60 hover:text-red-300 transition-colors"
+              onClick={() => setFirmLogoDataUrl(null)}
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+      {error && <p className="text-red-400 text-[10px] mt-1.5">{error}</p>}
+      <p className="text-gray-500 text-[10px] mt-1.5 leading-relaxed">
+        Raster logos are downscaled to {LOGO_MAX_EDGE_PX} px on the longest edge before storing — plenty of resolution for the title block, with a small enough footprint to fit in browser storage.
       </p>
     </div>
   );
