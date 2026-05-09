@@ -4,11 +4,12 @@
 //   mode='save'  — save current drawing to the database
 //   mode='open'  — browse previously saved drawings and load one
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { cadLog } from '@/lib/cad/logger';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface SavedDrawingMeta {
   id: string;
@@ -28,6 +29,8 @@ interface Props {
 
 export default function SaveToDBDialog({ mode, onClose }: Props) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
@@ -157,6 +160,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 animate-[fadeIn_150ms_ease-out]"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >

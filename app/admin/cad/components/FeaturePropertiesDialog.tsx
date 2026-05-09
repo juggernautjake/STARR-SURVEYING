@@ -11,6 +11,7 @@ import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance } from '@/lib/cad/geometry/units';
 import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   featureId: string;
@@ -70,11 +71,13 @@ function CoordInput({
 
 export default function FeaturePropertiesDialog({ featureId, onClose, initialX, initialY }: Props) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const undoStore = useUndoStore();
 
-  // Dragging
-  const dialogRef = useRef<HTMLDivElement>(null);
+  // Dragging — `dialogRef` is shared with `useFocusTrap` above
+  // so the same element drives both behaviours.
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [pos, setPos] = useState(() => {
     // Place dialog so it doesn't go off screen

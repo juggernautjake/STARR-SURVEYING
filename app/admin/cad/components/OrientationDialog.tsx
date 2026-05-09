@@ -22,7 +22,7 @@
 //   Method B — Enter two point coordinates + deed bearing
 //   Method C — AI deed import (Phase 6 scaffold)
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   X, RotateCcw, RotateCw, Compass, Info, ChevronDown, ChevronUp,
   Search, CheckCircle2,
@@ -40,6 +40,7 @@ import { parseBearing, formatBearing, inverseBearingDistance } from '@/lib/cad/g
 import type { Feature, UndoOperation } from '@/lib/cad/types';
 import Tooltip from './Tooltip';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   onClose: () => void;
@@ -140,6 +141,8 @@ function ConfBar({ value }: { value: number }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function OrientationDialog({ onClose }: Props) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const undoStore = useUndoStore();
 
@@ -290,6 +293,7 @@ export default function OrientationDialog({ onClose }: Props) {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-[fadeIn_150ms_ease-out]"
       onClick={onClose}
     >

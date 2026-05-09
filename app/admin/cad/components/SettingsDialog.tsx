@@ -15,6 +15,7 @@ import { normalizeKeyboardEvent } from '@/lib/cad/hotkeys/key-format';
 import type { ActionCategory, BindableAction } from '@/lib/cad/hotkeys/types';
 import Tooltip from './Tooltip';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   onClose: () => void;
@@ -214,6 +215,8 @@ function ButtonGroup<T extends string>({
 // ── Main component ───────────────────────────────────────────────────────────
 export default function SettingsDialog({ onClose }: Props) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const { settings } = drawingStore.document;
   const gsc = drawingStore.document.globalStyleConfig;
@@ -229,6 +232,7 @@ export default function SettingsDialog({ onClose }: Props) {
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-[fadeIn_150ms_ease-out]"
       onClick={onClose}
     >

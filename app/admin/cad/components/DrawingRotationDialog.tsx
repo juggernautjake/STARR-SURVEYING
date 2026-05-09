@@ -2,11 +2,12 @@
 // app/admin/cad/components/DrawingRotationDialog.tsx
 // Dialog for rotating the drawing view (visual only — does not alter survey data).
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { X, RotateCcw, RotateCw, Compass, RefreshCw } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import Tooltip from './Tooltip';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   onClose: () => void;
@@ -16,6 +17,8 @@ const QUICK_ANGLES = [0, 15, 30, 45, 60, 90, 180, 270];
 
 export default function DrawingRotationDialog({ onClose }: Props) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const currentDeg = drawingStore.document.settings.drawingRotationDeg ?? 0;
   const [inputVal, setInputVal] = useState(String(currentDeg));
@@ -39,7 +42,7 @@ export default function DrawingRotationDialog({ onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div ref={dialogRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[420px] text-sm text-gray-200 overflow-hidden animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)]">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-600 bg-gray-750">

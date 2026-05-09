@@ -1,9 +1,11 @@
 'use client';
 // app/admin/cad/components/PrintDialog.tsx — Print / export settings modal
 
+import { useRef } from 'react';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import type { PaperSize } from '@/lib/cad/templates/types';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   onClose: () => void;
@@ -20,6 +22,8 @@ const PAPER_SIZE_LABELS: Record<PaperSize, string> = {
 
 export default function PrintDialog({ onClose }: Props) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const store = useTemplateStore();
   const cfg = store.printConfig;
 
@@ -35,6 +39,7 @@ export default function PrintDialog({ onClose }: Props) {
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       role="dialog"
       aria-modal="true"

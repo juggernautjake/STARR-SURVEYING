@@ -17,11 +17,12 @@
 // + per-feature accept/modify/reject actions land in follow-up
 // slices.
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 import { usePointStore, useAIStore } from '@/lib/cad/store';
 import type { AIJobPayload, AIJobResult } from '@/lib/cad/ai-engine/types';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface AIDrawingDialogProps {
   onClose: () => void;
@@ -31,6 +32,8 @@ export default function AIDrawingDialog({
   onClose,
 }: AIDrawingDialogProps) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const points = usePointStore((s) => Object.values(s.points));
   const status = useAIStore((s) => s.status);
   const error = useAIStore((s) => s.error);
@@ -110,7 +113,7 @@ export default function AIDrawingDialog({
   }
 
   return (
-    <div style={styles.backdrop} onClick={onClose}>
+    <div ref={dialogRef} style={styles.backdrop} onClick={onClose}>
       <div
         style={styles.modal}
         onClick={(e) => e.stopPropagation()}
