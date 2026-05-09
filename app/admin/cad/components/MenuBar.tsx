@@ -162,10 +162,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     setEditingName(false);
   }
 
-  function exportCsv() {
+  function exportCsv(flavor: 'simplified' | 'full' = 'simplified') {
     try {
-      const { rowCount } = downloadCsv(drawingStore.document);
-      cadLog.info('FileIO', `Exported ${rowCount} points as CSV`);
+      const { rowCount, filename } = downloadCsv(drawingStore.document, { flavor });
+      cadLog.info('FileIO', `Exported ${rowCount} points as ${flavor} CSV → ${filename}`);
     } catch (err) {
       cadLog.error('FileIO', 'CSV export failed', err);
       alert('Failed to export CSV. See the browser console for details.');
@@ -338,7 +338,8 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'Save As…', action: saveDocument },
         { label: 'Save to Database…', action: () => { setDbDialog('save'); setOpenMenu(null); } },
         { separator: true },
-        { label: 'Export as CSV…', action: () => { exportCsv(); setOpenMenu(null); } },
+        { label: 'Export as CSV (simplified)…', action: () => { exportCsv('simplified'); setOpenMenu(null); } },
+        { label: 'Export as CSV (full)…', action: () => { exportCsv('full'); setOpenMenu(null); } },
         { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
         { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
         { label: 'Export as PDF (sealed)…', action: () => { exportPdf(); setOpenMenu(null); } },
