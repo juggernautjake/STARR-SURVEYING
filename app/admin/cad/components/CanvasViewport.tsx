@@ -7873,6 +7873,95 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           break;
         }
 
+        case 'LIST': {
+          // LIST: dump a comprehensive description of the
+          // clicked feature into the command bar — type,
+          // layer, vertex count, length / area, key
+          // properties. Surveyors use it to verify imported
+          // geometry without diving through panels.
+          const hit = hitTest(sx, sy);
+          if (!hit) {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'LIST — click any feature to print its details to the command bar.' },
+            }));
+            break;
+          }
+          const f = drawingStore.getFeature(hit);
+          if (!f) break;
+          const layer = drawingStore.document.layers[f.layerId];
+          const layerName = layer?.name ?? f.layerId;
+          const fg = f.geometry;
+          const parts: string[] = [];
+          parts.push(`LIST — ${fg.type} on layer "${layerName}" (id ${f.id.slice(0, 8)})`);
+          if (fg.type === 'LINE' && fg.start && fg.end) {
+            const len = Math.hypot(fg.end.x - fg.start.x, fg.end.y - fg.start.y);
+            parts.push(`length ${len.toFixed(2)}′`);
+            parts.push(`from (${fg.start.x.toFixed(2)}, ${fg.start.y.toFixed(2)}) to (${fg.end.x.toFixed(2)}, ${fg.end.y.toFixed(2)})`);
+          } else if ((fg.type === 'POLYLINE' || fg.type === 'POLYGON' || fg.type === 'MIXED_GEOMETRY') && fg.vertices) {
+            const v = fg.vertices;
+            parts.push(`${v.length} vertices`);
+            // Perimeter
+            let perim = 0;
+            for (let i = 0; i + 1 < v.length; i += 1) perim += Math.hypot(v[i + 1].x - v[i].x, v[i + 1].y - v[i].y);
+            if (fg.type === 'POLYGON' && v.length >= 3) {
+              perim += Math.hypot(v[0].x - v[v.length - 1].x, v[0].y - v[v.length - 1].y);
+              parts.push(`perimeter ${perim.toFixed(2)}′`);
+              // Shoelace area
+              let dbl = 0;
+              for (let i = 0; i < v.length; i += 1) {
+                const j = (i + 1) % v.length;
+                dbl += v[i].x * v[j].y - v[j].x * v[i].y;
+              }
+              const area = Math.abs(dbl / 2);
+              parts.push(`area ${area.toFixed(2)} sq ft (${(area / 43560).toFixed(4)} ac)`);
+            } else {
+              parts.push(`length ${perim.toFixed(2)}′`);
+            }
+          } else if (fg.type === 'CIRCLE' && fg.circle) {
+            parts.push(`center (${fg.circle.center.x.toFixed(2)}, ${fg.circle.center.y.toFixed(2)})`);
+            parts.push(`radius ${fg.circle.radius.toFixed(2)}′`);
+            parts.push(`area ${(Math.PI * fg.circle.radius * fg.circle.radius).toFixed(2)} sq ft`);
+          } else if (fg.type === 'ELLIPSE' && fg.ellipse) {
+            parts.push(`center (${fg.ellipse.center.x.toFixed(2)}, ${fg.ellipse.center.y.toFixed(2)})`);
+            parts.push(`radii ${fg.ellipse.radiusX.toFixed(2)} × ${fg.ellipse.radiusY.toFixed(2)}′`);
+            parts.push(`rotation ${(fg.ellipse.rotation * 180 / Math.PI).toFixed(2)}°`);
+          } else if (fg.type === 'ARC' && fg.arc) {
+            const sweep = Math.abs(fg.arc.endAngle - fg.arc.startAngle);
+            parts.push(`center (${fg.arc.center.x.toFixed(2)}, ${fg.arc.center.y.toFixed(2)})`);
+            parts.push(`radius ${fg.arc.radius.toFixed(2)}′`);
+            parts.push(`sweep ${(sweep * 180 / Math.PI).toFixed(2)}°`);
+            parts.push(`arc length ${(fg.arc.radius * sweep).toFixed(2)}′`);
+          } else if (fg.type === 'SPLINE' && fg.spline) {
+            parts.push(`${fg.spline.controlPoints.length} control points (${fg.spline.isClosed ? 'closed' : 'open'})`);
+          } else if (fg.type === 'POINT' && fg.point) {
+            parts.push(`(${fg.point.x.toFixed(2)}, ${fg.point.y.toFixed(2)})`);
+          } else if (fg.type === 'TEXT' && fg.point) {
+            parts.push(`"${fg.textContent ?? ''}" at (${fg.point.x.toFixed(2)}, ${fg.point.y.toFixed(2)})`);
+          }
+          // Key style + properties
+          const style = f.style;
+          if (style?.color) parts.push(`color ${style.color}`);
+          if (style?.lineWeight != null) parts.push(`weight ${style.lineWeight}pt`);
+          if (style?.opacity != null && style.opacity < 1) parts.push(`opacity ${(style.opacity * 100).toFixed(0)}%`);
+          // Key custom properties (skip the noisy CAD-internal ones)
+          const skipKeys = new Set([
+            'polylineGroupId',
+            'divideSourceId', 'divideStationOf', 'divideStationIndex',
+            'pointAtDistanceSourceId', 'pointAtDistanceValue', 'pointAtDistanceFromEnd',
+            'perpendicularTargetId', 'perpendicularFootX', 'perpendicularFootY',
+            'dimensionFromX', 'dimensionFromY', 'dimensionToX', 'dimensionToY',
+            'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'textAlign',
+          ]);
+          const interesting = Object.entries(f.properties).filter(([k]) => !skipKeys.has(k));
+          if (interesting.length > 0) {
+            parts.push('props: ' + interesting.map(([k, v]) => `${k}=${String(v)}`).join(', '));
+          }
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: { text: parts.join('  ·  ') },
+          }));
+          break;
+        }
+
         case 'INSERT_VERTEX': {
           // INSERT_VERTEX: click on a POLYLINE / POLYGON
           // edge to insert a new vertex at the click point.

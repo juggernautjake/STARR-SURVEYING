@@ -123,6 +123,8 @@ export function resolveCursor(ctx: CursorContext): CursorType {
       return 'CROSSHAIR';
     case 'REMOVE_VERTEX':
       return 'ERASE';
+    case 'LIST':
+      return 'AI_CHAT';
 
     // Style / direction operations
     case 'REVERSE':

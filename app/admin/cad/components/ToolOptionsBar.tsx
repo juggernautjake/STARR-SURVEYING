@@ -152,6 +152,7 @@ export default function ToolOptionsBar() {
   const showSimplifyPolyline = activeTool === 'SIMPLIFY_POLYLINE';
   const showInsertVertex = activeTool === 'INSERT_VERTEX';
   const showRemoveVertex = activeTool === 'REMOVE_VERTEX';
+  const showList = activeTool === 'LIST';
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showDim = activeTool === 'DIM';
@@ -826,6 +827,16 @@ export default function ToolOptionsBar() {
           <Sep />
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
             Click within 14 px of a vertex on a POLYLINE / POLYGON to delete it. Red X marks the target; grey ring means the chain is at minimum vertices and can’t shrink further.
+          </span>
+        </>
+      )}
+
+      {/* ── LIST tool options ──────────────────────────────────────────────── */}
+      {showList && (
+        <>
+          <Sep />
+          <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
+            Click any feature — its type, layer, dimensions, and key properties print to the command bar. Non-destructive; no selection required.
           </span>
         </>
       )}
@@ -2120,6 +2131,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   SIMPLIFY_POLYLINE: 'Simplify Polyline',
   INSERT_VERTEX: 'Insert Vertex',
   REMOVE_VERTEX: 'Remove Vertex',
+  LIST: 'List',
   MEASURE_AREA: 'Measure Area',
   DIM: 'Dimension',
   SCALE: 'Scale',

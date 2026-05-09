@@ -384,6 +384,7 @@ function buildToolGroups(
         { tool: 'SIMPLIFY_POLYLINE', label: 'Simplify (RDP)', description: 'Drop redundant vertices from a POLYLINE / POLYGON via Ramer-Douglas-Peucker. Surveyors use it to clean up noisy GPS traces, scanned-PDF traces, polygons-from-pixel-trace, etc. Tolerance in feet — vertices closer than this to the line through their kept neighbours get pruned.', shortcut: 'SI', icon: <Pentagon size={14} /> },
         { tool: 'INSERT_VERTEX', label: 'Insert Vertex', description: 'Click on any POLYLINE or POLYGON edge to insert a new vertex at the click point. Useful when an imported polyline is missing a corner (a property monument call-out partway down a leg, an HOA boundary that needs a new bend). Cyan ring marks where the new vertex will land before clicking.', shortcut: 'IV', icon: <Crosshair size={14} /> },
         { tool: 'REMOVE_VERTEX', label: 'Remove Vertex', description: 'Click within 14 px of a vertex on a POLYLINE or POLYGON to delete it. Won’t drop the chain below 2 (line) / 3 (polygon) vertices. Red X marks the doomed vertex; grey ring marks vertices that can’t be removed without violating the minimum.', shortcut: 'RX', icon: <Eraser size={14} /> },
+        { tool: 'LIST', label: 'List (probe feature)', description: 'Click any feature to print a comprehensive description to the command bar — type, layer, vertex count, length / area, key style + properties. Useful for verifying imported geometry without diving through the property panel.', shortcut: 'LI', icon: <MousePointer2 size={14} /> },
       ],
     },
 
