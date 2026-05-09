@@ -86,6 +86,8 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
 
   // Layers
   { id: 'layer.panel',       category: 'LAYERS',     label: 'Toggle Layer Panel',   description: 'Show or hide the layer panel',                defaultKey: 'f2',           isChord: false, context: 'GLOBAL' },
+  { id: 'layer.isolateBySelection', category: 'LAYERS', label: 'Isolate Layers by Selection', description: 'Show only layers that contain at least one currently-selected feature; hide everything else.', defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'layer.showAll',     category: 'LAYERS',     label: 'Show All Layers',      description: 'Restore visibility on every layer in the document.', defaultKey: '', isChord: false, context: 'GLOBAL' },
 
   // AI
   { id: 'ai.start',          category: 'AI',         label: 'Start AI Drawing',     description: 'Open the AI drawing wizard',                  defaultKey: 'ctrl+shift+a', isChord: false, context: 'GLOBAL' },

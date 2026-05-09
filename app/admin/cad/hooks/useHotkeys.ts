@@ -264,6 +264,59 @@ export function dispatchDefaultAction(action: BindableAction): void {
       useUIStore.getState().toggleLayerPanel();
       return;
 
+    case 'layer.isolateBySelection': {
+      // Hide every layer that doesn't contain at least one
+      // currently-selected feature. The active layer is kept
+      // visible regardless so the surveyor can keep drawing
+      // without re-toggling. No-op when nothing is selected
+      // — print a hint to the command bar instead.
+      const selStore = useSelectionStore.getState();
+      const drawingStore = useDrawingStore.getState();
+      const ids = Array.from(selStore.selectedIds);
+      if (ids.length === 0) {
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: 'Isolate by Selection — select features first.' },
+        }));
+        return;
+      }
+      const keepLayers = new Set<string>();
+      keepLayers.add(drawingStore.activeLayerId);
+      for (const id of ids) {
+        const f = drawingStore.getFeature(id);
+        if (f) keepLayers.add(f.layerId);
+      }
+      let hiddenCount = 0;
+      for (const layerId of drawingStore.document.layerOrder) {
+        const wasVisible = drawingStore.document.layers[layerId]?.visible !== false;
+        const shouldBeVisible = keepLayers.has(layerId);
+        if (wasVisible !== shouldBeVisible) {
+          drawingStore.updateLayer(layerId, { visible: shouldBeVisible });
+        }
+        if (!shouldBeVisible) hiddenCount += 1;
+      }
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: {
+          text: `Isolated ${keepLayers.size} layer${keepLayers.size === 1 ? '' : 's'}; hid ${hiddenCount}.`,
+        },
+      }));
+      return;
+    }
+
+    case 'layer.showAll': {
+      const drawingStore = useDrawingStore.getState();
+      let restored = 0;
+      for (const layerId of drawingStore.document.layerOrder) {
+        if (!drawingStore.document.layers[layerId]?.visible) {
+          drawingStore.updateLayer(layerId, { visible: true });
+          restored += 1;
+        }
+      }
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: restored === 0 ? 'All layers already visible.' : `Restored ${restored} hidden layer${restored === 1 ? '' : 's'}.` },
+      }));
+      return;
+    }
+
     // ── AI ───────────────────────────────────────────
     case 'ai.start':
       window.dispatchEvent(new CustomEvent('cad:openAIDrawingDialog'));
