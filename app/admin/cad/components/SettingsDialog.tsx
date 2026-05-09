@@ -2,7 +2,7 @@
 // app/admin/cad/components/SettingsDialog.tsx — Drawing settings & preferences
 // Comprehensive settings dialog covering all configurable options.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Grid, Sliders, Palette, MousePointer2, Eye, Save, FileText, Crosshair, Keyboard } from 'lucide-react';
 import { useDrawingStore, useHotkeysStore, useUIStore } from '@/lib/cad/store';
 import type { SnapType } from '@/lib/cad/types';
@@ -11,6 +11,7 @@ import { DEFAULT_GLOBAL_STYLE_CONFIG } from '@/lib/cad/styles/types';
 import { DEFAULT_ACTIONS } from '@/lib/cad/hotkeys/registry';
 import { findHotkeyConflicts, findConflictForAction } from '@/lib/cad/hotkeys/conflicts';
 import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
+import { normalizeKeyboardEvent } from '@/lib/cad/hotkeys/key-format';
 import type { ActionCategory, BindableAction } from '@/lib/cad/hotkeys/types';
 import Tooltip from './Tooltip';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
@@ -1054,11 +1055,15 @@ function TooltipDelaySection() {
 // ────────────────────────────────────────────────────────────
 // Hotkeys tab — categorised list of every bindable action
 // with its current key (default OR user override) and a
-// red badge on conflicts. Read-only at this stage; capture-
-// mode editing is a follow-up. Cross-session persistence
-// already happens in `useHotkeysStore` via the `persist`
-// middleware, so the AutoCAD preset + any future user
-// overrides survive a refresh.
+// red badge on conflicts. Click any key badge to enter
+// capture mode; the next non-modifier keydown becomes the
+// new binding. If the captured key is already in use by
+// another action in an overlapping context the displaced
+// action is automatically unbound — the conflict is
+// resolved on the spot rather than left as a red badge for
+// the surveyor to chase. Esc cancels capture; Backspace /
+// Delete clear the binding. Cross-session persistence
+// flows through `useHotkeysStore`'s `persist` middleware.
 // ────────────────────────────────────────────────────────────
 
 const CATEGORY_ORDER_HK: ActionCategory[] = [
@@ -1086,6 +1091,10 @@ const CATEGORY_LABEL_HK: Record<ActionCategory, string> = {
 
 function HotkeysTab() {
   const userBindings = useHotkeysStore((s) => s.userBindings);
+  const setBinding = useHotkeysStore((s) => s.setBinding);
+  const [capturingId, setCapturingId] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conflicts = useMemo(
     () => findHotkeyConflicts(DEFAULT_ACTIONS, userBindings),
     [userBindings],
@@ -1110,6 +1119,83 @@ function HotkeysTab() {
     }
     return map;
   }, []);
+
+  // Show a status line for ~3 s after a successful capture so
+  // the surveyor sees that conflicts were auto-resolved.
+  const flashStatus = (msg: string) => {
+    setStatusMsg(msg);
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    statusTimerRef.current = setTimeout(() => setStatusMsg(null), 3500);
+  };
+
+  // Capture-mode key listener. Mounted only while a row is in
+  // capture mode; uses the capture phase + stopPropagation so
+  // the global hotkey engine doesn't also fire on the keypress
+  // we're trying to rebind.
+  useEffect(() => {
+    if (!capturingId) return;
+    const targetAction = DEFAULT_ACTIONS.find((a) => a.id === capturingId);
+    if (!targetAction) return;
+
+    const onKey = (event: KeyboardEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      // Esc cancels capture without writing a binding.
+      if (event.key === 'Escape') {
+        setCapturingId(null);
+        return;
+      }
+      // Backspace / Delete clears the binding for this action.
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        setBinding(capturingId, null);
+        flashStatus(`Cleared binding for "${targetAction.label}".`);
+        setCapturingId(null);
+        return;
+      }
+
+      const norm = normalizeKeyboardEvent(event);
+      // Ignore pure modifier presses — keep listening so the
+      // surveyor can still hold Ctrl while choosing the final
+      // key.
+      if (norm.isModifierOnly || !norm.base) return;
+
+      const newKey = norm.key;
+      // Find any other action that currently owns this key in
+      // an overlapping context — that's the one we'll have to
+      // displace to satisfy "reassign updates both bindings".
+      const displaced: { id: string; label: string }[] = [];
+      for (const other of DEFAULT_ACTIONS) {
+        if (other.id === capturingId) continue;
+        if (activeKeys[other.id] !== newKey) continue;
+        if (
+          other.context === targetAction.context ||
+          other.context === 'GLOBAL' ||
+          targetAction.context === 'GLOBAL'
+        ) {
+          displaced.push({ id: other.id, label: other.label });
+        }
+      }
+
+      // Order matters — clear the displaced bindings first so
+      // there's no transient state where two actions share the
+      // key. (zustand batches synchronous sets, but we're
+      // explicit here for clarity.)
+      for (const d of displaced) setBinding(d.id, null);
+      setBinding(capturingId, newKey);
+
+      if (displaced.length === 0) {
+        flashStatus(`Bound "${targetAction.label}" → ${formatHotkeyDisplay(newKey)}.`);
+      } else {
+        const names = displaced.map((d) => `"${d.label}"`).join(', ');
+        flashStatus(`Bound "${targetAction.label}" → ${formatHotkeyDisplay(newKey)}. Unbound ${names}.`);
+      }
+      setCapturingId(null);
+    };
+
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [capturingId, setBinding, activeKeys]);
 
   return (
     <div className="space-y-3 animate-[fadeIn_150ms_ease-out]">
@@ -1143,8 +1229,13 @@ function HotkeysTab() {
         </div>
       </div>
       <p className="text-[10px] text-gray-500 leading-relaxed">
-        Cross-session persistence is wired through localStorage. Conflicts highlight every action that shares a key with another in the same context — pick one of them and re-bind. Capture-mode editing lands in a follow-up; for now use the presets above to swap whole binding sets.
+        Click any shortcut to rebind it — the next key you press becomes the new binding. If the chosen key is already in use, the displaced action is unbound automatically so the conflict is resolved in one step. Press <kbd className="font-mono px-1 rounded bg-gray-800 border border-gray-700">Esc</kbd> to cancel, <kbd className="font-mono px-1 rounded bg-gray-800 border border-gray-700">Backspace</kbd> to clear. Bindings persist across reloads.
       </p>
+      {statusMsg && (
+        <div className="text-[11px] px-2 py-1 rounded bg-blue-900/30 border border-blue-800/60 text-blue-200 animate-[fadeIn_150ms_ease-out]">
+          {statusMsg}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         {CATEGORY_ORDER_HK.map((cat) => {
           const actions = grouped.get(cat);
@@ -1157,28 +1248,37 @@ function HotkeysTab() {
               <div className="space-y-0.5">
                 {actions.map((a) => {
                   const key = activeKeys[a.id];
-                  if (!key) return null;
                   const conflict = findConflictForAction(a.id, conflicts);
+                  const isCapturing = capturingId === a.id;
+                  const badgeBase = 'rounded px-1.5 py-0.5 text-[10px] font-mono shrink-0 border transition-colors';
+                  let badgeClass: string;
+                  if (isCapturing) {
+                    badgeClass = `${badgeBase} bg-blue-900/40 border-blue-700 text-blue-200 animate-pulse`;
+                  } else if (conflict) {
+                    badgeClass = `${badgeBase} bg-red-900/40 border-red-800/60 text-red-300 hover:bg-red-900/60 cursor-pointer`;
+                  } else if (!key) {
+                    badgeClass = `${badgeBase} bg-gray-900 border-gray-800 text-gray-600 hover:bg-gray-800 hover:text-gray-400 cursor-pointer italic`;
+                  } else {
+                    badgeClass = `${badgeBase} bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-white cursor-pointer`;
+                  }
                   return (
                     <div
                       key={a.id}
                       className="flex items-center justify-between gap-3 text-[11px] py-0.5"
                       title={
                         conflict
-                          ? `Conflict: also fires ${conflict.actionIds.filter((id) => id !== a.id).join(', ')} in the ${conflict.context.toLowerCase()} context.`
-                          : undefined
+                          ? `Conflict: also fires ${conflict.actionIds.filter((id) => id !== a.id).join(', ')} in the ${conflict.context.toLowerCase()} context. Click to rebind.`
+                          : 'Click to rebind'
                       }
                     >
                       <span className={`truncate ${conflict ? 'text-red-300' : 'text-gray-300'}`}>{a.label}</span>
-                      <kbd
-                        className={`rounded px-1.5 py-0.5 text-[10px] font-mono shrink-0 border ${
-                          conflict
-                            ? 'bg-red-900/40 border-red-800/60 text-red-300'
-                            : 'bg-gray-800 border-gray-700 text-gray-400'
-                        }`}
+                      <button
+                        type="button"
+                        className={badgeClass}
+                        onClick={() => setCapturingId(isCapturing ? null : a.id)}
                       >
-                        {formatHotkeyDisplay(key)}
-                      </kbd>
+                        {isCapturing ? 'Press a key…' : key ? formatHotkeyDisplay(key) : 'unbound'}
+                      </button>
                     </div>
                   );
                 })}
