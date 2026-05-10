@@ -18,6 +18,7 @@ import {
   useSelectionStore,
   useTraverseStore,
   useTransferStore,
+  useUIStore,
   useViewportStore,
 } from '@/lib/cad/store';
 import { featureBounds } from '@/lib/cad/geometry/bounds';
@@ -81,6 +82,23 @@ export default function LayerTransferDialog({ onClose }: Props) {
       targetLayerId = layerOrder.find((id) => id !== sourceLayerId) ?? active;
     }
     setOptions({ targetLayerId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-load the default transfer preset on first open (if
+  // the surveyor marked one as default). Only runs when the
+  // dialog opens with options at the factory defaults, so a
+  // right-click "Send to Layer…" entry that pre-set the
+  // operation doesn't get its semantics stomped.
+  useEffect(() => {
+    const presets = useUIStore.getState().transferPresets;
+    const def = presets.find((p) => p.isDefault);
+    if (!def) return;
+    // Same guard as the layer-fallback above: only fill in
+    // when nothing has been customised yet.
+    if (options.targetLayerId) return;
+    setOptions(def.options);
+    useTransferStore.getState().setActivePresetId(def.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -188,6 +206,12 @@ export default function LayerTransferDialog({ onClose }: Props) {
       window.dispatchEvent(new CustomEvent('cad:commandOutput', {
         detail: { text: `${result.written} feature${result.written === 1 ? '' : 's'} ${verb} to ${targetLayer.name}.` },
       }));
+      // Bump preset stats so the dropdown surfaces popular
+      // presets at the top on the next dialog open.
+      const activeId = useTransferStore.getState().activePresetId;
+      if (activeId) {
+        useUIStore.getState().recordTransferPresetUse(activeId);
+      }
     }
     onClose();
   }
@@ -436,12 +460,18 @@ export default function LayerTransferDialog({ onClose }: Props) {
               for Duplicate; surfaced as a collapsible disclosure
               so the dialog stays compact for the common case. */}
           {options.operation === 'DUPLICATE' && <OptionsBlock />}
+
+          {/* Preset save / load row — captures op + destination
+              + options snapshot (NOT source set) so surveyor
+              can re-run a "Working → Print copy" routing in
+              one click. */}
+          <TransferPresetsRow />
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-600 bg-gray-900/40">
           <span className="text-[10px] text-gray-500">
-            {pickModeActive ? 'Click features to add. Esc leaves Pick mode.' : 'Slice 1 — multi-target paste, traverse routing, presets land later.'}
+            {pickModeActive ? 'Click features to add. Esc leaves Pick mode.' : 'Tip: save the current setup as a preset for one-click re-use.'}
           </span>
           <div className="flex gap-2">
             <button
@@ -1053,6 +1083,175 @@ function SmartSelectionHelpers() {
           Add
         </button>
       </div>
+    </div>
+  );
+}
+
+// ─── Transfer presets — save / load / set default ──────────
+//
+// Surveyor saves the current routing + options snapshot as
+// a named preset; selecting one later fills the dialog so
+// they can re-run the routing in one click. Source set is
+// NEVER captured (it's per-job). Default preset auto-loads
+// on dialog open. Dropdown sorts by lastUsedAt so recently
+// popular presets bubble to the top.
+
+function TransferPresetsRow() {
+  const presets = useUIStore((s) => s.transferPresets);
+  const addPreset = useUIStore((s) => s.addTransferPreset);
+  const removePreset = useUIStore((s) => s.removeTransferPreset);
+  const setDefaultPreset = useUIStore((s) => s.setDefaultTransferPreset);
+  const options = useTransferStore((s) => s.options);
+  const setOptions = useTransferStore((s) => s.setOptions);
+  const activePresetId = useTransferStore((s) => s.activePresetId);
+  const setActivePresetId = useTransferStore((s) => s.setActivePresetId);
+
+  const [saving, setSaving] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [draftDefault, setDraftDefault] = useState(false);
+
+  // Sort: default first, then by last-used desc (null at bottom).
+  const sorted = useMemo(() => {
+    const list = [...presets];
+    list.sort((a, b) => {
+      if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+      const at = a.lastUsedAt ? Date.parse(a.lastUsedAt) : 0;
+      const bt = b.lastUsedAt ? Date.parse(b.lastUsedAt) : 0;
+      return bt - at;
+    });
+    return list;
+  }, [presets]);
+
+  function applyPreset(id: string) {
+    const preset = presets.find((p) => p.id === id);
+    if (!preset) return;
+    setOptions(preset.options);
+    setActivePresetId(id);
+  }
+
+  function saveCurrent() {
+    const name = draftName.trim();
+    if (!name) return;
+    const id = addPreset(name, options, draftDefault);
+    if (id) setActivePresetId(id);
+    setSaving(false);
+    setDraftName('');
+    setDraftDefault(false);
+  }
+
+  const active = activePresetId ? presets.find((p) => p.id === activePresetId) : null;
+
+  return (
+    <div className="border-t border-gray-700 pt-2">
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-[11px] text-gray-400">Preset</label>
+        {presets.length > 0 && active && (
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setDefaultPreset(active.isDefault ? null : active.id)}
+              className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                active.isDefault
+                  ? 'bg-amber-900/40 border-amber-800/60 text-amber-300'
+                  : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-amber-300'
+              }`}
+              title={active.isDefault ? 'Currently the default — click to unset' : 'Mark as default — auto-loads on dialog open'}
+            >
+              {active.isDefault ? '★ default' : '☆ set default'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                removePreset(active.id);
+                setActivePresetId(null);
+              }}
+              className="text-[10px] px-1.5 py-0.5 rounded border bg-gray-700 border-gray-600 text-gray-400 hover:bg-red-900/40 hover:border-red-800/60 hover:text-red-300 transition-colors"
+              title="Delete the loaded preset"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+
+      {!saving ? (
+        <div className="flex gap-1.5">
+          <select
+            value={activePresetId ?? ''}
+            onChange={(e) => {
+              const id = e.target.value;
+              if (!id) setActivePresetId(null);
+              else applyPreset(id);
+            }}
+            className="flex-1 bg-gray-700 text-gray-200 text-xs px-2 py-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+          >
+            <option value="">— no preset (manual settings) —</option>
+            {sorted.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.isDefault ? '★ ' : ''}
+                {p.name}
+                {p.useCount > 0 ? ` · used ${p.useCount}×` : ''}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => { setSaving(true); setDraftName(''); setDraftDefault(false); }}
+            className="px-2.5 py-1.5 text-[11px] rounded border bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+            title="Save the current operation + destination + options as a named preset"
+          >
+            Save…
+          </button>
+        </div>
+      ) : (
+        <div className="bg-gray-900 border border-gray-700 rounded p-2 space-y-2">
+          <input
+            type="text"
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            placeholder="Preset name (e.g. Working → Print copy)"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                saveCurrent();
+              }
+            }}
+            className="w-full bg-gray-700 text-white text-xs px-2 py-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+          />
+          <div className="flex items-center justify-between">
+            <label className="inline-flex items-center gap-1.5 text-[11px] text-gray-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={draftDefault}
+                onChange={(e) => setDraftDefault(e.target.checked)}
+                className="rounded"
+              />
+              Make this the default
+            </label>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => { setSaving(false); setDraftName(''); setDraftDefault(false); }}
+                className="px-2 py-1 text-[11px] rounded bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveCurrent}
+                disabled={!draftName.trim()}
+                className="px-2 py-1 text-[11px] rounded bg-blue-600 border border-blue-500 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-500 leading-relaxed">
+            Captures operation, target layer / traverse, and all options. <strong className="text-gray-400">Not</strong> the source set — that&apos;s per-job.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

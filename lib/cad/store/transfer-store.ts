@@ -58,10 +58,15 @@ interface TransferStore {
   /** LIFO history of pick events for the in-dialog Backspace / Ctrl+Z. */
   pickHistory: Array<{ op: 'ADD' | 'REMOVE'; id: string }>;
   options: TransferOptions;
+  /** Phase 8 §11.7 Slice 13 — which saved preset (if any)
+   *  is currently loaded. Drives the preset-dropdown highlight
+   *  and the Confirm-time use-count bump. */
+  activePresetId: string | null;
 
   open: (initialPickedIds?: Iterable<string>) => void;
   close: () => void;
   setPickModeActive: (active: boolean) => void;
+  setActivePresetId: (id: string | null) => void;
   /** Toggle a single feature in / out of the picked set. Records a
    *  history entry so Backspace / pick-undo can reverse it. */
   togglePick: (id: string) => void;
@@ -95,6 +100,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
   pickModeActive: false,
   pickHistory: [],
   options: { ...DEFAULT_OPTIONS },
+  activePresetId: null,
 
   open: (initialPickedIds) =>
     set(() => ({
@@ -103,6 +109,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
       pickModeActive: false,
       pickHistory: [],
       options: { ...DEFAULT_OPTIONS },
+      activePresetId: null,
     })),
 
   close: () =>
@@ -111,9 +118,11 @@ export const useTransferStore = create<TransferStore>((set) => ({
       pickModeActive: false,
       pickedIds: new Set<string>(),
       pickHistory: [],
+      activePresetId: null,
     })),
 
   setPickModeActive: (active) => set(() => ({ pickModeActive: active })),
+  setActivePresetId: (id) => set(() => ({ activePresetId: id })),
 
   togglePick: (id) =>
     set((s) => {

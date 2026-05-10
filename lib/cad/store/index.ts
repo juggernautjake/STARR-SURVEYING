@@ -5,7 +5,7 @@ export { useToolStore } from './tool-store';
 export { useViewportStore } from './viewport-store';
 export { useUndoStore, makeAddFeatureEntry, makeRemoveFeatureEntry, makeBatchEntry } from './undo-store';
 export { useUIStore } from './ui-store';
-export type { AISidebarTab } from './ui-store';
+export type { AISidebarTab, TransferPreset } from './ui-store';
 export { usePointStore } from './point-store';
 export type { PointSortField } from './point-store';
 export { useImportStore } from './import-store';

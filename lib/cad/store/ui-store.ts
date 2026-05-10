@@ -1,6 +1,7 @@
 // lib/cad/store/ui-store.ts — UI panel visibility state
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { TransferOptions } from './transfer-store';
 
 export type AISidebarTab =
   | 'queue'
@@ -8,6 +9,30 @@ export type AISidebarTab =
   | 'explanations'
   | 'versions'
   | 'checklist';
+
+/**
+ * Phase 8 §11.7 Slice 13 — saved transfer configuration.
+ * Captures every option the surveyor would otherwise re-type
+ * each time they run a recurring transfer (e.g. "Working →
+ * Print copy"). Source set is intentionally NOT captured
+ * (it's per-job); presets store the routing + options only.
+ */
+export interface TransferPreset {
+  id: string;
+  name: string;
+  /** Snapshot of TransferOptions at save time. Stored as a
+   *  plain object so it survives localStorage round-trip. */
+  options: TransferOptions;
+  /** ISO timestamp of last invocation. Drives dropdown sort. */
+  lastUsedAt: string | null;
+  /** How many times Confirm fired with this preset loaded.
+   *  Lets the dropdown surface "recently popular" presets. */
+  useCount: number;
+  /** When true, this preset auto-loads on dialog open. At
+   *  most one preset can be flagged default at a time;
+   *  setDefaultTransferPreset() enforces. */
+  isDefault: boolean;
+}
 
 interface UIStore {
   showLayerPanel: boolean;
@@ -42,6 +67,10 @@ interface UIStore {
    *  every drawing. Null = no logo (fall back to the firm
    *  name text). */
   firmLogoDataUrl: string | null;
+  /** Phase 8 §11.7 Slice 13 — firm-wide saved transfer
+   *  configurations. Persisted; surveyor sees them in every
+   *  drawing they open. */
+  transferPresets: TransferPreset[];
 
   toggleLayerPanel: () => void;
   togglePropertyPanel: () => void;
@@ -55,6 +84,18 @@ interface UIStore {
   setFeatureTooltipsEnabled: (enabled: boolean) => void;
   setTooltipDelayMs: (ms: number) => void;
   setFirmLogoDataUrl: (dataUrl: string | null) => void;
+  /** Add a new transfer preset. id auto-generated. Replaces
+   *  existing preset with the same name (so re-saving keeps
+   *  the dropdown tidy). */
+  addTransferPreset: (name: string, options: TransferOptions, makeDefault?: boolean) => string;
+  /** Remove a preset by id. */
+  removeTransferPreset: (id: string) => void;
+  /** Flip the default flag on one preset (and clear it on the
+   *  rest). Pass null to unset the default. */
+  setDefaultTransferPreset: (id: string | null) => void;
+  /** Bump lastUsedAt + useCount on the preset that just fired
+   *  Confirm. */
+  recordTransferPresetUse: (id: string) => void;
 }
 
 /**
@@ -89,6 +130,7 @@ export const useUIStore = create<UIStore>()(
       featureTooltipsEnabled: true,
       tooltipDelayMs: 600,
       firmLogoDataUrl: null,
+      transferPresets: [],
 
       toggleLayerPanel: () => set((s) => ({ showLayerPanel: !s.showLayerPanel })),
       togglePropertyPanel: () => set((s) => ({ showPropertyPanel: !s.showPropertyPanel })),
@@ -116,10 +158,59 @@ export const useUIStore = create<UIStore>()(
               ? null
               : dataUrl,
       }),
+
+      addTransferPreset: (name, options, makeDefault) => {
+        const trimmed = name.trim();
+        if (!trimmed) return '';
+        const id = `tp-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        const fresh: TransferPreset = {
+          id,
+          name: trimmed,
+          // Deep-clone the options snapshot so subsequent
+          // dialog edits don't mutate the saved preset.
+          options: JSON.parse(JSON.stringify(options)) as TransferOptions,
+          lastUsedAt: null,
+          useCount: 0,
+          isDefault: !!makeDefault,
+        };
+        set((s) => {
+          // Replace any existing preset that shares the same
+          // name (case-insensitive) so re-saving stays tidy.
+          const others = s.transferPresets.filter(
+            (p) => p.name.toLowerCase() !== trimmed.toLowerCase(),
+          );
+          // If this one is being flagged default, clear the
+          // default on every sibling.
+          const cleaned = makeDefault
+            ? others.map((p) => ({ ...p, isDefault: false }))
+            : others;
+          return { transferPresets: [...cleaned, fresh] };
+        });
+        return id;
+      },
+
+      removeTransferPreset: (id) => set((s) => ({
+        transferPresets: s.transferPresets.filter((p) => p.id !== id),
+      })),
+
+      setDefaultTransferPreset: (id) => set((s) => ({
+        transferPresets: s.transferPresets.map((p) => ({
+          ...p,
+          isDefault: p.id === id,
+        })),
+      })),
+
+      recordTransferPresetUse: (id) => set((s) => ({
+        transferPresets: s.transferPresets.map((p) =>
+          p.id === id
+            ? { ...p, lastUsedAt: new Date().toISOString(), useCount: p.useCount + 1 }
+            : p,
+        ),
+      })),
     }),
     {
       name: 'starr-cad-ui',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => localStorage),
       // Allow-list — only the surveyor-visible toggles persist.
       partialize: (s) => ({
@@ -127,6 +218,7 @@ export const useUIStore = create<UIStore>()(
         featureTooltipsEnabled: s.featureTooltipsEnabled,
         tooltipDelayMs: s.tooltipDelayMs,
         firmLogoDataUrl: s.firmLogoDataUrl,
+        transferPresets: s.transferPresets,
       }),
     }
   )
