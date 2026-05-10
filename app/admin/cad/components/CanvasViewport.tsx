@@ -5,6 +5,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useDynamicCursor } from '../hooks/useDynamicCursor';
 import { useTooltipApi } from './TooltipProvider';
 import { buildFeatureTooltip } from './featureTooltip';
+import SelectionDragChip from './SelectionDragChip';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -10676,6 +10677,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           </div>
         );
       })()}
+
+      {/* Phase 8 §11.7 Slice 4 — Drag-to-layer chip. Visible
+          when ≥1 feature is selected; draggable onto a
+          LayerPanel layer row. Drop = Move (default), Alt-
+          drop = Duplicate. Sits at the top-right of the
+          canvas above any other overlay. */}
+      <SelectionDragChip />
+
 
       {/* DRAW_IMAGE insert dialog */}
       {imageInsertState && (

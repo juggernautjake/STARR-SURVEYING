@@ -7,6 +7,8 @@ import { useDrawingStore } from '@/lib/cad/store';
 import { useSelectionStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
+import { transferSelectionToLayer } from '@/lib/cad/operations';
+import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChip';
 
 // Accessible palette for new layers — visually distinct, good contrast
 const LAYER_COLOR_PALETTE = [
@@ -38,6 +40,11 @@ export default function LayerPanel() {
   const [renameValue, setRenameValue] = useState('');
   const renameRef = useRef<HTMLInputElement>(null);
   const dragLayerIdRef = useRef<string | null>(null);
+  // Phase 8 §11.7 Slice 4 — id of the layer row currently
+  // hovered by an in-flight transfer drag. Drives the blue
+  // glow on the target row + the cursor effect.
+  const [transferDropTargetId, setTransferDropTargetId] = useState<string | null>(null);
+  const [transferDropAlt, setTransferDropAlt] = useState(false);
   /** When set, a small rotation input is shown in the context menu for this layer. */
   const [rotatingLayerId, setRotatingLayerId] = useState<string | null>(null);
   const [rotationInputVal, setRotationInputVal] = useState('0');
@@ -261,11 +268,81 @@ export default function LayerPanel() {
                   e.dataTransfer.effectAllowed = 'move';
                 }}
                 onDragOver={(e) => {
+                  // Two drag flavours: a layer-reorder drag
+                  // (originating from another layer row in
+                  // this same panel) or a selection-transfer
+                  // drag (originating from the canvas's
+                  // SelectionDragChip — Phase 8 §11.7 Slice 4).
+                  // Differentiate by mime type: only the
+                  // transfer drag carries TRANSFER_DRAG_MIME.
+                  const types = e.dataTransfer.types;
+                  const isTransfer = types.indexOf(TRANSFER_DRAG_MIME) !== -1;
                   e.preventDefault();
-                  e.dataTransfer.dropEffect = 'move';
+                  if (isTransfer) {
+                    e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move';
+                    setTransferDropTargetId(layer.id);
+                    setTransferDropAlt(e.altKey);
+                  } else {
+                    e.dataTransfer.dropEffect = 'move';
+                  }
+                }}
+                onDragLeave={() => {
+                  // Only clear when leaving the row that's
+                  // currently flagged — otherwise sibling
+                  // drag-leave events fire while the cursor
+                  // is still inside the panel.
+                  if (transferDropTargetId === layer.id) {
+                    setTransferDropTargetId(null);
+                  }
                 }}
                 onDrop={(e) => {
                   e.preventDefault();
+                  const types = e.dataTransfer.types;
+                  const isTransfer = types.indexOf(TRANSFER_DRAG_MIME) !== -1;
+
+                  if (isTransfer) {
+                    // Selection-transfer drop. Read the
+                    // payload, dispatch the kernel; Move by
+                    // default, Alt-drop = Duplicate.
+                    setTransferDropTargetId(null);
+                    setTransferDropAlt(false);
+                    let payload: TransferDragPayload | null = null;
+                    try {
+                      payload = JSON.parse(e.dataTransfer.getData(TRANSFER_DRAG_MIME));
+                    } catch {
+                      payload = null;
+                    }
+                    if (!payload || payload.kind !== 'TRANSFER' || payload.featureIds.length === 0) return;
+                    if (layer.locked) {
+                      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                        detail: { text: `Layer "${layer.name}" is locked — drop denied.` },
+                      }));
+                      return;
+                    }
+                    const wantDuplicate = e.altKey;
+                    const result = transferSelectionToLayer(
+                      payload.featureIds,
+                      layer.id,
+                      {
+                        keepOriginals: wantDuplicate,
+                        renumberStart: null,
+                        stripUnknownCodes: false,
+                        targetTraverseId: null,
+                        offset: null,
+                        bringAlongLinkedGeometry: wantDuplicate,
+                        transferOperationId: generateId(),
+                      },
+                    );
+                    if (result.written > 0 || result.removed > 0) {
+                      const verb = wantDuplicate ? 'duplicated' : 'moved';
+                      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                        detail: { text: `${result.written} feature${result.written === 1 ? '' : 's'} ${verb} to ${layer.name}.` },
+                      }));
+                    }
+                    return;
+                  }
+
+                  // Layer-reorder drop (existing behaviour).
                   const fromId = dragLayerIdRef.current;
                   dragLayerIdRef.current = null;
                   if (!fromId || fromId === layer.id) return;
@@ -279,7 +356,13 @@ export default function LayerPanel() {
                 }}
                 className={`flex items-center gap-1 px-1 py-1 cursor-pointer transition-colors duration-100 hover:bg-gray-700 ${
                   activeLayerId === layer.id ? 'bg-gray-700' : ''
-                } ${isHighlighted ? 'ring-1 ring-blue-500 ring-inset' : ''}`}
+                } ${isHighlighted ? 'ring-1 ring-blue-500 ring-inset' : ''} ${
+                  transferDropTargetId === layer.id
+                    ? transferDropAlt
+                      ? 'ring-2 ring-green-400 bg-green-900/30'
+                      : 'ring-2 ring-blue-400 bg-blue-900/30'
+                    : ''
+                }`}
                 onClick={() => handleSetActive(layer.id)}
                 onContextMenu={(e) => handleContextMenu(e, layer.id)}
               >
