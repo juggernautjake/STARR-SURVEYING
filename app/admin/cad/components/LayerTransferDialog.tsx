@@ -18,7 +18,9 @@ import {
   useSelectionStore,
   useTraverseStore,
   useTransferStore,
+  useViewportStore,
 } from '@/lib/cad/store';
+import { featureBounds } from '@/lib/cad/geometry/bounds';
 import { transferSelectionToLayer } from '@/lib/cad/operations';
 import {
   buildPointNoIndex,
@@ -299,6 +301,12 @@ export default function LayerTransferDialog({ onClose }: Props) {
 
             {sourceMode === 'TYPE' && <TypeIdsField />}
 
+            {/* Smart selection helpers — programmatic ways to
+                add (or Alt-click subtract) batches of features.
+                Composable: surveyors stack "By layer = BOUNDARY"
+                + "By type = POLYLINE" + "In viewport" to land
+                on "every visible boundary polyline." */}
+            <SmartSelectionHelpers />
 
             <div className="bg-gray-900 border border-gray-700 rounded p-2 max-h-[160px] overflow-y-auto">
               {sourceCount === 0 ? (
@@ -849,5 +857,202 @@ function OptionsBlock() {
         </div>
       </div>
     </details>
+  );
+}
+
+// ─── Smart selection helpers ───────────────────────────────
+//
+// Programmatic ways to extend (or Alt-click subtract from)
+// the picked set without clicking each feature individually.
+// Composable: stacking helpers builds an intersection-or-
+// difference set incrementally. The Alt modifier inverts a
+// helper from "add these" → "remove these from picks."
+
+function SmartSelectionHelpers() {
+  const drawingStore = useDrawingStore();
+  const docFeatures = drawingStore.document.features;
+  const layers = drawingStore.document.layers;
+  const layerOrder = drawingStore.document.layerOrder;
+  const addPicks = useTransferStore((s) => s.addPicks);
+  const removePicks = useTransferStore((s) => s.removePicks);
+
+  const [byCode, setByCode] = useState('');
+  const [subtractMode, setSubtractMode] = useState(false);
+
+  // Helper closures share the Alt-key semantic: when alt is
+  // true the matched ids are subtracted from the picked set
+  // rather than added. The store dedupes adds so the surveyor
+  // can mash a helper twice without consequence.
+  function applyHelper(ids: string[], alt: boolean) {
+    if (ids.length === 0) return;
+    if (alt) removePicks(ids);
+    else addPicks(ids);
+  }
+
+  function helperByLayer(layerId: string, alt: boolean) {
+    const ids: string[] = [];
+    for (const f of Object.values(docFeatures)) {
+      if (f.layerId === layerId && !f.hidden) ids.push(f.id);
+    }
+    applyHelper(ids, alt);
+  }
+
+  function helperByType(type: string, alt: boolean) {
+    const ids: string[] = [];
+    for (const f of Object.values(docFeatures)) {
+      if (f.type === type && !f.hidden) ids.push(f.id);
+    }
+    applyHelper(ids, alt);
+  }
+
+  function helperByCode(rawCode: string, alt: boolean) {
+    const codes = rawCode
+      .split(/[,;]/)
+      .map((c) => c.trim().toUpperCase())
+      .filter(Boolean);
+    if (codes.length === 0) return;
+    const ids: string[] = [];
+    for (const f of Object.values(docFeatures)) {
+      if (f.hidden) continue;
+      const raw = f.properties?.code;
+      const code = typeof raw === 'string' ? raw.toUpperCase() : '';
+      if (!code) continue;
+      // Match either the full code or its base (strips trailing
+      // line-control suffix like B / E / BA / EA — surveyors
+      // type "BC" to capture every BC* monument).
+      for (const target of codes) {
+        if (code === target || code.startsWith(target)) {
+          ids.push(f.id);
+          break;
+        }
+      }
+    }
+    applyHelper(ids, alt);
+  }
+
+  function helperInViewport(alt: boolean) {
+    const vp = useViewportStore.getState();
+    if (vp.screenWidth <= 0 || vp.screenHeight <= 0 || vp.zoom <= 0) return;
+    const halfW = vp.screenWidth / 2 / vp.zoom;
+    const halfH = vp.screenHeight / 2 / vp.zoom;
+    const minX = vp.centerX - halfW;
+    const maxX = vp.centerX + halfW;
+    const minY = vp.centerY - halfH;
+    const maxY = vp.centerY + halfH;
+    const ids: string[] = [];
+    for (const f of Object.values(docFeatures)) {
+      if (f.hidden) continue;
+      const bb = featureBounds(f);
+      if (!Number.isFinite(bb.minX)) continue;
+      // AABB-overlap test: feature is "in viewport" when its
+      // bbox intersects the visible rect.
+      if (bb.maxX < minX || bb.minX > maxX) continue;
+      if (bb.maxY < minY || bb.minY > maxY) continue;
+      ids.push(f.id);
+    }
+    applyHelper(ids, alt);
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-700 rounded p-1.5 mb-1.5 space-y-1.5">
+      <div className="flex items-center gap-1 text-[10px] text-gray-500 uppercase tracking-wider font-semibold">
+        Quick {subtractMode ? 'remove' : 'add'}
+        <span className="text-gray-600 normal-case font-normal tracking-normal text-[9px]">
+          (toggle mode, or Alt-click a button)
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {/* Subtract-mode toggle. Dropdowns can't read the Alt
+            key reliably on change (the native event doesn't
+            carry modifier state), so we expose a sticky
+            toggle: when ON, every helper subtracts from the
+            picked set instead of adding. Sits in the helper
+            row so it's adjacent to the actions it modifies. */}
+        <button
+          type="button"
+          onClick={() => setSubtractMode((m) => !m)}
+          className={`px-2 h-6 text-[11px] rounded border transition-colors ${
+            subtractMode
+              ? 'bg-red-900/40 border-red-800/60 text-red-300'
+              : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-gray-200'
+          }`}
+          title="When on, helpers below SUBTRACT from the picked set instead of adding. Buttons also honour Alt-click as a one-shot subtract."
+        >
+          {subtractMode ? 'Mode: subtract −' : 'Mode: add +'}
+        </button>
+
+        {/* By layer — dropdown so the surveyor doesn't see a
+            10-button row for a 10-layer drawing. */}
+        <select
+          className="bg-gray-700 text-gray-200 text-[11px] px-1.5 h-6 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+          defaultValue=""
+          onChange={(e) => {
+            const lid = e.target.value;
+            if (!lid) return;
+            helperByLayer(lid, subtractMode);
+            e.target.value = '';
+          }}
+        >
+          <option value="">By layer ▾</option>
+          {layerOrder.map((lid) => {
+            const lyr = layers[lid];
+            if (!lyr) return null;
+            return <option key={lid} value={lid}>{lyr.name}</option>;
+          })}
+        </select>
+
+        {/* By feature type — fixed list. */}
+        <select
+          className="bg-gray-700 text-gray-200 text-[11px] px-1.5 h-6 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+          defaultValue=""
+          onChange={(e) => {
+            const t = e.target.value;
+            if (!t) return;
+            helperByType(t, subtractMode);
+            e.target.value = '';
+          }}
+        >
+          <option value="">By type ▾</option>
+          {['POINT', 'LINE', 'POLYLINE', 'POLYGON', 'CIRCLE', 'ELLIPSE', 'ARC', 'SPLINE', 'TEXT'].map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+
+        {/* In viewport — single button. Honors both the
+            subtract mode toggle and a one-shot Alt-click. */}
+        <button
+          type="button"
+          onClick={(e) => helperInViewport(subtractMode || e.altKey)}
+          className="px-2 h-6 text-[11px] rounded border bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600 hover:text-white transition-colors"
+          title="Add every visible feature inside the current screen extents. Hold Alt (or toggle subtract mode) to remove instead."
+        >
+          In viewport
+        </button>
+      </div>
+      <div className="flex items-center gap-1">
+        <input
+          type="text"
+          value={byCode}
+          onChange={(e) => setByCode(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              helperByCode(byCode, subtractMode || e.altKey);
+              setByCode('');
+            }
+          }}
+          placeholder="By code… (e.g. IRS, BC, MON)"
+          className="flex-1 bg-gray-700 text-gray-200 text-[11px] px-2 h-6 rounded border border-gray-600 focus:outline-none focus:border-blue-500 font-mono"
+        />
+        <button
+          type="button"
+          onClick={(e) => { helperByCode(byCode, subtractMode || e.altKey); setByCode(''); }}
+          disabled={!byCode.trim()}
+          className="px-2 h-6 text-[11px] rounded border bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Add
+        </button>
+      </div>
+    </div>
   );
 }
