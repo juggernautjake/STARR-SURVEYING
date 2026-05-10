@@ -2953,6 +2953,156 @@ export function duplicateSelection(offsetX = 10, offsetY = -10): void {
   );
 }
 
+// ─────────────────────────────────────────────
+// Phase 8 §11.7 — cross-layer transfer kernel
+// ─────────────────────────────────────────────
+
+export interface TransferToLayerOptions {
+  /** When true (Duplicate), originals stay untouched and copies
+   *  are stamped onto the target. When false (Move), originals
+   *  are reassigned to the target layer in-place. */
+  keepOriginals: boolean;
+  /** When true the duplicates carry the same point numbers as
+   *  their sources; when a number is given, point numbers are
+   *  reassigned starting from that seed. null = preserve. */
+  renumberStart: number | null;
+  /** Drop the `code` property on duplicates whose code isn't
+   *  in the target layer's autoAssignCodes. Geometry is
+   *  preserved. */
+  stripUnknownCodes: boolean;
+  /** Optional: append duplicated POINTs to this traverse. */
+  targetTraverseId: string | null;
+  /** Stamp on every duplicate so a future audit can group
+   *  features that came from the same operation. */
+  transferOperationId: string;
+}
+
+export interface TransferResult {
+  /** Number of features that landed on the target layer. */
+  written: number;
+  /** Number of source features removed (only > 0 for Move). */
+  removed: number;
+  /** Ids of the resulting features (the duplicates for Duplicate;
+   *  the same source ids for Move). */
+  resultIds: string[];
+}
+
+/**
+ * Send a set of features to a target layer. Used by the
+ * LayerTransferDialog's Confirm button.
+ *
+ * Slice 1+2 implementation: handles the core
+ * Duplicate / Move semantics, optional renumber, optional
+ * code-strip. Multi-target paste, bring-along-linked-geometry,
+ * offset, and linked-instance flags land in later slices.
+ */
+export function transferSelectionToLayer(
+  selectionIds: ReadonlyArray<string>,
+  targetLayerId: string,
+  opts: TransferToLayerOptions,
+): TransferResult {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+
+  if (selectionIds.length === 0) {
+    return { written: 0, removed: 0, resultIds: [] };
+  }
+  const targetLayer = drawingStore.document.layers[targetLayerId];
+  if (!targetLayer) {
+    return { written: 0, removed: 0, resultIds: [] };
+  }
+  if (targetLayer.locked) {
+    return { written: 0, removed: 0, resultIds: [] };
+  }
+
+  // Resolve the source features once (also lets us skip ids
+  // that were deleted between the dialog opening and Confirm).
+  const sourceFeatures: Feature[] = [];
+  for (const id of selectionIds) {
+    const f = drawingStore.getFeature(id);
+    if (f) sourceFeatures.push(f);
+  }
+  if (sourceFeatures.length === 0) {
+    return { written: 0, removed: 0, resultIds: [] };
+  }
+
+  const allowList = (targetLayer.autoAssignCodes ?? []).map((c) => c.toUpperCase());
+  const codeAllowed = (rawCode: unknown): boolean => {
+    if (allowList.length === 0) return true; // layer with no allow-list = anything goes
+    const s = typeof rawCode === 'string' ? rawCode.toUpperCase() : '';
+    if (!s) return true;
+    return allowList.includes(s);
+  };
+
+  // ── DUPLICATE path ────────────────────────────────────────
+  if (opts.keepOriginals) {
+    let nextPointNo = opts.renumberStart;
+    const newFeatures: Feature[] = [];
+    for (const src of sourceFeatures) {
+      const clone: Feature = JSON.parse(JSON.stringify(src));
+      clone.id = generateId();
+      clone.layerId = targetLayerId;
+      clone.properties = { ...clone.properties };
+      // Audit stamps so the LIST tool / history can trace
+      // every duplicate back to its source + transfer op.
+      clone.properties.duplicatedFrom = src.id;
+      clone.properties.duplicatedAt = new Date().toISOString();
+      clone.properties.transferOperationId = opts.transferOperationId;
+
+      // Optional code strip when target layer's allow-list
+      // doesn't accept this code.
+      if (opts.stripUnknownCodes && !codeAllowed(clone.properties.code)) {
+        delete clone.properties.code;
+      }
+
+      // Optional renumber for POINTs.
+      if (nextPointNo != null && clone.geometry.type === 'POINT') {
+        clone.properties.pointNo = nextPointNo;
+        nextPointNo += 1;
+      }
+
+      newFeatures.push(clone);
+    }
+    drawingStore.addFeatures(newFeatures);
+    const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
+    undoStore.pushUndo(makeBatchEntry(`Duplicate to ${targetLayer.name}`, ops));
+    selectionStore.selectMultiple(newFeatures.map((f) => f.id), 'REPLACE');
+
+    // Optional traverse append — stub for now; full traverse
+    // wiring lands in Slice 5 of the §11.7 plan.
+    void opts.targetTraverseId;
+
+    return { written: newFeatures.length, removed: 0, resultIds: newFeatures.map((f) => f.id) };
+  }
+
+  // ── MOVE path ─────────────────────────────────────────────
+  // Reassign each source's layerId. We don't change feature
+  // ids so existing references (annotations, traverses) remain
+  // valid. The undo entry captures the before/after pair.
+  const ops: Array<{ type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }> = [];
+  const resultIds: string[] = [];
+  for (const src of sourceFeatures) {
+    const before = src;
+    const after: Feature = JSON.parse(JSON.stringify(src));
+    after.layerId = targetLayerId;
+    after.properties = { ...after.properties };
+    after.properties.movedFromLayerId = src.layerId;
+    after.properties.movedAt = new Date().toISOString();
+    after.properties.transferOperationId = opts.transferOperationId;
+    if (opts.stripUnknownCodes && !codeAllowed(after.properties.code)) {
+      delete after.properties.code;
+    }
+    drawingStore.updateFeature(src.id, { layerId: after.layerId, properties: after.properties });
+    ops.push({ type: 'MODIFY_FEATURE', data: { id: src.id, before, after } });
+    resultIds.push(src.id);
+  }
+  undoStore.pushUndo(makeBatchEntry(`Move to ${targetLayer.name}`, ops));
+  selectionStore.selectMultiple(resultIds, 'REPLACE');
+
+  return { written: resultIds.length, removed: 0, resultIds };
+}
+
 export function copyCadSelection(): void {
   const selectionStore = useSelectionStore.getState();
   const drawingStore = useDrawingStore.getState();

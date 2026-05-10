@@ -339,6 +339,9 @@ export function dispatchDefaultAction(action: BindableAction): void {
     case 'view.shortcutHelp':
       window.dispatchEvent(new CustomEvent('cad:openShortcutHelp'));
       return;
+    case 'edit.sendToLayer':
+      window.dispatchEvent(new CustomEvent('cad:openLayerTransfer'));
+      return;
 
     case 'view.stats': {
       // Drawing stats — feature count by type, total polygon

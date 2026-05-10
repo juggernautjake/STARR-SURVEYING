@@ -411,6 +411,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         }},
         { label: 'Deselect All', shortcut: 'Esc', action: () => selectionStore.deselectAll() },
         { separator: true },
+        { label: 'Send to Layer…', shortcut: 'Ctrl+Shift+L', action: () => {
+          window.dispatchEvent(new CustomEvent('cad:openLayerTransfer'));
+          setOpenMenu(null);
+        }},
+        { separator: true },
         // ── Line-editing operations on the single-feature
         // selection. Disabled when zero / multiple features are
         // selected, or the single feature isn't a vertex chain.

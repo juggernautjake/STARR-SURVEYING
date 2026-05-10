@@ -29,6 +29,7 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'edit.selectAll',    category: 'EDIT',       label: 'Select All',           description: 'Select all visible features',                 defaultKey: 'ctrl+a',       isChord: false, context: 'CANVAS' },
   { id: 'edit.deselect',     category: 'SELECTION',  label: 'Deselect All',         description: 'Clear the current selection',                 defaultKey: 'escape',       isChord: false, context: 'CANVAS' },
   { id: 'edit.delete',       category: 'EDIT',       label: 'Delete Selected',      description: 'Delete selected features',                    defaultKey: 'delete',       isChord: false, context: 'CANVAS' },
+  { id: 'edit.sendToLayer',  category: 'EDIT',       label: 'Send to Layer…',       description: 'Open the cross-layer copy / move / duplicate dialog with the active selection pre-loaded', defaultKey: 'ctrl+shift+l', isChord: false, context: 'CANVAS' },
 
   // Tools
   { id: 'tool.select',       category: 'TOOLS',      label: 'Select Tool',          description: 'Activate the selection tool',                 defaultKey: 's',            isChord: false, context: 'CANVAS' },

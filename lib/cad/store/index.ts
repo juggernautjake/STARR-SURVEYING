@@ -19,3 +19,5 @@ export { useReviewWorkflowStore } from './review-workflow-store';
 export { useDeliveryStore } from './delivery-store';
 export { useDrawingChatStore } from './drawing-chat-store';
 export { useHotkeysStore } from './hotkeys-store';
+export { useTransferStore } from './transfer-store';
+export type { TransferOperation, TransferOptions } from './transfer-store';

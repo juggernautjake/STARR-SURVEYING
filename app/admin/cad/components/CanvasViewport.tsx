@@ -13,6 +13,7 @@ import {
   useUndoStore,
   useUIStore,
   useAIStore,
+  useTransferStore,
   makeAddFeatureEntry,
   makeRemoveFeatureEntry,
   makeBatchEntry,
@@ -3087,6 +3088,56 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // rectangle around the cached bbox; sits on top of every
     // selection mark so it stays visible.
     drawSidebarHoverRing(g);
+
+    // Phase 8 §11.7 — blue glow around features picked in
+    // the LayerTransferDialog's Pick mode. Two-layer ring so
+    // it reads against any layer color: outer 4 px halo at
+    // 25% alpha, inner 2 px line at 80% alpha. Hovered-but-
+    // not-yet-picked candidate also gets a thin preview ring
+    // (50% alpha) so the surveyor sees what would land on
+    // click before they commit.
+    const transferState = useTransferStore.getState();
+    if (transferState.isOpen && transferState.pickedIds.size > 0) {
+      const PICK_COLOR = 0x3b82f6; // blue-500
+      for (const fid of transferState.pickedIds) {
+        const feat = drawingStore.getFeature(fid);
+        if (!feat) continue;
+        const bb = featureBounds(feat);
+        if (!Number.isFinite(bb.minX)) continue;
+        const a = w2s(bb.minX, bb.minY);
+        const b = w2s(bb.maxX, bb.maxY);
+        const x = Math.min(a.sx, b.sx) - 6;
+        const y = Math.min(a.sy, b.sy) - 6;
+        const w = Math.abs(b.sx - a.sx) + 12;
+        const h = Math.abs(b.sy - a.sy) + 12;
+        g.lineStyle(4, PICK_COLOR, 0.25);
+        g.drawRoundedRect(x - 2, y - 2, w + 4, h + 4, 4);
+        g.lineStyle(2, PICK_COLOR, 0.8);
+        g.drawRoundedRect(x, y, w, h, 4);
+      }
+    }
+    // Pick-mode hover preview — thin ring on the candidate
+    // before the surveyor clicks. Reuses the same blue but
+    // half-opacity so it reads as "if you click, this lands."
+    if (transferState.isOpen && transferState.pickModeActive) {
+      const hoveredId = hoveredIdRef.current;
+      if (hoveredId && !transferState.pickedIds.has(hoveredId)) {
+        const feat = drawingStore.getFeature(hoveredId);
+        if (feat) {
+          const bb = featureBounds(feat);
+          if (Number.isFinite(bb.minX)) {
+            const a = w2s(bb.minX, bb.minY);
+            const b = w2s(bb.maxX, bb.maxY);
+            const x = Math.min(a.sx, b.sx) - 6;
+            const y = Math.min(a.sy, b.sy) - 6;
+            const w = Math.abs(b.sx - a.sx) + 12;
+            const h = Math.abs(b.sy - a.sy) + 12;
+            g.lineStyle(2, 0x3b82f6, 0.5);
+            g.drawRoundedRect(x, y, w, h, 4);
+          }
+        }
+      }
+    }
   }
 
   function drawSidebarHoverRing(g: import('pixi.js').Graphics): void {
@@ -7114,6 +7165,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           gripStartRef.current = drawingStore.getFeature(grip.featureId) ?? null;
           return;
         }
+      }
+
+      // Phase 8 §11.7 — Pick mode intercept. When the
+      // LayerTransferDialog is in Pick mode, canvas clicks
+      // toggle features in / out of the dialog's source set
+      // instead of going to the active tool. Alt-click also
+      // removes (matches the spec's deselect paths).
+      const tx = useTransferStore.getState();
+      if (tx.pickModeActive) {
+        const hit = hitTest(sx, sy);
+        if (!hit) return;
+        if (e.altKey) {
+          tx.removePick(hit);
+        } else {
+          tx.togglePick(hit);
+        }
+        // Don't fall through to the active tool — Pick mode
+        // owns the click while it's on.
+        return;
       }
 
       switch (activeTool) {

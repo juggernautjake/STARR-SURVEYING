@@ -16,6 +16,7 @@ import ConfirmDialog from './components/ConfirmDialog';
 import KeyboardShortcutOverlay from './components/KeyboardShortcutOverlay';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
+import LayerTransferDialog from './components/LayerTransferDialog';
 import ImportDialog from './components/ImportDialog';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
@@ -53,6 +54,7 @@ import {
   useDeliveryStore,
   useDrawingChatStore,
   useReviewWorkflowStore,
+  useTransferStore,
 } from '@/lib/cad/store';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
@@ -242,6 +244,19 @@ export default function CADLayout() {
     const handler = () => setShowSettings(true);
     window.addEventListener('cad:openSettings', handler);
     return () => window.removeEventListener('cad:openSettings', handler);
+  }, []);
+
+  // Listen for layer-transfer open event (Ctrl+Shift+L hotkey,
+  // MenuBar entry, right-click context menu).
+  useEffect(() => {
+    const handler = () => {
+      // Pre-load the active selection so right-click on a
+      // selection lands the right features in the dialog.
+      const ids = Array.from(useSelectionStore.getState().selectedIds);
+      useTransferStore.getState().open(ids);
+    };
+    window.addEventListener('cad:openLayerTransfer', handler);
+    return () => window.removeEventListener('cad:openLayerTransfer', handler);
   }, []);
 
   // Listen for new drawing dialog event (dispatched by MenuBar "New Drawing")
@@ -742,6 +757,10 @@ export default function CADLayout() {
       {/* Settings dialog */}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
 
+      {/* Cross-layer copy / move / duplicate dialog (Phase 8 §11.7) */}
+      <LayerTransferGate />
+
+
       {/* Curve Calculator dialog */}
       {showCurveCalculator && <CurveCalculator onClose={() => setShowCurveCalculator(false)} />}
 
@@ -874,4 +893,15 @@ export default function CADLayout() {
     </div>
     </TooltipProvider>
   );
+}
+
+// Subscribes to useTransferStore.isOpen so the dialog only
+// mounts when actually needed. Keeps the parent component
+// lean — useTransferStore changes don't ripple through every
+// other panel.
+function LayerTransferGate() {
+  const isOpen = useTransferStore((s) => s.isOpen);
+  const close = useTransferStore((s) => s.close);
+  if (!isOpen) return null;
+  return <LayerTransferDialog onClose={close} />;
 }

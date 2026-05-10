@@ -1,0 +1,385 @@
+'use client';
+// app/admin/cad/components/LayerTransferDialog.tsx
+//
+// Phase 8 §11.7 — cross-layer copy / move / duplicate dialog.
+// Slice 1+2 implementation: source set comes from either
+// `useSelectionStore` (initial) or live click-to-pick on the
+// canvas (Pick mode), destination is a single target layer,
+// confirm calls `transferSelectionToLayer`.
+//
+// Future slices add: type-IDs source mode, traverse routing,
+// offset, renumber, code-remap, multi-target paste,
+// transfer presets, selection blocks.
+
+import { useEffect, useMemo, useRef } from 'react';
+import { X, Layers, MousePointerClick, ListChecks, Trash2 } from 'lucide-react';
+import {
+  useDrawingStore,
+  useSelectionStore,
+  useTransferStore,
+} from '@/lib/cad/store';
+import { transferSelectionToLayer } from '@/lib/cad/operations';
+import { generateId } from '@/lib/cad/types';
+import Tooltip from './Tooltip';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
+
+interface Props {
+  onClose: () => void;
+}
+
+export default function LayerTransferDialog({ onClose }: Props) {
+  useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
+
+  const drawingStore = useDrawingStore();
+  const layers = drawingStore.document.layers;
+  const layerOrder = drawingStore.document.layerOrder;
+
+  const pickedIds = useTransferStore((s) => s.pickedIds);
+  const pickModeActive = useTransferStore((s) => s.pickModeActive);
+  const options = useTransferStore((s) => s.options);
+  const setOptions = useTransferStore((s) => s.setOptions);
+  const setPickModeActive = useTransferStore((s) => s.setPickModeActive);
+  const clearPicks = useTransferStore((s) => s.clearPicks);
+  const removePick = useTransferStore((s) => s.removePick);
+
+  // Default the layer dropdown to the active layer (skip the
+  // source layer when every picked feature shares one) so
+  // common workflows are one-click.
+  useEffect(() => {
+    if (options.targetLayerId) return;
+    const active = drawingStore.activeLayerId;
+    // If every picked feature lives on the same layer, prefer
+    // a different one as the default (so the surveyor isn't
+    // duplicating onto the same layer unintentionally).
+    const firstId = pickedIds.size > 0 ? Array.from(pickedIds)[0] : null;
+    const firstFeat = firstId ? drawingStore.getFeature(firstId) : null;
+    const sourceLayerId = firstFeat?.layerId ?? null;
+    let allSameLayer = true;
+    for (const id of pickedIds) {
+      const f = drawingStore.getFeature(id);
+      if (!f || f.layerId !== sourceLayerId) { allSameLayer = false; break; }
+    }
+    let targetLayerId = active;
+    if (allSameLayer && sourceLayerId === active) {
+      // Pick the next layer in order that isn't this one.
+      targetLayerId = layerOrder.find((id) => id !== sourceLayerId) ?? active;
+    }
+    setOptions({ targetLayerId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep keepOriginals in sync with operation.
+  useEffect(() => {
+    if (options.operation === 'DUPLICATE') {
+      if (!options.keepOriginals) setOptions({ keepOriginals: true });
+    } else if (options.operation === 'MOVE') {
+      if (options.keepOriginals) setOptions({ keepOriginals: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options.operation]);
+
+  // Pick-mode keyboard shortcuts. Active only while Pick mode
+  // is on so the dialog's Esc-to-close path stays untouched
+  // (Esc here just leaves Pick mode; closing the dialog is
+  // a separate action via Cancel or X).
+  useEffect(() => {
+    if (!pickModeActive) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        // Capture before useEscapeToClose so we leave Pick
+        // mode without closing the whole dialog.
+        event.preventDefault();
+        event.stopPropagation();
+        setPickModeActive(false);
+        return;
+      }
+      if (event.key === 'Backspace') {
+        event.preventDefault();
+        if (event.ctrlKey || event.metaKey) {
+          useTransferStore.getState().clearPicks();
+        } else {
+          useTransferStore.getState().popLastPick();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [pickModeActive, setPickModeActive]);
+
+  // Tally picked features by type so the surveyor sees what's
+  // actually queued without scrolling the source list.
+  const pickStats = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const id of pickedIds) {
+      const f = drawingStore.getFeature(id);
+      if (!f) continue;
+      counts[f.type] = (counts[f.type] ?? 0) + 1;
+    }
+    return counts;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickedIds]);
+
+  // Conflict pre-pass — Slice 1 covers the two highest-impact
+  // ones (locked target, codes outside autoAssignCodes).
+  const targetLayer = options.targetLayerId ? layers[options.targetLayerId] : null;
+  const targetLocked = targetLayer?.locked === true;
+  const codeConflicts = useMemo(() => {
+    if (!targetLayer) return new Set<string>();
+    const allow = (targetLayer.autoAssignCodes ?? []).map((c) => c.toUpperCase());
+    if (allow.length === 0) return new Set<string>();
+    const out = new Set<string>();
+    for (const id of pickedIds) {
+      const f = drawingStore.getFeature(id);
+      if (!f) continue;
+      const code = typeof f.properties.code === 'string' ? f.properties.code.toUpperCase() : '';
+      if (code && !allow.includes(code)) out.add(code);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetLayer, pickedIds]);
+
+  const sourceCount = pickedIds.size;
+  const canConfirm =
+    sourceCount > 0 &&
+    targetLayer != null &&
+    !targetLocked;
+
+  function commit() {
+    if (!canConfirm || !targetLayer) return;
+    const result = transferSelectionToLayer(
+      Array.from(pickedIds),
+      targetLayer.id,
+      {
+        keepOriginals: options.keepOriginals,
+        renumberStart: options.renumberStart,
+        stripUnknownCodes: options.stripUnknownCodes,
+        targetTraverseId: options.targetTraverseId,
+        transferOperationId: generateId(),
+      },
+    );
+    if (result.written > 0 || result.removed > 0) {
+      const verb = options.operation === 'MOVE' ? 'moved' : 'duplicated';
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: `${result.written} feature${result.written === 1 ? '' : 's'} ${verb} to ${targetLayer.name}.` },
+      }));
+    }
+    onClose();
+  }
+
+  return (
+    <div
+      ref={dialogRef}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-end sm:justify-center pointer-events-none"
+    >
+      {/* Floating panel — non-modal so the surveyor can pan /
+          zoom / pick on the canvas while it stays open. */}
+      <div
+        className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[440px] m-4 text-sm text-gray-200 overflow-hidden pointer-events-auto animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-600 bg-gray-750">
+          <div className="flex items-center gap-2">
+            <Layers size={16} className="text-blue-400" />
+            <h2 className="font-semibold text-white">Send to Layer</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-4 space-y-4">
+          {/* Operation picker */}
+          <div>
+            <label className="block text-[11px] text-gray-400 mb-1">Operation</label>
+            <div className="grid grid-cols-3 gap-1">
+              {(['DUPLICATE', 'MOVE', 'COPY_TO_CLIPBOARD'] as const).map((op) => (
+                <button
+                  key={op}
+                  onClick={() => setOptions({ operation: op })}
+                  className={`px-2 py-1.5 text-xs rounded border transition-colors ${
+                    options.operation === op
+                      ? 'bg-blue-600 border-blue-500 text-white'
+                      : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white'
+                  }`}
+                >
+                  {op === 'DUPLICATE' ? 'Duplicate' : op === 'MOVE' ? 'Move' : 'Copy'}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-gray-500 mt-1">
+              {options.operation === 'DUPLICATE' && 'Originals stay; copies land on the target.'}
+              {options.operation === 'MOVE' && 'Originals are reassigned to the target layer.'}
+              {options.operation === 'COPY_TO_CLIPBOARD' && 'Hold for paste in another drawing — no immediate write.'}
+            </p>
+          </div>
+
+          {/* Source */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] text-gray-400">Source</label>
+              <Tooltip
+                label="Pick mode"
+                description="Click features on the canvas to add to the source set. Click a glowing feature again (or Alt+click) to remove. Backspace pops the most recent pick."
+                side="left"
+                delay={400}
+              >
+                <button
+                  onClick={() => setPickModeActive(!pickModeActive)}
+                  className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded border transition-colors ${
+                    pickModeActive
+                      ? 'bg-blue-600 border-blue-500 text-white shadow-[0_0_0_2px_rgba(59,130,246,0.3)]'
+                      : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white'
+                  }`}
+                >
+                  <MousePointerClick size={12} />
+                  {pickModeActive ? 'Pick mode ON' : 'Pick on canvas'}
+                </button>
+              </Tooltip>
+            </div>
+
+            <div className="bg-gray-900 border border-gray-700 rounded p-2 max-h-[160px] overflow-y-auto">
+              {sourceCount === 0 ? (
+                <p className="text-[11px] text-gray-500 text-center py-3">
+                  {pickModeActive
+                    ? 'Click features on the canvas to add them.'
+                    : 'No features picked. Toggle Pick on canvas, or use the active selection.'}
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center gap-1 flex-wrap mb-2">
+                    <span className="text-[10px] text-gray-400 uppercase tracking-wider">{sourceCount} picked:</span>
+                    {Object.entries(pickStats).map(([type, n]) => (
+                      <span key={type} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-300">
+                        {n} {type}
+                      </span>
+                    ))}
+                  </div>
+                  <ul className="space-y-0.5">
+                    {Array.from(pickedIds).slice(0, 12).map((id) => {
+                      const f = drawingStore.getFeature(id);
+                      const layer = f ? layers[f.layerId] : null;
+                      return (
+                        <li key={id} className="flex items-center justify-between gap-2 group">
+                          <span className="text-[11px] text-gray-300 truncate min-w-0">
+                            <span className="font-mono text-gray-500">#{id.slice(0, 6)}</span>
+                            <span className="ml-1.5">{f?.type ?? '—'}</span>
+                            {layer && <span className="ml-1.5 text-gray-500">on {layer.name}</span>}
+                          </span>
+                          <button
+                            onClick={() => removePick(id)}
+                            className="text-gray-500 hover:text-red-400 opacity-50 group-hover:opacity-100 transition-opacity"
+                            title="Remove from selection"
+                            aria-label={`Remove ${id.slice(0, 6)} from selection`}
+                          >
+                            <X size={11} />
+                          </button>
+                        </li>
+                      );
+                    })}
+                    {sourceCount > 12 && (
+                      <li className="text-[10px] text-gray-500 italic px-1">
+                        … and {sourceCount - 12} more
+                      </li>
+                    )}
+                  </ul>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between mt-1.5 text-[10px]">
+              <button
+                onClick={() => {
+                  const ids = Array.from(useSelectionStore.getState().selectedIds);
+                  if (ids.length > 0) useTransferStore.getState().addPicks(ids);
+                }}
+                className="flex items-center gap-1 text-gray-400 hover:text-blue-400 transition-colors"
+              >
+                <ListChecks size={11} />
+                Add active selection
+              </button>
+              {sourceCount > 0 && (
+                <button
+                  onClick={clearPicks}
+                  className="flex items-center gap-1 text-gray-500 hover:text-red-400 transition-colors"
+                >
+                  <Trash2 size={11} />
+                  Clear all
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Destination */}
+          {options.operation !== 'COPY_TO_CLIPBOARD' && (
+            <div>
+              <label className="block text-[11px] text-gray-400 mb-1">Target layer</label>
+              <select
+                value={options.targetLayerId ?? ''}
+                onChange={(e) => setOptions({ targetLayerId: e.target.value || null })}
+                className="w-full bg-gray-700 text-white text-xs px-2 py-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+              >
+                <option value="">— select a layer —</option>
+                {layerOrder.map((lid) => {
+                  const lyr = layers[lid];
+                  if (!lyr) return null;
+                  return (
+                    <option key={lid} value={lid}>
+                      {lyr.name}{lyr.locked ? ' (🔒 locked)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+              {targetLocked && (
+                <p className="text-[10px] text-amber-400 mt-1">
+                  Target layer is locked — unlock it from the Layers panel before confirming.
+                </p>
+              )}
+              {codeConflicts.size > 0 && (
+                <p className="text-[10px] text-amber-400 mt-1">
+                  {codeConflicts.size} code{codeConflicts.size === 1 ? '' : 's'} not in the target layer&apos;s allow-list:
+                  <span className="ml-1 font-mono text-gray-300">{Array.from(codeConflicts).slice(0, 5).join(', ')}</span>
+                  <label className="ml-2 inline-flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={options.stripUnknownCodes}
+                      onChange={(e) => setOptions({ stripUnknownCodes: e.target.checked })}
+                      className="rounded"
+                    />
+                    Strip those codes
+                  </label>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-600 bg-gray-900/40">
+          <span className="text-[10px] text-gray-500">
+            {pickModeActive ? 'Click features to add. Esc leaves Pick mode.' : 'Slice 1 — multi-target paste, traverse routing, presets land later.'}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-white border border-gray-600 rounded transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={commit}
+              disabled={!canConfirm}
+              className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded transition-colors"
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
