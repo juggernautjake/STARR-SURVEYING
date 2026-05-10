@@ -2973,6 +2973,13 @@ export interface TransferToLayerOptions {
   stripUnknownCodes: boolean;
   /** Optional: append duplicated POINTs to this traverse. */
   targetTraverseId: string | null;
+  /** Optional translation applied to every duplicate (Duplicate
+   *  only — Move never repositions). distanceFt is canonical
+   *  feet; bearingDeg is decimal-degree azimuth (0 = North,
+   *  clockwise, matching the rest of the survey math). When
+   *  distance is 0 the offset is a no-op even if bearing is
+   *  set. */
+  offset?: { distanceFt: number; bearingDeg: number } | null;
   /** Stamp on every duplicate so a future audit can group
    *  features that came from the same operation. */
   transferOperationId: string;
@@ -3038,6 +3045,43 @@ export function transferSelectionToLayer(
 
   // ── DUPLICATE path ────────────────────────────────────────
   if (opts.keepOriginals) {
+    // Resolve the optional offset into a (dx, dy) translation
+    // in canonical world feet. Survey azimuth has 0 at North
+    // and grows clockwise, so:
+    //   dx (easting)  = distance * sin(azimuth)
+    //   dy (northing) = distance * cos(azimuth)
+    let dx = 0;
+    let dy = 0;
+    if (opts.offset && opts.offset.distanceFt > 0) {
+      const az = (opts.offset.bearingDeg * Math.PI) / 180;
+      dx = opts.offset.distanceFt * Math.sin(az);
+      dy = opts.offset.distanceFt * Math.cos(az);
+    }
+    const translatePt = (p: Point2D): Point2D =>
+      dx === 0 && dy === 0 ? { ...p } : { x: p.x + dx, y: p.y + dy };
+    const translateFeatureGeom = (clone: Feature): void => {
+      if (dx === 0 && dy === 0) return;
+      const g = clone.geometry;
+      if (g.type === 'POINT' && g.point) g.point = translatePt(g.point);
+      else if (g.type === 'LINE') {
+        if (g.start) g.start = translatePt(g.start);
+        if (g.end)   g.end   = translatePt(g.end);
+      } else if (g.type === 'CIRCLE' && g.circle) {
+        g.circle = { ...g.circle, center: translatePt(g.circle.center) };
+      } else if (g.type === 'ARC' && g.arc) {
+        g.arc = { ...g.arc, center: translatePt(g.arc.center) };
+      } else if (g.type === 'ELLIPSE' && g.ellipse) {
+        g.ellipse = { ...g.ellipse, center: translatePt(g.ellipse.center) };
+      } else if (g.type === 'SPLINE' && g.spline) {
+        g.spline = { ...g.spline, controlPoints: g.spline.controlPoints.map(translatePt) };
+      } else if (g.type === 'TEXT' && g.point) {
+        g.point = translatePt(g.point);
+      } else if (g.type === 'IMAGE' && g.image) {
+        g.image = { ...g.image, position: translatePt(g.image.position) };
+      } else if (g.vertices) {
+        g.vertices = g.vertices.map(translatePt);
+      }
+    };
     let nextPointNo = opts.renumberStart;
     const newFeatures: Feature[] = [];
     for (const src of sourceFeatures) {
@@ -3062,6 +3106,10 @@ export function transferSelectionToLayer(
         clone.properties.pointNo = nextPointNo;
         nextPointNo += 1;
       }
+
+      // Apply translation last so audit stamps record the
+      // pre-offset source id.
+      translateFeatureGeom(clone);
 
       newFeatures.push(clone);
     }

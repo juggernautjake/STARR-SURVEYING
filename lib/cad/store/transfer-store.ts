@@ -36,6 +36,16 @@ export interface TransferOptions {
   stripUnknownCodes: boolean;
   /** Auto-include polylines / polygons / arcs whose vertices include any of the picked POINTs. */
   bringAlongLinkedGeometry: boolean;
+  /** Optional translation applied to every duplicate. Distance
+   *  in canonical feet; bearing in decimal-degree azimuth
+   *  (0 = North, clockwise). When distance is 0 or null the
+   *  duplicates land on top of the originals. */
+  offsetDistanceFt: number;
+  offsetBearingDeg: number;
+  /** Surveyor toggle — true = applyOffset() runs, false = skip
+   *  even if non-zero values were set. Lets the surveyor keep
+   *  a baseline value typed in but disable it for one transfer. */
+  applyOffset: boolean;
 }
 
 interface TransferStore {
@@ -74,6 +84,9 @@ const DEFAULT_OPTIONS: TransferOptions = {
   renumberStart: null,
   stripUnknownCodes: false,
   bringAlongLinkedGeometry: true,
+  offsetDistanceFt: 0,
+  offsetBearingDeg: 0,
+  applyOffset: false,
 };
 
 export const useTransferStore = create<TransferStore>((set) => ({

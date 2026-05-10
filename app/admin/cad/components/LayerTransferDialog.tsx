@@ -27,6 +27,7 @@ import {
 } from '@/lib/cad/operations/parse-point-range';
 import { generateId } from '@/lib/cad/types';
 import Tooltip from './Tooltip';
+import UnitInput from './UnitInput';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -160,6 +161,13 @@ export default function LayerTransferDialog({ onClose }: Props) {
 
   function commit() {
     if (!canConfirm || !targetLayer) return;
+    // Roll the optional offset into the kernel options when
+    // the surveyor enabled it AND a non-zero distance is set
+    // (lets them keep a baseline value typed in but skip the
+    // translation for one transfer).
+    const offset = options.applyOffset && options.offsetDistanceFt > 0
+      ? { distanceFt: options.offsetDistanceFt, bearingDeg: options.offsetBearingDeg }
+      : null;
     const result = transferSelectionToLayer(
       Array.from(pickedIds),
       targetLayer.id,
@@ -168,6 +176,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
         renumberStart: options.renumberStart,
         stripUnknownCodes: options.stripUnknownCodes,
         targetTraverseId: options.targetTraverseId,
+        offset,
         transferOperationId: generateId(),
       },
     );
@@ -413,6 +422,11 @@ export default function LayerTransferDialog({ onClose }: Props) {
           {options.operation === 'DUPLICATE' && pointPickCount > 0 && (
             <TraverseDestinationField pointPickCount={pointPickCount} />
           )}
+
+          {/* Options block — offset + renumber. Only relevant
+              for Duplicate; surfaced as a collapsible disclosure
+              so the dialog stays compact for the common case. */}
+          {options.operation === 'DUPLICATE' && <OptionsBlock />}
         </div>
 
         {/* Footer */}
@@ -709,5 +723,110 @@ function TraverseDestinationField({ pointPickCount }: { pointPickCount: number }
         </p>
       )}
     </div>
+  );
+}
+
+
+// ─── Options block — apply-offset + renumber-from-N ─────────
+//
+// Surveyors who duplicate a fence-corner detail at a fixed
+// distance or copy a monument cluster onto a new layer with
+// fresh point numbers control both from this collapsible
+// disclosure. Both fields use the §11.5 unit-aware inputs so
+// the surveyor can type "10ft" / "0.5mi" / "N 45-30 E" /
+// "45.3000" without thinking about format.
+
+function OptionsBlock() {
+  const options = useTransferStore((s) => s.options);
+  const setOptions = useTransferStore((s) => s.setOptions);
+  // Local boolean for the renumber checkbox; the kernel sees
+  // null when off and a number when on. Default seed of 1000
+  // matches the spec example.
+  const renumberOn = options.renumberStart != null;
+
+  return (
+    <details className="bg-gray-900 border border-gray-700 rounded">
+      <summary className="px-2 py-1.5 cursor-pointer text-[11px] text-gray-300 hover:text-white select-none">
+        Options
+        {(options.applyOffset || renumberOn) && (
+          <span className="ml-1.5 text-[10px] text-blue-400">
+            ({[options.applyOffset && 'offset', renumberOn && 'renumber'].filter(Boolean).join(', ')})
+          </span>
+        )}
+      </summary>
+      <div className="p-2 pt-0 space-y-2.5 border-t border-gray-700">
+        {/* ── Apply offset ─────────────────────────────────── */}
+        <div>
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={options.applyOffset}
+              onChange={(e) => setOptions({ applyOffset: e.target.checked })}
+              className="rounded"
+            />
+            Apply offset
+          </label>
+          {options.applyOffset && (
+            <div className="mt-1.5 grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] text-gray-500 mb-0.5">Distance</label>
+                <UnitInput
+                  kind="length"
+                  compact
+                  value={options.offsetDistanceFt}
+                  onChange={(v) => setOptions({ offsetDistanceFt: Math.max(0, v) })}
+                  defaultUnit="FT"
+                  inputClassName="w-full h-7 bg-gray-700 text-white text-[11px] rounded px-2 outline-none font-mono border focus:border-blue-500"
+                  description="Translation distance applied to every duplicate. Accepts unit suffixes (10ft / 0.5mi / 12in / 5m)."
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-500 mb-0.5">Bearing</label>
+                <UnitInput
+                  kind="angle"
+                  compact
+                  angleMode="AUTO"
+                  value={options.offsetBearingDeg}
+                  onChange={(v) => setOptions({ offsetBearingDeg: v })}
+                  inputClassName="w-full h-7 bg-gray-700 text-white text-[11px] rounded px-2 outline-none font-mono border focus:border-blue-500"
+                  description={'Translation bearing — accepts decimal degrees (45.5), DMS-packed (45.3000 = 45°30\'00"), DMS markers, hyphen-DMS (45-30-00), or quadrant bearing (N 45-30 E).'}
+                />
+              </div>
+            </div>
+          )}
+          <p className="text-[10px] text-gray-500 mt-1">
+            Translates every duplicate by distance + bearing (azimuth: 0° = North, clockwise).
+          </p>
+        </div>
+
+        {/* ── Renumber duplicates ──────────────────────────── */}
+        <div className="border-t border-gray-700 pt-2">
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={renumberOn}
+              onChange={(e) => setOptions({ renumberStart: e.target.checked ? 1000 : null })}
+              className="rounded"
+            />
+            Renumber duplicated points starting at
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={options.renumberStart ?? 1000}
+              disabled={!renumberOn}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                if (Number.isFinite(v) && v >= 0) setOptions({ renumberStart: v });
+              }}
+              className="w-20 h-6 bg-gray-700 text-white text-[11px] px-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500 font-mono text-center disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+          </label>
+          <p className="text-[10px] text-gray-500 mt-1">
+            When off, duplicates keep their source point numbers (which may collide with existing numbers on the target layer).
+          </p>
+        </div>
+      </div>
+    </details>
   );
 }
