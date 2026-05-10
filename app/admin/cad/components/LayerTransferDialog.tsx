@@ -11,14 +11,19 @@
 // offset, renumber, code-remap, multi-target paste,
 // transfer presets, selection blocks.
 
-import { useEffect, useMemo, useRef } from 'react';
-import { X, Layers, MousePointerClick, ListChecks, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { X, Layers, MousePointerClick, ListChecks, Trash2, Hash, AlertTriangle } from 'lucide-react';
 import {
   useDrawingStore,
   useSelectionStore,
   useTransferStore,
 } from '@/lib/cad/store';
 import { transferSelectionToLayer } from '@/lib/cad/operations';
+import {
+  buildPointNoIndex,
+  parsePointRangeString,
+  type ParsePointRangeResult,
+} from '@/lib/cad/operations/parse-point-range';
 import { generateId } from '@/lib/cad/types';
 import Tooltip from './Tooltip';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
@@ -36,6 +41,10 @@ export default function LayerTransferDialog({ onClose }: Props) {
   const drawingStore = useDrawingStore();
   const layers = drawingStore.document.layers;
   const layerOrder = drawingStore.document.layerOrder;
+  // Source mode — picks vs. type-ids tabs. Local because
+  // switching is purely a UI affordance that preserves the
+  // picked set. Defaults to PICK.
+  const [sourceMode, setSourceMode] = useState<'PICK' | 'TYPE'>('PICK');
 
   const pickedIds = useTransferStore((s) => s.pickedIds);
   const pickModeActive = useTransferStore((s) => s.pickModeActive);
@@ -222,25 +231,62 @@ export default function LayerTransferDialog({ onClose }: Props) {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[11px] text-gray-400">Source</label>
-              <Tooltip
-                label="Pick mode"
-                description="Click features on the canvas to add to the source set. Click a glowing feature again (or Alt+click) to remove. Backspace pops the most recent pick."
-                side="left"
-                delay={400}
-              >
+              {/* Pick / Type-IDs source-mode toggle. Switching
+                  preserves the picked set so surveyors can mix
+                  approaches without losing their work. */}
+              <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setPickModeActive(!pickModeActive)}
+                  onClick={() => { setSourceMode('PICK'); setPickModeActive(false); }}
                   className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded border transition-colors ${
-                    pickModeActive
-                      ? 'bg-blue-600 border-blue-500 text-white shadow-[0_0_0_2px_rgba(59,130,246,0.3)]'
-                      : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white'
+                    sourceMode === 'PICK'
+                      ? 'bg-gray-600 border-gray-500 text-white'
+                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-gray-200'
                   }`}
+                  title="Click features on the canvas to add to the source set"
                 >
                   <MousePointerClick size={12} />
-                  {pickModeActive ? 'Pick mode ON' : 'Pick on canvas'}
+                  Pick
                 </button>
-              </Tooltip>
+                <button
+                  onClick={() => { setSourceMode('TYPE'); setPickModeActive(false); }}
+                  className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded border transition-colors ${
+                    sourceMode === 'TYPE'
+                      ? 'bg-gray-600 border-gray-500 text-white'
+                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-gray-200'
+                  }`}
+                  title="Type or paste point numbers (12, 14-19, 22)"
+                >
+                  <Hash size={12} />
+                  Type IDs
+                </button>
+              </div>
             </div>
+
+            {sourceMode === 'PICK' && (
+              <div className="flex items-center justify-end mb-1">
+                <Tooltip
+                  label="Pick mode"
+                  description="Click features on the canvas to add to the source set. Click a glowing feature again (or Alt+click) to remove. Backspace pops the most recent pick."
+                  side="left"
+                  delay={400}
+                >
+                  <button
+                    onClick={() => setPickModeActive(!pickModeActive)}
+                    className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded border transition-colors ${
+                      pickModeActive
+                        ? 'bg-blue-600 border-blue-500 text-white shadow-[0_0_0_2px_rgba(59,130,246,0.3)]'
+                        : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white'
+                    }`}
+                  >
+                    <MousePointerClick size={12} />
+                    {pickModeActive ? 'Pick mode ON' : 'Pick on canvas'}
+                  </button>
+                </Tooltip>
+              </div>
+            )}
+
+            {sourceMode === 'TYPE' && <TypeIdsField />}
+
 
             <div className="bg-gray-900 border border-gray-700 rounded p-2 max-h-[160px] overflow-y-auto">
               {sourceCount === 0 ? (
@@ -380,6 +426,155 @@ export default function LayerTransferDialog({ onClose }: Props) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Type-IDs source-mode field ────────────────────────────
+//
+// Surveyor types or pastes a comma / hyphen-range string;
+// every parsed token is rendered as a chip with a colour
+// keyed off its resolution status:
+//
+//   green  — exactly one POINT matches (resolved)
+//   amber  — two-or-more POINTs match (ambiguous, surveyor
+//            picks the right one via a popover)
+//   red    — no POINT matches that number
+//   slate  — token didn't parse as a number / range
+//
+// Pressing Enter (or clicking Add) appends every resolved
+// feature id to the dialog's pickedIds set. Ambiguous tokens
+// are skipped so the surveyor consciously disambiguates.
+
+function TypeIdsField() {
+  const drawingStore = useDrawingStore();
+  const addPicks = useTransferStore((s) => s.addPicks);
+  const addPick = useTransferStore((s) => s.addPick);
+  const [raw, setRaw] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Index built per-render: cheap (single linear pass) and we
+  // need it fresh in case features were added between dialog
+  // opens. For very large drawings (10k+ POINTs) we'd memoise
+  // off `document.features` reference, but skip the
+  // optimisation until the canvas profile shows it.
+  const index = useMemo(
+    () => buildPointNoIndex(Object.values(drawingStore.document.features)),
+    [drawingStore.document.features],
+  );
+
+  const parsed: ParsePointRangeResult | null = useMemo(() => {
+    if (!raw.trim()) return null;
+    return parsePointRangeString(raw, index);
+  }, [raw, index]);
+
+  function commit() {
+    if (!parsed) return;
+    if (parsed.resolvedFeatureIds.length === 0) return;
+    addPicks(parsed.resolvedFeatureIds);
+    setRaw('');
+    inputRef.current?.focus();
+  }
+
+  function pickAmbiguous(featureId: string) {
+    addPick(featureId);
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-1.5">
+        <input
+          ref={inputRef}
+          type="text"
+          value={raw}
+          onChange={(e) => setRaw(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commit();
+            }
+          }}
+          placeholder="e.g. 12, 14-19, 22"
+          className="flex-1 bg-gray-700 text-white text-xs px-2 py-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500 font-mono"
+        />
+        <button
+          onClick={commit}
+          disabled={!parsed || parsed.resolvedFeatureIds.length === 0}
+          className="px-2.5 py-1.5 text-[11px] rounded border bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          title="Add every resolved point to the source set"
+        >
+          Add{parsed && parsed.resolvedFeatureIds.length > 0 ? ` (${parsed.resolvedFeatureIds.length})` : ''}
+        </button>
+      </div>
+      {parsed && (
+        <div className="flex flex-wrap gap-1">
+          {parsed.tokens.map((tok, ti) =>
+            tok.resolutions.map((res, ri) => {
+              const key = `${ti}-${ri}-${res.pointNo}`;
+              if (res.status === 'RESOLVED') {
+                return (
+                  <span
+                    key={key}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-green-900/40 border border-green-800/60 text-green-300 font-mono"
+                    title={`Point #${res.pointNo} → ${res.featureId.slice(0, 8)}`}
+                  >
+                    #{res.pointNo}
+                  </span>
+                );
+              }
+              if (res.status === 'MISSING') {
+                return (
+                  <span
+                    key={key}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-red-900/40 border border-red-800/60 text-red-300 font-mono"
+                    title={`#${res.pointNo} not found in this drawing`}
+                  >
+                    #{res.pointNo} ✕
+                  </span>
+                );
+              }
+              // AMBIGUOUS — render a clickable chip per matching feature.
+              return (
+                <span
+                  key={key}
+                  className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-amber-900/40 border border-amber-800/60 text-amber-300 font-mono"
+                  title={`#${res.pointNo} appears on multiple layers — pick which one to add`}
+                >
+                  <AlertTriangle size={9} />
+                  #{res.pointNo}
+                  {res.featureIds.map((fid) => {
+                    const feat = drawingStore.getFeature(fid);
+                    const layerName = feat ? drawingStore.document.layers[feat.layerId]?.name ?? '?' : '?';
+                    return (
+                      <button
+                        key={fid}
+                        onClick={() => pickAmbiguous(fid)}
+                        className="ml-1 px-1 rounded bg-amber-800/60 text-amber-100 hover:bg-amber-700 transition-colors text-[9px]"
+                        title={`Add the #${res.pointNo} on ${layerName}`}
+                      >
+                        {layerName}
+                      </button>
+                    );
+                  })}
+                </span>
+              );
+            }),
+          )}
+          {parsed.invalidTokens.map((t) => (
+            <span
+              key={`inv-${t}`}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-500 font-mono italic"
+              title="Couldn't parse as a number or range"
+            >
+              {t} ?
+            </span>
+          ))}
+        </div>
+      )}
+      <p className="text-[10px] text-gray-500">
+        Comma + hyphen ranges. <span className="font-mono">12, 14-19, 22</span> resolves to 8 points.
+        Reverse ranges work too. Press <kbd className="font-mono px-1 rounded bg-gray-800 border border-gray-700">Enter</kbd> to add.
+      </p>
     </div>
   );
 }
