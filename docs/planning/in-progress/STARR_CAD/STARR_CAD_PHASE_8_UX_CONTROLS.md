@@ -1676,14 +1676,26 @@ Each numbered region is independently testable:
 
 This is the surveyor-friendly default. While the dialog has the "Pick mode" toggle on:
 
+**Adding to the selection:**
 - Every hover on the canvas paints a **blue outline glow** on the candidate feature (3 px ring, 50% opacity, blue accent colour). Same effect already used by the §29 confidence-card hover.
 - A click **adds** the feature to the source set. The feature stays glowing at 100% opacity (thicker ring) so the surveyor sees the running selection without checking the dialog.
-- A second click on a glowing feature **removes** it.
 - `Shift+drag` runs a box-select; everything inside is added (feature-type filter respects the chip).
 - `Ctrl+A` adds every visible feature on the active layer.
-- `Esc` cancels Pick mode and returns the cursor to the previous tool. The dialog stays open so the surveyor can switch to Type IDs without losing what they've already picked.
-- Filter chip — `Only points` / `Only lines + arcs` / `Only polygons` / `All` — gates which feature types the canvas hover / click / box-select will accept.
-- Live tally chip in the bottom-right corner of the canvas while Pick mode is on: `23 selected · ⏎ to confirm · Esc to cancel`. Mirrors the dialog's count.
+
+**Removing / unselecting (every path is one action):**
+- **Click again** on a glowing feature → unselects that one feature (same click that added it).
+- **`Alt+click`** on any glowing feature → also unselects, for surveyors whose muscle-memory expects modifier-based deselect (matches AutoCAD's `Shift+click` osnap-style toggle, but Alt is used here so it doesn't collide with `Shift+drag`'s box-select-add).
+- **`Alt+drag`** (or `Ctrl+Shift+drag`) → window-deselect: every glowing feature inside the rectangle is removed in one stroke. Inverse of `Shift+drag`.
+- **Right-click on the canvas** with no hover → context menu offers `Clear all picks` (whole set) and `Clear last pick` (most recently added).
+- **Right-click on a glowing feature** → `Remove from selection` for that feature alone, plus `Remove all of this layer` and `Remove all of this code` for one-click bulk-prune by attribute.
+- **Per-row × in the dialog's source list** → each chip in the source list carries an `×` icon; clicking it unpicks that single feature without leaving the canvas. Hovering the row also flashes the matching feature on canvas at 100% opacity so the surveyor can confirm what they're about to drop.
+- **`Backspace`** → unpicks the most recently added feature (LIFO, like an Undo for the selection only). Repeat to walk backward through the history of picks. `Ctrl+Backspace` clears everything.
+- **`Esc`** → cancels Pick mode and returns the cursor to the previous tool. The dialog stays open so the surveyor can switch to Type IDs without losing what they've already picked. (Esc does **not** clear the selection — that's `Ctrl+Backspace` or right-click → `Clear all picks`.)
+
+**Filter + tally:**
+- Filter chip — `Only points` / `Only lines + arcs` / `Only polygons` / `All` — gates which feature types the canvas hover / click / box-select will accept. Toggling a filter does not remove already-picked features whose type now falls outside the filter; surveyors are warned in the tally if any picks become "filtered-out" so they don't lose track.
+- Live tally chip in the bottom-right corner of the canvas while Pick mode is on: `23 selected · ⏎ to confirm · Backspace to undo last · Esc to leave Pick mode`. Mirrors the dialog's count and surfaces the most relevant deselect path inline.
+- An **Undo / Redo** stack scoped to the dialog's pick history — `Ctrl+Z` / `Ctrl+Y` while Pick mode is active step through the surveyor's add / remove history without touching the document undo stack. Lets surveyors freely experiment with selections without polluting the drawing-edit history.
 
 ### 11.7.4 Source Mode 2 — Type IDs
 
@@ -1794,6 +1806,125 @@ When the surveyor opens a second drawing, the system clipboard remains populated
 12. **Slice 12** — `transferHistory[]` per-document logging + Repeat-last-transfer hotkey (`Ctrl+Shift+R`).
 
 Each slice keeps the dialog usable for the workflows shipped so far. The surveyor never has to wait for the full feature set to land — the click-to-select + simple layer reassignment lands in Slice 1+2 (a handful of days of work), and every later slice is additive.
+
+### 11.7.14 Smart Selection Helpers
+
+Surveyors don't always want to click each feature one-by-one. Pick mode adds a row of one-click "selection helpers" above the source list — each one extends or replaces the running set with a programmatic query:
+
+| Helper | Behaviour |
+|---|---|
+| **By layer ▾** | Picks every feature on the chosen layer (active layer pre-selected). |
+| **By code…** | Surveyor types or picks a code (e.g. `IRS`, `BC02`); every feature whose `properties.code` or `parsedCode.baseCode` matches is added. Supports comma-separated multi-codes. |
+| **By feature type ▾** | All POINTs / LINEs / POLYLINEs / etc. across the whole drawing. Combines with the existing per-type filter chip. |
+| **In viewport** | Every visible feature inside the current screen extents. Surveyor can pan + click to expand iteratively. |
+| **In window…** | Promotes the cursor into a single-shot box-select mode that adds whatever lies inside the dragged window. |
+| **By bearing range…** | Lines / polyline-segments whose azimuth falls inside `[lo, hi]` (uses `<UnitInput kind="angle">` for both bounds). Useful for "all NS-running fences." |
+| **By length range…** | Lines / segments whose length falls inside `[min, max]` (uses `<UnitInput kind="length">`). Useful for "all walls between 8 and 12 ft." |
+| **By traverse…** | Every POINT in a chosen traverse (handy for "duplicate this whole traverse to a new layer"). |
+| **By feature group…** | Every feature in a feature-group id (Phase 3 grouping). |
+| **By selection set…** | Recall a saved selection block (§11.7.19). |
+
+Each helper appends to the current set rather than replacing — so a surveyor can stack `By layer = BOUNDARY` + `By feature type = POLYLINE` + `In viewport` to get "every visible boundary polyline." Holding `Alt` while clicking a helper subtracts instead. A small `Modify ▾` chip after each helper lets surveyors invert (`A → not A`), filter (`A ∩ B`), or replace (`A → B`).
+
+The cumulative selection logic lives in a pure helper `composeSelectionSet(steps[]): Set<featureId>` so it's vitest-coverable without the canvas.
+
+### 11.7.15 Transfer Presets & Templates
+
+Surveyors do the same transfer over and over (e.g. "send all monument-layer points to the printable copy"). The dialog ships a Save / Load row above Confirm:
+
+- **Save preset…** — captures the current operation, destination layer + traverse, options block, and any code-remapping choices into a named preset. Source set is **not** captured (it's per-job). Stored on the document so the firm's templates ship with new drawings created from it; copyable across drawings via the standard template-import flow.
+- **Load preset ▾** — dropdown lists every preset; selecting one fills the destination + options regions instantly. The surveyor still picks the source set (so the wrong features can never accidentally come along).
+- **Default preset** — surveyor can mark a preset as the dialog's default. Opens pre-populated next time.
+- **Per-firm preset bundle** — `STARR Surveying default` ships with five canonical presets out of the box: `Monuments → Final plat`, `Boundary → Print copy`, `Topo → Field reference`, `Setbacks → Setback overlay`, `Working set → Archive`.
+- **Preset audit** — each preset records `lastUsed` + `useCount` so the dropdown sorts by recency / popularity.
+
+Stored under `useUIStore.transferPresets` (persisted via the existing `partialize` allow-list). Document-scoped presets live alongside the title-block + standard-notes templates already in `DrawingDocument.settings`.
+
+### 11.7.16 Mistake Prevention & Audit Trail
+
+Every destructive transfer surfaces guardrails before it commits:
+
+- **Move confirmation** — when Operation = Move and the source set has > 5 features (the same threshold the existing bulk-delete confirm uses), a `confirmAction` modal pops: *"Move 23 features from BOUNDARY to ROW? Originals on BOUNDARY will be removed."* Single feature moves skip the prompt; surveyor can disable the threshold per-session.
+- **Locked-source warning** — moving features off a locked source layer is allowed but prompts: *"Source layer BOUNDARY is locked. Move anyway?"* This catches the case where a surveyor locked a layer to protect it and forgot.
+- **Lock source after copy** — opt-in checkbox in the Options block. After a successful Duplicate, the source layer is auto-locked so the surveyor can't accidentally edit the originals while working on the duplicate.
+- **Undo as two halves for Move** — the batch undo entry actually contains two atomic groups: `RemoveFromSource` and `AddToTarget`. `Ctrl+Z` reverts the entire move; `Ctrl+Shift+Z` (or right-click on the undo entry) lets the surveyor revert just the destructive half so they can keep the duplicates and put the originals back.
+- **Audit stamps on duplicates** — every emitted feature carries `properties.duplicatedFrom: sourceFeatureId`, `properties.duplicatedAt: ISO timestamp`, `properties.transferOperationId: uuid`. The LIST tool shows the chain so a surveyor (or downstream auditor) can trace any feature back to its source. `transferOperationId` is the same uuid recorded in `transferHistory[]`, so one click in the history list highlights every feature that came from that transfer.
+- **What-changed flash** — on Confirm, every newly-created (or newly-reassigned) feature briefly pulses with a green outline for 1.5 s. Mirrors the green-pill confirmation already used by the SaveToDB + autosave flows. Visual reassurance that the right things happened.
+- **Soft-delete for Move** — Move-removed source features are kept in a per-document recycle bin (`document.recentlyDeletedFeatures[]`, capped at 50) for 30 minutes so a surveyor can recover them even after the undo stack rolls past. Mirrors the autosave-recovery pattern.
+
+### 11.7.17 Multi-Target & Bulk Operations
+
+Single-confirm "send to N targets" workflows that today require running the dialog repeatedly:
+
+- **Multi-layer paste** — Layer dropdown supports multi-select. Surveyor picks `BOUNDARY-PRINT` + `BOUNDARY-ARCHIVE` + `BOUNDARY-LEGEND` and one Confirm creates three duplicates, one per target layer. Each layer's duplicates carry the same `transferOperationId` so they can be undone or audited together.
+- **Multi-traverse paste** — same idea for traverses. Useful for "drop these monument points into both the Front-yard and Back-yard traverses."
+- **Cross-document broadcast** — when the surveyor has multiple drawings open in tabs, the destination block exposes a `Drawing ▾` picker. Selecting `(all open drawings)` broadcasts the duplicate to every open document with the standard cross-drawing layer-conflict resolution from §11.7.11.
+- **Bulk operations on the source list** — right-click a source-list row to:
+  - `Remove from selection` (without leaving Pick mode)
+  - `Filter source set to only POINTs / LINEs / POLYLINEs / …`
+  - `Sort by point number` / `By layer` / `As-picked` / `By distance from centroid`
+  - `Reverse order` (lets the surveyor flip a chain's direction before paste)
+  - `Save as selection block…` (jumps to §11.7.19)
+
+### 11.7.18 Code Re-Mapping
+
+When source and destination layers use different code conventions (a common case when archiving a working set onto a print layer), strip-codes is too aggressive and surveyors want a one-step rename:
+
+- **Code-remap table** — when the conflict pre-pass finds codes outside the target's `autoAssignCodes[]`, surface a small two-column table: `Source code → Mapped code`. Each row defaults to "—skip—" but surveyor can pick a destination code from a dropdown or type a new one.
+- **Auto-suggest mappings** — for each unmapped source code, the system runs a fuzzy match against the destination layer's code list and pre-fills the dropdown when confidence > 0.8. Heuristics: shared base monument code (`BC02` ↔ `BC02-FOUND`), shared substring (`MON` ↔ `MONUMENT`), edit-distance ≤ 2 (`IRS` ↔ `IRSC`).
+- **Save mapping with preset** — code-remap tables are part of the saved preset (§11.7.15) so the firm's "Working → Print" mapping persists.
+- **Per-property remapping** — same idea generalised to any custom property: `description` field can be templated as `"{code} (archived from {layerName})"`. Power-user feature behind a "Show advanced…" disclosure.
+
+### 11.7.19 Selection Blocks (Named Reusable Source Sets)
+
+Surveyors often re-paste the same logical group multiple times — a fence-corner detail, a typical building footprint, a standard monument cluster. Selection blocks let them name + recall the source set independently of the destination:
+
+- **Save selection as block…** — captures the current pick set under a name. The block stores feature ids relative to a chosen anchor point (so the block can be re-pasted at a different world location). Stored on `DrawingDocument.selectionBlocks[]` alongside templates.
+- **Pick a block to insert** — Type IDs source mode gains a third tab `From block ▾` that lists every saved block with a thumbnail and feature-count chip. Selecting one populates the source set; the dialog jumps to a "Choose anchor on canvas" overlay so the surveyor positions the block.
+- **Edit a block** — right-click a block in the list to rename, delete, or "open in editor" (loads it into a side-panel where vertices can be tweaked). Editing a block doesn't touch existing pasted instances; instances are independent unless `Link to block` was checked at paste time.
+- **Linked block instances** — opt-in. When checked, the pasted instance carries `properties.blockSourceId` and re-renders if the block's master vertices are edited. Surveyor uses this for "every monument detail callout uses the same symbol — update once, propagate everywhere."
+- **Block library** — bundled defaults: `Standard 4-corner fence end`, `IRS with cap detail`, `Monument-with-find-record callout`. The firm's tech can add to the library via the Settings → Templates tab.
+
+### 11.7.20 Additional Acceptance Tests
+
+(Append to §11.7.12)
+
+- [ ] Smart helper "By layer = BOUNDARY" + "By feature type = POLYLINE" composes to "every boundary polyline" (intersection)
+- [ ] Smart helper Alt-click subtracts from the running set
+- [ ] Save preset → reload drawing → preset still in the dropdown; default preset opens the dialog pre-populated
+- [ ] Move > 5 features triggers confirmation modal; single-feature Move skips it
+- [ ] Locked source layer + Move triggers warning prompt
+- [ ] What-changed green pulse flashes for 1.5 s on Confirm; only newly-created / reassigned features pulse
+- [ ] Soft-delete: deleted-by-Move features recoverable from the recycle bin within 30 min even after `undo` rolls past
+- [ ] Audit stamps: duplicated feature carries `duplicatedFrom`, `duplicatedAt`, `transferOperationId`; clicking the history entry highlights all features from that operation
+- [ ] Multi-layer paste: pick 3 destination layers → 1 Confirm → 3× the duplicates appear, all sharing one `transferOperationId`
+- [ ] Right-click source-list row → "Filter to only POINTs" prunes the set without touching the canvas
+- [ ] Code-remap: unmapped code surfaces fuzzy suggestion; surveyor accepts → duplicate carries the remapped code
+- [ ] Selection block save → recall later from a different drawing imports the block as a template
+- [ ] Linked block instance updates when the master block is edited; converting an instance to independent breaks the link
+- [ ] Click-again unselects a glowing feature; Alt-click does the same
+- [ ] Alt-drag (or Ctrl+Shift+drag) window-deselects every glowing feature inside the rectangle
+- [ ] Right-click on canvas with no hover → context menu offers `Clear all picks` / `Clear last pick`
+- [ ] Right-click on a glowing feature → `Remove from selection`, `Remove all of this layer`, `Remove all of this code`
+- [ ] Backspace pops the most-recently-added pick; Ctrl+Backspace clears every pick
+- [ ] Per-row × in the dialog source list removes that single feature without leaving Pick mode
+- [ ] Pick-mode-scoped Undo / Redo (Ctrl+Z / Ctrl+Y while Pick mode active) walks add / remove history without touching the document undo stack
+- [ ] Toggling a filter chip after picks exist warns when any picks become "filtered-out" rather than silently dropping them
+
+### 11.7.21 Additional Implementation Slices
+
+(Append to §11.7.13)
+
+13. **Slice 13** — Smart selection helpers row + `composeSelectionSet` pure helper with vitest coverage. Per-helper Alt = subtract.
+14. **Slice 14** — Save / load transfer presets. Document-scoped storage + bundled `STARR Surveying default` presets.
+15. **Slice 15** — Mistake-prevention guardrails: Move confirmation modal, locked-source warning, lock-source-after-copy, what-changed green pulse.
+16. **Slice 16** — Two-half undo for Move + soft-delete recycle bin + LIST tool integration for `transferOperationId`.
+17. **Slice 17** — Multi-target paste (multi-select layer dropdown + multi-traverse + cross-document `Drawing ▾`).
+18. **Slice 18** — Right-click bulk operations on source-list rows.
+19. **Slice 19** — Code-remap table + fuzzy auto-suggest. Save remap as part of the preset.
+20. **Slice 20** — Selection blocks: save / load / library + linked-instance render hook + master-edit propagation.
+
+Each slice is independently shippable. The dialog stays usable at every step; the power-user features are additive on top of the bare bones from Slices 1–12.
 
 ---
 
