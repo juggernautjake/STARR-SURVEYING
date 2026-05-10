@@ -188,6 +188,95 @@ function arcParamFromPoint(
 }
 
 // ─────────────────────────────────────────────
+// Spline helpers — used by divideFeatureBy /
+// pointAtDistanceAlong / explodeFeature so each operation
+// shares the same arc-length parameterisation. A spline's
+// `controlPoints` array carries 3N+1 points for N cubic
+// bezier segments. We sample each segment uniformly in t,
+// build a cumulative arc-length table, and let callers
+// project a normalised parameter back into world space.
+// ─────────────────────────────────────────────
+
+/** Evaluate a cubic bezier segment at parameter t ∈ [0,1]. */
+function cubicBezierPoint(
+  p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, t: number,
+): Point2D {
+  const u = 1 - t;
+  const uu = u * u;
+  const tt = t * t;
+  return {
+    x: uu * u * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + tt * t * p3.x,
+    y: uu * u * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + tt * t * p3.y,
+  };
+}
+
+/**
+ * Sample a spline into `samplesPerSegment` evenly-t-spaced
+ * points per cubic segment. With the default of 32 samples
+ * a typical 3–5 segment surveyor spline yields 100-200 points
+ * — plenty for arc-length integration error well under a
+ * hundredth of a foot at survey scales. Returns the full
+ * polyline including a final point on the last segment.
+ */
+function sampleSpline(
+  controlPoints: Point2D[],
+  samplesPerSegment: number = 32,
+): Point2D[] {
+  const numSegments = Math.floor((controlPoints.length - 1) / 3);
+  if (numSegments < 1) return controlPoints.slice();
+  const out: Point2D[] = [];
+  for (let seg = 0; seg < numSegments; seg += 1) {
+    const idx = seg * 3;
+    const p0 = controlPoints[idx];
+    const p1 = controlPoints[idx + 1];
+    const p2 = controlPoints[idx + 2];
+    const p3 = controlPoints[idx + 3];
+    // Skip the t=0 sample on every segment except the first
+    // so we don't duplicate the segment-boundary vertex.
+    const startStep = seg === 0 ? 0 : 1;
+    for (let s = startStep; s <= samplesPerSegment; s += 1) {
+      const t = s / samplesPerSegment;
+      out.push(cubicBezierPoint(p0, p1, p2, p3, t));
+    }
+  }
+  return out;
+}
+
+/** Total arc-length and cumulative table for a sampled spline. */
+function splineArcLengthTable(samples: Point2D[]): { total: number; cum: number[] } {
+  const cum: number[] = [0];
+  let total = 0;
+  for (let i = 1; i < samples.length; i += 1) {
+    total += Math.hypot(samples[i].x - samples[i - 1].x, samples[i].y - samples[i - 1].y);
+    cum.push(total);
+  }
+  return { total, cum };
+}
+
+/** Walk the cumulative arc-length table to find the world-
+ *  space point at parameter t ∈ [0, 1] along the spline. */
+function pointAlongSpline(samples: Point2D[], t: number): Point2D {
+  if (samples.length === 0) return { x: 0, y: 0 };
+  if (samples.length === 1) return { ...samples[0] };
+  const { total, cum } = splineArcLengthTable(samples);
+  if (total < 1e-12) return { ...samples[0] };
+  const target = Math.max(0, Math.min(1, t)) * total;
+  for (let i = 1; i < cum.length; i += 1) {
+    if (cum[i] >= target) {
+      const segLen = cum[i] - cum[i - 1];
+      const localT = segLen > 1e-12 ? (target - cum[i - 1]) / segLen : 0;
+      const a = samples[i - 1];
+      const b = samples[i];
+      return {
+        x: a.x + (b.x - a.x) * localT,
+        y: a.y + (b.y - a.y) * localT,
+      };
+    }
+  }
+  return { ...samples[samples.length - 1] };
+}
+
+// ─────────────────────────────────────────────
 // Transform operations
 // ─────────────────────────────────────────────
 
@@ -820,6 +909,7 @@ export function pointAtDistanceAlong(
   let chain: Point2D[] | null = null;
   let isClosed = false;
   let arcGeom: typeof g.arc | null = null;
+  let splineSamples: Point2D[] | null = null;
   if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
   else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
   else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
@@ -827,6 +917,8 @@ export function pointAtDistanceAlong(
     isClosed = true;
   } else if (g.type === 'ARC' && g.arc) {
     arcGeom = g.arc;
+  } else if (g.type === 'SPLINE' && g.spline && g.spline.controlPoints.length >= 4) {
+    splineSamples = sampleSpline(g.spline.controlPoints, 32);
   } else {
     return false;
   }
@@ -842,6 +934,12 @@ export function pointAtDistanceAlong(
     clamped = Math.min(distance, total);
     const t = fromEnd ? 1 - clamped / total : clamped / total;
     pt = pointAtArcParam(arcGeom, t);
+  } else if (splineSamples) {
+    total = splineArcLengthTable(splineSamples).total;
+    if (total < 1e-12) return false;
+    clamped = Math.min(distance, total);
+    const t = fromEnd ? 1 - clamped / total : clamped / total;
+    pt = pointAlongSpline(splineSamples, t);
   } else {
     if (!chain) return false;
     const segCount = isClosed ? chain.length : chain.length - 1;
@@ -1002,6 +1100,13 @@ export function explodeFeature(featureId: string): boolean {
     isClosed = true;
   } else if (g.type === 'MIXED_GEOMETRY' && g.vertices && g.vertices.length >= 2) {
     chain = g.vertices.slice();
+  } else if (g.type === 'SPLINE' && g.spline && g.spline.controlPoints.length >= 4) {
+    // Sample the spline densely so each cubic segment becomes
+    // a chunk of the polyline. The new LINEs that come out of
+    // the existing chain-walk below are then the per-sample
+    // segments — same exploded-grip experience as POLYLINE.
+    chain = sampleSpline(g.spline.controlPoints, 32);
+    isClosed = g.spline.isClosed;
   } else {
     return false;
   }
@@ -1098,6 +1203,7 @@ export function divideFeatureBy(featureId: string, count: number): boolean {
   let chain: Point2D[] | null = null;
   let isClosed = false;
   let arcGeom: typeof g.arc | null = null;
+  let splineSamples: Point2D[] | null = null;
   if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
   else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
   else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
@@ -1105,6 +1211,8 @@ export function divideFeatureBy(featureId: string, count: number): boolean {
     isClosed = true;
   } else if (g.type === 'ARC' && g.arc) {
     arcGeom = g.arc;
+  } else if (g.type === 'SPLINE' && g.spline && g.spline.controlPoints.length >= 4) {
+    splineSamples = sampleSpline(g.spline.controlPoints, 32);
   } else {
     return false;
   }
@@ -1116,7 +1224,9 @@ export function divideFeatureBy(featureId: string, count: number): boolean {
     const t = i / count;
     const pt = arcGeom
       ? pointAtArcParam(arcGeom, t)
-      : pointAlongChain(chain!, t, isClosed);
+      : splineSamples
+        ? pointAlongSpline(splineSamples, t)
+        : pointAlongChain(chain!, t, isClosed);
     const pf: Feature = {
       id: generateId(),
       type: 'POINT',
