@@ -6310,6 +6310,80 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   }
 
   // ─────────────────────────────────────────────
+  // Phase 8 §11.7 Slice 8 — transfer ghost preview.
+  // When the LayerTransferDialog is open and a target layer
+  // is picked, render a half-opacity preview of each
+  // duplicate at its post-offset position, tinted in the
+  // destination layer's color. Thin connector lines run
+  // from each source feature to its ghost so the surveyor
+  // sees the offset at a glance.
+  // ─────────────────────────────────────────────
+  function renderTransferGhost() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const g = pixi.previewGraphics;
+    const tx = useTransferStore.getState();
+    if (!tx.isOpen) return;
+    if (tx.pickedIds.size === 0) return;
+    if (tx.options.operation !== 'DUPLICATE') return;
+    const targetLayerId = tx.options.targetLayerId;
+    if (!targetLayerId) return;
+    const docState = useDrawingStore.getState().document;
+    const targetLayer = docState.layers[targetLayerId];
+    if (!targetLayer) return;
+
+    // Resolve destination tint. Layer color is hex; we trim
+    // any "#" prefix and parse to a Pixi int. Alpha values
+    // are bumped a notch above the picked-blue glow so the
+    // surveyor visually separates "this is the source" from
+    // "this is where it'll land."
+    const tintHex = (targetLayer.color ?? '#3b82f6').replace('#', '');
+    const tint = parseInt(tintHex, 16);
+
+    // Resolve the translation (dx, dy) from the options.
+    // Mirrors the kernel's math in operations.ts so the ghost
+    // lands at the same coords the kernel would write.
+    let dx = 0;
+    let dy = 0;
+    if (tx.options.applyOffset && tx.options.offsetDistanceFt > 0) {
+      const az = (tx.options.offsetBearingDeg * Math.PI) / 180;
+      dx = tx.options.offsetDistanceFt * Math.sin(az);
+      dy = tx.options.offsetDistanceFt * Math.cos(az);
+    }
+    const translateFn = (p: Point2D): Point2D => ({ x: p.x + dx, y: p.y + dy });
+
+    // Loop the picked features. For each one, paint the
+    // ghost geometry + a connector line from the source's
+    // centroid to the ghost's centroid (only when offset > 0
+    // — otherwise the ghost lands on top of the source and
+    // the connector would degenerate to a dot).
+    const hasOffset = dx !== 0 || dy !== 0;
+    for (const fid of tx.pickedIds) {
+      const f = useDrawingStore.getState().getFeature(fid);
+      if (!f) continue;
+
+      // Connector line first so the ghost outline draws on
+      // top of it.
+      if (hasOffset) {
+        const srcBB = featureBounds(f);
+        if (Number.isFinite(srcBB.minX)) {
+          const srcCx = (srcBB.minX + srcBB.maxX) / 2;
+          const srcCy = (srcBB.minY + srcBB.maxY) / 2;
+          const a = w2s(srcCx, srcCy);
+          const b = w2s(srcCx + dx, srcCy + dy);
+          g.lineStyle(1, tint, 0.4);
+          g.moveTo(a.sx, a.sy);
+          g.lineTo(b.sx, b.sy);
+        }
+      }
+
+      // Ghost outline — destination-layer tint at 45% opacity.
+      g.lineStyle(1.5, tint, 0.55);
+      drawTransformedFeaturePreview(g, f, translateFn, w2s);
+    }
+  }
+
+  // ─────────────────────────────────────────────
   // Master render function
   // ─────────────────────────────────────────────
   function renderAll() {
@@ -6334,6 +6408,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     renderSelection();
     renderSnapIndicator();
     renderToolPreview();
+    renderTransferGhost();
     renderTitleBlock();
   }
 
