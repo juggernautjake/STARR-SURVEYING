@@ -40,6 +40,7 @@
 28. [AI Deliberation Period & Confidence-Gated Clarifying Questions](#28-ai-deliberation-period--confidence-gated-clarifying-questions)
 29. [Interactive Drawing Preview & Confidence Element Cards](#29-interactive-drawing-preview--confidence-element-cards)
 30. [Per-Element AI Explanation & Element-Level Chat](#30-per-element-ai-explanation--element-level-chat)
+31. [AI Best-Fit Corners — Intelligent Intersect Workflow](#31-ai-best-fit-corners--intelligent-intersect-workflow)
 
 ---
 
@@ -2768,6 +2769,236 @@ export async function generateExplanations(
   return explanations;
 }
 ```
+
+---
+
+## 31. AI Best-Fit Corners — Intelligent Intersect Workflow
+
+**Goal:** Build on the deterministic Intersect Tool (Phase 8 §11.6) to give surveyors an AI-assisted "find the corner" experience. The classic case: a structure with measured wall lengths but no shot on every corner. The surveyor either points at the partial geometry on canvas or uploads a hand-sketched diagram with dimensions; the AI proposes one or more best-fit corner sets, flags any discrepancies in the data, and asks clarifying questions when the math doesn't close. Every proposal renders as a tier-coloured ghost preview the surveyor cycles through and confirms exactly like the deterministic tool. The AI never silently mutates the drawing — it proposes, the surveyor disposes.
+
+This section sits *on top of* §11.6: the deterministic helpers (`lineCircleIntersections`, `circleCircleIntersections`, RAY × LINE, etc.) are the math kernel the AI reasons with. The AI's job is to choose **which** intersections to attempt and **which** assumptions to make when the data is under-specified.
+
+### 31.1 Activation Surfaces
+
+- **Inside the Intersect modal** — when the surveyor has < 2 features picked but the visible canvas has enough partial geometry to suggest a corner, a "✨ Find best-fit corner" button appears. Clicking it hands the visible features + selected POINT(s) to the AI.
+- **From a polyline-with-gap** — when an open polyline's two endpoints are within ~visible-extent distance and the surveyor right-clicks one endpoint, the context menu offers "Close to corner via AI…" which routes to the same backend.
+- **From an upload** — `Tools → Best-Fit Corner from Sketch…` opens a file picker for a hand sketch / dimensioned diagram. The AI runs an OCR + measurement pass (re-using the same Claude vision pipeline §6 already uses for deed PDFs) and proposes corner sets keyed off the OCR'd dimensions.
+- **Inside Drawing Chat** — natural-language entry: surveyor types "find the missing NW corner of the house" or "build a 24×36 rectangle from points 12 and 19." The chat dispatches a `BEST_FIT_CORNER` action which lands in the same proposal flow.
+
+### 31.2 Inputs the AI Accepts
+
+A `BestFitCornerRequest` carries every piece of evidence the AI is allowed to reason about — typed so the deliberation prompt can cite each source:
+
+```typescript
+interface BestFitCornerRequest {
+  /** Existing canvas features the AI may use as constraints. */
+  candidateFeatures: Array<{
+    featureId: string;
+    role: 'WALL' | 'BEARING_REF' | 'OFFSET_REF' | 'OTHER';
+    /** Surveyor-asserted endpoint coordinates, when partial. */
+    assertedEndpoints?: Point2D[];
+  }>;
+  /** POINTs the AI should treat as fixed (already-measured corners). */
+  fixedPoints: Array<{ pointId: string; position: Point2D; role?: string }>;
+  /** Optional uploaded sketch (PNG / JPG / PDF page). */
+  sketch?: { dataUrl: string; mimeType: string };
+  /** Surveyor-typed dimensional notes — free-text, but the prompt
+   *  understands a small DSL for the common forms:
+   *    "wall A → wall B = 24 ft"
+   *    "interior angle at SE = 90°"
+   *    "diag NW-SE = 38.42 ft"  */
+  notes?: string[];
+  /** Conventions the AI should respect when building corners. */
+  conventions?: {
+    rectilinearAssumption?: boolean;     // default: true for "house" / "shed"
+    minInteriorAngleDeg?: number;        // default: 30°
+    snapToGridFt?: number | null;        // default: null
+    units?: 'FT' | 'M';                  // default: per drawing
+  };
+  /** Free-text intent — passed to the LLM verbatim. */
+  surveyorPrompt: string;                // "find the missing NW corner"
+}
+```
+
+### 31.3 Output: Candidate Corner Sets
+
+A single request yields a `BestFitCornerResponse` with **N** candidate solutions (typically 1–5):
+
+```typescript
+interface BestFitCornerResponse {
+  candidates: BestFitCandidate[];
+  discrepancies: Discrepancy[];
+  clarifyingQuestions: ClarifyingQuestion[];
+  /** Single-paragraph plain-language summary of what the AI did. */
+  summary: string;
+  /** Tokens / latency / model version for audit. */
+  audit: { model: string; latencyMs: number; tokensIn: number; tokensOut: number };
+}
+
+interface BestFitCandidate {
+  id: string;
+  /** Tier-coloured banner the ghost render uses. */
+  tier: 1 | 2 | 3 | 4 | 5;            // 5 = highest confidence
+  confidence: number;                   // 0–100
+  /** Plain-language why-this-corner. */
+  rationale: string;
+  /** Geometry mutations the surveyor would commit on confirm. */
+  mutations: Array<
+    | { type: 'ADD_POINT'; position: Point2D; properties: Record<string, unknown> }
+    | { type: 'EXTEND_FEATURE'; featureId: string; toPoint: Point2D }
+    | { type: 'TRIM_FEATURE'; featureId: string; toPoint: Point2D }
+    | { type: 'ADD_LINE'; start: Point2D; end: Point2D; layerId: string }
+    | { type: 'BUILD_POLYGON'; vertices: Point2D[]; layerId: string }
+  >;
+  /** Per-mutation residual error — distance the candidate
+   *  drifts from the closest piece of evidence. Drives the
+   *  tier banding. */
+  residualMaxFt: number;
+  residualMeanFt: number;
+  /** Which evidence pieces this candidate honours / breaks. */
+  honoursEvidence: string[];
+  conflictsWith: string[];
+}
+
+interface Discrepancy {
+  /** "Wall A length disagrees with the measured chord." */
+  message: string;
+  /** Pointer back to which inputs disagreed. */
+  evidenceIds: string[];
+  severity: 'WARNING' | 'ERROR';
+  /** Suggested fix the surveyor can one-click. */
+  proposedFix?: { description: string; mutations: BestFitCandidate['mutations'] };
+}
+
+interface ClarifyingQuestion {
+  /** "Is the building a perfect rectangle, or could the SE corner
+   *  be skewed?" */
+  question: string;
+  /** Answer chips the surveyor can click without typing. */
+  answers: Array<{ label: string; intent: string }>;
+}
+```
+
+### 31.4 Deliberation Prompt
+
+The AI uses the same prompt-caching infrastructure §17 already wires (one cached system message describing the surveyor's conventions, then a per-request user message with the typed `BestFitCornerRequest`). The system message documents:
+
+- The deterministic helpers available — the model is instructed to express every mutation as a sequence of those helpers (`lineLineIntersection`, `lineCircleIntersections`, etc.) so the surveyor can audit the geometry. The model is **not** allowed to invent new geometry algorithms in its rationale; that keeps audits fast.
+- The tier rubric (matches §11): tier 5 ⇔ all evidence honoured + residual < 0.05 ft, tier 4 ⇔ 0.05–0.15 ft, tier 3 ⇔ 0.15–0.5 ft, tier 2 ⇔ 0.5–1.5 ft, tier 1 ⇔ > 1.5 ft (always proposed but always asks a clarifying question first).
+- The discrepancy rubric: anything > 0.1 ft from a measured value is a WARNING; > 0.5 ft is an ERROR; closure errors > 0.05 ft × leg-count are flagged regardless.
+- Conventions for reasonable corners: minimum interior angle defaults to 30°; rectilinear-assumption is on by default for any prompt mentioning "house", "shed", "garage", "fence corner".
+
+User-message structure:
+
+```
+SURVEYOR PROMPT
+{surveyorPrompt}
+
+EVIDENCE
+- Feature wall-1 (LINE): start (123.4, 456.7) end (140.2, 456.9) — wall, asserted
+- Feature wall-2 (LINE): start (140.0, 456.7) end (140.0, 480.1) — wall, asserted
+- Fixed point P-3 (NE corner): (140.2, 480.1)
+- Note: "front wall = 18.0 ft"
+- Note: "interior angle SE = 90°"
+- Sketch: {{embedded image}}
+
+CONVENTIONS
+{conventions JSON}
+
+TASK
+Propose 1–5 candidate corner sets. For each, list the geometric
+mutations expressed as deterministic-helper invocations. Cite
+which evidence pieces each candidate honours or breaks. Flag any
+discrepancies. If anything is ambiguous, write the smallest
+clarifying question.
+```
+
+### 31.5 Discrepancy Detection (Deterministic Pre-Pass)
+
+Before the model sees the request, a deterministic pre-pass runs lightweight checks so the obvious problems never burn tokens:
+
+- **Length closure** — sum of declared wall lengths around a closed polygon. If the closure error > tolerance, raise `Discrepancy(severity=ERROR, message="Sum of declared lengths doesn't close — Δ = 0.42 ft")`. Both the deterministic finding and the LLM's rationale include this.
+- **Angle consistency** — for any declared interior angle that contradicts the angle implied by the existing geometry (within tolerance), raise a `WARNING`.
+- **Duplicate evidence** — two `notes[]` lines that disagree (e.g. "front = 18.0 ft" + "front = 18.5 ft"). Raise `ERROR` with both note ids.
+- **Out-of-range conventions** — surveyor says "interior 90°" but pre-existing geometry shows 87°. Raise WARNING with the proposed fix "snap existing vertex to make 90° exact."
+
+These deterministic findings join `discrepancies[]` regardless of what the model returns; the model is told about them so it can incorporate them into its rationale.
+
+### 31.6 Ghost Preview Workflow
+
+Same render-path as the deterministic Intersect Tool's ghosts (§11.6.5), with these additions:
+
+- **Tier-coloured halo** — each candidate's POINTs and added LINEs render with the tier-glow already used by the AI confidence cards. Tier 5 = green, tier 4 = teal, tier 3 = yellow, tier 2 = orange, tier 1 = red.
+- **Discrepancy badges** — when a discrepancy is anchored to a specific feature, the canvas paints a small `⚠` badge near the offending geometry; clicking the badge scrolls the modal's discrepancy list to the matching entry.
+- **Clarifying-question chips** — between the candidate list and the Confirm/Cancel row, every `ClarifyingQuestion` renders as a chip group. Clicking an answer chip dispatches a follow-up request to the AI with the same context + the surveyor's answer; the modal updates in place.
+- **Compare mode** — checkbox that overlays *all* candidates simultaneously at low opacity, so the surveyor can see how they differ. The active candidate stays full opacity.
+
+### 31.7 Confirmation & Persistence
+
+- **Single Confirm** — kept candidate's `mutations[]` are applied as one batch undo entry (`makeBatchEntry` already supports the mutation kinds we need — `ADD_FEATURE`, `MODIFY_FEATURE`).
+- **Reject all** — closes the modal without mutation. The request + response are still logged to the AI audit table for debugging.
+- **Per-mutation provenance** — every emitted feature carries `properties.aiBestFitCandidateId`, `aiBestFitTier`, `aiBestFitRationale`, `aiBestFitRequestId` so the LIST tool surfaces "this point came from AI candidate 2 of request abc-123." Surveyors can audit forever.
+- **Rerun with edits** — after confirming, the modal stays open with a "Refine…" option. Surveyor edits a note or convention chip and the AI returns an incremental response keyed off the same request id (lets us cache 80% of the system context).
+
+### 31.8 Sketch Upload Pipeline
+
+For the upload-a-hand-sketch case:
+
+1. Surveyor picks a PNG / JPG / PDF page; client downscales to ≤ 2048 px on the long edge to keep the prompt cheap.
+2. Pre-pass passes the image to a vision model (Claude Sonnet) with a focused prompt: *"Read every dimension annotation, every angle annotation, and every label. Return JSON: { dimensions: [{ from, to, value, unit }], angles: [{ at, valueDeg }], labels: [{ at, text }] }."*
+3. The OCR JSON merges into `BestFitCornerRequest.notes[]`.
+4. Original image is stored alongside the request in IndexedDB so the surveyor can revisit it from the history list.
+5. Per-extraction confidence → low confidence (e.g. handwritten 8 vs. 3) raises a deterministic `Discrepancy(severity=WARNING)` plus a `ClarifyingQuestion` ("Is wall A 8.0 ft or 3.0 ft?") before the geometric pass even runs.
+
+### 31.9 State, Stores, and Persistence
+
+New zustand store `useBestFitCornerStore`:
+
+```typescript
+interface BestFitCornerStore {
+  /** Current request being prepared / awaiting response. */
+  pendingRequest: BestFitCornerRequest | null;
+  /** Live response from the API. */
+  response: BestFitCornerResponse | null;
+  /** Which candidate is currently highlighted in the modal. */
+  activeCandidateId: string | null;
+  /** History of past requests + responses (most recent 20). */
+  history: Array<{ request: BestFitCornerRequest; response: BestFitCornerResponse; timestamp: string }>;
+  /** UI flags. */
+  status: 'IDLE' | 'PREPARING' | 'AWAITING_AI' | 'READY' | 'ERROR';
+}
+```
+
+Persisted via the existing `partialize` allow-list pattern: only `history` survives reloads (so a surveyor can revisit yesterday's request); everything else is session-scoped.
+
+### 31.10 Acceptance Tests
+
+- [ ] Surveyor opens Intersect dialog, clicks "✨ Find best-fit corner" with two perpendicular wall lines visible — AI returns 1 candidate at the implied corner; ghost renders tier-5 green
+- [ ] Same setup but with an asserted note "front wall = 18.0 ft" that contradicts the visible geometry — AI surfaces a discrepancy WARNING + a clarifying question; ghost still renders but tagged tier 3
+- [ ] Surveyor uploads a sketch of a 24×36 rectangle with one dimension scribbled illegibly — vision pre-pass surfaces a clarifying question about that specific dimension before the geometric pass runs
+- [ ] Multi-candidate response: AI proposes 3 candidates, surveyor cycles with ↓/↑, ghosts highlight, picks #2, Confirm applies only #2's mutations as one batch undo entry
+- [ ] Rerun with edit: surveyor changes a convention chip ("perfect rectangle = NO"), modal updates with a fresh response in < 3 s (because the system prompt is cached)
+- [ ] Closure error 0.42 ft on a 4-leg traverse → deterministic pre-pass raises ERROR before the LLM is called; modal renders the error + a "Re-measure leg 3?" suggestion
+- [ ] Per-feature provenance: confirmed POINT carries `aiBestFitCandidateId`, `aiBestFitTier`, `aiBestFitRationale`; LIST tool shows the rationale string
+- [ ] Drawing Chat path: typing "find the missing NW corner of the house" routes to BEST_FIT_CORNER and pops the modal
+- [ ] Reject-all path: modal closes without mutation; request + response still appear in the AI audit log
+- [ ] Rectilinear-assumption convention defaults to ON for "house" / "shed" / "garage" prompts and OFF for "fence" / "trail" prompts
+- [ ] Compare mode: checkbox overlays all candidates at low opacity; active candidate stays full opacity; surveyor visually picks the right one
+
+### 31.11 Implementation Sequence (AI side)
+
+Each slice is shippable on its own — the modal stays useful at every step:
+
+1. **Slice A** — `BestFitCornerRequest` / `BestFitCornerResponse` types + `useBestFitCornerStore` shell. No API call yet; the modal renders a hard-coded mock response so the UI can be built and tested.
+2. **Slice B** — Modal UI: candidate list + tier-coloured ghosts + Confirm/Reject. Reuses the deterministic Intersect modal's render path from §11.6.
+3. **Slice C** — Deterministic pre-pass (closure error, angle consistency, duplicate-evidence check). Wired as `pendingRequest → discrepancies` before any LLM call. Tests cover the four pre-pass cases.
+4. **Slice D** — Claude API integration. System prompt + tier rubric + helper-DSL constraint. Per-request prompt caching keyed on the system message. `audit` block populated.
+5. **Slice E** — Drawing-Chat dispatch path: natural-language → `BEST_FIT_CORNER` action → modal opens populated.
+6. **Slice F** — Sketch upload: file picker, downscaler, vision pre-pass, OCR-confidence-driven clarifying questions.
+7. **Slice G** — Per-mutation provenance + LIST tool integration so surveyors can audit any AI-proposed feature in the property panel.
+8. **Slice H** — Rerun-with-edit flow + history list (most recent 20 requests, persisted).
+9. **Slice I** — Compare mode + discrepancy badges on the canvas.
+10. **Slice J** — Acceptance test pass + documentation.
 
 ---
 

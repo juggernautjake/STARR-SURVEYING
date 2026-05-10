@@ -21,6 +21,10 @@
 9. [Settings Section — Full Specification](#9-settings-section--full-specification)
 10. [Controls & Navigation Polish](#10-controls--navigation-polish)
 11. [Persistent State Architecture](#11-persistent-state-architecture)
+
+    11.5. [Unit-Aware Input System](#115-unit-aware-input-system)
+
+    11.6. [Intersect Tool — Deterministic Geometry](#116-intersect-tool--deterministic-geometry)
 12. [Phase 1–7 Gap Audit & Fixes](#12-phase-17-gap-audit--fixes)
 13. [Acceptance Tests](#13-acceptance-tests)
 14. [Build Order (Implementation Sequence)](#14-build-order-implementation-sequence)
@@ -1460,6 +1464,146 @@ These persist via the existing `useUIStore` `partialize` allow-list (`fieldUnitL
 4. **Rollout — modal dialogs** — `FeaturePropertiesDialog`, `DrawingRotationDialog`, `OrientationDialog`, `SettingsDialog`, `ScaleBarEditorModal`, `TitleBlockPanel`.
 5. **Rollout — command bar** — extend the polar / relative parsers to feed through `parseLength` + `parseAngle`.
 6. **Settings surface** — Interaction tab toggles + per-field lock chip.
+
+---
+
+## 11.6 Intersect Tool — Deterministic Geometry
+
+**Goal:** A single first-class **INTERSECT** tool that solves every "where would these two things meet?" problem a surveyor faces. The most common case: a missing house corner where two wall lines stop short of each other. The surveyor extends both lines virtually, finds the intersection, and drops a POINT (or builds a corner — two trimmed lines meeting at the new vertex). The same tool handles every shape pairing — line/arc/circle/ellipse/polyline-segment/spline — and surfaces every candidate the geometry yields. Multi-candidate cases (line-arc gives 0, 1, or 2 intersections; circle-circle gives up to 2; line-spline can give many) are presented as ghost previews the surveyor cycles through and confirms one.
+
+The tool is **deterministic** — no AI in the math. The AI-assisted best-fit corner workflow that builds *on top* of this geometry lives in Phase 6 §31; that section calls into the helpers built here.
+
+### 11.6.1 Tool Entry Points
+
+- **Toolbar** — new INTERSECT entry under the SURVEY MATH flyout (alongside POINT_AT_DISTANCE, PERPENDICULAR, MEASURE_AREA).
+- **Hotkey** — `IX` (matches AutoCAD's "Intersection osnap" mnemonic; bindable like every other action).
+- **Right-click context menu** — when ≥ 2 features are selected, an "Intersect Selection…" entry pre-populates the modal.
+- **Command palette** — `tool.intersect` searchable as `intersect`, `corner`, `meet`, `cross`.
+- **Snap integration** — INTERSECTION snap already exists for live snap-on-hover. The dedicated tool is for explicit, persisted POINT creation + multi-candidate workflows the live snap can't surface.
+
+### 11.6.2 Modal Layout
+
+The dedicated `IntersectDialog` is a non-modal floating panel (so the surveyor can pan / zoom / pick features behind it) with three regions:
+
+```
+┌─ Intersect ───────────────────────────────────────┐
+│ Method: ▾ [Line × Line ▾]   Extension: ☐ both     │
+│                                                   │
+│ ┌─ Source A ────────────────┐ ┌─ Source B ─────┐ │
+│ │ [Pick…]  feat-2381  LINE  │ │ [Pick…] feat-2391 ARC │
+│ │  ↳ start (1234.5, 678.9)  │ │  ↳ center (…) r=42.3' │
+│ └───────────────────────────┘ └────────────────┘ │
+│                                                   │
+│ ┌─ Candidates (2 found) ─────────────────────┐   │
+│ │ ● 1: (1242.3, 681.7)  [keep]  [as POINT]   │   │
+│ │ ○ 2: (1248.9, 689.1)  [keep]  [as POINT]   │   │
+│ └────────────────────────────────────────────┘   │
+│                                                   │
+│ Output: ▾ [Drop POINT ▾]  Layer: ▾ [BOUNDARY ▾] │
+│                                                   │
+│ [Cancel]                          [Confirm ⏎]    │
+└──────────────────────────────────────────────────┘
+```
+
+- **Method picker** — driven by the source-A type. Switches to the matching algorithm.
+- **Extension toggle** — when ON, finite features (LINE / segment / ARC) are treated as their infinite-line / full-circle extension; the tool flags candidates that would land outside the original geometry as "extended" (visually distinct ghost colour, with a warning chip).
+- **Source A / B pickers** — click the canvas to pick. Picking the same feature twice (e.g. two segments of one polyline) is allowed — surveyor specifies which segment via a sub-picker.
+- **Candidate list** — every solution the geometry yields. Click a row to toggle which one is highlighted on the canvas. Per-row buttons: `[keep]` adds the candidate to the output set, `[as POINT]` short-circuits the rest of the modal and drops a single POINT immediately.
+- **Output dropdown** — what to do with the kept candidates: `Drop POINT`, `Trim both to intersection`, `Extend both to intersection`, `Build corner` (extend + trim + insert vertex on both, no separate POINT). Layer dropdown writes to the active layer by default.
+
+### 11.6.3 Intersection Methods (Coverage Matrix)
+
+Every cell in this matrix is a separate algorithm slice. We ship them as the surveyor's most-used pairs land:
+
+| A \ B          | LINE | LINE-SEG (in polyline) | ARC | CIRCLE | ELLIPSE | SPLINE | RAY | INFINITE-LINE |
+|----------------|:----:|:----------------------:|:---:|:------:|:-------:|:------:|:---:|:-------------:|
+| LINE           | ●    | ●                      | ●   | ●      | ●       | ●      | ●   | ●             |
+| LINE-SEG       | —    | ●                      | ●   | ●      | ●       | ●      | ●   | ●             |
+| ARC            | —    | —                      | ●   | ●      | ●       | ●      | ●   | ●             |
+| CIRCLE         | —    | —                      | —   | ●      | ●       | ●      | ●   | ●             |
+| ELLIPSE        | —    | —                      | —   | —      | ●       | ●      | ●   | ●             |
+| SPLINE         | —    | —                      | —   | —      | —       | ●      | ●   | ●             |
+| RAY            | —    | —                      | —   | —      | —       | —      | ●   | ●             |
+| INFINITE-LINE  | —    | —                      | —   | —      | —       | —      | —   | ●             |
+
+**RAY** = a virtual half-line: pick a vertex / endpoint, supply a bearing (uses the new `<UnitInput kind="angle">`). Surveyor's mental model is "shoot a line from this point at bearing X and tell me where it hits." Common workflow: pick a corner, type the deed bearing, intersect with the next wall line.
+
+**INFINITE-LINE** = a virtual line through two picked points (or a line + perpendicular). Used when the surveyor wants the intersection of a building line projected through a measured corner against an offset reference line.
+
+Algorithm slices in implementation order:
+
+1. **A — LINE × LINE** — already exists as `lineLineIntersection`; modal wraps it.
+2. **B — LINE × ARC / LINE × CIRCLE** — needs new `lineArcIntersections` + `lineCircleIntersections` helpers (0/1/2 candidates). The classic "line-circle quadratic" — discriminant ≤ 0 → no real intersection, 0 → tangent (1 candidate), > 0 → 2 candidates.
+3. **C — ARC × ARC / CIRCLE × CIRCLE** — `circleCircleIntersections` (the well-known "intersecting circles" formula). For ARCs, also test that each candidate falls inside the angular span of *both* arcs (re-using the `isAngleInArc` helper from `curve-render.ts`).
+4. **D — Polyline-segment × any** — pick which segment of the source polyline is involved. Surveyor clicks the segment directly; we resolve `(featureId, segmentIndex)` and treat that segment as a LINE.
+5. **E — RAY × any** — instead of a feature, surveyor enters `(originPt, bearing)`. Then the same algorithms with origin + direction.
+6. **F — ELLIPSE × LINE / ELLIPSE × ARC** — quadratic in a rotated/scaled frame; same `>=2` discriminant story.
+7. **G — SPLINE × any** — sample the spline densely (re-use the `sampleSpline` helper from §11.5 work) and run segment-segment intersection against every chunk; merge nearly-coincident hits.
+8. **H — INFINITE-LINE × any** — same as LINE × any but skip the segment-bounds clip.
+
+### 11.6.4 Extension Behaviour
+
+- **OFF (default)** — only candidates that lie inside both source extents are kept; off-extent candidates are discarded silently.
+- **ON for source A only** / **ON for source B only** / **ON for both** — independent toggles. When extension is ON for an input, the modal renders a dashed extension preview on the canvas in the source's colour at half opacity.
+- Each candidate row badges its extension status: `(within both)` / `(extended A 12.3 ft)` / `(extended B 1.4 ft)` / `(extended both)`. Surveyors instantly see how far they're stretching the geometry.
+
+### 11.6.5 Ghost Preview Pattern
+
+Same render path as the existing transform-tool ghosts (`drawTransformedFeaturePreview`):
+
+- Each candidate is a small crosshair at the world coords + a label `1`, `2`, …
+- Confirmed candidates render solid; un-confirmed render at 50% opacity.
+- The currently-highlighted row in the modal renders in the active accent colour (cyan by default).
+- Hovering a ghost on the canvas highlights the matching modal row. Hovering a row highlights the matching ghost. Same `useUIStore.hoveredFeatureId` channel used by the confidence cards.
+- Cycling the highlighted candidate via keyboard: `↓` / `↑` walk the list; `Enter` confirms the highlighted; `Space` toggles `keep`; `Escape` cancels.
+
+### 11.6.6 Output Modes
+
+- **Drop POINT** — emits one POINT feature per kept candidate. Properties: `intersectSourceAId`, `intersectSourceBId`, `intersectMethod`, `intersectExtended` (per source). All persisted so a future LIST tool can show provenance.
+- **Trim both to intersection** — only valid for finite LINE / LINE-SEG sources where the kept candidate lies inside both extents. Each source becomes a LINE that ends at the candidate point; the click side determines which half is retained (matching FILLET / CHAMFER convention).
+- **Extend both to intersection** — opposite case: when the candidate lies *outside* one or both sources, extend each finite source so it reaches the candidate. Surveyors use this for the "missing house corner" case.
+- **Build corner** — the surveyor's preferred shorthand for "extend both, keep both, and stamp a POINT here". Emits one combined batch: extended LINE A + extended LINE B + a POINT named "Corner" at the intersection.
+
+### 11.6.7 Multi-Candidate Disambiguation
+
+Some pairs always yield ≤ 1 candidate (LINE × LINE either misses or meets at one point). Others yield up to 2 (LINE × CIRCLE) or many (SPLINE × anything). The modal handles disambiguation as follows:
+
+- **0 candidates** — show a friendly explainer in the candidate-list area: "These two don't intersect. Toggle extension above to extend infinite, or pick a different pair." Suggestion chips below: "Toggle extension on both", "Switch to RAY".
+- **1 candidate** — auto-keeps it; Confirm button pre-focused so the surveyor can hit Enter.
+- **2+ candidates** — list all; first one auto-highlighted; surveyor picks via keyboard or click. `Confirm All` keeps every candidate at once for the bulk case (useful when intersecting a line against a fence polyline with many segments).
+
+### 11.6.8 Acceptance Tests (deterministic side)
+
+- [ ] LINE × LINE intersect modal opens, surveyor picks two non-parallel lines, candidate list shows 1 entry, confirm drops a POINT
+- [ ] LINE × LINE with parallel sources → "These two don't intersect" message + extension chip
+- [ ] LINE × LINE with extension ON finds the virtual intersection past both endpoints; ghost rendered as dashed line
+- [ ] LINE × ARC yields 0 / 1 / 2 candidates depending on geometry; cycling with ↓/↑ moves the canvas highlight
+- [ ] CIRCLE × CIRCLE (intersecting) yields 2 candidates, each `[keep]` adds a POINT
+- [ ] CIRCLE × CIRCLE (tangent) yields 1 candidate; confirm drops one POINT
+- [ ] CIRCLE × CIRCLE (concentric or non-intersecting) yields 0 candidates with explainer
+- [ ] RAY × LINE: surveyor picks a vertex, types `N 45-30 E` in the bearing field, modal finds the intersection
+- [ ] Polyline-segment picker: surveyor clicks a segment of a 12-vertex polyline; modal stores `(featureId, segmentIndex)` and intersects that segment as a LINE
+- [ ] Build corner: extended sources + stamped POINT all land in one batch undo entry
+- [ ] Trim both to intersection: kept candidate must be within both finite extents; otherwise the option is disabled with a tooltip explaining why
+- [ ] Multi-source SPLINE × LINE produces N candidates, each labelled with its segment-of-spline number
+- [ ] Property panel of dropped POINT shows `intersectSourceAId`, `intersectSourceBId`, `intersectMethod`, extension flags
+
+### 11.6.9 Implementation Sequence (deterministic)
+
+Each slice is a single PR / commit, all gated by tests:
+
+1. **Slice 1** — `IntersectDialog` shell (modal layout, source pickers, no math yet). Method picker shows `Line × Line` only; algorithm is the existing `lineLineIntersection`.
+2. **Slice 2** — Extension toggle + dashed-preview render. Add the `(within both)` / `(extended N ft)` badging.
+3. **Slice 3** — `lineCircleIntersections` + `lineArcIntersections` helpers + tests. Wire into the method picker.
+4. **Slice 4** — `circleCircleIntersections` + arc-arc filter (angular-span check). Tests.
+5. **Slice 5** — Polyline-segment picker — surveyor clicks a segment, dialog stores `(featureId, segmentIndex)`.
+6. **Slice 6** — RAY input source — origin point + bearing field (uses `<UnitInput kind="angle">`).
+7. **Slice 7** — Multi-candidate ghost preview + keyboard navigation + per-row keep/as-POINT actions.
+8. **Slice 8** — Output modes: Trim both / Extend both / Build corner. Emit single-batch undo entries.
+9. **Slice 9** — `ellipseLineIntersections` + spline sampler intersect.
+10. **Slice 10** — Right-click "Intersect Selection…" + command palette wiring + acceptance test pass.
+
+Each slice keeps the modal usable for everything we've shipped so far, so the surveyor gets value from Slice 1 onward.
 
 ---
 
