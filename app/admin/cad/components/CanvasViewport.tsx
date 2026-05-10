@@ -73,7 +73,9 @@ import {
   extendFeatureTo,
   joinSelection,
   filletTwoLines,
+  filletPolylineVertex,
   chamferTwoLines,
+  chamferPolylineVertex,
   divideFeatureBy,
   explodeFeature,
   reverseFeature,
@@ -8217,16 +8219,54 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
 
         case 'FILLET': {
-          // FILLET: two-click flow. Click 1 picks the first
-          // line + remembers the click point so we know which
-          // leg to keep. Click 2 picks the second line and
-          // commits the operation with the toolbar's radius.
+          // FILLET — two flows depending on what the surveyor
+          // clicks:
+          //   1. Polyline / polygon: single-click on a vertex
+          //      fillets that corner via filletPolylineVertex.
+          //      The closest vertex within ~12 px of the click
+          //      is the target.
+          //   2. Two LINE features: original two-click flow.
+          //      Click 1 picks the first line + remembers the
+          //      click point so we know which leg to keep.
+          //      Click 2 picks the second line and commits.
           const hit = hitTest(sx, sy);
           if (!hit) break;
           const f = drawingStore.getFeature(hit);
-          if (!f || f.geometry.type !== 'LINE') {
+          if (!f) break;
+          // Polyline-vertex branch.
+          if ((f.geometry.type === 'POLYLINE' || f.geometry.type === 'POLYGON') && f.geometry.vertices) {
+            const verts = f.geometry.vertices;
+            let bestIdx = -1;
+            let bestDist = Infinity;
+            for (let i = 0; i < verts.length; i += 1) {
+              const v = verts[i];
+              const { sx: vx, sy: vy } = w2s(v.x, v.y);
+              const d = Math.hypot(sx - vx, sy - vy);
+              if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+            // Same vertex-snap radius that grip handles use.
+            if (bestIdx < 0 || bestDist > 14) {
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: 'FILLET — click closer to a polyline vertex (within ~14 px).' },
+              }));
+              break;
+            }
+            const vRes = filletPolylineVertex(hit, bestIdx, toolState.filletRadius);
+            if (!vRes.ok) {
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: `FILLET — ${vRes.reason}` },
+              }));
+            } else {
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: `FILLET — corner rounded (r=${toolState.filletRadius}).` },
+              }));
+            }
+            break;
+          }
+          // Two-LINE flow.
+          if (f.geometry.type !== 'LINE') {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'FILLET — pick a LINE feature.' },
+              detail: { text: 'FILLET — click a polyline vertex, or pick two LINE features.' },
             }));
             break;
           }
@@ -8253,14 +8293,49 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
 
         case 'CHAMFER': {
-          // CHAMFER: identical two-click flow to FILLET but
-          // produces a straight LINE bevel instead of an ARC.
+          // CHAMFER — same two flows as FILLET, producing a
+          // straight LINE bevel instead of an ARC.
           const hit = hitTest(sx, sy);
           if (!hit) break;
           const f = drawingStore.getFeature(hit);
-          if (!f || f.geometry.type !== 'LINE') {
+          if (!f) break;
+          if ((f.geometry.type === 'POLYLINE' || f.geometry.type === 'POLYGON') && f.geometry.vertices) {
+            const verts = f.geometry.vertices;
+            let bestIdx = -1;
+            let bestDist = Infinity;
+            for (let i = 0; i < verts.length; i += 1) {
+              const v = verts[i];
+              const { sx: vx, sy: vy } = w2s(v.x, v.y);
+              const d = Math.hypot(sx - vx, sy - vy);
+              if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+            if (bestIdx < 0 || bestDist > 14) {
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: 'CHAMFER — click closer to a polyline vertex (within ~14 px).' },
+              }));
+              break;
+            }
+            const cRes = chamferPolylineVertex(
+              hit, bestIdx,
+              toolState.chamferDistance1, toolState.chamferDistance2,
+            );
+            if (!cRes.ok) {
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: `CHAMFER — ${cRes.reason}` },
+              }));
+            } else {
+              const tag = toolState.chamferDistance1 === toolState.chamferDistance2
+                ? `${toolState.chamferDistance1}`
+                : `${toolState.chamferDistance1}/${toolState.chamferDistance2}`;
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: `CHAMFER — corner beveled (${tag}).` },
+              }));
+            }
+            break;
+          }
+          if (f.geometry.type !== 'LINE') {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'CHAMFER — pick a LINE feature.' },
+              detail: { text: 'CHAMFER — click a polyline vertex, or pick two LINE features.' },
             }));
             break;
           }

@@ -1524,6 +1524,303 @@ function arcMidpoint(
 }
 
 /**
+ * Round a polyline / polygon corner at a chosen vertex with
+ * an arc of the given radius. The source feature is replaced
+ * by up to three new features: the polyline-up-to-PT1, the
+ * arc, and the polyline-from-PT2-onward (each may collapse
+ * into a LINE when only two vertices remain).
+ *
+ * Closed polygons wrap the neighbour lookup so filleting any
+ * vertex (including the first/last) works cleanly. The
+ * polygon is opened at the filleted corner: it becomes a
+ * single polyline that runs from the post-fillet PT2 around
+ * the perimeter and back to the pre-fillet PT1, with the
+ * fillet arc bridging the gap.
+ *
+ * Returns false (no-op) when:
+ *  - vertexIndex is out of range
+ *  - the corner is straight (anti-parallel neighbour edges)
+ *  - either neighbour edge is shorter than the required
+ *    tangent-point distance
+ */
+export function filletPolylineVertex(
+  featureId: string,
+  vertexIndex: number,
+  radius: number,
+): { ok: true; arcId: string; sideIds: string[] } | { ok: false; reason: string } {
+  if (!Number.isFinite(radius) || radius <= 0) {
+    return { ok: false, reason: 'Fillet radius must be > 0.' };
+  }
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return { ok: false, reason: 'Feature not found.' };
+  const g = f.geometry;
+  if ((g.type !== 'POLYLINE' && g.type !== 'POLYGON') || !g.vertices || g.vertices.length < 3) {
+    return { ok: false, reason: 'Fillet vertex requires a polyline / polygon with ≥ 3 vertices.' };
+  }
+  const verts = g.vertices;
+  const isClosed = g.type === 'POLYGON';
+  const n = verts.length;
+  if (vertexIndex < 0 || vertexIndex >= n) {
+    return { ok: false, reason: 'Vertex index out of range.' };
+  }
+  // Endpoints of an open polyline have no neighbour on one
+  // side, so no fillet is meaningful.
+  if (!isClosed && (vertexIndex === 0 || vertexIndex === n - 1)) {
+    return { ok: false, reason: 'Cannot fillet the endpoint of an open polyline.' };
+  }
+  const prevIdx = (vertexIndex - 1 + n) % n;
+  const nextIdx = (vertexIndex + 1) % n;
+  const P  = verts[vertexIndex];
+  const A  = verts[prevIdx];
+  const B  = verts[nextIdx];
+
+  // Keep directions point from the corner P out toward each
+  // neighbour. (Same convention `filletTwoLines` uses.)
+  const u1x = A.x - P.x;
+  const u1y = A.y - P.y;
+  const u2x = B.x - P.x;
+  const u2y = B.y - P.y;
+  const len1 = Math.hypot(u1x, u1y);
+  const len2 = Math.hypot(u2x, u2y);
+  if (len1 < 1e-10 || len2 < 1e-10) {
+    return { ok: false, reason: 'Adjacent vertices are coincident — no corner to fillet.' };
+  }
+  const u1 = { x: u1x / len1, y: u1y / len1 };
+  const u2 = { x: u2x / len2, y: u2y / len2 };
+
+  let cos2t = u1.x * u2.x + u1.y * u2.y;
+  cos2t = Math.max(-1, Math.min(1, cos2t));
+  if (cos2t > 1 - 1e-9) {
+    return { ok: false, reason: 'Adjacent edges run in the same direction — no corner to fillet.' };
+  }
+  if (cos2t < -1 + 1e-9) {
+    return { ok: false, reason: 'Adjacent edges are anti-parallel — corner is degenerate.' };
+  }
+  const sinT = Math.sqrt((1 - cos2t) / 2);
+  const cosT = Math.sqrt((1 + cos2t) / 2);
+  if (sinT < 1e-9 || cosT < 1e-9) {
+    return { ok: false, reason: 'Wedge angle is degenerate.' };
+  }
+  const tanT = sinT / cosT;
+  const t = radius / tanT;
+
+  if (t > len1 - 1e-6 || t > len2 - 1e-6) {
+    return {
+      ok: false,
+      reason: `Radius too large for these legs — needs ≤ ${Math.min(len1, len2).toFixed(3)} ft (current ${t.toFixed(3)}).`,
+    };
+  }
+
+  const PT1: Point2D = { x: P.x + t * u1.x, y: P.y + t * u1.y };
+  const PT2: Point2D = { x: P.x + t * u2.x, y: P.y + t * u2.y };
+
+  const bx = u1.x + u2.x;
+  const by = u1.y + u2.y;
+  const blen = Math.hypot(bx, by);
+  if (blen < 1e-10) return { ok: false, reason: 'Bisector is degenerate.' };
+  const ub = { x: bx / blen, y: by / blen };
+  const centerDist = radius / sinT;
+  const centerPt: Point2D = { x: P.x + centerDist * ub.x, y: P.y + centerDist * ub.y };
+
+  const startAngle = Math.atan2(PT1.y - centerPt.y, PT1.x - centerPt.x);
+  const endAngle = Math.atan2(PT2.y - centerPt.y, PT2.x - centerPt.x);
+  const midForCcw = arcMidpoint(centerPt, radius, startAngle, endAngle, true);
+  const midForCw  = arcMidpoint(centerPt, radius, startAngle, endAngle, false);
+  const distCcw = Math.hypot(midForCcw.x - P.x, midForCcw.y - P.y);
+  const distCw  = Math.hypot(midForCw.x - P.x,  midForCw.y - P.y);
+  const anticlockwise = distCcw < distCw;
+
+  // Build the new feature list. For an OPEN polyline:
+  //   side1 = verts[0..prevIdx] + PT1
+  //   side2 = PT2 + verts[nextIdx..n-1]
+  // For a CLOSED polygon: open it at the filleted corner —
+  //   single side polyline = PT2 + verts[nextIdx..n-1] + verts[0..prevIdx] + PT1
+  // (When prevIdx wraps backwards we walk the original ring
+  // in order; we only ever drop the corner vertex P itself.)
+  const cloneStyle = (): typeof f.style => JSON.parse(JSON.stringify(f.style));
+  const cloneProps = (): typeof f.properties => JSON.parse(JSON.stringify(f.properties));
+  const buildSide = (vertsList: Point2D[]): Feature => {
+    if (vertsList.length === 2) {
+      return {
+        ...f,
+        id: generateId(),
+        type: 'LINE',
+        style: cloneStyle(),
+        properties: cloneProps(),
+        geometry: { type: 'LINE', start: vertsList[0], end: vertsList[1] },
+      };
+    }
+    return {
+      ...f,
+      id: generateId(),
+      type: 'POLYLINE',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'POLYLINE', vertices: vertsList },
+    };
+  };
+
+  const sides: Feature[] = [];
+  if (isClosed) {
+    // Walk: nextIdx → wrap → prevIdx, dropping the corner.
+    const walked: Point2D[] = [PT2];
+    let i = nextIdx;
+    while (i !== vertexIndex) {
+      walked.push(verts[i]);
+      i = (i + 1) % n;
+      if (i === nextIdx) break; // safety
+    }
+    walked.push(PT1);
+    if (walked.length >= 2) sides.push(buildSide(walked));
+  } else {
+    const before = verts.slice(0, vertexIndex).concat([PT1]);
+    const after = [PT2].concat(verts.slice(vertexIndex + 1));
+    if (before.length >= 2) sides.push(buildSide(before));
+    if (after.length >= 2) sides.push(buildSide(after));
+  }
+
+  const arcFeature: Feature = {
+    ...f,
+    id: generateId(),
+    type: 'ARC',
+    style: cloneStyle(),
+    properties: cloneProps(),
+    geometry: { type: 'ARC', arc: { center: centerPt, radius, startAngle, endAngle, anticlockwise } },
+  };
+
+  const newFeatures = [...sides, arcFeature];
+  drawingStore.removeFeature(featureId);
+  drawingStore.addFeatures(newFeatures);
+  undoStore.pushUndo(makeBatchEntry(`Fillet corner (r=${radius})`, [
+    { type: 'REMOVE_FEATURE', data: f },
+    ...newFeatures.map((nf) => ({ type: 'ADD_FEATURE' as const, data: nf })),
+  ]));
+  selectionStore.selectMultiple(newFeatures.map((nf) => nf.id), 'REPLACE');
+  return { ok: true, arcId: arcFeature.id, sideIds: sides.map((s) => s.id) };
+}
+
+/**
+ * Bevel a polyline / polygon corner at a chosen vertex.
+ * Symmetric chamfer when dist1 === dist2; asymmetric
+ * otherwise. Same wrap-around behaviour for closed polygons
+ * as `filletPolylineVertex`. Source feature is replaced by
+ * up to three new features: side1 + bevel LINE + side2.
+ */
+export function chamferPolylineVertex(
+  featureId: string,
+  vertexIndex: number,
+  dist1: number,
+  dist2: number,
+): { ok: true; bevelId: string; sideIds: string[] } | { ok: false; reason: string } {
+  if (!Number.isFinite(dist1) || dist1 <= 0 || !Number.isFinite(dist2) || dist2 <= 0) {
+    return { ok: false, reason: 'Chamfer distances must be > 0.' };
+  }
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return { ok: false, reason: 'Feature not found.' };
+  const g = f.geometry;
+  if ((g.type !== 'POLYLINE' && g.type !== 'POLYGON') || !g.vertices || g.vertices.length < 3) {
+    return { ok: false, reason: 'Chamfer vertex requires a polyline / polygon with ≥ 3 vertices.' };
+  }
+  const verts = g.vertices;
+  const isClosed = g.type === 'POLYGON';
+  const n = verts.length;
+  if (vertexIndex < 0 || vertexIndex >= n) return { ok: false, reason: 'Vertex index out of range.' };
+  if (!isClosed && (vertexIndex === 0 || vertexIndex === n - 1)) {
+    return { ok: false, reason: 'Cannot chamfer the endpoint of an open polyline.' };
+  }
+  const prevIdx = (vertexIndex - 1 + n) % n;
+  const nextIdx = (vertexIndex + 1) % n;
+  const P = verts[vertexIndex];
+  const A = verts[prevIdx];
+  const B = verts[nextIdx];
+
+  const u1x = A.x - P.x;
+  const u1y = A.y - P.y;
+  const u2x = B.x - P.x;
+  const u2y = B.y - P.y;
+  const len1 = Math.hypot(u1x, u1y);
+  const len2 = Math.hypot(u2x, u2y);
+  if (len1 < 1e-10 || len2 < 1e-10) {
+    return { ok: false, reason: 'Adjacent vertices are coincident.' };
+  }
+  if (dist1 > len1 - 1e-6 || dist2 > len2 - 1e-6) {
+    return {
+      ok: false,
+      reason: `Chamfer distances exceed leg lengths — leg 1 = ${len1.toFixed(3)}, leg 2 = ${len2.toFixed(3)}.`,
+    };
+  }
+  const T1: Point2D = { x: P.x + (dist1 / len1) * u1x, y: P.y + (dist1 / len1) * u1y };
+  const T2: Point2D = { x: P.x + (dist2 / len2) * u2x, y: P.y + (dist2 / len2) * u2y };
+
+  const cloneStyle = (): typeof f.style => JSON.parse(JSON.stringify(f.style));
+  const cloneProps = (): typeof f.properties => JSON.parse(JSON.stringify(f.properties));
+  const buildSide = (vertsList: Point2D[]): Feature => {
+    if (vertsList.length === 2) {
+      return {
+        ...f,
+        id: generateId(),
+        type: 'LINE',
+        style: cloneStyle(),
+        properties: cloneProps(),
+        geometry: { type: 'LINE', start: vertsList[0], end: vertsList[1] },
+      };
+    }
+    return {
+      ...f,
+      id: generateId(),
+      type: 'POLYLINE',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'POLYLINE', vertices: vertsList },
+    };
+  };
+
+  const sides: Feature[] = [];
+  if (isClosed) {
+    const walked: Point2D[] = [T2];
+    let i = nextIdx;
+    while (i !== vertexIndex) {
+      walked.push(verts[i]);
+      i = (i + 1) % n;
+      if (i === nextIdx) break;
+    }
+    walked.push(T1);
+    if (walked.length >= 2) sides.push(buildSide(walked));
+  } else {
+    const before = verts.slice(0, vertexIndex).concat([T1]);
+    const after  = [T2].concat(verts.slice(vertexIndex + 1));
+    if (before.length >= 2) sides.push(buildSide(before));
+    if (after.length >= 2) sides.push(buildSide(after));
+  }
+
+  const bevelFeature: Feature = {
+    ...f,
+    id: generateId(),
+    type: 'LINE',
+    style: cloneStyle(),
+    properties: cloneProps(),
+    geometry: { type: 'LINE', start: T1, end: T2 },
+  };
+
+  const newFeatures = [...sides, bevelFeature];
+  drawingStore.removeFeature(featureId);
+  drawingStore.addFeatures(newFeatures);
+  const label = dist1 === dist2 ? `Chamfer corner (${dist1})` : `Chamfer corner (${dist1}/${dist2})`;
+  undoStore.pushUndo(makeBatchEntry(label, [
+    { type: 'REMOVE_FEATURE', data: f },
+    ...newFeatures.map((nf) => ({ type: 'ADD_FEATURE' as const, data: nf })),
+  ]));
+  selectionStore.selectMultiple(newFeatures.map((nf) => nf.id), 'REPLACE');
+  return { ok: true, bevelId: bevelFeature.id, sideIds: sides.map((s) => s.id) };
+}
+
+/**
  * Result of attempting a `joinSelection`. `joined` is the
  * new POLYLINE feature when the walk succeeded. When it
  * couldn't, `reason` carries a short user-facing message.
