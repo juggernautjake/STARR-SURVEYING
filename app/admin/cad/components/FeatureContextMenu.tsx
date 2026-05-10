@@ -28,6 +28,7 @@ import {
   useToolStore,
   useViewportStore,
   useUndoStore,
+  useTransferStore,
   makeBatchEntry,
 } from '@/lib/cad/store';
 import {
@@ -463,6 +464,37 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
           label: 'Duplicate',
           shortcut: 'Ctrl+D',
           action: () => duplicateSelection(),
+        },
+        {
+          id: 'sendToLayer',
+          label: 'Send to Layer…',
+          icon: <Layers size={12} />,
+          shortcut: 'Ctrl+Shift+L',
+          // Open the LayerTransferDialog pre-loaded with the
+          // current selection, defaulting to MOVE (semantically
+          // matches "send these elsewhere"). Surveyor can flip
+          // the operation in the dialog if they want to keep
+          // originals.
+          action: () => {
+            const ids = Array.from(selectionStore.selectedIds);
+            useTransferStore.getState().open(ids);
+            useTransferStore.getState().setOptions({ operation: 'MOVE', keepOriginals: false });
+          },
+        },
+        {
+          id: 'duplicateToLayer',
+          label: 'Duplicate to Layer…',
+          icon: <Copy size={12} />,
+          // Same path but defaulted to Duplicate so the
+          // surveyor's mental model maps cleanly to the menu
+          // verb. Includes the bring-along-linked-geometry
+          // default so picking a building corner brings its
+          // polygon.
+          action: () => {
+            const ids = Array.from(selectionStore.selectedIds);
+            useTransferStore.getState().open(ids);
+            useTransferStore.getState().setOptions({ operation: 'DUPLICATE', keepOriginals: true });
+          },
         },
         { separator: true, id: 's1' },
         {
