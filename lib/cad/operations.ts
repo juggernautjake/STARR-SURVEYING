@@ -29,6 +29,7 @@ import { useDrawingStore } from './store/drawing-store';
 import { useSelectionStore } from './store/selection-store';
 import { useUndoStore, makeBatchEntry, makeAddFeatureEntry, makeRemoveFeatureEntry } from './store/undo-store';
 import { useTraverseStore } from './store/traverse-store';
+import { findLinkedFeatureIds } from './operations/find-linked-geometry';
 import { useViewportStore } from './store/viewport-store';
 
 // ─────────────────────────────────────────────
@@ -2980,6 +2981,13 @@ export interface TransferToLayerOptions {
    *  distance is 0 the offset is a no-op even if bearing is
    *  set. */
   offset?: { distanceFt: number; bearingDeg: number } | null;
+  /** When true, the kernel walks the rest of the document and
+   *  expands the source set with any feature whose vertices /
+   *  endpoints are entirely defined by picked POINT features
+   *  (every match within ε). Lets the surveyor pick "the
+   *  corners of the building" and have the polygon come
+   *  along. */
+  bringAlongLinkedGeometry: boolean;
   /** Stamp on every duplicate so a future audit can group
    *  features that came from the same operation. */
   transferOperationId: string;
@@ -3027,12 +3035,32 @@ export function transferSelectionToLayer(
   // Resolve the source features once (also lets us skip ids
   // that were deleted between the dialog opening and Confirm).
   const sourceFeatures: Feature[] = [];
+  const sourceIdSet = new Set<string>();
   for (const id of selectionIds) {
     const f = drawingStore.getFeature(id);
-    if (f) sourceFeatures.push(f);
+    if (f) {
+      sourceFeatures.push(f);
+      sourceIdSet.add(id);
+    }
   }
   if (sourceFeatures.length === 0) {
     return { written: 0, removed: 0, resultIds: [] };
+  }
+
+  // Bring-along walk — expand the source set with any
+  // polyline / polygon / arc / spline / line whose vertices
+  // are entirely defined by picked POINT features. Stays
+  // off for Move (semantically odd to drag along linked
+  // geometry that wasn't selected) and for Copy-to-clipboard.
+  if (opts.bringAlongLinkedGeometry && opts.keepOriginals) {
+    const allFeatures = drawingStore.getAllFeatures();
+    const linkedIds = findLinkedFeatureIds(sourceIdSet, allFeatures);
+    for (const lid of linkedIds) {
+      const f = drawingStore.getFeature(lid);
+      if (!f) continue;
+      sourceFeatures.push(f);
+      sourceIdSet.add(lid);
+    }
   }
 
   const allowList = (targetLayer.autoAssignCodes ?? []).map((c) => c.toUpperCase());

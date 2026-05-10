@@ -177,6 +177,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
         stripUnknownCodes: options.stripUnknownCodes,
         targetTraverseId: options.targetTraverseId,
         offset,
+        bringAlongLinkedGeometry: options.bringAlongLinkedGeometry,
         transferOperationId: generateId(),
       },
     );
@@ -748,9 +749,13 @@ function OptionsBlock() {
     <details className="bg-gray-900 border border-gray-700 rounded">
       <summary className="px-2 py-1.5 cursor-pointer text-[11px] text-gray-300 hover:text-white select-none">
         Options
-        {(options.applyOffset || renumberOn) && (
+        {(options.applyOffset || renumberOn || options.bringAlongLinkedGeometry) && (
           <span className="ml-1.5 text-[10px] text-blue-400">
-            ({[options.applyOffset && 'offset', renumberOn && 'renumber'].filter(Boolean).join(', ')})
+            ({[
+              options.applyOffset && 'offset',
+              renumberOn && 'renumber',
+              options.bringAlongLinkedGeometry && 'linked',
+            ].filter(Boolean).join(', ')})
           </span>
         )}
       </summary>
@@ -824,6 +829,22 @@ function OptionsBlock() {
           </label>
           <p className="text-[10px] text-gray-500 mt-1">
             When off, duplicates keep their source point numbers (which may collide with existing numbers on the target layer).
+          </p>
+        </div>
+
+        {/* ── Bring-along linked geometry ──────────────────── */}
+        <div className="border-t border-gray-700 pt-2">
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={options.bringAlongLinkedGeometry}
+              onChange={(e) => setOptions({ bringAlongLinkedGeometry: e.target.checked })}
+              className="rounded"
+            />
+            Bring along linked geometry
+          </label>
+          <p className="text-[10px] text-gray-500 mt-1">
+            Auto-includes any polyline / polygon / arc / spline / line whose vertices are entirely defined by the picked POINTs. Pick all four corners of a building → the polygon comes along too.
           </p>
         </div>
       </div>
