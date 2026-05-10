@@ -28,6 +28,7 @@ import {
 import { useDrawingStore } from './store/drawing-store';
 import { useSelectionStore } from './store/selection-store';
 import { useUndoStore, makeBatchEntry, makeAddFeatureEntry, makeRemoveFeatureEntry } from './store/undo-store';
+import { useTraverseStore } from './store/traverse-store';
 import { useViewportStore } from './store/viewport-store';
 
 // ─────────────────────────────────────────────
@@ -3066,12 +3067,23 @@ export function transferSelectionToLayer(
     }
     drawingStore.addFeatures(newFeatures);
     const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
+    // Optional traverse append — POINT duplicates are
+    // tacked onto the chosen traverse in surveyor-pick order.
+    // Non-POINT duplicates are silently skipped here; a
+    // future slice may add the "build polyline from duplicates"
+    // workflow.
+    if (opts.targetTraverseId) {
+      const traverseStore = useTraverseStore.getState();
+      const traverse = traverseStore.traverses[opts.targetTraverseId];
+      if (traverse) {
+        for (const f of newFeatures) {
+          if (f.geometry.type !== 'POINT') continue;
+          traverseStore.addPointToTraverse(opts.targetTraverseId, f.id);
+        }
+      }
+    }
     undoStore.pushUndo(makeBatchEntry(`Duplicate to ${targetLayer.name}`, ops));
     selectionStore.selectMultiple(newFeatures.map((f) => f.id), 'REPLACE');
-
-    // Optional traverse append — stub for now; full traverse
-    // wiring lands in Slice 5 of the §11.7 plan.
-    void opts.targetTraverseId;
 
     return { written: newFeatures.length, removed: 0, resultIds: newFeatures.map((f) => f.id) };
   }

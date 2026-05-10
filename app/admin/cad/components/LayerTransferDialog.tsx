@@ -16,6 +16,7 @@ import { X, Layers, MousePointerClick, ListChecks, Trash2, Hash, AlertTriangle }
 import {
   useDrawingStore,
   useSelectionStore,
+  useTraverseStore,
   useTransferStore,
 } from '@/lib/cad/store';
 import { transferSelectionToLayer } from '@/lib/cad/operations';
@@ -130,6 +131,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
     return counts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickedIds]);
+  const pointPickCount = pickStats.POINT ?? 0;
 
   // Conflict pre-pass — Slice 1 covers the two highest-impact
   // ones (locked target, codes outside autoAssignCodes).
@@ -402,6 +404,15 @@ export default function LayerTransferDialog({ onClose }: Props) {
               )}
             </div>
           )}
+
+          {/* Traverse destination — surfaces only when at
+              least one POINT is in the source set (since the
+              traverse only takes points). Surveyor can route
+              POINT duplicates into an existing traverse or
+              spin up a new one inline. */}
+          {options.operation === 'DUPLICATE' && pointPickCount > 0 && (
+            <TraverseDestinationField pointPickCount={pointPickCount} />
+          )}
         </div>
 
         {/* Footer */}
@@ -575,6 +586,128 @@ function TypeIdsField() {
         Comma + hyphen ranges. <span className="font-mono">12, 14-19, 22</span> resolves to 8 points.
         Reverse ranges work too. Press <kbd className="font-mono px-1 rounded bg-gray-800 border border-gray-700">Enter</kbd> to add.
       </p>
+    </div>
+  );
+}
+
+// ─── Traverse destination field ────────────────────────────
+//
+// Surveyor either picks an existing traverse from the list
+// or creates a new one inline (name + closed flag). On
+// confirm, every duplicated POINT is appended to the chosen
+// traverse in the order it was picked.
+
+function TraverseDestinationField({ pointPickCount }: { pointPickCount: number }) {
+  const traverseStore = useTraverseStore();
+  const setOptions = useTransferStore((s) => s.setOptions);
+  const targetTraverseId = useTransferStore((s) => s.options.targetTraverseId);
+
+  const [creating, setCreating] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [draftClosed, setDraftClosed] = useState(false);
+
+  const traverses = Object.values(traverseStore.traverses);
+
+  function createAndSelect() {
+    const name = draftName.trim();
+    if (!name) return;
+    const newId = generateId();
+    traverseStore.createTraverse({
+      id: newId,
+      name,
+      pointIds: [],
+      isClosed: draftClosed,
+      legs: [],
+      closure: null,
+      adjustedPoints: null,
+      adjustmentMethod: null,
+      area: null,
+    });
+    setOptions({ targetTraverseId: newId });
+    setCreating(false);
+    setDraftName('');
+    setDraftClosed(false);
+  }
+
+  return (
+    <div>
+      <label className="block text-[11px] text-gray-400 mb-1">
+        Traverse <span className="text-gray-500">— {pointPickCount} point{pointPickCount === 1 ? '' : 's'} can be appended</span>
+      </label>
+      {!creating ? (
+        <div className="flex gap-1.5">
+          <select
+            value={targetTraverseId ?? ''}
+            onChange={(e) => setOptions({ targetTraverseId: e.target.value || null })}
+            className="flex-1 bg-gray-700 text-white text-xs px-2 py-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+          >
+            <option value="">— skip (no traverse change) —</option>
+            {traverses.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.pointIds.length} pts{t.isClosed ? ', closed' : ''})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="px-2.5 py-1.5 text-[11px] rounded border bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+            title="Spin up a new traverse without leaving this dialog"
+          >
+            + New…
+          </button>
+        </div>
+      ) : (
+        <div className="bg-gray-900 border border-gray-700 rounded p-2 space-y-2">
+          <input
+            type="text"
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            placeholder="Traverse name (e.g. Lot 14 boundary)"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                createAndSelect();
+              }
+            }}
+            className="w-full bg-gray-700 text-white text-xs px-2 py-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+          />
+          <div className="flex items-center justify-between">
+            <label className="inline-flex items-center gap-1.5 text-[11px] text-gray-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={draftClosed}
+                onChange={(e) => setDraftClosed(e.target.checked)}
+                className="rounded"
+              />
+              Closed traverse
+            </label>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => { setCreating(false); setDraftName(''); setDraftClosed(false); }}
+                className="px-2 py-1 text-[11px] rounded bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={createAndSelect}
+                disabled={!draftName.trim()}
+                className="px-2 py-1 text-[11px] rounded bg-blue-600 border border-blue-500 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {targetTraverseId && (
+        <p className="text-[10px] text-gray-500 mt-1">
+          {pointPickCount} duplicate{pointPickCount === 1 ? '' : 's'} will be appended to this traverse on Confirm.
+        </p>
+      )}
     </div>
   );
 }
