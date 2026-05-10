@@ -25,6 +25,8 @@
     11.5. [Unit-Aware Input System](#115-unit-aware-input-system)
 
     11.6. [Intersect Tool — Deterministic Geometry](#116-intersect-tool--deterministic-geometry)
+
+    11.7. [Cross-Layer Copy / Move / Duplicate](#117-cross-layer-copy--move--duplicate)
 12. [Phase 1–7 Gap Audit & Fixes](#12-phase-17-gap-audit--fixes)
 13. [Acceptance Tests](#13-acceptance-tests)
 14. [Build Order (Implementation Sequence)](#14-build-order-implementation-sequence)
@@ -1604,6 +1606,194 @@ Each slice is a single PR / commit, all gated by tests:
 10. **Slice 10** — Right-click "Intersect Selection…" + command palette wiring + acceptance test pass.
 
 Each slice keeps the modal usable for everything we've shipped so far, so the surveyor gets value from Slice 1 onward.
+
+---
+
+## 11.7 Cross-Layer Copy / Move / Duplicate
+
+**Goal:** A single first-class workflow for moving or duplicating any selection of features (POINTs, LINEs, POLYLINEs, POLYGONs, ARCs, SPLINEs, even whole TRAVERSES) into a different layer or a different traverse — with two ways for the surveyor to specify what's being moved: **(1)** click-to-select directly on the canvas with live blue-glow feedback, or **(2)** type / paste IDs and ranges into a manual input field. The same dialog handles every variant: pure copy (clipboard-style, original stays put), duplicate-into-layer (new copies, originals stay), move-to-layer (originals reassigned), and clone-with-offset (programmatic distance + bearing, leveraging §11.5's unit parser). Every variant supports auto-numbering, code-conflict resolution, and ghost previews before commit.
+
+The existing `copyToClipboard / pasteFromClipboard / duplicateSelection / copyCadSelection` in `lib/cad/operations.ts` are the kernel; this section wraps them in a UX surface and adds the cross-layer / cross-traverse routing the kernel doesn't currently express.
+
+### 11.7.1 Activation Surfaces
+
+- **Toolbar** — new SEND_TO_LAYER entry under EDIT (alongside MOVE / COPY / ROTATE / SCALE).
+- **Hotkey** — `Ctrl+Shift+L` opens the dialog with the current selection pre-loaded.
+- **Right-click context menu** — when ≥ 1 feature is selected: `Send to layer…` and `Duplicate to layer…` entries (also `Duplicate to traverse…` when source is POINT-only).
+- **Layer panel** — drag-and-drop a selection onto a layer row in `LayerPanel` is the lightest-weight path. Default action: **Move**. Hold `Alt` while dropping to **Duplicate** instead. Visual: target row glows blue while a drag is hovering.
+- **Command palette** — `tool.sendToLayer` / `tool.duplicateToLayer` / `tool.duplicateToTraverse` with searchable keywords (`copy`, `clone`, `move layer`, `traverse`).
+
+### 11.7.2 Dialog Layout
+
+Floating non-modal `LayerTransferDialog` so the surveyor can keep clicking on the canvas while the dialog stays open:
+
+```
+┌─ Send to Layer / Traverse ────────────────────────────┐
+│ Operation: ▾ [Duplicate ▾]                            │
+│                                                       │
+│ ┌─ Source ──────────────────────────────────────────┐ │
+│ │ ◉ Pick on canvas         ○ Type IDs              │ │
+│ │ [📍 Pick mode active — click features to add]    │ │
+│ │ ─ 23 features selected (12 POINT, 8 LINE, 3 ARC) │ │
+│ │   12, 14-19, 22, 24, [+5 lines] [+3 arcs]        │ │
+│ │   [Filter ▾ all] [Clear] [Add active selection]  │ │
+│ └──────────────────────────────────────────────────┘ │
+│                                                       │
+│ ┌─ Destination ────────────────────────────────────┐ │
+│ │ Layer:    ▾ [BOUNDARY ▾] [+ New layer…]         │ │
+│ │ Traverse: ▾ [—keep current— ▾] [+ New traverse…]│ │
+│ └──────────────────────────────────────────────────┘ │
+│                                                       │
+│ ┌─ Options ────────────────────────────────────────┐ │
+│ │ ☑ Keep originals  (Duplicate, not Move)         │ │
+│ │ ☐ Apply offset:  Δ [10ft] @ bearing [N 45 E]    │ │
+│ │ ☑ Renumber duplicates starting at  [1000]       │ │
+│ │ ☐ Strip codes that don't exist on target layer  │ │
+│ │ ☑ Bring along linked geometry (polylines that   │ │
+│ │   reference these points)                        │ │
+│ │ ☐ Link duplicates back to originals (live ref)  │ │
+│ └──────────────────────────────────────────────────┘ │
+│                                                       │
+│ ┌─ Preview (23 → 23 ghost features) ──────────────┐ │
+│ │  Conflicts: 2 codes don't exist on BOUNDARY ⚠   │ │
+│ │  • IRS will be skipped (or auto-add to layer?)  │ │
+│ │  • ROW will be skipped (or auto-add to layer?)  │ │
+│ └──────────────────────────────────────────────────┘ │
+│                                                       │
+│ [Cancel]                              [Confirm ⏎]    │
+└──────────────────────────────────────────────────────┘
+```
+
+Each numbered region is independently testable:
+
+- **Operation picker** — `Duplicate` (originals stay, new copies on target), `Move` (originals reassigned to target layer / traverse), `Copy to clipboard` (no immediate write — surveyor pastes later somewhere else, possibly in a different drawing).
+- **Source picker** — `Pick on canvas` and `Type IDs` are radio buttons; switching between them preserves the selection.
+- **Destination picker** — Layer dropdown is required; Traverse dropdown defaults to `—keep current—` for non-POINT sources, exposed when the source is POINT-only or when `Operation = Duplicate to traverse`.
+- **Options** — depend on operation; checkboxes / inputs that don't apply hide.
+- **Preview** — running tally + conflict report before confirm.
+
+### 11.7.3 Source Mode 1 — Pick on Canvas
+
+This is the surveyor-friendly default. While the dialog has the "Pick mode" toggle on:
+
+- Every hover on the canvas paints a **blue outline glow** on the candidate feature (3 px ring, 50% opacity, blue accent colour). Same effect already used by the §29 confidence-card hover.
+- A click **adds** the feature to the source set. The feature stays glowing at 100% opacity (thicker ring) so the surveyor sees the running selection without checking the dialog.
+- A second click on a glowing feature **removes** it.
+- `Shift+drag` runs a box-select; everything inside is added (feature-type filter respects the chip).
+- `Ctrl+A` adds every visible feature on the active layer.
+- `Esc` cancels Pick mode and returns the cursor to the previous tool. The dialog stays open so the surveyor can switch to Type IDs without losing what they've already picked.
+- Filter chip — `Only points` / `Only lines + arcs` / `Only polygons` / `All` — gates which feature types the canvas hover / click / box-select will accept.
+- Live tally chip in the bottom-right corner of the canvas while Pick mode is on: `23 selected · ⏎ to confirm · Esc to cancel`. Mirrors the dialog's count.
+
+### 11.7.4 Source Mode 2 — Type IDs
+
+For surveyors who already know which point numbers they want — common when working from a deed call sheet:
+
+- Free-form text field that accepts the standard surveyor shorthand:
+  - **Comma-separated** — `12, 14, 19, 22`
+  - **Range with hyphen** — `14-19` expands to `14, 15, 16, 17, 18, 19`
+  - **Mixed** — `12, 14-19, 22, 30-33`
+  - **Whitespace tolerant** — `12 14-19 22` works too
+- Each parsed token is validated:
+  - Point number exists → green chip below the field with the resolved feature id
+  - Point number missing → red chip (`#27 not found`) — surveyor can click `Skip missing`
+  - Code matches on a different layer → orange chip (`#19 lives on BOUNDARY-MON, will copy from there`)
+- `Add active selection` button populates the field from `useSelectionStore.selectedIds` so the surveyor can collapse a click-flow into a typed range, edit it, then confirm.
+- `Paste` from the system clipboard is treated as one big range string (handles "12,14-19" pasted from a deed PDF).
+
+### 11.7.5 Destination — Layer
+
+- Layer dropdown lists every layer in the document with the standard chip rendering (colour swatch + name + lock icon). Adds `+ New layer…` at the bottom which inlines a new-layer form (name + colour) without leaving the dialog.
+- Locked target layer → the Confirm button is disabled with a tooltip "BOUNDARY is locked — unlock or pick a different layer."
+- Layer's `autoAssignCodes[]` constraint check — if the source set carries codes outside that allow-list, the Preview region surfaces the conflicts. Two resolution paths:
+  - `Strip codes that don't exist on target layer` checkbox (off by default) — copy strips the code field, leaves geometry.
+  - `Auto-add codes to target layer` button — extends the layer's `autoAssignCodes[]` so the next paste doesn't conflict.
+
+### 11.7.6 Destination — Traverse
+
+POINT-only sources (or sources where every selected feature is a POINT) expose the Traverse dropdown:
+
+- `—keep current—` — no traverse changes (default for non-POINT sources).
+- `+ New traverse…` — inline form: name, isClosed checkbox, ordering dropdown (`As-picked` / `By point number` / `Counter-clockwise`).
+- Existing traverse — append to the end, or insert at a chosen position via a numeric input.
+- When operation = **Move** and the source POINTs already belong to a different traverse, a warning chip surfaces: "Moving these points removes them from traverse `Lot 14 boundary` (which becomes 8 points instead of 12)."
+
+### 11.7.7 Options Detail
+
+- **Keep originals** — semantically the difference between Duplicate and Move. Auto-toggles when the surveyor flips Operation; surveyor can override.
+- **Apply offset** — distance + bearing inputs (both `<UnitInput>` instances from §11.5). When set, every duplicate translates by the vector. Lives below the Move/Duplicate split because it implicitly forces Duplicate.
+- **Renumber duplicates** — checkbox + start number. When ON, every duplicated POINT gets `pointNo = nextAvailable++` starting at the typed seed; when OFF, duplicates keep the source numbers (which only works if `Strip codes` or a different traverse is set, since duplicate point numbers in the same layer collide).
+- **Strip codes that don't exist on target layer** — described above.
+- **Bring along linked geometry** — when ON, polylines / polygons / arcs that reference the duplicated points' coordinates get copied too (so the surveyor doesn't have to manually re-pick them). Implementation: walk the source set, for every POINT find features whose vertex list contains that POINT's coords (within ε), include them in the duplicate batch automatically. Default ON because it matches "duplicate this corner of the building" intent.
+- **Link duplicates back to originals (live ref)** — opt-in, OFF by default. When ON, every duplicate carries `linkedSourceId` and a translation vector; future edits on the original push to the duplicate too. Surveyor uses this for "show this monument on three different layers without maintaining three copies" workflows. Editing the duplicate breaks the link.
+
+### 11.7.8 Conflict Resolution
+
+The Preview region runs a deterministic pre-pass and surfaces every conflict before Confirm fires:
+
+- **Duplicate point numbers** on the target layer → propose either `Renumber starting at 1000` (default) or `Skip duplicates` or `Overwrite existing`. The surveyor picks once; the choice persists for the session.
+- **Codes not in target layer's `autoAssignCodes[]`** → strip / auto-add / skip (per-code chip).
+- **Locked target layer** → block confirm with a clickable "Unlock layer" chip.
+- **Source = traverse, target traverse mid-segment** → warning explaining the geometry implication (insertion vs. append).
+- **Cross-drawing paste** (when the clipboard came from a different drawing) → flag layers / codes that don't exist in the destination drawing; offer auto-create.
+
+### 11.7.9 Ghost Preview
+
+Same render path as the §11.6 Intersect ghosts:
+
+- Each duplicate renders as a half-opacity ghost at its destination location, tinted with the destination layer's colour.
+- Lines drawn from each ghost back to its source feature so the surveyor sees the offset visually.
+- The conflict report (red badges) anchors to specific ghosts so the surveyor can mouse-hover to read the warning.
+- `Compare originals vs. duplicates` toggle — re-renders the source set at half opacity too; helpful when previewing a Move.
+
+### 11.7.10 Persistence & Undo
+
+- Single Confirm fires one batch undo entry — every ADD / MODIFY / TRAVERSE_UPDATE in one go. `Ctrl+Z` reverts the entire transfer.
+- The transfer's parameters (operation, source ids, destination layer/traverse, options) are logged to a per-document `transferHistory[]` (last 20) so the surveyor can repeat or audit. Persisted via the document autosave.
+- Clipboard content from this dialog uses the existing `_clipboard` module-scope variable; cross-drawing paste works the moment the surveyor opens another drawing.
+
+### 11.7.11 Cross-Drawing Workflows
+
+When the surveyor opens a second drawing, the system clipboard remains populated. Pasting into the new drawing opens a streamlined version of the dialog (only the destination + conflict regions visible) so the surveyor confirms layer / traverse routing without re-picking source features. Layer-name conflicts are resolved by:
+
+- Same name + same colour → silent reuse
+- Same name + different colour → prompt to rename or recolour
+- Name doesn't exist → auto-create in destination
+
+### 11.7.12 Acceptance Tests
+
+- [ ] Right-click on a 5-feature selection → "Send to layer…" opens the dialog pre-populated with the 5 features
+- [ ] Pick mode: hover → blue glow on candidate; click adds to selection at full-opacity glow; click again removes
+- [ ] Box-select inside Pick mode adds every feature in the rectangle (filtered by the chip)
+- [ ] Type IDs `12, 14-19, 22` resolves to 8 chips below the field; chip for missing #27 renders red
+- [ ] Drag-and-drop selection onto LayerPanel row → defaults to Move; Alt-drag → Duplicate
+- [ ] Locked target layer → Confirm disabled with tooltip; clickable "Unlock layer" chip resolves
+- [ ] `autoAssignCodes` mismatch surfaces conflict chip; "Auto-add codes to target layer" extends the layer config
+- [ ] Apply offset 10 ft N 45° E → duplicates render at the offset position; ghost lines connect each pair
+- [ ] Renumber from 1000 → first duplicate is point 1000, increments by 1
+- [ ] Bring-along: duplicating 2 corner POINTs that participate in a polygon also brings the polygon
+- [ ] Linked duplicates: editing the source POINT moves the linked duplicate too (until the duplicate is edited directly, which breaks the link)
+- [ ] Single Confirm = single batch undo entry; Ctrl+Z fully reverts
+- [ ] Cross-drawing paste into a drawing missing the source layer → auto-creates the layer with same name + colour
+- [ ] Compare-originals toggle renders both sets at half opacity
+- [ ] `transferHistory[]` records the last 20 transfers per document; persists across reload
+
+### 11.7.13 Implementation Sequence
+
+1. **Slice 1** — `LayerTransferDialog` shell with hard-coded pre-loaded selection. Operation picker + layer destination + Confirm wires through to the existing `duplicateSelection` (with the offset replaced by a layer reassignment after the duplicate). Move = duplicate-then-delete.
+2. **Slice 2** — Pick-mode click-to-select with blue-glow rendering. Reuse `useUIStore.hoveredFeatureId` channel for the canvas highlight; add a separate `useTransferStore.pickedIds` for the running set.
+3. **Slice 3** — Type IDs parser (`parsePointRangeString`) + per-token chip validation. Pure helper with vitest coverage.
+4. **Slice 4** — Layer dropdown with `+ New layer…` inline form. Conflict pre-pass for `autoAssignCodes` mismatch and locked layer.
+5. **Slice 5** — Traverse destination flow + closure / append / insert positioning.
+6. **Slice 6** — Apply-offset with `<UnitInput>` distance + bearing fields. Renumber-from-N option.
+7. **Slice 7** — Bring-along-linked-geometry walker (find polylines / polygons / arcs whose vertices include any of the source POINTs).
+8. **Slice 8** — Ghost preview render with destination-layer tint + source-to-duplicate connector lines.
+9. **Slice 9** — Drag-and-drop from canvas selection onto LayerPanel row; Alt-drag toggle.
+10. **Slice 10** — Linked-duplicates store (`linkedSourceId` field on duplicates, change-propagation hook on source edits). Edge case: editing the duplicate breaks the link with a confirm prompt.
+11. **Slice 11** — Cross-drawing paste flow: detect missing layers, prompt-or-auto-create. Layer-name conflict resolution chips.
+12. **Slice 12** — `transferHistory[]` per-document logging + Repeat-last-transfer hotkey (`Ctrl+Shift+R`).
+
+Each slice keeps the dialog usable for the workflows shipped so far. The surveyor never has to wait for the full feature set to land — the click-to-select + simple layer reassignment lands in Slice 1+2 (a handful of days of work), and every later slice is additive.
 
 ---
 
