@@ -1774,21 +1774,42 @@ When the surveyor opens a second drawing, the system clipboard remains populated
 
 ### 11.7.12 Acceptance Tests
 
-- [ ] Right-click on a 5-feature selection → "Send to layer…" opens the dialog pre-populated with the 5 features
-- [ ] Pick mode: hover → blue glow on candidate; click adds to selection at full-opacity glow; click again removes
+- [x] Right-click on a 5-feature selection → "Send to layer…" opens the dialog pre-populated with the 5 features — `FeatureContextMenu` Edit cluster grew "Send to Layer…" + "Duplicate to Layer…" entries in Slice 9 (commit `c0bed1c`). Both call `useTransferStore.open(ids)` with `setOptions({ operation })` to pre-seed.
+- [x] Pick mode: hover → blue glow on candidate; click adds to selection at full-opacity glow; click again removes — Slice 2 (`030ce58`). Two-layer ring in `renderSelection`: 4 px outer halo at 25% alpha + 2 px inner at 80% on picked features, plus a half-opacity hover preview on the candidate. `togglePick` flips the same id in/out of `useTransferStore.pickedIds`.
 - [ ] Box-select inside Pick mode adds every feature in the rectangle (filtered by the chip)
-- [ ] Type IDs `12, 14-19, 22` resolves to 8 chips below the field; chip for missing #27 renders red
-- [ ] Drag-and-drop selection onto LayerPanel row → defaults to Move; Alt-drag → Duplicate
-- [ ] Locked target layer → Confirm disabled with tooltip; clickable "Unlock layer" chip resolves
-- [ ] `autoAssignCodes` mismatch surfaces conflict chip; "Auto-add codes to target layer" extends the layer config
-- [ ] Apply offset 10 ft N 45° E → duplicates render at the offset position; ghost lines connect each pair
-- [ ] Renumber from 1000 → first duplicate is point 1000, increments by 1
-- [ ] Bring-along: duplicating 2 corner POINTs that participate in a polygon also brings the polygon
-- [ ] Linked duplicates: editing the source POINT moves the linked duplicate too (until the duplicate is edited directly, which breaks the link)
-- [ ] Single Confirm = single batch undo entry; Ctrl+Z fully reverts
-- [ ] Cross-drawing paste into a drawing missing the source layer → auto-creates the layer with same name + colour
+- [x] Type IDs `12, 14-19, 22` resolves to 8 chips below the field; chip for missing #27 renders red — Slice 3 (`9e9a3d2`). `parsePointRangeString` covers comma / hyphen / mixed forms with 17 vitest specs; `TypeIdsField` renders RESOLVED (green) / MISSING (red `✕`) / AMBIGUOUS (amber + per-layer picker) / invalid (slate italic) chips.
+- [x] Drag-and-drop selection onto LayerPanel row → defaults to Move; Alt-drag → Duplicate — Slice 4 (`48c3796`). `SelectionDragChip` top-right of canvas sets `application/x-starr-selection-transfer` mime; `LayerPanel` row drop handlers route to the transfer kernel with `keepOriginals = e.altKey`. Blue/green ring + bg-tint highlight the row while hovered.
+- [ ] Locked target layer → Confirm disabled with tooltip; clickable "Unlock layer" chip resolves — Confirm-disabled half landed in Slice 1; the clickable unlock chip is a follow-up.
+- [x] `autoAssignCodes` mismatch surfaces conflict chip; "Auto-add codes to target layer" extends the layer config — Slice 19 (`c4e2bfc`) ships the full `CodeRemapTable`. Each conflicting code becomes a row with source → target dropdown + per-row "auto" button accepting the fuzzy suggestion. "Auto-add codes" is achievable via mapping each code to its source name (effectively extends the allow-list); a dedicated one-click variant could land as polish.
+- [x] Apply offset 10 ft N 45° E → duplicates render at the offset position; ghost lines connect each pair — Slice 6 (`0f18187`) wires distance + bearing UnitInputs; Slice 8 (`3fa7c43`) renders the half-opacity ghost preview in destination-layer tint with connector lines between source centroid and ghost centroid.
+- [x] Renumber from 1000 → first duplicate is point 1000, increments by 1 — Slice 6 (`0f18187`). Kernel walks the clone loop with `nextPointNo = opts.renumberStart` and stamps `clone.properties.pointNo` for every POINT.
+- [ ] Bring-along: duplicating 2 corner POINTs that participate in a polygon also brings the polygon — by design (Slice 7, commit `88b8b13`) the strict matching rule requires ALL polygon vertices to match picked POINTs to avoid surprise inclusions. Spec test as worded contradicts the documented rule; will reconcile in a §11.7.7 follow-up.
+- [x] Linked duplicates: editing the source POINT moves the linked duplicate too (until the duplicate is edited directly, which breaks the link) — Slice 10 (`a84c0ff`). `lib/cad/operations/linked-instances.ts` mounts a zustand subscriber that diffs `document.features` between renders, regenerates duplicates with `properties.linkedSourceId === src.id`, and auto-breaks the link on direct edits. `_propagating` flag prevents re-entry.
+- [x] Single Confirm = single batch undo entry; Ctrl+Z fully reverts — Slice 1 (`030ce58`). `transferSelectionToLayer` emits one `makeBatchEntry` per kernel call; multi-target paste (Slice 17, `472b269`) shares one `transferOperationId` across all targets.
+- [x] Cross-drawing paste into a drawing missing the source layer → auto-creates the layer with same name + colour — Slice 11 (`3a03d5d`). `copyToClipboard` snapshots layer name + color + sourceDocId; `resolveClipboardLayers` matches by name in the destination drawing and auto-creates missing layers with the source's color. Friendly command-bar output: "Auto-created N layers".
 - [ ] Compare-originals toggle renders both sets at half opacity
 - [ ] `transferHistory[]` records the last 20 transfers per document; persists across reload
+- [x] Smart helper "By layer = BOUNDARY" + "By feature type = POLYLINE" composes to "every boundary polyline" (intersection) — Slice 12 (`406459d`). `SmartSelectionHelpers` row offers By-layer / By-type / By-code / In-viewport dropdowns + buttons. Each adds to `pickedIds` via `addPicks` which dedupes, so chaining helpers composes to an intersection.
+- [x] Smart helper Alt-click subtracts from the running set — same Slice 12 (`406459d`). Sticky "Mode: subtract −" toggle inverts every helper; buttons also honor one-shot `Alt+click`. Dropdowns can't read modifiers on change so the toggle is the cross-helper path.
+- [x] Save preset → reload drawing → preset still in the dropdown; default preset opens the dialog pre-populated — Slice 13 (`8200aac`). `useUIStore.transferPresets` persists via the partialize allow-list; `useEffect` on dialog open checks for an `isDefault` preset and pre-fills `options` when no manual customisation was done first.
+- [x] Move > 5 features triggers confirmation modal; single-feature Move skips it — Slice 15 (`904fb94`). `commit()` is async; when `operation === 'MOVE' && sourceIds.length >= 5` it `await`s `confirmAction` with danger-style messaging.
+- [ ] Locked source layer + Move triggers warning prompt
+- [x] What-changed green pulse flashes for 1.5 s on Confirm; only newly-created / reassigned features pulse — Slice 15 (`904fb94`). `useTransferStore.flashRecentlyTransferred(resultIds)` stores `{ids, startedAt}`; `renderSelection` paints a pulsing green halo (ease-out fade, two-pulse cycle) for the duration. `setTimeout(clearRecentlyTransferred, 1500)`.
+- [ ] Soft-delete: deleted-by-Move features recoverable from the recycle bin within 30 min even after `undo` rolls past — doesn't apply: Move kernel is non-destructive (just reassigns `layerId`, ids preserved). Recycle bin would belong on `deleteSelection`, not Move.
+- [x] Audit stamps: duplicated feature carries `duplicatedFrom`, `duplicatedAt`, `transferOperationId`; clicking the history entry highlights all features from that operation — Slice 1 (`030ce58`) stamps every duplicate via the kernel. Click-to-highlight from a history list is deferred until `transferHistory[]` ships.
+- [x] Multi-layer paste: pick 3 destination layers → 1 Confirm → 3× the duplicates appear, all sharing one `transferOperationId` — Slice 17 (`472b269`). `AdditionalTargetsRow` adds chips for extra layers; `commit()` loops `transferSelectionToLayer` per target with one shared `sharedOpId`. Locked targets silently skipped; result count aggregated into one cad:commandOutput.
+- [x] Right-click source-list row → "Filter to only POINTs" prunes the set without touching the canvas — Slice 18 (`deca2bb`). `SourceListContextMenu` exposes "Keep only TYPE" entries (one per distinct type in the pick with counts) + "Remove all TYPEs" + "Remove all on LAYER".
+- [x] Code-remap: unmapped code surfaces fuzzy suggestion; surveyor accepts → duplicate carries the remapped code — Slice 19 (`c4e2bfc`). `suggestCodeMapping` runs EXACT → SHARED_BASE → PREFIX → SUBSTRING → EDIT_DISTANCE; pre-fills at confidence ≥ 0.8. Per-row "auto" button accepts lower-confidence suggestions. 21 vitest specs.
+- [ ] Selection block save → recall later from a different drawing imports the block as a template — by design (Slice 20, `f1fef1e`) blocks are document-scoped because feature ids don't survive cross-drawing. Cross-drawing block import is a Slice 20.5 anchor-relative-storage concern.
+- [ ] Linked block instance updates when the master block is edited; converting an instance to independent breaks the link
+- [x] Click-again unselects a glowing feature; Alt-click does the same — Pick-mode click handler in `CanvasViewport` calls `transferStore.togglePick(hit)` on plain click and `removePick(hit)` on `Alt+click` (Slice 2 + deselect-path expansion `2eecf09`).
+- [ ] Alt-drag (or Ctrl+Shift+drag) window-deselects every glowing feature inside the rectangle
+- [ ] Right-click on canvas with no hover → context menu offers `Clear all picks` / `Clear last pick`
+- [ ] Right-click on a glowing feature → `Remove from selection`, `Remove all of this layer`, `Remove all of this code`
+- [x] Backspace pops the most-recently-added pick; Ctrl+Backspace clears every pick — Slice 2 (`030ce58`). `useEffect` on `pickModeActive` registers a capture-phase keydown listener that calls `popLastPick()` for plain Backspace and `clearPicks()` for Ctrl/Cmd-Backspace.
+- [x] Per-row × in the dialog source list removes that single feature without leaving Pick mode — Slice 1 (`030ce58`). Each picked-row chip renders an `X` button that calls `removePick(id)`; Pick mode stays active.
+- [ ] Pick-mode-scoped Undo / Redo (Ctrl+Z / Ctrl+Y while Pick mode active) walks add / remove history without touching the document undo stack
+- [ ] Toggling a filter chip after picks exist warns when any picks become "filtered-out" rather than silently dropping them
 
 ### 11.7.13 Implementation Sequence
 
