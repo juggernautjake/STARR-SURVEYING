@@ -30,6 +30,12 @@ export default function AICopilotSidebar() {
   const pendingPrompt = useAIStore((s) => s.pendingPrompt);
   const propose = useAIStore((s) => s.proposeFromPrompt);
   const clearChat = useAIStore((s) => s.clearCopilotChat);
+  const threshold = useAIStore((s) => s.autoApproveThreshold);
+  const setThreshold = useAIStore((s) => s.setAutoApproveThreshold);
+  const resolutionCount = useAIStore(
+    (s) => Object.keys(s.codeResolutionMemory).length,
+  );
+  const clearResolutions = useAIStore((s) => s.clearCodeResolutionMemory);
 
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -123,6 +129,41 @@ export default function AICopilotSidebar() {
           >
             <X size={14} />
           </button>
+        </div>
+      </div>
+
+      {/* §32 Slice 8 — settings strip */}
+      <div className="px-3 py-1.5 border-b border-gray-700 bg-gray-850/50 space-y-1 text-[11px]">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-gray-400 shrink-0" title="Confidence threshold above which AUTO auto-approves a proposal; below it, the framework escalates to COPILOT for that single step.">
+            Auto-approve ≥
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={threshold}
+            onChange={(e) => setThreshold(parseFloat(e.target.value))}
+            className="flex-1 accent-blue-500"
+            aria-label="Auto-approve confidence threshold"
+          />
+          <span className="font-mono text-gray-200 w-9 text-right">{Math.round(threshold * 100)}%</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-gray-500 text-[10px]" title="Code → layer answers the surveyor has previously given. The AI uses these so it doesn't keep re-asking.">
+            Saved code resolutions: <span className="text-gray-300">{resolutionCount}</span>
+          </span>
+          {resolutionCount > 0 && (
+            <button
+              type="button"
+              onClick={clearResolutions}
+              className="text-[10px] text-gray-500 hover:text-red-400 transition-colors"
+              title="Forget every saved code resolution — the AI will start asking again on next proposal."
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 

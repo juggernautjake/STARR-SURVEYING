@@ -41,6 +41,11 @@ export interface ProjectContext {
    *  single step. Exposed so the model can self-flag low
    *  confidence rather than guess. */
   autoApproveThreshold: number;
+  /** §32.4 — code resolutions the surveyor has already
+   *  answered (code → layerId). Threaded into the system
+   *  prompt so the model uses prior answers instead of asking
+   *  again. Optional + defaults to {}. */
+  codeResolutions?: Record<string, { layerId: string; answeredAt: number }>;
 }
 
 /** Build the system prompt string. Pure — no side effects, so
@@ -52,6 +57,10 @@ export function buildSystemPrompt(ctx: ProjectContext): string {
 
   const toolLines = (Object.keys(toolRegistry) as ToolName[])
     .map((name) => `  - ${name}: ${toolRegistry[name].description.split('.')[0]}.`)
+    .join('\n');
+
+  const resolutionEntries = Object.entries(ctx.codeResolutions ?? {})
+    .map(([code, { layerId }]) => `  - ${code} → layer ${layerId}`)
     .join('\n');
 
   return [
@@ -67,6 +76,9 @@ export function buildSystemPrompt(ctx: ProjectContext): string {
     layerLines || '  (none — call createLayer first)',
     '',
     `Active layer (used when a tool arg omits layerId): ${ctx.activeLayerId}`,
+    '',
+    'Previously-resolved point codes (surveyor already decided — re-use without re-asking):',
+    resolutionEntries.length > 0 ? resolutionEntries : '  (none)',
     '',
     'Available tools (full JSON schemas come through the tool_use API):',
     toolLines,

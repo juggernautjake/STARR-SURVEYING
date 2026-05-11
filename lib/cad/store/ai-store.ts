@@ -153,6 +153,29 @@ interface AIStore {
   /** Clear the live transcript. */
   clearCopilotChat: () => void;
 
+  // ────────────────────────────────────────────────────────
+  // §32 Slice 8 — code-resolution memory + AUTO escalation
+  // ────────────────────────────────────────────────────────
+  /**
+   * Code-disambiguation answers the surveyor has already given
+   * in this project. When the AI proposes a layer for a code
+   * the surveyor's previously resolved, it can pull the answer
+   * straight from here rather than re-asking. Keyed by the
+   * code (case-insensitive; we canonicalise to upper-case).
+   * Persisted so a surveyor doesn't lose their resolutions on
+   * a reload.
+   */
+  codeResolutionMemory: Record<string, { layerId: string; answeredAt: number }>;
+  /** Store / overwrite one code → layer resolution. The
+   *  `code` is canonicalised to upper-case before storing so
+   *  case-insensitive matches work in both directions. */
+  recordCodeResolution: (code: string, layerId: string) => void;
+  /** Remove one resolution (surveyor changed their mind). */
+  forgetCodeResolution: (code: string) => void;
+  /** Clear every resolution — e.g. when the surveyor opens a
+   *  brand-new project file and old answers no longer apply. */
+  clearCodeResolutionMemory: () => void;
+
   // Dialog visibility.
   isDialogOpen: boolean;
   openDialog: () => void;
@@ -352,6 +375,29 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     set({ isCopilotSidebarOpen: true, pendingPrompt: prompt }),
   clearCopilotChat: () => set({ copilotChat: [], pendingPrompt: null }),
 
+  // §32 Slice 8 — code-resolution memory.
+  codeResolutionMemory: {},
+  recordCodeResolution: (code, layerId) => {
+    const key = code.trim().toUpperCase();
+    if (key.length === 0 || layerId.length === 0) return;
+    set((s) => ({
+      codeResolutionMemory: {
+        ...s.codeResolutionMemory,
+        [key]: { layerId, answeredAt: Date.now() },
+      },
+    }));
+  },
+  forgetCodeResolution: (code) => {
+    const key = code.trim().toUpperCase();
+    set((s) => {
+      if (!(key in s.codeResolutionMemory)) return s;
+      const next = { ...s.codeResolutionMemory };
+      delete next[key];
+      return { codeResolutionMemory: next };
+    });
+  },
+  clearCodeResolutionMemory: () => set({ codeResolutionMemory: {} }),
+
   proposeFromPrompt: async (prompt: string) => {
     const trimmed = prompt.trim();
     if (trimmed.length === 0) return;
@@ -365,6 +411,10 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
       mode: ai.mode,
       sandboxDefault: ai.sandbox,
       autoApproveThreshold: ai.autoApproveThreshold,
+      // §32.4 — let the model see prior code resolutions so
+      // it doesn't keep asking about codes the surveyor's
+      // already answered.
+      codeResolutions: ai.codeResolutionMemory,
     };
     // Mirror the USER turn into the sidebar transcript before
     // we wait on the network so the surveyor sees their own
@@ -897,6 +947,9 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     sandbox: state.sandbox,
     autoApproveThreshold: state.autoApproveThreshold,
     isCopilotSidebarOpen: state.isCopilotSidebarOpen,
+    // §32 Slice 8 — persist code-disambiguations so the
+    // surveyor doesn't lose them on reload.
+    codeResolutionMemory: state.codeResolutionMemory,
   }),
 }));
 

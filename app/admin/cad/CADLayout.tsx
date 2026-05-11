@@ -25,6 +25,7 @@ import ElementExplanationPopup from './components/ElementExplanationPopup';
 import AIProvenancePopup from './components/AIProvenancePopup';
 import CopilotCard from './components/CopilotCard';
 import AICopilotSidebar from './components/AICopilotSidebar';
+import AIAutoRunner from './components/AIAutoRunner';
 import CompletenessPanel from './components/CompletenessPanel';
 import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import RPLSReviewModePanel from './components/RPLSReviewModePanel';
@@ -847,6 +848,12 @@ export default function CADLayout() {
           COMMAND modes; right-click "Ask AI about this…" seeds
           the input via openCopilotWithPrompt. */}
       <AICopilotSidebar />
+
+      {/* Phase 6 §32 Slice 8 AUTO escalation runner — headless;
+          auto-accepts proposals whose confidence ≥ threshold
+          while mode === AUTO. Below-threshold proposals stay
+          queued for surveyor review via CopilotCard. */}
+      <AIAutoRunner />
 
       {/* Phase 7 §6.2 completeness checklist — slides in from the
           right, gates "Mark Ready for RPLS Review" on summary.ready */}
