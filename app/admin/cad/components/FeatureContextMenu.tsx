@@ -21,6 +21,7 @@ import {
   Box,
   BoxSelect,
   Slash,
+  Sparkles,
 } from 'lucide-react';
 import {
   useDrawingStore,
@@ -29,8 +30,10 @@ import {
   useViewportStore,
   useUndoStore,
   useTransferStore,
+  useAIStore,
   makeBatchEntry,
 } from '@/lib/cad/store';
+import { hasProvenance } from '@/lib/cad/ai/provenance';
 import {
   copyToClipboard,
   pasteCadClipboard,
@@ -856,6 +859,22 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   ];
 
   const items: MenuDef[] = feature ? featureSection : emptySection;
+
+  // §32.7 — "Why did AI draw this?" row. Mounted when the
+  // right-clicked feature carries AI provenance stamps. Opens
+  // the §30.3 explanation popup (falls back to a provenance-
+  // only view when no full pipeline explanation exists).
+  if (feature && hasProvenance(feature.properties)) {
+    items.unshift({
+      id: 'whyAi',
+      label: 'Why did AI draw this?',
+      icon: <Sparkles size={12} />,
+      action: () => {
+        useAIStore.getState().openExplanation(feature.id);
+      },
+    });
+    items.splice(1, 0, { separator: true, id: 'whyAi_sep' });
+  }
 
   // Also append deselect when something is selected but we right-clicked empty space
   if (!feature && selCount > 0) {

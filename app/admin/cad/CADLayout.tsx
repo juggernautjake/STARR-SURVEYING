@@ -22,6 +22,7 @@ import ImportDialog from './components/ImportDialog';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
+import AIProvenancePopup from './components/AIProvenancePopup';
 import CompletenessPanel from './components/CompletenessPanel';
 import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import RPLSReviewModePanel from './components/RPLSReviewModePanel';
@@ -826,6 +827,13 @@ export default function CADLayout() {
       {/* Phase 6 §30.3 element-explanation popup — opened by
           clicking a review-queue card */}
       <ElementExplanationPopup />
+
+      {/* Phase 6 §32.7 provenance fallback — opened by the
+          right-click "Why did AI draw this?" entry on any
+          feature carrying tool-registry provenance stamps but
+          no full pipeline explanation. Renders only when the
+          full popup above has nothing to show. */}
+      <AIProvenancePopup />
 
       {/* Phase 7 §6.2 completeness checklist — slides in from the
           right, gates "Mark Ready for RPLS Review" on summary.ready */}

@@ -34,6 +34,7 @@ import {
 } from '../store';
 import { generateId } from '../types';
 import type { Feature, Layer, Point2D, FeatureStyle } from '../types';
+import { stampProvenance, type AIProvenance } from './provenance';
 
 // ────────────────────────────────────────────────────────────
 // Envelope + definition types
@@ -105,12 +106,21 @@ function defaultStyle(): FeatureStyle {
   };
 }
 
-/** Push the feature + return the ok envelope. Slice 3 will layer
- *  provenance stamps on top (aiOrigin / aiConfidence / ...). */
-function commitFeature(feature: Feature): ToolResult<Feature> {
-  useDrawingStore.getState().addFeature(feature);
-  useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
-  return { ok: true, result: feature };
+/**
+ * Push the feature + return the ok envelope. Stamps the §32.7
+ * provenance fields onto `properties` when provided so a
+ * right-click "Why did AI draw this?" can audit the source.
+ */
+function commitFeature(
+  feature: Feature,
+  provenance: AIProvenance | undefined,
+): ToolResult<Feature> {
+  const stamped: Feature = provenance
+    ? { ...feature, properties: stampProvenance(feature.properties, provenance) }
+    : feature;
+  useDrawingStore.getState().addFeature(stamped);
+  useUndoStore.getState().pushUndo(makeAddFeatureEntry(stamped));
+  return { ok: true, result: stamped };
 }
 
 // ────────────────────────────────────────────────────────────
@@ -126,6 +136,10 @@ export interface AddPointArgs {
   code?: string;
   /** Extra properties merged in last (surveyor / AI specific). */
   properties?: Record<string, string | number | boolean>;
+  /** §32.7 provenance stamps. Supplied by the AI adapter when
+   *  the call originated from AI; omitted for direct test / UI
+   *  invocations. */
+  provenance?: AIProvenance;
 }
 
 export const addPoint: ToolDefinition<AddPointArgs, Feature> = {
@@ -163,7 +177,7 @@ export const addPoint: ToolDefinition<AddPointArgs, Feature> = {
         ...(args.properties ?? {}),
       },
     };
-    return commitFeature(feature);
+    return commitFeature(feature, args.provenance);
   },
 };
 
@@ -176,6 +190,7 @@ export interface DrawLineBetweenArgs {
   to: Point2D;
   layerId?: string | null;
   properties?: Record<string, string | number | boolean>;
+  provenance?: AIProvenance;
 }
 
 export const drawLineBetween: ToolDefinition<DrawLineBetweenArgs, Feature> = {
@@ -212,7 +227,7 @@ export const drawLineBetween: ToolDefinition<DrawLineBetweenArgs, Feature> = {
       style: defaultStyle(),
       properties: { ...(args.properties ?? {}) },
     };
-    return commitFeature(feature);
+    return commitFeature(feature, args.provenance);
   },
 };
 
@@ -226,6 +241,7 @@ export interface DrawPolylineThroughArgs {
   closed?: boolean;
   layerId?: string | null;
   properties?: Record<string, string | number | boolean>;
+  provenance?: AIProvenance;
 }
 
 export const drawPolylineThrough: ToolDefinition<DrawPolylineThroughArgs, Feature> = {
@@ -270,7 +286,7 @@ export const drawPolylineThrough: ToolDefinition<DrawPolylineThroughArgs, Featur
       style: defaultStyle(),
       properties: { ...(args.properties ?? {}) },
     };
-    return commitFeature(feature);
+    return commitFeature(feature, args.provenance);
   },
 };
 
