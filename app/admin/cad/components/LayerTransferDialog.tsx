@@ -383,6 +383,12 @@ export default function LayerTransferDialog({ onClose }: Props) {
 
             {sourceMode === 'TYPE' && <TypeIdsField />}
 
+            {/* Saved selection blocks — surveyor recalls a
+                named pick set or saves the current one for
+                later. Document-scoped so cross-drawing noise
+                stays out of the dropdown. */}
+            <SelectionBlocksRow />
+
             {/* Smart selection helpers — programmatic ways to
                 add (or Alt-click subtract) batches of features.
                 Composable: surveyors stack "By layer = BOUNDARY"
@@ -1653,6 +1659,196 @@ function CodeRemapTable(props: {
       <p className="text-[10px] text-gray-500 leading-snug">
         Mapped codes are rewritten before the strip step. Leave a row blank to either skip (default) or strip via the checkbox above.
       </p>
+    </div>
+  );
+}
+
+// ─── Selection blocks ──────────────────────────────────────
+//
+// Surveyor saves the current pick set under a name and
+// recalls it later. Document-scoped so the dropdown stays
+// relevant. Loading a block REPLACES the current picks
+// (since the surveyor's intent is "use this saved set
+// instead"); they can additively rebuild via the smart
+// helpers if needed.
+
+function SelectionBlocksRow() {
+  const drawingStore = useDrawingStore();
+  const documentId = drawingStore.document.id;
+  const blocks = useUIStore((s) => s.selectionBlocks);
+  const addBlock = useUIStore((s) => s.addSelectionBlock);
+  const removeBlock = useUIStore((s) => s.removeSelectionBlock);
+  const recordUse = useUIStore((s) => s.recordSelectionBlockUse);
+  const pickedIds = useTransferStore((s) => s.pickedIds);
+  const clearPicks = useTransferStore((s) => s.clearPicks);
+  const addPicks = useTransferStore((s) => s.addPicks);
+
+  // Filter to the current drawing only.
+  const docBlocks = useMemo(
+    () => blocks.filter((b) => b.documentId === documentId),
+    [blocks, documentId],
+  );
+
+  const [saving, setSaving] = useState(false);
+  const [draftName, setDraftName] = useState('');
+
+  function loadBlock(id: string) {
+    const block = blocks.find((b) => b.id === id);
+    if (!block) return;
+    // Replace the picked set with the block's ids. Skip ids
+    // that have been deleted from the drawing since the block
+    // was saved.
+    const valid = block.featureIds.filter((fid) => drawingStore.getFeature(fid) != null);
+    clearPicks();
+    addPicks(valid);
+    recordUse(block.id);
+    if (valid.length < block.featureIds.length) {
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: `Loaded "${block.name}" — ${block.featureIds.length - valid.length} feature(s) no longer exist in this drawing and were skipped.` },
+      }));
+    } else {
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: `Loaded "${block.name}" — ${valid.length} feature${valid.length === 1 ? '' : 's'} picked.` },
+      }));
+    }
+  }
+
+  function saveCurrent() {
+    const name = draftName.trim();
+    if (!name) return;
+    const ids = Array.from(pickedIds);
+    if (ids.length === 0) return;
+    const id = addBlock(name, documentId, ids);
+    setSaving(false);
+    setDraftName('');
+    if (id) {
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: `Saved "${name}" — ${ids.length} feature${ids.length === 1 ? '' : 's'} in this block.` },
+      }));
+    }
+  }
+
+  // Sort: most recently used first, then by creation date.
+  // Computed before the early-return so the hooks-order rule
+  // sees a consistent call sequence.
+  const sorted = useMemo(() => {
+    const list = [...docBlocks];
+    list.sort((a, b) => {
+      const at = a.lastUsedAt ? Date.parse(a.lastUsedAt) : Date.parse(a.createdAt);
+      const bt = b.lastUsedAt ? Date.parse(b.lastUsedAt) : Date.parse(b.createdAt);
+      return bt - at;
+    });
+    return list;
+  }, [docBlocks]);
+
+  if (docBlocks.length === 0 && !saving && pickedIds.size === 0) {
+    // No saved blocks and no picks yet — hide the row to
+    // keep the dialog compact. Once the surveyor picks at
+    // least one feature, the Save button appears.
+    return null;
+  }
+
+  return (
+    <div className="mb-1.5">
+      {!saving ? (
+        <div className="flex gap-1.5 items-center">
+          {sorted.length > 0 && (
+            <select
+              value=""
+              onChange={(e) => {
+                const id = e.target.value;
+                if (!id) return;
+                if (id === '__delete__') return;
+                loadBlock(id);
+                e.target.value = '';
+              }}
+              className="flex-1 bg-gray-700 text-gray-200 text-[11px] px-2 h-6 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+            >
+              <option value="">Load block ▾</option>
+              {sorted.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.featureIds.length}{b.useCount > 0 ? ` · ${b.useCount}×` : ''})
+                </option>
+              ))}
+            </select>
+          )}
+          {pickedIds.size > 0 && (
+            <button
+              type="button"
+              onClick={() => { setSaving(true); setDraftName(''); }}
+              className="px-2 h-6 text-[11px] rounded border bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              title="Save the current picks as a named block for one-click recall later"
+            >
+              Save as block…
+            </button>
+          )}
+          {sorted.length > 0 && (
+            <details className="relative">
+              <summary className="list-none cursor-pointer px-2 h-6 text-[11px] rounded border bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors inline-flex items-center">
+                Manage ▾
+              </summary>
+              <div className="absolute right-0 top-7 z-50 bg-gray-900 border border-gray-700 rounded shadow-2xl min-w-[180px] p-1">
+                {sorted.map((b) => (
+                  <div key={b.id} className="flex items-center justify-between gap-1 px-2 py-1 hover:bg-gray-800 rounded text-[11px]">
+                    <span className="text-gray-300 truncate">{b.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeBlock(b.id)}
+                      className="text-gray-500 hover:text-red-400 transition-colors"
+                      title="Delete this block"
+                    >
+                      <Trash2 size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      ) : (
+        <div className="bg-gray-900 border border-gray-700 rounded p-1.5 space-y-1.5">
+          <input
+            type="text"
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            placeholder={`Block name (e.g. Fence-corner detail — ${pickedIds.size} features)`}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                saveCurrent();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setSaving(false);
+                setDraftName('');
+              }
+            }}
+            className="w-full bg-gray-700 text-white text-[11px] px-2 py-1 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+          />
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-gray-500">
+              Captures {pickedIds.size} picked feature{pickedIds.size === 1 ? '' : 's'} for this drawing.
+            </p>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => { setSaving(false); setDraftName(''); }}
+                className="px-1.5 py-0.5 text-[10px] rounded bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveCurrent}
+                disabled={!draftName.trim()}
+                className="px-1.5 py-0.5 text-[10px] rounded bg-blue-600 border border-blue-500 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

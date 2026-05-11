@@ -34,6 +34,29 @@ export interface TransferPreset {
   isDefault: boolean;
 }
 
+/**
+ * Phase 8 §11.7 Slice 20 — saved selection block.
+ * Names a reusable source set so a surveyor who picks the
+ * same fence-corner-detail or building-footprint shape
+ * repeatedly can recall it with one click. Tied to a
+ * drawing via documentId since feature ids are
+ * document-scoped; the load UI hides blocks from other
+ * drawings to keep the list relevant.
+ */
+export interface SelectionBlock {
+  id: string;
+  name: string;
+  /** Document the block belongs to. */
+  documentId: string;
+  /** Captured feature ids at save time. */
+  featureIds: string[];
+  /** ISO timestamp the block was created. */
+  createdAt: string;
+  /** Last time the surveyor loaded this block. */
+  lastUsedAt: string | null;
+  useCount: number;
+}
+
 interface UIStore {
   showLayerPanel: boolean;
   showPropertyPanel: boolean;
@@ -71,6 +94,10 @@ interface UIStore {
    *  configurations. Persisted; surveyor sees them in every
    *  drawing they open. */
   transferPresets: TransferPreset[];
+  /** Phase 8 §11.7 Slice 20 — saved selection blocks keyed
+   *  by drawing. Persisted; the dialog filters to the
+   *  current drawing's blocks on load. */
+  selectionBlocks: SelectionBlock[];
 
   toggleLayerPanel: () => void;
   togglePropertyPanel: () => void;
@@ -96,6 +123,12 @@ interface UIStore {
   /** Bump lastUsedAt + useCount on the preset that just fired
    *  Confirm. */
   recordTransferPresetUse: (id: string) => void;
+  /** Add a named selection block scoped to one drawing. */
+  addSelectionBlock: (name: string, documentId: string, featureIds: string[]) => string;
+  /** Remove a block by id. */
+  removeSelectionBlock: (id: string) => void;
+  /** Bump lastUsedAt + useCount when a block is loaded. */
+  recordSelectionBlockUse: (id: string) => void;
 }
 
 /**
@@ -131,6 +164,7 @@ export const useUIStore = create<UIStore>()(
       tooltipDelayMs: 600,
       firmLogoDataUrl: null,
       transferPresets: [],
+      selectionBlocks: [],
 
       toggleLayerPanel: () => set((s) => ({ showLayerPanel: !s.showLayerPanel })),
       togglePropertyPanel: () => set((s) => ({ showPropertyPanel: !s.showPropertyPanel })),
@@ -207,10 +241,48 @@ export const useUIStore = create<UIStore>()(
             : p,
         ),
       })),
+
+      addSelectionBlock: (name, documentId, featureIds) => {
+        const trimmed = name.trim();
+        if (!trimmed || featureIds.length === 0) return '';
+        const id = `sb-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        const block: SelectionBlock = {
+          id,
+          name: trimmed,
+          documentId,
+          // Deep-clone the id list so subsequent picks don't
+          // mutate the saved block.
+          featureIds: [...featureIds],
+          createdAt: new Date().toISOString(),
+          lastUsedAt: null,
+          useCount: 0,
+        };
+        set((s) => {
+          // Replace any existing block with the same name +
+          // document so re-saving stays tidy.
+          const others = s.selectionBlocks.filter(
+            (b) => !(b.documentId === documentId && b.name.toLowerCase() === trimmed.toLowerCase()),
+          );
+          return { selectionBlocks: [...others, block] };
+        });
+        return id;
+      },
+
+      removeSelectionBlock: (id) => set((s) => ({
+        selectionBlocks: s.selectionBlocks.filter((b) => b.id !== id),
+      })),
+
+      recordSelectionBlockUse: (id) => set((s) => ({
+        selectionBlocks: s.selectionBlocks.map((b) =>
+          b.id === id
+            ? { ...b, lastUsedAt: new Date().toISOString(), useCount: b.useCount + 1 }
+            : b,
+        ),
+      })),
     }),
     {
       name: 'starr-cad-ui',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       // Allow-list — only the surveyor-visible toggles persist.
       partialize: (s) => ({
@@ -219,6 +291,7 @@ export const useUIStore = create<UIStore>()(
         tooltipDelayMs: s.tooltipDelayMs,
         firmLogoDataUrl: s.firmLogoDataUrl,
         transferPresets: s.transferPresets,
+        selectionBlocks: s.selectionBlocks,
       }),
     }
   )
