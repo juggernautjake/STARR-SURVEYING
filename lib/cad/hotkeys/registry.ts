@@ -104,6 +104,8 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'ai.createLayerFromCodes', category: 'AI', label: 'Create Layer From Codes…',    description: 'Ask the AI to create a new layer from a code pattern + draw-as (point / line / polyline)', defaultKey: '', isChord: false, context: 'GLOBAL' },
   { id: 'ai.explainFeature',       category: 'AI', label: 'Explain Selected Feature',    description: 'Open the "Why did AI draw this?" popup for the currently-selected feature (or ask AI to explain a non-AI feature)', defaultKey: '', isChord: false, context: 'CANVAS' },
   { id: 'ai.undoBatch',            category: 'AI', label: 'Undo AI Batch',               description: 'Undo every feature produced in the most recent AI turn as a single group (matches by aiBatchId on the undo stack)', defaultKey: 'ctrl+alt+z', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.startAuto',            category: 'AI', label: 'Start AUTO Run',              description: 'Kick off an end-to-end AUTO build using a project-intake prompt (Phase 6 §32.13 Slice 11). Switches mode to AUTO if it isn\'t already.', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.pauseAuto',            category: 'AI', label: 'Pause AUTO Run',              description: 'Halt AUTO at the next feature boundary by flipping the mode to COPILOT. The next pending proposal stays queued for the surveyor to review.', defaultKey: 'ctrl+shift+p', isChord: false, context: 'GLOBAL' },
 
   // App / View
   { id: 'view.settings',     category: 'APP',        label: 'Open Settings',        description: 'Open the Settings page',                      defaultKey: 'ctrl+comma',   isChord: false, context: 'GLOBAL' },

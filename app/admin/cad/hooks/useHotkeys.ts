@@ -383,6 +383,36 @@ export function dispatchDefaultAction(action: BindableAction): void {
       }));
       return;
     }
+    case 'ai.startAuto': {
+      const ai = useAIStore.getState();
+      if (ai.mode !== 'AUTO') ai.setMode('AUTO');
+      ai.startAutoRun();
+      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'AUTO run started — see chat sidebar.' },
+      }));
+      return;
+    }
+    case 'ai.pauseAuto': {
+      const ai = useAIStore.getState();
+      if (ai.mode !== 'AUTO') {
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: 'AUTO is not running.' },
+        }));
+        return;
+      }
+      ai.setMode('COPILOT');
+      ai.appendCopilotMessage({
+        id: `pause_${Date.now().toString(36)}`,
+        role: 'SYSTEM',
+        content: 'AUTO paused — switched to COPILOT for the rest of this session. Cycle the mode (Ctrl+Shift+M) to resume.',
+        ts: new Date().toISOString(),
+      });
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'AUTO paused — switched to COPILOT.' },
+      }));
+      return;
+    }
     case 'ai.undoBatch': {
       const popped = undoMostRecentAIBatch();
       if (!popped) {

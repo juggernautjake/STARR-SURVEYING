@@ -17,7 +17,7 @@
 //     openCopilotWithPrompt(<composed prompt>).
 
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, Send, Loader2, Trash2, X, FileWarning, Paperclip } from 'lucide-react';
+import { Sparkles, Send, Loader2, Trash2, X, FileWarning, Paperclip, Play, Pause } from 'lucide-react';
 import { useAIStore, REFERENCE_DOC_DAMPENING } from '@/lib/cad/store';
 import type { AIReferenceDoc } from '@/lib/cad/store';
 
@@ -40,6 +40,9 @@ export default function AICopilotSidebar() {
   const referenceDocs = useAIStore((s) => s.referenceDocs);
   const addReferenceDoc = useAIStore((s) => s.addReferenceDoc);
   const removeReferenceDoc = useAIStore((s) => s.removeReferenceDoc);
+  const startAutoRun = useAIStore((s) => s.startAutoRun);
+  const setMode = useAIStore((s) => s.setMode);
+  const appendCopilotMessage = useAIStore((s) => s.appendCopilotMessage);
   const [refsOpen, setRefsOpen] = useState(false);
 
   const [draft, setDraft] = useState('');
@@ -203,6 +206,43 @@ export default function AICopilotSidebar() {
           />
         )}
       </div>
+
+      {/* §32 Slice 11 — AUTO run controls. Visible when mode is
+          AUTO; gives the surveyor a one-click intake kickoff
+          and a pause that flips back to COPILOT. */}
+      {mode === 'AUTO' && (
+        <div className="px-3 py-1.5 border-b border-gray-700 bg-purple-950/30 flex items-center gap-2 text-[11px]">
+          <button
+            type="button"
+            onClick={() => startAutoRun()}
+            disabled={isProposing}
+            className="flex items-center gap-1 px-2 py-1 rounded border bg-purple-700 hover:bg-purple-600 disabled:opacity-40 disabled:cursor-not-allowed border-purple-500 text-purple-50 transition-colors"
+            title="Kick off an AUTO run with a project-intake prompt (§32.13 Slice 11)."
+          >
+            <Play size={11} /> Start AUTO run
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode('COPILOT');
+              appendCopilotMessage({
+                id: `pause_${Date.now().toString(36)}`,
+                role: 'SYSTEM',
+                content:
+                  'AUTO paused — switched to COPILOT. Cycle the mode (Ctrl+Shift+M) to resume.',
+                ts: new Date().toISOString(),
+              });
+            }}
+            className="flex items-center gap-1 px-2 py-1 rounded border bg-gray-700 hover:bg-gray-600 border-gray-600 text-gray-200 transition-colors"
+            title="Halt AUTO at the next boundary and drop into COPILOT (Ctrl+Shift+P)."
+          >
+            <Pause size={11} /> Pause
+          </button>
+          <span className="text-[10px] text-purple-200/70 ml-auto" title="Ctrl+Shift+P pauses AUTO from anywhere.">
+            Ctrl+Shift+P
+          </span>
+        </div>
+      )}
 
       {/* Transcript */}
       <div

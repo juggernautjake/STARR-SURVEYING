@@ -24,6 +24,10 @@ import { persist } from 'zustand/middleware';
 import type { AIProposal } from '../ai/proposals';
 import { executeProposal } from '../ai/proposals';
 import type { ToolResult } from '../ai/tool-registry';
+import {
+  buildAutoIntakePrompt,
+  snapshotFromFeatures,
+} from '../ai/auto-intake';
 
 import type {
   AIJobPayload,
@@ -148,6 +152,13 @@ interface AIStore {
    *  chat sidebar. Resolves once the proposals land or rejects
    *  with the route's error message. */
   proposeFromPrompt: (prompt: string) => Promise<void>;
+  /** §32.13 Slice 11 — kick off an AUTO run. Builds the intake
+   *  prompt from the current document + project context and
+   *  fires it through `proposeFromPrompt`. The surveyor sees
+   *  the intake in the transcript and can stop the run at any
+   *  feature boundary via Ctrl+Shift+P (which flips mode to
+   *  COPILOT — escalation handles the rest). */
+  startAutoRun: () => Promise<void>;
 
   // ────────────────────────────────────────────────────────
   // §32 Slice 7 — COPILOT / COMMAND chat sidebar
@@ -575,6 +586,36 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
         }],
       }));
     }
+  },
+
+  startAutoRun: async () => {
+    // Sidebar opens on its own when mode flips to AUTO, but
+    // mode might already be AUTO — make sure the surveyor
+    // sees the transcript regardless.
+    const ai = get();
+    if (!ai.isCopilotSidebarOpen) {
+      set({ isCopilotSidebarOpen: true });
+    }
+    const drawing = useDrawingStore.getState();
+    const snapshot = snapshotFromFeatures(
+      Object.values(drawing.document.features),
+    );
+    const context = {
+      layers: Object.values(drawing.document.layers)
+        .filter((l) => !l.name.startsWith('SURVEY-INFO'))
+        .map((l) => ({ id: l.id, name: l.name, color: l.color })),
+      activeLayerId: drawing.activeLayerId,
+      mode: ai.mode,
+      sandboxDefault: ai.sandbox,
+      autoApproveThreshold: ai.autoApproveThreshold,
+      codeResolutions: ai.codeResolutionMemory,
+      referenceDocs: ai.referenceDocs.map((d) => ({
+        name: d.name,
+        kind: d.kind,
+      })),
+    };
+    const prompt = buildAutoIntakePrompt(snapshot, context);
+    await get().proposeFromPrompt(prompt);
   },
 
   isDialogOpen: false,
