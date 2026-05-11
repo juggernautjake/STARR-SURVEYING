@@ -1,19 +1,19 @@
 'use client';
 // app/admin/cad/components/IntersectDialog.tsx
 //
-// Phase 8 §11.6 Slice 1 — INTERSECT tool dialog shell with
-// LINE × LINE math wired through the existing
-// `lineLineIntersection` helper. Surveyor picks two LINE
-// features on the canvas, the dialog shows candidate
-// intersection points (0 or 1 for two lines), and Confirm
-// drops a POINT at the chosen candidate.
+// Phase 8 §11.6 INTERSECT tool — surveyor picks two features
+// and the dialog drops a POINT at their (possibly extended)
+// intersection.
 //
-// Slice 2 — extension toggle (Extend A / Extend B), live
-// dashed extension preview rendered on the canvas, and
-// per-source within/extended-N-ft badging in the candidate
-// row. When extension is OFF for a source and the candidate
-// falls outside its extent, Confirm is gated (matches the
-// §11.6.4 spec: "off-extent candidates are discarded").
+// Slice 1 — modal shell + LINE × LINE math.
+// Slice 2 — Extend A / Extend B toggles + dashed-extension
+//   live ghost + per-source within/extended-N-ft badging.
+// Slice 3 — Method picker (Line × Line / Line × Circle / Line
+//   × Arc) with `lineCircleIntersections` and
+//   `lineArcIntersections` math; multi-candidate list (0 / 1 /
+//   2 candidates) with click-to-select; Source B accepts
+//   CIRCLE or ARC features when the matching method is
+//   selected; circle ghost preview when picking a CIRCLE.
 
 import { useEffect, useRef, useState } from 'react';
 import { X, Crosshair, MousePointerClick } from 'lucide-react';
@@ -23,8 +23,17 @@ import {
   makeAddFeatureEntry,
 } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
-import type { Feature, Point2D } from '@/lib/cad/types';
-import { lineLineIntersection } from '@/lib/cad/geometry/intersection';
+import type {
+  Feature,
+  Point2D,
+  ArcGeometry,
+  CircleGeometry,
+} from '@/lib/cad/types';
+import {
+  lineLineIntersection,
+  lineCircleIntersections,
+  lineArcIntersections,
+} from '@/lib/cad/geometry/intersection';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -32,10 +41,39 @@ interface Props {
   onClose: () => void;
 }
 
+type IntersectMethod = 'LINE_LINE' | 'LINE_CIRCLE' | 'LINE_ARC';
+
 interface PickedLine {
+  kind: 'LINE';
   featureId: string;
   start: Point2D;
   end: Point2D;
+}
+interface PickedCircle {
+  kind: 'CIRCLE';
+  featureId: string;
+  circle: CircleGeometry;
+}
+interface PickedArc {
+  kind: 'ARC';
+  featureId: string;
+  arc: ArcGeometry;
+}
+type PickedSource = PickedLine | PickedCircle | PickedArc;
+
+const METHOD_LABELS: Record<IntersectMethod, string> = {
+  LINE_LINE: 'Line × Line',
+  LINE_CIRCLE: 'Line × Circle',
+  LINE_ARC: 'Line × Arc',
+};
+
+// Returns the list of feature types Source B accepts for the
+// active method. Source A is always LINE in the Slice 3
+// matrix; future slices broaden it.
+function sourceBKinds(method: IntersectMethod): PickedSource['kind'][] {
+  if (method === 'LINE_LINE') return ['LINE'];
+  if (method === 'LINE_CIRCLE') return ['CIRCLE'];
+  return ['ARC'];
 }
 
 export default function IntersectDialog({ onClose }: Props) {
@@ -46,54 +84,79 @@ export default function IntersectDialog({ onClose }: Props) {
   const drawingStore = useDrawingStore();
   const undoStore = useUndoStore();
 
-  // Two LINE source slots. Surveyor toggles a "picking" flag
-  // for whichever slot is being filled; canvas click intercept
-  // (mounted in CanvasViewport on `cad:intersectPicking`)
-  // writes the picked feature back via `cad:intersectPicked`.
+  const [method, setMethod] = useState<IntersectMethod>('LINE_LINE');
   const [sourceA, setSourceA] = useState<PickedLine | null>(null);
-  const [sourceB, setSourceB] = useState<PickedLine | null>(null);
+  const [sourceB, setSourceB] = useState<PickedSource | null>(null);
   const [pickingSlot, setPickingSlot] = useState<'A' | 'B' | null>(null);
-  // §11.6.4 — independent extension toggles. When ON for a
-  // source the dialog treats it as an infinite line and the
-  // canvas paints a dashed preview past both endpoints.
+  // §11.6.4 — independent extension toggles. Slice 3 keeps
+  // extension semantics on the LINE source A; non-LINE B
+  // sources don't support extension in this slice.
   const [extendA, setExtendA] = useState(false);
   const [extendB, setExtendB] = useState(false);
+  // Index of the currently-highlighted candidate in the list.
+  // Used both for the drop and for the canvas crosshair.
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Compute the candidate intersection. lineLineIntersection
-  // returns null when the lines are parallel.
-  const candidate: Point2D | null = sourceA && sourceB
-    ? lineLineIntersection(sourceA.start, sourceA.end, sourceB.start, sourceB.end)
-    : null;
+  // Clear Source B (and reset extendB) whenever the method
+  // changes — the existing picked B may not be compatible.
+  useEffect(() => {
+    setSourceB(null);
+    setExtendB(false);
+    setSelectedIndex(0);
+  }, [method]);
 
-  // Per-source projection — t-parameter along each line plus
-  // distance-past-nearest-endpoint when t lies outside [0,1].
-  const projA = candidate && sourceA ? projectOntoLine(candidate, sourceA) : null;
-  const projB = candidate && sourceB ? projectOntoLine(candidate, sourceB) : null;
+  // ── Candidate computation ──
+  const candidates: Point2D[] = computeCandidates(method, sourceA, sourceB);
+  const selected = candidates[selectedIndex] ?? null;
+
+  // Per-source projections for the selected candidate.
+  const projA = selected && sourceA ? projectOntoLine(selected, sourceA) : null;
   const withinA = !!projA?.within;
-  const withinB = !!projB?.within;
+  // Source B "within" semantics:
+  //   - LINE: same projection test as A.
+  //   - CIRCLE: always true (candidate lies on the circle by
+  //     construction).
+  //   - ARC: always true once it survives the angular-span
+  //     filter inside `lineArcIntersections`.
+  let projB: ReturnType<typeof projectOntoLine> = null;
+  let withinB = true;
+  if (selected && sourceB) {
+    if (sourceB.kind === 'LINE') {
+      projB = projectOntoLine(selected, sourceB);
+      withinB = !!projB?.within;
+    }
+  }
   const withinBoth = withinA && withinB;
-  // Extension consent — when extension is OFF for a source
-  // the candidate must lie inside that source's extent.
   const consentA = withinA || extendA;
-  const consentB = withinB || extendB;
+  const consentB = withinB || extendB || (sourceB?.kind !== 'LINE');
 
-  // Push the live preview state to the canvas. Slice 2 paints
-  // dashed extensions for any source whose extension toggle
-  // is ON plus a crosshair at the current candidate. The
-  // canvas reads off `cad:intersectPreview` events; we emit
-  // on any state change and clear on unmount so the ghost
-  // doesn't outlive the dialog.
+  // Reset selectedIndex if it falls out of range after a
+  // recompute.
+  useEffect(() => {
+    if (selectedIndex >= candidates.length && candidates.length > 0) {
+      setSelectedIndex(0);
+    }
+  }, [candidates.length, selectedIndex]);
+
+  // Push live preview state to the canvas (dashed extensions,
+  // circle ghost, candidate crosshair).
   useEffect(() => {
     const detail = {
       sourceA: sourceA
-        ? { featureId: sourceA.featureId, start: sourceA.start, end: sourceA.end }
+        ? { kind: 'LINE' as const, featureId: sourceA.featureId, start: sourceA.start, end: sourceA.end }
         : null,
       sourceB: sourceB
-        ? { featureId: sourceB.featureId, start: sourceB.start, end: sourceB.end }
+        ? sourceB.kind === 'LINE'
+          ? { kind: 'LINE' as const, featureId: sourceB.featureId, start: sourceB.start, end: sourceB.end }
+          : sourceB.kind === 'CIRCLE'
+            ? { kind: 'CIRCLE' as const, featureId: sourceB.featureId, circle: sourceB.circle }
+            : { kind: 'ARC' as const, featureId: sourceB.featureId, arc: sourceB.arc }
         : null,
       extendA,
       extendB,
-      candidate,
+      candidate: selected,
+      candidates,
+      selectedIndex,
       withinA,
       withinB,
     };
@@ -101,7 +164,7 @@ export default function IntersectDialog({ onClose }: Props) {
     return () => {
       window.dispatchEvent(new CustomEvent('cad:intersectPreview', { detail: null }));
     };
-  }, [sourceA, sourceB, extendA, extendB, candidate, withinA, withinB]);
+  }, [sourceA, sourceB, extendA, extendB, selected, candidates, selectedIndex, withinA, withinB]);
 
   // Listen for canvas-click events that fill the active slot.
   useEffect(() => {
@@ -109,47 +172,53 @@ export default function IntersectDialog({ onClose }: Props) {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ featureId: string }>).detail;
       const f = drawingStore.getFeature(detail.featureId);
-      if (!f || f.geometry.type !== 'LINE' || !f.geometry.start || !f.geometry.end) {
-        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-          detail: { text: 'INTERSECT — pick a LINE feature.' },
-        }));
+      if (!f) return;
+      // Validate against the slot's accepted kinds.
+      if (pickingSlot === 'A') {
+        if (f.geometry.type !== 'LINE' || !f.geometry.start || !f.geometry.end) {
+          announce('INTERSECT — Source A must be a LINE.');
+          return;
+        }
+        const picked: PickedLine = {
+          kind: 'LINE',
+          featureId: f.id,
+          start: f.geometry.start,
+          end: f.geometry.end,
+        };
+        setSourceA(picked);
+        setSelectedIndex(0);
+        setPickingSlot(null);
         return;
       }
-      // Same-feature guard — picking the same line twice is
-      // a no-op (Slice 5 will allow polyline-segments to
-      // resolve same-feature, but Slice 1 LINE × LINE
-      // doesn't).
-      const otherSlot = pickingSlot === 'A' ? sourceB : sourceA;
-      if (otherSlot && otherSlot.featureId === f.id) {
-        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-          detail: { text: 'INTERSECT — pick a different second line.' },
-        }));
+      // pickingSlot === 'B'
+      const kinds = sourceBKinds(method);
+      const matched = tryBuildSource(f, kinds);
+      if (!matched) {
+        announce(`INTERSECT — Source B must be a ${kinds.join(' or ')}.`);
         return;
       }
-      const picked: PickedLine = {
-        featureId: f.id,
-        start: f.geometry.start,
-        end: f.geometry.end,
-      };
-      if (pickingSlot === 'A') setSourceA(picked);
-      else setSourceB(picked);
+      if (sourceA && matched.featureId === sourceA.featureId) {
+        announce('INTERSECT — pick a different feature for Source B.');
+        return;
+      }
+      setSourceB(matched);
+      setSelectedIndex(0);
       setPickingSlot(null);
     };
     window.addEventListener('cad:intersectPicked', handler);
-    // Tell the canvas to enter picking mode.
     window.dispatchEvent(new CustomEvent('cad:intersectPicking', { detail: { active: true } }));
     return () => {
       window.removeEventListener('cad:intersectPicked', handler);
       window.dispatchEvent(new CustomEvent('cad:intersectPicking', { detail: { active: false } }));
     };
-  }, [pickingSlot, sourceA, sourceB, drawingStore]);
+  }, [pickingSlot, sourceA, method, drawingStore]);
 
   function commit() {
-    if (!candidate || !sourceA || !sourceB) return;
+    if (!selected || !sourceA || !sourceB) return;
     const pt: Feature = {
       id: generateId(),
       type: 'POINT',
-      geometry: { type: 'POINT', point: candidate },
+      geometry: { type: 'POINT', point: selected },
       layerId: drawingStore.activeLayerId,
       style: {
         color: null, lineWeight: null, opacity: 1,
@@ -158,20 +227,19 @@ export default function IntersectDialog({ onClose }: Props) {
         labelOffset: { x: 0, y: 0 }, isOverride: false,
       },
       properties: {
-        // Provenance — surveyor can audit dropped POINTs.
         intersectSourceAId: sourceA.featureId,
         intersectSourceBId: sourceB.featureId,
-        intersectMethod: 'LINE_LINE',
+        intersectMethod: method,
         intersectWithinBoth: withinBoth,
         intersectExtendedA: !withinA,
         intersectExtendedB: !withinB,
+        intersectCandidateIndex: selectedIndex,
+        intersectCandidateCount: candidates.length,
       },
     };
     drawingStore.addFeature(pt);
     undoStore.pushUndo(makeAddFeatureEntry(pt));
-    window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-      detail: { text: `Intersection point dropped${withinBoth ? '' : ' (lines extended)'}.` },
-    }));
+    announce(`Intersection point dropped${withinBoth ? '' : ' (extended)'}.`);
     onClose();
   }
 
@@ -181,10 +249,12 @@ export default function IntersectDialog({ onClose }: Props) {
     setPickingSlot(null);
     setExtendA(false);
     setExtendB(false);
+    setSelectedIndex(0);
   }
 
   const canConfirm =
-    sourceA != null && sourceB != null && candidate != null && consentA && consentB;
+    sourceA != null && sourceB != null && selected != null && consentA && consentB;
+  const bKindsLabel = sourceBKinds(method).join(' / ');
 
   return (
     <div
@@ -192,14 +262,14 @@ export default function IntersectDialog({ onClose }: Props) {
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-end sm:justify-center pointer-events-none"
     >
       <div
-        className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[420px] m-4 text-sm text-gray-200 overflow-hidden pointer-events-auto animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)]"
+        className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[440px] m-4 text-sm text-gray-200 overflow-hidden pointer-events-auto animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-600 bg-gray-750">
           <div className="flex items-center gap-2">
             <Crosshair size={16} className="text-blue-400" />
-            <h2 className="font-semibold text-white">Intersect Lines</h2>
+            <h2 className="font-semibold text-white">Intersect</h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
             <X size={16} />
@@ -208,26 +278,43 @@ export default function IntersectDialog({ onClose }: Props) {
 
         {/* Body */}
         <div className="p-4 space-y-3">
+          {/* Method picker */}
+          <div className="flex items-center gap-2">
+            <label className="text-[11px] text-gray-400 w-12">Method</label>
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value as IntersectMethod)}
+              className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[12px] text-gray-200 focus:outline-none focus:border-blue-500"
+            >
+              {(Object.keys(METHOD_LABELS) as IntersectMethod[]).map((m) => (
+                <option key={m} value={m}>{METHOD_LABELS[m]}</option>
+              ))}
+            </select>
+          </div>
+
           <p className="text-[11px] text-gray-400 leading-relaxed">
-            Pick two LINE features and the dialog finds the point where they cross — or where they <em>would</em> cross if extended. Useful for the &quot;missing house corner&quot; workflow when two walls stop short of each other.
+            Pick a LINE and {method === 'LINE_LINE' ? 'a second LINE' : method === 'LINE_CIRCLE' ? 'a CIRCLE' : 'an ARC'} — the dialog
+            finds every point where they cross. Up to 2 candidates for circles / arcs; click the one you want before dropping.
           </p>
 
-          {/* Source A picker */}
+          {/* Source A picker (always LINE) */}
           <SourcePickerRow
-            label="Source A"
+            label="Source A (LINE)"
             picked={sourceA}
             isPicking={pickingSlot === 'A'}
             extend={extendA}
+            allowExtend
             onPick={() => setPickingSlot(pickingSlot === 'A' ? null : 'A')}
             onClear={() => setSourceA(null)}
             onToggleExtend={() => setExtendA((v) => !v)}
           />
-          {/* Source B picker */}
+          {/* Source B picker (LINE / CIRCLE / ARC) */}
           <SourcePickerRow
-            label="Source B"
+            label={`Source B (${bKindsLabel})`}
             picked={sourceB}
             isPicking={pickingSlot === 'B'}
             extend={extendB}
+            allowExtend={sourceB?.kind === 'LINE'}
             onPick={() => setPickingSlot(pickingSlot === 'B' ? null : 'B')}
             onClear={() => setSourceB(null)}
             onToggleExtend={() => setExtendB((v) => !v)}
@@ -236,66 +323,33 @@ export default function IntersectDialog({ onClose }: Props) {
           {/* Candidate readout */}
           <div className="bg-gray-900 border border-gray-700 rounded p-2 space-y-1">
             <div className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
-              Candidates
+              Candidates ({candidates.length})
             </div>
             {sourceA && sourceB ? (
-              candidate ? (
-                <div className="text-[11px] text-gray-300 font-mono space-y-1">
-                  <div>
-                    <span className="text-blue-400">①</span>{' '}
-                    ({candidate.x.toFixed(3)}, {candidate.y.toFixed(3)})
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {withinBoth ? (
-                      <span className="px-1.5 py-[1px] rounded bg-green-900/60 text-green-300 text-[10px]">
-                        within both
-                      </span>
-                    ) : (
-                      <>
-                        {!withinA && projA && (
-                          <span
-                            className={`px-1.5 py-[1px] rounded text-[10px] ${
-                              extendA
-                                ? 'bg-amber-900/60 text-amber-300'
-                                : 'bg-red-900/60 text-red-300'
-                            }`}
-                            title={
-                              extendA
-                                ? 'Source A is being virtually extended to reach the candidate.'
-                                : 'Candidate lies past Source A\'s endpoint — toggle "Extend A" to allow it.'
-                            }
-                          >
-                            extended A {projA.distancePastFt.toFixed(2)} ft{extendA ? '' : ' — toggle Extend A'}
-                          </span>
-                        )}
-                        {!withinB && projB && (
-                          <span
-                            className={`px-1.5 py-[1px] rounded text-[10px] ${
-                              extendB
-                                ? 'bg-amber-900/60 text-amber-300'
-                                : 'bg-red-900/60 text-red-300'
-                            }`}
-                            title={
-                              extendB
-                                ? 'Source B is being virtually extended to reach the candidate.'
-                                : 'Candidate lies past Source B\'s endpoint — toggle "Extend B" to allow it.'
-                            }
-                          >
-                            extended B {projB.distancePastFt.toFixed(2)} ft{extendB ? '' : ' — toggle Extend B'}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
+              candidates.length > 0 ? (
+                <ul className="space-y-0.5">
+                  {candidates.map((c, i) => (
+                    <CandidateRow
+                      key={i}
+                      index={i}
+                      candidate={c}
+                      isSelected={i === selectedIndex}
+                      onSelect={() => setSelectedIndex(i)}
+                      sourceA={sourceA}
+                      sourceB={sourceB}
+                      extendA={extendA}
+                      extendB={extendB}
+                    />
+                  ))}
+                </ul>
               ) : (
                 <p className="text-[11px] text-gray-500 italic">
-                  These two don&apos;t intersect — the lines are parallel.
+                  {emptyExplainer(method, sourceA, sourceB, extendA)}
                 </p>
               )
             ) : (
               <p className="text-[11px] text-gray-500 italic">
-                Pick two LINE features above to see the intersection.
+                Pick both sources above to see candidates.
               </p>
             )}
           </div>
@@ -331,11 +385,16 @@ export default function IntersectDialog({ onClose }: Props) {
   );
 }
 
+// ─────────────────────────────────────────────
+// Sub-components
+// ─────────────────────────────────────────────
+
 function SourcePickerRow(props: {
   label: string;
-  picked: PickedLine | null;
+  picked: PickedSource | null;
   isPicking: boolean;
   extend: boolean;
+  allowExtend: boolean;
   onPick: () => void;
   onClear: () => void;
   onToggleExtend: () => void;
@@ -345,18 +404,20 @@ function SourcePickerRow(props: {
       <div className="flex items-center justify-between mb-1 gap-2">
         <span className="text-[11px] text-gray-400">{props.label}</span>
         <div className="flex items-center gap-1.5">
-          <label
-            className="flex items-center gap-1 px-1.5 py-1 text-[11px] rounded border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-500 cursor-pointer select-none"
-            title={`Treat ${props.label} as an infinite line — finds the virtual intersection past either endpoint.`}
-          >
-            <input
-              type="checkbox"
-              checked={props.extend}
-              onChange={props.onToggleExtend}
-              className="accent-amber-500 w-3 h-3"
-            />
-            Extend
-          </label>
+          {props.allowExtend && (
+            <label
+              className="flex items-center gap-1 px-1.5 py-1 text-[11px] rounded border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-500 cursor-pointer select-none"
+              title="Treat this source as an infinite line — find the virtual intersection past either endpoint."
+            >
+              <input
+                type="checkbox"
+                checked={props.extend}
+                onChange={props.onToggleExtend}
+                className="accent-amber-500 w-3 h-3"
+              />
+              Extend
+            </label>
+          )}
           <button
             type="button"
             onClick={props.onPick}
@@ -367,7 +428,7 @@ function SourcePickerRow(props: {
             }`}
           >
             <MousePointerClick size={12} />
-            {props.isPicking ? 'Click a line on canvas…' : props.picked ? 'Re-pick' : 'Pick from canvas'}
+            {props.isPicking ? 'Click feature…' : props.picked ? 'Re-pick' : 'Pick from canvas'}
           </button>
         </div>
       </div>
@@ -376,19 +437,155 @@ function SourcePickerRow(props: {
           <div className="flex items-center justify-between">
             <span className="text-gray-300 truncate">
               <span className="text-gray-500">#{props.picked.featureId.slice(0, 6)}</span>{' '}
-              ({props.picked.start.x.toFixed(2)}, {props.picked.start.y.toFixed(2)}) →
-              {' '}({props.picked.end.x.toFixed(2)}, {props.picked.end.y.toFixed(2)})
+              {renderPickedSummary(props.picked)}
             </span>
             <button onClick={props.onClear} className="text-gray-500 hover:text-red-400 ml-2" title="Clear">
               <X size={11} />
             </button>
           </div>
         ) : (
-          <span className="text-gray-500 italic">— no line picked —</span>
+          <span className="text-gray-500 italic">— nothing picked —</span>
         )}
       </div>
     </div>
   );
+}
+
+function CandidateRow(props: {
+  index: number;
+  candidate: Point2D;
+  isSelected: boolean;
+  sourceA: PickedLine;
+  sourceB: PickedSource;
+  extendA: boolean;
+  extendB: boolean;
+  onSelect: () => void;
+}) {
+  const projA = projectOntoLine(props.candidate, props.sourceA);
+  const projB =
+    props.sourceB.kind === 'LINE' ? projectOntoLine(props.candidate, props.sourceB) : null;
+  const withinA = !!projA?.within;
+  const withinB = props.sourceB.kind === 'LINE' ? !!projB?.within : true;
+  const withinBoth = withinA && withinB;
+  return (
+    <li
+      onClick={props.onSelect}
+      className={`flex flex-wrap items-center gap-1 px-1.5 py-1 rounded cursor-pointer text-[11px] font-mono ${
+        props.isSelected
+          ? 'bg-blue-900/40 ring-1 ring-blue-500/60 text-gray-100'
+          : 'hover:bg-gray-800 text-gray-300'
+      }`}
+    >
+      <span className={props.isSelected ? 'text-blue-300' : 'text-blue-500'}>{props.isSelected ? '●' : '○'}</span>
+      <span>{props.index + 1}.</span>
+      <span>({props.candidate.x.toFixed(3)}, {props.candidate.y.toFixed(3)})</span>
+      {withinBoth ? (
+        <span className="px-1.5 py-[1px] rounded bg-green-900/60 text-green-300 text-[10px]">within both</span>
+      ) : (
+        <>
+          {!withinA && projA && (
+            <span
+              className={`px-1.5 py-[1px] rounded text-[10px] ${
+                props.extendA ? 'bg-amber-900/60 text-amber-300' : 'bg-red-900/60 text-red-300'
+              }`}
+              title={
+                props.extendA
+                  ? 'Source A is being virtually extended.'
+                  : 'Toggle Extend A to allow this candidate.'
+              }
+            >
+              extended A {projA.distancePastFt.toFixed(2)} ft
+            </span>
+          )}
+          {!withinB && projB && (
+            <span
+              className={`px-1.5 py-[1px] rounded text-[10px] ${
+                props.extendB ? 'bg-amber-900/60 text-amber-300' : 'bg-red-900/60 text-red-300'
+              }`}
+              title={
+                props.extendB
+                  ? 'Source B is being virtually extended.'
+                  : 'Toggle Extend B to allow this candidate.'
+              }
+            >
+              extended B {projB.distancePastFt.toFixed(2)} ft
+            </span>
+          )}
+        </>
+      )}
+    </li>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+
+function announce(text: string) {
+  window.dispatchEvent(new CustomEvent('cad:commandOutput', { detail: { text } }));
+}
+
+function tryBuildSource(f: Feature, kinds: PickedSource['kind'][]): PickedSource | null {
+  if (kinds.includes('LINE') && f.geometry.type === 'LINE' && f.geometry.start && f.geometry.end) {
+    return { kind: 'LINE', featureId: f.id, start: f.geometry.start, end: f.geometry.end };
+  }
+  if (kinds.includes('CIRCLE') && f.geometry.type === 'CIRCLE' && f.geometry.circle) {
+    return { kind: 'CIRCLE', featureId: f.id, circle: f.geometry.circle };
+  }
+  if (kinds.includes('ARC') && f.geometry.type === 'ARC' && f.geometry.arc) {
+    return { kind: 'ARC', featureId: f.id, arc: f.geometry.arc };
+  }
+  return null;
+}
+
+function computeCandidates(
+  method: IntersectMethod,
+  a: PickedLine | null,
+  b: PickedSource | null,
+): Point2D[] {
+  if (!a || !b) return [];
+  if (method === 'LINE_LINE') {
+    if (b.kind !== 'LINE') return [];
+    const p = lineLineIntersection(a.start, a.end, b.start, b.end);
+    return p ? [p] : [];
+  }
+  if (method === 'LINE_CIRCLE') {
+    if (b.kind !== 'CIRCLE') return [];
+    return lineCircleIntersections(a.start, a.end, b.circle.center, b.circle.radius);
+  }
+  if (method === 'LINE_ARC') {
+    if (b.kind !== 'ARC') return [];
+    return lineArcIntersections(a.start, a.end, b.arc);
+  }
+  return [];
+}
+
+function emptyExplainer(
+  method: IntersectMethod,
+  sourceA: PickedLine | null,
+  sourceB: PickedSource | null,
+  extendA: boolean,
+): string {
+  if (!sourceA || !sourceB) return 'Pick both sources to see candidates.';
+  if (method === 'LINE_LINE') return 'These two are parallel — no intersection.';
+  if (method === 'LINE_CIRCLE') {
+    return extendA
+      ? 'The line misses the circle entirely.'
+      : 'The line misses the circle — toggle Extend A to try the infinite extension.';
+  }
+  return 'The line never crosses the arc within its sweep.';
+}
+
+function renderPickedSummary(p: PickedSource): string {
+  if (p.kind === 'LINE') {
+    return `(${p.start.x.toFixed(2)}, ${p.start.y.toFixed(2)}) → (${p.end.x.toFixed(2)}, ${p.end.y.toFixed(2)})`;
+  }
+  if (p.kind === 'CIRCLE') {
+    return `center (${p.circle.center.x.toFixed(2)}, ${p.circle.center.y.toFixed(2)})  r=${p.circle.radius.toFixed(2)}`;
+  }
+  const a = p.arc;
+  const deg = (rad: number) => ((rad * 180) / Math.PI).toFixed(1);
+  return `center (${a.center.x.toFixed(2)}, ${a.center.y.toFixed(2)})  r=${a.radius.toFixed(2)}  ${deg(a.startAngle)}°→${deg(a.endAngle)}°`;
 }
 
 /**
@@ -414,8 +611,6 @@ function projectOntoLine(p: Point2D, line: PickedLine): {
   const length = Math.sqrt(lenSq);
   const t = ((p.x - start.x) * dx + (p.y - start.y) * dy) / lenSq;
   const within = t >= -EPS && t <= 1 + EPS;
-  // distancePastFt: 0 inside the segment; otherwise the
-  // overshoot along the line direction in world feet.
   let distancePastFt = 0;
   if (t < 0) distancePastFt = -t * length;
   else if (t > 1) distancePastFt = (t - 1) * length;

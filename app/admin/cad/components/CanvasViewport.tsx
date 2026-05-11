@@ -646,15 +646,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // open for canvas-side picking. Next canvas click feeds the
   // hit feature id back to the dialog and gets swallowed.
   const intersectPickingRef = useRef(false);
-  // Phase 8 §11.6 Slice 2 — current IntersectDialog state for
-  // the live ghost preview (dashed extensions + candidate
-  // crosshair). null whenever the dialog is closed.
+  // Phase 8 §11.6 Slice 2 / 3 — current IntersectDialog state
+  // for the live ghost preview (dashed extensions, candidate
+  // crosshair, circle ghost). null whenever the dialog is
+  // closed. Source B is a discriminated union mirroring the
+  // dialog's PickedSource type.
   const intersectPreviewRef = useRef<{
-    sourceA: { featureId: string; start: Point2D; end: Point2D } | null;
-    sourceB: { featureId: string; start: Point2D; end: Point2D } | null;
+    sourceA: { kind: 'LINE'; featureId: string; start: Point2D; end: Point2D } | null;
+    sourceB:
+      | { kind: 'LINE'; featureId: string; start: Point2D; end: Point2D }
+      | { kind: 'CIRCLE'; featureId: string; circle: { center: Point2D; radius: number } }
+      | { kind: 'ARC'; featureId: string; arc: { center: Point2D; radius: number; startAngle: number; endAngle: number; anticlockwise: boolean } }
+      | null;
     extendA: boolean;
     extendB: boolean;
     candidate: Point2D | null;
+    candidates: Point2D[];
+    selectedIndex: number;
     withinA: boolean;
     withinB: boolean;
   } | null>(null);
@@ -6503,14 +6511,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
   }
 
-  // Phase 8 §11.6 Slice 2 — render dashed extensions for any
-  // source whose extension toggle is ON and a crosshair at
-  // the candidate intersection. Painted on the previewGraphics
-  // layer so it sits above features but below selection.
+  // Phase 8 §11.6 Slice 2/3 — render dashed extensions, the
+  // full-circle ghost when Source B is a CIRCLE, and a
+  // crosshair per candidate (selected one brighter + ringed).
   function renderIntersectPreview() {
     const preview = intersectPreviewRef.current;
     if (!preview) return;
-    const { sourceA, sourceB, extendA, extendB, candidate, withinA, withinB } = preview;
+    const { sourceA, sourceB, extendA, extendB, candidate, candidates, selectedIndex, withinA, withinB } = preview;
     if (!sourceA && !sourceB && !candidate) return;
     const pixi = pixiRef.current;
     if (!pixi) return;
@@ -6521,9 +6528,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const CAND_OK_COLOR = 0x4ade80; // green-400 (within both)
     const CAND_EXT_COLOR = 0xfbbf24; // amber-400 (any side extended)
 
-    // Dashed extension: paint the line projected past each
-    // endpoint by an extension length proportional to the
-    // segment length so the surveyor sees the geometry.
     const drawExtension = (
       start: Point2D,
       end: Point2D,
@@ -6536,10 +6540,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (len < 1e-9) return;
       const ux = dx / len;
       const uy = dy / len;
-      // Default extension reach: the larger of segment length
-      // or distance-to-candidate-projection so the dashed
-      // preview always reaches the candidate when the toggle
-      // is on.
       let reachStart = len;
       let reachEnd = len;
       if (extendToCandidate && candidate) {
@@ -6550,24 +6550,56 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
       const pastStart = { x: start.x - ux * reachStart, y: start.y - uy * reachStart };
       const pastEnd = { x: end.x + ux * reachEnd, y: end.y + uy * reachEnd };
-      // Dashed segments (~6 px on / 4 px off in screen space).
       drawDashedScreenLine(g, w2s(pastStart.x, pastStart.y), w2s(start.x, start.y), color, 0.55);
       drawDashedScreenLine(g, w2s(end.x, end.y), w2s(pastEnd.x, pastEnd.y), color, 0.55);
     };
 
     if (sourceA && extendA) drawExtension(sourceA.start, sourceA.end, SRC_A_COLOR, true);
-    if (sourceB && extendB) drawExtension(sourceB.start, sourceB.end, SRC_B_COLOR, true);
+    if (sourceB && sourceB.kind === 'LINE' && extendB) {
+      drawExtension(sourceB.start, sourceB.end, SRC_B_COLOR, true);
+    }
 
-    // Candidate crosshair — small + screen-space sized so it
-    // stays legible at any zoom.
-    if (candidate) {
+    // CIRCLE source B — paint a thin full-circle ghost so the
+    // surveyor sees what they picked + where the two candidate
+    // points sit on it.
+    if (sourceB && sourceB.kind === 'CIRCLE') {
+      const c = w2s(sourceB.circle.center.x, sourceB.circle.center.y);
+      const zoom = useViewportStore.getState().zoom;
+      const rPx = sourceB.circle.radius * zoom;
+      g.lineStyle(1, SRC_B_COLOR, 0.5);
+      g.drawCircle(c.sx, c.sy, rPx);
+    }
+
+    // Candidate crosshairs. Slice 3 shows every candidate at
+    // 50% opacity with the selected one in full colour + ring.
+    if (candidates && candidates.length > 0) {
+      const colorFor = (i: number) =>
+        i === selectedIndex
+          ? withinA && withinB
+            ? CAND_OK_COLOR
+            : CAND_EXT_COLOR
+          : 0x94a3b8; // slate-400 (unselected)
+      const R = 8;
+      candidates.forEach((c, i) => {
+        const { sx, sy } = w2s(c.x, c.y);
+        const isSel = i === selectedIndex;
+        const alpha = isSel ? 0.95 : 0.6;
+        g.lineStyle(isSel ? 1.5 : 1, colorFor(i), alpha);
+        g.moveTo(sx - R, sy); g.lineTo(sx + R, sy);
+        g.moveTo(sx, sy - R); g.lineTo(sx, sy + R);
+        if (isSel) {
+          g.lineStyle(1, colorFor(i), 0.5);
+          g.drawCircle(sx, sy, R + 3);
+        }
+      });
+    } else if (candidate) {
+      // Fallback for single-candidate methods (LINE × LINE).
       const { sx, sy } = w2s(candidate.x, candidate.y);
       const color = withinA && withinB ? CAND_OK_COLOR : CAND_EXT_COLOR;
       const R = 8;
       g.lineStyle(1.5, color, 0.95);
       g.moveTo(sx - R, sy); g.lineTo(sx + R, sy);
       g.moveTo(sx, sy - R); g.lineTo(sx, sy + R);
-      // Ring around the crosshair so it pops.
       g.lineStyle(1, color, 0.5);
       g.drawCircle(sx, sy, R + 3);
     }
