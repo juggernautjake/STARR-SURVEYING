@@ -1381,6 +1381,7 @@ function TransferPresetsRow() {
               <option key={p.id} value={p.id}>
                 {p.isDefault ? '★ ' : ''}
                 {p.name}
+                {p.isBundled ? ' · bundled' : ''}
                 {p.useCount > 0 ? ` · used ${p.useCount}×` : ''}
               </option>
             ))}

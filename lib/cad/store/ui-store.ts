@@ -32,6 +32,140 @@ export interface TransferPreset {
    *  most one preset can be flagged default at a time;
    *  setDefaultTransferPreset() enforces. */
   isDefault: boolean;
+  /** True for the five firm-shipped defaults so the dropdown
+   *  can mark them visually. Surveyor can still edit / delete /
+   *  override them — bundled is just metadata, not a lock. */
+  isBundled?: boolean;
+}
+
+/**
+ * Phase 8 §11.7 Slice 14 — bundled transfer presets that
+ * ship with the firm's default configuration. Auto-seeded
+ * into `transferPresets` on first run (when the persisted
+ * array is empty). Each captures the SEMANTICS of a
+ * recurring transfer the firm runs; surveyor picks the
+ * specific destination layer at use-time since layer ids
+ * are per-document.
+ *
+ * Editable + deletable like any saved preset — bundled is
+ * metadata, not a lock.
+ */
+const BUNDLED_TRANSFER_PRESETS: ReadonlyArray<Omit<TransferPreset, 'id' | 'lastUsedAt' | 'useCount'>> = [
+  {
+    name: 'Monuments → Final plat',
+    options: {
+      operation: 'DUPLICATE',
+      targetLayerId: null,
+      additionalTargetLayerIds: [],
+      targetTraverseId: null,
+      keepOriginals: true,
+      renumberStart: null,
+      stripUnknownCodes: false,
+      bringAlongLinkedGeometry: true,
+      offsetDistanceFt: 0,
+      offsetBearingDeg: 0,
+      applyOffset: false,
+      lockSourceAfterCopy: false,
+      codeMap: {},
+    },
+    isDefault: false,
+    isBundled: true,
+  },
+  {
+    name: 'Boundary → Print copy',
+    options: {
+      operation: 'DUPLICATE',
+      targetLayerId: null,
+      additionalTargetLayerIds: [],
+      targetTraverseId: null,
+      keepOriginals: true,
+      renumberStart: null,
+      stripUnknownCodes: false,
+      bringAlongLinkedGeometry: true,
+      offsetDistanceFt: 0,
+      offsetBearingDeg: 0,
+      applyOffset: false,
+      lockSourceAfterCopy: true,
+      codeMap: {},
+    },
+    isDefault: false,
+    isBundled: true,
+  },
+  {
+    name: 'Topo → Field reference',
+    options: {
+      operation: 'DUPLICATE',
+      targetLayerId: null,
+      additionalTargetLayerIds: [],
+      targetTraverseId: null,
+      keepOriginals: true,
+      renumberStart: null,
+      stripUnknownCodes: false,
+      bringAlongLinkedGeometry: false,
+      offsetDistanceFt: 0,
+      offsetBearingDeg: 0,
+      applyOffset: false,
+      lockSourceAfterCopy: false,
+      codeMap: {},
+    },
+    isDefault: false,
+    isBundled: true,
+  },
+  {
+    name: 'Setbacks → Setback overlay',
+    options: {
+      operation: 'DUPLICATE',
+      targetLayerId: null,
+      additionalTargetLayerIds: [],
+      targetTraverseId: null,
+      keepOriginals: true,
+      renumberStart: null,
+      stripUnknownCodes: false,
+      bringAlongLinkedGeometry: true,
+      // Sensible setback default — surveyor edits in dialog.
+      offsetDistanceFt: 5,
+      offsetBearingDeg: 0,
+      applyOffset: false,
+      lockSourceAfterCopy: false,
+      codeMap: {},
+    },
+    isDefault: false,
+    isBundled: true,
+  },
+  {
+    name: 'Working set → Archive',
+    options: {
+      operation: 'MOVE',
+      targetLayerId: null,
+      additionalTargetLayerIds: [],
+      targetTraverseId: null,
+      keepOriginals: false,
+      renumberStart: null,
+      stripUnknownCodes: false,
+      bringAlongLinkedGeometry: false,
+      offsetDistanceFt: 0,
+      offsetBearingDeg: 0,
+      applyOffset: false,
+      lockSourceAfterCopy: false,
+      codeMap: {},
+    },
+    isDefault: false,
+    isBundled: true,
+  },
+];
+
+/**
+ * Build the bundled preset list with fresh ids + zeroed
+ * use-stats. Called on first-run hydration (or when the
+ * surveyor explicitly resets to bundled defaults).
+ */
+function buildBundledPresets(): TransferPreset[] {
+  return BUNDLED_TRANSFER_PRESETS.map((p, i) => ({
+    ...p,
+    id: `bundled-${i}-${Date.now()}`,
+    lastUsedAt: null,
+    useCount: 0,
+  }));
 }
 
 /**
@@ -163,7 +297,12 @@ export const useUIStore = create<UIStore>()(
       featureTooltipsEnabled: true,
       tooltipDelayMs: 600,
       firmLogoDataUrl: null,
-      transferPresets: [],
+      // Seed bundled presets on initial state construction.
+      // The persist middleware's onRehydrate will preserve
+      // the surveyor's saved presets when state hydrates;
+      // see the `onRehydrateStorage` hook below for the
+      // re-seed when localStorage is empty / cleared.
+      transferPresets: buildBundledPresets(),
       selectionBlocks: [],
 
       toggleLayerPanel: () => set((s) => ({ showLayerPanel: !s.showLayerPanel })),
@@ -282,7 +421,7 @@ export const useUIStore = create<UIStore>()(
     }),
     {
       name: 'starr-cad-ui',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => localStorage),
       // Allow-list — only the surveyor-visible toggles persist.
       partialize: (s) => ({
@@ -293,6 +432,17 @@ export const useUIStore = create<UIStore>()(
         transferPresets: s.transferPresets,
         selectionBlocks: s.selectionBlocks,
       }),
+      onRehydrateStorage: () => (state) => {
+        // First-run path: when localStorage hydrates an
+        // empty transferPresets array (either no persist
+        // record OR the surveyor cleared everything), seed
+        // the bundled defaults. Once a surveyor has any
+        // saved preset (bundled or custom) we leave them
+        // alone so the dropdown stays under their control.
+        if (state && (!state.transferPresets || state.transferPresets.length === 0)) {
+          state.transferPresets = buildBundledPresets();
+        }
+      },
     }
   )
 );
