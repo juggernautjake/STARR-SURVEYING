@@ -103,6 +103,7 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'ai.checkClosure',         category: 'AI', label: 'Check Closure',               description: 'Ask the AI to run a closure report on the active polygon / traverse', defaultKey: '', isChord: false, context: 'GLOBAL' },
   { id: 'ai.createLayerFromCodes', category: 'AI', label: 'Create Layer From Codes…',    description: 'Ask the AI to create a new layer from a code pattern + draw-as (point / line / polyline)', defaultKey: '', isChord: false, context: 'GLOBAL' },
   { id: 'ai.explainFeature',       category: 'AI', label: 'Explain Selected Feature',    description: 'Open the "Why did AI draw this?" popup for the currently-selected feature (or ask AI to explain a non-AI feature)', defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'ai.undoBatch',            category: 'AI', label: 'Undo AI Batch',               description: 'Undo every feature produced in the most recent AI turn as a single group (matches by aiBatchId on the undo stack)', defaultKey: 'ctrl+alt+z', isChord: false, context: 'GLOBAL' },
 
   // App / View
   { id: 'view.settings',     category: 'APP',        label: 'Open Settings',        description: 'Open the Settings page',                      defaultKey: 'ctrl+comma',   isChord: false, context: 'GLOBAL' },

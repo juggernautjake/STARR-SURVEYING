@@ -23,6 +23,7 @@ import {
   type HotkeyEngine,
 } from '@/lib/cad/hotkeys';
 import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
+import { undoMostRecentAIBatch } from '@/lib/cad/ai/undo-batch';
 import {
   useAIStore,
   useDrawingStore,
@@ -379,6 +380,21 @@ export function dispatchDefaultAction(action: BindableAction): void {
       }
       window.dispatchEvent(new CustomEvent('cad:commandOutput', {
         detail: { text: 'Select exactly one feature to explain.' },
+      }));
+      return;
+    }
+    case 'ai.undoBatch': {
+      const popped = undoMostRecentAIBatch();
+      if (!popped) {
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: 'No AI batch at the top of the undo stack.' },
+        }));
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: {
+          text: `Undid AI batch (${popped.count} feature${popped.count === 1 ? '' : 's'}).`,
+        },
       }));
       return;
     }
