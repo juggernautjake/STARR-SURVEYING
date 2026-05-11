@@ -4,6 +4,14 @@
 // in-flight job status (idle / running / done / error), the
 // latest result, and the user-facing error message.
 //
+// Also hosts the Phase 6 §32 "AI Integration Framework" state:
+// the four-mode enum, the per-action sandbox toggle, and the
+// confidence threshold that drives AUTO escalation. Those
+// fields are persisted to localStorage via zustand's `persist`
+// middleware with a strict allow-list — the live pipeline
+// state (`status`, `result`, `error`, chat history, ...)
+// stays ephemeral so a refresh doesn't resurrect a stale run.
+//
 // The AIDrawingDialog reads + writes this; the ReviewQueuePanel
 // (Phase 6 UI slice 2) consumes the result + per-item status.
 // Per-item updates land back in the same `result.reviewQueue`
@@ -12,6 +20,7 @@
 // Pure client-side state. The actual pipeline call goes through
 // POST /api/admin/cad/ai-pipeline.
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 import type {
   AIJobPayload,
@@ -28,7 +37,38 @@ import { useDrawingStore } from './drawing-store';
 
 export type AIPipelineStatus = 'idle' | 'running' | 'done' | 'error';
 
+/**
+ * Phase 6 §32 — four-mode AI integration framework.
+ * COPILOT is the default for fresh projects.
+ */
+export type AIMode = 'AUTO' | 'COPILOT' | 'COMMAND' | 'MANUAL';
+
+/** Ordered list used by the cycle hotkey (Ctrl+Shift+M). */
+export const AI_MODE_CYCLE: AIMode[] = ['AUTO', 'COPILOT', 'COMMAND', 'MANUAL'];
+
 interface AIStore {
+  // ────────────────────────────────────────────────────────
+  // §32 Integration Framework — persisted fields
+  // ────────────────────────────────────────────────────────
+  /** Which of the four modes is active. Default COPILOT. */
+  mode: AIMode;
+  /** Per-action sandbox toggle. When ON, AI writes route to
+   *  `DRAFT__<targetname>` layers and require explicit promotion
+   *  via the §11.7 Layer Transfer kernel. Defaults follow §32.3:
+   *  AUTO → true, COPILOT → true, COMMAND → false. */
+  sandbox: boolean;
+  /** Confidence threshold (0–1). In AUTO mode, decisions below
+   *  this confidence pause the run and escalate to COPILOT for
+   *  that single step. Default 0.85. */
+  autoApproveThreshold: number;
+
+  setMode: (mode: AIMode) => void;
+  /** Cycle AUTO → COPILOT → COMMAND → MANUAL → AUTO. Bound to
+   *  Ctrl+Shift+M; also exposed via the status-bar mode chip. */
+  cycleMode: () => void;
+  setSandbox: (sandbox: boolean) => void;
+  setAutoApproveThreshold: (threshold: number) => void;
+
   // Dialog visibility.
   isDialogOpen: boolean;
   openDialog: () => void;
@@ -146,7 +186,38 @@ interface AIStore {
   ) => Promise<void>;
 }
 
-export const useAIStore = create<AIStore>((set, get) => ({
+/**
+ * Default sandbox value for each mode per §32.3. AUTO/COPILOT
+ * default to sandbox-on (safer); COMMAND defaults to live
+ * (surveyor explicitly asked for the action); MANUAL is N/A
+ * and just keeps the current value untouched.
+ */
+function defaultSandboxFor(mode: AIMode): boolean {
+  if (mode === 'COMMAND') return false;
+  return true;
+}
+
+export const useAIStore = create<AIStore>()(persist((set, get) => ({
+  // §32 framework — defaults documented in §32.1/§32.3/§32.5.
+  mode: 'COPILOT',
+  sandbox: true,
+  autoApproveThreshold: 0.85,
+
+  setMode: (mode) =>
+    set((s) => {
+      if (s.mode === mode) return s;
+      return { mode, sandbox: defaultSandboxFor(mode) };
+    }),
+  cycleMode: () =>
+    set((s) => {
+      const i = AI_MODE_CYCLE.indexOf(s.mode);
+      const next = AI_MODE_CYCLE[(i + 1) % AI_MODE_CYCLE.length];
+      return { mode: next, sandbox: defaultSandboxFor(next) };
+    }),
+  setSandbox: (sandbox) => set({ sandbox }),
+  setAutoApproveThreshold: (threshold) =>
+    set({ autoApproveThreshold: Math.max(0, Math.min(1, threshold)) }),
+
   isDialogOpen: false,
   isQueuePanelOpen: false,
   isQuestionDialogOpen: false,
@@ -590,6 +661,17 @@ export const useAIStore = create<AIStore>((set, get) => ({
       );
       return rebuildDeliberation(state, questions);
     }),
+}), {
+  name: 'starr-cad-ai-store',
+  // Persist ONLY the §32 framework fields. Pipeline state
+  // (status / result / error / chat / staleExplanationIds /
+  // lastPayload) stays ephemeral — a page reload should not
+  // resurrect a half-finished AI run.
+  partialize: (state) => ({
+    mode: state.mode,
+    sandbox: state.sandbox,
+    autoApproveThreshold: state.autoApproveThreshold,
+  }),
 }));
 
 // ────────────────────────────────────────────────────────────

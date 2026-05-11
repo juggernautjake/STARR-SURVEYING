@@ -94,6 +94,7 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   // AI
   { id: 'ai.start',          category: 'AI',         label: 'Start AI Drawing',     description: 'Open the AI drawing wizard',                  defaultKey: 'ctrl+shift+a', isChord: false, context: 'GLOBAL' },
   { id: 'ai.chat',           category: 'AI',         label: 'Focus AI Chat',        description: 'Focus the AI assistant chat input',           defaultKey: 'ctrl+shift+c', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.cycleMode',      category: 'AI',         label: 'Cycle AI Mode',        description: 'Cycle the AI integration mode: AUTO → COPILOT → COMMAND → MANUAL (Phase 6 §32)', defaultKey: 'ctrl+shift+m', isChord: false, context: 'GLOBAL' },
 
   // App / View
   { id: 'view.settings',     category: 'APP',        label: 'Open Settings',        description: 'Open the Settings page',                      defaultKey: 'ctrl+comma',   isChord: false, context: 'GLOBAL' },

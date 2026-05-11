@@ -324,6 +324,17 @@ export function dispatchDefaultAction(action: BindableAction): void {
     case 'ai.chat':
       useDrawingChatStore.getState().open();
       return;
+    case 'ai.cycleMode': {
+      const aiStore = useAIStore.getState();
+      aiStore.cycleMode();
+      // Read the *post-cycle* mode for the toast — the cycleMode
+      // action mutates synchronously so a fresh getState() works.
+      const nextMode = useAIStore.getState().mode;
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: `AI mode: ${nextMode}` },
+      }));
+      return;
+    }
 
     // ── App ──────────────────────────────────────────
     case 'view.settings':

@@ -3319,8 +3319,8 @@ Persisted via `zustand persist`, allow-list in `partialize` — `chatMessages` i
 
 ### 32.12 Acceptance Tests
 
-- [ ] Fresh project loads in COPILOT mode by default with sandbox ON.
-- [ ] `Ctrl+Shift+M` cycles through the four modes; the status bar updates each press.
+- [x] Fresh project loads in COPILOT mode by default with sandbox ON. *— Slice 1 initialises `useAIStore` with `mode: 'COPILOT'`, `sandbox: true`, `autoApproveThreshold: 0.85`. Persisted via zustand `persist` with a strict `partialize` allow-list so subsequent loads honour the surveyor's last setting.*
+- [x] `Ctrl+Shift+M` cycles through the four modes; the status bar updates each press. *— Slice 1 registers `ai.cycleMode` in the hotkey registry (default `ctrl+shift+m`, GLOBAL); the dispatcher calls `useAIStore.cycleMode()` and fires a `cad:commandOutput` toast with the new mode. `StatusBar` subscribes to `mode` + `sandbox` and re-renders the chip + sandbox dot on each cycle; clicking the chip is equivalent to the hotkey.*
 - [ ] AUTO running below the confidence threshold escalates to COPILOT for that step; the surveyor's answer persists in `codeResolutionMemory` and the same ambiguity is not asked again in the project.
 - [ ] `Ctrl+Shift+P` pauses AUTO at the next feature boundary; the next queued action opens as a COPILOT card.
 - [ ] COPILOT card surfaces Accept / Modify / Skip; Modify reopens a chat input pre-populated with the proposal so the surveyor can redirect.
@@ -3338,7 +3338,7 @@ Persisted via `zustand persist`, allow-list in `partialize` — `chatMessages` i
 
 Each slice is a single PR / commit, all gated by tests:
 
-1. **Slice 1** — `AIStore` skeleton + the mode enum + status-bar mode indicator + `Ctrl+Shift+M` cycle hotkey + the four-mode UI shell. MANUAL is the only one that does anything yet (the existing manual UX); the other three render placeholders.
+1. **Slice 1** — `AIStore` skeleton + the mode enum + status-bar mode indicator + `Ctrl+Shift+M` cycle hotkey + the four-mode UI shell. MANUAL is the only one that does anything yet (the existing manual UX); the other three render placeholders. *Shipped:* `lib/cad/store/ai-store.ts` grows `mode` / `sandbox` / `autoApproveThreshold` fields with `setMode` / `cycleMode` / `setSandbox` / `setAutoApproveThreshold` actions; the store is wrapped in zustand `persist` with a strict `partialize` that only persists the three framework fields (pipeline state remains ephemeral). `AIMode` + `AI_MODE_CYCLE` re-exported from `lib/cad/store/index.ts`. `lib/cad/hotkeys/registry.ts` grows `ai.cycleMode` (default `Ctrl+Shift+M`, GLOBAL); the dispatcher in `useHotkeys.ts` invokes `cycleMode()` and fires a `cad:commandOutput` toast with the new mode. `StatusBar.tsx` renders an AI-mode chip (per-mode colour: AUTO purple / COPILOT blue / COMMAND teal / MANUAL gray) with a sandbox status dot; click cycles the mode. `cycleMode` also resets `sandbox` to the per-mode default from §32.3 (`true` for AUTO/COPILOT/MANUAL, `false` for COMMAND).
 2. **Slice 2** — Tool registry skeleton (`lib/cad/ai/tool-registry.ts`) with the first 5 tools (`addPoint`, `drawLineBetween`, `drawPolylineThrough`, `createLayer`, `applyLayerStyle`) — every entry wraps an existing kernel and returns the `{ ok, result, reason }` envelope. No AI calling them yet; tests drive them directly.
 3. **Slice 3** — Provenance stamps (`aiOrigin`, `aiConfidence`, `aiPromptHash`, `aiSourcePoints`, `aiBatchId`) added to `feature.properties` on every tool-registry call. Right-click "Why did AI draw this?" menu entry mounts; explanation popup reuses §30.3.
 4. **Slice 4** — Sandbox routing: tool-registry calls with `sandbox: true` write to `DRAFT__<targetname>` layers (auto-created). Layer panel grows a "Promote draft" affordance routing to the §11.7 transfer kernel.
