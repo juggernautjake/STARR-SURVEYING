@@ -24,6 +24,7 @@ import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
 import AIProvenancePopup from './components/AIProvenancePopup';
 import CopilotCard from './components/CopilotCard';
+import AICopilotSidebar from './components/AICopilotSidebar';
 import CompletenessPanel from './components/CompletenessPanel';
 import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import RPLSReviewModePanel from './components/RPLSReviewModePanel';
@@ -840,6 +841,12 @@ export default function CADLayout() {
           the head of useAIStore.proposalQueue with Accept /
           Modify / Skip + ghost preview on the canvas. */}
       <CopilotCard />
+
+      {/* Phase 6 §32 Slice 7 COMMAND-mode chat sidebar — input
+          surface for proposeFromPrompt. Auto-opens on COPILOT /
+          COMMAND modes; right-click "Ask AI about this…" seeds
+          the input via openCopilotWithPrompt. */}
+      <AICopilotSidebar />
 
       {/* Phase 7 §6.2 completeness checklist — slides in from the
           right, gates "Mark Ready for RPLS Review" on summary.ready */}

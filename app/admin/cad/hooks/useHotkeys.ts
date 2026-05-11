@@ -25,7 +25,6 @@ import {
 import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
 import {
   useAIStore,
-  useDrawingChatStore,
   useDrawingStore,
   useHotkeysStore,
   useSelectionStore,
@@ -322,7 +321,11 @@ export function dispatchDefaultAction(action: BindableAction): void {
       window.dispatchEvent(new CustomEvent('cad:openAIDrawingDialog'));
       return;
     case 'ai.chat':
-      useDrawingChatStore.getState().open();
+      // Phase 6 §32 Slice 7 — focus the COPILOT sidebar. The
+      // listener inside AICopilotSidebar opens the panel if
+      // closed + focuses the prompt textarea.
+      useAIStore.getState().openCopilotSidebar();
+      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
       return;
     case 'ai.cycleMode': {
       const aiStore = useAIStore.getState();
@@ -332,6 +335,50 @@ export function dispatchDefaultAction(action: BindableAction): void {
       const nextMode = useAIStore.getState().mode;
       window.dispatchEvent(new CustomEvent('cad:commandOutput', {
         detail: { text: `AI mode: ${nextMode}` },
+      }));
+      return;
+    }
+    // Phase 6 §32.9 — palette-driven canned prompts. Each one
+    // seeds a prompt + opens the sidebar; the surveyor can edit
+    // before sending (Ctrl+Enter) or send as-is.
+    case 'ai.parseCodes':
+      useAIStore.getState().openCopilotWithPrompt(
+        'Walk every point code in the current document and propose layer assignments. ' +
+          'Create any missing layers via createLayer; do not modify existing features.',
+      );
+      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
+      return;
+    case 'ai.fillCorners':
+      useAIStore.getState().openCopilotWithPrompt(
+        'Find any nearly-closed polygons or polylines whose endpoints stop short of meeting. ' +
+          'For each, propose a best-fit corner via the line intersect helpers.',
+      );
+      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
+      return;
+    case 'ai.checkClosure':
+      useAIStore.getState().openCopilotWithPrompt(
+        'Run a closure report on the active polygon / traverse. ' +
+          'List the closure error in feet and angle, and flag any legs longer than 200 ft for review.',
+      );
+      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
+      return;
+    case 'ai.createLayerFromCodes':
+      useAIStore.getState().openCopilotWithPrompt(
+        'Create a new layer from a code pattern (e.g. BC-*) and a draw-as instruction (POINT / POLYLINE / POLYGON). ' +
+          'Ask me which pattern + draw-as to use if you need more detail.',
+      );
+      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
+      return;
+    case 'ai.explainFeature': {
+      // If a single feature is selected and it carries
+      // provenance, open the existing §32.7 popup directly.
+      const sel = Array.from(useSelectionStore.getState().selectedIds);
+      if (sel.length === 1) {
+        useAIStore.getState().openExplanation(sel[0]);
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'Select exactly one feature to explain.' },
       }));
       return;
     }

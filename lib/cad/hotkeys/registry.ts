@@ -95,6 +95,14 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'ai.start',          category: 'AI',         label: 'Start AI Drawing',     description: 'Open the AI drawing wizard',                  defaultKey: 'ctrl+shift+a', isChord: false, context: 'GLOBAL' },
   { id: 'ai.chat',           category: 'AI',         label: 'Focus AI Chat',        description: 'Focus the AI assistant chat input',           defaultKey: 'ctrl+shift+c', isChord: false, context: 'GLOBAL' },
   { id: 'ai.cycleMode',      category: 'AI',         label: 'Cycle AI Mode',        description: 'Cycle the AI integration mode: AUTO → COPILOT → COMMAND → MANUAL (Phase 6 §32)', defaultKey: 'ctrl+shift+m', isChord: false, context: 'GLOBAL' },
+  // Phase 6 §32.9 — COMMAND-mode palette entries. Each one
+  // fires a canned proposeFromPrompt call so the surveyor can
+  // kick off targeted AI tasks without typing the prompt.
+  { id: 'ai.parseCodes',           category: 'AI', label: 'Parse Point Codes',           description: 'Ask the AI to interpret every point code in the current points file and propose layer assignments', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.fillCorners',          category: 'AI', label: 'Fill Missing Corners',        description: 'Ask the AI to find any nearly-closed polygons and propose best-fit corners via the §11.6 intersect kernel', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.checkClosure',         category: 'AI', label: 'Check Closure',               description: 'Ask the AI to run a closure report on the active polygon / traverse', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.createLayerFromCodes', category: 'AI', label: 'Create Layer From Codes…',    description: 'Ask the AI to create a new layer from a code pattern + draw-as (point / line / polyline)', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.explainFeature',       category: 'AI', label: 'Explain Selected Feature',    description: 'Open the "Why did AI draw this?" popup for the currently-selected feature (or ask AI to explain a non-AI feature)', defaultKey: '', isChord: false, context: 'CANVAS' },
 
   // App / View
   { id: 'view.settings',     category: 'APP',        label: 'Open Settings',        description: 'Open the Settings page',                      defaultKey: 'ctrl+comma',   isChord: false, context: 'GLOBAL' },

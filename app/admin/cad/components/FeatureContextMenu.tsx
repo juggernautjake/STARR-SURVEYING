@@ -876,6 +876,29 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
     items.splice(1, 0, { separator: true, id: 'whyAi_sep' });
   }
 
+  // §32.9 — "Ask AI about this…" row. Available on every
+  // feature when AI is not in MANUAL mode. Composes a prompt
+  // from the right-clicked feature (or the current selection
+  // if larger) and seeds it into the COPILOT sidebar.
+  const aiMode = useAIStore.getState().mode;
+  if (feature && aiMode !== 'MANUAL') {
+    const composed = composeAskAIPrompt(feature, selIds);
+    const askAi: MenuItemDef = {
+      id: 'askAi',
+      label: 'Ask AI about this…',
+      icon: <Sparkles size={12} />,
+      action: () => useAIStore.getState().openCopilotWithPrompt(composed),
+    };
+    // Insert right after the "Why did AI draw this?" row when
+    // present, else at the top.
+    if (hasProvenance(feature.properties)) {
+      items.splice(2, 0, askAi);
+    } else {
+      items.unshift(askAi);
+      items.splice(1, 0, { separator: true, id: 'askAi_sep' });
+    }
+  }
+
   // Also append deselect when something is selected but we right-clicked empty space
   if (!feature && selCount > 0) {
     const actionCopy: MenuItemDef = {
@@ -961,4 +984,23 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
       </div>
     </>
   );
+}
+
+/**
+ * Phase 6 §32.9 — compose a "Ask AI about this…" prompt from
+ * the right-clicked feature + any extra selected features.
+ * Stays short on purpose so the surveyor can edit before
+ * sending (Ctrl+Enter dispatches).
+ */
+function composeAskAIPrompt(
+  feature: import('@/lib/cad/types').Feature,
+  selectionIds: string[],
+): string {
+  const extraIds = selectionIds.filter((id) => id !== feature.id);
+  const head = `Tell me about feature ${feature.id.slice(0, 8)} (${feature.type})`;
+  if (extraIds.length === 0) return `${head}.`;
+  if (extraIds.length === 1) {
+    return `${head} alongside one other selected feature (${extraIds[0].slice(0, 8)}).`;
+  }
+  return `${head} alongside ${extraIds.length} other selected features.`;
 }

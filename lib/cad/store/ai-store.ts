@@ -46,6 +46,20 @@ export type AIPipelineStatus = 'idle' | 'running' | 'done' | 'error';
  */
 export type AIMode = 'AUTO' | 'COPILOT' | 'COMMAND' | 'MANUAL';
 
+/**
+ * Phase 6 §32 Slice 7 — one entry in the Copilot sidebar
+ * transcript. `role` distinguishes surveyor input (USER) from
+ * narrative output (AI) and structured system acks (SYSTEM,
+ * e.g. "Accepted proposal", "AI offline").
+ */
+export interface AICopilotMessage {
+  id: string;
+  role: 'USER' | 'AI' | 'SYSTEM';
+  content: string;
+  /** ISO timestamp. */
+  ts: string;
+}
+
 /** Ordered list used by the cycle hotkey (Ctrl+Shift+M). */
 export const AI_MODE_CYCLE: AIMode[] = ['AUTO', 'COPILOT', 'COMMAND', 'MANUAL'];
 
@@ -109,6 +123,35 @@ interface AIStore {
    *  chat sidebar. Resolves once the proposals land or rejects
    *  with the route's error message. */
   proposeFromPrompt: (prompt: string) => Promise<void>;
+
+  // ────────────────────────────────────────────────────────
+  // §32 Slice 7 — COPILOT / COMMAND chat sidebar
+  // ────────────────────────────────────────────────────────
+  /** Whether the AI Copilot sidebar is mounted-visible. The
+   *  status-bar mode chip + Ctrl+Shift+C focus action both
+   *  open it. Persisted so the surveyor's last layout sticks. */
+  isCopilotSidebarOpen: boolean;
+  openCopilotSidebar: () => void;
+  closeCopilotSidebar: () => void;
+  toggleCopilotSidebar: () => void;
+  /** Surveyor-visible transcript. USER turns are typed; AI
+   *  turns are either narratives from `proposeFromPrompt`
+   *  responses or short acknowledgements when a proposal is
+   *  accepted / skipped. Ephemeral. */
+  copilotChat: AICopilotMessage[];
+  /** Pre-composed text seeded into the sidebar input when an
+   *  external surface opens the chat (right-click "Ask AI
+   *  about this…", a palette entry, etc.). Consumed + cleared
+   *  by the sidebar on next render. */
+  pendingPrompt: string | null;
+  /** Append one message to the transcript. */
+  appendCopilotMessage: (m: AICopilotMessage) => void;
+  /** Open the sidebar + seed `pendingPrompt`. The sidebar reads
+   *  it on mount / next render, places it in the input, and
+   *  clears it. */
+  openCopilotWithPrompt: (prompt: string) => void;
+  /** Clear the live transcript. */
+  clearCopilotChat: () => void;
 
   // Dialog visibility.
   isDialogOpen: boolean;
@@ -247,13 +290,23 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
   setMode: (mode) =>
     set((s) => {
       if (s.mode === mode) return s;
-      return { mode, sandbox: defaultSandboxFor(mode) };
+      return {
+        mode,
+        sandbox: defaultSandboxFor(mode),
+        // §32 Slice 7 — mode change drives the sidebar default:
+        // COPILOT / COMMAND auto-open it; MANUAL closes it.
+        isCopilotSidebarOpen: mode !== 'MANUAL',
+      };
     }),
   cycleMode: () =>
     set((s) => {
       const i = AI_MODE_CYCLE.indexOf(s.mode);
       const next = AI_MODE_CYCLE[(i + 1) % AI_MODE_CYCLE.length];
-      return { mode: next, sandbox: defaultSandboxFor(next) };
+      return {
+        mode: next,
+        sandbox: defaultSandboxFor(next),
+        isCopilotSidebarOpen: next !== 'MANUAL',
+      };
     }),
   setSandbox: (sandbox) => set({ sandbox }),
   setAutoApproveThreshold: (threshold) =>
@@ -286,6 +339,19 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
 
   isProposing: false,
   lastProposeNarrative: null,
+  isCopilotSidebarOpen: false,
+  copilotChat: [],
+  pendingPrompt: null,
+  openCopilotSidebar: () => set({ isCopilotSidebarOpen: true }),
+  closeCopilotSidebar: () => set({ isCopilotSidebarOpen: false }),
+  toggleCopilotSidebar: () =>
+    set((s) => ({ isCopilotSidebarOpen: !s.isCopilotSidebarOpen })),
+  appendCopilotMessage: (m) =>
+    set((s) => ({ copilotChat: [...s.copilotChat, m] })),
+  openCopilotWithPrompt: (prompt) =>
+    set({ isCopilotSidebarOpen: true, pendingPrompt: prompt }),
+  clearCopilotChat: () => set({ copilotChat: [], pendingPrompt: null }),
+
   proposeFromPrompt: async (prompt: string) => {
     const trimmed = prompt.trim();
     if (trimmed.length === 0) return;
@@ -300,7 +366,19 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
       sandboxDefault: ai.sandbox,
       autoApproveThreshold: ai.autoApproveThreshold,
     };
-    set({ isProposing: true });
+    // Mirror the USER turn into the sidebar transcript before
+    // we wait on the network so the surveyor sees their own
+    // prompt land instantly.
+    const userMsg: AICopilotMessage = {
+      id: copilotMsgId(),
+      role: 'USER',
+      content: trimmed,
+      ts: new Date().toISOString(),
+    };
+    set((s) => ({
+      copilotChat: [...s.copilotChat, userMsg],
+      isProposing: true,
+    }));
     try {
       const res = await fetch('/api/admin/cad/ai-propose', {
         method: 'POST',
@@ -317,20 +395,51 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
         const msg =
           (json as { error?: string }).error ??
           `AI proposer failed (${res.status}).`;
-        set({ isProposing: false, lastProposeNarrative: `⚠ ${msg}` });
+        set((s) => ({
+          isProposing: false,
+          lastProposeNarrative: `⚠ ${msg}`,
+          copilotChat: [...s.copilotChat, {
+            id: copilotMsgId(), role: 'SYSTEM', content: `⚠ ${msg}`,
+            ts: new Date().toISOString(),
+          }],
+        }));
         return;
       }
       const ok = json as { proposals: AIProposal[]; narrative: string };
+      const replyTurns: AICopilotMessage[] = [];
+      if (ok.narrative.length > 0) {
+        replyTurns.push({
+          id: copilotMsgId(),
+          role: 'AI',
+          content: ok.narrative,
+          ts: new Date().toISOString(),
+        });
+      }
+      if ((ok.proposals ?? []).length > 0) {
+        replyTurns.push({
+          id: copilotMsgId(),
+          role: 'SYSTEM',
+          content:
+            `Queued ${(ok.proposals ?? []).length} proposal${(ok.proposals ?? []).length === 1 ? '' : 's'} for review (see COPILOT card).`,
+          ts: new Date().toISOString(),
+        });
+      }
       set((s) => ({
         proposalQueue: [...s.proposalQueue, ...(ok.proposals ?? [])],
         lastProposeNarrative: ok.narrative.length > 0 ? ok.narrative : null,
+        copilotChat: [...s.copilotChat, ...replyTurns],
         isProposing: false,
       }));
     } catch (err) {
-      set({
+      const errMsg = err instanceof Error ? err.message : String(err);
+      set((s) => ({
         isProposing: false,
-        lastProposeNarrative: `⚠ ${err instanceof Error ? err.message : String(err)}`,
-      });
+        lastProposeNarrative: `⚠ ${errMsg}`,
+        copilotChat: [...s.copilotChat, {
+          id: copilotMsgId(), role: 'SYSTEM', content: `⚠ ${errMsg}`,
+          ts: new Date().toISOString(),
+        }],
+      }));
     }
   },
 
@@ -787,6 +896,7 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     mode: state.mode,
     sandbox: state.sandbox,
     autoApproveThreshold: state.autoApproveThreshold,
+    isCopilotSidebarOpen: state.isCopilotSidebarOpen,
   }),
 }));
 
@@ -859,6 +969,16 @@ function appendChatMessage(
     result: { ...state.result, explanations },
     chatLoadingByFeature,
   };
+}
+
+/** Tight, dependency-free id for the §32 Copilot transcript. */
+function copilotMsgId(): string {
+  return (
+    'aic_' +
+    Date.now().toString(36) +
+    '_' +
+    Math.random().toString(36).slice(2, 8)
+  );
 }
 
 function chatMessageId(): string {

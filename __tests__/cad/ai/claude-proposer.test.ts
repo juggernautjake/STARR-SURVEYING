@@ -152,30 +152,40 @@ describe('proposeFromPrompt — tool_use translation', () => {
   });
 
   it('forwards the tool registry as `tools` to the SDK', async () => {
-    const create = vi.fn(async () => ({
-      id: 'msg', type: 'message', role: 'assistant', model: 'x',
-      content: [], stop_reason: 'end_turn', stop_sequence: null,
-      usage: { input_tokens: 0, output_tokens: 0 },
-    } as Anthropic.Messages.Message));
-    const client: ClaudeMessagesClient = { messages: { create } };
+    const calls: Anthropic.Messages.MessageCreateParams[] = [];
+    const client: ClaudeMessagesClient = {
+      messages: {
+        create: async (params) => {
+          calls.push(params);
+          return {
+            id: 'msg', type: 'message', role: 'assistant', model: 'x',
+            content: [], stop_reason: 'end_turn', stop_sequence: null,
+          } as unknown as Anthropic.Messages.Message;
+        },
+      },
+    };
     await proposeFromPrompt('hi', CONTEXT, { client });
-    expect(create).toHaveBeenCalledTimes(1);
-    const params = create.mock.calls[0][0] as Anthropic.Messages.MessageCreateParams;
-    const toolNames = (params.tools ?? []).map((t) => (t as Anthropic.Messages.Tool).name).sort();
+    expect(calls).toHaveLength(1);
+    const toolNames = (calls[0].tools ?? []).map((t) => (t as Anthropic.Messages.Tool).name).sort();
     expect(toolNames).toEqual(['addPoint', 'applyLayerStyle', 'createLayer', 'drawLineBetween', 'drawPolylineThrough'].sort());
   });
 
   it('marks the system prompt for ephemeral caching', async () => {
-    const create = vi.fn(async () => ({
-      id: 'msg', type: 'message', role: 'assistant', model: 'x',
-      content: [], stop_reason: 'end_turn', stop_sequence: null,
-      usage: { input_tokens: 0, output_tokens: 0 },
-    } as Anthropic.Messages.Message));
-    const client: ClaudeMessagesClient = { messages: { create } };
+    const calls: Anthropic.Messages.MessageCreateParams[] = [];
+    const client: ClaudeMessagesClient = {
+      messages: {
+        create: async (params) => {
+          calls.push(params);
+          return {
+            id: 'msg', type: 'message', role: 'assistant', model: 'x',
+            content: [], stop_reason: 'end_turn', stop_sequence: null,
+          } as unknown as Anthropic.Messages.Message;
+        },
+      },
+    };
     await proposeFromPrompt('hi', CONTEXT, { client });
-    const params = create.mock.calls[0][0] as Anthropic.Messages.MessageCreateParams;
-    expect(Array.isArray(params.system)).toBe(true);
-    const sys = (params.system as Anthropic.Messages.TextBlockParam[])[0];
+    expect(Array.isArray(calls[0].system)).toBe(true);
+    const sys = (calls[0].system as Anthropic.Messages.TextBlockParam[])[0];
     expect(sys.type).toBe('text');
     expect(sys.cache_control).toEqual({ type: 'ephemeral' });
   });
