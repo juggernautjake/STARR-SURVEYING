@@ -96,6 +96,20 @@ interface AIStore {
    *  in the test helpers. */
   clearProposalQueue: () => void;
 
+  /** True while a `proposeFromPrompt` POST is in flight. The
+   *  chat sidebar / command palette wires a spinner off this. */
+  isProposing: boolean;
+  /** Last narrative Claude emitted alongside a proposal turn —
+   *  shown verbatim in the chat sidebar so the surveyor sees
+   *  caveats and clarifying questions before the card lands. */
+  lastProposeNarrative: string | null;
+  /** §32.13 Slice 6 — POST the surveyor's prompt to
+   *  /api/admin/cad/ai-propose. Enqueues every returned proposal
+   *  on the proposal queue and stashes the narrative for the
+   *  chat sidebar. Resolves once the proposals land or rejects
+   *  with the route's error message. */
+  proposeFromPrompt: (prompt: string) => Promise<void>;
+
   // Dialog visibility.
   isDialogOpen: boolean;
   openDialog: () => void;
@@ -269,6 +283,56 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     return head.id;
   },
   clearProposalQueue: () => set({ proposalQueue: [] }),
+
+  isProposing: false,
+  lastProposeNarrative: null,
+  proposeFromPrompt: async (prompt: string) => {
+    const trimmed = prompt.trim();
+    if (trimmed.length === 0) return;
+    const drawing = useDrawingStore.getState();
+    const ai = get();
+    const context = {
+      layers: Object.values(drawing.document.layers)
+        .filter((l) => !l.name.startsWith('SURVEY-INFO'))
+        .map((l) => ({ id: l.id, name: l.name, color: l.color })),
+      activeLayerId: drawing.activeLayerId,
+      mode: ai.mode,
+      sandboxDefault: ai.sandbox,
+      autoApproveThreshold: ai.autoApproveThreshold,
+    };
+    set({ isProposing: true });
+    try {
+      const res = await fetch('/api/admin/cad/ai-propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: trimmed, context }),
+      });
+      const json = (await res.json().catch(() => ({}))) as
+        | {
+            proposals: AIProposal[];
+            narrative: string;
+          }
+        | { error?: string };
+      if (!res.ok) {
+        const msg =
+          (json as { error?: string }).error ??
+          `AI proposer failed (${res.status}).`;
+        set({ isProposing: false, lastProposeNarrative: `⚠ ${msg}` });
+        return;
+      }
+      const ok = json as { proposals: AIProposal[]; narrative: string };
+      set((s) => ({
+        proposalQueue: [...s.proposalQueue, ...(ok.proposals ?? [])],
+        lastProposeNarrative: ok.narrative.length > 0 ? ok.narrative : null,
+        isProposing: false,
+      }));
+    } catch (err) {
+      set({
+        isProposing: false,
+        lastProposeNarrative: `⚠ ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  },
 
   isDialogOpen: false,
   isQueuePanelOpen: false,
