@@ -51,6 +51,15 @@ export default function LayerTransferDialog({ onClose }: Props) {
   // switching is purely a UI affordance that preserves the
   // picked set. Defaults to PICK.
   const [sourceMode, setSourceMode] = useState<'PICK' | 'TYPE'>('PICK');
+  // Phase 8 §11.7 Slice 18 — right-click context menu on
+  // source-list rows. `target` carries the feature id the
+  // surveyor clicked (or null for an empty-area click), so
+  // the menu knows whether to show single-row actions.
+  const [sourceListMenu, setSourceListMenu] = useState<{
+    x: number;
+    y: number;
+    targetFeatureId: string | null;
+  } | null>(null);
 
   const pickedIds = useTransferStore((s) => s.pickedIds);
   const pickModeActive = useTransferStore((s) => s.pickModeActive);
@@ -379,7 +388,18 @@ export default function LayerTransferDialog({ onClose }: Props) {
                 on "every visible boundary polyline." */}
             <SmartSelectionHelpers />
 
-            <div className="bg-gray-900 border border-gray-700 rounded p-2 max-h-[160px] overflow-y-auto">
+            <div
+              className="bg-gray-900 border border-gray-700 rounded p-2 max-h-[160px] overflow-y-auto"
+              onContextMenu={(e) => {
+                // Container-level right-click — fires when the
+                // surveyor right-clicks outside a row. Same
+                // menu, no per-feature target.
+                if (e.target === e.currentTarget && sourceCount > 0) {
+                  e.preventDefault();
+                  setSourceListMenu({ x: e.clientX, y: e.clientY, targetFeatureId: null });
+                }
+              }}
+            >
               {sourceCount === 0 ? (
                 <p className="text-[11px] text-gray-500 text-center py-3">
                   {pickModeActive
@@ -401,7 +421,14 @@ export default function LayerTransferDialog({ onClose }: Props) {
                       const f = drawingStore.getFeature(id);
                       const layer = f ? layers[f.layerId] : null;
                       return (
-                        <li key={id} className="flex items-center justify-between gap-2 group">
+                        <li
+                          key={id}
+                          className="flex items-center justify-between gap-2 group hover:bg-gray-800/60 rounded px-1"
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setSourceListMenu({ x: e.clientX, y: e.clientY, targetFeatureId: id });
+                          }}
+                        >
                           <span className="text-[11px] text-gray-300 truncate min-w-0">
                             <span className="font-mono text-gray-500">#{id.slice(0, 6)}</span>
                             <span className="ml-1.5">{f?.type ?? '—'}</span>
@@ -410,7 +437,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
                           <button
                             onClick={() => removePick(id)}
                             className="text-gray-500 hover:text-red-400 opacity-50 group-hover:opacity-100 transition-opacity"
-                            title="Remove from selection"
+                            title="Remove from selection (right-click for more actions)"
                             aria-label={`Remove ${id.slice(0, 6)} from selection`}
                           >
                             <X size={11} />
@@ -537,6 +564,19 @@ export default function LayerTransferDialog({ onClose }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Phase 8 §11.7 Slice 18 — source-list right-click
+          context menu. Positioned at the click coords;
+          dismissed by Escape, by clicking outside, or by
+          picking an action. */}
+      {sourceListMenu && (
+        <SourceListContextMenu
+          x={sourceListMenu.x}
+          y={sourceListMenu.y}
+          targetFeatureId={sourceListMenu.targetFeatureId}
+          onClose={() => setSourceListMenu(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1316,6 +1356,173 @@ function TransferPresetsRow() {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Source-list right-click context menu ──────────────────
+//
+// Appears on right-click in the dialog's source list (either
+// on a specific row or anywhere inside the container). Offers
+// per-row actions when `targetFeatureId` is set, and bulk
+// actions (filter to type, remove all of a type, remove all
+// on a layer) regardless of the target.
+
+function SourceListContextMenu(props: {
+  x: number;
+  y: number;
+  targetFeatureId: string | null;
+  onClose: () => void;
+}) {
+  const drawingStore = useDrawingStore();
+  const pickedIds = useTransferStore((s) => s.pickedIds);
+  const removePick = useTransferStore((s) => s.removePick);
+  const removePicks = useTransferStore((s) => s.removePicks);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Dismiss on outside click + Escape. Listeners use capture
+  // phase so the dialog's focus trap doesn't eat the events.
+  useEffect(() => {
+    const onPointer = (e: PointerEvent) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(e.target as Node)) props.onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        props.onClose();
+      }
+    };
+    window.addEventListener('pointerdown', onPointer, true);
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      window.removeEventListener('pointerdown', onPointer, true);
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, [props]);
+
+  const targetFeat = props.targetFeatureId ? drawingStore.getFeature(props.targetFeatureId) : null;
+  const targetType = targetFeat?.type ?? null;
+  const targetLayerId = targetFeat?.layerId ?? null;
+
+  // Tally feature types present in the picked set so we can
+  // surface a "filter to TYPE" entry per distinct type.
+  const typesPresent = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const id of pickedIds) {
+      const f = drawingStore.getFeature(id);
+      if (!f) continue;
+      counts[f.type] = (counts[f.type] ?? 0) + 1;
+    }
+    return counts;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickedIds]);
+
+  function filterToType(keepType: string) {
+    const toRemove: string[] = [];
+    for (const id of pickedIds) {
+      const f = drawingStore.getFeature(id);
+      if (!f) continue;
+      if (f.type !== keepType) toRemove.push(id);
+    }
+    if (toRemove.length > 0) removePicks(toRemove);
+    props.onClose();
+  }
+
+  function removeAllOfType(type: string) {
+    const toRemove: string[] = [];
+    for (const id of pickedIds) {
+      const f = drawingStore.getFeature(id);
+      if (!f) continue;
+      if (f.type === type) toRemove.push(id);
+    }
+    if (toRemove.length > 0) removePicks(toRemove);
+    props.onClose();
+  }
+
+  function removeAllOnLayer(layerId: string) {
+    const toRemove: string[] = [];
+    for (const id of pickedIds) {
+      const f = drawingStore.getFeature(id);
+      if (!f) continue;
+      if (f.layerId === layerId) toRemove.push(id);
+    }
+    if (toRemove.length > 0) removePicks(toRemove);
+    props.onClose();
+  }
+
+  const layerName = targetLayerId
+    ? drawingStore.document.layers[targetLayerId]?.name
+    : null;
+
+  // Position the menu so it doesn't run off the viewport edge.
+  // Naive clamp: 200 px wide, ~280 px tall worst-case.
+  const left = Math.min(props.x, window.innerWidth - 220);
+  const top = Math.min(props.y, window.innerHeight - 300);
+
+  const distinctTypes = Object.keys(typesPresent).sort();
+
+  return (
+    <div
+      ref={menuRef}
+      role="menu"
+      style={{ left, top }}
+      className="fixed z-[210] bg-gray-900 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[200px] text-xs text-gray-200 animate-[scaleIn_120ms_cubic-bezier(0.16,1,0.3,1)]"
+    >
+      {/* Per-row actions (only when a specific row was clicked) */}
+      {props.targetFeatureId && (
+        <>
+          <button
+            type="button"
+            onClick={() => { if (props.targetFeatureId) removePick(props.targetFeatureId); props.onClose(); }}
+            className="block w-full text-left px-3 py-1.5 hover:bg-gray-700 transition-colors"
+          >
+            Remove from selection
+          </button>
+          {targetType && (
+            <button
+              type="button"
+              onClick={() => removeAllOfType(targetType)}
+              className="block w-full text-left px-3 py-1.5 hover:bg-gray-700 transition-colors"
+            >
+              Remove all <span className="font-mono text-gray-400">{targetType}</span>s ({typesPresent[targetType] ?? 0})
+            </button>
+          )}
+          {targetLayerId && layerName && (
+            <button
+              type="button"
+              onClick={() => removeAllOnLayer(targetLayerId)}
+              className="block w-full text-left px-3 py-1.5 hover:bg-gray-700 transition-colors"
+            >
+              Remove all on <span className="text-gray-400">{layerName}</span>
+            </button>
+          )}
+          <div className="h-px bg-gray-700 my-1" />
+        </>
+      )}
+
+      {/* Bulk filter actions */}
+      <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-gray-500">Filter to type</div>
+      {distinctTypes.map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => filterToType(t)}
+          className="block w-full text-left px-3 py-1.5 hover:bg-gray-700 transition-colors"
+        >
+          Keep only <span className="font-mono text-gray-400">{t}</span> ({typesPresent[t]})
+        </button>
+      ))}
+
+      <div className="h-px bg-gray-700 my-1" />
+      <button
+        type="button"
+        onClick={props.onClose}
+        className="block w-full text-left px-3 py-1.5 hover:bg-gray-700 transition-colors text-gray-500"
+      >
+        Cancel <span className="text-[10px] text-gray-600">(Esc)</span>
+      </button>
     </div>
   );
 }
