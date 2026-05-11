@@ -35,6 +35,7 @@ import {
 import { generateId } from '../types';
 import type { Feature, Layer, Point2D, FeatureStyle } from '../types';
 import { stampProvenance, type AIProvenance } from './provenance';
+import { ensureDraftLayerFor } from './sandbox';
 
 // ────────────────────────────────────────────────────────────
 // Envelope + definition types
@@ -69,22 +70,45 @@ export interface ToolDefinition<Args, Result> {
 // Shared helpers
 // ────────────────────────────────────────────────────────────
 
-/** Resolve the layer id to write to. Falls back to the active
- *  layer; emits a clear reason when neither is usable. */
-function resolveLayerId(layerId: string | null | undefined): ToolResult<string> {
+/**
+ * Resolve the layer id to write to. Falls back to the active
+ * layer; emits a clear reason when neither is usable. When
+ * `sandbox` is true the resolved id is redirected to the
+ * matching `DRAFT__<targetname>` layer per §32.3 — the target
+ * layer must still exist (and not be locked), but the actual
+ * write lands on the auto-created draft.
+ */
+function resolveLayerId(
+  layerId: string | null | undefined,
+  sandbox: boolean,
+): ToolResult<string> {
   const store = useDrawingStore.getState();
+  let resolvedTargetId: string;
   if (layerId) {
     const layer = store.document.layers[layerId];
     if (!layer) return { ok: false, reason: `Layer '${layerId}' does not exist.` };
-    if (layer.locked) return { ok: false, reason: `Layer '${layer.name}' is locked.` };
-    return { ok: true, result: layerId };
+    if (!sandbox && layer.locked) {
+      return { ok: false, reason: `Layer '${layer.name}' is locked.` };
+    }
+    resolvedTargetId = layerId;
+  } else {
+    const active = store.activeLayerId;
+    if (!active) return { ok: false, reason: 'No layer specified and no active layer set.' };
+    const layer = store.document.layers[active];
+    if (!layer) return { ok: false, reason: `Active layer '${active}' is missing from the document.` };
+    if (!sandbox && layer.locked) {
+      return { ok: false, reason: `Active layer '${layer.name}' is locked.` };
+    }
+    resolvedTargetId = active;
   }
-  const active = store.activeLayerId;
-  if (!active) return { ok: false, reason: 'No layer specified and no active layer set.' };
-  const layer = store.document.layers[active];
-  if (!layer) return { ok: false, reason: `Active layer '${active}' is missing from the document.` };
-  if (layer.locked) return { ok: false, reason: `Active layer '${layer.name}' is locked.` };
-  return { ok: true, result: active };
+  if (!sandbox) return { ok: true, result: resolvedTargetId };
+
+  // Sandbox: redirect to the mirrored DRAFT__ layer (auto-
+  // created if missing). The target must still exist so the
+  // surveyor can promote the draft back to a known home.
+  const draft = ensureDraftLayerFor(resolvedTargetId);
+  if (!draft.ok) return { ok: false, reason: draft.reason };
+  return { ok: true, result: draft.draftLayerId };
 }
 
 /** Build a baseline FeatureStyle inheriting from the layer. The
@@ -140,6 +164,11 @@ export interface AddPointArgs {
    *  the call originated from AI; omitted for direct test / UI
    *  invocations. */
   provenance?: AIProvenance;
+  /** §32.3 sandbox routing. When true the write is redirected
+   *  to the matching `DRAFT__<targetname>` layer (auto-created
+   *  on first use). The target layer must still exist; only
+   *  promotion of the draft (§11.7 transfer) writes to it. */
+  sandbox?: boolean;
 }
 
 export const addPoint: ToolDefinition<AddPointArgs, Feature> = {
@@ -164,7 +193,7 @@ export const addPoint: ToolDefinition<AddPointArgs, Feature> = {
     if (!Number.isFinite(args.x) || !Number.isFinite(args.y)) {
       return { ok: false, reason: 'x and y must be finite numbers.' };
     }
-    const layerResult = resolveLayerId(args.layerId);
+    const layerResult = resolveLayerId(args.layerId, !!args.sandbox);
     if (!layerResult.ok) return layerResult;
     const feature: Feature = {
       id: generateId(),
@@ -191,6 +220,8 @@ export interface DrawLineBetweenArgs {
   layerId?: string | null;
   properties?: Record<string, string | number | boolean>;
   provenance?: AIProvenance;
+  /** §32.3 sandbox routing — see AddPointArgs.sandbox. */
+  sandbox?: boolean;
 }
 
 export const drawLineBetween: ToolDefinition<DrawLineBetweenArgs, Feature> = {
@@ -217,7 +248,7 @@ export const drawLineBetween: ToolDefinition<DrawLineBetweenArgs, Feature> = {
     if (pointsEqual(args.from, args.to)) {
       return { ok: false, reason: 'from and to are the same point; cannot draw a zero-length line.' };
     }
-    const layerResult = resolveLayerId(args.layerId);
+    const layerResult = resolveLayerId(args.layerId, !!args.sandbox);
     if (!layerResult.ok) return layerResult;
     const feature: Feature = {
       id: generateId(),
@@ -242,6 +273,8 @@ export interface DrawPolylineThroughArgs {
   layerId?: string | null;
   properties?: Record<string, string | number | boolean>;
   provenance?: AIProvenance;
+  /** §32.3 sandbox routing — see AddPointArgs.sandbox. */
+  sandbox?: boolean;
 }
 
 export const drawPolylineThrough: ToolDefinition<DrawPolylineThroughArgs, Feature> = {
@@ -275,7 +308,7 @@ export const drawPolylineThrough: ToolDefinition<DrawPolylineThroughArgs, Featur
       const v = validatePoint(args.points[i], `points[${i}]`);
       if (!v.ok) return v;
     }
-    const layerResult = resolveLayerId(args.layerId);
+    const layerResult = resolveLayerId(args.layerId, !!args.sandbox);
     if (!layerResult.ok) return layerResult;
     const type = args.closed ? 'POLYGON' : 'POLYLINE';
     const feature: Feature = {
