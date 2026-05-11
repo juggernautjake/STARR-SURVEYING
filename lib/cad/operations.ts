@@ -2972,6 +2972,12 @@ export interface TransferToLayerOptions {
    *  in the target layer's autoAssignCodes. Geometry is
    *  preserved. */
   stripUnknownCodes: boolean;
+  /** Optional remap table { sourceCode (uppercased) →
+   *  targetCode }. Applied BEFORE stripUnknownCodes so a
+   *  mapped code lands on the target with its new value and
+   *  the strip step never sees a conflict. Surveyor builds
+   *  the table via the conflict pre-pass in the dialog. */
+  codeMap?: Record<string, string> | null;
   /** Optional: append duplicated POINTs to this traverse. */
   targetTraverseId: string | null;
   /** Optional translation applied to every duplicate (Duplicate
@@ -3123,6 +3129,19 @@ export function transferSelectionToLayer(
       clone.properties.duplicatedAt = new Date().toISOString();
       clone.properties.transferOperationId = opts.transferOperationId;
 
+      // Optional remap — applied BEFORE the strip step so a
+      // mapped code lands on the target with its new value
+      // and the strip step never sees a conflict. Stamps the
+      // original code into properties so audit can trace the
+      // rename.
+      if (opts.codeMap) {
+        const cur = typeof clone.properties.code === 'string' ? clone.properties.code.toUpperCase() : '';
+        if (cur && opts.codeMap[cur]) {
+          clone.properties.codeBeforeRemap = clone.properties.code;
+          clone.properties.code = opts.codeMap[cur];
+        }
+      }
+
       // Optional code strip when target layer's allow-list
       // doesn't accept this code.
       if (opts.stripUnknownCodes && !codeAllowed(clone.properties.code)) {
@@ -3178,6 +3197,13 @@ export function transferSelectionToLayer(
     after.properties.movedFromLayerId = src.layerId;
     after.properties.movedAt = new Date().toISOString();
     after.properties.transferOperationId = opts.transferOperationId;
+    if (opts.codeMap) {
+      const cur = typeof after.properties.code === 'string' ? after.properties.code.toUpperCase() : '';
+      if (cur && opts.codeMap[cur]) {
+        after.properties.codeBeforeRemap = after.properties.code;
+        after.properties.code = opts.codeMap[cur];
+      }
+    }
     if (opts.stripUnknownCodes && !codeAllowed(after.properties.code)) {
       delete after.properties.code;
     }

@@ -28,6 +28,7 @@ import {
   parsePointRangeString,
   type ParsePointRangeResult,
 } from '@/lib/cad/operations/parse-point-range';
+import { suggestCodeMapping } from '@/lib/cad/operations/suggest-code-mapping';
 import { generateId } from '@/lib/cad/types';
 import Tooltip from './Tooltip';
 import UnitInput from './UnitInput';
@@ -236,6 +237,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
         targetTraverseId: options.targetTraverseId,
         offset,
         bringAlongLinkedGeometry: options.bringAlongLinkedGeometry,
+        codeMap: Object.keys(options.codeMap).length > 0 ? options.codeMap : null,
         transferOperationId: generateId(),
       },
     );
@@ -504,19 +506,10 @@ export default function LayerTransferDialog({ onClose }: Props) {
                 </p>
               )}
               {codeConflicts.size > 0 && (
-                <p className="text-[10px] text-amber-400 mt-1">
-                  {codeConflicts.size} code{codeConflicts.size === 1 ? '' : 's'} not in the target layer&apos;s allow-list:
-                  <span className="ml-1 font-mono text-gray-300">{Array.from(codeConflicts).slice(0, 5).join(', ')}</span>
-                  <label className="ml-2 inline-flex items-center gap-1 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={options.stripUnknownCodes}
-                      onChange={(e) => setOptions({ stripUnknownCodes: e.target.checked })}
-                      className="rounded"
-                    />
-                    Strip those codes
-                  </label>
-                </p>
+                <CodeRemapTable
+                  conflictCodes={codeConflicts}
+                  targetAllowList={targetLayer?.autoAssignCodes ?? []}
+                />
               )}
             </div>
           )}
@@ -1523,6 +1516,143 @@ function SourceListContextMenu(props: {
       >
         Cancel <span className="text-[10px] text-gray-600">(Esc)</span>
       </button>
+    </div>
+  );
+}
+
+// ─── Code-remap table ─────────────────────────────────────
+//
+// Surfaces when the conflict pre-pass finds source codes
+// outside the target layer's autoAssignCodes[]. Each row is
+// "<source code> → <target code dropdown / freeform input>"
+// with a per-code fuzzy auto-suggestion pre-filled when
+// confidence ≥ 0.8. Surveyor can edit any cell, leave it
+// empty (then Strip-codes / skip semantics apply), or pick
+// a different target from the dropdown.
+//
+// The composed map writes through transfer-store.options.codeMap
+// so the saved preset captures the surveyor's choices.
+
+function CodeRemapTable(props: {
+  conflictCodes: ReadonlySet<string>;
+  targetAllowList: ReadonlyArray<string>;
+}) {
+  const options = useTransferStore((s) => s.options);
+  const setOptions = useTransferStore((s) => s.setOptions);
+  const codeMap = options.codeMap ?? {};
+
+  // Pre-fill suggestions only for codes the surveyor hasn't
+  // mapped yet, so editing one row doesn't get clobbered when
+  // the pre-pass re-runs.
+  useEffect(() => {
+    const conflicts = Array.from(props.conflictCodes);
+    const allow = props.targetAllowList;
+    const next = { ...codeMap };
+    let changed = false;
+    for (const code of conflicts) {
+      const key = code.toUpperCase();
+      if (key in next) continue;
+      const suggestion = suggestCodeMapping(code, allow);
+      if (suggestion && suggestion.confidence >= 0.8) {
+        next[key] = suggestion.target;
+        changed = true;
+      }
+    }
+    if (changed) setOptions({ codeMap: next });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.conflictCodes, props.targetAllowList]);
+
+  function updateCell(sourceCode: string, target: string) {
+    const next = { ...codeMap };
+    const key = sourceCode.toUpperCase();
+    const t = target.trim().toUpperCase();
+    if (!t) {
+      delete next[key];
+    } else {
+      next[key] = t;
+    }
+    setOptions({ codeMap: next });
+  }
+
+  const conflictList = Array.from(props.conflictCodes).sort();
+
+  return (
+    <div className="mt-1.5 p-2 bg-amber-950/30 border border-amber-900/60 rounded space-y-1.5">
+      <div className="flex items-center justify-between text-[10px]">
+        <span className="text-amber-400">
+          {conflictList.length} code{conflictList.length === 1 ? '' : 's'} not in target&apos;s allow-list — remap or strip:
+        </span>
+        <label className="inline-flex items-center gap-1 text-gray-400 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={options.stripUnknownCodes}
+            onChange={(e) => setOptions({ stripUnknownCodes: e.target.checked })}
+            className="rounded"
+          />
+          Strip unmapped
+        </label>
+      </div>
+      <table className="w-full text-[10px] font-mono">
+        <thead className="text-gray-500">
+          <tr>
+            <th className="text-left px-1 py-0.5 w-[40%]">Source code</th>
+            <th className="text-left px-1 py-0.5">→ Target code</th>
+            <th className="px-1 py-0.5 w-12"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {conflictList.map((code) => {
+            const key = code.toUpperCase();
+            const mapped = codeMap[key] ?? '';
+            const suggestion = !mapped ? suggestCodeMapping(code, props.targetAllowList) : null;
+            return (
+              <tr key={key} className="hover:bg-amber-950/40">
+                <td className="px-1 py-0.5 text-gray-300">{code}</td>
+                <td className="px-1 py-0.5">
+                  <input
+                    type="text"
+                    list={`remap-options-${key}`}
+                    value={mapped}
+                    placeholder={suggestion ? `— skip (try ${suggestion.target}?) —` : '— skip —'}
+                    onChange={(e) => updateCell(key, e.target.value)}
+                    className="w-full bg-gray-700 text-white text-[10px] px-1 py-0.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500 font-mono"
+                  />
+                  <datalist id={`remap-options-${key}`}>
+                    {props.targetAllowList.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                </td>
+                <td className="px-1 py-0.5 text-right">
+                  {suggestion && !mapped && (
+                    <button
+                      type="button"
+                      onClick={() => updateCell(key, suggestion.target)}
+                      title={`Auto-suggest (${suggestion.reason.toLowerCase().replace('_', ' ')}, ${Math.round(suggestion.confidence * 100)}% confidence)`}
+                      className="text-blue-400 hover:text-blue-300 text-[10px] underline"
+                    >
+                      auto
+                    </button>
+                  )}
+                  {mapped && (
+                    <button
+                      type="button"
+                      onClick={() => updateCell(key, '')}
+                      title="Clear mapping"
+                      className="text-gray-500 hover:text-red-400 text-[10px]"
+                    >
+                      ×
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="text-[10px] text-gray-500 leading-snug">
+        Mapped codes are rewritten before the strip step. Leave a row blank to either skip (default) or strip via the checkbox above.
+      </p>
     </div>
   );
 }

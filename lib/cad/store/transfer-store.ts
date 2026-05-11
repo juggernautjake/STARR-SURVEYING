@@ -52,6 +52,12 @@ export interface TransferOptions {
    *  on the duplicate. Move never triggers this — moved
    *  features no longer live on the source layer. */
   lockSourceAfterCopy: boolean;
+  /** Phase 8 §11.7 Slice 19 — code-remap table. Keys are
+   *  uppercased source codes; values are the target codes
+   *  every feature carrying that source code should be
+   *  rewritten to. Persists in saved presets so recurring
+   *  "Working → Print" workflows reuse the same mapping. */
+  codeMap: Record<string, string>;
 }
 
 interface TransferStore {
@@ -110,6 +116,7 @@ const DEFAULT_OPTIONS: TransferOptions = {
   offsetBearingDeg: 0,
   applyOffset: false,
   lockSourceAfterCopy: false,
+  codeMap: {},
 };
 
 export const useTransferStore = create<TransferStore>((set) => ({
