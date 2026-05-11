@@ -36,9 +36,13 @@ import {
   circleCircleIntersections,
   arcArcIntersections,
   arcCircleIntersections,
+  rayLineIntersection,
+  rayCircleIntersections,
+  rayArcIntersections,
 } from '@/lib/cad/geometry/intersection';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import UnitInput from './UnitInput';
 
 interface Props {
   onClose: () => void;
@@ -50,7 +54,10 @@ type IntersectMethod =
   | 'LINE_ARC'
   | 'CIRCLE_CIRCLE'
   | 'ARC_ARC'
-  | 'ARC_CIRCLE';
+  | 'ARC_CIRCLE'
+  | 'RAY_LINE'
+  | 'RAY_CIRCLE'
+  | 'RAY_ARC';
 
 interface PickedLine {
   kind: 'LINE';
@@ -72,7 +79,21 @@ interface PickedArc {
   featureId: string;
   arc: ArcGeometry;
 }
-type PickedSource = PickedLine | PickedCircle | PickedArc;
+/**
+ * §11.6.3 — a virtual half-line defined by an origin point
+ * and a survey azimuth (decimal degrees, 0 = N, CW). Not
+ * tied to a feature; surveyor types the bearing and picks
+ * (or snaps to) the origin on the canvas.
+ */
+interface PickedRay {
+  kind: 'RAY';
+  /** Synthetic id — the dialog doesn't have a feature id but
+   *  upstream code treats every PickedSource as identifiable. */
+  featureId: string;
+  origin: Point2D;
+  bearingDeg: number;
+}
+type PickedSource = PickedLine | PickedCircle | PickedArc | PickedRay;
 
 const METHOD_LABELS: Record<IntersectMethod, string> = {
   LINE_LINE: 'Line × Line',
@@ -81,12 +102,16 @@ const METHOD_LABELS: Record<IntersectMethod, string> = {
   CIRCLE_CIRCLE: 'Circle × Circle',
   ARC_ARC: 'Arc × Arc',
   ARC_CIRCLE: 'Arc × Circle',
+  RAY_LINE: 'Ray × Line',
+  RAY_CIRCLE: 'Ray × Circle',
+  RAY_ARC: 'Ray × Arc',
 };
 
 function sourceAKinds(method: IntersectMethod): PickedSource['kind'][] {
   if (method.startsWith('LINE_')) return ['LINE'];
   if (method.startsWith('CIRCLE_')) return ['CIRCLE'];
-  return ['ARC'];
+  if (method.startsWith('ARC_')) return ['ARC'];
+  return ['RAY'];
 }
 function sourceBKinds(method: IntersectMethod): PickedSource['kind'][] {
   if (method === 'LINE_LINE') return ['LINE'];
@@ -94,7 +119,10 @@ function sourceBKinds(method: IntersectMethod): PickedSource['kind'][] {
   if (method === 'LINE_ARC') return ['ARC'];
   if (method === 'CIRCLE_CIRCLE') return ['CIRCLE'];
   if (method === 'ARC_ARC') return ['ARC'];
-  return ['CIRCLE']; // ARC_CIRCLE
+  if (method === 'ARC_CIRCLE') return ['CIRCLE'];
+  if (method === 'RAY_LINE') return ['LINE'];
+  if (method === 'RAY_CIRCLE') return ['CIRCLE'];
+  return ['ARC']; // RAY_ARC
 }
 
 export default function IntersectDialog({ onClose }: Props) {
@@ -178,9 +206,34 @@ export default function IntersectDialog({ onClose }: Props) {
     if (!pickingSlot) return undefined;
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ featureId: string; point?: Point2D }>).detail;
+      const kinds = pickingSlot === 'A' ? sourceAKinds(method) : sourceBKinds(method);
+
+      // RAY origin pick — the surveyor is dropping a point in
+      // world coords, not picking a feature. Reuse whatever
+      // ray exists in the slot (so its bearing is preserved)
+      // or seed a new one with bearing 0°.
+      if (kinds.includes('RAY')) {
+        if (!detail.point) {
+          announce('INTERSECT — click on the canvas to place the ray origin.');
+          return;
+        }
+        const existing = pickingSlot === 'A' ? sourceA : sourceB;
+        const bearingDeg = existing?.kind === 'RAY' ? existing.bearingDeg : 0;
+        const next: PickedRay = {
+          kind: 'RAY',
+          featureId: existing?.kind === 'RAY' ? existing.featureId : `ray:${generateId()}`,
+          origin: detail.point,
+          bearingDeg,
+        };
+        if (pickingSlot === 'A') setSourceA(next);
+        else setSourceB(next);
+        setSelectedIndex(0);
+        setPickingSlot(null);
+        return;
+      }
+
       const f = drawingStore.getFeature(detail.featureId);
       if (!f) return;
-      const kinds = pickingSlot === 'A' ? sourceAKinds(method) : sourceBKinds(method);
       const matched = tryBuildSource(f, kinds, detail.point ?? null);
       if (!matched) {
         const hint = kinds.includes('LINE')
@@ -305,17 +358,38 @@ export default function IntersectDialog({ onClose }: Props) {
             segment of a POLYLINE / POLYGON — click the segment directly.
           </p>
 
-          {/* Source A picker */}
-          <SourcePickerRow
-            label={`Source A (${aKindsLabel})`}
-            picked={sourceA}
-            isPicking={pickingSlot === 'A'}
-            extend={extendA}
-            allowExtend={sourceA?.kind === 'LINE'}
-            onPick={() => setPickingSlot(pickingSlot === 'A' ? null : 'A')}
-            onClear={() => setSourceA(null)}
-            onToggleExtend={() => setExtendA((v) => !v)}
-          />
+          {/* Source A */}
+          {sourceAKinds(method).includes('RAY') ? (
+            <RaySourceRow
+              label="Source A (RAY)"
+              picked={sourceA?.kind === 'RAY' ? sourceA : null}
+              isPicking={pickingSlot === 'A'}
+              onPickOrigin={() => setPickingSlot(pickingSlot === 'A' ? null : 'A')}
+              onClear={() => setSourceA(null)}
+              onBearingChange={(deg) => {
+                setSourceA((prev) => {
+                  if (prev?.kind === 'RAY') return { ...prev, bearingDeg: deg };
+                  return {
+                    kind: 'RAY',
+                    featureId: `ray:${generateId()}`,
+                    origin: { x: 0, y: 0 },
+                    bearingDeg: deg,
+                  };
+                });
+              }}
+            />
+          ) : (
+            <SourcePickerRow
+              label={`Source A (${aKindsLabel})`}
+              picked={sourceA}
+              isPicking={pickingSlot === 'A'}
+              extend={extendA}
+              allowExtend={sourceA?.kind === 'LINE'}
+              onPick={() => setPickingSlot(pickingSlot === 'A' ? null : 'A')}
+              onClear={() => setSourceA(null)}
+              onToggleExtend={() => setExtendA((v) => !v)}
+            />
+          )}
           {/* Source B picker */}
           <SourcePickerRow
             label={`Source B (${bKindsLabel})`}
@@ -454,6 +528,65 @@ function SourcePickerRow(props: {
         ) : (
           <span className="text-gray-500 italic">— nothing picked —</span>
         )}
+      </div>
+    </div>
+  );
+}
+
+function RaySourceRow(props: {
+  label: string;
+  picked: PickedRay | null;
+  isPicking: boolean;
+  onPickOrigin: () => void;
+  onClear: () => void;
+  onBearingChange: (deg: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <span className="text-[11px] text-gray-400">{props.label}</span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={props.onPickOrigin}
+            className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded border transition-colors ${
+              props.isPicking
+                ? 'bg-blue-600 border-blue-500 text-white shadow-[0_0_0_2px_rgba(59,130,246,0.3)]'
+                : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white'
+            }`}
+            title="Click on the canvas to set the ray's origin point (snaps to nearby vertices / endpoints)."
+          >
+            <MousePointerClick size={12} />
+            {props.isPicking ? 'Click origin on canvas…' : props.picked ? 'Re-pick origin' : 'Pick origin'}
+          </button>
+        </div>
+      </div>
+      <div className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-[11px] font-mono space-y-1">
+        {props.picked ? (
+          <div className="flex items-center justify-between">
+            <span className="text-gray-300 truncate">
+              origin ({props.picked.origin.x.toFixed(2)}, {props.picked.origin.y.toFixed(2)})
+            </span>
+            <button onClick={props.onClear} className="text-gray-500 hover:text-red-400 ml-2" title="Clear">
+              <X size={11} />
+            </button>
+          </div>
+        ) : (
+          <span className="text-gray-500 italic">— no origin picked —</span>
+        )}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-gray-400 shrink-0">Bearing</span>
+          <UnitInput
+            kind="angle"
+            compact
+            angleMode="AZIMUTH"
+            value={props.picked?.bearingDeg ?? 0}
+            onChange={props.onBearingChange}
+            inputClassName="flex-1 h-6 bg-gray-800 text-white text-[11px] rounded px-1.5 outline-none font-mono border border-gray-700 focus:border-blue-500"
+            focusBorderClass="focus:border-blue-500"
+            description='Ray bearing — accepts decimal degrees (45.5), DMS (45°30&apos;15"), hyphen-DMS (45-30-15), or quadrant bearing (N 45-30 E).'
+          />
+        </div>
       </div>
     </div>
   );
@@ -644,6 +777,16 @@ function computeCandidates(
   if (method === 'ARC_CIRCLE' && a.kind === 'ARC' && b.kind === 'CIRCLE') {
     return arcCircleIntersections(a.arc, b.circle.center, b.circle.radius);
   }
+  if (method === 'RAY_LINE' && a.kind === 'RAY' && b.kind === 'LINE') {
+    const p = rayLineIntersection(a.origin, a.bearingDeg, b.start, b.end);
+    return p ? [p] : [];
+  }
+  if (method === 'RAY_CIRCLE' && a.kind === 'RAY' && b.kind === 'CIRCLE') {
+    return rayCircleIntersections(a.origin, a.bearingDeg, b.circle.center, b.circle.radius);
+  }
+  if (method === 'RAY_ARC' && a.kind === 'RAY' && b.kind === 'ARC') {
+    return rayArcIntersections(a.origin, a.bearingDeg, b.arc);
+  }
   return [];
 }
 
@@ -656,6 +799,7 @@ function serialisePicked(p: PickedSource | null):
   | { kind: 'LINE'; featureId: string; start: Point2D; end: Point2D }
   | { kind: 'CIRCLE'; featureId: string; circle: { center: Point2D; radius: number } }
   | { kind: 'ARC'; featureId: string; arc: ArcGeometry }
+  | { kind: 'RAY'; featureId: string; origin: Point2D; bearingDeg: number }
   | null {
   if (!p) return null;
   if (p.kind === 'LINE') {
@@ -664,7 +808,10 @@ function serialisePicked(p: PickedSource | null):
   if (p.kind === 'CIRCLE') {
     return { kind: 'CIRCLE', featureId: p.featureId, circle: p.circle };
   }
-  return { kind: 'ARC', featureId: p.featureId, arc: p.arc };
+  if (p.kind === 'ARC') {
+    return { kind: 'ARC', featureId: p.featureId, arc: p.arc };
+  }
+  return { kind: 'RAY', featureId: p.featureId, origin: p.origin, bearingDeg: p.bearingDeg };
 }
 
 function emptyExplainer(
@@ -683,7 +830,10 @@ function emptyExplainer(
   if (method === 'LINE_ARC') return 'The line never crosses the arc within its sweep.';
   if (method === 'CIRCLE_CIRCLE') return 'The circles are too far apart, nested, or coincident — no intersection.';
   if (method === 'ARC_ARC') return 'The underlying circles miss or both crossings fall outside the arc sweeps.';
-  return 'The arc never crosses the circle within its sweep.';
+  if (method === 'ARC_CIRCLE') return 'The arc never crosses the circle within its sweep.';
+  if (method === 'RAY_LINE') return 'The ray either misses the line or the intersection lies behind its origin.';
+  if (method === 'RAY_CIRCLE') return 'The ray misses the circle (or hits it only behind its origin).';
+  return 'The ray never crosses the arc within its sweep.';
 }
 
 function renderPickedSummary(p: PickedSource): string {
@@ -694,9 +844,11 @@ function renderPickedSummary(p: PickedSource): string {
   if (p.kind === 'CIRCLE') {
     return `center (${p.circle.center.x.toFixed(2)}, ${p.circle.center.y.toFixed(2)})  r=${p.circle.radius.toFixed(2)}`;
   }
-  const a = p.arc;
-  const deg = (rad: number) => ((rad * 180) / Math.PI).toFixed(1);
-  return `center (${a.center.x.toFixed(2)}, ${a.center.y.toFixed(2)})  r=${a.radius.toFixed(2)}  ${deg(a.startAngle)}°→${deg(a.endAngle)}°`;
+  if (p.kind === 'ARC') {
+    const deg = (rad: number) => ((rad * 180) / Math.PI).toFixed(1);
+    return `center (${p.arc.center.x.toFixed(2)}, ${p.arc.center.y.toFixed(2)})  r=${p.arc.radius.toFixed(2)}  ${deg(p.arc.startAngle)}°→${deg(p.arc.endAngle)}°`;
+  }
+  return `origin (${p.origin.x.toFixed(2)}, ${p.origin.y.toFixed(2)})  az ${p.bearingDeg.toFixed(2)}°`;
 }
 
 /**

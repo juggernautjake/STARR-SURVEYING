@@ -11,6 +11,9 @@ import {
   circleCircleIntersections,
   arcArcIntersections,
   arcCircleIntersections,
+  rayLineIntersection,
+  rayCircleIntersections,
+  rayArcIntersections,
   isAngleInArc,
 } from '@/lib/cad/geometry/intersection';
 import type { ArcGeometry } from '@/lib/cad/types';
@@ -277,6 +280,91 @@ describe('arcArcIntersections', () => {
       anticlockwise: true,
     };
     expect(arcArcIntersections(topArc, far)).toHaveLength(0);
+  });
+});
+
+describe('rayLineIntersection', () => {
+  it('finds the intersection in front of the ray', () => {
+    // Ray from origin shooting east (azimuth 90°). Line is a
+    // vertical segment at x = 5.
+    const hit = rayLineIntersection({ x: 0, y: 0 }, 90, { x: 5, y: -2 }, { x: 5, y: 2 });
+    expect(hit).not.toBeNull();
+    expect(close(hit!.x, 5)).toBe(true);
+    expect(close(hit!.y, 0)).toBe(true);
+  });
+
+  it('returns null when the intersection is behind the ray origin', () => {
+    // Ray shooting east; line at x = -5 (behind).
+    const hit = rayLineIntersection({ x: 0, y: 0 }, 90, { x: -5, y: -2 }, { x: -5, y: 2 });
+    expect(hit).toBeNull();
+  });
+
+  it('returns null for a parallel line', () => {
+    // Ray shooting north (azimuth 0°); horizontal line at y = 5
+    // → wait that's perpendicular. Use a line parallel to north:
+    // a vertical line through x = 5 has direction (0,1), same as
+    // a north-bound ray → parallel.
+    const hit = rayLineIntersection({ x: 0, y: 0 }, 0, { x: 5, y: 0 }, { x: 5, y: 10 });
+    expect(hit).toBeNull();
+  });
+
+  it('respects survey azimuth (N = 0, CW)', () => {
+    // Ray shooting due south (azimuth 180°); line at y = -5.
+    const hit = rayLineIntersection({ x: 0, y: 0 }, 180, { x: -5, y: -5 }, { x: 5, y: -5 });
+    expect(hit).not.toBeNull();
+    expect(close(hit!.x, 0)).toBe(true);
+    expect(close(hit!.y, -5)).toBe(true);
+  });
+});
+
+describe('rayCircleIntersections', () => {
+  it('orders hits by distance along the ray', () => {
+    // Ray east through unit circle at (5, 0) radius 1 → entry
+    // at x = 4, exit at x = 6.
+    const hits = rayCircleIntersections({ x: 0, y: 0 }, 90, { x: 5, y: 0 }, 1);
+    expect(hits).toHaveLength(2);
+    expect(close(hits[0].x, 4)).toBe(true);
+    expect(close(hits[1].x, 6)).toBe(true);
+  });
+
+  it('drops hits behind the ray', () => {
+    // Ray east; circle around origin radius 2 → infinite line
+    // crosses at x = ±2; only x = +2 is in front of the ray.
+    const hits = rayCircleIntersections({ x: 0, y: 0 }, 90, { x: 0, y: 0 }, 2);
+    expect(hits).toHaveLength(1);
+    expect(close(hits[0].x, 2)).toBe(true);
+  });
+
+  it('returns empty when the line misses the circle', () => {
+    expect(rayCircleIntersections({ x: 0, y: 0 }, 90, { x: 5, y: 10 }, 1)).toHaveLength(0);
+  });
+});
+
+describe('rayArcIntersections', () => {
+  const topArc: ArcGeometry = {
+    center: { x: 5, y: 0 },
+    radius: 1,
+    startAngle: 0,
+    endAngle: Math.PI,
+    anticlockwise: true,
+  };
+
+  it('keeps only hits within the arc sweep', () => {
+    // Ray east through the underlying circle at (5, 0) crosses
+    // at (4, 0) and (6, 0); both lie at angle 0 / π → arc
+    // boundary. Both qualify; ordered nearest first.
+    const hits = rayArcIntersections({ x: 0, y: 0 }, 90, topArc);
+    expect(hits).toHaveLength(2);
+    expect(close(hits[0].x, 4)).toBe(true);
+    expect(close(hits[1].x, 6)).toBe(true);
+  });
+
+  it('drops hits outside the arc sweep', () => {
+    // Ray shooting SE (azimuth 135°) skims the bottom of the
+    // top-arc — circle hits exist below x-axis, all outside
+    // [0, π] sweep → empty.
+    const hits = rayArcIntersections({ x: 0, y: -10 }, 0, topArc);
+    expect(hits).toHaveLength(0);
   });
 });
 

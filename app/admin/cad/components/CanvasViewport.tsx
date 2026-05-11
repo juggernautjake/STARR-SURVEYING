@@ -655,7 +655,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   type PickedPreview =
     | { kind: 'LINE'; featureId: string; start: Point2D; end: Point2D }
     | { kind: 'CIRCLE'; featureId: string; circle: { center: Point2D; radius: number } }
-    | { kind: 'ARC'; featureId: string; arc: { center: Point2D; radius: number; startAngle: number; endAngle: number; anticlockwise: boolean } };
+    | { kind: 'ARC'; featureId: string; arc: { center: Point2D; radius: number; startAngle: number; endAngle: number; anticlockwise: boolean } }
+    | { kind: 'RAY'; featureId: string; origin: Point2D; bearingDeg: number };
   const intersectPreviewRef = useRef<{
     sourceA: PickedPreview | null;
     sourceB: PickedPreview | null;
@@ -6582,6 +6583,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       drawCircleGhost(sourceB.arc.center.x, sourceB.arc.center.y, sourceB.arc.radius, SRC_B_COLOR);
     }
 
+    // RAY ghost — dashed half-line from origin along bearing.
+    // The "infinite reach" is just the canvas diagonal so the
+    // ghost always exits the viewport; origin dot makes the
+    // starting point unambiguous.
+    const drawRayGhost = (ray: { origin: Point2D; bearingDeg: number }, color: number) => {
+      const rad = (ray.bearingDeg * Math.PI) / 180;
+      const dx = Math.sin(rad);
+      const dy = Math.cos(rad);
+      const w = pixi.app.renderer.width;
+      const h = pixi.app.renderer.height;
+      const reachPx = Math.hypot(w, h) * 1.2;
+      const reachWorld = reachPx / zoom;
+      const o = w2s(ray.origin.x, ray.origin.y);
+      const tip = w2s(ray.origin.x + dx * reachWorld, ray.origin.y + dy * reachWorld);
+      drawDashedScreenLine(g, o, tip, color, 0.7);
+      g.lineStyle(0, 0, 0);
+      g.beginFill(color, 0.9);
+      g.drawCircle(o.sx, o.sy, 3);
+      g.endFill();
+    };
+    if (sourceA && sourceA.kind === 'RAY') drawRayGhost(sourceA, SRC_A_COLOR);
+    if (sourceB && sourceB.kind === 'RAY') drawRayGhost(sourceB, SRC_B_COLOR);
+
     // Candidate crosshairs. Slice 3 shows every candidate at
     // 50% opacity with the selected one in full colour + ring.
     if (candidates && candidates.length > 0) {
@@ -7497,20 +7521,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
-      // Phase 8 §11.6 Slice 1 / 5 — Intersect Tool picking.
+      // Phase 8 §11.6 Slice 1 / 5 / 6 — Intersect Tool picking.
       // When the IntersectDialog has a slot selecting, swallow
       // the click and dispatch the hit feature + world-space
       // click point back via cad:intersectPicked. The click
       // point lets the dialog resolve POLYLINE/POLYGON picks
-      // to a specific (featureId, segmentIndex) — see Slice 5.
+      // to a specific (featureId, segmentIndex) — Slice 5. For
+      // RAY origin picks (Slice 6) the dialog needs the click
+      // point even when no feature was hit, so we always emit
+      // the event when picking is active.
       if (intersectPickingRef.current) {
         const hit = hitTest(sx, sy);
-        if (hit) {
-          const { wx, wy } = screenToDrawingWorld(sx, sy);
-          window.dispatchEvent(new CustomEvent('cad:intersectPicked', {
-            detail: { featureId: hit, point: { x: wx, y: wy } },
-          }));
-        }
+        const snap = snapResultRef.current;
+        // Prefer the snap point so vertex/endpoint picks are
+        // exact; fall back to raw click coords otherwise.
+        const point = snap
+          ? { x: snap.point.x, y: snap.point.y }
+          : (() => {
+              const { wx, wy } = screenToDrawingWorld(sx, sy);
+              return { x: wx, y: wy };
+            })();
+        window.dispatchEvent(new CustomEvent('cad:intersectPicked', {
+          detail: { featureId: hit ?? '', point },
+        }));
         return;
       }
 

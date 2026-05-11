@@ -209,6 +209,83 @@ export function arcArcIntersections(
   });
 }
 
+/**
+ * Convert a survey azimuth (degrees, 0 = North, CW) to a
+ * unit direction vector. Matches the convention in
+ * `inverseBearingDistance`: dE = sin(θ), dN = cos(θ).
+ */
+function azimuthToDir(azimuthDeg: number): Point2D {
+  const rad = (azimuthDeg * Math.PI) / 180;
+  return { x: Math.sin(rad), y: Math.cos(rad) };
+}
+
+/**
+ * Intersection of a ray (origin + azimuth) with an infinite
+ * line through c→d. Returns null when:
+ *   - The line is parallel to the ray, OR
+ *   - The intersection lies behind the ray's origin (t < 0
+ *     along the ray's direction).
+ */
+export function rayLineIntersection(
+  origin: Point2D,
+  azimuthDeg: number,
+  c: Point2D,
+  d: Point2D,
+): Point2D | null {
+  const dir = azimuthToDir(azimuthDeg);
+  const second = { x: origin.x + dir.x, y: origin.y + dir.y };
+  const hit = lineLineIntersection(origin, second, c, d);
+  if (!hit) return null;
+  const t = (hit.x - origin.x) * dir.x + (hit.y - origin.y) * dir.y;
+  return t >= -1e-9 ? hit : null;
+}
+
+/**
+ * Intersection of a ray with a circle. Returns hits ordered
+ * by distance along the ray (nearest first); empty when the
+ * underlying line misses or both hits lie behind the origin.
+ */
+export function rayCircleIntersections(
+  origin: Point2D,
+  azimuthDeg: number,
+  center: Point2D,
+  radius: number,
+): Point2D[] {
+  const dir = azimuthToDir(azimuthDeg);
+  const second = { x: origin.x + dir.x, y: origin.y + dir.y };
+  const hits = lineCircleIntersections(origin, second, center, radius);
+  return hits
+    .map((p) => ({
+      p,
+      t: (p.x - origin.x) * dir.x + (p.y - origin.y) * dir.y,
+    }))
+    .filter((h) => h.t >= -1e-9)
+    .sort((a, b) => a.t - b.t)
+    .map((h) => h.p);
+}
+
+/**
+ * Intersection of a ray with an arc — same as circle but the
+ * angular-span filter is applied first.
+ */
+export function rayArcIntersections(
+  origin: Point2D,
+  azimuthDeg: number,
+  arc: ArcGeometry,
+): Point2D[] {
+  const dir = azimuthToDir(azimuthDeg);
+  const second = { x: origin.x + dir.x, y: origin.y + dir.y };
+  const hits = lineArcIntersections(origin, second, arc);
+  return hits
+    .map((p) => ({
+      p,
+      t: (p.x - origin.x) * dir.x + (p.y - origin.y) * dir.y,
+    }))
+    .filter((h) => h.t >= -1e-9)
+    .sort((a, b) => a.t - b.t)
+    .map((h) => h.p);
+}
+
 /** Test if a point is inside a bounding box */
 export function pointInBounds(p: Point2D, bounds: BoundingBox): boolean {
   return (
