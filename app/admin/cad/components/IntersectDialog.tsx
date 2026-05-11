@@ -57,6 +57,10 @@ interface PickedLine {
   featureId: string;
   start: Point2D;
   end: Point2D;
+  /** When the picked feature was a POLYLINE / POLYGON, the
+   *  segment index resolved by nearest-segment from the click
+   *  point. Provenance only; the math uses `start` / `end`. */
+  segmentIndex?: number;
 }
 interface PickedCircle {
   kind: 'CIRCLE';
@@ -173,19 +177,30 @@ export default function IntersectDialog({ onClose }: Props) {
   useEffect(() => {
     if (!pickingSlot) return undefined;
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ featureId: string }>).detail;
+      const detail = (e as CustomEvent<{ featureId: string; point?: Point2D }>).detail;
       const f = drawingStore.getFeature(detail.featureId);
       if (!f) return;
       const kinds = pickingSlot === 'A' ? sourceAKinds(method) : sourceBKinds(method);
-      const matched = tryBuildSource(f, kinds);
+      const matched = tryBuildSource(f, kinds, detail.point ?? null);
       if (!matched) {
-        announce(`INTERSECT — Source ${pickingSlot} must be a ${kinds.join(' or ')}.`);
+        const hint = kinds.includes('LINE')
+          ? `${kinds.join(' or ')} (POLYLINE / POLYGON segments allowed)`
+          : kinds.join(' or ');
+        announce(`INTERSECT — Source ${pickingSlot} must be a ${hint}.`);
         return;
       }
+      // Same-feature guard. For POLYLINE/POLYGON the surveyor
+      // may legitimately want two different segments of the
+      // same feature; allow that as long as the segment
+      // indices differ.
       const other = pickingSlot === 'A' ? sourceB : sourceA;
       if (other && other.featureId === matched.featureId) {
-        announce(`INTERSECT — pick a different feature for Source ${pickingSlot}.`);
-        return;
+        const matchedSeg = matched.kind === 'LINE' ? matched.segmentIndex : undefined;
+        const otherSeg = other.kind === 'LINE' ? other.segmentIndex : undefined;
+        if (matchedSeg === undefined || otherSeg === undefined || matchedSeg === otherSeg) {
+          announce(`INTERSECT — pick a different feature (or segment) for Source ${pickingSlot}.`);
+          return;
+        }
       }
       if (pickingSlot === 'A') setSourceA(matched);
       else setSourceB(matched);
@@ -222,6 +237,10 @@ export default function IntersectDialog({ onClose }: Props) {
         intersectExtendedB: !withinB,
         intersectCandidateIndex: selectedIndex,
         intersectCandidateCount: candidates.length,
+        ...(sourceA.kind === 'LINE' && sourceA.segmentIndex !== undefined
+          ? { intersectSourceASegmentIndex: sourceA.segmentIndex } : {}),
+        ...(sourceB.kind === 'LINE' && sourceB.segmentIndex !== undefined
+          ? { intersectSourceBSegmentIndex: sourceB.segmentIndex } : {}),
       },
     };
     drawingStore.addFeature(pt);
@@ -282,7 +301,8 @@ export default function IntersectDialog({ onClose }: Props) {
 
           <p className="text-[11px] text-gray-400 leading-relaxed">
             Pick the two sources for <strong>{METHOD_LABELS[method]}</strong> — the dialog finds every point where they cross.
-            Up to 2 candidates for circle / arc methods; click the one you want before dropping.
+            Up to 2 candidates for circle / arc methods; click the one you want before dropping. LINE sources also accept any
+            segment of a POLYLINE / POLYGON — click the segment directly.
           </p>
 
           {/* Source A picker */}
@@ -512,9 +532,35 @@ function announce(text: string) {
   window.dispatchEvent(new CustomEvent('cad:commandOutput', { detail: { text } }));
 }
 
-function tryBuildSource(f: Feature, kinds: PickedSource['kind'][]): PickedSource | null {
+function tryBuildSource(
+  f: Feature,
+  kinds: PickedSource['kind'][],
+  clickPoint: Point2D | null,
+): PickedSource | null {
   if (kinds.includes('LINE') && f.geometry.type === 'LINE' && f.geometry.start && f.geometry.end) {
     return { kind: 'LINE', featureId: f.id, start: f.geometry.start, end: f.geometry.end };
+  }
+  // §11.6.9 Slice 5 — POLYLINE / POLYGON pick resolves to the
+  // segment nearest the click point. Both geometries store
+  // their vertex chain in `geometry.vertices`; for POLYGONs we
+  // also wrap to the closing edge.
+  if (
+    kinds.includes('LINE') &&
+    (f.geometry.type === 'POLYLINE' || f.geometry.type === 'POLYGON') &&
+    f.geometry.vertices &&
+    f.geometry.vertices.length >= 2 &&
+    clickPoint
+  ) {
+    const seg = nearestSegment(f.geometry.vertices, f.geometry.type === 'POLYGON', clickPoint);
+    if (seg) {
+      return {
+        kind: 'LINE',
+        featureId: f.id,
+        start: seg.start,
+        end: seg.end,
+        segmentIndex: seg.index,
+      };
+    }
   }
   if (kinds.includes('CIRCLE') && f.geometry.type === 'CIRCLE' && f.geometry.circle) {
     return { kind: 'CIRCLE', featureId: f.id, circle: f.geometry.circle };
@@ -523,6 +569,54 @@ function tryBuildSource(f: Feature, kinds: PickedSource['kind'][]): PickedSource
     return { kind: 'ARC', featureId: f.id, arc: f.geometry.arc };
   }
   return null;
+}
+
+/**
+ * Find the segment of a vertex chain that the click point sits
+ * closest to. Distance is measured to the projection clamped
+ * onto the segment, so the surveyor can click anywhere along
+ * a long edge and still resolve it.
+ */
+function nearestSegment(
+  vertices: Point2D[],
+  closed: boolean,
+  click: Point2D,
+): { index: number; start: Point2D; end: Point2D } | null {
+  const lastIndex = closed ? vertices.length : vertices.length - 1;
+  let bestIdx = -1;
+  let bestDistSq = Infinity;
+  for (let i = 0; i < lastIndex; i++) {
+    const a = vertices[i];
+    const b = vertices[(i + 1) % vertices.length];
+    const d = pointToSegmentDistSq(click, a, b);
+    if (d < bestDistSq) {
+      bestDistSq = d;
+      bestIdx = i;
+    }
+  }
+  if (bestIdx < 0) return null;
+  return {
+    index: bestIdx,
+    start: vertices[bestIdx],
+    end: vertices[(bestIdx + 1) % vertices.length],
+  };
+}
+
+function pointToSegmentDistSq(p: Point2D, a: Point2D, b: Point2D): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 1e-12) {
+    const ex = p.x - a.x;
+    const ey = p.y - a.y;
+    return ex * ex + ey * ey;
+  }
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
+  const cx = a.x + t * dx;
+  const cy = a.y + t * dy;
+  const ex = p.x - cx;
+  const ey = p.y - cy;
+  return ex * ex + ey * ey;
 }
 
 function computeCandidates(
@@ -594,7 +688,8 @@ function emptyExplainer(
 
 function renderPickedSummary(p: PickedSource): string {
   if (p.kind === 'LINE') {
-    return `(${p.start.x.toFixed(2)}, ${p.start.y.toFixed(2)}) → (${p.end.x.toFixed(2)}, ${p.end.y.toFixed(2)})`;
+    const segLabel = p.segmentIndex !== undefined ? ` seg ${p.segmentIndex}` : '';
+    return `${segLabel} (${p.start.x.toFixed(2)}, ${p.start.y.toFixed(2)}) → (${p.end.x.toFixed(2)}, ${p.end.y.toFixed(2)})`;
   }
   if (p.kind === 'CIRCLE') {
     return `center (${p.circle.center.x.toFixed(2)}, ${p.circle.center.y.toFixed(2)})  r=${p.circle.radius.toFixed(2)}`;

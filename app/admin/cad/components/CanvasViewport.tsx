@@ -7497,14 +7497,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
-      // Phase 8 §11.6 Slice 1 — Intersect Tool picking. When
-      // the IntersectDialog has a slot selecting, swallow the
-      // click and dispatch the hit feature back to the dialog
-      // via cad:intersectPicked.
+      // Phase 8 §11.6 Slice 1 / 5 — Intersect Tool picking.
+      // When the IntersectDialog has a slot selecting, swallow
+      // the click and dispatch the hit feature + world-space
+      // click point back via cad:intersectPicked. The click
+      // point lets the dialog resolve POLYLINE/POLYGON picks
+      // to a specific (featureId, segmentIndex) — see Slice 5.
       if (intersectPickingRef.current) {
         const hit = hitTest(sx, sy);
         if (hit) {
-          window.dispatchEvent(new CustomEvent('cad:intersectPicked', { detail: { featureId: hit } }));
+          const { wx, wy } = screenToDrawingWorld(sx, sy);
+          window.dispatchEvent(new CustomEvent('cad:intersectPicked', {
+            detail: { featureId: hit, point: { x: wx, y: wy } },
+          }));
         }
         return;
       }
