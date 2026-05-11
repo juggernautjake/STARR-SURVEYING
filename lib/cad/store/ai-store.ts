@@ -60,6 +60,31 @@ export interface AICopilotMessage {
   ts: string;
 }
 
+/**
+ * Phase 6 §32 Slice 9 — metadata for a project reference
+ * document the surveyor has uploaded (deed PDF, recorded plat,
+ * hand sketch, prior drawing, …). We only persist a manifest
+ * of names/kinds — the actual file blobs live wherever the
+ * existing deed/import pipelines store them. The framework
+ * uses this list to (a) dampen confidence × 0.85 when empty,
+ * (b) feed `hasReferenceDocs` into the system prompt.
+ */
+export interface AIReferenceDoc {
+  id: string;
+  /** Surveyor-facing name. Filename when uploaded; freeform
+   *  when entered as a stub. */
+  name: string;
+  /** Coarse classification so the AI knows what to expect. */
+  kind: 'DEED' | 'PLAT' | 'SKETCH' | 'PRIOR_DRAWING' | 'OTHER';
+  /** ISO timestamp. */
+  addedAt: string;
+}
+
+/** Confidence dampening factor applied to every proposal that
+ *  lands while there are no reference docs (§32.6). 0.85 is the
+ *  spec value. */
+export const REFERENCE_DOC_DAMPENING = 0.85;
+
 /** Ordered list used by the cycle hotkey (Ctrl+Shift+M). */
 export const AI_MODE_CYCLE: AIMode[] = ['AUTO', 'COPILOT', 'COMMAND', 'MANUAL'];
 
@@ -175,6 +200,18 @@ interface AIStore {
   /** Clear every resolution — e.g. when the surveyor opens a
    *  brand-new project file and old answers no longer apply. */
   clearCodeResolutionMemory: () => void;
+
+  // ────────────────────────────────────────────────────────
+  // §32 Slice 9 — reference-doc manifest + dampening
+  // ────────────────────────────────────────────────────────
+  /** Project reference documents the surveyor has uploaded.
+   *  Empty by default; populated by the existing deed / plat
+   *  pipelines via `addReferenceDoc` (Phase 6 §6 / §32.6).
+   *  Persisted across reloads. */
+  referenceDocs: AIReferenceDoc[];
+  addReferenceDoc: (doc: Omit<AIReferenceDoc, 'id' | 'addedAt'>) => void;
+  removeReferenceDoc: (id: string) => void;
+  clearReferenceDocs: () => void;
 
   // Dialog visibility.
   isDialogOpen: boolean;
@@ -398,6 +435,25 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
   },
   clearCodeResolutionMemory: () => set({ codeResolutionMemory: {} }),
 
+  // §32 Slice 9 — reference-doc manifest.
+  referenceDocs: [],
+  addReferenceDoc: (doc) => {
+    const trimmedName = doc.name.trim();
+    if (trimmedName.length === 0) return;
+    const entry: AIReferenceDoc = {
+      id: 'doc_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+      name: trimmedName,
+      kind: doc.kind,
+      addedAt: new Date().toISOString(),
+    };
+    set((s) => ({ referenceDocs: [...s.referenceDocs, entry] }));
+  },
+  removeReferenceDoc: (id) =>
+    set((s) => ({
+      referenceDocs: s.referenceDocs.filter((d) => d.id !== id),
+    })),
+  clearReferenceDocs: () => set({ referenceDocs: [] }),
+
   proposeFromPrompt: async (prompt: string) => {
     const trimmed = prompt.trim();
     if (trimmed.length === 0) return;
@@ -415,6 +471,13 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
       // it doesn't keep asking about codes the surveyor's
       // already answered.
       codeResolutions: ai.codeResolutionMemory,
+      // §32.6 — tell the model what reference docs (if any)
+      // have been uploaded so it can be more cautious when
+      // running blind.
+      referenceDocs: ai.referenceDocs.map((d) => ({
+        name: d.name,
+        kind: d.kind,
+      })),
     };
     // Mirror the USER turn into the sidebar transcript before
     // we wait on the network so the surveyor sees their own
@@ -456,6 +519,24 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
         return;
       }
       const ok = json as { proposals: AIProposal[]; narrative: string };
+      // §32.6 — dampen confidence × 0.85 on every proposal
+      // when no reference docs are loaded. Stamps the dampened
+      // value back into provenance so the right-click "Why did
+      // AI draw this?" popup shows the actual confidence the
+      // surveyor saw.
+      const hasRefs = ai.referenceDocs.length > 0;
+      const incoming = (ok.proposals ?? []).map((p) =>
+        hasRefs
+          ? p
+          : {
+              ...p,
+              confidence: p.confidence * REFERENCE_DOC_DAMPENING,
+              provenance: {
+                ...p.provenance,
+                aiConfidence: p.provenance.aiConfidence * REFERENCE_DOC_DAMPENING,
+              },
+            },
+      );
       const replyTurns: AICopilotMessage[] = [];
       if (ok.narrative.length > 0) {
         replyTurns.push({
@@ -465,17 +546,20 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
           ts: new Date().toISOString(),
         });
       }
-      if ((ok.proposals ?? []).length > 0) {
+      if (incoming.length > 0) {
+        const dampenSuffix = hasRefs
+          ? ''
+          : ` (confidence dampened ×${REFERENCE_DOC_DAMPENING} — no reference docs)`;
         replyTurns.push({
           id: copilotMsgId(),
           role: 'SYSTEM',
           content:
-            `Queued ${(ok.proposals ?? []).length} proposal${(ok.proposals ?? []).length === 1 ? '' : 's'} for review (see COPILOT card).`,
+            `Queued ${incoming.length} proposal${incoming.length === 1 ? '' : 's'} for review (see COPILOT card)${dampenSuffix}.`,
           ts: new Date().toISOString(),
         });
       }
       set((s) => ({
-        proposalQueue: [...s.proposalQueue, ...(ok.proposals ?? [])],
+        proposalQueue: [...s.proposalQueue, ...incoming],
         lastProposeNarrative: ok.narrative.length > 0 ? ok.narrative : null,
         copilotChat: [...s.copilotChat, ...replyTurns],
         isProposing: false,
@@ -950,6 +1034,8 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     // §32 Slice 8 — persist code-disambiguations so the
     // surveyor doesn't lose them on reload.
     codeResolutionMemory: state.codeResolutionMemory,
+    // §32 Slice 9 — persist the reference-doc manifest.
+    referenceDocs: state.referenceDocs,
   }),
 }));
 

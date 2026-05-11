@@ -46,6 +46,12 @@ export interface ProjectContext {
    *  prompt so the model uses prior answers instead of asking
    *  again. Optional + defaults to {}. */
   codeResolutions?: Record<string, { layerId: string; answeredAt: number }>;
+  /** §32.6 — reference documents the surveyor has uploaded.
+   *  Empty array (or undefined) signals "running blind"; the
+   *  framework already dampens confidence × 0.85 in that case,
+   *  but we surface the catalogue here so Claude can cite the
+   *  uploaded docs by name in its reasoning. */
+  referenceDocs?: Array<{ name: string; kind: 'DEED' | 'PLAT' | 'SKETCH' | 'PRIOR_DRAWING' | 'OTHER' }>;
 }
 
 /** Build the system prompt string. Pure — no side effects, so
@@ -61,6 +67,11 @@ export function buildSystemPrompt(ctx: ProjectContext): string {
 
   const resolutionEntries = Object.entries(ctx.codeResolutions ?? {})
     .map(([code, { layerId }]) => `  - ${code} → layer ${layerId}`)
+    .join('\n');
+
+  const refDocs = ctx.referenceDocs ?? [];
+  const referenceLines = refDocs
+    .map((d) => `  - ${d.kind}: ${d.name}`)
     .join('\n');
 
   return [
@@ -79,6 +90,11 @@ export function buildSystemPrompt(ctx: ProjectContext): string {
     '',
     'Previously-resolved point codes (surveyor already decided — re-use without re-asking):',
     resolutionEntries.length > 0 ? resolutionEntries : '  (none)',
+    '',
+    refDocs.length > 0
+      ? 'Reference documents uploaded (cite by name in your reasoning):'
+      : 'Reference documents: NONE uploaded — confidence is dampened ×0.85 (§32.6). Be more cautious and surface caveats in plain text.',
+    refDocs.length > 0 ? referenceLines : '',
     '',
     'Available tools (full JSON schemas come through the tool_use API):',
     toolLines,

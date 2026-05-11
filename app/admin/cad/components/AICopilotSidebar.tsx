@@ -17,8 +17,9 @@
 //     openCopilotWithPrompt(<composed prompt>).
 
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, Send, Loader2, Trash2, X } from 'lucide-react';
-import { useAIStore } from '@/lib/cad/store';
+import { Sparkles, Send, Loader2, Trash2, X, FileWarning, Paperclip } from 'lucide-react';
+import { useAIStore, REFERENCE_DOC_DAMPENING } from '@/lib/cad/store';
+import type { AIReferenceDoc } from '@/lib/cad/store';
 
 export default function AICopilotSidebar() {
   const isOpen = useAIStore((s) => s.isCopilotSidebarOpen);
@@ -36,6 +37,10 @@ export default function AICopilotSidebar() {
     (s) => Object.keys(s.codeResolutionMemory).length,
   );
   const clearResolutions = useAIStore((s) => s.clearCodeResolutionMemory);
+  const referenceDocs = useAIStore((s) => s.referenceDocs);
+  const addReferenceDoc = useAIStore((s) => s.addReferenceDoc);
+  const removeReferenceDoc = useAIStore((s) => s.removeReferenceDoc);
+  const [refsOpen, setRefsOpen] = useState(false);
 
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -132,7 +137,7 @@ export default function AICopilotSidebar() {
         </div>
       </div>
 
-      {/* §32 Slice 8 — settings strip */}
+      {/* §32 Slice 8 / 9 — settings strip */}
       <div className="px-3 py-1.5 border-b border-gray-700 bg-gray-850/50 space-y-1 text-[11px]">
         <div className="flex items-center justify-between gap-2">
           <span className="text-gray-400 shrink-0" title="Confidence threshold above which AUTO auto-approves a proposal; below it, the framework escalates to COPILOT for that single step.">
@@ -165,6 +170,38 @@ export default function AICopilotSidebar() {
             </button>
           )}
         </div>
+        {/* §32.6 — reference-doc chip. Amber warning when
+            empty (confidence is dampened); gray summary
+            otherwise. Click toggles the inline manage panel. */}
+        <button
+          type="button"
+          onClick={() => setRefsOpen((v) => !v)}
+          className={`w-full flex items-center justify-between gap-2 px-1.5 py-1 rounded border transition-colors ${
+            referenceDocs.length === 0
+              ? 'bg-amber-900/30 border-amber-700 text-amber-200 hover:bg-amber-900/50'
+              : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+          }`}
+          title={
+            referenceDocs.length === 0
+              ? `No reference docs — every AI proposal's confidence is dampened ×${REFERENCE_DOC_DAMPENING}. Click to add a deed / plat / sketch / prior drawing.`
+              : `${referenceDocs.length} reference doc${referenceDocs.length === 1 ? '' : 's'} attached. Click to manage.`
+          }
+        >
+          <span className="flex items-center gap-1 text-[11px]">
+            {referenceDocs.length === 0 ? <FileWarning size={12} /> : <Paperclip size={12} />}
+            {referenceDocs.length === 0
+              ? `Running without references — confidence ×${REFERENCE_DOC_DAMPENING}`
+              : `${referenceDocs.length} reference doc${referenceDocs.length === 1 ? '' : 's'} attached`}
+          </span>
+          <span className="text-[10px] opacity-70">{refsOpen ? 'Close' : 'Manage'}</span>
+        </button>
+        {refsOpen && (
+          <ReferenceDocsManager
+            docs={referenceDocs}
+            onAdd={addReferenceDoc}
+            onRemove={removeReferenceDoc}
+          />
+        )}
       </div>
 
       {/* Transcript */}
@@ -215,6 +252,83 @@ export default function AICopilotSidebar() {
         </div>
       </form>
     </aside>
+  );
+}
+
+function ReferenceDocsManager(props: {
+  docs: AIReferenceDoc[];
+  onAdd: (doc: { name: string; kind: AIReferenceDoc['kind'] }) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<AIReferenceDoc['kind']>('DEED');
+
+  function handleAdd(e?: React.FormEvent) {
+    e?.preventDefault?.();
+    const trimmed = name.trim();
+    if (trimmed.length === 0) return;
+    props.onAdd({ name: trimmed, kind });
+    setName('');
+  }
+
+  return (
+    <div className="border border-gray-700 rounded bg-gray-900/60 p-1.5 space-y-1.5 text-[11px]">
+      {props.docs.length === 0 ? (
+        <p className="text-gray-500 italic text-[10px] leading-snug">
+          No reference docs yet. Add a deed PDF, recorded plat, hand sketch, or prior drawing to tighten the AI&apos;s confidence.
+        </p>
+      ) : (
+        <ul className="space-y-0.5">
+          {props.docs.map((d) => (
+            <li
+              key={d.id}
+              className="flex items-center justify-between gap-1 px-1 py-0.5 rounded bg-gray-800 border border-gray-700"
+            >
+              <span className="flex-1 truncate" title={d.name}>
+                <span className="text-[10px] text-gray-500 uppercase mr-1 font-mono">{d.kind}</span>
+                <span className="text-gray-200">{d.name}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => props.onRemove(d.id)}
+                className="text-gray-500 hover:text-red-400 p-0.5"
+                title="Remove this reference doc"
+              >
+                <X size={11} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form onSubmit={handleAdd} className="flex items-center gap-1">
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as AIReferenceDoc['kind'])}
+          className="bg-gray-800 text-gray-200 text-[10px] border border-gray-700 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+          aria-label="Reference doc kind"
+        >
+          <option value="DEED">Deed</option>
+          <option value="PLAT">Plat</option>
+          <option value="SKETCH">Sketch</option>
+          <option value="PRIOR_DRAWING">Prior drawing</option>
+          <option value="OTHER">Other</option>
+        </select>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="File or note title…"
+          className="flex-1 min-w-0 bg-gray-800 text-gray-200 text-[11px] border border-gray-700 rounded px-1.5 py-0.5 focus:outline-none focus:border-blue-500"
+        />
+        <button
+          type="submit"
+          disabled={name.trim().length === 0}
+          className="px-2 py-0.5 text-[10px] bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded transition-colors"
+        >
+          Add
+        </button>
+      </form>
+    </div>
   );
 }
 
