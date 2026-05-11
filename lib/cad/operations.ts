@@ -3030,6 +3030,11 @@ export interface TransferToLayerOptions {
    *  corners of the building" and have the polygon come
    *  along. */
   bringAlongLinkedGeometry: boolean;
+  /** When true, every duplicate carries linkedSourceId +
+   *  linkedOffsetX/Y stamps so a background subscriber can
+   *  regenerate the duplicate's geometry whenever the
+   *  source's geometry changes. Opt-in; Move ignores. */
+  linkDuplicatesToSource?: boolean;
   /** Stamp on every duplicate so a future audit can group
    *  features that came from the same operation. */
   transferOperationId: string;
@@ -3164,6 +3169,16 @@ export function transferSelectionToLayer(
       clone.properties.duplicatedFrom = src.id;
       clone.properties.duplicatedAt = new Date().toISOString();
       clone.properties.transferOperationId = opts.transferOperationId;
+      // Phase 8 §11.7 Slice 10 — stamp link metadata so
+      // the background subscriber can re-propagate source
+      // geometry changes onto this duplicate. dx/dy carry
+      // the offset applied at duplicate-time so propagation
+      // can re-apply it consistently.
+      if (opts.linkDuplicatesToSource) {
+        clone.properties.linkedSourceId = src.id;
+        clone.properties.linkedOffsetX = dx;
+        clone.properties.linkedOffsetY = dy;
+      }
 
       // Optional remap — applied BEFORE the strip step so a
       // mapped code lands on the target with its new value

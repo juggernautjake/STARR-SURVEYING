@@ -290,6 +290,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
       targetTraverseId: options.targetTraverseId,
       offset,
       bringAlongLinkedGeometry: options.bringAlongLinkedGeometry,
+      linkDuplicatesToSource: options.linkDuplicatesToSource,
       codeMap: Object.keys(options.codeMap).length > 0 ? options.codeMap : null,
       transferOperationId: sharedOpId,
     };
@@ -961,13 +962,14 @@ function OptionsBlock() {
     <details className="bg-gray-900 border border-gray-700 rounded">
       <summary className="px-2 py-1.5 cursor-pointer text-[11px] text-gray-300 hover:text-white select-none">
         Options
-        {(options.applyOffset || renumberOn || options.bringAlongLinkedGeometry || options.lockSourceAfterCopy) && (
+        {(options.applyOffset || renumberOn || options.bringAlongLinkedGeometry || options.lockSourceAfterCopy || options.linkDuplicatesToSource) && (
           <span className="ml-1.5 text-[10px] text-blue-400">
             ({[
               options.applyOffset && 'offset',
               renumberOn && 'renumber',
-              options.bringAlongLinkedGeometry && 'linked',
+              options.bringAlongLinkedGeometry && 'bring-along',
               options.lockSourceAfterCopy && 'lock source',
+              options.linkDuplicatesToSource && 'live link',
             ].filter(Boolean).join(', ')})
           </span>
         )}
@@ -1074,6 +1076,22 @@ function OptionsBlock() {
           </label>
           <p className="text-[10px] text-gray-500 mt-1">
             After a successful Duplicate, every layer the source features came from gets locked so you can&apos;t accidentally edit the originals while working on the duplicate. Move never triggers this.
+          </p>
+        </div>
+
+        {/* ── Link duplicates to source (live ref) ────────── */}
+        <div className="border-t border-gray-700 pt-2">
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={options.linkDuplicatesToSource}
+              onChange={(e) => setOptions({ linkDuplicatesToSource: e.target.checked })}
+              className="rounded"
+            />
+            Link duplicates to source (live)
+          </label>
+          <p className="text-[10px] text-gray-500 mt-1">
+            Duplicates re-track every geometry change on their source — useful for &quot;same monument on 3 layers, edit once.&quot; Editing a linked duplicate directly breaks the link automatically.
           </p>
         </div>
       </div>

@@ -62,6 +62,10 @@ import { useHotkeys } from './hooks/useHotkeys';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import {
+  mountLinkedInstanceSubscriber,
+  unmountLinkedInstanceSubscriber,
+} from '@/lib/cad/operations/linked-instances';
+import {
   clearAutosave,
   readAutosave,
   writeAutosave,
@@ -244,6 +248,19 @@ export default function CADLayout() {
     const handler = () => setShowSettings(true);
     window.addEventListener('cad:openSettings', handler);
     return () => window.removeEventListener('cad:openSettings', handler);
+  }, []);
+
+  // Phase 8 §11.7 Slice 10 — mount the linked-instance
+  // subscriber so duplicates created via the
+  // LayerTransferDialog with `linkDuplicatesToSource` on
+  // re-track their source feature's geometry changes.
+  // Unmount on dialog teardown for hot-reload safety.
+  useEffect(() => {
+    const unsub = mountLinkedInstanceSubscriber();
+    return () => {
+      unsub();
+      unmountLinkedInstanceSubscriber();
+    };
   }, []);
 
   // Listen for layer-transfer open event (Ctrl+Shift+L hotkey,

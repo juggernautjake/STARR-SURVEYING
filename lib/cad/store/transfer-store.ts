@@ -62,6 +62,13 @@ export interface TransferOptions {
    *  on the duplicate. Move never triggers this — moved
    *  features no longer live on the source layer. */
   lockSourceAfterCopy: boolean;
+  /** Phase 8 §11.7 Slice 10 — opt-in linked-instance mode.
+   *  When true, every duplicate carries linkedSourceId +
+   *  linkedOffsetX/Y so a background subscriber can
+   *  regenerate the duplicate's geometry whenever the
+   *  source's geometry changes. Editing the linked
+   *  duplicate directly breaks the link. Off by default. */
+  linkDuplicatesToSource: boolean;
   /** Phase 8 §11.7 Slice 19 — code-remap table. Keys are
    *  uppercased source codes; values are the target codes
    *  every feature carrying that source code should be
@@ -127,6 +134,7 @@ const DEFAULT_OPTIONS: TransferOptions = {
   offsetBearingDeg: 0,
   applyOffset: false,
   lockSourceAfterCopy: false,
+  linkDuplicatesToSource: false,
   codeMap: {},
 };
 
