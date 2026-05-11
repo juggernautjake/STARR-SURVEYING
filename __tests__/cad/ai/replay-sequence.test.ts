@@ -154,10 +154,8 @@ describe('replayAISequence', () => {
     // 3 original calls + 3 replay calls — replays auto-record
     // into aiBatches as well, so total fetch calls = 3.
     expect(fetchStub).toHaveBeenCalledTimes(3);
-    const bodies = fetchStub.mock.calls.map((c) => {
-      const init = c[1] as RequestInit;
-      return JSON.parse(init.body as string).prompt;
-    });
+    const calls = fetchStub.mock.calls as unknown as Array<[unknown, RequestInit]>;
+    const bodies = calls.map((c) => JSON.parse(c[1].body as string).prompt);
     expect(bodies).toEqual(['Draw lot 17', 'Fill missing corners', 'Apply final styles']);
   });
 

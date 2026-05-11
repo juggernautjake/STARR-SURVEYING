@@ -33,6 +33,9 @@ export default function CopilotCard() {
   const storeSandbox = useAIStore((s) => s.sandbox);
   const accept = useAIStore((s) => s.acceptHeadProposal);
   const skip = useAIStore((s) => s.skipHeadProposal);
+  // §32 Slice 13 — MANUAL hides every AI entry point, including
+  // any card a stale queue might leave behind after a mode flip.
+  const aiMode = useAIStore((s) => s.mode);
 
   // Per-card sandbox override. Reset whenever the head changes
   // so the surveyor's toggle on proposal A doesn't bleed into B.
@@ -56,7 +59,7 @@ export default function CopilotCard() {
     };
   }, [head]);
 
-  if (!head) return null;
+  if (!head || aiMode === 'MANUAL') return null;
 
   const confidencePct = Math.round(head.confidence * 100);
   const confidenceTone =

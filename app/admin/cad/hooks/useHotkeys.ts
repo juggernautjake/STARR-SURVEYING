@@ -185,6 +185,21 @@ export function dispatchDefaultAction(action: BindableAction): void {
     return;
   }
 
+  // §32 Slice 13 — MANUAL mode lockdown. Every ai.* action
+  // except the mode-cycle is a no-op while AI is off; the
+  // surveyor sees a toast that points at Ctrl+Shift+M so they
+  // can switch modes if they actually wanted AI.
+  if (
+    action.id.startsWith('ai.') &&
+    action.id !== 'ai.cycleMode' &&
+    useAIStore.getState().mode === 'MANUAL'
+  ) {
+    window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+      detail: { text: 'AI is off (MANUAL mode). Press Ctrl+Shift+M to switch modes.' },
+    }));
+    return;
+  }
+
   switch (action.id) {
     // ── File ──────────────────────────────────────────
     case 'file.new':

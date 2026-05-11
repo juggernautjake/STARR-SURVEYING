@@ -255,13 +255,20 @@ export default function StatusBar() {
           const next = AI_MODE_CYCLE[(i + 1) % AI_MODE_CYCLE.length];
           return `AI mode: ${aiMode} — click (or Ctrl+Shift+M) to cycle. Next: ${next}.` +
             (aiMode === 'MANUAL'
-              ? ''
+              ? ' AI entry points are hidden in MANUAL — no chat, no proposals, no right-click "Ask AI".'
               : aiSandbox
                 ? ' Sandbox ON — AI writes route to DRAFT__* layers.'
                 : ' Sandbox OFF — AI writes to live target layers.');
         })()}
       >
-        AI: {aiMode}
+        {aiMode === 'MANUAL' ? (
+          <>
+            <span className="text-gray-500 line-through decoration-gray-500 decoration-1">AI</span>
+            <span className="text-gray-400">off</span>
+          </>
+        ) : (
+          <>AI: {aiMode}</>
+        )}
         {aiMode !== 'MANUAL' && (
           <span
             className={`inline-block w-1.5 h-1.5 rounded-full ${aiSandbox ? 'bg-amber-300' : 'bg-emerald-300'}`}

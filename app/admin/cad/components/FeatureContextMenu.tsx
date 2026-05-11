@@ -863,8 +863,10 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   // §32.7 — "Why did AI draw this?" row. Mounted when the
   // right-clicked feature carries AI provenance stamps. Opens
   // the §30.3 explanation popup (falls back to a provenance-
-  // only view when no full pipeline explanation exists).
-  if (feature && hasProvenance(feature.properties)) {
+  // only view when no full pipeline explanation exists). Hidden
+  // in MANUAL mode per §32 Slice 13 lockdown.
+  const aiMode = useAIStore.getState().mode;
+  if (feature && aiMode !== 'MANUAL' && hasProvenance(feature.properties)) {
     items.unshift({
       id: 'whyAi',
       label: 'Why did AI draw this?',
@@ -880,7 +882,6 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   // feature when AI is not in MANUAL mode. Composes a prompt
   // from the right-clicked feature (or the current selection
   // if larger) and seeds it into the COPILOT sidebar.
-  const aiMode = useAIStore.getState().mode;
   if (feature && aiMode !== 'MANUAL') {
     const composed = composeAskAIPrompt(feature, selIds);
     const askAi: MenuItemDef = {
