@@ -83,14 +83,19 @@ export default function CopilotCard() {
   }
 
   function handleModify() {
-    // Slice 5 stub. Slice 6 wires this to the real AI re-propose
-    // flow (the surveyor types a redirect, the AI re-emits).
-    window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-      detail: {
-        text:
-          'COPILOT Modify lands in Slice 6 — for now, Skip and ask the AI to redo via the chat sidebar.',
-      },
-    }));
+    // Phase 6 §32 Slice 14 — Skip the current proposal so it
+    // doesn't auto-execute on the next AUTO tick, then open the
+    // sidebar with a "Revise this" prompt naming the original
+    // proposal. The surveyor edits + sends (Ctrl+Enter); the
+    // AI re-emits a fresh proposal via `proposeFromPrompt`.
+    const original = head;
+    if (!original) return;
+    skip();
+    const revise =
+      `Revise the last proposal — ${original.toolName}: "${original.description}". ` +
+      'I need it changed because: ';
+    useAIStore.getState().openCopilotWithPrompt(revise);
+    window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
   }
 
   return (
