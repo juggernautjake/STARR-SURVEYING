@@ -413,6 +413,32 @@ export function dispatchDefaultAction(action: BindableAction): void {
       }));
       return;
     }
+    case 'ai.replaySequence': {
+      const ai = useAIStore.getState();
+      const total = ai.aiBatches.length;
+      if (total === 0) {
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: 'Replay AI sequence: nothing recorded yet.' },
+        }));
+        return;
+      }
+      const confirmed = window.confirm(
+        `Replay ${total} AI turn${total === 1 ? '' : 's'} against the current document?\n\n` +
+          'Each prompt re-fires through the AI proposer; proposals land in the queue for review just like a fresh run.',
+      );
+      if (!confirmed) return;
+      ai.replayAISequence().then((result) => {
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: {
+            text:
+              `Replay complete — ${result.replayed} succeeded` +
+              (result.failed > 0 ? `, ${result.failed} failed` : '') +
+              (result.aborted ? ', aborted' : '') + '.',
+          },
+        }));
+      });
+      return;
+    }
     case 'ai.undoBatch': {
       const popped = undoMostRecentAIBatch();
       if (!popped) {

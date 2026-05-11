@@ -14,7 +14,7 @@ export { useTraverseStore } from './traverse-store';
 export { useAnnotationStore } from './annotation-store';
 export { useTemplateStore } from './template-store';
 export { useAIStore, AI_MODE_CYCLE, REFERENCE_DOC_DAMPENING } from './ai-store';
-export type { AIPipelineStatus, AIMode, AICopilotMessage, AIReferenceDoc } from './ai-store';
+export type { AIPipelineStatus, AIMode, AICopilotMessage, AIReferenceDoc, AIBatchLog } from './ai-store';
 export type { AIProposal } from '../ai/proposals';
 export { useReviewWorkflowStore } from './review-workflow-store';
 export { useDeliveryStore } from './delivery-store';

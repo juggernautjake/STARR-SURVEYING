@@ -89,6 +89,25 @@ export interface AIReferenceDoc {
  *  spec value. */
 export const REFERENCE_DOC_DAMPENING = 0.85;
 
+/**
+ * Phase 6 §32 Slice 12 — one entry in the AI session timeline.
+ * Records enough metadata to replay an AI sequence against a
+ * different points file later. Persisted so the log survives
+ * reload (size is modest — a few hundred bytes per turn).
+ */
+export interface AIBatchLog {
+  id: string;
+  /** ms-since-epoch when the batch landed. */
+  createdAt: number;
+  /** Surveyor-typed prompt (or the AUTO intake prompt for AUTO
+   *  runs). Replay re-fires this verbatim so the AI works
+   *  against the new document state without re-tweaking. */
+  prompt: string;
+  /** Number of proposals the AI returned in this turn.
+   *  Informational only — replay doesn't need it. */
+  proposalCount: number;
+}
+
 /** Ordered list used by the cycle hotkey (Ctrl+Shift+M). */
 export const AI_MODE_CYCLE: AIMode[] = ['AUTO', 'COPILOT', 'COMMAND', 'MANUAL'];
 
@@ -223,6 +242,34 @@ interface AIStore {
   addReferenceDoc: (doc: Omit<AIReferenceDoc, 'id' | 'addedAt'>) => void;
   removeReferenceDoc: (id: string) => void;
   clearReferenceDocs: () => void;
+
+  // ────────────────────────────────────────────────────────
+  // §32 Slice 12 — replay timeline
+  // ────────────────────────────────────────────────────────
+  /** Append-only log of every successful AI turn this project.
+   *  `proposeFromPrompt` auto-records on success; the replay
+   *  command walks the log and re-fires every prompt against
+   *  the current document state. */
+  aiBatches: AIBatchLog[];
+  /** Drop one log entry by id. Used by the replay-management
+   *  UI to skip stale turns. */
+  removeAIBatch: (id: string) => void;
+  /** Wipe every log entry — typically called before kicking
+   *  off a fresh project so old turns don't bleed in. */
+  clearAIBatches: () => void;
+  /**
+   * Re-fire every recorded turn's prompt in order via
+   * `proposeFromPrompt`. The current document state acts as
+   * the "new points file" — surveyors point at an updated
+   * document and replay produces a fresh draft drawing.
+   *
+   * Returns `{ replayed, failed }`. Aborts cleanly on
+   * `options.signal`. Each turn awaits the previous one so
+   * the proposal queue receives them in source order.
+   */
+  replayAISequence: (
+    options?: { signal?: AbortSignal },
+  ) => Promise<{ replayed: number; failed: number; aborted: boolean }>;
 
   // Dialog visibility.
   isDialogOpen: boolean;
@@ -465,6 +512,47 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     })),
   clearReferenceDocs: () => set({ referenceDocs: [] }),
 
+  // §32 Slice 12 — replay timeline.
+  aiBatches: [],
+  removeAIBatch: (id) =>
+    set((s) => ({ aiBatches: s.aiBatches.filter((b) => b.id !== id) })),
+  clearAIBatches: () => set({ aiBatches: [] }),
+  replayAISequence: async (options) => {
+    const log = get().aiBatches;
+    if (log.length === 0) {
+      return { replayed: 0, failed: 0, aborted: false };
+    }
+    let replayed = 0;
+    let failed = 0;
+    for (const entry of log) {
+      if (options?.signal?.aborted) {
+        return { replayed, failed, aborted: true };
+      }
+      const prior = get().lastProposeNarrative;
+      try {
+        await get().proposeFromPrompt(entry.prompt);
+      } catch {
+        failed++;
+        continue;
+      }
+      // `proposeFromPrompt` writes `lastProposeNarrative` on
+      // both ok and error paths (errors come back with a ⚠
+      // prefix). Treat "narrative starts with ⚠ and changed
+      // during the call" as a failure indicator.
+      const next = get().lastProposeNarrative;
+      if (
+        typeof next === 'string' &&
+        next !== prior &&
+        next.startsWith('⚠')
+      ) {
+        failed++;
+      } else {
+        replayed++;
+      }
+    }
+    return { replayed, failed, aborted: false };
+  },
+
   proposeFromPrompt: async (prompt: string) => {
     const trimmed = prompt.trim();
     if (trimmed.length === 0) return;
@@ -569,10 +657,18 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
           ts: new Date().toISOString(),
         });
       }
+      // §32 Slice 12 — auto-record the turn in the replay log.
+      const batchEntry: AIBatchLog = {
+        id: copilotMsgId().replace('aic_', 'bat_'),
+        createdAt: Date.now(),
+        prompt: trimmed,
+        proposalCount: incoming.length,
+      };
       set((s) => ({
         proposalQueue: [...s.proposalQueue, ...incoming],
         lastProposeNarrative: ok.narrative.length > 0 ? ok.narrative : null,
         copilotChat: [...s.copilotChat, ...replyTurns],
+        aiBatches: [...s.aiBatches, batchEntry],
         isProposing: false,
       }));
     } catch (err) {
@@ -1077,6 +1173,9 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     codeResolutionMemory: state.codeResolutionMemory,
     // §32 Slice 9 — persist the reference-doc manifest.
     referenceDocs: state.referenceDocs,
+    // §32 Slice 12 — persist the replay timeline so the surveyor
+    // can run a sequence across sessions.
+    aiBatches: state.aiBatches,
   }),
 }));
 
