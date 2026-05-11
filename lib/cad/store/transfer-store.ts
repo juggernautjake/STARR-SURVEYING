@@ -26,6 +26,16 @@ export interface TransferOptions {
   operation: TransferOperation;
   /** Required for DUPLICATE / MOVE; ignored for COPY_TO_CLIPBOARD. */
   targetLayerId: string | null;
+  /** Phase 8 §11.7 Slice 17 — multi-target paste. Additional
+   *  layer ids the duplicates also land on. On Confirm, the
+   *  dialog runs the kernel once per (targetLayerId,
+   *  ...additionalTargetLayerIds) with the same
+   *  transferOperationId so all results share one audit
+   *  group. Empty array (default) = single-target paste,
+   *  identical to the previous behaviour. Only honored for
+   *  DUPLICATE; Move ignores it (semantically odd to "move"
+   *  the same feature to N layers). */
+  additionalTargetLayerIds: string[];
   /** Optional: when set, POINT duplicates also get appended to this traverse. */
   targetTraverseId: string | null;
   /** Mirror of `operation === 'DUPLICATE'`; surveyor can override per Slice 6+. */
@@ -107,6 +117,7 @@ interface TransferStore {
 const DEFAULT_OPTIONS: TransferOptions = {
   operation: 'DUPLICATE',
   targetLayerId: null,
+  additionalTargetLayerIds: [],
   targetTraverseId: null,
   keepOriginals: true,
   renumberStart: null,

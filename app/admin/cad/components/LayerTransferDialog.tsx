@@ -227,24 +227,66 @@ export default function LayerTransferDialog({ onClose }: Props) {
     const offset = options.applyOffset && options.offsetDistanceFt > 0
       ? { distanceFt: options.offsetDistanceFt, bearingDeg: options.offsetBearingDeg }
       : null;
-    const result = transferSelectionToLayer(
-      sourceIds,
-      targetLayer.id,
-      {
-        keepOriginals: options.keepOriginals,
-        renumberStart: options.renumberStart,
-        stripUnknownCodes: options.stripUnknownCodes,
-        targetTraverseId: options.targetTraverseId,
-        offset,
-        bringAlongLinkedGeometry: options.bringAlongLinkedGeometry,
-        codeMap: Object.keys(options.codeMap).length > 0 ? options.codeMap : null,
-        transferOperationId: generateId(),
-      },
-    );
-    if (result.written > 0 || result.removed > 0) {
+
+    // Build the full target list: primary first, then any
+    // additional targets. Filtered through the layer table
+    // so deleted layers don't sneak through, and de-duped so
+    // accidentally adding the same layer twice doesn't
+    // duplicate features twice. Move ignores extras (the
+    // surveyor's intent for Move is to send to ONE layer).
+    const seen = new Set<string>();
+    const fullTargets: string[] = [];
+    const push = (id: string | null) => {
+      if (!id) return;
+      if (seen.has(id)) return;
+      if (!layers[id]) return;
+      seen.add(id);
+      fullTargets.push(id);
+    };
+    push(targetLayer.id);
+    if (options.operation === 'DUPLICATE') {
+      for (const id of options.additionalTargetLayerIds) push(id);
+    }
+
+    // Shared transfer-op id so multi-target results stay
+    // grouped in the audit trail.
+    const sharedOpId = generateId();
+    const baseKernelOpts = {
+      keepOriginals: options.keepOriginals,
+      renumberStart: options.renumberStart,
+      stripUnknownCodes: options.stripUnknownCodes,
+      targetTraverseId: options.targetTraverseId,
+      offset,
+      bringAlongLinkedGeometry: options.bringAlongLinkedGeometry,
+      codeMap: Object.keys(options.codeMap).length > 0 ? options.codeMap : null,
+      transferOperationId: sharedOpId,
+    };
+
+    // Per-target kernel call. Aggregate results so the
+    // command-bar output and green pulse cover every target.
+    let totalWritten = 0;
+    let totalRemoved = 0;
+    const allResultIds: string[] = [];
+    const successfulTargetNames: string[] = [];
+    for (const tid of fullTargets) {
+      const lyr = layers[tid];
+      if (!lyr || lyr.locked) continue;
+      const r = transferSelectionToLayer(sourceIds, tid, baseKernelOpts);
+      if (r.written > 0 || r.removed > 0) {
+        totalWritten += r.written;
+        totalRemoved += r.removed;
+        allResultIds.push(...r.resultIds);
+        successfulTargetNames.push(lyr.name);
+      }
+    }
+
+    if (totalWritten > 0 || totalRemoved > 0) {
       const verb = options.operation === 'MOVE' ? 'moved' : 'duplicated';
+      const targetTxt = successfulTargetNames.length === 1
+        ? successfulTargetNames[0]
+        : `${successfulTargetNames.length} layers (${successfulTargetNames.slice(0, 3).join(', ')}${successfulTargetNames.length > 3 ? '…' : ''})`;
       window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-        detail: { text: `${result.written} feature${result.written === 1 ? '' : 's'} ${verb} to ${targetLayer.name}.` },
+        detail: { text: `${totalWritten} feature${totalWritten === 1 ? '' : 's'} ${verb} to ${targetTxt}.` },
       }));
       // Bump preset stats so the dropdown surfaces popular
       // presets at the top on the next dialog open.
@@ -263,10 +305,9 @@ export default function LayerTransferDialog({ onClose }: Props) {
           detail: { text: `Locked ${sourceLayerIds.size} source layer${sourceLayerIds.size === 1 ? '' : 's'}.` },
         }));
       }
-      // Flash the green pulse on the result ids. Auto-clears
-      // after 1500 ms so the canvas doesn't stay visually
-      // noisy.
-      useTransferStore.getState().flashRecentlyTransferred(result.resultIds);
+      // Flash the green pulse across every result id from
+      // every successful target. Auto-clears after 1500 ms.
+      useTransferStore.getState().flashRecentlyTransferred(allResultIds);
       setTimeout(() => {
         useTransferStore.getState().clearRecentlyTransferred();
       }, 1500);
@@ -489,7 +530,14 @@ export default function LayerTransferDialog({ onClose }: Props) {
           {/* Destination */}
           {options.operation !== 'COPY_TO_CLIPBOARD' && (
             <div>
-              <label className="block text-[11px] text-gray-400 mb-1">Target layer</label>
+              <label className="block text-[11px] text-gray-400 mb-1">
+                Target layer
+                {options.operation === 'DUPLICATE' && options.additionalTargetLayerIds.length > 0 && (
+                  <span className="ml-1 text-gray-500">
+                    + {options.additionalTargetLayerIds.length} additional
+                  </span>
+                )}
+              </label>
               <select
                 value={options.targetLayerId ?? ''}
                 onChange={(e) => setOptions({ targetLayerId: e.target.value || null })}
@@ -510,6 +558,14 @@ export default function LayerTransferDialog({ onClose }: Props) {
                 <p className="text-[10px] text-amber-400 mt-1">
                   Target layer is locked — unlock it from the Layers panel before confirming.
                 </p>
+              )}
+              {/* Multi-target paste (Duplicate only) — additional
+                  layer chips + an Add button. Each chip can be
+                  removed; the picker is reused so adding the
+                  same layer twice is impossible. Move ignores
+                  this (semantically odd to move to N layers). */}
+              {options.operation === 'DUPLICATE' && (
+                <AdditionalTargetsRow primaryLayerId={options.targetLayerId} />
               )}
               {codeConflicts.size > 0 && (
                 <CodeRemapTable
@@ -1848,6 +1904,109 @@ function SelectionBlocksRow() {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Additional-targets row ────────────────────────────────
+//
+// Multi-target paste — surveyor adds extra destination layers
+// beyond the primary one. On Confirm the kernel runs once per
+// (primary + each additional) with a shared transferOperationId
+// so the multi-target result stays one audit group.
+
+function AdditionalTargetsRow(props: { primaryLayerId: string | null }) {
+  const drawingStore = useDrawingStore();
+  const layers = drawingStore.document.layers;
+  const layerOrder = drawingStore.document.layerOrder;
+  const additionalIds = useTransferStore((s) => s.options.additionalTargetLayerIds);
+  const setOptions = useTransferStore((s) => s.setOptions);
+
+  const [adding, setAdding] = useState(false);
+
+  function addTarget(layerId: string) {
+    if (!layerId) return;
+    if (layerId === props.primaryLayerId) return;
+    if (additionalIds.includes(layerId)) return;
+    setOptions({ additionalTargetLayerIds: [...additionalIds, layerId] });
+    setAdding(false);
+  }
+
+  function removeTarget(layerId: string) {
+    setOptions({
+      additionalTargetLayerIds: additionalIds.filter((id) => id !== layerId),
+    });
+  }
+
+  // Available layers = every layer except the primary and
+  // any already-added additional.
+  const exclude = new Set<string>([
+    ...(props.primaryLayerId ? [props.primaryLayerId] : []),
+    ...additionalIds,
+  ]);
+  const available = layerOrder
+    .map((id) => layers[id])
+    .filter((l) => l && !exclude.has(l.id));
+
+  return (
+    <div className="mt-1.5 space-y-1">
+      {additionalIds.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {additionalIds.map((id) => {
+            const lyr = layers[id];
+            if (!lyr) return null;
+            return (
+              <span
+                key={id}
+                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-gray-800 border-gray-700 text-gray-200"
+                style={{ borderLeftWidth: 3, borderLeftColor: lyr.color }}
+              >
+                {lyr.name}
+                {lyr.locked && <span className="text-amber-400" title="Locked layer — will be skipped on Confirm">🔒</span>}
+                <button
+                  type="button"
+                  onClick={() => removeTarget(id)}
+                  className="text-gray-500 hover:text-red-400 transition-colors"
+                  title={`Remove ${lyr.name} from targets`}
+                  aria-label={`Remove ${lyr.name} from additional targets`}
+                >
+                  <X size={9} />
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+      {!adding ? (
+        available.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="text-[10px] text-blue-400 hover:text-blue-300 underline transition-colors"
+            title="Send duplicates to one more layer in the same operation"
+          >
+            + Add another target
+          </button>
+        )
+      ) : (
+        <select
+          autoFocus
+          value=""
+          onChange={(e) => {
+            if (e.target.value) addTarget(e.target.value);
+            else setAdding(false);
+          }}
+          onBlur={() => setAdding(false)}
+          className="w-full bg-gray-700 text-white text-[11px] px-2 py-1 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+        >
+          <option value="">— pick another layer or click outside —</option>
+          {available.map((lyr) => (
+            <option key={lyr.id} value={lyr.id}>
+              {lyr.name}{lyr.locked ? ' (🔒 locked)' : ''}
+            </option>
+          ))}
+        </select>
       )}
     </div>
   );
