@@ -1578,7 +1578,7 @@ Some pairs always yield ≤ 1 candidate (LINE × LINE either misses or meets at 
 
 - [x] LINE × LINE intersect modal opens, surveyor picks two non-parallel lines, candidate list shows 1 entry, confirm drops a POINT — Slice 1 ships `IntersectDialog` reachable via `I X` chord hotkey, `Tools → Intersect Lines…` menu, or `cad:openIntersect` event. Dialog has two source-picker slots; each fires `cad:intersectPicking` so `CanvasViewport` swallows the next click + reports the hit feature back via `cad:intersectPicked`. Compute path: `lineLineIntersection(a, b, c, d)` from `lib/cad/geometry/intersection.ts`. Confirm drops a POINT with `properties.intersectSourceAId / intersectSourceBId / intersectMethod / intersectWithinBoth` audit stamps.
 - [x] LINE × LINE with parallel sources → "These two don't intersect" message + extension chip — `lineLineIntersection` returns null when the cross-product denominator is < 1e-10; the dialog's Candidates region surfaces an explainer chip in that case. The extension toggle (Slice 2) is staged.
-- [ ] LINE × LINE with extension ON finds the virtual intersection past both endpoints; ghost rendered as dashed line — extension semantics ship in Slice 2. Slice 1 already classifies candidates as "within both" vs. "extended" via `isWithinSegment`, surfacing green / amber badge accordingly.
+- [x] LINE × LINE with extension ON finds the virtual intersection past both endpoints; ghost rendered as dashed line — Slice 2 adds independent `extendA` / `extendB` toggles in `IntersectDialog`. Toggling either fires `cad:intersectPreview` with the active sources + candidate; `CanvasViewport.renderIntersectPreview` paints a dashed extension on the previewGraphics layer using the new `drawDashedScreenLine` helper (6 px / 4 px screen-space dash). The candidate row badges per-source overshoot — "extended A 12.30 ft" / "extended B 1.45 ft" (amber when extended-with-consent, red when extension is OFF). `canConfirm` is gated by `(withinA || extendA) && (withinB || extendB)` so extending one side without consent disables the drop.
 - [ ] LINE × ARC yields 0 / 1 / 2 candidates depending on geometry; cycling with ↓/↑ moves the canvas highlight
 - [ ] CIRCLE × CIRCLE (intersecting) yields 2 candidates, each `[keep]` adds a POINT
 - [ ] CIRCLE × CIRCLE (tangent) yields 1 candidate; confirm drops one POINT
@@ -1588,7 +1588,7 @@ Some pairs always yield ≤ 1 candidate (LINE × LINE either misses or meets at 
 - [ ] Build corner: extended sources + stamped POINT all land in one batch undo entry
 - [ ] Trim both to intersection: kept candidate must be within both finite extents; otherwise the option is disabled with a tooltip explaining why
 - [ ] Multi-source SPLINE × LINE produces N candidates, each labelled with its segment-of-spline number
-- [ ] Property panel of dropped POINT shows `intersectSourceAId`, `intersectSourceBId`, `intersectMethod`, extension flags
+- [x] Property panel of dropped POINT shows `intersectSourceAId`, `intersectSourceBId`, `intersectMethod`, extension flags — Slice 2 stamps `properties.intersectSourceAId`, `intersectSourceBId`, `intersectMethod`, `intersectWithinBoth`, `intersectExtendedA`, and `intersectExtendedB` on every dropped POINT, giving a future LIST tool full provenance over how the corner was constructed.
 
 ### 11.6.9 Implementation Sequence (deterministic)
 

@@ -8,10 +8,12 @@
 // intersection points (0 or 1 for two lines), and Confirm
 // drops a POINT at the chosen candidate.
 //
-// Slice 2+ will add: extension toggle, dashed preview,
-// LINE × ARC / CIRCLE methods, multi-candidate cycling,
-// output modes (trim / extend / build corner), polyline-
-// segment + RAY + INFINITE-LINE sources.
+// Slice 2 — extension toggle (Extend A / Extend B), live
+// dashed extension preview rendered on the canvas, and
+// per-source within/extended-N-ft badging in the candidate
+// row. When extension is OFF for a source and the candidate
+// falls outside its extent, Confirm is gated (matches the
+// §11.6.4 spec: "off-extent candidates are discarded").
 
 import { useEffect, useRef, useState } from 'react';
 import { X, Crosshair, MousePointerClick } from 'lucide-react';
@@ -51,17 +53,55 @@ export default function IntersectDialog({ onClose }: Props) {
   const [sourceA, setSourceA] = useState<PickedLine | null>(null);
   const [sourceB, setSourceB] = useState<PickedLine | null>(null);
   const [pickingSlot, setPickingSlot] = useState<'A' | 'B' | null>(null);
+  // §11.6.4 — independent extension toggles. When ON for a
+  // source the dialog treats it as an infinite line and the
+  // canvas paints a dashed preview past both endpoints.
+  const [extendA, setExtendA] = useState(false);
+  const [extendB, setExtendB] = useState(false);
 
   // Compute the candidate intersection. lineLineIntersection
-  // returns null when the lines are parallel; we also derive
-  // "within both extents" via segment-segment containment.
+  // returns null when the lines are parallel.
   const candidate: Point2D | null = sourceA && sourceB
     ? lineLineIntersection(sourceA.start, sourceA.end, sourceB.start, sourceB.end)
     : null;
 
-  const withinBoth = candidate && sourceA && sourceB
-    ? isWithinSegment(candidate, sourceA) && isWithinSegment(candidate, sourceB)
-    : false;
+  // Per-source projection — t-parameter along each line plus
+  // distance-past-nearest-endpoint when t lies outside [0,1].
+  const projA = candidate && sourceA ? projectOntoLine(candidate, sourceA) : null;
+  const projB = candidate && sourceB ? projectOntoLine(candidate, sourceB) : null;
+  const withinA = !!projA?.within;
+  const withinB = !!projB?.within;
+  const withinBoth = withinA && withinB;
+  // Extension consent — when extension is OFF for a source
+  // the candidate must lie inside that source's extent.
+  const consentA = withinA || extendA;
+  const consentB = withinB || extendB;
+
+  // Push the live preview state to the canvas. Slice 2 paints
+  // dashed extensions for any source whose extension toggle
+  // is ON plus a crosshair at the current candidate. The
+  // canvas reads off `cad:intersectPreview` events; we emit
+  // on any state change and clear on unmount so the ghost
+  // doesn't outlive the dialog.
+  useEffect(() => {
+    const detail = {
+      sourceA: sourceA
+        ? { featureId: sourceA.featureId, start: sourceA.start, end: sourceA.end }
+        : null,
+      sourceB: sourceB
+        ? { featureId: sourceB.featureId, start: sourceB.start, end: sourceB.end }
+        : null,
+      extendA,
+      extendB,
+      candidate,
+      withinA,
+      withinB,
+    };
+    window.dispatchEvent(new CustomEvent('cad:intersectPreview', { detail }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('cad:intersectPreview', { detail: null }));
+    };
+  }, [sourceA, sourceB, extendA, extendB, candidate, withinA, withinB]);
 
   // Listen for canvas-click events that fill the active slot.
   useEffect(() => {
@@ -123,6 +163,8 @@ export default function IntersectDialog({ onClose }: Props) {
         intersectSourceBId: sourceB.featureId,
         intersectMethod: 'LINE_LINE',
         intersectWithinBoth: withinBoth,
+        intersectExtendedA: !withinA,
+        intersectExtendedB: !withinB,
       },
     };
     drawingStore.addFeature(pt);
@@ -137,9 +179,12 @@ export default function IntersectDialog({ onClose }: Props) {
     setSourceA(null);
     setSourceB(null);
     setPickingSlot(null);
+    setExtendA(false);
+    setExtendB(false);
   }
 
-  const canConfirm = sourceA != null && sourceB != null && candidate != null;
+  const canConfirm =
+    sourceA != null && sourceB != null && candidate != null && consentA && consentB;
 
   return (
     <div
@@ -172,16 +217,20 @@ export default function IntersectDialog({ onClose }: Props) {
             label="Source A"
             picked={sourceA}
             isPicking={pickingSlot === 'A'}
+            extend={extendA}
             onPick={() => setPickingSlot(pickingSlot === 'A' ? null : 'A')}
             onClear={() => setSourceA(null)}
+            onToggleExtend={() => setExtendA((v) => !v)}
           />
           {/* Source B picker */}
           <SourcePickerRow
             label="Source B"
             picked={sourceB}
             isPicking={pickingSlot === 'B'}
+            extend={extendB}
             onPick={() => setPickingSlot(pickingSlot === 'B' ? null : 'B')}
             onClear={() => setSourceB(null)}
+            onToggleExtend={() => setExtendB((v) => !v)}
           />
 
           {/* Candidate readout */}
@@ -191,17 +240,57 @@ export default function IntersectDialog({ onClose }: Props) {
             </div>
             {sourceA && sourceB ? (
               candidate ? (
-                <div className="text-[11px] text-gray-300 font-mono">
-                  <span className="text-blue-400">①</span>{' '}
-                  ({candidate.x.toFixed(3)}, {candidate.y.toFixed(3)})
-                  {' '}
-                  <span className={withinBoth ? 'text-green-400' : 'text-amber-400'}>
-                    {withinBoth ? '(within both)' : '(extended)'}
-                  </span>
+                <div className="text-[11px] text-gray-300 font-mono space-y-1">
+                  <div>
+                    <span className="text-blue-400">①</span>{' '}
+                    ({candidate.x.toFixed(3)}, {candidate.y.toFixed(3)})
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {withinBoth ? (
+                      <span className="px-1.5 py-[1px] rounded bg-green-900/60 text-green-300 text-[10px]">
+                        within both
+                      </span>
+                    ) : (
+                      <>
+                        {!withinA && projA && (
+                          <span
+                            className={`px-1.5 py-[1px] rounded text-[10px] ${
+                              extendA
+                                ? 'bg-amber-900/60 text-amber-300'
+                                : 'bg-red-900/60 text-red-300'
+                            }`}
+                            title={
+                              extendA
+                                ? 'Source A is being virtually extended to reach the candidate.'
+                                : 'Candidate lies past Source A\'s endpoint — toggle "Extend A" to allow it.'
+                            }
+                          >
+                            extended A {projA.distancePastFt.toFixed(2)} ft{extendA ? '' : ' — toggle Extend A'}
+                          </span>
+                        )}
+                        {!withinB && projB && (
+                          <span
+                            className={`px-1.5 py-[1px] rounded text-[10px] ${
+                              extendB
+                                ? 'bg-amber-900/60 text-amber-300'
+                                : 'bg-red-900/60 text-red-300'
+                            }`}
+                            title={
+                              extendB
+                                ? 'Source B is being virtually extended to reach the candidate.'
+                                : 'Candidate lies past Source B\'s endpoint — toggle "Extend B" to allow it.'
+                            }
+                          >
+                            extended B {projB.distancePastFt.toFixed(2)} ft{extendB ? '' : ' — toggle Extend B'}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <p className="text-[11px] text-gray-500 italic">
-                  Lines are parallel — no intersection. (Slice 1 doesn&apos;t yet handle the extension toggle.)
+                  These two don&apos;t intersect — the lines are parallel.
                 </p>
               )
             ) : (
@@ -246,25 +335,41 @@ function SourcePickerRow(props: {
   label: string;
   picked: PickedLine | null;
   isPicking: boolean;
+  extend: boolean;
   onPick: () => void;
   onClear: () => void;
+  onToggleExtend: () => void;
 }) {
   return (
     <div>
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-1 gap-2">
         <span className="text-[11px] text-gray-400">{props.label}</span>
-        <button
-          type="button"
-          onClick={props.onPick}
-          className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded border transition-colors ${
-            props.isPicking
-              ? 'bg-blue-600 border-blue-500 text-white shadow-[0_0_0_2px_rgba(59,130,246,0.3)]'
-              : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white'
-          }`}
-        >
-          <MousePointerClick size={12} />
-          {props.isPicking ? 'Click a line on canvas…' : props.picked ? 'Re-pick' : 'Pick from canvas'}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <label
+            className="flex items-center gap-1 px-1.5 py-1 text-[11px] rounded border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-500 cursor-pointer select-none"
+            title={`Treat ${props.label} as an infinite line — finds the virtual intersection past either endpoint.`}
+          >
+            <input
+              type="checkbox"
+              checked={props.extend}
+              onChange={props.onToggleExtend}
+              className="accent-amber-500 w-3 h-3"
+            />
+            Extend
+          </label>
+          <button
+            type="button"
+            onClick={props.onPick}
+            className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded border transition-colors ${
+              props.isPicking
+                ? 'bg-blue-600 border-blue-500 text-white shadow-[0_0_0_2px_rgba(59,130,246,0.3)]'
+                : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white'
+            }`}
+          >
+            <MousePointerClick size={12} />
+            {props.isPicking ? 'Click a line on canvas…' : props.picked ? 'Re-pick' : 'Pick from canvas'}
+          </button>
+        </div>
       </div>
       <div className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-[11px] font-mono">
         {props.picked ? (
@@ -287,18 +392,32 @@ function SourcePickerRow(props: {
 }
 
 /**
- * Test whether `p` lies inside the segment a→b (within ε).
- * Used to flag intersection candidates as "within both
- * extents" vs. "extended past one or both."
+ * Project `p` onto the line that contains the segment a→b.
+ * Returns:
+ *   - `t` — parameter along the line (0 = start, 1 = end).
+ *   - `within` — true when `p` lies inside the segment ±ε.
+ *   - `distancePastFt` — when not within, the distance past
+ *     the nearest endpoint along the line direction (always
+ *     ≥ 0). Used for the "extended A 12.3 ft" badge.
  */
-function isWithinSegment(p: Point2D, line: PickedLine): boolean {
+function projectOntoLine(p: Point2D, line: PickedLine): {
+  t: number;
+  within: boolean;
+  distancePastFt: number;
+} | null {
   const EPS = 1e-6;
   const { start, end } = line;
-  // Project p onto the line; t in [0, 1] means inside the segment.
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const lenSq = dx * dx + dy * dy;
-  if (lenSq < EPS) return false;
+  if (lenSq < EPS) return null;
+  const length = Math.sqrt(lenSq);
   const t = ((p.x - start.x) * dx + (p.y - start.y) * dy) / lenSq;
-  return t >= -EPS && t <= 1 + EPS;
+  const within = t >= -EPS && t <= 1 + EPS;
+  // distancePastFt: 0 inside the segment; otherwise the
+  // overshoot along the line direction in world feet.
+  let distancePastFt = 0;
+  if (t < 0) distancePastFt = -t * length;
+  else if (t > 1) distancePastFt = (t - 1) * length;
+  return { t, within, distancePastFt };
 }

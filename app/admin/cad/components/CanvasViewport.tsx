@@ -407,6 +407,39 @@ function pickAxisFromFeature(
 }
 
 /**
+ * Draw a dashed line between two screen-space points. Pixi
+ * doesn't natively support dash patterns, so we emit a series
+ * of short solid segments. `lineStyle` is set internally so
+ * callers don't need to (lineWeight 1.25 matches the rest of
+ * the ghost-preview render path).
+ */
+function drawDashedScreenLine(
+  g: import('pixi.js').Graphics,
+  a: { sx: number; sy: number },
+  b: { sx: number; sy: number },
+  color: number,
+  alpha: number,
+): void {
+  const DASH = 6;
+  const GAP = 4;
+  const dx = b.sx - a.sx;
+  const dy = b.sy - a.sy;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 0.5) return;
+  const ux = dx / len;
+  const uy = dy / len;
+  g.lineStyle(1.25, color, alpha);
+  let t = 0;
+  while (t < len) {
+    const t0 = t;
+    const t1 = Math.min(t + DASH, len);
+    g.moveTo(a.sx + ux * t0, a.sy + uy * t0);
+    g.lineTo(a.sx + ux * t1, a.sy + uy * t1);
+    t += DASH + GAP;
+  }
+}
+
+/**
  * Render a faint ghost of `feature` after applying
  * `transformFn` so the user can see exactly where a transform
  * (mirror, move, copy, flip, invert, rotate, scale) will land
@@ -613,6 +646,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // open for canvas-side picking. Next canvas click feeds the
   // hit feature id back to the dialog and gets swallowed.
   const intersectPickingRef = useRef(false);
+  // Phase 8 §11.6 Slice 2 — current IntersectDialog state for
+  // the live ghost preview (dashed extensions + candidate
+  // crosshair). null whenever the dialog is closed.
+  const intersectPreviewRef = useRef<{
+    sourceA: { featureId: string; start: Point2D; end: Point2D } | null;
+    sourceB: { featureId: string; start: Point2D; end: Point2D } | null;
+    extendA: boolean;
+    extendB: boolean;
+    candidate: Point2D | null;
+    withinA: boolean;
+    withinB: boolean;
+  } | null>(null);
   const rafRef = useRef<number>(0);
   /** §19.1 — memoized spatial index for the active document.
    *  Stamped with the `features` object reference so a single
@@ -763,6 +808,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     return () => {
       window.removeEventListener('cad:intersectPicking', handler);
       intersectPickingRef.current = false;
+    };
+  }, []);
+
+  // Phase 8 §11.6 Slice 2 — live preview state from the
+  // IntersectDialog. Detail is `null` whenever the dialog
+  // closes / unmounts so we drop the ghost on the very next
+  // render frame.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      intersectPreviewRef.current = detail ?? null;
+    };
+    window.addEventListener('cad:intersectPreview', handler);
+    return () => {
+      window.removeEventListener('cad:intersectPreview', handler);
+      intersectPreviewRef.current = null;
     };
   }, []);
 
@@ -6442,6 +6503,76 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
   }
 
+  // Phase 8 §11.6 Slice 2 — render dashed extensions for any
+  // source whose extension toggle is ON and a crosshair at
+  // the candidate intersection. Painted on the previewGraphics
+  // layer so it sits above features but below selection.
+  function renderIntersectPreview() {
+    const preview = intersectPreviewRef.current;
+    if (!preview) return;
+    const { sourceA, sourceB, extendA, extendB, candidate, withinA, withinB } = preview;
+    if (!sourceA && !sourceB && !candidate) return;
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const g = pixi.previewGraphics;
+
+    const SRC_A_COLOR = 0x60a5fa; // sky-400
+    const SRC_B_COLOR = 0xa78bfa; // violet-400
+    const CAND_OK_COLOR = 0x4ade80; // green-400 (within both)
+    const CAND_EXT_COLOR = 0xfbbf24; // amber-400 (any side extended)
+
+    // Dashed extension: paint the line projected past each
+    // endpoint by an extension length proportional to the
+    // segment length so the surveyor sees the geometry.
+    const drawExtension = (
+      start: Point2D,
+      end: Point2D,
+      color: number,
+      extendToCandidate: boolean,
+    ) => {
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 1e-9) return;
+      const ux = dx / len;
+      const uy = dy / len;
+      // Default extension reach: the larger of segment length
+      // or distance-to-candidate-projection so the dashed
+      // preview always reaches the candidate when the toggle
+      // is on.
+      let reachStart = len;
+      let reachEnd = len;
+      if (extendToCandidate && candidate) {
+        const t =
+          ((candidate.x - start.x) * dx + (candidate.y - start.y) * dy) / (len * len);
+        if (t < 0) reachStart = Math.max(reachStart, Math.abs(t) * len + 8);
+        else if (t > 1) reachEnd = Math.max(reachEnd, (t - 1) * len + 8);
+      }
+      const pastStart = { x: start.x - ux * reachStart, y: start.y - uy * reachStart };
+      const pastEnd = { x: end.x + ux * reachEnd, y: end.y + uy * reachEnd };
+      // Dashed segments (~6 px on / 4 px off in screen space).
+      drawDashedScreenLine(g, w2s(pastStart.x, pastStart.y), w2s(start.x, start.y), color, 0.55);
+      drawDashedScreenLine(g, w2s(end.x, end.y), w2s(pastEnd.x, pastEnd.y), color, 0.55);
+    };
+
+    if (sourceA && extendA) drawExtension(sourceA.start, sourceA.end, SRC_A_COLOR, true);
+    if (sourceB && extendB) drawExtension(sourceB.start, sourceB.end, SRC_B_COLOR, true);
+
+    // Candidate crosshair — small + screen-space sized so it
+    // stays legible at any zoom.
+    if (candidate) {
+      const { sx, sy } = w2s(candidate.x, candidate.y);
+      const color = withinA && withinB ? CAND_OK_COLOR : CAND_EXT_COLOR;
+      const R = 8;
+      g.lineStyle(1.5, color, 0.95);
+      g.moveTo(sx - R, sy); g.lineTo(sx + R, sy);
+      g.moveTo(sx, sy - R); g.lineTo(sx, sy + R);
+      // Ring around the crosshair so it pops.
+      g.lineStyle(1, color, 0.5);
+      g.drawCircle(sx, sy, R + 3);
+    }
+  }
+
   // ─────────────────────────────────────────────
   // Master render function
   // ─────────────────────────────────────────────
@@ -6468,6 +6599,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     renderSnapIndicator();
     renderToolPreview();
     renderTransferGhost();
+    renderIntersectPreview();
     renderTitleBlock();
   }
 
