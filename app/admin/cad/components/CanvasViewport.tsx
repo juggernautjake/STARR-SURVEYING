@@ -3139,6 +3139,45 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
       }
     }
+
+    // Phase 8 §11.7 Slice 15 — what-changed green pulse.
+    // Shortly after Confirm fires, the transfer store stores
+    // the result feature ids + a startedAt timestamp. We
+    // render a pulsing green halo around each one for
+    // ~1500 ms; the store auto-clears when the timer fires.
+    // Reads the latest state on every frame so the pulse
+    // alpha animates with the render loop.
+    if (transferState.recentlyTransferred && transferState.recentlyTransferred.ids.length > 0) {
+      const elapsed = Date.now() - transferState.recentlyTransferred.startedAt;
+      const PULSE_DURATION_MS = 1500;
+      if (elapsed >= 0 && elapsed < PULSE_DURATION_MS) {
+        // Ease-out fade so the halo decays naturally.
+        const t = elapsed / PULSE_DURATION_MS;
+        const fade = 1 - t;
+        // Two-pulse cycle so the surveyor's eye catches it
+        // even with peripheral attention.
+        const pulse = 0.5 + 0.5 * Math.sin((elapsed / PULSE_DURATION_MS) * Math.PI * 2);
+        const haloAlpha = 0.55 * fade * pulse;
+        const ringAlpha = 0.85 * fade;
+        const PULSE_GREEN = 0x22c55e; // green-500
+        for (const fid of transferState.recentlyTransferred.ids) {
+          const feat = drawingStore.getFeature(fid);
+          if (!feat) continue;
+          const bb = featureBounds(feat);
+          if (!Number.isFinite(bb.minX)) continue;
+          const a = w2s(bb.minX, bb.minY);
+          const b = w2s(bb.maxX, bb.maxY);
+          const x = Math.min(a.sx, b.sx) - 8;
+          const y = Math.min(a.sy, b.sy) - 8;
+          const w = Math.abs(b.sx - a.sx) + 16;
+          const h = Math.abs(b.sy - a.sy) + 16;
+          g.lineStyle(6, PULSE_GREEN, haloAlpha);
+          g.drawRoundedRect(x - 3, y - 3, w + 6, h + 6, 6);
+          g.lineStyle(2, PULSE_GREEN, ringAlpha);
+          g.drawRoundedRect(x, y, w, h, 6);
+        }
+      }
+    }
   }
 
   function drawSidebarHoverRing(g: import('pixi.js').Graphics): void {

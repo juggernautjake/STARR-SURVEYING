@@ -46,6 +46,12 @@ export interface TransferOptions {
    *  even if non-zero values were set. Lets the surveyor keep
    *  a baseline value typed in but disable it for one transfer. */
   applyOffset: boolean;
+  /** When true, after a successful Duplicate, lock every
+   *  layer the source features came from so the surveyor
+   *  can't accidentally edit the originals while working
+   *  on the duplicate. Move never triggers this — moved
+   *  features no longer live on the source layer. */
+  lockSourceAfterCopy: boolean;
 }
 
 interface TransferStore {
@@ -62,11 +68,22 @@ interface TransferStore {
    *  is currently loaded. Drives the preset-dropdown highlight
    *  and the Confirm-time use-count bump. */
   activePresetId: string | null;
+  /** Phase 8 §11.7 Slice 15 — feature ids that just landed
+   *  from a successful Confirm. CanvasViewport renders a
+   *  short-lived green pulse around each so the surveyor
+   *  visually confirms the right things changed. The dialog
+   *  fires `flashRecentlyTransferred` which writes the ids
+   *  + a started-at timestamp; a setTimeout clears the array
+   *  after 1500 ms. */
+  recentlyTransferred: { ids: string[]; startedAt: number } | null;
 
   open: (initialPickedIds?: Iterable<string>) => void;
   close: () => void;
   setPickModeActive: (active: boolean) => void;
   setActivePresetId: (id: string | null) => void;
+  /** Flash a green pulse on these feature ids for ~1500 ms. */
+  flashRecentlyTransferred: (ids: string[]) => void;
+  clearRecentlyTransferred: () => void;
   /** Toggle a single feature in / out of the picked set. Records a
    *  history entry so Backspace / pick-undo can reverse it. */
   togglePick: (id: string) => void;
@@ -92,6 +109,7 @@ const DEFAULT_OPTIONS: TransferOptions = {
   offsetDistanceFt: 0,
   offsetBearingDeg: 0,
   applyOffset: false,
+  lockSourceAfterCopy: false,
 };
 
 export const useTransferStore = create<TransferStore>((set) => ({
@@ -101,6 +119,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
   pickHistory: [],
   options: { ...DEFAULT_OPTIONS },
   activePresetId: null,
+  recentlyTransferred: null,
 
   open: (initialPickedIds) =>
     set(() => ({
@@ -110,6 +129,8 @@ export const useTransferStore = create<TransferStore>((set) => ({
       pickHistory: [],
       options: { ...DEFAULT_OPTIONS },
       activePresetId: null,
+      // Don't clear recentlyTransferred on open — the pulse
+      // fires AFTER close, so the next open doesn't care.
     })),
 
   close: () =>
@@ -123,6 +144,10 @@ export const useTransferStore = create<TransferStore>((set) => ({
 
   setPickModeActive: (active) => set(() => ({ pickModeActive: active })),
   setActivePresetId: (id) => set(() => ({ activePresetId: id })),
+  flashRecentlyTransferred: (ids) =>
+    set(() => ({ recentlyTransferred: { ids, startedAt: Date.now() } })),
+  clearRecentlyTransferred: () =>
+    set(() => ({ recentlyTransferred: null })),
 
   togglePick: (id) =>
     set((s) => {

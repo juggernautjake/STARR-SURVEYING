@@ -31,6 +31,7 @@ import {
 import { generateId } from '@/lib/cad/types';
 import Tooltip from './Tooltip';
 import UnitInput from './UnitInput';
+import { confirmAction } from './ConfirmDialog';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -179,8 +180,36 @@ export default function LayerTransferDialog({ onClose }: Props) {
     targetLayer != null &&
     !targetLocked;
 
-  function commit() {
+  async function commit() {
     if (!canConfirm || !targetLayer) return;
+
+    // ── Mistake-prevention: confirm bulk Moves ─────────────
+    // Move > 5 features is the threshold the existing bulk-
+    // delete confirm uses; keep behaviour consistent. Single-
+    // feature and small Moves don't get a prompt.
+    const sourceIds = Array.from(pickedIds);
+    if (options.operation === 'MOVE' && sourceIds.length >= 5) {
+      const ok = await confirmAction({
+        title: 'Move features?',
+        message: `Move ${sourceIds.length} feature${sourceIds.length === 1 ? '' : 's'} to "${targetLayer.name}"? Originals will be removed from their current layer.`,
+        confirmLabel: 'Move',
+        cancelLabel: 'Cancel',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+
+    // Capture source-layer ids BEFORE the kernel runs so a
+    // post-Confirm lock can target only the layers the
+    // duplicates actually came from.
+    const sourceLayerIds = new Set<string>();
+    if (options.operation === 'DUPLICATE' && options.lockSourceAfterCopy) {
+      for (const id of sourceIds) {
+        const f = drawingStore.getFeature(id);
+        if (f) sourceLayerIds.add(f.layerId);
+      }
+    }
+
     // Roll the optional offset into the kernel options when
     // the surveyor enabled it AND a non-zero distance is set
     // (lets them keep a baseline value typed in but skip the
@@ -189,7 +218,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
       ? { distanceFt: options.offsetDistanceFt, bearingDeg: options.offsetBearingDeg }
       : null;
     const result = transferSelectionToLayer(
-      Array.from(pickedIds),
+      sourceIds,
       targetLayer.id,
       {
         keepOriginals: options.keepOriginals,
@@ -212,6 +241,24 @@ export default function LayerTransferDialog({ onClose }: Props) {
       if (activeId) {
         useUIStore.getState().recordTransferPresetUse(activeId);
       }
+      // Optional post-Confirm lock: every layer the
+      // duplicates came from gets locked so the surveyor
+      // can't accidentally edit the originals.
+      if (sourceLayerIds.size > 0) {
+        for (const lid of sourceLayerIds) {
+          drawingStore.updateLayer(lid, { locked: true });
+        }
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: `Locked ${sourceLayerIds.size} source layer${sourceLayerIds.size === 1 ? '' : 's'}.` },
+        }));
+      }
+      // Flash the green pulse on the result ids. Auto-clears
+      // after 1500 ms so the canvas doesn't stay visually
+      // noisy.
+      useTransferStore.getState().flashRecentlyTransferred(result.resultIds);
+      setTimeout(() => {
+        useTransferStore.getState().clearRecentlyTransferred();
+      }, 1500);
     }
     onClose();
   }
@@ -787,12 +834,13 @@ function OptionsBlock() {
     <details className="bg-gray-900 border border-gray-700 rounded">
       <summary className="px-2 py-1.5 cursor-pointer text-[11px] text-gray-300 hover:text-white select-none">
         Options
-        {(options.applyOffset || renumberOn || options.bringAlongLinkedGeometry) && (
+        {(options.applyOffset || renumberOn || options.bringAlongLinkedGeometry || options.lockSourceAfterCopy) && (
           <span className="ml-1.5 text-[10px] text-blue-400">
             ({[
               options.applyOffset && 'offset',
               renumberOn && 'renumber',
               options.bringAlongLinkedGeometry && 'linked',
+              options.lockSourceAfterCopy && 'lock source',
             ].filter(Boolean).join(', ')})
           </span>
         )}
@@ -883,6 +931,22 @@ function OptionsBlock() {
           </label>
           <p className="text-[10px] text-gray-500 mt-1">
             Auto-includes any polyline / polygon / arc / spline / line whose vertices are entirely defined by the picked POINTs. Pick all four corners of a building → the polygon comes along too.
+          </p>
+        </div>
+
+        {/* ── Lock source after copy ──────────────────────── */}
+        <div className="border-t border-gray-700 pt-2">
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={options.lockSourceAfterCopy}
+              onChange={(e) => setOptions({ lockSourceAfterCopy: e.target.checked })}
+              className="rounded"
+            />
+            Lock source layer after copy
+          </label>
+          <p className="text-[10px] text-gray-500 mt-1">
+            After a successful Duplicate, every layer the source features came from gets locked so you can&apos;t accidentally edit the originals while working on the duplicate. Move never triggers this.
           </p>
         </div>
       </div>
