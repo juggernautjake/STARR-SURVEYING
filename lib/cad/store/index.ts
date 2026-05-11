@@ -15,6 +15,7 @@ export { useAnnotationStore } from './annotation-store';
 export { useTemplateStore } from './template-store';
 export { useAIStore, AI_MODE_CYCLE } from './ai-store';
 export type { AIPipelineStatus, AIMode } from './ai-store';
+export type { AIProposal } from '../ai/proposals';
 export { useReviewWorkflowStore } from './review-workflow-store';
 export { useDeliveryStore } from './delivery-store';
 export { useDrawingChatStore } from './drawing-chat-store';

@@ -21,6 +21,9 @@
 // POST /api/admin/cad/ai-pipeline.
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { AIProposal } from '../ai/proposals';
+import { executeProposal } from '../ai/proposals';
+import type { ToolResult } from '../ai/tool-registry';
 
 import type {
   AIJobPayload,
@@ -68,6 +71,30 @@ interface AIStore {
   cycleMode: () => void;
   setSandbox: (sandbox: boolean) => void;
   setAutoApproveThreshold: (threshold: number) => void;
+
+  // ────────────────────────────────────────────────────────
+  // §32 Slice 5 — COPILOT proposal queue
+  // ────────────────────────────────────────────────────────
+  /** FIFO queue of proposals waiting for the surveyor to
+   *  Accept / Modify / Skip. The CopilotCard renders the head.
+   *  Ephemeral — not persisted (a fresh load starts empty). */
+  proposalQueue: AIProposal[];
+  /** Append a proposal to the tail. Used by both the real AI
+   *  adapter (Slice 6) and the mock proposer (tests). */
+  enqueueProposal: (proposal: AIProposal) => void;
+  /** Run the head proposal through `executeProposal`, then
+   *  dequeue. Returns the `ToolResult` so test code can assert
+   *  the kernel's response without scraping the drawing store.
+   *  `sandbox` overrides the proposal's `sandboxDefault` and
+   *  the store-wide default. */
+  acceptHeadProposal: (sandbox?: boolean) => ToolResult<unknown> | null;
+  /** Dequeue the head without executing. The proposal id is
+   *  returned so the AI adapter can NACK the model if needed. */
+  skipHeadProposal: () => string | null;
+  /** Drop every queued proposal. Used by mode-changes (leaving
+   *  COPILOT cancels in-flight cards) and by `clearProposalQueue`
+   *  in the test helpers. */
+  clearProposalQueue: () => void;
 
   // Dialog visibility.
   isDialogOpen: boolean;
@@ -217,6 +244,31 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
   setSandbox: (sandbox) => set({ sandbox }),
   setAutoApproveThreshold: (threshold) =>
     set({ autoApproveThreshold: Math.max(0, Math.min(1, threshold)) }),
+
+  // §32 Slice 5 — COPILOT proposal queue
+  proposalQueue: [],
+  enqueueProposal: (proposal) =>
+    set((s) => ({ proposalQueue: [...s.proposalQueue, proposal] })),
+  acceptHeadProposal: (sandbox) => {
+    const state = get();
+    const head = state.proposalQueue[0];
+    if (!head) return null;
+    const effectiveSandbox =
+      typeof sandbox === 'boolean'
+        ? sandbox
+        : (head.sandboxDefault ?? state.sandbox);
+    const result = executeProposal(head, effectiveSandbox);
+    set((s) => ({ proposalQueue: s.proposalQueue.slice(1) }));
+    return result;
+  },
+  skipHeadProposal: () => {
+    const state = get();
+    const head = state.proposalQueue[0];
+    if (!head) return null;
+    set((s) => ({ proposalQueue: s.proposalQueue.slice(1) }));
+    return head.id;
+  },
+  clearProposalQueue: () => set({ proposalQueue: [] }),
 
   isDialogOpen: false,
   isQueuePanelOpen: false,

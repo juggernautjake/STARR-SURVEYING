@@ -23,6 +23,7 @@ import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
 import AIProvenancePopup from './components/AIProvenancePopup';
+import CopilotCard from './components/CopilotCard';
 import CompletenessPanel from './components/CompletenessPanel';
 import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import RPLSReviewModePanel from './components/RPLSReviewModePanel';
@@ -834,6 +835,11 @@ export default function CADLayout() {
           no full pipeline explanation. Renders only when the
           full popup above has nothing to show. */}
       <AIProvenancePopup />
+
+      {/* Phase 6 §32 Slice 5 COPILOT proposal card — renders
+          the head of useAIStore.proposalQueue with Accept /
+          Modify / Skip + ghost preview on the canvas. */}
+      <CopilotCard />
 
       {/* Phase 7 §6.2 completeness checklist — slides in from the
           right, gates "Mark Ready for RPLS Review" on summary.ready */}

@@ -668,6 +668,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     withinA: boolean;
     withinB: boolean;
   } | null>(null);
+  /** Phase 6 §32 Slice 5 — COPILOT ghost preview state from
+   *  the active proposal. CopilotCard publishes via the
+   *  `cad:copilotPreview` event; the canvas paints a dashed
+   *  outline keyed off `kind`. Cleared when the card closes. */
+  const copilotPreviewRef = useRef<{
+    kind: 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON';
+    point?: Point2D;
+    from?: Point2D;
+    to?: Point2D;
+    vertices?: Point2D[];
+    color?: string;
+  } | null>(null);
   const rafRef = useRef<number>(0);
   /** §19.1 — memoized spatial index for the active document.
    *  Stamped with the `features` object reference so a single
@@ -834,6 +846,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     return () => {
       window.removeEventListener('cad:intersectPreview', handler);
       intersectPreviewRef.current = null;
+    };
+  }, []);
+
+  // Phase 6 §32 Slice 5 — COPILOT proposal ghost. Same pattern
+  // as the intersect preview: CopilotCard dispatches when the
+  // head proposal changes, the listener stashes the payload,
+  // and the next render frame paints a dashed outline.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      copilotPreviewRef.current = detail ?? null;
+    };
+    window.addEventListener('cad:copilotPreview', handler);
+    return () => {
+      window.removeEventListener('cad:copilotPreview', handler);
+      copilotPreviewRef.current = null;
     };
   }, []);
 
@@ -6641,6 +6669,46 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
   }
 
+  // Phase 6 §32 Slice 5 — paint a dashed ghost for the head
+  // COPILOT proposal. Same `drawDashedScreenLine` helper as the
+  // intersect preview. Layer-op proposals (createLayer /
+  // applyLayerStyle) clear the ref to null, so nothing renders.
+  function renderCopilotPreview() {
+    const preview = copilotPreviewRef.current;
+    if (!preview) return;
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const g = pixi.previewGraphics;
+    const color = preview.color
+      ? parseInt(preview.color.replace('#', ''), 16)
+      : 0xfacc15; // amber-300 — keeps proposal ghosts distinct from selection
+    if (preview.kind === 'POINT' && preview.point) {
+      const { sx, sy } = w2s(preview.point.x, preview.point.y);
+      const R = 7;
+      g.lineStyle(1.5, color, 0.9);
+      g.moveTo(sx - R, sy); g.lineTo(sx + R, sy);
+      g.moveTo(sx, sy - R); g.lineTo(sx, sy + R);
+      g.lineStyle(1, color, 0.5);
+      g.drawCircle(sx, sy, R + 3);
+    } else if (preview.kind === 'LINE' && preview.from && preview.to) {
+      drawDashedScreenLine(g, w2s(preview.from.x, preview.from.y), w2s(preview.to.x, preview.to.y), color, 0.85);
+    } else if ((preview.kind === 'POLYLINE' || preview.kind === 'POLYGON') && preview.vertices && preview.vertices.length >= 2) {
+      const verts = preview.vertices;
+      for (let i = 0; i < verts.length - 1; i++) {
+        drawDashedScreenLine(g, w2s(verts[i].x, verts[i].y), w2s(verts[i + 1].x, verts[i + 1].y), color, 0.85);
+      }
+      if (preview.kind === 'POLYGON') {
+        drawDashedScreenLine(
+          g,
+          w2s(verts[verts.length - 1].x, verts[verts.length - 1].y),
+          w2s(verts[0].x, verts[0].y),
+          color,
+          0.85,
+        );
+      }
+    }
+  }
+
   // ─────────────────────────────────────────────
   // Master render function
   // ─────────────────────────────────────────────
@@ -6668,6 +6736,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     renderToolPreview();
     renderTransferGhost();
     renderIntersectPreview();
+    renderCopilotPreview();
     renderTitleBlock();
   }
 
