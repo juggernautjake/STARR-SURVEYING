@@ -41,6 +41,7 @@
 29. [Interactive Drawing Preview & Confidence Element Cards](#29-interactive-drawing-preview--confidence-element-cards)
 30. [Per-Element AI Explanation & Element-Level Chat](#30-per-element-ai-explanation--element-level-chat)
 31. [AI Best-Fit Corners — Intelligent Intersect Workflow](#31-ai-best-fit-corners--intelligent-intersect-workflow)
+32. [AI Integration Framework — Four-Mode Architecture](#32-ai-integration-framework--four-mode-architecture)
 
 ---
 
@@ -3151,7 +3152,212 @@ interface AIStore {
 
 ---
 
-## Copilot Session Template
+## 32. AI Integration Framework — Four-Mode Architecture
+
+**Goal:** A single coherent framework that defines *how* the surveyor and the AI share control of the drawing. Every AI capability we've specified — point classification (§3), feature assembly (§4), deed reconciliation (§5), best-fit corners (§31), and every future skill — plugs into this framework. The architecture is deliberately small: four modes, one sandbox toggle, one tool registry. Everything else is per-skill detail.
+
+**Architectural commitment.** The AI is a *tool user*, not a renderer. It never writes pixels or bespoke geometry — it calls the same kernels the surveyor calls manually (the operations in `lib/cad/operations.ts`, the dialogs from Phase 8 §11.6/§11.7, etc.). This means every AI-generated feature is a real `Feature` object on a real `Layer`, fully editable the moment it lands. No "AI mode" / "manual mode" data divide.
+
+### 32.1 The Four Modes
+
+| Mode      | Behaviour                                                                                                                                                                  | Sandbox default | When to use                                                                                       |
+|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:---------------:|---------------------------------------------------------------------------------------------------|
+| **AUTO**     | AI ingests points + uploads, creates layers, draws the whole drawing end-to-end. Surveyor reviews after. Confidence-gated escalation drops to COPILOT for low-confidence steps. | ON              | Routine subdivisions / boundary jobs with well-known code dictionaries and good reference docs.   |
+| **COPILOT** *(default)* | AI proposes one action at a time → ghost preview on canvas + confidence card in chat → surveyor hits **Accept** / **Modify** / **Skip**. Modify reopens the prompt so the surveyor can redirect ("draw the rear lot lines as ARCs, not LINES"). | Surveyor toggle | The default for a fresh project. Surveyors trust AI faster when they've watched it work a few times. |
+| **COMMAND**  | Surveyor drives via chat sidebar, command palette, or right-click menu: "create a BACK_OF_CURB layer from all BC-* points as a polyline." AI executes that one task, returns. | OFF (live)      | Targeted clean-up work — surveyor knows exactly what they want done.                              |
+| **MANUAL**   | No AI in the loop. All the tools from Phases 1–5/8.                                                                                                                       | N/A             | Surveyor wants full hand control, or AI is unavailable.                                            |
+
+The mode is a first-class setting on the `AIStore` (§32.11). The status bar always shows the current mode + a one-click switcher.
+
+### 32.2 Default Mode + Onboarding
+
+- **Fresh project default**: COPILOT with sandbox ON.
+- **First-time-AI nudge**: on the first project import, a one-time tooltip explains the four modes and the keyboard switch. The surveyor's last-used mode persists per workspace (not per project).
+- **Mode-switch keybind**: `Ctrl+Shift+M` cycles AUTO → COPILOT → COMMAND → MANUAL → AUTO. Discoverable via the command palette as `ai.switch-mode`.
+
+### 32.3 Sandbox vs. Live Target
+
+Sandbox writes route to a parallel set of layers named `DRAFT__<targetname>` (double-underscore prefix). When the surveyor approves the draft, a single click promotes a draft layer to its target via the existing **Layer Transfer** kernel (Phase 8 §11.7) — no new geometry code, just a `MOVE` operation. Per-mode defaults:
+
+- **AUTO** → sandbox ON. Surveyor reviews the full draft drawing, promotes layers individually or all-at-once.
+- **COPILOT** → toggle in the dialog. Default ON; surveyor can flip to live for confident edits.
+- **COMMAND** → live by default. Surveyor explicitly asked; treating it as a draft would feel paternalistic.
+- **MANUAL** → N/A.
+
+The sandbox toggle is per-action in COPILOT, not session-wide — surveyor can sandbox a risky proposal while keeping low-risk ones live.
+
+### 32.4 Mode Switching Mid-Session (Confidence Escalation)
+
+Treat the mode as a property of the *next decision*, not the session. In AUTO, when AI confidence on a single decision falls below the threshold (§32.5), the framework silently escalates to COPILOT *for that decision only*:
+
+1. AUTO is drawing, confidence on a layer assignment is 0.62 (below the 0.85 threshold).
+2. Framework pauses the AUTO loop. A COPILOT card opens with the proposal + the ambiguity ("not sure whether codes labelled `XX-*` belong on `UTILITIES` or `STRUCTURES` — which layer?").
+3. Surveyor answers. AI continues AUTO from where it paused.
+4. The answer is persisted to the project's **code-resolution memory** (a per-project key → value map) so the same ambiguity isn't asked twice in the same project.
+
+**Manual pause hotkey**: `Ctrl+Shift+P` halts AUTO at the next safe boundary (between features, not mid-feature). The framework drops the surveyor into COPILOT with the next pending action queued for review.
+
+### 32.5 Confidence Threshold Settings
+
+Per-project setting `aiConfidenceThreshold`, default 0.85. Slider in the AI Settings panel labelled "Auto-approve threshold." Below the threshold, AUTO escalates; above, it commits without asking.
+
+Two derived behaviours:
+- **Threshold = 1.0** — AUTO never auto-approves anything; equivalent to COPILOT.
+- **Threshold = 0.0** — AUTO never asks; equivalent to "trust everything."
+
+The threshold's effect is visible in COPILOT too: cards above threshold show a green "auto-approvable" chip so the surveyor learns where AUTO would have committed without intervention.
+
+### 32.6 Reference Document Recommendation (Not Required)
+
+A points file alone is enough to run any mode. The framework strongly *recommends* reference docs (deed, recorded plat, hand sketch, prior drawings) but does not block. The new-project wizard shows:
+
+```
+┌─ Reference Documents (recommended) ─────────────────────┐
+│ Adding deed PDFs / recorded plats / sketches gives the  │
+│ AI much higher confidence on:                            │
+│   • Layer assignments (matches your project conventions) │
+│   • Boundary closure (validates against deed calls)      │
+│   • Symbol placement (recognises plat-specific markers)  │
+│                                                          │
+│ [+ Upload reference document]    [Skip — points only]   │
+└──────────────────────────────────────────────────────────┘
+```
+
+When the surveyor proceeds without references, every AI confidence score is dampened by a configurable factor (default × 0.85) and a status-bar chip reads **"Running without reference docs — confidence reduced."** The chip is clickable to add references after the fact; AI re-runs incremental reconciliation on the existing draft.
+
+### 32.7 Provenance Stamps + Replay
+
+Every AI-generated feature gets four properties stamped via the same `feature.properties` channel we already use for `intersectSourceAId` etc.:
+
+- `aiOrigin` — enum: `CODE_PARSE` / `FEATURE_ASSEMBLY` / `DEED_RECONCILE` / `BEST_FIT_CORNER` / `COMMAND_<verb>` / etc.
+- `aiConfidence` — 0–1 float.
+- `aiPromptHash` — SHA-256 of the prompt that produced the feature, so identical re-runs are deduplicable.
+- `aiSourcePoints` — JSON array of point IDs the AI cited as evidence.
+- `aiBatchId` — UUID grouping all features produced in one AI turn (one AUTO run, one COPILOT proposal, one COMMAND task).
+
+Two payoffs:
+- **"Why did AI draw this?"** — right-click any feature → menu entry opens an explanation popup with the prompt, the reasoning, and the cited evidence (§30.3 already specs the popup; this just supplies the data).
+- **Replay** — the AI sequence is replayable on a new points file (`File → Replay AI sequence on new points…`). Useful for "we re-shot the cul-de-sac; rebuild the drawing with the same conventions."
+
+### 32.8 Tool Registry (the AI's API Surface)
+
+Every operation the AI is allowed to invoke is declared as an Anthropic tool definition in `lib/cad/ai/tool-registry.ts`. Each entry has:
+- A JSON schema for arguments.
+- A pointer to the same kernel function the manual UI calls.
+- An optional confidence/preview wrapper that lets the framework either render a ghost (COPILOT) or commit immediately (AUTO/COMMAND).
+
+Initial tool registry (each one wraps an existing kernel; no new geometry code):
+
+| Tool name              | Wraps                                       | Why                                            |
+|------------------------|---------------------------------------------|------------------------------------------------|
+| `addPoint`             | `drawingStore.addFeature` (POINT)           | Drop a point at coords.                        |
+| `drawLineBetween`      | `drawingStore.addFeature` (LINE)            | Connect two points.                            |
+| `drawPolylineThrough`  | `drawingStore.addFeature` (POLYLINE)        | Connect N points in order.                     |
+| `drawArcThrough3`      | Phase 6 Kasa fit + addFeature (ARC)         | Fit an arc through 3+ points.                  |
+| `createLayer`          | `drawingStore.addLayer`                     | New layer with style.                          |
+| `applyLayerStyle`      | `drawingStore.updateLayer`                  | Update style on existing.                      |
+| `transferToLayer`      | Phase 8 §11.7 kernel                        | Move/duplicate selection to layer.             |
+| `intersectLineLine`    | Phase 8 §11.6 `lineLineIntersection`        | Drop an intersection POINT.                    |
+| `intersectLineCircle`  | Phase 8 §11.6 `lineCircleIntersections`     | Multi-candidate intersect.                     |
+| `intersectRayLine`     | Phase 8 §11.6 `rayLineIntersection`         | Bearing-driven intersect.                      |
+| `bestFitCorner`        | Phase 6 §31 backend                         | AI-deliberated corner.                         |
+| `runClosureCheck`      | Phase 6 §10 / closure helpers               | Validate a polygon's closure.                  |
+| `lookupReferenceDoc`   | Phase 6 §5/§6 OCR catalog                   | Query the uploaded references.                 |
+| `askSurveyor`          | Framework — opens a clarifying-question card | Ask a question; surveyor's answer becomes part of the AI's context. |
+| `recordCodeResolution` | AIStore.codeResolutionMemory                | Persist a code disambiguation.                 |
+
+The list grows as more skills land. Every tool returns a structured `{ ok: boolean; result?: T; reason?: string }` envelope so the AI can react to failures (e.g. layer name collision) rather than blow up.
+
+### 32.9 COMMAND Mode Entry Points
+
+1. **Chat sidebar** (always visible in COMMAND mode, collapsible in other modes). Free-form natural language. Chat history persists per project.
+2. **Command palette** (`Ctrl+K`, already exists). New entries:
+   - `ai.parse-codes` — run code interpretation on current points file.
+   - `ai.fill-corners` — propose best-fit corners for any nearly-closed polygons.
+   - `ai.check-closure` — closure report on the active layer.
+   - `ai.create-layer-from-codes` — opens a dialog: code pattern + layer name + draw-as (point / polyline / polygon / arc).
+   - `ai.explain-feature` — explain the focused feature (route to §30.3 popup).
+3. **Right-click → "Ask AI about this…"** — context-aware. The current selection becomes part of the prompt; the AI knows it's reasoning about *those specific features*.
+
+In COMMAND mode, every AI call still produces a confidence card; the surveyor can dismiss it with Escape or hit Accept.
+
+### 32.10 Per-AI-Action Undo Semantics
+
+Every AI tool call generates its own undo entry — same pattern as the Intersect Slice 7 single-drop / batch-drop split:
+
+- **Single-feature tool call** (`addPoint`, `drawLineBetween`) → `makeAddFeatureEntry`.
+- **Multi-feature tool call** (`drawPolylineThrough`, `bestFitCorner` with 3 features) → `makeBatchEntry` with a description like *"AI: draw BACK_OF_CURB polyline (12 vertices)"*.
+- **AUTO turn** producing N features → each tool call has its own undo entry **plus** a single virtual *"Undo AI batch"* command that pops every entry produced in that turn (groupable via `aiBatchId`).
+
+The surveyor can therefore rip out one bad polyline without losing the surrounding layer assignments. The batch undo is exposed via the standard undo stack with a chevron sub-menu.
+
+### 32.11 State, Stores, and Persistence
+
+New state in `AIStore`:
+
+```typescript
+interface AIStoreState {
+  mode: 'AUTO' | 'COPILOT' | 'COMMAND' | 'MANUAL';
+  /** Per-action sandbox preference. Default per mode (see §32.3). */
+  sandbox: boolean;
+  /** Confidence threshold (0–1). AUTO escalates below this. */
+  autoApproveThreshold: number;
+  /** Currently-pending COPILOT card (one at a time). */
+  pendingProposal: AIProposal | null;
+  /** Queued AUTO actions (FIFO). When non-empty, AUTO is mid-run. */
+  autoQueue: AIToolCall[];
+  /** Code disambiguations the surveyor has answered, scoped to the project. */
+  codeResolutionMemory: Record<string, { layerId: string; answeredAt: number }>;
+  /** AI session timeline for replay (§32.7). */
+  aiBatches: AIBatchLog[];
+  /** Live chat transcript (COMMAND mode + ambient). */
+  chatMessages: ChatMessage[];
+}
+```
+
+Persisted via `zustand persist`, allow-list in `partialize` — `chatMessages` is capped at the last 500 entries to keep localStorage payloads small.
+
+### 32.12 Acceptance Tests
+
+- [ ] Fresh project loads in COPILOT mode by default with sandbox ON.
+- [ ] `Ctrl+Shift+M` cycles through the four modes; the status bar updates each press.
+- [ ] AUTO running below the confidence threshold escalates to COPILOT for that step; the surveyor's answer persists in `codeResolutionMemory` and the same ambiguity is not asked again in the project.
+- [ ] `Ctrl+Shift+P` pauses AUTO at the next feature boundary; the next queued action opens as a COPILOT card.
+- [ ] COPILOT card surfaces Accept / Modify / Skip; Modify reopens a chat input pre-populated with the proposal so the surveyor can redirect.
+- [ ] Sandbox-on AUTO writes features to `DRAFT__*` layers; one click in the layer panel promotes a draft layer (via the §11.7 Layer Transfer kernel).
+- [ ] Project created without reference docs shows a "running without reference docs" chip and dampens all confidence scores by × 0.85; uploading a deed after the fact triggers an incremental reconciliation.
+- [ ] Every AI-generated feature has `aiOrigin`, `aiConfidence`, `aiPromptHash`, `aiSourcePoints`, `aiBatchId` populated.
+- [ ] Right-click any AI-generated feature → "Why did AI draw this?" opens the explanation popup (§30.3) populated from the provenance stamps.
+- [ ] `File → Replay AI sequence on new points…` runs the same `aiBatches` log against an updated points file and produces a fresh draft drawing.
+- [ ] Command palette entries `ai.parse-codes`, `ai.fill-corners`, `ai.check-closure`, `ai.create-layer-from-codes`, `ai.explain-feature` all fire in COMMAND mode and route to the appropriate backend.
+- [ ] Right-click on a selection → "Ask AI about this…" composes a prompt that includes the selection's feature IDs and opens the chat with cursor focus.
+- [ ] AUTO turn producing N features supports both feature-level undo (one step pops one feature) and turn-level undo ("Undo AI batch" pops all N grouped by `aiBatchId`).
+- [ ] MANUAL mode disables every AI entry point — chat sidebar collapsed, palette `ai.*` entries hidden, right-click "Ask AI…" hidden.
+
+### 32.13 Implementation Sequence
+
+Each slice is a single PR / commit, all gated by tests:
+
+1. **Slice 1** — `AIStore` skeleton + the mode enum + status-bar mode indicator + `Ctrl+Shift+M` cycle hotkey + the four-mode UI shell. MANUAL is the only one that does anything yet (the existing manual UX); the other three render placeholders.
+2. **Slice 2** — Tool registry skeleton (`lib/cad/ai/tool-registry.ts`) with the first 5 tools (`addPoint`, `drawLineBetween`, `drawPolylineThrough`, `createLayer`, `applyLayerStyle`) — every entry wraps an existing kernel and returns the `{ ok, result, reason }` envelope. No AI calling them yet; tests drive them directly.
+3. **Slice 3** — Provenance stamps (`aiOrigin`, `aiConfidence`, `aiPromptHash`, `aiSourcePoints`, `aiBatchId`) added to `feature.properties` on every tool-registry call. Right-click "Why did AI draw this?" menu entry mounts; explanation popup reuses §30.3.
+4. **Slice 4** — Sandbox routing: tool-registry calls with `sandbox: true` write to `DRAFT__<targetname>` layers (auto-created). Layer panel grows a "Promote draft" affordance routing to the §11.7 transfer kernel.
+5. **Slice 5** — COPILOT proposal queue. AI emits a tool call → framework opens a `CopilotCard` with ghost preview + Accept / Modify / Skip. No real AI yet; a mock backend feeds canned proposals for testing.
+6. **Slice 6** — Wire the real Claude API call behind the proposal queue. System prompt is the project's code dictionary + layer template (cached via `cache_control`). Tool registry is exposed as the model's tool list.
+7. **Slice 7** — COMMAND mode wiring: chat sidebar component, command palette `ai.*` entries, right-click "Ask AI about this…" with selection-context prompt composition.
+8. **Slice 8** — Confidence threshold setting + AUTO escalation logic (AUTO becomes COPILOT for the single low-confidence decision, then resumes). `codeResolutionMemory` persistence.
+9. **Slice 9** — Reference-doc recommendation chip + new-project wizard reference-doc step + dampening-without-references factor (× 0.85 on every confidence score when no references uploaded).
+10. **Slice 10** — Per-AI-action undo semantics: single vs. batch tool calls, "Undo AI batch" grouped command, undo stack chevron sub-menu.
+11. **Slice 11** — AUTO run loop: feeds the AI a structured "project intake" prompt, processes the resulting tool calls into the proposal queue with `autoCommit: confidence > threshold`, manual pause at `Ctrl+Shift+P`.
+12. **Slice 12** — Replay command (`File → Replay AI sequence on new points…`): re-runs the `aiBatches` log against an updated points file, produces a fresh draft drawing for diff against the original.
+13. **Slice 13** — MANUAL mode lockdown: hide every AI entry point when mode === MANUAL; status bar shows a "no AI" chip.
+14. **Slice 14** — Polish + acceptance test pass: every test from §32.12 lit up green.
+
+Each slice keeps the application usable in MANUAL mode at minimum; AUTO arrives last. This way the framework can ship behind a feature flag in production without forcing every project to engage with AI before the surveyor is ready.
+
+---
+
+
 
 > I am building Starr CAD Phase 6 — AI Drawing Engine. Phases 1–5 (CAD engine, data import, styling, geometry/math, annotations/print) are complete. I am now building the AI pipeline: 6-stage processing (classify points → assemble features → reconcile with deed → intelligent placement → optimize labels → confidence scoring), Kasa circle fitting for arc detection, Claude API integration for deed parsing, a DigitalOcean worker for unlimited processing time, a 5-tier confidence scoring system with 6 weighted factors, dynamic offset resolution (field offset shots → true positions), online data enrichment (county parcel/GIS, PLSS, FEMA, elevation), an AI deliberation period with confidence-gated clarifying questions, an interactive two-panel drawing preview with visual confidence element cards (sorted least-confident-first, color-coded borders and bars), per-element AI explanation popups with element-level chat (Update/Redraw Group/Redraw Full), a review queue UI with per-item accept/modify/reject and batch actions, point group intelligence (calc/set/found resolution with delta reporting), and AI-assisted re-processing via user prompts. The spec is in `STARR_CAD_PHASE_6_AI_ENGINE.md`. I am currently working on **[CURRENT TASK from Build Order]**.
 
