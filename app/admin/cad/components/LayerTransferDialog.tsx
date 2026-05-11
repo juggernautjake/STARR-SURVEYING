@@ -30,6 +30,7 @@ import {
 } from '@/lib/cad/operations/parse-point-range';
 import { suggestCodeMapping } from '@/lib/cad/operations/suggest-code-mapping';
 import { generateId } from '@/lib/cad/types';
+import type { Point2D } from '@/lib/cad/types';
 import Tooltip from './Tooltip';
 import UnitInput from './UnitInput';
 import { confirmAction } from './ConfirmDialog';
@@ -1192,6 +1193,108 @@ function SmartSelectionHelpers() {
     applyHelper(ids, alt);
   }
 
+  // ── Bearing-range / length-range matchers ───────────────
+  //
+  // Walk every LINE + polyline-segment + arc chord; compute
+  // its bearing (0–360° azimuth from start to end) and its
+  // length; match against the user-supplied range. The
+  // matcher always considers the line in BOTH directions
+  // (start→end and end→start) because surveyors think of
+  // a line and its reverse as the same physical edge.
+  function segmentBearing(a: Point2D, b: Point2D): number {
+    const dE = b.x - a.x;
+    const dN = b.y - a.y;
+    let az = (Math.atan2(dE, dN) * 180) / Math.PI;
+    if (az < 0) az += 360;
+    return az;
+  }
+
+  function bearingInRange(az: number, lo: number, hi: number): boolean {
+    // Normalise both bounds and the candidate to [0, 360).
+    // Surveyors typically don't care which of the two
+    // physical directions the geometry was drawn in, so we
+    // accept the candidate OR its 180° opposite. (E.g.
+    // "horizontal fences" matches both 90° east-running and
+    // 270° west-running edges with one query.)
+    const norm = (x: number): number => ((x % 360) + 360) % 360;
+    const A = norm(lo);
+    const B = norm(hi);
+    const test = (cand: number): boolean => {
+      const c = norm(cand);
+      if (A <= B) return c >= A && c <= B;
+      // Wraps through 0 — e.g. 350°…10°.
+      return c >= A || c <= B;
+    };
+    return test(az) || test(az + 180);
+  }
+
+  function helperByBearingRange(loDeg: number, hiDeg: number, alt: boolean) {
+    const ids: string[] = [];
+    for (const f of Object.values(docFeatures)) {
+      if (f.hidden) continue;
+      const g = f.geometry;
+      let matched = false;
+      if (g.type === 'LINE' && g.start && g.end) {
+        if (bearingInRange(segmentBearing(g.start, g.end), loDeg, hiDeg)) matched = true;
+      } else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices && g.vertices.length >= 2) {
+        // Match if ANY segment is in range — surveyor's
+        // intent is "polylines that have at least one
+        // east-west segment." Per-segment Picking lands in a
+        // future slice if surveyors need finer control.
+        const verts = g.vertices;
+        const segCount = g.type === 'POLYGON' ? verts.length : verts.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const a = verts[i];
+          const b = verts[(i + 1) % verts.length];
+          if (bearingInRange(segmentBearing(a, b), loDeg, hiDeg)) { matched = true; break; }
+        }
+      } else if (g.type === 'ARC' && g.arc) {
+        // Use the chord bearing — start-of-arc → end-of-arc.
+        const arc = g.arc;
+        const sx = arc.center.x + arc.radius * Math.cos(arc.startAngle);
+        const sy = arc.center.y + arc.radius * Math.sin(arc.startAngle);
+        const ex = arc.center.x + arc.radius * Math.cos(arc.endAngle);
+        const ey = arc.center.y + arc.radius * Math.sin(arc.endAngle);
+        if (bearingInRange(segmentBearing({ x: sx, y: sy }, { x: ex, y: ey }), loDeg, hiDeg)) matched = true;
+      }
+      if (matched) ids.push(f.id);
+    }
+    applyHelper(ids, alt);
+  }
+
+  function segmentLength(a: Point2D, b: Point2D): number {
+    return Math.hypot(b.x - a.x, b.y - a.y);
+  }
+
+  function helperByLengthRange(minFt: number, maxFt: number, alt: boolean) {
+    const ids: string[] = [];
+    for (const f of Object.values(docFeatures)) {
+      if (f.hidden) continue;
+      const g = f.geometry;
+      let matched = false;
+      if (g.type === 'LINE' && g.start && g.end) {
+        const len = segmentLength(g.start, g.end);
+        if (len >= minFt && len <= maxFt) matched = true;
+      } else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices && g.vertices.length >= 2) {
+        // Match if ANY segment falls inside the length range.
+        const verts = g.vertices;
+        const segCount = g.type === 'POLYGON' ? verts.length : verts.length - 1;
+        for (let i = 0; i < segCount; i += 1) {
+          const len = segmentLength(verts[i], verts[(i + 1) % verts.length]);
+          if (len >= minFt && len <= maxFt) { matched = true; break; }
+        }
+      } else if (g.type === 'ARC' && g.arc) {
+        // Use arc length (radius × |endAngle − startAngle|).
+        const arc = g.arc;
+        const sweep = Math.abs(arc.endAngle - arc.startAngle);
+        const len = arc.radius * sweep;
+        if (len >= minFt && len <= maxFt) matched = true;
+      }
+      if (matched) ids.push(f.id);
+    }
+    applyHelper(ids, alt);
+  }
+
   return (
     <div className="bg-gray-900 border border-gray-700 rounded p-1.5 mb-1.5 space-y-1.5">
       <div className="flex items-center gap-1 text-[10px] text-gray-500 uppercase tracking-wider font-semibold">
@@ -1267,6 +1370,12 @@ function SmartSelectionHelpers() {
         >
           In viewport
         </button>
+
+        {/* By bearing range — popover with two angle inputs. */}
+        <BearingRangePopover onApply={(lo, hi, alt) => helperByBearingRange(lo, hi, alt || subtractMode)} />
+
+        {/* By length range — popover with two length inputs. */}
+        <LengthRangePopover onApply={(mn, mx, alt) => helperByLengthRange(mn, mx, alt || subtractMode)} />
       </div>
       <div className="flex items-center gap-1">
         <input
@@ -2060,5 +2169,166 @@ function AdditionalTargetsRow(props: { primaryLayerId: string | null }) {
         </select>
       )}
     </div>
+  );
+}
+
+// ─── Bearing-range popover ─────────────────────────────────
+//
+// Surveyor types a low + high azimuth (each with the full
+// §11.5 unit-input flexibility — DMS, decimal, quadrant
+// bearings) and clicks Apply. The matcher walks every line,
+// polyline-segment, and arc chord adding features whose
+// direction falls inside the range. Reverse direction
+// counts too (a fence drawn east-to-west matches the same
+// "horizontal" query whether typed as 90°…91° or 89°…90°).
+
+function BearingRangePopover(props: { onApply: (loDeg: number, hiDeg: number, alt: boolean) => void }) {
+  const [open, setOpen] = useState(false);
+  const [loDeg, setLoDeg] = useState(0);
+  const [hiDeg, setHiDeg] = useState(90);
+
+  function apply(e: React.MouseEvent) {
+    props.onApply(loDeg, hiDeg, e.altKey);
+    setOpen(false);
+  }
+
+  return (
+    <details
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+      className="relative"
+    >
+      <summary
+        className="list-none cursor-pointer px-2 h-6 text-[11px] rounded border bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600 hover:text-white transition-colors inline-flex items-center"
+        title="Add lines / polyline segments / arc chords whose azimuth falls inside a range. Reverse direction counts too — typing 80°…100° matches both east-running and west-running edges."
+      >
+        By bearing…
+      </summary>
+      {open && (
+        <div className="absolute z-50 top-7 left-0 bg-gray-900 border border-gray-700 rounded shadow-2xl p-2 w-[260px] space-y-2">
+          <div className="text-[10px] uppercase tracking-wider text-gray-500">
+            Bearing range
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <div>
+              <label className="block text-[10px] text-gray-500 mb-0.5">From</label>
+              <UnitInput
+                kind="angle"
+                compact
+                angleMode="AZIMUTH"
+                value={loDeg}
+                onChange={setLoDeg}
+                inputClassName="w-full h-6 bg-gray-700 text-white text-[11px] px-1.5 rounded border focus:outline-none focus:border-blue-500 font-mono"
+                description="Lower bound of the azimuth range (0° = North, clockwise). Accepts DMS, decimal, hyphen-DMS, or quadrant bearings."
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-500 mb-0.5">To</label>
+              <UnitInput
+                kind="angle"
+                compact
+                angleMode="AZIMUTH"
+                value={hiDeg}
+                onChange={setHiDeg}
+                inputClassName="w-full h-6 bg-gray-700 text-white text-[11px] px-1.5 rounded border focus:outline-none focus:border-blue-500 font-mono"
+                description="Upper bound. Wraps through 0° when From > To."
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-gray-500 leading-tight">
+              Matches lines, polyline segments, and arc chords. Reverse direction counts.
+            </p>
+            <button
+              type="button"
+              onClick={apply}
+              className="px-2 py-0.5 text-[11px] rounded bg-blue-600 border border-blue-500 text-white hover:bg-blue-500 transition-colors"
+              title="Click — add matches. Alt-click — remove matches."
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+      )}
+    </details>
+  );
+}
+
+// ─── Length-range popover ──────────────────────────────────
+//
+// Same shape as BearingRangePopover but with length inputs.
+// Surveyor types min + max (e.g. 8ft / 12ft) and the matcher
+// walks every line + polyline-segment + arc adding features
+// whose length falls in the range.
+
+function LengthRangePopover(props: { onApply: (minFt: number, maxFt: number, alt: boolean) => void }) {
+  const [open, setOpen] = useState(false);
+  const [minFt, setMinFt] = useState(0);
+  const [maxFt, setMaxFt] = useState(100);
+
+  function apply(e: React.MouseEvent) {
+    props.onApply(minFt, maxFt, e.altKey);
+    setOpen(false);
+  }
+
+  return (
+    <details
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+      className="relative"
+    >
+      <summary
+        className="list-none cursor-pointer px-2 h-6 text-[11px] rounded border bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600 hover:text-white transition-colors inline-flex items-center"
+        title="Add lines / polyline segments / arcs whose length falls inside a range. Polyline matches when ANY segment is in range."
+      >
+        By length…
+      </summary>
+      {open && (
+        <div className="absolute z-50 top-7 left-0 bg-gray-900 border border-gray-700 rounded shadow-2xl p-2 w-[260px] space-y-2">
+          <div className="text-[10px] uppercase tracking-wider text-gray-500">
+            Length range
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <div>
+              <label className="block text-[10px] text-gray-500 mb-0.5">Min</label>
+              <UnitInput
+                kind="length"
+                compact
+                value={minFt}
+                onChange={setMinFt}
+                defaultUnit="FT"
+                inputClassName="w-full h-6 bg-gray-700 text-white text-[11px] px-1.5 rounded border focus:outline-none focus:border-blue-500 font-mono"
+                description="Lower length bound. Accepts unit suffixes (8ft / 2m / 6in)."
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-500 mb-0.5">Max</label>
+              <UnitInput
+                kind="length"
+                compact
+                value={maxFt}
+                onChange={setMaxFt}
+                defaultUnit="FT"
+                inputClassName="w-full h-6 bg-gray-700 text-white text-[11px] px-1.5 rounded border focus:outline-none focus:border-blue-500 font-mono"
+                description="Upper length bound."
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-gray-500 leading-tight">
+              Matches lines, polyline segments (ANY in range), and arc lengths.
+            </p>
+            <button
+              type="button"
+              onClick={apply}
+              className="px-2 py-0.5 text-[11px] rounded bg-blue-600 border border-blue-500 text-white hover:bg-blue-500 transition-colors"
+              title="Click — add matches. Alt-click — remove matches."
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+      )}
+    </details>
   );
 }
