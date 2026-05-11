@@ -22,7 +22,7 @@ import {
   useViewportStore,
 } from '@/lib/cad/store';
 import { featureBounds } from '@/lib/cad/geometry/bounds';
-import { transferSelectionToLayer } from '@/lib/cad/operations';
+import { transferSelectionToLayer, copyToClipboard } from '@/lib/cad/operations';
 import {
   buildPointNoIndex,
   parsePointRangeString,
@@ -185,13 +185,45 @@ export default function LayerTransferDialog({ onClose }: Props) {
   }, [targetLayer, pickedIds]);
 
   const sourceCount = pickedIds.size;
-  const canConfirm =
-    sourceCount > 0 &&
-    targetLayer != null &&
-    !targetLocked;
+  // Confirm gate: COPY_TO_CLIPBOARD doesn't need a target
+  // layer (the clipboard is the destination); the other ops
+  // require an unlocked target.
+  const canConfirm = options.operation === 'COPY_TO_CLIPBOARD'
+    ? sourceCount > 0
+    : sourceCount > 0 && targetLayer != null && !targetLocked;
 
   async function commit() {
-    if (!canConfirm || !targetLayer) return;
+    if (!canConfirm) return;
+
+    // ── COPY_TO_CLIPBOARD path ─────────────────────────────
+    // No target-layer write; capture the picked features +
+    // layer snapshots into the module-scope clipboard so a
+    // future Ctrl+V (potentially in a different drawing)
+    // can paste them with auto-create layer resolution.
+    if (options.operation === 'COPY_TO_CLIPBOARD') {
+      const features: import('@/lib/cad/types').Feature[] = [];
+      const layerSnapshots: Record<string, { name: string; color: string }> = {};
+      const sourceIdsLocal = Array.from(pickedIds);
+      for (const id of sourceIdsLocal) {
+        const f = drawingStore.getFeature(id);
+        if (!f) continue;
+        features.push(f);
+        if (!layerSnapshots[f.layerId]) {
+          const lyr = layers[f.layerId];
+          if (lyr) layerSnapshots[f.layerId] = { name: lyr.name, color: lyr.color };
+        }
+      }
+      if (features.length > 0) {
+        copyToClipboard(features, layerSnapshots, drawingStore.document.id);
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: `${features.length} feature${features.length === 1 ? '' : 's'} copied to clipboard. Paste (Ctrl+V) in any drawing.` },
+        }));
+      }
+      onClose();
+      return;
+    }
+
+    if (!targetLayer) return;
 
     // ── Mistake-prevention: confirm bulk Moves ─────────────
     // Move > 5 features is the threshold the existing bulk-
@@ -360,7 +392,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
             <p className="text-[10px] text-gray-500 mt-1">
               {options.operation === 'DUPLICATE' && 'Originals stay; copies land on the target.'}
               {options.operation === 'MOVE' && 'Originals are reassigned to the target layer.'}
-              {options.operation === 'COPY_TO_CLIPBOARD' && 'Hold for paste in another drawing — no immediate write.'}
+              {options.operation === 'COPY_TO_CLIPBOARD' && 'Confirm captures the picks + layer info. Paste (Ctrl+V) in any drawing — missing layers auto-create.'}
             </p>
           </div>
 

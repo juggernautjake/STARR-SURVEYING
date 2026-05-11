@@ -36,11 +36,30 @@ import { useViewportStore } from './store/viewport-store';
 // Clipboard
 // ─────────────────────────────────────────────
 let _clipboard: Feature[] = [];
+/** Phase 8 §11.7 Slice 11 — layer-id → { name, color } map
+ *  captured at copy time so cross-drawing paste can resolve
+ *  layer references against the destination drawing's layer
+ *  table by name. Empty when copy happened without layer
+ *  snapshots (old call sites). */
+let _clipboardLayers: Record<string, { name: string; color: string }> = {};
+/** Drawing id the clipboard contents came from. Used to
+ *  fast-path same-drawing pastes (no resolution needed). */
+let _clipboardSourceDocId: string | null = null;
 
-export function copyToClipboard(features: Feature[]): void {
+export function copyToClipboard(
+  features: Feature[],
+  layerSnapshots?: Record<string, { name: string; color: string }>,
+  sourceDocumentId?: string,
+): void {
   _clipboard = features.map((f) => ({ ...f }));
+  _clipboardLayers = layerSnapshots ? { ...layerSnapshots } : {};
+  _clipboardSourceDocId = sourceDocumentId ?? null;
 }
 
+/**
+ * Translate raw clipboard features. Used by same-drawing
+ * pastes where layer ids are guaranteed valid.
+ */
 export function pasteFromClipboard(
   offsetX = 10,
   offsetY = -10,
@@ -74,6 +93,23 @@ export function hasClipboard(): boolean {
 
 export function getClipboardCount(): number {
   return _clipboard.length;
+}
+
+/**
+ * Read the source-drawing id of the current clipboard. Null
+ * when no clipboard exists or the copier didn't tag it.
+ */
+export function getClipboardSourceDocId(): string | null {
+  return _clipboardSourceDocId;
+}
+
+/**
+ * Read a snapshot of every layer the clipboard contents
+ * reference. Used by the cross-drawing paste path to resolve
+ * source layer ids against the destination drawing.
+ */
+export function getClipboardLayerSnapshots(): Record<string, { name: string; color: string }> {
+  return { ..._clipboardLayers };
 }
 
 // ─────────────────────────────────────────────
@@ -3222,7 +3258,82 @@ export function copyCadSelection(): void {
   const drawingStore = useDrawingStore.getState();
   const ids = Array.from(selectionStore.selectedIds);
   const features = ids.map((id) => drawingStore.getFeature(id)).filter(Boolean) as Feature[];
-  copyToClipboard(features);
+  // Snapshot the layers each copied feature references so a
+  // cross-drawing paste can resolve / auto-create them later.
+  const layerSnapshots: Record<string, { name: string; color: string }> = {};
+  for (const f of features) {
+    if (layerSnapshots[f.layerId]) continue;
+    const lyr = drawingStore.document.layers[f.layerId];
+    if (lyr) {
+      layerSnapshots[f.layerId] = { name: lyr.name, color: lyr.color };
+    }
+  }
+  copyToClipboard(features, layerSnapshots, drawingStore.document.id);
+}
+
+/**
+ * Resolve every distinct layer id referenced by `_clipboard`
+ * against the destination drawing. Returns a map of
+ * (sourceLayerId → destinationLayerId), creating any
+ * destination layers that don't exist yet by name. When the
+ * destination already has a layer matching by name, that one
+ * is reused regardless of color. Returns an empty map when
+ * the clipboard didn't carry layer snapshots (old call
+ * sites — falls back to the active layer in that case).
+ */
+function resolveClipboardLayers(): Record<string, string> {
+  const drawingStore = useDrawingStore.getState();
+  const destDoc = drawingStore.document;
+  if (_clipboardSourceDocId && _clipboardSourceDocId === destDoc.id) {
+    // Same drawing — every source id is still valid; identity map.
+    const map: Record<string, string> = {};
+    for (const lid of Object.keys(_clipboardLayers)) map[lid] = lid;
+    return map;
+  }
+  // Cross-drawing — match by name; auto-create when missing.
+  const byName = new Map<string, string>();
+  for (const id of destDoc.layerOrder) {
+    const lyr = destDoc.layers[id];
+    if (lyr) byName.set(lyr.name.toLowerCase(), id);
+  }
+  const map: Record<string, string> = {};
+  let createdCount = 0;
+  for (const [srcLid, snap] of Object.entries(_clipboardLayers)) {
+    const key = snap.name.toLowerCase();
+    const existing = byName.get(key);
+    if (existing) {
+      map[srcLid] = existing;
+      continue;
+    }
+    // Auto-create the destination layer with the source's
+    // name + color. Surveyor can rename or recolor afterward.
+    const newLayer: import('./types').Layer = {
+      id: generateId(),
+      name: snap.name,
+      visible: true,
+      locked: false,
+      frozen: false,
+      color: snap.color,
+      lineWeight: 0.25,
+      lineTypeId: 'SOLID',
+      opacity: 1,
+      groupId: null,
+      sortOrder: destDoc.layerOrder.length + createdCount,
+      isDefault: false,
+      isProtected: false,
+      autoAssignCodes: [],
+    };
+    drawingStore.addLayer(newLayer);
+    byName.set(key, newLayer.id);
+    map[srcLid] = newLayer.id;
+    createdCount += 1;
+  }
+  if (createdCount > 0) {
+    window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+      detail: { text: `Auto-created ${createdCount} layer${createdCount === 1 ? '' : 's'} in this drawing to match the clipboard source.` },
+    }));
+  }
+  return map;
 }
 
 export function pasteCadClipboard(pasteWorldX?: number, pasteWorldY?: number): void {
@@ -3247,7 +3358,27 @@ export function pasteCadClipboard(pasteWorldX?: number, pasteWorldY?: number): v
     }
   }
 
+  // Phase 8 §11.7 Slice 11 — resolve clipboard layer ids
+  // against the destination drawing. Same-drawing pastes
+  // resolve to identity; cross-drawing pastes auto-create
+  // any missing layers from the snapshots captured at copy
+  // time. Fall back to the active layer when a feature's
+  // source layer wasn't snapshotted (older clipboard
+  // contents).
+  const layerMap = resolveClipboardLayers();
+  const fallbackLayerId = drawingStore.activeLayerId;
   const newFeatures = pasteFromClipboard(offsetX, offsetY);
+  for (const f of newFeatures) {
+    const mapped = layerMap[f.layerId];
+    if (mapped) {
+      f.layerId = mapped;
+    } else if (!drawingStore.document.layers[f.layerId]) {
+      // Old-clipboard fallback: source layer id isn't valid
+      // in this drawing and wasn't snapshotted. Land on the
+      // active layer.
+      f.layerId = fallbackLayerId;
+    }
+  }
   drawingStore.addFeatures(newFeatures);
   const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
   undoStore.pushUndo(makeBatchEntry('Paste', ops));
