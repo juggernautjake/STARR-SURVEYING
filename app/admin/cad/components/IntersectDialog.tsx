@@ -21,6 +21,7 @@ import {
   useDrawingStore,
   useUndoStore,
   makeAddFeatureEntry,
+  makeBatchEntry,
 } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type {
@@ -145,6 +146,11 @@ export default function IntersectDialog({ onClose }: Props) {
   // Index of the currently-highlighted candidate in the list.
   // Used both for the drop and for the canvas crosshair.
   const [selectedIndex, setSelectedIndex] = useState(0);
+  // §11.6.5 / §11.6.7 — surveyor can [keep] multiple
+  // candidates from the list; Confirm drops every kept POINT
+  // in a single batch undo entry. When nothing is kept the
+  // Confirm button falls back to dropping just the selection.
+  const [keptIndices, setKeptIndices] = useState<Set<number>>(new Set());
 
   // Clear stale sources when the method changes — if the
   // current pick's kind no longer fits the slot, drop it.
@@ -174,11 +180,21 @@ export default function IntersectDialog({ onClose }: Props) {
   const consentB = withinB || extendB || sourceB?.kind !== 'LINE';
 
   // Reset selectedIndex if it falls out of range after a
-  // recompute.
+  // recompute. Also prune kept indices that no longer point
+  // at a real candidate (e.g. after a method switch).
   useEffect(() => {
     if (selectedIndex >= candidates.length && candidates.length > 0) {
       setSelectedIndex(0);
     }
+    setKeptIndices((prev) => {
+      let changed = false;
+      const next = new Set<number>();
+      prev.forEach((i) => {
+        if (i < candidates.length) next.add(i);
+        else changed = true;
+      });
+      return changed ? next : prev;
+    });
   }, [candidates.length, selectedIndex]);
 
   // Push live preview state to the canvas (dashed extensions,
@@ -268,12 +284,14 @@ export default function IntersectDialog({ onClose }: Props) {
     };
   }, [pickingSlot, sourceA, sourceB, method, drawingStore]);
 
-  function commit() {
-    if (!selected || !sourceA || !sourceB) return;
-    const pt: Feature = {
+  /** Build a single POINT feature for `candidates[i]`. */
+  function buildPoint(i: number): Feature | null {
+    const pt = candidates[i];
+    if (!pt || !sourceA || !sourceB) return null;
+    return {
       id: generateId(),
       type: 'POINT',
-      geometry: { type: 'POINT', point: selected },
+      geometry: { type: 'POINT', point: pt },
       layerId: drawingStore.activeLayerId,
       style: {
         color: null, lineWeight: null, opacity: 1,
@@ -288,7 +306,7 @@ export default function IntersectDialog({ onClose }: Props) {
         intersectWithinBoth: withinBoth,
         intersectExtendedA: !withinA,
         intersectExtendedB: !withinB,
-        intersectCandidateIndex: selectedIndex,
+        intersectCandidateIndex: i,
         intersectCandidateCount: candidates.length,
         ...(sourceA.kind === 'LINE' && sourceA.segmentIndex !== undefined
           ? { intersectSourceASegmentIndex: sourceA.segmentIndex } : {}),
@@ -296,9 +314,43 @@ export default function IntersectDialog({ onClose }: Props) {
           ? { intersectSourceBSegmentIndex: sourceB.segmentIndex } : {}),
       },
     };
+  }
+
+  /** Drop one candidate immediately as its own undo entry. */
+  function dropOne(i: number) {
+    const pt = buildPoint(i);
+    if (!pt) return;
     drawingStore.addFeature(pt);
     undoStore.pushUndo(makeAddFeatureEntry(pt));
-    announce(`Intersection point dropped${withinBoth ? '' : ' (extended)'}.`);
+    announce(`Intersection point dropped${pt.properties.intersectWithinBoth ? '' : ' (extended)'}.`);
+    onClose();
+  }
+
+  /**
+   * Confirm: when the surveyor has [keep]-marked one or more
+   * candidates, drop every kept POINT in a single batch undo
+   * entry so a future undo undoes the whole multi-drop in one
+   * step. Otherwise fall back to dropping just `selectedIndex`.
+   */
+  function commit() {
+    if (keptIndices.size === 0) {
+      dropOne(selectedIndex);
+      return;
+    }
+    const points: Feature[] = [];
+    keptIndices.forEach((i) => {
+      const pt = buildPoint(i);
+      if (pt) points.push(pt);
+    });
+    if (points.length === 0) return;
+    points.forEach((pt) => drawingStore.addFeature(pt));
+    undoStore.pushUndo(
+      makeBatchEntry(
+        `Drop ${points.length} intersection point${points.length === 1 ? '' : 's'}`,
+        points.map((pt) => ({ type: 'ADD_FEATURE' as const, data: pt })),
+      ),
+    );
+    announce(`Dropped ${points.length} intersection point${points.length === 1 ? '' : 's'}.`);
     onClose();
   }
 
@@ -309,7 +361,47 @@ export default function IntersectDialog({ onClose }: Props) {
     setExtendA(false);
     setExtendB(false);
     setSelectedIndex(0);
+    setKeptIndices(new Set());
   }
+
+  function toggleKeep(i: number) {
+    setKeptIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  }
+
+  // §11.6.5 — keyboard cycling. ↓/↑ walk the candidate list,
+  // Space toggles `keep` on the selected row, Enter confirms.
+  // We swallow these when an editable field has focus so the
+  // bearing UnitInput keeps Enter-to-commit semantics.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) {
+        return;
+      }
+      if (e.key === 'ArrowDown' && candidates.length > 1) {
+        e.preventDefault();
+        setSelectedIndex((i) => (i + 1) % candidates.length);
+      } else if (e.key === 'ArrowUp' && candidates.length > 1) {
+        e.preventDefault();
+        setSelectedIndex((i) => (i - 1 + candidates.length) % candidates.length);
+      } else if (e.key === ' ' && candidates.length > 0) {
+        e.preventDefault();
+        toggleKeep(selectedIndex);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        commit();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidates.length, selectedIndex, keptIndices, sourceA, sourceB, method, withinBoth, withinA, withinB]);
 
   const canConfirm =
     sourceA != null && sourceB != null && selected != null && consentA && consentB;
@@ -409,21 +501,31 @@ export default function IntersectDialog({ onClose }: Props) {
             </div>
             {sourceA && sourceB ? (
               candidates.length > 0 ? (
-                <ul className="space-y-0.5">
-                  {candidates.map((c, i) => (
-                    <CandidateRow
-                      key={i}
-                      index={i}
-                      candidate={c}
-                      isSelected={i === selectedIndex}
-                      onSelect={() => setSelectedIndex(i)}
-                      sourceA={sourceA}
-                      sourceB={sourceB}
-                      extendA={extendA}
-                      extendB={extendB}
-                    />
-                  ))}
-                </ul>
+                <>
+                  {candidates.length > 1 && (
+                    <p className="text-[10px] text-gray-500 italic">
+                      ↓/↑ cycle · space [keep] · enter drops {keptIndices.size > 0 ? `${keptIndices.size} kept` : 'selected'}
+                    </p>
+                  )}
+                  <ul className="space-y-0.5">
+                    {candidates.map((c, i) => (
+                      <CandidateRow
+                        key={i}
+                        index={i}
+                        candidate={c}
+                        isSelected={i === selectedIndex}
+                        isKept={keptIndices.has(i)}
+                        onSelect={() => setSelectedIndex(i)}
+                        onToggleKeep={() => toggleKeep(i)}
+                        onAsPoint={() => dropOne(i)}
+                        sourceA={sourceA}
+                        sourceB={sourceB}
+                        extendA={extendA}
+                        extendB={extendB}
+                      />
+                    ))}
+                  </ul>
+                </>
               ) : (
                 <p className="text-[11px] text-gray-500 italic">
                   {emptyExplainer(method, sourceA, sourceB, extendA)}
@@ -457,8 +559,15 @@ export default function IntersectDialog({ onClose }: Props) {
               onClick={commit}
               disabled={!canConfirm}
               className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded transition-colors"
+              title={
+                keptIndices.size > 0
+                  ? `Drop the ${keptIndices.size} kept candidates as a single batch.`
+                  : 'Drop the currently-highlighted candidate.'
+              }
             >
-              Drop POINT
+              {keptIndices.size > 1
+                ? `Drop ${keptIndices.size} POINTs`
+                : 'Drop POINT'}
             </button>
           </div>
         </div>
@@ -596,11 +705,14 @@ function CandidateRow(props: {
   index: number;
   candidate: Point2D;
   isSelected: boolean;
+  isKept: boolean;
   sourceA: PickedSource;
   sourceB: PickedSource;
   extendA: boolean;
   extendB: boolean;
   onSelect: () => void;
+  onToggleKeep: () => void;
+  onAsPoint: () => void;
 }) {
   const projA = props.sourceA.kind === 'LINE' ? projectOntoLine(props.candidate, props.sourceA) : null;
   const projB = props.sourceB.kind === 'LINE' ? projectOntoLine(props.candidate, props.sourceB) : null;
@@ -619,6 +731,26 @@ function CandidateRow(props: {
       <span className={props.isSelected ? 'text-blue-300' : 'text-blue-500'}>{props.isSelected ? '●' : '○'}</span>
       <span>{props.index + 1}.</span>
       <span>({props.candidate.x.toFixed(3)}, {props.candidate.y.toFixed(3)})</span>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); props.onToggleKeep(); }}
+        className={`ml-auto px-1.5 py-[1px] rounded text-[10px] border transition-colors ${
+          props.isKept
+            ? 'bg-green-700/60 border-green-500 text-green-100'
+            : 'bg-gray-800 border-gray-600 text-gray-400 hover:text-gray-100 hover:border-gray-400'
+        }`}
+        title={props.isKept ? 'Remove from the batch drop set.' : 'Add to the batch drop set (Confirm drops every kept candidate).'}
+      >
+        {props.isKept ? '✓ keep' : 'keep'}
+      </button>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); props.onAsPoint(); }}
+        className="px-1.5 py-[1px] rounded text-[10px] border border-blue-700 bg-blue-900/40 text-blue-200 hover:bg-blue-900/70"
+        title="Drop just this candidate as a POINT and close the dialog."
+      >
+        as POINT
+      </button>
       {withinBoth ? (
         <span className="px-1.5 py-[1px] rounded bg-green-900/60 text-green-300 text-[10px]">within both</span>
       ) : (
