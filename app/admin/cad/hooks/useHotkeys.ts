@@ -342,6 +342,9 @@ export function dispatchDefaultAction(action: BindableAction): void {
     case 'edit.sendToLayer':
       window.dispatchEvent(new CustomEvent('cad:openLayerTransfer'));
       return;
+    case 'tool.intersect':
+      window.dispatchEvent(new CustomEvent('cad:openIntersect'));
+      return;
 
     case 'view.stats': {
       // Drawing stats — feature count by type, total polygon

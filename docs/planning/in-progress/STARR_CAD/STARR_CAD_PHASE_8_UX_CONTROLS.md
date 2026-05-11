@@ -1576,9 +1576,9 @@ Some pairs always yield ≤ 1 candidate (LINE × LINE either misses or meets at 
 
 ### 11.6.8 Acceptance Tests (deterministic side)
 
-- [ ] LINE × LINE intersect modal opens, surveyor picks two non-parallel lines, candidate list shows 1 entry, confirm drops a POINT
-- [ ] LINE × LINE with parallel sources → "These two don't intersect" message + extension chip
-- [ ] LINE × LINE with extension ON finds the virtual intersection past both endpoints; ghost rendered as dashed line
+- [x] LINE × LINE intersect modal opens, surveyor picks two non-parallel lines, candidate list shows 1 entry, confirm drops a POINT — Slice 1 ships `IntersectDialog` reachable via `I X` chord hotkey, `Tools → Intersect Lines…` menu, or `cad:openIntersect` event. Dialog has two source-picker slots; each fires `cad:intersectPicking` so `CanvasViewport` swallows the next click + reports the hit feature back via `cad:intersectPicked`. Compute path: `lineLineIntersection(a, b, c, d)` from `lib/cad/geometry/intersection.ts`. Confirm drops a POINT with `properties.intersectSourceAId / intersectSourceBId / intersectMethod / intersectWithinBoth` audit stamps.
+- [x] LINE × LINE with parallel sources → "These two don't intersect" message + extension chip — `lineLineIntersection` returns null when the cross-product denominator is < 1e-10; the dialog's Candidates region surfaces an explainer chip in that case. The extension toggle (Slice 2) is staged.
+- [ ] LINE × LINE with extension ON finds the virtual intersection past both endpoints; ghost rendered as dashed line — extension semantics ship in Slice 2. Slice 1 already classifies candidates as "within both" vs. "extended" via `isWithinSegment`, surfacing green / amber badge accordingly.
 - [ ] LINE × ARC yields 0 / 1 / 2 candidates depending on geometry; cycling with ↓/↑ moves the canvas highlight
 - [ ] CIRCLE × CIRCLE (intersecting) yields 2 candidates, each `[keep]` adds a POINT
 - [ ] CIRCLE × CIRCLE (tangent) yields 1 candidate; confirm drops one POINT

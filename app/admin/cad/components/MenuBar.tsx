@@ -415,6 +415,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           window.dispatchEvent(new CustomEvent('cad:openLayerTransfer'));
           setOpenMenu(null);
         }},
+        { label: 'Intersect Lines…', shortcut: 'I X', action: () => {
+          window.dispatchEvent(new CustomEvent('cad:openIntersect'));
+          setOpenMenu(null);
+        }},
         { separator: true },
         // ── Line-editing operations on the single-feature
         // selection. Disabled when zero / multiple features are

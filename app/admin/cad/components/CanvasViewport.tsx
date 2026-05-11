@@ -609,6 +609,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const isMiddleMouseRef = useRef(false);
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const snapResultRef = useRef<ReturnType<typeof findSnapPoint>>(null);
+  // Phase 8 §11.6 — true while the IntersectDialog has a slot
+  // open for canvas-side picking. Next canvas click feeds the
+  // hit feature id back to the dialog and gets swallowed.
+  const intersectPickingRef = useRef(false);
   const rafRef = useRef<number>(0);
   /** §19.1 — memoized spatial index for the active document.
    *  Stamped with the `features` object reference so a single
@@ -745,6 +749,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('cad:activateTool', handler);
     return () => window.removeEventListener('cad:activateTool', handler);
   }, [toolStore]);
+
+  // Phase 8 §11.6 Slice 1 — IntersectDialog announces when
+  // it wants to receive canvas clicks for source picking.
+  // We flip a ref so handleMouseDown can swallow + forward
+  // the hit feature back via cad:intersectPicked.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { active } = (e as CustomEvent<{ active: boolean }>).detail;
+      intersectPickingRef.current = !!active;
+    };
+    window.addEventListener('cad:intersectPicking', handler);
+    return () => {
+      window.removeEventListener('cad:intersectPicking', handler);
+      intersectPickingRef.current = false;
+    };
+  }, []);
 
   // Update cursor when active tool changes
   const activeTool = toolStore.state.activeTool;
@@ -7298,6 +7318,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         // Don't fall through to the active tool — Pick mode
         // owns the click while it's on.
+        return;
+      }
+
+      // Phase 8 §11.6 Slice 1 — Intersect Tool picking. When
+      // the IntersectDialog has a slot selecting, swallow the
+      // click and dispatch the hit feature back to the dialog
+      // via cad:intersectPicked.
+      if (intersectPickingRef.current) {
+        const hit = hitTest(sx, sy);
+        if (hit) {
+          window.dispatchEvent(new CustomEvent('cad:intersectPicked', { detail: { featureId: hit } }));
+        }
         return;
       }
 

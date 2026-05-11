@@ -17,6 +17,7 @@ import KeyboardShortcutOverlay from './components/KeyboardShortcutOverlay';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import LayerTransferDialog from './components/LayerTransferDialog';
+import IntersectDialog from './components/IntersectDialog';
 import ImportDialog from './components/ImportDialog';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
@@ -274,6 +275,17 @@ export default function CADLayout() {
     };
     window.addEventListener('cad:openLayerTransfer', handler);
     return () => window.removeEventListener('cad:openLayerTransfer', handler);
+  }, []);
+
+  // Phase 8 §11.6 Slice 1 — Intersect dialog open event.
+  // Hotkey (chord I X) and MenuBar Tools entry both fire
+  // cad:openIntersect; CADLayout flips a local flag so the
+  // dialog mounts.
+  const [showIntersect, setShowIntersect] = useState(false);
+  useEffect(() => {
+    const handler = () => setShowIntersect(true);
+    window.addEventListener('cad:openIntersect', handler);
+    return () => window.removeEventListener('cad:openIntersect', handler);
   }, []);
 
   // Listen for new drawing dialog event (dispatched by MenuBar "New Drawing")
@@ -776,6 +788,9 @@ export default function CADLayout() {
 
       {/* Cross-layer copy / move / duplicate dialog (Phase 8 §11.7) */}
       <LayerTransferGate />
+
+      {/* Intersect Tool dialog (Phase 8 §11.6 Slice 1) */}
+      {showIntersect && <IntersectDialog onClose={() => setShowIntersect(false)} />}
 
 
       {/* Curve Calculator dialog */}
