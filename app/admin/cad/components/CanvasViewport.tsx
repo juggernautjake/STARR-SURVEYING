@@ -646,18 +646,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // open for canvas-side picking. Next canvas click feeds the
   // hit feature id back to the dialog and gets swallowed.
   const intersectPickingRef = useRef(false);
-  // Phase 8 §11.6 Slice 2 / 3 — current IntersectDialog state
-  // for the live ghost preview (dashed extensions, candidate
-  // crosshair, circle ghost). null whenever the dialog is
-  // closed. Source B is a discriminated union mirroring the
-  // dialog's PickedSource type.
+  // Phase 8 §11.6 Slice 2 / 3 / 4 — current IntersectDialog
+  // state for the live ghost preview (dashed extensions,
+  // candidate crosshair, circle ghost). null whenever the
+  // dialog is closed. Both sources are now discriminated
+  // unions to cover LINE×LINE, LINE×CIRCLE, LINE×ARC, CIRCLE×
+  // CIRCLE, ARC×ARC, ARC×CIRCLE.
+  type PickedPreview =
+    | { kind: 'LINE'; featureId: string; start: Point2D; end: Point2D }
+    | { kind: 'CIRCLE'; featureId: string; circle: { center: Point2D; radius: number } }
+    | { kind: 'ARC'; featureId: string; arc: { center: Point2D; radius: number; startAngle: number; endAngle: number; anticlockwise: boolean } };
   const intersectPreviewRef = useRef<{
-    sourceA: { kind: 'LINE'; featureId: string; start: Point2D; end: Point2D } | null;
-    sourceB:
-      | { kind: 'LINE'; featureId: string; start: Point2D; end: Point2D }
-      | { kind: 'CIRCLE'; featureId: string; circle: { center: Point2D; radius: number } }
-      | { kind: 'ARC'; featureId: string; arc: { center: Point2D; radius: number; startAngle: number; endAngle: number; anticlockwise: boolean } }
-      | null;
+    sourceA: PickedPreview | null;
+    sourceB: PickedPreview | null;
     extendA: boolean;
     extendB: boolean;
     candidate: Point2D | null;
@@ -6554,20 +6555,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       drawDashedScreenLine(g, w2s(end.x, end.y), w2s(pastEnd.x, pastEnd.y), color, 0.55);
     };
 
-    if (sourceA && extendA) drawExtension(sourceA.start, sourceA.end, SRC_A_COLOR, true);
+    if (sourceA && sourceA.kind === 'LINE' && extendA) {
+      drawExtension(sourceA.start, sourceA.end, SRC_A_COLOR, true);
+    }
     if (sourceB && sourceB.kind === 'LINE' && extendB) {
       drawExtension(sourceB.start, sourceB.end, SRC_B_COLOR, true);
     }
 
-    // CIRCLE source B — paint a thin full-circle ghost so the
-    // surveyor sees what they picked + where the two candidate
-    // points sit on it.
+    // CIRCLE / ARC sources — paint a thin full-circle ghost
+    // (the arc's underlying circle when source is ARC) so the
+    // surveyor sees the geometry the math is using.
+    const zoom = useViewportStore.getState().zoom;
+    const drawCircleGhost = (cx: number, cy: number, r: number, color: number) => {
+      const c = w2s(cx, cy);
+      g.lineStyle(1, color, 0.5);
+      g.drawCircle(c.sx, c.sy, r * zoom);
+    };
+    if (sourceA && sourceA.kind === 'CIRCLE') {
+      drawCircleGhost(sourceA.circle.center.x, sourceA.circle.center.y, sourceA.circle.radius, SRC_A_COLOR);
+    } else if (sourceA && sourceA.kind === 'ARC') {
+      drawCircleGhost(sourceA.arc.center.x, sourceA.arc.center.y, sourceA.arc.radius, SRC_A_COLOR);
+    }
     if (sourceB && sourceB.kind === 'CIRCLE') {
-      const c = w2s(sourceB.circle.center.x, sourceB.circle.center.y);
-      const zoom = useViewportStore.getState().zoom;
-      const rPx = sourceB.circle.radius * zoom;
-      g.lineStyle(1, SRC_B_COLOR, 0.5);
-      g.drawCircle(c.sx, c.sy, rPx);
+      drawCircleGhost(sourceB.circle.center.x, sourceB.circle.center.y, sourceB.circle.radius, SRC_B_COLOR);
+    } else if (sourceB && sourceB.kind === 'ARC') {
+      drawCircleGhost(sourceB.arc.center.x, sourceB.arc.center.y, sourceB.arc.radius, SRC_B_COLOR);
     }
 
     // Candidate crosshairs. Slice 3 shows every candidate at

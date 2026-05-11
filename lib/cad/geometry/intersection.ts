@@ -123,6 +123,92 @@ export function isAngleInArc(angle: number, arc: ArcGeometry): boolean {
   return false;
 }
 
+/**
+ * Intersection of two circles. Returns:
+ *   - `[]` when they miss (centers too far / one strictly
+ *     inside the other / coincident with different radii) or
+ *     when both circles are identical (infinitely many hits).
+ *   - `[p]` when they're tangent (externally or internally).
+ *   - `[p1, p2]` ordered by atan2 around `c1` so callers get
+ *     a deterministic ordering.
+ *
+ * Classic radical-axis solution:
+ *   d = |c2 − c1|
+ *   a = (r1² − r2² + d²) / (2d)
+ *   h = √(r1² − a²)
+ *   p0 = c1 + a·(c2 − c1)/d
+ *   p±  = p0 ± h·perpendicular
+ */
+export function circleCircleIntersections(
+  c1: Point2D,
+  r1: number,
+  c2: Point2D,
+  r2: number,
+): Point2D[] {
+  const dx = c2.x - c1.x;
+  const dy = c2.y - c1.y;
+  const d = Math.hypot(dx, dy);
+  const EPS = 1e-9;
+  // Concentric: identical circle → infinite hits (treat as
+  // empty); strictly nested → no real intersection.
+  if (d < EPS) return [];
+  if (d > r1 + r2 + EPS) return [];
+  if (d < Math.abs(r1 - r2) - EPS) return [];
+
+  const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+  const hSq = r1 * r1 - a * a;
+  // Tangent case — clamp small negatives from floating noise.
+  if (hSq < EPS) {
+    return [{ x: c1.x + (a * dx) / d, y: c1.y + (a * dy) / d }];
+  }
+  const h = Math.sqrt(hSq);
+  const px = c1.x + (a * dx) / d;
+  const py = c1.y + (a * dy) / d;
+  // Perpendicular unit vector (rotated +90°).
+  const rx = -dy / d;
+  const ry = dx / d;
+  const p1 = { x: px + h * rx, y: py + h * ry };
+  const p2 = { x: px - h * rx, y: py - h * ry };
+  // Order deterministically by angle around c1.
+  const a1 = Math.atan2(p1.y - c1.y, p1.x - c1.x);
+  const a2 = Math.atan2(p2.y - c1.y, p2.x - c1.x);
+  return a1 <= a2 ? [p1, p2] : [p2, p1];
+}
+
+/**
+ * Intersection of an arc with a circle — same math as
+ * `circleCircleIntersections` plus a sweep-filter on the arc.
+ */
+export function arcCircleIntersections(
+  arc: ArcGeometry,
+  center: Point2D,
+  radius: number,
+): Point2D[] {
+  const hits = circleCircleIntersections(arc.center, arc.radius, center, radius);
+  if (hits.length === 0) return [];
+  return hits.filter((p) => {
+    const angle = Math.atan2(p.y - arc.center.y, p.x - arc.center.x);
+    return isAngleInArc(angle, arc);
+  });
+}
+
+/**
+ * Intersection of two arcs — circle-circle hits filtered by
+ * both arcs' angular spans.
+ */
+export function arcArcIntersections(
+  arc1: ArcGeometry,
+  arc2: ArcGeometry,
+): Point2D[] {
+  const hits = circleCircleIntersections(arc1.center, arc1.radius, arc2.center, arc2.radius);
+  if (hits.length === 0) return [];
+  return hits.filter((p) => {
+    const a1 = Math.atan2(p.y - arc1.center.y, p.x - arc1.center.x);
+    const a2 = Math.atan2(p.y - arc2.center.y, p.x - arc2.center.x);
+    return isAngleInArc(a1, arc1) && isAngleInArc(a2, arc2);
+  });
+}
+
 /** Test if a point is inside a bounding box */
 export function pointInBounds(p: Point2D, bounds: BoundingBox): boolean {
   return (

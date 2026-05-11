@@ -8,6 +8,9 @@ import { describe, it, expect } from 'vitest';
 import {
   lineCircleIntersections,
   lineArcIntersections,
+  circleCircleIntersections,
+  arcArcIntersections,
+  arcCircleIntersections,
   isAngleInArc,
 } from '@/lib/cad/geometry/intersection';
 import type { ArcGeometry } from '@/lib/cad/types';
@@ -118,6 +121,162 @@ describe('lineArcIntersections', () => {
   it('returns empty when the line misses the underlying circle', () => {
     const hits = lineArcIntersections({ x: -2, y: 5 }, { x: 2, y: 5 }, topArc);
     expect(hits).toHaveLength(0);
+  });
+});
+
+describe('circleCircleIntersections', () => {
+  it('returns two points for partially-overlapping circles', () => {
+    // Two unit circles whose centers are 1.5 apart → two hits.
+    const hits = circleCircleIntersections({ x: 0, y: 0 }, 1, { x: 1.5, y: 0 }, 1);
+    expect(hits).toHaveLength(2);
+    // By symmetry x = 0.75 for both; y = ±√(1 − 0.5625).
+    const ys = hits.map((p) => p.y).sort((a, b) => a - b);
+    expect(hits.every((p) => close(p.x, 0.75))).toBe(true);
+    expect(close(ys[0], -Math.sqrt(1 - 0.5625))).toBe(true);
+    expect(close(ys[1], Math.sqrt(1 - 0.5625))).toBe(true);
+  });
+
+  it('returns one point for externally tangent circles', () => {
+    // Circles touching at (1, 0).
+    const hits = circleCircleIntersections({ x: 0, y: 0 }, 1, { x: 2, y: 0 }, 1);
+    expect(hits).toHaveLength(1);
+    expect(close(hits[0].x, 1)).toBe(true);
+    expect(close(hits[0].y, 0)).toBe(true);
+  });
+
+  it('returns one point for internally tangent circles', () => {
+    // Outer radius 2, inner radius 1 touching at (1, 0).
+    const hits = circleCircleIntersections({ x: 0, y: 0 }, 2, { x: 1, y: 0 }, 1);
+    expect(hits).toHaveLength(1);
+    expect(close(hits[0].x, 2)).toBe(true);
+    expect(close(hits[0].y, 0)).toBe(true);
+  });
+
+  it('returns empty for far-apart circles', () => {
+    expect(
+      circleCircleIntersections({ x: 0, y: 0 }, 1, { x: 5, y: 0 }, 1),
+    ).toHaveLength(0);
+  });
+
+  it('returns empty for nested non-touching circles', () => {
+    expect(
+      circleCircleIntersections({ x: 0, y: 0 }, 5, { x: 0, y: 0.5 }, 1),
+    ).toHaveLength(0);
+  });
+
+  it('returns empty for coincident circles', () => {
+    // Same center + same radius → infinitely many hits; we
+    // return [] so callers don't choke on an undefined list.
+    expect(
+      circleCircleIntersections({ x: 0, y: 0 }, 1, { x: 0, y: 0 }, 1),
+    ).toHaveLength(0);
+  });
+
+  it('returns empty for concentric different-radius circles', () => {
+    expect(
+      circleCircleIntersections({ x: 0, y: 0 }, 1, { x: 0, y: 0 }, 2),
+    ).toHaveLength(0);
+  });
+
+  it('returns hits ordered deterministically around c1', () => {
+    const hits = circleCircleIntersections({ x: 0, y: 0 }, 1, { x: 1.5, y: 0 }, 1);
+    expect(hits).toHaveLength(2);
+    const a0 = Math.atan2(hits[0].y, hits[0].x);
+    const a1 = Math.atan2(hits[1].y, hits[1].x);
+    expect(a0).toBeLessThanOrEqual(a1);
+  });
+});
+
+describe('arcCircleIntersections', () => {
+  // Top half of unit circle.
+  const topArc: ArcGeometry = {
+    center: { x: 0, y: 0 },
+    radius: 1,
+    startAngle: 0,
+    endAngle: Math.PI,
+    anticlockwise: true,
+  };
+
+  it('drops hits outside the arc sweep', () => {
+    // Two hits exist for the underlying circle-circle (one above
+    // x-axis, one below). The bottom one is outside the top arc.
+    const hits = arcCircleIntersections(topArc, { x: 1.5, y: 0 }, 1);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].y).toBeGreaterThan(0);
+  });
+
+  it('returns empty when the underlying circles miss', () => {
+    expect(arcCircleIntersections(topArc, { x: 5, y: 0 }, 1)).toHaveLength(0);
+  });
+
+  it('keeps both hits when both sit inside the sweep', () => {
+    // Top arc + a circle centered at (0, 1.5) radius 1 →
+    // both circle-circle hits land at y = 0.75 (positive).
+    const hits = arcCircleIntersections(topArc, { x: 0, y: 1.5 }, 1);
+    expect(hits).toHaveLength(2);
+    expect(hits.every((p) => p.y > 0)).toBe(true);
+  });
+});
+
+describe('arcArcIntersections', () => {
+  const topArc: ArcGeometry = {
+    center: { x: 0, y: 0 },
+    radius: 1,
+    startAngle: 0,
+    endAngle: Math.PI,
+    anticlockwise: true,
+  };
+  const bottomArc: ArcGeometry = {
+    center: { x: 1.5, y: 0 },
+    radius: 1,
+    startAngle: -Math.PI,
+    endAngle: 0,
+    anticlockwise: false,
+  };
+  // A right-half arc at (0,0): angle ∈ [-π/2, π/2] CCW.
+  const rightHalfA: ArcGeometry = {
+    center: { x: 0, y: 0 },
+    radius: 1,
+    startAngle: -Math.PI / 2,
+    endAngle: Math.PI / 2,
+    anticlockwise: true,
+  };
+  // A left-half arc at (1.5,0): angle ∈ [π/2, 3π/2] CCW.
+  const leftHalfB: ArcGeometry = {
+    center: { x: 1.5, y: 0 },
+    radius: 1,
+    startAngle: Math.PI / 2,
+    endAngle: (3 * Math.PI) / 2,
+    anticlockwise: true,
+  };
+
+  it('drops hits outside either arc sweep', () => {
+    // Top arc 1 vs bottom arc 2 — circles cross at y = ±√0.4375
+    // (≈ ±0.661). topArc keeps only y ≥ 0, bottomArc keeps only
+    // y ≤ 0, so the intersection of allowed sweeps is empty.
+    expect(arcArcIntersections(topArc, bottomArc)).toHaveLength(0);
+  });
+
+  it('keeps both hits when each lies inside both sweeps', () => {
+    // Right-half of A (covers ±41° around east) and left-half
+    // of B (covers ±41° around west from B's perspective)
+    // → both circle-circle hits at (0.75, ±0.66) survive.
+    const hits = arcArcIntersections(rightHalfA, leftHalfB);
+    expect(hits).toHaveLength(2);
+    const ys = hits.map((p) => p.y).sort((a, b) => a - b);
+    expect(close(ys[0], -Math.sqrt(1 - 0.5625))).toBe(true);
+    expect(close(ys[1], Math.sqrt(1 - 0.5625))).toBe(true);
+  });
+
+  it('returns empty when the underlying circles miss', () => {
+    const far: ArcGeometry = {
+      center: { x: 10, y: 0 },
+      radius: 1,
+      startAngle: 0,
+      endAngle: Math.PI,
+      anticlockwise: true,
+    };
+    expect(arcArcIntersections(topArc, far)).toHaveLength(0);
   });
 });
 

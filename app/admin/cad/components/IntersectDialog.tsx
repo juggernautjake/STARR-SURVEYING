@@ -33,6 +33,9 @@ import {
   lineLineIntersection,
   lineCircleIntersections,
   lineArcIntersections,
+  circleCircleIntersections,
+  arcArcIntersections,
+  arcCircleIntersections,
 } from '@/lib/cad/geometry/intersection';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -41,7 +44,13 @@ interface Props {
   onClose: () => void;
 }
 
-type IntersectMethod = 'LINE_LINE' | 'LINE_CIRCLE' | 'LINE_ARC';
+type IntersectMethod =
+  | 'LINE_LINE'
+  | 'LINE_CIRCLE'
+  | 'LINE_ARC'
+  | 'CIRCLE_CIRCLE'
+  | 'ARC_ARC'
+  | 'ARC_CIRCLE';
 
 interface PickedLine {
   kind: 'LINE';
@@ -65,15 +74,23 @@ const METHOD_LABELS: Record<IntersectMethod, string> = {
   LINE_LINE: 'Line × Line',
   LINE_CIRCLE: 'Line × Circle',
   LINE_ARC: 'Line × Arc',
+  CIRCLE_CIRCLE: 'Circle × Circle',
+  ARC_ARC: 'Arc × Arc',
+  ARC_CIRCLE: 'Arc × Circle',
 };
 
-// Returns the list of feature types Source B accepts for the
-// active method. Source A is always LINE in the Slice 3
-// matrix; future slices broaden it.
+function sourceAKinds(method: IntersectMethod): PickedSource['kind'][] {
+  if (method.startsWith('LINE_')) return ['LINE'];
+  if (method.startsWith('CIRCLE_')) return ['CIRCLE'];
+  return ['ARC'];
+}
 function sourceBKinds(method: IntersectMethod): PickedSource['kind'][] {
   if (method === 'LINE_LINE') return ['LINE'];
   if (method === 'LINE_CIRCLE') return ['CIRCLE'];
-  return ['ARC'];
+  if (method === 'LINE_ARC') return ['ARC'];
+  if (method === 'CIRCLE_CIRCLE') return ['CIRCLE'];
+  if (method === 'ARC_ARC') return ['ARC'];
+  return ['CIRCLE']; // ARC_CIRCLE
 }
 
 export default function IntersectDialog({ onClose }: Props) {
@@ -85,22 +102,24 @@ export default function IntersectDialog({ onClose }: Props) {
   const undoStore = useUndoStore();
 
   const [method, setMethod] = useState<IntersectMethod>('LINE_LINE');
-  const [sourceA, setSourceA] = useState<PickedLine | null>(null);
+  const [sourceA, setSourceA] = useState<PickedSource | null>(null);
   const [sourceB, setSourceB] = useState<PickedSource | null>(null);
   const [pickingSlot, setPickingSlot] = useState<'A' | 'B' | null>(null);
-  // §11.6.4 — independent extension toggles. Slice 3 keeps
-  // extension semantics on the LINE source A; non-LINE B
-  // sources don't support extension in this slice.
+  // §11.6.4 — independent extension toggles. Extension only
+  // applies to LINE sources; toggles render only when the
+  // matching source is a LINE.
   const [extendA, setExtendA] = useState(false);
   const [extendB, setExtendB] = useState(false);
   // Index of the currently-highlighted candidate in the list.
   // Used both for the drop and for the canvas crosshair.
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Clear Source B (and reset extendB) whenever the method
-  // changes — the existing picked B may not be compatible.
+  // Clear stale sources when the method changes — if the
+  // current pick's kind no longer fits the slot, drop it.
   useEffect(() => {
-    setSourceB(null);
+    setSourceA((prev) => (prev && sourceAKinds(method).includes(prev.kind) ? prev : null));
+    setSourceB((prev) => (prev && sourceBKinds(method).includes(prev.kind) ? prev : null));
+    setExtendA(false);
     setExtendB(false);
     setSelectedIndex(0);
   }, [method]);
@@ -109,26 +128,18 @@ export default function IntersectDialog({ onClose }: Props) {
   const candidates: Point2D[] = computeCandidates(method, sourceA, sourceB);
   const selected = candidates[selectedIndex] ?? null;
 
-  // Per-source projections for the selected candidate.
-  const projA = selected && sourceA ? projectOntoLine(selected, sourceA) : null;
-  const withinA = !!projA?.within;
-  // Source B "within" semantics:
-  //   - LINE: same projection test as A.
-  //   - CIRCLE: always true (candidate lies on the circle by
-  //     construction).
+  // Per-source "within" semantics:
+  //   - LINE: projection test (within segment extents).
+  //   - CIRCLE: always true (candidate lies on the circle).
   //   - ARC: always true once it survives the angular-span
-  //     filter inside `lineArcIntersections`.
-  let projB: ReturnType<typeof projectOntoLine> = null;
-  let withinB = true;
-  if (selected && sourceB) {
-    if (sourceB.kind === 'LINE') {
-      projB = projectOntoLine(selected, sourceB);
-      withinB = !!projB?.within;
-    }
-  }
+  //     filter inside the helper.
+  const projA = selected && sourceA?.kind === 'LINE' ? projectOntoLine(selected, sourceA) : null;
+  const projB = selected && sourceB?.kind === 'LINE' ? projectOntoLine(selected, sourceB) : null;
+  const withinA = sourceA?.kind === 'LINE' ? !!projA?.within : true;
+  const withinB = sourceB?.kind === 'LINE' ? !!projB?.within : true;
   const withinBoth = withinA && withinB;
-  const consentA = withinA || extendA;
-  const consentB = withinB || extendB || (sourceB?.kind !== 'LINE');
+  const consentA = withinA || extendA || sourceA?.kind !== 'LINE';
+  const consentB = withinB || extendB || sourceB?.kind !== 'LINE';
 
   // Reset selectedIndex if it falls out of range after a
   // recompute.
@@ -142,16 +153,8 @@ export default function IntersectDialog({ onClose }: Props) {
   // circle ghost, candidate crosshair).
   useEffect(() => {
     const detail = {
-      sourceA: sourceA
-        ? { kind: 'LINE' as const, featureId: sourceA.featureId, start: sourceA.start, end: sourceA.end }
-        : null,
-      sourceB: sourceB
-        ? sourceB.kind === 'LINE'
-          ? { kind: 'LINE' as const, featureId: sourceB.featureId, start: sourceB.start, end: sourceB.end }
-          : sourceB.kind === 'CIRCLE'
-            ? { kind: 'CIRCLE' as const, featureId: sourceB.featureId, circle: sourceB.circle }
-            : { kind: 'ARC' as const, featureId: sourceB.featureId, arc: sourceB.arc }
-        : null,
+      sourceA: serialisePicked(sourceA),
+      sourceB: serialisePicked(sourceB),
       extendA,
       extendB,
       candidate: selected,
@@ -173,35 +176,19 @@ export default function IntersectDialog({ onClose }: Props) {
       const detail = (e as CustomEvent<{ featureId: string }>).detail;
       const f = drawingStore.getFeature(detail.featureId);
       if (!f) return;
-      // Validate against the slot's accepted kinds.
-      if (pickingSlot === 'A') {
-        if (f.geometry.type !== 'LINE' || !f.geometry.start || !f.geometry.end) {
-          announce('INTERSECT — Source A must be a LINE.');
-          return;
-        }
-        const picked: PickedLine = {
-          kind: 'LINE',
-          featureId: f.id,
-          start: f.geometry.start,
-          end: f.geometry.end,
-        };
-        setSourceA(picked);
-        setSelectedIndex(0);
-        setPickingSlot(null);
-        return;
-      }
-      // pickingSlot === 'B'
-      const kinds = sourceBKinds(method);
+      const kinds = pickingSlot === 'A' ? sourceAKinds(method) : sourceBKinds(method);
       const matched = tryBuildSource(f, kinds);
       if (!matched) {
-        announce(`INTERSECT — Source B must be a ${kinds.join(' or ')}.`);
+        announce(`INTERSECT — Source ${pickingSlot} must be a ${kinds.join(' or ')}.`);
         return;
       }
-      if (sourceA && matched.featureId === sourceA.featureId) {
-        announce('INTERSECT — pick a different feature for Source B.');
+      const other = pickingSlot === 'A' ? sourceB : sourceA;
+      if (other && other.featureId === matched.featureId) {
+        announce(`INTERSECT — pick a different feature for Source ${pickingSlot}.`);
         return;
       }
-      setSourceB(matched);
+      if (pickingSlot === 'A') setSourceA(matched);
+      else setSourceB(matched);
       setSelectedIndex(0);
       setPickingSlot(null);
     };
@@ -211,7 +198,7 @@ export default function IntersectDialog({ onClose }: Props) {
       window.removeEventListener('cad:intersectPicked', handler);
       window.dispatchEvent(new CustomEvent('cad:intersectPicking', { detail: { active: false } }));
     };
-  }, [pickingSlot, sourceA, method, drawingStore]);
+  }, [pickingSlot, sourceA, sourceB, method, drawingStore]);
 
   function commit() {
     if (!selected || !sourceA || !sourceB) return;
@@ -254,6 +241,7 @@ export default function IntersectDialog({ onClose }: Props) {
 
   const canConfirm =
     sourceA != null && sourceB != null && selected != null && consentA && consentB;
+  const aKindsLabel = sourceAKinds(method).join(' / ');
   const bKindsLabel = sourceBKinds(method).join(' / ');
 
   return (
@@ -293,22 +281,22 @@ export default function IntersectDialog({ onClose }: Props) {
           </div>
 
           <p className="text-[11px] text-gray-400 leading-relaxed">
-            Pick a LINE and {method === 'LINE_LINE' ? 'a second LINE' : method === 'LINE_CIRCLE' ? 'a CIRCLE' : 'an ARC'} — the dialog
-            finds every point where they cross. Up to 2 candidates for circles / arcs; click the one you want before dropping.
+            Pick the two sources for <strong>{METHOD_LABELS[method]}</strong> — the dialog finds every point where they cross.
+            Up to 2 candidates for circle / arc methods; click the one you want before dropping.
           </p>
 
-          {/* Source A picker (always LINE) */}
+          {/* Source A picker */}
           <SourcePickerRow
-            label="Source A (LINE)"
+            label={`Source A (${aKindsLabel})`}
             picked={sourceA}
             isPicking={pickingSlot === 'A'}
             extend={extendA}
-            allowExtend
+            allowExtend={sourceA?.kind === 'LINE'}
             onPick={() => setPickingSlot(pickingSlot === 'A' ? null : 'A')}
             onClear={() => setSourceA(null)}
             onToggleExtend={() => setExtendA((v) => !v)}
           />
-          {/* Source B picker (LINE / CIRCLE / ARC) */}
+          {/* Source B picker */}
           <SourcePickerRow
             label={`Source B (${bKindsLabel})`}
             picked={sourceB}
@@ -455,16 +443,15 @@ function CandidateRow(props: {
   index: number;
   candidate: Point2D;
   isSelected: boolean;
-  sourceA: PickedLine;
+  sourceA: PickedSource;
   sourceB: PickedSource;
   extendA: boolean;
   extendB: boolean;
   onSelect: () => void;
 }) {
-  const projA = projectOntoLine(props.candidate, props.sourceA);
-  const projB =
-    props.sourceB.kind === 'LINE' ? projectOntoLine(props.candidate, props.sourceB) : null;
-  const withinA = !!projA?.within;
+  const projA = props.sourceA.kind === 'LINE' ? projectOntoLine(props.candidate, props.sourceA) : null;
+  const projB = props.sourceB.kind === 'LINE' ? projectOntoLine(props.candidate, props.sourceB) : null;
+  const withinA = props.sourceA.kind === 'LINE' ? !!projA?.within : true;
   const withinB = props.sourceB.kind === 'LINE' ? !!projB?.within : true;
   const withinBoth = withinA && withinB;
   return (
@@ -540,29 +527,55 @@ function tryBuildSource(f: Feature, kinds: PickedSource['kind'][]): PickedSource
 
 function computeCandidates(
   method: IntersectMethod,
-  a: PickedLine | null,
+  a: PickedSource | null,
   b: PickedSource | null,
 ): Point2D[] {
   if (!a || !b) return [];
-  if (method === 'LINE_LINE') {
-    if (b.kind !== 'LINE') return [];
+  if (method === 'LINE_LINE' && a.kind === 'LINE' && b.kind === 'LINE') {
     const p = lineLineIntersection(a.start, a.end, b.start, b.end);
     return p ? [p] : [];
   }
-  if (method === 'LINE_CIRCLE') {
-    if (b.kind !== 'CIRCLE') return [];
+  if (method === 'LINE_CIRCLE' && a.kind === 'LINE' && b.kind === 'CIRCLE') {
     return lineCircleIntersections(a.start, a.end, b.circle.center, b.circle.radius);
   }
-  if (method === 'LINE_ARC') {
-    if (b.kind !== 'ARC') return [];
+  if (method === 'LINE_ARC' && a.kind === 'LINE' && b.kind === 'ARC') {
     return lineArcIntersections(a.start, a.end, b.arc);
+  }
+  if (method === 'CIRCLE_CIRCLE' && a.kind === 'CIRCLE' && b.kind === 'CIRCLE') {
+    return circleCircleIntersections(a.circle.center, a.circle.radius, b.circle.center, b.circle.radius);
+  }
+  if (method === 'ARC_ARC' && a.kind === 'ARC' && b.kind === 'ARC') {
+    return arcArcIntersections(a.arc, b.arc);
+  }
+  if (method === 'ARC_CIRCLE' && a.kind === 'ARC' && b.kind === 'CIRCLE') {
+    return arcCircleIntersections(a.arc, b.circle.center, b.circle.radius);
   }
   return [];
 }
 
+/**
+ * Reshape a PickedSource for the cad:intersectPreview event
+ * payload. Plain objects without method references so the
+ * canvas-side listener can stash them without re-cloning.
+ */
+function serialisePicked(p: PickedSource | null):
+  | { kind: 'LINE'; featureId: string; start: Point2D; end: Point2D }
+  | { kind: 'CIRCLE'; featureId: string; circle: { center: Point2D; radius: number } }
+  | { kind: 'ARC'; featureId: string; arc: ArcGeometry }
+  | null {
+  if (!p) return null;
+  if (p.kind === 'LINE') {
+    return { kind: 'LINE', featureId: p.featureId, start: p.start, end: p.end };
+  }
+  if (p.kind === 'CIRCLE') {
+    return { kind: 'CIRCLE', featureId: p.featureId, circle: p.circle };
+  }
+  return { kind: 'ARC', featureId: p.featureId, arc: p.arc };
+}
+
 function emptyExplainer(
   method: IntersectMethod,
-  sourceA: PickedLine | null,
+  sourceA: PickedSource | null,
   sourceB: PickedSource | null,
   extendA: boolean,
 ): string {
@@ -573,7 +586,10 @@ function emptyExplainer(
       ? 'The line misses the circle entirely.'
       : 'The line misses the circle — toggle Extend A to try the infinite extension.';
   }
-  return 'The line never crosses the arc within its sweep.';
+  if (method === 'LINE_ARC') return 'The line never crosses the arc within its sweep.';
+  if (method === 'CIRCLE_CIRCLE') return 'The circles are too far apart, nested, or coincident — no intersection.';
+  if (method === 'ARC_ARC') return 'The underlying circles miss or both crossings fall outside the arc sweeps.';
+  return 'The arc never crosses the circle within its sweep.';
 }
 
 function renderPickedSummary(p: PickedSource): string {
