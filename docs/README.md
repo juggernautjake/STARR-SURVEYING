@@ -28,7 +28,7 @@ If you're trying to find a doc, start here.
 | Product | Doc | Status |
 |---------|-----|--------|
 | Starr Recon | [`platform/RECON_INVENTORY.md`](./platform/RECON_INVENTORY.md) (acts as both platform inventory and product spec for now) | In active build (Phase 0 shipped) |
-| Starr Forge | [`planning/in-progress/STARR_CAD_PHASE_ROADMAP.md`](./planning/in-progress/STARR_CAD_PHASE_ROADMAP.md) + phase specs in [`planning/in-progress/STARR_CAD/`](./planning/in-progress/STARR_CAD/) | Specced, not yet built |
+| Starr Forge | [`planning/in-progress/STARR_CAD_MASTER_PLAN.md`](./planning/in-progress/STARR_CAD_MASTER_PLAN.md) (canonical) + phase specs in [`planning/in-progress/STARR_CAD/`](./planning/in-progress/STARR_CAD/); historical roadmap archived at [`planning/completed/STARR_CAD_PHASE_ROADMAP.md`](./planning/completed/STARR_CAD_PHASE_ROADMAP.md) | Phases 1–5 shipped; Phase 6–9 forward-looking |
 | Starr Archive | [`product/starr-archive.md`](./product/starr-archive.md) | Sketch only |
 | Starr Compass | *reserved name — no spec yet* | Reserved |
 | Starr Academy | *no dedicated spec doc; lives in `app/admin/learn/`* | Existing |

@@ -1,13 +1,29 @@
 # STARR CAD — 8-Phase Implementation Roadmap
 
-> **⚠️ Superseded by `STARR_CAD_MASTER_PLAN.md` §17 (2026-04-30).**
-> The master plan's §17 is the canonical roadmap. The 8-phase structure
-> below is preserved for historical context; Phase 6–8 milestones have been
-> extended in the master plan to cover document ingestion, the calculation
-> methods registry, calculated points / monument recovery, and the
-> conversational basis-selection workspace, plus a new prep Phase 0 that
-> must complete before Phase 6 starts. Do not extend this doc; open PRs
-> against the master.
+> **Status — archived as historical roadmap (2026-05-12).** Superseded by
+> [`STARR_CAD_MASTER_PLAN.md`](../in-progress/STARR_CAD_MASTER_PLAN.md) §17
+> (2026-04-30). The master plan's §17 is the canonical roadmap. The 8-phase
+> structure below is preserved for historical context; Phase 6–8 milestones
+> have been extended in the master plan to cover document ingestion, the
+> calculation methods registry, calculated points / monument recovery, and the
+> conversational basis-selection workspace, plus a new prep Phase 0 that must
+> complete before Phase 6 starts. Do not extend this doc; open PRs against
+> the master.
+>
+> **Phase absorption map** (where each phase's content now lives):
+>
+> | Phase | Status | Live doc |
+> |---|---|---|
+> | Phase 1 — Project Foundation & CAD Engine Core | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md`](../completed/STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md) |
+> | Phase 2 — Data Import & Point Code System | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md`](../completed/STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md) |
+> | Phase 3 — Layer System, Symbols, Line Types & Editors | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md) (still in-progress for residual items) |
+> | Phase 4 — Geometry Tools | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md`](../completed/STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md) |
+> | Phase 5 — Annotations, Dimensions, Templates & Print | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md) (still in-progress for residual items) |
+> | Phase 6 — AI Drawing Engine | ❌ forward-looking | [`STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md) + master plan §6–§8 (reframed) |
+> | Phase 7 — Final Delivery, RPLS Workflow & Export | ❌ forward-looking | [`STARR_CAD/STARR_CAD_PHASE_7_FINAL.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_7_FINAL.md) |
+> | Phase 8 — UX Completeness | partial — large slices shipped (see UX_POLISH_PLAN) | [`STARR_CAD/STARR_CAD_PHASE_8_UX_CONTROLS.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_8_UX_CONTROLS.md) |
+> | Phase 9 — Trimble Access AutoSync | ❌ spec authored, code not started | [`STARR_CAD/STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md) |
+> | Phase 0 — Foundations (NEW, must precede Phase 6) | added by master plan | master plan §17 |
 
 **Version:** 2.1 | **Date:** March 2026 | **Company:** Starr Surveying Company, Belton, TX
 
