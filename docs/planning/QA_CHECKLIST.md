@@ -95,7 +95,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/about`. Fully built out — `app/about/page.tsx` is 223 lines with proper Next.js Metadata (title + description for SEO), dedicated stylesheet `../styles/About.css`, hero, team narrative, values, and call-to-action sections. Title block declares the 15-year tenure + Christian values positioning per the firm brand.
 - [x] `/services`. Fully built out — `app/services/page.tsx` is 220 lines with Next.js Metadata (title + description), dedicated stylesheet `../styles/Services.css`, and a structured `Service[]` array driving the icon/title/description cards. Covers GPS/GNSS surveying, boundary surveys, construction staking, plats, and legal descriptions per the firm's offering.
 - [x] `/service-area`. Fully built out — `app/service-area/page.tsx` is 199 lines, client-side rendered for the interactive `ServiceAreaMap` (lazily mounted via `next/dynamic` + `ssr: false` to keep the LCP fast). Includes `<CountiesDropdown>` for the list of served counties, `getDirectionsUrl` + `OFFICE_ADDRESS` for the "Get directions" CTA, and a dedicated `../styles/ServiceArea.css` stylesheet.
-- [ ] `/pricing`.
+- [x] `/pricing`. Fully built out — `app/pricing/page.tsx` is 230 lines, client-side rendered, with a dynamically-imported `SurveyCalculator` widget (lazy + `ssr: false`) that lets visitors estimate cost based on parcel size + survey type. Dedicated stylesheet at `../styles/Pricing.css`.
 - [ ] `/resources`.
 - [ ] `/contact`.
 - [ ] `/credentials`.
