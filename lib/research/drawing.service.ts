@@ -586,22 +586,29 @@ export async function listDrawings(
 
   if (error || !drawings) return [];
 
-  // Get element counts
-  const results: (RenderedDrawing & { element_count: number })[] = [];
-
-  for (const drawing of drawings) {
-    const { count } = await supabaseAdmin
+  // Single-round-trip element counts: fetch every `drawing_elements`
+  // row that belongs to any drawing in the result set, projecting only
+  // the FK column, then tally per-drawing in memory. Beats the prior
+  // N+1 pattern (one COUNT per drawing) while sidestepping the
+  // PostgREST embedded-aggregate quirks. The FK index on
+  // `drawing_elements.drawing_id` (seeds/090) keeps the IN scan cheap.
+  const drawingIds = (drawings as RenderedDrawing[]).map((d) => d.id);
+  const countByDrawing = new Map<string, number>();
+  if (drawingIds.length > 0) {
+    const { data: elementRows } = await supabaseAdmin
       .from('drawing_elements')
-      .select('id', { count: 'exact', head: true })
-      .eq('drawing_id', drawing.id);
-
-    results.push({
-      ...(drawing as RenderedDrawing),
-      element_count: count || 0,
-    });
+      .select('drawing_id')
+      .in('drawing_id', drawingIds);
+    for (const row of elementRows ?? []) {
+      const k = (row as { drawing_id: string }).drawing_id;
+      countByDrawing.set(k, (countByDrawing.get(k) ?? 0) + 1);
+    }
   }
 
-  return results;
+  return (drawings as RenderedDrawing[]).map((d) => ({
+    ...d,
+    element_count: countByDrawing.get(d.id) ?? 0,
+  }));
 }
 
 // ── Coordinate Transformation ────────────────────────────────────────────────
