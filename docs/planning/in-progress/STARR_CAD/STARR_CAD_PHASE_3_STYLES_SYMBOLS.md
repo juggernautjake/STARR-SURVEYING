@@ -1745,7 +1745,7 @@ For each visible LineString feature:
 - [ ] Can add/remove inline symbols *(LineTypeEditor UI — not yet implemented)*
 - [ ] Preview updates live *(LineTypeEditor UI — not yet implemented)*
 - [ ] Can save as new custom line type *(LineTypeEditor UI — not yet implemented)*
-- [ ] Can assign to point codes *(LineTypeEditor UI — not yet implemented)*
+- [x] Can assign line types to (line/polyline/polygon) features — `LineTypePicker.tsx` modal shipped; PropertyPanel wires it into the Style section for LINE / POLYLINE / POLYGON. Selecting writes `style.lineTypeId` + isOverride: true through `drawingStore.updateFeature` with a single MODIFY_FEATURE undo entry. 6 vitest cases at `__tests__/cad/styles/linetype-picker.test.tsx` cover the `LineTypePreview` SVG renderer (SOLID → no dasharray; DASHED "6 3"; DOTTED "1 2"; DASH_DOT "8 2 1.5 2"; smoke over every BUILTIN_LINE_TYPES entry; width/height/color overrides). Per-code default-linetype assignment via CodeStylePanel is a separate follow-up.
 
 ### Code-to-Style Mapping
 - [x] `buildDefaultCodeStyleMap` generates mappings for all codes (unit-tested in `code-style-map.test.ts`)

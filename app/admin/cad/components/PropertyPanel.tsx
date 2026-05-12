@@ -10,7 +10,9 @@ import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/
 import { formatDistance } from '@/lib/cad/geometry/units';
 import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
 import SymbolPicker, { SymbolThumbnail } from './SymbolPicker';
+import LineTypePicker, { LineTypePreview } from './LineTypePicker';
 import { getSymbolById } from '@/lib/cad/styles/symbol-library';
+import { getLineTypeById } from '@/lib/cad/styles/linetype-library';
 
 // ── Inline editable coordinate input ────────────────────────────────────────
 function fmtCoord(n: number): string {
@@ -83,6 +85,7 @@ export default function PropertyPanel() {
   // Phase 3 §11 — symbol-picker open state. POINT features can
   // override their per-feature symbolId from the dialog.
   const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
+  const [lineTypePickerOpen, setLineTypePickerOpen] = useState(false);
 
   const single = features.length === 1 ? features[0] : null;
   const displayColor = editColor ?? (single?.style.color ?? '#000000');
@@ -372,6 +375,32 @@ export default function PropertyPanel() {
               onBlur={commitStyleChange}
             />
           </div>
+          {/* Phase 3 §11 — per-feature line type override (LINE / POLYLINE / POLYGON) */}
+          {single && (single.type === 'LINE' || single.type === 'POLYLINE' || single.type === 'POLYGON') && (() => {
+            const lt = single.style.lineTypeId
+              ? getLineTypeById(single.style.lineTypeId)
+              : null;
+            return (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 shrink-0">Line Type</span>
+                <button
+                  type="button"
+                  onClick={() => setLineTypePickerOpen(true)}
+                  className="flex items-center gap-1.5 px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded transition-colors"
+                  title={lt ? `${lt.name} (${lt.id})` : 'No line type assigned — click to pick'}
+                >
+                  {lt ? (
+                    <LineTypePreview lineType={lt} width={60} height={14} color="#e5e7eb" />
+                  ) : (
+                    <span className="w-[60px] h-[14px] inline-block bg-gray-800 rounded" />
+                  )}
+                  <span className="text-[10px] text-gray-300 max-w-[100px] truncate">
+                    {lt?.name ?? 'Pick…'}
+                  </span>
+                </button>
+              </div>
+            );
+          })()}
           {/* Phase 3 §11 — per-feature symbol override (POINT only) */}
           {single?.type === 'POINT' && (() => {
             const sym = single.style.symbolId
@@ -743,6 +772,31 @@ export default function PropertyPanel() {
           });
         }}
         onClose={() => setSymbolPickerOpen(false)}
+      />
+
+      {/* Phase 3 §11 — line type picker for LINE / POLYLINE / POLYGON. */}
+      <LineTypePicker
+        open={
+          lineTypePickerOpen &&
+          !!single &&
+          (single.type === 'LINE' || single.type === 'POLYLINE' || single.type === 'POLYGON')
+        }
+        selectedLineTypeId={single?.style.lineTypeId ?? null}
+        onSelect={(lineTypeId) => {
+          if (!single) return;
+          const before = drawingStore.getFeature(single.id)!;
+          drawingStore.updateFeature(single.id, {
+            style: { ...DEFAULT_FEATURE_STYLE, ...single.style, lineTypeId, isOverride: true },
+          });
+          const after = drawingStore.getFeature(single.id)!;
+          undoStore.pushUndo({
+            id: generateId(),
+            timestamp: Date.now(),
+            description: `Change line type on ${single.id}`,
+            operations: [{ type: 'MODIFY_FEATURE', data: { id: single.id, before, after } }],
+          });
+        }}
+        onClose={() => setLineTypePickerOpen(false)}
       />
     </div>
   );
