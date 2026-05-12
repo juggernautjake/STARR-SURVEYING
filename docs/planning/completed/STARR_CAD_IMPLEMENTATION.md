@@ -34,7 +34,7 @@
 > | §17 Point-name suffix intelligence | Phase 3 |
 > | §18 Confidence rating system | Phase 6 |
 > | §19 Template system | [`STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md) · master plan §5 (template hierarchy) |
-> | §20 UI/UX specification | [`STARR_CAD/STARR_CAD_PHASE_8_UX_CONTROLS.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_8_UX_CONTROLS.md) |
+> | §20 UI/UX specification | [`STARR_CAD_PHASE_8_UX_CONTROLS.md`](./STARR_CAD_PHASE_8_UX_CONTROLS.md) (shipped) |
 > | §21 Keyboard shortcuts + command system | Phase 8 |
 > | §22 Development phases | Master plan §17 |
 > | §23 Appendices A-H | Various phases (referenced inline) |

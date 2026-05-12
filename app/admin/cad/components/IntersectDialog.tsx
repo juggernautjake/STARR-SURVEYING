@@ -355,6 +355,95 @@ export default function IntersectDialog({ onClose }: Props) {
     onClose();
   }
 
+  /**
+   * Phase 8 §11.6.8 — Build corner: extend both LINE sources to
+   * the intersection candidate + stamp a POINT named "Corner"
+   * at that point, all in one batch undo entry. Only fires when
+   * the method is LINE × LINE (or polyline-segment) and both
+   * sources are PickedLine; the action button gates on that.
+   */
+  function buildCorner() {
+    if (!sourceA || !sourceB) return;
+    if (sourceA.kind !== 'LINE' || sourceB.kind !== 'LINE') return;
+    const pt = candidates[selectedIndex];
+    if (!pt) return;
+    const featA = drawingStore.getFeature(sourceA.featureId);
+    const featB = drawingStore.getFeature(sourceB.featureId);
+    if (!featA || !featB) return;
+    if (featA.geometry.type !== 'LINE') return;
+    if (featB.geometry.type !== 'LINE') return;
+
+    // Determine which endpoint to move per source. projectOntoLine
+    // returns t < 0 (move start) or t > 1 (move end) when the
+    // candidate sits outside the segment. When t is inside [0, 1]
+    // the candidate is already on the segment — no extension
+    // needed; we still record the no-op "after" so undo can
+    // restore the geometry deterministically.
+    if (featA.geometry.type !== 'LINE') return;
+    if (featB.geometry.type !== 'LINE') return;
+    const beforeA = featA.geometry as {
+      type: 'LINE';
+      start?: Point2D | null;
+      end?: Point2D | null;
+    };
+    const beforeB = featB.geometry as {
+      type: 'LINE';
+      start?: Point2D | null;
+      end?: Point2D | null;
+    };
+    const afterA = extendLineGeometryTo(beforeA, pt, projA);
+    const afterB = extendLineGeometryTo(beforeB, pt, projB);
+
+    const corner: Feature = {
+      id: generateId(),
+      type: 'POINT',
+      geometry: { type: 'POINT', point: pt },
+      layerId: drawingStore.activeLayerId,
+      style: {
+        color: null, lineWeight: null, opacity: 1,
+        lineTypeId: null, symbolId: null, symbolSize: null,
+        symbolRotation: 0, labelVisible: null, labelFormat: null,
+        labelOffset: { x: 0, y: 0 }, isOverride: false,
+      },
+      properties: {
+        intersectSourceAId: sourceA.featureId,
+        intersectSourceBId: sourceB.featureId,
+        intersectMethod: method,
+        intersectAction: 'BUILD_CORNER',
+        intersectExtendedA: !withinA,
+        intersectExtendedB: !withinB,
+        aiLabel: 'Corner',
+      },
+    };
+
+    drawingStore.updateFeature(sourceA.featureId, { geometry: afterA });
+    drawingStore.updateFeature(sourceB.featureId, { geometry: afterB });
+    drawingStore.addFeature(corner);
+    undoStore.pushUndo(
+      makeBatchEntry('Build corner', [
+        {
+          type: 'MODIFY_FEATURE',
+          data: {
+            id: sourceA.featureId,
+            before: { geometry: beforeA },
+            after: { geometry: afterA },
+          },
+        },
+        {
+          type: 'MODIFY_FEATURE',
+          data: {
+            id: sourceB.featureId,
+            before: { geometry: beforeB },
+            after: { geometry: afterB },
+          },
+        },
+        { type: 'ADD_FEATURE', data: corner },
+      ]),
+    );
+    announce('Build corner: extended both lines and dropped a POINT.');
+    onClose();
+  }
+
   function clearAll() {
     setSourceA(null);
     setSourceB(null);
@@ -554,6 +643,22 @@ export default function IntersectDialog({ onClose }: Props) {
             >
               Cancel
             </button>
+            {/* Phase 8 §11.6.8 — Build corner. Only enabled when
+                both sources are LINE features and a candidate
+                exists; extends both lines + stamps a POINT in
+                one batch undo entry. */}
+            {sourceA?.kind === 'LINE' &&
+            sourceB?.kind === 'LINE' &&
+            candidates.length > 0 ? (
+              <button
+                onClick={buildCorner}
+                disabled={!canConfirm}
+                className="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded transition-colors"
+                title="Extend both lines to the candidate + drop a POINT, all in one undo entry"
+              >
+                Build corner
+              </button>
+            ) : null}
             <button
               onClick={commit}
               disabled={!canConfirm}
@@ -991,6 +1096,34 @@ function renderPickedSummary(p: PickedSource): string {
  *     the nearest endpoint along the line direction (always
  *     ≥ 0). Used for the "extended A 12.3 ft" badge.
  */
+/**
+ * Phase 8 §11.6.8 — Build corner / Extend both helper. Returns
+ * a new LINE geometry whose nearest endpoint has been moved to
+ * `target`. Picks the start endpoint when t < 0.5 (the
+ * candidate sits closer to start, so extend by pulling start
+ * out), the end endpoint otherwise. When the candidate already
+ * lies inside the segment (`within`) the geometry is returned
+ * unchanged — Build corner is still a valid no-op for already-
+ * intersecting lines.
+ */
+function extendLineGeometryTo(
+  geom: { type: 'LINE'; start?: Point2D | null; end?: Point2D | null },
+  target: Point2D,
+  proj: { t: number; within: boolean } | null,
+): { type: 'LINE'; start: Point2D; end: Point2D } {
+  const start = geom.start ?? { x: 0, y: 0 };
+  const end = geom.end ?? { x: 0, y: 0 };
+  if (!proj || proj.within) {
+    return { type: 'LINE', start, end };
+  }
+  // t < 0 → candidate sits past `start`; move `start` to it.
+  // t > 1 → candidate sits past `end`; move `end` to it.
+  if (proj.t < 0) {
+    return { type: 'LINE', start: target, end };
+  }
+  return { type: 'LINE', start, end: target };
+}
+
 function projectOntoLine(p: Point2D, line: PickedLine): {
   t: number;
   within: boolean;
