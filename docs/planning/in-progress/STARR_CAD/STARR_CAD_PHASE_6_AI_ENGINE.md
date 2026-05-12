@@ -1916,11 +1916,11 @@ interface AIStore {
 - [x] Changing group position updates the drawn feature — each position option in the group block is a clickable button (disabled on the active row). Clicking calls `pickGroupPosition` which routes through `drawingStore.updateFeature` to swap the geometry's `point` to the chosen `(easting, northing)`, stamps `properties.aiGroupOverride = true` for audit, and flips the review item's status to MODIFIED with a `"Group position re-picked to point <id>"` note. The pointGroupInfo block re-renders against the new "used" flag on the next render.
 
 ### Worker
-- [ ] Worker accepts POST payload and returns result
-- [ ] Progress polling works (10%, 25%, 40%, etc.)
-- [ ] Claude API called for deed parsing
-- [ ] Timeout handling: retry once, then partial result
-- [ ] Worker handles 500+ point files without crash
+- [x] Worker accepts POST payload and returns result — `app/api/admin/cad/ai-pipeline/route.ts` is the shipped worker entry point: validates `AIJobPayload`, runs the pipeline + enrichment + Claude fallback + answer-folding, returns `AIJobResult` JSON. Auth is admin/developer/equipment_manager via NextAuth session; `maxDuration = 300` (5 min) matches the longest expected deed-parse + enrichment fan-out.
+- ~~Progress polling works (10%, 25%, 40%, etc.)~~ — deferred: the in-process `onProgress` callback is fully wired but the route returns a single JSON response (not SSE). Surfacing per-stage progress to the client would need either an SSE stream or a polling /status endpoint with a job-id store, neither of which exists today; the dialog's spinner already covers the typical 2-15 s synchronous wait. Revisit if the synchronous wait window grows past ~30 s.
+- [x] Claude API called for deed parsing — the route calls `parseCallsWithClaude` whenever the regex parser produces zero calls or low (< 0.5) confidence. `MissingApiKeyError` falls back gracefully to the regex output with a warning; other errors retry once via the new `callClaudeWithRetry` helper before falling through.
+- [x] Timeout handling: retry once, then partial result — Phase 6 §1922: `callClaudeWithRetry` wraps `parseCallsWithClaude` with a 1-second backoff retry; on the second failure, the route falls through to regex output (a partial result) with a warning describing the Claude error. Combined with `maxDuration = 300` from the Next.js runtime, transient Anthropic 5xx no longer poisons the run.
+- [x] Worker handles 500+ point files without crash — `__tests__/cad/ai/pipeline-large-input.test.ts` seeds 500 BC01 monument points + 100 PL01 boundary points (25 line strings) and verifies the pipeline returns a populated result + reviewQueue + warnings array. Asserts `processingTimeMs < 30 s` as a regression ceiling.
 
 ---
 

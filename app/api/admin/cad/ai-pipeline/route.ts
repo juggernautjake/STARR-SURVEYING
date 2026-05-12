@@ -94,9 +94,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     ) {
       body.deedData.calls = regexResult.calls;
     } else {
-      // Layer 2: Claude.
+      // Layer 2: Claude. Phase 6 §1922 — retry once with a small
+      // back-off before falling through to regex output, so a
+      // transient Anthropic 503 doesn't poison an otherwise-clean
+      // pipeline run.
       try {
-        const claudeResult = await parseCallsWithClaude(
+        const claudeResult = await callClaudeWithRetry(
           body.deedData.rawText
         );
         body.deedData.calls = claudeResult.calls;
@@ -198,3 +201,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   return NextResponse.json(result);
 }, { routeName: 'admin/cad/ai-pipeline#post' });
+
+// Phase 6 §1922 — wrap `parseCallsWithClaude` in a single retry
+// with a 1-second backoff. We only retry on generic Error
+// (network blips, 5xx). `MissingApiKeyError` rethrows immediately
+// so the route's fall-through-to-regex branch fires.
+async function callClaudeWithRetry(
+  rawText: string,
+): Promise<Awaited<ReturnType<typeof parseCallsWithClaude>>> {
+  try {
+    return await parseCallsWithClaude(rawText);
+  } catch (err) {
+    if (err instanceof MissingApiKeyError) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    return parseCallsWithClaude(rawText);
+  }
+}
