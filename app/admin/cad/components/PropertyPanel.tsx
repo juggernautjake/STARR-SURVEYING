@@ -9,6 +9,8 @@ import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/co
 import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import { formatDistance } from '@/lib/cad/geometry/units';
 import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
+import SymbolPicker, { SymbolThumbnail } from './SymbolPicker';
+import { getSymbolById } from '@/lib/cad/styles/symbol-library';
 
 // ── Inline editable coordinate input ────────────────────────────────────────
 function fmtCoord(n: number): string {
@@ -78,6 +80,9 @@ export default function PropertyPanel() {
   const [editOpacity, setEditOpacity] = useState<string | null>(null);
   // Toggle between N/E (Northing/Easting) and raw X/Y
   const [useNE, setUseNE] = useState(true);
+  // Phase 3 §11 — symbol-picker open state. POINT features can
+  // override their per-feature symbolId from the dialog.
+  const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
 
   const single = features.length === 1 ? features[0] : null;
   const displayColor = editColor ?? (single?.style.color ?? '#000000');
@@ -367,6 +372,32 @@ export default function PropertyPanel() {
               onBlur={commitStyleChange}
             />
           </div>
+          {/* Phase 3 §11 — per-feature symbol override (POINT only) */}
+          {single?.type === 'POINT' && (() => {
+            const sym = single.style.symbolId
+              ? getSymbolById(single.style.symbolId)
+              : null;
+            return (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 shrink-0">Symbol</span>
+                <button
+                  type="button"
+                  onClick={() => setSymbolPickerOpen(true)}
+                  className="flex items-center gap-1.5 px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded transition-colors"
+                  title={sym ? `${sym.name} (${sym.id})` : 'No symbol assigned — click to pick'}
+                >
+                  {sym ? (
+                    <SymbolThumbnail symbol={sym} size={20} />
+                  ) : (
+                    <span className="w-5 h-5 inline-block bg-gray-800 rounded" />
+                  )}
+                  <span className="text-[10px] text-gray-300 max-w-[120px] truncate">
+                    {sym?.name ?? 'Pick…'}
+                  </span>
+                </button>
+              </div>
+            );
+          })()}
           <div className="flex items-center justify-between gap-2">
             <span className="text-gray-400 shrink-0">Line Weight</span>
             <input
@@ -691,6 +722,28 @@ export default function PropertyPanel() {
         )}
 
       </div>
+
+      {/* Phase 3 §11 — symbol picker mounted as a modal sibling so
+          its overlay covers the whole canvas, not just the panel. */}
+      <SymbolPicker
+        open={symbolPickerOpen && !!single && single.type === 'POINT'}
+        selectedSymbolId={single?.style.symbolId ?? null}
+        onSelect={(symbolId) => {
+          if (!single) return;
+          const before = drawingStore.getFeature(single.id)!;
+          drawingStore.updateFeature(single.id, {
+            style: { ...DEFAULT_FEATURE_STYLE, ...single.style, symbolId, isOverride: true },
+          });
+          const after = drawingStore.getFeature(single.id)!;
+          undoStore.pushUndo({
+            id: generateId(),
+            timestamp: Date.now(),
+            description: `Change symbol on ${single.id}`,
+            operations: [{ type: 'MODIFY_FEATURE', data: { id: single.id, before, after } }],
+          });
+        }}
+        onClose={() => setSymbolPickerOpen(false)}
+      />
     </div>
   );
 }

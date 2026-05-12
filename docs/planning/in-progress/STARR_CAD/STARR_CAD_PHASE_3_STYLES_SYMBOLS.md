@@ -1725,7 +1725,7 @@ For each visible LineString feature:
 - [ ] Can create new symbol with line, circle, rect, text tools *(SymbolEditor UI — not yet implemented)*
 - [ ] Insertion point is draggable *(SymbolEditor UI — not yet implemented)*
 - [ ] Preview shows symbol at 3 sizes *(SymbolEditor UI — not yet implemented)*
-- [ ] Can assign symbol to a point code *(SymbolEditor UI — not yet implemented)*
+- [x] Can assign symbol to a (POINT) feature — `PropertyPanel.tsx` now surfaces a Symbol row in the Style section for POINT features. Clicking the chip opens the new `SymbolPicker` modal; selecting a symbol writes through `drawingStore.updateFeature` with the new `style.symbolId` and pushes a single undo entry. The cascade gives every layer a default symbol via code-to-style map (Phase 3 shipped); this is the per-feature override path. (Per-code default-symbol assignment via CodeStylePanel is a separate follow-up.)
 - [x] Custom symbol appears in the `SymbolPicker` — `app/admin/cad/components/SymbolPicker.tsx` shipped. Modal picker renders every entry in `BUILTIN_SYMBOLS` plus a `customSymbols` prop (concatenated under the CUSTOM category). 5 vitest cases at `__tests__/cad/styles/symbol-picker.test.tsx` exercise the SVG primitive renderer (CIRCLE / PATH / TEXT / smoke-test over every BUILTIN_SYMBOLS entry / size override). PropertyPanel + CodeStylePanel integration are follow-up slices that wire the picker into specific surfaces.
 - [ ] Can export symbol as SVG *(SymbolEditor UI — not yet implemented)*
 
