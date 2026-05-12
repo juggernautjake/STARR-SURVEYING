@@ -1006,35 +1006,89 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     }
 
     if (action.type === 'REDRAW_ELEMENT' || action.type === 'REDRAW_GROUP') {
-      const targets =
+      const { lastPayload, result: priorResult } = stateNow;
+      if (!lastPayload || !priorResult) {
+        appendActionAck(
+          set,
+          featureId,
+          '⚠ Cannot recompute — no cached payload. Re-open the AI ' +
+            'Drawing Engine dialog and run the pipeline first.'
+        );
+        return;
+      }
+      const targetIds =
         action.affectedIds.length > 0
           ? action.affectedIds
           : [featureId];
       const label =
-        action.type === 'REDRAW_ELEMENT'
-          ? 'this element'
-          : 'this group';
-      appendActionAck(
-        set,
-        featureId,
-        `↻ Queued ${targets.length} feature${targets.length === 1 ? '' : 's'} for ` +
-          `${label} recompute. Partial-recompute lands in a ` +
-          'follow-up slice; for now use Redraw Full Drawing to ' +
-          'apply the change end-to-end.'
-      );
-      set((s) => {
-        if (!s.result) return s;
-        return {
-          result: {
-            ...s.result,
-            warnings: [
-              ...s.result.warnings,
-              `Chat action ${action.type} queued for ${targets.length} ` +
-                'feature(s); partial-recompute path not yet wired.',
-            ],
-          },
+        action.type === 'REDRAW_ELEMENT' ? 'this element' : 'this group';
+      // Run the full pipeline with the chat instruction folded
+      // into `userPrompt`, then selectively merge only the
+      // targeted features back into the existing result. This is
+      // a pragmatic stand-in for true single-feature recompute:
+      // it preserves every other feature's id / score / review
+      // status while still giving the surveyor the visible
+      // redraw they asked for.
+      const chatInstruction =
+        instruction && instruction.trim().length > 0
+          ? instruction.trim()
+          : action.description;
+      set({ status: 'running', error: null });
+      try {
+        const augmentedPrompt = [
+          lastPayload.userPrompt ?? '',
+          chatInstruction
+            ? `Redraw ${label} (ids ${targetIds.join(', ')}): ${chatInstruction}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        const nextPayload: AIJobPayload = {
+          ...lastPayload,
+          userPrompt: augmentedPrompt.length > 0 ? augmentedPrompt : null,
         };
-      });
+        const res = await fetch('/api/admin/cad/ai-pipeline', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(nextPayload),
+        });
+        const json = (await res.json().catch(() => ({}))) as
+          | AIJobResult
+          | { error?: string };
+        if (!res.ok) {
+          const msg =
+            (json as { error?: string }).error ??
+            `Partial re-run failed (${res.status}).`;
+          set({ status: 'error', error: msg });
+          return;
+        }
+        const fullResult = json as AIJobResult;
+        const merged = mergePartialPipelineResult(
+          priorResult,
+          fullResult,
+          targetIds,
+        );
+        appendActionAck(
+          set,
+          featureId,
+          `↻ Recomputed ${merged.replacedCount} of ${targetIds.length} ` +
+            `target feature${targetIds.length === 1 ? '' : 's'} ` +
+            `(${label}); rest of drawing left intact.`,
+        );
+        set({
+          status: 'done',
+          result: merged.result,
+          error: null,
+          lastPayload: nextPayload,
+          isQuestionDialogOpen:
+            fullResult.deliberationResult?.shouldShowDialog ?? false,
+        });
+      } catch (err) {
+        set({
+          status: 'error',
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
       return;
     }
 
@@ -1361,6 +1415,119 @@ function appendActionAck(
     timestamp: new Date().toISOString(),
   };
   set((s) => appendChatMessage(s, featureId, ackMessage, false));
+}
+
+/**
+ * Phase 6 §3117-§3118 — Merge a fresh pipeline result back into
+ * the prior result, replacing only the features named in
+ * `targetIds`. Each replacement preserves the OLD feature id so
+ * the drawing-store / review-queue / explanation map keep their
+ * existing keys; we copy the NEW feature's geometry / style /
+ * properties onto the OLD shell.
+ *
+ * Matching strategy: the chat handler always passes ids that
+ * existed in the prior result, so we look them up there to
+ * derive a stable provenance key (`aiPointIds`). The new feature
+ * that carries the same `aiPointIds` value is the match.
+ *
+ * Returns the merged result + how many targets we actually swapped
+ * (skipped when the new pipeline produced zero matches — e.g.
+ * the surveyor's instruction made the AI drop the feature).
+ */
+function mergePartialPipelineResult(
+  prior: AIJobResult,
+  fresh: AIJobResult,
+  targetIds: string[],
+): { result: AIJobResult; replacedCount: number } {
+  const features = [...prior.features];
+  const scores: AIJobResult['scores'] = { ...prior.scores };
+  const explanations: AIJobResult['explanations'] = { ...prior.explanations };
+  const reviewQueue: AIJobResult['reviewQueue'] = {
+    summary: { ...prior.reviewQueue.summary },
+    tiers: {
+      5: [...prior.reviewQueue.tiers[5]],
+      4: [...prior.reviewQueue.tiers[4]],
+      3: [...prior.reviewQueue.tiers[3]],
+      2: [...prior.reviewQueue.tiers[2]],
+      1: [...prior.reviewQueue.tiers[1]],
+    },
+  };
+
+  let replacedCount = 0;
+  for (const oldId of targetIds) {
+    const oldIx = features.findIndex((f) => f.id === oldId);
+    if (oldIx === -1) continue;
+    const oldFeature = features[oldIx];
+    const provenance = String(oldFeature.properties?.aiPointIds ?? '');
+    if (!provenance) continue;
+    // Find the matching new feature by aiPointIds. Falls back to
+    // aiLabel when provenance fingerprints aren't unique enough.
+    const newFeature =
+      fresh.features.find(
+        (f) => String(f.properties?.aiPointIds ?? '') === provenance,
+      ) ??
+      fresh.features.find(
+        (f) =>
+          oldFeature.properties?.aiLabel &&
+          f.properties?.aiLabel === oldFeature.properties.aiLabel,
+      );
+    if (!newFeature) continue;
+    // Swap in the new shape under the old id so the drawing
+    // store / review queue references still resolve.
+    features[oldIx] = { ...newFeature, id: oldId };
+    if (fresh.scores[newFeature.id]) {
+      scores[oldId] = { ...fresh.scores[newFeature.id] };
+    }
+    if (fresh.explanations[newFeature.id]) {
+      explanations[oldId] = {
+        ...fresh.explanations[newFeature.id],
+        featureId: oldId,
+        // Preserve the prior chat history — the redraw shouldn't
+        // wipe the conversation that triggered it.
+        chatHistory: explanations[oldId]?.chatHistory ?? [],
+      };
+    }
+    for (const tier of [5, 4, 3, 2, 1] as const) {
+      const ix = reviewQueue.tiers[tier].findIndex(
+        (it) => it.featureId === oldId,
+      );
+      if (ix !== -1) {
+        const prev = reviewQueue.tiers[tier][ix];
+        const next = fresh.reviewQueue.tiers[
+          newFeature.properties?.aiConfidenceTier as 1 | 2 | 3 | 4 | 5 ?? tier
+        ]?.find((it) => it.featureId === newFeature.id);
+        if (next) {
+          reviewQueue.tiers[tier][ix] = {
+            ...next,
+            id: prev.id,
+            featureId: oldId,
+            // Preserve the surveyor's existing accept/modify/reject
+            // posture — the redraw shouldn't reset their decision.
+            status: prev.status,
+            userNote: prev.userNote,
+          };
+        }
+      }
+    }
+    replacedCount += 1;
+  }
+
+  return {
+    result: {
+      ...prior,
+      features,
+      scores,
+      explanations,
+      reviewQueue,
+      // Carry over the fresh deliberation + enrichment + warnings
+      // because they reflect the new run's global state.
+      deliberationResult: fresh.deliberationResult,
+      enrichmentData: fresh.enrichmentData,
+      warnings: [...prior.warnings, ...fresh.warnings],
+      processingTimeMs: prior.processingTimeMs + fresh.processingTimeMs,
+    },
+    replacedCount,
+  };
 }
 
 /**
