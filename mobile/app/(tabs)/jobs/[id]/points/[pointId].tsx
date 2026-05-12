@@ -16,6 +16,7 @@ import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { logError } from '@/lib/log';
 import { PhotoLightbox } from '@/lib/PhotoLightbox';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { TextField } from '@/lib/TextField';
 import { ThumbnailGrid } from '@/lib/ThumbnailGrid';
 import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard';
@@ -267,6 +268,20 @@ function PointForm({ point, palette }: PointFormProps) {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
+      <ScreenHeader
+        title={point.name ?? 'Point'}
+        right={
+          <Pressable
+            onPress={attemptDismiss}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+          >
+            <Text style={[styles.cancelText, { color: palette.muted }]}>
+              Cancel
+            </Text>
+          </Pressable>
+        }
+      />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -275,38 +290,19 @@ function PointForm({ point, palette }: PointFormProps) {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.headerRow}>
-            <View style={{ flex: 1 }}>
-              <View
-                style={[styles.tag, { backgroundColor: prefixInfo.color }]}
-              >
-                <Text style={styles.tagText}>{point.code_category ?? '—'}</Text>
-              </View>
-              <Text
-                style={[styles.heading, { color: palette.text }]}
-                numberOfLines={2}
-              >
-                {point.name}
-              </Text>
-              <Text style={[styles.subtitle, { color: palette.muted }]}>
-                {prefixInfo.label}
-                {hasGps
-                  ? ` · ${point.device_lat?.toFixed(5)}, ${point.device_lon?.toFixed(5)}`
-                  : ' · no GPS fix'}
-                {point.device_altitude_m != null
-                  ? ` · ${point.device_altitude_m.toFixed(1)} m`
-                  : ''}
-              </Text>
+          <View style={styles.metaBlock}>
+            <View style={[styles.tag, { backgroundColor: prefixInfo.color }]}>
+              <Text style={styles.tagText}>{point.code_category ?? '—'}</Text>
             </View>
-            <Pressable
-              onPress={attemptDismiss}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-            >
-              <Text style={[styles.cancelText, { color: palette.muted }]}>
-                Cancel
-              </Text>
-            </Pressable>
+            <Text style={[styles.subtitle, { color: palette.muted }]}>
+              {prefixInfo.label}
+              {hasGps
+                ? ` · ${point.device_lat?.toFixed(5)}, ${point.device_lon?.toFixed(5)}`
+                : ' · no GPS fix'}
+              {point.device_altitude_m != null
+                ? ` · ${point.device_altitude_m.toFixed(1)} m`
+                : ''}
+            </Text>
           </View>
 
           {/* Photo gallery */}
@@ -866,13 +862,10 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: {
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 8,
     paddingBottom: 64,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
+  metaBlock: {
     marginBottom: 16,
   },
   tag: {

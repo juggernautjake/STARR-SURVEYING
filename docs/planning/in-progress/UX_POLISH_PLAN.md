@@ -208,7 +208,7 @@ Each slice is small enough to ship in one PR. Phases land in this order so the c
 2. **Slice A2** — RECON design-token audit. Migrate the workspace page's 175 inline-style blocks to `AdminResearch.css` classes. Touches one big file but no behaviour change.
 3. **Slice A3** — Mobile palette gaps. Add `amber`/`amberText`/`reviewBg`/`successContrast` to `lib/theme.ts`. Fix the missing `useResolvedScheme` imports across `lib/Button.tsx`, `lib/TextField.tsx`, `lib/JobCard.tsx`, `lib/CaptureFab.tsx`, `lib/Timesheet.tsx`.
 4. **Slice A4** — Shared `<ConfirmDialog>` per app + audit existing destructive flows. CAD: harmonise existing modal headers. RECON: replace all 11 `window.confirm()` calls. Mobile: replace `Alert.alert` sign-out.
-5. **Slice A5** — Mobile `<ScreenHeader>` + `<ScreenScroll>` shared components. Adopt on every tab index + detail screen.
+5. **Slice A5** — Mobile `<ScreenHeader>` + `<ScreenScroll>` shared components. Adopt on every tab index + detail screen. **`<ScreenHeader>` shipped (U20–U22)**: 5 tab indexes + 14 detail screens migrated (`jobs/[id]`, `capture/index`, `money/[id]`, `time/edit/[id]`, `me/uploads`, `me/privacy`, `jobs/search`, `jobs/[id]/notes/new`, `time/pick-job`, `money/capture`, `jobs/[id]/files/[fileId]/preview`, `jobs/[id]/points/[pointId]`, `capture/[pointId]/photos`, `capture/[pointId]/voice`). `<ScreenScroll>` deferred — every screen has bespoke SafeArea/edge needs and a wrapper would be premature.
 
 ### Phase B — CAD highest-impact
 

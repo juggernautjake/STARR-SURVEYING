@@ -1,15 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { logError, logWarn } from '@/lib/log';
 import { isPermissionDeniedError, promptForSettings } from '@/lib/permissionGuard';
 import { useActiveTimeEntry } from '@/lib/timeTracking';
@@ -141,17 +136,7 @@ export default function CaptureReceiptScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top', 'bottom']}
     >
-      <View style={styles.headerRow}>
-        <Text style={[styles.heading, { color: palette.text }]}>Receipt</Text>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Cancel"
-          style={styles.closeButton}
-        >
-          <Text style={[styles.closeText, { color: palette.muted }]}>Cancel</Text>
-        </Pressable>
-      </View>
+      <ScreenHeader back title="Receipt" />
 
       <View style={styles.body}>
         {fromStopLabel ? (
@@ -238,25 +223,6 @@ export default function CaptureReceiptScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  heading: {
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  closeButton: {
-    padding: 8,
-  },
-  closeText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
   body: {
     flex: 1,
     paddingHorizontal: 24,

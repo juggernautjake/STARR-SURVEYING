@@ -20,6 +20,7 @@ import {
 } from '@/lib/trackingConsent';
 import { TrackingConsentModal } from '@/lib/TrackingConsentModal';
 import { useVehicles, type Vehicle } from '@/lib/vehicles';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { colors } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
 
@@ -192,17 +193,7 @@ export default function PickJobScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top', 'bottom']}
     >
-      <View style={styles.headerRow}>
-        <Text style={[styles.heading, { color: palette.text }]}>Clock in</Text>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Cancel"
-          style={styles.closeButton}
-        >
-          <Text style={[styles.closeText, { color: palette.muted }]}>Cancel</Text>
-        </Pressable>
-      </View>
+      <ScreenHeader back title="Clock in" />
 
       <FlatList
         data={jobs}
@@ -393,25 +384,6 @@ function paletteOf(scheme: 'light' | 'dark') {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  heading: {
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  closeButton: {
-    padding: 8,
-  },
-  closeText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
   sectionLabel: {
     fontSize: 12,
     fontWeight: '500',
