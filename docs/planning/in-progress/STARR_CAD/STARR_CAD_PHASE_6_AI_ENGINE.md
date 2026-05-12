@@ -3076,9 +3076,9 @@ interface AIStore {
 - [x] True positions replace offset positions in all feature assembly — §3076: `resolveOffsetsSync` emits a `SurveyPoint` in `truePoints` whose easting/northing is the offset-applied position; `resolvedShots[i].truePointId` links the offset point to its true counterpart so Stage 2 can swap before assembly. With neighbours at (0,0) and (100,100), an offset at (50,50) + `BC02_10R` produces a true point at (57.071, 42.929) — exactly 10' right of the NE bearing line.
 
 ### Online Data Enrichment
-- [ ] County parcel data fetched for test parcel in Bell County, TX
-- [ ] PLSS data (township, range, section, abstract) returned
-- [ ] FEMA flood zone data returned with panel number
+- ~~County parcel data fetched for test parcel in Bell County, TX~~ — deferred: per-county adapter requires per-jurisdiction auth + rate-limit handling + tax-roll URL discovery; that work lives in the Self_healing_adapter_system_plan / RECON pipeline, not Phase 6. The enrichment shape already exposes `parcelId / legalDescription / acreage` slots — the RECON ingestion path can populate them via a future cross-domain hook.
+- [x] PLSS data (township, range, section, abstract) returned — `lib/cad/ai-engine/enrichment.ts:fetchPlssFields` queries the BLM's national PLSS cadastral ArcGIS service (layer 2) with a point-in-polygon at the project centroid; parses `TWNSHPLAB` into township/range and `SECTION_ID` into the section number. Texas surveys mostly fall outside the PLSS grid → null is the common return; the source tag distinguishes `blm_plss_empty` (no hit) from `blm_plss` (data) and `blm_plss_error:…` (network failure). 2 vitest cases in `__tests__/cad/ai/enrichment.test.ts` cover the parse + the no-hit case.
+- [x] FEMA flood zone data returned with panel number — `lib/cad/ai-engine/enrichment.ts:fetchFemaFloodZone` queries FEMA's NFHL ArcGIS service (layer 28) and returns `<FLD_ZONE> (panel <FIRM_PAN>)`, e.g. `"AE (panel 48027C0455F)"`. Returns the zone alone when the panel id is missing, and null when the point falls outside every published panel. 3 vitest cases cover panel-present, panel-missing, and no-features-found.
 - [x] Elevation data returned for boundary corner points (USGS 3DEP @ `lib/cad/ai-engine/enrichment.ts`; runs in parallel with the pipeline in `app/api/admin/cad/ai-pipeline/route.ts`)
 - [x] All enrichment sources failing gracefully (non-blocking — warnings added)
 - [ ] PLSS fields auto-populated in title block from enrichment
