@@ -3081,7 +3081,7 @@ interface AIStore {
 - [x] FEMA flood zone data returned with panel number — `lib/cad/ai-engine/enrichment.ts:fetchFemaFloodZone` queries FEMA's NFHL ArcGIS service (layer 28) and returns `<FLD_ZONE> (panel <FIRM_PAN>)`, e.g. `"AE (panel 48027C0455F)"`. Returns the zone alone when the panel id is missing, and null when the point falls outside every published panel. 3 vitest cases cover panel-present, panel-missing, and no-features-found.
 - [x] Elevation data returned for boundary corner points (USGS 3DEP @ `lib/cad/ai-engine/enrichment.ts`; runs in parallel with the pipeline in `app/api/admin/cad/ai-pipeline/route.ts`)
 - [x] All enrichment sources failing gracefully (non-blocking — warnings added)
-- [ ] PLSS fields auto-populated in title block from enrichment
+- [x] PLSS fields auto-populated in title block from enrichment — `lib/cad/store/ai-store.ts:setResult` now dispatches a `cad:enrichmentReady` window event when `result.enrichmentData` carries any non-null PLSS or flood-zone field. `app/admin/cad/CADLayout.tsx` listens and merges the values into `settings.titleBlock.notes` as `PLSS: T2N R6W Sec 12` + `Flood Zone: AE (panel 48027C0455F)` lines. The merge is sticky-safe: it skips when the notes already contain a `PLSS:` or `Flood Zone:` marker (a prior pipeline run or the surveyor's manual edits stay intact). Title-block doesn't have dedicated PLSS/flood-zone fields yet so notes is the right merge target without schema churn; future slice can promote to first-class fields once the surveyor workflow is observed.
 
 ### Deliberation & Clarifying Questions
 - [x] Deliberation runs after stage 6 and before drawing preview (`runDeliberation` in `lib/cad/ai-engine/deliberation.ts`, called from `pipeline.ts`)

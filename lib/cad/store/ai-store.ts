@@ -746,7 +746,26 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
   closeExplanation: () => set({ explanationFeatureId: null }),
 
   start: () => set({ status: 'running', error: null }),
-  setResult: (result) =>
+  setResult: (result) => {
+    // Phase 6 §3084 — broadcast enrichment-ready event so the
+    // title-block listener can merge PLSS / flood-zone fields
+    // into the surveyor's notes without coupling this store to
+    // the drawing store. No-op when enrichment didn't produce
+    // any populated field.
+    if (
+      typeof window !== 'undefined' &&
+      result.enrichmentData &&
+      (result.enrichmentData.plssSection ||
+        result.enrichmentData.plssTownship ||
+        result.enrichmentData.plssRange ||
+        result.enrichmentData.femaFloodZone)
+    ) {
+      window.dispatchEvent(
+        new CustomEvent('cad:enrichmentReady', {
+          detail: result.enrichmentData,
+        }),
+      );
+    }
     set({
       status: 'done',
       result,
@@ -761,7 +780,8 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
       // §3.3 — fresh pipeline run produces fresh explanations
       // so any prior stale flags are now stale themselves.
       staleExplanationIds: [],
-    }),
+    });
+  },
   setError: (message) => set({ status: 'error', error: message }),
   reset: () =>
     set({

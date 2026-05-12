@@ -275,6 +275,50 @@ export default function CADLayout() {
     return () => window.removeEventListener('cad:openCodeStylePanel', handler);
   }, []);
 
+  // Phase 6 §3084 — when the AI pipeline finishes with usable
+  // PLSS / flood-zone data, merge it into the title-block notes
+  // field so the surveyor doesn't have to retype values that
+  // BLM + FEMA already published. We only touch `notes`; the
+  // surveyor's manual edits stay sticky because we skip the
+  // merge when `notes` already contains the auto-generated
+  // marker line.
+  useEffect(() => {
+    type EnrichmentDetail = {
+      plssSection: string | null;
+      plssTownship: string | null;
+      plssRange: string | null;
+      femaFloodZone: string | null;
+    };
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent<EnrichmentDetail>).detail;
+      if (!detail) return;
+      const lines: string[] = [];
+      if (detail.plssTownship || detail.plssRange || detail.plssSection) {
+        const parts = [
+          detail.plssTownship,
+          detail.plssRange,
+          detail.plssSection ? `Sec ${detail.plssSection}` : null,
+        ].filter((p): p is string => !!p);
+        if (parts.length > 0) lines.push(`PLSS: ${parts.join(' ')}`);
+      }
+      if (detail.femaFloodZone) {
+        lines.push(`Flood Zone: ${detail.femaFloodZone}`);
+      }
+      if (lines.length === 0) return;
+      const block = lines.join('\n');
+      const current = drawingStore.document.settings.titleBlock?.notes ?? '';
+      if (current.includes('PLSS:') || current.includes('Flood Zone:')) {
+        // Already populated (manually or by a prior pipeline run);
+        // don't clobber the surveyor's edits.
+        return;
+      }
+      const merged = current.length > 0 ? `${current}\n${block}` : block;
+      drawingStore.updateTitleBlock({ notes: merged });
+    };
+    window.addEventListener('cad:enrichmentReady', handler);
+    return () => window.removeEventListener('cad:enrichmentReady', handler);
+  }, [drawingStore]);
+
   // Phase 8 §11.7 Slice 10 — mount the linked-instance
   // subscriber so duplicates created via the
   // LayerTransferDialog with `linkDuplicatesToSource` on
