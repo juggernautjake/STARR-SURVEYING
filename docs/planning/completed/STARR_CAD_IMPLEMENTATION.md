@@ -20,7 +20,7 @@
 > | §3 Core data models | [`STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md`](../completed/STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md) (shipped) |
 > | §4 Coordinate system + math engine | Phase 1 (shipped) |
 > | §5 Rendering engine | Phase 1 (shipped) |
-> | §6 Layer system | [`STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md) |
+> | §6 Layer system | [`STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`](./STARR_CAD_PHASE_3_STYLES_SYMBOLS.md) (shipped) |
 > | §7 Point code system | Phase 3 |
 > | §8 Symbol system + symbol editor | Phase 3 |
 > | §9 Line type system + line editor | Phase 3 |

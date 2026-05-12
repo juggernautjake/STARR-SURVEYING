@@ -16,7 +16,7 @@
 > |---|---|---|
 > | Phase 1 — Project Foundation & CAD Engine Core | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md`](../completed/STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md) |
 > | Phase 2 — Data Import & Point Code System | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md`](../completed/STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md) |
-> | Phase 3 — Layer System, Symbols, Line Types & Editors | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md) (still in-progress for residual items) |
+> | Phase 3 — Layer System, Symbols, Line Types & Editors | ✅ shipped | [`STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`](./STARR_CAD_PHASE_3_STYLES_SYMBOLS.md) |
 > | Phase 4 — Geometry Tools | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md`](../completed/STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md) |
 > | Phase 5 — Annotations, Dimensions, Templates & Print | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md) (still in-progress for residual items) |
 > | Phase 6 — AI Drawing Engine | ❌ forward-looking | [`STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md) + master plan §6–§8 (reframed) |
@@ -148,11 +148,11 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 - ✅ `.starr` file validator migrates pre-Phase-3 documents (back-fills frozen, lineTypeId, Phase 3 style fields, default layers)
 - ✅ Unit test suite: 215 tests across 9 test files covering all style modules, edge cases, and migration logic
 
-**NOT in Phase 3:** Symbol editor UI dialog, line type editor UI dialog, code-style mapping panel UI (reserved for future Phase 3 UI completion), SymbolPicker/LineTypePicker/ColorPicker dialogs.
+**NOT in Phase 3:** Symbol editor UI dialog + line type editor UI dialog (deferred — see Phase 3 spec; 100+ built-in symbols and 14+ built-in line types cover the surveyor's workflow). Code-to-style mapping panel + SymbolPicker / LineTypePicker have shipped; ColorPicker uses the native browser color input.
 
 **Depends On:** Phase 2 (codes assigned to points, line strings built)
 
-**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`
+**Spec File:** `./STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`
 
 ---
 
@@ -345,7 +345,7 @@ Each phase has its own implementation spec file:
 
 - `./STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md` — Built out fully
 - `./STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md` — Built out fully
-- `./STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md` — Built out fully
+- `./STARR_CAD_PHASE_3_STYLES_SYMBOLS.md` — Built out fully
 - `./STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md` — Built out fully
 - `./STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md` — Built out fully
 - `./STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md` — Built out fully (v2.0: includes dynamic offsets, enrichment, deliberation, confidence cards, element chat)
