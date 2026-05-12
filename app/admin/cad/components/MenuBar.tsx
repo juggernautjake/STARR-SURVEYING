@@ -15,7 +15,9 @@ import {
   useUndoStore,
   useUIStore,
   useAIStore,
+  AI_MODE_CYCLE,
 } from '@/lib/cad/store';
+import type { AIMode } from '@/lib/cad/store';
 import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { reverseFeature, explodeFeature, smoothPolyline, simplifyPolylineFeature } from '@/lib/cad/operations';
 import { cadLog } from '@/lib/cad/logger';
@@ -70,6 +72,12 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
   const toggleDrawingChat = useDrawingChatStore((s) => s.toggle);
   const aiSidebarOpen = useUIStore((s) => s.showAISidebar);
   const toggleAISidebar = useUIStore((s) => s.toggleAISidebar);
+  // Phase 6 §AI-mode-framework — surface the four AI modes here so
+  // the surveyor isn't forced to discover the Ctrl+Shift+M chord
+  // through the StatusBar chip tooltip alone. UX_POLISH §2.4.
+  const aiMode = useAIStore((s) => s.mode);
+  const setAIMode = useAIStore((s) => s.setMode);
+  const cycleAIMode = useAIStore((s) => s.cycleMode);
 
   // ─── File I/O ───────────────────────────────
   function saveDocument() {
@@ -565,6 +573,18 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     {
       label: 'AI',
       items: [
+        // AI mode picker — mirrors the StatusBar chip's cycle but
+        // makes every mode + the chord visible from the menu.
+        ...AI_MODE_CYCLE.map((mode: AIMode) => ({
+          label: `${mode === aiMode ? '● ' : '  '}AI mode: ${mode}`,
+          action: () => { setAIMode(mode); setOpenMenu(null); },
+        })),
+        {
+          label: 'Cycle AI mode',
+          shortcut: 'Ctrl+Shift+M',
+          action: () => { cycleAIMode(); setOpenMenu(null); },
+        },
+        { separator: true },
         { label: 'Run AI Drawing Engine…', action: () => { onOpenAIDrawing?.(); setOpenMenu(null); } },
         {
           label: aiQueuePanelOpen ? 'Hide AI review queue' : 'Show AI review queue',
