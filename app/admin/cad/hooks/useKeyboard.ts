@@ -175,9 +175,23 @@ export function useKeyboard() {
         selectionStore.selectMultiple(allIds, 'REPLACE');
         break;
       }
-      case 'edit.delete':
-        eraseSelected();
+      case 'edit.delete': {
+        // During an in-flight polyline / polygon draw, Backspace (+
+        // Delete) pops the last placed vertex — matches AutoCAD /
+        // Carlson convention and the existing `u` command-bar key
+        // documented in the Keyboard Shortcuts modal. Otherwise
+        // falls through to deleting the active selection.
+        const ts = toolStore.state;
+        if (
+          (ts.activeTool === 'DRAW_POLYLINE' || ts.activeTool === 'DRAW_POLYGON') &&
+          ts.drawingPoints.length > 0
+        ) {
+          toolStore.popDrawingPoint();
+        } else {
+          eraseSelected();
+        }
         break;
+      }
       case 'edit.copy':
         copyCadSelected();
         break;
