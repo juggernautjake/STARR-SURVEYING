@@ -427,8 +427,8 @@ All three apps share the same underlying problem: **shared primitives don't agre
 ### 11.5 Setting / field names leaking developer terms
 - [ ] `AIProvenancePopup.tsx:87` — label `"Batch id"` → **"AI run ID"** or **"Pipeline run"**.
 - [ ] `AICopilotSidebar.tsx:163` — `"Saved code resolutions"` → **"Saved code → layer mappings"** or **"Remembered code answers"**.
-- [ ] `lib/cad/hotkeys/registry.ts:97,106,107,108,109` — descriptions reference "Phase 6 §32", "(Phase 6 §32.13 Slice 11)", "(Phase 6 §32 Slice 12)" — these render in the shortcut overlay + command palette. Strip every Phase / Slice reference.
-- [ ] `lib/cad/hotkeys/registry.ts:106` — description `"…matches by aiBatchId on the undo stack"`. `aiBatchId` is the camelCase store key. Rephrase to **"…groups every AI feature from the latest turn"**.
+- [x] `lib/cad/hotkeys/registry.ts` user-facing descriptions are clean — current rows for `ai.parseCodes` / `ai.fillCorners` / `ai.checkClosure` / `ai.createLayerFromCodes` / `ai.explainFeature` / `ai.undoBatch` / `ai.startAuto` / `ai.pauseAuto` / `ai.replaySequence` (lines 100-109) all read in surveyor language; no `Phase 6 §32 Slice N` strings survive. The only "Phase 6" mention is a `//` code-comment at line 98 that isn't rendered anywhere.
+- [x] `lib/cad/hotkeys/registry.ts:106` — `aiBatchId` store-key leak already paraphrased. The `ai.undoBatch` row now reads `"Undo every feature produced in the most recent AI turn as a single group."` — surveyor-readable; no camelCase store key.
 - [ ] `types/research.ts:7-15` — `WORKFLOW_STEPS` labels `'Configure'`, `'Analyzing'`, `'Verifying'` are state-machine names exposed in `STATUS_LABELS` as filter chips. Rename to noun states: **"Setup"** / **"Research in progress"** / **"Verifying drawing"**.
 
 ### 11.6 Vague button labels (add an object)
@@ -441,15 +441,15 @@ All three apps share the same underlying problem: **shared primitives don't agre
 
 ### 11.7 Internal-versioning leakage in UI copy (14+ sites)
 - [x] `CopilotCard.tsx:166` — duplicate of §2.4 row; tooltip now reads "Skip this proposal and open the chat so you can ask the AI to revise it." No Slice-N leak in any user-visible string.
-- [ ] `AICopilotSidebar.tsx:220` — `title="Kick off an AUTO run with a project-intake prompt (§32.13 Slice 11)."`
-- [ ] `AICopilotSidebar.tsx:237` — `title="Halt AUTO at the next boundary and drop into COPILOT (Ctrl+Shift+P)."` (the Ctrl+Shift+P is fine; the prior context isn't leaked here — verify)
-- [ ] `AIProvenancePopup.tsx:107` — body text `"Run the full AI pipeline (Phase 6 §3–§10) for the reasoning…"`
-- [ ] `AIDrawingDialog.tsx:138` — body starts `"Phase 6 pipeline. {n} point…"`
-- [ ] `OrientationDialog.tsx:270` — thrown error: `'AI deed orientation is not yet implemented (Phase 6).'`
-- [ ] `OrientationDialog.tsx:405` — `"— Phase 6 will add AI deed-matched calls here"` under "Suggested Bearings".
-- [ ] `OrientationDialog.tsx:492` — tab option label `'Phase 6 — coming soon'`.
-- [ ] `OrientationDialog.tsx:567` — `<div>AI Deed / Plat Import — Phase 6</div>`.
-- [ ] `lib/cad/hotkeys/registry.ts:97,106,107,108,109` — Phase / Slice references in shortcut descriptions.
+- [x] `AICopilotSidebar.tsx:220` — §32.13 Slice 11 leak gone. Tooltip now reads `"Kick off an AUTO run — the AI walks the project intake and proposes the drawing."`
+- [x] `AICopilotSidebar.tsx:237` — verified clean. Tooltip reads `"Halt AUTO at the next boundary and drop into COPILOT (Ctrl+Shift+P)."` — only the keyboard shortcut surfaces, no Phase/Slice reference.
+- [x] `AIProvenancePopup.tsx:107` — Phase 6 §3–§10 leak gone. Body now reads `"Run the full AI Drawing Engine for the reasoning, weighted data sources, assumptions, and confidence breakdown."`
+- [x] `AIDrawingDialog.tsx:138` — "Phase 6 pipeline" leak gone. Body now reads `"AI Drawing Engine. {n} point{s} loaded. …"`.
+- [x] `OrientationDialog.tsx:270` — "Phase 6" thrown-error leak gone. Now reads `'AI deed orientation is not available yet — use a manual method below.'`
+- [x] `OrientationDialog.tsx:405` — "Phase 6 will add" leak gone. Span now reads `"— AI deed-matched calls will appear here once that path lands"`.
+- [x] `OrientationDialog.tsx:492` — "Phase 6 — coming soon" leak gone. Tab option label now reads `'Coming with the AI Drawing Engine'`.
+- [x] `OrientationDialog.tsx:567` — "— Phase 6" suffix gone. Heading now reads `<div>AI Deed / Plat Import</div>`.
+- [x] `lib/cad/hotkeys/registry.ts` — duplicate of the §11 audit row above. No user-visible Phase / Slice references survive in the registered shortcut descriptions.
 - [ ] `mobile/app/(tabs)/jobs/index.tsx:91-93` — empty-state `"Mobile job creation lands later in Phase F1."`
 - [ ] `mobile/app/(tabs)/gear/index.tsx:206-208` — footnote leaks a source-tree file path: `"… PowerSync sync rules (mobile/lib/db/sync-rules.yaml) must be deployed…"`
 - [ ] `mobile/app/(tabs)/me/index.tsx:528-531` — section literally titled **"Coming soon"** with body `"Profile editing and idle-timer length land in F1+."`
