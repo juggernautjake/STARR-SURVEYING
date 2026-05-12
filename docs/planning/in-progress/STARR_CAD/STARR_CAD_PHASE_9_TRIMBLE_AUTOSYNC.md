@@ -414,6 +414,6 @@ operates (`STARR_CAD_MASTER_PLAN.md` §10.5).
   you want to do?" follow-ups via the AI agent).
 - `STARR_FIELD_MOBILE_APP_PLAN.md` §5.12.4 — `personnel_skills`
   cert table (the `cert_expires_in_window` handler reads against).
-- `AI_PLAT_DRAWING_SYSTEM_PLAN.md` §14-19 — Jacob's original
-  Phase 2 architecture; this doc is the operational deep-dive on
-  top of it.
+- [`../../completed/AI_PLAT_DRAWING_SYSTEM_PLAN.md`](../../completed/AI_PLAT_DRAWING_SYSTEM_PLAN.md)
+  §14-19 — Jacob's original Phase 2 architecture; this doc is the
+  operational deep-dive on top of it.
