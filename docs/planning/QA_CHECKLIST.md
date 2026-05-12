@@ -109,7 +109,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/admin/users`. Fully built out — `app/admin/users/page.tsx` is 603 lines. Comprehensive admin user-management page: imports `UserRole` from `@/lib/auth`, enumerates every role in `ALL_ROLES`, surfaces a per-user role-toggle matrix with `useCallback` handlers, and styles via the shared `AdminUsers.css`. Largest of the typical admin routes.
 - [x] `/admin/employees`. Fully built out — `app/admin/employees/page.tsx` is 251 lines. Shows real registered users from the auth backend (vs `/admin/users` which is the role-matrix admin tool). Maps each `UserRole` to a `ROLE_LABELS` display string, uses `usePageError` for the standard error-toast pattern, and `useCallback` for stable handlers.
 - [x] `/admin/team`. Fully built out — `app/admin/team/page.tsx` is 649 lines. Per the file header: "Field team status + dispatcher Ping. Shows every approved employee with: clocked-in state + duration, last GPS reported on clock-in (lat/lon with map links), last 'log hours' reminder sent (delivered ✓ + read ✓ flags), and a Ping button per user → POST /api/admin/notifications." Surfaces the dispatcher's daily workflow without forcing the office into the admin web.
-- [ ] `/admin/profile`.
+- [x] `/admin/profile`. Fully built out — `app/admin/profile/page.tsx` is 216 lines. Per-employee profile page reading from the DB: `user_name`, `job_title`, `hire_date`, `hourly_rate`, `is_active`, `available_balance`, etc. via a typed `Profile` interface; renders the employee's credentials + recent changes panel. Uses `usePageError` for the standard error toast.
 - [ ] `/admin/settings`.
 - [ ] `/admin/pay-progression`.
 - [ ] `/admin/hours-approval`.
