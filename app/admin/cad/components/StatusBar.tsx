@@ -73,6 +73,11 @@ export default function StatusBar() {
   const enabledSnapTypes = doc.settings.snapTypes ?? [];
   const prefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
   const selCount = selectionStore.selectionCount();
+  // §UX U18 — surface the otherwise-buried "hidden features"
+  // state. The Layer panel's "Hidden Items" button is easy to
+  // miss; this pill in the status bar makes the count visible
+  // and one-click recoverable.
+  const hiddenCount = Object.values(doc.features).filter((f) => f.hidden).length;
   const { activeTool, drawingPoints, basePoint, rotateCenter, orthoEnabled, polarEnabled, polarAngle, copyMode } = toolStore.state;
 
   // Express zoom as a percentage of 1px-per-world-unit baseline
@@ -301,6 +306,23 @@ export default function StatusBar() {
       {selCount > 0 && (
         <>
           <span className="text-blue-400 shrink-0 animate-[fadeIn_150ms_ease-out]">{selCount} selected</span>
+          <span className="text-gray-600">|</span>
+        </>
+      )}
+
+      {/* Hidden features pill — click opens the Hidden Items
+          panel. Skipped when nothing is hidden so the bar stays
+          uncluttered. */}
+      {hiddenCount > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('cad:toggleHiddenItems'))}
+            className="shrink-0 text-amber-300 hover:text-amber-100 transition-colors animate-[fadeIn_150ms_ease-out]"
+            title={`${hiddenCount} hidden feature${hiddenCount === 1 ? '' : 's'} — click to manage`}
+          >
+            {hiddenCount} hidden
+          </button>
           <span className="text-gray-600">|</span>
         </>
       )}

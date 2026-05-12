@@ -2,6 +2,7 @@
 // app/admin/cad/components/MenuBar.tsx — Top application menu bar
 
 import { useEffect, useRef, useState } from 'react';
+import { Settings as SettingsIcon, Keyboard as KeyboardIcon } from 'lucide-react';
 import {
   useAnnotationStore,
   useDeliveryStore,
@@ -639,7 +640,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       )}
 
       {/* Document name — click to rename */}
-      <div className="ml-auto mr-3 flex items-center min-w-0">
+      <div className="ml-auto mr-2 flex items-center gap-2 min-w-0">
         {editingName ? (
           <input
             ref={nameInputRef}
@@ -662,6 +663,29 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
             {drawingStore.document.name}
           </span>
         )}
+      </div>
+
+      {/* Right-side chrome — keyboard shortcuts + settings live
+          here so the surveyor doesn't have to drill into Help. */}
+      <div className="mr-3 flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={() => setShowShortcuts(true)}
+          className="text-gray-400 hover:text-white p-1 rounded transition-colors"
+          title="Keyboard shortcuts (Shift+/)"
+          aria-label="Keyboard shortcuts"
+        >
+          <KeyboardIcon size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('cad:openSettings'))}
+          className="text-gray-400 hover:text-white p-1 rounded transition-colors"
+          title="Settings & Preferences (Ctrl+,)"
+          aria-label="Settings"
+        >
+          <SettingsIcon size={14} />
+        </button>
       </div>
 
       {/* Close overlay */}

@@ -201,6 +201,19 @@ export default function ResearchProjectPage() {
   const [project, setProject] = useState<ResearchProject | null>(null);
   const [documents, setDocuments] = useState<ResearchDocument[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Dynamic browser-tab title so multi-tab users can tell projects
+  // apart. Restores the generic title on unmount.
+  useEffect(() => {
+    const name = project?.name?.trim();
+    document.title = name && name.length > 0
+      ? `${name} — Research`
+      : 'Research — Starr Surveying';
+    return () => {
+      document.title = 'Research — Starr Surveying';
+    };
+  }, [project?.name]);
+
   const [stats, setStats] = useState({ document_count: 0, data_point_count: 0, discrepancy_count: 0, resolved_count: 0 });
 
   // Review pipeline logs are loaded on-demand by PipelineProgressPanel via onLoadLogs

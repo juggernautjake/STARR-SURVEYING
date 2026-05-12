@@ -37,6 +37,7 @@ import {
   ZoomOut,
   Maximize,
   ChevronRight,
+  ChevronDown,
   Slash,
   GitCommitHorizontal,
   Waves,
@@ -650,9 +651,17 @@ export default function ToolBar() {
                     : 'text-gray-300 hover:bg-gray-700 hover:text-white hover:scale-110 active:scale-95'}`}
               >
                 {getGroupIcon(group)}
-                {/* Small triangle indicator: bottom-right corner marks tools with variants */}
+                {/* Variant-flyout indicator. Bottom-right corner
+                    chevron tells the surveyor right-click opens more
+                    options (`▸` already appears in the tooltip; this
+                    is the visual companion). Brighter on hover so it
+                    invites discovery. */}
                 {hasVariants && (
-                  <span className="absolute bottom-0.5 right-0.5 w-0 h-0 border-r-[5px] border-b-[5px] border-r-transparent border-b-current opacity-40" />
+                  <ChevronDown
+                    size={9}
+                    aria-hidden
+                    className="absolute bottom-0 right-0 opacity-60 group-hover:opacity-100 transition-opacity"
+                  />
                 )}
               </button>
             </Tooltip>

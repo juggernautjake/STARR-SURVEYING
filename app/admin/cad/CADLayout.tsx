@@ -118,6 +118,16 @@ export default function CADLayout() {
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
   const [autoSaveFailed, setAutoSaveFailed] = useState(false);
+
+  // Dynamic browser-tab title so multi-tab users can tell drawings
+  // apart. Falls back to a generic title before the document hydrates.
+  useEffect(() => {
+    const name = drawingStore.document.name?.trim();
+    document.title = name && name.length > 0
+      ? `${name} — Starr CAD`
+      : 'Starr CAD — Drawing Editor';
+  }, [drawingStore.document.name]);
+
   const [featureDialog, setFeatureDialog] = useState<{
     featureId: string;
     x: number;
