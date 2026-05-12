@@ -13,7 +13,7 @@
 > - [ ] **#2 (critical)** AI responses cast without runtime validation (`document-analysis.service.ts:66`) — add Zod between AI responses and the data pipeline.
 > - [ ] **#3 (important)** `listDrawings()` N+1 element-count query (`drawing.service.ts:578-606`) — single query with subquery or JOIN. (Partial: unused `drawingIds` var dropped in this sweep; the loop itself still N+1s.)
 > - [ ] **#4 (important)** In-memory search cache won't work on Vercel serverless (`property-search.service.ts:21`) — move to Redis or Supabase.
-> - [ ] **#5 (important)** Document text truncated at 18,000 chars in `document-analysis.service.ts` — raise to 50K+ or chunked analysis.
+> - [x] **#5 (important)** Document text truncation raised — `MAX_DOCUMENT_TEXT_CHARS = 50_000` named constant added; both `analyzeLegalDescription` and `analyzePlat` use it now. Claude's 200 K context leaves headroom for system prompt + multi-doc context buckets. Docs over 50 K (rare; subdivision plats with chained exhibits) still need chunked analysis — tracked as a follow-up.
 > - [ ] **#6 (important)** No rate limiting on `POST lite-pipeline` — add per-project + per-hour AI budget.
 > - [ ] **#7 (important)** `buildCallSequence()` Strategy 3 fragile (`drawing.service.ts:400-416`) — validate traverse closure before accepting.
 > - [x] **#8 (important)** `comparison.service.ts:386-388` confidence breakdown — `computeConfidenceBreakdown` now takes `MathCheckSummary` and maps `area_difference_acres` → `area_accuracy` (7-tier ladder: < 0.001 ac → 100, < 1.0 ac → 40, ≥ 1.0 ac → 25) and `closure_precision` → `closure_quality` (TBPELS-aware ladder: ≥ 10K → 100, ≥ 1K → 75, < 100 → 25). Null checks (no math data) preserve the 75 neutral default the old hardcode used as a fallback.

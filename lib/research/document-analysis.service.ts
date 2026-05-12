@@ -12,6 +12,17 @@ import type {
 } from '@/types/research';
 import type { BoundaryFetchRequest } from '@/types/research';
 
+// Single-prompt input cap. Earlier code clipped at 18 K chars on the
+// theory that "200 K Claude context = generous but not unbounded";
+// in practice 18 K silently dropped material on long subdivision
+// plats, legal descriptions with attached exhibits, and title
+// commitments with chained policy schedules. Raise to 50 K — still
+// well under the 200 K context, leaves room for the system prompt
+// + multi-document context buckets, and covers ~99% of real
+// documents. Larger docs will need chunked analysis (tracked as a
+// follow-up in CODE_REVIEW_2026_03_09.md finding #5).
+const MAX_DOCUMENT_TEXT_CHARS = 50_000;
+
 // Document types that should use the legal-description analyzer
 const LEGAL_DESCRIPTION_TYPES = new Set<DocumentType>([
   'deed',
@@ -52,7 +63,7 @@ export async function analyzeLegalDescription(
     context?.documentLabel ? `Document label: ${context.documentLabel}` : '',
     '',
     'DOCUMENT TEXT:',
-    text.substring(0, 18000), // Claude 200K context — generous but not unbounded
+    text.substring(0, MAX_DOCUMENT_TEXT_CHARS),
   ].filter(Boolean).join('\n');
 
   const result = await callAI({
@@ -77,7 +88,7 @@ export async function analyzePlat(
     context?.documentLabel ? `Document label: ${context.documentLabel}` : '',
     '',
     'PLAT DOCUMENT TEXT:',
-    text.substring(0, 18000),
+    text.substring(0, MAX_DOCUMENT_TEXT_CHARS),
   ].filter(Boolean).join('\n');
 
   const result = await callAI({
