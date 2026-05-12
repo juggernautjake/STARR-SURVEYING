@@ -1,7 +1,7 @@
 # STARR CAD — Complete Implementation Specification
 
 > **Status — archived as historical specification (2026-05-12).** Superseded
-> by [`STARR_CAD_MASTER_PLAN.md`](../in-progress/STARR_CAD_MASTER_PLAN.md)
+> by [`STARR_CAD_MASTER_PLAN.md`](./STARR_CAD_MASTER_PLAN.md)
 > (2026-04-30). The master plan is the new single source of truth for the
 > CAD + AI plat system; per-phase detail docs in `STARR_CAD/` carry the
 > implementation specs. This doc remains for historical context — Phases 1–5
@@ -15,7 +15,7 @@
 >
 > | This doc § | Owner going forward |
 > |---|---|
-> | §1 Project overview + architecture | [`STARR_CAD_MASTER_PLAN.md`](../in-progress/STARR_CAD_MASTER_PLAN.md) §3 |
+> | §1 Project overview + architecture | [`STARR_CAD_MASTER_PLAN.md`](./STARR_CAD_MASTER_PLAN.md) §3 |
 > | §2 Tech stack + project structure | Master plan §16 |
 > | §3 Core data models | [`STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md`](../completed/STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md) (shipped) |
 > | §4 Coordinate system + math engine | Phase 1 (shipped) |

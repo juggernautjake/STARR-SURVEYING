@@ -1,6 +1,6 @@
 # STARR CAD — Master Plan (Unified)
 
-**Owner:** Jacob Maddux · **Status:** in-progress · **Document version:** 1.0 · **Last updated:** 2026-04-30
+**Owner:** Jacob Maddux · **Status:** canonical reference (v1.0 shipped 2026-04-30; archived to `completed/` 2026-05-12 alongside the rest of the CAD planning family) · **Document version:** 1.0 · **Last updated:** 2026-04-30
 
 This is the single source of truth for the Starr Surveying CAD + AI plat-drawing
 system. It supersedes the high-level coordination docs listed below and points

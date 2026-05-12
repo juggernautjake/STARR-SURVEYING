@@ -1,7 +1,7 @@
 # STARR CAD — 8-Phase Implementation Roadmap
 
 > **Status — archived as historical roadmap (2026-05-12).** Superseded by
-> [`STARR_CAD_MASTER_PLAN.md`](../in-progress/STARR_CAD_MASTER_PLAN.md) §17
+> [`STARR_CAD_MASTER_PLAN.md`](./STARR_CAD_MASTER_PLAN.md) §17
 > (2026-04-30). The master plan's §17 is the canonical roadmap. The 8-phase
 > structure below is preserved for historical context; Phase 6–8 milestones
 > have been extended in the master plan to cover document ingestion, the
