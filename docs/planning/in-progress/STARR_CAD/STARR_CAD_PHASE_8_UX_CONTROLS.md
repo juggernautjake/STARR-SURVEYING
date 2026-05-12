@@ -1801,7 +1801,7 @@ When the surveyor opens a second drawing, the system clipboard remains populated
 - [x] Right-click source-list row → "Filter to only POINTs" prunes the set without touching the canvas — Slice 18 (`deca2bb`). `SourceListContextMenu` exposes "Keep only TYPE" entries (one per distinct type in the pick with counts) + "Remove all TYPEs" + "Remove all on LAYER".
 - [x] Code-remap: unmapped code surfaces fuzzy suggestion; surveyor accepts → duplicate carries the remapped code — Slice 19 (`c4e2bfc`). `suggestCodeMapping` runs EXACT → SHARED_BASE → PREFIX → SUBSTRING → EDIT_DISTANCE; pre-fills at confidence ≥ 0.8. Per-row "auto" button accepts lower-confidence suggestions. 21 vitest specs.
 - ~~Selection block save → recall later from a different drawing imports the block as a template~~ — deferred: by design. Slice 20 (`f1fef1e`) made blocks document-scoped because feature ids don't survive cross-drawing. Cross-drawing block import is a Slice 20.5 anchor-relative-storage concern with its own design pass, not this row.
-- [ ] Linked block instance updates when the master block is edited; converting an instance to independent breaks the link
+- ~~Linked block instance updates when the master block is edited; converting an instance to independent breaks the link~~ — deferred: cost clearly exceeds value. Slice 20 (`f1fef1e`) intentionally shipped blocks as document-scoped + linked-instance-as-opt-in; auto-propagating master edits to every linked instance requires a master-edit detection engine + invalidation pass + linked-instance render hook — multi-day infra for a power-user-only workflow whose 95% case (one-shot insertion of a re-usable callout) already works via the existing copy-on-insert path. Revisit when a surveyor reports "I edited the IRS-with-cap-detail block and the existing instances should have updated."
 - [x] Click-again unselects a glowing feature; Alt-click does the same — Pick-mode click handler in `CanvasViewport` calls `transferStore.togglePick(hit)` on plain click and `removePick(hit)` on `Alt+click` (Slice 2 + deselect-path expansion `2eecf09`).
 - [ ] Alt-drag (or Ctrl+Shift+drag) window-deselects every glowing feature inside the rectangle
 - [x] Right-click on canvas with no hover → context menu offers `Clear all picks` / `Clear last pick` — `app/admin/cad/components/PickModeContextMenu.tsx` + `CanvasViewport.handleContextMenu` Pick-mode branch. The menu always renders the two clear entries (greyed out when `pickedIds.size === 0`); hit-test result is `null` when the right-click misses every feature.
@@ -1922,7 +1922,7 @@ Surveyors often re-paste the same logical group multiple times — a fence-corne
 - [x] Right-click source-list row — duplicate of §11.7.12 (shipped Slice 18, `deca2bb`).
 - [x] Code-remap fuzzy suggestion — duplicate of §11.7.12 (shipped Slice 19, `c4e2bfc`).
 - ~~Selection block cross-drawing import~~ — duplicate of §11.7.12 (line 1803); deferred there (by design — feature ids don't survive cross-drawing).
-- [ ] Linked block instance updates — open in §11.7.12 (line 1804); same item lives in both sections.
+- ~~Linked block instance updates~~ — duplicate of §11.7.12; deferred there (cost > value for a power-user opt-in workflow).
 - [ ] Click-again unselects a glowing feature; Alt-click does the same
 - [ ] Alt-drag (or Ctrl+Shift+drag) window-deselects every glowing feature inside the rectangle
 - [ ] Right-click on canvas with no hover → context menu offers `Clear all picks` / `Clear last pick`
