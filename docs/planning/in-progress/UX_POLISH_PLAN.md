@@ -85,7 +85,7 @@ Any combination of two can be open simultaneously per `CADLayout.tsx:824-925`. C
 - [ ] **ToolOptionsBar at `min-h-[40px] overflow-x-auto`** (`ToolOptionsBar.tsx:182`) shows different controls per tool and becomes a horizontal scroll-strip on TRANSFORM / ARRAY / OFFSET. 2129 lines of conditional UI. Split into per-tool mini-panels below the toolbar; keep the universal strip for global modes only (ortho/polar/copy).
 - [ ] **AICopilotSidebar** at 340 px wide crams Header + Auto-approve slider + Saved resolutions row + Reference-doc chip + AUTO controls + Transcript + Input form into a single column. Settings + AUTO strips alone eat ~25% of vertical space before any chat is visible. Collapse the settings strip behind a "Settings" chevron when collapsed.
 - [ ] **FeatureContextMenu** grows to 14 items with submenus for AI features (`FeatureContextMenu.tsx:869-901,969`) at `min-w-[200px] max-w-[260px]`. Group by intent (Edit · Select · Layer · AI) with dividers.
-- [ ] **MenuBar File menu has 28 items** in one nesting level (`MenuBar.tsx:329-385`). Same-action duplicates ("Save" vs "Save As…" at line 338). Re-nest using submenus and drop duplicates.
+- [ ] **MenuBar File menu has 28 items** in one nesting level (`MenuBar.tsx:329-385`). Re-nest using submenus. *Save / Save As duplicate dropped in this iteration:* both entries called the same `saveDocument` (no "Save As" semantics in a web app — every download lets the browser rename). "Save to Cloud…" still owns the DB-backed save. Submenu nesting for the export-format cluster (CSV simplified/full, DXF, PDF, Field cards, GeoJSON, Deliverable bundle) remains a follow-up.
 - [ ] **LayerTransferDialog at 2334 lines** has 4 source-mode tabs, 6+ option groups, type-IDs filtering, code remapping, traverse routing, presets all in one modal. Split into tabs or a wizard.
 
 ### 2.4 Discoverability gaps
@@ -97,7 +97,7 @@ Any combination of two can be open simultaneously per `CADLayout.tsx:824-925`. C
 - [x] **"Hidden Items"** pill in StatusBar — shipped per §UX U18 (`StatusBar.tsx:76-80,316-324`). The bar derives `hiddenCount = Object.values(doc.features).filter(f => f.hidden).length` and renders a clickable `{hiddenCount} hidden` pill (with title-attr count + plural) whenever the count is > 0. Clicking still routes the surveyor to the existing manage flow.
 - [ ] **Promote draft layer** button only appears on draft layers (`LayerPanel.tsx:456-494`) with no documentation in MenuBar/Help.
 - [ ] **Three AI surfaces** (DrawingChatPanel, AISidebar, AICopilotSidebar) with overlapping responsibilities and three File-menu entries (`MenuBar.tsx:365-371`) that never explain the difference. Either consolidate (per §2.2) or label each entry by intent.
-- [ ] **Settings dialog only via Help → Settings & Preferences** (`MenuBar.tsx:570`). Add a gear icon to the MenuBar's right side next to the document name; doubles as a visible sibling for the otherwise lonely document name.
+- [x] **Settings dialog only via Help → Settings & Preferences** — Settings gear icon already lives on the right side of `MenuBar.tsx:693-701` (next to the Keyboard-shortcuts icon and the document name). Click dispatches `cad:openSettings` (same event the Help menu entry fires) and the title-attr surfaces the `Ctrl+,` shortcut. Both the menu entry and the icon are intentional — the icon is the no-menu path.
 - [ ] **Layer-rotation feature** buried as the second-to-last item of the layer right-click menu (`LayerPanel.tsx:725-774`); numeric input appears in place — easy to miss.
 - [x] **Intersect tool** chord shortcut `I X` is now discoverable through the Chord HUD (`b97ed7b`) — pressing `I` displays a list of completable second keys including `I X → Intersect Lines…`.
 - [ ] **Compass / RECON import** triggered by external apps writing to localStorage (`CADLayout.tsx:166-207`); no in-app entry point.
@@ -435,7 +435,7 @@ All three apps share the same underlying problem: **shared primitives don't agre
 - [ ] `MenuBar.tsx:338` — "Save As…" action body is identical to `saveDocument` (line 72) — implement or remove. The label promises a distinct flow.
 - [ ] `time/index.tsx:338` — `label="Submit"` → **"Submit week to dispatcher"** or **"Send this week"**.
 - [ ] `money/[id].tsx:584`, `jobs/[id]/points/[pointId].tsx:488`, `time/edit/[id].tsx:335` — `label="Save"` with no object → **"Save receipt"**, **"Save point"**, **"Save time entry"**.
-- [ ] `ConfirmDialog.tsx:140` — fallback `confirmLabel ?? 'Confirm'`. Audit the 3 call sites (`ToolOptionsBar.tsx:1807`, `LayerTransferDialog.tsx:235`, `CanvasViewport.tsx:10272`) and pass explicit verbs ("Delete layer", "Replace points") instead of relying on the default.
+- [x] `ConfirmDialog.tsx:140` fallback audit — all 3 call sites already pass explicit verbs: `LayerTransferDialog.tsx:238` `confirmLabel: 'Move'`, `ToolOptionsBar.tsx:1810` `confirmLabel: 'Delete'`, `CanvasViewport.tsx:10277` `confirmLabel: 'Delete'`. No site relies on the `'Confirm'` default.
 - [ ] `DrawingPreferencesPanel.tsx:403` — `<span>Apply</span>` → **"Apply preferences"**.
 - [ ] `SaveToDBDialog.tsx:170-172` — `'Save Drawing to Database'` / `'Open Drawing from Database'`. "Database" is engineer-speak — rename to **"Save to Starr Cloud"** / **"Open from Starr Cloud"** (or whatever the user-facing storage product is called).
 

@@ -349,7 +349,6 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'Recover unsaved drawings…', action: () => { onOpenRecentRecoveries?.(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Save', shortcut: 'Ctrl+S', action: saveDocument },
-        { label: 'Save As…', action: saveDocument },
         { label: 'Save to Cloud…', action: () => { setDbDialog('save'); setOpenMenu(null); } },
         { separator: true },
         { label: 'Export as CSV (simplified)…', action: () => { exportCsv('simplified'); setOpenMenu(null); } },
