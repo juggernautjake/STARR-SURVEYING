@@ -345,6 +345,12 @@ function stubReviewQueue(
   for (const f of features) {
     const score = scores.get(f.id);
     const tier = score?.tier ?? 3;
+    // Phase 6 §1909-1910 — tier-5 (95-100 confidence) items are
+    // auto-accepted so the surveyor only sees PENDING work in the
+    // review queue. Every other tier starts as PENDING and
+    // requires explicit Accept/Modify/Reject.
+    const status: import('./types').ReviewItemStatus =
+      tier === 5 ? 'ACCEPTED' : 'PENDING';
     const item: import('./types').ReviewItem = {
       id: `review_${f.id}`,
       featureId: f.id,
@@ -361,13 +367,14 @@ function stubReviewQueue(
       discrepancies: [],
       pointGroupInfo: null,
       callComparison: null,
-      status: 'PENDING',
+      status,
       userNote: null,
       modifiedFeature: null,
     };
     queue.tiers[tier].push(item);
     queue.summary.totalElements += 1;
-    queue.summary.pendingCount += 1;
+    if (status === 'ACCEPTED') queue.summary.acceptedCount += 1;
+    else queue.summary.pendingCount += 1;
   }
   return queue;
 }

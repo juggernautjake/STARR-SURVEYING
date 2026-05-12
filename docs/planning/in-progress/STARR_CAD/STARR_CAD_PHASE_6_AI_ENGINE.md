@@ -1906,8 +1906,8 @@ interface AIStore {
 - [x] Tier assignment: 95–100=5, 80–94=4, 60–79=3, 40–59=2, 0–39=1 — §1906: every tier boundary asserted via `getTier`.
 
 ### Review Queue
-- [ ] Tier 5 items auto-accepted
-- [ ] All other tiers start as PENDING
+- [x] Tier 5 items auto-accepted — `lib/cad/ai-engine/pipeline.ts:stubReviewQueue` now stamps `status = 'ACCEPTED'` on every tier-5 item (confidence 95-100) at build time, plus increments `summary.acceptedCount`. The surveyor only sees PENDING work in the review queue, matching the §28.1 "≥ 90 + no blocking questions → no dialog" short-circuit rule's intent at the per-item level.
+- [x] All other tiers start as PENDING — same change in `stubReviewQueue`: tier 1-4 items keep `status = 'PENDING'` and add to `summary.pendingCount`. Both behaviours are covered by `__tests__/cad/ai/review-queue-tier5-autoaccept.test.ts`: a 3-point fixture runs the full pipeline, then walks the queue asserting (a) every tier-5 item is ACCEPTED, (b) every tier-1-4 item is PENDING, and (c) the summary counts agree with the walk.
 - [ ] Click item zooms viewport to feature
 - [ ] Accept/Modify/Reject buttons work per item
 - [ ] Batch accept ★★★★★ accepts all tier 5
