@@ -98,7 +98,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/pricing`. Fully built out — `app/pricing/page.tsx` is 230 lines, client-side rendered, with a dynamically-imported `SurveyCalculator` widget (lazy + `ssr: false`) that lets visitors estimate cost based on parcel size + survey type. Dedicated stylesheet at `../styles/Pricing.css`.
 - [x] `/resources`. Fully built out — `app/resources/page.tsx` is 481 lines, client-side rendered with `useState` for tab / filter switching, structured TypeScript interfaces for the resource catalogue, and a dedicated `../styles/Resources.css` stylesheet. Hosts the surveyor-facing FAQs / glossary / forms / process explainers; the largest of the marketing pages by line count.
 - [x] `/contact`. Fully built out — `app/contact/page.tsx` is 550 lines, client-side with `useState` + form-submission handlers, conversion tracking via `trackConversion('contact_submit', …)`, address constants imported from `ServiceAreaMap` for the office block, and a dedicated `../styles/Contact.css` stylesheet. Largest of the marketing pages by lines — includes contact form, office hours, multiple CTAs, and the address card with directions link.
-- [ ] `/credentials`.
+- [x] `/credentials`. Fully built out — `app/credentials/page.tsx` is 303 lines, client-side rendered. Surfaces RPLS (Registered Professional Land Surveyor) requirements + the firm's licensure / continuing-ed track record via structured TypeScript interfaces (`RPLSRequirement`, etc.) feeding card layouts. Dedicated `../styles/Credentials.css` stylesheet.
 - [ ] `/register`.
 - [ ] `/share`.
 
