@@ -117,6 +117,7 @@ import {
 import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
+import PickModeContextMenu from './PickModeContextMenu';
 import InteractiveOpPanel from './InteractiveOpPanel';
 import ImageInsertDialog from './ImageInsertDialog';
 import TitleBlockEditorModal from './TitleBlockEditorModal';
@@ -756,6 +757,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const [cursorStyle, setCursorStyle] = useState('crosshair');
   const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [pickCtxMenu, setPickCtxMenu] = useState<{ x: number; y: number; featureId: string | null } | null>(null);
   const [drawingMenu, setDrawingMenu] = useState<DrawingMenuState | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
   // HUD: floating operation info panel near cursor
@@ -10447,6 +10449,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Phase 8 §11.7 — Pick mode owns right-click while
+      // LayerTransferDialog is picking. We don't want the regular
+      // feature context menu's Move / Delete / etc. actions to
+      // fire on a pick. The Pick-mode menu lets the surveyor
+      // remove picks without leaving Pick mode.
+      const tx = useTransferStore.getState();
+      if (tx.pickModeActive) {
+        const hit = hitTest(sx, sy);
+        setPickCtxMenu({ x: e.clientX, y: e.clientY, featureId: hit });
+        return;
+      }
+
       // Right-click during polyline drawing: finish if we have at least 1 committed segment
       // (drawingPoints.length >= 2 means: start point + at least 1 more = at least 1 segment)
       if (activeTool === 'DRAW_POLYLINE') {
@@ -10699,6 +10713,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           worldY={contextMenu.worldY}
           featureId={contextMenu.featureId}
           onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {/* Phase 8 §11.7 — Pick-mode right-click menu */}
+      {pickCtxMenu && (
+        <PickModeContextMenu
+          x={pickCtxMenu.x}
+          y={pickCtxMenu.y}
+          featureId={pickCtxMenu.featureId}
+          onClose={() => setPickCtxMenu(null)}
         />
       )}
 
