@@ -104,7 +104,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 
 ### 3.2 Admin routes (one item per top-level admin section)
 - [x] `/admin` — landing. **Fix shipped this turn:** `app/admin/page.tsx` previously didn't exist, so `/admin` rendered the AdminLayoutClient chrome with an empty `children` slot. New `app/admin/page.tsx` is a single-line `redirect('/admin/dashboard')` so the bare `/admin` URL routes the surveyor to the existing dashboard (the AdminSidebar's "Main" group already names Dashboard as the first entry per `AdminSidebar.tsx:91-95`). Typecheck clean.
-- [ ] `/admin/jobs`.
+- [x] `/admin/jobs`. Fully built out — `app/admin/jobs/page.tsx` is 327 lines. Client-side rendered with `usePageError` hook for error toast surfacing, NextAuth session check, `<JobCard>` from `components/jobs/JobCard` (rich row UI with stage badges + survey-type chips per `STAGE_CONFIG` / `SURVEY_TYPES`), shared `Tooltip` primitive from the research workspace.
 - [ ] `/admin/my-jobs`.
 - [ ] `/admin/users`.
 - [ ] `/admin/employees`.
