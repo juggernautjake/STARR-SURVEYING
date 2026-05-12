@@ -268,7 +268,7 @@ export default function AICopilotSidebar() {
       {/* Input */}
       <form
         onSubmit={handleSubmit}
-        className="border-t border-gray-700 bg-gray-850 px-2 py-2 space-y-1"
+        className="border-t border-gray-700 bg-gray-850 px-3 py-2 space-y-1"
       >
         <textarea
           ref={inputRef}

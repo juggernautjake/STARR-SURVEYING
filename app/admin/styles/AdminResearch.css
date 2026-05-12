@@ -10559,3 +10559,451 @@
   .artifact-card__preview { height: 90px; }
   .artifact-lightbox__nav { width: 2.2rem; font-size: 1.8rem; }
 }
+
+/* ── Research Pipeline Dashboard (Phase 11) ───────────────────────────────── */
+/*
+ * UX-polish slice U4: classes previously referenced by
+ * /admin/research/pipeline/page.tsx but never defined in this
+ * stylesheet. Falls back to UA defaults without them. Tokens
+ * mirror --recon-card / --recon-border / --recon-brand used by
+ * the rest of the admin research surface so the page lands
+ * inside the same visual system as the project hub.
+ */
+
+.research-pipeline {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 3rem;
+  color: #1F2937;
+}
+
+.research-pipeline__loading {
+  padding: 4rem 1rem;
+  text-align: center;
+  color: #6B7280;
+  font-size: 0.95rem;
+}
+
+.research-pipeline__header {
+  margin-bottom: 1.5rem;
+}
+
+.research-pipeline__breadcrumb {
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.research-pipeline__back {
+  color: var(--recon-brand);
+  text-decoration: none;
+  font-weight: 500;
+}
+.research-pipeline__back:hover {
+  text-decoration: underline;
+}
+
+.research-pipeline__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.research-pipeline__subtitle {
+  margin: 0 0 1rem;
+  color: #6B7280;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* Section shell — reused for "Batch Jobs" + "Capabilities". */
+.research-pipeline__section {
+  background: var(--recon-card, #FFFFFF);
+  border: 1px solid var(--recon-border, #E5E7EB);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.research-pipeline__section--info {
+  background: #F9FAFB;
+}
+
+.research-pipeline__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.research-pipeline__section-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* New-batch creation panel. */
+.research-pipeline__create-btn {
+  background: var(--recon-brand);
+  color: #FFFFFF;
+  border: 1px solid var(--recon-brand);
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  height: 36px;
+}
+.research-pipeline__create-btn:hover {
+  background: #1d4ed8;
+}
+
+.research-pipeline__create-panel {
+  background: var(--recon-card, #FFFFFF);
+  border: 1px solid var(--recon-border, #E5E7EB);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.research-pipeline__create-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.research-pipeline__create-desc {
+  margin: 0 0 1rem;
+  color: #6B7280;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* Batch-row table. Uses CSS grid so address / county / state /
+ * remove-button line up to a fixed column width regardless of
+ * row count. */
+.research-pipeline__batch-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.research-pipeline__batch-header,
+.research-pipeline__batch-row {
+  display: grid;
+  grid-template-columns: 1fr 200px 80px 36px;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.research-pipeline__batch-header {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6B7280;
+  padding: 0 0.25rem;
+}
+
+.research-pipeline__input {
+  height: 36px;
+  padding: 0 0.65rem;
+  border: 1px solid var(--recon-border, #D1D5DB);
+  border-radius: 6px;
+  background: #FFFFFF;
+  font-size: 0.85rem;
+  color: #111827;
+  width: 100%;
+  box-sizing: border-box;
+}
+.research-pipeline__input:focus {
+  outline: none;
+  border-color: var(--recon-brand);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.2);
+}
+
+.research-pipeline__input--short {
+  text-transform: uppercase;
+}
+
+.research-pipeline__remove-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--recon-border, #D1D5DB);
+  border-radius: 6px;
+  background: #FFFFFF;
+  color: #EF4444;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.research-pipeline__remove-btn:hover:not(:disabled) {
+  background: #FEF2F2;
+  border-color: #FCA5A5;
+}
+.research-pipeline__remove-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.research-pipeline__batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--recon-border, #E5E7EB);
+}
+
+.research-pipeline__add-row-btn {
+  height: 32px;
+  padding: 0 0.85rem;
+  border: 1px solid var(--recon-border, #D1D5DB);
+  border-radius: 6px;
+  background: #F9FAFB;
+  color: #374151;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.research-pipeline__add-row-btn:hover {
+  background: #F3F4F6;
+}
+
+.research-pipeline__batch-count {
+  font-size: 0.8rem;
+  color: #6B7280;
+}
+
+.research-pipeline__error,
+.research-pipeline__error-banner {
+  color: #B91C1C;
+  font-size: 0.85rem;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.research-pipeline__error {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-weight: 500;
+}
+
+.research-pipeline__submit-btn {
+  height: 36px;
+  padding: 0 1.25rem;
+  border: 1px solid var(--recon-brand);
+  border-radius: 6px;
+  background: var(--recon-brand);
+  color: #FFFFFF;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+  transition: background 0.15s, opacity 0.15s;
+}
+.research-pipeline__submit-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+.research-pipeline__submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.research-pipeline__refresh-btn {
+  height: 32px;
+  padding: 0 0.85rem;
+  border: 1px solid var(--recon-border, #D1D5DB);
+  border-radius: 6px;
+  background: #F9FAFB;
+  color: #374151;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.research-pipeline__refresh-btn:hover:not(:disabled) {
+  background: #F3F4F6;
+}
+.research-pipeline__refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.research-pipeline__empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #6B7280;
+  font-size: 0.9rem;
+}
+
+/* Batch-job cards (list of past + in-flight runs). */
+.research-pipeline__jobs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.research-pipeline__job-card {
+  display: grid;
+  grid-template-columns: 1fr 110px 1.4fr 110px 36px;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--recon-border, #E5E7EB);
+  border-radius: 8px;
+  background: #FFFFFF;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.research-pipeline__job-card:hover {
+  border-color: #9CA3AF;
+}
+.research-pipeline__job-card--selected {
+  border-color: var(--recon-brand);
+  box-shadow: 0 0 0 1px var(--recon-brand);
+}
+
+.research-pipeline__job-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.research-pipeline__job-status {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.research-pipeline__job-progress {
+  font-size: 0.78rem;
+  color: #4B5563;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.research-pipeline__job-failed {
+  color: #B91C1C;
+  font-weight: 500;
+}
+
+.research-pipeline__job-progress-bar {
+  height: 6px;
+  background: #F3F4F6;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.research-pipeline__job-progress-fill {
+  height: 100%;
+  background: var(--recon-brand);
+  transition: width 0.3s;
+}
+
+.research-pipeline__job-date {
+  font-size: 0.75rem;
+  color: #6B7280;
+  text-align: right;
+}
+
+.research-pipeline__refresh-job-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--recon-border, #D1D5DB);
+  border-radius: 6px;
+  background: #F9FAFB;
+  color: #4B5563;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.research-pipeline__refresh-job-btn:hover:not(:disabled) {
+  background: #F3F4F6;
+}
+.research-pipeline__refresh-job-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Capability info cards (4-up grid). */
+.research-pipeline__info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.85rem;
+}
+
+.research-pipeline__info-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.85rem;
+  background: #FFFFFF;
+  border: 1px solid var(--recon-border, #E5E7EB);
+  border-radius: 8px;
+}
+
+.research-pipeline__info-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.research-pipeline__info-content {
+  font-size: 0.85rem;
+  color: #4B5563;
+  line-height: 1.45;
+}
+.research-pipeline__info-content strong {
+  display: block;
+  color: #111827;
+  margin-bottom: 0.2rem;
+  font-size: 0.9rem;
+}
+.research-pipeline__info-content p {
+  margin: 0;
+}
+
+/* Responsive — collapse batch + job grids on small screens. */
+@media (max-width: 768px) {
+  .research-pipeline__batch-header {
+    display: none;
+  }
+  .research-pipeline__batch-row {
+    grid-template-columns: 1fr 36px;
+    grid-template-areas:
+      "addr   remove"
+      "county county"
+      "state  state";
+  }
+  .research-pipeline__batch-row > input:nth-of-type(1) { grid-area: addr; }
+  .research-pipeline__batch-row > input:nth-of-type(2) { grid-area: county; }
+  .research-pipeline__batch-row > input:nth-of-type(3) { grid-area: state; }
+  .research-pipeline__batch-row > .research-pipeline__remove-btn { grid-area: remove; }
+  .research-pipeline__job-card {
+    grid-template-columns: 1fr 36px;
+    grid-template-areas:
+      "id      refresh"
+      "status  status"
+      "progress progress"
+      "date    date";
+  }
+  .research-pipeline__job-id { grid-area: id; }
+  .research-pipeline__job-status { grid-area: status; text-align: left; }
+  .research-pipeline__job-progress { grid-area: progress; }
+  .research-pipeline__job-date { grid-area: date; text-align: left; }
+  .research-pipeline__refresh-job-btn { grid-area: refresh; }
+}

@@ -88,7 +88,7 @@ function PickJobStep({
       edges={['top']}
     >
       <View style={styles.headerRow}>
-        <Text style={[styles.heading, { color: palette.text }]}>New point</Text>
+        <Text style={[styles.heading, { color: palette.text }]}>New Point</Text>
         <Pressable
           onPress={() => router.back()}
           accessibilityRole="button"
@@ -304,7 +304,7 @@ function CreatePointStep({ palette, jobId, onChangeJob }: CreatePointStepProps) 
         >
           <View style={styles.headerRow}>
             <Text style={[styles.heading, { color: palette.text }]}>
-              New point
+              New Point
             </Text>
             <Pressable
               onPress={() => router.back()}

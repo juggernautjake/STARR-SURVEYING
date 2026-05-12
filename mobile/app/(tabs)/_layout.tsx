@@ -89,25 +89,25 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="money"
           options={{
-            title: '$',
+            title: 'Money',
             tabBarIcon: ({ color }) => <TabGlyph color={color} label="$" />,
           }}
         />
         <Tabs.Screen
           name="me"
           options={{
-            title: 'Me',
+            title: 'Account',
             tabBarIcon: ({ color }) => <TabGlyph color={color} label="👤" />,
           }}
         />
-        {/* F10.8 — Gear tab (role-gated 6th tab). Always declared
-            so deep links resolve, but `href: null` hides it from
-            the tab bar for non-EM users. The tab&apos;s own screen
+        {/* Equipment tab — role-gated 6th slot. Always declared so
+            deep links resolve, but `href: null` hides it from the
+            tab bar for non-EM users. The tab&apos;s own screen
             also enforces role gating defensively. */}
         <Tabs.Screen
           name="gear"
           options={{
-            title: 'Gear',
+            title: 'Equipment',
             tabBarIcon: ({ color }) => <TabGlyph color={color} label="🛠" />,
             href: isEquipmentManager ? '/(tabs)/gear' : null,
           }}
