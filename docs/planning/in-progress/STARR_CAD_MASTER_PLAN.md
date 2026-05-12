@@ -21,7 +21,7 @@ contract**.
 | Doc | Status | Role going forward |
 |---|---|---|
 | `STARR_CAD_MASTER_PLAN.md` (this doc) | **canonical** | Master index + new-pillar specs (document ingestion, calculation methods, calculated points, conversational workspace) |
-| `STARR_CAD_IMPLEMENTATION.md` | superseded by §2 of this doc | Keep for historical context; do not extend |
+| [`completed/STARR_CAD_IMPLEMENTATION.md`](../completed/STARR_CAD_IMPLEMENTATION.md) (archived 2026-05-12) | superseded by §2 of this doc | Keep for historical context; do not extend |
 | `STARR_CAD_PHASE_ROADMAP.md` | superseded by §15 of this doc | Keep for historical context; do not extend |
 | [`completed/AI_PLAT_DRAWING_SYSTEM_PLAN.md`](../completed/AI_PLAT_DRAWING_SYSTEM_PLAN.md) (Jacob, 2026-04-29; archived 2026-05-12) | archived as architectural reference (planning role discharged) | Keep as authoritative source for the deterministic-AI-drafter philosophy; this doc cross-links into it |
 | `STARR_CAD/STARR_CAD_PHASE_1..8.md` | **canonical detail docs** — unchanged | Per-phase implementation reference; this doc cross-links each |
