@@ -1,7 +1,9 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import {
   FlatList,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -53,6 +55,16 @@ export default function MoneyScreen() {
   const reviewCount = useReceiptsNeedingReview();
   const { isTablet } = useResponsiveLayout();
   const tabletStyle = tabletContainerStyle(isTablet);
+
+  // Pull-to-refresh: feel-good gesture only. PowerSync sync is
+  // continuous, so the list is already as fresh as the network
+  // allows. Short spinner confirms "I asked for fresh data".
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await new Promise((r) => setTimeout(r, 600));
+    setRefreshing(false);
+  };
 
   if (isLoading && receipts.length === 0) return <LoadingSplash />;
 
@@ -176,6 +188,13 @@ export default function MoneyScreen() {
             )}
             contentContainerStyle={[styles.listContent, tabletStyle]}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={palette.muted}
+              />
+            }
           />
           <View
             style={[

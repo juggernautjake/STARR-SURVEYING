@@ -236,7 +236,7 @@ Each slice is small enough to ship in one PR. Phases land in this order so the c
 21. **Slice D2** — Touch-target audit pass (≥ 44pt on every primary action).
 22. **Slice D3** — Add `'bottom'` SafeArea edges on modal-style screens; add Android `KeyboardAvoidingView` branch.
 23. **Slice D4** — Sign-out confirmation; reposition account section to top of Me. **Sign-out confirmation shipped (U23)**: native Alert.alert destructive-button pattern with copy that names the consequence ("…stays on this device until you sign back in").
-24. **Slice D5** — Pull-to-refresh on Jobs / Money / Time.
+24. **Slice D5** — Pull-to-refresh on Jobs / Money / Time. **Shipped (U24)**: feel-good gesture only (600 ms spinner) on all three lists. PowerSync sync is continuous, so the gesture confirms intent without thrashing the sync stream.
 25. **Slice D6** — Swipe-to-delete on photo / note / file rows.
 26. **Slice D7** — Sticky Save bar above keyboard on Receipt detail + Point detail + Time edit.
 27. **Slice D8** — One-tap Sun-theme toggle (tab-bar long-press or Me-header pill).

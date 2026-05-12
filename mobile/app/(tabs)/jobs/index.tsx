@@ -1,7 +1,9 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import {
   FlatList,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -33,8 +35,6 @@ import { useResolvedScheme } from '@/lib/themePreference';
  *   - "active today" / "crew on-site" / "syncing" indicators per
  *     plan §5.2 (need cross-table queries against job_time_entries +
  *     location_stops + PowerSync sync state)
- *   - Pull-to-refresh visual (no-op on data — sync is continuous —
- *     but a feel-good gesture)
  */
 export default function JobsScreen() {
   const scheme = useResolvedScheme();
@@ -44,6 +44,17 @@ export default function JobsScreen() {
   // ≥600 dp displays so the cards don't span 1100 px on an iPad.
   const { isTablet } = useResponsiveLayout();
   const tabletStyle = tabletContainerStyle(isTablet);
+
+  // Pull-to-refresh is a feel-good gesture only — PowerSync sync is
+  // continuous so the list is already as fresh as the network allows.
+  // Spinning ~600 ms gives the surveyor the "I asked for fresh data"
+  // confirmation without thrashing the sync stream.
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await new Promise((r) => setTimeout(r, 600));
+    setRefreshing(false);
+  };
 
   if (isLoading && jobs.length === 0) return <LoadingSplash />;
 
@@ -103,6 +114,13 @@ export default function JobsScreen() {
           )}
           contentContainerStyle={[styles.listContent, tabletStyle]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={palette.muted}
+            />
+          }
         />
       )}
     </SafeAreaView>
