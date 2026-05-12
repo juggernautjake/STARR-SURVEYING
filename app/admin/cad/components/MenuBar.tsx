@@ -26,6 +26,7 @@ import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, d
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import SaveToDBDialog from './SaveToDBDialog';
+import DialogCloseButton from './ui/DialogCloseButton';
 
 interface MenuItem {
   label: string;
@@ -721,7 +722,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold text-white">Keyboard Shortcuts</h2>
-              <button className="text-gray-400 hover:text-white text-lg leading-none" onClick={() => setShowShortcuts(false)}>✕</button>
+              <DialogCloseButton onClick={() => setShowShortcuts(false)} />
             </div>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 max-h-96 overflow-y-auto">
               {[

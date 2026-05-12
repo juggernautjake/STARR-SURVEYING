@@ -4,9 +4,10 @@
 // per-element scale and rotation.
 
 import { useState, useCallback, useEffect } from 'react';
-import { X, RotateCw, ZoomIn, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { RotateCw, ZoomIn, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import type { TitleBlockConfig } from '@/lib/cad/types';
+import DialogCloseButton from './ui/DialogCloseButton';
 
 /** Min/max scale factor for all survey-info elements. */
 export const TB_ELEM_SCALE_MIN = 0.5;
@@ -162,9 +163,7 @@ export default function TitleBlockEditorModal({ focusElement, onClose }: Props) 
             <FileText size={15} className="text-blue-400" />
             <span className="text-sm font-semibold text-white">Title Block Editor</span>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X size={15} />
-          </button>
+          <DialogCloseButton onClick={onClose} />
         </div>
 
         {/* Scrollable body */}

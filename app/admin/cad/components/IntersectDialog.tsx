@@ -44,6 +44,7 @@ import {
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import UnitInput from './UnitInput';
+import DialogCloseButton from './ui/DialogCloseButton';
 
 interface Props {
   onClose: () => void;
@@ -423,9 +424,7 @@ export default function IntersectDialog({ onClose }: Props) {
             <Crosshair size={16} className="text-blue-400" />
             <h2 className="font-semibold text-white">Intersect</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
-            <X size={16} />
-          </button>
+          <DialogCloseButton onClick={onClose} />
         </div>
 
         {/* Body */}

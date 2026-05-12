@@ -10,6 +10,7 @@ import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { cadLog } from '@/lib/cad/logger';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import DialogCloseButton from './ui/DialogCloseButton';
 
 interface SavedDrawingMeta {
   id: string;
@@ -170,7 +171,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
           <h2 className="text-base font-bold text-white">
             {mode === 'save' ? 'Save Drawing' : 'Open Saved Drawing'}
           </h2>
-          <button className="text-gray-400 hover:text-white text-lg leading-none" onClick={onClose}>✕</button>
+          <DialogCloseButton onClick={onClose} />
         </div>
 
         {/* Body */}

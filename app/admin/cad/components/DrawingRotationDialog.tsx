@@ -3,10 +3,11 @@
 // Dialog for rotating the drawing view (visual only — does not alter survey data).
 
 import { useCallback, useRef, useState } from 'react';
-import { X, RotateCcw, RotateCw, Compass, RefreshCw } from 'lucide-react';
+import { RotateCcw, RotateCw, Compass, RefreshCw } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import Tooltip from './Tooltip';
 import UnitInput from './UnitInput';
+import DialogCloseButton from './ui/DialogCloseButton';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -49,9 +50,7 @@ export default function DrawingRotationDialog({ onClose }: Props) {
             <Compass size={16} className="text-blue-400" />
             <h2 className="font-semibold text-white">Rotate Drawing View</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X size={16} />
-          </button>
+          <DialogCloseButton onClick={onClose} />
         </div>
 
         {/* Body */}
