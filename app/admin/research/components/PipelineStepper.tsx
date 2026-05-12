@@ -1,6 +1,36 @@
 // app/admin/research/components/PipelineStepper.tsx
-// 4-stage pipeline stepper for STARR RECON research projects.
-// Maps the underlying 7-step WorkflowStep (DB status) to 4 user-facing stages.
+//
+// The 4-stage pipeline stepper for STARR RECON research projects.
+//
+// Step model — two layers:
+//   1. WorkflowStep (DB status, 7 values) — the granular state
+//      the backend writes to `research_projects.status`:
+//        upload → configure → analyzing → review → drawing →
+//        verifying → complete
+//   2. PipelineStage (user-facing, 4 values) — what we render in
+//      the stepper UI:
+//        upload (Property Info) → research (Research & Analysis)
+//        → review → jobprep
+//
+//   `configure` + `analyzing` collapse into the `research` stage
+//   because the user shouldn't see "configure" as a separate
+//   surface — it's the same screen as analysis with the run
+//   button visible until first run kicks off. Similarly
+//   `drawing` + `verifying` + `complete` all share the `jobprep`
+//   stage because they're three sub-states of the same downstream
+//   workflow (AI drawing, then verification, then the bookkeeper-
+//   facing print prep).
+//
+//   The mapping lives in `types/research.ts::workflowStepToStage`
+//   and the stage metadata (label, icon, primaryStep) lives in
+//   `PIPELINE_STAGES` in the same file. This component is purely
+//   presentational against those.
+//
+//   Revert behaviour (`onStageClick`): clicking a previously-
+//   completed stage circle calls the handler with that stage's
+//   primaryStep — the workflow resets to that WorkflowStep. The
+//   'analyzing' transient state blocks revert (background job
+//   still running).
 'use client';
 
 import type { WorkflowStep } from '@/types/research';

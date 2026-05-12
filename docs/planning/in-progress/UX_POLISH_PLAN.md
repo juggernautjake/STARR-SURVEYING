@@ -228,7 +228,7 @@ Each slice is small enough to ship in one PR. Phases land in this order so the c
 16. **Slice C4** — Stat tiles become actionable buttons. **Shipped (U29)**: 4 quick-stat tiles on the project workspace are now proper `<button>` elements with hover / focus-visible / disabled states. Documents pushes to the `/documents` sub-route; Data Points → `artifacts` tab; Discrepancies + Resolved → `discrepancies` tab. Each click also smooth-scrolls the review-summary panel into view so the user lands in front of the rows, not just a number.
 17. **Slice C5** — Stage-3 navigation row grouped by intent; destructive Re-run in its own group.
 18. **Slice C6** — Easements tab 2-column grid + sticky in-tab subnav.
-19. **Slice C7** — Delete `components/WorkflowStepper.tsx` + document `PipelineStepper` step semantics.
+19. **Slice C7** — Delete `components/WorkflowStepper.tsx` + document `PipelineStepper` step semantics. **Shipped (U30)**: WorkflowStepper.tsx removed (zero external refs — dead code). PipelineStepper.tsx gains a header docstring explaining the 7→4 collapse (`configure`+`analyzing` → research; `drawing`+`verifying`+`complete` → jobprep) plus the revert-handler semantics.
 
 ### Phase D — Mobile highest-impact
 
