@@ -1,3 +1,13 @@
+> **Status — obsolete (2026-05-12); content-duplicate of
+> [`completed/AI_PLAT_DRAWING_SYSTEM_PLAN.md`](../completed/AI_PLAT_DRAWING_SYSTEM_PLAN.md).**
+> Same author, same date, byte-for-byte identical body. The canonical
+> archived copy carries the section + milestone absorption map showing
+> which sections rolled into `STARR_CAD_MASTER_PLAN.md`. No code
+> references this file. Per [`docs/planning/README.md`](../README.md)
+> this sits in `obsolete/` for one PR-cycle grace period before actual
+> deletion. Read the completed/ copy for any historical decision
+> context; new work uses the master plan.
+
 # AI-Powered Plat Drawing System — Project Plan
  
 **Prepared for:** Starr Surveying
