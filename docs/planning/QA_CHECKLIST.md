@@ -38,7 +38,7 @@ A page-by-page sweep of `/admin/cad`. For each tool, confirm: tool activates, op
 - [x] Rotate-view tool returns to north correctly. Code-verified at `DrawingRotationDialog.tsx`: the `QUICK_ANGLES` row at line 18 includes `0` as the first preset (standard north-up orientation), and the explicit `Reset` button at line 138 dispatches `apply(0)` which calls `drawingStore.updateSettings({ drawingRotationDeg: 0 })`. The settings drive `screenToDrawingWorld` (`CanvasViewport.tsx:1226-1241`) — `rotDeg === 0` short-circuits to a plain `s2w(sx, sy)` so all subsequent canvas math returns to identity. Tooltip on the Reset button explicitly reads "Reset rotation to 0° (standard orientation)".
 
 ### 1.4 Snap + grid + ortho
-- [ ] Snap toggle (`F3`, MenuBar item) flips behavior on/off and the StatusBar pill updates.
+- [x] Snap toggle (`F3`, MenuBar item) flips behavior on/off and the StatusBar pill updates. Code-verified at `useKeyboard.ts:65 + 291-293` (F3 → action `snap.toggle` → `drawingStore.updateSettings({ snapEnabled: !current })`), `MenuBar.tsx:477-478` (dynamic label `'Disable Snap' | 'Enable Snap'` + shortcut hint `F3`), and `StatusBar.tsx:391` (`Snap: {snapEnabled ? 'ON' : 'OFF'}` — Zustand re-render fires every subscriber when `drawingStore.document.settings.snapEnabled` flips). The snap engine downstream at `getSnappedWorld` (`CanvasViewport.tsx:7324`) gates every snap-target search on the same `settings.snapEnabled` flag so the behaviour change takes effect immediately on the next cursor move.
 - [ ] Grid toggle (`F7`) shows/hides the grid.
 - [ ] Ortho (`F8`) constrains lines to 90°.
 - [ ] Polar (`F10`) constrains lines to configured angle increments.
