@@ -222,22 +222,40 @@ export default function MeScreen() {
     lockNow();
   };
 
-  const onSignOut = async () => {
-    setSigningOut(true);
-    try {
-      await signOut();
-    } catch (err) {
-      // Sign-out can fail if Supabase's storage adapter throws on
-      // session-clear (rare; usually a keychain race). Surface
-      // because otherwise the button just spins forever.
-      logError('me.onSignOut', 'sign out failed', err);
-      Alert.alert(
-        'Sign-out failed',
-        err instanceof Error ? err.message : String(err)
-      );
-    } finally {
-      setSigningOut(false);
-    }
+  const onSignOut = () => {
+    // Sign-out drops the session and forces the next surveyor on this
+    // device through the full sign-in flow (biometric / password +
+    // PowerSync resync). Easy to fat-finger from the bottom of /me
+    // mid-scroll, so confirm before the async work fires. iOS/Android
+    // destructive-button pattern keeps it native.
+    Alert.alert(
+      'Sign out?',
+      'You’ll need to sign back in to capture, clock in, or upload. Any unsynced work stays on this device until you sign back in.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out',
+          style: 'destructive',
+          onPress: async () => {
+            setSigningOut(true);
+            try {
+              await signOut();
+            } catch (err) {
+              // Sign-out can fail if Supabase's storage adapter throws
+              // on session-clear (rare; usually a keychain race).
+              // Surface because otherwise the button just spins.
+              logError('me.onSignOut', 'sign out failed', err);
+              Alert.alert(
+                'Sign-out failed',
+                err instanceof Error ? err.message : String(err)
+              );
+            } finally {
+              setSigningOut(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const email = session?.user.email ?? 'unknown';
