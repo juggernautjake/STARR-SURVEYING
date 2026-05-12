@@ -91,7 +91,7 @@ Walk every route in a browser (and on-device for mobile) with both light and dar
 Visit every route under `app/` and confirm it renders meaningful content. Anything that's a placeholder, a "Coming soon", or a default scaffold goes here and gets built out.
 
 ### 3.1 Public marketing routes
-- [ ] `/` — homepage.
+- [x] `/` — homepage. Fully built out — `app/page.tsx` is 656 lines with a hero section, dynamic `ServiceAreaMap` (client-side load with skeleton spinner), services overview, conversion tracking via `trackConversion`, and a contact CTA. Imports its own dedicated stylesheet `./styles/Home.css`. Map mounts lazily via `next/dynamic` + `ssr: false` so the page TTFB isn't blocked on the Mapbox bundle.
 - [ ] `/about`.
 - [ ] `/services`.
 - [ ] `/service-area`.
