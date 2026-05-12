@@ -450,13 +450,13 @@ All three apps share the same underlying problem: **shared primitives don't agre
 - [x] `OrientationDialog.tsx:492` — "Phase 6 — coming soon" leak gone. Tab option label now reads `'Coming with the AI Drawing Engine'`.
 - [x] `OrientationDialog.tsx:567` — "— Phase 6" suffix gone. Heading now reads `<div>AI Deed / Plat Import</div>`.
 - [x] `lib/cad/hotkeys/registry.ts` — duplicate of the §11 audit row above. No user-visible Phase / Slice references survive in the registered shortcut descriptions.
-- [ ] `mobile/app/(tabs)/jobs/index.tsx:91-93` — empty-state `"Mobile job creation lands later in Phase F1."`
-- [ ] `mobile/app/(tabs)/gear/index.tsx:206-208` — footnote leaks a source-tree file path: `"… PowerSync sync rules (mobile/lib/db/sync-rules.yaml) must be deployed…"`
-- [ ] `mobile/app/(tabs)/me/index.tsx:528-531` — section literally titled **"Coming soon"** with body `"Profile editing and idle-timer length land in F1+."`
-- [ ] `mobile/app/(tabs)/time/index.tsx:378-381` — hint `"Smart prompts (still working?) + GPS auto-suggest land in F1 #7 and #8."`
+- [x] `mobile/app/(tabs)/jobs/index.tsx` empty-state copy — the "Mobile job creation lands later in Phase F1." string no longer appears in `mobile/app/(tabs)/jobs/index.tsx`; verified via `grep "Mobile job creation"`. Empty state has been rewritten to surveyor language.
+- [x] `mobile/app/(tabs)/gear/index.tsx` source-path leak — the `"PowerSync sync rules (mobile/lib/db/sync-rules.yaml) must be deployed…"` footnote no longer appears in `mobile/app/(tabs)/gear/index.tsx`; verified via `grep "sync-rules\.yaml"`.
+- [x] `mobile/app/(tabs)/me/index.tsx` "Coming soon" section — neither the section title nor the F1+ body string survives in `mobile/app/(tabs)/me/index.tsx`; verified via `grep "Coming soon\|Profile editing.*F1"`. The remaining F1+ reference (line 67) is a `//` code-comment, not rendered anywhere.
+- [x] `mobile/app/(tabs)/time/index.tsx` smart-prompts hint — `time/index.tsx:407` now reads `"Stay-clocked-in prompts and GPS auto-suggest are on the roadmap."` — no `F1 #7 and #8` leak. (Remaining F1 references on lines 47/49/52/239 are `//` code-comments, not rendered.)
 
 ### 11.8 Hardcoded staffing in mobile (5 sites)
-- [ ] `mobile/app/(tabs)/time/edit/[id].tsx:168,255`, `time/index.tsx:101,103`, `time/pick-job.tsx:186`, `capture/index.tsx:400` — copy hardcodes "Henry". Replace with role-aware copy: **"Ask your dispatcher to…"** / **"Contact the office to…"**.
+- [x] Hardcoded "Henry" staffing — `grep -rn "Henry" mobile/app/ --include="*.tsx"` returns no matches. All cited sites have been rewritten to role-aware copy.
 
 ### 11.9 Acronyms without definitions
 - [ ] **RPLS** (Registered Professional Land Surveyor) appears across `RPLSReviewModePanel.tsx`, `RPLSSubmissionDialog.tsx`, `CADLayout.tsx:31,148,883-898`, `MenuBar.tsx:382-384`, `AISidebar.tsx:80`. New employees and trainees won't know the acronym. Add a tooltip on first use or rename UI copy to **"Licensed surveyor review"**.
