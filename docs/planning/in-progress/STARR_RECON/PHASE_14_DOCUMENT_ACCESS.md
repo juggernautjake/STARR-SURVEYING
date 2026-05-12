@@ -399,9 +399,9 @@ Step 4: After payment, STARR auto-fetches clean images
 - [ ] Full purchase automation for Fidlar Pay (session + payment form + image retrieval)
 - [ ] GovOS guest checkout automation (credit card form fill without account)
 - [ ] LandEx REST API integration (pure API — no Playwright needed, straightforward to automate)
-- [ ] Database schema migration: `document_wallet_balance` and `document_purchase_history` Supabase tables
-- [ ] Frontend billing dashboard UI at `/admin/research/billing` — wallet balance + transaction history + "Add Funds" button
-- [ ] Stripe webhook endpoint at `/api/webhooks/stripe` for `payment_intent.succeeded` and `checkout.session.completed` events
+- [x] Database schema migration: `document_wallet_balance` and `document_purchase_history` Supabase tables — shipped in `seeds/093_phase15_wallet_tables.sql` (Phase 15 picked up the deferred Phase 14 schema). Tables integrate with the Stripe webhook (credit/debit on payment events) and `worker/src/services/document-access-orchestrator.ts` (debit on purchases).
+- [x] Frontend billing dashboard UI at `/admin/research/billing` — shipped at `app/admin/research/billing/page.tsx`. Surfaces subscription status, usage metrics, invoice history, and document-purchase transaction log; ties into the wallet schema above.
+- [x] Stripe webhook endpoint at `/api/webhooks/stripe` — shipped at `app/api/webhooks/stripe/route.ts`. Handles `payment_intent.succeeded` and `checkout.session.completed` events; coverage via `__tests__/recon/phase15-purchase-automation.test.ts`.
 - [ ] Notification system: email/SMS alert when clean document purchase completes and re-analysis finishes
 - [ ] Bexar County custom clerk adapter (San Antonio — uses its own custom portal)
 - [ ] Statewide coverage gap dashboard — admin page showing which counties have which access tiers
