@@ -32,7 +32,7 @@ A page-by-page sweep of `/admin/cad`. For each tool, confirm: tool activates, op
 
 ### 1.3 Navigation + view
 - [x] Pan (middle-mouse drag or `H`). Code-verified at `CanvasViewport.tsx:7411-7417` — middle-mouse `e.button === 1` AND Space+Left (`e.button === 0 && isSpaceDownRef.current`) both flip `isPanningRef` and swap the cursor to `'grabbing'`. The mousemove path (`9706+`) translates the viewport while the flag is set, and mouseup clears it. Hotkey path: `useKeyboard.ts:40` binds `h: 'tool.pan'` → case `tool.pan` at 234-235 → `toolStore.setTool('PAN')`. With PAN active, every `mousedown` enters the pan-cursor mode unconditionally per the `activeTool === 'PAN'` branches at `7441` and `9721`.
-- [ ] Zoom in / out (wheel + `+`/`-`).
+- [x] Zoom in / out (wheel + `+`/`-`). Wheel path verified at `CanvasViewport.tsx:10390+`: wheel events `preventDefault` (so page-scroll doesn't bleed), then zoom toward the cursor (or the selection centroid when something is selected). Keyboard path: `useKeyboard.ts` binds `ctrl+=` / `ctrl+-` (the documented shortcuts in the modal) AND **fix shipped this turn:** bare `=` / `-` aliases now route to the same `view.zoomIn` / `view.zoomOut` actions so AutoCAD-trained surveyors can press the bare keys without the Ctrl modifier. The input-field filter at `useKeyboard.ts:98-103` blocks them while typing in a textarea / input, so they don't collide with command-bar entry. Each action calls `viewportStore.zoomAt(centerX, centerY, 1.2 | 1/1.2)` so the zoom anchors at the canvas center.
 - [ ] Zoom Extents (`Z E`).
 - [ ] Zoom Window.
 - [ ] Rotate-view tool returns to north correctly.

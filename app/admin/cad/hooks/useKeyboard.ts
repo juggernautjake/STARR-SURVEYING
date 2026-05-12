@@ -55,6 +55,12 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   'z s': 'view.zoomSelection',
   'ctrl+=': 'view.zoomIn',
   'ctrl+-': 'view.zoomOut',
+  // Bare +/- aliases — surveyors used to AutoCAD / Carlson reach
+  // for these without the Ctrl modifier. The serialiseKey path
+  // already returns lowercase, and the input-field filter (line
+  // 98-103) blocks them when the surveyor is typing in a field.
+  '=': 'view.zoomIn',
+  '-': 'view.zoomOut',
   f2: 'layer.panel',
   f3: 'snap.toggle',
   f7: 'snap.grid',
