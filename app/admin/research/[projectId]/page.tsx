@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
-import Link from 'next/link';
 import DOMPurify from 'dompurify';
 import { usePageError } from '../../hooks/usePageError';
 import PipelineStepper from '../components/PipelineStepper';
@@ -1542,24 +1541,9 @@ export default function ResearchProjectPage() {
         </button>
       </div>
 
-      {/* Project Navigation Bar */}
-      <div className="research-project-nav">
-        <Link href={`/admin/research/${projectId}/boundary`} className="research-project-nav__link">
-          📐 Boundary Viewer
-        </Link>
-        <Link href={`/admin/research/${projectId}/documents`} className="research-project-nav__link">
-          📁 Documents
-        </Link>
-        <Link href={`/admin/research/${projectId}/report`} className="research-project-nav__link">
-          📱 Field Report
-        </Link>
-        <Link href="/admin/research/library" className="research-project-nav__link">
-          📚 Library
-        </Link>
-        <Link href="/admin/research/billing" className="research-project-nav__link">
-          💳 Billing
-        </Link>
-      </div>
+      {/* Project nav lives in [projectId]/layout.tsx so every
+          sub-route inherits it. The hub no longer renders the
+          duplicate markup. */}
 
       {/* Header */}
       <div className="research-page__header">
