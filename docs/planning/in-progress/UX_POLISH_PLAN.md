@@ -35,7 +35,7 @@ Three different "are you sure?" patterns coexist within each app. Mixed patterns
 ### 1.4 Shared screen-header primitive
 Each app re-rolls headers per screen, with drift in title scale, back-button placement, and SafeArea handling.
 
-- [ ] **Mobile**: build `<ScreenHeader title back?  actions?/>` + `<ScreenScroll edges={…}/>` shared components owning SafeAreaView, title typography, optional back+close, optional right-side action. Use everywhere instead of the five different header treatments per tab (`jobs/index.tsx:54-82` vs. `money/index.tsx:65-132` vs. `time/index.tsx:202-205` vs. `gear/index.tsx:113-124` vs. `me/index.tsx:254-259`).
+- [x] **Mobile**: build `<ScreenHeader title back?  actions?/>` shared component owning SafeAreaView, title typography, optional back+close, optional right-side action — shipped in `c1e7f17` (`mobile/lib/ScreenHeader.tsx` + migrate 5 tab indexes), `f7b47f0` (6 detail-screen headers), and `0ec7cde` (remaining 8 detail-screen headers). Now imported by every tab index and every detail screen across `jobs/`, `money/`, `time/`, `gear/`, `me/`, `capture/`.
 - [ ] **CAD**: replace the per-dialog header (✕ vs `<X>` vs `<X size=14/16/18>`) with a single `<DialogHeader title/>` component — sizes currently range 12-18 px. Affected sites listed in §2 below.
 - [ ] **RECON**: per-page header order is inconsistent across `[projectId]/page.tsx:1536-1631`, `[projectId]/boundary/page.tsx:257-283`, `documents/page.tsx:213-228`, `library/page.tsx:172`, `billing/page.tsx:170`. Standardise: back link → breadcrumb → title → metadata → actions.
 
@@ -89,17 +89,17 @@ Any combination of two can be open simultaneously per `CADLayout.tsx:824-925`. C
 - [ ] **LayerTransferDialog at 2334 lines** has 4 source-mode tabs, 6+ option groups, type-IDs filtering, code remapping, traverse routing, presets all in one modal. Split into tabs or a wizard.
 
 ### 2.4 Discoverability gaps
-- [ ] **Variant flyouts on ToolBar buttons** are signalled by a 5-pixel corner triangle at 40% opacity (`ToolBar.tsx:653-656`). Replace with a visible chevron + a "More variants" hint in the tooltip.
+- [x] **Variant flyouts on ToolBar buttons** are signalled by a 5-pixel corner triangle at 40% opacity — shipped in `40903ae`. `ToolBar.tsx:660` now renders a `<ChevronDown size={9}>` at the bottom-right of every `hasVariants` button with `opacity-60 group-hover:opacity-100`; tooltip already carries the `▸` hint (commented inline at 656-658).
 - [ ] **Snap-type popover** is hidden behind a small `▾` chevron in the StatusBar (`StatusBar.tsx:317-324`). No keyboard discoverability.
 - [ ] **AI mode chip** in the status bar (`StatusBar.tsx:250-278`) is the only entry to the four-mode framework. `Ctrl+Shift+M` lives in the tooltip only. Add a menu-bar entry under Tools or AI.
-- [ ] **Two-character chord shortcuts** (`Z E`, `I X`, `O A`, `R V`, `S F`, `S N`, `C R`, `O F`, `I N V`, `F P`, `C C`, `I M`) have no on-screen progress indicator (`MenuBar.tsx:467,418,517-545`). **Build a chord-in-progress HUD** at bottom-center showing completable second keys.
+- [x] **Two-character chord shortcuts** (`Z E`, `I X`, `O A`, `R V`, `S F`, `S N`, `C R`, `O F`, `I N V`, `F P`, `C C`, `I M`) have no on-screen progress indicator — shipped in `b97ed7b` ("feat(cad): chord-shortcut HUD — visible second-key completions"). `app/admin/cad/components/ChordHUD.tsx` renders the in-progress prefix + every completable second key with its action label at bottom-center while a chord is mid-stroke.
 - [ ] **"Recover unsaved drawings…"** buried as the 4th File-menu entry (`MenuBar.tsx:335`). Add a status-bar banner when there's a recoverable drawing older than the current one.
 - [ ] **"Hidden Items"** sits as a small text-link at the bottom of LayerPanel (`LayerPanel.tsx:651-657`). Add a "N hidden features" pill in the StatusBar when count > 0.
 - [ ] **Promote draft layer** button only appears on draft layers (`LayerPanel.tsx:456-494`) with no documentation in MenuBar/Help.
 - [ ] **Three AI surfaces** (DrawingChatPanel, AISidebar, AICopilotSidebar) with overlapping responsibilities and three File-menu entries (`MenuBar.tsx:365-371`) that never explain the difference. Either consolidate (per §2.2) or label each entry by intent.
 - [ ] **Settings dialog only via Help → Settings & Preferences** (`MenuBar.tsx:570`). Add a gear icon to the MenuBar's right side next to the document name; doubles as a visible sibling for the otherwise lonely document name.
 - [ ] **Layer-rotation feature** buried as the second-to-last item of the layer right-click menu (`LayerPanel.tsx:725-774`); numeric input appears in place — easy to miss.
-- [ ] **Intersect tool** chord shortcut `I X` (`MenuBar.tsx:418`) is invisible without browsing the Edit menu. The new chord HUD (above) handles this.
+- [x] **Intersect tool** chord shortcut `I X` is now discoverable through the Chord HUD (`b97ed7b`) — pressing `I` displays a list of completable second keys including `I X → Intersect Lines…`.
 - [ ] **Compass / RECON import** triggered by external apps writing to localStorage (`CADLayout.tsx:166-207`); no in-app entry point.
 - [ ] **CopilotCard "Modify" tooltip** says "Ask the AI to revise this proposal (Slice 6)" leaking internal versioning (`CopilotCard.tsx`). Update copy.
 
@@ -119,7 +119,7 @@ Any combination of two can be open simultaneously per `CADLayout.tsx:824-925`. C
 - [ ] **PipelineStepper duplicates step indication** alongside the stats row and per-stage `research-step-header` icons (`[projectId]/page.tsx:1604-1631`). Viewport consumes ~25-30% before any actionable content. Pick one progress signal.
 - [ ] **County badge floats inside the address span** without spacing rules (`[projectId]/page.tsx:1572`); pinches on wrap.
 - [ ] **Stage-4 drawing tools** — toggling preferences (`showPrefsPanel`) overlays the canvas instead of resizing (`[projectId]/page.tsx:2879-2899`).
-- [ ] **Stats cards are decorative, not actionable** (`[projectId]/page.tsx:1610-1631`). Wrap each in a button that jumps to the corresponding review tab.
+- [x] **Stats cards are decorative, not actionable** — shipped in `9552eea` ("feat(research): make Quick-stat tiles actionable"). Each tile in `app/admin/research/[projectId]/page.tsx`'s stats grid now wraps in a `<button>` that calls `setActiveReviewTab(…)` to jump to the corresponding review tab.
 
 ### 3.3 Cramped / hard-to-navigate
 - [ ] **Easements tab is a wall of nested grids** (`[projectId]/page.tsx:2444-2533`). Convert to a 2-column grid + sticky in-tab subnav (FEMA, TxDOT, Plat ROW, Plat Easements, Clerk Easements, Covenants).
@@ -136,7 +136,7 @@ Any combination of two can be open simultaneously per `CADLayout.tsx:824-925`. C
 - [ ] **Pipeline Dashboard is orphaned.** `/admin/research/pipeline` is reachable only by typing the URL. Promote the project-nav strip to a top-level admin tab strip on `page.tsx`; keep project-scoped routes (Boundary, Documents, Report) inside the workspace.
 - [ ] **Testing Lab** is only reachable from the list-page header (`page.tsx:142-148`). Add it to the global nav.
 - [ ] **Project-nav bar is omitted from the list page** (`page.tsx`). Global routes (Library, Billing, Pipeline, Testing) should be visible there.
-- [ ] **`WorkflowStepper.tsx` is dead code** — never imported. Delete + document the `PipelineStepper.tsx:79` stage labels vs the 7-step `WORKFLOW_STEPS` mismatch.
+- [x] **`WorkflowStepper.tsx` is dead code** — shipped in `010b99d` ("chore(research): drop dead WorkflowStepper + document PipelineStepper"). The component file is gone; `find . -name "WorkflowStepper.tsx"` returns nothing. The pipeline-stepper mismatch is documented inline.
 - [ ] **Keyboard shortcuts** registered in `[projectId]/page.tsx:1281-1320` (Ctrl+S, Ctrl+Z/Y, Escape, 16 tool letters). Only tool letters show as `<kbd>` badges. Add a `?` overlay listing every shortcut + `aria-keyshortcuts` on Save/Undo/Redo.
 - [ ] **"Initiate Research & Analysis"** auto-fires a long-running pipeline with no preview of cost/duration (`[projectId]/page.tsx:1655-1668`). Add a confirm dialog with the expected fan-out.
 - [ ] **Re-run dialog focuses the unsafe option** (`[projectId]/page.tsx:1768-1825`). Make "Update Parameters First" the default focus.
@@ -148,7 +148,7 @@ Any combination of two can be open simultaneously per `CADLayout.tsx:824-925`. C
 ## 4. STARR Mobile (field app)
 
 ### 4.1 Cohesion / theme
-- [ ] Replace the five hand-rolled tab headers with the shared `<ScreenHeader>` primitive (§1.4). Affected: `jobs/index.tsx:54-82`, `money/index.tsx:65-132`, `time/index.tsx:202-205`, `gear/index.tsx:113-124`, `me/index.tsx:254-259`.
+- [x] Replace the five hand-rolled tab headers with the shared `<ScreenHeader>` primitive (§1.4) — shipped in `c1e7f17`. All five tab index files (jobs/money/time/gear/me) import `ScreenHeader` and render it instead of bespoke header layouts.
 - [ ] Standardise title type-scale. Currently 32px (tab indexes), 28px (job detail / point photos), 24px (receipt detail), 14px (Gear).
 - [ ] Fix the missing `useResolvedScheme` imports (§1.2) so the theme system actually applies.
 - [ ] Add missing palette entries (`amber`, `amberText`, `reviewBg`, `successContrast`) so the Sun theme works on Money / Receipt / Gear screens.
@@ -157,15 +157,15 @@ Any combination of two can be open simultaneously per `CADLayout.tsx:824-925`. C
 - [ ] Remove duplicate `Stack.Screen options={{ headerShown: false }}` calls inside child screens — `me/uploads.tsx:121`, `me/privacy.tsx:70`.
 
 ### 4.2 Positioning
-- [ ] **Job detail has no Back affordance.** `jobs/[id]/index.tsx` ScrollView has a heading then content — only the 404 branch has back (line 59). Surface a real back via `<ScreenHeader back/>` or expose the system header in `jobs/[id]/_layout.tsx`.
-- [ ] **Tab bar height (64 px) + bottom padding doesn't include safe-area insets** (`(tabs)/_layout.tsx:12,46-55`). Home-indicator phones can have labels sitting too close to the indicator strip.
+- [x] **Job detail has no Back affordance** — shipped via the `<ScreenHeader>` migration. `mobile/app/(tabs)/jobs/[id]/index.tsx:71-72` renders `<ScreenHeader back …/>` with the `back` prop enabling the native back chevron on every visit of the screen.
+- [x] **Tab bar height (64 px) + bottom padding doesn't include safe-area insets** — shipped in `1ba30c9` ("fix(mobile): tab bar respects safe-area + jobs/search modal gains bottom edge"). `mobile/app/(tabs)/_layout.tsx:31` calls `useSafeAreaInsets()`, then 56-58 add `insets.bottom` to both the bar height (`TAB_BAR_HEIGHT + insets.bottom`) and the `paddingBottom` (`8 + insets.bottom`).
 - [ ] **CaptureFab + ScannerFab collide on narrow phones in landscape** — both sit within ~50 px (`ScannerFab.tsx:48,416-419`, `CaptureFab.tsx:87`).
 - [ ] **Money header search-pill** at `paddingHorizontal: 10, paddingVertical: 6` (`jobs/index.tsx:62-80`) — ~32 px touch target, only `hitSlop={8}` rescues it.
 - [ ] **Sign-out button at the bottom of a 2000+px Me scroll** (`me/index.tsx:536-542`) — out of thumb zone *and* easy to accidentally tap after scrolling all the way down. Group account actions at the top of the Me tab.
 
 ### 4.3 Cramped / hard-to-navigate
 - [ ] **Me tab is a 7-section ScrollView with no anchors / no sticky chrome** (`me/index.tsx:261-542`). Add a sticky in-tab subnav or collapsible section headers.
-- [ ] **Receipt detail is ~700 lines of form** with 13 sections (`money/[id].tsx:331-602`). Add a sticky Save bar above the keyboard.
+- [x] **Receipt detail sticky Save bar** — shipped in `67708a4` ("feat(mobile): sticky Save bar on Receipt / Point / Time edit"). `money/[id].tsx:607` renders the bar via `styles.stickyBar` (defined at 1070); same pattern lands in `jobs/[id]/points/[pointId].tsx:500` and `time/edit/[id].tsx:356`.
 - [ ] **Time tab combines status card + week card + 14 days of entries** in one scroll (`time/index.tsx:198-385`). Stale-clock-in banner pushes the active card down on the very screen the user opens to clock out. Add a sticky top region.
 - [ ] **Point detail expands Photos + Notes + Files + name + description + flags + Save + Delete** inline (`jobs/[id]/points/[pointId].tsx:311-501`). On 12 photos + 4 notes + 3 files, form fields are well below the fold.
 - [ ] **Long-press is the only delete affordance** for photos / videos / notes / files. Add swipe-to-delete on rows; keep long-press as a power-user shortcut.
@@ -186,13 +186,13 @@ Any combination of two can be open simultaneously per `CADLayout.tsx:824-925`. C
 
 ### 4.5 Mobile-specific
 - [ ] **Sub-44pt touch targets**: Money filter clear (32×32 — `money/index.tsx:227-228`), Receipt detail Cancel (no `minHeight`, padding 4 only — `money/[id].tsx:1059-1063`), Capture screen Cancel (padding:8 — `capture/index.tsx:561`), uploads back chevron (no min size — `me/uploads.tsx:124-133`), filter tabs in uploads (~30 pt — `me/uploads.tsx:369`).
-- [ ] **No haptics anywhere.** Plan §7.1 calls for "glove-friendly" but only size is addressed. Add `Haptics.impactAsync` on primary tap / capture / save / sign-out flows.
+- [x] **No haptics anywhere** — shipped in `46acce0` ("feat(mobile): haptics on primary actions"). Sign-out (`me/index.tsx:241` `haptics.confirm()`), theme toggle (`me/index.tsx:287` `haptics.tap()`), receipt capture (`money/capture.tsx:103` `haptics.success()`), and other primary flows now fire haptic feedback via the shared `haptics` helper.
 - [ ] **Sign-out has no confirmation** (`me/index.tsx:224-240,536-542`). One stray tap signs out + may drop to login if biometrics off.
 - [ ] **SafeArea `edges={['top']}` only** on modal-style screens — `money/[id].tsx:334,1001`, `capture/index.tsx:88,295`, `jobs/[id]/points/[pointId].tsx:268,559`. Add `'bottom'` so the home indicator doesn't sit on Delete/Save.
 - [ ] **`KeyboardAvoidingView` `behavior: 'padding'` is iOS-only** in `sign-in.tsx`, `forgot-password.tsx`, `capture/index.tsx`, `money/[id].tsx`, `jobs/[id]/points/[pointId].tsx`, `time/edit/[id].tsx`. Add an Android branch (`'height'`) so the keyboard doesn't cover totals/save.
 - [ ] **Tab bar covers content** in receipt detail when scrolled to bottom (`money/[id].tsx:1042-1046`). The 64px tab bar eats ~14px of the Delete button.
 - [ ] **`numberOfLines` clamps strip valuable info** — `JobCard.tsx:57,62,69` clamps title / subtitle / address to 1 line. Typical Texas job names ("Jenkins Boundary Survey - 240ac off Belton Lake Rd") disappear at column 22.
-- [ ] **No pull-to-refresh** on Jobs / Money / Time. PowerSync is reactive but users expect the gesture. `jobs/index.tsx:36` has a TODO comment.
+- [x] **No pull-to-refresh** on Jobs / Money / Time — shipped in `c92b7c7` ("feat(mobile): pull-to-refresh on Jobs / Money / Time"). All three tab indexes import `RefreshControl` from `react-native` and bind it to their ScrollView/FlatList: `jobs/index.tsx:118`, `money/index.tsx:192`, `time/index.tsx:226`.
 - [ ] **Sun-theme toggle is 3 taps deep** in Me → Display. Plan §7.1 §7.3 calls for "1-tap toggle". Add a long-press on the tab bar or a Me-header pill.
 - [ ] **Discard duplicate / Keep — different receipt buttons wrap** because each has `minHeight: 60` + `paddingHorizontal: 24` (`money/[id].tsx:868-895`). On smaller phones the second drops to a second line — looks like two unrelated buttons. Stack vertically below a breakpoint.
 
