@@ -41,7 +41,9 @@ function parseCommand(raw: string): ParsedCommand {
     const ltIdx = body.indexOf('<');
     if (ltIdx > 0) {
       const dist = parseLength(body.slice(0, ltIdx).trim());
-      const ang  = parseAngle(body.slice(ltIdx + 1).trim(), 'AUTO');
+      const ang  = parseAngle(body.slice(ltIdx + 1).trim(), 'AUTO', {
+        dmsPackedEnabled: useUIStore.getState().dmsPackedShortcutEnabled,
+      });
       if (dist && ang) {
         const angleRad = (ang.azimuth * Math.PI) / 180;
         return {

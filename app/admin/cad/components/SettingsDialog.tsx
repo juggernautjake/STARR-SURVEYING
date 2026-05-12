@@ -717,6 +717,12 @@ export default function SettingsDialog({ onClose }: Props) {
                   the ui-store partialize allow-list, takes
                   effect immediately. */}
               <TooltipDelaySection />
+              {/* DMS-packed shortcut toggle (§11.5.7) — threaded
+                  through every parseAngle consumer (CommandBar +
+                  UnitInput) via the ui-store. Off = decimals are
+                  always interpreted as decimal degrees, not as
+                  packed DMS like 45.3000 → 45°30'00". */}
+              <DmsPackedShortcutSection />
             </div>
           )}
 
@@ -1054,6 +1060,41 @@ function TooltipDelaySection() {
       <p className="text-gray-500 mt-1 text-[10px]">
         Tooltips that pass an explicit delay (e.g. the canvas feature-hover info) override this global default.
       </p>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// DMS-packed shortcut toggle (Phase 8 §11.5.7) — when on
+// (default), the angle parser treats decimals with 3+ fractional
+// digits as packed DMS (`45.3000` → 45°30'00"). Surveyors who
+// only ever want decimal degrees can disable it from this
+// checkbox; the setting persists via the ui-store partialize
+// allow-list and is threaded through every parseAngle consumer.
+// ────────────────────────────────────────────────────────────
+
+function DmsPackedShortcutSection() {
+  const enabled = useUIStore((s) => s.dmsPackedShortcutEnabled);
+  const setEnabled = useUIStore((s) => s.setDmsPackedShortcutEnabled);
+  return (
+    <div className="border-t border-gray-700 pt-3">
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 accent-blue-500"
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+        />
+        <div>
+          <div className="text-gray-200 text-xs font-medium">DMS-packed shortcut</div>
+          <p className="text-gray-500 text-[10px] mt-0.5 leading-relaxed">
+            When on, the angle parser treats decimal values with 3+ fractional
+            digits as packed degrees-minutes-seconds (e.g. <code>45.3000</code>
+            &nbsp;→&nbsp;<code>45°30′00″</code>). Turn off if you only ever want
+            decimal degrees; <code>45.3000</code> will then parse as 45.3°.
+          </p>
+        </div>
+      </label>
     </div>
   );
 }

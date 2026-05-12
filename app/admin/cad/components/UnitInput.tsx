@@ -31,6 +31,7 @@ import {
   type ParsedArea,
   type ParsedAngle,
 } from '@/lib/cad/units';
+import { useUIStore } from '@/lib/cad/store';
 
 const LENGTH_UNITS: { value: LinearUnit; label: string }[] = [
   { value: 'FT',   label: 'ft' },
@@ -185,7 +186,9 @@ export default function UnitInput(props: UnitInputProps) {
       setDraft(`${formatArea(r.sqft, unit)}`);
     } else {
       const angleMode = angleModeOverride ?? props.angleMode ?? 'AUTO';
-      const r = parseAngle(raw, angleMode);
+      const r = parseAngle(raw, angleMode, {
+        dmsPackedEnabled: useUIStore.getState().dmsPackedShortcutEnabled,
+      });
       if (!r) {
         setError('Try "45.3000", "N 45-30 E", or a decimal degree.');
         return;

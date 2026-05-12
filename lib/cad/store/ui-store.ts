@@ -222,6 +222,13 @@ interface UIStore {
    *  appears. Default 600 ms; range 100–3000. Tooltips that
    *  pass an explicit `delay` prop override this. */
   tooltipDelayMs: number;
+  /** Phase 8 §11.5.7 — when true (default), the angle parser
+   *  treats decimals with 3+ fractional digits as DMS-packed
+   *  shortcuts (`45.3000` → `45°30'00"`). Surveyors who only ever
+   *  want decimal degrees can disable this so the heuristic stops
+   *  rewriting their input. Threaded through `parseAngle` opts at
+   *  every consumer site (`CommandBar`, `UnitInput`). */
+  dmsPackedShortcutEnabled: boolean;
   /** §9 — firm-wide branding logo, stored as a base64 data
    *  URL so it round-trips through `localStorage` without a
    *  separate asset pipeline. When present, the title-block
@@ -249,6 +256,7 @@ interface UIStore {
   setUITooltipsEnabled: (enabled: boolean) => void;
   setFeatureTooltipsEnabled: (enabled: boolean) => void;
   setTooltipDelayMs: (ms: number) => void;
+  setDmsPackedShortcutEnabled: (enabled: boolean) => void;
   setFirmLogoDataUrl: (dataUrl: string | null) => void;
   /** Add a new transfer preset. id auto-generated. Replaces
    *  existing preset with the same name (so re-saving keeps
@@ -301,6 +309,7 @@ export const useUIStore = create<UIStore>()(
       uiTooltipsEnabled: true,
       featureTooltipsEnabled: true,
       tooltipDelayMs: 600,
+      dmsPackedShortcutEnabled: true,
       firmLogoDataUrl: null,
       // Seed bundled presets on initial state construction.
       // The persist middleware's onRehydrate will preserve
@@ -324,6 +333,7 @@ export const useUIStore = create<UIStore>()(
       setTooltipDelayMs: (ms) => set({
         tooltipDelayMs: Number.isFinite(ms) ? Math.max(100, Math.min(3000, Math.round(ms))) : 600,
       }),
+      setDmsPackedShortcutEnabled: (enabled) => set({ dmsPackedShortcutEnabled: !!enabled }),
       setFirmLogoDataUrl: (dataUrl) => set({
         // Cap the persisted blob at ~1 MB so a giant logo
         // doesn't blow out localStorage (5 MB quota in most
@@ -426,13 +436,14 @@ export const useUIStore = create<UIStore>()(
     }),
     {
       name: 'starr-cad-ui',
-      version: 5,
+      version: 6,
       storage: createJSONStorage(() => localStorage),
       // Allow-list — only the surveyor-visible toggles persist.
       partialize: (s) => ({
         uiTooltipsEnabled: s.uiTooltipsEnabled,
         featureTooltipsEnabled: s.featureTooltipsEnabled,
         tooltipDelayMs: s.tooltipDelayMs,
+        dmsPackedShortcutEnabled: s.dmsPackedShortcutEnabled,
         firmLogoDataUrl: s.firmLogoDataUrl,
         transferPresets: s.transferPresets,
         selectionBlocks: s.selectionBlocks,
