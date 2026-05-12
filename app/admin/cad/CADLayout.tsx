@@ -786,7 +786,7 @@ export default function CADLayout() {
           />
         </div>
       )}
-      <StatusBar />
+      <StatusBar onOpenRecentRecoveries={() => setShowRecentRecoveries(true)} />
 
       {/* Feature properties dialog (opened by double-clicking a feature) */}
       {featureDialog && drawingStore.getFeature(featureDialog.featureId) && (

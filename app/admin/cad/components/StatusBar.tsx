@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useDrawingStore, useViewportStore, useSelectionStore, useToolStore, useAIStore, AI_MODE_CYCLE } from '@/lib/cad/store';
 import { formatDistance, formatCoordinates, formatAngle } from '@/lib/cad/geometry/units';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import { listAutosaves } from '@/lib/cad/persistence/autosave';
 import type { SnapType } from '@/lib/cad/types';
 
 const SNAP_TYPE_INFO: Array<{ type: SnapType; label: string; hint: string }> = [
@@ -56,7 +57,16 @@ const MIN_ZOOM_PCT = 5;
 const MAX_ZOOM_PCT = 500;
 const ZOOM_STEP_PCT = 25;
 
-export default function StatusBar() {
+interface StatusBarProps {
+  /** Opens the RecentRecoveriesDialog (File → "Recover unsaved drawings…").
+   *  When present, StatusBar surfaces a clickable "N recoverable" pill
+   *  whenever IndexedDB carries autosaves for drawings other than the
+   *  active one — recovery shouldn't be buried in a menu when work is
+   *  one click away. */
+  onOpenRecentRecoveries?: () => void;
+}
+
+export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {}) {
   const drawingStore = useDrawingStore();
   const viewportStore = useViewportStore();
   const selectionStore = useSelectionStore();
@@ -78,6 +88,32 @@ export default function StatusBar() {
   // miss; this pill in the status bar makes the count visible
   // and one-click recoverable.
   const hiddenCount = Object.values(doc.features).filter((f) => f.hidden).length;
+
+  // §UX U16 (UX_POLISH §2.4) — "Recover unsaved drawings…" is the
+  // 4th File-menu entry, easy to miss. Count IndexedDB autosaves
+  // whose docId isn't the active drawing's; a non-zero count
+  // surfaces a clickable pill in the bar so a surveyor never
+  // forgets pending recoveries when reopening the app. Re-run on
+  // docId change so a freshly-loaded drawing recomputes.
+  const [otherRecoveryCount, setOtherRecoveryCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    listAutosaves()
+      .then((entries) => {
+        if (cancelled) return;
+        setOtherRecoveryCount(
+          entries.filter((e) => e.docId !== doc.id).length
+        );
+      })
+      .catch(() => {
+        // IndexedDB read failed (private-mode, quota, etc.).
+        // Silently hide the pill — the menu entry still works.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [doc.id]);
+
   const { activeTool, drawingPoints, basePoint, rotateCenter, orthoEnabled, polarEnabled, polarAngle, copyMode } = toolStore.state;
 
   // Express zoom as a percentage of 1px-per-world-unit baseline
@@ -322,6 +358,24 @@ export default function StatusBar() {
             title={`${hiddenCount} hidden feature${hiddenCount === 1 ? '' : 's'} — click to manage`}
           >
             {hiddenCount} hidden
+          </button>
+          <span className="text-gray-600">|</span>
+        </>
+      )}
+
+      {/* Recoverable-drawings pill — visible when IndexedDB carries
+          autosaves for other docs. Click opens RecentRecoveriesDialog
+          (same path as File → "Recover unsaved drawings…"), so the
+          surveyor can recover work without browsing the File menu. */}
+      {otherRecoveryCount > 0 && onOpenRecentRecoveries && (
+        <>
+          <button
+            type="button"
+            onClick={onOpenRecentRecoveries}
+            className="shrink-0 text-amber-300 hover:text-amber-100 transition-colors animate-[fadeIn_150ms_ease-out]"
+            title={`${otherRecoveryCount} recoverable drawing${otherRecoveryCount === 1 ? '' : 's'} — click to manage`}
+          >
+            🔄 {otherRecoveryCount} recoverable
           </button>
           <span className="text-gray-600">|</span>
         </>
