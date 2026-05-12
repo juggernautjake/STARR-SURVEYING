@@ -31,6 +31,7 @@
     "expo-dev-client": "~5.0.4",
     "expo-document-picker": "~13.0.3",
     "expo-file-system": "~18.0.6",
+    "expo-haptics": "~14.0.1",
     "expo-image-manipulator": "~13.0.5",
     "expo-image-picker": "~16.0.4",
     "expo-camera": "~16.0.10",

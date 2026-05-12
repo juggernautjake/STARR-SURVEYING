@@ -7,6 +7,7 @@ import type { RenderedDrawing, DrawingElement, ViewMode } from '@/types/research
 import type { DrawingPreferences } from './DrawingPreferencesPanel';
 import type { DrawingTool, ToolSettings } from './DrawingToolsSidebar';
 import DrawingContextMenu, { type ContextMenuAction } from './DrawingContextMenu';
+import { confirm as confirmDialog } from './ConfirmDialog';
 
 // ── User Annotation Types ───────────────────────────────────────────────────
 
@@ -1387,9 +1388,14 @@ export default function DrawingCanvas({
         }
         case 'revert_to_original':
           if (element.user_modified && onRevertElement) {
-            if (window.confirm('Revert this element to its original AI-generated state? Your edits will be lost.')) {
-              onRevertElement(element.id);
-            }
+            void confirmDialog({
+              title: 'Revert element to its original state?',
+              body: 'Your edits will be lost.',
+              confirmLabel: 'Revert',
+              tone: 'danger',
+            }).then((ok) => {
+              if (ok) onRevertElement(element.id);
+            });
           }
           break;
       }

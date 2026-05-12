@@ -1,5 +1,6 @@
 import { Redirect, Tabs } from 'expo-router';
 import { Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CaptureFab } from '@/lib/CaptureFab';
 import { LoadingSplash } from '@/lib/LoadingSplash';
@@ -27,6 +28,7 @@ const TAB_BAR_HEIGHT = 64;
 export default function TabsLayout() {
   const { session, loading } = useAuth();
   const { isEquipmentManager } = useIsEquipmentManager();
+  const insets = useSafeAreaInsets();
 
   // Dark-mode default per plan §7.1 rule 7 (battery-aware). Matches
   // the default in lib/Placeholder.tsx so the tab bar and screen
@@ -46,12 +48,14 @@ export default function TabsLayout() {
           tabBarStyle: {
             backgroundColor: palette.surface,
             borderTopColor: palette.border,
-            height: TAB_BAR_HEIGHT,
-            // The FAB lifts 18px above this bar via negative margin in
-            // CaptureFab. allowFontScaling+overflow to make sure iOS
-            // doesn't clip the protruding circle.
+            // Grow the bar by the device's bottom safe-area inset so
+            // labels sit above the home indicator instead of touching
+            // it. The FAB lifts 18 px above this bar via negative
+            // margin in CaptureFab; allowFontScaling+overflow keep
+            // iOS from clipping the protruding circle.
+            height: TAB_BAR_HEIGHT + insets.bottom,
             paddingTop: 8,
-            paddingBottom: 8,
+            paddingBottom: 8 + insets.bottom,
           },
           tabBarLabelStyle: {
             fontSize: 11,
@@ -89,25 +93,25 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="money"
           options={{
-            title: '$',
+            title: 'Money',
             tabBarIcon: ({ color }) => <TabGlyph color={color} label="$" />,
           }}
         />
         <Tabs.Screen
           name="me"
           options={{
-            title: 'Me',
+            title: 'Account',
             tabBarIcon: ({ color }) => <TabGlyph color={color} label="👤" />,
           }}
         />
-        {/* F10.8 — Gear tab (role-gated 6th tab). Always declared
-            so deep links resolve, but `href: null` hides it from
-            the tab bar for non-EM users. The tab&apos;s own screen
+        {/* Equipment tab — role-gated 6th slot. Always declared so
+            deep links resolve, but `href: null` hides it from the
+            tab bar for non-EM users. The tab&apos;s own screen
             also enforces role gating defensively. */}
         <Tabs.Screen
           name="gear"
           options={{
-            title: 'Gear',
+            title: 'Equipment',
             tabBarIcon: ({ color }) => <TabGlyph color={color} label="🛠" />,
             href: isEquipmentManager ? '/(tabs)/gear' : null,
           }}

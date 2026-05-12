@@ -1,10 +1,12 @@
 /**
  * Themed text input with optional label and error message.
  *
- * Sized for one-handed use in the field — minHeight 56, large font,
- * generous padding. autoCapitalize/autoCorrect are off by default
- * because most field inputs (email, parcel id, point name) are not
- * sentence-cased.
+ * Sized for one-handed use in the field — large font, generous
+ * padding. Height + corner radius come from the shared `controls`
+ * token in theme.ts so an input sitting next to a Button or chip in
+ * the same row lines up cleanly. autoCapitalize/autoCorrect are off
+ * by default because most field inputs (email, parcel id, point name)
+ * are not sentence-cased.
  */
 import { forwardRef } from 'react';
 import {
@@ -15,7 +17,8 @@ import {
   type TextInputProps,
 } from 'react-native';
 
-import { colors } from './theme';
+import { colors, controls } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface TextFieldProps extends TextInputProps {
   label?: string;
@@ -65,10 +68,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   input: {
-    minHeight: 56,
-    paddingHorizontal: 16,
+    minHeight: controls.height,
+    paddingHorizontal: controls.paddingHText,
     fontSize: 17,
-    borderRadius: 10,
+    borderRadius: controls.radius,
     borderWidth: 1,
   },
   error: {

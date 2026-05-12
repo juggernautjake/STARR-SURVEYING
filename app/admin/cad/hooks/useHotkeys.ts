@@ -23,9 +23,9 @@ import {
   type HotkeyEngine,
 } from '@/lib/cad/hotkeys';
 import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
+import { undoMostRecentAIBatch } from '@/lib/cad/ai/undo-batch';
 import {
   useAIStore,
-  useDrawingChatStore,
   useDrawingStore,
   useHotkeysStore,
   useSelectionStore,
@@ -134,6 +134,16 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
     });
     engineRef.current = engine;
 
+    let lastPrefix = '';
+    const emitPrefix = () => {
+      const next = engine.getBufferedPrefix();
+      if (next !== lastPrefix) {
+        lastPrefix = next;
+        window.dispatchEvent(new CustomEvent('cad:chordPrefixChanged', {
+          detail: { prefix: next },
+        }));
+      }
+    };
     const onKeyDown = (event: KeyboardEvent) => {
       if (shouldIgnoreEventTarget(event)) return;
       const handled = engine.handleKeyEvent(event);
@@ -146,6 +156,12 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
         // type into a stray contenteditable.
         event.preventDefault();
       }
+      // Surface the chord buffer state for the HUD. The engine
+      // commits / clears its buffer inside `handleKeyEvent`, so
+      // reading right after gives the canonical post-keystroke
+      // prefix. A timeout covers the chord-timeout auto-clear.
+      emitPrefix();
+      window.setTimeout(emitPrefix, 1100);
     };
 
     const onBlur = () => engine.flushPending();
@@ -182,6 +198,21 @@ export function dispatchDefaultAction(action: BindableAction): void {
   const tool = toolForAction(action.id);
   if (tool) {
     useToolStore.getState().setTool(tool);
+    return;
+  }
+
+  // §32 Slice 13 — MANUAL mode lockdown. Every ai.* action
+  // except the mode-cycle is a no-op while AI is off; the
+  // surveyor sees a toast that points at Ctrl+Shift+M so they
+  // can switch modes if they actually wanted AI.
+  if (
+    action.id.startsWith('ai.') &&
+    action.id !== 'ai.cycleMode' &&
+    useAIStore.getState().mode === 'MANUAL'
+  ) {
+    window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+      detail: { text: 'AI is off (MANUAL mode). Press Ctrl+Shift+M to switch modes.' },
+    }));
     return;
   }
 
@@ -322,8 +353,138 @@ export function dispatchDefaultAction(action: BindableAction): void {
       window.dispatchEvent(new CustomEvent('cad:openAIDrawingDialog'));
       return;
     case 'ai.chat':
-      useDrawingChatStore.getState().open();
+      // Phase 6 §32 Slice 7 — focus the COPILOT sidebar. The
+      // listener inside AICopilotSidebar opens the panel if
+      // closed + focuses the prompt textarea.
+      useAIStore.getState().openCopilotSidebar();
+      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
       return;
+    case 'ai.cycleMode': {
+      const aiStore = useAIStore.getState();
+      aiStore.cycleMode();
+      // Read the *post-cycle* mode for the toast — the cycleMode
+      // action mutates synchronously so a fresh getState() works.
+      const nextMode = useAIStore.getState().mode;
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: `AI mode: ${nextMode}` },
+      }));
+      return;
+    }
+    // Phase 6 §32.9 — palette-driven canned prompts. Each one
+    // seeds a prompt + opens the sidebar; the surveyor can edit
+    // before sending (Ctrl+Enter) or send as-is.
+    case 'ai.parseCodes':
+      useAIStore.getState().openCopilotWithPrompt(
+        'Walk every point code in the current document and propose layer assignments. ' +
+          'Create any missing layers via createLayer; do not modify existing features.',
+      );
+      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
+      return;
+    case 'ai.fillCorners':
+      useAIStore.getState().openCopilotWithPrompt(
+        'Find any nearly-closed polygons or polylines whose endpoints stop short of meeting. ' +
+          'For each, propose a best-fit corner via the line intersect helpers.',
+      );
+      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
+      return;
+    case 'ai.checkClosure':
+      useAIStore.getState().openCopilotWithPrompt(
+        'Run a closure report on the active polygon / traverse. ' +
+          'List the closure error in feet and angle, and flag any legs longer than 200 ft for review.',
+      );
+      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
+      return;
+    case 'ai.createLayerFromCodes':
+      useAIStore.getState().openCopilotWithPrompt(
+        'Create a new layer from a code pattern (e.g. BC-*) and a draw-as instruction (POINT / POLYLINE / POLYGON). ' +
+          'Ask me which pattern + draw-as to use if you need more detail.',
+      );
+      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
+      return;
+    case 'ai.explainFeature': {
+      // If a single feature is selected and it carries
+      // provenance, open the existing §32.7 popup directly.
+      const sel = Array.from(useSelectionStore.getState().selectedIds);
+      if (sel.length === 1) {
+        useAIStore.getState().openExplanation(sel[0]);
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'Select exactly one feature to explain.' },
+      }));
+      return;
+    }
+    case 'ai.startAuto': {
+      const ai = useAIStore.getState();
+      if (ai.mode !== 'AUTO') ai.setMode('AUTO');
+      ai.startAutoRun();
+      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'AUTO run started — see chat sidebar.' },
+      }));
+      return;
+    }
+    case 'ai.pauseAuto': {
+      const ai = useAIStore.getState();
+      if (ai.mode !== 'AUTO') {
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: 'AUTO is not running.' },
+        }));
+        return;
+      }
+      ai.setMode('COPILOT');
+      ai.appendCopilotMessage({
+        id: `pause_${Date.now().toString(36)}`,
+        role: 'SYSTEM',
+        content: 'AUTO paused — switched to COPILOT for the rest of this session. Cycle the mode (Ctrl+Shift+M) to resume.',
+        ts: new Date().toISOString(),
+      });
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'AUTO paused — switched to COPILOT.' },
+      }));
+      return;
+    }
+    case 'ai.replaySequence': {
+      const ai = useAIStore.getState();
+      const total = ai.aiBatches.length;
+      if (total === 0) {
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: 'Replay AI sequence: nothing recorded yet.' },
+        }));
+        return;
+      }
+      const confirmed = window.confirm(
+        `Replay ${total} AI turn${total === 1 ? '' : 's'} against the current document?\n\n` +
+          'Each prompt re-fires through the AI proposer; proposals land in the queue for review just like a fresh run.',
+      );
+      if (!confirmed) return;
+      ai.replayAISequence().then((result) => {
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: {
+            text:
+              `Replay complete — ${result.replayed} succeeded` +
+              (result.failed > 0 ? `, ${result.failed} failed` : '') +
+              (result.aborted ? ', aborted' : '') + '.',
+          },
+        }));
+      });
+      return;
+    }
+    case 'ai.undoBatch': {
+      const popped = undoMostRecentAIBatch();
+      if (!popped) {
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: 'No AI batch at the top of the undo stack.' },
+        }));
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: {
+          text: `Undid AI batch (${popped.count} feature${popped.count === 1 ? '' : 's'}).`,
+        },
+      }));
+      return;
+    }
 
     // ── App ──────────────────────────────────────────
     case 'view.settings':
@@ -338,6 +499,12 @@ export function dispatchDefaultAction(action: BindableAction): void {
       return;
     case 'view.shortcutHelp':
       window.dispatchEvent(new CustomEvent('cad:openShortcutHelp'));
+      return;
+    case 'edit.sendToLayer':
+      window.dispatchEvent(new CustomEvent('cad:openLayerTransfer'));
+      return;
+    case 'tool.intersect':
+      window.dispatchEvent(new CustomEvent('cad:openIntersect'));
       return;
 
     case 'view.stats': {

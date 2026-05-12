@@ -14,8 +14,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { CategoryPicker, categoryLabel } from '@/lib/CategoryPicker';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import * as haptics from '@/lib/haptics';
 import { logError } from '@/lib/log';
 import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard';
 import { RemotePhoto } from '@/lib/RemotePhoto';
@@ -253,6 +255,7 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
     setSubmitting(true);
     try {
       await updateReceipt(receipt.id, patch);
+      haptics.success();
       router.back();
     } catch (err) {
       logError('receiptDetail.onSave', 'update failed', err, {
@@ -341,25 +344,28 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.headerRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.heading, { color: palette.text }]} numberOfLines={2}>
-                {vendorName.trim() || receipt.vendor_name?.trim() || 'Receipt'}
-              </Text>
-              <Text style={[styles.subtitle, { color: palette.muted }]}>
-                {extractionCaption(receipt)}
-              </Text>
-            </View>
-            <Pressable
-              onPress={attemptDismiss}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-            >
-              <Text style={[styles.cancelText, { color: palette.muted }]}>
-                Cancel
-              </Text>
-            </Pressable>
-          </View>
+          <ScreenHeader
+            title={vendorName.trim() || receipt.vendor_name?.trim() || 'Receipt'}
+            subtitle={extractionCaption(receipt) || undefined}
+            right={
+              <Pressable
+                onPress={attemptDismiss}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                hitSlop={12}
+                style={({ pressed }) => ({
+                  minHeight: 44,
+                  paddingHorizontal: 8,
+                  justifyContent: 'center',
+                  opacity: pressed ? 0.6 : 1,
+                })}
+              >
+                <Text style={{ fontSize: 16, fontWeight: '500', color: palette.muted }}>
+                  Cancel
+                </Text>
+              </Pressable>
+            }
+          />
 
           {locked ? (
             <View
@@ -557,36 +563,27 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
               numberOfLines={3}
               autoCorrect
               autoCapitalize="sentences"
-              placeholder="Client lunch w/ Henry, Belton job site, …"
+              placeholder="Client lunch, Belton job site, …"
               editable={!submitting && !locked}
             />
           </View>
 
           {/* Retry AI extraction (only when extraction failed) */}
           {!locked && receipt.extraction_status === 'failed' ? (
-            <>
-              <Button
-                variant="secondary"
-                label="Retry AI extraction"
-                onPress={onRetryExtraction}
-                loading={retrying}
-                disabled={submitting}
-                accessibilityHint="Re-runs Claude Vision on this receipt's photo."
-              />
-              <View style={styles.deleteSpacer} />
-            </>
+            <Button
+              variant="secondary"
+              label="Retry AI extraction"
+              onPress={onRetryExtraction}
+              loading={retrying}
+              disabled={submitting}
+              accessibilityHint="Re-runs Claude Vision on this receipt's photo."
+            />
           ) : null}
 
-          {/* Save / Delete */}
+          {/* Delete stays in scroll content — destructive, lower
+              priority than Save, doesn't deserve the sticky bar. */}
           {locked ? null : (
             <>
-              <Button
-                label="Save"
-                onPress={onSave}
-                loading={submitting}
-                disabled={!totalsValid || retrying}
-                accessibilityHint="Saves your edits to this receipt."
-              />
               <View style={styles.deleteSpacer} />
               <Button
                 variant="danger"
@@ -598,6 +595,31 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
             </>
           )}
         </ScrollView>
+
+        {/* Sticky Save bar (D7). Sits above the keyboard via the
+            wrapping KeyboardAvoidingView so the surveyor can save
+            without scrolling out of the field they were editing.
+            Hidden in the locked state — admins have to reopen the
+            receipt before edits are accepted. */}
+        {locked ? null : (
+          <View
+            style={[
+              styles.stickyBar,
+              {
+                backgroundColor: palette.surface,
+                borderTopColor: palette.border,
+              },
+            ]}
+          >
+            <Button
+              label="Save"
+              onPress={onSave}
+              loading={submitting}
+              disabled={!totalsValid || retrying}
+              accessibilityHint="Saves your edits to this receipt."
+            />
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -939,6 +961,7 @@ function ReviewBanner({
       // they're satisfied. Pass an empty edits map so
       // user_review_edits records "reviewed, no edits noted."
       await confirmReview(receipt.id);
+      haptics.success();
     } catch (err) {
       Alert.alert(
         'Couldn’t mark as reviewed',
@@ -1042,24 +1065,18 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 64,
+    paddingBottom: 32,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 16,
+  stickyBar: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderTopWidth: 1,
   },
   heading: {
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 4,
-  },
-  cancelText: {
-    fontSize: 16,
-    fontWeight: '500',
-    paddingTop: 4,
   },
   subtitle: {
     fontSize: 14,

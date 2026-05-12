@@ -46,6 +46,7 @@ import {
   strokeWidthPx,
 } from './photoAnnotation';
 import { colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface PhotoAnnotatorProps {
   /** Visibility — controlled by caller. */

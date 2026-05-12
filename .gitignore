@@ -55,3 +55,7 @@ worker/pnpm-lock.yaml
 /test-results/
 /blob-report/
 /playwright/.cache/
+
+# Claude Code per-developer state (permissions cache, hook opt-ins).
+# The shared hook script lives at .claude/hooks/ and IS committed.
+.claude/settings.local.json

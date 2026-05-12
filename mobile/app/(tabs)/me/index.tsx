@@ -14,9 +14,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { MyPersonalKitSection } from '@/lib/MyPersonalKitSection';
 import { MyTruckSection } from '@/lib/MyTruckSection';
 import { useMyCheckouts, useMyPersonalKit } from '@/lib/equipment';
+import * as haptics from '@/lib/haptics';
 import { logError, logWarn } from '@/lib/log';
 import { useAuth } from '@/lib/auth';
 import {
@@ -221,22 +223,41 @@ export default function MeScreen() {
     lockNow();
   };
 
-  const onSignOut = async () => {
-    setSigningOut(true);
-    try {
-      await signOut();
-    } catch (err) {
-      // Sign-out can fail if Supabase's storage adapter throws on
-      // session-clear (rare; usually a keychain race). Surface
-      // because otherwise the button just spins forever.
-      logError('me.onSignOut', 'sign out failed', err);
-      Alert.alert(
-        'Sign-out failed',
-        err instanceof Error ? err.message : String(err)
-      );
-    } finally {
-      setSigningOut(false);
-    }
+  const onSignOut = () => {
+    // Sign-out drops the session and forces the next surveyor on this
+    // device through the full sign-in flow (biometric / password +
+    // PowerSync resync). Easy to fat-finger from the bottom of /me
+    // mid-scroll, so confirm before the async work fires. iOS/Android
+    // destructive-button pattern keeps it native.
+    Alert.alert(
+      'Sign out?',
+      'You’ll need to sign back in to capture, clock in, or upload. Any unsynced work stays on this device until you sign back in.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out',
+          style: 'destructive',
+          onPress: async () => {
+            haptics.confirm();
+            setSigningOut(true);
+            try {
+              await signOut();
+            } catch (err) {
+              // Sign-out can fail if Supabase's storage adapter throws
+              // on session-clear (rare; usually a keychain race).
+              // Surface because otherwise the button just spins.
+              logError('me.onSignOut', 'sign out failed', err);
+              Alert.alert(
+                'Sign-out failed',
+                err instanceof Error ? err.message : String(err)
+              );
+            } finally {
+              setSigningOut(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const email = session?.user.email ?? 'unknown';
@@ -251,12 +272,49 @@ export default function MeScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
-        <View style={styles.headerBlock}>
-          <Text style={[styles.label, { color: palette.muted }]}>Signed in as</Text>
-          <Text style={[styles.email, { color: palette.text }]} selectable>
-            {email}
-          </Text>
-        </View>
+        <ScreenHeader
+          title="Account"
+          subtitle={email}
+          right={
+            // One-tap Sun-readable toggle (D8). The 4-pill picker
+            // further down still controls Auto / Light / Dark
+            // explicitly; this pill is the "I just walked into
+            // direct sun and can't read the screen" shortcut.
+            // Toggles between 'sun' and 'auto' so the second tap
+            // returns to OS-following. Haptic confirms the flip.
+            <Pressable
+              onPress={() => {
+                haptics.tap();
+                void setThemePref(themePref === 'sun' ? 'auto' : 'sun');
+              }}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: themePref === 'sun' }}
+              accessibilityLabel="Sun-readable theme"
+              accessibilityHint="Toggles the max-contrast sun-readable colour scheme for direct sunlight."
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.sunPill,
+                {
+                  backgroundColor:
+                    themePref === 'sun' ? palette.accent : 'transparent',
+                  borderColor:
+                    themePref === 'sun' ? palette.accent : palette.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: '600',
+                  color: themePref === 'sun' ? '#FFFFFF' : palette.text,
+                }}
+              >
+                ☀ {themePref === 'sun' ? 'On' : 'Sun'}
+              </Text>
+            </Pressable>
+          }
+        />
 
         <MyTruckSection summary={truckSummary} palette={palette} />
 
@@ -524,12 +582,6 @@ export default function MeScreen() {
           <AboutRow palette={palette} />
         </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.muted }]}>Coming soon</Text>
-          <Text style={[styles.sectionBody, { color: palette.text }]}>
-            Profile editing and idle-timer length land in F1+.
-          </Text>
-        </View>
 
         <View style={styles.spacer} />
 
@@ -765,23 +817,20 @@ const styles = StyleSheet.create({
     minWidth: 64,
     alignItems: 'center',
   },
+  sunPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    minHeight: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   safe: { flex: 1 },
   scroll: {
     padding: 24,
     paddingTop: 32,
     flexGrow: 1,
-  },
-  headerBlock: { marginBottom: 32 },
-  label: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  email: {
-    fontSize: 22,
-    fontWeight: '600',
   },
   section: {
     marginBottom: 24,

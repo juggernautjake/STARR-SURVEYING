@@ -1,7 +1,9 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import {
   FlatList,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -11,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ReceiptCard } from '@/lib/ReceiptCard';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import {
   usePersistedReceiptFilter,
   useReceipts,
@@ -53,6 +56,16 @@ export default function MoneyScreen() {
   const { isTablet } = useResponsiveLayout();
   const tabletStyle = tabletContainerStyle(isTablet);
 
+  // Pull-to-refresh: feel-good gesture only. PowerSync sync is
+  // continuous, so the list is already as fresh as the network
+  // allows. Short spinner confirms "I asked for fresh data".
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await new Promise((r) => setTimeout(r, 600));
+    setRefreshing(false);
+  };
+
   if (isLoading && receipts.length === 0) return <LoadingSplash />;
 
   const onAddReceipt = () => router.push('/(tabs)/money/capture');
@@ -62,12 +75,7 @@ export default function MoneyScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
-      <View style={[styles.headerRow, tabletStyle]}>
-        <Text style={[styles.heading, { color: palette.text }]}>Receipts</Text>
-        <Text style={[styles.count, { color: palette.muted }]}>
-          {receipts.length}
-        </Text>
-      </View>
+      <ScreenHeader title="Money" subtitle={`${receipts.length}`} />
       {/* Review badge — tap to filter to "needs review" only.
           When the filter is active, render an amber chip with a
           × button instead so the surveyor can clear the filter
@@ -180,6 +188,13 @@ export default function MoneyScreen() {
             )}
             contentContainerStyle={[styles.listContent, tabletStyle]}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={palette.muted}
+              />
+            }
           />
           <View
             style={[
@@ -234,22 +249,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '300',
     lineHeight: 18,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 12,
-  },
-  heading: {
-    fontSize: 32,
-    fontWeight: '700',
-  },
-  count: {
-    fontSize: 15,
-    fontWeight: '500',
   },
   empty: {
     flex: 1,

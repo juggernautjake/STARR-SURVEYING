@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_ACTIONS } from '@/lib/cad/hotkeys/registry';
 import { dispatchDefaultAction } from '../hooks/useHotkeys';
-import { useDrawingStore } from '@/lib/cad/store';
+import { useDrawingStore, useAIStore } from '@/lib/cad/store';
 import type { BindableAction } from '@/lib/cad/hotkeys/types';
 
 type PaletteItem =
@@ -89,20 +89,31 @@ export default function CommandPalette() {
     return [...actionItems, ...layerItems];
   }, [drawingStore]);
 
+  // §32 Slice 13 — MANUAL mode lockdown. Hide every ai.*
+  // palette entry (except the mode-cycle action itself, which
+  // is how the surveyor turns AI back on) when mode is MANUAL.
+  const aiMode = useAIStore((s) => s.mode);
+  const visibleItems = useMemo(() => {
+    if (aiMode !== 'MANUAL') return items;
+    return items.filter((it) =>
+      !(it.kind === 'ACTION' && it.id.startsWith('ai.') && it.id !== 'ai.cycleMode'),
+    );
+  }, [items, aiMode]);
+
   // Simple substring filter — case-insensitive, matches on
   // label + description + category + (action) id so a user
   // can search by Tool name, action id ("file.save"), or any
   // word in the description.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return items.slice(0, 60); // cap idle list
-    return items
+    if (!q) return visibleItems.slice(0, 60); // cap idle list
+    return visibleItems
       .filter((it) => {
         const haystack = `${it.label} ${it.description} ${it.category} ${it.id}`.toLowerCase();
         return haystack.includes(q);
       })
       .slice(0, 60);
-  }, [items, query]);
+  }, [visibleItems, query]);
 
   // Reset highlight when the filtered list changes so the
   // top-most match is always selected.
@@ -239,7 +250,7 @@ export default function CommandPalette() {
           <span><kbd className="bg-gray-800 border border-gray-700 rounded px-1">↑↓</kbd> navigate</span>
           <span><kbd className="bg-gray-800 border border-gray-700 rounded px-1">↵</kbd> run</span>
           <span><kbd className="bg-gray-800 border border-gray-700 rounded px-1">Esc</kbd> close</span>
-          <span className="ml-auto">{filtered.length} of {items.length}</span>
+          <span className="ml-auto">{filtered.length} of {visibleItems.length}</span>
         </div>
       </div>
     </div>

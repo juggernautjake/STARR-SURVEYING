@@ -1,6 +1,7 @@
 // lib/cad/store/ui-store.ts — UI panel visibility state
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { TransferOptions } from './transfer-store';
 
 export type AISidebarTab =
   | 'queue'
@@ -8,6 +9,192 @@ export type AISidebarTab =
   | 'explanations'
   | 'versions'
   | 'checklist';
+
+/**
+ * Phase 8 §11.7 Slice 13 — saved transfer configuration.
+ * Captures every option the surveyor would otherwise re-type
+ * each time they run a recurring transfer (e.g. "Working →
+ * Print copy"). Source set is intentionally NOT captured
+ * (it's per-job); presets store the routing + options only.
+ */
+export interface TransferPreset {
+  id: string;
+  name: string;
+  /** Snapshot of TransferOptions at save time. Stored as a
+   *  plain object so it survives localStorage round-trip. */
+  options: TransferOptions;
+  /** ISO timestamp of last invocation. Drives dropdown sort. */
+  lastUsedAt: string | null;
+  /** How many times Confirm fired with this preset loaded.
+   *  Lets the dropdown surface "recently popular" presets. */
+  useCount: number;
+  /** When true, this preset auto-loads on dialog open. At
+   *  most one preset can be flagged default at a time;
+   *  setDefaultTransferPreset() enforces. */
+  isDefault: boolean;
+  /** True for the five firm-shipped defaults so the dropdown
+   *  can mark them visually. Surveyor can still edit / delete /
+   *  override them — bundled is just metadata, not a lock. */
+  isBundled?: boolean;
+}
+
+/**
+ * Phase 8 §11.7 Slice 14 — bundled transfer presets that
+ * ship with the firm's default configuration. Auto-seeded
+ * into `transferPresets` on first run (when the persisted
+ * array is empty). Each captures the SEMANTICS of a
+ * recurring transfer the firm runs; surveyor picks the
+ * specific destination layer at use-time since layer ids
+ * are per-document.
+ *
+ * Editable + deletable like any saved preset — bundled is
+ * metadata, not a lock.
+ */
+const BUNDLED_TRANSFER_PRESETS: ReadonlyArray<Omit<TransferPreset, 'id' | 'lastUsedAt' | 'useCount'>> = [
+  {
+    name: 'Monuments → Final plat',
+    options: {
+      operation: 'DUPLICATE',
+      targetLayerId: null,
+      additionalTargetLayerIds: [],
+      targetTraverseId: null,
+      keepOriginals: true,
+      renumberStart: null,
+      stripUnknownCodes: false,
+      bringAlongLinkedGeometry: true,
+      offsetDistanceFt: 0,
+      offsetBearingDeg: 0,
+      applyOffset: false,
+      lockSourceAfterCopy: false,
+      linkDuplicatesToSource: false,
+      codeMap: {},
+    },
+    isDefault: false,
+    isBundled: true,
+  },
+  {
+    name: 'Boundary → Print copy',
+    options: {
+      operation: 'DUPLICATE',
+      targetLayerId: null,
+      additionalTargetLayerIds: [],
+      targetTraverseId: null,
+      keepOriginals: true,
+      renumberStart: null,
+      stripUnknownCodes: false,
+      bringAlongLinkedGeometry: true,
+      offsetDistanceFt: 0,
+      offsetBearingDeg: 0,
+      applyOffset: false,
+      lockSourceAfterCopy: true,
+      linkDuplicatesToSource: false,
+      codeMap: {},
+    },
+    isDefault: false,
+    isBundled: true,
+  },
+  {
+    name: 'Topo → Field reference',
+    options: {
+      operation: 'DUPLICATE',
+      targetLayerId: null,
+      additionalTargetLayerIds: [],
+      targetTraverseId: null,
+      keepOriginals: true,
+      renumberStart: null,
+      stripUnknownCodes: false,
+      bringAlongLinkedGeometry: false,
+      offsetDistanceFt: 0,
+      offsetBearingDeg: 0,
+      applyOffset: false,
+      lockSourceAfterCopy: false,
+      linkDuplicatesToSource: false,
+      codeMap: {},
+    },
+    isDefault: false,
+    isBundled: true,
+  },
+  {
+    name: 'Setbacks → Setback overlay',
+    options: {
+      operation: 'DUPLICATE',
+      targetLayerId: null,
+      additionalTargetLayerIds: [],
+      targetTraverseId: null,
+      keepOriginals: true,
+      renumberStart: null,
+      stripUnknownCodes: false,
+      bringAlongLinkedGeometry: true,
+      // Sensible setback default — surveyor edits in dialog.
+      offsetDistanceFt: 5,
+      offsetBearingDeg: 0,
+      applyOffset: false,
+      lockSourceAfterCopy: false,
+      linkDuplicatesToSource: false,
+      codeMap: {},
+    },
+    isDefault: false,
+    isBundled: true,
+  },
+  {
+    name: 'Working set → Archive',
+    options: {
+      operation: 'MOVE',
+      targetLayerId: null,
+      additionalTargetLayerIds: [],
+      targetTraverseId: null,
+      keepOriginals: false,
+      renumberStart: null,
+      stripUnknownCodes: false,
+      bringAlongLinkedGeometry: false,
+      offsetDistanceFt: 0,
+      offsetBearingDeg: 0,
+      applyOffset: false,
+      lockSourceAfterCopy: false,
+      linkDuplicatesToSource: false,
+      codeMap: {},
+    },
+    isDefault: false,
+    isBundled: true,
+  },
+];
+
+/**
+ * Build the bundled preset list with fresh ids + zeroed
+ * use-stats. Called on first-run hydration (or when the
+ * surveyor explicitly resets to bundled defaults).
+ */
+function buildBundledPresets(): TransferPreset[] {
+  return BUNDLED_TRANSFER_PRESETS.map((p, i) => ({
+    ...p,
+    id: `bundled-${i}-${Date.now()}`,
+    lastUsedAt: null,
+    useCount: 0,
+  }));
+}
+
+/**
+ * Phase 8 §11.7 Slice 20 — saved selection block.
+ * Names a reusable source set so a surveyor who picks the
+ * same fence-corner-detail or building-footprint shape
+ * repeatedly can recall it with one click. Tied to a
+ * drawing via documentId since feature ids are
+ * document-scoped; the load UI hides blocks from other
+ * drawings to keep the list relevant.
+ */
+export interface SelectionBlock {
+  id: string;
+  name: string;
+  /** Document the block belongs to. */
+  documentId: string;
+  /** Captured feature ids at save time. */
+  featureIds: string[];
+  /** ISO timestamp the block was created. */
+  createdAt: string;
+  /** Last time the surveyor loaded this block. */
+  lastUsedAt: string | null;
+  useCount: number;
+}
 
 interface UIStore {
   showLayerPanel: boolean;
@@ -42,6 +229,14 @@ interface UIStore {
    *  every drawing. Null = no logo (fall back to the firm
    *  name text). */
   firmLogoDataUrl: string | null;
+  /** Phase 8 §11.7 Slice 13 — firm-wide saved transfer
+   *  configurations. Persisted; surveyor sees them in every
+   *  drawing they open. */
+  transferPresets: TransferPreset[];
+  /** Phase 8 §11.7 Slice 20 — saved selection blocks keyed
+   *  by drawing. Persisted; the dialog filters to the
+   *  current drawing's blocks on load. */
+  selectionBlocks: SelectionBlock[];
 
   toggleLayerPanel: () => void;
   togglePropertyPanel: () => void;
@@ -55,6 +250,24 @@ interface UIStore {
   setFeatureTooltipsEnabled: (enabled: boolean) => void;
   setTooltipDelayMs: (ms: number) => void;
   setFirmLogoDataUrl: (dataUrl: string | null) => void;
+  /** Add a new transfer preset. id auto-generated. Replaces
+   *  existing preset with the same name (so re-saving keeps
+   *  the dropdown tidy). */
+  addTransferPreset: (name: string, options: TransferOptions, makeDefault?: boolean) => string;
+  /** Remove a preset by id. */
+  removeTransferPreset: (id: string) => void;
+  /** Flip the default flag on one preset (and clear it on the
+   *  rest). Pass null to unset the default. */
+  setDefaultTransferPreset: (id: string | null) => void;
+  /** Bump lastUsedAt + useCount on the preset that just fired
+   *  Confirm. */
+  recordTransferPresetUse: (id: string) => void;
+  /** Add a named selection block scoped to one drawing. */
+  addSelectionBlock: (name: string, documentId: string, featureIds: string[]) => string;
+  /** Remove a block by id. */
+  removeSelectionBlock: (id: string) => void;
+  /** Bump lastUsedAt + useCount when a block is loaded. */
+  recordSelectionBlockUse: (id: string) => void;
 }
 
 /**
@@ -89,6 +302,13 @@ export const useUIStore = create<UIStore>()(
       featureTooltipsEnabled: true,
       tooltipDelayMs: 600,
       firmLogoDataUrl: null,
+      // Seed bundled presets on initial state construction.
+      // The persist middleware's onRehydrate will preserve
+      // the surveyor's saved presets when state hydrates;
+      // see the `onRehydrateStorage` hook below for the
+      // re-seed when localStorage is empty / cleared.
+      transferPresets: buildBundledPresets(),
+      selectionBlocks: [],
 
       toggleLayerPanel: () => set((s) => ({ showLayerPanel: !s.showLayerPanel })),
       togglePropertyPanel: () => set((s) => ({ showPropertyPanel: !s.showPropertyPanel })),
@@ -116,10 +336,97 @@ export const useUIStore = create<UIStore>()(
               ? null
               : dataUrl,
       }),
+
+      addTransferPreset: (name, options, makeDefault) => {
+        const trimmed = name.trim();
+        if (!trimmed) return '';
+        const id = `tp-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        const fresh: TransferPreset = {
+          id,
+          name: trimmed,
+          // Deep-clone the options snapshot so subsequent
+          // dialog edits don't mutate the saved preset.
+          options: JSON.parse(JSON.stringify(options)) as TransferOptions,
+          lastUsedAt: null,
+          useCount: 0,
+          isDefault: !!makeDefault,
+        };
+        set((s) => {
+          // Replace any existing preset that shares the same
+          // name (case-insensitive) so re-saving stays tidy.
+          const others = s.transferPresets.filter(
+            (p) => p.name.toLowerCase() !== trimmed.toLowerCase(),
+          );
+          // If this one is being flagged default, clear the
+          // default on every sibling.
+          const cleaned = makeDefault
+            ? others.map((p) => ({ ...p, isDefault: false }))
+            : others;
+          return { transferPresets: [...cleaned, fresh] };
+        });
+        return id;
+      },
+
+      removeTransferPreset: (id) => set((s) => ({
+        transferPresets: s.transferPresets.filter((p) => p.id !== id),
+      })),
+
+      setDefaultTransferPreset: (id) => set((s) => ({
+        transferPresets: s.transferPresets.map((p) => ({
+          ...p,
+          isDefault: p.id === id,
+        })),
+      })),
+
+      recordTransferPresetUse: (id) => set((s) => ({
+        transferPresets: s.transferPresets.map((p) =>
+          p.id === id
+            ? { ...p, lastUsedAt: new Date().toISOString(), useCount: p.useCount + 1 }
+            : p,
+        ),
+      })),
+
+      addSelectionBlock: (name, documentId, featureIds) => {
+        const trimmed = name.trim();
+        if (!trimmed || featureIds.length === 0) return '';
+        const id = `sb-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        const block: SelectionBlock = {
+          id,
+          name: trimmed,
+          documentId,
+          // Deep-clone the id list so subsequent picks don't
+          // mutate the saved block.
+          featureIds: [...featureIds],
+          createdAt: new Date().toISOString(),
+          lastUsedAt: null,
+          useCount: 0,
+        };
+        set((s) => {
+          // Replace any existing block with the same name +
+          // document so re-saving stays tidy.
+          const others = s.selectionBlocks.filter(
+            (b) => !(b.documentId === documentId && b.name.toLowerCase() === trimmed.toLowerCase()),
+          );
+          return { selectionBlocks: [...others, block] };
+        });
+        return id;
+      },
+
+      removeSelectionBlock: (id) => set((s) => ({
+        selectionBlocks: s.selectionBlocks.filter((b) => b.id !== id),
+      })),
+
+      recordSelectionBlockUse: (id) => set((s) => ({
+        selectionBlocks: s.selectionBlocks.map((b) =>
+          b.id === id
+            ? { ...b, lastUsedAt: new Date().toISOString(), useCount: b.useCount + 1 }
+            : b,
+        ),
+      })),
     }),
     {
       name: 'starr-cad-ui',
-      version: 2,
+      version: 5,
       storage: createJSONStorage(() => localStorage),
       // Allow-list — only the surveyor-visible toggles persist.
       partialize: (s) => ({
@@ -127,7 +434,20 @@ export const useUIStore = create<UIStore>()(
         featureTooltipsEnabled: s.featureTooltipsEnabled,
         tooltipDelayMs: s.tooltipDelayMs,
         firmLogoDataUrl: s.firmLogoDataUrl,
+        transferPresets: s.transferPresets,
+        selectionBlocks: s.selectionBlocks,
       }),
+      onRehydrateStorage: () => (state) => {
+        // First-run path: when localStorage hydrates an
+        // empty transferPresets array (either no persist
+        // record OR the surveyor cleared everything), seed
+        // the bundled defaults. Once a surveyor has any
+        // saved preset (bundled or custom) we leave them
+        // alone so the dropdown stays under their control.
+        if (state && (!state.transferPresets || state.transferPresets.length === 0)) {
+          state.transferPresets = buildBundledPresets();
+        }
+      },
     }
   )
 );

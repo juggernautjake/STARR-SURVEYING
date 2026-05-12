@@ -10,7 +10,9 @@ import type { Feature, Point2D } from '@/lib/cad/types';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance } from '@/lib/cad/geometry/units';
 import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
+import { parseLength } from '@/lib/cad/units';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   featureId: string;
@@ -26,12 +28,10 @@ const DIALOG_HEIGHT = 420;
 function formatN(n: number): string {
   return n.toFixed(4);
 }
-function parseN(s: string): number {
-  const v = parseFloat(s);
-  return isNaN(v) ? 0 : v;
-}
-
-// ── Editable coordinate input ────────────────────────────────────────────────
+// Coordinate-edit helper. Accepts every linear-unit suffix
+// (6in / 0.5ft / 5'-6" / 1 1/2 ft / 2 m) via `parseLength`;
+// when no suffix is present the input is treated as feet.
+// Plain numeric input keeps working exactly like before.
 function CoordInput({
   label,
   value,
@@ -42,27 +42,56 @@ function CoordInput({
   onChange: (v: number) => void;
 }) {
   const [local, setLocal] = useState(formatN(value));
+  const [error, setError] = useState(false);
   // keep in sync when value changes from outside
-  useEffect(() => setLocal(formatN(value)), [value]);
+  useEffect(() => {
+    setLocal(formatN(value));
+    setError(false);
+  }, [value]);
+  function commit(raw: string) {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      onChange(0);
+      setLocal(formatN(0));
+      setError(false);
+      return;
+    }
+    const r = parseLength(trimmed, 'FT');
+    if (!r) {
+      // Surveyor typed something we can't parse — keep the raw
+      // text so they can correct it, and flag visually.
+      setError(true);
+      return;
+    }
+    setError(false);
+    onChange(r.feet);
+    setLocal(formatN(r.feet));
+  }
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-gray-400 shrink-0 w-14">{label}</span>
       <input
-        className="flex-1 bg-gray-700 text-white text-xs rounded px-1 py-0.5 text-right outline-none font-mono min-w-0"
+        className={`flex-1 bg-gray-700 text-white text-xs rounded px-1 py-0.5 text-right outline-none font-mono min-w-0 border ${
+          error ? 'border-red-500' : 'border-transparent'
+        }`}
         value={local}
         onChange={(e) => {
           setLocal(e.target.value);
-          const v = parseFloat(e.target.value);
-          if (!isNaN(v)) onChange(v);
+          // Live-preview when the input is purely numeric so the
+          // canvas tracks the surveyor's typing; suffix-bearing
+          // inputs are only committed on blur.
+          const trimmed = e.target.value.trim();
+          if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) {
+            const v = parseFloat(trimmed);
+            if (!isNaN(v)) onChange(v);
+            setError(false);
+          }
         }}
-        onBlur={() => {
-          const v = parseN(local);
-          setLocal(formatN(v));
-          onChange(v);
-        }}
+        onBlur={(e) => commit(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') e.currentTarget.blur();
         }}
+        title={'Enter a number (assumed feet) or a value with a unit suffix: 6in, 0.5ft, 5\'-6", 1 1/2 ft, 2 m, etc.'}
       />
     </div>
   );
@@ -70,11 +99,13 @@ function CoordInput({
 
 export default function FeaturePropertiesDialog({ featureId, onClose, initialX, initialY }: Props) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const undoStore = useUndoStore();
 
-  // Dragging
-  const dialogRef = useRef<HTMLDivElement>(null);
+  // Dragging — `dialogRef` is shared with `useFocusTrap` above
+  // so the same element drives both behaviours.
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [pos, setPos] = useState(() => {
     // Place dialog so it doesn't go off screen

@@ -2,7 +2,7 @@
 // app/admin/cad/components/StatusBar.tsx — Bottom status bar
 
 import { useState, useEffect, useRef } from 'react';
-import { useDrawingStore, useViewportStore, useSelectionStore, useToolStore } from '@/lib/cad/store';
+import { useDrawingStore, useViewportStore, useSelectionStore, useToolStore, useAIStore, AI_MODE_CYCLE } from '@/lib/cad/store';
 import { formatDistance, formatCoordinates, formatAngle } from '@/lib/cad/geometry/units';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import type { SnapType } from '@/lib/cad/types';
@@ -38,6 +38,20 @@ const TOOL_LABELS: Record<string, string> = {
   ERASE: 'Erase',
 };
 
+/**
+ * Per-mode badge styling. Colours follow §32.1:
+ *   AUTO    — purple (high-autonomy, draws attention)
+ *   COPILOT — blue   (collaborative, the default)
+ *   COMMAND — teal   (task-oriented)
+ *   MANUAL  — gray   (AI off; matches dimmed UI tone)
+ */
+const AI_MODE_BADGE_CLASS: Record<import('@/lib/cad/store').AIMode, string> = {
+  AUTO:    'bg-purple-900/50 border-purple-500 text-purple-200 hover:bg-purple-800/60',
+  COPILOT: 'bg-blue-900/50 border-blue-500 text-blue-200 hover:bg-blue-800/60',
+  COMMAND: 'bg-teal-900/50 border-teal-500 text-teal-200 hover:bg-teal-800/60',
+  MANUAL:  'bg-gray-800 border-gray-600 text-gray-400 hover:text-gray-200',
+};
+
 const MIN_ZOOM_PCT = 5;
 const MAX_ZOOM_PCT = 500;
 const ZOOM_STEP_PCT = 25;
@@ -47,6 +61,9 @@ export default function StatusBar() {
   const viewportStore = useViewportStore();
   const selectionStore = useSelectionStore();
   const toolStore = useToolStore();
+  const aiMode = useAIStore((s) => s.mode);
+  const aiSandbox = useAIStore((s) => s.sandbox);
+  const cycleAIMode = useAIStore((s) => s.cycleMode);
   const cursor = viewportStore.cursorWorld;
   const zoom = viewportStore.zoom;
 
@@ -56,6 +73,11 @@ export default function StatusBar() {
   const enabledSnapTypes = doc.settings.snapTypes ?? [];
   const prefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
   const selCount = selectionStore.selectionCount();
+  // §UX U18 — surface the otherwise-buried "hidden features"
+  // state. The Layer panel's "Hidden Items" button is easy to
+  // miss; this pill in the status bar makes the count visible
+  // and one-click recoverable.
+  const hiddenCount = Object.values(doc.features).filter((f) => f.hidden).length;
   const { activeTool, drawingPoints, basePoint, rotateCenter, orthoEnabled, polarEnabled, polarAngle, copyMode } = toolStore.state;
 
   // Express zoom as a percentage of 1px-per-world-unit baseline
@@ -226,6 +248,42 @@ export default function StatusBar() {
 
       <span className="text-gray-600">|</span>
 
+      {/* AI mode chip — Phase 6 §32 four-mode framework.
+          Click cycles AUTO → COPILOT → COMMAND → MANUAL → AUTO
+          (matches Ctrl+Shift+M). Sandbox dot appears when the
+          active mode is writing to DRAFT__* layers. */}
+      <button
+        onClick={cycleAIMode}
+        className={`shrink-0 flex items-center gap-1 px-1.5 py-0 rounded border text-[10px] font-semibold tracking-wider transition-colors ${AI_MODE_BADGE_CLASS[aiMode]}`}
+        title={(() => {
+          const i = AI_MODE_CYCLE.indexOf(aiMode);
+          const next = AI_MODE_CYCLE[(i + 1) % AI_MODE_CYCLE.length];
+          return `AI mode: ${aiMode} — click (or Ctrl+Shift+M) to cycle. Next: ${next}.` +
+            (aiMode === 'MANUAL'
+              ? ' AI entry points are hidden in MANUAL — no chat, no proposals, no right-click "Ask AI".'
+              : aiSandbox
+                ? ' Sandbox ON — AI writes route to DRAFT__* layers.'
+                : ' Sandbox OFF — AI writes to live target layers.');
+        })()}
+      >
+        {aiMode === 'MANUAL' ? (
+          <>
+            <span className="text-gray-500 line-through decoration-gray-500 decoration-1">AI</span>
+            <span className="text-gray-400">off</span>
+          </>
+        ) : (
+          <>AI: {aiMode}</>
+        )}
+        {aiMode !== 'MANUAL' && (
+          <span
+            className={`inline-block w-1.5 h-1.5 rounded-full ${aiSandbox ? 'bg-amber-300' : 'bg-emerald-300'}`}
+            aria-hidden
+          />
+        )}
+      </button>
+
+      <span className="text-gray-600">|</span>
+
       {/* Active tool */}
       <span className="shrink-0 text-gray-500 transition-colors duration-150" title="Active tool">
         {TOOL_LABELS[activeTool] ?? activeTool}
@@ -248,6 +306,23 @@ export default function StatusBar() {
       {selCount > 0 && (
         <>
           <span className="text-blue-400 shrink-0 animate-[fadeIn_150ms_ease-out]">{selCount} selected</span>
+          <span className="text-gray-600">|</span>
+        </>
+      )}
+
+      {/* Hidden features pill — click opens the Hidden Items
+          panel. Skipped when nothing is hidden so the bar stays
+          uncluttered. */}
+      {hiddenCount > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('cad:toggleHiddenItems'))}
+            className="shrink-0 text-amber-300 hover:text-amber-100 transition-colors animate-[fadeIn_150ms_ease-out]"
+            title={`${hiddenCount} hidden feature${hiddenCount === 1 ? '' : 's'} — click to manage`}
+          >
+            {hiddenCount} hidden
+          </button>
           <span className="text-gray-600">|</span>
         </>
       )}

@@ -15,6 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { ScreenHeader } from '@/lib/ScreenHeader';
+import * as haptics from '@/lib/haptics';
 import { lockedDayTitle } from '@/lib/StatusChip';
 import { TextField } from '@/lib/TextField';
 import { TimeEditHistory } from '@/lib/TimeEditHistory';
@@ -165,7 +167,7 @@ function EditForm({ row, palette }: EditFormProps) {
     if (dayLocked) {
       Alert.alert(
         'Day already submitted',
-        'This day has been submitted to the dispatcher. Ask Henry to edit it from the web admin, or clock the time correction into a new entry.'
+        'This day has been submitted to the dispatcher. Ask the office to edit it from the admin site, or clock the time correction into a new entry.'
       );
       return;
     }
@@ -190,6 +192,7 @@ function EditForm({ row, palette }: EditFormProps) {
           reason,
         }
       );
+      haptics.success();
       if (result.tier === 'needs_approval') {
         Alert.alert(
           'Saved — admin approval queued',
@@ -223,23 +226,28 @@ function EditForm({ row, palette }: EditFormProps) {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.headerRow}>
-            <Text style={[styles.heading, { color: palette.text }]} numberOfLines={2}>
-              {job?.name ?? entryTypeLabel(row.entry_type)}
-            </Text>
-            <Pressable
-              onPress={attemptDismiss}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-            >
-              <Text style={[styles.cancelText, { color: palette.muted }]}>
-                Cancel
-              </Text>
-            </Pressable>
-          </View>
-          <Text style={[styles.subtitle, { color: palette.muted }]}>
-            {entryTypeLabel(row.entry_type)} · {formatRowDuration(row)}
-          </Text>
+          <ScreenHeader
+            title={job?.name ?? entryTypeLabel(row.entry_type)}
+            subtitle={`${entryTypeLabel(row.entry_type)} · ${formatRowDuration(row)}`}
+            right={
+              <Pressable
+                onPress={attemptDismiss}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                hitSlop={12}
+                style={({ pressed }) => ({
+                  minHeight: 44,
+                  paddingHorizontal: 8,
+                  justifyContent: 'center',
+                  opacity: pressed ? 0.6 : 1,
+                })}
+              >
+                <Text style={{ fontSize: 16, fontWeight: '500', color: palette.muted }}>
+                  Cancel
+                </Text>
+              </Pressable>
+            }
+          />
 
           {dayLocked ? (
             <View
@@ -252,9 +260,9 @@ function EditForm({ row, palette }: EditFormProps) {
                 {lockedDayTitle(dayStatus)}
               </Text>
               <Text style={[styles.lockedBody, { color: palette.text }]}>
-                Edits to this entry are read-only on mobile. Ask Henry to
-                edit it in the web admin, or clock a correction into a new
-                entry.
+                Edits to this entry are read-only on mobile. Ask the office
+                to edit it in the admin site, or clock a correction into a
+                new entry.
               </Text>
             </View>
           ) : null}
@@ -331,14 +339,6 @@ function EditForm({ row, palette }: EditFormProps) {
             ) : null}
           </View>
 
-          <Button
-            label="Save"
-            onPress={onSave}
-            loading={submitting}
-            disabled={!validation.ok || dayLocked}
-            accessibilityHint="Saves the changes and writes an audit row per changed field"
-          />
-
           <View style={styles.historySection}>
             <Text style={[styles.sectionLabel, { color: palette.muted }]}>
               Edit history
@@ -346,6 +346,28 @@ function EditForm({ row, palette }: EditFormProps) {
             <TimeEditHistory edits={edits} />
           </View>
         </ScrollView>
+
+        {/* Sticky Save bar (D7). Keeps Save reachable while the notes
+            field is keyboard-active and frees the user to scroll
+            through the audit history below without losing the
+            primary action. */}
+        <View
+          style={[
+            styles.stickyBar,
+            {
+              backgroundColor: palette.surface,
+              borderTopColor: palette.border,
+            },
+          ]}
+        >
+          <Button
+            label="Save"
+            onPress={onSave}
+            loading={submitting}
+            disabled={!validation.ok || dayLocked}
+            accessibilityHint="Saves the changes and writes an audit row per changed field"
+          />
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -457,7 +479,13 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 64,
+    paddingBottom: 32,
+  },
+  stickyBar: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderTopWidth: 1,
   },
   notFound: {
     flex: 1,
@@ -465,21 +493,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
   heading: {
     flex: 1,
     fontSize: 26,
     fontWeight: '700',
     paddingRight: 12,
-  },
-  cancelText: {
-    fontSize: 16,
-    fontWeight: '500',
   },
   subtitle: {
     fontSize: 14,

@@ -350,7 +350,7 @@ export function useKeyboard() {
       cadLog.info('FileIO', `Saved drawing: ${drawingStore.document.name}`);
     } catch (err) {
       cadLog.error('FileIO', 'Failed to save document', err);
-      alert('Failed to save the drawing. See the browser console for details.');
+      alert('Failed to save the drawing. Try again, or contact support if it keeps failing.');
     }
   }
 

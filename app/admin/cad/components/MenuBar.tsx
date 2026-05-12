@@ -2,6 +2,7 @@
 // app/admin/cad/components/MenuBar.tsx — Top application menu bar
 
 import { useEffect, useRef, useState } from 'react';
+import { Settings as SettingsIcon, Keyboard as KeyboardIcon } from 'lucide-react';
 import {
   useAnnotationStore,
   useDeliveryStore,
@@ -88,7 +89,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       cadLog.info('FileIO', `Saved drawing: ${drawingStore.document.name}`);
     } catch (err) {
       cadLog.error('FileIO', 'Failed to save document', err);
-      alert('Failed to save the drawing. See the browser console for details.');
+      alert('Failed to save the drawing. Try again, or contact support if it keeps failing.');
     }
   }
 
@@ -162,13 +163,13 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     setEditingName(false);
   }
 
-  function exportCsv() {
+  function exportCsv(flavor: 'simplified' | 'full' = 'simplified') {
     try {
-      const { rowCount } = downloadCsv(drawingStore.document);
-      cadLog.info('FileIO', `Exported ${rowCount} points as CSV`);
+      const { rowCount, filename } = downloadCsv(drawingStore.document, { flavor });
+      cadLog.info('FileIO', `Exported ${rowCount} points as ${flavor} CSV → ${filename}`);
     } catch (err) {
       cadLog.error('FileIO', 'CSV export failed', err);
-      alert('Failed to export CSV. See the browser console for details.');
+      alert('Failed to export CSV. Try again, or contact support if it keeps failing.');
     }
   }
 
@@ -184,7 +185,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       );
     } catch (err) {
       cadLog.error('FileIO', 'DXF export failed', err);
-      alert('Failed to export DXF. See the browser console for details.');
+      alert('Failed to export DXF. Try again, or contact support if it keeps failing.');
     }
   }
 
@@ -214,7 +215,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         }
       } catch (err) {
         cadLog.error('FileIO', 'GeoJSON import failed', err);
-        alert('Failed to import GeoJSON. See the browser console for details.');
+        alert('Failed to import GeoJSON. Try again, or contact support if it keeps failing.');
       }
     };
     input.click();
@@ -246,7 +247,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         }
       } catch (err) {
         cadLog.error('FileIO', 'DXF import failed', err);
-        alert('Failed to import DXF. See the browser console for details.');
+        alert('Failed to import DXF. Try again, or contact support if it keeps failing.');
       }
     };
     input.click();
@@ -261,7 +262,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       );
     } catch (err) {
       cadLog.error('FileIO', 'PDF export failed', err);
-      alert('Failed to export PDF. See the browser console for details.');
+      alert('Failed to export PDF. Try again, or contact support if it keeps failing.');
     }
   }
 
@@ -280,7 +281,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     } catch (err) {
       cadLog.error('FileIO', 'Field reference cards export failed', err);
       alert(
-        'Failed to export field reference cards. See the browser console.'
+        'Failed to export field reference cards. Try again, or contact support if it keeps failing.'
       );
     }
   }
@@ -294,7 +295,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       );
     } catch (err) {
       cadLog.error('FileIO', 'GeoJSON export failed', err);
-      alert('Failed to export GeoJSON. See the browser console for details.');
+      alert('Failed to export GeoJSON. Try again, or contact support if it keeps failing.');
     }
   }
 
@@ -317,7 +318,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     } catch (err) {
       cadLog.error('FileIO', 'Deliverable bundle export failed', err);
       alert(
-        'Failed to export deliverable bundle. See the browser console for details.'
+        'Failed to export deliverable bundle. Try again, or contact support if it keeps failing.'
       );
     }
   }
@@ -331,14 +332,15 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       items: [
         { label: 'New Drawing', shortcut: 'Ctrl+N', action: () => { window.dispatchEvent(new CustomEvent('cad:openNewDrawingDialog')); setOpenMenu(null); } },
         { label: 'Open…', shortcut: 'Ctrl+O', action: openFileDialog },
-        { label: 'Open from Database…', action: () => { setDbDialog('open'); setOpenMenu(null); } },
+        { label: 'Open Saved Drawing…', action: () => { setDbDialog('open'); setOpenMenu(null); } },
         { label: 'Recover unsaved drawings…', action: () => { onOpenRecentRecoveries?.(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Save', shortcut: 'Ctrl+S', action: saveDocument },
         { label: 'Save As…', action: saveDocument },
-        { label: 'Save to Database…', action: () => { setDbDialog('save'); setOpenMenu(null); } },
+        { label: 'Save to Cloud…', action: () => { setDbDialog('save'); setOpenMenu(null); } },
         { separator: true },
-        { label: 'Export as CSV…', action: () => { exportCsv(); setOpenMenu(null); } },
+        { label: 'Export as CSV (simplified)…', action: () => { exportCsv('simplified'); setOpenMenu(null); } },
+        { label: 'Export as CSV (full)…', action: () => { exportCsv('full'); setOpenMenu(null); } },
         { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
         { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
         { label: 'Export as PDF (sealed)…', action: () => { exportPdf(); setOpenMenu(null); } },
@@ -348,26 +350,6 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: '📦 Download deliverable bundle…', action: () => { void exportDeliverable(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Import…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
-        { separator: true },
-        { label: '🤖 Run AI Drawing Engine…', action: () => { onOpenAIDrawing?.(); setOpenMenu(null); } },
-        {
-          label: aiQueuePanelOpen ? 'Hide AI review queue' : 'Show AI review queue',
-          action: () => { toggleAIQueuePanel(); setOpenMenu(null); },
-          disabled: !aiResultLoaded,
-        },
-        {
-          label: 'AI clarifying questions…',
-          action: () => { openAIQuestionDialog(); setOpenMenu(null); },
-          disabled: !aiQuestionsAvailable,
-        },
-        {
-          label: drawingChatOpen ? 'Hide AI drawing chat' : '💬 AI drawing chat…',
-          action: () => { toggleDrawingChat(); setOpenMenu(null); },
-        },
-        {
-          label: aiSidebarOpen ? 'Hide AI sidebar' : '🧠 AI sidebar (tabs)',
-          action: () => { toggleAISidebar(); setOpenMenu(null); },
-        },
         { separator: true },
         {
           label: '📜 Survey description…',
@@ -409,6 +391,15 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           selectionStore.selectMultiple(ids, 'REPLACE');
         }},
         { label: 'Deselect All', shortcut: 'Esc', action: () => selectionStore.deselectAll() },
+        { separator: true },
+        { label: 'Send to Layer…', shortcut: 'Ctrl+Shift+L', action: () => {
+          window.dispatchEvent(new CustomEvent('cad:openLayerTransfer'));
+          setOpenMenu(null);
+        }},
+        { label: 'Intersect Lines…', shortcut: 'I X', action: () => {
+          window.dispatchEvent(new CustomEvent('cad:openIntersect'));
+          setOpenMenu(null);
+        }},
         { separator: true },
         // ── Line-editing operations on the single-feature
         // selection. Disabled when zero / multiple features are
@@ -462,7 +453,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           action: () => drawingStore.updateSettings({ gridVisible: !drawingStore.document.settings.gridVisible }),
         },
         {
-          label: drawingStore.document.settings.snapEnabled ? 'Snap OFF' : 'Snap ON',
+          label: drawingStore.document.settings.snapEnabled ? 'Disable Snap' : 'Enable Snap',
           shortcut: 'F3',
           action: () => drawingStore.updateSettings({ snapEnabled: !drawingStore.document.settings.snapEnabled }),
         },
@@ -555,6 +546,31 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       ],
     },
     {
+      label: 'AI',
+      items: [
+        { label: 'Run AI Drawing Engine…', action: () => { onOpenAIDrawing?.(); setOpenMenu(null); } },
+        {
+          label: aiQueuePanelOpen ? 'Hide AI review queue' : 'Show AI review queue',
+          action: () => { toggleAIQueuePanel(); setOpenMenu(null); },
+          disabled: !aiResultLoaded,
+        },
+        {
+          label: 'AI clarifying questions…',
+          action: () => { openAIQuestionDialog(); setOpenMenu(null); },
+          disabled: !aiQuestionsAvailable,
+        },
+        { separator: true },
+        {
+          label: drawingChatOpen ? 'Hide AI drawing chat' : 'AI drawing chat…',
+          action: () => { toggleDrawingChat(); setOpenMenu(null); },
+        },
+        {
+          label: aiSidebarOpen ? 'Hide AI sidebar' : 'AI sidebar (tabs)',
+          action: () => { toggleAISidebar(); setOpenMenu(null); },
+        },
+      ],
+    },
+    {
       label: 'Help',
       items: [
         { label: 'Settings & Preferences…', action: () => { window.dispatchEvent(new CustomEvent('cad:openSettings')); setOpenMenu(null); } },
@@ -624,7 +640,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       )}
 
       {/* Document name — click to rename */}
-      <div className="ml-auto mr-3 flex items-center min-w-0">
+      <div className="ml-auto mr-2 flex items-center gap-2 min-w-0">
         {editingName ? (
           <input
             ref={nameInputRef}
@@ -647,6 +663,29 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
             {drawingStore.document.name}
           </span>
         )}
+      </div>
+
+      {/* Right-side chrome — keyboard shortcuts + settings live
+          here so the surveyor doesn't have to drill into Help. */}
+      <div className="mr-3 flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={() => setShowShortcuts(true)}
+          className="text-gray-400 hover:text-white p-1 rounded transition-colors"
+          title="Keyboard shortcuts (Shift+/)"
+          aria-label="Keyboard shortcuts"
+        >
+          <KeyboardIcon size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('cad:openSettings'))}
+          className="text-gray-400 hover:text-white p-1 rounded transition-colors"
+          title="Settings & Preferences (Ctrl+,)"
+          aria-label="Settings"
+        >
+          <SettingsIcon size={14} />
+        </button>
       </div>
 
       {/* Close overlay */}

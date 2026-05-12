@@ -14,8 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import * as haptics from '@/lib/haptics';
 import { logError } from '@/lib/log';
 import { PhotoLightbox } from '@/lib/PhotoLightbox';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { TextField } from '@/lib/TextField';
 import { ThumbnailGrid } from '@/lib/ThumbnailGrid';
 import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard';
@@ -175,6 +177,7 @@ function PointForm({ point, palette }: PointFormProps) {
     setSubmitting(true);
     try {
       await updatePoint(point.id, patch);
+      haptics.success();
       router.back();
     } catch (err) {
       logError('pointDetail.onSave', 'update failed', err, {
@@ -267,6 +270,20 @@ function PointForm({ point, palette }: PointFormProps) {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
+      <ScreenHeader
+        title={point.name ?? 'Point'}
+        right={
+          <Pressable
+            onPress={attemptDismiss}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+          >
+            <Text style={[styles.cancelText, { color: palette.muted }]}>
+              Cancel
+            </Text>
+          </Pressable>
+        }
+      />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -275,38 +292,19 @@ function PointForm({ point, palette }: PointFormProps) {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.headerRow}>
-            <View style={{ flex: 1 }}>
-              <View
-                style={[styles.tag, { backgroundColor: prefixInfo.color }]}
-              >
-                <Text style={styles.tagText}>{point.code_category ?? '—'}</Text>
-              </View>
-              <Text
-                style={[styles.heading, { color: palette.text }]}
-                numberOfLines={2}
-              >
-                {point.name}
-              </Text>
-              <Text style={[styles.subtitle, { color: palette.muted }]}>
-                {prefixInfo.label}
-                {hasGps
-                  ? ` · ${point.device_lat?.toFixed(5)}, ${point.device_lon?.toFixed(5)}`
-                  : ' · no GPS fix'}
-                {point.device_altitude_m != null
-                  ? ` · ${point.device_altitude_m.toFixed(1)} m`
-                  : ''}
-              </Text>
+          <View style={styles.metaBlock}>
+            <View style={[styles.tag, { backgroundColor: prefixInfo.color }]}>
+              <Text style={styles.tagText}>{point.code_category ?? '—'}</Text>
             </View>
-            <Pressable
-              onPress={attemptDismiss}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-            >
-              <Text style={[styles.cancelText, { color: palette.muted }]}>
-                Cancel
-              </Text>
-            </Pressable>
+            <Text style={[styles.subtitle, { color: palette.muted }]}>
+              {prefixInfo.label}
+              {hasGps
+                ? ` · ${point.device_lat?.toFixed(5)}, ${point.device_lon?.toFixed(5)}`
+                : ' · no GPS fix'}
+              {point.device_altitude_m != null
+                ? ` · ${point.device_altitude_m.toFixed(1)} m`
+                : ''}
+            </Text>
           </View>
 
           {/* Photo gallery */}
@@ -485,14 +483,6 @@ function PointForm({ point, palette }: PointFormProps) {
           </View>
 
           <Button
-            label="Save"
-            onPress={onSave}
-            loading={submitting}
-            disabled={duplicate || name.trim() === ''}
-            accessibilityHint="Saves the changes."
-          />
-          <View style={{ height: 12 }} />
-          <Button
             variant="danger"
             label="Delete point"
             onPress={onDelete}
@@ -500,6 +490,28 @@ function PointForm({ point, palette }: PointFormProps) {
             accessibilityHint="Removes the point and any attached photos. Owner-only within 24 h of creation."
           />
         </ScrollView>
+
+        {/* Sticky Save bar (D7) — keeps Save one tap away even while
+            the description / name field is keyboard-active. Delete
+            stays in the scroll above because it's destructive + lower
+            priority. */}
+        <View
+          style={[
+            styles.stickyBar,
+            {
+              backgroundColor: palette.surface,
+              borderTopColor: palette.border,
+            },
+          ]}
+        >
+          <Button
+            label="Save"
+            onPress={onSave}
+            loading={submitting}
+            disabled={duplicate || name.trim() === ''}
+            accessibilityHint="Saves the changes."
+          />
+        </View>
       </KeyboardAvoidingView>
 
       <PhotoLightbox media={openMedia} onDismiss={() => setOpenMedia(null)} />
@@ -866,13 +878,16 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: {
     paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 64,
+    paddingTop: 8,
+    paddingBottom: 32,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
+  stickyBar: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+  },
+  metaBlock: {
     marginBottom: 16,
   },
   tag: {

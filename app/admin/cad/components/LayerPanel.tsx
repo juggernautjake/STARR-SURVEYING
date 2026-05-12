@@ -2,11 +2,14 @@
 // app/admin/cad/components/LayerPanel.tsx — Layer list panel
 
 import { useState, useRef } from 'react';
-import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon, RotateCw, ChevronDown, ChevronRight, Layers, X } from 'lucide-react';
+import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon, RotateCw, ChevronDown, ChevronRight, Layers, X, Send } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { useSelectionStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
+import { transferSelectionToLayer } from '@/lib/cad/operations';
+import { isDraftLayer, promoteDraftLayer, findPromotionTarget } from '@/lib/cad/ai/sandbox';
+import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChip';
 
 // Accessible palette for new layers — visually distinct, good contrast
 const LAYER_COLOR_PALETTE = [
@@ -38,6 +41,11 @@ export default function LayerPanel() {
   const [renameValue, setRenameValue] = useState('');
   const renameRef = useRef<HTMLInputElement>(null);
   const dragLayerIdRef = useRef<string | null>(null);
+  // Phase 8 §11.7 Slice 4 — id of the layer row currently
+  // hovered by an in-flight transfer drag. Drives the blue
+  // glow on the target row + the cursor effect.
+  const [transferDropTargetId, setTransferDropTargetId] = useState<string | null>(null);
+  const [transferDropAlt, setTransferDropAlt] = useState(false);
   /** When set, a small rotation input is shown in the context menu for this layer. */
   const [rotatingLayerId, setRotatingLayerId] = useState<string | null>(null);
   const [rotationInputVal, setRotationInputVal] = useState('0');
@@ -261,11 +269,81 @@ export default function LayerPanel() {
                   e.dataTransfer.effectAllowed = 'move';
                 }}
                 onDragOver={(e) => {
+                  // Two drag flavours: a layer-reorder drag
+                  // (originating from another layer row in
+                  // this same panel) or a selection-transfer
+                  // drag (originating from the canvas's
+                  // SelectionDragChip — Phase 8 §11.7 Slice 4).
+                  // Differentiate by mime type: only the
+                  // transfer drag carries TRANSFER_DRAG_MIME.
+                  const types = e.dataTransfer.types;
+                  const isTransfer = types.indexOf(TRANSFER_DRAG_MIME) !== -1;
                   e.preventDefault();
-                  e.dataTransfer.dropEffect = 'move';
+                  if (isTransfer) {
+                    e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move';
+                    setTransferDropTargetId(layer.id);
+                    setTransferDropAlt(e.altKey);
+                  } else {
+                    e.dataTransfer.dropEffect = 'move';
+                  }
+                }}
+                onDragLeave={() => {
+                  // Only clear when leaving the row that's
+                  // currently flagged — otherwise sibling
+                  // drag-leave events fire while the cursor
+                  // is still inside the panel.
+                  if (transferDropTargetId === layer.id) {
+                    setTransferDropTargetId(null);
+                  }
                 }}
                 onDrop={(e) => {
                   e.preventDefault();
+                  const types = e.dataTransfer.types;
+                  const isTransfer = types.indexOf(TRANSFER_DRAG_MIME) !== -1;
+
+                  if (isTransfer) {
+                    // Selection-transfer drop. Read the
+                    // payload, dispatch the kernel; Move by
+                    // default, Alt-drop = Duplicate.
+                    setTransferDropTargetId(null);
+                    setTransferDropAlt(false);
+                    let payload: TransferDragPayload | null = null;
+                    try {
+                      payload = JSON.parse(e.dataTransfer.getData(TRANSFER_DRAG_MIME));
+                    } catch {
+                      payload = null;
+                    }
+                    if (!payload || payload.kind !== 'TRANSFER' || payload.featureIds.length === 0) return;
+                    if (layer.locked) {
+                      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                        detail: { text: `Layer "${layer.name}" is locked — drop denied.` },
+                      }));
+                      return;
+                    }
+                    const wantDuplicate = e.altKey;
+                    const result = transferSelectionToLayer(
+                      payload.featureIds,
+                      layer.id,
+                      {
+                        keepOriginals: wantDuplicate,
+                        renumberStart: null,
+                        stripUnknownCodes: false,
+                        targetTraverseId: null,
+                        offset: null,
+                        bringAlongLinkedGeometry: wantDuplicate,
+                        transferOperationId: generateId(),
+                      },
+                    );
+                    if (result.written > 0 || result.removed > 0) {
+                      const verb = wantDuplicate ? 'duplicated' : 'moved';
+                      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                        detail: { text: `${result.written} feature${result.written === 1 ? '' : 's'} ${verb} to ${layer.name}.` },
+                      }));
+                    }
+                    return;
+                  }
+
+                  // Layer-reorder drop (existing behaviour).
                   const fromId = dragLayerIdRef.current;
                   dragLayerIdRef.current = null;
                   if (!fromId || fromId === layer.id) return;
@@ -279,7 +357,13 @@ export default function LayerPanel() {
                 }}
                 className={`flex items-center gap-1 px-1 py-1 cursor-pointer transition-colors duration-100 hover:bg-gray-700 ${
                   activeLayerId === layer.id ? 'bg-gray-700' : ''
-                } ${isHighlighted ? 'ring-1 ring-blue-500 ring-inset' : ''}`}
+                } ${isHighlighted ? 'ring-1 ring-blue-500 ring-inset' : ''} ${
+                  transferDropTargetId === layer.id
+                    ? transferDropAlt
+                      ? 'ring-2 ring-green-400 bg-green-900/30'
+                      : 'ring-2 ring-blue-400 bg-blue-900/30'
+                    : ''
+                }`}
                 onClick={() => handleSetActive(layer.id)}
                 onContextMenu={(e) => handleContextMenu(e, layer.id)}
               >
@@ -364,6 +448,50 @@ export default function LayerPanel() {
                     {layer.id === 'SURVEY-INFO' ? SURVEY_INFO_ELEM_COUNT : layerFeatures.length}
                   </span>
                 )}
+
+                {/* §32.3 promote-draft affordance — only on
+                    DRAFT__ layers. Moves the layer's features
+                    onto its target via the §11.7 transfer
+                    kernel + removes the now-empty draft. */}
+                {isDraftLayer(layer) && (() => {
+                  const target = findPromotionTarget(layer);
+                  const canPromote = !!target && !target.locked;
+                  return (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const result = promoteDraftLayer(layer.id);
+                        if (!result.ok) {
+                          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                            detail: { text: `Promote draft: ${result.reason}` },
+                          }));
+                          return;
+                        }
+                        const targetName = target?.name ?? '(target)';
+                        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                          detail: { text: `Promoted ${result.movedCount} feature${result.movedCount === 1 ? '' : 's'} from "${layer.name}" → "${targetName}".` },
+                        }));
+                      }}
+                      disabled={!canPromote}
+                      className={`flex-shrink-0 ml-1 px-1.5 py-0.5 text-[9px] uppercase tracking-wider rounded border transition-colors ${
+                        canPromote
+                          ? 'bg-amber-900/50 border-amber-500 text-amber-200 hover:bg-amber-800/60'
+                          : 'bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed'
+                      }`}
+                      title={
+                        canPromote
+                          ? `Promote draft features to "${target?.name}" via the Layer Transfer kernel (§11.7).`
+                          : !target
+                            ? 'No target layer found — rename the draft or create the matching real layer first.'
+                            : 'Target layer is locked.'
+                      }
+                    >
+                      <Send size={9} className="inline mr-0.5" />
+                      Promote
+                    </button>
+                  );
+                })()}
               </div>
 
               {/* Expanded feature tree */}

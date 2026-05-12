@@ -30,6 +30,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { logError, logWarn } from '@/lib/log';
 import { isPermissionDeniedError, promptForSettings } from '@/lib/permissionGuard';
 import { useDataPoint } from '@/lib/dataPoints';
@@ -249,17 +250,30 @@ export default function PointVoiceScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
-      <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: palette.text }]}>
-          {point.name}
-        </Text>
-        <Button
-          label="Done"
-          variant="secondary"
-          onPress={exitToJob}
-          disabled={recording || saving}
-        />
-      </View>
+      <ScreenHeader
+        title={point.name ?? 'Voice memo'}
+        right={
+          <Pressable
+            onPress={exitToJob}
+            disabled={recording || saving}
+            accessibilityRole="button"
+            accessibilityLabel="Done"
+            hitSlop={12}
+          >
+            <Text
+              style={[
+                styles.doneText,
+                {
+                  color: palette.accent,
+                  opacity: recording || saving ? 0.4 : 1,
+                },
+              ]}
+            >
+              Done
+            </Text>
+          </Pressable>
+        }
+      />
 
       <View
         style={[
@@ -507,13 +521,9 @@ function colorPalette(scheme: 'light' | 'dark') {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 12,
+  doneText: {
+    fontSize: 17,
+    fontWeight: '600',
   },
   title: {
     fontSize: 22,

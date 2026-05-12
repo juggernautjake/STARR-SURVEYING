@@ -3,12 +3,13 @@
 // Startup dialog: user chooses paper size and creates a blank drawing
 // or goes straight to importing survey data.
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { FileText, Upload, X } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import { PHASE3_DEFAULT_LAYERS } from '@/lib/cad/styles/default-layers';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   onClose: () => void;
@@ -27,6 +28,8 @@ type PaperSize = (typeof PAPER_SIZES)[number]['value'];
 
 export default function NewDrawingDialog({ onClose, onImport }: Props) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const [drawingName, setDrawingName] = useState('Untitled Drawing');
   const [paperSize, setPaperSize] = useState<PaperSize>('TABLOID');
@@ -79,7 +82,7 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 animate-[fadeIn_150ms_ease-out]">
+    <div ref={dialogRef} className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 animate-[fadeIn_150ms_ease-out]">
       <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg text-sm text-gray-200 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-gray-700 flex items-start justify-between">

@@ -28,17 +28,38 @@ import {
 import { useDrawingStore } from './store/drawing-store';
 import { useSelectionStore } from './store/selection-store';
 import { useUndoStore, makeBatchEntry, makeAddFeatureEntry, makeRemoveFeatureEntry } from './store/undo-store';
+import { useTraverseStore } from './store/traverse-store';
+import { findLinkedFeatureIds } from './operations/find-linked-geometry';
 import { useViewportStore } from './store/viewport-store';
 
 // ─────────────────────────────────────────────
 // Clipboard
 // ─────────────────────────────────────────────
 let _clipboard: Feature[] = [];
+/** Phase 8 §11.7 Slice 11 — layer-id → { name, color } map
+ *  captured at copy time so cross-drawing paste can resolve
+ *  layer references against the destination drawing's layer
+ *  table by name. Empty when copy happened without layer
+ *  snapshots (old call sites). */
+let _clipboardLayers: Record<string, { name: string; color: string }> = {};
+/** Drawing id the clipboard contents came from. Used to
+ *  fast-path same-drawing pastes (no resolution needed). */
+let _clipboardSourceDocId: string | null = null;
 
-export function copyToClipboard(features: Feature[]): void {
+export function copyToClipboard(
+  features: Feature[],
+  layerSnapshots?: Record<string, { name: string; color: string }>,
+  sourceDocumentId?: string,
+): void {
   _clipboard = features.map((f) => ({ ...f }));
+  _clipboardLayers = layerSnapshots ? { ...layerSnapshots } : {};
+  _clipboardSourceDocId = sourceDocumentId ?? null;
 }
 
+/**
+ * Translate raw clipboard features. Used by same-drawing
+ * pastes where layer ids are guaranteed valid.
+ */
 export function pasteFromClipboard(
   offsetX = 10,
   offsetY = -10,
@@ -74,6 +95,23 @@ export function getClipboardCount(): number {
   return _clipboard.length;
 }
 
+/**
+ * Read the source-drawing id of the current clipboard. Null
+ * when no clipboard exists or the copier didn't tag it.
+ */
+export function getClipboardSourceDocId(): string | null {
+  return _clipboardSourceDocId;
+}
+
+/**
+ * Read a snapshot of every layer the clipboard contents
+ * reference. Used by the cross-drawing paste path to resolve
+ * source layer ids against the destination drawing.
+ */
+export function getClipboardLayerSnapshots(): Record<string, { name: string; color: string }> {
+  return { ..._clipboardLayers };
+}
+
 // ─────────────────────────────────────────────
 // Centroid helpers
 // ─────────────────────────────────────────────
@@ -100,6 +138,180 @@ export function computeSelectionCentroid(featureIds: string[]): Point2D {
     x: (bounds.minX + bounds.maxX) / 2,
     y: (bounds.minY + bounds.maxY) / 2,
   };
+}
+
+// ─────────────────────────────────────────────
+// Arc helpers — used by split / divide / reverse /
+// pointAtDistanceAlong so every arc-edit tool shares the
+// same parameterisation. `t` is the normalised arc-length
+// parameter in [0, 1] from startAngle towards endAngle in
+// the arc's traversal direction (anticlockwise toggle).
+// ─────────────────────────────────────────────
+
+/** Signed angular span of an arc, in radians. Positive when
+ *  the arc traverses counter-clockwise, negative when it
+ *  traverses clockwise. Always in (-2π, 2π). */
+function arcSweep(arc: { startAngle: number; endAngle: number; anticlockwise: boolean }): number {
+  const TAU = 2 * Math.PI;
+  const raw = arc.endAngle - arc.startAngle;
+  // Normalise to the traversal direction: CCW arcs have a
+  // positive signed sweep, CW arcs have a negative one.
+  if (arc.anticlockwise) {
+    let s = raw;
+    while (s <= 0) s += TAU;
+    while (s > TAU) s -= TAU;
+    return s;
+  }
+  let s = raw;
+  while (s >= 0) s -= TAU;
+  while (s < -TAU) s += TAU;
+  return s;
+}
+
+function arcLength(arc: { radius: number; startAngle: number; endAngle: number; anticlockwise: boolean }): number {
+  return Math.abs(arc.radius * arcSweep(arc));
+}
+
+function pointAtArcParam(
+  arc: { center: Point2D; radius: number; startAngle: number; endAngle: number; anticlockwise: boolean },
+  t: number,
+): Point2D {
+  const tt = Math.max(0, Math.min(1, t));
+  const sweep = arcSweep(arc);
+  const a = arc.startAngle + tt * sweep;
+  return {
+    x: arc.center.x + arc.radius * Math.cos(a),
+    y: arc.center.y + arc.radius * Math.sin(a),
+  };
+}
+
+/** Closest-point projection: returns the parameter t in
+ *  [0, 1] of the arc point closest to `worldPt`, plus the
+ *  projected world coords. When `worldPt` projects outside
+ *  the arc's angular span, t is clamped to 0 or 1 and the
+ *  point lands on the nearer endpoint. */
+function arcParamFromPoint(
+  arc: { center: Point2D; radius: number; startAngle: number; endAngle: number; anticlockwise: boolean },
+  worldPt: Point2D,
+): { t: number; point: Point2D } {
+  const TAU = 2 * Math.PI;
+  const dx = worldPt.x - arc.center.x;
+  const dy = worldPt.y - arc.center.y;
+  const angle = Math.atan2(dy, dx);
+  const sweep = arcSweep(arc);
+  // Express the candidate angle as a delta from startAngle in
+  // the traversal direction so it can be compared against
+  // sweep to decide inside-vs-outside.
+  let delta = angle - arc.startAngle;
+  if (arc.anticlockwise) {
+    while (delta < 0) delta += TAU;
+    while (delta > TAU) delta -= TAU;
+  } else {
+    while (delta > 0) delta -= TAU;
+    while (delta < -TAU) delta += TAU;
+  }
+  const sweepAbs = Math.abs(sweep);
+  const deltaAbs = Math.abs(delta);
+  let t: number;
+  if (deltaAbs <= sweepAbs) {
+    t = sweepAbs === 0 ? 0 : deltaAbs / sweepAbs;
+  } else {
+    // Outside the angular span — pick whichever endpoint is
+    // closer by comparing the wrap-around distance.
+    const fromStart = deltaAbs;
+    const fromEnd = Math.abs(TAU - deltaAbs);
+    t = fromStart <= fromEnd ? 0 : 1;
+  }
+  return { t, point: pointAtArcParam(arc, t) };
+}
+
+// ─────────────────────────────────────────────
+// Spline helpers — used by divideFeatureBy /
+// pointAtDistanceAlong / explodeFeature so each operation
+// shares the same arc-length parameterisation. A spline's
+// `controlPoints` array carries 3N+1 points for N cubic
+// bezier segments. We sample each segment uniformly in t,
+// build a cumulative arc-length table, and let callers
+// project a normalised parameter back into world space.
+// ─────────────────────────────────────────────
+
+/** Evaluate a cubic bezier segment at parameter t ∈ [0,1]. */
+function cubicBezierPoint(
+  p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, t: number,
+): Point2D {
+  const u = 1 - t;
+  const uu = u * u;
+  const tt = t * t;
+  return {
+    x: uu * u * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + tt * t * p3.x,
+    y: uu * u * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + tt * t * p3.y,
+  };
+}
+
+/**
+ * Sample a spline into `samplesPerSegment` evenly-t-spaced
+ * points per cubic segment. With the default of 32 samples
+ * a typical 3–5 segment surveyor spline yields 100-200 points
+ * — plenty for arc-length integration error well under a
+ * hundredth of a foot at survey scales. Returns the full
+ * polyline including a final point on the last segment.
+ */
+function sampleSpline(
+  controlPoints: Point2D[],
+  samplesPerSegment: number = 32,
+): Point2D[] {
+  const numSegments = Math.floor((controlPoints.length - 1) / 3);
+  if (numSegments < 1) return controlPoints.slice();
+  const out: Point2D[] = [];
+  for (let seg = 0; seg < numSegments; seg += 1) {
+    const idx = seg * 3;
+    const p0 = controlPoints[idx];
+    const p1 = controlPoints[idx + 1];
+    const p2 = controlPoints[idx + 2];
+    const p3 = controlPoints[idx + 3];
+    // Skip the t=0 sample on every segment except the first
+    // so we don't duplicate the segment-boundary vertex.
+    const startStep = seg === 0 ? 0 : 1;
+    for (let s = startStep; s <= samplesPerSegment; s += 1) {
+      const t = s / samplesPerSegment;
+      out.push(cubicBezierPoint(p0, p1, p2, p3, t));
+    }
+  }
+  return out;
+}
+
+/** Total arc-length and cumulative table for a sampled spline. */
+function splineArcLengthTable(samples: Point2D[]): { total: number; cum: number[] } {
+  const cum: number[] = [0];
+  let total = 0;
+  for (let i = 1; i < samples.length; i += 1) {
+    total += Math.hypot(samples[i].x - samples[i - 1].x, samples[i].y - samples[i - 1].y);
+    cum.push(total);
+  }
+  return { total, cum };
+}
+
+/** Walk the cumulative arc-length table to find the world-
+ *  space point at parameter t ∈ [0, 1] along the spline. */
+function pointAlongSpline(samples: Point2D[], t: number): Point2D {
+  if (samples.length === 0) return { x: 0, y: 0 };
+  if (samples.length === 1) return { ...samples[0] };
+  const { total, cum } = splineArcLengthTable(samples);
+  if (total < 1e-12) return { ...samples[0] };
+  const target = Math.max(0, Math.min(1, t)) * total;
+  for (let i = 1; i < cum.length; i += 1) {
+    if (cum[i] >= target) {
+      const segLen = cum[i] - cum[i - 1];
+      const localT = segLen > 1e-12 ? (target - cum[i - 1]) / segLen : 0;
+      const a = samples[i - 1];
+      const b = samples[i];
+      return {
+        x: a.x + (b.x - a.x) * localT,
+        y: a.y + (b.y - a.y) * localT,
+      };
+    }
+  }
+  return { ...samples[samples.length - 1] };
 }
 
 // ─────────────────────────────────────────────
@@ -734,28 +946,52 @@ export function pointAtDistanceAlong(
   const g = f.geometry;
   let chain: Point2D[] | null = null;
   let isClosed = false;
+  let arcGeom: typeof g.arc | null = null;
+  let splineSamples: Point2D[] | null = null;
   if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
   else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
   else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
     chain = g.vertices.slice();
     isClosed = true;
+  } else if (g.type === 'ARC' && g.arc) {
+    arcGeom = g.arc;
+  } else if (g.type === 'SPLINE' && g.spline && g.spline.controlPoints.length >= 4) {
+    splineSamples = sampleSpline(g.spline.controlPoints, 32);
   } else {
     return false;
   }
 
-  // Compute total arc length so we can convert the input
-  // distance into a normalised parameter for pointAlongChain.
-  const segCount = isClosed ? chain.length : chain.length - 1;
-  let total = 0;
-  for (let i = 0; i < segCount; i += 1) {
-    const a = chain[i];
-    const b = chain[(i + 1) % chain.length];
-    total += Math.hypot(b.x - a.x, b.y - a.y);
+  // Total arc-length used to convert the surveyor's distance
+  // into a normalised parameter the geometry walker can use.
+  let total: number;
+  let pt: Point2D;
+  let clamped: number;
+  if (arcGeom) {
+    total = arcLength(arcGeom);
+    if (total < 1e-12) return false;
+    clamped = Math.min(distance, total);
+    const t = fromEnd ? 1 - clamped / total : clamped / total;
+    pt = pointAtArcParam(arcGeom, t);
+  } else if (splineSamples) {
+    total = splineArcLengthTable(splineSamples).total;
+    if (total < 1e-12) return false;
+    clamped = Math.min(distance, total);
+    const t = fromEnd ? 1 - clamped / total : clamped / total;
+    pt = pointAlongSpline(splineSamples, t);
+  } else {
+    if (!chain) return false;
+    const segCount = isClosed ? chain.length : chain.length - 1;
+    total = 0;
+    for (let i = 0; i < segCount; i += 1) {
+      const a = chain[i];
+      const b = chain[(i + 1) % chain.length];
+      total += Math.hypot(b.x - a.x, b.y - a.y);
+    }
+    if (total < 1e-12) return false;
+    clamped = Math.min(distance, total);
+    const t = fromEnd ? 1 - clamped / total : clamped / total;
+    pt = pointAlongChain(chain, t, isClosed);
   }
-  if (total < 1e-12) return false;
-  const clamped = Math.min(distance, total);
-  const t = fromEnd ? 1 - clamped / total : clamped / total;
-  const pt = pointAlongChain(chain, t, isClosed);
 
   const newPoint: Feature = {
     id: generateId(),
@@ -832,6 +1068,32 @@ export function reverseFeature(featureId: string): boolean {
     g.vertices.length >= 2
   ) {
     newGeom = { ...g, vertices: g.vertices.slice().reverse() };
+  } else if (g.type === 'ARC' && g.arc) {
+    // Swap start ↔ end angle and toggle the traversal
+    // direction so the arc geometry traces the same
+    // physical curve in the opposite direction.
+    newGeom = {
+      type: 'ARC',
+      arc: {
+        center: g.arc.center,
+        radius: g.arc.radius,
+        startAngle: g.arc.endAngle,
+        endAngle: g.arc.startAngle,
+        anticlockwise: !g.arc.anticlockwise,
+      },
+    };
+  } else if (g.type === 'SPLINE' && g.spline && g.spline.controlPoints.length >= 2) {
+    // Reverse the control-point list. For a closed cubic
+    // spline (3N+1 points where last == first) the reversal
+    // still terminates on the same vertex; for open splines
+    // it just flips the direction of travel.
+    newGeom = {
+      type: 'SPLINE',
+      spline: {
+        controlPoints: g.spline.controlPoints.slice().reverse(),
+        isClosed: g.spline.isClosed,
+      },
+    };
   } else {
     return false;
   }
@@ -876,6 +1138,13 @@ export function explodeFeature(featureId: string): boolean {
     isClosed = true;
   } else if (g.type === 'MIXED_GEOMETRY' && g.vertices && g.vertices.length >= 2) {
     chain = g.vertices.slice();
+  } else if (g.type === 'SPLINE' && g.spline && g.spline.controlPoints.length >= 4) {
+    // Sample the spline densely so each cubic segment becomes
+    // a chunk of the polyline. The new LINEs that come out of
+    // the existing chain-walk below are then the per-sample
+    // segments — same exploded-grip experience as POLYLINE.
+    chain = sampleSpline(g.spline.controlPoints, 32);
+    isClosed = g.spline.isClosed;
   } else {
     return false;
   }
@@ -971,11 +1240,17 @@ export function divideFeatureBy(featureId: string, count: number): boolean {
   const g = f.geometry;
   let chain: Point2D[] | null = null;
   let isClosed = false;
+  let arcGeom: typeof g.arc | null = null;
+  let splineSamples: Point2D[] | null = null;
   if (g.type === 'LINE' && g.start && g.end) chain = [g.start, g.end];
   else if (g.type === 'POLYLINE' && g.vertices && g.vertices.length >= 2) chain = g.vertices.slice();
   else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
     chain = g.vertices.slice();
     isClosed = true;
+  } else if (g.type === 'ARC' && g.arc) {
+    arcGeom = g.arc;
+  } else if (g.type === 'SPLINE' && g.spline && g.spline.controlPoints.length >= 4) {
+    splineSamples = sampleSpline(g.spline.controlPoints, 32);
   } else {
     return false;
   }
@@ -985,7 +1260,11 @@ export function divideFeatureBy(featureId: string, count: number): boolean {
   const newPoints: Feature[] = [];
   for (let i = 1; i < count; i += 1) {
     const t = i / count;
-    const pt = pointAlongChain(chain, t, isClosed);
+    const pt = arcGeom
+      ? pointAtArcParam(arcGeom, t)
+      : splineSamples
+        ? pointAlongSpline(splineSamples, t)
+        : pointAlongChain(chain!, t, isClosed);
     const pf: Feature = {
       id: generateId(),
       type: 'POINT',
@@ -1390,6 +1669,303 @@ function arcMidpoint(
     x: center.x + radius * Math.cos(mid),
     y: center.y + radius * Math.sin(mid),
   };
+}
+
+/**
+ * Round a polyline / polygon corner at a chosen vertex with
+ * an arc of the given radius. The source feature is replaced
+ * by up to three new features: the polyline-up-to-PT1, the
+ * arc, and the polyline-from-PT2-onward (each may collapse
+ * into a LINE when only two vertices remain).
+ *
+ * Closed polygons wrap the neighbour lookup so filleting any
+ * vertex (including the first/last) works cleanly. The
+ * polygon is opened at the filleted corner: it becomes a
+ * single polyline that runs from the post-fillet PT2 around
+ * the perimeter and back to the pre-fillet PT1, with the
+ * fillet arc bridging the gap.
+ *
+ * Returns false (no-op) when:
+ *  - vertexIndex is out of range
+ *  - the corner is straight (anti-parallel neighbour edges)
+ *  - either neighbour edge is shorter than the required
+ *    tangent-point distance
+ */
+export function filletPolylineVertex(
+  featureId: string,
+  vertexIndex: number,
+  radius: number,
+): { ok: true; arcId: string; sideIds: string[] } | { ok: false; reason: string } {
+  if (!Number.isFinite(radius) || radius <= 0) {
+    return { ok: false, reason: 'Fillet radius must be > 0.' };
+  }
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return { ok: false, reason: 'Feature not found.' };
+  const g = f.geometry;
+  if ((g.type !== 'POLYLINE' && g.type !== 'POLYGON') || !g.vertices || g.vertices.length < 3) {
+    return { ok: false, reason: 'Fillet vertex requires a polyline / polygon with ≥ 3 vertices.' };
+  }
+  const verts = g.vertices;
+  const isClosed = g.type === 'POLYGON';
+  const n = verts.length;
+  if (vertexIndex < 0 || vertexIndex >= n) {
+    return { ok: false, reason: 'Vertex index out of range.' };
+  }
+  // Endpoints of an open polyline have no neighbour on one
+  // side, so no fillet is meaningful.
+  if (!isClosed && (vertexIndex === 0 || vertexIndex === n - 1)) {
+    return { ok: false, reason: 'Cannot fillet the endpoint of an open polyline.' };
+  }
+  const prevIdx = (vertexIndex - 1 + n) % n;
+  const nextIdx = (vertexIndex + 1) % n;
+  const P  = verts[vertexIndex];
+  const A  = verts[prevIdx];
+  const B  = verts[nextIdx];
+
+  // Keep directions point from the corner P out toward each
+  // neighbour. (Same convention `filletTwoLines` uses.)
+  const u1x = A.x - P.x;
+  const u1y = A.y - P.y;
+  const u2x = B.x - P.x;
+  const u2y = B.y - P.y;
+  const len1 = Math.hypot(u1x, u1y);
+  const len2 = Math.hypot(u2x, u2y);
+  if (len1 < 1e-10 || len2 < 1e-10) {
+    return { ok: false, reason: 'Adjacent vertices are coincident — no corner to fillet.' };
+  }
+  const u1 = { x: u1x / len1, y: u1y / len1 };
+  const u2 = { x: u2x / len2, y: u2y / len2 };
+
+  let cos2t = u1.x * u2.x + u1.y * u2.y;
+  cos2t = Math.max(-1, Math.min(1, cos2t));
+  if (cos2t > 1 - 1e-9) {
+    return { ok: false, reason: 'Adjacent edges run in the same direction — no corner to fillet.' };
+  }
+  if (cos2t < -1 + 1e-9) {
+    return { ok: false, reason: 'Adjacent edges are anti-parallel — corner is degenerate.' };
+  }
+  const sinT = Math.sqrt((1 - cos2t) / 2);
+  const cosT = Math.sqrt((1 + cos2t) / 2);
+  if (sinT < 1e-9 || cosT < 1e-9) {
+    return { ok: false, reason: 'Wedge angle is degenerate.' };
+  }
+  const tanT = sinT / cosT;
+  const t = radius / tanT;
+
+  if (t > len1 - 1e-6 || t > len2 - 1e-6) {
+    return {
+      ok: false,
+      reason: `Radius too large for these legs — needs ≤ ${Math.min(len1, len2).toFixed(3)} ft (current ${t.toFixed(3)}).`,
+    };
+  }
+
+  const PT1: Point2D = { x: P.x + t * u1.x, y: P.y + t * u1.y };
+  const PT2: Point2D = { x: P.x + t * u2.x, y: P.y + t * u2.y };
+
+  const bx = u1.x + u2.x;
+  const by = u1.y + u2.y;
+  const blen = Math.hypot(bx, by);
+  if (blen < 1e-10) return { ok: false, reason: 'Bisector is degenerate.' };
+  const ub = { x: bx / blen, y: by / blen };
+  const centerDist = radius / sinT;
+  const centerPt: Point2D = { x: P.x + centerDist * ub.x, y: P.y + centerDist * ub.y };
+
+  const startAngle = Math.atan2(PT1.y - centerPt.y, PT1.x - centerPt.x);
+  const endAngle = Math.atan2(PT2.y - centerPt.y, PT2.x - centerPt.x);
+  const midForCcw = arcMidpoint(centerPt, radius, startAngle, endAngle, true);
+  const midForCw  = arcMidpoint(centerPt, radius, startAngle, endAngle, false);
+  const distCcw = Math.hypot(midForCcw.x - P.x, midForCcw.y - P.y);
+  const distCw  = Math.hypot(midForCw.x - P.x,  midForCw.y - P.y);
+  const anticlockwise = distCcw < distCw;
+
+  // Build the new feature list. For an OPEN polyline:
+  //   side1 = verts[0..prevIdx] + PT1
+  //   side2 = PT2 + verts[nextIdx..n-1]
+  // For a CLOSED polygon: open it at the filleted corner —
+  //   single side polyline = PT2 + verts[nextIdx..n-1] + verts[0..prevIdx] + PT1
+  // (When prevIdx wraps backwards we walk the original ring
+  // in order; we only ever drop the corner vertex P itself.)
+  const cloneStyle = (): typeof f.style => JSON.parse(JSON.stringify(f.style));
+  const cloneProps = (): typeof f.properties => JSON.parse(JSON.stringify(f.properties));
+  const buildSide = (vertsList: Point2D[]): Feature => {
+    if (vertsList.length === 2) {
+      return {
+        ...f,
+        id: generateId(),
+        type: 'LINE',
+        style: cloneStyle(),
+        properties: cloneProps(),
+        geometry: { type: 'LINE', start: vertsList[0], end: vertsList[1] },
+      };
+    }
+    return {
+      ...f,
+      id: generateId(),
+      type: 'POLYLINE',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'POLYLINE', vertices: vertsList },
+    };
+  };
+
+  const sides: Feature[] = [];
+  if (isClosed) {
+    // Walk: nextIdx → wrap → prevIdx, dropping the corner.
+    const walked: Point2D[] = [PT2];
+    let i = nextIdx;
+    while (i !== vertexIndex) {
+      walked.push(verts[i]);
+      i = (i + 1) % n;
+      if (i === nextIdx) break; // safety
+    }
+    walked.push(PT1);
+    if (walked.length >= 2) sides.push(buildSide(walked));
+  } else {
+    const before = verts.slice(0, vertexIndex).concat([PT1]);
+    const after = [PT2].concat(verts.slice(vertexIndex + 1));
+    if (before.length >= 2) sides.push(buildSide(before));
+    if (after.length >= 2) sides.push(buildSide(after));
+  }
+
+  const arcFeature: Feature = {
+    ...f,
+    id: generateId(),
+    type: 'ARC',
+    style: cloneStyle(),
+    properties: cloneProps(),
+    geometry: { type: 'ARC', arc: { center: centerPt, radius, startAngle, endAngle, anticlockwise } },
+  };
+
+  const newFeatures = [...sides, arcFeature];
+  drawingStore.removeFeature(featureId);
+  drawingStore.addFeatures(newFeatures);
+  undoStore.pushUndo(makeBatchEntry(`Fillet corner (r=${radius})`, [
+    { type: 'REMOVE_FEATURE', data: f },
+    ...newFeatures.map((nf) => ({ type: 'ADD_FEATURE' as const, data: nf })),
+  ]));
+  selectionStore.selectMultiple(newFeatures.map((nf) => nf.id), 'REPLACE');
+  return { ok: true, arcId: arcFeature.id, sideIds: sides.map((s) => s.id) };
+}
+
+/**
+ * Bevel a polyline / polygon corner at a chosen vertex.
+ * Symmetric chamfer when dist1 === dist2; asymmetric
+ * otherwise. Same wrap-around behaviour for closed polygons
+ * as `filletPolylineVertex`. Source feature is replaced by
+ * up to three new features: side1 + bevel LINE + side2.
+ */
+export function chamferPolylineVertex(
+  featureId: string,
+  vertexIndex: number,
+  dist1: number,
+  dist2: number,
+): { ok: true; bevelId: string; sideIds: string[] } | { ok: false; reason: string } {
+  if (!Number.isFinite(dist1) || dist1 <= 0 || !Number.isFinite(dist2) || dist2 <= 0) {
+    return { ok: false, reason: 'Chamfer distances must be > 0.' };
+  }
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return { ok: false, reason: 'Feature not found.' };
+  const g = f.geometry;
+  if ((g.type !== 'POLYLINE' && g.type !== 'POLYGON') || !g.vertices || g.vertices.length < 3) {
+    return { ok: false, reason: 'Chamfer vertex requires a polyline / polygon with ≥ 3 vertices.' };
+  }
+  const verts = g.vertices;
+  const isClosed = g.type === 'POLYGON';
+  const n = verts.length;
+  if (vertexIndex < 0 || vertexIndex >= n) return { ok: false, reason: 'Vertex index out of range.' };
+  if (!isClosed && (vertexIndex === 0 || vertexIndex === n - 1)) {
+    return { ok: false, reason: 'Cannot chamfer the endpoint of an open polyline.' };
+  }
+  const prevIdx = (vertexIndex - 1 + n) % n;
+  const nextIdx = (vertexIndex + 1) % n;
+  const P = verts[vertexIndex];
+  const A = verts[prevIdx];
+  const B = verts[nextIdx];
+
+  const u1x = A.x - P.x;
+  const u1y = A.y - P.y;
+  const u2x = B.x - P.x;
+  const u2y = B.y - P.y;
+  const len1 = Math.hypot(u1x, u1y);
+  const len2 = Math.hypot(u2x, u2y);
+  if (len1 < 1e-10 || len2 < 1e-10) {
+    return { ok: false, reason: 'Adjacent vertices are coincident.' };
+  }
+  if (dist1 > len1 - 1e-6 || dist2 > len2 - 1e-6) {
+    return {
+      ok: false,
+      reason: `Chamfer distances exceed leg lengths — leg 1 = ${len1.toFixed(3)}, leg 2 = ${len2.toFixed(3)}.`,
+    };
+  }
+  const T1: Point2D = { x: P.x + (dist1 / len1) * u1x, y: P.y + (dist1 / len1) * u1y };
+  const T2: Point2D = { x: P.x + (dist2 / len2) * u2x, y: P.y + (dist2 / len2) * u2y };
+
+  const cloneStyle = (): typeof f.style => JSON.parse(JSON.stringify(f.style));
+  const cloneProps = (): typeof f.properties => JSON.parse(JSON.stringify(f.properties));
+  const buildSide = (vertsList: Point2D[]): Feature => {
+    if (vertsList.length === 2) {
+      return {
+        ...f,
+        id: generateId(),
+        type: 'LINE',
+        style: cloneStyle(),
+        properties: cloneProps(),
+        geometry: { type: 'LINE', start: vertsList[0], end: vertsList[1] },
+      };
+    }
+    return {
+      ...f,
+      id: generateId(),
+      type: 'POLYLINE',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'POLYLINE', vertices: vertsList },
+    };
+  };
+
+  const sides: Feature[] = [];
+  if (isClosed) {
+    const walked: Point2D[] = [T2];
+    let i = nextIdx;
+    while (i !== vertexIndex) {
+      walked.push(verts[i]);
+      i = (i + 1) % n;
+      if (i === nextIdx) break;
+    }
+    walked.push(T1);
+    if (walked.length >= 2) sides.push(buildSide(walked));
+  } else {
+    const before = verts.slice(0, vertexIndex).concat([T1]);
+    const after  = [T2].concat(verts.slice(vertexIndex + 1));
+    if (before.length >= 2) sides.push(buildSide(before));
+    if (after.length >= 2) sides.push(buildSide(after));
+  }
+
+  const bevelFeature: Feature = {
+    ...f,
+    id: generateId(),
+    type: 'LINE',
+    style: cloneStyle(),
+    properties: cloneProps(),
+    geometry: { type: 'LINE', start: T1, end: T2 },
+  };
+
+  const newFeatures = [...sides, bevelFeature];
+  drawingStore.removeFeature(featureId);
+  drawingStore.addFeatures(newFeatures);
+  const label = dist1 === dist2 ? `Chamfer corner (${dist1})` : `Chamfer corner (${dist1}/${dist2})`;
+  undoStore.pushUndo(makeBatchEntry(label, [
+    { type: 'REMOVE_FEATURE', data: f },
+    ...newFeatures.map((nf) => ({ type: 'ADD_FEATURE' as const, data: nf })),
+  ]));
+  selectionStore.selectMultiple(newFeatures.map((nf) => nf.id), 'REPLACE');
+  return { ok: true, bevelId: bevelFeature.id, sideIds: sides.map((s) => s.id) };
 }
 
 /**
@@ -1861,11 +2437,12 @@ export function trimFeatureAt(featureId: string, worldPt: Point2D): boolean {
 }
 
 /**
- * Split a LINE / POLYLINE / POLYGON feature at the closest
- * point on its geometry to `worldPt`. Emits two new features
- * (or one for POLYGON, since the split opens it into a
- * single polyline) and removes the original. Skips features
- * that are not vertex-chain shapes.
+ * Split a LINE / POLYLINE / POLYGON / ARC feature at the
+ * closest point on its geometry to `worldPt`. Emits two new
+ * features (or one for POLYGON, since the split opens it into
+ * a single polyline) and removes the original. Skips
+ * geometry types we don't support (CIRCLE / ELLIPSE / SPLINE /
+ * POINT / TEXT / IMAGE).
  *
  * - LINE: emits two LINEs (start → split, split → end). If
  *   the split point coincides with an endpoint within `eps`,
@@ -1880,6 +2457,11 @@ export function trimFeatureAt(featureId: string, worldPt: Point2D): boolean {
  *   split point. (Splitting a closed shape yields a single
  *   open chain, not two separate ones — that's the expected
  *   CAD convention.)
+ * - ARC: emits two ARCs that share the projected split
+ *   point as endpoint. Both inherit the source's traversal
+ *   direction (anticlockwise flag) so the curve matches
+ *   visually pre/post split. No-op when the projection
+ *   lands on an existing endpoint.
  */
 export function splitFeatureAt(featureId: string, worldPt: Point2D): boolean {
   const drawingStore = useDrawingStore.getState();
@@ -1889,6 +2471,55 @@ export function splitFeatureAt(featureId: string, worldPt: Point2D): boolean {
   if (!f) return false;
   const g = f.geometry;
   const eps = 1e-6;
+
+  // ARC — handled separately since the geometry is parametric
+  // rather than a polyline chain.
+  if (g.type === 'ARC' && g.arc) {
+    const arc = g.arc;
+    const proj = arcParamFromPoint(arc, worldPt);
+    if (proj.t <= eps || proj.t >= 1 - eps) return false; // landed on an endpoint
+    const sweep = arcSweep(arc);
+    const splitAngle = arc.startAngle + proj.t * sweep;
+    const cloneStyle = (): typeof f.style => JSON.parse(JSON.stringify(f.style));
+    const cloneProps = (): typeof f.properties => JSON.parse(JSON.stringify(f.properties));
+    const arcA: Feature = {
+      ...f,
+      id: generateId(),
+      type: 'ARC',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'ARC', arc: {
+        center: arc.center,
+        radius: arc.radius,
+        startAngle: arc.startAngle,
+        endAngle: splitAngle,
+        anticlockwise: arc.anticlockwise,
+      } },
+    };
+    const arcB: Feature = {
+      ...f,
+      id: generateId(),
+      type: 'ARC',
+      style: cloneStyle(),
+      properties: cloneProps(),
+      geometry: { type: 'ARC', arc: {
+        center: arc.center,
+        radius: arc.radius,
+        startAngle: splitAngle,
+        endAngle: arc.endAngle,
+        anticlockwise: arc.anticlockwise,
+      } },
+    };
+    drawingStore.removeFeature(featureId);
+    drawingStore.addFeatures([arcA, arcB]);
+    undoStore.pushUndo(makeBatchEntry('Split arc', [
+      { type: 'REMOVE_FEATURE', data: f },
+      { type: 'ADD_FEATURE', data: arcA },
+      { type: 'ADD_FEATURE', data: arcB },
+    ]));
+    selectionStore.selectMultiple([arcA.id, arcB.id], 'REPLACE');
+    return true;
+  }
 
   // Resolve the closest segment + the world-space split point.
   let splitPt: Point2D | null = null;
@@ -2360,12 +2991,364 @@ export function duplicateSelection(offsetX = 10, offsetY = -10): void {
   );
 }
 
+// ─────────────────────────────────────────────
+// Phase 8 §11.7 — cross-layer transfer kernel
+// ─────────────────────────────────────────────
+
+export interface TransferToLayerOptions {
+  /** When true (Duplicate), originals stay untouched and copies
+   *  are stamped onto the target. When false (Move), originals
+   *  are reassigned to the target layer in-place. */
+  keepOriginals: boolean;
+  /** When true the duplicates carry the same point numbers as
+   *  their sources; when a number is given, point numbers are
+   *  reassigned starting from that seed. null = preserve. */
+  renumberStart: number | null;
+  /** Drop the `code` property on duplicates whose code isn't
+   *  in the target layer's autoAssignCodes. Geometry is
+   *  preserved. */
+  stripUnknownCodes: boolean;
+  /** Optional remap table { sourceCode (uppercased) →
+   *  targetCode }. Applied BEFORE stripUnknownCodes so a
+   *  mapped code lands on the target with its new value and
+   *  the strip step never sees a conflict. Surveyor builds
+   *  the table via the conflict pre-pass in the dialog. */
+  codeMap?: Record<string, string> | null;
+  /** Optional: append duplicated POINTs to this traverse. */
+  targetTraverseId: string | null;
+  /** Optional translation applied to every duplicate (Duplicate
+   *  only — Move never repositions). distanceFt is canonical
+   *  feet; bearingDeg is decimal-degree azimuth (0 = North,
+   *  clockwise, matching the rest of the survey math). When
+   *  distance is 0 the offset is a no-op even if bearing is
+   *  set. */
+  offset?: { distanceFt: number; bearingDeg: number } | null;
+  /** When true, the kernel walks the rest of the document and
+   *  expands the source set with any feature whose vertices /
+   *  endpoints are entirely defined by picked POINT features
+   *  (every match within ε). Lets the surveyor pick "the
+   *  corners of the building" and have the polygon come
+   *  along. */
+  bringAlongLinkedGeometry: boolean;
+  /** When true, every duplicate carries linkedSourceId +
+   *  linkedOffsetX/Y stamps so a background subscriber can
+   *  regenerate the duplicate's geometry whenever the
+   *  source's geometry changes. Opt-in; Move ignores. */
+  linkDuplicatesToSource?: boolean;
+  /** Stamp on every duplicate so a future audit can group
+   *  features that came from the same operation. */
+  transferOperationId: string;
+}
+
+export interface TransferResult {
+  /** Number of features that landed on the target layer. */
+  written: number;
+  /** Number of source features removed (only > 0 for Move). */
+  removed: number;
+  /** Ids of the resulting features (the duplicates for Duplicate;
+   *  the same source ids for Move). */
+  resultIds: string[];
+}
+
+/**
+ * Send a set of features to a target layer. Used by the
+ * LayerTransferDialog's Confirm button.
+ *
+ * Slice 1+2 implementation: handles the core
+ * Duplicate / Move semantics, optional renumber, optional
+ * code-strip. Multi-target paste, bring-along-linked-geometry,
+ * offset, and linked-instance flags land in later slices.
+ */
+export function transferSelectionToLayer(
+  selectionIds: ReadonlyArray<string>,
+  targetLayerId: string,
+  opts: TransferToLayerOptions,
+): TransferResult {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+
+  if (selectionIds.length === 0) {
+    return { written: 0, removed: 0, resultIds: [] };
+  }
+  const targetLayer = drawingStore.document.layers[targetLayerId];
+  if (!targetLayer) {
+    return { written: 0, removed: 0, resultIds: [] };
+  }
+  if (targetLayer.locked) {
+    return { written: 0, removed: 0, resultIds: [] };
+  }
+
+  // Resolve the source features once (also lets us skip ids
+  // that were deleted between the dialog opening and Confirm).
+  const sourceFeatures: Feature[] = [];
+  const sourceIdSet = new Set<string>();
+  for (const id of selectionIds) {
+    const f = drawingStore.getFeature(id);
+    if (f) {
+      sourceFeatures.push(f);
+      sourceIdSet.add(id);
+    }
+  }
+  if (sourceFeatures.length === 0) {
+    return { written: 0, removed: 0, resultIds: [] };
+  }
+
+  // Bring-along walk — expand the source set with any
+  // polyline / polygon / arc / spline / line whose vertices
+  // are entirely defined by picked POINT features. Stays
+  // off for Move (semantically odd to drag along linked
+  // geometry that wasn't selected) and for Copy-to-clipboard.
+  if (opts.bringAlongLinkedGeometry && opts.keepOriginals) {
+    const allFeatures = drawingStore.getAllFeatures();
+    const linkedIds = findLinkedFeatureIds(sourceIdSet, allFeatures);
+    for (const lid of linkedIds) {
+      const f = drawingStore.getFeature(lid);
+      if (!f) continue;
+      sourceFeatures.push(f);
+      sourceIdSet.add(lid);
+    }
+  }
+
+  const allowList = (targetLayer.autoAssignCodes ?? []).map((c) => c.toUpperCase());
+  const codeAllowed = (rawCode: unknown): boolean => {
+    if (allowList.length === 0) return true; // layer with no allow-list = anything goes
+    const s = typeof rawCode === 'string' ? rawCode.toUpperCase() : '';
+    if (!s) return true;
+    return allowList.includes(s);
+  };
+
+  // ── DUPLICATE path ────────────────────────────────────────
+  if (opts.keepOriginals) {
+    // Resolve the optional offset into a (dx, dy) translation
+    // in canonical world feet. Survey azimuth has 0 at North
+    // and grows clockwise, so:
+    //   dx (easting)  = distance * sin(azimuth)
+    //   dy (northing) = distance * cos(azimuth)
+    let dx = 0;
+    let dy = 0;
+    if (opts.offset && opts.offset.distanceFt > 0) {
+      const az = (opts.offset.bearingDeg * Math.PI) / 180;
+      dx = opts.offset.distanceFt * Math.sin(az);
+      dy = opts.offset.distanceFt * Math.cos(az);
+    }
+    const translatePt = (p: Point2D): Point2D =>
+      dx === 0 && dy === 0 ? { ...p } : { x: p.x + dx, y: p.y + dy };
+    const translateFeatureGeom = (clone: Feature): void => {
+      if (dx === 0 && dy === 0) return;
+      const g = clone.geometry;
+      if (g.type === 'POINT' && g.point) g.point = translatePt(g.point);
+      else if (g.type === 'LINE') {
+        if (g.start) g.start = translatePt(g.start);
+        if (g.end)   g.end   = translatePt(g.end);
+      } else if (g.type === 'CIRCLE' && g.circle) {
+        g.circle = { ...g.circle, center: translatePt(g.circle.center) };
+      } else if (g.type === 'ARC' && g.arc) {
+        g.arc = { ...g.arc, center: translatePt(g.arc.center) };
+      } else if (g.type === 'ELLIPSE' && g.ellipse) {
+        g.ellipse = { ...g.ellipse, center: translatePt(g.ellipse.center) };
+      } else if (g.type === 'SPLINE' && g.spline) {
+        g.spline = { ...g.spline, controlPoints: g.spline.controlPoints.map(translatePt) };
+      } else if (g.type === 'TEXT' && g.point) {
+        g.point = translatePt(g.point);
+      } else if (g.type === 'IMAGE' && g.image) {
+        g.image = { ...g.image, position: translatePt(g.image.position) };
+      } else if (g.vertices) {
+        g.vertices = g.vertices.map(translatePt);
+      }
+    };
+    let nextPointNo = opts.renumberStart;
+    const newFeatures: Feature[] = [];
+    for (const src of sourceFeatures) {
+      const clone: Feature = JSON.parse(JSON.stringify(src));
+      clone.id = generateId();
+      clone.layerId = targetLayerId;
+      clone.properties = { ...clone.properties };
+      // Audit stamps so the LIST tool / history can trace
+      // every duplicate back to its source + transfer op.
+      clone.properties.duplicatedFrom = src.id;
+      clone.properties.duplicatedAt = new Date().toISOString();
+      clone.properties.transferOperationId = opts.transferOperationId;
+      // Phase 8 §11.7 Slice 10 — stamp link metadata so
+      // the background subscriber can re-propagate source
+      // geometry changes onto this duplicate. dx/dy carry
+      // the offset applied at duplicate-time so propagation
+      // can re-apply it consistently.
+      if (opts.linkDuplicatesToSource) {
+        clone.properties.linkedSourceId = src.id;
+        clone.properties.linkedOffsetX = dx;
+        clone.properties.linkedOffsetY = dy;
+      }
+
+      // Optional remap — applied BEFORE the strip step so a
+      // mapped code lands on the target with its new value
+      // and the strip step never sees a conflict. Stamps the
+      // original code into properties so audit can trace the
+      // rename.
+      if (opts.codeMap) {
+        const cur = typeof clone.properties.code === 'string' ? clone.properties.code.toUpperCase() : '';
+        if (cur && opts.codeMap[cur]) {
+          clone.properties.codeBeforeRemap = clone.properties.code;
+          clone.properties.code = opts.codeMap[cur];
+        }
+      }
+
+      // Optional code strip when target layer's allow-list
+      // doesn't accept this code.
+      if (opts.stripUnknownCodes && !codeAllowed(clone.properties.code)) {
+        delete clone.properties.code;
+      }
+
+      // Optional renumber for POINTs.
+      if (nextPointNo != null && clone.geometry.type === 'POINT') {
+        clone.properties.pointNo = nextPointNo;
+        nextPointNo += 1;
+      }
+
+      // Apply translation last so audit stamps record the
+      // pre-offset source id.
+      translateFeatureGeom(clone);
+
+      newFeatures.push(clone);
+    }
+    drawingStore.addFeatures(newFeatures);
+    const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
+    // Optional traverse append — POINT duplicates are
+    // tacked onto the chosen traverse in surveyor-pick order.
+    // Non-POINT duplicates are silently skipped here; a
+    // future slice may add the "build polyline from duplicates"
+    // workflow.
+    if (opts.targetTraverseId) {
+      const traverseStore = useTraverseStore.getState();
+      const traverse = traverseStore.traverses[opts.targetTraverseId];
+      if (traverse) {
+        for (const f of newFeatures) {
+          if (f.geometry.type !== 'POINT') continue;
+          traverseStore.addPointToTraverse(opts.targetTraverseId, f.id);
+        }
+      }
+    }
+    undoStore.pushUndo(makeBatchEntry(`Duplicate to ${targetLayer.name}`, ops));
+    selectionStore.selectMultiple(newFeatures.map((f) => f.id), 'REPLACE');
+
+    return { written: newFeatures.length, removed: 0, resultIds: newFeatures.map((f) => f.id) };
+  }
+
+  // ── MOVE path ─────────────────────────────────────────────
+  // Reassign each source's layerId. We don't change feature
+  // ids so existing references (annotations, traverses) remain
+  // valid. The undo entry captures the before/after pair.
+  const ops: Array<{ type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }> = [];
+  const resultIds: string[] = [];
+  for (const src of sourceFeatures) {
+    const before = src;
+    const after: Feature = JSON.parse(JSON.stringify(src));
+    after.layerId = targetLayerId;
+    after.properties = { ...after.properties };
+    after.properties.movedFromLayerId = src.layerId;
+    after.properties.movedAt = new Date().toISOString();
+    after.properties.transferOperationId = opts.transferOperationId;
+    if (opts.codeMap) {
+      const cur = typeof after.properties.code === 'string' ? after.properties.code.toUpperCase() : '';
+      if (cur && opts.codeMap[cur]) {
+        after.properties.codeBeforeRemap = after.properties.code;
+        after.properties.code = opts.codeMap[cur];
+      }
+    }
+    if (opts.stripUnknownCodes && !codeAllowed(after.properties.code)) {
+      delete after.properties.code;
+    }
+    drawingStore.updateFeature(src.id, { layerId: after.layerId, properties: after.properties });
+    ops.push({ type: 'MODIFY_FEATURE', data: { id: src.id, before, after } });
+    resultIds.push(src.id);
+  }
+  undoStore.pushUndo(makeBatchEntry(`Move to ${targetLayer.name}`, ops));
+  selectionStore.selectMultiple(resultIds, 'REPLACE');
+
+  return { written: resultIds.length, removed: 0, resultIds };
+}
+
 export function copyCadSelection(): void {
   const selectionStore = useSelectionStore.getState();
   const drawingStore = useDrawingStore.getState();
   const ids = Array.from(selectionStore.selectedIds);
   const features = ids.map((id) => drawingStore.getFeature(id)).filter(Boolean) as Feature[];
-  copyToClipboard(features);
+  // Snapshot the layers each copied feature references so a
+  // cross-drawing paste can resolve / auto-create them later.
+  const layerSnapshots: Record<string, { name: string; color: string }> = {};
+  for (const f of features) {
+    if (layerSnapshots[f.layerId]) continue;
+    const lyr = drawingStore.document.layers[f.layerId];
+    if (lyr) {
+      layerSnapshots[f.layerId] = { name: lyr.name, color: lyr.color };
+    }
+  }
+  copyToClipboard(features, layerSnapshots, drawingStore.document.id);
+}
+
+/**
+ * Resolve every distinct layer id referenced by `_clipboard`
+ * against the destination drawing. Returns a map of
+ * (sourceLayerId → destinationLayerId), creating any
+ * destination layers that don't exist yet by name. When the
+ * destination already has a layer matching by name, that one
+ * is reused regardless of color. Returns an empty map when
+ * the clipboard didn't carry layer snapshots (old call
+ * sites — falls back to the active layer in that case).
+ */
+function resolveClipboardLayers(): Record<string, string> {
+  const drawingStore = useDrawingStore.getState();
+  const destDoc = drawingStore.document;
+  if (_clipboardSourceDocId && _clipboardSourceDocId === destDoc.id) {
+    // Same drawing — every source id is still valid; identity map.
+    const map: Record<string, string> = {};
+    for (const lid of Object.keys(_clipboardLayers)) map[lid] = lid;
+    return map;
+  }
+  // Cross-drawing — match by name; auto-create when missing.
+  const byName = new Map<string, string>();
+  for (const id of destDoc.layerOrder) {
+    const lyr = destDoc.layers[id];
+    if (lyr) byName.set(lyr.name.toLowerCase(), id);
+  }
+  const map: Record<string, string> = {};
+  let createdCount = 0;
+  for (const [srcLid, snap] of Object.entries(_clipboardLayers)) {
+    const key = snap.name.toLowerCase();
+    const existing = byName.get(key);
+    if (existing) {
+      map[srcLid] = existing;
+      continue;
+    }
+    // Auto-create the destination layer with the source's
+    // name + color. Surveyor can rename or recolor afterward.
+    const newLayer: import('./types').Layer = {
+      id: generateId(),
+      name: snap.name,
+      visible: true,
+      locked: false,
+      frozen: false,
+      color: snap.color,
+      lineWeight: 0.25,
+      lineTypeId: 'SOLID',
+      opacity: 1,
+      groupId: null,
+      sortOrder: destDoc.layerOrder.length + createdCount,
+      isDefault: false,
+      isProtected: false,
+      autoAssignCodes: [],
+    };
+    drawingStore.addLayer(newLayer);
+    byName.set(key, newLayer.id);
+    map[srcLid] = newLayer.id;
+    createdCount += 1;
+  }
+  if (createdCount > 0) {
+    window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+      detail: { text: `Auto-created ${createdCount} layer${createdCount === 1 ? '' : 's'} in this drawing to match the clipboard source.` },
+    }));
+  }
+  return map;
 }
 
 export function pasteCadClipboard(pasteWorldX?: number, pasteWorldY?: number): void {
@@ -2390,7 +3373,27 @@ export function pasteCadClipboard(pasteWorldX?: number, pasteWorldY?: number): v
     }
   }
 
+  // Phase 8 §11.7 Slice 11 — resolve clipboard layer ids
+  // against the destination drawing. Same-drawing pastes
+  // resolve to identity; cross-drawing pastes auto-create
+  // any missing layers from the snapshots captured at copy
+  // time. Fall back to the active layer when a feature's
+  // source layer wasn't snapshotted (older clipboard
+  // contents).
+  const layerMap = resolveClipboardLayers();
+  const fallbackLayerId = drawingStore.activeLayerId;
   const newFeatures = pasteFromClipboard(offsetX, offsetY);
+  for (const f of newFeatures) {
+    const mapped = layerMap[f.layerId];
+    if (mapped) {
+      f.layerId = mapped;
+    } else if (!drawingStore.document.layers[f.layerId]) {
+      // Old-clipboard fallback: source layer id isn't valid
+      // in this drawing and wasn't snapshotted. Land on the
+      // active layer.
+      f.layerId = fallbackLayerId;
+    }
+  }
   drawingStore.addFeatures(newFeatures);
   const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
   undoStore.pushUndo(makeBatchEntry('Paste', ops));

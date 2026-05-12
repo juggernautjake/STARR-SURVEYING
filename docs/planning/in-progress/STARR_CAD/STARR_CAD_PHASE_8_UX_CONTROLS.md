@@ -21,6 +21,12 @@
 9. [Settings Section — Full Specification](#9-settings-section--full-specification)
 10. [Controls & Navigation Polish](#10-controls--navigation-polish)
 11. [Persistent State Architecture](#11-persistent-state-architecture)
+
+    11.5. [Unit-Aware Input System](#115-unit-aware-input-system)
+
+    11.6. [Intersect Tool — Deterministic Geometry](#116-intersect-tool--deterministic-geometry)
+
+    11.7. [Cross-Layer Copy / Move / Duplicate](#117-cross-layer-copy--move--duplicate)
 12. [Phase 1–7 Gap Audit & Fixes](#12-phase-17-gap-audit--fixes)
 13. [Acceptance Tests](#13-acceptance-tests)
 14. [Build Order (Implementation Sequence)](#14-build-order-implementation-sequence)
@@ -1212,6 +1218,737 @@ useEffect(() => {
 
 ---
 
+## 11.5 Unit-Aware Input System
+
+**Goal:** Every numeric / angular field in the entire app — modal dialogs, ToolOptionsBar parameters, the command bar, the Property panel, the Settings dialog — accepts a free-form value with optional unit suffix and parses it into a single canonical internal representation. The surveyor types `6in`, `0.5ft`, `12'`, `6"`, `150` (default unit), `12 inches`, `2 m` and gets back a single number in the canonical unit (US Survey Feet for length, sq ft for area, decimal-degree azimuth for angles). Same for angles: typing `45.5`, `45°30'00"`, `N 45-30-00 E`, or the DMS-packed shorthand `45.3000` ("45° 30' 00\"") all resolve to the same internal azimuth.
+
+The surveyor never has to think about "is this field expecting feet or inches?" — the field tells them via a small inline unit chip / dropdown, and the parser accepts whatever the surveyor types. Drop-downs let a surveyor pin a field to "always inches" (or "always meters", "always acres") for a session if they're working in a non-default unit and don't want to keep typing the suffix.
+
+### 11.5.1 Linear Distance Parser
+
+Module: `lib/cad/units/parse-length.ts`
+
+```ts
+export type LinearUnit = 'FT' | 'IN' | 'MILE' | 'M' | 'CM' | 'MM';
+
+export interface ParsedLength {
+  /** Canonical value in US Survey Feet (the world coordinate unit). */
+  feet: number;
+  /** The unit the surveyor typed (or `defaultUnit` if no suffix). */
+  sourceUnit: LinearUnit;
+  /** Numeric value in the source unit (pre-conversion). */
+  sourceValue: number;
+  /** True when the input contained an explicit unit suffix. */
+  hadExplicitUnit: boolean;
+}
+
+export function parseLength(
+  input: string,
+  defaultUnit: LinearUnit = 'FT',
+): ParsedLength | null;
+```
+
+**Suffix recognition (case-insensitive, optional whitespace):**
+
+| Unit       | Accepted suffix forms |
+|------------|----------------------|
+| Feet       | `ft`, `feet`, `foot`, `'`, `′` |
+| Inches     | `in`, `inch`, `inches`, `"`, `″`, `''` |
+| Miles      | `mi`, `mile`, `miles` |
+| Meters     | `m`, `meter`, `meters`, `metre`, `metres` |
+| Centimeters| `cm`, `centimeter`, `centimeters` |
+| Millimeters| `mm`, `millimeter`, `millimeters` |
+
+**Compound forms (also parsed):**
+- `5'6"` → 5.5 ft
+- `5 ft 6 in` → 5.5 ft
+- `5'-6"` → 5.5 ft (the architectural hyphen)
+- `1/2"` → 0.0417 ft (fraction → decimal first)
+- `1 1/2 ft` → 1.5 ft
+
+**Rejected inputs return `null`:**
+- Empty string, NaN, negative without explicit `-`, two unit suffixes without compound form, unknown suffix.
+
+### 11.5.2 Area Parser
+
+Module: `lib/cad/units/parse-area.ts`
+
+```ts
+export type AreaUnit = 'SQ_FT' | 'ACRES' | 'SQ_M' | 'HECTARES';
+
+export interface ParsedArea {
+  /** Canonical value in square feet. */
+  sqft: number;
+  sourceUnit: AreaUnit;
+  sourceValue: number;
+  hadExplicitUnit: boolean;
+}
+
+export function parseArea(
+  input: string,
+  defaultUnit: AreaUnit = 'SQ_FT',
+): ParsedArea | null;
+```
+
+**Suffix recognition:**
+
+| Unit          | Accepted suffix forms |
+|---------------|----------------------|
+| Square feet   | `sf`, `sqft`, `sq ft`, `sq.ft`, `sq feet`, `square feet`, `ft²`, `ft^2` |
+| Acres         | `ac`, `acre`, `acres`, `a` (only when the value looks like a small acreage; ambiguous bare `a` falls back to `sf`) |
+| Square meters | `sqm`, `sq m`, `m²`, `m^2`, `square meters` |
+| Hectares      | `ha`, `hectare`, `hectares` |
+
+### 11.5.3 Angular / Bearing Parser
+
+Module: `lib/cad/units/parse-angle.ts` (extends the existing `parseBearing`)
+
+```ts
+export type AngleMode = 'BEARING' | 'AZIMUTH' | 'AUTO';
+
+export interface ParsedAngle {
+  /** Canonical value: decimal-degree azimuth (0 = North, clockwise). */
+  azimuth: number;
+  /** What the surveyor's input represented. */
+  sourceMode: 'BEARING' | 'AZIMUTH';
+  /** Original DMS components when the input had them (preserved for round-trip display). */
+  components: { deg: number; min: number; sec: number } | null;
+  /** True when the input contained explicit DMS markers (° ' " or - separators). */
+  hadDmsMarkers: boolean;
+}
+
+export function parseAngle(
+  input: string,
+  mode: AngleMode = 'AUTO',
+): ParsedAngle | null;
+```
+
+**Auto-detect rules (`mode === 'AUTO'`):**
+
+1. If the input starts with `N` or `S` and ends with `E` or `W` → quadrant **bearing**.
+2. If it contains `°` / `'` / `"` / a hyphen-separated DMS pattern (`45-30-00`) → **azimuth in DMS**.
+3. **DMS-packed numeric shortcut** (the surveyor types `101.4523`, expecting `101° 45' 23"`):
+   - Triggered when the input is a bare decimal number with **exactly 4 fractional digits** (or 6 for tenth-of-a-second).
+   - Split as `DDD.MMSS[T]` → `deg = floor(int)`, `min = floor(frac * 100)`, `sec = round((frac * 10000) % 100)`.
+   - Validation: `min < 60 && sec < 60`. If either fails, fall back to plain decimal-degree interpretation.
+   - This matches the convention used by Trimble Survey Office, Carlson, and many state-DOT data files.
+4. Otherwise → plain decimal degrees.
+
+**Examples** (input → `azimuth`, `sourceMode`):
+
+| Input | Resolves to | Source |
+|-------|-------------|--------|
+| `45.5` | 45.5° | AZIMUTH (decimal) |
+| `45.3000` | 45.5° (= 45° 30' 00") | AZIMUTH (DMS-packed) |
+| `45°30'00"` | 45.5° | AZIMUTH (DMS) |
+| `45-30-00` | 45.5° | AZIMUTH (hyphen-DMS) |
+| `N 45°30'00" E` | 45.5° | BEARING |
+| `N 45-30 E` | 45.5° (sec defaults to 0) | BEARING |
+| `S 45.5 E` | 134.5° | BEARING |
+
+When the surveyor's preference is `bearingFormat: 'QUADRANT'`, displays use `formatBearing(azimuth)`; when `'AZIMUTH'`, displays use `formatAzimuth(azimuth)` — the parser is preference-agnostic, only the display layer is opinionated.
+
+### 11.5.4 `<UnitInput>` React Component
+
+Module: `app/admin/cad/components/UnitInput.tsx`
+
+A drop-in replacement for `<input type="number">` everywhere a parameter lives:
+
+```tsx
+<UnitInput
+  kind="length"            // "length" | "area" | "angle"
+  value={radiusFeet}        // Always canonical (feet / sqft / azimuth)
+  onChange={setRadiusFeet}
+  defaultUnit="FT"          // Drives the placeholder + dropdown initial
+  showUnitDropdown          // Optional small chip → dropdown
+  angleMode="AZIMUTH"       // For kind="angle": "BEARING" | "AZIMUTH" | "AUTO"
+  placeholder="e.g. 6in or 0.5ft"
+  onValid={(parsed) => …}   // Callback with the full ParsedLength/Area/Angle
+/>
+```
+
+**Behaviour:**
+
+- On blur (or Enter), parse the input. On parse failure, the component re-displays the surveyor's raw input and shows a red ring + tooltip (`"Couldn't parse — try '6in', '0.5ft', or '12.5'"`).
+- On parse success, the input is **canonicalised** to the surveyor's preferred display format (so `6in` resolves to `0.5 ft` and the field re-renders as `0.5 ft`). A small "raw input preserved" chip lets the surveyor revert.
+- The unit dropdown lets the surveyor lock the field to a unit (e.g. always inches for fillet radius) — that lock persists for the session via `useUIStore.fieldUnitLocks` (a Map<fieldKey, LinearUnit>).
+- For `kind="angle"`, the format toggle (Bearing ↔ Azimuth) is exposed as a small chip; switching reformats the displayed value but keeps the canonical azimuth identical.
+- Keyboard shortcut: `Tab` to commit + advance; `Esc` to revert to the last-committed value.
+
+### 11.5.5 Wiring Targets
+
+Every field below should switch to `<UnitInput>` as part of the rollout:
+
+**Length-typed fields (default unit FT unless noted):**
+
+- Offset distance (`OffsetDistanceInput` in `ToolOptionsBar`)
+- Fillet radius (`tool.fillet`)
+- Chamfer distance 1 / distance 2 (`tool.chamfer`)
+- Divide-into-equal-parts segment length (`tool.divide` when in distance mode)
+- Point-at-distance distance (`tool.pointAtDist`)
+- Simplify polyline tolerance (`tool.simplify`, default IN)
+- Polyline / polygon explicit-segment length (command bar `@dist<angle`)
+- Drawing scale (Settings → Document, default IN-per-FT)
+- Title-block scale label override
+- Scale-bar length (in paper inches, default IN)
+- Tooltip delay (already correctly using ms)
+- Snap radius
+- Grid major spacing
+- Auto-save interval (already correctly using s)
+- Property panel coordinate edits (X / Y / Northing / Easting / Z / radius / chord length)
+
+**Area-typed fields:**
+
+- Area-label override (`AreaAnnotation` config UI)
+- Acreage shown / total area in title block
+- Lot net area override
+
+**Angle-typed fields:**
+
+- Drawing rotation (Settings → Document, mode `AZIMUTH`)
+- Bearing input on every command bar `@dist<bearing` step (mode `AUTO`)
+- Title-block "north arrow rotation offset" (mode `AZIMUTH`)
+- Curve data field overrides (chord bearing, tangent in / out bearings)
+- Mirror-axis angle input (`tool.mirror` ANGLE mode)
+- Polar-array start angle / sweep angle (`tool.array` polar mode)
+- Translate-mode offset bearing (`tool.offset` TRANSLATE mode)
+- B/D dimension explicit-bearing override (`FeaturePropertiesDialog` for LINE features)
+
+### 11.5.6 Command-Bar Integration
+
+The existing command bar already accepts `@dx,dy` (relative XY in current display unit) and `@dist<bearing` (polar). The parser layer plugs in:
+
+- `@6in,12in` → `(0.5 ft, 1.0 ft)` relative offset
+- `@5'6",10'` → `(5.5 ft, 10 ft)` relative offset
+- `@10<45.3000` → `(7.07 ft, 7.07 ft)` polar (DMS-packed)
+- `@10ft<N45-30-00E` → same as above with explicit bearing
+
+Command-bar errors surface in the existing `cad:commandOutput` stream so the surveyor sees `"Couldn't parse 'foo' as a length — try '6in' or '0.5ft'"` directly under the input.
+
+### 11.5.7 Settings Surface
+
+Settings → Interaction adds:
+
+- **Default linear unit for inputs** — overrides the per-document `linearUnit` for parser fallback (so a surveyor whose docs are in feet but who routinely types fillet radii in inches can pin the input default).
+- **Default angle mode for inputs** — `AUTO` (recommended) | `AZIMUTH` | `BEARING`. Drives `<UnitInput kind="angle">` behaviour app-wide.
+- **DMS-packed shortcut** — toggle to disable the `45.3000 → 45°30'00"` heuristic for surveyors who only ever want decimal degrees.
+
+These persist via the existing `useUIStore` `partialize` allow-list (`fieldUnitLocks`, `defaultLinearUnit`, `defaultAngleMode`, `dmsPackedEnabled`).
+
+### 11.5.8 Acceptance Tests
+
+- [x] `parseLength("6in")` returns 0.5 ft, sourceUnit `'IN'`, hadExplicitUnit true — covered by `__tests__/cad/units/parse-length.test.ts`.
+- [x] `parseLength("0.5ft")` returns 0.5 ft, sourceUnit `'FT'`.
+- [x] `parseLength("150")` with default `'FT'` returns 150 ft, hadExplicitUnit false.
+- [x] `parseLength("5'6\"")` returns 5.5 ft (compound).
+- [x] `parseLength("1 1/2 ft")` returns 1.5 ft (mixed-number fraction).
+- [x] `parseLength("inches", …)` returns null (no number) — also covers the `"5min"` partial-match defence.
+- [x] `parseArea("2.5ac")` returns 108,900 sqft — covered by `__tests__/cad/units/parse-area.test.ts`.
+- [x] `parseArea("1 hectare")` returns 107,639 sqft (±1 sqft).
+- [x] `parseAngle("45.3000")` (AUTO) returns azimuth 45.5°, sourceMode AZIMUTH, components `{45,30,0}`.
+- [x] `parseAngle("45.5")` (AUTO) returns azimuth 45.5°, sourceMode AZIMUTH, components null.
+- [x] `parseAngle("N 45-30-00 E")` (AUTO) returns azimuth 45.5°, sourceMode BEARING.
+- [x] `parseAngle("S 45°30' E")` returns azimuth 134.5° — `parseDmsBody` strips trailing minute markers without losing the body parse.
+- [x] `parseAngle("400.0")` (decimal) returns null (out of range).
+- [x] `parseAngle("99.6000")` falls back to decimal (sec >= 60 invalidates DMS-packed) — verified in tests.
+- [x] `<UnitInput kind="length">` accepts every suffix variant from §11.5.1 and re-formats on blur to the surveyor's preferred unit — `app/admin/cad/components/UnitInput.tsx` ships with both full-fledged and `compact` modes; the compact mode is now wired into `ToolOptionsBar` for: offset distance (PARALLEL + TRANSLATE), fillet radius, chamfer D1 / D2, simplify tolerance, point-at-distance value, array row / col spacing. Each compact input keeps the original tool-color focus ring (orange for simplify, amber for fillet/chamfer, lime for point-at-dist, cyan for array, blue/orange for offset) by passing `focusBorderClass`.
+- [x] `<UnitInput kind="angle" angleMode="AZIMUTH">` accepts both DMS and decimal input, displays per `bearingFormat` preference — wired into the TRANSLATE-mode offset bearing in `ToolOptionsBar` so a surveyor can type `45.3000` (DMS-packed → 45°30'00"), `45-30-00`, `N 45-30 E`, or plain decimal degrees.
+- [ ] Field-level unit lock persists across reloads (via `useUIStore.fieldUnitLocks`) — store key not yet wired; rollout slice.
+- [ ] Command bar `@6in,12in` resolves to `(0.5 ft, 1.0 ft)` — rollout slice (extend the existing polar/relative parsers through `parseLength`).
+- [ ] Command bar `@10<45.3000` resolves correctly with DMS-packed shortcut — rollout slice.
+- [ ] Settings toggle "DMS-packed shortcut" off → `45.3000` parses as `45.3°` (not `45°18'00"`) — parser supports the toggle (`opts.dmsPackedEnabled`); needs UI wiring + persisted setting.
+
+### 11.5.9 Implementation Sequence
+
+1. **Foundation** — `lib/cad/units/parse-length.ts`, `parse-area.ts`, `parse-angle.ts` with full test coverage. No UI changes yet.
+2. **Component** — `<UnitInput>` shared React component with display formatting + dropdown + lock chip.
+3. **Rollout — toolbar parameters** — replace every numeric input in `ToolOptionsBar` with `<UnitInput>`. Smallest blast radius, most user-visible win.
+4. **Rollout — modal dialogs** — `FeaturePropertiesDialog`, `DrawingRotationDialog`, `OrientationDialog`, `SettingsDialog`, `ScaleBarEditorModal`, `TitleBlockPanel`.
+5. **Rollout — command bar** — extend the polar / relative parsers to feed through `parseLength` + `parseAngle`.
+6. **Settings surface** — Interaction tab toggles + per-field lock chip.
+
+---
+
+## 11.6 Intersect Tool — Deterministic Geometry
+
+**Goal:** A single first-class **INTERSECT** tool that solves every "where would these two things meet?" problem a surveyor faces. The most common case: a missing house corner where two wall lines stop short of each other. The surveyor extends both lines virtually, finds the intersection, and drops a POINT (or builds a corner — two trimmed lines meeting at the new vertex). The same tool handles every shape pairing — line/arc/circle/ellipse/polyline-segment/spline — and surfaces every candidate the geometry yields. Multi-candidate cases (line-arc gives 0, 1, or 2 intersections; circle-circle gives up to 2; line-spline can give many) are presented as ghost previews the surveyor cycles through and confirms one.
+
+The tool is **deterministic** — no AI in the math. The AI-assisted best-fit corner workflow that builds *on top* of this geometry lives in Phase 6 §31; that section calls into the helpers built here.
+
+### 11.6.1 Tool Entry Points
+
+- **Toolbar** — new INTERSECT entry under the SURVEY MATH flyout (alongside POINT_AT_DISTANCE, PERPENDICULAR, MEASURE_AREA).
+- **Hotkey** — `IX` (matches AutoCAD's "Intersection osnap" mnemonic; bindable like every other action).
+- **Right-click context menu** — when ≥ 2 features are selected, an "Intersect Selection…" entry pre-populates the modal.
+- **Command palette** — `tool.intersect` searchable as `intersect`, `corner`, `meet`, `cross`.
+- **Snap integration** — INTERSECTION snap already exists for live snap-on-hover. The dedicated tool is for explicit, persisted POINT creation + multi-candidate workflows the live snap can't surface.
+
+### 11.6.2 Modal Layout
+
+The dedicated `IntersectDialog` is a non-modal floating panel (so the surveyor can pan / zoom / pick features behind it) with three regions:
+
+```
+┌─ Intersect ───────────────────────────────────────┐
+│ Method: ▾ [Line × Line ▾]   Extension: ☐ both     │
+│                                                   │
+│ ┌─ Source A ────────────────┐ ┌─ Source B ─────┐ │
+│ │ [Pick…]  feat-2381  LINE  │ │ [Pick…] feat-2391 ARC │
+│ │  ↳ start (1234.5, 678.9)  │ │  ↳ center (…) r=42.3' │
+│ └───────────────────────────┘ └────────────────┘ │
+│                                                   │
+│ ┌─ Candidates (2 found) ─────────────────────┐   │
+│ │ ● 1: (1242.3, 681.7)  [keep]  [as POINT]   │   │
+│ │ ○ 2: (1248.9, 689.1)  [keep]  [as POINT]   │   │
+│ └────────────────────────────────────────────┘   │
+│                                                   │
+│ Output: ▾ [Drop POINT ▾]  Layer: ▾ [BOUNDARY ▾] │
+│                                                   │
+│ [Cancel]                          [Confirm ⏎]    │
+└──────────────────────────────────────────────────┘
+```
+
+- **Method picker** — driven by the source-A type. Switches to the matching algorithm.
+- **Extension toggle** — when ON, finite features (LINE / segment / ARC) are treated as their infinite-line / full-circle extension; the tool flags candidates that would land outside the original geometry as "extended" (visually distinct ghost colour, with a warning chip).
+- **Source A / B pickers** — click the canvas to pick. Picking the same feature twice (e.g. two segments of one polyline) is allowed — surveyor specifies which segment via a sub-picker.
+- **Candidate list** — every solution the geometry yields. Click a row to toggle which one is highlighted on the canvas. Per-row buttons: `[keep]` adds the candidate to the output set, `[as POINT]` short-circuits the rest of the modal and drops a single POINT immediately.
+- **Output dropdown** — what to do with the kept candidates: `Drop POINT`, `Trim both to intersection`, `Extend both to intersection`, `Build corner` (extend + trim + insert vertex on both, no separate POINT). Layer dropdown writes to the active layer by default.
+
+### 11.6.3 Intersection Methods (Coverage Matrix)
+
+Every cell in this matrix is a separate algorithm slice. We ship them as the surveyor's most-used pairs land:
+
+| A \ B          | LINE | LINE-SEG (in polyline) | ARC | CIRCLE | ELLIPSE | SPLINE | RAY | INFINITE-LINE |
+|----------------|:----:|:----------------------:|:---:|:------:|:-------:|:------:|:---:|:-------------:|
+| LINE           | ●    | ●                      | ●   | ●      | ●       | ●      | ●   | ●             |
+| LINE-SEG       | —    | ●                      | ●   | ●      | ●       | ●      | ●   | ●             |
+| ARC            | —    | —                      | ●   | ●      | ●       | ●      | ●   | ●             |
+| CIRCLE         | —    | —                      | —   | ●      | ●       | ●      | ●   | ●             |
+| ELLIPSE        | —    | —                      | —   | —      | ●       | ●      | ●   | ●             |
+| SPLINE         | —    | —                      | —   | —      | —       | ●      | ●   | ●             |
+| RAY            | —    | —                      | —   | —      | —       | —      | ●   | ●             |
+| INFINITE-LINE  | —    | —                      | —   | —      | —       | —      | —   | ●             |
+
+**RAY** = a virtual half-line: pick a vertex / endpoint, supply a bearing (uses the new `<UnitInput kind="angle">`). Surveyor's mental model is "shoot a line from this point at bearing X and tell me where it hits." Common workflow: pick a corner, type the deed bearing, intersect with the next wall line.
+
+**INFINITE-LINE** = a virtual line through two picked points (or a line + perpendicular). Used when the surveyor wants the intersection of a building line projected through a measured corner against an offset reference line.
+
+Algorithm slices in implementation order:
+
+1. **A — LINE × LINE** — already exists as `lineLineIntersection`; modal wraps it.
+2. **B — LINE × ARC / LINE × CIRCLE** — needs new `lineArcIntersections` + `lineCircleIntersections` helpers (0/1/2 candidates). The classic "line-circle quadratic" — discriminant ≤ 0 → no real intersection, 0 → tangent (1 candidate), > 0 → 2 candidates.
+3. **C — ARC × ARC / CIRCLE × CIRCLE** — `circleCircleIntersections` (the well-known "intersecting circles" formula). For ARCs, also test that each candidate falls inside the angular span of *both* arcs (re-using the `isAngleInArc` helper from `curve-render.ts`).
+4. **D — Polyline-segment × any** — pick which segment of the source polyline is involved. Surveyor clicks the segment directly; we resolve `(featureId, segmentIndex)` and treat that segment as a LINE.
+5. **E — RAY × any** — instead of a feature, surveyor enters `(originPt, bearing)`. Then the same algorithms with origin + direction.
+6. **F — ELLIPSE × LINE / ELLIPSE × ARC** — quadratic in a rotated/scaled frame; same `>=2` discriminant story.
+7. **G — SPLINE × any** — sample the spline densely (re-use the `sampleSpline` helper from §11.5 work) and run segment-segment intersection against every chunk; merge nearly-coincident hits.
+8. **H — INFINITE-LINE × any** — same as LINE × any but skip the segment-bounds clip.
+
+### 11.6.4 Extension Behaviour
+
+- **OFF (default)** — only candidates that lie inside both source extents are kept; off-extent candidates are discarded silently.
+- **ON for source A only** / **ON for source B only** / **ON for both** — independent toggles. When extension is ON for an input, the modal renders a dashed extension preview on the canvas in the source's colour at half opacity.
+- Each candidate row badges its extension status: `(within both)` / `(extended A 12.3 ft)` / `(extended B 1.4 ft)` / `(extended both)`. Surveyors instantly see how far they're stretching the geometry.
+
+### 11.6.5 Ghost Preview Pattern
+
+Same render path as the existing transform-tool ghosts (`drawTransformedFeaturePreview`):
+
+- Each candidate is a small crosshair at the world coords + a label `1`, `2`, …
+- Confirmed candidates render solid; un-confirmed render at 50% opacity.
+- The currently-highlighted row in the modal renders in the active accent colour (cyan by default).
+- Hovering a ghost on the canvas highlights the matching modal row. Hovering a row highlights the matching ghost. Same `useUIStore.hoveredFeatureId` channel used by the confidence cards.
+- Cycling the highlighted candidate via keyboard: `↓` / `↑` walk the list; `Enter` confirms the highlighted; `Space` toggles `keep`; `Escape` cancels.
+
+### 11.6.6 Output Modes
+
+- **Drop POINT** — emits one POINT feature per kept candidate. Properties: `intersectSourceAId`, `intersectSourceBId`, `intersectMethod`, `intersectExtended` (per source). All persisted so a future LIST tool can show provenance.
+- **Trim both to intersection** — only valid for finite LINE / LINE-SEG sources where the kept candidate lies inside both extents. Each source becomes a LINE that ends at the candidate point; the click side determines which half is retained (matching FILLET / CHAMFER convention).
+- **Extend both to intersection** — opposite case: when the candidate lies *outside* one or both sources, extend each finite source so it reaches the candidate. Surveyors use this for the "missing house corner" case.
+- **Build corner** — the surveyor's preferred shorthand for "extend both, keep both, and stamp a POINT here". Emits one combined batch: extended LINE A + extended LINE B + a POINT named "Corner" at the intersection.
+
+### 11.6.7 Multi-Candidate Disambiguation
+
+Some pairs always yield ≤ 1 candidate (LINE × LINE either misses or meets at one point). Others yield up to 2 (LINE × CIRCLE) or many (SPLINE × anything). The modal handles disambiguation as follows:
+
+- **0 candidates** — show a friendly explainer in the candidate-list area: "These two don't intersect. Toggle extension above to extend infinite, or pick a different pair." Suggestion chips below: "Toggle extension on both", "Switch to RAY".
+- **1 candidate** — auto-keeps it; Confirm button pre-focused so the surveyor can hit Enter.
+- **2+ candidates** — list all; first one auto-highlighted; surveyor picks via keyboard or click. `Confirm All` keeps every candidate at once for the bulk case (useful when intersecting a line against a fence polyline with many segments).
+
+### 11.6.8 Acceptance Tests (deterministic side)
+
+- [x] LINE × LINE intersect modal opens, surveyor picks two non-parallel lines, candidate list shows 1 entry, confirm drops a POINT — Slice 1 ships `IntersectDialog` reachable via `I X` chord hotkey, `Tools → Intersect Lines…` menu, or `cad:openIntersect` event. Dialog has two source-picker slots; each fires `cad:intersectPicking` so `CanvasViewport` swallows the next click + reports the hit feature back via `cad:intersectPicked`. Compute path: `lineLineIntersection(a, b, c, d)` from `lib/cad/geometry/intersection.ts`. Confirm drops a POINT with `properties.intersectSourceAId / intersectSourceBId / intersectMethod / intersectWithinBoth` audit stamps.
+- [x] LINE × LINE with parallel sources → "These two don't intersect" message + extension chip — `lineLineIntersection` returns null when the cross-product denominator is < 1e-10; the dialog's Candidates region surfaces an explainer chip in that case. The extension toggle (Slice 2) is staged.
+- [x] LINE × LINE with extension ON finds the virtual intersection past both endpoints; ghost rendered as dashed line — Slice 2 adds independent `extendA` / `extendB` toggles in `IntersectDialog`. Toggling either fires `cad:intersectPreview` with the active sources + candidate; `CanvasViewport.renderIntersectPreview` paints a dashed extension on the previewGraphics layer using the new `drawDashedScreenLine` helper (6 px / 4 px screen-space dash). The candidate row badges per-source overshoot — "extended A 12.30 ft" / "extended B 1.45 ft" (amber when extended-with-consent, red when extension is OFF). `canConfirm` is gated by `(withinA || extendA) && (withinB || extendB)` so extending one side without consent disables the drop.
+- [x] LINE × ARC yields 0 / 1 / 2 candidates depending on geometry; cycling with ↓/↑ moves the canvas highlight — Slice 3 added the helpers (14 unit tests covering miss / tangent / two-point / vertical-line / off-center / arc-sweep-filter / boundary-angles) and the clickable candidate list with per-row "within both" / "extended A/B N ft" badges. Slice 7 closes out the ↓/↑ keyboard cycling: a window-level `keydown` handler in `IntersectDialog` walks `selectedIndex` (wrap-around at the ends), Space toggles `keptIndices`, Enter confirms. The handler stays out of the way of editable fields (`INPUT`/`TEXTAREA`/`SELECT`/contentEditable) so the bearing input keeps Enter-to-commit semantics. The selected ghost crosshair on the canvas updates every frame.
+- [x] CIRCLE × CIRCLE (intersecting) yields 2 candidates, each `[keep]` adds a POINT — Slice 4 adds `circleCircleIntersections(c1, r1, c2, r2)` to `lib/cad/geometry/intersection.ts` (radical-axis solution; returns 0 / 1 / 2 hits ordered deterministically by atan2 around `c1`). Wired into the dialog via the new `CIRCLE × CIRCLE` method; both Source A and Source B accept CIRCLE features. Candidate list renders both hits; clicking either selects it for the drop. (Per-candidate "keep + drop another" multi-drop ships with Slice 7's multi-candidate workflow.)
+- [x] CIRCLE × CIRCLE (tangent) yields 1 candidate; confirm drops one POINT — `circleCircleIntersections` collapses to a single hit when the discriminant `h² = r1² − a²` clamps below ε; covered by externally- and internally-tangent test cases in `__tests__/cad/geometry/intersection.test.ts`.
+- [x] CIRCLE × CIRCLE (concentric or non-intersecting) yields 0 candidates with explainer — far-apart / nested / coincident / concentric-different-radius all return `[]` (4 separate test cases); dialog renders "The circles are too far apart, nested, or coincident — no intersection." via `emptyExplainer('CIRCLE_CIRCLE')`.
+- [x] RAY × LINE: surveyor picks a vertex, types `N 45-30 E` in the bearing field, modal finds the intersection — Slice 6 adds `rayLineIntersection`, `rayCircleIntersections`, `rayArcIntersections` to `lib/cad/geometry/intersection.ts` (9 new tests covering in-front / behind-origin / parallel / azimuth-convention / nearest-first ordering / arc-sweep filter). `PickedSource` widens with a `RAY` kind (`origin` + `bearingDeg`); three new methods land (`RAY × LINE`, `RAY × CIRCLE`, `RAY × ARC`). `RaySourceRow` mounts in the Source-A slot when the method is a RAY method — surveyor clicks Pick Origin and the next canvas click feeds the (snapped-where-possible) world point back via `cad:intersectPicked` (CanvasViewport now reads `snapResultRef` so vertex / endpoint picks are exact). Bearing field uses `<UnitInput kind="angle" angleMode="AZIMUTH">` so quadrant-bearing input (`N 45-30 E`) is accepted alongside decimal degrees and DMS. Canvas paints a dashed half-line ghost from origin out to the canvas-diagonal reach so the surveyor always sees where the ray points.
+- [x] Polyline-segment picker: surveyor clicks a segment of a 12-vertex polyline; modal stores `(featureId, segmentIndex)` and intersects that segment as a LINE — Slice 5 widens `cad:intersectPicked` to include the world-space click point. `tryBuildSource` now accepts POLYLINE / POLYGON features when the slot wants a LINE; `nearestSegment` projects the click onto every edge (closed wrap for POLYGONs) and returns the lowest-distance edge as the picked LINE source, retaining `segmentIndex` for provenance. Same-feature guard relaxed: two segments of one polyline are allowed as long as their indices differ. POINT drop stamps `intersectSourceASegmentIndex` / `intersectSourceBSegmentIndex` (omitted when source is a single LINE), and the source-readout pill displays `seg N` next to the endpoints.
+- [ ] Build corner: extended sources + stamped POINT all land in one batch undo entry
+- [ ] Trim both to intersection: kept candidate must be within both finite extents; otherwise the option is disabled with a tooltip explaining why
+- [ ] Multi-source SPLINE × LINE produces N candidates, each labelled with its segment-of-spline number
+- [x] Property panel of dropped POINT shows `intersectSourceAId`, `intersectSourceBId`, `intersectMethod`, extension flags — Slice 2 stamps `properties.intersectSourceAId`, `intersectSourceBId`, `intersectMethod`, `intersectWithinBoth`, `intersectExtendedA`, and `intersectExtendedB` on every dropped POINT, giving a future LIST tool full provenance over how the corner was constructed.
+
+### 11.6.9 Implementation Sequence (deterministic)
+
+Each slice is a single PR / commit, all gated by tests:
+
+1. **Slice 1** — `IntersectDialog` shell (modal layout, source pickers, no math yet). Method picker shows `Line × Line` only; algorithm is the existing `lineLineIntersection`.
+2. **Slice 2** — Extension toggle + dashed-preview render. Add the `(within both)` / `(extended N ft)` badging.
+3. **Slice 3** — `lineCircleIntersections` + `lineArcIntersections` helpers + tests. Wire into the method picker.
+4. **Slice 4** — `circleCircleIntersections` + arc-arc filter (angular-span check). Tests.
+5. **Slice 5** — Polyline-segment picker — surveyor clicks a segment, dialog stores `(featureId, segmentIndex)`.
+6. **Slice 6** — RAY input source — origin point + bearing field (uses `<UnitInput kind="angle">`).
+7. **Slice 7** — Multi-candidate ghost preview + keyboard navigation + per-row keep/as-POINT actions.
+8. **Slice 8** — Output modes: Trim both / Extend both / Build corner. Emit single-batch undo entries.
+9. **Slice 9** — `ellipseLineIntersections` + spline sampler intersect.
+10. **Slice 10** — Right-click "Intersect Selection…" + command palette wiring + acceptance test pass.
+
+Each slice keeps the modal usable for everything we've shipped so far, so the surveyor gets value from Slice 1 onward.
+
+---
+
+## 11.7 Cross-Layer Copy / Move / Duplicate
+
+**Goal:** A single first-class workflow for moving or duplicating any selection of features (POINTs, LINEs, POLYLINEs, POLYGONs, ARCs, SPLINEs, even whole TRAVERSES) into a different layer or a different traverse — with two ways for the surveyor to specify what's being moved: **(1)** click-to-select directly on the canvas with live blue-glow feedback, or **(2)** type / paste IDs and ranges into a manual input field. The same dialog handles every variant: pure copy (clipboard-style, original stays put), duplicate-into-layer (new copies, originals stay), move-to-layer (originals reassigned), and clone-with-offset (programmatic distance + bearing, leveraging §11.5's unit parser). Every variant supports auto-numbering, code-conflict resolution, and ghost previews before commit.
+
+The existing `copyToClipboard / pasteFromClipboard / duplicateSelection / copyCadSelection` in `lib/cad/operations.ts` are the kernel; this section wraps them in a UX surface and adds the cross-layer / cross-traverse routing the kernel doesn't currently express.
+
+### 11.7.1 Activation Surfaces
+
+- **Toolbar** — new SEND_TO_LAYER entry under EDIT (alongside MOVE / COPY / ROTATE / SCALE).
+- **Hotkey** — `Ctrl+Shift+L` opens the dialog with the current selection pre-loaded.
+- **Right-click context menu** — when ≥ 1 feature is selected: `Send to layer…` and `Duplicate to layer…` entries (also `Duplicate to traverse…` when source is POINT-only).
+- **Layer panel** — drag-and-drop a selection onto a layer row in `LayerPanel` is the lightest-weight path. Default action: **Move**. Hold `Alt` while dropping to **Duplicate** instead. Visual: target row glows blue while a drag is hovering.
+- **Command palette** — `tool.sendToLayer` / `tool.duplicateToLayer` / `tool.duplicateToTraverse` with searchable keywords (`copy`, `clone`, `move layer`, `traverse`).
+
+### 11.7.2 Dialog Layout
+
+Floating non-modal `LayerTransferDialog` so the surveyor can keep clicking on the canvas while the dialog stays open:
+
+```
+┌─ Send to Layer / Traverse ────────────────────────────┐
+│ Operation: ▾ [Duplicate ▾]                            │
+│                                                       │
+│ ┌─ Source ──────────────────────────────────────────┐ │
+│ │ ◉ Pick on canvas         ○ Type IDs              │ │
+│ │ [📍 Pick mode active — click features to add]    │ │
+│ │ ─ 23 features selected (12 POINT, 8 LINE, 3 ARC) │ │
+│ │   12, 14-19, 22, 24, [+5 lines] [+3 arcs]        │ │
+│ │   [Filter ▾ all] [Clear] [Add active selection]  │ │
+│ └──────────────────────────────────────────────────┘ │
+│                                                       │
+│ ┌─ Destination ────────────────────────────────────┐ │
+│ │ Layer:    ▾ [BOUNDARY ▾] [+ New layer…]         │ │
+│ │ Traverse: ▾ [—keep current— ▾] [+ New traverse…]│ │
+│ └──────────────────────────────────────────────────┘ │
+│                                                       │
+│ ┌─ Options ────────────────────────────────────────┐ │
+│ │ ☑ Keep originals  (Duplicate, not Move)         │ │
+│ │ ☐ Apply offset:  Δ [10ft] @ bearing [N 45 E]    │ │
+│ │ ☑ Renumber duplicates starting at  [1000]       │ │
+│ │ ☐ Strip codes that don't exist on target layer  │ │
+│ │ ☑ Bring along linked geometry (polylines that   │ │
+│ │   reference these points)                        │ │
+│ │ ☐ Link duplicates back to originals (live ref)  │ │
+│ └──────────────────────────────────────────────────┘ │
+│                                                       │
+│ ┌─ Preview (23 → 23 ghost features) ──────────────┐ │
+│ │  Conflicts: 2 codes don't exist on BOUNDARY ⚠   │ │
+│ │  • IRS will be skipped (or auto-add to layer?)  │ │
+│ │  • ROW will be skipped (or auto-add to layer?)  │ │
+│ └──────────────────────────────────────────────────┘ │
+│                                                       │
+│ [Cancel]                              [Confirm ⏎]    │
+└──────────────────────────────────────────────────────┘
+```
+
+Each numbered region is independently testable:
+
+- **Operation picker** — `Duplicate` (originals stay, new copies on target), `Move` (originals reassigned to target layer / traverse), `Copy to clipboard` (no immediate write — surveyor pastes later somewhere else, possibly in a different drawing).
+- **Source picker** — `Pick on canvas` and `Type IDs` are radio buttons; switching between them preserves the selection.
+- **Destination picker** — Layer dropdown is required; Traverse dropdown defaults to `—keep current—` for non-POINT sources, exposed when the source is POINT-only or when `Operation = Duplicate to traverse`.
+- **Options** — depend on operation; checkboxes / inputs that don't apply hide.
+- **Preview** — running tally + conflict report before confirm.
+
+### 11.7.3 Source Mode 1 — Pick on Canvas
+
+This is the surveyor-friendly default. While the dialog has the "Pick mode" toggle on:
+
+**Adding to the selection:**
+- Every hover on the canvas paints a **blue outline glow** on the candidate feature (3 px ring, 50% opacity, blue accent colour). Same effect already used by the §29 confidence-card hover.
+- A click **adds** the feature to the source set. The feature stays glowing at 100% opacity (thicker ring) so the surveyor sees the running selection without checking the dialog.
+- `Shift+drag` runs a box-select; everything inside is added (feature-type filter respects the chip).
+- `Ctrl+A` adds every visible feature on the active layer.
+
+**Removing / unselecting (every path is one action):**
+- **Click again** on a glowing feature → unselects that one feature (same click that added it).
+- **`Alt+click`** on any glowing feature → also unselects, for surveyors whose muscle-memory expects modifier-based deselect (matches AutoCAD's `Shift+click` osnap-style toggle, but Alt is used here so it doesn't collide with `Shift+drag`'s box-select-add).
+- **`Alt+drag`** (or `Ctrl+Shift+drag`) → window-deselect: every glowing feature inside the rectangle is removed in one stroke. Inverse of `Shift+drag`.
+- **Right-click on the canvas** with no hover → context menu offers `Clear all picks` (whole set) and `Clear last pick` (most recently added).
+- **Right-click on a glowing feature** → `Remove from selection` for that feature alone, plus `Remove all of this layer` and `Remove all of this code` for one-click bulk-prune by attribute.
+- **Per-row × in the dialog's source list** → each chip in the source list carries an `×` icon; clicking it unpicks that single feature without leaving the canvas. Hovering the row also flashes the matching feature on canvas at 100% opacity so the surveyor can confirm what they're about to drop.
+- **`Backspace`** → unpicks the most recently added feature (LIFO, like an Undo for the selection only). Repeat to walk backward through the history of picks. `Ctrl+Backspace` clears everything.
+- **`Esc`** → cancels Pick mode and returns the cursor to the previous tool. The dialog stays open so the surveyor can switch to Type IDs without losing what they've already picked. (Esc does **not** clear the selection — that's `Ctrl+Backspace` or right-click → `Clear all picks`.)
+
+**Filter + tally:**
+- Filter chip — `Only points` / `Only lines + arcs` / `Only polygons` / `All` — gates which feature types the canvas hover / click / box-select will accept. Toggling a filter does not remove already-picked features whose type now falls outside the filter; surveyors are warned in the tally if any picks become "filtered-out" so they don't lose track.
+- Live tally chip in the bottom-right corner of the canvas while Pick mode is on: `23 selected · ⏎ to confirm · Backspace to undo last · Esc to leave Pick mode`. Mirrors the dialog's count and surfaces the most relevant deselect path inline.
+- An **Undo / Redo** stack scoped to the dialog's pick history — `Ctrl+Z` / `Ctrl+Y` while Pick mode is active step through the surveyor's add / remove history without touching the document undo stack. Lets surveyors freely experiment with selections without polluting the drawing-edit history.
+
+### 11.7.4 Source Mode 2 — Type IDs
+
+For surveyors who already know which point numbers they want — common when working from a deed call sheet:
+
+- Free-form text field that accepts the standard surveyor shorthand:
+  - **Comma-separated** — `12, 14, 19, 22`
+  - **Range with hyphen** — `14-19` expands to `14, 15, 16, 17, 18, 19`
+  - **Mixed** — `12, 14-19, 22, 30-33`
+  - **Whitespace tolerant** — `12 14-19 22` works too
+- Each parsed token is validated:
+  - Point number exists → green chip below the field with the resolved feature id
+  - Point number missing → red chip (`#27 not found`) — surveyor can click `Skip missing`
+  - Code matches on a different layer → orange chip (`#19 lives on BOUNDARY-MON, will copy from there`)
+- `Add active selection` button populates the field from `useSelectionStore.selectedIds` so the surveyor can collapse a click-flow into a typed range, edit it, then confirm.
+- `Paste` from the system clipboard is treated as one big range string (handles "12,14-19" pasted from a deed PDF).
+
+### 11.7.5 Destination — Layer
+
+- Layer dropdown lists every layer in the document with the standard chip rendering (colour swatch + name + lock icon). Adds `+ New layer…` at the bottom which inlines a new-layer form (name + colour) without leaving the dialog.
+- Locked target layer → the Confirm button is disabled with a tooltip "BOUNDARY is locked — unlock or pick a different layer."
+- Layer's `autoAssignCodes[]` constraint check — if the source set carries codes outside that allow-list, the Preview region surfaces the conflicts. Two resolution paths:
+  - `Strip codes that don't exist on target layer` checkbox (off by default) — copy strips the code field, leaves geometry.
+  - `Auto-add codes to target layer` button — extends the layer's `autoAssignCodes[]` so the next paste doesn't conflict.
+
+### 11.7.6 Destination — Traverse
+
+POINT-only sources (or sources where every selected feature is a POINT) expose the Traverse dropdown:
+
+- `—keep current—` — no traverse changes (default for non-POINT sources).
+- `+ New traverse…` — inline form: name, isClosed checkbox, ordering dropdown (`As-picked` / `By point number` / `Counter-clockwise`).
+- Existing traverse — append to the end, or insert at a chosen position via a numeric input.
+- When operation = **Move** and the source POINTs already belong to a different traverse, a warning chip surfaces: "Moving these points removes them from traverse `Lot 14 boundary` (which becomes 8 points instead of 12)."
+
+### 11.7.7 Options Detail
+
+- **Keep originals** — semantically the difference between Duplicate and Move. Auto-toggles when the surveyor flips Operation; surveyor can override.
+- **Apply offset** — distance + bearing inputs (both `<UnitInput>` instances from §11.5). When set, every duplicate translates by the vector. Lives below the Move/Duplicate split because it implicitly forces Duplicate.
+- **Renumber duplicates** — checkbox + start number. When ON, every duplicated POINT gets `pointNo = nextAvailable++` starting at the typed seed; when OFF, duplicates keep the source numbers (which only works if `Strip codes` or a different traverse is set, since duplicate point numbers in the same layer collide).
+- **Strip codes that don't exist on target layer** — described above.
+- **Bring along linked geometry** — when ON, polylines / polygons / arcs that reference the duplicated points' coordinates get copied too (so the surveyor doesn't have to manually re-pick them). Implementation: walk the source set, for every POINT find features whose vertex list contains that POINT's coords (within ε), include them in the duplicate batch automatically. Default ON because it matches "duplicate this corner of the building" intent.
+- **Link duplicates back to originals (live ref)** — opt-in, OFF by default. When ON, every duplicate carries `linkedSourceId` and a translation vector; future edits on the original push to the duplicate too. Surveyor uses this for "show this monument on three different layers without maintaining three copies" workflows. Editing the duplicate breaks the link.
+
+### 11.7.8 Conflict Resolution
+
+The Preview region runs a deterministic pre-pass and surfaces every conflict before Confirm fires:
+
+- **Duplicate point numbers** on the target layer → propose either `Renumber starting at 1000` (default) or `Skip duplicates` or `Overwrite existing`. The surveyor picks once; the choice persists for the session.
+- **Codes not in target layer's `autoAssignCodes[]`** → strip / auto-add / skip (per-code chip).
+- **Locked target layer** → block confirm with a clickable "Unlock layer" chip.
+- **Source = traverse, target traverse mid-segment** → warning explaining the geometry implication (insertion vs. append).
+- **Cross-drawing paste** (when the clipboard came from a different drawing) → flag layers / codes that don't exist in the destination drawing; offer auto-create.
+
+### 11.7.9 Ghost Preview
+
+Same render path as the §11.6 Intersect ghosts:
+
+- Each duplicate renders as a half-opacity ghost at its destination location, tinted with the destination layer's colour.
+- Lines drawn from each ghost back to its source feature so the surveyor sees the offset visually.
+- The conflict report (red badges) anchors to specific ghosts so the surveyor can mouse-hover to read the warning.
+- `Compare originals vs. duplicates` toggle — re-renders the source set at half opacity too; helpful when previewing a Move.
+
+### 11.7.10 Persistence & Undo
+
+- Single Confirm fires one batch undo entry — every ADD / MODIFY / TRAVERSE_UPDATE in one go. `Ctrl+Z` reverts the entire transfer.
+- The transfer's parameters (operation, source ids, destination layer/traverse, options) are logged to a per-document `transferHistory[]` (last 20) so the surveyor can repeat or audit. Persisted via the document autosave.
+- Clipboard content from this dialog uses the existing `_clipboard` module-scope variable; cross-drawing paste works the moment the surveyor opens another drawing.
+
+### 11.7.11 Cross-Drawing Workflows
+
+When the surveyor opens a second drawing, the system clipboard remains populated. Pasting into the new drawing opens a streamlined version of the dialog (only the destination + conflict regions visible) so the surveyor confirms layer / traverse routing without re-picking source features. Layer-name conflicts are resolved by:
+
+- Same name + same colour → silent reuse
+- Same name + different colour → prompt to rename or recolour
+- Name doesn't exist → auto-create in destination
+
+### 11.7.12 Acceptance Tests
+
+- [x] Right-click on a 5-feature selection → "Send to layer…" opens the dialog pre-populated with the 5 features — `FeatureContextMenu` Edit cluster grew "Send to Layer…" + "Duplicate to Layer…" entries in Slice 9 (commit `c0bed1c`). Both call `useTransferStore.open(ids)` with `setOptions({ operation })` to pre-seed.
+- [x] Pick mode: hover → blue glow on candidate; click adds to selection at full-opacity glow; click again removes — Slice 2 (`030ce58`). Two-layer ring in `renderSelection`: 4 px outer halo at 25% alpha + 2 px inner at 80% on picked features, plus a half-opacity hover preview on the candidate. `togglePick` flips the same id in/out of `useTransferStore.pickedIds`.
+- [ ] Box-select inside Pick mode adds every feature in the rectangle (filtered by the chip)
+- [x] Type IDs `12, 14-19, 22` resolves to 8 chips below the field; chip for missing #27 renders red — Slice 3 (`9e9a3d2`). `parsePointRangeString` covers comma / hyphen / mixed forms with 17 vitest specs; `TypeIdsField` renders RESOLVED (green) / MISSING (red `✕`) / AMBIGUOUS (amber + per-layer picker) / invalid (slate italic) chips.
+- [x] Drag-and-drop selection onto LayerPanel row → defaults to Move; Alt-drag → Duplicate — Slice 4 (`48c3796`). `SelectionDragChip` top-right of canvas sets `application/x-starr-selection-transfer` mime; `LayerPanel` row drop handlers route to the transfer kernel with `keepOriginals = e.altKey`. Blue/green ring + bg-tint highlight the row while hovered.
+- [ ] Locked target layer → Confirm disabled with tooltip; clickable "Unlock layer" chip resolves — Confirm-disabled half landed in Slice 1; the clickable unlock chip is a follow-up.
+- [x] `autoAssignCodes` mismatch surfaces conflict chip; "Auto-add codes to target layer" extends the layer config — Slice 19 (`c4e2bfc`) ships the full `CodeRemapTable`. Each conflicting code becomes a row with source → target dropdown + per-row "auto" button accepting the fuzzy suggestion. "Auto-add codes" is achievable via mapping each code to its source name (effectively extends the allow-list); a dedicated one-click variant could land as polish.
+- [x] Apply offset 10 ft N 45° E → duplicates render at the offset position; ghost lines connect each pair — Slice 6 (`0f18187`) wires distance + bearing UnitInputs; Slice 8 (`3fa7c43`) renders the half-opacity ghost preview in destination-layer tint with connector lines between source centroid and ghost centroid.
+- [x] Renumber from 1000 → first duplicate is point 1000, increments by 1 — Slice 6 (`0f18187`). Kernel walks the clone loop with `nextPointNo = opts.renumberStart` and stamps `clone.properties.pointNo` for every POINT.
+- [ ] Bring-along: duplicating 2 corner POINTs that participate in a polygon also brings the polygon — by design (Slice 7, commit `88b8b13`) the strict matching rule requires ALL polygon vertices to match picked POINTs to avoid surprise inclusions. Spec test as worded contradicts the documented rule; will reconcile in a §11.7.7 follow-up.
+- [x] Linked duplicates: editing the source POINT moves the linked duplicate too (until the duplicate is edited directly, which breaks the link) — Slice 10 (`a84c0ff`). `lib/cad/operations/linked-instances.ts` mounts a zustand subscriber that diffs `document.features` between renders, regenerates duplicates with `properties.linkedSourceId === src.id`, and auto-breaks the link on direct edits. `_propagating` flag prevents re-entry.
+- [x] Single Confirm = single batch undo entry; Ctrl+Z fully reverts — Slice 1 (`030ce58`). `transferSelectionToLayer` emits one `makeBatchEntry` per kernel call; multi-target paste (Slice 17, `472b269`) shares one `transferOperationId` across all targets.
+- [x] Cross-drawing paste into a drawing missing the source layer → auto-creates the layer with same name + colour — Slice 11 (`3a03d5d`). `copyToClipboard` snapshots layer name + color + sourceDocId; `resolveClipboardLayers` matches by name in the destination drawing and auto-creates missing layers with the source's color. Friendly command-bar output: "Auto-created N layers".
+- [ ] Compare-originals toggle renders both sets at half opacity
+- [ ] `transferHistory[]` records the last 20 transfers per document; persists across reload
+- [x] Smart helper "By layer = BOUNDARY" + "By feature type = POLYLINE" composes to "every boundary polyline" (intersection) — Slice 12 (`406459d`). `SmartSelectionHelpers` row offers By-layer / By-type / By-code / In-viewport dropdowns + buttons. Each adds to `pickedIds` via `addPicks` which dedupes, so chaining helpers composes to an intersection.
+- [x] Smart helper Alt-click subtracts from the running set — same Slice 12 (`406459d`). Sticky "Mode: subtract −" toggle inverts every helper; buttons also honor one-shot `Alt+click`. Dropdowns can't read modifiers on change so the toggle is the cross-helper path.
+- [x] Save preset → reload drawing → preset still in the dropdown; default preset opens the dialog pre-populated — Slice 13 (`8200aac`). `useUIStore.transferPresets` persists via the partialize allow-list; `useEffect` on dialog open checks for an `isDefault` preset and pre-fills `options` when no manual customisation was done first.
+- [x] Move > 5 features triggers confirmation modal; single-feature Move skips it — Slice 15 (`904fb94`). `commit()` is async; when `operation === 'MOVE' && sourceIds.length >= 5` it `await`s `confirmAction` with danger-style messaging.
+- [ ] Locked source layer + Move triggers warning prompt
+- [x] What-changed green pulse flashes for 1.5 s on Confirm; only newly-created / reassigned features pulse — Slice 15 (`904fb94`). `useTransferStore.flashRecentlyTransferred(resultIds)` stores `{ids, startedAt}`; `renderSelection` paints a pulsing green halo (ease-out fade, two-pulse cycle) for the duration. `setTimeout(clearRecentlyTransferred, 1500)`.
+- [ ] Soft-delete: deleted-by-Move features recoverable from the recycle bin within 30 min even after `undo` rolls past — doesn't apply: Move kernel is non-destructive (just reassigns `layerId`, ids preserved). Recycle bin would belong on `deleteSelection`, not Move.
+- [x] Audit stamps: duplicated feature carries `duplicatedFrom`, `duplicatedAt`, `transferOperationId`; clicking the history entry highlights all features from that operation — Slice 1 (`030ce58`) stamps every duplicate via the kernel. Click-to-highlight from a history list is deferred until `transferHistory[]` ships.
+- [x] Multi-layer paste: pick 3 destination layers → 1 Confirm → 3× the duplicates appear, all sharing one `transferOperationId` — Slice 17 (`472b269`). `AdditionalTargetsRow` adds chips for extra layers; `commit()` loops `transferSelectionToLayer` per target with one shared `sharedOpId`. Locked targets silently skipped; result count aggregated into one cad:commandOutput.
+- [x] Right-click source-list row → "Filter to only POINTs" prunes the set without touching the canvas — Slice 18 (`deca2bb`). `SourceListContextMenu` exposes "Keep only TYPE" entries (one per distinct type in the pick with counts) + "Remove all TYPEs" + "Remove all on LAYER".
+- [x] Code-remap: unmapped code surfaces fuzzy suggestion; surveyor accepts → duplicate carries the remapped code — Slice 19 (`c4e2bfc`). `suggestCodeMapping` runs EXACT → SHARED_BASE → PREFIX → SUBSTRING → EDIT_DISTANCE; pre-fills at confidence ≥ 0.8. Per-row "auto" button accepts lower-confidence suggestions. 21 vitest specs.
+- [ ] Selection block save → recall later from a different drawing imports the block as a template — by design (Slice 20, `f1fef1e`) blocks are document-scoped because feature ids don't survive cross-drawing. Cross-drawing block import is a Slice 20.5 anchor-relative-storage concern.
+- [ ] Linked block instance updates when the master block is edited; converting an instance to independent breaks the link
+- [x] Click-again unselects a glowing feature; Alt-click does the same — Pick-mode click handler in `CanvasViewport` calls `transferStore.togglePick(hit)` on plain click and `removePick(hit)` on `Alt+click` (Slice 2 + deselect-path expansion `2eecf09`).
+- [ ] Alt-drag (or Ctrl+Shift+drag) window-deselects every glowing feature inside the rectangle
+- [ ] Right-click on canvas with no hover → context menu offers `Clear all picks` / `Clear last pick`
+- [ ] Right-click on a glowing feature → `Remove from selection`, `Remove all of this layer`, `Remove all of this code`
+- [x] Backspace pops the most-recently-added pick; Ctrl+Backspace clears every pick — Slice 2 (`030ce58`). `useEffect` on `pickModeActive` registers a capture-phase keydown listener that calls `popLastPick()` for plain Backspace and `clearPicks()` for Ctrl/Cmd-Backspace.
+- [x] Per-row × in the dialog source list removes that single feature without leaving Pick mode — Slice 1 (`030ce58`). Each picked-row chip renders an `X` button that calls `removePick(id)`; Pick mode stays active.
+- [ ] Pick-mode-scoped Undo / Redo (Ctrl+Z / Ctrl+Y while Pick mode active) walks add / remove history without touching the document undo stack
+- [ ] Toggling a filter chip after picks exist warns when any picks become "filtered-out" rather than silently dropping them
+
+### 11.7.13 Implementation Sequence
+
+1. **Slice 1** — `LayerTransferDialog` shell with hard-coded pre-loaded selection. Operation picker + layer destination + Confirm wires through to the existing `duplicateSelection` (with the offset replaced by a layer reassignment after the duplicate). Move = duplicate-then-delete.
+2. **Slice 2** — Pick-mode click-to-select with blue-glow rendering. Reuse `useUIStore.hoveredFeatureId` channel for the canvas highlight; add a separate `useTransferStore.pickedIds` for the running set.
+3. **Slice 3** — Type IDs parser (`parsePointRangeString`) + per-token chip validation. Pure helper with vitest coverage.
+4. **Slice 4** — Layer dropdown with `+ New layer…` inline form. Conflict pre-pass for `autoAssignCodes` mismatch and locked layer.
+5. **Slice 5** — Traverse destination flow + closure / append / insert positioning.
+6. **Slice 6** — Apply-offset with `<UnitInput>` distance + bearing fields. Renumber-from-N option.
+7. **Slice 7** — Bring-along-linked-geometry walker (find polylines / polygons / arcs whose vertices include any of the source POINTs).
+8. **Slice 8** — Ghost preview render with destination-layer tint + source-to-duplicate connector lines.
+9. **Slice 9** — Drag-and-drop from canvas selection onto LayerPanel row; Alt-drag toggle.
+10. **Slice 10** — Linked-duplicates store (`linkedSourceId` field on duplicates, change-propagation hook on source edits). Edge case: editing the duplicate breaks the link with a confirm prompt.
+11. **Slice 11** — Cross-drawing paste flow: detect missing layers, prompt-or-auto-create. Layer-name conflict resolution chips.
+12. **Slice 12** — `transferHistory[]` per-document logging + Repeat-last-transfer hotkey (`Ctrl+Shift+R`).
+
+Each slice keeps the dialog usable for the workflows shipped so far. The surveyor never has to wait for the full feature set to land — the click-to-select + simple layer reassignment lands in Slice 1+2 (a handful of days of work), and every later slice is additive.
+
+### 11.7.14 Smart Selection Helpers
+
+Surveyors don't always want to click each feature one-by-one. Pick mode adds a row of one-click "selection helpers" above the source list — each one extends or replaces the running set with a programmatic query:
+
+| Helper | Behaviour |
+|---|---|
+| **By layer ▾** | Picks every feature on the chosen layer (active layer pre-selected). |
+| **By code…** | Surveyor types or picks a code (e.g. `IRS`, `BC02`); every feature whose `properties.code` or `parsedCode.baseCode` matches is added. Supports comma-separated multi-codes. |
+| **By feature type ▾** | All POINTs / LINEs / POLYLINEs / etc. across the whole drawing. Combines with the existing per-type filter chip. |
+| **In viewport** | Every visible feature inside the current screen extents. Surveyor can pan + click to expand iteratively. |
+| **In window…** | Promotes the cursor into a single-shot box-select mode that adds whatever lies inside the dragged window. |
+| **By bearing range…** | Lines / polyline-segments whose azimuth falls inside `[lo, hi]` (uses `<UnitInput kind="angle">` for both bounds). Useful for "all NS-running fences." |
+| **By length range…** | Lines / segments whose length falls inside `[min, max]` (uses `<UnitInput kind="length">`). Useful for "all walls between 8 and 12 ft." |
+| **By traverse…** | Every POINT in a chosen traverse (handy for "duplicate this whole traverse to a new layer"). |
+| **By feature group…** | Every feature in a feature-group id (Phase 3 grouping). |
+| **By selection set…** | Recall a saved selection block (§11.7.19). |
+
+Each helper appends to the current set rather than replacing — so a surveyor can stack `By layer = BOUNDARY` + `By feature type = POLYLINE` + `In viewport` to get "every visible boundary polyline." Holding `Alt` while clicking a helper subtracts instead. A small `Modify ▾` chip after each helper lets surveyors invert (`A → not A`), filter (`A ∩ B`), or replace (`A → B`).
+
+The cumulative selection logic lives in a pure helper `composeSelectionSet(steps[]): Set<featureId>` so it's vitest-coverable without the canvas.
+
+### 11.7.15 Transfer Presets & Templates
+
+Surveyors do the same transfer over and over (e.g. "send all monument-layer points to the printable copy"). The dialog ships a Save / Load row above Confirm:
+
+- **Save preset…** — captures the current operation, destination layer + traverse, options block, and any code-remapping choices into a named preset. Source set is **not** captured (it's per-job). Stored on the document so the firm's templates ship with new drawings created from it; copyable across drawings via the standard template-import flow.
+- **Load preset ▾** — dropdown lists every preset; selecting one fills the destination + options regions instantly. The surveyor still picks the source set (so the wrong features can never accidentally come along).
+- **Default preset** — surveyor can mark a preset as the dialog's default. Opens pre-populated next time.
+- **Per-firm preset bundle** — `STARR Surveying default` ships with five canonical presets out of the box: `Monuments → Final plat`, `Boundary → Print copy`, `Topo → Field reference`, `Setbacks → Setback overlay`, `Working set → Archive`.
+- **Preset audit** — each preset records `lastUsed` + `useCount` so the dropdown sorts by recency / popularity.
+
+Stored under `useUIStore.transferPresets` (persisted via the existing `partialize` allow-list). Document-scoped presets live alongside the title-block + standard-notes templates already in `DrawingDocument.settings`.
+
+### 11.7.16 Mistake Prevention & Audit Trail
+
+Every destructive transfer surfaces guardrails before it commits:
+
+- **Move confirmation** — when Operation = Move and the source set has > 5 features (the same threshold the existing bulk-delete confirm uses), a `confirmAction` modal pops: *"Move 23 features from BOUNDARY to ROW? Originals on BOUNDARY will be removed."* Single feature moves skip the prompt; surveyor can disable the threshold per-session.
+- **Locked-source warning** — moving features off a locked source layer is allowed but prompts: *"Source layer BOUNDARY is locked. Move anyway?"* This catches the case where a surveyor locked a layer to protect it and forgot.
+- **Lock source after copy** — opt-in checkbox in the Options block. After a successful Duplicate, the source layer is auto-locked so the surveyor can't accidentally edit the originals while working on the duplicate.
+- **Undo as two halves for Move** — the batch undo entry actually contains two atomic groups: `RemoveFromSource` and `AddToTarget`. `Ctrl+Z` reverts the entire move; `Ctrl+Shift+Z` (or right-click on the undo entry) lets the surveyor revert just the destructive half so they can keep the duplicates and put the originals back.
+- **Audit stamps on duplicates** — every emitted feature carries `properties.duplicatedFrom: sourceFeatureId`, `properties.duplicatedAt: ISO timestamp`, `properties.transferOperationId: uuid`. The LIST tool shows the chain so a surveyor (or downstream auditor) can trace any feature back to its source. `transferOperationId` is the same uuid recorded in `transferHistory[]`, so one click in the history list highlights every feature that came from that transfer.
+- **What-changed flash** — on Confirm, every newly-created (or newly-reassigned) feature briefly pulses with a green outline for 1.5 s. Mirrors the green-pill confirmation already used by the SaveToDB + autosave flows. Visual reassurance that the right things happened.
+- **Soft-delete for Move** — Move-removed source features are kept in a per-document recycle bin (`document.recentlyDeletedFeatures[]`, capped at 50) for 30 minutes so a surveyor can recover them even after the undo stack rolls past. Mirrors the autosave-recovery pattern.
+
+### 11.7.17 Multi-Target & Bulk Operations
+
+Single-confirm "send to N targets" workflows that today require running the dialog repeatedly:
+
+- **Multi-layer paste** — Layer dropdown supports multi-select. Surveyor picks `BOUNDARY-PRINT` + `BOUNDARY-ARCHIVE` + `BOUNDARY-LEGEND` and one Confirm creates three duplicates, one per target layer. Each layer's duplicates carry the same `transferOperationId` so they can be undone or audited together.
+- **Multi-traverse paste** — same idea for traverses. Useful for "drop these monument points into both the Front-yard and Back-yard traverses."
+- **Cross-document broadcast** — when the surveyor has multiple drawings open in tabs, the destination block exposes a `Drawing ▾` picker. Selecting `(all open drawings)` broadcasts the duplicate to every open document with the standard cross-drawing layer-conflict resolution from §11.7.11.
+- **Bulk operations on the source list** — right-click a source-list row to:
+  - `Remove from selection` (without leaving Pick mode)
+  - `Filter source set to only POINTs / LINEs / POLYLINEs / …`
+  - `Sort by point number` / `By layer` / `As-picked` / `By distance from centroid`
+  - `Reverse order` (lets the surveyor flip a chain's direction before paste)
+  - `Save as selection block…` (jumps to §11.7.19)
+
+### 11.7.18 Code Re-Mapping
+
+When source and destination layers use different code conventions (a common case when archiving a working set onto a print layer), strip-codes is too aggressive and surveyors want a one-step rename:
+
+- **Code-remap table** — when the conflict pre-pass finds codes outside the target's `autoAssignCodes[]`, surface a small two-column table: `Source code → Mapped code`. Each row defaults to "—skip—" but surveyor can pick a destination code from a dropdown or type a new one.
+- **Auto-suggest mappings** — for each unmapped source code, the system runs a fuzzy match against the destination layer's code list and pre-fills the dropdown when confidence > 0.8. Heuristics: shared base monument code (`BC02` ↔ `BC02-FOUND`), shared substring (`MON` ↔ `MONUMENT`), edit-distance ≤ 2 (`IRS` ↔ `IRSC`).
+- **Save mapping with preset** — code-remap tables are part of the saved preset (§11.7.15) so the firm's "Working → Print" mapping persists.
+- **Per-property remapping** — same idea generalised to any custom property: `description` field can be templated as `"{code} (archived from {layerName})"`. Power-user feature behind a "Show advanced…" disclosure.
+
+### 11.7.19 Selection Blocks (Named Reusable Source Sets)
+
+Surveyors often re-paste the same logical group multiple times — a fence-corner detail, a typical building footprint, a standard monument cluster. Selection blocks let them name + recall the source set independently of the destination:
+
+- **Save selection as block…** — captures the current pick set under a name. The block stores feature ids relative to a chosen anchor point (so the block can be re-pasted at a different world location). Stored on `DrawingDocument.selectionBlocks[]` alongside templates.
+- **Pick a block to insert** — Type IDs source mode gains a third tab `From block ▾` that lists every saved block with a thumbnail and feature-count chip. Selecting one populates the source set; the dialog jumps to a "Choose anchor on canvas" overlay so the surveyor positions the block.
+- **Edit a block** — right-click a block in the list to rename, delete, or "open in editor" (loads it into a side-panel where vertices can be tweaked). Editing a block doesn't touch existing pasted instances; instances are independent unless `Link to block` was checked at paste time.
+- **Linked block instances** — opt-in. When checked, the pasted instance carries `properties.blockSourceId` and re-renders if the block's master vertices are edited. Surveyor uses this for "every monument detail callout uses the same symbol — update once, propagate everywhere."
+- **Block library** — bundled defaults: `Standard 4-corner fence end`, `IRS with cap detail`, `Monument-with-find-record callout`. The firm's tech can add to the library via the Settings → Templates tab.
+
+### 11.7.20 Additional Acceptance Tests
+
+(Append to §11.7.12)
+
+- [ ] Smart helper "By layer = BOUNDARY" + "By feature type = POLYLINE" composes to "every boundary polyline" (intersection)
+- [ ] Smart helper Alt-click subtracts from the running set
+- [ ] Save preset → reload drawing → preset still in the dropdown; default preset opens the dialog pre-populated
+- [ ] Move > 5 features triggers confirmation modal; single-feature Move skips it
+- [ ] Locked source layer + Move triggers warning prompt
+- [ ] What-changed green pulse flashes for 1.5 s on Confirm; only newly-created / reassigned features pulse
+- [ ] Soft-delete: deleted-by-Move features recoverable from the recycle bin within 30 min even after `undo` rolls past
+- [ ] Audit stamps: duplicated feature carries `duplicatedFrom`, `duplicatedAt`, `transferOperationId`; clicking the history entry highlights all features from that operation
+- [ ] Multi-layer paste: pick 3 destination layers → 1 Confirm → 3× the duplicates appear, all sharing one `transferOperationId`
+- [ ] Right-click source-list row → "Filter to only POINTs" prunes the set without touching the canvas
+- [ ] Code-remap: unmapped code surfaces fuzzy suggestion; surveyor accepts → duplicate carries the remapped code
+- [ ] Selection block save → recall later from a different drawing imports the block as a template
+- [ ] Linked block instance updates when the master block is edited; converting an instance to independent breaks the link
+- [ ] Click-again unselects a glowing feature; Alt-click does the same
+- [ ] Alt-drag (or Ctrl+Shift+drag) window-deselects every glowing feature inside the rectangle
+- [ ] Right-click on canvas with no hover → context menu offers `Clear all picks` / `Clear last pick`
+- [ ] Right-click on a glowing feature → `Remove from selection`, `Remove all of this layer`, `Remove all of this code`
+- [ ] Backspace pops the most-recently-added pick; Ctrl+Backspace clears every pick
+- [ ] Per-row × in the dialog source list removes that single feature without leaving Pick mode
+- [ ] Pick-mode-scoped Undo / Redo (Ctrl+Z / Ctrl+Y while Pick mode active) walks add / remove history without touching the document undo stack
+- [ ] Toggling a filter chip after picks exist warns when any picks become "filtered-out" rather than silently dropping them
+
+### 11.7.21 Additional Implementation Slices
+
+(Append to §11.7.13)
+
+13. **Slice 13** — Smart selection helpers row + `composeSelectionSet` pure helper with vitest coverage. Per-helper Alt = subtract.
+14. **Slice 14** — Save / load transfer presets. Document-scoped storage + bundled `STARR Surveying default` presets.
+15. **Slice 15** — Mistake-prevention guardrails: Move confirmation modal, locked-source warning, lock-source-after-copy, what-changed green pulse.
+16. **Slice 16** — Two-half undo for Move + soft-delete recycle bin + LIST tool integration for `transferOperationId`.
+17. **Slice 17** — Multi-target paste (multi-select layer dropdown + multi-traverse + cross-document `Drawing ▾`).
+18. **Slice 18** — Right-click bulk operations on source-list rows.
+19. **Slice 19** — Code-remap table + fuzzy auto-suggest. Save remap as part of the preset.
+20. **Slice 20** — Selection blocks: save / load / library + linked-instance render hook + master-edit propagation.
+
+Each slice is independently shippable. The dialog stays usable at every step; the power-user features are additive on top of the bare bones from Slices 1–12.
+
+---
+
 ## 12. Phase 1–7 Gap Audit & Fixes
 
 This section documents cross-cutting UX issues found in Phases 1–7 that Phase 8 resolves:
@@ -1319,7 +2056,7 @@ This section documents cross-cutting UX issues found in Phases 1–7 that Phase 
 - [ ] All settings persist after Electron app restart
 
 ### Controls & Navigation
-- [ ] Tab order navigates all interactive elements in a logical sequence
+- [x] Tab order navigates all interactive elements in a logical sequence — new shared `useFocusTrap(ref, enabled?)` hook in `app/admin/cad/hooks/useFocusTrap.ts` (mirrors the `useEscapeToClose` shape so the wiring is one line per dialog). On mount it captures the previously-focused element, defers a tick, then focuses the first focusable child (or any descendant marked `data-autofocus` so confirm-style dialogs can opt the danger button into the initial focus). A capture-phase `keydown` listener intercepts Tab / Shift+Tab and wraps focus from last → first / first → last; if focus escapes the container programmatically it gets pulled back to the first focusable. The hook also restores focus to the previously-focused element on unmount so dismissing a dialog returns the surveyor to whatever toolbar button or canvas grip they came from. Wired into all 13 modal dialogs (Settings, Print, Import, RPLSSubmission, AIDrawing, RecentRecoveries, Orientation, NewDrawing, FeatureProperties, DrawingRotation, ImageInsert, SaveToDB) plus the global `ConfirmDialog`. Tab order inside each dialog follows DOM order, which matches visual reading order for every dialog audited; specific overrides can be applied by reordering markup or adding `tabindex` per-control without touching the hook.
 - [x] All modal dialogs close on Escape — new shared `useEscapeToClose(onClose)` hook in `app/admin/cad/hooks/useEscapeToClose.ts` registers a `keydown` listener and dismisses the dialog on Esc. Wired into all 12 dismissable dialogs: AIDrawing, DrawingRotation, FeatureProperties, ImageInsert, Import, NewDrawing, Orientation, Print, RPLSSubmission, RecentRecoveries, SaveToDB, Settings. (QuestionDialog is intentionally non-dismissable since it blocks until a question is answered; ConfirmDialog already had its own Esc handler from the §10.4 confirm-dialog slice.)
 - [x] Command palette opens on Ctrl+K or / — `view.commandPalette` action in `lib/cad/hotkeys/registry.ts` is bound to `ctrl+k` and dispatches `cad:openCommandPalette`. `CommandPalette.tsx` listens for the event and toggles open. `/` is reserved for the existing command bar (separate widget).
 - [x] Command palette search finds layer names and action labels — palette merges every `DEFAULT_ACTIONS` entry with the active drawing's layers (each layer gets a "Set Active Layer · {name}" entry). Substring filter matches across label, description, category, and action id. Up/Down navigate, Enter commits via `dispatchDefaultAction` (now exported from `useHotkeys`), Esc closes. Cap of 60 results keeps the list scannable.

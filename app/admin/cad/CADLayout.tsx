@@ -16,10 +16,17 @@ import ConfirmDialog from './components/ConfirmDialog';
 import KeyboardShortcutOverlay from './components/KeyboardShortcutOverlay';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
+import LayerTransferDialog from './components/LayerTransferDialog';
+import IntersectDialog from './components/IntersectDialog';
 import ImportDialog from './components/ImportDialog';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
+import AIProvenancePopup from './components/AIProvenancePopup';
+import CopilotCard from './components/CopilotCard';
+import AICopilotSidebar from './components/AICopilotSidebar';
+import AIAutoRunner from './components/AIAutoRunner';
+import ChordHUD from './components/ChordHUD';
 import CompletenessPanel from './components/CompletenessPanel';
 import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import RPLSReviewModePanel from './components/RPLSReviewModePanel';
@@ -53,12 +60,17 @@ import {
   useDeliveryStore,
   useDrawingChatStore,
   useReviewWorkflowStore,
+  useTransferStore,
 } from '@/lib/cad/store';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
 import { useHotkeys } from './hooks/useHotkeys';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
+import {
+  mountLinkedInstanceSubscriber,
+  unmountLinkedInstanceSubscriber,
+} from '@/lib/cad/operations/linked-instances';
 import {
   clearAutosave,
   readAutosave,
@@ -106,6 +118,16 @@ export default function CADLayout() {
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
   const [autoSaveFailed, setAutoSaveFailed] = useState(false);
+
+  // Dynamic browser-tab title so multi-tab users can tell drawings
+  // apart. Falls back to a generic title before the document hydrates.
+  useEffect(() => {
+    const name = drawingStore.document.name?.trim();
+    document.title = name && name.length > 0
+      ? `${name} — Starr CAD`
+      : 'Starr CAD — Drawing Editor';
+  }, [drawingStore.document.name]);
+
   const [featureDialog, setFeatureDialog] = useState<{
     featureId: string;
     x: number;
@@ -242,6 +264,43 @@ export default function CADLayout() {
     const handler = () => setShowSettings(true);
     window.addEventListener('cad:openSettings', handler);
     return () => window.removeEventListener('cad:openSettings', handler);
+  }, []);
+
+  // Phase 8 §11.7 Slice 10 — mount the linked-instance
+  // subscriber so duplicates created via the
+  // LayerTransferDialog with `linkDuplicatesToSource` on
+  // re-track their source feature's geometry changes.
+  // Unmount on dialog teardown for hot-reload safety.
+  useEffect(() => {
+    const unsub = mountLinkedInstanceSubscriber();
+    return () => {
+      unsub();
+      unmountLinkedInstanceSubscriber();
+    };
+  }, []);
+
+  // Listen for layer-transfer open event (Ctrl+Shift+L hotkey,
+  // MenuBar entry, right-click context menu).
+  useEffect(() => {
+    const handler = () => {
+      // Pre-load the active selection so right-click on a
+      // selection lands the right features in the dialog.
+      const ids = Array.from(useSelectionStore.getState().selectedIds);
+      useTransferStore.getState().open(ids);
+    };
+    window.addEventListener('cad:openLayerTransfer', handler);
+    return () => window.removeEventListener('cad:openLayerTransfer', handler);
+  }, []);
+
+  // Phase 8 §11.6 Slice 1 — Intersect dialog open event.
+  // Hotkey (chord I X) and MenuBar Tools entry both fire
+  // cad:openIntersect; CADLayout flips a local flag so the
+  // dialog mounts.
+  const [showIntersect, setShowIntersect] = useState(false);
+  useEffect(() => {
+    const handler = () => setShowIntersect(true);
+    window.addEventListener('cad:openIntersect', handler);
+    return () => window.removeEventListener('cad:openIntersect', handler);
   }, []);
 
   // Listen for new drawing dialog event (dispatched by MenuBar "New Drawing")
@@ -742,6 +801,13 @@ export default function CADLayout() {
       {/* Settings dialog */}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
 
+      {/* Cross-layer copy / move / duplicate dialog (Phase 8 §11.7) */}
+      <LayerTransferGate />
+
+      {/* Intersect Tool dialog (Phase 8 §11.6 Slice 1) */}
+      {showIntersect && <IntersectDialog onClose={() => setShowIntersect(false)} />}
+
+
       {/* Curve Calculator dialog */}
       {showCurveCalculator && <CurveCalculator onClose={() => setShowCurveCalculator(false)} />}
 
@@ -775,6 +841,36 @@ export default function CADLayout() {
       {/* Phase 6 §30.3 element-explanation popup — opened by
           clicking a review-queue card */}
       <ElementExplanationPopup />
+
+      {/* Phase 6 §32.7 provenance fallback — opened by the
+          right-click "Why did AI draw this?" entry on any
+          feature carrying tool-registry provenance stamps but
+          no full pipeline explanation. Renders only when the
+          full popup above has nothing to show. */}
+      <AIProvenancePopup />
+
+      {/* Phase 6 §32 Slice 5 COPILOT proposal card — renders
+          the head of useAIStore.proposalQueue with Accept /
+          Modify / Skip + ghost preview on the canvas. */}
+      <CopilotCard />
+
+      {/* Phase 6 §32 Slice 7 COMMAND-mode chat sidebar — input
+          surface for proposeFromPrompt. Auto-opens on COPILOT /
+          COMMAND modes; right-click "Ask AI about this…" seeds
+          the input via openCopilotWithPrompt. */}
+      <AICopilotSidebar />
+
+      {/* Phase 6 §32 Slice 8 AUTO escalation runner — headless;
+          auto-accepts proposals whose confidence ≥ threshold
+          while mode === AUTO. Below-threshold proposals stay
+          queued for surveyor review via CopilotCard. */}
+      <AIAutoRunner />
+
+      {/* Chord-shortcut HUD — pops a small toast at bottom-centre
+          showing the available second-key completions while a
+          chord (e.g. `I`, `Z`, `R`) is in progress. Clears
+          automatically on completion / escape / timeout. */}
+      <ChordHUD />
 
       {/* Phase 7 §6.2 completeness checklist — slides in from the
           right, gates "Mark Ready for RPLS Review" on summary.ready */}
@@ -874,4 +970,15 @@ export default function CADLayout() {
     </div>
     </TooltipProvider>
   );
+}
+
+// Subscribes to useTransferStore.isOpen so the dialog only
+// mounts when actually needed. Keeps the parent component
+// lean — useTransferStore changes don't ripple through every
+// other panel.
+function LayerTransferGate() {
+  const isOpen = useTransferStore((s) => s.isOpen);
+  const close = useTransferStore((s) => s.close);
+  if (!isOpen) return null;
+  return <LayerTransferDialog onClose={close} />;
 }

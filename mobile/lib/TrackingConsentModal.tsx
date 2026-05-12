@@ -38,6 +38,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from './Button';
 import { colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface Props {
   visible: boolean;

@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { AnalysisTemplate, DrawingTemplate } from '@/types/research';
 import Tooltip from './Tooltip';
+import { confirm as confirmDialog } from './ConfirmDialog';
 
 type Template = AnalysisTemplate | DrawingTemplate;
 type TemplateType = 'analysis' | 'drawing';
@@ -115,7 +116,13 @@ export default function TemplateManager({
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this template? This cannot be undone.')) return;
+    const ok = await confirmDialog({
+      title: 'Delete this template?',
+      body: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/admin/research/templates/${type}/${id}`, { method: 'DELETE' });
       if (res.ok) {

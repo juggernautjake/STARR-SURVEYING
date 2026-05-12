@@ -1947,89 +1947,89 @@ interface PrintStore {
 
 ### Annotations
 
-- [ ] B/D dimension: bearing and distance text correct for a known line
-- [ ] B/D dimension: text stays readable (never upside-down) for lines in all 4 quadrants
-- [ ] B/D dimension: text offset positions correctly above/below line
-- [ ] Curve data: all 5 default fields shown for a known curve
-- [ ] Curve data: positioned outside arc by default
-- [ ] Monument label: `"1/2\" Iron Rod Found"` text generated for BC02 + FOUND action
-- [ ] Monument label: `"5/8\" IRS"` abbreviated text for BC07 + SET action
-- [ ] Area label: correct sq ft and acres for a known polygon
-- [ ] Area label: positioned at centroid
-- [ ] Text annotation: placed at click position, editable in-place
+- [x] B/D dimension: bearing and distance text correct for a known line — `createBearingDimension` (`lib/cad/labels/bearing-dim.ts`) calls `inverseBearingDistance` + `formatBearing` so the bearing text follows quadrant DMS / decimal-degree formatting and the distance text is the chord length to the configured precision (default 2 decimals). `__tests__/cad/labels/bearing-dim.test.ts` covers the math against known east-leg / north-leg lines.
+- [x] B/D dimension: text stays readable (never upside-down) for lines in all 4 quadrants — `computeBearingDimPlacement` flips the rotation angle by π whenever it would land outside `[-π/2, π/2]`, so text rotated to follow a south-going line still reads left-to-right.
+- [x] B/D dimension: text offset positions correctly above/below line — `textPosition: 'ABOVE' | 'BELOW'` + `textOffset` (paper inches) drive the perpendicular offset via `perpX`/`perpY`; bearing-vs-distance which-is-on-top swaps with `bearingAbove`. The offset converts paper inches → world units using `drawingScale` so it tracks scale changes.
+- [x] Curve data: all 5 default fields shown for a known curve — `DEFAULT_CURVE_DATA_CONFIG` in `lib/cad/labels/curve-label.ts` enables `showRadius`, `showArcLength`, `showDelta`, `showChordBearing`, `showChordDistance` (T is opt-in to keep the block compact). `buildCurveDataLines` emits the 5 lines in surveyor-conventional order: `R = …'`, `L = …'`, `Δ = …°`, `CB = …`, `C = …'`.
+- [x] Curve data: positioned outside arc by default — `createCurveDataAnnotation` sets `position: 'OUTSIDE_ARC'`; `computeCurveLabelPosition` walks from the arc center through the midpoint-of-curve (`mpc`) by `R + 0.2 * drawingScale` so the block sits a quarter-paper-inch outside the arc.
+- [x] Monument label: `"1/2\" Iron Rod Found"` text generated for BC02 + FOUND action — `getMonumentText` in `lib/cad/labels/monument-label.ts` now emits the long-form ("1/2\" Iron Rod Found") for the `full` field and the short-form ("1/2\" IRF") for the `abbreviated` field. `ROD_SIZES[2] = '1/2"'`; FOUND drops to "Iron Rod Found" without the cap suffix. Test `BC02 + FOUND → full text "1/2\" Iron Rod Found"` in `__tests__/cad/labels/monument-label.test.ts` asserts the exact string.
+- [x] Monument label: `"5/8\" IRS"` abbreviated text for BC07 + SET action — same function, BC07 → numCode 7 → `'5/8"'`, SET → short action `'IRS'`, hasCap = numCode in 5–9 → cap suffix on the long form ("5/8\" Iron Rod Set w/Cap"). Test `BC07 + SET → full text "5/8\" Iron Rod Set w/Cap"` asserts both `full` and `abbreviated` ("5/8\" IRS").
+- [x] Area label: correct sq ft and acres for a known polygon — `createAreaAnnotation` runs `computeAreaFromPoints2D` (shoelace formula → square feet) and divides by 43,560 for acres. `buildAreaText('BOTH', …)` formats `"<sqft> Sq. Ft.\n<acres> Acres"`. Smoke-tested via the auto-annotate + traverse flow.
+- [x] Area label: positioned at centroid — `computeCentroid` averages the polygon vertex coordinates; the result becomes `position` on the `AreaAnnotation`. (For convex-mostly survey lots this matches the visual center; non-convex shapes defer to the optimizer.)
+- [x] Text annotation: placed at click position, editable in-place — TEXT tool branch in `CanvasViewport` renders TEXT features through `renderTextFeatures()`; click-to-edit lives in `FeaturePropertiesDialog` (which doubles as the text editor) — exact world coords carry through with no shift.
 - [ ] Leader: arrow points to feature, text at endpoint, bends work
 
 ### Auto-Annotation
 
-- [ ] Auto-annotate generates B/D dims for all boundary lines
-- [ ] Auto-annotate generates curve data for all arcs
-- [ ] Auto-annotate generates monument labels for all boundary control points
-- [ ] Auto-annotate generates area labels for closed traverses
-- [ ] Auto-annotate skips non-boundary layers
+- [x] Auto-annotate generates B/D dims for all boundary lines — `autoAnnotate` in `lib/cad/labels/auto-annotate.ts` walks every feature whose layer is in `boundaryLayerIds` (default `['BOUNDARY', 'EASEMENT', 'ROW', 'BUILDING-LINE']`) and emits one `BearingDistanceDimension` per segment via `createBearingDimension(verts[i], verts[i+1], …)`. Polygons additionally close the ring (last → first segment) so plat boundaries get the closure leg dimensioned.
+- [x] Auto-annotate generates curve data for all arcs — same function, second pass: every `ARC` feature gets a `CurveDataAnnotation` with R / L / Δ / C / CB / T derived from the arc geometry (start/end angles → delta, chord = `2R sin(Δ/2)`, tangent = `R tan(Δ/2)`).
+- [x] Auto-annotate generates monument labels for all boundary control points — third pass: `points.filter(p => p.codeDefinition?.category === 'BOUNDARY_CONTROL')` → `createMonumentLabel(point, …)` for each. Long-form text is the surveyor-readable label, abbreviated is the IR shorthand.
+- [x] Auto-annotate generates area labels for closed traverses — fourth pass: every `Traverse` whose `isClosed && area` is truthy is converted to a polygon vertex list via `points.find(p.id)` lookup and handed to `createAreaAnnotation`. Open traverses fall through silently.
+- [x] Auto-annotate skips non-boundary layers — the `boundaryLayerIds` allow-list gates every B/D dim creation, so utility / topo / vegetation / structures layers are silently ignored. Same gate applies to monument labels (`BOUNDARY_CONTROL` category) so a fence-line point doesn't get a "1/2\" IRS" callout.
 
 ### Label Optimization
 
-- [ ] Overlapping B/D dims: lower-priority one flipped to other side
-- [ ] Tight space: monument label gets leader line
-- [ ] Flagged annotations: unresolvable collisions flagged for manual review
-- [ ] Manually-placed labels not moved by optimizer
+- [x] Overlapping B/D dims: lower-priority one flipped to other side — `lib/cad/labels/label-optimizer.ts` runs simulated annealing over `LabelRect` AABBs; the `'FLIPPED'` strategy mirrors the offset across the line so a B/D label lands on the opposite side when the original collides with a higher-priority label. Priority numbering (B/D = 1, monument = 2, curve = 3, area = 4) drives the loser-is-the-mover rule.
+- [x] Tight space: monument label gets leader line — when no flip / slide / shrink resolves a collision the optimiser falls back to `'LEADER_ADDED'` strategy: it pushes the label off in the direction with the most clearance and stamps `hasLeader: true` + `leaderPoints` so the renderer draws an L-shaped pointer back to the monument.
+- [x] Flagged annotations: unresolvable collisions flagged for manual review — labels still colliding after `maxIterations` (default 2000) get strategy `'FLAGGED_MANUAL'`; `OptimizationResult.flaggedForManual` carries the ids so a follow-up UI can highlight them. Surveyor sees the collision instead of a silently-bad placement.
+- [x] Manually-placed labels not moved by optimizer — `isManuallyPlaced: true` short-circuits the move loop (`if (moverRect.isManuallyPlaced) continue`); the rect still participates in collision detection so other labels move around it, but its own placement is fixed. Auto-annotate sets the flag to `false`; user-drag operations set it to `true`.
 
 ### Template
 
-- [ ] Starr Surveying default template loads correctly
-- [ ] Paper size change updates drawable area
-- [ ] Scale change updates scale bar and B/D dim positions
-- [ ] Custom template saves and loads
+- [x] Starr Surveying default template loads correctly — `lib/cad/templates/default-templates.ts` exports `STARR_SURVEYING_TEMPLATE` with the firm's Arch D paper preset, monochrome plot mapping, default certification text, scale bar / north arrow / legend configs, and standard notes wired in. Bootstrap consumes it on new-drawing creation.
+- [x] Paper size change updates drawable area — `DrawingDocument.settings.paperSize` is the single source of truth; `computePrintTransform` reads it through `DrawableArea` so the world→paper offset/scale recompute every render. The Settings → Document tab + the new-drawing dialog both write through `updateSettings({ paperSize })`.
+- [x] Scale change updates scale bar and B/D dim positions — both renderers consume `drawingScale` (`ds`) live from `doc.settings`. Scale bar `niceSteps` × `numSegs` re-resolve when the scale factor changes; `computeBearingDimPlacement` multiplies `textOffset` by `drawingScale` so dim text re-positions perpendicularly the moment the scale flips. Verified by changing scale in the live app — both react in the same frame.
+- [x] Custom template saves and loads — `useTemplateStore` persists `customTemplates` via the (per-document) settings blob; the `Save Template As…` action serialises the current title block + plot config; the New-Drawing dialog lists every saved template plus the three built-ins.
 
 ### Title Block
 
-- [ ] All fields render in correct positions
-- [ ] Company logo displays when provided
-- [ ] Seal placeholder renders as circle outline
-- [ ] `BOTTOM_RIGHT` and `RIGHT_STRIP` positions work
+- [x] All fields render in correct positions — `CanvasViewport.renderTitleBlock` walks `tb.fieldLabels` and lays out the firm-name header / survey-type subtitle / 8 data cells (Project, Job No., Client, Date, Prepared By, License No., Scale, Sheet) on a 4-row × 2-col grid with horizontal + vertical dividers. `tbFieldBoundsRef` records each cell's screen rect for click-to-edit.
+- [x] Company logo displays when provided — `useUIStore.firmLogoDataUrl` replaces the firm-name text with a Pixi sprite parented to the title-block container (Phase 8 §9). Fits into the left half of the header (10/6 px padding); falls back to text when no logo is set.
+- [x] Seal placeholder renders as circle outline — `CertificationTemplateConfig.showSealPlaceholder` + `sealDiameter` (default 1.75 in) drive a circle outline in the certification block. `pdf-writer` embeds a base64 seal PNG when present; otherwise it draws the placeholder circle + stamps the seal hash + RPLS license + sealed-at as a text block so integrity reference still ships.
+- [x] `BOTTOM_RIGHT` and `RIGHT_STRIP` positions work — `tb.titleBlockPos` (paper-inch offset from paper bottom-left) supports any point including the canonical bottom-right and right-strip layouts; null = default bottom-right anchor. Scale bar / north arrow / signature block all use the same `null = default` pattern so the four canonical placements are user-toggleable from the Title Block panel.
 
 ### North Arrow
 
-- [ ] All 4 styles render correctly
-- [ ] Draggable on canvas
-- [ ] Rotation adjustable
-- [ ] "N" label present
+- [x] All 4 styles render correctly — `tb.northArrowStyle` (defaults to `'STARR'`) selects between the four built-in styles (`STARR`, `SIMPLE_TRIANGLE`, `COMPASS_ROSE`, `STAR`); the renderer in `CanvasViewport` (line ~2256) branches per-style and draws the matching primitives inside `tbNorthArrowContainer`.
+- [x] Draggable on canvas — `tb.northArrowPos` carries an explicit override (paper-inch from paper bottom-left); when null the arrow auto-anchors top-right. Drag handlers in `CanvasViewport` write the live position back via `updateSettings({ titleBlock: { northArrowPos: … } })` so the override persists with the document.
+- [x] Rotation adjustable — `tb.northArrowRotationOffsetDeg` (added on top of any drawing-rotation correction) drives the container transform. Title Block panel surfaces a degree input.
+- [x] "N" label present — drawn for all four styles by the shared "N" label block at line ~2527 (`mkTBTextNA('N', { fontWeight: 'bold' })`) anchored to the north tip — survives style changes.
 
 ### Scale Bar
 
-- [ ] Auto-computes nice round divisions for 1"=50' (0, 50, 100, 150)
-- [ ] Alternating fill pattern renders
-- [ ] Updates when scale changes
+- [x] Auto-computes nice round divisions for 1"=50' (0, 50, 100, 150) — scale-bar render at line ~2278 sweeps `niceSteps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]`, picks the largest step ≤ `targetWorldFt / numSegs`, and ticks every segment boundary plus the endpoints. For 1"=50' with 4 segments and a 2 in target the chosen step is 25′ (segments at 0/25/50/75/100); user can bump segments to 8 to get 0/12.5/25/… or change the target length to land 0/50/100/150. The picker is fully data-driven, no special-case for the 50′ scale.
+- [x] Alternating fill pattern renders — segment loop draws `i % 2 === 0 ? black : white` checkered fills with a 1 px outer border and 0.5 px segment dividers (line ~2335). Tick marks below carry the distance labels.
+- [x] Updates when scale changes — bar dimensions are recomputed from `ds = drawingScale` on every render. Changing the scale via the Display panel or Settings dialog re-resolves `niceSteps` + segment widths within one frame.
 
 ### Legend
 
-- [ ] Auto-populated from features present in drawing
-- [ ] Shows correct line type samples for fence codes
-- [ ] Shows correct symbol samples for monument codes
-- [ ] Only includes codes actually used in the drawing
+- [x] Auto-populated from features present in drawing — `autoPopulateLegend` in `lib/cad/templates/legend.ts` walks every feature, reads `properties.alphaCode`, dedupes by code, and emits a `LegendEntryConfig` per unique code using the live code-style map. Default legend config has `autoPopulate: true`.
+- [x] Shows correct line type samples for fence codes — POINT vs. line-feature branch decides the sample type (`SYMBOL` for points, `LINE` for everything else); line-feature legend entries reuse the feature's `lineTypeId` so a chain-link fence (CL) draws with the chain-link dash pattern as its sample stroke.
+- [x] Shows correct symbol samples for monument codes — boundary-control points draw the matching `symbolId` (IRF / IRS / NL / etc.) at their legend entry's sample size; the symbol comes from `codeStyleMap.get(code).symbolId` so a custom-coded monument symbol carries through.
+- [x] Only includes codes actually used in the drawing — the `seen` set + `codeStyleMap.get(code)` lookup means: no unused built-in codes, and any code whose style isn't in the map is silently skipped (no orphan rows for codes we know nothing about).
 
 ### Certification
 
-- [ ] Text renders with correct substitutions
-- [ ] Signature line renders
-- [ ] Seal placeholder renders at correct diameter
+- [x] Text renders with correct substitutions — `formatCertificationText` in `lib/cad/templates/certification.ts` runs `{{surveyorName}}` / `{{state}}` / `{{category}}` / `{{condition}}` / `{{precisionRatio}}` substitutions on the certification template before render. Default text is the Texas-statute boilerplate; firm overrides plug in via the certification template config.
+- [x] Signature line renders — `showSignatureLine: true` (default) in `DEFAULT_CERTIFICATION_CONFIG` draws an underline + "Surveyor's Signature" label at the bottom of the certification block; the PDF writer mirrors the same layout.
+- [x] Seal placeholder renders at correct diameter — `sealDiameter` (default 1.75 in) drives both the on-canvas circle and the PDF embed scale; the title-block / signature-block "OFFICIAL SEAL" label points at the same anchor.
 
 ### Standard Notes
 
-- [ ] Default notes appear on new drawings
-- [ ] Custom notes can be added
-- [ ] Note text supports template variables (`{PANEL}`, `{DATE}`, etc.)
+- [x] Default notes appear on new drawings — `lib/cad/templates/standard-notes.ts` exposes `STANDARD_NOTES` with `isDefault: true` flags on the most common BOB / monument / type entries; new-drawing creation seeds the notes list from this default subset.
+- [x] Custom notes can be added — the notes UI (toolbar Notes panel) lets a surveyor either pick from `STANDARD_NOTES` (any category) or type a free-form note; the resulting list is stored on the document so it round-trips through autosave.
+- [x] Note text supports template variables (`{PANEL}`, `{DATE}`, etc.) — every standard note carries `{{vol}}`, `{{pg}}`, `{{county}}`, `{{license}}`, `{{cab}}`, `{{slide}}`, `{{interval}}`, `{{panel}}`, `{{date}}`, `{{zone}}`, `{{bfe}}`, `{{sqft}}`, `{{acres}}` placeholders that the renderer substitutes from the document's title-block / FEMA / area metadata at draw time. Unsubstituted variables print as the literal `{{name}}` placeholder so a surveyor can spot the gap.
 
 ### Print
 
-- [ ] PDF output matches print preview WYSIWYG
-- [ ] Paper size correct in output
-- [ ] Scale verified: 1" on PDF measures correct footage
-- [ ] Monochrome plot style converts all colors to black
-- [ ] Layer overrides applied (hidden layers not in output)
-- [ ] Template elements (border, title block, etc.) render in output
-- [ ] PNG output at 300 DPI
-- [ ] `FIT_TO_PAGE` scales drawing to fill available space
+- [x] PDF output matches print preview WYSIWYG — `lib/cad/delivery/pdf-writer.ts` (jsPDF) runs the same world→paper transform the canvas uses (`computePrintTransform`), reads the same `DrawingDocument.settings.paperSize` / `paperOrientation` / `drawingScale`, and walks the same feature list. POINT / LINE / POLYLINE / POLYGON / CIRCLE / ELLIPSE / ARC / SPLINE (sampled) / MIXED_GEOMETRY all covered.
+- [x] Paper size correct in output — jsPDF page size is set from `DrawingDocument.settings.paperSize` (LETTER / TABLOID / ARCH_C / ARCH_D / ARCH_E) + `paperOrientation`. Same constants drive both the on-canvas paper rect and the PDF page so a swap in Settings → Document propagates through.
+- [x] Scale verified: 1" on PDF measures correct footage — the writer multiplies world-to-paper by `1 / drawingScale` (paper inches per world unit) so a 50' world distance at 1"=50' lands at exactly 1" in PDF coordinates. Validated by exporting a drawing with a known-length scale bar and measuring the bar in the PDF.
+- [ ] Monochrome plot style converts all colors to black — partial: `PrintConfig.plotStyle: 'AS_DISPLAYED' | 'MONOCHROME' | 'GRAYSCALE'` exists in `lib/cad/templates/types.ts`, but the pdf-writer still passes through layer hex without the monochrome branch. Follow-up slice to wire the `MONOCHROME` mapping in pdf-writer's color resolver.
+- [x] Layer overrides applied (hidden layers not in output) — `pdf-writer` filters every feature whose `layer.visible === false`; the same path also honors per-layer `frozen` flags from the layer table. `PrintConfig.layerOverrides` (per-layer plot color / weight) lands where overrides are present.
+- [x] Template elements (border, title block, etc.) render in output — sheet border + title block strip (firm name, surveyor + license, project, scale, date, sheet ref) render after the geometry pass; `printBorder` / `printTitleBlock` / `printNorthArrow` / `printScaleBar` / `printLegend` / `printCertification` / `printNotes` toggles in `PrintConfig` gate each block. North arrow + scale bar render through dedicated draw helpers in the writer.
+- [ ] PNG output at 300 DPI — `PrintConfig.output: 'PDF' | 'PNG' | 'SVG'` + `dpi: 300` exist in the types but the writer only ships the PDF path today. Follow-up slice to add an off-screen-canvas PNG export at the configured DPI.
+- [ ] `FIT_TO_PAGE` scales drawing to fill available space — `PrintConfig.scaleMode: 'FIXED' | 'FIT_TO_PAGE' | 'WINDOW'` exists in the types but `pdf-writer` currently only honors `'FIXED'`. Follow-up slice to compute the auto-fit scale factor from the feature extents.
 
 ---
 

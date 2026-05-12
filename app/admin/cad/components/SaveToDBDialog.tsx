@@ -4,11 +4,12 @@
 //   mode='save'  — save current drawing to the database
 //   mode='open'  — browse previously saved drawings and load one
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { cadLog } from '@/lib/cad/logger';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface SavedDrawingMeta {
   id: string;
@@ -28,6 +29,8 @@ interface Props {
 
 export default function SaveToDBDialog({ mode, onClose }: Props) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
@@ -142,7 +145,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
 
   // ── Delete handler ────────────────────────────────────────────────────
   async function handleDelete(id: string, name: string) {
-    if (!window.confirm(`Delete "${name}" from the database? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete "${name}" from your saved drawings? This cannot be undone.`)) return;
     try {
       const res = await fetch(`/api/admin/cad/drawings?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (!res.ok) {
@@ -157,6 +160,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 animate-[fadeIn_150ms_ease-out]"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
@@ -164,7 +168,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
           <h2 className="text-base font-bold text-white">
-            {mode === 'save' ? 'Save Drawing to Database' : 'Open Drawing from Database'}
+            {mode === 'save' ? 'Save Drawing' : 'Open Saved Drawing'}
           </h2>
           <button className="text-gray-400 hover:text-white text-lg leading-none" onClick={onClose}>✕</button>
         </div>
@@ -276,7 +280,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
               {saving && (
                 <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
               )}
-              {saving ? 'Saving…' : 'Save to Database'}
+              {saving ? 'Saving…' : 'Save Drawing'}
             </button>
           )}
         </div>

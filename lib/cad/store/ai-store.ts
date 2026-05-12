@@ -4,6 +4,14 @@
 // in-flight job status (idle / running / done / error), the
 // latest result, and the user-facing error message.
 //
+// Also hosts the Phase 6 §32 "AI Integration Framework" state:
+// the four-mode enum, the per-action sandbox toggle, and the
+// confidence threshold that drives AUTO escalation. Those
+// fields are persisted to localStorage via zustand's `persist`
+// middleware with a strict allow-list — the live pipeline
+// state (`status`, `result`, `error`, chat history, ...)
+// stays ephemeral so a refresh doesn't resurrect a stale run.
+//
 // The AIDrawingDialog reads + writes this; the ReviewQueuePanel
 // (Phase 6 UI slice 2) consumes the result + per-item status.
 // Per-item updates land back in the same `result.reviewQueue`
@@ -12,6 +20,14 @@
 // Pure client-side state. The actual pipeline call goes through
 // POST /api/admin/cad/ai-pipeline.
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type { AIProposal } from '../ai/proposals';
+import { executeProposal } from '../ai/proposals';
+import type { ToolResult } from '../ai/tool-registry';
+import {
+  buildAutoIntakePrompt,
+  snapshotFromFeatures,
+} from '../ai/auto-intake';
 
 import type {
   AIJobPayload,
@@ -28,7 +44,233 @@ import { useDrawingStore } from './drawing-store';
 
 export type AIPipelineStatus = 'idle' | 'running' | 'done' | 'error';
 
+/**
+ * Phase 6 §32 — four-mode AI integration framework.
+ * COPILOT is the default for fresh projects.
+ */
+export type AIMode = 'AUTO' | 'COPILOT' | 'COMMAND' | 'MANUAL';
+
+/**
+ * Phase 6 §32 Slice 7 — one entry in the Copilot sidebar
+ * transcript. `role` distinguishes surveyor input (USER) from
+ * narrative output (AI) and structured system acks (SYSTEM,
+ * e.g. "Accepted proposal", "AI offline").
+ */
+export interface AICopilotMessage {
+  id: string;
+  role: 'USER' | 'AI' | 'SYSTEM';
+  content: string;
+  /** ISO timestamp. */
+  ts: string;
+}
+
+/**
+ * Phase 6 §32 Slice 9 — metadata for a project reference
+ * document the surveyor has uploaded (deed PDF, recorded plat,
+ * hand sketch, prior drawing, …). We only persist a manifest
+ * of names/kinds — the actual file blobs live wherever the
+ * existing deed/import pipelines store them. The framework
+ * uses this list to (a) dampen confidence × 0.85 when empty,
+ * (b) feed `hasReferenceDocs` into the system prompt.
+ */
+export interface AIReferenceDoc {
+  id: string;
+  /** Surveyor-facing name. Filename when uploaded; freeform
+   *  when entered as a stub. */
+  name: string;
+  /** Coarse classification so the AI knows what to expect. */
+  kind: 'DEED' | 'PLAT' | 'SKETCH' | 'PRIOR_DRAWING' | 'OTHER';
+  /** ISO timestamp. */
+  addedAt: string;
+}
+
+/** Confidence dampening factor applied to every proposal that
+ *  lands while there are no reference docs (§32.6). 0.85 is the
+ *  spec value. */
+export const REFERENCE_DOC_DAMPENING = 0.85;
+
+/**
+ * Phase 6 §32 Slice 12 — one entry in the AI session timeline.
+ * Records enough metadata to replay an AI sequence against a
+ * different points file later. Persisted so the log survives
+ * reload (size is modest — a few hundred bytes per turn).
+ */
+export interface AIBatchLog {
+  id: string;
+  /** ms-since-epoch when the batch landed. */
+  createdAt: number;
+  /** Surveyor-typed prompt (or the AUTO intake prompt for AUTO
+   *  runs). Replay re-fires this verbatim so the AI works
+   *  against the new document state without re-tweaking. */
+  prompt: string;
+  /** Number of proposals the AI returned in this turn.
+   *  Informational only — replay doesn't need it. */
+  proposalCount: number;
+}
+
+/** Ordered list used by the cycle hotkey (Ctrl+Shift+M). */
+export const AI_MODE_CYCLE: AIMode[] = ['AUTO', 'COPILOT', 'COMMAND', 'MANUAL'];
+
 interface AIStore {
+  // ────────────────────────────────────────────────────────
+  // §32 Integration Framework — persisted fields
+  // ────────────────────────────────────────────────────────
+  /** Which of the four modes is active. Default COPILOT. */
+  mode: AIMode;
+  /** Per-action sandbox toggle. When ON, AI writes route to
+   *  `DRAFT__<targetname>` layers and require explicit promotion
+   *  via the §11.7 Layer Transfer kernel. Defaults follow §32.3:
+   *  AUTO → true, COPILOT → true, COMMAND → false. */
+  sandbox: boolean;
+  /** Confidence threshold (0–1). In AUTO mode, decisions below
+   *  this confidence pause the run and escalate to COPILOT for
+   *  that single step. Default 0.85. */
+  autoApproveThreshold: number;
+
+  setMode: (mode: AIMode) => void;
+  /** Cycle AUTO → COPILOT → COMMAND → MANUAL → AUTO. Bound to
+   *  Ctrl+Shift+M; also exposed via the status-bar mode chip. */
+  cycleMode: () => void;
+  setSandbox: (sandbox: boolean) => void;
+  setAutoApproveThreshold: (threshold: number) => void;
+
+  // ────────────────────────────────────────────────────────
+  // §32 Slice 5 — COPILOT proposal queue
+  // ────────────────────────────────────────────────────────
+  /** FIFO queue of proposals waiting for the surveyor to
+   *  Accept / Modify / Skip. The CopilotCard renders the head.
+   *  Ephemeral — not persisted (a fresh load starts empty). */
+  proposalQueue: AIProposal[];
+  /** Append a proposal to the tail. Used by both the real AI
+   *  adapter (Slice 6) and the mock proposer (tests). */
+  enqueueProposal: (proposal: AIProposal) => void;
+  /** Run the head proposal through `executeProposal`, then
+   *  dequeue. Returns the `ToolResult` so test code can assert
+   *  the kernel's response without scraping the drawing store.
+   *  `sandbox` overrides the proposal's `sandboxDefault` and
+   *  the store-wide default. */
+  acceptHeadProposal: (sandbox?: boolean) => ToolResult<unknown> | null;
+  /** Dequeue the head without executing. The proposal id is
+   *  returned so the AI adapter can NACK the model if needed. */
+  skipHeadProposal: () => string | null;
+  /** Drop every queued proposal. Used by mode-changes (leaving
+   *  COPILOT cancels in-flight cards) and by `clearProposalQueue`
+   *  in the test helpers. */
+  clearProposalQueue: () => void;
+
+  /** True while a `proposeFromPrompt` POST is in flight. The
+   *  chat sidebar / command palette wires a spinner off this. */
+  isProposing: boolean;
+  /** Last narrative Claude emitted alongside a proposal turn —
+   *  shown verbatim in the chat sidebar so the surveyor sees
+   *  caveats and clarifying questions before the card lands. */
+  lastProposeNarrative: string | null;
+  /** §32.13 Slice 6 — POST the surveyor's prompt to
+   *  /api/admin/cad/ai-propose. Enqueues every returned proposal
+   *  on the proposal queue and stashes the narrative for the
+   *  chat sidebar. Resolves once the proposals land or rejects
+   *  with the route's error message. */
+  proposeFromPrompt: (prompt: string) => Promise<void>;
+  /** §32.13 Slice 11 — kick off an AUTO run. Builds the intake
+   *  prompt from the current document + project context and
+   *  fires it through `proposeFromPrompt`. The surveyor sees
+   *  the intake in the transcript and can stop the run at any
+   *  feature boundary via Ctrl+Shift+P (which flips mode to
+   *  COPILOT — escalation handles the rest). */
+  startAutoRun: () => Promise<void>;
+
+  // ────────────────────────────────────────────────────────
+  // §32 Slice 7 — COPILOT / COMMAND chat sidebar
+  // ────────────────────────────────────────────────────────
+  /** Whether the AI Copilot sidebar is mounted-visible. The
+   *  status-bar mode chip + Ctrl+Shift+C focus action both
+   *  open it. Persisted so the surveyor's last layout sticks. */
+  isCopilotSidebarOpen: boolean;
+  openCopilotSidebar: () => void;
+  closeCopilotSidebar: () => void;
+  toggleCopilotSidebar: () => void;
+  /** Surveyor-visible transcript. USER turns are typed; AI
+   *  turns are either narratives from `proposeFromPrompt`
+   *  responses or short acknowledgements when a proposal is
+   *  accepted / skipped. Ephemeral. */
+  copilotChat: AICopilotMessage[];
+  /** Pre-composed text seeded into the sidebar input when an
+   *  external surface opens the chat (right-click "Ask AI
+   *  about this…", a palette entry, etc.). Consumed + cleared
+   *  by the sidebar on next render. */
+  pendingPrompt: string | null;
+  /** Append one message to the transcript. */
+  appendCopilotMessage: (m: AICopilotMessage) => void;
+  /** Open the sidebar + seed `pendingPrompt`. The sidebar reads
+   *  it on mount / next render, places it in the input, and
+   *  clears it. */
+  openCopilotWithPrompt: (prompt: string) => void;
+  /** Clear the live transcript. */
+  clearCopilotChat: () => void;
+
+  // ────────────────────────────────────────────────────────
+  // §32 Slice 8 — code-resolution memory + AUTO escalation
+  // ────────────────────────────────────────────────────────
+  /**
+   * Code-disambiguation answers the surveyor has already given
+   * in this project. When the AI proposes a layer for a code
+   * the surveyor's previously resolved, it can pull the answer
+   * straight from here rather than re-asking. Keyed by the
+   * code (case-insensitive; we canonicalise to upper-case).
+   * Persisted so a surveyor doesn't lose their resolutions on
+   * a reload.
+   */
+  codeResolutionMemory: Record<string, { layerId: string; answeredAt: number }>;
+  /** Store / overwrite one code → layer resolution. The
+   *  `code` is canonicalised to upper-case before storing so
+   *  case-insensitive matches work in both directions. */
+  recordCodeResolution: (code: string, layerId: string) => void;
+  /** Remove one resolution (surveyor changed their mind). */
+  forgetCodeResolution: (code: string) => void;
+  /** Clear every resolution — e.g. when the surveyor opens a
+   *  brand-new project file and old answers no longer apply. */
+  clearCodeResolutionMemory: () => void;
+
+  // ────────────────────────────────────────────────────────
+  // §32 Slice 9 — reference-doc manifest + dampening
+  // ────────────────────────────────────────────────────────
+  /** Project reference documents the surveyor has uploaded.
+   *  Empty by default; populated by the existing deed / plat
+   *  pipelines via `addReferenceDoc` (Phase 6 §6 / §32.6).
+   *  Persisted across reloads. */
+  referenceDocs: AIReferenceDoc[];
+  addReferenceDoc: (doc: Omit<AIReferenceDoc, 'id' | 'addedAt'>) => void;
+  removeReferenceDoc: (id: string) => void;
+  clearReferenceDocs: () => void;
+
+  // ────────────────────────────────────────────────────────
+  // §32 Slice 12 — replay timeline
+  // ────────────────────────────────────────────────────────
+  /** Append-only log of every successful AI turn this project.
+   *  `proposeFromPrompt` auto-records on success; the replay
+   *  command walks the log and re-fires every prompt against
+   *  the current document state. */
+  aiBatches: AIBatchLog[];
+  /** Drop one log entry by id. Used by the replay-management
+   *  UI to skip stale turns. */
+  removeAIBatch: (id: string) => void;
+  /** Wipe every log entry — typically called before kicking
+   *  off a fresh project so old turns don't bleed in. */
+  clearAIBatches: () => void;
+  /**
+   * Re-fire every recorded turn's prompt in order via
+   * `proposeFromPrompt`. The current document state acts as
+   * the "new points file" — surveyors point at an updated
+   * document and replay produces a fresh draft drawing.
+   *
+   * Returns `{ replayed, failed }`. Aborts cleanly on
+   * `options.signal`. Each turn awaits the previous one so
+   * the proposal queue receives them in source order.
+   */
+  replayAISequence: (
+    options?: { signal?: AbortSignal },
+  ) => Promise<{ replayed: number; failed: number; aborted: boolean }>;
+
   // Dialog visibility.
   isDialogOpen: boolean;
   openDialog: () => void;
@@ -146,7 +388,332 @@ interface AIStore {
   ) => Promise<void>;
 }
 
-export const useAIStore = create<AIStore>((set, get) => ({
+/**
+ * Default sandbox value for each mode per §32.3. AUTO/COPILOT
+ * default to sandbox-on (safer); COMMAND defaults to live
+ * (surveyor explicitly asked for the action); MANUAL is N/A
+ * and just keeps the current value untouched.
+ */
+function defaultSandboxFor(mode: AIMode): boolean {
+  if (mode === 'COMMAND') return false;
+  return true;
+}
+
+export const useAIStore = create<AIStore>()(persist((set, get) => ({
+  // §32 framework — defaults documented in §32.1/§32.3/§32.5.
+  mode: 'COPILOT',
+  sandbox: true,
+  autoApproveThreshold: 0.85,
+
+  setMode: (mode) =>
+    set((s) => {
+      if (s.mode === mode) return s;
+      return {
+        mode,
+        sandbox: defaultSandboxFor(mode),
+        // §32 Slice 7 — mode change drives the sidebar default:
+        // COPILOT / COMMAND auto-open it; MANUAL closes it.
+        isCopilotSidebarOpen: mode !== 'MANUAL',
+      };
+    }),
+  cycleMode: () =>
+    set((s) => {
+      const i = AI_MODE_CYCLE.indexOf(s.mode);
+      const next = AI_MODE_CYCLE[(i + 1) % AI_MODE_CYCLE.length];
+      return {
+        mode: next,
+        sandbox: defaultSandboxFor(next),
+        isCopilotSidebarOpen: next !== 'MANUAL',
+      };
+    }),
+  setSandbox: (sandbox) => set({ sandbox }),
+  setAutoApproveThreshold: (threshold) =>
+    set({ autoApproveThreshold: Math.max(0, Math.min(1, threshold)) }),
+
+  // §32 Slice 5 — COPILOT proposal queue
+  proposalQueue: [],
+  enqueueProposal: (proposal) =>
+    set((s) => ({ proposalQueue: [...s.proposalQueue, proposal] })),
+  acceptHeadProposal: (sandbox) => {
+    const state = get();
+    const head = state.proposalQueue[0];
+    if (!head) return null;
+    const effectiveSandbox =
+      typeof sandbox === 'boolean'
+        ? sandbox
+        : (head.sandboxDefault ?? state.sandbox);
+    const result = executeProposal(head, effectiveSandbox);
+    set((s) => ({ proposalQueue: s.proposalQueue.slice(1) }));
+    return result;
+  },
+  skipHeadProposal: () => {
+    const state = get();
+    const head = state.proposalQueue[0];
+    if (!head) return null;
+    set((s) => ({ proposalQueue: s.proposalQueue.slice(1) }));
+    return head.id;
+  },
+  clearProposalQueue: () => set({ proposalQueue: [] }),
+
+  isProposing: false,
+  lastProposeNarrative: null,
+  isCopilotSidebarOpen: false,
+  copilotChat: [],
+  pendingPrompt: null,
+  openCopilotSidebar: () => set({ isCopilotSidebarOpen: true }),
+  closeCopilotSidebar: () => set({ isCopilotSidebarOpen: false }),
+  toggleCopilotSidebar: () =>
+    set((s) => ({ isCopilotSidebarOpen: !s.isCopilotSidebarOpen })),
+  appendCopilotMessage: (m) =>
+    set((s) => ({ copilotChat: [...s.copilotChat, m] })),
+  openCopilotWithPrompt: (prompt) =>
+    set({ isCopilotSidebarOpen: true, pendingPrompt: prompt }),
+  clearCopilotChat: () => set({ copilotChat: [], pendingPrompt: null }),
+
+  // §32 Slice 8 — code-resolution memory.
+  codeResolutionMemory: {},
+  recordCodeResolution: (code, layerId) => {
+    const key = code.trim().toUpperCase();
+    if (key.length === 0 || layerId.length === 0) return;
+    set((s) => ({
+      codeResolutionMemory: {
+        ...s.codeResolutionMemory,
+        [key]: { layerId, answeredAt: Date.now() },
+      },
+    }));
+  },
+  forgetCodeResolution: (code) => {
+    const key = code.trim().toUpperCase();
+    set((s) => {
+      if (!(key in s.codeResolutionMemory)) return s;
+      const next = { ...s.codeResolutionMemory };
+      delete next[key];
+      return { codeResolutionMemory: next };
+    });
+  },
+  clearCodeResolutionMemory: () => set({ codeResolutionMemory: {} }),
+
+  // §32 Slice 9 — reference-doc manifest.
+  referenceDocs: [],
+  addReferenceDoc: (doc) => {
+    const trimmedName = doc.name.trim();
+    if (trimmedName.length === 0) return;
+    const entry: AIReferenceDoc = {
+      id: 'doc_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+      name: trimmedName,
+      kind: doc.kind,
+      addedAt: new Date().toISOString(),
+    };
+    set((s) => ({ referenceDocs: [...s.referenceDocs, entry] }));
+  },
+  removeReferenceDoc: (id) =>
+    set((s) => ({
+      referenceDocs: s.referenceDocs.filter((d) => d.id !== id),
+    })),
+  clearReferenceDocs: () => set({ referenceDocs: [] }),
+
+  // §32 Slice 12 — replay timeline.
+  aiBatches: [],
+  removeAIBatch: (id) =>
+    set((s) => ({ aiBatches: s.aiBatches.filter((b) => b.id !== id) })),
+  clearAIBatches: () => set({ aiBatches: [] }),
+  replayAISequence: async (options) => {
+    const log = get().aiBatches;
+    if (log.length === 0) {
+      return { replayed: 0, failed: 0, aborted: false };
+    }
+    let replayed = 0;
+    let failed = 0;
+    for (const entry of log) {
+      if (options?.signal?.aborted) {
+        return { replayed, failed, aborted: true };
+      }
+      const prior = get().lastProposeNarrative;
+      try {
+        await get().proposeFromPrompt(entry.prompt);
+      } catch {
+        failed++;
+        continue;
+      }
+      // `proposeFromPrompt` writes `lastProposeNarrative` on
+      // both ok and error paths (errors come back with a ⚠
+      // prefix). Treat "narrative starts with ⚠ and changed
+      // during the call" as a failure indicator.
+      const next = get().lastProposeNarrative;
+      if (
+        typeof next === 'string' &&
+        next !== prior &&
+        next.startsWith('⚠')
+      ) {
+        failed++;
+      } else {
+        replayed++;
+      }
+    }
+    return { replayed, failed, aborted: false };
+  },
+
+  proposeFromPrompt: async (prompt: string) => {
+    const trimmed = prompt.trim();
+    if (trimmed.length === 0) return;
+    const drawing = useDrawingStore.getState();
+    const ai = get();
+    const context = {
+      layers: Object.values(drawing.document.layers)
+        .filter((l) => !l.name.startsWith('SURVEY-INFO'))
+        .map((l) => ({ id: l.id, name: l.name, color: l.color })),
+      activeLayerId: drawing.activeLayerId,
+      mode: ai.mode,
+      sandboxDefault: ai.sandbox,
+      autoApproveThreshold: ai.autoApproveThreshold,
+      // §32.4 — let the model see prior code resolutions so
+      // it doesn't keep asking about codes the surveyor's
+      // already answered.
+      codeResolutions: ai.codeResolutionMemory,
+      // §32.6 — tell the model what reference docs (if any)
+      // have been uploaded so it can be more cautious when
+      // running blind.
+      referenceDocs: ai.referenceDocs.map((d) => ({
+        name: d.name,
+        kind: d.kind,
+      })),
+    };
+    // Mirror the USER turn into the sidebar transcript before
+    // we wait on the network so the surveyor sees their own
+    // prompt land instantly.
+    const userMsg: AICopilotMessage = {
+      id: copilotMsgId(),
+      role: 'USER',
+      content: trimmed,
+      ts: new Date().toISOString(),
+    };
+    set((s) => ({
+      copilotChat: [...s.copilotChat, userMsg],
+      isProposing: true,
+    }));
+    try {
+      const res = await fetch('/api/admin/cad/ai-propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: trimmed, context }),
+      });
+      const json = (await res.json().catch(() => ({}))) as
+        | {
+            proposals: AIProposal[];
+            narrative: string;
+          }
+        | { error?: string };
+      if (!res.ok) {
+        const msg =
+          (json as { error?: string }).error ??
+          `AI proposer failed (${res.status}).`;
+        set((s) => ({
+          isProposing: false,
+          lastProposeNarrative: `⚠ ${msg}`,
+          copilotChat: [...s.copilotChat, {
+            id: copilotMsgId(), role: 'SYSTEM', content: `⚠ ${msg}`,
+            ts: new Date().toISOString(),
+          }],
+        }));
+        return;
+      }
+      const ok = json as { proposals: AIProposal[]; narrative: string };
+      // §32.6 — dampen confidence × 0.85 on every proposal
+      // when no reference docs are loaded. Stamps the dampened
+      // value back into provenance so the right-click "Why did
+      // AI draw this?" popup shows the actual confidence the
+      // surveyor saw.
+      const hasRefs = ai.referenceDocs.length > 0;
+      const incoming = (ok.proposals ?? []).map((p) =>
+        hasRefs
+          ? p
+          : {
+              ...p,
+              confidence: p.confidence * REFERENCE_DOC_DAMPENING,
+              provenance: {
+                ...p.provenance,
+                aiConfidence: p.provenance.aiConfidence * REFERENCE_DOC_DAMPENING,
+              },
+            },
+      );
+      const replyTurns: AICopilotMessage[] = [];
+      if (ok.narrative.length > 0) {
+        replyTurns.push({
+          id: copilotMsgId(),
+          role: 'AI',
+          content: ok.narrative,
+          ts: new Date().toISOString(),
+        });
+      }
+      if (incoming.length > 0) {
+        const dampenSuffix = hasRefs
+          ? ''
+          : ` (confidence dampened ×${REFERENCE_DOC_DAMPENING} — no reference docs)`;
+        replyTurns.push({
+          id: copilotMsgId(),
+          role: 'SYSTEM',
+          content:
+            `Queued ${incoming.length} proposal${incoming.length === 1 ? '' : 's'} for review (see COPILOT card)${dampenSuffix}.`,
+          ts: new Date().toISOString(),
+        });
+      }
+      // §32 Slice 12 — auto-record the turn in the replay log.
+      const batchEntry: AIBatchLog = {
+        id: copilotMsgId().replace('aic_', 'bat_'),
+        createdAt: Date.now(),
+        prompt: trimmed,
+        proposalCount: incoming.length,
+      };
+      set((s) => ({
+        proposalQueue: [...s.proposalQueue, ...incoming],
+        lastProposeNarrative: ok.narrative.length > 0 ? ok.narrative : null,
+        copilotChat: [...s.copilotChat, ...replyTurns],
+        aiBatches: [...s.aiBatches, batchEntry],
+        isProposing: false,
+      }));
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      set((s) => ({
+        isProposing: false,
+        lastProposeNarrative: `⚠ ${errMsg}`,
+        copilotChat: [...s.copilotChat, {
+          id: copilotMsgId(), role: 'SYSTEM', content: `⚠ ${errMsg}`,
+          ts: new Date().toISOString(),
+        }],
+      }));
+    }
+  },
+
+  startAutoRun: async () => {
+    // Sidebar opens on its own when mode flips to AUTO, but
+    // mode might already be AUTO — make sure the surveyor
+    // sees the transcript regardless.
+    const ai = get();
+    if (!ai.isCopilotSidebarOpen) {
+      set({ isCopilotSidebarOpen: true });
+    }
+    const drawing = useDrawingStore.getState();
+    const snapshot = snapshotFromFeatures(
+      Object.values(drawing.document.features),
+    );
+    const context = {
+      layers: Object.values(drawing.document.layers)
+        .filter((l) => !l.name.startsWith('SURVEY-INFO'))
+        .map((l) => ({ id: l.id, name: l.name, color: l.color })),
+      activeLayerId: drawing.activeLayerId,
+      mode: ai.mode,
+      sandboxDefault: ai.sandbox,
+      autoApproveThreshold: ai.autoApproveThreshold,
+      codeResolutions: ai.codeResolutionMemory,
+      referenceDocs: ai.referenceDocs.map((d) => ({
+        name: d.name,
+        kind: d.kind,
+      })),
+    };
+    const prompt = buildAutoIntakePrompt(snapshot, context);
+    await get().proposeFromPrompt(prompt);
+  },
+
   isDialogOpen: false,
   isQueuePanelOpen: false,
   isQuestionDialogOpen: false,
@@ -590,6 +1157,26 @@ export const useAIStore = create<AIStore>((set, get) => ({
       );
       return rebuildDeliberation(state, questions);
     }),
+}), {
+  name: 'starr-cad-ai-store',
+  // Persist ONLY the §32 framework fields. Pipeline state
+  // (status / result / error / chat / staleExplanationIds /
+  // lastPayload) stays ephemeral — a page reload should not
+  // resurrect a half-finished AI run.
+  partialize: (state) => ({
+    mode: state.mode,
+    sandbox: state.sandbox,
+    autoApproveThreshold: state.autoApproveThreshold,
+    isCopilotSidebarOpen: state.isCopilotSidebarOpen,
+    // §32 Slice 8 — persist code-disambiguations so the
+    // surveyor doesn't lose them on reload.
+    codeResolutionMemory: state.codeResolutionMemory,
+    // §32 Slice 9 — persist the reference-doc manifest.
+    referenceDocs: state.referenceDocs,
+    // §32 Slice 12 — persist the replay timeline so the surveyor
+    // can run a sequence across sessions.
+    aiBatches: state.aiBatches,
+  }),
 }));
 
 // ────────────────────────────────────────────────────────────
@@ -661,6 +1248,16 @@ function appendChatMessage(
     result: { ...state.result, explanations },
     chatLoadingByFeature,
   };
+}
+
+/** Tight, dependency-free id for the §32 Copilot transcript. */
+function copilotMsgId(): string {
+  return (
+    'aic_' +
+    Date.now().toString(36) +
+    '_' +
+    Math.random().toString(36).slice(2, 8)
+  );
 }
 
 function chatMessageId(): string {

@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { logError } from '@/lib/log';
 import { promptForSettings } from '@/lib/permissionGuard';
 import { TextField } from '@/lib/TextField';
@@ -87,19 +88,7 @@ function PickJobStep({
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
-      <View style={styles.headerRow}>
-        <Text style={[styles.heading, { color: palette.text }]}>New point</Text>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Cancel"
-          style={styles.closeButton}
-        >
-          <Text style={[styles.closeText, { color: palette.muted }]}>
-            Cancel
-          </Text>
-        </Pressable>
-      </View>
+      <ScreenHeader back title="New Point" />
       <Text style={[styles.subtitle, { color: palette.muted }]}>
         Pick a job to attach this point to.
       </Text>
@@ -302,21 +291,7 @@ function CreatePointStep({ palette, jobId, onChangeJob }: CreatePointStepProps) 
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.headerRow}>
-            <Text style={[styles.heading, { color: palette.text }]}>
-              New point
-            </Text>
-            <Pressable
-              onPress={() => router.back()}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-              style={styles.closeButton}
-            >
-              <Text style={[styles.closeText, { color: palette.muted }]}>
-                Cancel
-              </Text>
-            </Pressable>
-          </View>
+          <ScreenHeader back title="New Point" />
 
           {/* Job summary — tap to switch jobs */}
           <Pressable
@@ -397,8 +372,8 @@ function CreatePointStep({ palette, jobId, onChangeJob }: CreatePointStepProps) 
                 <Text style={[styles.prefixHint, { color: palette.danger }]}>
                   Unknown prefix &quot;{prefix}&quot; — point will save as-is, but
                   the office reviewer won&apos;t see a category color. Ask
-                  Henry to add &quot;{prefix}&quot; to the library if you use it
-                  often.
+                  the office to add &quot;{prefix}&quot; to the library if you use
+                  it often.
                 </Text>
               )
             ) : null}
@@ -546,20 +521,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 32,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  heading: {
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  closeButton: { padding: 8 },
-  closeText: { fontSize: 16, fontWeight: '500' },
   subtitle: {
     fontSize: 14,
     paddingHorizontal: 24,

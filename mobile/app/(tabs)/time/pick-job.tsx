@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import * as haptics from '@/lib/haptics';
 import { logError } from '@/lib/log';
 import { useJobs, type Job } from '@/lib/jobs';
 import { useClockIn, type EntryType } from '@/lib/timeTracking';
@@ -20,6 +21,7 @@ import {
 } from '@/lib/trackingConsent';
 import { TrackingConsentModal } from '@/lib/TrackingConsentModal';
 import { useVehicles, type Vehicle } from '@/lib/vehicles';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { colors } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
 
@@ -75,6 +77,7 @@ export default function PickJobScreen() {
     result: Awaited<ReturnType<ReturnType<typeof useClockIn>>>,
     label: string
   ) => {
+    haptics.success();
     if (!result.hasGps) {
       Alert.alert(
         `Clocked into ${label} — no GPS fix`,
@@ -183,7 +186,7 @@ export default function PickJobScreen() {
       case 'timeout':
         return "Couldn't reach a satellite in time. Your clock-in is recorded but the start point won't appear on the map. Try moving outside if the fix is needed.";
       default:
-        return 'Your start point won’t appear on the map. Henry can correct mileage from the web admin if needed.';
+        return 'Your start point won’t appear on the map. The office can correct mileage from the admin site if needed.';
     }
   };
 
@@ -192,17 +195,7 @@ export default function PickJobScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top', 'bottom']}
     >
-      <View style={styles.headerRow}>
-        <Text style={[styles.heading, { color: palette.text }]}>Clock in</Text>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Cancel"
-          style={styles.closeButton}
-        >
-          <Text style={[styles.closeText, { color: palette.muted }]}>Cancel</Text>
-        </Pressable>
-      </View>
+      <ScreenHeader back title="Clock in" />
 
       <FlatList
         data={jobs}
@@ -393,25 +386,6 @@ function paletteOf(scheme: 'light' | 'dark') {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  heading: {
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  closeButton: {
-    padding: 8,
-  },
-  closeText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
   sectionLabel: {
     fontSize: 12,
     fontWeight: '500',

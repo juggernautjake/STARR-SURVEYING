@@ -44,6 +44,7 @@ import {
   useOwnStopsForDate,
   useOwnTimelineSummary,
 } from '@/lib/locationTracker';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { colors } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
 
@@ -69,22 +70,7 @@ export default function PrivacyScreen() {
     >
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back to Me"
-          hitSlop={12}
-        >
-          <Text style={[styles.backChevron, { color: palette.accent }]}>
-            ‹ Back
-          </Text>
-        </Pressable>
-        <Text style={[styles.title, { color: palette.text }]}>
-          Privacy & Tracking
-        </Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      <ScreenHeader back title="Privacy & Tracking" />
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <View
@@ -393,23 +379,6 @@ function paletteOf(scheme: 'light' | 'dark') {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-    justifyContent: 'space-between',
-  },
-  backChevron: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  headerSpacer: { width: 60 },
   scroll: {
     paddingHorizontal: 16,
     paddingBottom: 32,

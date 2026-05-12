@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
-import Link from 'next/link';
 import DOMPurify from 'dompurify';
 import { usePageError } from '../../hooks/usePageError';
 import PipelineStepper from '../components/PipelineStepper';
+import { confirm as confirmDialog } from '../components/ConfirmDialog';
 import DocumentUploadPanel from '../components/DocumentUploadPanel';
 import PropertySearchPanel from '../components/PropertySearchPanel';
 import ResearchAnalysisPanel from '../components/ResearchAnalysisPanel';
@@ -202,6 +202,19 @@ export default function ResearchProjectPage() {
   const [project, setProject] = useState<ResearchProject | null>(null);
   const [documents, setDocuments] = useState<ResearchDocument[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Dynamic browser-tab title so multi-tab users can tell projects
+  // apart. Restores the generic title on unmount.
+  useEffect(() => {
+    const name = project?.name?.trim();
+    document.title = name && name.length > 0
+      ? `${name} — Research`
+      : 'Research — Starr Surveying';
+    return () => {
+      document.title = 'Research — Starr Surveying';
+    };
+  }, [project?.name]);
+
   const [stats, setStats] = useState({ document_count: 0, data_point_count: 0, discrepancy_count: 0, resolved_count: 0 });
 
   // Review pipeline logs are loaded on-demand by PipelineProgressPanel via onLoadLogs
@@ -229,6 +242,26 @@ export default function ResearchProjectPage() {
 
   // Review state
   const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'discrepancies' | 'artifacts'>('summary');
+  // Scroll target for the Quick-stats actionable tiles (Slice C4).
+  // Tapping Data Points / Discrepancies / Resolved jumps to the
+  // review summary panel and switches to the relevant tab so the
+  // user lands in front of the actual rows, not just a number.
+  const reviewPanelRef = useRef<HTMLDivElement | null>(null);
+  const scrollToReview = useCallback(
+    (tab: typeof reviewTab) => {
+      setReviewTab(tab);
+      // Defer a frame so the tab switch renders before we scroll —
+      // otherwise the layout shift races the scroll and the user
+      // lands mid-transition.
+      requestAnimationFrame(() => {
+        reviewPanelRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      });
+    },
+    []
+  );
   const [showBriefing, setShowBriefing] = useState(true);
   const [viewerDoc, setViewerDoc] = useState<ResearchDocument | null>(null);
   const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
@@ -418,7 +451,13 @@ export default function ResearchProjectPage() {
   }
 
   async function handleArchiveProject() {
-    if (!window.confirm('Archive this project? It will be hidden from the project list but can be recovered later.')) return;
+    const ok = await confirmDialog({
+      title: 'Archive this project?',
+      body: 'It will be hidden from the project list but can be recovered later.',
+      confirmLabel: 'Archive',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/admin/research?id=${projectId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -507,7 +546,13 @@ export default function ResearchProjectPage() {
       message += '\n\nYour drawings and extracted data will remain intact.';
     }
 
-    if (!window.confirm(message)) return;
+    const ok = await confirmDialog({
+      title: 'Revert workflow step?',
+      body: message,
+      confirmLabel: 'Revert',
+      tone: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch('/api/admin/research', {
@@ -722,7 +767,13 @@ export default function ResearchProjectPage() {
   }
 
   async function handleArchiveDrawing(drawingId: string, drawingName: string) {
-    if (!window.confirm(`Archive "${drawingName}"? It will be hidden from the list but can be recovered.`)) return;
+    const ok = await confirmDialog({
+      title: `Archive "${drawingName}"?`,
+      body: 'It will be hidden from the list but can be recovered.',
+      confirmLabel: 'Archive',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -738,7 +789,13 @@ export default function ResearchProjectPage() {
   }
 
   async function handleDeleteDrawing(drawingId: string, drawingName: string) {
-    if (!window.confirm(`Permanently delete "${drawingName}"? This cannot be undone.`)) return;
+    const ok = await confirmDialog({
+      title: `Permanently delete "${drawingName}"?`,
+      body: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}?permanent=true`, { method: 'DELETE' });
       if (res.ok) {
@@ -1120,8 +1177,14 @@ export default function ResearchProjectPage() {
   }
 
   // Reset to original (regenerated) version
-  function handleResetOriginal() {
-    if (!window.confirm('This will discard ALL changes and reset the drawing to its original generated version. Continue?')) return;
+  async function handleResetOriginal() {
+    const ok = await confirmDialog({
+      title: 'Discard all changes?',
+      body: 'This resets the drawing to its original AI-generated version. All edits and annotations will be lost.',
+      confirmLabel: 'Reset',
+      tone: 'danger',
+    });
+    if (!ok) return;
     if (originalElements.length > 0) {
       setDrawingElements(originalElements);
     }
@@ -1133,9 +1196,15 @@ export default function ResearchProjectPage() {
   }
 
   // Reset to last saved version
-  function handleResetLastSaved() {
+  async function handleResetLastSaved() {
     if (!lastSavedAt) return;
-    if (!window.confirm('Revert to the last saved version? Unsaved changes will be lost.')) return;
+    const ok = await confirmDialog({
+      title: 'Revert to last saved version?',
+      body: 'Unsaved changes will be lost.',
+      confirmLabel: 'Revert',
+      tone: 'danger',
+    });
+    if (!ok) return;
     if (activeDrawing) {
       loadDrawingDetail(activeDrawing.id);
     }
@@ -1236,7 +1305,12 @@ export default function ResearchProjectPage() {
   }
 
   async function handleMarkComplete() {
-    if (!window.confirm('Mark this research project as complete?')) return;
+    const ok = await confirmDialog({
+      title: 'Mark this research project as complete?',
+      body: 'Once marked complete, the project moves out of the active list.',
+      confirmLabel: 'Mark complete',
+    });
+    if (!ok) return;
     try {
       const res = await fetch('/api/admin/research', {
         method: 'PATCH',
@@ -1542,24 +1616,9 @@ export default function ResearchProjectPage() {
         </button>
       </div>
 
-      {/* Project Navigation Bar */}
-      <div className="research-project-nav">
-        <Link href={`/admin/research/${projectId}/boundary`} className="research-project-nav__link">
-          📐 Boundary Viewer
-        </Link>
-        <Link href={`/admin/research/${projectId}/documents`} className="research-project-nav__link">
-          📁 Documents
-        </Link>
-        <Link href={`/admin/research/${projectId}/report`} className="research-project-nav__link">
-          📱 Field Report
-        </Link>
-        <Link href="/admin/research/library" className="research-project-nav__link">
-          📚 Library
-        </Link>
-        <Link href="/admin/research/billing" className="research-project-nav__link">
-          💳 Billing
-        </Link>
-      </div>
+      {/* Project nav lives in [projectId]/layout.tsx so every
+          sub-route inherits it. The hub no longer renders the
+          duplicate markup. */}
 
       {/* Header */}
       <div className="research-page__header">
@@ -1606,28 +1665,59 @@ export default function ResearchProjectPage() {
         onStageClick={project.status !== 'analyzing' ? handleRevertToStep : undefined}
       />
 
-      {/* Quick stats */}
+      {/* Quick stats — actionable buttons (Slice C4). Each tile is
+          a proper button so keyboard users get focus + Enter to
+          activate, and screen readers announce the destination.
+          The Documents tile pushes the sub-route; the rest jump
+          to the review summary panel + open the matching tab. */}
       <div className="research-hub__stats">
-        <div className="research-hub__stat">
+        <button
+          type="button"
+          className="research-hub__stat research-hub__stat--button"
+          onClick={() => router.push(`/admin/research/${projectId}/documents`)}
+          aria-label={`${stats.document_count} documents — open documents library`}
+        >
           <div className="research-hub__stat-value">{stats.document_count}</div>
           <div className="research-hub__stat-label">Documents</div>
-        </div>
-        <div className="research-hub__stat">
+        </button>
+        <button
+          type="button"
+          className="research-hub__stat research-hub__stat--button"
+          onClick={() => scrollToReview('artifacts')}
+          disabled={stats.data_point_count === 0}
+          aria-label={`${stats.data_point_count} data points — open artifacts tab`}
+        >
           <div className="research-hub__stat-value">{stats.data_point_count}</div>
           <div className="research-hub__stat-label">Data Points</div>
-        </div>
-        <div className="research-hub__stat">
+        </button>
+        <button
+          type="button"
+          className="research-hub__stat research-hub__stat--button"
+          onClick={() => scrollToReview('discrepancies')}
+          disabled={stats.discrepancy_count === 0}
+          aria-label={`${stats.discrepancy_count} discrepancies — open discrepancies tab`}
+        >
           <div className="research-hub__stat-value">{stats.discrepancy_count}</div>
           <div className="research-hub__stat-label">Discrepancies</div>
-        </div>
-        <div className="research-hub__stat">
+        </button>
+        <button
+          type="button"
+          className="research-hub__stat research-hub__stat--button"
+          onClick={() => scrollToReview('discrepancies')}
+          disabled={stats.discrepancy_count === 0}
+          aria-label={
+            stats.discrepancy_count > 0
+              ? `${stats.resolved_count} of ${stats.discrepancy_count} discrepancies resolved — open discrepancies tab`
+              : 'No discrepancies to resolve yet'
+          }
+        >
           <div className="research-hub__stat-value">
             {stats.discrepancy_count > 0
               ? `${stats.resolved_count}/${stats.discrepancy_count}`
               : '-'}
           </div>
           <div className="research-hub__stat-label">Resolved</div>
-        </div>
+        </button>
       </div>
 
       {/* ════════════════════════════════════════════════════════════════
@@ -1827,7 +1917,7 @@ export default function ResearchProjectPage() {
           {/* ══════════════════════════════════════════════════════════
               SECTION 1 — Summary Panel with Tabs
               ══════════════════════════════════════════════════════ */}
-          <div className="review-summary-panel">
+          <div className="review-summary-panel" ref={reviewPanelRef}>
             {/* Tab bar */}
             <div className="review-summary-panel__tabs">
               {(['summary', 'property', 'survey', 'easements', 'discrepancies', 'artifacts'] as const).map(tab => (
@@ -2866,8 +2956,16 @@ export default function ResearchProjectPage() {
                 <>
                   <button
                     className="research-drawing__back-btn"
-                    onClick={() => {
-                      if (hasUnsavedChanges && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+                    onClick={async () => {
+                      if (hasUnsavedChanges) {
+                        const ok = await confirmDialog({
+                          title: 'Leave without saving?',
+                          body: 'You have unsaved changes. They will be discarded.',
+                          confirmLabel: 'Leave',
+                          tone: 'danger',
+                        });
+                        if (!ok) return;
+                      }
                       setActiveDrawing(null); setDrawingElements([]); setDrawingSvg(''); setSelectedElement(null); setShowPrefsPanel(false);
                       setCanvasZoom(1); setHasUnsavedChanges(false);
                     }}

@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { useToolStore, useSelectionStore, useViewportStore, useDrawingStore } from '@/lib/cad/store';
 import Tooltip from './Tooltip';
+import UnitInput from './UnitInput';
 import {
   rotateSelection,
   scaleSelection,
@@ -863,16 +864,15 @@ export default function ToolOptionsBar() {
           >
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-gray-400 shrink-0">Tol:</span>
-              <input
-                type="number"
-                min={0.01}
-                step={0.1}
-                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-orange-500"
+              <UnitInput
+                kind="length"
+                compact
                 value={ts.simplifyTolerance}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v) && v > 0) toolStore.setSimplifyTolerance(v);
-                }}
+                onChange={(v) => { if (v > 0) toolStore.setSimplifyTolerance(v); }}
+                defaultUnit="FT"
+                inputClassName="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-orange-500"
+                focusBorderClass="focus:border-orange-500"
+                description="Simplification tolerance — accepts unit suffixes like 6in, 0.5ft, 0.1m."
               />
               <span className="text-[10px] text-gray-500">ft</span>
             </div>
@@ -927,16 +927,15 @@ export default function ToolOptionsBar() {
           >
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-gray-400 shrink-0">Dist:</span>
-              <input
-                type="number"
-                min={0}
-                step={1}
-                className="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-lime-500"
+              <UnitInput
+                kind="length"
+                compact
                 value={ts.pointAtDistanceValue}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v) && v >= 0) toolStore.setPointAtDistanceValue(v);
-                }}
+                onChange={(v) => { if (v >= 0) toolStore.setPointAtDistanceValue(v); }}
+                defaultUnit="FT"
+                inputClassName="w-24 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-lime-500"
+                focusBorderClass="focus:border-lime-500"
+                description="Distance along the feature — accepts unit suffixes like 50ft, 12.5m, 6in."
               />
               <span className="text-[10px] text-gray-500">ft</span>
             </div>
@@ -1060,28 +1059,26 @@ export default function ToolOptionsBar() {
           >
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-gray-400 shrink-0">D1:</span>
-              <input
-                type="number"
-                min={0.01}
-                step={0.5}
-                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-amber-500"
+              <UnitInput
+                kind="length"
+                compact
                 value={ts.chamferDistance1}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v) && v > 0) toolStore.setChamferDistance1(v);
-                }}
+                onChange={(v) => { if (v > 0) toolStore.setChamferDistance1(v); }}
+                defaultUnit="FT"
+                inputClassName="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-amber-500"
+                focusBorderClass="focus:border-amber-500"
+                description="Chamfer distance along leg 1 — accepts unit suffixes (6in / 0.5ft / 12cm)."
               />
               <span className="text-[11px] text-gray-400 shrink-0">D2:</span>
-              <input
-                type="number"
-                min={0.01}
-                step={0.5}
-                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-amber-500"
+              <UnitInput
+                kind="length"
+                compact
                 value={ts.chamferDistance2}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v) && v > 0) toolStore.setChamferDistance2(v);
-                }}
+                onChange={(v) => { if (v > 0) toolStore.setChamferDistance2(v); }}
+                defaultUnit="FT"
+                inputClassName="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-amber-500"
+                focusBorderClass="focus:border-amber-500"
+                description="Chamfer distance along leg 2 — accepts unit suffixes (6in / 0.5ft / 12cm)."
               />
               <button
                 className="px-1.5 h-6 rounded text-[10px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
@@ -1124,16 +1121,15 @@ export default function ToolOptionsBar() {
           >
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-gray-400 shrink-0">R:</span>
-              <input
-                type="number"
-                min={0.01}
-                step={0.5}
-                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-amber-500"
+              <UnitInput
+                kind="length"
+                compact
                 value={ts.filletRadius}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v) && v > 0) toolStore.setFilletRadius(v);
-                }}
+                onChange={(v) => { if (v > 0) toolStore.setFilletRadius(v); }}
+                defaultUnit="FT"
+                inputClassName="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-amber-500"
+                focusBorderClass="focus:border-amber-500"
+                description="Fillet radius — accepts unit suffixes (6in / 0.5ft / 12cm)."
               />
               <span className="text-[10px] text-gray-500">ft</span>
             </div>
@@ -1270,26 +1266,26 @@ export default function ToolOptionsBar() {
               >
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-gray-400 shrink-0">↕</span>
-                  <input
-                    type="number"
-                    step={1}
-                    className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                  <UnitInput
+                    kind="length"
+                    compact
                     value={ts.arrayRowSpacing}
-                    onChange={(e) => {
-                      const v = parseFloat(e.target.value);
-                      if (!isNaN(v)) toolStore.setArrayRowSpacing(v);
-                    }}
+                    onChange={(v) => toolStore.setArrayRowSpacing(v)}
+                    defaultUnit="FT"
+                    inputClassName="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-cyan-500"
+                    focusBorderClass="focus:border-cyan-500"
+                    description="Vertical row spacing — accepts unit suffixes (50ft, 5m, 12in). Negative mirrors the row direction."
                   />
                   <span className="text-[11px] text-gray-400 shrink-0">↔</span>
-                  <input
-                    type="number"
-                    step={1}
-                    className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-cyan-500"
+                  <UnitInput
+                    kind="length"
+                    compact
                     value={ts.arrayColSpacing}
-                    onChange={(e) => {
-                      const v = parseFloat(e.target.value);
-                      if (!isNaN(v)) toolStore.setArrayColSpacing(v);
-                    }}
+                    onChange={(v) => toolStore.setArrayColSpacing(v)}
+                    defaultUnit="FT"
+                    inputClassName="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-cyan-500"
+                    focusBorderClass="focus:border-cyan-500"
+                    description="Horizontal column spacing — accepts unit suffixes (50ft, 5m, 12in). Negative mirrors the column direction."
                   />
                 </div>
               </Tooltip>
@@ -1530,17 +1526,15 @@ export default function ToolOptionsBar() {
             >
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] text-gray-400 shrink-0">Dist:</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-blue-500"
+                <UnitInput
+                  kind="length"
+                  compact
                   value={ts.offsetDistance}
-                  title={ts.offsetDistance === 0 ? 'Dynamic (follow cursor)' : `${ts.offsetDistance} units`}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    if (!isNaN(v)) toolStore.setOffsetDistance(v);
-                  }}
+                  onChange={(v) => toolStore.setOffsetDistance(v)}
+                  defaultUnit="FT"
+                  inputClassName="w-24 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-blue-500"
+                  focusBorderClass="focus:border-blue-500"
+                  description="Offset distance — accepts unit suffixes (50ft, 5m, 6in). 0 = dynamic (follow cursor)."
                 />
               </div>
             </Tooltip>
@@ -1578,31 +1572,26 @@ export default function ToolOptionsBar() {
             >
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] text-gray-400 shrink-0">Dist:</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-orange-500"
+                <UnitInput
+                  kind="length"
+                  compact
                   value={ts.offsetDistance}
-                  title={`${ts.offsetDistance} units`}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    if (!isNaN(v) && v >= 0) toolStore.setOffsetDistance(v);
-                  }}
+                  onChange={(v) => { if (v >= 0) toolStore.setOffsetDistance(v); }}
+                  defaultUnit="FT"
+                  inputClassName="w-24 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-orange-500"
+                  focusBorderClass="focus:border-orange-500"
+                  description="Translate distance — accepts unit suffixes (50ft, 5m, 6in)."
                 />
                 <span className="text-[11px] text-gray-400 shrink-0">∠ Az:</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={360}
-                  step={1}
-                  className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-orange-500"
+                <UnitInput
+                  kind="angle"
+                  compact
+                  angleMode="AZIMUTH"
                   value={ts.offsetBearingDeg}
-                  title={`Azimuth: ${ts.offsetBearingDeg}° (0=N, clockwise)`}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    if (!isNaN(v)) toolStore.setOffsetBearingDeg(v);
-                  }}
+                  onChange={(v) => toolStore.setOffsetBearingDeg(v)}
+                  inputClassName="w-24 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-orange-500"
+                  focusBorderClass="focus:border-orange-500"
+                  description={'Translate bearing — accepts decimal degrees (45.5), DMS-packed (45.3000 = 45°30\'00"), DMS markers (45°30\'), hyphen-DMS (45-30-00), or quadrant bearing (N 45-30 E).'}
                 />
                 <span className="text-[10px] text-gray-500">°</span>
                 {/* Quick azimuth presets — N / E / S / W */}

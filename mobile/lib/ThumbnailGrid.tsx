@@ -20,6 +20,7 @@ import {
 
 import { type FieldMedia, useFieldMediaPhotoUrl } from './fieldMedia';
 import { type Palette, colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface ThumbnailGridProps {
   media: FieldMedia[];

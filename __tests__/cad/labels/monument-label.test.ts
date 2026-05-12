@@ -66,20 +66,19 @@ function mkPoint(overrides: Partial<SurveyPoint> = {}): SurveyPoint {
 // ── getMonumentText ───────────────────────────────────────────────────────────
 
 describe('getMonumentText', () => {
-  it('BC02 + FOUND → "1/2\" IRF Found"', () => {
+  it('BC02 + FOUND → full text "1/2\" Iron Rod Found"', () => {
     const pt = mkPoint({ monumentAction: 'FOUND', resolvedNumericCode: '2' });
-    const { full } = getMonumentText(pt);
-    expect(full).toContain('1/2"');
-    expect(full).toContain('IRF');
-    expect(full.toLowerCase()).toContain('found');
+    const { full, abbreviated } = getMonumentText(pt);
+    expect(full).toBe('1/2" Iron Rod Found');
+    // Abbreviated keeps the conventional surveyor shorthand.
+    expect(abbreviated).toBe('1/2" IRF');
   });
 
-  it('BC07 + SET → "5/8\" IRS w/Cap"', () => {
+  it('BC07 + SET → full text "5/8\" Iron Rod Set w/Cap"', () => {
     const pt = mkPoint({ monumentAction: 'SET', resolvedNumericCode: '7' });
-    const { full } = getMonumentText(pt);
-    expect(full).toContain('5/8"');
-    expect(full).toContain('IRS');
-    expect(full.toLowerCase()).toContain('cap');
+    const { full, abbreviated } = getMonumentText(pt);
+    expect(full).toBe('5/8" Iron Rod Set w/Cap');
+    expect(abbreviated).toBe('5/8" IRS');
   });
 
   it('BC02 + SET → abbreviated is "1/2\" IRS"', () => {

@@ -9,6 +9,7 @@ import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { ProjectImage } from '@/lib/cad/types';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 const ACCEPTED_MIME = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'];
 
@@ -45,6 +46,8 @@ function sanitizeName(raw: string): string {
 
 export default function ImageInsertDialog({ worldX, worldY, onClose, onInsert }: Props) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const [dragOver, setDragOver] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -153,7 +156,7 @@ export default function ImageInsertDialog({ worldX, worldY, onClose, onInsert }:
   const existingImages = drawingStore.getAllProjectImages();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div ref={dialogRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[480px] max-h-[85vh] flex flex-col text-sm text-gray-200 overflow-hidden animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)]">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-600 shrink-0">

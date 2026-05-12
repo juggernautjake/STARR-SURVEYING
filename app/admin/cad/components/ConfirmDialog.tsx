@@ -13,7 +13,8 @@
 // — at most one confirm dialog is open at a time, which is
 // the surveyor expectation anyway.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 export interface ConfirmOpts {
   /** Short title at the top of the modal. */
@@ -53,6 +54,8 @@ export function confirmAction(opts: ConfirmOpts): Promise<boolean> {
 
 export default function ConfirmDialog() {
   const [state, setState] = useState<ConfirmOpts | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, state != null);
 
   useEffect(() => {
     const onOpen = (e: Event) => {
@@ -100,6 +103,7 @@ export default function ConfirmDialog() {
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[210] flex items-center justify-center bg-black/60 animate-[fadeIn_120ms_ease-out]"
       onClick={cancel}
     >

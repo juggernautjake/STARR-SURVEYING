@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { JobLoadoutCard } from '@/lib/JobLoadoutCard';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { JobTodayRollupCard } from '@/lib/JobTodayRollup';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { PointCard } from '@/lib/PointCard';
@@ -67,15 +68,11 @@ export default function JobDetailScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
+      <ScreenHeader
+        back
+        title={job.name?.trim() || '(unnamed job)'}
+      />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.headerRow}>
-          <Text
-            style={[styles.heading, { color: palette.text }]}
-            numberOfLines={2}
-          >
-            {job.name?.trim() || '(unnamed job)'}
-          </Text>
-        </View>
 
         <View style={styles.stageRow}>
           <StageChip stage={job.stage} />
@@ -170,7 +167,7 @@ export default function JobDetailScreen() {
               ))}
               {points.length > 8 ? (
                 <Text style={[styles.pointsMore, { color: palette.muted }]}>
-                  + {points.length - 8} more — full list lands in F3 polish.
+                  + {points.length - 8} more.
                 </Text>
               ) : null}
             </>
@@ -207,8 +204,9 @@ export default function JobDetailScreen() {
 
         <View style={styles.subTabsHint}>
           <Text style={[styles.hint, { color: palette.muted }]}>
-            Points / Media / Files / Notes / Time / Expenses / Crew sub-tabs
-            land in F1 #3. Today this screen is read-only.
+            This screen is read-only. Editing points, media, files,
+            notes, time, expenses, and crew from the field is on the
+            roadmap.
           </Text>
         </View>
       </ScrollView>
@@ -289,16 +287,6 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  heading: {
-    flex: 1,
-    fontSize: 28,
-    fontWeight: '700',
   },
   stageRow: {
     flexDirection: 'row',

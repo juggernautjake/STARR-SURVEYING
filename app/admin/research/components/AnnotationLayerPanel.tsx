@@ -3,6 +3,7 @@
 
 import { useState, useRef } from 'react';
 import Tooltip from './Tooltip';
+import { confirm as confirmDialog } from './ConfirmDialog';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -204,8 +205,16 @@ export default function AnnotationLayerPanel({
                 <Tooltip text={layers.length <= 1 ? 'Cannot delete the only layer' : count > 0 ? `Delete layer — ${count} annotation(s) will also be removed` : 'Delete this empty layer'} position="right" delay={400}>
                   <button
                     className="layer-panel__btn layer-panel__btn--delete"
-                    onClick={() => {
-                      if (count > 0 && !window.confirm(`Delete "${layer.name}"? It has ${count} annotation(s).`)) return;
+                    onClick={async () => {
+                      if (count > 0) {
+                        const ok = await confirmDialog({
+                          title: `Delete "${layer.name}"?`,
+                          body: `It has ${count} annotation${count === 1 ? '' : 's'} that will also be removed.`,
+                          confirmLabel: 'Delete',
+                          tone: 'danger',
+                        });
+                        if (!ok) return;
+                      }
                       deleteLayer(layer.id);
                     }}
                     aria-label="Delete layer"

@@ -48,6 +48,7 @@ import {
 } from '@/lib/fieldNotes';
 import { colors } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 
 export default function NotesSearchScreen() {
   const scheme = useResolvedScheme();
@@ -79,28 +80,9 @@ export default function NotesSearchScreen() {
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: palette.background }]}
-      edges={['top']}
+      edges={['top', 'bottom']}
     >
-      <View style={styles.headerRow}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Cancel search"
-          style={({ pressed }) => [
-            styles.cancelBtn,
-            { opacity: pressed ? 0.6 : 1 },
-          ]}
-        >
-          <Text style={[styles.cancelText, { color: palette.accent }]}>
-            Cancel
-          </Text>
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.heading, { color: palette.text }]}>
-            Search notes
-          </Text>
-        </View>
-      </View>
+      <ScreenHeader back title="Search notes" />
 
       <View
         style={[
@@ -391,26 +373,6 @@ function formatAge(iso: string): string {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    gap: 12,
-  },
-  cancelBtn: {
-    paddingVertical: 4,
-    paddingRight: 8,
-  },
-  cancelText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  heading: {
-    fontSize: 22,
-    fontWeight: '700',
-  },
   inputBox: {
     flexDirection: 'row',
     alignItems: 'center',

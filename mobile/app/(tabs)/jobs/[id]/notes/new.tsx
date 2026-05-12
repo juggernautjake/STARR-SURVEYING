@@ -31,7 +31,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { TextField } from '@/lib/TextField';
+import * as haptics from '@/lib/haptics';
 import { logError } from '@/lib/log';
 import {
   NOTE_TEMPLATE_LABELS,
@@ -209,6 +211,7 @@ export default function AddNoteScreen() {
         template,
         payload,
       });
+      haptics.success();
       router.back();
     } catch (err) {
       logError('addNoteScreen.save', 'failed', err, {
@@ -252,16 +255,10 @@ export default function AddNoteScreen() {
       edges={['top']}
     >
       <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
-        <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: palette.text }]}>
-            {pointId ? 'Add note to point' : 'Add note to job'}
-          </Text>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <Text style={[styles.cancel, { color: palette.muted }]}>
-              Cancel
-            </Text>
-          </Pressable>
-        </View>
+        <ScreenHeader
+          back
+          title={pointId ? 'Add note to point' : 'Add note to job'}
+        />
 
         {/* Template picker — pills. Tap to switch; "Free-text" is the
             default. Switching wipes the in-flight draft for the
@@ -560,18 +557,9 @@ const styles = StyleSheet.create({
   body: {
     padding: 24,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
   title: {
     fontSize: 24,
     fontWeight: '700',
-  },
-  cancel: {
-    fontSize: 15,
   },
   caption: {
     fontSize: 14,

@@ -3,11 +3,20 @@ import { buildTimesheetCsv, suggestedCsvFilename } from '@/lib/csvExport';
 import { shareTextFile } from '@/lib/share';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { ScreenHeader } from '@/lib/ScreenHeader';
+import * as haptics from '@/lib/haptics';
 import { logError } from '@/lib/log';
 import { Timesheet } from '@/lib/Timesheet';
 import {
@@ -71,6 +80,7 @@ export default function TimeScreen() {
         Alert.alert('Already clocked out', 'No open entry to close.');
         return;
       }
+      haptics.success();
       // Tell the user when the clock-out wasn't location-stamped.
       // Otherwise they assume the row carries GPS and only find out
       // weeks later when mileage doesn't add up.
@@ -98,9 +108,9 @@ export default function TimeScreen() {
       case 'no_permission':
         return 'Location permission is off — your clock-out is recorded but not location-stamped. Turn on location in Settings to GPS-stamp future entries.';
       case 'timeout':
-        return "Couldn't reach a satellite in time. Your clock-out is recorded but not location-stamped. Henry can correct mileage from the web admin if needed.";
+        return "Couldn't reach a satellite in time. Your clock-out is recorded but not location-stamped. The office can correct mileage from the admin site if needed.";
       default:
-        return 'Your clock-out is recorded but not location-stamped. Henry can correct mileage from the web admin if needed.';
+        return 'Your clock-out is recorded but not location-stamped. The office can correct mileage from the admin site if needed.';
     }
   };
 
@@ -138,6 +148,7 @@ export default function TimeScreen() {
           'No open days in this week — already sent for approval.'
         );
       } else {
+        haptics.success();
         Alert.alert(
           'Submitted',
           `${result.flipped} day${result.flipped === 1 ? '' : 's'} sent to approval.`
@@ -194,15 +205,32 @@ export default function TimeScreen() {
   const { isTablet } = useResponsiveLayout();
   const tabletStyle = tabletContainerStyle(isTablet);
 
+  // Pull-to-refresh: feel-good gesture only. The live duration counter
+  // updates every tick and PowerSync delivers timesheet changes
+  // continuously, so this just confirms "I asked for fresh data".
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await new Promise((r) => setTimeout(r, 600));
+    setRefreshing(false);
+  };
+
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
-      <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
-        <View style={styles.headerRow}>
-          <Text style={[styles.heading, { color: palette.text }]}>Time</Text>
-        </View>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, tabletStyle]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={palette.muted}
+          />
+        }
+      >
+        <ScreenHeader title="Time" />
 
         {active ? (
           <>
@@ -376,8 +404,8 @@ export default function TimeScreen() {
 
         <View style={styles.hintRow}>
           <Text style={[styles.hint, { color: palette.muted }]}>
-            Smart prompts (still working?) + GPS auto-suggest land in F1 #7
-            and #8.
+            Stay-clocked-in prompts and GPS auto-suggest are on the
+            roadmap.
           </Text>
         </View>
       </ScrollView>
@@ -407,13 +435,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 32,
-  },
-  headerRow: {
-    marginBottom: 24,
-  },
-  heading: {
-    fontSize: 32,
-    fontWeight: '700',
   },
   staleBanner: {
     padding: 16,

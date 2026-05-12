@@ -29,6 +29,8 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'edit.selectAll',    category: 'EDIT',       label: 'Select All',           description: 'Select all visible features',                 defaultKey: 'ctrl+a',       isChord: false, context: 'CANVAS' },
   { id: 'edit.deselect',     category: 'SELECTION',  label: 'Deselect All',         description: 'Clear the current selection',                 defaultKey: 'escape',       isChord: false, context: 'CANVAS' },
   { id: 'edit.delete',       category: 'EDIT',       label: 'Delete Selected',      description: 'Delete selected features',                    defaultKey: 'delete',       isChord: false, context: 'CANVAS' },
+  { id: 'edit.sendToLayer',  category: 'EDIT',       label: 'Send to Layer…',       description: 'Open the cross-layer copy / move / duplicate dialog with the active selection pre-loaded', defaultKey: 'ctrl+shift+l', isChord: false, context: 'CANVAS' },
+  { id: 'tool.intersect',    category: 'TOOLS',      label: 'Intersect Lines…',     description: 'Open the Intersect dialog — pick two LINE features and drop a POINT where they cross (or would cross if extended)', defaultKey: 'i x',           isChord: true,  context: 'CANVAS' },
 
   // Tools
   { id: 'tool.select',       category: 'TOOLS',      label: 'Select Tool',          description: 'Activate the selection tool',                 defaultKey: 's',            isChord: false, context: 'CANVAS' },
@@ -92,6 +94,19 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   // AI
   { id: 'ai.start',          category: 'AI',         label: 'Start AI Drawing',     description: 'Open the AI drawing wizard',                  defaultKey: 'ctrl+shift+a', isChord: false, context: 'GLOBAL' },
   { id: 'ai.chat',           category: 'AI',         label: 'Focus AI Chat',        description: 'Focus the AI assistant chat input',           defaultKey: 'ctrl+shift+c', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.cycleMode',      category: 'AI',         label: 'Cycle AI Mode',        description: 'Cycle the AI integration mode: AUTO → COPILOT → COMMAND → MANUAL.', defaultKey: 'ctrl+shift+m', isChord: false, context: 'GLOBAL' },
+  // Phase 6 §32.9 — COMMAND-mode palette entries. Each one
+  // fires a canned proposeFromPrompt call so the surveyor can
+  // kick off targeted AI tasks without typing the prompt.
+  { id: 'ai.parseCodes',           category: 'AI', label: 'Parse Point Codes',           description: 'Ask the AI to interpret every point code in the current points file and propose layer assignments', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.fillCorners',          category: 'AI', label: 'Fill Missing Corners',        description: 'Ask the AI to find any nearly-closed polygons and propose best-fit corners via the §11.6 intersect kernel', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.checkClosure',         category: 'AI', label: 'Check Closure',               description: 'Ask the AI to run a closure report on the active polygon / traverse', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.createLayerFromCodes', category: 'AI', label: 'Create Layer From Codes…',    description: 'Ask the AI to create a new layer from a code pattern + draw-as (point / line / polyline)', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.explainFeature',       category: 'AI', label: 'Explain Selected Feature',    description: 'Open the "Why did AI draw this?" popup for the currently-selected feature (or ask AI to explain a non-AI feature)', defaultKey: '', isChord: false, context: 'CANVAS' },
+  { id: 'ai.undoBatch',            category: 'AI', label: 'Undo AI Batch',               description: 'Undo every feature produced in the most recent AI turn as a single group.', defaultKey: 'ctrl+alt+z', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.startAuto',            category: 'AI', label: 'Start AUTO Run',              description: 'Kick off an end-to-end AUTO build using a project-intake prompt. Switches mode to AUTO if it isn\'t already.', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.pauseAuto',            category: 'AI', label: 'Pause AUTO Run',              description: 'Halt AUTO at the next feature boundary by flipping the mode to COPILOT. The next pending proposal stays queued for the surveyor to review.', defaultKey: 'ctrl+shift+p', isChord: false, context: 'GLOBAL' },
+  { id: 'ai.replaySequence',       category: 'AI', label: 'Replay AI Sequence on New Points',  description: 'Walk the recorded turn-by-turn AI log and re-fire every prompt against the current document, producing a fresh draft drawing.', defaultKey: '', isChord: false, context: 'GLOBAL' },
 
   // App / View
   { id: 'view.settings',     category: 'APP',        label: 'Open Settings',        description: 'Open the Settings page',                      defaultKey: 'ctrl+comma',   isChord: false, context: 'GLOBAL' },

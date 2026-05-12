@@ -36,6 +36,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePowerSync } from '@powersync/react';
 
 import { Button } from '@/lib/Button';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { logError } from '@/lib/log';
 import {
   type StuckUploadRow,
@@ -120,20 +121,7 @@ export default function UploadsScreen() {
     >
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back to Me"
-          hitSlop={12}
-        >
-          <Text style={[styles.backChevron, { color: palette.accent }]}>
-            ‹ Back
-          </Text>
-        </Pressable>
-        <Text style={[styles.title, { color: palette.text }]}>Uploads</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      <ScreenHeader back title="Uploads" />
 
       <Text style={[styles.subtitle, { color: palette.muted }]}>
         Photos and receipts waiting to upload. The queue retries
@@ -336,23 +324,6 @@ function colorPalette(scheme: 'light' | 'dark') {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-    justifyContent: 'space-between',
-  },
-  backChevron: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  headerSpacer: { width: 60 },
   subtitle: {
     fontSize: 13,
     paddingHorizontal: 24,

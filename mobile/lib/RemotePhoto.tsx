@@ -12,6 +12,7 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { type Palette, colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface RemotePhotoProps {
   /** Signed URL or null while it's being generated. Pass undefined to

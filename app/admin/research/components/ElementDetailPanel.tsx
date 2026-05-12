@@ -5,6 +5,7 @@ import { useState } from 'react';
 import type { DrawingElement, ConfidenceFactors, ElementStyle } from '@/types/research';
 import { getConfidenceColor, getConfidenceLevel, CONFIDENCE_WEIGHTS } from '@/lib/research/confidence';
 import Tooltip from './Tooltip';
+import { confirm as confirmDialog } from './ConfirmDialog';
 
 const DASH_PRESETS = [
   { label: 'Solid', value: '' },
@@ -81,8 +82,16 @@ export default function ElementDetailPanel({
         <Tooltip text="Close this element detail panel" enabled={tips}>
           <button
             className="research-element-panel__close"
-            onClick={() => {
-              if (notes !== (element.user_notes || '') && !window.confirm('You have unsaved notes. Close anyway?')) return;
+            onClick={async () => {
+              if (notes !== (element.user_notes || '')) {
+                const ok = await confirmDialog({
+                  title: 'Close without saving notes?',
+                  body: 'You have unsaved notes on this element.',
+                  confirmLabel: 'Close',
+                  tone: 'danger',
+                });
+                if (!ok) return;
+              }
               onClose();
             }}
             aria-label="Close panel"
@@ -103,10 +112,14 @@ export default function ElementDetailPanel({
             <Tooltip text="Restore this element to exactly how the AI originally generated it, discarding all your edits" enabled={tips} position="bottom">
               <button
                 className="research-element-panel__revert-btn"
-                onClick={() => {
-                  if (window.confirm('Revert this element to its original AI-generated state? Your edits will be lost.')) {
-                    onRevertElement(element.id);
-                  }
+                onClick={async () => {
+                  const ok = await confirmDialog({
+                    title: 'Revert element to its original state?',
+                    body: 'Your edits will be lost.',
+                    confirmLabel: 'Revert',
+                    tone: 'danger',
+                  });
+                  if (ok) onRevertElement(element.id);
                 }}
               >
                 Revert to Original

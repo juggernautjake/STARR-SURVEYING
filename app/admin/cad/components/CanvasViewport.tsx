@@ -5,6 +5,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useDynamicCursor } from '../hooks/useDynamicCursor';
 import { useTooltipApi } from './TooltipProvider';
 import { buildFeatureTooltip } from './featureTooltip';
+import SelectionDragChip from './SelectionDragChip';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -13,6 +14,7 @@ import {
   useUndoStore,
   useUIStore,
   useAIStore,
+  useTransferStore,
   makeAddFeatureEntry,
   makeRemoveFeatureEntry,
   makeBatchEntry,
@@ -73,7 +75,9 @@ import {
   extendFeatureTo,
   joinSelection,
   filletTwoLines,
+  filletPolylineVertex,
   chamferTwoLines,
+  chamferPolylineVertex,
   divideFeatureBy,
   explodeFeature,
   reverseFeature,
@@ -403,6 +407,39 @@ function pickAxisFromFeature(
 }
 
 /**
+ * Draw a dashed line between two screen-space points. Pixi
+ * doesn't natively support dash patterns, so we emit a series
+ * of short solid segments. `lineStyle` is set internally so
+ * callers don't need to (lineWeight 1.25 matches the rest of
+ * the ghost-preview render path).
+ */
+function drawDashedScreenLine(
+  g: import('pixi.js').Graphics,
+  a: { sx: number; sy: number },
+  b: { sx: number; sy: number },
+  color: number,
+  alpha: number,
+): void {
+  const DASH = 6;
+  const GAP = 4;
+  const dx = b.sx - a.sx;
+  const dy = b.sy - a.sy;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 0.5) return;
+  const ux = dx / len;
+  const uy = dy / len;
+  g.lineStyle(1.25, color, alpha);
+  let t = 0;
+  while (t < len) {
+    const t0 = t;
+    const t1 = Math.min(t + DASH, len);
+    g.moveTo(a.sx + ux * t0, a.sy + uy * t0);
+    g.lineTo(a.sx + ux * t1, a.sy + uy * t1);
+    t += DASH + GAP;
+  }
+}
+
+/**
  * Render a faint ghost of `feature` after applying
  * `transformFn` so the user can see exactly where a transform
  * (mirror, move, copy, flip, invert, rotate, scale) will land
@@ -605,6 +642,44 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const isMiddleMouseRef = useRef(false);
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const snapResultRef = useRef<ReturnType<typeof findSnapPoint>>(null);
+  // Phase 8 §11.6 — true while the IntersectDialog has a slot
+  // open for canvas-side picking. Next canvas click feeds the
+  // hit feature id back to the dialog and gets swallowed.
+  const intersectPickingRef = useRef(false);
+  // Phase 8 §11.6 Slice 2 / 3 / 4 — current IntersectDialog
+  // state for the live ghost preview (dashed extensions,
+  // candidate crosshair, circle ghost). null whenever the
+  // dialog is closed. Both sources are now discriminated
+  // unions to cover LINE×LINE, LINE×CIRCLE, LINE×ARC, CIRCLE×
+  // CIRCLE, ARC×ARC, ARC×CIRCLE.
+  type PickedPreview =
+    | { kind: 'LINE'; featureId: string; start: Point2D; end: Point2D }
+    | { kind: 'CIRCLE'; featureId: string; circle: { center: Point2D; radius: number } }
+    | { kind: 'ARC'; featureId: string; arc: { center: Point2D; radius: number; startAngle: number; endAngle: number; anticlockwise: boolean } }
+    | { kind: 'RAY'; featureId: string; origin: Point2D; bearingDeg: number };
+  const intersectPreviewRef = useRef<{
+    sourceA: PickedPreview | null;
+    sourceB: PickedPreview | null;
+    extendA: boolean;
+    extendB: boolean;
+    candidate: Point2D | null;
+    candidates: Point2D[];
+    selectedIndex: number;
+    withinA: boolean;
+    withinB: boolean;
+  } | null>(null);
+  /** Phase 6 §32 Slice 5 — COPILOT ghost preview state from
+   *  the active proposal. CopilotCard publishes via the
+   *  `cad:copilotPreview` event; the canvas paints a dashed
+   *  outline keyed off `kind`. Cleared when the card closes. */
+  const copilotPreviewRef = useRef<{
+    kind: 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON';
+    point?: Point2D;
+    from?: Point2D;
+    to?: Point2D;
+    vertices?: Point2D[];
+    color?: string;
+  } | null>(null);
   const rafRef = useRef<number>(0);
   /** §19.1 — memoized spatial index for the active document.
    *  Stamped with the `features` object reference so a single
@@ -741,6 +816,54 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('cad:activateTool', handler);
     return () => window.removeEventListener('cad:activateTool', handler);
   }, [toolStore]);
+
+  // Phase 8 §11.6 Slice 1 — IntersectDialog announces when
+  // it wants to receive canvas clicks for source picking.
+  // We flip a ref so handleMouseDown can swallow + forward
+  // the hit feature back via cad:intersectPicked.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { active } = (e as CustomEvent<{ active: boolean }>).detail;
+      intersectPickingRef.current = !!active;
+    };
+    window.addEventListener('cad:intersectPicking', handler);
+    return () => {
+      window.removeEventListener('cad:intersectPicking', handler);
+      intersectPickingRef.current = false;
+    };
+  }, []);
+
+  // Phase 8 §11.6 Slice 2 — live preview state from the
+  // IntersectDialog. Detail is `null` whenever the dialog
+  // closes / unmounts so we drop the ghost on the very next
+  // render frame.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      intersectPreviewRef.current = detail ?? null;
+    };
+    window.addEventListener('cad:intersectPreview', handler);
+    return () => {
+      window.removeEventListener('cad:intersectPreview', handler);
+      intersectPreviewRef.current = null;
+    };
+  }, []);
+
+  // Phase 6 §32 Slice 5 — COPILOT proposal ghost. Same pattern
+  // as the intersect preview: CopilotCard dispatches when the
+  // head proposal changes, the listener stashes the payload,
+  // and the next render frame paints a dashed outline.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      copilotPreviewRef.current = detail ?? null;
+    };
+    window.addEventListener('cad:copilotPreview', handler);
+    return () => {
+      window.removeEventListener('cad:copilotPreview', handler);
+      copilotPreviewRef.current = null;
+    };
+  }, []);
 
   // Update cursor when active tool changes
   const activeTool = toolStore.state.activeTool;
@@ -3085,6 +3208,95 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // rectangle around the cached bbox; sits on top of every
     // selection mark so it stays visible.
     drawSidebarHoverRing(g);
+
+    // Phase 8 §11.7 — blue glow around features picked in
+    // the LayerTransferDialog's Pick mode. Two-layer ring so
+    // it reads against any layer color: outer 4 px halo at
+    // 25% alpha, inner 2 px line at 80% alpha. Hovered-but-
+    // not-yet-picked candidate also gets a thin preview ring
+    // (50% alpha) so the surveyor sees what would land on
+    // click before they commit.
+    const transferState = useTransferStore.getState();
+    if (transferState.isOpen && transferState.pickedIds.size > 0) {
+      const PICK_COLOR = 0x3b82f6; // blue-500
+      for (const fid of transferState.pickedIds) {
+        const feat = drawingStore.getFeature(fid);
+        if (!feat) continue;
+        const bb = featureBounds(feat);
+        if (!Number.isFinite(bb.minX)) continue;
+        const a = w2s(bb.minX, bb.minY);
+        const b = w2s(bb.maxX, bb.maxY);
+        const x = Math.min(a.sx, b.sx) - 6;
+        const y = Math.min(a.sy, b.sy) - 6;
+        const w = Math.abs(b.sx - a.sx) + 12;
+        const h = Math.abs(b.sy - a.sy) + 12;
+        g.lineStyle(4, PICK_COLOR, 0.25);
+        g.drawRoundedRect(x - 2, y - 2, w + 4, h + 4, 4);
+        g.lineStyle(2, PICK_COLOR, 0.8);
+        g.drawRoundedRect(x, y, w, h, 4);
+      }
+    }
+    // Pick-mode hover preview — thin ring on the candidate
+    // before the surveyor clicks. Reuses the same blue but
+    // half-opacity so it reads as "if you click, this lands."
+    if (transferState.isOpen && transferState.pickModeActive) {
+      const hoveredId = hoveredIdRef.current;
+      if (hoveredId && !transferState.pickedIds.has(hoveredId)) {
+        const feat = drawingStore.getFeature(hoveredId);
+        if (feat) {
+          const bb = featureBounds(feat);
+          if (Number.isFinite(bb.minX)) {
+            const a = w2s(bb.minX, bb.minY);
+            const b = w2s(bb.maxX, bb.maxY);
+            const x = Math.min(a.sx, b.sx) - 6;
+            const y = Math.min(a.sy, b.sy) - 6;
+            const w = Math.abs(b.sx - a.sx) + 12;
+            const h = Math.abs(b.sy - a.sy) + 12;
+            g.lineStyle(2, 0x3b82f6, 0.5);
+            g.drawRoundedRect(x, y, w, h, 4);
+          }
+        }
+      }
+    }
+
+    // Phase 8 §11.7 Slice 15 — what-changed green pulse.
+    // Shortly after Confirm fires, the transfer store stores
+    // the result feature ids + a startedAt timestamp. We
+    // render a pulsing green halo around each one for
+    // ~1500 ms; the store auto-clears when the timer fires.
+    // Reads the latest state on every frame so the pulse
+    // alpha animates with the render loop.
+    if (transferState.recentlyTransferred && transferState.recentlyTransferred.ids.length > 0) {
+      const elapsed = Date.now() - transferState.recentlyTransferred.startedAt;
+      const PULSE_DURATION_MS = 1500;
+      if (elapsed >= 0 && elapsed < PULSE_DURATION_MS) {
+        // Ease-out fade so the halo decays naturally.
+        const t = elapsed / PULSE_DURATION_MS;
+        const fade = 1 - t;
+        // Two-pulse cycle so the surveyor's eye catches it
+        // even with peripheral attention.
+        const pulse = 0.5 + 0.5 * Math.sin((elapsed / PULSE_DURATION_MS) * Math.PI * 2);
+        const haloAlpha = 0.55 * fade * pulse;
+        const ringAlpha = 0.85 * fade;
+        const PULSE_GREEN = 0x22c55e; // green-500
+        for (const fid of transferState.recentlyTransferred.ids) {
+          const feat = drawingStore.getFeature(fid);
+          if (!feat) continue;
+          const bb = featureBounds(feat);
+          if (!Number.isFinite(bb.minX)) continue;
+          const a = w2s(bb.minX, bb.minY);
+          const b = w2s(bb.maxX, bb.maxY);
+          const x = Math.min(a.sx, b.sx) - 8;
+          const y = Math.min(a.sy, b.sy) - 8;
+          const w = Math.abs(b.sx - a.sx) + 16;
+          const h = Math.abs(b.sy - a.sy) + 16;
+          g.lineStyle(6, PULSE_GREEN, haloAlpha);
+          g.drawRoundedRect(x - 3, y - 3, w + 6, h + 6, 6);
+          g.lineStyle(2, PULSE_GREEN, ringAlpha);
+          g.drawRoundedRect(x, y, w, h, 6);
+        }
+      }
+    }
   }
 
   function drawSidebarHoverRing(g: import('pixi.js').Graphics): void {
@@ -6256,6 +6468,248 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   }
 
   // ─────────────────────────────────────────────
+  // Phase 8 §11.7 Slice 8 — transfer ghost preview.
+  // When the LayerTransferDialog is open and a target layer
+  // is picked, render a half-opacity preview of each
+  // duplicate at its post-offset position, tinted in the
+  // destination layer's color. Thin connector lines run
+  // from each source feature to its ghost so the surveyor
+  // sees the offset at a glance.
+  // ─────────────────────────────────────────────
+  function renderTransferGhost() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const g = pixi.previewGraphics;
+    const tx = useTransferStore.getState();
+    if (!tx.isOpen) return;
+    if (tx.pickedIds.size === 0) return;
+    if (tx.options.operation !== 'DUPLICATE') return;
+    const targetLayerId = tx.options.targetLayerId;
+    if (!targetLayerId) return;
+    const docState = useDrawingStore.getState().document;
+    const targetLayer = docState.layers[targetLayerId];
+    if (!targetLayer) return;
+
+    // Resolve destination tint. Layer color is hex; we trim
+    // any "#" prefix and parse to a Pixi int. Alpha values
+    // are bumped a notch above the picked-blue glow so the
+    // surveyor visually separates "this is the source" from
+    // "this is where it'll land."
+    const tintHex = (targetLayer.color ?? '#3b82f6').replace('#', '');
+    const tint = parseInt(tintHex, 16);
+
+    // Resolve the translation (dx, dy) from the options.
+    // Mirrors the kernel's math in operations.ts so the ghost
+    // lands at the same coords the kernel would write.
+    let dx = 0;
+    let dy = 0;
+    if (tx.options.applyOffset && tx.options.offsetDistanceFt > 0) {
+      const az = (tx.options.offsetBearingDeg * Math.PI) / 180;
+      dx = tx.options.offsetDistanceFt * Math.sin(az);
+      dy = tx.options.offsetDistanceFt * Math.cos(az);
+    }
+    const translateFn = (p: Point2D): Point2D => ({ x: p.x + dx, y: p.y + dy });
+
+    // Loop the picked features. For each one, paint the
+    // ghost geometry + a connector line from the source's
+    // centroid to the ghost's centroid (only when offset > 0
+    // — otherwise the ghost lands on top of the source and
+    // the connector would degenerate to a dot).
+    const hasOffset = dx !== 0 || dy !== 0;
+    for (const fid of tx.pickedIds) {
+      const f = useDrawingStore.getState().getFeature(fid);
+      if (!f) continue;
+
+      // Connector line first so the ghost outline draws on
+      // top of it.
+      if (hasOffset) {
+        const srcBB = featureBounds(f);
+        if (Number.isFinite(srcBB.minX)) {
+          const srcCx = (srcBB.minX + srcBB.maxX) / 2;
+          const srcCy = (srcBB.minY + srcBB.maxY) / 2;
+          const a = w2s(srcCx, srcCy);
+          const b = w2s(srcCx + dx, srcCy + dy);
+          g.lineStyle(1, tint, 0.4);
+          g.moveTo(a.sx, a.sy);
+          g.lineTo(b.sx, b.sy);
+        }
+      }
+
+      // Ghost outline — destination-layer tint at 45% opacity.
+      g.lineStyle(1.5, tint, 0.55);
+      drawTransformedFeaturePreview(g, f, translateFn, w2s);
+    }
+  }
+
+  // Phase 8 §11.6 Slice 2/3 — render dashed extensions, the
+  // full-circle ghost when Source B is a CIRCLE, and a
+  // crosshair per candidate (selected one brighter + ringed).
+  function renderIntersectPreview() {
+    const preview = intersectPreviewRef.current;
+    if (!preview) return;
+    const { sourceA, sourceB, extendA, extendB, candidate, candidates, selectedIndex, withinA, withinB } = preview;
+    if (!sourceA && !sourceB && !candidate) return;
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const g = pixi.previewGraphics;
+
+    const SRC_A_COLOR = 0x60a5fa; // sky-400
+    const SRC_B_COLOR = 0xa78bfa; // violet-400
+    const CAND_OK_COLOR = 0x4ade80; // green-400 (within both)
+    const CAND_EXT_COLOR = 0xfbbf24; // amber-400 (any side extended)
+
+    const drawExtension = (
+      start: Point2D,
+      end: Point2D,
+      color: number,
+      extendToCandidate: boolean,
+    ) => {
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 1e-9) return;
+      const ux = dx / len;
+      const uy = dy / len;
+      let reachStart = len;
+      let reachEnd = len;
+      if (extendToCandidate && candidate) {
+        const t =
+          ((candidate.x - start.x) * dx + (candidate.y - start.y) * dy) / (len * len);
+        if (t < 0) reachStart = Math.max(reachStart, Math.abs(t) * len + 8);
+        else if (t > 1) reachEnd = Math.max(reachEnd, (t - 1) * len + 8);
+      }
+      const pastStart = { x: start.x - ux * reachStart, y: start.y - uy * reachStart };
+      const pastEnd = { x: end.x + ux * reachEnd, y: end.y + uy * reachEnd };
+      drawDashedScreenLine(g, w2s(pastStart.x, pastStart.y), w2s(start.x, start.y), color, 0.55);
+      drawDashedScreenLine(g, w2s(end.x, end.y), w2s(pastEnd.x, pastEnd.y), color, 0.55);
+    };
+
+    if (sourceA && sourceA.kind === 'LINE' && extendA) {
+      drawExtension(sourceA.start, sourceA.end, SRC_A_COLOR, true);
+    }
+    if (sourceB && sourceB.kind === 'LINE' && extendB) {
+      drawExtension(sourceB.start, sourceB.end, SRC_B_COLOR, true);
+    }
+
+    // CIRCLE / ARC sources — paint a thin full-circle ghost
+    // (the arc's underlying circle when source is ARC) so the
+    // surveyor sees the geometry the math is using.
+    const zoom = useViewportStore.getState().zoom;
+    const drawCircleGhost = (cx: number, cy: number, r: number, color: number) => {
+      const c = w2s(cx, cy);
+      g.lineStyle(1, color, 0.5);
+      g.drawCircle(c.sx, c.sy, r * zoom);
+    };
+    if (sourceA && sourceA.kind === 'CIRCLE') {
+      drawCircleGhost(sourceA.circle.center.x, sourceA.circle.center.y, sourceA.circle.radius, SRC_A_COLOR);
+    } else if (sourceA && sourceA.kind === 'ARC') {
+      drawCircleGhost(sourceA.arc.center.x, sourceA.arc.center.y, sourceA.arc.radius, SRC_A_COLOR);
+    }
+    if (sourceB && sourceB.kind === 'CIRCLE') {
+      drawCircleGhost(sourceB.circle.center.x, sourceB.circle.center.y, sourceB.circle.radius, SRC_B_COLOR);
+    } else if (sourceB && sourceB.kind === 'ARC') {
+      drawCircleGhost(sourceB.arc.center.x, sourceB.arc.center.y, sourceB.arc.radius, SRC_B_COLOR);
+    }
+
+    // RAY ghost — dashed half-line from origin along bearing.
+    // The "infinite reach" is just the canvas diagonal so the
+    // ghost always exits the viewport; origin dot makes the
+    // starting point unambiguous.
+    const drawRayGhost = (ray: { origin: Point2D; bearingDeg: number }, color: number) => {
+      const rad = (ray.bearingDeg * Math.PI) / 180;
+      const dx = Math.sin(rad);
+      const dy = Math.cos(rad);
+      const w = pixi.app.renderer.width;
+      const h = pixi.app.renderer.height;
+      const reachPx = Math.hypot(w, h) * 1.2;
+      const reachWorld = reachPx / zoom;
+      const o = w2s(ray.origin.x, ray.origin.y);
+      const tip = w2s(ray.origin.x + dx * reachWorld, ray.origin.y + dy * reachWorld);
+      drawDashedScreenLine(g, o, tip, color, 0.7);
+      g.lineStyle(0, 0, 0);
+      g.beginFill(color, 0.9);
+      g.drawCircle(o.sx, o.sy, 3);
+      g.endFill();
+    };
+    if (sourceA && sourceA.kind === 'RAY') drawRayGhost(sourceA, SRC_A_COLOR);
+    if (sourceB && sourceB.kind === 'RAY') drawRayGhost(sourceB, SRC_B_COLOR);
+
+    // Candidate crosshairs. Slice 3 shows every candidate at
+    // 50% opacity with the selected one in full colour + ring.
+    if (candidates && candidates.length > 0) {
+      const colorFor = (i: number) =>
+        i === selectedIndex
+          ? withinA && withinB
+            ? CAND_OK_COLOR
+            : CAND_EXT_COLOR
+          : 0x94a3b8; // slate-400 (unselected)
+      const R = 8;
+      candidates.forEach((c, i) => {
+        const { sx, sy } = w2s(c.x, c.y);
+        const isSel = i === selectedIndex;
+        const alpha = isSel ? 0.95 : 0.6;
+        g.lineStyle(isSel ? 1.5 : 1, colorFor(i), alpha);
+        g.moveTo(sx - R, sy); g.lineTo(sx + R, sy);
+        g.moveTo(sx, sy - R); g.lineTo(sx, sy + R);
+        if (isSel) {
+          g.lineStyle(1, colorFor(i), 0.5);
+          g.drawCircle(sx, sy, R + 3);
+        }
+      });
+    } else if (candidate) {
+      // Fallback for single-candidate methods (LINE × LINE).
+      const { sx, sy } = w2s(candidate.x, candidate.y);
+      const color = withinA && withinB ? CAND_OK_COLOR : CAND_EXT_COLOR;
+      const R = 8;
+      g.lineStyle(1.5, color, 0.95);
+      g.moveTo(sx - R, sy); g.lineTo(sx + R, sy);
+      g.moveTo(sx, sy - R); g.lineTo(sx, sy + R);
+      g.lineStyle(1, color, 0.5);
+      g.drawCircle(sx, sy, R + 3);
+    }
+  }
+
+  // Phase 6 §32 Slice 5 — paint a dashed ghost for the head
+  // COPILOT proposal. Same `drawDashedScreenLine` helper as the
+  // intersect preview. Layer-op proposals (createLayer /
+  // applyLayerStyle) clear the ref to null, so nothing renders.
+  function renderCopilotPreview() {
+    const preview = copilotPreviewRef.current;
+    if (!preview) return;
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const g = pixi.previewGraphics;
+    const color = preview.color
+      ? parseInt(preview.color.replace('#', ''), 16)
+      : 0xfacc15; // amber-300 — keeps proposal ghosts distinct from selection
+    if (preview.kind === 'POINT' && preview.point) {
+      const { sx, sy } = w2s(preview.point.x, preview.point.y);
+      const R = 7;
+      g.lineStyle(1.5, color, 0.9);
+      g.moveTo(sx - R, sy); g.lineTo(sx + R, sy);
+      g.moveTo(sx, sy - R); g.lineTo(sx, sy + R);
+      g.lineStyle(1, color, 0.5);
+      g.drawCircle(sx, sy, R + 3);
+    } else if (preview.kind === 'LINE' && preview.from && preview.to) {
+      drawDashedScreenLine(g, w2s(preview.from.x, preview.from.y), w2s(preview.to.x, preview.to.y), color, 0.85);
+    } else if ((preview.kind === 'POLYLINE' || preview.kind === 'POLYGON') && preview.vertices && preview.vertices.length >= 2) {
+      const verts = preview.vertices;
+      for (let i = 0; i < verts.length - 1; i++) {
+        drawDashedScreenLine(g, w2s(verts[i].x, verts[i].y), w2s(verts[i + 1].x, verts[i + 1].y), color, 0.85);
+      }
+      if (preview.kind === 'POLYGON') {
+        drawDashedScreenLine(
+          g,
+          w2s(verts[verts.length - 1].x, verts[verts.length - 1].y),
+          w2s(verts[0].x, verts[0].y),
+          color,
+          0.85,
+        );
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────
   // Master render function
   // ─────────────────────────────────────────────
   function renderAll() {
@@ -6280,6 +6734,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     renderSelection();
     renderSnapIndicator();
     renderToolPreview();
+    renderTransferGhost();
+    renderIntersectPreview();
+    renderCopilotPreview();
     renderTitleBlock();
   }
 
@@ -7112,6 +7569,51 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           gripStartRef.current = drawingStore.getFeature(grip.featureId) ?? null;
           return;
         }
+      }
+
+      // Phase 8 §11.7 — Pick mode intercept. When the
+      // LayerTransferDialog is in Pick mode, canvas clicks
+      // toggle features in / out of the dialog's source set
+      // instead of going to the active tool. Alt-click also
+      // removes (matches the spec's deselect paths).
+      const tx = useTransferStore.getState();
+      if (tx.pickModeActive) {
+        const hit = hitTest(sx, sy);
+        if (!hit) return;
+        if (e.altKey) {
+          tx.removePick(hit);
+        } else {
+          tx.togglePick(hit);
+        }
+        // Don't fall through to the active tool — Pick mode
+        // owns the click while it's on.
+        return;
+      }
+
+      // Phase 8 §11.6 Slice 1 / 5 / 6 — Intersect Tool picking.
+      // When the IntersectDialog has a slot selecting, swallow
+      // the click and dispatch the hit feature + world-space
+      // click point back via cad:intersectPicked. The click
+      // point lets the dialog resolve POLYLINE/POLYGON picks
+      // to a specific (featureId, segmentIndex) — Slice 5. For
+      // RAY origin picks (Slice 6) the dialog needs the click
+      // point even when no feature was hit, so we always emit
+      // the event when picking is active.
+      if (intersectPickingRef.current) {
+        const hit = hitTest(sx, sy);
+        const snap = snapResultRef.current;
+        // Prefer the snap point so vertex/endpoint picks are
+        // exact; fall back to raw click coords otherwise.
+        const point = snap
+          ? { x: snap.point.x, y: snap.point.y }
+          : (() => {
+              const { wx, wy } = screenToDrawingWorld(sx, sy);
+              return { x: wx, y: wy };
+            })();
+        window.dispatchEvent(new CustomEvent('cad:intersectPicked', {
+          detail: { featureId: hit ?? '', point },
+        }));
+        return;
       }
 
       switch (activeTool) {
@@ -8217,16 +8719,54 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
 
         case 'FILLET': {
-          // FILLET: two-click flow. Click 1 picks the first
-          // line + remembers the click point so we know which
-          // leg to keep. Click 2 picks the second line and
-          // commits the operation with the toolbar's radius.
+          // FILLET — two flows depending on what the surveyor
+          // clicks:
+          //   1. Polyline / polygon: single-click on a vertex
+          //      fillets that corner via filletPolylineVertex.
+          //      The closest vertex within ~12 px of the click
+          //      is the target.
+          //   2. Two LINE features: original two-click flow.
+          //      Click 1 picks the first line + remembers the
+          //      click point so we know which leg to keep.
+          //      Click 2 picks the second line and commits.
           const hit = hitTest(sx, sy);
           if (!hit) break;
           const f = drawingStore.getFeature(hit);
-          if (!f || f.geometry.type !== 'LINE') {
+          if (!f) break;
+          // Polyline-vertex branch.
+          if ((f.geometry.type === 'POLYLINE' || f.geometry.type === 'POLYGON') && f.geometry.vertices) {
+            const verts = f.geometry.vertices;
+            let bestIdx = -1;
+            let bestDist = Infinity;
+            for (let i = 0; i < verts.length; i += 1) {
+              const v = verts[i];
+              const { sx: vx, sy: vy } = w2s(v.x, v.y);
+              const d = Math.hypot(sx - vx, sy - vy);
+              if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+            // Same vertex-snap radius that grip handles use.
+            if (bestIdx < 0 || bestDist > 14) {
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: 'FILLET — click closer to a polyline vertex (within ~14 px).' },
+              }));
+              break;
+            }
+            const vRes = filletPolylineVertex(hit, bestIdx, toolState.filletRadius);
+            if (!vRes.ok) {
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: `FILLET — ${vRes.reason}` },
+              }));
+            } else {
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: `FILLET — corner rounded (r=${toolState.filletRadius}).` },
+              }));
+            }
+            break;
+          }
+          // Two-LINE flow.
+          if (f.geometry.type !== 'LINE') {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'FILLET — pick a LINE feature.' },
+              detail: { text: 'FILLET — click a polyline vertex, or pick two LINE features.' },
             }));
             break;
           }
@@ -8253,14 +8793,49 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
 
         case 'CHAMFER': {
-          // CHAMFER: identical two-click flow to FILLET but
-          // produces a straight LINE bevel instead of an ARC.
+          // CHAMFER — same two flows as FILLET, producing a
+          // straight LINE bevel instead of an ARC.
           const hit = hitTest(sx, sy);
           if (!hit) break;
           const f = drawingStore.getFeature(hit);
-          if (!f || f.geometry.type !== 'LINE') {
+          if (!f) break;
+          if ((f.geometry.type === 'POLYLINE' || f.geometry.type === 'POLYGON') && f.geometry.vertices) {
+            const verts = f.geometry.vertices;
+            let bestIdx = -1;
+            let bestDist = Infinity;
+            for (let i = 0; i < verts.length; i += 1) {
+              const v = verts[i];
+              const { sx: vx, sy: vy } = w2s(v.x, v.y);
+              const d = Math.hypot(sx - vx, sy - vy);
+              if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+            if (bestIdx < 0 || bestDist > 14) {
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: 'CHAMFER — click closer to a polyline vertex (within ~14 px).' },
+              }));
+              break;
+            }
+            const cRes = chamferPolylineVertex(
+              hit, bestIdx,
+              toolState.chamferDistance1, toolState.chamferDistance2,
+            );
+            if (!cRes.ok) {
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: `CHAMFER — ${cRes.reason}` },
+              }));
+            } else {
+              const tag = toolState.chamferDistance1 === toolState.chamferDistance2
+                ? `${toolState.chamferDistance1}`
+                : `${toolState.chamferDistance1}/${toolState.chamferDistance2}`;
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: `CHAMFER — corner beveled (${tag}).` },
+              }));
+            }
+            break;
+          }
+          if (f.geometry.type !== 'LINE') {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'CHAMFER — pick a LINE feature.' },
+              detail: { text: 'CHAMFER — click a polyline vertex, or pick two LINE features.' },
             }));
             break;
           }
@@ -10531,6 +11106,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           </div>
         );
       })()}
+
+      {/* Phase 8 §11.7 Slice 4 — Drag-to-layer chip. Visible
+          when ≥1 feature is selected; draggable onto a
+          LayerPanel layer row. Drop = Move (default), Alt-
+          drop = Duplicate. Sits at the top-right of the
+          canvas above any other overlay. */}
+      <SelectionDragChip />
+
 
       {/* DRAW_IMAGE insert dialog */}
       {imageInsertState && (

@@ -9,7 +9,7 @@
 // reopened drawing A" case where another job's autosave is
 // still sitting around.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 import {
   clearAutosave,
@@ -21,6 +21,7 @@ import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/stor
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { cadLog } from '@/lib/cad/logger';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   open: boolean;
@@ -29,6 +30,8 @@ interface Props {
 
 export default function RecentRecoveriesDialog({ open, onClose }: Props) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
@@ -114,7 +117,7 @@ export default function RecentRecoveriesDialog({ open, onClose }: Props) {
   }
 
   return (
-    <div style={styles.backdrop} onClick={onClose}>
+    <div ref={dialogRef} style={styles.backdrop} onClick={onClose}>
       <div
         style={styles.modal}
         role="dialog"

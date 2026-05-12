@@ -14,11 +14,12 @@
 // before the file goes downstream, and we want a clear audit
 // trail entry that includes that message.
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 import { useDrawingStore, useReviewWorkflowStore } from '@/lib/cad/store';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   open: boolean;
@@ -35,6 +36,8 @@ export default function RPLSSubmissionDialog({
   onClose,
 }: Props) {
   useEscapeToClose(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const document = useDrawingStore((s) => s.document);
   const review = useReviewWorkflowStore();
 
@@ -86,7 +89,7 @@ export default function RPLSSubmissionDialog({
   }
 
   return (
-    <div style={styles.backdrop} onClick={onClose}>
+    <div ref={dialogRef} style={styles.backdrop} onClick={onClose}>
       <div
         style={styles.modal}
         role="dialog"

@@ -1,7 +1,9 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import {
   FlatList,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -10,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { JobCard } from '@/lib/JobCard';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { useJobs, type Job } from '@/lib/jobs';
 import {
   tabletContainerStyle,
@@ -32,8 +35,6 @@ import { useResolvedScheme } from '@/lib/themePreference';
  *   - "active today" / "crew on-site" / "syncing" indicators per
  *     plan §5.2 (need cross-table queries against job_time_entries +
  *     location_stops + PowerSync sync state)
- *   - Pull-to-refresh visual (no-op on data — sync is continuous —
- *     but a feel-good gesture)
  */
 export default function JobsScreen() {
   const scheme = useResolvedScheme();
@@ -44,6 +45,17 @@ export default function JobsScreen() {
   const { isTablet } = useResponsiveLayout();
   const tabletStyle = tabletContainerStyle(isTablet);
 
+  // Pull-to-refresh is a feel-good gesture only — PowerSync sync is
+  // continuous so the list is already as fresh as the network allows.
+  // Spinning ~600 ms gives the surveyor the "I asked for fresh data"
+  // confirmation without thrashing the sync stream.
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await new Promise((r) => setTimeout(r, 600));
+    setRefreshing(false);
+  };
+
   if (isLoading && jobs.length === 0) return <LoadingSplash />;
 
   return (
@@ -51,14 +63,12 @@ export default function JobsScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
-      <View style={[styles.headerRow, tabletStyle]}>
-        <Text style={[styles.heading, { color: palette.text }]}>Jobs</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Text style={[styles.count, { color: palette.muted }]}>
-            {jobs.length}
-          </Text>
-          {/* Cross-notes search entry. Tap → modal-presented
-              /(tabs)/jobs/search screen with auto-focused input. */}
+      <ScreenHeader
+        title="Jobs"
+        subtitle={`${jobs.length}`}
+        right={
+          /* Cross-notes search entry. Tap → modal-presented
+             /(tabs)/jobs/search screen with auto-focused input. */
           <Pressable
             onPress={() => router.push('/(tabs)/jobs/search')}
             accessibilityRole="button"
@@ -66,8 +76,8 @@ export default function JobsScreen() {
             accessibilityHint="Opens the cross-notes search across every job and point on this device."
             hitSlop={8}
             style={({ pressed }) => ({
-              paddingHorizontal: 10,
-              paddingVertical: 6,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
               borderRadius: 999,
               borderWidth: 1,
               borderColor: palette.border,
@@ -78,8 +88,8 @@ export default function JobsScreen() {
               🔍 Search
             </Text>
           </Pressable>
-        </View>
-      </View>
+        }
+      />
 
       {jobs.length === 0 ? (
         <View style={styles.empty}>
@@ -87,9 +97,9 @@ export default function JobsScreen() {
             No jobs yet
           </Text>
           <Text style={[styles.emptyBody, { color: palette.muted }]}>
-            Jobs are created in the web admin at /admin/jobs. Once they
-            sync, they show up here. Mobile job creation lands later
-            in Phase F1.
+            Jobs are created in the office at /admin/jobs. Once they
+            sync, they show up here. Creating a job from the field
+            isn&apos;t supported yet.
           </Text>
         </View>
       ) : (
@@ -104,6 +114,13 @@ export default function JobsScreen() {
           )}
           contentContainerStyle={[styles.listContent, tabletStyle]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={palette.muted}
+            />
+          }
         />
       )}
     </SafeAreaView>
@@ -118,22 +135,6 @@ function keyForJob(job: Job): string {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 12,
-  },
-  heading: {
-    fontSize: 32,
-    fontWeight: '700',
-  },
-  count: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
   empty: {
     flex: 1,
     alignItems: 'center',

@@ -28,6 +28,7 @@ import {
 } from 'react-native';
 
 import { colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 const FAB_SIZE = 64;
 const FAB_LIFT = 18;

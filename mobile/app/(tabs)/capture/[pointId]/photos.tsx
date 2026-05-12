@@ -12,6 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { ScreenHeader } from '@/lib/ScreenHeader';
+import * as haptics from '@/lib/haptics';
 import { logError, logWarn } from '@/lib/log';
 import { isPermissionDeniedError, promptForSettings } from '@/lib/permissionGuard';
 import { ThumbnailGrid } from '@/lib/ThumbnailGrid';
@@ -121,6 +123,7 @@ export default function PointPhotosScreen() {
         dataPointId: pointId ?? null,
         source,
       });
+      haptics.success();
       // Stay on the screen — the new photo lands in the grid via
       // PowerSync's reactive query.
     } catch (err) {
@@ -185,6 +188,7 @@ export default function PointPhotosScreen() {
         dataPointId: pointId ?? null,
         source: 'camera',
       });
+      haptics.success();
     } catch (err) {
       const deniedKind = isPermissionDeniedError(err);
       if (deniedKind) {
@@ -307,28 +311,18 @@ export default function PointPhotosScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
+      <ScreenHeader back title={point.name ?? 'Point'} />
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <View style={styles.headerText}>
-            <View
-              style={[styles.tag, { backgroundColor: prefixInfo.color }]}
-            >
-              <Text style={styles.tagText}>{point.code_category ?? '—'}</Text>
-            </View>
-            <Text
-              style={[styles.heading, { color: palette.text }]}
-              numberOfLines={2}
-            >
-              {point.name}
-            </Text>
-            <Text style={[styles.subtitle, { color: palette.muted }]}>
-              {prefixInfo.label}
-              {hasGps
-                ? ` · ${point.device_lat?.toFixed(5)}, ${point.device_lon?.toFixed(5)}`
-                : ' · no GPS fix'}
-            </Text>
+        <View style={styles.metaBlock}>
+          <View style={[styles.tag, { backgroundColor: prefixInfo.color }]}>
+            <Text style={styles.tagText}>{point.code_category ?? '—'}</Text>
           </View>
+          <Text style={[styles.subtitle, { color: palette.muted }]}>
+            {prefixInfo.label}
+            {hasGps
+              ? ` · ${point.device_lat?.toFixed(5)}, ${point.device_lon?.toFixed(5)}`
+              : ' · no GPS fix'}
+          </Text>
         </View>
 
         {point.description ? (
@@ -529,7 +523,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: {
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 8,
     paddingBottom: 32,
   },
   body: {
@@ -538,12 +532,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  metaBlock: {
     marginBottom: 16,
   },
-  headerText: { flex: 1 },
   tag: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
@@ -557,11 +548,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
     fontFamily: 'Menlo',
-  },
-  heading: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 4,
   },
   subtitle: {
     fontSize: 13,

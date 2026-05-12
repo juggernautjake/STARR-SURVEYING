@@ -25,7 +25,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -34,6 +33,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import {
   matchedRowNames,
   parseCoordCsv,
@@ -270,38 +270,19 @@ export default function CsvPreviewScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
-      <View style={styles.headerRow}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          style={({ pressed }) => [
-            styles.backBtn,
-            { opacity: pressed ? 0.6 : 1 },
-          ]}
-        >
-          <Text style={[styles.backText, { color: palette.accent }]}>
-            ‹ Back
-          </Text>
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text
-            style={[styles.heading, { color: palette.text }]}
-            numberOfLines={2}
-          >
-            {file.name ?? 'CSV preview'}
-          </Text>
-          <Text style={[styles.subtitle, { color: palette.muted }]}>
-            {state.source === 'pin'
-              ? 'Loaded from your pinned copy.'
-              : state.source === 'queue'
-                ? 'Loaded from the upload queue.'
-                : state.source === 'remote'
-                  ? 'Loaded from the server.'
-                  : 'Reading…'}
-          </Text>
-        </View>
-      </View>
+      <ScreenHeader
+        back
+        title={file.name ?? 'CSV preview'}
+        subtitle={
+          state.source === 'pin'
+            ? 'Pinned'
+            : state.source === 'queue'
+              ? 'Upload queue'
+              : state.source === 'remote'
+                ? 'Server'
+                : 'Reading…'
+        }
+      />
 
       {state.loading ? (
         <View style={styles.loadingBlock}>
@@ -698,22 +679,6 @@ const styles = StyleSheet.create({
   },
   body: {
     padding: 24,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  backBtn: {
-    paddingVertical: 4,
-    paddingRight: 8,
-  },
-  backText: {
-    fontSize: 16,
-    fontWeight: '500',
   },
   heading: {
     fontSize: 22,
