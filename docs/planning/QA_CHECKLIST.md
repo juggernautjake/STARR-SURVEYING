@@ -119,7 +119,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/admin/rewards`. Fully built out — `app/admin/rewards/page.tsx` is 346 lines. Surfaces the employee rewards balance + redemption flow via a typed `Balance` interface, image-supported product cards (using `next/image` for optimised LCP), and `useEffect`-driven data fetch.
 - [x] `/admin/timeline`. Fully built out — `app/admin/timeline/page.tsx` is 629 lines. Per the file header: "Per-user daily timeline. Reads from the derived `location_stops` + `location_segments` tables (see seeds/224). Defaults to today; changing the date or employee re-fetches. 'Recompute' button POSTs to derive on demand — useful when the surveyor's pings have just landed and the nightly job hasn't run yet." Visualises the day's stops + travel segments for dispatcher review.
 - [x] `/admin/leads`. Built out — `app/admin/leads/page.tsx` is 231 lines, admin-only per the file header. Typed `Lead` interface drives the row UI; shares `AdminJobs.css` for the jobs-family identity. Sub-features that aren't fully wired yet render the shared `<UnderConstruction />` placeholder.
-- [ ] `/admin/discussions`.
+- [x] `/admin/discussions`. Built out — `app/admin/discussions/page.tsx` is 132 lines. Per the file header: "Admin discussion threads listing page". Typed `Thread` interface (`id`, `title`, `description`) backs the row list; each row deep-links via `next/link` into the per-thread `/admin/discussions/[id]` detail view.
 - [ ] `/admin/notes`.
 - [ ] `/admin/my-notes`.
 - [ ] `/admin/my-files`.
