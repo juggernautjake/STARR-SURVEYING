@@ -520,6 +520,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           label: 'Title Block & North Arrow…',
           action: () => { onOpenTitleBlock?.(); setOpenMenu(null); },
         },
+        {
+          label: 'Code-to-Style Mapping…',
+          action: () => { window.dispatchEvent(new CustomEvent('cad:openCodeStylePanel')); setOpenMenu(null); },
+        },
         { separator: true },
         {
           label: 'Curve Calculator…',

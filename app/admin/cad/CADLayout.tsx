@@ -36,6 +36,7 @@ import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
 import DeliveryHydrator from './components/DeliveryHydrator';
 import DrawingChatPanel from './components/DrawingChatPanel';
 import RecentRecoveriesDialog from './components/RecentRecoveriesDialog';
+import CodeStylePanel from './components/CodeStylePanel';
 import AISidebar from './components/AISidebar';
 import BidirectionalSync from './components/BidirectionalSync';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
@@ -157,6 +158,7 @@ export default function CADLayout() {
   const [showReviewModePanel, setShowReviewModePanel] = useState(false);
   const [showDescriptionPanel, setShowDescriptionPanel] = useState(false);
   const [showRecentRecoveries, setShowRecentRecoveries] = useState(false);
+  const [showCodeStylePanel, setShowCodeStylePanel] = useState(false);
   const [compassNotice, setCompassNotice] =
     useState<{ payload: CompassJobImport; stale: boolean } | null>(null);
   const [pendingSubmission, setPendingSubmission] =
@@ -264,6 +266,13 @@ export default function CADLayout() {
     const handler = () => setShowSettings(true);
     window.addEventListener('cad:openSettings', handler);
     return () => window.removeEventListener('cad:openSettings', handler);
+  }, []);
+
+  // Phase 3 §15 — code-to-style mapping panel
+  useEffect(() => {
+    const handler = () => setShowCodeStylePanel(true);
+    window.addEventListener('cad:openCodeStylePanel', handler);
+    return () => window.removeEventListener('cad:openCodeStylePanel', handler);
   }, []);
 
   // Phase 8 §11.7 Slice 10 — mount the linked-instance
@@ -931,6 +940,12 @@ export default function CADLayout() {
       <RecentRecoveriesDialog
         open={showRecentRecoveries}
         onClose={() => setShowRecentRecoveries(false)}
+      />
+
+      {/* Phase 3 §15 — code-to-style mapping panel */}
+      <CodeStylePanel
+        open={showCodeStylePanel}
+        onClose={() => setShowCodeStylePanel(false)}
       />
 
       {/* Phase 7 §3 unified AI sidebar — tabbed view with

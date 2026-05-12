@@ -1752,13 +1752,13 @@ For each visible LineString feature:
 - [x] Uses GENERIC_CROSS fallback when symbolId is empty (unit-tested)
 - [x] Uses SOLID fallback when lineTypeId is empty (unit-tested)
 - [x] Uses MISC fallback when layerId is empty (unit-tested)
-- [ ] Table shows all 134+ codes with current assignments *(CodeStylePanel UI — not yet implemented)*
-- [ ] Click symbol cell opens `SymbolPicker` *(UI — not yet implemented)*
-- [ ] Click line type cell opens `LineTypePicker` *(UI — not yet implemented)*
-- [ ] Click color cell opens `ColorPicker` *(UI — not yet implemented)*
-- [ ] Changes apply immediately on canvas *(UI — not yet implemented)*
-- [ ] Modified cells show visual indicator *(UI — not yet implemented)*
-- [ ] Reset to Defaults works per-code and globally *(UI — not yet implemented)*
+- [x] Table shows all 134+ codes with current assignments — `app/admin/cad/components/CodeStylePanel.tsx` enumerates every entry from `getEffectiveCodeStyleMap(overrides)` (Code · Description · Category · Symbol · LineType · Color · Layer) with a searchable header that filters across codeAlpha / codeNumeric / description / category.
+- [x] Click symbol cell opens `SymbolPicker` — per-row Symbol button stores `setSymbolPickerFor(codeAlpha)`; modal mount opens with the current symbolId selected and writes the choice through `setOverride(codeAlpha, 'symbolId', …)`.
+- [x] Click line type cell opens `LineTypePicker` — parallel wiring via `setLineTypePickerFor(codeAlpha)`; writes `setOverride(codeAlpha, 'lineTypeId', …)`.
+- [x] Click color cell opens `ColorPicker` — native `<input type="color">` is used (matches surveyor "pick from swatch + commit" pattern); writes `setOverride(codeAlpha, 'lineColor', …)` on change.
+- [x] Changes apply immediately on canvas — overrides feed `resolveCodeStyleMapping` which feeds the canvas style resolver; no save step required (Zustand store + `persist` flush on every patch).
+- [x] Modified cells show visual indicator — each cell that has a per-field override renders a 1.5px amber dot via `fieldsModified('symbolId' | 'lineTypeId' | 'lineColor' | 'layerId')`.
+- [x] Reset to Defaults works per-code and globally — `RotateCcw` button on each modified row calls `resetCode(codeAlpha)`; footer "Reset all overrides" button calls `resetAll()` (disabled when zero overrides).
 
 ### Property Panel
 - [x] Nothing selected → panel shows instructions (PropertyPanel.tsx)
