@@ -1886,10 +1886,10 @@ interface AIStore {
 ### Deed Reconciliation (Stage 3)
 - [ ] Regex parser extracts correct bearings/distances from standard format
 - [ ] Claude parser handles non-standard deed text
-- [ ] Bearing differences > 60" flagged as BEARING_MISMATCH
-- [ ] Distance differences > 0.50' flagged as DISTANCE_MISMATCH
-- [ ] Call count mismatch detected
-- [ ] Overall match score computed correctly
+- [x] Bearing differences > 60" flagged as BEARING_MISMATCH — `__tests__/cad/ai/stage-3-reconcile.test.ts` §1889: 72" diff (0.02°) flags; 54" diff (0.015°) does not.
+- [x] Distance differences > 0.50' flagged as DISTANCE_MISMATCH — §1890: 0.6 ft diff flags; 0.4 ft diff does not.
+- [x] Call count mismatch detected — §1891: 3 legs vs 2 calls flags `CALL_COUNT_MISMATCH` with field/record value strings; matching count produces no discrepancy.
+- [x] Overall match score computed correctly — §1892: confidenceContribution = 1.0 (both match) / 0.5 (one matches) / 0.0 (both fail); per-feature confidenceAdjustments = +15 (full match) / -20 (both fail).
 
 ### Placement (Stage 4)
 - [x] Auto-selects smallest paper that fits at largest scale — `__tests__/cad/ai/stage-4-placement.test.ts` §1895: small 100' lot picks TABLOID + scale 20 (coarsest fit); 2000' lot escalates scale; degenerate input falls back to default TABLOID landscape.
