@@ -242,6 +242,26 @@ export default function ResearchProjectPage() {
 
   // Review state
   const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'discrepancies' | 'artifacts'>('summary');
+  // Scroll target for the Quick-stats actionable tiles (Slice C4).
+  // Tapping Data Points / Discrepancies / Resolved jumps to the
+  // review summary panel and switches to the relevant tab so the
+  // user lands in front of the actual rows, not just a number.
+  const reviewPanelRef = useRef<HTMLDivElement | null>(null);
+  const scrollToReview = useCallback(
+    (tab: typeof reviewTab) => {
+      setReviewTab(tab);
+      // Defer a frame so the tab switch renders before we scroll —
+      // otherwise the layout shift races the scroll and the user
+      // lands mid-transition.
+      requestAnimationFrame(() => {
+        reviewPanelRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      });
+    },
+    []
+  );
   const [showBriefing, setShowBriefing] = useState(true);
   const [viewerDoc, setViewerDoc] = useState<ResearchDocument | null>(null);
   const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
@@ -1645,28 +1665,59 @@ export default function ResearchProjectPage() {
         onStageClick={project.status !== 'analyzing' ? handleRevertToStep : undefined}
       />
 
-      {/* Quick stats */}
+      {/* Quick stats — actionable buttons (Slice C4). Each tile is
+          a proper button so keyboard users get focus + Enter to
+          activate, and screen readers announce the destination.
+          The Documents tile pushes the sub-route; the rest jump
+          to the review summary panel + open the matching tab. */}
       <div className="research-hub__stats">
-        <div className="research-hub__stat">
+        <button
+          type="button"
+          className="research-hub__stat research-hub__stat--button"
+          onClick={() => router.push(`/admin/research/${projectId}/documents`)}
+          aria-label={`${stats.document_count} documents — open documents library`}
+        >
           <div className="research-hub__stat-value">{stats.document_count}</div>
           <div className="research-hub__stat-label">Documents</div>
-        </div>
-        <div className="research-hub__stat">
+        </button>
+        <button
+          type="button"
+          className="research-hub__stat research-hub__stat--button"
+          onClick={() => scrollToReview('artifacts')}
+          disabled={stats.data_point_count === 0}
+          aria-label={`${stats.data_point_count} data points — open artifacts tab`}
+        >
           <div className="research-hub__stat-value">{stats.data_point_count}</div>
           <div className="research-hub__stat-label">Data Points</div>
-        </div>
-        <div className="research-hub__stat">
+        </button>
+        <button
+          type="button"
+          className="research-hub__stat research-hub__stat--button"
+          onClick={() => scrollToReview('discrepancies')}
+          disabled={stats.discrepancy_count === 0}
+          aria-label={`${stats.discrepancy_count} discrepancies — open discrepancies tab`}
+        >
           <div className="research-hub__stat-value">{stats.discrepancy_count}</div>
           <div className="research-hub__stat-label">Discrepancies</div>
-        </div>
-        <div className="research-hub__stat">
+        </button>
+        <button
+          type="button"
+          className="research-hub__stat research-hub__stat--button"
+          onClick={() => scrollToReview('discrepancies')}
+          disabled={stats.discrepancy_count === 0}
+          aria-label={
+            stats.discrepancy_count > 0
+              ? `${stats.resolved_count} of ${stats.discrepancy_count} discrepancies resolved — open discrepancies tab`
+              : 'No discrepancies to resolve yet'
+          }
+        >
           <div className="research-hub__stat-value">
             {stats.discrepancy_count > 0
               ? `${stats.resolved_count}/${stats.discrepancy_count}`
               : '-'}
           </div>
           <div className="research-hub__stat-label">Resolved</div>
-        </div>
+        </button>
       </div>
 
       {/* ════════════════════════════════════════════════════════════════
@@ -1866,7 +1917,7 @@ export default function ResearchProjectPage() {
           {/* ══════════════════════════════════════════════════════════
               SECTION 1 — Summary Panel with Tabs
               ══════════════════════════════════════════════════════ */}
-          <div className="review-summary-panel">
+          <div className="review-summary-panel" ref={reviewPanelRef}>
             {/* Tab bar */}
             <div className="review-summary-panel__tabs">
               {(['summary', 'property', 'survey', 'easements', 'discrepancies', 'artifacts'] as const).map(tab => (

@@ -225,7 +225,7 @@ Each slice is small enough to ship in one PR. Phases land in this order so the c
 13. **Slice C1** — Theme unification. Pick light or dark, migrate the four sub-routes (`library`, `billing`, `documents`, `boundary`) + Easements tab + field report.
 14. **Slice C2** — Workspace decomposition. Split `[projectId]/page.tsx` into per-stage files + extract dialogs.
 15. **Slice C3** — Promote Pipeline + Testing Lab + global routes to a top-level admin nav strip on `page.tsx`.
-16. **Slice C4** — Stat tiles become actionable buttons.
+16. **Slice C4** — Stat tiles become actionable buttons. **Shipped (U29)**: 4 quick-stat tiles on the project workspace are now proper `<button>` elements with hover / focus-visible / disabled states. Documents pushes to the `/documents` sub-route; Data Points → `artifacts` tab; Discrepancies + Resolved → `discrepancies` tab. Each click also smooth-scrolls the review-summary panel into view so the user lands in front of the rows, not just a number.
 17. **Slice C5** — Stage-3 navigation row grouped by intent; destructive Re-run in its own group.
 18. **Slice C6** — Easements tab 2-column grid + sticky in-tab subnav.
 19. **Slice C7** — Delete `components/WorkflowStepper.tsx` + document `PipelineStepper` step semantics.
