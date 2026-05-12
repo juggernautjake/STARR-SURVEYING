@@ -9829,8 +9829,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // Phase 8 §11.7 — Pick-mode box-select resolution. Parallel
       // to the SELECT/BOX_SELECT path below; captured features get
-      // added to the transferStore's pick set rather than the
-      // selection store. Pick mode preempts the regular flow.
+      // added to (or removed from) the transferStore's pick set
+      // rather than the selection store. Pick mode preempts the
+      // regular flow.
+      //
+      // Modifier semantics on release:
+      //   plain drag           → addPicks (intersection of box + features)
+      //   Alt-drag             → removePicks (window-deselect; matches
+      //                          the existing Alt-click remove path)
+      //   Ctrl+Shift-drag      → also removePicks (alt mapping per spec)
       const _pickTx = useTransferStore.getState();
       if (toolState.isBoxSelecting && _pickTx.pickModeActive) {
         const start = toolState.boxStart!;
@@ -9839,7 +9846,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const threshold = drawingStore.document.settings.dragThreshold ?? 5;
         if (dragDist > threshold) {
           const ids = boxSelectFeatures(start, end);
-          if (ids.length > 0) _pickTx.addPicks(ids);
+          if (ids.length > 0) {
+            const isDeselect = e.altKey || (e.ctrlKey && e.shiftKey) || (e.metaKey && e.shiftKey);
+            if (isDeselect) {
+              _pickTx.removePicks(ids);
+            } else {
+              _pickTx.addPicks(ids);
+            }
+          }
         }
         // Short-drag no-op: a plain click in Pick mode flows
         // through the click handler at handleClick → togglePick.
