@@ -265,6 +265,7 @@ export function runAIPipeline(
     enrichment: null,
     scores,
     computedAcres: null,
+    pointGroups: Array.from(pointGroups.values()),
   });
   timings['deliberation'] = Date.now() - t;
 

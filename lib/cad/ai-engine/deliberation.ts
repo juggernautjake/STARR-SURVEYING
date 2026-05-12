@@ -32,7 +32,7 @@ import type {
   ReconciliationResult,
 } from './types';
 import type { OffsetResolutionDetail } from './offset-resolver';
-import type { Feature } from '../types';
+import type { Feature, PointGroup } from '../types';
 
 // ────────────────────────────────────────────────────────────
 // Inputs
@@ -50,6 +50,9 @@ export interface DeliberationInputs {
    *  knows the closed polygons). When omitted, the area-mismatch
    *  check is skipped. */
   computedAcres?:  number | null;
+  /** PointGroup map from Phase 2; drives the "which shot is final?"
+   *  question when calc-vs-field positions disagree beyond tolerance. */
+  pointGroups?:    PointGroup[];
 }
 
 // ────────────────────────────────────────────────────────────
@@ -87,6 +90,13 @@ export function runDeliberation(
   questions.push(
     ...buildAreaQuestions(inputs.enrichment, inputs.computedAcres ?? null)
   );
+
+  // 7. Duplicate-shot disambiguation — group has both CALC and
+  // a field shot (SET/FOUND) and their delta exceeds the
+  // 0.10 ft warning threshold. Phase 2 picks the field shot
+  // as `finalPoint` by priority; the surveyor needs to confirm
+  // when the two disagree.
+  questions.push(...buildDuplicateShotQuestions(inputs.pointGroups ?? []));
 
   // 5. Feature completeness — unclosed boundary signal.
   // (Reconciliation closure quality covers most of this; we
@@ -476,6 +486,59 @@ function buildAreaQuestions(
       skipped: false,
     },
   ];
+}
+
+// ────────────────────────────────────────────────────────────
+// Step 7 — Duplicate-shot ("which is final?") questions
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Generate a clarifying question for every PointGroup whose
+ * `deltaWarning` flag is set — i.e. the group has both a
+ * CALC position and a SET/FOUND position, and they disagree
+ * by more than the 0.10 ft tolerance baked into
+ * `lib/cad/codes/point-grouping.ts`. Phase 2 already chose the
+ * field shot as `finalPoint`; the surveyor needs to confirm
+ * (or override to the calc, or flag for review) before the
+ * drawing is sealed.
+ */
+function buildDuplicateShotQuestions(
+  groups: PointGroup[]
+): ClarifyingQuestion[] {
+  const out: ClarifyingQuestion[] = [];
+  for (const g of groups) {
+    if (!g.deltaWarning) continue;
+    if (!g.hasBothCalcAndField) continue;
+    const delta =
+      g.calcSetDelta !== null
+        ? g.calcSetDelta
+        : (g.calcFoundDelta ?? 0);
+    const fieldKind = g.set ? 'SET' : g.found ? 'FOUND' : 'field';
+    out.push({
+      id: generateId(),
+      priority: 'HIGH',
+      category: 'DUPLICATE_SHOT',
+      question:
+        `Point ${g.baseNumber} has both a calculated position and ` +
+        `a ${fieldKind.toLowerCase()} shot ${delta.toFixed(2)}′ away. ` +
+        'Which position should drive the drawing?',
+      aiReasoning:
+        `Group #${g.baseNumber}: calc-vs-${fieldKind} delta = ` +
+        `${delta.toFixed(3)} ft (threshold 0.10 ft). Phase 2 picked ` +
+        `the ${g.finalSource} shot as final.`,
+      relatedIds: g.allPoints.map((p) => p.id),
+      suggestedAnswer: `Use ${fieldKind.toLowerCase()} shot`,
+      answerType: 'SELECT',
+      options: [
+        `Use ${fieldKind.toLowerCase()} shot (current)`,
+        'Use calculated position',
+        'Flag for surveyor review',
+      ],
+      userAnswer: null,
+      skipped: false,
+    });
+  }
+  return out;
 }
 
 // ────────────────────────────────────────────────────────────

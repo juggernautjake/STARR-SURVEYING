@@ -3090,7 +3090,7 @@ interface AIStore {
 - [x] Unrecognized code generates optional MEDIUM question
 - [x] Fence code → material question generated (LOW priority)
 - [x] Building code → material question generated (LOW priority)
-- [ ] Duplicate shots → "which is final?" question generated
+- [x] Duplicate shots → "which is final?" question generated — `lib/cad/ai-engine/deliberation.ts` now has a step-7 `buildDuplicateShotQuestions` builder. `DeliberationInputs.pointGroups` is wired through `pipeline.ts`; the builder iterates groups whose `deltaWarning` flag is set AND that carry both a CALC and a field (SET/FOUND) position. The emitted HIGH-priority `DUPLICATE_SHOT` question pre-fills the field shot as the suggested answer (matching Phase 2's `finalPoint` pick), with `'Use calculated position'` and `'Flag for surveyor review'` as alternatives. 4 vitest cases at `__tests__/cad/ai/deliberation-duplicate-shot.test.ts` cover the positive case (calc + SET 0.5 ft apart → question fires), the no-warning case (delta below 0.10 ft threshold → silent), the SET-only case (hasBothCalcAndField=false → silent), and the calc + FOUND variant ("Use found shot (current)" label).
 - [x] User answering blocking questions enables "Draw Now" button (`app/admin/cad/components/QuestionDialog.tsx`)
 - [x] Answers applied to pipeline re-run; scores improve after good answers (`rerunWithAnswers` in `lib/cad/store/ai-store.ts` + `applyAnswerEffects` in `lib/cad/ai-engine/apply-answers.ts`; FEATURE_ATTRIBUTE answers stamp `feature.properties.material`, deed/code/offset answers logged as warnings until Stage-1 reclass + offset disambig wiring lands)
 - [x] "Skip All Optional" dismisses all non-blocking questions (`skipAllOptionalQuestions` in `lib/cad/store/ai-store.ts`)
