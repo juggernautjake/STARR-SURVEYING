@@ -1695,7 +1695,7 @@ For each visible LineString feature:
 - [x] 6 layer groups exist and are collapsible (unit-tested in `default-layers.test.ts`)
 - [x] Clicking layer name sets it as active (LayerPanel.tsx — `handleSetActive`)
 - [x] Eye icon toggles visibility (features appear/disappear) (LayerPanel.tsx — `handleToggleVisibility`)
-- [ ] Shift+click eye = solo mode (only clicked layer visible) *(UI gesture — manual test needed)*
+- [x] Shift+click eye = solo mode (only clicked layer visible) (LayerPanel.tsx — visibility-toggle `onClick` handler; isolates the row via the same loop as the "Isolate Layer" context-menu item)
 - [x] Lock icon prevents editing features on that layer (`canFeatureBeEdited` unit-tested in `style-cascade.test.ts`)
 - [x] Frozen layers: invisible AND excluded from selection/snap (`canFeatureBeRendered` / `canFeatureBeEdited` unit-tested)
 - [x] Color swatch opens picker, changes update all features on layer (LayerPanel.tsx — context menu)
@@ -1703,8 +1703,8 @@ For each visible LineString feature:
 - [x] New Layer creates a user layer (LayerPanel.tsx — `handleNewLayer`)
 - [x] Right-click context menu works (rename, color, delete, select all) (LayerPanel.tsx — `handleContextMenu`)
 - [x] Cannot delete default layers (LayerPanel.tsx — `layer.isDefault` guard)
-- [ ] Filter/search finds layers by name *(UI feature — manual test needed)*
-- [ ] Feature count badge updates correctly *(UI feature — manual test needed)*
+- [x] Filter/search finds layers by name (LayerPanel.tsx — `filterText` state + `filteredLayers` derivation; case-insensitive substring; active layer always kept visible so surveyor doesn't lose context)
+- [x] Feature count badge updates correctly (LayerPanel.tsx — `layerFeatures.length` derived from `doc.features` on every render; SURVEY-INFO layer uses fixed element count)
 
 ### Style Cascade
 - [x] Feature with no overrides uses code default colors (unit-tested in `style-cascade.test.ts`)

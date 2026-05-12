@@ -381,9 +381,18 @@ export default function LayerPanel() {
                   className="flex-shrink-0 text-gray-400 hover:text-white p-0.5 transition-colors duration-100"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleToggleVisibility(layer);
+                    if (e.shiftKey) {
+                      // Shift+click = isolate this layer (AutoCAD/Civil 3D convention).
+                      // Matches the "Isolate Layer" context-menu action below — surveyors
+                      // expect both gestures.
+                      for (const id of doc.layerOrder) {
+                        store.updateLayer(id, { visible: id === layer.id });
+                      }
+                    } else {
+                      handleToggleVisibility(layer);
+                    }
                   }}
-                  title={layer.visible ? 'Hide layer' : 'Show layer'}
+                  title={layer.visible ? 'Hide layer · Shift+click to isolate' : 'Show layer · Shift+click to isolate'}
                 >
                   {layer.visible ? <Eye size={12} /> : <EyeOff size={12} />}
                 </button>
