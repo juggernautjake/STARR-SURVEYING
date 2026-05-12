@@ -1877,7 +1877,7 @@ interface AIStore {
 
 ### Feature Assembly (Stage 2)
 - [ ] B/E suffixes build correct line strings
-- [ ] Auto-spline codes produce spline features
+- [x] Auto-spline codes produce spline features — `__tests__/cad/ai/stage-2-assemble.test.ts` §1880 covers the `isAutoSplineCode` recognition surface (TP06/07, VG07, FN11, 630/632/357 etc.; case-insensitive; rejects non-spline codes). The downstream conversion from auto-spline LineString → spline Feature is exercised by the full-pipeline integration tests rather than unit tests because it depends on the Phase 2 import path producing classified points with `isAutoSplinePoint: true`.
 - [ ] A-suffix sequences produce arc features via Kasa fit
 - [ ] Closed boundary lines detected
 - [ ] Unclosed boundary within 1.0' flagged as warning
