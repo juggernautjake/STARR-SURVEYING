@@ -3066,14 +3066,14 @@ interface AIStore {
 ## Updated Acceptance Tests (§24 additions)
 
 ### Dynamic Offset Resolution
-- [ ] Offset in code suffix `BC02_10R` parsed: 10' right offset detected
-- [ ] Offset in point description `"10L BC02"` parsed correctly
-- [ ] Perpendicular left offset: true position is 90° CCW from bearing at correct distance
-- [ ] Perpendicular right offset: true position is 90° CW from bearing at correct distance
-- [ ] Companion pair (`35` + `35off`) detected and resolved
-- [ ] Ambiguous offset (no reference bearing available) → added to question queue
-- [ ] Offset shots rendered at 40% opacity in "show all" mode
-- [ ] True positions replace offset positions in all feature assembly
+- [x] Offset in code suffix `BC02_10R` parsed: 10' right offset detected — `__tests__/cad/ai/offset-resolver.test.ts` §3069: `detectSuffixOffsets` returns `{ offsetDistance: 10, offsetDirection: { type: 'PERPENDICULAR_RIGHT' }, resolutionMethod: 'SUFFIX', confidence: 95 }`. Companion tests cover decimal distance + case-insensitive direction tokens (`_5.5l`, `_2.0F`, `_3.0b`) and rejection of malformed forms (no distance, zero distance, unknown direction).
+- ~~Offset in point description `"10L BC02"` parsed correctly~~ — deferred: `lib/cad/ai-engine/offset-resolver.ts:18` explicitly defers description-text parsing to a follow-up slice that needs the worker plumbing for Claude-assisted field-note extraction. Suffix + companion-pair paths already cover the surveyor's most common case (Trimble Access embeds the offset in the rawCode).
+- [x] Perpendicular left offset: true position is 90° CCW from bearing at correct distance — §3071: with a reference bearing of azimuth 0° (due north), `applyOffset(origin, 10, PERPENDICULAR_LEFT, 0)` returns `(-10, 0)` — i.e. 10' due west, the 90° CCW direction.
+- [x] Perpendicular right offset: true position is 90° CW from bearing at correct distance — §3072: same input with `PERPENDICULAR_RIGHT` returns `(10, 0)`; non-cardinal bearing (azimuth 45°) returns `(+7.0711, -7.0711)` — i.e. azimuth 135°, which is bearing+90°.
+- [x] Companion pair (`35` + `35off`) detected and resolved — §3073: `detectCompanionPairs` returns a `COMPANION_PAIR` shot for the `35off` point with `requiresUserConfirmation: true`. When the same offset point is already covered by a suffix hit, the pair detector skips it (suffix wins per the dedupe priority order).
+- [x] Ambiguous offset (no reference bearing available) → added to question queue — §3074: a companion pair where the only other point is itself an offset companion produces zero non-offset neighbours; `computeReferenceBearing` returns null; the shot lands in `ambiguousShots` with `requiresUserConfirmation: true`. The §28 question queue gate watches that flag.
+- [ ] Offset shots rendered at 40% opacity in "show all" mode *(canvas renderer integration — needs `OffsetShot` → render pipeline wiring; tracked separately)*
+- [x] True positions replace offset positions in all feature assembly — §3076: `resolveOffsetsSync` emits a `SurveyPoint` in `truePoints` whose easting/northing is the offset-applied position; `resolvedShots[i].truePointId` links the offset point to its true counterpart so Stage 2 can swap before assembly. With neighbours at (0,0) and (100,100), an offset at (50,50) + `BC02_10R` produces a true point at (57.071, 42.929) — exactly 10' right of the NE bearing line.
 
 ### Online Data Enrichment
 - [ ] County parcel data fetched for test parcel in Bell County, TX
