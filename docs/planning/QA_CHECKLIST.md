@@ -111,7 +111,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/admin/team`. Fully built out — `app/admin/team/page.tsx` is 649 lines. Per the file header: "Field team status + dispatcher Ping. Shows every approved employee with: clocked-in state + duration, last GPS reported on clock-in (lat/lon with map links), last 'log hours' reminder sent (delivered ✓ + read ✓ flags), and a Ping button per user → POST /api/admin/notifications." Surfaces the dispatcher's daily workflow without forcing the office into the admin web.
 - [x] `/admin/profile`. Fully built out — `app/admin/profile/page.tsx` is 216 lines. Per-employee profile page reading from the DB: `user_name`, `job_title`, `hire_date`, `hourly_rate`, `is_active`, `available_balance`, etc. via a typed `Profile` interface; renders the employee's credentials + recent changes panel. Uses `usePageError` for the standard error toast.
 - [x] `/admin/settings`. Built out — `app/admin/settings/page.tsx` is 216 lines, admin-only. Tabbed UI with `activeSection` state (default `'general'`) for switching between settings categories. Sub-feature sections that aren't fully wired yet render the shared `<UnderConstruction />` placeholder so the surveyor knows what's coming without breaking nav.
-- [ ] `/admin/pay-progression`.
+- [x] `/admin/pay-progression`. Fully built out — `app/admin/pay-progression/page.tsx` is 636 lines. Manages per-work-type pay rates via a typed `WorkTypeRate` interface (`work_type`, `base_rate`) and the shared `AdminPayroll.css` stylesheet so the pay-progression / payroll / hours-approval pages share identity. One of the larger admin pages.
 - [ ] `/admin/hours-approval`.
 - [ ] `/admin/my-pay`.
 - [ ] `/admin/payout-log`.
