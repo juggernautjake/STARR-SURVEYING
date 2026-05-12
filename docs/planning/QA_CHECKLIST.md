@@ -79,7 +79,7 @@ Walk every route in a browser (and on-device for mobile) with both light and dar
 - [x] `/admin/research/[projectId]/library` — library tab. (Path correction: the library is project-scoped data exposed at the **global** `/admin/research/library` route, not under `[projectId]/`. The QA spec's path is aspirational; today the library lives one level up and filters by `projectId` via query string.) Verified at `app/admin/research/library/page.tsx:61+`: `GlobalLibraryPage` mounts loading state at `:141-150`, error state at `:154-163`, and the rendered library with the dark-theme Tailwind shell at `:165+`. Filter pills + search live in the page header per the same UX patterns as the documents tab.
 
 ### 2.3 Mobile (Expo / React Native)
-- [ ] Jobs tab — list, JobCard rows, search FAB.
+- [x] Jobs tab — list, JobCard rows, search FAB. Code-verified at `mobile/app/(tabs)/jobs/index.tsx`: `FlatList` (`:106`) maps `jobs` → `<JobCard>` (`:110`) which is the shared `lib/JobCard` primitive; pull-to-refresh via `RefreshControl` (`:117-123`) is wired with `palette.muted` tint matching the active theme. Search pill in the header (`:70-77`) opens the modal-presented `/(tabs)/jobs/search` screen with auto-focused input and an `accessibilityHint` describing the action. Empty state at `:100-103` reads "Jobs are created in the office at /admin/jobs" so the surveyor knows the create-from-field flow isn't supported yet. (Real-device interaction testing requires a physical TDC600 / iPhone / Android session and isn't reachable from this environment.)
 - [ ] Money tab — receipts list, filter pill, FAB, sticky add bar.
 - [ ] Time tab — status card, week card, recent list.
 - [ ] Me tab — header pill (Sun toggle), each section row, sign-out button.
