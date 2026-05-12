@@ -83,6 +83,13 @@ interface CommonProps {
   inputClassName?: string;
   /** Override the focus ring color hex when valid (default blue-500). */
   focusBorderClass?: string;
+  /** Phase 8 §11.5.5 — stable identifier for the field-level unit
+   *  lock surface. When set, the input reads its initial unit
+   *  override from `useUIStore.fieldUnitLocks[fieldId]` and
+   *  writes through on every dropdown change so the surveyor's
+   *  picked unit persists across reloads. Examples:
+   *  `'offset.distance'`, `'fillet.radius'`, `'array.col'`. */
+  fieldId?: string;
 }
 
 interface LengthProps extends CommonProps {
@@ -142,9 +149,21 @@ function formatAzimuth(azimuth: number, decimals = 4): string {
 export default function UnitInput(props: UnitInputProps) {
   const reactId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  // Phase 8 §11.5.5 — seed unitOverride from `fieldUnitLocks[fieldId]`
+  // on first render when a lock exists. Subsequent dropdown changes
+  // both update local state and write through to the store so the
+  // lock persists across reloads.
+  const initialLockedUnit = props.fieldId
+    ? (useUIStore.getState().fieldUnitLocks[props.fieldId] as LinearUnit | AreaUnit | undefined)
+    : undefined;
+  const setFieldUnitLock = useUIStore((s) => s.setFieldUnitLock);
   const [draft, setDraft] = useState<string>(() => formatInitial(props));
   const [error, setError] = useState<string | null>(null);
-  const [unitOverride, setUnitOverride] = useState<LinearUnit | AreaUnit | undefined>(undefined);
+  const [unitOverride, _setUnitOverride] = useState<LinearUnit | AreaUnit | undefined>(initialLockedUnit);
+  const setUnitOverride = (u: LinearUnit | AreaUnit | undefined) => {
+    _setUnitOverride(u);
+    if (props.fieldId) setFieldUnitLock(props.fieldId, u ?? null);
+  };
   const [angleModeOverride, setAngleModeOverride] = useState<AngleMode | undefined>(undefined);
 
   // External value changed — re-render the draft (unless the input

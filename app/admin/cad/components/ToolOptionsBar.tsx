@@ -1532,9 +1532,10 @@ export default function ToolOptionsBar() {
                   value={ts.offsetDistance}
                   onChange={(v) => toolStore.setOffsetDistance(v)}
                   defaultUnit="FT"
+                  fieldId="offset.distance"
                   inputClassName="w-24 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-blue-500"
                   focusBorderClass="focus:border-blue-500"
-                  description="Offset distance — accepts unit suffixes (50ft, 5m, 6in). 0 = dynamic (follow cursor)."
+                  description="Offset distance — accepts unit suffixes (50ft, 5m, 6in). 0 = dynamic (follow cursor). Picked unit persists across reloads."
                 />
               </div>
             </Tooltip>
