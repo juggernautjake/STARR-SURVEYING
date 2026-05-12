@@ -632,7 +632,7 @@ export function buildElementsFromAnalysis(
     });
   }
 
-  // 5. Point of Beginning label
+  // 6. Point of Beginning label
   const pobDataPoints = dataPoints.filter(dp => dp.data_category === 'point_of_beginning');
   if (points.length > 0) {
     const pobDp = pobDataPoints[0];
@@ -664,7 +664,7 @@ export function buildElementsFromAnalysis(
     });
   }
 
-  // 6. Coordinate labels at traverse vertices (station points)
+  // 7. Coordinate labels at traverse vertices (station points)
   //    Show point number and (x, y) offset from POB so users can see the coordinate grid
   if (points.length > 1 && config.label_config.show_monuments) {
     // Only label corners that don't already have a monument symbol

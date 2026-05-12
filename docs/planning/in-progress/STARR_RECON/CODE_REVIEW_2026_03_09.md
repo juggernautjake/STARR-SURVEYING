@@ -4,6 +4,25 @@
 **Reviewer:** Claude (Opus 4.6)
 **Scope:** Complete review of all STARR RECON / property research code
 
+> **Findings ledger (added 2026-05-12):** the §Issues Found prose
+> below identifies 11 specific bugs. Per-finding status is tracked
+> here so the planning-doc loop knows when this snapshot has
+> served its purpose:
+>
+> - [ ] **#1 (critical)** `comparison.service.ts` calculates closure in canvas pixel space (lines 162-188) — needs survey-space traverse data instead of transformed drawing elements.
+> - [ ] **#2 (critical)** AI responses cast without runtime validation (`document-analysis.service.ts:66`) — add Zod between AI responses and the data pipeline.
+> - [ ] **#3 (important)** `listDrawings()` N+1 element-count query (`drawing.service.ts:578-606`) — single query with subquery or JOIN. (Partial: unused `drawingIds` var dropped in this sweep; the loop itself still N+1s.)
+> - [ ] **#4 (important)** In-memory search cache won't work on Vercel serverless (`property-search.service.ts:21`) — move to Redis or Supabase.
+> - [ ] **#5 (important)** Document text truncated at 18,000 chars in `document-analysis.service.ts` — raise to 50K+ or chunked analysis.
+> - [ ] **#6 (important)** No rate limiting on `POST lite-pipeline` — add per-project + per-hour AI budget.
+> - [ ] **#7 (important)** `buildCallSequence()` Strategy 3 fragile (`drawing.service.ts:400-416`) — validate traverse closure before accepting.
+> - [ ] **#8 (important)** `comparison.service.ts:386-388` confidence breakdown hardcoded `area_accuracy: 75` / `closure_quality: 75` — should use `mathChecks.closure_precision` + `mathChecks.area_difference_acres`.
+> - [x] **#9 (minor)** Unused `drawingIds` variable in `listDrawings()` — fixed; line 590 removed.
+> - [x] **#10 (minor)** Duplicate section numbering in `geometry.engine.ts` — renumbered (5 callouts, 6 POB, 7 coordinate labels).
+> - [ ] **#11 (minor)** `export.service.ts` PDF rasterizes SVG → PNG — consider svg2pdf.js for true vector PDFs.
+>
+> When every box is [x], move this doc to `docs/planning/completed/STARR_RECON/`.
+
 ---
 
 ## Scope of Review
