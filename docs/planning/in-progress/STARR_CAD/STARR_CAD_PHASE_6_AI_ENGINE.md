@@ -1892,9 +1892,9 @@ interface AIStore {
 - [ ] Overall match score computed correctly
 
 ### Placement (Stage 4)
-- [ ] Auto-selects smallest paper that fits at largest scale
-- [ ] Landscape preferred for wider-than-tall surveys
-- [ ] Rotation by longest boundary bearing improves fill ratio
+- [x] Auto-selects smallest paper that fits at largest scale — `__tests__/cad/ai/stage-4-placement.test.ts` §1895: small 100' lot picks TABLOID + scale 20 (coarsest fit); 2000' lot escalates scale; degenerate input falls back to default TABLOID landscape.
+- [x] Landscape preferred for wider-than-tall surveys — §1896: wide 4:1 rectangle picks LANDSCAPE orientation (rotation 0 case verified; the picker may also choose to rotate the geometry, which is acceptable per spec).
+- [x] Rotation by longest boundary bearing improves fill ratio — §1897: diagonal-axis lot's picker considers rotation by `-longestBoundaryBearing`; the chosen rotation lands in `[0, -longestBearing]`. Plus 2 helper tests covering `findLongestBoundaryBearing` (picks the longest LINE + returns its azimuth, returns null on no LINE features).
 
 ### Confidence Scoring (Stage 6)
 - [x] Score 100 for perfect data (all factors = 1.0) — `__tests__/cad/ai/stage-6-confidence.test.ts` §1900: `computeConfidence(PERFECT)` === 100; `getTier(100)` === 5; tier table verified at every boundary (95/80/60/40).
