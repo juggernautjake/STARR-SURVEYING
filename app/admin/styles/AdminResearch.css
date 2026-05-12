@@ -11007,3 +11007,76 @@
   .research-pipeline__job-date { grid-area: date; text-align: left; }
   .research-pipeline__refresh-job-btn { grid-area: refresh; }
 }
+
+/* ── Shared confirmation dialog (UX polish slice U19) ──────────────────── */
+/*
+ * Singleton used by app/admin/research/components/ConfirmDialog.tsx to
+ * unify the 14 destructive flows that previously fell back to the
+ * browser's window.confirm(). Reuses `.research-modal-overlay` +
+ * `.research-modal` for backdrop / padding / rounded shell.
+ */
+
+.research-confirm {
+  max-width: 460px;
+}
+
+.research-confirm__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.research-confirm__body {
+  margin: 0 0 1rem;
+  color: #4B5563;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.research-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.research-confirm__cancel,
+.research-confirm__confirm {
+  height: 36px;
+  padding: 0 1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.research-confirm__cancel {
+  background: #FFFFFF;
+  border: 1px solid var(--recon-border, #D1D5DB);
+  color: #374151;
+}
+.research-confirm__cancel:hover {
+  background: #F9FAFB;
+  border-color: #9CA3AF;
+}
+
+.research-confirm__confirm {
+  background: var(--recon-brand);
+  border: 1px solid var(--recon-brand);
+  color: #FFFFFF;
+}
+.research-confirm__confirm:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.research-confirm__confirm--danger {
+  background: #DC2626;
+  border-color: #DC2626;
+}
+.research-confirm__confirm--danger:hover {
+  background: #B91C1C;
+  border-color: #B91C1C;
+}

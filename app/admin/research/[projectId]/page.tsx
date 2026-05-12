@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import DOMPurify from 'dompurify';
 import { usePageError } from '../../hooks/usePageError';
 import PipelineStepper from '../components/PipelineStepper';
+import { confirm as confirmDialog } from '../components/ConfirmDialog';
 import DocumentUploadPanel from '../components/DocumentUploadPanel';
 import PropertySearchPanel from '../components/PropertySearchPanel';
 import ResearchAnalysisPanel from '../components/ResearchAnalysisPanel';
@@ -430,7 +431,13 @@ export default function ResearchProjectPage() {
   }
 
   async function handleArchiveProject() {
-    if (!window.confirm('Archive this project? It will be hidden from the project list but can be recovered later.')) return;
+    const ok = await confirmDialog({
+      title: 'Archive this project?',
+      body: 'It will be hidden from the project list but can be recovered later.',
+      confirmLabel: 'Archive',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/admin/research?id=${projectId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -519,7 +526,13 @@ export default function ResearchProjectPage() {
       message += '\n\nYour drawings and extracted data will remain intact.';
     }
 
-    if (!window.confirm(message)) return;
+    const ok = await confirmDialog({
+      title: 'Revert workflow step?',
+      body: message,
+      confirmLabel: 'Revert',
+      tone: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch('/api/admin/research', {
@@ -734,7 +747,13 @@ export default function ResearchProjectPage() {
   }
 
   async function handleArchiveDrawing(drawingId: string, drawingName: string) {
-    if (!window.confirm(`Archive "${drawingName}"? It will be hidden from the list but can be recovered.`)) return;
+    const ok = await confirmDialog({
+      title: `Archive "${drawingName}"?`,
+      body: 'It will be hidden from the list but can be recovered.',
+      confirmLabel: 'Archive',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -750,7 +769,13 @@ export default function ResearchProjectPage() {
   }
 
   async function handleDeleteDrawing(drawingId: string, drawingName: string) {
-    if (!window.confirm(`Permanently delete "${drawingName}"? This cannot be undone.`)) return;
+    const ok = await confirmDialog({
+      title: `Permanently delete "${drawingName}"?`,
+      body: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}?permanent=true`, { method: 'DELETE' });
       if (res.ok) {
@@ -1132,8 +1157,14 @@ export default function ResearchProjectPage() {
   }
 
   // Reset to original (regenerated) version
-  function handleResetOriginal() {
-    if (!window.confirm('This will discard ALL changes and reset the drawing to its original generated version. Continue?')) return;
+  async function handleResetOriginal() {
+    const ok = await confirmDialog({
+      title: 'Discard all changes?',
+      body: 'This resets the drawing to its original AI-generated version. All edits and annotations will be lost.',
+      confirmLabel: 'Reset',
+      tone: 'danger',
+    });
+    if (!ok) return;
     if (originalElements.length > 0) {
       setDrawingElements(originalElements);
     }
@@ -1145,9 +1176,15 @@ export default function ResearchProjectPage() {
   }
 
   // Reset to last saved version
-  function handleResetLastSaved() {
+  async function handleResetLastSaved() {
     if (!lastSavedAt) return;
-    if (!window.confirm('Revert to the last saved version? Unsaved changes will be lost.')) return;
+    const ok = await confirmDialog({
+      title: 'Revert to last saved version?',
+      body: 'Unsaved changes will be lost.',
+      confirmLabel: 'Revert',
+      tone: 'danger',
+    });
+    if (!ok) return;
     if (activeDrawing) {
       loadDrawingDetail(activeDrawing.id);
     }
@@ -1248,7 +1285,12 @@ export default function ResearchProjectPage() {
   }
 
   async function handleMarkComplete() {
-    if (!window.confirm('Mark this research project as complete?')) return;
+    const ok = await confirmDialog({
+      title: 'Mark this research project as complete?',
+      body: 'Once marked complete, the project moves out of the active list.',
+      confirmLabel: 'Mark complete',
+    });
+    if (!ok) return;
     try {
       const res = await fetch('/api/admin/research', {
         method: 'PATCH',
@@ -2863,8 +2905,16 @@ export default function ResearchProjectPage() {
                 <>
                   <button
                     className="research-drawing__back-btn"
-                    onClick={() => {
-                      if (hasUnsavedChanges && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+                    onClick={async () => {
+                      if (hasUnsavedChanges) {
+                        const ok = await confirmDialog({
+                          title: 'Leave without saving?',
+                          body: 'You have unsaved changes. They will be discarded.',
+                          confirmLabel: 'Leave',
+                          tone: 'danger',
+                        });
+                        if (!ok) return;
+                      }
                       setActiveDrawing(null); setDrawingElements([]); setDrawingSvg(''); setSelectedElement(null); setShowPrefsPanel(false);
                       setCanvasZoom(1); setHasUnsavedChanges(false);
                     }}
