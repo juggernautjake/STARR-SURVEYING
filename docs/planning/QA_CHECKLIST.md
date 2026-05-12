@@ -39,7 +39,7 @@ A page-by-page sweep of `/admin/cad`. For each tool, confirm: tool activates, op
 
 ### 1.4 Snap + grid + ortho
 - [x] Snap toggle (`F3`, MenuBar item) flips behavior on/off and the StatusBar pill updates. Code-verified at `useKeyboard.ts:65 + 291-293` (F3 → action `snap.toggle` → `drawingStore.updateSettings({ snapEnabled: !current })`), `MenuBar.tsx:477-478` (dynamic label `'Disable Snap' | 'Enable Snap'` + shortcut hint `F3`), and `StatusBar.tsx:391` (`Snap: {snapEnabled ? 'ON' : 'OFF'}` — Zustand re-render fires every subscriber when `drawingStore.document.settings.snapEnabled` flips). The snap engine downstream at `getSnappedWorld` (`CanvasViewport.tsx:7324`) gates every snap-target search on the same `settings.snapEnabled` flag so the behaviour change takes effect immediately on the next cursor move.
-- [ ] Grid toggle (`F7`) shows/hides the grid.
+- [x] Grid toggle (`F7`) shows/hides the grid. Code-verified at `useKeyboard.ts:66 + 294-295` (F7 → `snap.grid` → flips `settings.gridVisible`), `MenuBar.tsx:472-474` (dynamic label `'Hide Grid' | 'Show Grid'` with F7 shortcut hint), and `CanvasViewport.tsx:1296` (grid render path early-returns when `!doc.settings.gridVisible` so the next frame redraws empty). The same flag also gates the arrow-key nudge step in `useKeyboard.ts:353` so the nudge unit follows the visible grid.
 - [ ] Ortho (`F8`) constrains lines to 90°.
 - [ ] Polar (`F10`) constrains lines to configured angle increments.
 - [ ] Endpoint / midpoint / intersection / nearest snap indicators each appear at the right place.
