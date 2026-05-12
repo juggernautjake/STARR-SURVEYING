@@ -198,9 +198,43 @@ function QueueTab({
 }) {
   const queue = useAIStore((s) => s.result?.reviewQueue ?? null);
   const openExplanation = useAIStore((s) => s.openExplanation);
+  const sendChatMessage = useAIStore((s) => s.sendChatMessage);
   const setHoveredFeatureId = useUIStore((s) => s.setHoveredFeatureId);
   const [sort, setSort] = useState<CardSortOrder>('CONFIDENCE_ASC');
   const [search, setSearch] = useState('');
+  // Phase 6 §3121 — multi-select state for batch chat
+  const [selectedFeatureIds, setSelectedFeatureIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [batchPrompt, setBatchPrompt] = useState('');
+  const [batchSending, setBatchSending] = useState(false);
+
+  function toggleCardSelection(featureId: string | null) {
+    if (!featureId) return;
+    setSelectedFeatureIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(featureId)) next.delete(featureId);
+      else next.add(featureId);
+      return next;
+    });
+  }
+
+  async function sendBatchMessage() {
+    const trimmed = batchPrompt.trim();
+    if (trimmed.length === 0 || selectedFeatureIds.size === 0) return;
+    setBatchSending(true);
+    try {
+      // Fan out the same prompt to each selected feature's
+      // element-chat. Each call updates its own chatHistory and
+      // can return an ElementChatAction; the surveyor sees the
+      // per-feature reply in each ElementExplanationPopup.
+      const ids = Array.from(selectedFeatureIds);
+      await Promise.all(ids.map((id) => sendChatMessage(id, trimmed)));
+      setBatchPrompt('');
+    } finally {
+      setBatchSending(false);
+    }
+  }
 
   const summary = queue?.summary ?? null;
   const cards = useMemo(() => {
@@ -305,8 +339,20 @@ function QueueTab({
               tier={item.tier}
               flags={item.flags}
               status={item.status}
-              onClick={() => {
-                if (item.featureId) openExplanation(item.featureId);
+              selected={
+                item.featureId
+                  ? selectedFeatureIds.has(item.featureId)
+                  : false
+              }
+              onClick={(modifierKey) => {
+                if (!item.featureId) return;
+                // Cmd/Ctrl/Shift + click → toggle multi-select.
+                // Plain click → open the per-element popup.
+                if (modifierKey) {
+                  toggleCardSelection(item.featureId);
+                } else {
+                  openExplanation(item.featureId);
+                }
               }}
               onHoverChange={(hovered) => {
                 if (!item.featureId) return;
@@ -316,6 +362,58 @@ function QueueTab({
           ))}
         </ul>
       )}
+
+      {/* Phase 6 §3121 — batch chat input, visible whenever 2+
+          cards are multi-selected via Cmd/Ctrl/Shift+click. */}
+      {selectedFeatureIds.size >= 2 ? (
+        <div style={styles.batchBar}>
+          <div style={styles.batchHeader}>
+            <span style={styles.batchTitle}>
+              Chat about {selectedFeatureIds.size} selected
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedFeatureIds(new Set())}
+              style={styles.batchClearBtn}
+              title="Clear the multi-selection"
+            >
+              ✕ Clear
+            </button>
+          </div>
+          <textarea
+            value={batchPrompt}
+            onChange={(e) => setBatchPrompt(e.target.value)}
+            rows={2}
+            placeholder="Ask one thing about all selected features…"
+            style={styles.batchInput}
+            disabled={batchSending}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                void sendBatchMessage();
+              }
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              void sendBatchMessage();
+            }}
+            disabled={
+              batchPrompt.trim().length === 0 || batchSending
+            }
+            style={
+              batchPrompt.trim().length === 0 || batchSending
+                ? styles.btnPrimaryDisabled
+                : styles.btnPrimary
+            }
+          >
+            {batchSending
+              ? `Sending to ${selectedFeatureIds.size}…`
+              : `Send to ${selectedFeatureIds.size} (Ctrl+Enter)`}
+          </button>
+        </div>
+      ) : null}
 
       <button
         type="button"
@@ -335,6 +433,7 @@ function ConfidenceCard({
   tier,
   flags,
   status,
+  selected,
   onClick,
   onHoverChange,
 }: {
@@ -344,7 +443,8 @@ function ConfidenceCard({
   tier: 1 | 2 | 3 | 4 | 5;
   flags: string[];
   status: string;
-  onClick: () => void;
+  selected: boolean;
+  onClick: (modifierKey: boolean) => void;
   onHoverChange: (hovered: boolean) => void;
 }) {
   const colors = TIER_COLORS[tier];
@@ -352,7 +452,7 @@ function ConfidenceCard({
     <li>
       <button
         type="button"
-        onClick={onClick}
+        onClick={(e) => onClick(e.metaKey || e.ctrlKey || e.shiftKey)}
         onMouseEnter={() => onHoverChange(true)}
         onMouseLeave={() => onHoverChange(false)}
         onFocus={() => onHoverChange(true)}
@@ -361,8 +461,14 @@ function ConfidenceCard({
           ...styles.card,
           borderLeft: `3px solid ${colors.border}`,
           opacity: status === 'REJECTED' ? 0.55 : 1,
+          outline: selected ? '2px solid #2563EB' : 'none',
+          outlineOffset: selected ? 1 : 0,
         }}
-        title={`${category} · Tier ${tier} · ${status}`}
+        title={
+          selected
+            ? `${category} · Tier ${tier} · ${status} · Selected for batch chat`
+            : `${category} · Tier ${tier} · ${status} · Cmd/Ctrl+click to select for batch chat`
+        }
       >
         <div style={styles.cardHeader}>
           <span style={styles.cardTitle}>{title}</span>
@@ -765,6 +871,54 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
+  },
+  btnPrimaryDisabled: {
+    background: '#94A3B8',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 6,
+    padding: '8px 12px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'not-allowed',
+  },
+  batchBar: {
+    border: '1px solid #2563EB',
+    background: '#EFF6FF',
+    borderRadius: 6,
+    padding: 8,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 6,
+    margin: '8px 0',
+  },
+  batchHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  batchTitle: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#1E40AF',
+  },
+  batchClearBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: '#1E40AF',
+    fontSize: 11,
+    cursor: 'pointer',
+    padding: 0,
+  },
+  batchInput: {
+    width: '100%',
+    padding: 6,
+    fontSize: 12,
+    border: '1px solid #BFDBFE',
+    borderRadius: 4,
+    resize: 'vertical' as const,
+    fontFamily: 'inherit',
+    boxSizing: 'border-box' as const,
   },
   lastMsg: {
     background: '#F8FAFC',

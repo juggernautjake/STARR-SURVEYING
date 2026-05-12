@@ -3118,7 +3118,7 @@ interface AIStore {
 - [x] "Redraw This Group" redraw affects all features on same layer — same code path as REDRAW_ELEMENT; the only difference is `action.affectedIds` carries the multi-feature target list that Claude returned. Test coverage at `__tests__/cad/ai/` (all 220 tests still green) ensures the merge helper preserves scores / explanations / review-queue entries for every target.
 - [x] "Redraw Full Drawing" re-runs full pipeline (`executeChatAction` REDRAW_FULL re-POSTs `lastPayload` with the chat instruction folded into `userPrompt`)
 - [x] Chat history persists within the session (`chatHistory` mutated via `appendChatMessage` in `lib/cad/store/ai-store.ts`)
-- [ ] Group chat (multi-select cards) works for batch instructions
+- [x] Group chat (multi-select cards) works for batch instructions — `AISidebar.tsx:QueueTab` now tracks a `selectedFeatureIds: Set<string>` keyed by Cmd/Ctrl/Shift+click on any ConfidenceCard. Selected cards render a `2px solid #2563EB` outline and an updated tooltip. When the selection size reaches ≥ 2, a blue batch-chat bar appears above the "Open the full review queue" button: textarea + "Send to N" button + Ctrl+Enter hotkey + Clear button. Submitting fans the same prompt out to every selected feature via `useAIStore.sendChatMessage(featureId, content)` (await Promise.all), so each ElementExplanationPopup picks up the per-feature reply. Send button label-swaps to `Sending to N…` while in-flight.
 
 ## Updated Build Order (§25 additions)
 
