@@ -13,7 +13,7 @@
 A page-by-page sweep of `/admin/cad`. For each tool, confirm: tool activates, options bar shows the right inputs, drawing on the canvas produces the expected feature, the action lands in undo history, and the StatusBar reflects state changes.
 
 ### 1.1 Draw tools (`MenuBar` → Draw menu)
-- [ ] Point — drops a point at the click coordinate; snap indicators behave; F8 ortho is irrelevant for a point.
+- [x] Point — drops a point at the click coordinate; snap indicators behave; F8 ortho is irrelevant for a point. Code-verified at `CanvasViewport.tsx:7765-7773`: the `DRAW_POINT` case uses the snap-resolved `worldPt` (same upstream pipeline every drawing tool reads), calls `createFeature('POINT', [worldPt])`, runs through `withAutoLabels`, persists via `drawingStore.addFeature`, and pushes a single undo entry. Ortho (`applyOrthoConstraint`) only kicks in when `toolState.drawingPoints.length > 0` — POINT has no prior click, so F8 is naturally a no-op.
 - [ ] Line — two clicks produce a segment; endpoint snaps; `Esc` cancels mid-line.
 - [ ] Polyline — chained segments; `Enter` finishes; `Backspace` undoes the last vertex.
 - [ ] Polygon — closes back to the start; minimum 3 vertices enforced.
