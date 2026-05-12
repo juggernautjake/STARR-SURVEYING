@@ -22,6 +22,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { type Palette, colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface StatusInfo {
   label: string;

@@ -16,6 +16,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Button } from './Button';
 import { authenticate, biometricLabel, getBiometricCapability } from './biometric';
 import { colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface LockOverlayProps {
   /** Called when biometric (or fallback) auth succeeds. */

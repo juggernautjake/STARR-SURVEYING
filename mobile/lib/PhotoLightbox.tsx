@@ -42,6 +42,7 @@ import {
 } from './photoAnnotation';
 import { useAuth } from './auth';
 import { colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface PhotoLightboxProps {
   media: FieldMedia | null;

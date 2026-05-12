@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface PlaceholderProps {
   title: string;

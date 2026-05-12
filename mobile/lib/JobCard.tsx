@@ -18,6 +18,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { StageChip } from './StageChip';
 import type { Job } from './jobs';
 import { colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface JobCardProps {
   job: Job;

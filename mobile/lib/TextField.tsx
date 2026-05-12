@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 
 import { colors, controls } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface TextFieldProps extends TextInputProps {
   label?: string;

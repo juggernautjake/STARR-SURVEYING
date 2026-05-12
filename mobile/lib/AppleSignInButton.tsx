@@ -26,6 +26,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 
 import { logWarn } from './log';
 import { supabase } from './supabase';
+import { useResolvedScheme } from './themePreference';
 
 interface AppleSignInButtonProps {
   /** Called with a user-presentable error message when sign-in fails. */

@@ -24,6 +24,7 @@ import {
 } from './timeFormat';
 import type { TimesheetDay, TimesheetEntry } from './timesheet';
 import { type Palette, colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface TimesheetProps {
   days: TimesheetDay[];

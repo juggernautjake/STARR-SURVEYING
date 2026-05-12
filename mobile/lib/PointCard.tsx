@@ -20,6 +20,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { lookupPrefix } from './dataPointCodes';
 import type { FieldDataPoint } from './dataPoints';
 import { colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 interface PointCardProps {
   point: FieldDataPoint;

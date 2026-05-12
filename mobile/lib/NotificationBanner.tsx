@@ -36,6 +36,7 @@ import {
   useActiveAdminPing,
 } from './notificationsInbox';
 import { colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 /**
  * source_type → glyph fallback. Used when the row's `icon` column is

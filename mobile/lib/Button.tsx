@@ -12,6 +12,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
 import { colors, controls } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger';
 

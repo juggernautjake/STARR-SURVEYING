@@ -26,6 +26,7 @@ import { type Palette, colors } from './theme';
 import { formatCents } from './money';
 import { formatLocalShortDate } from './timeFormat';
 import type { Receipt } from './receipts';
+import { useResolvedScheme } from './themePreference';
 
 interface ReceiptCardProps {
   receipt: Receipt;

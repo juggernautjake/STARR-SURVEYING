@@ -1,6 +1,7 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { colors } from './theme';
+import { useResolvedScheme } from './themePreference';
 
 /**
  * Full-screen spinner used while the AuthProvider resolves its initial
