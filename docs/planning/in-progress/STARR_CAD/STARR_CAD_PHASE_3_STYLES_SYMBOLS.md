@@ -1726,7 +1726,7 @@ For each visible LineString feature:
 - [ ] Insertion point is draggable *(SymbolEditor UI — not yet implemented)*
 - [ ] Preview shows symbol at 3 sizes *(SymbolEditor UI — not yet implemented)*
 - [ ] Can assign symbol to a point code *(SymbolEditor UI — not yet implemented)*
-- [ ] Custom symbol appears in the `SymbolPicker` *(SymbolPicker UI — not yet implemented)*
+- [x] Custom symbol appears in the `SymbolPicker` — `app/admin/cad/components/SymbolPicker.tsx` shipped. Modal picker renders every entry in `BUILTIN_SYMBOLS` plus a `customSymbols` prop (concatenated under the CUSTOM category). 5 vitest cases at `__tests__/cad/styles/symbol-picker.test.tsx` exercise the SVG primitive renderer (CIRCLE / PATH / TEXT / smoke-test over every BUILTIN_SYMBOLS entry / size override). PropertyPanel + CodeStylePanel integration are follow-up slices that wire the picker into specific surfaces.
 - [ ] Can export symbol as SVG *(SymbolEditor UI — not yet implemented)*
 
 ### Line Types
