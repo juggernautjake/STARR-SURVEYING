@@ -15,6 +15,8 @@ import {
 import type { ParsedCommand, Feature } from '@/lib/cad/types';
 import { featureBounds, computeBounds } from '@/lib/cad/geometry/bounds';
 import { parseBearing } from '@/lib/cad/geometry/bearing';
+import { parseLength } from '@/lib/cad/units/parse-length';
+import { parseAngle } from '@/lib/cad/units/parse-angle';
 
 // ─────────────────────────────────────────────
 // Command parser
@@ -22,25 +24,58 @@ import { parseBearing } from '@/lib/cad/geometry/bearing';
 function parseCommand(raw: string): ParsedCommand {
   const trimmed = raw.trim();
 
-  // @dist<angle — polar relative (e.g., @50<45 means 50 units at 45 degrees)
-  if (/^@-?\d+(\.\d+)?<-?\d+(\.\d+)?$/.test(trimmed)) {
-    const [distPart, anglePart] = trimmed.slice(1).split('<').map(Number);
-    const angleRad = (anglePart * Math.PI) / 180;
-    const dx = distPart * Math.cos(angleRad);
-    const dy = distPart * Math.sin(angleRad);
-    return { type: 'COORDINATE', value: { relative: true, dx, dy } };
-  }
-
-  // @dx,dy relative coordinate
-  if (/^@-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(trimmed)) {
-    const [dx, dy] = trimmed.slice(1).split(',').map(Number);
-    return { type: 'COORDINATE', value: { relative: true, dx, dy } };
-  }
-
-  // x,y absolute coordinate
-  if (/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(trimmed)) {
-    const [x, y] = trimmed.split(',').map(Number);
-    return { type: 'COORDINATE', value: { x, y } };
+  // Coordinate forms — every numeric chunk routes through the
+  // unit-aware parsers (`parseLength` / `parseAngle`) so the
+  // command bar accepts the same input vocabulary as the
+  // §11.5 UnitInput components. Examples that now resolve:
+  //   @50<45           plain math-angle polar, 50 ft at 45°
+  //   @6in,12in        relative (0.5 ft, 1.0 ft)
+  //   @10ft<45.3000    polar with DMS-packed shortcut → 45°30'00"
+  //   @50<N 45-30 E    polar with quadrant-bearing angle
+  //   12.5,7.25        absolute, default unit (FT)
+  // Angle convention is math-mode (CCW from +X) to match the
+  // existing semantics; survey-mode polar lives in the tool
+  // option strips, not the command bar.
+  if (trimmed.startsWith('@')) {
+    const body = trimmed.slice(1);
+    const ltIdx = body.indexOf('<');
+    if (ltIdx > 0) {
+      const dist = parseLength(body.slice(0, ltIdx).trim());
+      const ang  = parseAngle(body.slice(ltIdx + 1).trim(), 'AUTO');
+      if (dist && ang) {
+        const angleRad = (ang.azimuth * Math.PI) / 180;
+        return {
+          type: 'COORDINATE',
+          value: {
+            relative: true,
+            dx: dist.feet * Math.cos(angleRad),
+            dy: dist.feet * Math.sin(angleRad),
+          },
+        };
+      }
+    } else {
+      const commaIdx = body.indexOf(',');
+      if (commaIdx > 0) {
+        const a = parseLength(body.slice(0, commaIdx).trim());
+        const b = parseLength(body.slice(commaIdx + 1).trim());
+        if (a && b) {
+          return {
+            type: 'COORDINATE',
+            value: { relative: true, dx: a.feet, dy: b.feet },
+          };
+        }
+      }
+    }
+  } else {
+    // Absolute `x,y` — same parseLength routing.
+    const commaIdx = trimmed.indexOf(',');
+    if (commaIdx > 0 && trimmed.indexOf(' ') < 0) {
+      const a = parseLength(trimmed.slice(0, commaIdx).trim());
+      const b = parseLength(trimmed.slice(commaIdx + 1).trim());
+      if (a && b) {
+        return { type: 'COORDINATE', value: { x: a.feet, y: b.feet } };
+      }
+    }
   }
 
   // Pure number → distance
