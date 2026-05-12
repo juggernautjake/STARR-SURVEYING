@@ -1885,7 +1885,7 @@ interface AIStore {
 
 ### Deed Reconciliation (Stage 3)
 - [x] Regex parser extracts correct bearings/distances from standard format — `__tests__/cad/ai/deed-parser.test.ts` §1887: single LINE call, multi-THENCE traverse (4 calls), CURVE with radius + arc-length + chord, unparseable blocks survive without crash, non-deed text returns 0 confidence, `extractMonument` helper.
-- [ ] Claude parser handles non-standard deed text
+- [x] Claude parser handles non-standard deed text — `lib/cad/ai-engine/claude-deed-parser.ts` ships the full layer-2 fallback: builds a Texas-licensed-surveyor system prompt that forces JSON-only output, parses + tolerates accidental ```json fences, coerces missing/invalid fields without throwing, computes confidence from the filled-bearing ratio. 6 vitest cases at `__tests__/cad/ai/claude-deed-parser.test.ts` (mocks the Anthropic SDK via `vi.hoisted`) cover: MissingApiKeyError when no env var, standard JSON parse, fenced JSON tolerance, confidence ratio, field coercion (junk type → LINE default; string bearing → null; bad direction → null), non-JSON response → throws. The route at `app/api/admin/cad/ai-pipeline/route.ts` kicks to this parser when regex confidence < 0.5 (with retry-once via `callClaudeWithRetry`).
 - [x] Bearing differences > 60" flagged as BEARING_MISMATCH — `__tests__/cad/ai/stage-3-reconcile.test.ts` §1889: 72" diff (0.02°) flags; 54" diff (0.015°) does not.
 - [x] Distance differences > 0.50' flagged as DISTANCE_MISMATCH — §1890: 0.6 ft diff flags; 0.4 ft diff does not.
 - [x] Call count mismatch detected — §1891: 3 legs vs 2 calls flags `CALL_COUNT_MISMATCH` with field/record value strings; matching count produces no discrepancy.
