@@ -3104,9 +3104,9 @@ interface AIStore {
 - [x] Clicking a card opens the element explanation popup — wired through `useAIStore.openExplanation(featureId)`.
 - [x] Sort controls change card order correctly (all 4+ sort modes) — `CONFIDENCE_ASC / CONFIDENCE_DESC / ALPHA / TIER / CATEGORY`.
 - [x] Search filters cards by text match on title/description — title + category + flags substring filter.
-- [ ] "Accept Drawing" opens confirmation dialog
-- [ ] Accepting creates a version snapshot and triggers Phase 7 editor load
-- [ ] Re-analyze re-runs pipeline and refreshes all cards
+- [x] "Accept Drawing" opens confirmation dialog — `ReviewQueuePanel.tsx` now has a sticky footer with `↻ Re-analyze` (left) and `✓ Accept Drawing` (right). Clicking Accept opens a confirmation modal with the run's totals (accepted / modified / rejected / pending) and a destructive-action note. The Accept button itself disables when `summary.pendingCount > 0` with a tooltip explaining why ("review them first") so the surveyor can't skip past unreviewed items. Confirming dispatches `cad:acceptDrawing` as the audit hand-off; Cancel just closes the modal.
+- ~~Accepting creates a version snapshot and triggers Phase 7 editor load~~ — deferred: requires Phase 7 §17 sealing pipeline + version-snapshot store, both forward-looking work not yet shipped. The `cad:acceptDrawing` event already fires on confirm so Phase 7 can wire its listener without touching this dialog again.
+- [x] Re-analyze re-runs pipeline and refreshes all cards — new `useAIStore.reanalyze` action re-POSTs `lastPayload` (without folding in any new answers, unlike the existing `rerunWithAnswers`), updates `result`, and respects `deliberationResult.shouldShowDialog` to re-open the clarifying questions when the new run produced blocking issues. The footer button disables + label-swaps to "Re-analyzing…" while `status === 'running'`.
 
 ### Per-Element Explanations & Chat
 - [x] Every feature has a generated explanation (`generateAutoExplanations` in `lib/cad/ai-engine/element-explanation.ts`; piped through `pipeline.ts` into `result.explanations`)

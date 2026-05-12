@@ -359,6 +359,12 @@ interface AIStore {
    *  closes automatically on success. No-op when no payload is
    *  cached or no questions exist. */
   rerunWithAnswers: () => Promise<void>;
+  /** Phase 6 §3109 — re-POST the cached payload without folding in
+   *  any new answers. Refreshes every confidence card / review
+   *  item with whatever the pipeline now produces (useful when
+   *  the underlying point set, code library, or template has
+   *  changed since the first run). No-op when nothing is cached. */
+  reanalyze: () => Promise<void>;
 
   /** §30.4 — element-chat per-popup loading flag. Keyed by
    *  feature id so multiple popups (future multi-element
@@ -811,6 +817,43 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
         error: null,
         lastPayload: nextPayload,
         // §28.1 short-circuit re-applies on the new result.
+        isQuestionDialogOpen:
+          (json as AIJobResult).deliberationResult?.shouldShowDialog ??
+          false,
+      });
+    } catch (err) {
+      set({
+        status: 'error',
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  },
+
+  reanalyze: async () => {
+    const { lastPayload } = get();
+    if (!lastPayload) return;
+    set({ status: 'running', error: null });
+    try {
+      const res = await fetch('/api/admin/cad/ai-pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(lastPayload),
+      });
+      const json = (await res.json().catch(() => ({}))) as
+        | AIJobResult
+        | { error?: string };
+      if (!res.ok) {
+        const msg =
+          (json as { error?: string }).error ??
+          `Pipeline re-analyze failed (${res.status}).`;
+        set({ status: 'error', error: msg });
+        return;
+      }
+      set({
+        status: 'done',
+        result: json as AIJobResult,
+        error: null,
+        // lastPayload unchanged — re-analyze keeps the original cache
         isQuestionDialogOpen:
           (json as AIJobResult).deliberationResult?.shouldShowDialog ??
           false,

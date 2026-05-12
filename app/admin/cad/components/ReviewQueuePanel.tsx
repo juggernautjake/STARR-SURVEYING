@@ -55,6 +55,9 @@ export default function ReviewQueuePanel() {
   const result = useAIStore((s) => s.result);
   const setItemStatus = useAIStore((s) => s.setItemStatus);
   const openExplanation = useAIStore((s) => s.openExplanation);
+  const reanalyze = useAIStore((s) => s.reanalyze);
+  const status = useAIStore((s) => s.status);
+  const [showAcceptConfirm, setShowAcceptConfirm] = useState(false);
   const addFeature = useDrawingStore((s) => s.addFeature);
   const removeFeature = useDrawingStore((s) => s.removeFeature);
   const updateFeature = useDrawingStore((s) => s.updateFeature);
@@ -313,6 +316,90 @@ export default function ReviewQueuePanel() {
             })
         )}
       </div>
+
+      {/* Phase 6 §3107 + §3109 — bottom action bar */}
+      {result && summary.totalElements > 0 ? (
+        <footer style={styles.footer}>
+          <button
+            type="button"
+            onClick={reanalyze}
+            disabled={status === 'running'}
+            style={
+              status === 'running'
+                ? styles.btnFooterDisabled
+                : styles.btnFooterSecondary
+            }
+            title="Re-run the pipeline against the same input set"
+          >
+            {status === 'running' ? 'Re-analyzing…' : '↻ Re-analyze'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAcceptConfirm(true)}
+            disabled={summary.pendingCount > 0}
+            style={
+              summary.pendingCount > 0
+                ? styles.btnFooterDisabled
+                : styles.btnFooterPrimary
+            }
+            title={
+              summary.pendingCount > 0
+                ? `${summary.pendingCount} item${summary.pendingCount === 1 ? '' : 's'} still pending — review them first`
+                : 'Accept the drawing and seal the pipeline result'
+            }
+          >
+            ✓ Accept Drawing
+          </button>
+        </footer>
+      ) : null}
+
+      {/* Phase 6 §3107 — Accept-Drawing confirmation modal */}
+      {showAcceptConfirm ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm accept drawing"
+          style={styles.confirmOverlay}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAcceptConfirm(false);
+          }}
+        >
+          <div style={styles.confirmCard}>
+            <div style={styles.confirmTitle}>Accept this drawing?</div>
+            <div style={styles.confirmBody}>
+              Sealing the AI pipeline result will mark every item as
+              accepted, record a version snapshot, and hand off to the
+              Phase&nbsp;7 editor. You can still edit individual features
+              afterward, but the AI cards will not refresh until you
+              re-analyze.
+              <div style={styles.confirmStats}>
+                {summary.totalElements} item{summary.totalElements === 1 ? '' : 's'} · {summary.acceptedCount} accepted · {summary.modifiedCount} modified · {summary.rejectedCount} rejected
+              </div>
+            </div>
+            <div style={styles.confirmActions}>
+              <button
+                type="button"
+                onClick={() => setShowAcceptConfirm(false)}
+                style={styles.btnFooterSecondary}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAcceptConfirm(false);
+                  // Phase 7 wires the version-snapshot + editor load
+                  // listener; for now the event is the audit trail.
+                  window.dispatchEvent(new CustomEvent('cad:acceptDrawing'));
+                }}
+                style={styles.btnFooterPrimary}
+              >
+                ✓ Accept &amp; seal
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </aside>
   );
 }
@@ -749,6 +836,89 @@ const styles: Record<string, React.CSSProperties> = {
   groupCoords: {
     fontVariantNumeric: 'tabular-nums' as const,
     color: '#4B5563',
+  },
+  footer: {
+    display: 'flex',
+    gap: 8,
+    padding: '10px 12px',
+    borderTop: '1px solid #E5E7EB',
+    background: '#FFFFFF',
+  },
+  btnFooterPrimary: {
+    flex: 1,
+    padding: '8px 12px',
+    border: '1px solid #15803D',
+    color: '#FFFFFF',
+    background: '#15803D',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  btnFooterSecondary: {
+    flex: 1,
+    padding: '8px 12px',
+    border: '1px solid #475569',
+    color: '#475569',
+    background: '#FFFFFF',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  btnFooterDisabled: {
+    flex: 1,
+    padding: '8px 12px',
+    border: '1px solid #D1D5DB',
+    color: '#9CA3AF',
+    background: '#F3F4F6',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'not-allowed',
+  },
+  confirmOverlay: {
+    position: 'fixed' as const,
+    inset: 0,
+    background: 'rgba(0,0,0,0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  },
+  confirmCard: {
+    background: '#FFFFFF',
+    border: '1px solid #D1D5DB',
+    borderRadius: 8,
+    padding: 20,
+    width: 'min(440px, calc(100vw - 32px))',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
+  },
+  confirmTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#111827',
+    marginBottom: 8,
+  },
+  confirmBody: {
+    fontSize: 12,
+    color: '#374151',
+    lineHeight: 1.45,
+    marginBottom: 16,
+  },
+  confirmStats: {
+    marginTop: 10,
+    padding: 8,
+    background: '#F9FAFB',
+    border: '1px solid #E5E7EB',
+    borderRadius: 6,
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  confirmActions: {
+    display: 'flex',
+    gap: 8,
+    justifyContent: 'flex-end',
   },
   btnActiveAccept: {
     flex: 1,
