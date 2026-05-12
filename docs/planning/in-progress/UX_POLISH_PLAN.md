@@ -338,7 +338,7 @@ All three apps share the same underlying problem: **shared primitives don't agre
 - [ ] **`research-pipeline__*` BEM classes are referenced everywhere in `pipeline/page.tsx:200-234` but never defined in `AdminResearch.css`** (verified — 0 matches for `research-pipeline`). The entire batch-creation form and jobs list falls back to UA defaults. Define the missing classes (`__input`, `__remove-btn`, `__add-row-btn`, `__submit-btn`, `__create-btn`, `__refresh-btn`, `__job-card`).
 
 ### 9.2 Broken tab states
-- [ ] `.research-project-nav__link--active` is defined in `AdminResearch.css` but **never applied** in `[projectId]/page.tsx:1546-1562` — none of the five `<Link>` tags use the class. The active-tab indicator is silently broken on every project sub-route. Wire `usePathname()`.
+- [x] `.research-project-nav__link--active` wired via `usePathname()` — the nav was hoisted out of `[projectId]/page.tsx` into the dedicated `app/admin/research/[projectId]/components/ResearchProjectNav.tsx` (the file's header comment notes the move). `usePathname()` at line 26 + a per-link `matches()` predicate at 22-23 light up the `--active` class + `aria-current="page"` for whichever route matches.
 - [ ] `.review-summary-panel__tab` active state uses a 2 px bottom-border but inactive tabs have no transparent placeholder → every tab click shifts content 2 px. Give inactive tabs `border-bottom: 2px solid transparent`.
 - [ ] Project nav (`0.4 × 0.85 / font-size 0.82rem`) vs review tabs (`0.6 × 1 / 0.85rem`) — 50 % different padding-y for two tab strips on the same page. Pick one.
 - [ ] Billing top-tabs use Tailwind `px-4 py-2 rounded text-sm`; document filter pills use `px-3 py-1 rounded text-xs`. Three different "tab" size scales across the product.
@@ -432,12 +432,12 @@ All three apps share the same underlying problem: **shared primitives don't agre
 - [ ] `types/research.ts:7-15` — `WORKFLOW_STEPS` labels `'Configure'`, `'Analyzing'`, `'Verifying'` are state-machine names exposed in `STATUS_LABELS` as filter chips. Rename to noun states: **"Setup"** / **"Research in progress"** / **"Verifying drawing"**.
 
 ### 11.6 Vague button labels (add an object)
-- [ ] `MenuBar.tsx:338` — "Save As…" action body is identical to `saveDocument` (line 72) — implement or remove. The label promises a distinct flow.
+- [x] `MenuBar.tsx:338` — "Save As…" duplicate dropped in `b8da39d`. Both entries called the same `saveDocument`; there's no save-as semantics in a web app (the browser anchor-click already lets the user rename on save). Only `Save` (Ctrl+S, blob download) + `Save to Cloud…` (DB-backed) remain.
 - [ ] `time/index.tsx:338` — `label="Submit"` → **"Submit week to dispatcher"** or **"Send this week"**.
 - [ ] `money/[id].tsx:584`, `jobs/[id]/points/[pointId].tsx:488`, `time/edit/[id].tsx:335` — `label="Save"` with no object → **"Save receipt"**, **"Save point"**, **"Save time entry"**.
 - [x] `ConfirmDialog.tsx:140` fallback audit — all 3 call sites already pass explicit verbs: `LayerTransferDialog.tsx:238` `confirmLabel: 'Move'`, `ToolOptionsBar.tsx:1810` `confirmLabel: 'Delete'`, `CanvasViewport.tsx:10277` `confirmLabel: 'Delete'`. No site relies on the `'Confirm'` default.
 - [ ] `DrawingPreferencesPanel.tsx:403` — `<span>Apply</span>` → **"Apply preferences"**.
-- [ ] `SaveToDBDialog.tsx:170-172` — `'Save Drawing to Database'` / `'Open Drawing from Database'`. "Database" is engineer-speak — rename to **"Save to Starr Cloud"** / **"Open from Starr Cloud"** (or whatever the user-facing storage product is called).
+- [x] `SaveToDBDialog.tsx` — "Database" engineer-speak removed. Header at line 171 reads `'Save Drawing'` / `'Open Saved Drawing'`; the delete confirm (`4d4d61f`) reads "Delete X from your saved drawings?" instead of "from the database". The Starr-Cloud brand rename remains a separate marketing call.
 
 ### 11.7 Internal-versioning leakage in UI copy (14+ sites)
 - [x] `CopilotCard.tsx:166` — duplicate of §2.4 row; tooltip now reads "Skip this proposal and open the chat so you can ask the AI to revise it." No Slice-N leak in any user-visible string.
