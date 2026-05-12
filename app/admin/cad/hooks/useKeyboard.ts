@@ -9,6 +9,7 @@ import {
   useViewportStore,
   useUndoStore,
   useUIStore,
+  useTransferStore,
   makeRemoveFeatureEntry,
   makeBatchEntry,
 } from '@/lib/cad/store';
@@ -127,13 +128,32 @@ export function useKeyboard() {
     const undoStore = useUndoStore.getState();
 
     switch (action) {
-      case 'edit.undo':
+      case 'edit.undo': {
+        // Phase 8 §11.7.12 — Pick-mode-scoped Undo. While the
+        // LayerTransferDialog is in Pick mode, Ctrl+Z walks the
+        // pick-history (add / remove of features in the source
+        // set) without touching the document undo stack. So a
+        // surveyor mid-pick can roll back accidental picks
+        // without losing drawing edits they made before
+        // opening the dialog.
+        const tx = useTransferStore.getState();
+        if (tx.pickModeActive) {
+          tx.undoPick();
+          break;
+        }
         undoStore.undo();
         break;
+      }
       case 'edit.redo':
-      case 'edit.redo2':
+      case 'edit.redo2': {
+        const tx = useTransferStore.getState();
+        if (tx.pickModeActive) {
+          tx.redoPick();
+          break;
+        }
         undoStore.redo();
         break;
+      }
       case 'file.save':
         saveDocument();
         break;

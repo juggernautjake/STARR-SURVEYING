@@ -86,6 +86,13 @@ interface TransferStore {
   pickModeActive: boolean;
   /** LIFO history of pick events for the in-dialog Backspace / Ctrl+Z. */
   pickHistory: Array<{ op: 'ADD' | 'REMOVE'; id: string }>;
+  /** Phase 8 §11.7.12 — Pick-mode-scoped redo stack. Populated when
+   *  `undoPick` rolls back a history entry; cleared whenever a fresh
+   *  pick is added/removed so redo semantics match the conventional
+   *  branching-undo behaviour. Separate from the document-wide undo
+   *  stack so Ctrl+Z inside Pick mode doesn't accidentally roll back
+   *  drawing edits. */
+  pickRedoStack: Array<{ op: 'ADD' | 'REMOVE'; id: string }>;
   options: TransferOptions;
   /** Phase 8 §11.7 Slice 13 — which saved preset (if any)
    *  is currently loaded. Drives the preset-dropdown highlight
@@ -118,6 +125,12 @@ interface TransferStore {
   clearPicks: () => void;
   /** LIFO pop the most recently added pick (Backspace shortcut). */
   popLastPick: () => void;
+  /** Phase 8 §11.7.12 — Pick-mode-scoped Undo / Redo. Walks
+   *  `pickHistory` / `pickRedoStack` without touching the document
+   *  undo stack so Ctrl+Z inside Pick mode rolls back a pick (or
+   *  re-applies one via Ctrl+Y) instead of a drawing edit. */
+  undoPick: () => void;
+  redoPick: () => void;
   setOptions: (patch: Partial<TransferOptions>) => void;
 }
 
@@ -143,6 +156,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
   pickedIds: new Set<string>(),
   pickModeActive: false,
   pickHistory: [],
+  pickRedoStack: [],
   options: { ...DEFAULT_OPTIONS },
   activePresetId: null,
   recentlyTransferred: null,
@@ -153,6 +167,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
       pickedIds: new Set(initialPickedIds ?? []),
       pickModeActive: false,
       pickHistory: [],
+      pickRedoStack: [],
       options: { ...DEFAULT_OPTIONS },
       activePresetId: null,
       // Don't clear recentlyTransferred on open — the pulse
@@ -165,6 +180,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
       pickModeActive: false,
       pickedIds: new Set<string>(),
       pickHistory: [],
+      pickRedoStack: [],
       activePresetId: null,
     })),
 
@@ -181,7 +197,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
       const op: 'ADD' | 'REMOVE' = next.has(id) ? 'REMOVE' : 'ADD';
       if (op === 'ADD') next.add(id);
       else next.delete(id);
-      return { pickedIds: next, pickHistory: [...s.pickHistory, { op, id }] };
+      return { pickedIds: next, pickHistory: [...s.pickHistory, { op, id }], pickRedoStack: [] };
     }),
 
   addPick: (id) =>
@@ -189,7 +205,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
       if (s.pickedIds.has(id)) return s;
       const next = new Set(s.pickedIds);
       next.add(id);
-      return { pickedIds: next, pickHistory: [...s.pickHistory, { op: 'ADD', id }] };
+      return { pickedIds: next, pickHistory: [...s.pickHistory, { op: 'ADD', id }], pickRedoStack: [] };
     }),
 
   removePick: (id) =>
@@ -197,7 +213,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
       if (!s.pickedIds.has(id)) return s;
       const next = new Set(s.pickedIds);
       next.delete(id);
-      return { pickedIds: next, pickHistory: [...s.pickHistory, { op: 'REMOVE', id }] };
+      return { pickedIds: next, pickHistory: [...s.pickHistory, { op: 'REMOVE', id }], pickRedoStack: [] };
     }),
 
   addPicks: (ids) =>
@@ -210,7 +226,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
           newHist.push({ op: 'ADD', id });
         }
       }
-      return { pickedIds: next, pickHistory: newHist };
+      return { pickedIds: next, pickHistory: newHist, pickRedoStack: [] };
     }),
 
   removePicks: (ids) =>
@@ -223,7 +239,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
           newHist.push({ op: 'REMOVE', id });
         }
       }
-      return { pickedIds: next, pickHistory: newHist };
+      return { pickedIds: next, pickHistory: newHist, pickRedoStack: [] };
     }),
 
   clearPicks: () =>
@@ -232,7 +248,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
       // future Pick-mode-Undo can restore the whole batch in one shot.
       const newHist = [...s.pickHistory];
       for (const id of s.pickedIds) newHist.push({ op: 'REMOVE', id });
-      return { pickedIds: new Set<string>(), pickHistory: newHist };
+      return { pickedIds: new Set<string>(), pickHistory: newHist, pickRedoStack: [] };
     }),
 
   popLastPick: () =>
@@ -250,6 +266,49 @@ export const useTransferStore = create<TransferStore>((set) => ({
         }
       }
       return s;
+    }),
+
+  undoPick: () =>
+    set((s) => {
+      // Pop the latest history entry; invert it; push to redo stack.
+      // Skips entries that no longer reflect the current set (e.g. an
+      // ADD whose feature was subsequently removed by another path).
+      const hist = [...s.pickHistory];
+      const redo = [...s.pickRedoStack];
+      const next = new Set(s.pickedIds);
+      while (hist.length > 0) {
+        const last = hist.pop()!;
+        const stillRelevant =
+          (last.op === 'ADD' && next.has(last.id)) ||
+          (last.op === 'REMOVE' && !next.has(last.id));
+        if (!stillRelevant) continue;
+        if (last.op === 'ADD') next.delete(last.id);
+        else next.add(last.id);
+        redo.push(last);
+        return { pickedIds: next, pickHistory: hist, pickRedoStack: redo };
+      }
+      return s;
+    }),
+
+  redoPick: () =>
+    set((s) => {
+      // Pop from redo, re-apply the operation, push back to history.
+      if (s.pickRedoStack.length === 0) return s;
+      const redo = [...s.pickRedoStack];
+      const entry = redo.pop()!;
+      const next = new Set(s.pickedIds);
+      if (entry.op === 'ADD') {
+        if (next.has(entry.id)) return s; // stale redo, drop it
+        next.add(entry.id);
+      } else {
+        if (!next.has(entry.id)) return s;
+        next.delete(entry.id);
+      }
+      return {
+        pickedIds: next,
+        pickHistory: [...s.pickHistory, entry],
+        pickRedoStack: redo,
+      };
     }),
 
   setOptions: (patch) =>
