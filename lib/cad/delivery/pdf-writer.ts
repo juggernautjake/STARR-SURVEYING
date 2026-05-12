@@ -47,6 +47,15 @@ import { PAPER_DIMENSIONS } from '../templates/types';
 // Public API
 // ────────────────────────────────────────────────────────────
 
+/**
+ * Plot-style mapping applied to every stroke color the writer
+ * emits. Mirrors `PrintConfig.plotStyle` so the print dialog's
+ * choice flows through to the exporter without the exporter
+ * having to know about the template-store type. Default
+ * `AS_DISPLAYED` preserves prior behavior when callers omit it.
+ */
+export type PdfPlotStyle = 'AS_DISPLAYED' | 'MONOCHROME' | 'GRAYSCALE';
+
 export interface PdfExportOptions {
   /** Margin around the drawing area, in inches. Default 0.5". */
   marginIn?: number;
@@ -55,6 +64,13 @@ export interface PdfExportOptions {
   curveSamples?: number;
   /** When true, hidden features still emit. Default false. */
   includeHidden?: boolean;
+  /** How layer colors are mapped to PDF ink. Default
+   *  `'AS_DISPLAYED'` (raw layer hex). `'MONOCHROME'` flattens
+   *  every stroke to pure black for plotters that print bitmap
+   *  black-and-white. `'GRAYSCALE'` converts each color to its
+   *  luminance equivalent so visual hierarchy survives without
+   *  ink. */
+  plotStyle?: PdfPlotStyle;
 }
 
 export interface PdfExportResult {
@@ -73,6 +89,7 @@ export function exportToPdf(
   const margin = options.marginIn ?? 0.5;
   const samples = Math.max(8, options.curveSamples ?? 64);
   const includeHidden = !!options.includeHidden;
+  const plotStyle: PdfPlotStyle = options.plotStyle ?? 'AS_DISPLAYED';
 
   const settings = doc.settings;
   const orientation =
@@ -103,7 +120,7 @@ export function exportToPdf(
   // ── Render features ──────────────────────────────────────
   pdf.setLineWidth(0.005);
   for (const f of features) {
-    drawFeature(pdf, f, doc, xform, samples);
+    drawFeature(pdf, f, doc, xform, samples, plotStyle);
   }
 
   // ── Title strip ──────────────────────────────────────────
@@ -192,14 +209,15 @@ function drawFeature(
   f: Feature,
   doc: DrawingDocument,
   xform: XForm,
-  samples: number
+  samples: number,
+  plotStyle: PdfPlotStyle
 ): void {
   // Lazy: stash page height once jsPDF is ready.
   if (xform.pageHeight === 0) {
     xform.pageHeight = pdf.internal.pageSize.getHeight();
   }
   const layer = doc.layers[f.layerId];
-  applyStroke(pdf, layer?.color ?? '#000000');
+  applyStroke(pdf, layer?.color ?? '#000000', plotStyle);
 
   const g = f.geometry;
   switch (f.type) {
@@ -435,7 +453,11 @@ function drawSealBlock(
 // Helpers
 // ────────────────────────────────────────────────────────────
 
-function applyStroke(pdf: jsPDF, hex: string): void {
+function applyStroke(
+  pdf: jsPDF,
+  hex: string,
+  plotStyle: PdfPlotStyle = 'AS_DISPLAYED'
+): void {
   const cleaned = (hex ?? '').replace('#', '').trim();
   if (cleaned.length !== 6) {
     pdf.setDrawColor(0, 0, 0);
@@ -444,10 +466,32 @@ function applyStroke(pdf: jsPDF, hex: string): void {
   const r = parseInt(cleaned.slice(0, 2), 16);
   const g = parseInt(cleaned.slice(2, 4), 16);
   const b = parseInt(cleaned.slice(4, 6), 16);
-  if ([r, g, b].every((n) => Number.isFinite(n))) {
-    pdf.setDrawColor(r, g, b);
-  } else {
+  if (![r, g, b].every((n) => Number.isFinite(n))) {
     pdf.setDrawColor(0, 0, 0);
+    return;
+  }
+  switch (plotStyle) {
+    case 'MONOCHROME':
+      // Pure black for plotters that print bitmap b/w. The
+      // surveyor's intent: "ignore on-screen color hierarchy,
+      // just give me ink-on-paper." We hard-clamp instead of
+      // luminance-mapping because a faint yellow line on screen
+      // (e.g. a TBM marker) should still print solidly visible.
+      pdf.setDrawColor(0, 0, 0);
+      return;
+    case 'GRAYSCALE': {
+      // ITU-R BT.601 luma coefficients — preserves the
+      // perceived brightness hierarchy across hue changes so
+      // major features (typically darker layer colors) stay
+      // visually dominant in a black-only plot.
+      const luma = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+      pdf.setDrawColor(luma, luma, luma);
+      return;
+    }
+    case 'AS_DISPLAYED':
+    default:
+      pdf.setDrawColor(r, g, b);
+      return;
   }
 }
 
