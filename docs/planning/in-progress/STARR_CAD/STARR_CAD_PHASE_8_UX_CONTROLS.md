@@ -1910,19 +1910,19 @@ Surveyors often re-paste the same logical group multiple times — a fence-corne
 
 (Append to §11.7.12)
 
-- [ ] Smart helper "By layer = BOUNDARY" + "By feature type = POLYLINE" composes to "every boundary polyline" (intersection)
-- [ ] Smart helper Alt-click subtracts from the running set
-- [ ] Save preset → reload drawing → preset still in the dropdown; default preset opens the dialog pre-populated
-- [ ] Move > 5 features triggers confirmation modal; single-feature Move skips it
-- [ ] Locked source layer + Move triggers warning prompt
-- [ ] What-changed green pulse flashes for 1.5 s on Confirm; only newly-created / reassigned features pulse
-- [ ] Soft-delete: deleted-by-Move features recoverable from the recycle bin within 30 min even after `undo` rolls past
-- [ ] Audit stamps: duplicated feature carries `duplicatedFrom`, `duplicatedAt`, `transferOperationId`; clicking the history entry highlights all features from that operation
-- [ ] Multi-layer paste: pick 3 destination layers → 1 Confirm → 3× the duplicates appear, all sharing one `transferOperationId`
-- [ ] Right-click source-list row → "Filter to only POINTs" prunes the set without touching the canvas
-- [ ] Code-remap: unmapped code surfaces fuzzy suggestion; surveyor accepts → duplicate carries the remapped code
-- [ ] Selection block save → recall later from a different drawing imports the block as a template
-- [ ] Linked block instance updates when the master block is edited; converting an instance to independent breaks the link
+- [x] Smart helper "By layer = BOUNDARY" + "By feature type = POLYLINE" composes — duplicate of §11.7.12 (shipped Slice 12, `406459d`).
+- [x] Smart helper Alt-click subtracts — duplicate of §11.7.12 (shipped Slice 12, `406459d`).
+- [x] Save preset → reload → preset still in dropdown — duplicate of §11.7.12 (shipped Slice 13, `8200aac`).
+- [x] Move > 5 features triggers confirmation — duplicate of §11.7.12 (shipped Slice 15, `904fb94`).
+- [ ] Locked source layer + Move triggers warning prompt — open in §11.7.12 (line 1796); the warning prompt UI is the remaining piece.
+- [x] What-changed green pulse — duplicate of §11.7.12 (shipped Slice 15, `904fb94`).
+- ~~Soft-delete recycle bin for Move~~ — duplicate of §11.7.12 (line 1798); deferred there (Move is non-destructive — recycle bin belongs on `deleteSelection`).
+- [x] Audit stamps + click-to-highlight — `duplicatedFrom` / `duplicatedAt` / `transferOperationId` stamps ship per §11.7.12 (Slice 1, `030ce58`); the click-to-highlight UI piece is tracked in §11.7.12 too (line 1800 area).
+- [x] Multi-layer paste — duplicate of §11.7.12 (shipped Slice 17, `472b269`).
+- [x] Right-click source-list row — duplicate of §11.7.12 (shipped Slice 18, `deca2bb`).
+- [x] Code-remap fuzzy suggestion — duplicate of §11.7.12 (shipped Slice 19, `c4e2bfc`).
+- ~~Selection block cross-drawing import~~ — duplicate of §11.7.12 (line 1803); deferred there (by design — feature ids don't survive cross-drawing).
+- [ ] Linked block instance updates — open in §11.7.12 (line 1804); same item lives in both sections.
 - [ ] Click-again unselects a glowing feature; Alt-click does the same
 - [ ] Alt-drag (or Ctrl+Shift+drag) window-deselects every glowing feature inside the rectangle
 - [ ] Right-click on canvas with no hover → context menu offers `Clear all picks` / `Clear last pick`
