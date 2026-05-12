@@ -16,43 +16,19 @@ import {
   type BellCadParcel,
 } from './bell-cad-arcgis.service';
 
-// ── Rate Limiting & Cache ────────────────────────────────────────────────────
-
-const searchCache = new Map<string, { results: PropertySearchResponse; timestamp: number }>();
+// ── Defaults ─────────────────────────────────────────────────────────────────
+//
+// The previous in-memory `searchCache` (100-entry LRU + 15-min TTL) was
+// removed: this service is consumed by Next.js serverless routes on Vercel,
+// where each invocation gets fresh memory and the cache effectively always
+// missed. Re-introduce caching as a Redis or Supabase RPC layer if/when
+// search latency becomes a measured pain point. The worker-side pipeline
+// already uses different code paths and doesn't share this surface.
 
 // Default Central Texas coordinates used as a placeholder until real geocoding is applied.
 // These are the approximate center of Temple, TX (Bell County seat of service area).
 const CENTRAL_TEXAS_DEFAULT_LAT = 31.0698;
 const CENTRAL_TEXAS_DEFAULT_LON = -97.3536;
-const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
-
-function getCacheKey(req: PropertySearchRequest): string {
-  return JSON.stringify({
-    address: req.address?.trim().toLowerCase(),
-    county: req.county?.trim().toLowerCase(),
-    parcel_id: req.parcel_id?.trim(),
-    owner_name: req.owner_name?.trim().toLowerCase(),
-  });
-}
-
-function getCachedResult(req: PropertySearchRequest): PropertySearchResponse | null {
-  const key = getCacheKey(req);
-  const cached = searchCache.get(key);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return cached.results;
-  }
-  if (cached) searchCache.delete(key);
-  return null;
-}
-
-function setCachedResult(req: PropertySearchRequest, results: PropertySearchResponse): void {
-  const key = getCacheKey(req);
-  searchCache.set(key, { results, timestamp: Date.now() });
-  if (searchCache.size > 100) {
-    const oldest = searchCache.keys().next().value;
-    if (oldest) searchCache.delete(oldest);
-  }
-}
 
 // ── Relevance Scoring ────────────────────────────────────────────────────────
 //
@@ -129,8 +105,6 @@ async function normalizeAddressWithAI(req: PropertySearchRequest): Promise<Addre
 export async function searchPropertyRecords(
   req: PropertySearchRequest
 ): Promise<PropertySearchResponse> {
-  const cached = getCachedResult(req);
-  if (cached) return cached;
 
   const allResults: PropertySearchResult[] = [];
   const sourcesSearched: PropertySearchResponse['sources_searched'] = [];
@@ -186,7 +160,6 @@ export async function searchPropertyRecords(
     address_suggestions: normData.suggestions,
   };
 
-  setCachedResult(req, response);
   return response;
 }
 
