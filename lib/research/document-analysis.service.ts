@@ -23,6 +23,52 @@ import type { BoundaryFetchRequest } from '@/types/research';
 // follow-up in CODE_REVIEW_2026_03_09.md finding #5).
 const MAX_DOCUMENT_TEXT_CHARS = 50_000;
 
+// Lightweight runtime guard for AI-produced analysis objects. Claude
+// normally returns the expected JSON shape, but a malformed response
+// (truncated string, schema drift, hallucinated array-instead-of-object,
+// etc.) would silently flow through the cast and corrupt the data
+// pipeline. We validate the *shape* — not every field — by checking
+// the top-level keys whose downstream callers iterate or compare:
+//   * top level: object, not null / array / primitive
+//   * `calls` / `monuments` / `adjoiners` / `easements` / etc.: arrays
+//   * `closure`, `notes`: strings or null
+// Anything else is allowed through; per-field schema enforcement is
+// tracked under finding #2 in CODE_REVIEW_2026_03_09.md as a follow-up.
+function assertAnalysisShape(
+  payload: unknown,
+  kind: 'LegalDescriptionAnalysis' | 'PlatAnalysis'
+): void {
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error(`${kind} payload was not a JSON object`);
+  }
+  const obj = payload as Record<string, unknown>;
+  const arrayKeys = [
+    'calls',
+    'perimeter_calls',
+    'monuments',
+    'adjoiners',
+    'easements',
+    'setbacks',
+    'rights_of_way',
+    'deed_references',
+    'exceptions_reservations',
+    'lots',
+    'blocks',
+    'streets',
+  ];
+  for (const k of arrayKeys) {
+    if (obj[k] !== undefined && obj[k] !== null && !Array.isArray(obj[k])) {
+      throw new Error(`${kind}.${k} was not an array (got ${typeof obj[k]})`);
+    }
+  }
+  for (const k of ['closure', 'notes']) {
+    const v = obj[k];
+    if (v !== undefined && v !== null && typeof v !== 'string') {
+      throw new Error(`${kind}.${k} was not a string (got ${typeof v})`);
+    }
+  }
+}
+
 // Document types that should use the legal-description analyzer
 const LEGAL_DESCRIPTION_TYPES = new Set<DocumentType>([
   'deed',
@@ -74,6 +120,7 @@ export async function analyzeLegalDescription(
     timeoutMs: 120_000,
   });
 
+  assertAnalysisShape(result.response, 'LegalDescriptionAnalysis');
   return result.response as LegalDescriptionAnalysis;
 }
 
@@ -99,6 +146,7 @@ export async function analyzePlat(
     timeoutMs: 120_000,
   });
 
+  assertAnalysisShape(result.response, 'PlatAnalysis');
   return result.response as PlatAnalysis;
 }
 
