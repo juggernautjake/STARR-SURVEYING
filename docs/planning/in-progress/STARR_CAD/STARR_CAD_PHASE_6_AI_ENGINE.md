@@ -1876,12 +1876,12 @@ interface AIStore {
 - [x] Name suffix ambiguity flagged when confidence < 80% — §1876: `parsedName.suffixConfidence < 0.8` with a non-NONE suffix raises `NAME_SUFFIX_AMBIGUOUS`; boundary at 0.8 exactly does not (strict <); NONE-suffix with low confidence is not flagged (only real suffixes can be ambiguous).
 
 ### Feature Assembly (Stage 2)
-- [ ] B/E suffixes build correct line strings
+- [x] B/E suffixes build correct line strings — `__tests__/cad/ai/stage-2-assemble.test.ts` §1879: PL01 `B → null → null → E` produces one POLYLINE with the right vertex order (`['a','b','c','d']`), `isClosed=false`, and three STRAIGHT segments; stats record one lineString and zero closedPolygons. Same fixture pattern is reused by every other Stage-2 test for consistency.
 - [x] Auto-spline codes produce spline features — `__tests__/cad/ai/stage-2-assemble.test.ts` §1880 covers the `isAutoSplineCode` recognition surface (TP06/07, VG07, FN11, 630/632/357 etc.; case-insensitive; rejects non-spline codes). The downstream conversion from auto-spline LineString → spline Feature is exercised by the full-pipeline integration tests rather than unit tests because it depends on the Phase 2 import path producing classified points with `isAutoSplinePoint: true`.
-- [ ] A-suffix sequences produce arc features via Kasa fit
-- [ ] Closed boundary lines detected
-- [ ] Unclosed boundary within 1.0' flagged as warning
-- [ ] Only "final" points from groups used for features
+- [x] A-suffix sequences produce arc features via Kasa fit — §1881: quarter-circle samples at 0°/30°/60°/90° on a r=100 circle, suffix chain `B → A → A → EA`, yield exactly one ARC curveFeature with a fitted radius in `(99, 101)` — Kasa is algebraic so a ~1 ft tolerance is allowed. Stats.arcsFound ≥ 1 confirms `findArcRuns` picked up the consecutive A-suffix points and `kasaCircleFit` returned non-null.
+- [x] Closed boundary lines detected — §1882: PL01 `B → null → null → C` routes the line string to `closedPolygons` instead of `lineStrings`; the emitted Feature has `type === 'POLYGON'`; stats.closedPolygonsDetected === 1; stats.lineStringsBuilt === 0.
+- [x] Unclosed boundary within 1.0' flagged as warning — §1883: boundary line whose first and last points are 0.5' apart (under the 1.0' threshold in `CLOSE_GAP_THRESHOLD_FT`) emits a `UNCLOSED_BOUNDARY` warning with severity `'WARNING'` and the full pointId list; a 1.5'+ gap produces no warning.
+- [x] Only "final" points from groups used for features — §1884: a PointGroup with `finalPoint=setPoint` plus a CALC member emits exactly one POINT feature whose `properties.aiPointIds === 'set'`; the CALC point is filtered by `selectFinalPoints`. Stats.pointFeaturesCreated === 1.
 
 ### Deed Reconciliation (Stage 3)
 - [x] Regex parser extracts correct bearings/distances from standard format — `__tests__/cad/ai/deed-parser.test.ts` §1887: single LINE call, multi-THENCE traverse (4 calls), CURVE with radius + arc-length + chord, unparseable blocks survive without crash, non-deed text returns 0 confidence, `extractMonument` helper.
