@@ -23,7 +23,7 @@
 > | §11 Quality / testing / consistency | master plan §15 |
 > | §12 Tech stack | master plan §16 |
 > | §13 Phase 1 roadmap (M1–M8) | master plan §17 (reframed) + per-phase detail docs |
-> | §14–§19 Phase 2 (Trimble) | `STARR_CAD/STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md` (shipped 2026-04-30) |
+> | §14–§19 Phase 2 (Trimble) | `STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md` (spec shipped 2026-04-30; implementation deferred — needs Trimble Connect Business + TDC600) |
 > | §20 Cross-cutting concerns | master plan §18 |
 > | §21 Risks & open questions | master plan §19 |
 > | §22 Immediate next steps | Stack/repo/MVP-scope items met by current code; tribal-knowledge gathering (drafting standards, feature-code library) is ongoing under Phase 3/6 work |

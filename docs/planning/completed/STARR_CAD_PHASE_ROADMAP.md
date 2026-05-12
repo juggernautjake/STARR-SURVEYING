@@ -22,7 +22,7 @@
 > | Phase 6 — AI Drawing Engine | ✅ shipped (best-fit-corner cluster deferred) | [`STARR_CAD_PHASE_6_AI_ENGINE.md`](./STARR_CAD_PHASE_6_AI_ENGINE.md) |
 > | Phase 7 — Final Delivery, RPLS Workflow & Export | ✅ shipped (POB + Regenerate + 60fps perf assertion deferred with rationale) | [`STARR_CAD_PHASE_7_FINAL.md`](./STARR_CAD_PHASE_7_FINAL.md) |
 > | Phase 8 — UX Completeness | ✅ shipped (Trim both + SPLINE × LINE deferred with rationale) | [`STARR_CAD_PHASE_8_UX_CONTROLS.md`](./STARR_CAD_PHASE_8_UX_CONTROLS.md) |
-> | Phase 9 — Trimble Access AutoSync | ❌ spec authored, code not started | [`STARR_CAD/STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md) |
+> | Phase 9 — Trimble Access AutoSync | spec complete; implementation deferred (needs Trimble Connect Business + TDC600) | [`STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md`](./STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md) |
 > | Phase 0 — Foundations (NEW, must precede Phase 6) | added by master plan | master plan §17 |
 
 **Version:** 2.1 | **Date:** March 2026 | **Company:** Starr Surveying Company, Belton, TX

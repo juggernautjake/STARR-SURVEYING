@@ -1,6 +1,17 @@
 # STARR CAD — Phase 9: Trimble Access AutoSync ingestion
 
-> **Status:** in-progress detail doc. Cross-linked from `STARR_CAD_MASTER_PLAN.md` §17.4.
+> **Status:** spec complete; implementation deferred. The doc describes
+> the full Day-1 → Day-5 build-out for the live-streaming field-to-office
+> path. Implementation requires (a) a Trimble Connect Business
+> subscription + TID OAuth client credentials, (b) a TDC600 controller
+> for real-device testing, and (c) a focused 2–5 day implementation
+> window once Phase 1–8 have shipped. None of those preconditions
+> exist today; deferring the implementation, not the spec.
+>
+> When the implementation slot opens, create a fresh
+> `STARR_CAD_PHASE_9_IMPLEMENTATION.md` under `in-progress/` with
+> Day-1 → Day-5 acceptance checklists; this doc stays in `completed/`
+> as the source-of-truth spec the implementation cites.
 >
 > **Owner:** Jacob Maddux · **Last updated:** 2026-04-30
 >
