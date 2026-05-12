@@ -117,7 +117,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/admin/payout-log`. Fully built out — `app/admin/payout-log/page.tsx` is 227 lines. Per the file header: "Payout history log (employees see own, admins see all)". Role-aware filtering driven by `useSession`, shared `AdminPayroll.css` for the payroll-family identity, and the standard `usePageError` error-toast pattern.
 - [x] `/admin/payroll`. Fully built out — `app/admin/payroll/page.tsx` is 353 lines. Per the file header: "Admin Payroll Dashboard". NextAuth role check, `usePageError` error-toast pattern, and `<UnderConstruction />` placeholder for the sub-sections still under build. Counterpart to `/admin/my-pay` for office-side payroll management.
 - [x] `/admin/rewards`. Fully built out — `app/admin/rewards/page.tsx` is 346 lines. Surfaces the employee rewards balance + redemption flow via a typed `Balance` interface, image-supported product cards (using `next/image` for optimised LCP), and `useEffect`-driven data fetch.
-- [ ] `/admin/timeline`.
+- [x] `/admin/timeline`. Fully built out — `app/admin/timeline/page.tsx` is 629 lines. Per the file header: "Per-user daily timeline. Reads from the derived `location_stops` + `location_segments` tables (see seeds/224). Defaults to today; changing the date or employee re-fetches. 'Recompute' button POSTs to derive on demand — useful when the surveyor's pings have just landed and the nightly job hasn't run yet." Visualises the day's stops + travel segments for dispatcher review.
 - [ ] `/admin/leads`.
 - [ ] `/admin/discussions`.
 - [ ] `/admin/notes`.
