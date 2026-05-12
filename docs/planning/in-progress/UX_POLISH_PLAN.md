@@ -101,7 +101,7 @@ Any combination of two can be open simultaneously per `CADLayout.tsx:824-925`. C
 - [ ] **Layer-rotation feature** buried as the second-to-last item of the layer right-click menu (`LayerPanel.tsx:725-774`); numeric input appears in place — easy to miss.
 - [x] **Intersect tool** chord shortcut `I X` is now discoverable through the Chord HUD (`b97ed7b`) — pressing `I` displays a list of completable second keys including `I X → Intersect Lines…`.
 - [ ] **Compass / RECON import** triggered by external apps writing to localStorage (`CADLayout.tsx:166-207`); no in-app entry point.
-- [ ] **CopilotCard "Modify" tooltip** says "Ask the AI to revise this proposal (Slice 6)" leaking internal versioning (`CopilotCard.tsx`). Update copy.
+- [x] **CopilotCard "Modify" tooltip** — fixed. `CopilotCard.tsx:166` now reads "Skip this proposal and open the chat so you can ask the AI to revise it." — no "Slice 6" string leak. (The remaining `Slice 5/6` reference is in the file-header comment, not a user-visible string.)
 
 ---
 
@@ -187,7 +187,7 @@ Any combination of two can be open simultaneously per `CADLayout.tsx:824-925`. C
 ### 4.5 Mobile-specific
 - [ ] **Sub-44pt touch targets**: Money filter clear (32×32 — `money/index.tsx:227-228`), Receipt detail Cancel (no `minHeight`, padding 4 only — `money/[id].tsx:1059-1063`), Capture screen Cancel (padding:8 — `capture/index.tsx:561`), uploads back chevron (no min size — `me/uploads.tsx:124-133`), filter tabs in uploads (~30 pt — `me/uploads.tsx:369`).
 - [x] **No haptics anywhere** — shipped in `46acce0` ("feat(mobile): haptics on primary actions"). Sign-out (`me/index.tsx:241` `haptics.confirm()`), theme toggle (`me/index.tsx:287` `haptics.tap()`), receipt capture (`money/capture.tsx:103` `haptics.success()`), and other primary flows now fire haptic feedback via the shared `haptics` helper.
-- [ ] **Sign-out has no confirmation** (`me/index.tsx:224-240,536-542`). One stray tap signs out + may drop to login if biometrics off.
+- [x] **Sign-out has no confirmation** — duplicate of §1.3 row above. Shipped in `2cd4634` (also referenced as Slice D4/U23 below); `me/index.tsx:232` wraps `signOut()` in a native Alert with Cancel + destructive Sign-out + consequence copy.
 - [ ] **SafeArea `edges={['top']}` only** on modal-style screens — `money/[id].tsx:334,1001`, `capture/index.tsx:88,295`, `jobs/[id]/points/[pointId].tsx:268,559`. Add `'bottom'` so the home indicator doesn't sit on Delete/Save.
 - [ ] **`KeyboardAvoidingView` `behavior: 'padding'` is iOS-only** in `sign-in.tsx`, `forgot-password.tsx`, `capture/index.tsx`, `money/[id].tsx`, `jobs/[id]/points/[pointId].tsx`, `time/edit/[id].tsx`. Add an Android branch (`'height'`) so the keyboard doesn't cover totals/save.
 - [ ] **Tab bar covers content** in receipt detail when scrolled to bottom (`money/[id].tsx:1042-1046`). The 64px tab bar eats ~14px of the Delete button.
@@ -284,7 +284,7 @@ All three apps share the same underlying problem: **shared primitives don't agre
 
 - [ ] **Mobile**: catalogue of "chip" `paddingV` values across the app: 2, 3, 4, 6 — six distinct paddings for the same visual idiom. Sources: `lib/StageChip.tsx:54-55` (4), `lib/StatusChip.tsx:88-89` (2), `lib/PointCard.tsx:132-133` (3), `lib/CategoryPicker.tsx:120` (6), `lib/MyTruckSection.tsx:183,243` (3 and 2). Build a `<Chip tone size>` primitive with one paddingV (suggest 4) and one minHeight (suggest 28).
 - [ ] **CAD**: dialog footer button paddings: `IntersectDialog.tsx:554,561` uses `px-3 py-1.5`; `DrawingRotationDialog.tsx:147-158` uses `px-4 py-1.5`; `ImportDialog.tsx:774-799` mixes `px-3` Back with `px-4` Import/Next *and* `rounded` vs `rounded-lg`. Standardise on `px-3 py-1.5 text-xs rounded`.
-- [ ] **CAD**: `CopilotCard.tsx:154-177` has Skip + Modify + Accept all in one footer; Skip and Modify use `px-2.5 py-1`, Accept uses `px-3 py-1`. Pick one.
+- [x] **CAD**: `CopilotCard.tsx:154-177` Skip + Modify + Accept padding harmonised — Skip and Modify bumped from `px-2.5 py-1` to `px-3 py-1` to match Accept. Footer button row reads consistently now.
 
 ### 7.4 Tile / card primitives
 
@@ -440,7 +440,7 @@ All three apps share the same underlying problem: **shared primitives don't agre
 - [ ] `SaveToDBDialog.tsx:170-172` — `'Save Drawing to Database'` / `'Open Drawing from Database'`. "Database" is engineer-speak — rename to **"Save to Starr Cloud"** / **"Open from Starr Cloud"** (or whatever the user-facing storage product is called).
 
 ### 11.7 Internal-versioning leakage in UI copy (14+ sites)
-- [ ] `CopilotCard.tsx:166` — `title="Ask the AI to revise this proposal (Slice 6)."`
+- [x] `CopilotCard.tsx:166` — duplicate of §2.4 row; tooltip now reads "Skip this proposal and open the chat so you can ask the AI to revise it." No Slice-N leak in any user-visible string.
 - [ ] `AICopilotSidebar.tsx:220` — `title="Kick off an AUTO run with a project-intake prompt (§32.13 Slice 11)."`
 - [ ] `AICopilotSidebar.tsx:237` — `title="Halt AUTO at the next boundary and drop into COPILOT (Ctrl+Shift+P)."` (the Ctrl+Shift+P is fine; the prior context isn't leaked here — verify)
 - [ ] `AIProvenancePopup.tsx:107` — body text `"Run the full AI pipeline (Phase 6 §3–§10) for the reasoning…"`

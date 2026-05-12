@@ -154,7 +154,7 @@ export default function CopilotCard() {
           <button
             type="button"
             onClick={handleSkip}
-            className="px-2.5 py-1 text-[11px] bg-gray-800 border border-gray-600 text-gray-300 rounded hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-1"
+            className="px-3 py-1 text-[11px] bg-gray-800 border border-gray-600 text-gray-300 rounded hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-1"
             title="Drop this proposal without executing (the next one in the queue, if any, shows up after)."
           >
             <X size={12} /> Skip
@@ -162,7 +162,7 @@ export default function CopilotCard() {
           <button
             type="button"
             onClick={handleModify}
-            className="px-2.5 py-1 text-[11px] bg-gray-800 border border-gray-600 text-gray-300 rounded hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-1"
+            className="px-3 py-1 text-[11px] bg-gray-800 border border-gray-600 text-gray-300 rounded hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-1"
             title="Skip this proposal and open the chat so you can ask the AI to revise it."
           >
             <MessageSquare size={12} /> Modify
