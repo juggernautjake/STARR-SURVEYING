@@ -1274,10 +1274,22 @@ interface ExportStore {
 - [x] CAD → Orbit field-mapping sync (§17.4): `lib/cad/integrations/orbit-sync.ts` slices boundary polygon + utility lines + monument points (prefix regex catches BC/MN/IR/IP/PIN/NL/SP) into three GeoJSON FeatureCollections plus a structured `OrbitMonumentRef[]` carrying code + position. POST `/api/admin/cad/orbit-sync` forwards to `ORBIT_WEBHOOK_URL` with `X-Starr-Orbit-Secret`. Source CRS hint stamped via `urn:ogc:def:crs:EPSG::2277` so Orbit re-projects to WGS84 on its end. Auto-fires once per `(jobId, DELIVERED)` from the same CADLayout workflow subscriber. Smoke-tested via `npx tsx` (IRF + BC02 both detected as monuments, polygons + lines slice correctly).
 
 ### Electron Desktop
-- [ ] App opens without internet access
-- [ ] File → Open shows native file dialog, loads .starr file
-- [ ] File → Save writes .starr file to disk
-- [ ] Ctrl+Z / Ctrl+Y work in desktop app
+
+> **Scope note (2026-05-12):** Starr CAD ships as a web-distributed Next.js app
+> (`/admin/cad`). No Electron wrapper exists in this repo, and building one is
+> a multi-week distribution-track undertaking (per-feature fs/native-dialog
+> wiring, code-signing, auto-update pipeline, per-OS installers) whose cost
+> clearly exceeds value while the browser surface covers the day-to-day
+> workflow. The four items below are deferred until a desktop distribution is
+> green-lit; if that happens, this section becomes the spec for the wrapper's
+> file I/O + offline behavior. Browser-side equivalents already work: offline
+> access via IndexedDB autosave (see the shipped items below); File I/O via
+> the existing import/export dialogs.
+
+- ~~App opens without internet access~~ — deferred: no Electron wrapper in scope; browser offline coverage is owned by autosave + service-worker conventions, not this item
+- ~~File → Open shows native file dialog, loads .starr file~~ — deferred: no Electron wrapper in scope; web side uses the import/open dialog
+- ~~File → Save writes .starr file to disk~~ — deferred: no Electron wrapper in scope; web side persists to IndexedDB + downloads .starr on demand
+- ~~Ctrl+Z / Ctrl+Y work in desktop app~~ — deferred: no Electron wrapper in scope; undo/redo already works in the web app
 - [x] Auto-save writes .autosave file every 60 seconds — `lib/cad/persistence/autosave.ts` keys per-doc (`autosave:<docId>`) so switching drawings no longer drops the prior autosave; legacy `'current'` slot migrates transparently on first read; `clearAutosave` fires on manual save so stale recoveries don't pop on reload. Browser path uses IndexedDB; Electron-side fs persistence lands when the desktop wrapper ships.
 - [x] Crash recovery dialog appears when .autosave is newer than .starr — existing mount-time dialog reads the doc-keyed slot via `readAutosave(docId)`; new `RecentRecoveriesDialog` (`File → Recover unsaved drawings…`) walks every keyed slot via `listAutosaves()` so dropped tabs don't lose work even when the surveyor reopens a different drawing. Each row shows the saved-at relative time + Restore / Discard buttons; Restore loads through `validateAndMigrateDocument` + zooms to extents.
 
