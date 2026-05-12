@@ -134,6 +134,16 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
     });
     engineRef.current = engine;
 
+    let lastPrefix = '';
+    const emitPrefix = () => {
+      const next = engine.getBufferedPrefix();
+      if (next !== lastPrefix) {
+        lastPrefix = next;
+        window.dispatchEvent(new CustomEvent('cad:chordPrefixChanged', {
+          detail: { prefix: next },
+        }));
+      }
+    };
     const onKeyDown = (event: KeyboardEvent) => {
       if (shouldIgnoreEventTarget(event)) return;
       const handled = engine.handleKeyEvent(event);
@@ -146,6 +156,12 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
         // type into a stray contenteditable.
         event.preventDefault();
       }
+      // Surface the chord buffer state for the HUD. The engine
+      // commits / clears its buffer inside `handleKeyEvent`, so
+      // reading right after gives the canonical post-keystroke
+      // prefix. A timeout covers the chord-timeout auto-clear.
+      emitPrefix();
+      window.setTimeout(emitPrefix, 1100);
     };
 
     const onBlur = () => engine.flushPending();

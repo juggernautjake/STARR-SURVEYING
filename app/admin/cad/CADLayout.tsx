@@ -26,6 +26,7 @@ import AIProvenancePopup from './components/AIProvenancePopup';
 import CopilotCard from './components/CopilotCard';
 import AICopilotSidebar from './components/AICopilotSidebar';
 import AIAutoRunner from './components/AIAutoRunner';
+import ChordHUD from './components/ChordHUD';
 import CompletenessPanel from './components/CompletenessPanel';
 import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import RPLSReviewModePanel from './components/RPLSReviewModePanel';
@@ -854,6 +855,12 @@ export default function CADLayout() {
           while mode === AUTO. Below-threshold proposals stay
           queued for surveyor review via CopilotCard. */}
       <AIAutoRunner />
+
+      {/* Chord-shortcut HUD — pops a small toast at bottom-centre
+          showing the available second-key completions while a
+          chord (e.g. `I`, `Z`, `R`) is in progress. Clears
+          automatically on completion / escape / timeout. */}
+      <ChordHUD />
 
       {/* Phase 7 §6.2 completeness checklist — slides in from the
           right, gates "Mark Ready for RPLS Review" on summary.ready */}
