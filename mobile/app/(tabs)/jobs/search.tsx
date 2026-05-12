@@ -79,7 +79,7 @@ export default function NotesSearchScreen() {
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: palette.background }]}
-      edges={['top']}
+      edges={['top', 'bottom']}
     >
       <View style={styles.headerRow}>
         <Pressable
