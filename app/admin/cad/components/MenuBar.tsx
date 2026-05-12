@@ -24,6 +24,7 @@ import { downloadCsv } from '@/lib/cad/persistence/export-csv';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
 import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
+import { useTemplateStore } from '@/lib/cad/store/template-store';
 import SaveToDBDialog from './SaveToDBDialog';
 
 interface MenuItem {
@@ -255,10 +256,20 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
 
   function exportPdf() {
     try {
-      const { byteSize, filename } = downloadPdf(drawingStore.document);
+      // Pull plotStyle from the template store so the Print
+      // dialog's choice (AS_DISPLAYED / MONOCHROME / GRAYSCALE)
+      // actually drives the resolver. Reading via getState()
+      // instead of a top-of-component hook keeps the
+      // subscription out of MenuBar's render path — print
+      // settings change rarely and the menu doesn't need to
+      // re-render when they do.
+      const { plotStyle } = useTemplateStore.getState().printConfig;
+      const { byteSize, filename } = downloadPdf(drawingStore.document, {
+        plotStyle,
+      });
       cadLog.info(
         'FileIO',
-        `Exported drawing as PDF: ${filename} (${byteSize} bytes)`
+        `Exported drawing as PDF: ${filename} (${byteSize} bytes, plotStyle=${plotStyle})`
       );
     } catch (err) {
       cadLog.error('FileIO', 'PDF export failed', err);
