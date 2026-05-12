@@ -464,10 +464,10 @@ All three apps share the same underlying problem: **shared primitives don't agre
 - [ ] **AUTO / COPILOT / COMMAND / MANUAL** AI modes — uppercase across CAD UI but no definition anywhere. Add a one-time tip when the user first cycles modes (`Ctrl+Shift+M`).
 
 ### 11.10 Aria / tooltip inconsistencies
-- [ ] `CADLayout.tsx:643` close button `aria-label="Dismiss"` while most other closers in the file use `aria-label="Close"`. Pick one across CAD.
+- [x] `CADLayout.tsx` close button `aria-label="Dismiss"` outlier — flipped to `"Close"` so every closer across CAD's 15 dialogs / panels reads the same. (The line in question moved to :653 between the audit and this fix; the Compass-notice dismiss button is the only one that drifted.)
 - [x] `AISidebar.tsx` inner tab strip aria-label collision — shipped in `4d4d61f`. Inner-nav `aria-label="AI sidebar tabs"` → `aria-label="Tabs"`; the surrounding panel still carries "AI sidebar" so the screen reader no longer echoes it twice on every focus.
 - [ ] `StatusBar.tsx:283,290-292` — `title="Active tool"` / `title="Active layer"` with no `aria-label`. Screen readers announce just the value without context.
-- [ ] `research/[projectId]/page.tsx:1503` — toast close `aria-label="Dismiss"` while CAD uses "Close" (and vice versa above). Pick one across the product.
+- [x] `research/[projectId]/page.tsx` toast close `aria-label="Dismiss"` outlier — flipped to `"Close"` (line :3601, moved since the original audit). RECON's other 4 closers — `CoordinateEntryPanel`, `VertexEditPanel`, both BriefingPanel buttons — already used `"Close"`. Product-wide closers now read the same.
 
 ### 11.11 Error / empty-state copy that lacks an action
 - [x] `MenuBar.tsx` + `useKeyboard.ts` alert copy — shipped in `4d4d61f`. All "See the browser console for details" tails replaced with "Try again, or contact support if it keeps failing." Surveyor-actionable instead of dev-speak.

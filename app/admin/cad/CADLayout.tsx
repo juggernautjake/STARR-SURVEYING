@@ -650,7 +650,7 @@ export default function CADLayout() {
             type="button"
             onClick={() => setCompassNotice(null)}
             className="text-indigo-700 hover:text-indigo-900 font-bold px-2"
-            aria-label="Dismiss"
+            aria-label="Close"
           >
             ✕
           </button>
