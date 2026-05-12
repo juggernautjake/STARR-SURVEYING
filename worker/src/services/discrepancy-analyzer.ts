@@ -26,7 +26,7 @@ import type {
 } from '../types/confidence.js';
 import { PipelineLogger } from '../lib/logger.js';
 
-const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
 // Minimum arc-minute spread to flag as a datum_shift candidate.
 // NAD27→NAD83 typically shifts 2-5 arc-minutes in Texas.

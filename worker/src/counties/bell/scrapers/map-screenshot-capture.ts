@@ -75,7 +75,7 @@ const GIS_ZOOM_OUT_CLICKS = 2;
 const GOOGLE_MAPS_ZOOM = 20;
 
 /** AI model for lightweight OCR verification checks */
-const OCR_VERIFY_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const OCR_VERIFY_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
 /** Max tokens for OCR verify responses (keep small — we just want a brief description) */
 const OCR_VERIFY_MAX_TOKENS = 1024;

@@ -7,7 +7,7 @@
 import fs from 'fs';
 import type { AdjacencyMatrix, LotAdjacency } from '../types/subdivision.js';
 
-const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
 export class AdjacencyBuilder {
 

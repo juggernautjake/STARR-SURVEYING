@@ -25,7 +25,7 @@ import type { PipelineLogger } from '../lib/logger.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
-const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
 /** 1 Texas vara = 33⅓ inches = 2.7778 feet (exact survey feet) */
 const VARAS_TO_FEET = 2.7778;

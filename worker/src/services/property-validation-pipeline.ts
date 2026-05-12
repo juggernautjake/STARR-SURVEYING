@@ -196,7 +196,7 @@ async function callClaude(
     const attemptStart = Date.now();
     try {
       const response = await client.messages.create({
-        model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929',
+        model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6',
         max_tokens: maxTokens,
         temperature: 0,
         system: systemPrompt,

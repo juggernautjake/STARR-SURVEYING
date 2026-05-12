@@ -10,7 +10,7 @@
 // NOTES:
 //   - ANTHROPIC_API_KEY must be set for Steps C and AI deed selection
 //   - Rate limit: configurable via CLERK_RATE_LIMIT_MS env var (default: 3000ms)
-//   - AI model is read from RESEARCH_AI_MODEL env var (defaults to claude-sonnet-4-5-20250929)
+//   - AI model is read from RESEARCH_AI_MODEL env var (defaults to claude-sonnet-4-6)
 //   - This worker is designed for sequential execution (not parallel) to avoid rate-limit violations
 //   - All HTTP AI calls check response.ok before parsing JSON (Phase 3/4 pattern)
 //   - Structured logging via PipelineLogger (per spec: no bare console.log in Phase 5 code)
@@ -23,7 +23,7 @@ import type { AdjacentResearchTask } from './adjacent-queue-builder.js';
 
 // ── AI Model ──────────────────────────────────────────────────────────────────
 // Always read from environment — never hardcode a model name
-const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
 // ── Rate limit ────────────────────────────────────────────────────────────────
 // Minimum milliseconds between county clerk page navigations.

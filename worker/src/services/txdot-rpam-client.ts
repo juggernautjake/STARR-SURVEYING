@@ -12,7 +12,7 @@
 //   - Playwright (chromium) must be installed on the droplet:
 //       npx playwright install chromium
 //   - ANTHROPIC_API_KEY must be set for AI analysis
-//   - AI model from RESEARCH_AI_MODEL env var (default: claude-sonnet-4-5-20250929)
+//   - AI model from RESEARCH_AI_MODEL env var (default: claude-sonnet-4-6)
 //   - Always runs headless
 //   - Browser.close() is always called in finally block
 //   - Returns null on any failure — never throws
@@ -26,7 +26,7 @@ import { acquireBrowser } from '../lib/browser-factory.js';
 import type { Browser } from 'playwright';
 
 // AI model — always read from environment
-const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

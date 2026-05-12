@@ -12,7 +12,7 @@
 //
 // NOTES:
 //   - ANTHROPIC_API_KEY must be set for AI conflict resolution
-//   - AI model from RESEARCH_AI_MODEL env var (default: claude-sonnet-4-5-20250929)
+//   - AI model from RESEARCH_AI_MODEL env var (default: claude-sonnet-4-6)
 //   - Always check response.ok before parsing AI response (Phase 3/4 pattern)
 //   - Returns a "unknown" resolution on any failure — never throws
 //
@@ -25,7 +25,7 @@ import type { ClassifiedRoad } from './road-classifier.js';
 import type { PipelineLogger } from '../lib/logger.js';
 
 // AI model — always read from environment
-const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
