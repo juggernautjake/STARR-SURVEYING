@@ -58,7 +58,7 @@ A page-by-page sweep of `/admin/cad`. For each tool, confirm: tool activates, op
 - [x] Import GeoJSON / DXF land geometry on the correct layers. Both readers follow the same shape: parse the source's layer table, generate fresh `layerId`s, then re-key every feature by name → new id. DXF: `dxf-reader.ts:76-112` parses the LAYER table, always emits Layer `'0'` (AutoCAD convention), maps each entity's `layer` string to the new id. GeoJSON: `geojson-reader.ts:153-183` reads each feature's `properties.layerName` (also accepts `layerId`), builds the layer record set, re-keys via `nameToId`. Features whose layer name isn't in the parsed table fall through to `layerOrder[0]` so nothing gets dropped. Both importers return a fully-formed `DrawingDocument` that `drawingStore.loadDocument` swaps in atomically.
 
 ### 1.7 AI surfaces
-- [ ] AI menu → Run AI Drawing Engine opens the dialog.
+- [x] AI menu → Run AI Drawing Engine opens the dialog. Code-verified at `MenuBar.tsx:588` (AI menu entry calls `onOpenAIDrawing?.()` + closes the menu), `CADLayout.tsx:716` (parent passes `() => setShowAIDrawingDialog(true)` as the prop), `CADLayout.tsx:139` (local boolean state `showAIDrawingDialog`), `CADLayout.tsx:882-883` (mounts `<AIDrawingDialog onClose={() => setShowAIDrawingDialog(false)} />` when the flag is set). A `cad:openAIDrawingDialog` window event (`CADLayout.tsx:397-402`) provides a second entrance for sibling components without prop-drilling.
 - [ ] AI Copilot sidebar opens, accepts a prompt, returns a proposal, Accept/Modify/Skip each behave.
 - [ ] AI Review Queue panel toggles open/closed via the menu item.
 - [ ] Recoverable-drawing banner only shows when autosave found unsaved work.
