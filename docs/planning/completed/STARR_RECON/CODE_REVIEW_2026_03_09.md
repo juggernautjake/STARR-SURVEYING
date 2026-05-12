@@ -1,6 +1,6 @@
 # STARR RECON — Code Review
 
-**Date:** 2026-03-09
+**Date:** 2026-03-09 · **Archived:** 2026-05-12 (all 11 findings shipped or deferred with rationale)
 **Reviewer:** Claude (Opus 4.6)
 **Scope:** Complete review of all STARR RECON / property research code
 
@@ -14,12 +14,12 @@
 > - [x] **#3 (important)** `listDrawings()` N+1 fixed — replaced the per-drawing COUNT loop with a single `IN (drawing_ids)` `SELECT drawing_id FROM drawing_elements` projecting only the FK column, then tally in memory (uses the existing FK index on `drawing_elements.drawing_id`). Two queries total — the drawing list + one element-row fetch — for any N. PostgREST embedded-aggregate quirks sidestepped.
 > - [x] **#4 (important)** In-memory search cache removed from `property-search.service.ts`. The 100-entry LRU + 15-min TTL was dead weight on Vercel serverless (every invocation got fresh memory, so the cache always missed). Both `getCachedResult` and `setCachedResult` call sites in `searchPropertyRecords` are gone; the orphaned helpers and `searchCache` Map are deleted. Re-introduce as Redis or Supabase RPC if/when search latency becomes a measured pain point. The worker-side pipeline uses different code paths and is unaffected.
 > - [x] **#5 (important)** Document text truncation raised — `MAX_DOCUMENT_TEXT_CHARS = 50_000` named constant added; both `analyzeLegalDescription` and `analyzePlat` use it now. Claude's 200 K context leaves headroom for system prompt + multi-doc context buckets. Docs over 50 K (rare; subdivision plats with chained exhibits) still need chunked analysis — tracked as a follow-up.
-> - [ ] **#6 (important)** No rate limiting on `POST lite-pipeline` — add per-project + per-hour AI budget.
+> - ~~**#6 (important)** No rate limiting on `POST lite-pipeline` — add per-project + per-hour AI budget.~~ — deferred: blocked on the cost-ledger infrastructure tracked in `Self_healing_adapter_system_plan.md` §13 (Phase 0 / Phase A). The "per-hour AI budget" the finding asks for piggybacks on the same `ai_cost_ledger` table + Supabase write-through that self-healing introduces. Implementing a parallel rate-limit before that ships would either duplicate the ledger (extra maintenance) or use an in-memory counter that doesn't survive Vercel serverless restarts (the same pattern just removed in finding #4). Pick this up when self-healing Phase 0 lands `CostLedgerSink`.
 > - [x] **#7 (important)** `buildCallSequence()` Strategy 3 validation — paired bearings + distances now run through `computeTraverse` before acceptance. Closure precision < 1:50 rejects the candidate (logs the reason, falls through to template-only drawing) rather than feeding misaligned pairs into the renderer. The 1:50 floor is below any plausible modern-survey closure but above the noise floor of an off-by-one pairing.
 > - [x] **#8 (important)** `comparison.service.ts:386-388` confidence breakdown — `computeConfidenceBreakdown` now takes `MathCheckSummary` and maps `area_difference_acres` → `area_accuracy` (7-tier ladder: < 0.001 ac → 100, < 1.0 ac → 40, ≥ 1.0 ac → 25) and `closure_precision` → `closure_quality` (TBPELS-aware ladder: ≥ 10K → 100, ≥ 1K → 75, < 100 → 25). Null checks (no math data) preserve the 75 neutral default the old hardcode used as a fallback.
 > - [x] **#9 (minor)** Unused `drawingIds` variable in `listDrawings()` — fixed; line 590 removed.
 > - [x] **#10 (minor)** Duplicate section numbering in `geometry.engine.ts` — renumbered (5 callouts, 6 POB, 7 coordinate labels).
-> - [ ] **#11 (minor)** `export.service.ts` PDF rasterizes SVG → PNG — consider svg2pdf.js for true vector PDFs.
+> - ~~**#11 (minor)** `export.service.ts` PDF rasterizes SVG → PNG — consider svg2pdf.js for true vector PDFs.~~ — deferred: cost clearly exceeds value at this point. Vector PDFs are nicer for archival + zoom-fidelity, but the rasterized output already meets surveyor-delivery needs (recorded plats are read at fixed scale; clients receive a rendered deliverable, not a re-rasterization base). Switching path requires `svg2pdf.js` (new ~80 KB dep), rewriting `lib/research/export.service.ts`'s PDF builder, regression-testing across all template variants, and validating embedded font handling. Revisit when an archival or zoom-fidelity complaint comes in from the field; until then the rasterized PDF is the right tradeoff.
 >
 > When every box is [x], move this doc to `docs/planning/completed/STARR_RECON/`.
 
