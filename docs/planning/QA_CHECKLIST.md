@@ -114,7 +114,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/admin/pay-progression`. Fully built out — `app/admin/pay-progression/page.tsx` is 636 lines. Manages per-work-type pay rates via a typed `WorkTypeRate` interface (`work_type`, `base_rate`) and the shared `AdminPayroll.css` stylesheet so the pay-progression / payroll / hours-approval pages share identity. One of the larger admin pages.
 - [x] `/admin/hours-approval`. Fully built out — `app/admin/hours-approval/page.tsx` is 675 lines. Per the file header: "Admin approval of employee time logs". Pulls each pending `TimeLog`, surfaces the approve/reject controls per row, uses `AdminTimeLogs.css` for the shared time-management identity, and `usePageError` for the standard error pattern. Among the larger admin routes.
 - [x] `/admin/my-pay`. Fully built out — `app/admin/my-pay/page.tsx` is 306 lines. Employee-facing "My Pay" page: NextAuth session check, `AdminPayroll.css` shared stylesheet, `usePageError` toast surface, and the standard `<UnderConstruction />` for placeholder sub-sections. Mirrors the admin /payroll view but scoped to the active employee's records.
-- [ ] `/admin/payout-log`.
+- [x] `/admin/payout-log`. Fully built out — `app/admin/payout-log/page.tsx` is 227 lines. Per the file header: "Payout history log (employees see own, admins see all)". Role-aware filtering driven by `useSession`, shared `AdminPayroll.css` for the payroll-family identity, and the standard `usePageError` error-toast pattern.
 - [ ] `/admin/payroll`.
 - [ ] `/admin/rewards`.
 - [ ] `/admin/timeline`.
