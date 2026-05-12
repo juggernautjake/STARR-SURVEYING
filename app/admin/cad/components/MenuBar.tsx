@@ -89,7 +89,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       cadLog.info('FileIO', `Saved drawing: ${drawingStore.document.name}`);
     } catch (err) {
       cadLog.error('FileIO', 'Failed to save document', err);
-      alert('Failed to save the drawing. See the browser console for details.');
+      alert('Failed to save the drawing. Try again, or contact support if it keeps failing.');
     }
   }
 
@@ -169,7 +169,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       cadLog.info('FileIO', `Exported ${rowCount} points as ${flavor} CSV → ${filename}`);
     } catch (err) {
       cadLog.error('FileIO', 'CSV export failed', err);
-      alert('Failed to export CSV. See the browser console for details.');
+      alert('Failed to export CSV. Try again, or contact support if it keeps failing.');
     }
   }
 
@@ -185,7 +185,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       );
     } catch (err) {
       cadLog.error('FileIO', 'DXF export failed', err);
-      alert('Failed to export DXF. See the browser console for details.');
+      alert('Failed to export DXF. Try again, or contact support if it keeps failing.');
     }
   }
 
@@ -215,7 +215,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         }
       } catch (err) {
         cadLog.error('FileIO', 'GeoJSON import failed', err);
-        alert('Failed to import GeoJSON. See the browser console for details.');
+        alert('Failed to import GeoJSON. Try again, or contact support if it keeps failing.');
       }
     };
     input.click();
@@ -247,7 +247,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         }
       } catch (err) {
         cadLog.error('FileIO', 'DXF import failed', err);
-        alert('Failed to import DXF. See the browser console for details.');
+        alert('Failed to import DXF. Try again, or contact support if it keeps failing.');
       }
     };
     input.click();
@@ -262,7 +262,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       );
     } catch (err) {
       cadLog.error('FileIO', 'PDF export failed', err);
-      alert('Failed to export PDF. See the browser console for details.');
+      alert('Failed to export PDF. Try again, or contact support if it keeps failing.');
     }
   }
 
@@ -281,7 +281,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     } catch (err) {
       cadLog.error('FileIO', 'Field reference cards export failed', err);
       alert(
-        'Failed to export field reference cards. See the browser console.'
+        'Failed to export field reference cards. Try again, or contact support if it keeps failing.'
       );
     }
   }
@@ -295,7 +295,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       );
     } catch (err) {
       cadLog.error('FileIO', 'GeoJSON export failed', err);
-      alert('Failed to export GeoJSON. See the browser console for details.');
+      alert('Failed to export GeoJSON. Try again, or contact support if it keeps failing.');
     }
   }
 
@@ -318,7 +318,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     } catch (err) {
       cadLog.error('FileIO', 'Deliverable bundle export failed', err);
       alert(
-        'Failed to export deliverable bundle. See the browser console for details.'
+        'Failed to export deliverable bundle. Try again, or contact support if it keeps failing.'
       );
     }
   }
@@ -453,7 +453,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           action: () => drawingStore.updateSettings({ gridVisible: !drawingStore.document.settings.gridVisible }),
         },
         {
-          label: drawingStore.document.settings.snapEnabled ? 'Snap OFF' : 'Snap ON',
+          label: drawingStore.document.settings.snapEnabled ? 'Disable Snap' : 'Enable Snap',
           shortcut: 'F3',
           action: () => drawingStore.updateSettings({ snapEnabled: !drawingStore.document.settings.snapEnabled }),
         },

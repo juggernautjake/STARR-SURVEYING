@@ -145,7 +145,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
 
   // ── Delete handler ────────────────────────────────────────────────────
   async function handleDelete(id: string, name: string) {
-    if (!window.confirm(`Delete "${name}" from the database? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete "${name}" from your saved drawings? This cannot be undone.`)) return;
     try {
       const res = await fetch(`/api/admin/cad/drawings?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (!res.ok) {

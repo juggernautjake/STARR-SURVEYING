@@ -508,13 +508,13 @@ Insert these slices into the existing §5 sequence. Naming items can land anywhe
 
 If only ten things ship from Part 2, do these:
 
-1. Change `AICopilotSidebar.tsx:271` `px-2 py-2` → `px-3 py-2` (the user's primary complaint).
+1. Change `AICopilotSidebar.tsx:271` `px-2 py-2` → `px-3 py-2` (the user's primary complaint). **Shipped (U28)** — bumped to `px-3 py-3` and `space-y-1.5` for a less cramped input row.
 2. Wire `.research-project-nav__link--active` via `usePathname()` (one-line fix, broken everywhere right now).
 3. Add `border-bottom: 2px solid transparent` to inactive `.review-summary-panel__tab` (stops the 2 px content shift on every tab click).
 4. Define the missing `research-pipeline__*` CSS classes (the Pipeline page is currently unstyled).
 5. Mobile tab `$` → `Money`.
 6. Strip every "Phase X / Slice X / Coming soon" string from user-visible copy.
-7. Replace `SaveToDBDialog.tsx` "Database" wording with the actual storage product name.
+7. Replace `SaveToDBDialog.tsx` "Database" wording with the actual storage product name. **Shipped (U28)** — delete confirmation now reads "Delete X from your saved drawings?" instead of "from the database".
 8. Move CAD AI menu items out of File into a top-level AI menu.
 9. Unify `lib/Button.tsx` + `lib/TextField.tsx` to a single `controlHeight` token.
 10. Strip hardcoded "Henry" from mobile copy (5 sites).

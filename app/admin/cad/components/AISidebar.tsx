@@ -107,7 +107,7 @@ export default function AISidebar({
         </button>
       </header>
 
-      <nav style={styles.tabStrip} aria-label="AI sidebar tabs">
+      <nav style={styles.tabStrip} aria-label="Tabs">
         {TABS.map((t) => (
           <SidebarTabButton
             key={t.id}
