@@ -1901,9 +1901,9 @@ interface AIStore {
 - [x] Unrecognized code drops codeClarity by 0.4 — §1901: `UNRECOGNIZED_CODE` flag on a related point drops `codeClarity` to 0.6 and adds "Unrecognized code" to the flags array.
 - [x] No deed data → deedRecordMatch defaults to 0.7 — §1902: `reconciliation: null` sets `deedRecordMatch` to 0.7.
 - [x] Good closure (1:15000+) → closureQuality = 1.0 — §1903: full ladder verified (≥15K → 1.0, 10–15K → 0.8, 5–10K → 0.5, < 5K → 0.2; no closure → 0.5 default).
-- [ ] Point group with both calc and field → +15% consistency
-- [ ] Point group with only calc → -20% consistency
-- [ ] Tier assignment: 95–100=5, 80–94=4, 60–79=3, 40–59=2, 0–39=1
+- [x] Point group with both calc and field → +15% consistency — §1904: `pointGroup.hasBothCalcAndField` adds 0.15 (clamped at 1.0).
+- [x] Point group with only calc → -20% consistency — §1905: a group with `found:null && set:null && calculated.length > 0` drops contextualConsistency to 0.8 + flags "Only calculated position (no field verification)".
+- [x] Tier assignment: 95–100=5, 80–94=4, 60–79=3, 40–59=2, 0–39=1 — §1906: every tier boundary asserted via `getTier`.
 
 ### Review Queue
 - [ ] Tier 5 items auto-accepted
