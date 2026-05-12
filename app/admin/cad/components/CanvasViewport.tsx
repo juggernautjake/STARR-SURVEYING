@@ -7421,6 +7421,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const toolState = toolStore.state;
       const { activeTool } = toolState;
 
+      // Phase 8 §11.7 — Pick-mode box-select. When the
+      // LayerTransferDialog is in Pick mode and the user starts
+      // dragging on empty canvas, start a box-select; mouseUp adds
+      // the captured features to the pick set (not the regular
+      // selection). MouseDown on a hit feature is left to the
+      // existing click handler at line ~7582 (togglePick on
+      // mouseUp), so we only intercept the empty-canvas case here.
+      const _pickTx = useTransferStore.getState();
+      if (_pickTx.pickModeActive) {
+        const _hit = hitTest(sx, sy);
+        if (!_hit) {
+          toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
+        }
+        return;
+      }
+
       // PAN tool: left-click-drag pans the viewport
       if (activeTool === 'PAN') {
         isPanningRef.current = true;
@@ -9811,8 +9827,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
-      // Finish box selection (works for both SELECT and BOX_SELECT tools)
-      if (toolState.isBoxSelecting && (toolState.activeTool === 'SELECT' || toolState.activeTool === 'BOX_SELECT')) {
+      // Phase 8 §11.7 — Pick-mode box-select resolution. Parallel
+      // to the SELECT/BOX_SELECT path below; captured features get
+      // added to the transferStore's pick set rather than the
+      // selection store. Pick mode preempts the regular flow.
+      const _pickTx = useTransferStore.getState();
+      if (toolState.isBoxSelecting && _pickTx.pickModeActive) {
+        const start = toolState.boxStart!;
+        const end = toolState.boxEnd ?? { x: sx, y: sy };
+        const dragDist = Math.hypot(end.x - start.x, end.y - start.y);
+        const threshold = drawingStore.document.settings.dragThreshold ?? 5;
+        if (dragDist > threshold) {
+          const ids = boxSelectFeatures(start, end);
+          if (ids.length > 0) _pickTx.addPicks(ids);
+        }
+        // Short-drag no-op: a plain click in Pick mode flows
+        // through the click handler at handleClick → togglePick.
+        toolStore.setBoxSelect(null, null, false);
+      } else if (toolState.isBoxSelecting && (toolState.activeTool === 'SELECT' || toolState.activeTool === 'BOX_SELECT')) {
+        // Finish box selection (works for both SELECT and BOX_SELECT tools)
         const start = toolState.boxStart!;
         const end = toolState.boxEnd ?? { x: sx, y: sy };
         const dragDist = Math.hypot(end.x - start.x, end.y - start.y);
