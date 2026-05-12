@@ -277,7 +277,7 @@ export default function AICopilotSidebar() {
           onKeyDown={handleKey}
           rows={3}
           placeholder="Ask the AI… (Ctrl+Enter to send)"
-          className="w-full bg-gray-800 text-gray-100 text-[12px] rounded px-2 py-1.5 border border-gray-700 focus:border-blue-500 focus:outline-none resize-none font-sans"
+          className="w-full bg-gray-800 text-gray-100 text-[12px] rounded px-2 py-1.5 border border-gray-700 focus:border-blue-500 focus:outline-none resize-none"
           disabled={mode === 'MANUAL'}
         />
         <div className="flex items-center justify-between">

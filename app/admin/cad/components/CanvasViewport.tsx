@@ -10865,7 +10865,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         >
           <input
             autoFocus
-            className="bg-gray-900 border-2 border-blue-400 text-white text-sm px-2 py-1 outline-none shadow-2xl min-w-[160px] rounded font-sans"
+            className="bg-gray-900 border-2 border-blue-400 text-white text-sm px-2 py-1 outline-none shadow-2xl min-w-[160px] rounded"
             style={{ caretColor: '#60a5fa' }}
             placeholder="Type text here…"
             onKeyDown={(e) => {
