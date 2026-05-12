@@ -221,9 +221,25 @@ export default function LayerPanel() {
       className="flex flex-col h-full text-gray-200 text-xs"
       onClick={contextMenu ? closeContextMenu : undefined}
     >
-      <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700 flex items-center justify-between">
-        <span>Layers</span>
-        <span className="text-gray-500 normal-case tracking-normal text-[10px]">
+      <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700 flex items-center justify-between gap-2">
+        <span className="shrink-0">Layers</span>
+        {/* Active-layer callout — the new-feature destination.
+            Keeps the surveyor's eye on the "where will my next
+            shape land?" answer without having to scan the row
+            list for the highlighted entry. */}
+        <span
+          className="flex-1 truncate normal-case tracking-normal text-[10px] text-gray-500"
+          title={`Active layer — new features land here: ${
+            doc.layers[activeLayerId]?.name ?? '—'
+          }`}
+        >
+          <span className="text-gray-500">active:</span>{' '}
+          <span className={doc.layers[activeLayerId]?.locked ? 'text-yellow-400' : 'text-white'}>
+            {doc.layers[activeLayerId]?.name ?? '—'}
+            {doc.layers[activeLayerId]?.locked ? ' 🔒' : ''}
+          </span>
+        </span>
+        <span className="text-gray-500 normal-case tracking-normal text-[10px] shrink-0">
           {filterTrim.length > 0 ? `${filteredLayers.length} of ${layers.length}` : `${layers.length}`}
         </span>
       </div>
