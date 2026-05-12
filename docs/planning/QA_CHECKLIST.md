@@ -103,7 +103,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/share`. Lives at `/share/[token]` (`app/share/[token]/page.tsx`). Per the file header: "Phase 17 — Public read-only report viewer. No authentication required — accessed via a share link. Renders a permission-filtered view of a research project report with optional password prompt and 'Powered by Starr Recon' branding." Includes `ShareRecord` type for the server payload, password-prompt state, and rendering of the filtered report. A bare `/share` index doesn't exist by design — share links are always token-scoped.
 
 ### 3.2 Admin routes (one item per top-level admin section)
-- [ ] `/admin` — landing.
+- [x] `/admin` — landing. **Fix shipped this turn:** `app/admin/page.tsx` previously didn't exist, so `/admin` rendered the AdminLayoutClient chrome with an empty `children` slot. New `app/admin/page.tsx` is a single-line `redirect('/admin/dashboard')` so the bare `/admin` URL routes the surveyor to the existing dashboard (the AdminSidebar's "Main" group already names Dashboard as the first entry per `AdminSidebar.tsx:91-95`). Typecheck clean.
 - [ ] `/admin/jobs`.
 - [ ] `/admin/my-jobs`.
 - [ ] `/admin/users`.
