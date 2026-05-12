@@ -589,8 +589,20 @@ export default function LayerTransferDialog({ onClose }: Props) {
                 })}
               </select>
               {targetLocked && (
-                <p className="text-[10px] text-amber-400 mt-1">
-                  Target layer is locked — unlock it from the Layers panel before confirming.
+                <p className="text-[10px] text-amber-400 mt-1 flex items-center gap-1.5">
+                  <span>Target layer is locked.</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (options.targetLayerId) {
+                        drawingStore.updateLayer(options.targetLayerId, { locked: false });
+                      }
+                    }}
+                    className="underline underline-offset-2 hover:text-amber-200 transition-colors"
+                    title="Unlock this layer so Confirm becomes enabled"
+                  >
+                    Unlock layer
+                  </button>
                 </p>
               )}
               {/* Multi-target paste (Duplicate only) — additional
