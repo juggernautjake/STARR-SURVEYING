@@ -31,7 +31,7 @@ A page-by-page sweep of `/admin/cad`. For each tool, confirm: tool activates, op
 - [x] Erase — multi-select + Erase deletes the features; reappear via undo. Two paths verified: (a) the ERASE tool at `CanvasViewport.tsx:8048-8058` removes the clicked feature + pushes `makeRemoveFeatureEntry(feature)`, deselects-all; click-per-feature. (b) For multi-select erasure the surveyor selects several features then presses Delete / Backspace — `useKeyboard.ts:191` routes `edit.delete` through `eraseSelected` which removes every selected feature and pushes `makeBatchEntry('Delete', ops)` so a single Ctrl+Z restores the whole batch. Both paths integrate with `undoStore.undo()` to bring the features back (the `REMOVE_FEATURE` op type's reverse branch is `addFeature(data)` per `undo-store.ts:39-41`).
 
 ### 1.3 Navigation + view
-- [ ] Pan (middle-mouse drag or `H`).
+- [x] Pan (middle-mouse drag or `H`). Code-verified at `CanvasViewport.tsx:7411-7417` — middle-mouse `e.button === 1` AND Space+Left (`e.button === 0 && isSpaceDownRef.current`) both flip `isPanningRef` and swap the cursor to `'grabbing'`. The mousemove path (`9706+`) translates the viewport while the flag is set, and mouseup clears it. Hotkey path: `useKeyboard.ts:40` binds `h: 'tool.pan'` → case `tool.pan` at 234-235 → `toolStore.setTool('PAN')`. With PAN active, every `mousedown` enters the pan-cursor mode unconditionally per the `activeTool === 'PAN'` branches at `7441` and `9721`.
 - [ ] Zoom in / out (wheel + `+`/`-`).
 - [ ] Zoom Extents (`Z E`).
 - [ ] Zoom Window.
