@@ -152,9 +152,9 @@ Any combination of two can be open simultaneously per `CADLayout.tsx:824-925`. C
 - [ ] Standardise title type-scale. Currently 32px (tab indexes), 28px (job detail / point photos), 24px (receipt detail), 14px (Gear).
 - [ ] Fix the missing `useResolvedScheme` imports (§1.2) so the theme system actually applies.
 - [ ] Add missing palette entries (`amber`, `amberText`, `reviewBg`, `successContrast`) so the Sun theme works on Money / Receipt / Gear screens.
-- [ ] Tab label "$" → "Money" (`(tabs)/_layout.tsx:92`). Single-char labels are unscannable.
+- [x] Tab label "$" → "Money" (and "Me" → "Account", "Gear" → "Equipment") — shipped in `334c415` ("fix(ux): UX polish batch 1 — sidebar padding, RECON Pipeline CSS, mobile tab renames"). `mobile/app/(tabs)/_layout.tsx` now reads `title: 'Money'` at 96, `'Account'` at 103, `'Equipment'` at 114.
 - [ ] Replace emoji tab icons with `lucide-react-native` so active/inactive tint actually works.
-- [ ] Remove duplicate `Stack.Screen options={{ headerShown: false }}` calls inside child screens — `me/uploads.tsx:121`, `me/privacy.tsx:70`.
+- [x] Remove duplicate `Stack.Screen options={{ headerShown: false }}` calls inside child screens — the parent `mobile/app/(tabs)/me/_layout.tsx:22` already sets `headerShown: false` globally for every me/* screen, so the per-screen overrides were redundant. Dropped from `me/uploads.tsx:122` and `me/privacy.tsx:71`, plus the unused `Stack` import in each.
 
 ### 4.2 Positioning
 - [x] **Job detail has no Back affordance** — shipped via the `<ScreenHeader>` migration. `mobile/app/(tabs)/jobs/[id]/index.tsx:71-72` renders `<ScreenHeader back …/>` with the `back` prop enabling the native back chevron on every visit of the screen.

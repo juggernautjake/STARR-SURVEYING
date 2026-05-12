@@ -25,7 +25,7 @@
  *     paused. The only way to stop tracking is to clock out (which
  *     does so atomically — see useClockOut + stopBackgroundTracking).
  */
-import { Stack, router } from 'expo-router';
+import { router } from 'expo-router';
 import {
   Pressable,
   ScrollView,
@@ -68,8 +68,6 @@ export default function PrivacyScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top', 'bottom']}
     >
-      <Stack.Screen options={{ headerShown: false }} />
-
       <ScreenHeader back title="Privacy & Tracking" />
 
       <ScrollView contentContainerStyle={styles.scroll}>
