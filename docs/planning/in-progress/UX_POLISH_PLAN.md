@@ -429,7 +429,7 @@ All three apps share the same underlying problem: **shared primitives don't agre
 - [ ] `AICopilotSidebar.tsx:163` — `"Saved code resolutions"` → **"Saved code → layer mappings"** or **"Remembered code answers"**.
 - [x] `lib/cad/hotkeys/registry.ts` user-facing descriptions are clean — current rows for `ai.parseCodes` / `ai.fillCorners` / `ai.checkClosure` / `ai.createLayerFromCodes` / `ai.explainFeature` / `ai.undoBatch` / `ai.startAuto` / `ai.pauseAuto` / `ai.replaySequence` (lines 100-109) all read in surveyor language; no `Phase 6 §32 Slice N` strings survive. The only "Phase 6" mention is a `//` code-comment at line 98 that isn't rendered anywhere.
 - [x] `lib/cad/hotkeys/registry.ts:106` — `aiBatchId` store-key leak already paraphrased. The `ai.undoBatch` row now reads `"Undo every feature produced in the most recent AI turn as a single group."` — surveyor-readable; no camelCase store key.
-- [ ] `types/research.ts:7-15` — `WORKFLOW_STEPS` labels `'Configure'`, `'Analyzing'`, `'Verifying'` are state-machine names exposed in `STATUS_LABELS` as filter chips. Rename to noun states: **"Setup"** / **"Research in progress"** / **"Verifying drawing"**.
+- [x] `types/research.ts:7-15` WORKFLOW_STEPS labels — the state-machine names have already been replaced with surveyor-readable nouns: `'Information'` (was 'Configure'), `'Research & Analysis'` (was 'Analyzing'), `'Review'`, `'Draw'` (was 'Drawing'), `'Verify'` (was 'Verifying'), `'Job Prep'` (was 'Complete'). The labels exposed via `STATUS_LABELS` chips now read as the journey stage the surveyor is in, not the runtime state. Doc's proposed wording ("Setup" / "Research in progress" / "Verifying drawing") was a sketch; the shipped wording is the cleaner noun form.
 
 ### 11.6 Vague button labels (add an object)
 - [x] `MenuBar.tsx:338` — "Save As…" duplicate dropped in `b8da39d`. Both entries called the same `saveDocument`; there's no save-as semantics in a web app (the browser anchor-click already lets the user rename on save). Only `Save` (Ctrl+S, blob download) + `Save to Cloud…` (DB-backed) remain.
@@ -460,7 +460,7 @@ All three apps share the same underlying problem: **shared primitives don't agre
 
 ### 11.9 Acronyms without definitions
 - [ ] **RPLS** (Registered Professional Land Surveyor) appears across `RPLSReviewModePanel.tsx`, `RPLSSubmissionDialog.tsx`, `CADLayout.tsx:31,148,883-898`, `MenuBar.tsx:382-384`, `AISidebar.tsx:80`. New employees and trainees won't know the acronym. Add a tooltip on first use or rename UI copy to **"Licensed surveyor review"**.
-- [ ] **RDP** (Ramer-Douglas-Peucker) in `lib/cad/hotkeys/registry.ts:64` `'Simplify (RDP)'` and `MenuBar.tsx:457`. Rename to **"Simplify polyline"** with tolerance in tooltip.
+- [x] **RDP** label demystified. `lib/cad/hotkeys/registry.ts:64` now reads `label: 'Simplify polyline'` with the algorithm name moved into the description (`"Drop redundant vertices from a POLYLINE / POLYGON using a 0.5 ft tolerance (Ramer-Douglas-Peucker algorithm)."`). `MenuBar.tsx:449` likewise renamed from `'Simplify (RDP, 0.5 ft)'` → `'Simplify polyline (0.5 ft tolerance)'` — surveyors see what it does, not the algorithm.
 - [ ] **AUTO / COPILOT / COMMAND / MANUAL** AI modes — uppercase across CAD UI but no definition anywhere. Add a one-time tip when the user first cycles modes (`Ctrl+Shift+M`).
 
 ### 11.10 Aria / tooltip inconsistencies

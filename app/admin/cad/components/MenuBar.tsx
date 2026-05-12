@@ -446,7 +446,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
               action: () => { if (single) smoothPolyline(single.id); },
             },
             {
-              label: 'Simplify (RDP, 0.5 ft)',
+              label: 'Simplify polyline (0.5 ft tolerance)',
               disabled: !canSmoothOrSimplify,
               action: () => { if (single) simplifyPolylineFeature(single.id, 0.5); },
             },
