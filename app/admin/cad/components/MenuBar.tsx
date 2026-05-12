@@ -263,13 +263,15 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       // subscription out of MenuBar's render path — print
       // settings change rarely and the menu doesn't need to
       // re-render when they do.
-      const { plotStyle } = useTemplateStore.getState().printConfig;
+      const { plotStyle, scaleMode, scale } = useTemplateStore.getState().printConfig;
       const { byteSize, filename } = downloadPdf(drawingStore.document, {
         plotStyle,
+        scaleMode,
+        scale,
       });
       cadLog.info(
         'FileIO',
-        `Exported drawing as PDF: ${filename} (${byteSize} bytes, plotStyle=${plotStyle})`
+        `Exported drawing as PDF: ${filename} (${byteSize} bytes, plotStyle=${plotStyle}, scaleMode=${scaleMode}${scaleMode === 'FIXED' ? `, 1"=${scale}'` : ''})`
       );
     } catch (err) {
       cadLog.error('FileIO', 'PDF export failed', err);
