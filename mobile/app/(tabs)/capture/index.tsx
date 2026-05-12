@@ -397,8 +397,8 @@ function CreatePointStep({ palette, jobId, onChangeJob }: CreatePointStepProps) 
                 <Text style={[styles.prefixHint, { color: palette.danger }]}>
                   Unknown prefix &quot;{prefix}&quot; — point will save as-is, but
                   the office reviewer won&apos;t see a category color. Ask
-                  Henry to add &quot;{prefix}&quot; to the library if you use it
-                  often.
+                  the office to add &quot;{prefix}&quot; to the library if you use
+                  it often.
                 </Text>
               )
             ) : null}

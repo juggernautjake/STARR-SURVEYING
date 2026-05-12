@@ -135,10 +135,10 @@ export default function AIDrawingDialog({
 
         <div style={styles.body}>
           <p style={styles.copy}>
-            Phase 6 pipeline. {points.length} point
+            AI Drawing Engine. {points.length} point
             {points.length === 1 ? '' : 's'} loaded. Optional deed
             text triggers reconciliation against the field traverse;
-            empty deed runs stages 1, 2, 4, 5, 6 only.
+            empty deed runs the geometry-only stages.
           </p>
 
           <label style={styles.field}>

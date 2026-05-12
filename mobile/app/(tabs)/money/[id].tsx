@@ -557,7 +557,7 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
               numberOfLines={3}
               autoCorrect
               autoCapitalize="sentences"
-              placeholder="Client lunch w/ Henry, Belton job site, …"
+              placeholder="Client lunch, Belton job site, …"
               editable={!submitting && !locked}
             />
           </View>

@@ -98,9 +98,9 @@ export default function TimeScreen() {
       case 'no_permission':
         return 'Location permission is off — your clock-out is recorded but not location-stamped. Turn on location in Settings to GPS-stamp future entries.';
       case 'timeout':
-        return "Couldn't reach a satellite in time. Your clock-out is recorded but not location-stamped. Henry can correct mileage from the web admin if needed.";
+        return "Couldn't reach a satellite in time. Your clock-out is recorded but not location-stamped. The office can correct mileage from the admin site if needed.";
       default:
-        return 'Your clock-out is recorded but not location-stamped. Henry can correct mileage from the web admin if needed.';
+        return 'Your clock-out is recorded but not location-stamped. The office can correct mileage from the admin site if needed.';
     }
   };
 
@@ -376,8 +376,8 @@ export default function TimeScreen() {
 
         <View style={styles.hintRow}>
           <Text style={[styles.hint, { color: palette.muted }]}>
-            Smart prompts (still working?) + GPS auto-suggest land in F1 #7
-            and #8.
+            Stay-clocked-in prompts and GPS auto-suggest are on the
+            roadmap.
           </Text>
         </View>
       </ScrollView>

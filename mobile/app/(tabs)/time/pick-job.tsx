@@ -183,7 +183,7 @@ export default function PickJobScreen() {
       case 'timeout':
         return "Couldn't reach a satellite in time. Your clock-in is recorded but the start point won't appear on the map. Try moving outside if the fix is needed.";
       default:
-        return 'Your start point won’t appear on the map. Henry can correct mileage from the web admin if needed.';
+        return 'Your start point won’t appear on the map. The office can correct mileage from the admin site if needed.';
     }
   };
 

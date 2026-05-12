@@ -165,7 +165,7 @@ function EditForm({ row, palette }: EditFormProps) {
     if (dayLocked) {
       Alert.alert(
         'Day already submitted',
-        'This day has been submitted to the dispatcher. Ask Henry to edit it from the web admin, or clock the time correction into a new entry.'
+        'This day has been submitted to the dispatcher. Ask the office to edit it from the admin site, or clock the time correction into a new entry.'
       );
       return;
     }
@@ -252,9 +252,9 @@ function EditForm({ row, palette }: EditFormProps) {
                 {lockedDayTitle(dayStatus)}
               </Text>
               <Text style={[styles.lockedBody, { color: palette.text }]}>
-                Edits to this entry are read-only on mobile. Ask Henry to
-                edit it in the web admin, or clock a correction into a new
-                entry.
+                Edits to this entry are read-only on mobile. Ask the office
+                to edit it in the admin site, or clock a correction into a
+                new entry.
               </Text>
             </View>
           ) : null}

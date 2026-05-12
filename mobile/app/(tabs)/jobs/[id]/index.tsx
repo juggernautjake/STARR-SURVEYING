@@ -170,7 +170,7 @@ export default function JobDetailScreen() {
               ))}
               {points.length > 8 ? (
                 <Text style={[styles.pointsMore, { color: palette.muted }]}>
-                  + {points.length - 8} more — full list lands in F3 polish.
+                  + {points.length - 8} more.
                 </Text>
               ) : null}
             </>
@@ -207,8 +207,9 @@ export default function JobDetailScreen() {
 
         <View style={styles.subTabsHint}>
           <Text style={[styles.hint, { color: palette.muted }]}>
-            Points / Media / Files / Notes / Time / Expenses / Crew sub-tabs
-            land in F1 #3. Today this screen is read-only.
+            This screen is read-only. Editing points, media, files,
+            notes, time, expenses, and crew from the field is on the
+            roadmap.
           </Text>
         </View>
       </ScrollView>

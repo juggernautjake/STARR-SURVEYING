@@ -104,7 +104,7 @@ export default function AIProvenancePopup() {
             )}
           </div>
           <p className="text-[10px] text-gray-500 italic leading-relaxed">
-            Run the full AI pipeline (Phase 6 §3–§10) for the reasoning, weighted data sources, assumptions, and confidence breakdown.
+            Run the full AI Drawing Engine for the reasoning, weighted data sources, assumptions, and confidence breakdown.
           </p>
         </div>
 

@@ -203,9 +203,9 @@ export default function GearIndexScreen() {
         </View>
 
         <Text style={[styles.footnote, { color: palette.muted }]}>
-          Mobile drilldowns + scan-to-checkout land in F10.8 v2.
-          PowerSync sync rules (mobile/lib/db/sync-rules.yaml) must
-          be deployed for these counts to populate.
+          Drilldowns and scan-to-checkout from the field are on the
+          roadmap. If the counts above stay at zero, ask the office
+          to verify equipment sync is enabled for your device.
         </Text>
       </ScrollView>
     </SafeAreaView>

@@ -267,7 +267,7 @@ export default function OrientationDialog({ onClose }: Props) {
         if (t === null) throw new Error('Cannot parse Deed Bearing.');
         correctionDeg = computeOrientationCorrection(meas, t);
       } else {
-        throw new Error('AI deed orientation is not yet implemented (Phase 6).');
+        throw new Error('AI deed orientation is not available yet — use a manual method below.');
       }
 
       const pivot = getPivot(features);
@@ -402,7 +402,7 @@ export default function OrientationDialog({ onClose }: Props) {
                 <div className="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">
                   Suggested Bearings
                   <span className="ml-1 text-gray-600 normal-case font-normal">
-                    &mdash; Phase 6 will add AI deed-matched calls here
+                    &mdash; AI deed-matched calls will appear here once that path lands
                   </span>
                 </div>
                 <div className="space-y-1">
@@ -489,7 +489,7 @@ export default function OrientationDialog({ onClose }: Props) {
                   {([
                     ['MANUAL',    'A \u2014 Bearing Offset',  'Measured vs. deed bearing'],
                     ['TWO_POINT', 'B \u2014 Two-Point Line',  'Coords + deed bearing'],
-                    ['DEED',      'C \u2014 AI Deed Import',  'Phase 6 \u2014 coming soon'],
+                    ['DEED',      'C \u2014 AI Deed Import',  'Coming with the AI Drawing Engine'],
                   ] as [Method, string, string][]).map(([m, lbl, sub]) => (
                     <button
                       key={m}
@@ -564,7 +564,7 @@ export default function OrientationDialog({ onClose }: Props) {
                 {/* Method C */}
                 {method === 'DEED' && (
                   <div className="bg-yellow-900/20 border border-yellow-700/40 rounded p-3 text-[11px] text-yellow-300 space-y-2">
-                    <div className="font-semibold">AI Deed / Plat Import &mdash; Phase 6</div>
+                    <div className="font-semibold">AI Deed / Plat Import</div>
                     <p className="text-yellow-400/80 leading-relaxed">
                       Upload a deed PDF, plat image, or paste a legal description. The AI engine will:
                     </p>

@@ -168,7 +168,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
           <h2 className="text-base font-bold text-white">
-            {mode === 'save' ? 'Save Drawing to Database' : 'Open Drawing from Database'}
+            {mode === 'save' ? 'Save Drawing' : 'Open Saved Drawing'}
           </h2>
           <button className="text-gray-400 hover:text-white text-lg leading-none" onClick={onClose}>✕</button>
         </div>
@@ -280,7 +280,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
               {saving && (
                 <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
               )}
-              {saving ? 'Saving…' : 'Save to Database'}
+              {saving ? 'Saving…' : 'Save Drawing'}
             </button>
           )}
         </div>

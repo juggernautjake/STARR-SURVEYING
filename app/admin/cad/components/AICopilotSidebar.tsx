@@ -217,7 +217,7 @@ export default function AICopilotSidebar() {
             onClick={() => startAutoRun()}
             disabled={isProposing}
             className="flex items-center gap-1 px-2 py-1 rounded border bg-purple-700 hover:bg-purple-600 disabled:opacity-40 disabled:cursor-not-allowed border-purple-500 text-purple-50 transition-colors"
-            title="Kick off an AUTO run with a project-intake prompt (§32.13 Slice 11)."
+            title="Kick off an AUTO run — the AI walks the project intake and proposes the drawing."
           >
             <Play size={11} /> Start AUTO run
           </button>

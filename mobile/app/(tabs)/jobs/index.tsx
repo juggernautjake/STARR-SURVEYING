@@ -87,9 +87,9 @@ export default function JobsScreen() {
             No jobs yet
           </Text>
           <Text style={[styles.emptyBody, { color: palette.muted }]}>
-            Jobs are created in the web admin at /admin/jobs. Once they
-            sync, they show up here. Mobile job creation lands later
-            in Phase F1.
+            Jobs are created in the office at /admin/jobs. Once they
+            sync, they show up here. Creating a job from the field
+            isn&apos;t supported yet.
           </Text>
         </View>
       ) : (

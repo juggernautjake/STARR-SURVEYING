@@ -524,12 +524,6 @@ export default function MeScreen() {
           <AboutRow palette={palette} />
         </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.muted }]}>Coming soon</Text>
-          <Text style={[styles.sectionBody, { color: palette.text }]}>
-            Profile editing and idle-timer length land in F1+.
-          </Text>
-        </View>
 
         <View style={styles.spacer} />
 
