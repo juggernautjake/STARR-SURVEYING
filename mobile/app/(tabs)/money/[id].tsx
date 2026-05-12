@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { CategoryPicker, categoryLabel } from '@/lib/CategoryPicker';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { logError } from '@/lib/log';
@@ -341,25 +342,28 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.headerRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.heading, { color: palette.text }]} numberOfLines={2}>
-                {vendorName.trim() || receipt.vendor_name?.trim() || 'Receipt'}
-              </Text>
-              <Text style={[styles.subtitle, { color: palette.muted }]}>
-                {extractionCaption(receipt)}
-              </Text>
-            </View>
-            <Pressable
-              onPress={attemptDismiss}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-            >
-              <Text style={[styles.cancelText, { color: palette.muted }]}>
-                Cancel
-              </Text>
-            </Pressable>
-          </View>
+          <ScreenHeader
+            title={vendorName.trim() || receipt.vendor_name?.trim() || 'Receipt'}
+            subtitle={extractionCaption(receipt) || undefined}
+            right={
+              <Pressable
+                onPress={attemptDismiss}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                hitSlop={12}
+                style={({ pressed }) => ({
+                  minHeight: 44,
+                  paddingHorizontal: 8,
+                  justifyContent: 'center',
+                  opacity: pressed ? 0.6 : 1,
+                })}
+              >
+                <Text style={{ fontSize: 16, fontWeight: '500', color: palette.muted }}>
+                  Cancel
+                </Text>
+              </Pressable>
+            }
+          />
 
           {locked ? (
             <View
@@ -1044,22 +1048,10 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 64,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 16,
-  },
   heading: {
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 4,
-  },
-  cancelText: {
-    fontSize: 16,
-    fontWeight: '500',
-    paddingTop: 4,
   },
   subtitle: {
     fontSize: 14,

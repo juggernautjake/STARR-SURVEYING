@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { lockedDayTitle } from '@/lib/StatusChip';
 import { TextField } from '@/lib/TextField';
 import { TimeEditHistory } from '@/lib/TimeEditHistory';
@@ -223,23 +224,28 @@ function EditForm({ row, palette }: EditFormProps) {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.headerRow}>
-            <Text style={[styles.heading, { color: palette.text }]} numberOfLines={2}>
-              {job?.name ?? entryTypeLabel(row.entry_type)}
-            </Text>
-            <Pressable
-              onPress={attemptDismiss}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-            >
-              <Text style={[styles.cancelText, { color: palette.muted }]}>
-                Cancel
-              </Text>
-            </Pressable>
-          </View>
-          <Text style={[styles.subtitle, { color: palette.muted }]}>
-            {entryTypeLabel(row.entry_type)} · {formatRowDuration(row)}
-          </Text>
+          <ScreenHeader
+            title={job?.name ?? entryTypeLabel(row.entry_type)}
+            subtitle={`${entryTypeLabel(row.entry_type)} · ${formatRowDuration(row)}`}
+            right={
+              <Pressable
+                onPress={attemptDismiss}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                hitSlop={12}
+                style={({ pressed }) => ({
+                  minHeight: 44,
+                  paddingHorizontal: 8,
+                  justifyContent: 'center',
+                  opacity: pressed ? 0.6 : 1,
+                })}
+              >
+                <Text style={{ fontSize: 16, fontWeight: '500', color: palette.muted }}>
+                  Cancel
+                </Text>
+              </Pressable>
+            }
+          />
 
           {dayLocked ? (
             <View
@@ -465,21 +471,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
   heading: {
     flex: 1,
     fontSize: 26,
     fontWeight: '700',
     paddingRight: 12,
-  },
-  cancelText: {
-    fontSize: 16,
-    fontWeight: '500',
   },
   subtitle: {
     fontSize: 14,
