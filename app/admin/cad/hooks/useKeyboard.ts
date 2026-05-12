@@ -14,6 +14,7 @@ import {
   makeBatchEntry,
 } from '@/lib/cad/store';
 import { computeBounds, featureBounds } from '@/lib/cad/geometry/bounds';
+import { transformFeature, translate } from '@/lib/cad/geometry/transform';
 import type { Feature } from '@/lib/cad/types';
 import { copyCadSelection, pasteCadClipboard, duplicateSelection } from '@/lib/cad/operations';
 import { cadLog } from '@/lib/cad/logger';
@@ -60,6 +61,18 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   f8: 'snap.ortho',
   f10: 'snap.polar',
   enter: 'tool.confirm',
+  // Arrow-key nudge for the selection. Step size = minor-grid
+  // spacing when the grid is visible, 1 ft otherwise. Shift+arrow
+  // scales the step 10×. Plain + Shift versions both register
+  // because shift folds into the serializeKey prefix.
+  arrowup: 'edit.nudge.up',
+  arrowdown: 'edit.nudge.down',
+  arrowleft: 'edit.nudge.left',
+  arrowright: 'edit.nudge.right',
+  'shift+arrowup': 'edit.nudge.up10',
+  'shift+arrowdown': 'edit.nudge.down10',
+  'shift+arrowleft': 'edit.nudge.left10',
+  'shift+arrowright': 'edit.nudge.right10',
 };
 
 /** Serialize a KeyboardEvent into a key combo string */
@@ -173,6 +186,17 @@ export function useKeyboard() {
       case 'edit.selectAll': {
         const allIds = drawingStore.getAllFeatures().map((f) => f.id);
         selectionStore.selectMultiple(allIds, 'REPLACE');
+        break;
+      }
+      case 'edit.nudge.up':
+      case 'edit.nudge.down':
+      case 'edit.nudge.left':
+      case 'edit.nudge.right':
+      case 'edit.nudge.up10':
+      case 'edit.nudge.down10':
+      case 'edit.nudge.left10':
+      case 'edit.nudge.right10': {
+        nudgeSelection(action);
         break;
       }
       case 'edit.delete': {
@@ -300,6 +324,49 @@ export function useKeyboard() {
 
   function copyCadSelected() {
     copyCadSelection();
+  }
+
+  /**
+   * Arrow-key nudge for the active selection. Step size respects
+   * the snap state:
+   *   - grid visible → minor-grid spacing (`gridMajorSpacing / gridMinorDivisions`)
+   *   - grid hidden  → 1 ft (the most common surveyor unit)
+   * Shift+arrow scales the step 10× for power-user nudging.
+   */
+  function nudgeSelection(action: string) {
+    const selectionStore = useSelectionStore.getState();
+    const drawingStore = useDrawingStore.getState();
+    const undoStore = useUndoStore.getState();
+    const ids = Array.from(selectionStore.selectedIds);
+    if (ids.length === 0) return;
+    const settings = drawingStore.document.settings;
+    const baseMinor =
+      settings.gridMajorSpacing > 0 && settings.gridMinorDivisions > 0
+        ? settings.gridMajorSpacing / settings.gridMinorDivisions
+        : 1;
+    const step = settings.gridVisible ? baseMinor : 1;
+    const multiplier = action.endsWith('10') ? 10 : 1;
+    const amount = step * multiplier;
+    let dx = 0;
+    let dy = 0;
+    if (action.includes('.up')) dy = amount;
+    else if (action.includes('.down')) dy = -amount;
+    else if (action.includes('.left')) dx = -amount;
+    else if (action.includes('.right')) dx = amount;
+    const ops: Array<{
+      type: 'MODIFY_FEATURE';
+      data: { id: string; before: Feature; after: Feature };
+    }> = [];
+    for (const id of ids) {
+      const f = drawingStore.getFeature(id);
+      if (!f) continue;
+      const newF = transformFeature(f, (p) => translate(p, dx, dy));
+      drawingStore.updateFeature(id, { geometry: newF.geometry });
+      ops.push({ type: 'MODIFY_FEATURE', data: { id, before: f, after: newF } });
+    }
+    if (ops.length > 0) {
+      undoStore.pushUndo(makeBatchEntry(`Nudge ${amount.toFixed(2)} ft`, ops));
+    }
   }
 
   function pasteCad() {
