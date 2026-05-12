@@ -122,7 +122,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/admin/discussions`. Built out — `app/admin/discussions/page.tsx` is 132 lines. Per the file header: "Admin discussion threads listing page". Typed `Thread` interface (`id`, `title`, `description`) backs the row list; each row deep-links via `next/link` into the per-thread `/admin/discussions/[id]` detail view.
 - [x] `/admin/notes`. Built out — `app/admin/notes/page.tsx` is 224 lines. Per the file header: "Company Notes (admin view)". Typed `Note` interface, shared `AdminMyNotes.css` for the notes-family identity, NextAuth role check, `<UnderConstruction />` placeholders for sub-sections still under build.
 - [x] `/admin/my-notes`. Fully built out — `app/admin/my-notes/page.tsx` is 568 lines. Per the file header: "Personal notes powered by Fieldbook API. Two tabs: My Notes (personal) and Job Notes (public field notes). Create lists, manage public/private visibility, full-page notebook editor." Reuses `AdminMyNotes.css` for the notes-family identity and `useRef` for editor lifecycle management.
-- [ ] `/admin/my-files`.
+- [x] `/admin/my-files`. Built out — `app/admin/my-files/page.tsx` is 205 lines. Per the file header: "Personal file storage". Typed `UserFile` interface, shared `AdminMyNotes.css` for the storage-family identity, NextAuth session check, `<UnderConstruction />` placeholder for sub-features still under build.
 - [ ] `/admin/receipts`.
 - [ ] `/admin/field-data`.
 - [ ] `/admin/error-log`.
