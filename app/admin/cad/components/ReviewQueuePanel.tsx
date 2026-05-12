@@ -15,7 +15,7 @@
 // should also glow per-tier; that lands as the next slice when
 // the apply-to-document wire goes in.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   useAIStore,
@@ -111,6 +111,39 @@ export default function ReviewQueuePanel() {
     if (!drawingFeatures[item.featureId]) return;
     removeFeature(item.featureId);
   }
+
+  // Phase 7 §1214 — when the surveyor confirms "Accept Drawing"
+  // (footer button + confirmation modal), bulk-apply every non-
+  // REJECTED review item so the full AI result lands in the
+  // drawing store + canvas. Already-applied items are no-ops
+  // because `applyReviewItem` guards on `drawingFeatures[id]`.
+  // Dispatches `cad:aiDrawingLoaded` afterwards so Phase 7
+  // listeners (version-snapshot, editor load) can react.
+  useEffect(() => {
+    const handler = () => {
+      if (!result) return;
+      let appliedCount = 0;
+      for (const tier of [5, 4, 3, 2, 1] as const) {
+        for (const item of result.reviewQueue.tiers[tier]) {
+          if (item.status === 'REJECTED') continue;
+          if (!item.featureId) continue;
+          if (drawingFeatures[item.featureId]) continue;
+          applyReviewItem(item, result);
+          appliedCount += 1;
+        }
+      }
+      window.dispatchEvent(
+        new CustomEvent('cad:aiDrawingLoaded', {
+          detail: { appliedCount },
+        }),
+      );
+    };
+    window.addEventListener('cad:acceptDrawing', handler);
+    return () => window.removeEventListener('cad:acceptDrawing', handler);
+    // applyReviewItem is a closure over the live store hooks; the
+    // dependency list keeps it fresh when the result swaps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, drawingFeatures]);
 
   /**
    * Phase 6 §1913-§1914 — batch-accept every PENDING item at or

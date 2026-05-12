@@ -29,7 +29,7 @@
 > | §12 Spline system | Phase 4 (shipped) |
 > | §13 Offset engine | Phase 4 (shipped) |
 > | §14 Survey tools (traverse, closure, legal-desc) | Phase 4 (shipped) · master plan §10 (calculation registry) |
-> | §15 File import + export | [`STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md`](../completed/STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md) (shipped) · [`STARR_CAD/STARR_CAD_PHASE_7_FINAL.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_7_FINAL.md) |
+> | §15 File import + export | [`STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md`](../completed/STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md) (shipped) · [`STARR_CAD_PHASE_7_FINAL.md`](./STARR_CAD_PHASE_7_FINAL.md) (shipped) |
 > | §16 AI drawing engine | [`STARR_CAD_PHASE_6_AI_ENGINE.md`](./STARR_CAD_PHASE_6_AI_ENGINE.md) (shipped) · master plan §6-§8 |
 > | §17 Point-name suffix intelligence | Phase 3 |
 > | §18 Confidence rating system | Phase 6 |
