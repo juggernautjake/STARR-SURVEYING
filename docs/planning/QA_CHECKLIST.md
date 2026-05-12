@@ -107,7 +107,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/admin/jobs`. Fully built out — `app/admin/jobs/page.tsx` is 327 lines. Client-side rendered with `usePageError` hook for error toast surfacing, NextAuth session check, `<JobCard>` from `components/jobs/JobCard` (rich row UI with stage badges + survey-type chips per `STAGE_CONFIG` / `SURVEY_TYPES`), shared `Tooltip` primitive from the research workspace.
 - [x] `/admin/my-jobs`. Fully built out — `app/admin/my-jobs/page.tsx` is 168 lines, client-side rendered. Filters the global jobs list to the active employee's assignments via NextAuth `session.user.id`; shares the same `<JobCard>` primitive + `STAGE_CONFIG` from the /admin/jobs route so the row UI is consistent. Imports the shared `AdminJobs.css`, error toast via `usePageError`, and surfaces `<UnderConstruction>` placeholder text for the sub-features still being built out.
 - [x] `/admin/users`. Fully built out — `app/admin/users/page.tsx` is 603 lines. Comprehensive admin user-management page: imports `UserRole` from `@/lib/auth`, enumerates every role in `ALL_ROLES`, surfaces a per-user role-toggle matrix with `useCallback` handlers, and styles via the shared `AdminUsers.css`. Largest of the typical admin routes.
-- [ ] `/admin/employees`.
+- [x] `/admin/employees`. Fully built out — `app/admin/employees/page.tsx` is 251 lines. Shows real registered users from the auth backend (vs `/admin/users` which is the role-matrix admin tool). Maps each `UserRole` to a `ROLE_LABELS` display string, uses `usePageError` for the standard error-toast pattern, and `useCallback` for stable handlers.
 - [ ] `/admin/team`.
 - [ ] `/admin/profile`.
 - [ ] `/admin/settings`.
