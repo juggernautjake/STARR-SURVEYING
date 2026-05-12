@@ -109,6 +109,26 @@ export default function ReviewQueuePanel() {
   }
 
   /**
+   * Phase 6 §1913-§1914 — batch-accept every PENDING item at or
+   * above the given minimum tier. Tier-5 items already auto-
+   * accept at pipeline time so the headline batch buttons are
+   * still useful when the surveyor rejected a few and wants to
+   * restore everything in one click, OR when a future config
+   * disables the per-item auto-accept.
+   */
+  function batchAccept(minTier: 4 | 5) {
+    if (!result) return;
+    for (const tier of [5, 4, 3, 2, 1] as const) {
+      if (tier < minTier) continue;
+      for (const item of result.reviewQueue.tiers[tier]) {
+        if (item.status === 'ACCEPTED') continue;
+        applyReviewItem(item, result);
+        setItemStatus(item.id, 'ACCEPTED', null);
+      }
+    }
+  }
+
+  /**
    * Phase 6 §1911 — clicking a review row's title selects the
    * underlying feature and zooms the viewport to it. Pending /
    * rejected items whose feature hasn't been applied to the
@@ -160,6 +180,48 @@ export default function ReviewQueuePanel() {
           ✕
         </button>
       </header>
+
+      {/* Phase 6 §1913-§1914 — batch-accept toolbar */}
+      {result && summary.totalElements > 0 ? (() => {
+        const tier5Pending = result.reviewQueue.tiers[5].filter(
+          (i) => i.status !== 'ACCEPTED',
+        ).length;
+        const tier45Pending =
+          tier5Pending +
+          result.reviewQueue.tiers[4].filter(
+            (i) => i.status !== 'ACCEPTED',
+          ).length;
+        return (
+          <div style={styles.batchBar}>
+            <button
+              type="button"
+              onClick={() => batchAccept(5)}
+              disabled={tier5Pending === 0}
+              style={
+                tier5Pending === 0
+                  ? styles.btnBatchDisabled
+                  : styles.btnBatch
+              }
+              title="Accept every PENDING tier-5 (★★★★★) item"
+            >
+              Accept ★★★★★ ({tier5Pending})
+            </button>
+            <button
+              type="button"
+              onClick={() => batchAccept(4)}
+              disabled={tier45Pending === 0}
+              style={
+                tier45Pending === 0
+                  ? styles.btnBatchDisabled
+                  : styles.btnBatch
+              }
+              title="Accept every PENDING tier-4-or-5 item"
+            >
+              Accept ≥ ★★★★ ({tier45Pending})
+            </button>
+          </div>
+        );
+      })() : null}
 
       <div style={styles.body}>
         {!result ? (
@@ -513,6 +575,35 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     fontWeight: 600,
     cursor: 'pointer',
+  },
+  batchBar: {
+    display: 'flex',
+    gap: 8,
+    padding: '8px 12px',
+    borderBottom: '1px solid #E5E7EB',
+    background: '#F9FAFB',
+  },
+  btnBatch: {
+    flex: 1,
+    padding: '6px 8px',
+    border: '1px solid #15803D',
+    color: '#FFFFFF',
+    background: '#15803D',
+    borderRadius: 6,
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  btnBatchDisabled: {
+    flex: 1,
+    padding: '6px 8px',
+    border: '1px solid #D1D5DB',
+    color: '#9CA3AF',
+    background: '#F3F4F6',
+    borderRadius: 6,
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'not-allowed',
   },
   btnActiveAccept: {
     flex: 1,
