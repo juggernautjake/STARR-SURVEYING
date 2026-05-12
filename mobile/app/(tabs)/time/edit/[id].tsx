@@ -339,14 +339,6 @@ function EditForm({ row, palette }: EditFormProps) {
             ) : null}
           </View>
 
-          <Button
-            label="Save"
-            onPress={onSave}
-            loading={submitting}
-            disabled={!validation.ok || dayLocked}
-            accessibilityHint="Saves the changes and writes an audit row per changed field"
-          />
-
           <View style={styles.historySection}>
             <Text style={[styles.sectionLabel, { color: palette.muted }]}>
               Edit history
@@ -354,6 +346,28 @@ function EditForm({ row, palette }: EditFormProps) {
             <TimeEditHistory edits={edits} />
           </View>
         </ScrollView>
+
+        {/* Sticky Save bar (D7). Keeps Save reachable while the notes
+            field is keyboard-active and frees the user to scroll
+            through the audit history below without losing the
+            primary action. */}
+        <View
+          style={[
+            styles.stickyBar,
+            {
+              backgroundColor: palette.surface,
+              borderTopColor: palette.border,
+            },
+          ]}
+        >
+          <Button
+            label="Save"
+            onPress={onSave}
+            loading={submitting}
+            disabled={!validation.ok || dayLocked}
+            accessibilityHint="Saves the changes and writes an audit row per changed field"
+          />
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -465,7 +479,13 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 64,
+    paddingBottom: 32,
+  },
+  stickyBar: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderTopWidth: 1,
   },
   notFound: {
     flex: 1,

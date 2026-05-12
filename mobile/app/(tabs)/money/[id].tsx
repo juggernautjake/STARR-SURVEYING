@@ -570,29 +570,20 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
 
           {/* Retry AI extraction (only when extraction failed) */}
           {!locked && receipt.extraction_status === 'failed' ? (
-            <>
-              <Button
-                variant="secondary"
-                label="Retry AI extraction"
-                onPress={onRetryExtraction}
-                loading={retrying}
-                disabled={submitting}
-                accessibilityHint="Re-runs Claude Vision on this receipt's photo."
-              />
-              <View style={styles.deleteSpacer} />
-            </>
+            <Button
+              variant="secondary"
+              label="Retry AI extraction"
+              onPress={onRetryExtraction}
+              loading={retrying}
+              disabled={submitting}
+              accessibilityHint="Re-runs Claude Vision on this receipt's photo."
+            />
           ) : null}
 
-          {/* Save / Delete */}
+          {/* Delete stays in scroll content — destructive, lower
+              priority than Save, doesn't deserve the sticky bar. */}
           {locked ? null : (
             <>
-              <Button
-                label="Save"
-                onPress={onSave}
-                loading={submitting}
-                disabled={!totalsValid || retrying}
-                accessibilityHint="Saves your edits to this receipt."
-              />
               <View style={styles.deleteSpacer} />
               <Button
                 variant="danger"
@@ -604,6 +595,31 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
             </>
           )}
         </ScrollView>
+
+        {/* Sticky Save bar (D7). Sits above the keyboard via the
+            wrapping KeyboardAvoidingView so the surveyor can save
+            without scrolling out of the field they were editing.
+            Hidden in the locked state — admins have to reopen the
+            receipt before edits are accepted. */}
+        {locked ? null : (
+          <View
+            style={[
+              styles.stickyBar,
+              {
+                backgroundColor: palette.surface,
+                borderTopColor: palette.border,
+              },
+            ]}
+          >
+            <Button
+              label="Save"
+              onPress={onSave}
+              loading={submitting}
+              disabled={!totalsValid || retrying}
+              accessibilityHint="Saves your edits to this receipt."
+            />
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1049,7 +1065,13 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 64,
+    paddingBottom: 32,
+  },
+  stickyBar: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderTopWidth: 1,
   },
   heading: {
     fontSize: 24,

@@ -483,14 +483,6 @@ function PointForm({ point, palette }: PointFormProps) {
           </View>
 
           <Button
-            label="Save"
-            onPress={onSave}
-            loading={submitting}
-            disabled={duplicate || name.trim() === ''}
-            accessibilityHint="Saves the changes."
-          />
-          <View style={{ height: 12 }} />
-          <Button
             variant="danger"
             label="Delete point"
             onPress={onDelete}
@@ -498,6 +490,28 @@ function PointForm({ point, palette }: PointFormProps) {
             accessibilityHint="Removes the point and any attached photos. Owner-only within 24 h of creation."
           />
         </ScrollView>
+
+        {/* Sticky Save bar (D7) — keeps Save one tap away even while
+            the description / name field is keyboard-active. Delete
+            stays in the scroll above because it's destructive + lower
+            priority. */}
+        <View
+          style={[
+            styles.stickyBar,
+            {
+              backgroundColor: palette.surface,
+              borderTopColor: palette.border,
+            },
+          ]}
+        >
+          <Button
+            label="Save"
+            onPress={onSave}
+            loading={submitting}
+            disabled={duplicate || name.trim() === ''}
+            accessibilityHint="Saves the changes."
+          />
+        </View>
       </KeyboardAvoidingView>
 
       <PhotoLightbox media={openMedia} onDismiss={() => setOpenMedia(null)} />
@@ -865,7 +879,13 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 24,
     paddingTop: 8,
-    paddingBottom: 64,
+    paddingBottom: 32,
+  },
+  stickyBar: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderTopWidth: 1,
   },
   metaBlock: {
     marginBottom: 16,
