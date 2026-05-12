@@ -1923,13 +1923,13 @@ Surveyors often re-paste the same logical group multiple times — a fence-corne
 - [x] Code-remap fuzzy suggestion — duplicate of §11.7.12 (shipped Slice 19, `c4e2bfc`).
 - ~~Selection block cross-drawing import~~ — duplicate of §11.7.12 (line 1803); deferred there (by design — feature ids don't survive cross-drawing).
 - ~~Linked block instance updates~~ — duplicate of §11.7.12; deferred there (cost > value for a power-user opt-in workflow).
-- [ ] Click-again unselects a glowing feature; Alt-click does the same
+- [x] Click-again unselects a glowing feature; Alt-click does the same — duplicate of §11.7.12 (shipped Slice 2 + `2eecf09`).
 - [x] Alt-drag (or Ctrl+Shift+drag) window-deselects every glowing feature inside the rectangle — same Pick-mode box-select branch in `CanvasViewport`'s mouseUp resolution now reads `e.altKey || (e.ctrlKey && e.shiftKey) || (e.metaKey && e.shiftKey)` and routes through `transferStore.removePicks(ids)` instead of `addPicks(ids)`. Matches the existing Alt-click remove path semantics; Cmd+Shift carries the Mac equivalent so the gesture works on every primary platform.
-- [ ] Right-click on canvas with no hover → context menu offers `Clear all picks` / `Clear last pick`
-- [ ] Right-click on a glowing feature → `Remove from selection`, `Remove all of this layer`, `Remove all of this code`
-- [ ] Backspace pops the most-recently-added pick; Ctrl+Backspace clears every pick
-- [ ] Per-row × in the dialog source list removes that single feature without leaving Pick mode
-- [ ] Pick-mode-scoped Undo / Redo (Ctrl+Z / Ctrl+Y while Pick mode active) walks add / remove history without touching the document undo stack
+- [x] Right-click on canvas with no hover → context menu offers `Clear all picks` / `Clear last pick` — duplicate of §11.7.12 (shipped via `PickModeContextMenu.tsx` + `CanvasViewport.handleContextMenu` Pick-mode branch, commit `66b7328`).
+- [x] Right-click on a glowing feature → `Remove from selection`, `Remove all of this layer`, `Remove all of this code` — duplicate of §11.7.12 (same `66b7328`).
+- [x] Backspace pops the most-recently-added pick; Ctrl+Backspace clears every pick — duplicate of §11.7.12 (shipped Slice 2, `030ce58`).
+- [x] Per-row × in the dialog source list removes that single feature without leaving Pick mode — duplicate of §11.7.12 (shipped Slice 1, `030ce58`).
+- [ ] Pick-mode-scoped Undo / Redo (Ctrl+Z / Ctrl+Y while Pick mode active) walks add / remove history without touching the document undo stack — open in §11.7.12 (line 1811); same item lives in both sections.
 - [x] Toggling a filter chip after picks exist warns before silently dropping — `LayerTransferDialog.SourceListContextMenu.filterToType` now `await`s `confirmAction` when the filter would drop > 1 pick. Prompt names the count + the filter type ("This will drop N pick(s) that aren't <type>. Use Backspace if you change your mind."). Single-feature filter still fires silently to keep the muscle-memory "narrow my pick" workflow cheap.
 
 ### 11.7.21 Additional Implementation Slices
