@@ -317,7 +317,7 @@ All three apps share the same underlying problem: **shared primitives don't agre
 - [ ] `ImportDialog.tsx:259-273` — drop-zone rename row: input is `flex-1 text-xs px-2 py-1.5 rounded` next to an action button `px-3 py-1.5 text-xs font-medium rounded`. Same `py` but `font-medium` button text drifts visually against regular input text.
 
 ### 8.2 Sidebar / panel padding drift
-- [ ] **`AICopilotSidebar.tsx:109,144,214,250,271`** — header `px-3 py-2`, settings strip `px-3 py-1.5`, AUTO strip `px-3 py-1.5`, transcript `px-3 py-2`, **input form `px-2 py-2`**. The input form is the only strip with `px-2` → 4 px horizontal drift down the column. **This is the user's primary complaint.** Change line 271 to `px-3 py-2`.
+- [x] **`AICopilotSidebar.tsx:271` input row breathing room** — shipped in `4d4d61f` (U28). Bumped to `px-3 py-3` and `space-y-1.5` (the user's primary complaint about a cramped input row). Other strips in the sidebar still vary by intent (header, settings, AUTO) which is acceptable; only the input form needed the gutter fix.
 - [ ] `AICopilotSidebar.tsx:271,280,288` — inside the input form, textarea is `px-2 py-1.5`, parent form is `px-2 py-2`, Send button is `px-2.5 py-1`. Three nested gutters.
 - [ ] `LayerPreferencesPanel.tsx:58,64,100` — section header `px-3 py-1.5`, section body `px-3 pb-2`, sub-card `px-2 py-1` with internal `px-2 pb-2 pt-1 space-y-1.5`. Three nested levels of padding without a clean step pattern.
 - [ ] `StatusBar.tsx:184` — outer strip is `gap-4`, but AI-mode chip group uses `gap-1`, zoom group uses `gap-0.5`, snap-popover footer uses `gap-2`. Pick one stride per strip.
@@ -421,7 +421,7 @@ All three apps share the same underlying problem: **shared primitives don't agre
 - [ ] `[projectId]/page.tsx:1833,1839-1846` — `'survey'` tab rendered as `"📐 Survey Data"` is vague (every tab is survey data). Rename to **"Boundary Calls"** or **"Measurements"**.
 
 ### 11.4 Page / browser titles
-- [ ] `app/admin/cad/page.tsx:6` — static `'Starr CAD — Drawing Editor'`. With five drawings open the tab title doesn't distinguish them. Set `document.title` in `CADLayout` to `'{drawing.name} — Starr CAD'` whenever the active drawing changes.
+- [x] `app/admin/cad/page.tsx:6` — dynamic browser tab title — shipped in `40903ae` (Slice U15). `CADLayout.tsx:126` sets `document.title` to `'{drawing.name} — Starr CAD'` whenever the active drawing changes. Multi-drawing tabs are now distinguishable.
 - [ ] `app/admin/research/layout.tsx` exports no metadata, so every research route inherits `app/admin/layout.tsx:6` default `'Admin | Starr Surveying'`. Add per-route metadata so multi-tab users can tell projects apart.
 
 ### 11.5 Setting / field names leaking developer terms
@@ -465,12 +465,12 @@ All three apps share the same underlying problem: **shared primitives don't agre
 
 ### 11.10 Aria / tooltip inconsistencies
 - [ ] `CADLayout.tsx:643` close button `aria-label="Dismiss"` while most other closers in the file use `aria-label="Close"`. Pick one across CAD.
-- [ ] `AISidebar.tsx:97,104,110` — panel + tabs both labelled "AI sidebar" → screen reader hears "AI sidebar, AI sidebar tabs". Make the inner nav `aria-label="Tabs"`.
+- [x] `AISidebar.tsx` inner tab strip aria-label collision — shipped in `4d4d61f`. Inner-nav `aria-label="AI sidebar tabs"` → `aria-label="Tabs"`; the surrounding panel still carries "AI sidebar" so the screen reader no longer echoes it twice on every focus.
 - [ ] `StatusBar.tsx:283,290-292` — `title="Active tool"` / `title="Active layer"` with no `aria-label`. Screen readers announce just the value without context.
 - [ ] `research/[projectId]/page.tsx:1503` — toast close `aria-label="Dismiss"` while CAD uses "Close" (and vice versa above). Pick one across the product.
 
 ### 11.11 Error / empty-state copy that lacks an action
-- [ ] `MenuBar.tsx:91,171,187,217,249,264,297` — repeated `alert('Failed to … See the browser console for details.')`. "See the browser console" is dev-speak. Replace with **"Try again, or contact support if it keeps failing."**
+- [x] `MenuBar.tsx` + `useKeyboard.ts` alert copy — shipped in `4d4d61f`. All "See the browser console for details" tails replaced with "Try again, or contact support if it keeps failing." Surveyor-actionable instead of dev-speak.
 - [ ] `SaveToDBDialog.tsx:157` — bare `"Delete failed"` with no recovery path.
 - [ ] `CADLayout.tsx:540` — `"…Starting fresh."` actionable, but offer **"Download the raw autosave"** so users don't lose data silently.
 - [ ] `research/components/DocumentUploadPanel.tsx:35` — generic `'Error'` status pill with no detail.
@@ -479,7 +479,7 @@ All three apps share the same underlying problem: **shared primitives don't agre
 ### 11.12 Capitalisation / verb tense
 - [ ] CAD tool labels mix `Point` / `Line` / `Polyline` in `MenuBar.tsx:551-553` with `Draw Point` / `Draw Line` in `lib/cad/hotkeys/registry.ts:38-39`. Standardise on verb-first ("Draw Point").
 - [ ] `lib/cad/hotkeys/registry.ts` mixes "Drop POINT" (uppercase) vs "Drop a POINT" vs "drop a perpendicular line" (lowercase) vs "Erase features" — pick one casing for feature types.
-- [ ] `MenuBar.tsx:475,476` — `'Snap OFF'` / `'Snap ON'` reads as button states. Inconsistent with `'Hide Grid'` / `'Show Grid'` (`:470,472`). Pick **"Turn snap on / off"**.
+- [x] `MenuBar.tsx` Snap toggle reads as state, not action — shipped in `4d4d61f`. Labels now read `Enable Snap` / `Disable Snap`, matching the adjacent `Show Grid` / `Hide Grid` idiom. (The doc's earlier proposed wording was "Turn snap on / off"; the shipped wording is the cleaner verb-first form per the §13 verb-first standardisation slice.)
 
 ---
 
@@ -499,7 +499,7 @@ Insert these slices into the existing §5 sequence. Naming items can land anywhe
 7. **Slice E2** — Strip every "Phase X / Slice X / F1 #N / Coming soon / lands later" string from user-visible copy across all three apps (14+ sites).
 8. **Slice E3** — Strip hardcoded staffing ("Henry") from mobile copy (5 sites). Replace with role-aware text.
 9. **Slice E4** — CAD AI menu top-level extraction. Move 6 AI items out of File.
-10. **Slice E5** — Dynamic browser tab titles for CAD (`{drawing} — Starr CAD`) + RECON (`{project} — Research`).
+10. **Slice E5** — Dynamic browser tab titles for CAD + RECON. **Shipped (U15)** in `40903ae`: `CADLayout.tsx:126` sets `'{drawing.name} — Starr CAD'`; `app/admin/research/layout.tsx` exports `metadata.title: 'Research — Starr Surveying'`; `[projectId]/page.tsx:210` flips to `'{project.name} — Research'` on project load, reverts on unmount.
 11. **Slice E6** — `lib/cad/hotkeys/registry.ts` descriptions: strip Phase/Slice refs, paraphrase `aiBatchId`/`aiOrigin` into surveyor language.
 12. **Slice E7** — Wire `usePathname()` into `.research-project-nav__link--active` (the active state CSS already exists; just apply it). One-line fix that solves the "where am I?" problem.
 13. **Slice E8** — Verb-first standardisation on CAD tool labels + casing pass on feature-type names ("POINT" everywhere or "point" everywhere).
