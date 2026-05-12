@@ -318,7 +318,7 @@ export const useUIStore = create<UIStore>()(
       hoveredFeatureId: null,
       uiTooltipsEnabled: true,
       featureTooltipsEnabled: true,
-      tooltipDelayMs: 600,
+      tooltipDelayMs: 500,
       dmsPackedShortcutEnabled: true,
       fieldUnitLocks: {},
       firmLogoDataUrl: null,
@@ -342,7 +342,7 @@ export const useUIStore = create<UIStore>()(
       setUITooltipsEnabled: (enabled) => set({ uiTooltipsEnabled: enabled }),
       setFeatureTooltipsEnabled: (enabled) => set({ featureTooltipsEnabled: enabled }),
       setTooltipDelayMs: (ms) => set({
-        tooltipDelayMs: Number.isFinite(ms) ? Math.max(100, Math.min(3000, Math.round(ms))) : 600,
+        tooltipDelayMs: Number.isFinite(ms) ? Math.max(100, Math.min(3000, Math.round(ms))) : 500,
       }),
       setDmsPackedShortcutEnabled: (enabled) => set({ dmsPackedShortcutEnabled: !!enabled }),
       setFieldUnitLock: (fieldId, unit) =>

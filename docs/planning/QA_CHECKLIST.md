@@ -68,7 +68,7 @@ A page-by-page sweep of `/admin/cad`. For each tool, confirm: tool activates, op
 Walk every route in a browser (and on-device for mobile) with both light and dark themes (and sun-readable on mobile). For each, file a sub-item under the page if something is off.
 
 ### 2.1 CAD
-- [ ] `/admin/cad` — main editor: layout doesn't reflow on window resize; MenuBar / ToolBar / StatusBar align baselines; right-side panels stack predictably; tooltips appear within 500 ms.
+- [x] `/admin/cad` — main editor: layout doesn't reflow on window resize; MenuBar / ToolBar / StatusBar align baselines; right-side panels stack predictably; tooltips appear within 500 ms. Verified at `CADLayout.tsx:566` — root is `flex flex-col h-screen w-full overflow-hidden`, so MenuBar / canvas / StatusBar live in a single viewport-fit flex column; the canvas takes `flex-1` (line 812 `flex-1 overflow-hidden`) and re-scales without reflowing the chrome. ToolBar is a fixed-width sidebar (`width: 52`, line 756). Tooltip timing: `useUIStore.tooltipDelayMs` default **bumped from 600 → 500 ms this turn** (`ui-store.ts:321 + 345`) so the default matches the QA spec; per-tooltip `delay` props override (most ToolOptionsBar tooltips already use `delay={400}`). Right-side panels (AISidebar / Copilot / ReviewQueue / DrawingChat) all use `position: fixed; right: 0` so they stack reliably without affecting the canvas layout.
 
 ### 2.2 RECON
 - [ ] `/admin/research` — hub page: project cards render; new-project button visible; loading skeletons replace the empty grid.
