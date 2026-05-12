@@ -1,0 +1,131 @@
+# QA Checklist — Post-Planning Phase
+
+> **Status:** the auto-continue Stop hook (`.claude/hooks/continue-until-planning-done.sh`) gates on this file once `docs/planning/in-progress/` is empty. As long as any `- [ ]` checkbox remains, the loop keeps going; once every checkbox is `- [x]`, the next Stop fires cleanly and the session ends.
+>
+> **Discipline:** flip a box to `- [x]` only when the item is genuinely resolved — verified in the browser / on-device, not just touched in code. If an item turns out to be too large for a single slice, split it into sub-items rather than checking the parent. If an item is deferred for a documented reason, replace the checkbox with `- ~~struck-through text~~ — deferred: <reason>` so the loop won't gate on it.
+>
+> **Hook reference:** `.claude/hooks/continue-until-planning-done.sh`
+
+---
+
+## 1. CAD tools + settings — verify each works correctly
+
+A page-by-page sweep of `/admin/cad`. For each tool, confirm: tool activates, options bar shows the right inputs, drawing on the canvas produces the expected feature, the action lands in undo history, and the StatusBar reflects state changes.
+
+### 1.1 Draw tools (`MenuBar` → Draw menu)
+- [ ] Point — drops a point at the click coordinate; snap indicators behave; F8 ortho is irrelevant for a point.
+- [ ] Line — two clicks produce a segment; endpoint snaps; `Esc` cancels mid-line.
+- [ ] Polyline — chained segments; `Enter` finishes; `Backspace` undoes the last vertex.
+- [ ] Polygon — closes back to the start; minimum 3 vertices enforced.
+- [ ] Rectangle — two-corner drag; rotation honored when the drawing frame is rotated.
+- [ ] Circle — center + radius; radius input box accepts typed value mid-tool.
+- [ ] Regular Polygon — sides input visible in the options bar; default 6.
+
+### 1.2 Modify tools
+- [ ] Move — select → click base → click destination; arrow-key nudge with snap respected.
+- [ ] Copy — same flow as Move but originals stay.
+- [ ] Rotate — base point + angle (typed or click); pivot indicator visible.
+- [ ] Mirror — mirror line by two clicks; copy-keep checkbox honored.
+- [ ] Scale — base point + scale factor; uniform scaling default; reference-length mode works.
+- [ ] Erase — multi-select + Erase deletes the features; reappear via undo.
+
+### 1.3 Navigation + view
+- [ ] Pan (middle-mouse drag or `H`).
+- [ ] Zoom in / out (wheel + `+`/`-`).
+- [ ] Zoom Extents (`Z E`).
+- [ ] Zoom Window.
+- [ ] Rotate-view tool returns to north correctly.
+
+### 1.4 Snap + grid + ortho
+- [ ] Snap toggle (`F3`, MenuBar item) flips behavior on/off and the StatusBar pill updates.
+- [ ] Grid toggle (`F7`) shows/hides the grid.
+- [ ] Ortho (`F8`) constrains lines to 90°.
+- [ ] Polar (`F10`) constrains lines to configured angle increments.
+- [ ] Endpoint / midpoint / intersection / nearest snap indicators each appear at the right place.
+
+### 1.5 Settings panels
+- [ ] LayerPanel — create / rename / delete / set-active / lock / hide each work; the active-layer label in the panel header matches the new feature destination.
+- [ ] LayerPreferencesPanel — color / linetype / lineweight / scale per-layer overrides apply on next draw.
+- [ ] DisplayPreferencesPanel — background color / grid spacing / cursor crosshair size apply immediately.
+- [ ] DrawingPreferencesPanel — units / precision / default linetype apply to new drawings.
+- [ ] FeaturePropertiesDialog — opens for a selected feature, edits land in undo, panel closes cleanly on `Esc`.
+
+### 1.6 File I/O
+- [ ] Save Drawing (`SaveToDBDialog` in 'save' mode) — round-trips name + description; new row appears in Open dialog.
+- [ ] Open Saved Drawing — opens dialog, lists prior saves, loading restores all features + layers.
+- [ ] Export CSV / DXF / GeoJSON / PDF / Field-Reference Cards / Deliverable Bundle each produce a file the OS recognizes.
+- [ ] Import GeoJSON / DXF land geometry on the correct layers.
+
+### 1.7 AI surfaces
+- [ ] AI menu → Run AI Drawing Engine opens the dialog.
+- [ ] AI Copilot sidebar opens, accepts a prompt, returns a proposal, Accept/Modify/Skip each behave.
+- [ ] AI Review Queue panel toggles open/closed via the menu item.
+- [ ] Recoverable-drawing banner only shows when autosave found unsaved work.
+
+## 2. UX consistency review — every page in CAD / RECON / Mobile
+
+Walk every route in a browser (and on-device for mobile) with both light and dark themes (and sun-readable on mobile). For each, file a sub-item under the page if something is off.
+
+### 2.1 CAD
+- [ ] `/admin/cad` — main editor: layout doesn't reflow on window resize; MenuBar / ToolBar / StatusBar align baselines; right-side panels stack predictably; tooltips appear within 500 ms.
+
+### 2.2 RECON
+- [ ] `/admin/research` — hub page: project cards render; new-project button visible; loading skeletons replace the empty grid.
+- [ ] `/admin/research/[projectId]` — workspace: every Stage card paints fully; stat tiles are actionable buttons; review-summary panel tabs scroll-anchor properly.
+- [ ] `/admin/research/[projectId]/documents` — documents tab: upload area + per-doc rows align.
+- [ ] `/admin/research/[projectId]/boundary` — boundary tab.
+- [ ] `/admin/research/[projectId]/report` — report tab.
+- [ ] `/admin/research/[projectId]/library` — library tab.
+
+### 2.3 Mobile (Expo / React Native)
+- [ ] Jobs tab — list, JobCard rows, search FAB.
+- [ ] Money tab — receipts list, filter pill, FAB, sticky add bar.
+- [ ] Time tab — status card, week card, recent list.
+- [ ] Me tab — header pill (Sun toggle), each section row, sign-out button.
+- [ ] Gear tab — equipment list.
+- [ ] All detail screens — `<ScreenHeader>` consistent; Cancel/Back hit targets ≥ 44 pt.
+
+## 3. Page completeness audit — flesh out unbuilt routes
+
+Visit every route under `app/` and confirm it renders meaningful content. Anything that's a placeholder, a "Coming soon", or a default scaffold goes here and gets built out.
+
+### 3.1 Public marketing routes
+- [ ] `/` — homepage.
+- [ ] `/about`.
+- [ ] `/services`.
+- [ ] `/service-area`.
+- [ ] `/pricing`.
+- [ ] `/resources`.
+- [ ] `/contact`.
+- [ ] `/credentials`.
+- [ ] `/register`.
+- [ ] `/share`.
+
+### 3.2 Admin routes (one item per top-level admin section)
+- [ ] `/admin` — landing.
+- [ ] `/admin/jobs`.
+- [ ] `/admin/my-jobs`.
+- [ ] `/admin/users`.
+- [ ] `/admin/employees`.
+- [ ] `/admin/team`.
+- [ ] `/admin/profile`.
+- [ ] `/admin/settings`.
+- [ ] `/admin/pay-progression`.
+- [ ] `/admin/hours-approval`.
+- [ ] `/admin/my-pay`.
+- [ ] `/admin/payout-log`.
+- [ ] `/admin/payroll`.
+- [ ] `/admin/rewards`.
+- [ ] `/admin/timeline`.
+- [ ] `/admin/leads`.
+- [ ] `/admin/discussions`.
+- [ ] `/admin/notes`.
+- [ ] `/admin/my-notes`.
+- [ ] `/admin/my-files`.
+- [ ] `/admin/receipts`.
+- [ ] `/admin/field-data`.
+- [ ] `/admin/error-log`.
+
+## 4. Fix everything found above
+
+Sub-items get added here as 1-3 surface real defects. Each filed defect lands as its own checkbox and gets shipped on the next loop iteration.
