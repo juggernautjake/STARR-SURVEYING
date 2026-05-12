@@ -10115,12 +10115,40 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (ops.length > 0) undStore.pushUndo(makeBatchEntry('Scale', ops));
       toolStore.resetToolState();
     };
+    // Command-bar "type a radius" path for DRAW_CIRCLE. Mirrors
+    // the second-click branch at line 7875 but uses the typed
+    // value directly instead of `hypot(worldPt - center)`.
+    const onDrawCircleByRadius = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | { center: Point2D; radius: number }
+        | undefined;
+      if (!detail) return;
+      const { center, radius } = detail;
+      if (!(radius > 0)) return;
+      const dwgStore = useDrawingStore.getState();
+      const tStore = useToolStore.getState();
+      const feature: Feature = {
+        id: generateId(),
+        type: 'CIRCLE',
+        geometry: { type: 'CIRCLE', circle: { center: { ...center }, radius } },
+        layerId: dwgStore.activeLayerId,
+        style: {
+          ...DEFAULT_FEATURE_STYLE,
+          ...dwgStore.getActiveLayerStyle(),
+        },
+        properties: { shapeType: 'CIRCLE' },
+      };
+      dwgStore.addFeature(withAutoLabels(feature));
+      useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+      tStore.clearDrawingPoints();
+    };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('cad:confirm', onConfirm);
     window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:rotate', onRotate);
     window.addEventListener('cad:scale', onScale);
+    window.addEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
 
     // ── Interactive rotate: cursor drives rotation in real-time ────────────
     const onStartInteractiveRotate = (e: Event) => {
@@ -10340,6 +10368,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
+      window.removeEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
       window.removeEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
       window.removeEventListener('cad:startInteractiveScale', onStartInteractiveScale);
       window.removeEventListener('cad:deleteSelection', onDeleteSelection);

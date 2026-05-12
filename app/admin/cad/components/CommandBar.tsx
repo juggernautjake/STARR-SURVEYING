@@ -265,6 +265,25 @@ export default function CommandBar() {
           const { value: numericValue } = parsed.value as { value: number };
           window.dispatchEvent(new CustomEvent('cad:curbReturn', { detail: { radius: numericValue, trim: false } }));
         }
+        // Draw Circle: typed radius after the center is picked. The
+        // CommandBar prompt says "type a distance value"; the click
+        // path at CanvasViewport.tsx:7875 emits a CIRCLE feature
+        // using `Math.hypot(worldPt - center)`. Mirror that here so
+        // surveyors can punch in an exact radius without scrubbing
+        // the second click.
+        if (
+          (toolState.activeTool === 'DRAW_CIRCLE' || toolState.activeTool === 'DRAW_CIRCLE_EDGE') &&
+          toolState.drawingPoints.length >= 1
+        ) {
+          const radius = (parsed.value as { value: number }).value;
+          if (radius > 0) {
+            window.dispatchEvent(
+              new CustomEvent('cad:drawCircleByRadius', {
+                detail: { center: toolState.drawingPoints[0], radius },
+              }),
+            );
+          }
+        }
         return;
       }
 
