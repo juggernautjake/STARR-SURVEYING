@@ -1670,12 +1670,25 @@ function SourceListContextMenu(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickedIds]);
 
-  function filterToType(keepType: string) {
+  async function filterToType(keepType: string) {
     const toRemove: string[] = [];
     for (const id of pickedIds) {
       const f = drawingStore.getFeature(id);
       if (!f) continue;
       if (f.type !== keepType) toRemove.push(id);
+    }
+    // Warn before silently dropping a non-trivial number of picks
+    // (Phase 8 §11.7.12). The single-feature case is the muscle-
+    // memory "narrow my pick" workflow; for batches surfacing the
+    // exact count gives the surveyor a chance to re-think.
+    if (toRemove.length > 1) {
+      const ok = await confirmAction({
+        title: 'Filter to one type?',
+        message: `This will drop ${toRemove.length} pick${toRemove.length === 1 ? '' : 's'} that aren't ${keepType}. Use Backspace if you change your mind.`,
+        confirmLabel: 'Filter',
+        cancelLabel: 'Cancel',
+      });
+      if (!ok) return;
     }
     if (toRemove.length > 0) removePicks(toRemove);
     props.onClose();

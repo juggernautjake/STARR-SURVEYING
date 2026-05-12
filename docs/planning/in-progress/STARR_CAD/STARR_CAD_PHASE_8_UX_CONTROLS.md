@@ -1809,7 +1809,7 @@ When the surveyor opens a second drawing, the system clipboard remains populated
 - [x] Backspace pops the most-recently-added pick; Ctrl+Backspace clears every pick — Slice 2 (`030ce58`). `useEffect` on `pickModeActive` registers a capture-phase keydown listener that calls `popLastPick()` for plain Backspace and `clearPicks()` for Ctrl/Cmd-Backspace.
 - [x] Per-row × in the dialog source list removes that single feature without leaving Pick mode — Slice 1 (`030ce58`). Each picked-row chip renders an `X` button that calls `removePick(id)`; Pick mode stays active.
 - [ ] Pick-mode-scoped Undo / Redo (Ctrl+Z / Ctrl+Y while Pick mode active) walks add / remove history without touching the document undo stack
-- [ ] Toggling a filter chip after picks exist warns when any picks become "filtered-out" rather than silently dropping them
+- [x] Toggling a filter chip after picks exist warns before silently dropping — `LayerTransferDialog.SourceListContextMenu.filterToType` now `await`s `confirmAction` when the filter would drop > 1 pick. Prompt names the count + the filter type ("This will drop N pick(s) that aren't <type>. Use Backspace if you change your mind."). Single-feature filter still fires silently to keep the muscle-memory "narrow my pick" workflow cheap.
 
 ### 11.7.13 Implementation Sequence
 
@@ -1930,7 +1930,7 @@ Surveyors often re-paste the same logical group multiple times — a fence-corne
 - [ ] Backspace pops the most-recently-added pick; Ctrl+Backspace clears every pick
 - [ ] Per-row × in the dialog source list removes that single feature without leaving Pick mode
 - [ ] Pick-mode-scoped Undo / Redo (Ctrl+Z / Ctrl+Y while Pick mode active) walks add / remove history without touching the document undo stack
-- [ ] Toggling a filter chip after picks exist warns when any picks become "filtered-out" rather than silently dropping them
+- [x] Toggling a filter chip after picks exist warns before silently dropping — `LayerTransferDialog.SourceListContextMenu.filterToType` now `await`s `confirmAction` when the filter would drop > 1 pick. Prompt names the count + the filter type ("This will drop N pick(s) that aren't <type>. Use Backspace if you change your mind."). Single-feature filter still fires silently to keep the muscle-memory "narrow my pick" workflow cheap.
 
 ### 11.7.21 Additional Implementation Slices
 
