@@ -363,7 +363,7 @@ export default function TimeScreen() {
           <View style={styles.weekButtons}>
             <View style={styles.weekButton}>
               <Button
-                label="Submit"
+                label="Submit week"
                 onPress={onSubmitWeek}
                 loading={submitting}
                 disabled={exporting || weekMinutes === 0}

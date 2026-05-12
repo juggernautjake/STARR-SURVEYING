@@ -405,7 +405,7 @@ export default function DrawingPreferencesPanel({
                           checked={style.fill !== 'none'}
                           onChange={e => updateFeatureStyle(feature, 'fill', e.target.checked ? style.fillColor : 'none')}
                         />
-                        <span>Apply</span>
+                        <span>Apply fill</span>
                       </label>
                     )}
                   </div>

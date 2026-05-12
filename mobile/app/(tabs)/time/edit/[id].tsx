@@ -361,7 +361,7 @@ function EditForm({ row, palette }: EditFormProps) {
           ]}
         >
           <Button
-            label="Save"
+            label="Save time entry"
             onPress={onSave}
             loading={submitting}
             disabled={!validation.ok || dayLocked}

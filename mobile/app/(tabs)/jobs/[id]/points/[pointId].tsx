@@ -505,7 +505,7 @@ function PointForm({ point, palette }: PointFormProps) {
           ]}
         >
           <Button
-            label="Save"
+            label="Save point"
             onPress={onSave}
             loading={submitting}
             disabled={duplicate || name.trim() === ''}

@@ -433,10 +433,10 @@ All three apps share the same underlying problem: **shared primitives don't agre
 
 ### 11.6 Vague button labels (add an object)
 - [x] `MenuBar.tsx:338` — "Save As…" duplicate dropped in `b8da39d`. Both entries called the same `saveDocument`; there's no save-as semantics in a web app (the browser anchor-click already lets the user rename on save). Only `Save` (Ctrl+S, blob download) + `Save to Cloud…` (DB-backed) remain.
-- [ ] `time/index.tsx:338` — `label="Submit"` → **"Submit week to dispatcher"** or **"Send this week"**.
-- [ ] `money/[id].tsx:584`, `jobs/[id]/points/[pointId].tsx:488`, `time/edit/[id].tsx:335` — `label="Save"` with no object → **"Save receipt"**, **"Save point"**, **"Save time entry"**.
+- [x] `time/index.tsx` — week-card primary button now reads `label="Submit week"` (line 366; moved since the audit). Verb-object form makes intent unambiguous next to the adjacent Export-CSV button.
+- [x] Verb-object Save labels — `money/[id].tsx:615` `label="Save receipt"`, `jobs/[id]/points/[pointId].tsx:508` `label="Save point"`, `time/edit/[id].tsx:364` `label="Save time entry"`. (Line numbers drifted since the original audit.)
 - [x] `ConfirmDialog.tsx:140` fallback audit — all 3 call sites already pass explicit verbs: `LayerTransferDialog.tsx:238` `confirmLabel: 'Move'`, `ToolOptionsBar.tsx:1810` `confirmLabel: 'Delete'`, `CanvasViewport.tsx:10277` `confirmLabel: 'Delete'`. No site relies on the `'Confirm'` default.
-- [ ] `DrawingPreferencesPanel.tsx:403` — `<span>Apply</span>` → **"Apply preferences"**.
+- [x] `DrawingPreferencesPanel.tsx:408` — bare `<span>Apply</span>` → `<span>Apply fill</span>`. The doc proposed "Apply preferences" but the checkbox actually toggles whether the per-feature fill color is rendered (vs `fill: 'none'`), not preferences — "Apply fill" matches the underlying state.
 - [x] `SaveToDBDialog.tsx` — "Database" engineer-speak removed. Header at line 171 reads `'Save Drawing'` / `'Open Saved Drawing'`; the delete confirm (`4d4d61f`) reads "Delete X from your saved drawings?" instead of "from the database". The Starr-Cloud brand rename remains a separate marketing call.
 
 ### 11.7 Internal-versioning leakage in UI copy (14+ sites)
