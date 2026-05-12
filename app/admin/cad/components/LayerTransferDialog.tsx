@@ -242,6 +242,30 @@ export default function LayerTransferDialog({ onClose }: Props) {
       if (!ok) return;
     }
 
+    // Move + locked-source warning. The user may have locked the
+    // source layer to protect the originals; reassigning them via
+    // Move silently bypasses the lock. Surface that intent
+    // explicitly so the surveyor doesn't lose work.
+    if (options.operation === 'MOVE') {
+      const lockedSourceLayers = new Set<string>();
+      for (const id of sourceIds) {
+        const f = drawingStore.getFeature(id);
+        const l = f ? drawingStore.document.layers[f.layerId] : null;
+        if (l?.locked) lockedSourceLayers.add(l.name);
+      }
+      if (lockedSourceLayers.size > 0) {
+        const names = Array.from(lockedSourceLayers).map((n) => `"${n}"`).join(', ');
+        const ok = await confirmAction({
+          title: 'Move features off a locked layer?',
+          message: `Some of the features you're moving live on a locked source layer (${names}). Move will reassign them to "${targetLayer.name}" anyway. Proceed?`,
+          confirmLabel: 'Move anyway',
+          cancelLabel: 'Cancel',
+          danger: true,
+        });
+        if (!ok) return;
+      }
+    }
+
     // Capture source-layer ids BEFORE the kernel runs so a
     // post-Confirm lock can target only the layers the
     // duplicates actually came from.
