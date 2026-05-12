@@ -19,7 +19,7 @@
 > | Phase 3 — Layer System, Symbols, Line Types & Editors | ✅ shipped | [`STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`](./STARR_CAD_PHASE_3_STYLES_SYMBOLS.md) |
 > | Phase 4 — Geometry Tools | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md`](../completed/STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md) |
 > | Phase 5 — Annotations, Dimensions, Templates & Print | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md) (still in-progress for residual items) |
-> | Phase 6 — AI Drawing Engine | ❌ forward-looking | [`STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md) + master plan §6–§8 (reframed) |
+> | Phase 6 — AI Drawing Engine | ✅ shipped (best-fit-corner cluster deferred) | [`STARR_CAD_PHASE_6_AI_ENGINE.md`](./STARR_CAD_PHASE_6_AI_ENGINE.md) |
 > | Phase 7 — Final Delivery, RPLS Workflow & Export | ❌ forward-looking | [`STARR_CAD/STARR_CAD_PHASE_7_FINAL.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_7_FINAL.md) |
 > | Phase 8 — UX Completeness | partial — large slices shipped (see UX_POLISH_PLAN) | [`STARR_CAD/STARR_CAD_PHASE_8_UX_CONTROLS.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_8_UX_CONTROLS.md) |
 > | Phase 9 — Trimble Access AutoSync | ❌ spec authored, code not started | [`STARR_CAD/STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md) |
@@ -257,7 +257,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 **Estimated Duration:** 10–13 weeks
 
-**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md`
+**Spec File:** `./STARR_CAD_PHASE_6_AI_ENGINE.md`
 
 ---
 
@@ -348,7 +348,7 @@ Each phase has its own implementation spec file:
 - `./STARR_CAD_PHASE_3_STYLES_SYMBOLS.md` — Built out fully
 - `./STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md` — Built out fully
 - `./STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md` — Built out fully
-- `./STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md` — Built out fully (v2.0: includes dynamic offsets, enrichment, deliberation, confidence cards, element chat)
+- `./STARR_CAD_PHASE_6_AI_ENGINE.md` — Built out fully (v2.0: includes dynamic offsets, enrichment, deliberation, confidence cards, element chat)
 - `./STARR_CAD/STARR_CAD_PHASE_7_FINAL.md` — Built out fully (editor integration, RPLS workflow, exports, Electron)
 - `./STARR_CAD/STARR_CAD_PHASE_8_UX_CONTROLS.md` — Built out fully (hotkeys, cursors, tooltips, settings)
 

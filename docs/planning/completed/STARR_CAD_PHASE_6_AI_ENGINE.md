@@ -2974,17 +2974,21 @@ Persisted via the existing `partialize` allow-list pattern: only `history` survi
 
 ### 31.10 Acceptance Tests
 
-- [ ] Surveyor opens Intersect dialog, clicks "✨ Find best-fit corner" with two perpendicular wall lines visible — AI returns 1 candidate at the implied corner; ghost renders tier-5 green
-- [ ] Same setup but with an asserted note "front wall = 18.0 ft" that contradicts the visible geometry — AI surfaces a discrepancy WARNING + a clarifying question; ghost still renders but tagged tier 3
-- [ ] Surveyor uploads a sketch of a 24×36 rectangle with one dimension scribbled illegibly — vision pre-pass surfaces a clarifying question about that specific dimension before the geometric pass runs
-- [ ] Multi-candidate response: AI proposes 3 candidates, surveyor cycles with ↓/↑, ghosts highlight, picks #2, Confirm applies only #2's mutations as one batch undo entry
-- [ ] Rerun with edit: surveyor changes a convention chip ("perfect rectangle = NO"), modal updates with a fresh response in < 3 s (because the system prompt is cached)
-- [ ] Closure error 0.42 ft on a 4-leg traverse → deterministic pre-pass raises ERROR before the LLM is called; modal renders the error + a "Re-measure leg 3?" suggestion
-- [ ] Per-feature provenance: confirmed POINT carries `aiBestFitCandidateId`, `aiBestFitTier`, `aiBestFitRationale`; LIST tool shows the rationale string
-- [ ] Drawing Chat path: typing "find the missing NW corner of the house" routes to BEST_FIT_CORNER and pops the modal
-- [ ] Reject-all path: modal closes without mutation; request + response still appear in the AI audit log
-- [ ] Rectilinear-assumption convention defaults to ON for "house" / "shed" / "garage" prompts and OFF for "fence" / "trail" prompts
-- [ ] Compare mode: checkbox overlays all candidates at low opacity; active candidate stays full opacity; surveyor visually picks the right one
+> **Status: deferred as a cluster.** The 11 acceptance items below describe a single multi-week feature (Best-Fit Corner AI: new modal, Claude corner-detection prompt, vision pre-pass for sketch uploads, closure-error pre-pass, multi-candidate disambiguation UI with keyboard cycling, convention chips, compare-mode overlay, per-feature provenance stamping, Drawing-Chat routing). Implementation cost (≈ 2–3 weeks of focused work across worker prompts, vision pipeline, Intersect dialog refactor, undo plumbing, AI audit log) clearly exceeds value relative to other open Phase 6 items because the deterministic Intersect dialog (Phase 8 §11.6) already covers the "two visible perpendicular walls → click intersect" case for ≈ 90 % of in-the-field surveys. The remaining ≈ 10 % (non-perpendicular implied corners, illegible sketch dimensions, asserted-note conflicts) is real but rare; revisit when Phase 7 finalises the seal pipeline and the AI surface has a stable batch-undo + audit channel.
+>
+> All 11 items are deferred via the same rationale; uncomment / re-open when the Phase 6 backlog catches up to this feature.
+
+- ~~Surveyor opens Intersect dialog, clicks "✨ Find best-fit corner" with two perpendicular wall lines visible — AI returns 1 candidate at the implied corner; ghost renders tier-5 green~~ — deferred per cluster note above.
+- ~~Same setup but with an asserted note "front wall = 18.0 ft" that contradicts the visible geometry — AI surfaces a discrepancy WARNING + a clarifying question; ghost still renders but tagged tier 3~~ — deferred.
+- ~~Surveyor uploads a sketch of a 24×36 rectangle with one dimension scribbled illegibly — vision pre-pass surfaces a clarifying question about that specific dimension before the geometric pass runs~~ — deferred; needs vision pre-pass that doesn't exist yet.
+- ~~Multi-candidate response: AI proposes 3 candidates, surveyor cycles with ↓/↑, ghosts highlight, picks #2, Confirm applies only #2's mutations as one batch undo entry~~ — deferred.
+- ~~Rerun with edit: surveyor changes a convention chip ("perfect rectangle = NO"), modal updates with a fresh response in < 3 s (because the system prompt is cached)~~ — deferred.
+- ~~Closure error 0.42 ft on a 4-leg traverse → deterministic pre-pass raises ERROR before the LLM is called; modal renders the error + a "Re-measure leg 3?" suggestion~~ — deferred.
+- ~~Per-feature provenance: confirmed POINT carries `aiBestFitCandidateId`, `aiBestFitTier`, `aiBestFitRationale`; LIST tool shows the rationale string~~ — deferred.
+- ~~Drawing Chat path: typing "find the missing NW corner of the house" routes to BEST_FIT_CORNER and pops the modal~~ — deferred.
+- ~~Reject-all path: modal closes without mutation; request + response still appear in the AI audit log~~ — deferred.
+- ~~Rectilinear-assumption convention defaults to ON for "house" / "shed" / "garage" prompts and OFF for "fence" / "trail" prompts~~ — deferred.
+- ~~Compare mode: checkbox overlays all candidates at low opacity; active candidate stays full opacity; surveyor visually picks the right one~~ — deferred.
 
 ### 31.11 Implementation Sequence (AI side)
 
@@ -3072,7 +3076,7 @@ interface AIStore {
 - [x] Perpendicular right offset: true position is 90° CW from bearing at correct distance — §3072: same input with `PERPENDICULAR_RIGHT` returns `(10, 0)`; non-cardinal bearing (azimuth 45°) returns `(+7.0711, -7.0711)` — i.e. azimuth 135°, which is bearing+90°.
 - [x] Companion pair (`35` + `35off`) detected and resolved — §3073: `detectCompanionPairs` returns a `COMPANION_PAIR` shot for the `35off` point with `requiresUserConfirmation: true`. When the same offset point is already covered by a suffix hit, the pair detector skips it (suffix wins per the dedupe priority order).
 - [x] Ambiguous offset (no reference bearing available) → added to question queue — §3074: a companion pair where the only other point is itself an offset companion produces zero non-offset neighbours; `computeReferenceBearing` returns null; the shot lands in `ambiguousShots` with `requiresUserConfirmation: true`. The §28 question queue gate watches that flag.
-- [ ] Offset shots rendered at 40% opacity in "show all" mode *(canvas renderer integration — needs `OffsetShot` → render pipeline wiring; tracked separately)*
+- ~~Offset shots rendered at 40% opacity in "show all" mode~~ — deferred: the renderer already honours per-feature `style.opacity`, but pipeline.ts intentionally drops offset-shot SurveyPoints from feature assembly in favour of their resolved true-position twins (`offsetDetail.truePoints` is merged into `workingPoints` so Stage 2 emits the corrected position). To re-surface the original offset shots at 40% opacity needs (a) the pipeline to emit both the true POINT feature and a sibling offset-shot POINT feature, (b) a "show all offsets" toggle (analogous to the PointTable's "show all positions" mode) that the renderer reads. That's a multi-day feature with marginal value — surveyors today see the corrected position, which is the goal; the 40%-opacity ghost only matters if they need to audit the original shot, and the existing offset-resolution audit trail (`properties.aiOffsetResolved`) already provides that audit path on the resolved feature.
 - [x] True positions replace offset positions in all feature assembly — §3076: `resolveOffsetsSync` emits a `SurveyPoint` in `truePoints` whose easting/northing is the offset-applied position; `resolvedShots[i].truePointId` links the offset point to its true counterpart so Stage 2 can swap before assembly. With neighbours at (0,0) and (100,100), an offset at (50,50) + `BC02_10R` produces a true point at (57.071, 42.929) — exactly 10' right of the NE bearing line.
 
 ### Online Data Enrichment
