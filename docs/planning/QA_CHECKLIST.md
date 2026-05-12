@@ -97,7 +97,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/service-area`. Fully built out — `app/service-area/page.tsx` is 199 lines, client-side rendered for the interactive `ServiceAreaMap` (lazily mounted via `next/dynamic` + `ssr: false` to keep the LCP fast). Includes `<CountiesDropdown>` for the list of served counties, `getDirectionsUrl` + `OFFICE_ADDRESS` for the "Get directions" CTA, and a dedicated `../styles/ServiceArea.css` stylesheet.
 - [x] `/pricing`. Fully built out — `app/pricing/page.tsx` is 230 lines, client-side rendered, with a dynamically-imported `SurveyCalculator` widget (lazy + `ssr: false`) that lets visitors estimate cost based on parcel size + survey type. Dedicated stylesheet at `../styles/Pricing.css`.
 - [x] `/resources`. Fully built out — `app/resources/page.tsx` is 481 lines, client-side rendered with `useState` for tab / filter switching, structured TypeScript interfaces for the resource catalogue, and a dedicated `../styles/Resources.css` stylesheet. Hosts the surveyor-facing FAQs / glossary / forms / process explainers; the largest of the marketing pages by line count.
-- [ ] `/contact`.
+- [x] `/contact`. Fully built out — `app/contact/page.tsx` is 550 lines, client-side with `useState` + form-submission handlers, conversion tracking via `trackConversion('contact_submit', …)`, address constants imported from `ServiceAreaMap` for the office block, and a dedicated `../styles/Contact.css` stylesheet. Largest of the marketing pages by lines — includes contact form, office hours, multiple CTAs, and the address card with directions link.
 - [ ] `/credentials`.
 - [ ] `/register`.
 - [ ] `/share`.
