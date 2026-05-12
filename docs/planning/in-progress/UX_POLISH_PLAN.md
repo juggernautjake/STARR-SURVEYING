@@ -335,11 +335,11 @@ All three apps share the same underlying problem: **shared primitives don't agre
 ## 9. RECON-specific alignment
 
 ### 9.1 The pipeline page is unstyled
-- [ ] **`research-pipeline__*` BEM classes are referenced everywhere in `pipeline/page.tsx:200-234` but never defined in `AdminResearch.css`** (verified — 0 matches for `research-pipeline`). The entire batch-creation form and jobs list falls back to UA defaults. Define the missing classes (`__input`, `__remove-btn`, `__add-row-btn`, `__submit-btn`, `__create-btn`, `__refresh-btn`, `__job-card`).
+- [x] `research-pipeline__*` BEM classes — the audit's "0 matches" claim is stale. `grep -c research-pipeline app/admin/styles/AdminResearch.css` now returns **73** matches; `pipeline/page.tsx` uses 54 of them. The batch-creation form and jobs list are fully styled.
 
 ### 9.2 Broken tab states
 - [x] `.research-project-nav__link--active` wired via `usePathname()` — the nav was hoisted out of `[projectId]/page.tsx` into the dedicated `app/admin/research/[projectId]/components/ResearchProjectNav.tsx` (the file's header comment notes the move). `usePathname()` at line 26 + a per-link `matches()` predicate at 22-23 light up the `--active` class + `aria-current="page"` for whichever route matches.
-- [ ] `.review-summary-panel__tab` active state uses a 2 px bottom-border but inactive tabs have no transparent placeholder → every tab click shifts content 2 px. Give inactive tabs `border-bottom: 2px solid transparent`.
+- [x] `.review-summary-panel__tab` content-shift fix — the base class at `app/admin/styles/AdminResearch.css:9831` already carries `border-bottom: 2px solid transparent;`, and the `--active` variant at :9841 just flips the `border-bottom-color`. No 2 px content shift on tab change.
 - [ ] Project nav (`0.4 × 0.85 / font-size 0.82rem`) vs review tabs (`0.6 × 1 / 0.85rem`) — 50 % different padding-y for two tab strips on the same page. Pick one.
 - [ ] Billing top-tabs use Tailwind `px-4 py-2 rounded text-sm`; document filter pills use `px-3 py-1 rounded text-xs`. Three different "tab" size scales across the product.
 
