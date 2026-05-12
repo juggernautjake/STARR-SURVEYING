@@ -257,4 +257,271 @@ Each slice is small enough to ship in one PR. Phases land in this order so the c
 
 ---
 
+# Part 2 — Alignment + naming deep audit (added 2026-05-12)
+
+A second sweep specifically on (a) buttons / fields / icons that should be vertically aligned but aren't, and (b) titles / labels / setting names that don't accurately describe what they do. Findings here are additive to §1–§6 above.
+
+## 7. Cross-cutting alignment debt (root causes)
+
+All three apps share the same underlying problem: **shared primitives don't agree on size, padding, or border-radius**. Fix this at the primitive layer once and dozens of downstream rows snap into place.
+
+### 7.1 Control-height tokens (do first)
+
+- [ ] **Mobile**: `lib/Button.tsx` is `minHeight: 60 / borderRadius: 12 / paddingH: 24`; `lib/TextField.tsx` is `minHeight: 56 / borderRadius: 10 / paddingH: 16`. Every form that stacks a Button under a TextField inherits a 4 px shoulder + 2 px corner-radius drift. Define `controlHeight` (56 or 60 — pick one) and `controlRadius` (10 or 12 — pick one) in `lib/theme.ts` and apply to both primitives.
+- [ ] **Mobile minHeight catalogue across the app**: `24, 40, 44, 56, 60, 76, 96`. No `spacing.*` token enforces a rhythm. Add `spacing.xs/sm/md/lg/xl = 4/8/12/16/24/32` plus a `controlSize.sm/md/lg = 40/48/56` (or similar) and migrate every inline `minHeight:` literal.
+- [ ] **CAD**: pick one chrome-row height (`h-9` = 36 px or `min-h-[40px]`) and apply across `MenuBar.tsx:580`, `CADLayout.tsx:667-687`, `UndoRedoButtons.tsx:22`, `ToolOptionsBar.tsx:182`. Today `UndoRedoButtons` uses `w-7 h-7` (28 px) while `ToolOptionsBar` chips use `h-6` (24 px) in the same horizontal strip → 4 px baseline drift.
+- [ ] **CAD inputs in dialogs must declare an explicit `h-6` or `h-7`.** Today `FeaturePropertiesDialog.tsx:491,506` and `LayerPreferencesPanel.tsx:105,130,351-600` omit `h-` entirely → render with UA default, drift against adjacent `h-6` color pickers.
+- [ ] **RECON**: adopt a four-token button height scale (`sm = 28`, `md = 32`, `lg = 36`, `link = inherit`) via `.btn-*` utilities + audit every adjacent-button row. Direct kills: `[projectId]/page.tsx:1585-1600` (Edit/Archive), `:1744-1765` (Stage-3 nav), `:1792-1822` (Re-run modal trio), `DrawingViewToolbar.tsx:97-216` (three button heights in one bar).
+
+### 7.2 Icon-size scale
+
+- [ ] **CAD**: lucide icons currently use 9, 10, 11, 12, 13, 14, 15, 16 simultaneously. Pick three sizes (`ICON_SM = 12` inline, `ICON_MD = 14` dialog headers, `ICON_LG = 16` primary headers) and stop using everything else. Top offenders: `LayerPanel.tsx:370-419`, `LayerPreferencesPanel.tsx:61-313`, `IntersectDialog.tsx:423-680`, `AICopilotSidebar.tsx:111-290`.
+- [ ] **CAD**: in one layer row (`LayerPanel.tsx:376,388,400,418`): chevron 10 → eye 12 → lock 12 → settings 10. Expand toggle and settings cog are 2 px smaller than the eye/lock pair sitting between them.
+- [ ] **CAD**: `LayerPreferencesPanel.tsx:61,89,96,306,313,618` uses sizes 9, 10, 11, 12 in one panel — section-collapse chevron 9, type icon 10, rotate icon 11, close X 12.
+- [ ] **CAD bare icons inside `flex items-center` rows that also contain text inputs**: wrap every `<X size={N}/>` in a uniform `<button className="w-5 h-5 flex items-center justify-center">…</button>` so the row's tallest child is predictable. Top offenders: `IntersectDialog.tsx:634,680`; `LayerTransferDialog.tsx` inner rows; `FeaturePropertiesDialog.tsx:481-516`.
+
+### 7.3 Chip / pill component
+
+- [ ] **Mobile**: catalogue of "chip" `paddingV` values across the app: 2, 3, 4, 6 — six distinct paddings for the same visual idiom. Sources: `lib/StageChip.tsx:54-55` (4), `lib/StatusChip.tsx:88-89` (2), `lib/PointCard.tsx:132-133` (3), `lib/CategoryPicker.tsx:120` (6), `lib/MyTruckSection.tsx:183,243` (3 and 2). Build a `<Chip tone size>` primitive with one paddingV (suggest 4) and one minHeight (suggest 28).
+- [ ] **CAD**: dialog footer button paddings: `IntersectDialog.tsx:554,561` uses `px-3 py-1.5`; `DrawingRotationDialog.tsx:147-158` uses `px-4 py-1.5`; `ImportDialog.tsx:774-799` mixes `px-3` Back with `px-4` Import/Next *and* `rounded` vs `rounded-lg`. Standardise on `px-3 py-1.5 text-xs rounded`.
+- [ ] **CAD**: `CopilotCard.tsx:154-177` has Skip + Modify + Accept all in one footer; Skip and Modify use `px-2.5 py-1`, Accept uses `px-3 py-1`. Pick one.
+
+### 7.4 Tile / card primitives
+
+- [ ] **RECON**: three stat-tile vocabularies coexist:
+  - `.research-hub__stat` (`AdminResearch.css:578-586`) — `padding: 0.85rem 1.25rem`
+  - `.review-stat` (`:9840-9848`) — `padding: 0.45rem 0.85rem`
+  - Billing tile (`billing/page.tsx:269-280`) — Tailwind `bg-gray-900 ... p-4`
+  
+  Extract a single `.recon-stat` primitive (suggest `padding: 0.7rem 1rem`, `min-width: 110px`).
+- [ ] **RECON**: five Easements boxes at `[projectId]/page.tsx:2444-2515` repeat the same inline-style block five times without a shared class. Extract a `.recon-data-card` class.
+- [ ] **CAD**: define a `<DialogShell>` component with one header sizing (`px-4 py-3` with `text-sm font-semibold` title and `X size={16}` close) + one footer sizing. Eliminates the four current dialog-header sizes (`px-3 py-2`, `px-4 py-3`, `px-5 py-4`, inline `14px 20px`) and the corresponding footer drift.
+- [ ] **CAD**: `ElementExplanationPopup.tsx` uses inline-style objects (`styles.title`, `styles.header`) with hard-coded `padding: '14px 20px'`, `fontSize: 16`, `fontSize: 12`. Migrate to the new `<DialogShell>`.
+
+### 7.5 Action-row pattern
+
+- [ ] **Mobile**: `<ActionRow>` component for "two buttons side-by-side". `flex: 1` children + uniform gap; force secondary buttons to use an invisible inset (e.g. internal padding adjusted by border width) so the visual content width matches the primary. Apply to `money/[id].tsx:868` (Discard duplicate / Keep), `me/uploads.tsx:286` (Try again / Discard), `time/index.tsx:335` (Submit / Export CSV), `money/[id].tsx:580` (Retry AI / Save / Delete).
+- [ ] **RECON**: Re-run-confirm modal at `[projectId]/page.tsx:1792-1822` has three buttons that share `padding: '0.5rem 1rem'` but one has `border: 'none'` while siblings have a 1 px border → the borderless button is 1 px shorter. Add `box-sizing: border-box` or give the borderless button a transparent 1 px border.
+- [ ] **RECON**: Stage-3 nav row at `:1744-1765` mixes a text-link back-button (~16 px) with two ~35 px pill buttons in one flex row — the user's exact "out of alignment to each other" complaint. Either promote the back-button to pill height, or split into two rows (back-link only above; Continue + Re-run pills below).
+
+## 8. CAD-specific alignment
+
+### 8.1 Button-field row mismatches
+- [ ] `FeaturePropertiesDialog.tsx:481-501` — color input `w-8 h-6` next to Line Weight input with no `h-` and `text-xs py-0.5`. Two adjacent rows render at visibly different heights; labels don't share a baseline. Force every input in the dialog to `h-6`.
+- [ ] `IntersectDialog.tsx:597-624` — `SourcePickerRow` Extend checkbox is `px-1.5 py-1`, the Pick-from-canvas button is `px-2 py-1`. Same row, different horizontal padding → irregular gutter.
+- [ ] `IntersectDialog.tsx:626-640` — picked-source readout `px-2 py-1.5` contains a bare `<X size={11}/>` glyph with no padding wrapper → icon visibly off-centre in its `flex items-center justify-between` parent.
+- [ ] `IntersectDialog.tsx:687-697` — `RaySourceRow` puts a plain `<span text-[11px]>` next to a `UnitInput` forced to `h-6`. Centred but the span has line-height 11 px and the input is 24 px.
+- [ ] `AICopilotSidebar.tsx:269-292` — submit row has `<span text-[10px]>Ctrl+Enter sends</span>` next to a `<button px-2.5 py-1 text-[11px]>`. Visual mass is lopsided.
+- [ ] `StatusBar.tsx:213-242` — zoom strip mixes `<button w-4 h-4>` (16 px), `<input style={{height:18}}>` (18 px), and an unstyled `<span>%</span>` (line-height 16 px) in one `flex items-center` row. Three intrinsic heights.
+- [ ] `LayerPanel.tsx:370-435` — layer row mixes `<button p-0.5>` icon buttons (~14-16 px), a `<div w-3 h-3>` color swatch (12 px), and an inline rename input with no height (~20 px). Centred but children differ 6-8 px.
+- [ ] `ImportDialog.tsx:259-273` — drop-zone rename row: input is `flex-1 text-xs px-2 py-1.5 rounded` next to an action button `px-3 py-1.5 text-xs font-medium rounded`. Same `py` but `font-medium` button text drifts visually against regular input text.
+
+### 8.2 Sidebar / panel padding drift
+- [ ] **`AICopilotSidebar.tsx:109,144,214,250,271`** — header `px-3 py-2`, settings strip `px-3 py-1.5`, AUTO strip `px-3 py-1.5`, transcript `px-3 py-2`, **input form `px-2 py-2`**. The input form is the only strip with `px-2` → 4 px horizontal drift down the column. **This is the user's primary complaint.** Change line 271 to `px-3 py-2`.
+- [ ] `AICopilotSidebar.tsx:271,280,288` — inside the input form, textarea is `px-2 py-1.5`, parent form is `px-2 py-2`, Send button is `px-2.5 py-1`. Three nested gutters.
+- [ ] `LayerPreferencesPanel.tsx:58,64,100` — section header `px-3 py-1.5`, section body `px-3 pb-2`, sub-card `px-2 py-1` with internal `px-2 pb-2 pt-1 space-y-1.5`. Three nested levels of padding without a clean step pattern.
+- [ ] `StatusBar.tsx:184` — outer strip is `gap-4`, but AI-mode chip group uses `gap-1`, zoom group uses `gap-0.5`, snap-popover footer uses `gap-2`. Pick one stride per strip.
+- [ ] `CADLayout.tsx:667-687` — tool-options row mixes UndoRedoButtons (`min-h-[40px] px-2`), ToolOptionsBar (`min-h-[40px] px-3`), DisplayPrefsToggle wrapper (`px-2`). Same min-height but horizontal padding switches per chunk.
+
+### 8.3 Floating panel anchor drift
+- [ ] `AICopilotSidebar.tsx:105` anchors at `top-12` (48 px from top); `CopilotCard.tsx:102` anchors at `top-16` (64 px). Neither matches the actual chrome height (MenuBar `px-3 py-1.5 text-sm` ≈ 28-30 px + tool-options strip `min-h-[40px]` ≈ 68-70 px total). Replace magic numbers with a calc against a `--cad-chrome-height` CSS variable.
+
+### 8.4 Small chrome glitches
+- [ ] `CADLayout.tsx:556-560` auto-save warning `px-3 py-1` vs `:571` Compass notice `px-4 py-2` — two banner heights for the same kind of strip.
+- [ ] `MenuBar.tsx:580-588` — menu items inherit `text-xs`, but the logo span at the same level is `text-sm` → logo larger than menus immediately to its right.
+- [ ] `MenuBar.tsx:681` shortcut overlay uses `gap-x-6 gap-y-1` — non-square grid (24 px horizontal vs 4 px vertical).
+- [ ] `LayerPanel.tsx:643` footer is `p-1 space-y-0.5` — 2 px between two action buttons feels tight relative to the body rhythm above.
+
+## 9. RECON-specific alignment
+
+### 9.1 The pipeline page is unstyled
+- [ ] **`research-pipeline__*` BEM classes are referenced everywhere in `pipeline/page.tsx:200-234` but never defined in `AdminResearch.css`** (verified — 0 matches for `research-pipeline`). The entire batch-creation form and jobs list falls back to UA defaults. Define the missing classes (`__input`, `__remove-btn`, `__add-row-btn`, `__submit-btn`, `__create-btn`, `__refresh-btn`, `__job-card`).
+
+### 9.2 Broken tab states
+- [ ] `.research-project-nav__link--active` is defined in `AdminResearch.css` but **never applied** in `[projectId]/page.tsx:1546-1562` — none of the five `<Link>` tags use the class. The active-tab indicator is silently broken on every project sub-route. Wire `usePathname()`.
+- [ ] `.review-summary-panel__tab` active state uses a 2 px bottom-border but inactive tabs have no transparent placeholder → every tab click shifts content 2 px. Give inactive tabs `border-bottom: 2px solid transparent`.
+- [ ] Project nav (`0.4 × 0.85 / font-size 0.82rem`) vs review tabs (`0.6 × 1 / 0.85rem`) — 50 % different padding-y for two tab strips on the same page. Pick one.
+- [ ] Billing top-tabs use Tailwind `px-4 py-2 rounded text-sm`; document filter pills use `px-3 py-1 rounded text-xs`. Three different "tab" size scales across the product.
+
+### 9.3 Stat tile + Easements drift
+- [ ] Three stat-tile vocabularies (see §7.4). Extract `.recon-stat` primitive.
+- [ ] Easements tab (`[projectId]/page.tsx:2444-2515`) has five inline-style boxes that share most properties but not all — four use `gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.5rem'`, one uses a `<ul paddingLeft: '1.2rem'>`, one uses neither. Extract `.recon-data-card`.
+- [ ] GIS Quality Report cards at `:2562-2599` use `var(--bg-elevated, #f9fafb)` (light theme) while the surrounding Easements tab cards use `#0f172a` (dark) → light cards inside a dark-cards tab.
+
+### 9.4 Modal drift
+- [ ] Three modal vocabularies: `.research-modal`, `.research-save-dialog`, inline-style Re-run confirm. Title font (`1.25/1.1/1.1rem`), footer gap (`0.75/0.5/0.5rem`), action-button padding (`0.55/0.45/0.5rem`), border-radius (`12/14/6/8`) all drift. Collapse to one `<ResearchModal>`.
+
+### 9.5 Hand-tuned pixel hacks
+- [ ] PipelineStepper connector uses `margin-top: 22.5px` (`AdminResearch.css:9302-9311`) — a half-pixel hand-tune to align with a 48 px circle. Replace with flex centring.
+- [ ] First pipeline-stepper item uses `justify-content: flex-end` (`AdminResearch.css:9298-9300`) to fake right-alignment because the first stage has no connector. CSS comment admits this is a workaround.
+- [ ] `.research-page__header` `border-left: 3px` vs `.research-step-header` `border-left: 4px` — 1 px difference between two stacked left-accent rails.
+
+### 9.6 Table cell rhythm
+- [ ] Bearing/Distance table (`[projectId]/page.tsx:2269-2284`) uses `0.5rem 0.6rem` headers / `0.4rem 0.6rem` cells, light theme. Deed-chain table four lines below (`:2347-2363`) uses `0.4rem 0.6rem` headers / `0.3rem 0.6rem` cells, dark theme. Two table cell scales + two themes in one tab.
+
+## 10. Mobile-specific alignment
+
+### 10.1 Form rows
+- [ ] `money/[id].tsx:1105-1128` — date display matches TextField (56 px) but the tax-flag chip row right below it is `minHeight: 44`. Adjacent rows step down.
+- [ ] `capture/index.tsx:614-653` — `prefixChip` (40), `flagRow` (56), Button (60) — three control-row heights in one capture form.
+- [ ] `time/edit/[id].tsx:498-504` has its own `androidValue` style block duplicating the Receipt-detail style → drift when one is tweaked.
+
+### 10.2 List rows
+- [ ] `lib/JobCard.tsx:67-76` — `footerRow alignItems: 'center'` mixes 13-pt address with `StageChip` (paddingV 4 + emoji). On iOS the stage emoji renders 2-3 px above the address baseline.
+- [ ] `lib/JobCard.tsx:55-65` — `headerRow space-between` has only one child → dead layout intent, the `space-between` is a no-op.
+- [ ] `lib/ReceiptCard.tsx:181-186` — footerRow mixes 13-pt subtitle with paddingV-2 status chip — chip looks visibly short.
+- [ ] `lib/PointCard.tsx:63-80` — tag pill (paddingV 3), Menlo 17-pt name, 13-pt media count with emoji. Menlo's ascenders + emoji baseline give the right-side count a visibly different vertical position from the left tag pill.
+- [ ] `lib/Timesheet.tsx:188-198` — outer `dayHeader alignItems: 'baseline'` nested inside `dayHeaderLeft alignItems: 'center'` containing a StatusChip. Baseline-vs-centre conflict → StatusChip sits below the date baseline.
+- [ ] `numberOfLines={1}` empty-content collapse: JobCard / ReceiptCard use a `' '` nbsp trick to preserve minHeight (`JobCard.tsx:72`, `ReceiptCard.tsx:86`); PointCard doesn't → list rows have heterogeneous heights.
+
+### 10.3 Header row variants for the same idiom
+- [ ] Heading + Cancel row uses **four different alignment strategies** for the same UI pattern:
+  - `money/[id].tsx:344-362` — `alignItems: 'flex-start'` + `paddingTop: 4` hack on Cancel (only works when heading is exactly two lines).
+  - `time/edit/[id].tsx:226-239` — `alignItems: 'baseline'`.
+  - `capture/index.tsx:90-102,305-319` — `alignItems: 'center'` + `closeButton padding: 8`.
+  - `me/uploads.tsx:122-136` — fake centring via `headerSpacer width: 60`.
+- [ ] **Eight different page-title sizes** across the app: Jobs/Money/Time/Sign-in 32, Receipt detail 24, Capture 28, Time edit 26, Uploads 18, Gear 14, Search 22.
+
+### 10.4 Banners + cards
+- [ ] `money/[id].tsx:1067-1083` — LockedBanner `borderRadius: 10` vs DuplicateBanner (`:833`) and ReviewBanner (`:958`) `borderRadius: 12`. Three stacked banners, one has a different corner radius.
+- [ ] `me/index.tsx:606-705` — AboutRow rolls its own buttons (paddingV 10, paddingH 14, borderRadius 8), then the screen ends with a `<Button>` Sign-out (minHeight 60, paddingH 24, borderRadius 12). Two button systems on one screen.
+- [ ] `gear/index.tsx:298-307` — StatTile `paddingVertical: 16, paddingHorizontal: 14` — asymmetric inset. Tiles in a flex-wrap grid will have differently inset content if their labels wrap.
+
+### 10.5 FAB alignment
+- [ ] CaptureFab (`lib/CaptureFab.tsx:32`) is 64 px; ScannerFab (`lib/ScannerFab.tsx:422-424`) is 56 px. Pick one size.
+- [ ] CaptureFab `marginTop: -18` lifts above the 64-px tab bar → bottom edge sits at `tabBar.top + 18`. ScannerFab `bottom: bottomInset = 80` (i.e. `TAB_BAR_HEIGHT + 16`). On the same screen ScannerFab sits ~34 px higher than CaptureFab's centre. **Two floating circles at different heights.**
+- [ ] CaptureFab uses `slot alignItems: 'center'`; ScannerFab uses `layer.right: 16, alignItems: 'flex-end'`. No shared notion of where floating elements sit.
+
+### 10.6 Section-spacing rhythm
+- [ ] `time/index.tsx` — five different inter-section gaps: 16, 24, 24, 32, 24.
+- [ ] `money/[id].tsx` — `headerRow.marginBottom: 16`, `lockedBanner.marginBottom: 20`, `photoBlock.marginBottom: 24`, `section.marginBottom: 8`.
+- [ ] `jobs/[id]/index.tsx` — 12/16/24 mix on a long ScrollView.
+- [ ] `MyTruckSection.tsx:166 sectionTitle.marginBottom: 12` vs `MyPersonalKitSection.tsx:200 4` — same page, two adjacent sections, different title-to-body gaps.
+
+### 10.7 Tab-bar baselines
+- [ ] `(tabs)/_layout.tsx:126-128` — emoji icons (📋 / ⏱ / 👤 / 🛠 / `$`) render at different baselines on iOS. With `paddingTop:8, paddingBottom:8`, the inactive emoji + 11-pt label can shift 2-3 px between tabs. Wrap each glyph in a fixed-height `View { height: 28, justifyContent: 'flex-end' }` so all five share a baseline; or swap to `@expo/vector-icons` Ionicons.
+
+---
+
+## 11. Naming + titles audit
+
+### 11.1 Mobile tab labels (highest visibility — every session)
+- [ ] **Tab "$" → "Money"** (`mobile/app/(tabs)/_layout.tsx:92`). Single-character label is unscannable.
+- [ ] **Tab "Me" → "Account"** (`(tabs)/_layout.tsx:99`) + add a screen H1 of "Account" in `(tabs)/me/index.tsx`. "Me" is ambiguous; the screen is Security / Notifications / Backups / Display / Storage / Privacy / About.
+- [ ] **Tab "Gear" → "Equipment"** (`(tabs)/_layout.tsx:111`). "Gear" collides with surveying-gear vocabulary.
+- [ ] **Capture screen H1** `'New point'` → `'New Point'` (`capture/index.tsx:91`) — match Title Case used by every other tab.
+
+### 11.2 CAD nav labels
+- [ ] `AISidebar.tsx:66` tab `label: 'Why'` → **"Explanations"** (matches the internal tab id).
+- [ ] `AISidebar.tsx:71` tab `label: 'Versions'` → **"History"** or **"Audit trail"** (current description says "audit trail of seal events + survey-description revisions"; "Versions" implies file history).
+- [ ] `MenuBar.tsx:329-575` — top menu lacks an **"AI"** category despite a large AI cluster (lines 353-385) buried in File. Move "Run AI Drawing Engine…", "Show AI review queue", "AI clarifying questions…", "AI drawing chat…", "AI sidebar (tabs)" to a new top-level **"AI"** menu.
+
+### 11.3 RECON nav labels
+- [ ] `[projectId]/page.tsx:1547-1561` — project nav: `📐 Boundary Viewer · 📁 Documents · 📱 Field Report · 📚 Library · 💳 Billing`. The 📱 on Field Report is misleading (it's a printable office report). Drop the glyph or rename to **"Field Brief"**.
+- [ ] `[projectId]/page.tsx:1833,1839-1846` — `'survey'` tab rendered as `"📐 Survey Data"` is vague (every tab is survey data). Rename to **"Boundary Calls"** or **"Measurements"**.
+
+### 11.4 Page / browser titles
+- [ ] `app/admin/cad/page.tsx:6` — static `'Starr CAD — Drawing Editor'`. With five drawings open the tab title doesn't distinguish them. Set `document.title` in `CADLayout` to `'{drawing.name} — Starr CAD'` whenever the active drawing changes.
+- [ ] `app/admin/research/layout.tsx` exports no metadata, so every research route inherits `app/admin/layout.tsx:6` default `'Admin | Starr Surveying'`. Add per-route metadata so multi-tab users can tell projects apart.
+
+### 11.5 Setting / field names leaking developer terms
+- [ ] `AIProvenancePopup.tsx:87` — label `"Batch id"` → **"AI run ID"** or **"Pipeline run"**.
+- [ ] `AICopilotSidebar.tsx:163` — `"Saved code resolutions"` → **"Saved code → layer mappings"** or **"Remembered code answers"**.
+- [ ] `lib/cad/hotkeys/registry.ts:97,106,107,108,109` — descriptions reference "Phase 6 §32", "(Phase 6 §32.13 Slice 11)", "(Phase 6 §32 Slice 12)" — these render in the shortcut overlay + command palette. Strip every Phase / Slice reference.
+- [ ] `lib/cad/hotkeys/registry.ts:106` — description `"…matches by aiBatchId on the undo stack"`. `aiBatchId` is the camelCase store key. Rephrase to **"…groups every AI feature from the latest turn"**.
+- [ ] `types/research.ts:7-15` — `WORKFLOW_STEPS` labels `'Configure'`, `'Analyzing'`, `'Verifying'` are state-machine names exposed in `STATUS_LABELS` as filter chips. Rename to noun states: **"Setup"** / **"Research in progress"** / **"Verifying drawing"**.
+
+### 11.6 Vague button labels (add an object)
+- [ ] `MenuBar.tsx:338` — "Save As…" action body is identical to `saveDocument` (line 72) — implement or remove. The label promises a distinct flow.
+- [ ] `time/index.tsx:338` — `label="Submit"` → **"Submit week to dispatcher"** or **"Send this week"**.
+- [ ] `money/[id].tsx:584`, `jobs/[id]/points/[pointId].tsx:488`, `time/edit/[id].tsx:335` — `label="Save"` with no object → **"Save receipt"**, **"Save point"**, **"Save time entry"**.
+- [ ] `ConfirmDialog.tsx:140` — fallback `confirmLabel ?? 'Confirm'`. Audit the 3 call sites (`ToolOptionsBar.tsx:1807`, `LayerTransferDialog.tsx:235`, `CanvasViewport.tsx:10272`) and pass explicit verbs ("Delete layer", "Replace points") instead of relying on the default.
+- [ ] `DrawingPreferencesPanel.tsx:403` — `<span>Apply</span>` → **"Apply preferences"**.
+- [ ] `SaveToDBDialog.tsx:170-172` — `'Save Drawing to Database'` / `'Open Drawing from Database'`. "Database" is engineer-speak — rename to **"Save to Starr Cloud"** / **"Open from Starr Cloud"** (or whatever the user-facing storage product is called).
+
+### 11.7 Internal-versioning leakage in UI copy (14+ sites)
+- [ ] `CopilotCard.tsx:166` — `title="Ask the AI to revise this proposal (Slice 6)."`
+- [ ] `AICopilotSidebar.tsx:220` — `title="Kick off an AUTO run with a project-intake prompt (§32.13 Slice 11)."`
+- [ ] `AICopilotSidebar.tsx:237` — `title="Halt AUTO at the next boundary and drop into COPILOT (Ctrl+Shift+P)."` (the Ctrl+Shift+P is fine; the prior context isn't leaked here — verify)
+- [ ] `AIProvenancePopup.tsx:107` — body text `"Run the full AI pipeline (Phase 6 §3–§10) for the reasoning…"`
+- [ ] `AIDrawingDialog.tsx:138` — body starts `"Phase 6 pipeline. {n} point…"`
+- [ ] `OrientationDialog.tsx:270` — thrown error: `'AI deed orientation is not yet implemented (Phase 6).'`
+- [ ] `OrientationDialog.tsx:405` — `"— Phase 6 will add AI deed-matched calls here"` under "Suggested Bearings".
+- [ ] `OrientationDialog.tsx:492` — tab option label `'Phase 6 — coming soon'`.
+- [ ] `OrientationDialog.tsx:567` — `<div>AI Deed / Plat Import — Phase 6</div>`.
+- [ ] `lib/cad/hotkeys/registry.ts:97,106,107,108,109` — Phase / Slice references in shortcut descriptions.
+- [ ] `mobile/app/(tabs)/jobs/index.tsx:91-93` — empty-state `"Mobile job creation lands later in Phase F1."`
+- [ ] `mobile/app/(tabs)/gear/index.tsx:206-208` — footnote leaks a source-tree file path: `"… PowerSync sync rules (mobile/lib/db/sync-rules.yaml) must be deployed…"`
+- [ ] `mobile/app/(tabs)/me/index.tsx:528-531` — section literally titled **"Coming soon"** with body `"Profile editing and idle-timer length land in F1+."`
+- [ ] `mobile/app/(tabs)/time/index.tsx:378-381` — hint `"Smart prompts (still working?) + GPS auto-suggest land in F1 #7 and #8."`
+
+### 11.8 Hardcoded staffing in mobile (5 sites)
+- [ ] `mobile/app/(tabs)/time/edit/[id].tsx:168,255`, `time/index.tsx:101,103`, `time/pick-job.tsx:186`, `capture/index.tsx:400` — copy hardcodes "Henry". Replace with role-aware copy: **"Ask your dispatcher to…"** / **"Contact the office to…"**.
+
+### 11.9 Acronyms without definitions
+- [ ] **RPLS** (Registered Professional Land Surveyor) appears across `RPLSReviewModePanel.tsx`, `RPLSSubmissionDialog.tsx`, `CADLayout.tsx:31,148,883-898`, `MenuBar.tsx:382-384`, `AISidebar.tsx:80`. New employees and trainees won't know the acronym. Add a tooltip on first use or rename UI copy to **"Licensed surveyor review"**.
+- [ ] **RDP** (Ramer-Douglas-Peucker) in `lib/cad/hotkeys/registry.ts:64` `'Simplify (RDP)'` and `MenuBar.tsx:457`. Rename to **"Simplify polyline"** with tolerance in tooltip.
+- [ ] **AUTO / COPILOT / COMMAND / MANUAL** AI modes — uppercase across CAD UI but no definition anywhere. Add a one-time tip when the user first cycles modes (`Ctrl+Shift+M`).
+
+### 11.10 Aria / tooltip inconsistencies
+- [ ] `CADLayout.tsx:643` close button `aria-label="Dismiss"` while most other closers in the file use `aria-label="Close"`. Pick one across CAD.
+- [ ] `AISidebar.tsx:97,104,110` — panel + tabs both labelled "AI sidebar" → screen reader hears "AI sidebar, AI sidebar tabs". Make the inner nav `aria-label="Tabs"`.
+- [ ] `StatusBar.tsx:283,290-292` — `title="Active tool"` / `title="Active layer"` with no `aria-label`. Screen readers announce just the value without context.
+- [ ] `research/[projectId]/page.tsx:1503` — toast close `aria-label="Dismiss"` while CAD uses "Close" (and vice versa above). Pick one across the product.
+
+### 11.11 Error / empty-state copy that lacks an action
+- [ ] `MenuBar.tsx:91,171,187,217,249,264,297` — repeated `alert('Failed to … See the browser console for details.')`. "See the browser console" is dev-speak. Replace with **"Try again, or contact support if it keeps failing."**
+- [ ] `SaveToDBDialog.tsx:157` — bare `"Delete failed"` with no recovery path.
+- [ ] `CADLayout.tsx:540` — `"…Starting fresh."` actionable, but offer **"Download the raw autosave"** so users don't lose data silently.
+- [ ] `research/components/DocumentUploadPanel.tsx:35` — generic `'Error'` status pill with no detail.
+- [ ] `research/page.tsx:73` — `'Failed to load projects. Please try again.'` → add a Retry button instead of asking the user to refresh.
+
+### 11.12 Capitalisation / verb tense
+- [ ] CAD tool labels mix `Point` / `Line` / `Polyline` in `MenuBar.tsx:551-553` with `Draw Point` / `Draw Line` in `lib/cad/hotkeys/registry.ts:38-39`. Standardise on verb-first ("Draw Point").
+- [ ] `lib/cad/hotkeys/registry.ts` mixes "Drop POINT" (uppercase) vs "Drop a POINT" vs "drop a perpendicular line" (lowercase) vs "Erase features" — pick one casing for feature types.
+- [ ] `MenuBar.tsx:475,476` — `'Snap OFF'` / `'Snap ON'` reads as button states. Inconsistent with `'Hide Grid'` / `'Show Grid'` (`:470,472`). Pick **"Turn snap on / off"**.
+
+---
+
+## 12. Updated implementation sequence
+
+Insert these slices into the existing §5 sequence. Naming items can land anywhere because they're surface-only; alignment items should follow Phase A (shared primitives).
+
+### Phase A+ — Alignment primitives (do alongside Phase A)
+1. **Slice A6 — Mobile theme tokens.** Add `controlHeight`, `controlRadius`, `spacing.xs/sm/md/lg/xl` to `lib/theme.ts`. Migrate `Button.tsx` + `TextField.tsx` to the new tokens so they share dimensions.
+2. **Slice A7 — Mobile `<Chip>` + `<ActionRow>` primitives.** Replace the six chip paddings + four action-row implementations.
+3. **Slice A8 — CAD icon-size + chrome-height tokens.** Pick three icon sizes + one chrome row height. Codemod the obvious offenders.
+4. **Slice A9 — CAD `<DialogShell>` primitive.** Migrate every dialog to one header / footer / button-pad standard.
+5. **Slice A10 — RECON `.recon-stat` + `.recon-data-card` + `<ResearchModal>` primitives.** Migrate Easements + stats + 3 modal patterns.
+
+### Phase E — Naming + copy pass (low-risk, can land last)
+6. **Slice E1** — Mobile tab + screen H1 renames (`$` → Money, `Me` → Account, `Gear` → Equipment).
+7. **Slice E2** — Strip every "Phase X / Slice X / F1 #N / Coming soon / lands later" string from user-visible copy across all three apps (14+ sites).
+8. **Slice E3** — Strip hardcoded staffing ("Henry") from mobile copy (5 sites). Replace with role-aware text.
+9. **Slice E4** — CAD AI menu top-level extraction. Move 6 AI items out of File.
+10. **Slice E5** — Dynamic browser tab titles for CAD (`{drawing} — Starr CAD`) + RECON (`{project} — Research`).
+11. **Slice E6** — `lib/cad/hotkeys/registry.ts` descriptions: strip Phase/Slice refs, paraphrase `aiBatchId`/`aiOrigin` into surveyor language.
+12. **Slice E7** — Wire `usePathname()` into `.research-project-nav__link--active` (the active state CSS already exists; just apply it). One-line fix that solves the "where am I?" problem.
+13. **Slice E8** — Verb-first standardisation on CAD tool labels + casing pass on feature-type names ("POINT" everywhere or "point" everywhere).
+
+## 13. Quick-win shortlist (highest ROI per hour)
+
+If only ten things ship from Part 2, do these:
+
+1. Change `AICopilotSidebar.tsx:271` `px-2 py-2` → `px-3 py-2` (the user's primary complaint).
+2. Wire `.research-project-nav__link--active` via `usePathname()` (one-line fix, broken everywhere right now).
+3. Add `border-bottom: 2px solid transparent` to inactive `.review-summary-panel__tab` (stops the 2 px content shift on every tab click).
+4. Define the missing `research-pipeline__*` CSS classes (the Pipeline page is currently unstyled).
+5. Mobile tab `$` → `Money`.
+6. Strip every "Phase X / Slice X / Coming soon" string from user-visible copy.
+7. Replace `SaveToDBDialog.tsx` "Database" wording with the actual storage product name.
+8. Move CAD AI menu items out of File into a top-level AI menu.
+9. Unify `lib/Button.tsx` + `lib/TextField.tsx` to a single `controlHeight` token.
+10. Strip hardcoded "Henry" from mobile copy (5 sites).
+
+---
+
+*End of UX Polish Plan (Part 2 added 2026-05-12).*
+
+
 *End of UX Polish Plan*
