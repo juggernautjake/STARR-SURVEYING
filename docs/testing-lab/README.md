@@ -25,5 +25,5 @@
 
 - **Testing Lab:** `/admin/research/testing`
 - **Implementation Plan:** [TESTING-PLAN.md](/docs/planning/in-progress/TESTING-PLAN.md)
-- **STARR RECON Roadmap:** [STARR_RECON/STARR_RECON_PHASE_ROADMAP.md](/docs/planning/in-progress/STARR_RECON/STARR_RECON_PHASE_ROADMAP.md)
+- **STARR RECON Roadmap:** [STARR_RECON/STARR_RECON_PHASE_ROADMAP.md](/docs/planning/completed/STARR_RECON/STARR_RECON_PHASE_ROADMAP.md)
 - **Worker Source Code:** `worker/src/` (browsable from the Code tab)
