@@ -1884,7 +1884,7 @@ interface AIStore {
 - [ ] Only "final" points from groups used for features
 
 ### Deed Reconciliation (Stage 3)
-- [ ] Regex parser extracts correct bearings/distances from standard format
+- [x] Regex parser extracts correct bearings/distances from standard format — `__tests__/cad/ai/deed-parser.test.ts` §1887: single LINE call, multi-THENCE traverse (4 calls), CURVE with radius + arc-length + chord, unparseable blocks survive without crash, non-deed text returns 0 confidence, `extractMonument` helper.
 - [ ] Claude parser handles non-standard deed text
 - [x] Bearing differences > 60" flagged as BEARING_MISMATCH — `__tests__/cad/ai/stage-3-reconcile.test.ts` §1889: 72" diff (0.02°) flags; 54" diff (0.015°) does not.
 - [x] Distance differences > 0.50' flagged as DISTANCE_MISMATCH — §1890: 0.6 ft diff flags; 0.4 ft diff does not.
