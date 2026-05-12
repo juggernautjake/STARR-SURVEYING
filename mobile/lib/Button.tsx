@@ -4,13 +4,14 @@
  *   - secondary (outlined accent — alt action)
  *   - danger   (red — sign-out, destructive)
  *
- * Hit area defaults to 60×60 to satisfy the §7.1 rule 2 "glove-friendly"
- * minimum tap target. Disabled state dims by 40% rather than 100% so
- * the affordance stays legible in direct sunlight.
+ * Height + corner radius come from the shared `controls` token in
+ * theme.ts so a Button and a TextField sitting in the same form row
+ * line up. Disabled state dims by 40% rather than 100% so the
+ * affordance stays legible in direct sunlight.
  */
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
-import { colors } from './theme';
+import { colors, controls } from './theme';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger';
 
@@ -74,9 +75,9 @@ export function Button({
 function makeStyles(c: { background: string; border: string; text: string }) {
   return StyleSheet.create({
     root: {
-      minHeight: 60,
-      paddingHorizontal: 24,
-      borderRadius: 12,
+      minHeight: controls.height,
+      paddingHorizontal: controls.paddingHButton,
+      borderRadius: controls.radius,
       backgroundColor: c.background,
       borderWidth: c.border === 'transparent' ? 0 : 2,
       borderColor: c.border,

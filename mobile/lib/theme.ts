@@ -26,6 +26,27 @@ export interface Palette {
   success: string;
 }
 
+/**
+ * Shared control-dimension tokens. Surfaces using bare `<TextInput>`
+ * + bare `<Button>` in a single row used to drift (TextField was 56,
+ * Button was 60) producing a visible 4 px shoulder. These constants
+ * lock both primitives to a single height + corner-radius so adjacent
+ * form rows always line up.
+ */
+export const controls = {
+  /** Standard interactive control height (TextField + Button + chip
+   *  rows). Tall enough to satisfy a 44 pt minimum touch target with
+   *  comfortable hit area for gloved hands. */
+  height: 56,
+  /** Corner radius for controls. */
+  radius: 10,
+  /** Horizontal padding inside text-style inputs / single-line fields. */
+  paddingHText: 16,
+  /** Horizontal padding inside buttons / pressables. Wider so labels
+   *  don't crowd the rounded corners. */
+  paddingHButton: 24,
+} as const;
+
 export const colors: Record<Scheme, Palette> = {
   light: {
     background: '#FFFFFF',

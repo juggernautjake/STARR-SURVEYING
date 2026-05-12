@@ -350,26 +350,6 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { separator: true },
         { label: 'Import…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
         { separator: true },
-        { label: '🤖 Run AI Drawing Engine…', action: () => { onOpenAIDrawing?.(); setOpenMenu(null); } },
-        {
-          label: aiQueuePanelOpen ? 'Hide AI review queue' : 'Show AI review queue',
-          action: () => { toggleAIQueuePanel(); setOpenMenu(null); },
-          disabled: !aiResultLoaded,
-        },
-        {
-          label: 'AI clarifying questions…',
-          action: () => { openAIQuestionDialog(); setOpenMenu(null); },
-          disabled: !aiQuestionsAvailable,
-        },
-        {
-          label: drawingChatOpen ? 'Hide AI drawing chat' : '💬 AI drawing chat…',
-          action: () => { toggleDrawingChat(); setOpenMenu(null); },
-        },
-        {
-          label: aiSidebarOpen ? 'Hide AI sidebar' : '🧠 AI sidebar (tabs)',
-          action: () => { toggleAISidebar(); setOpenMenu(null); },
-        },
-        { separator: true },
         {
           label: '📜 Survey description…',
           action: () => { onToggleDescriptionPanel?.(); setOpenMenu(null); },
@@ -562,6 +542,31 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'Mirror', shortcut: 'MI', action: () => toolStore.setTool('MIRROR') },
         { label: 'Scale', shortcut: 'SC', action: () => toolStore.setTool('SCALE') },
         { label: 'Erase', shortcut: 'E', action: () => toolStore.setTool('ERASE') },
+      ],
+    },
+    {
+      label: 'AI',
+      items: [
+        { label: 'Run AI Drawing Engine…', action: () => { onOpenAIDrawing?.(); setOpenMenu(null); } },
+        {
+          label: aiQueuePanelOpen ? 'Hide AI review queue' : 'Show AI review queue',
+          action: () => { toggleAIQueuePanel(); setOpenMenu(null); },
+          disabled: !aiResultLoaded,
+        },
+        {
+          label: 'AI clarifying questions…',
+          action: () => { openAIQuestionDialog(); setOpenMenu(null); },
+          disabled: !aiQuestionsAvailable,
+        },
+        { separator: true },
+        {
+          label: drawingChatOpen ? 'Hide AI drawing chat' : 'AI drawing chat…',
+          action: () => { toggleDrawingChat(); setOpenMenu(null); },
+        },
+        {
+          label: aiSidebarOpen ? 'Hide AI sidebar' : 'AI sidebar (tabs)',
+          action: () => { toggleAISidebar(); setOpenMenu(null); },
+        },
       ],
     },
     {
