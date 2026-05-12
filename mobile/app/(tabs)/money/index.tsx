@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ReceiptCard } from '@/lib/ReceiptCard';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import {
   usePersistedReceiptFilter,
   useReceipts,
@@ -62,12 +63,7 @@ export default function MoneyScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
-      <View style={[styles.headerRow, tabletStyle]}>
-        <Text style={[styles.heading, { color: palette.text }]}>Receipts</Text>
-        <Text style={[styles.count, { color: palette.muted }]}>
-          {receipts.length}
-        </Text>
-      </View>
+      <ScreenHeader title="Money" subtitle={`${receipts.length}`} />
       {/* Review badge — tap to filter to "needs review" only.
           When the filter is active, render an amber chip with a
           × button instead so the surveyor can clear the filter
@@ -234,22 +230,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '300',
     lineHeight: 18,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 12,
-  },
-  heading: {
-    fontSize: 32,
-    fontWeight: '700',
-  },
-  count: {
-    fontSize: 15,
-    fontWeight: '500',
   },
   empty: {
     flex: 1,

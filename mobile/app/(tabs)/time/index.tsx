@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { logError } from '@/lib/log';
 import { Timesheet } from '@/lib/Timesheet';
 import {
@@ -200,9 +201,7 @@ export default function TimeScreen() {
       edges={['top']}
     >
       <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
-        <View style={styles.headerRow}>
-          <Text style={[styles.heading, { color: palette.text }]}>Time</Text>
-        </View>
+        <ScreenHeader title="Time" />
 
         {active ? (
           <>
@@ -407,13 +406,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 32,
-  },
-  headerRow: {
-    marginBottom: 24,
-  },
-  heading: {
-    fontSize: 32,
-    fontWeight: '700',
   },
   staleBanner: {
     padding: 16,

@@ -30,6 +30,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/lib/auth';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { useIsEquipmentManager } from '@/lib/myRoles';
 import { colors, type Palette } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
@@ -110,18 +111,7 @@ export default function GearIndexScreen() {
       edges={['top']}
     >
       <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.headerBlock}>
-          <Text style={[styles.label, { color: palette.muted }]}>
-            🛠 Gear · Equipment Manager
-          </Text>
-          <Text
-            style={[styles.email, { color: palette.text }]}
-            selectable
-            numberOfLines={1}
-          >
-            {emEmail}
-          </Text>
-        </View>
+        <ScreenHeader title="Equipment" subtitle={emEmail} />
 
         <View style={styles.grid}>
           <StatTile
@@ -274,20 +264,6 @@ function StatTile({
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { padding: 20, gap: 8 },
-  headerBlock: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: 4,
-  },
-  email: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

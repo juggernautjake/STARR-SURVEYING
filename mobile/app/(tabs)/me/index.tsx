@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { ScreenHeader } from '@/lib/ScreenHeader';
 import { MyPersonalKitSection } from '@/lib/MyPersonalKitSection';
 import { MyTruckSection } from '@/lib/MyTruckSection';
 import { useMyCheckouts, useMyPersonalKit } from '@/lib/equipment';
@@ -251,12 +252,7 @@ export default function MeScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
-        <View style={styles.headerBlock}>
-          <Text style={[styles.label, { color: palette.muted }]}>Signed in as</Text>
-          <Text style={[styles.email, { color: palette.text }]} selectable>
-            {email}
-          </Text>
-        </View>
+        <ScreenHeader title="Account" subtitle={email} />
 
         <MyTruckSection summary={truckSummary} palette={palette} />
 
@@ -764,18 +760,6 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingTop: 32,
     flexGrow: 1,
-  },
-  headerBlock: { marginBottom: 32 },
-  label: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  email: {
-    fontSize: 22,
-    fontWeight: '600',
   },
   section: {
     marginBottom: 24,
