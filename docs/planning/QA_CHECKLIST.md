@@ -118,7 +118,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/admin/payroll`. Fully built out — `app/admin/payroll/page.tsx` is 353 lines. Per the file header: "Admin Payroll Dashboard". NextAuth role check, `usePageError` error-toast pattern, and `<UnderConstruction />` placeholder for the sub-sections still under build. Counterpart to `/admin/my-pay` for office-side payroll management.
 - [x] `/admin/rewards`. Fully built out — `app/admin/rewards/page.tsx` is 346 lines. Surfaces the employee rewards balance + redemption flow via a typed `Balance` interface, image-supported product cards (using `next/image` for optimised LCP), and `useEffect`-driven data fetch.
 - [x] `/admin/timeline`. Fully built out — `app/admin/timeline/page.tsx` is 629 lines. Per the file header: "Per-user daily timeline. Reads from the derived `location_stops` + `location_segments` tables (see seeds/224). Defaults to today; changing the date or employee re-fetches. 'Recompute' button POSTs to derive on demand — useful when the surveyor's pings have just landed and the nightly job hasn't run yet." Visualises the day's stops + travel segments for dispatcher review.
-- [ ] `/admin/leads`.
+- [x] `/admin/leads`. Built out — `app/admin/leads/page.tsx` is 231 lines, admin-only per the file header. Typed `Lead` interface drives the row UI; shares `AdminJobs.css` for the jobs-family identity. Sub-features that aren't fully wired yet render the shared `<UnderConstruction />` placeholder.
 - [ ] `/admin/discussions`.
 - [ ] `/admin/notes`.
 - [ ] `/admin/my-notes`.
