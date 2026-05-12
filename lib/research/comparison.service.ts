@@ -52,7 +52,7 @@ export async function compareDrawingToSources(
   const aiResult = await runAIComparison(elements, dataPoints, documents, mathChecks);
 
   // 4. Compute per-category confidence breakdown
-  const breakdown = computeConfidenceBreakdown(elements);
+  const breakdown = computeConfidenceBreakdown(elements, mathChecks);
 
   // 5. Compute overall confidence from weighted factors
   const avgElementConfidence = elements.length > 0
@@ -372,18 +372,51 @@ function computeResolutionCompleteness(discrepancies: Discrepancy[]): number {
   return Math.round(ratio * 100);
 }
 
-function computeConfidenceBreakdown(elements: DrawingElement[]): ComparisonResult['confidence_breakdown'] {
+function computeConfidenceBreakdown(
+  elements: DrawingElement[],
+  checks: MathCheckSummary
+): ComparisonResult['confidence_breakdown'] {
   const byCategory = (featureClass: string) => {
     const matching = elements.filter(e => e.feature_class === featureClass);
     if (matching.length === 0) return 75; // neutral default
     return Math.round(matching.reduce((s, e) => s + e.confidence_score, 0) / matching.length);
   };
 
+  // Score area_accuracy from the absolute acreage difference between the
+  // computed boundary and the stated area. Null (no comparison data
+  // available) keeps the neutral default; tighter agreement scores higher.
+  let areaAccuracy = 75;
+  if (checks.area_difference_acres !== null) {
+    const diff = Math.abs(checks.area_difference_acres);
+    if (diff < 0.001)      areaAccuracy = 100;
+    else if (diff < 0.01)  areaAccuracy = 95;
+    else if (diff < 0.05)  areaAccuracy = 85;
+    else if (diff < 0.1)   areaAccuracy = 75;
+    else if (diff < 0.5)   areaAccuracy = 55;
+    else if (diff < 1.0)   areaAccuracy = 40;
+    else                   areaAccuracy = 25;
+  }
+
+  // closure_precision is totalDistance / misclosure — higher is better
+  // (e.g. 10,000 = 1 part in 10K, the TBPELS surveying standard). Null
+  // (insufficient boundary geometry) keeps the neutral default.
+  let closureQuality = 75;
+  if (checks.closure_precision !== null) {
+    const p = checks.closure_precision;
+    if (p >= 10000)      closureQuality = 100;
+    else if (p >= 5000)  closureQuality = 95;
+    else if (p >= 2500)  closureQuality = 85;
+    else if (p >= 1000)  closureQuality = 75;
+    else if (p >= 500)   closureQuality = 60;
+    else if (p >= 100)   closureQuality = 40;
+    else                 closureQuality = 25;
+  }
+
   return {
     boundary_accuracy: byCategory('property_boundary'),
     monument_accuracy: byCategory('monument'),
     easement_accuracy: byCategory('easement'),
-    area_accuracy: 75, // computed from math checks, default
-    closure_quality: 75, // computed from math checks, default
+    area_accuracy: areaAccuracy,
+    closure_quality: closureQuality,
   };
 }

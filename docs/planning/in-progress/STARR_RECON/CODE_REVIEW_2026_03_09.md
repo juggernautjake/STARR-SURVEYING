@@ -16,7 +16,7 @@
 > - [ ] **#5 (important)** Document text truncated at 18,000 chars in `document-analysis.service.ts` — raise to 50K+ or chunked analysis.
 > - [ ] **#6 (important)** No rate limiting on `POST lite-pipeline` — add per-project + per-hour AI budget.
 > - [ ] **#7 (important)** `buildCallSequence()` Strategy 3 fragile (`drawing.service.ts:400-416`) — validate traverse closure before accepting.
-> - [ ] **#8 (important)** `comparison.service.ts:386-388` confidence breakdown hardcoded `area_accuracy: 75` / `closure_quality: 75` — should use `mathChecks.closure_precision` + `mathChecks.area_difference_acres`.
+> - [x] **#8 (important)** `comparison.service.ts:386-388` confidence breakdown — `computeConfidenceBreakdown` now takes `MathCheckSummary` and maps `area_difference_acres` → `area_accuracy` (7-tier ladder: < 0.001 ac → 100, < 1.0 ac → 40, ≥ 1.0 ac → 25) and `closure_precision` → `closure_quality` (TBPELS-aware ladder: ≥ 10K → 100, ≥ 1K → 75, < 100 → 25). Null checks (no math data) preserve the 75 neutral default the old hardcode used as a fallback.
 > - [x] **#9 (minor)** Unused `drawingIds` variable in `listDrawings()` — fixed; line 590 removed.
 > - [x] **#10 (minor)** Duplicate section numbering in `geometry.engine.ts` — renumbered (5 callouts, 6 POB, 7 coordinate labels).
 > - [ ] **#11 (minor)** `export.service.ts` PDF rasterizes SVG → PNG — consider svg2pdf.js for true vector PDFs.
