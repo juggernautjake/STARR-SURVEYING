@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ScreenHeader } from '@/lib/ScreenHeader';
+import * as haptics from '@/lib/haptics';
 import { logError, logWarn } from '@/lib/log';
 import { isPermissionDeniedError, promptForSettings } from '@/lib/permissionGuard';
 import { ThumbnailGrid } from '@/lib/ThumbnailGrid';
@@ -122,6 +123,7 @@ export default function PointPhotosScreen() {
         dataPointId: pointId ?? null,
         source,
       });
+      haptics.success();
       // Stay on the screen — the new photo lands in the grid via
       // PowerSync's reactive query.
     } catch (err) {
@@ -186,6 +188,7 @@ export default function PointPhotosScreen() {
         dataPointId: pointId ?? null,
         source: 'camera',
       });
+      haptics.success();
     } catch (err) {
       const deniedKind = isPermissionDeniedError(err);
       if (deniedKind) {

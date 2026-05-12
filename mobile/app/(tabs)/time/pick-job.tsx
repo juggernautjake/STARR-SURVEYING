@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import * as haptics from '@/lib/haptics';
 import { logError } from '@/lib/log';
 import { useJobs, type Job } from '@/lib/jobs';
 import { useClockIn, type EntryType } from '@/lib/timeTracking';
@@ -76,6 +77,7 @@ export default function PickJobScreen() {
     result: Awaited<ReturnType<ReturnType<typeof useClockIn>>>,
     label: string
   ) => {
+    haptics.success();
     if (!result.hasGps) {
       Alert.alert(
         `Clocked into ${label} — no GPS fix`,

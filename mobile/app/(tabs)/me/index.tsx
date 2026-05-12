@@ -18,6 +18,7 @@ import { ScreenHeader } from '@/lib/ScreenHeader';
 import { MyPersonalKitSection } from '@/lib/MyPersonalKitSection';
 import { MyTruckSection } from '@/lib/MyTruckSection';
 import { useMyCheckouts, useMyPersonalKit } from '@/lib/equipment';
+import * as haptics from '@/lib/haptics';
 import { logError, logWarn } from '@/lib/log';
 import { useAuth } from '@/lib/auth';
 import {
@@ -237,6 +238,7 @@ export default function MeScreen() {
           text: 'Sign out',
           style: 'destructive',
           onPress: async () => {
+            haptics.confirm();
             setSigningOut(true);
             try {
               await signOut();

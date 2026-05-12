@@ -17,6 +17,7 @@ import { Button } from '@/lib/Button';
 import { ScreenHeader } from '@/lib/ScreenHeader';
 import { CategoryPicker, categoryLabel } from '@/lib/CategoryPicker';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import * as haptics from '@/lib/haptics';
 import { logError } from '@/lib/log';
 import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard';
 import { RemotePhoto } from '@/lib/RemotePhoto';
@@ -254,6 +255,7 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
     setSubmitting(true);
     try {
       await updateReceipt(receipt.id, patch);
+      haptics.success();
       router.back();
     } catch (err) {
       logError('receiptDetail.onSave', 'update failed', err, {
@@ -943,6 +945,7 @@ function ReviewBanner({
       // they're satisfied. Pass an empty edits map so
       // user_review_edits records "reviewed, no edits noted."
       await confirmReview(receipt.id);
+      haptics.success();
     } catch (err) {
       Alert.alert(
         'Couldn’t mark as reviewed',

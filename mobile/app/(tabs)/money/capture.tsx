@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { ScreenHeader } from '@/lib/ScreenHeader';
+import * as haptics from '@/lib/haptics';
 import { logError, logWarn } from '@/lib/log';
 import { isPermissionDeniedError, promptForSettings } from '@/lib/permissionGuard';
 import { useActiveTimeEntry } from '@/lib/timeTracking';
@@ -99,6 +100,7 @@ export default function CaptureReceiptScreen() {
       }
       // Success: dismiss back to the list. The new pending receipt is
       // visible immediately because PowerSync wrote it locally.
+      haptics.success();
       router.back();
     } catch (err) {
       // Permission denials get the Settings deep-link prompt; other

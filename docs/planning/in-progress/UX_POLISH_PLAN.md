@@ -240,7 +240,7 @@ Each slice is small enough to ship in one PR. Phases land in this order so the c
 25. **Slice D6** — Swipe-to-delete on photo / note / file rows.
 26. **Slice D7** — Sticky Save bar above keyboard on Receipt detail + Point detail + Time edit.
 27. **Slice D8** — One-tap Sun-theme toggle (tab-bar long-press or Me-header pill).
-28. **Slice D9** — Haptics on primary actions (capture / save / sign-out).
+28. **Slice D9** — Haptics on primary actions (capture / save / sign-out). **Shipped (U25)**: thin `lib/haptics.ts` wrapper around `expo-haptics` with a four-call taxonomy (`tap` / `confirm` / `success` / `warn`). Wired into clock-in, clock-out, submit-week, receipt capture, receipt save, receipt confirm-review, photo / video attach, point save, time-edit save, note save, and sign-out-accept.
 
 ---
 

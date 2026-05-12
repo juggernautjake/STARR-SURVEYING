@@ -33,6 +33,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/lib/Button';
 import { ScreenHeader } from '@/lib/ScreenHeader';
 import { TextField } from '@/lib/TextField';
+import * as haptics from '@/lib/haptics';
 import { logError } from '@/lib/log';
 import {
   NOTE_TEMPLATE_LABELS,
@@ -210,6 +211,7 @@ export default function AddNoteScreen() {
         template,
         payload,
       });
+      haptics.success();
       router.back();
     } catch (err) {
       logError('addNoteScreen.save', 'failed', err, {

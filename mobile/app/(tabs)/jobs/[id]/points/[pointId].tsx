@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
+import * as haptics from '@/lib/haptics';
 import { logError } from '@/lib/log';
 import { PhotoLightbox } from '@/lib/PhotoLightbox';
 import { ScreenHeader } from '@/lib/ScreenHeader';
@@ -176,6 +177,7 @@ function PointForm({ point, palette }: PointFormProps) {
     setSubmitting(true);
     try {
       await updatePoint(point.id, patch);
+      haptics.success();
       router.back();
     } catch (err) {
       logError('pointDetail.onSave', 'update failed', err, {

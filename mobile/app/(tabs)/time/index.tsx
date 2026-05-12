@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ScreenHeader } from '@/lib/ScreenHeader';
+import * as haptics from '@/lib/haptics';
 import { logError } from '@/lib/log';
 import { Timesheet } from '@/lib/Timesheet';
 import {
@@ -79,6 +80,7 @@ export default function TimeScreen() {
         Alert.alert('Already clocked out', 'No open entry to close.');
         return;
       }
+      haptics.success();
       // Tell the user when the clock-out wasn't location-stamped.
       // Otherwise they assume the row carries GPS and only find out
       // weeks later when mileage doesn't add up.
@@ -146,6 +148,7 @@ export default function TimeScreen() {
           'No open days in this week — already sent for approval.'
         );
       } else {
+        haptics.success();
         Alert.alert(
           'Submitted',
           `${result.flipped} day${result.flipped === 1 ? '' : 's'} sent to approval.`

@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/lib/Button';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ScreenHeader } from '@/lib/ScreenHeader';
+import * as haptics from '@/lib/haptics';
 import { lockedDayTitle } from '@/lib/StatusChip';
 import { TextField } from '@/lib/TextField';
 import { TimeEditHistory } from '@/lib/TimeEditHistory';
@@ -191,6 +192,7 @@ function EditForm({ row, palette }: EditFormProps) {
           reason,
         }
       );
+      haptics.success();
       if (result.tier === 'needs_approval') {
         Alert.alert(
           'Saved — admin approval queued',
