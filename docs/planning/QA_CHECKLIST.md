@@ -116,7 +116,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 - [x] `/admin/my-pay`. Fully built out — `app/admin/my-pay/page.tsx` is 306 lines. Employee-facing "My Pay" page: NextAuth session check, `AdminPayroll.css` shared stylesheet, `usePageError` toast surface, and the standard `<UnderConstruction />` for placeholder sub-sections. Mirrors the admin /payroll view but scoped to the active employee's records.
 - [x] `/admin/payout-log`. Fully built out — `app/admin/payout-log/page.tsx` is 227 lines. Per the file header: "Payout history log (employees see own, admins see all)". Role-aware filtering driven by `useSession`, shared `AdminPayroll.css` for the payroll-family identity, and the standard `usePageError` error-toast pattern.
 - [x] `/admin/payroll`. Fully built out — `app/admin/payroll/page.tsx` is 353 lines. Per the file header: "Admin Payroll Dashboard". NextAuth role check, `usePageError` error-toast pattern, and `<UnderConstruction />` placeholder for the sub-sections still under build. Counterpart to `/admin/my-pay` for office-side payroll management.
-- [ ] `/admin/rewards`.
+- [x] `/admin/rewards`. Fully built out — `app/admin/rewards/page.tsx` is 346 lines. Surfaces the employee rewards balance + redemption flow via a typed `Balance` interface, image-supported product cards (using `next/image` for optimised LCP), and `useEffect`-driven data fetch.
 - [ ] `/admin/timeline`.
 - [ ] `/admin/leads`.
 - [ ] `/admin/discussions`.
