@@ -272,7 +272,49 @@ export default function MeScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
-        <ScreenHeader title="Account" subtitle={email} />
+        <ScreenHeader
+          title="Account"
+          subtitle={email}
+          right={
+            // One-tap Sun-readable toggle (D8). The 4-pill picker
+            // further down still controls Auto / Light / Dark
+            // explicitly; this pill is the "I just walked into
+            // direct sun and can't read the screen" shortcut.
+            // Toggles between 'sun' and 'auto' so the second tap
+            // returns to OS-following. Haptic confirms the flip.
+            <Pressable
+              onPress={() => {
+                haptics.tap();
+                void setThemePref(themePref === 'sun' ? 'auto' : 'sun');
+              }}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: themePref === 'sun' }}
+              accessibilityLabel="Sun-readable theme"
+              accessibilityHint="Toggles the max-contrast sun-readable colour scheme for direct sunlight."
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.sunPill,
+                {
+                  backgroundColor:
+                    themePref === 'sun' ? palette.accent : 'transparent',
+                  borderColor:
+                    themePref === 'sun' ? palette.accent : palette.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: '600',
+                  color: themePref === 'sun' ? '#FFFFFF' : palette.text,
+                }}
+              >
+                ☀ {themePref === 'sun' ? 'On' : 'Sun'}
+              </Text>
+            </Pressable>
+          }
+        />
 
         <MyTruckSection summary={truckSummary} palette={palette} />
 
@@ -774,6 +816,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     minWidth: 64,
     alignItems: 'center',
+  },
+  sunPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    minHeight: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   safe: { flex: 1 },
   scroll: {

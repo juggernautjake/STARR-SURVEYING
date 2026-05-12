@@ -239,7 +239,7 @@ Each slice is small enough to ship in one PR. Phases land in this order so the c
 24. **Slice D5** — Pull-to-refresh on Jobs / Money / Time. **Shipped (U24)**: feel-good gesture only (600 ms spinner) on all three lists. PowerSync sync is continuous, so the gesture confirms intent without thrashing the sync stream.
 25. **Slice D6** — Swipe-to-delete on photo / note / file rows.
 26. **Slice D7** — Sticky Save bar above keyboard on Receipt detail + Point detail + Time edit.
-27. **Slice D8** — One-tap Sun-theme toggle (tab-bar long-press or Me-header pill).
+27. **Slice D8** — One-tap Sun-theme toggle (tab-bar long-press or Me-header pill). **Shipped (U26)**: small `☀ Sun` / `☀ On` switch pill in the Me ScreenHeader right slot. Single tap toggles between `'sun'` and `'auto'`; the existing 4-pill Display picker still owns explicit Light / Dark selection. Light haptic confirms.
 28. **Slice D9** — Haptics on primary actions (capture / save / sign-out). **Shipped (U25)**: thin `lib/haptics.ts` wrapper around `expo-haptics` with a four-call taxonomy (`tap` / `confirm` / `success` / `warn`). Wired into clock-in, clock-out, submit-week, receipt capture, receipt save, receipt confirm-review, photo / video attach, point save, time-edit save, note save, and sign-out-accept.
 
 ---
