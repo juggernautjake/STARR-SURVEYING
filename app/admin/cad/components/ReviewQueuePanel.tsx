@@ -21,6 +21,8 @@ import {
   useAIStore,
   useAnnotationStore,
   useDrawingStore,
+  useSelectionStore,
+  useViewportStore,
 } from '@/lib/cad/store';
 import type {
   AIJobResult,
@@ -28,6 +30,7 @@ import type {
   ReviewItemStatus,
 } from '@/lib/cad/ai-engine/types';
 import type { Feature } from '@/lib/cad/types';
+import { featureBounds } from '@/lib/cad/geometry/bounds';
 
 const TIER_ORDER: Array<1 | 2 | 3 | 4 | 5> = [1, 2, 3, 4, 5];
 
@@ -55,7 +58,10 @@ export default function ReviewQueuePanel() {
   const addFeature = useDrawingStore((s) => s.addFeature);
   const removeFeature = useDrawingStore((s) => s.removeFeature);
   const drawingFeatures = useDrawingStore((s) => s.document.features);
+  const getFeature = useDrawingStore((s) => s.getFeature);
   const addAnnotation = useAnnotationStore((s) => s.addAnnotation);
+  const selectMultiple = useSelectionStore((s) => s.selectMultiple);
+  const zoomToExtents = useViewportStore((s) => s.zoomToExtents);
 
   if (!isOpen) return null;
 
@@ -100,6 +106,23 @@ export default function ReviewQueuePanel() {
     if (!item.featureId) return;
     if (!drawingFeatures[item.featureId]) return;
     removeFeature(item.featureId);
+  }
+
+  /**
+   * Phase 6 §1911 — clicking a review row's title selects the
+   * underlying feature and zooms the viewport to it. Pending /
+   * rejected items whose feature hasn't been applied to the
+   * drawing yet fall back to selecting the original AI-payload
+   * feature only (no zoom, since there's nothing on canvas to
+   * zoom to). Tier-5 items, which auto-accept at pipeline time,
+   * always have a live feature to focus.
+   */
+  function focusReviewItem(item: ReviewItem) {
+    if (!item.featureId) return;
+    const live = getFeature(item.featureId);
+    if (!live) return;
+    selectMultiple([item.featureId], 'REPLACE');
+    zoomToExtents(featureBounds(live));
   }
 
   const summary = result?.reviewQueue.summary ?? {
@@ -178,6 +201,7 @@ export default function ReviewQueuePanel() {
                           }
                           setItemStatus(item.id, status, note);
                         }}
+                        onFocus={() => focusReviewItem(item)}
                         onExplain={
                           item.featureId &&
                           result?.explanations[item.featureId]
@@ -200,10 +224,12 @@ function ReviewRow({
   item,
   onAction,
   onExplain,
+  onFocus,
 }: {
   item: ReviewItem;
   onAction: (status: ReviewItemStatus, note: string | null) => void;
   onExplain: (() => void) | null;
+  onFocus: () => void;
 }) {
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState(item.userNote ?? '');
@@ -220,7 +246,14 @@ function ReviewRow({
     >
       <div style={styles.rowMain}>
         <div style={styles.rowTopRow}>
-          <strong style={styles.rowTitle}>{item.title}</strong>
+          <button
+            type="button"
+            onClick={onFocus}
+            style={styles.rowTitleBtn}
+            title="Select and zoom to this feature"
+          >
+            {item.title}
+          </button>
           <span style={styles.rowConfidence}>{item.confidence}</span>
         </div>
         <div style={styles.rowMeta}>
@@ -401,6 +434,19 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
   },
   rowTitle: { fontSize: 13, color: '#111827' },
+  rowTitleBtn: {
+    fontSize: 13,
+    color: '#111827',
+    background: 'transparent',
+    border: 'none',
+    padding: 0,
+    margin: 0,
+    fontWeight: 600,
+    cursor: 'pointer',
+    textAlign: 'left' as const,
+    textDecoration: 'underline dotted',
+    textUnderlineOffset: 3,
+  },
   rowConfidence: {
     fontSize: 11,
     fontWeight: 600,

@@ -1908,7 +1908,7 @@ interface AIStore {
 ### Review Queue
 - [x] Tier 5 items auto-accepted — `lib/cad/ai-engine/pipeline.ts:stubReviewQueue` now stamps `status = 'ACCEPTED'` on every tier-5 item (confidence 95-100) at build time, plus increments `summary.acceptedCount`. The surveyor only sees PENDING work in the review queue, matching the §28.1 "≥ 90 + no blocking questions → no dialog" short-circuit rule's intent at the per-item level.
 - [x] All other tiers start as PENDING — same change in `stubReviewQueue`: tier 1-4 items keep `status = 'PENDING'` and add to `summary.pendingCount`. Both behaviours are covered by `__tests__/cad/ai/review-queue-tier5-autoaccept.test.ts`: a 3-point fixture runs the full pipeline, then walks the queue asserting (a) every tier-5 item is ACCEPTED, (b) every tier-1-4 item is PENDING, and (c) the summary counts agree with the walk.
-- [ ] Click item zooms viewport to feature
+- [x] Click item zooms viewport to feature — `ReviewQueuePanel.tsx` now renders each row's title as a clickable button (dotted-underline affordance + `title="Select and zoom to this feature"` tooltip). Clicking calls `focusReviewItem` which (a) re-resolves the feature against the live `drawingStore` so a rejected-then-unapplied row doesn't crash, (b) calls `useSelectionStore.selectMultiple([featureId], 'REPLACE')`, and (c) calls `useViewportStore.zoomToExtents(featureBounds(feature))`. PENDING items whose feature hasn't been applied to the drawing yet fall through gracefully (`getFeature` returns null → no-op).
 - [ ] Accept/Modify/Reject buttons work per item
 - [ ] Batch accept ★★★★★ accepts all tier 5
 - [ ] Batch accept ≥★★★★ accepts tiers 4+5
