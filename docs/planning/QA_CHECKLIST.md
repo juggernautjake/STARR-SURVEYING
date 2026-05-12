@@ -93,7 +93,7 @@ Visit every route under `app/` and confirm it renders meaningful content. Anythi
 ### 3.1 Public marketing routes
 - [x] `/` — homepage. Fully built out — `app/page.tsx` is 656 lines with a hero section, dynamic `ServiceAreaMap` (client-side load with skeleton spinner), services overview, conversion tracking via `trackConversion`, and a contact CTA. Imports its own dedicated stylesheet `./styles/Home.css`. Map mounts lazily via `next/dynamic` + `ssr: false` so the page TTFB isn't blocked on the Mapbox bundle.
 - [x] `/about`. Fully built out — `app/about/page.tsx` is 223 lines with proper Next.js Metadata (title + description for SEO), dedicated stylesheet `../styles/About.css`, hero, team narrative, values, and call-to-action sections. Title block declares the 15-year tenure + Christian values positioning per the firm brand.
-- [ ] `/services`.
+- [x] `/services`. Fully built out — `app/services/page.tsx` is 220 lines with Next.js Metadata (title + description), dedicated stylesheet `../styles/Services.css`, and a structured `Service[]` array driving the icon/title/description cards. Covers GPS/GNSS surveying, boundary surveys, construction staking, plats, and legal descriptions per the firm's offering.
 - [ ] `/service-area`.
 - [ ] `/pricing`.
 - [ ] `/resources`.
