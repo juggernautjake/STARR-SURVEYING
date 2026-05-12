@@ -233,7 +233,11 @@ export function runAIPipeline(
   // slice. v1 packages every feature into a flat queue so the
   // result shape stays valid for downstream consumers.
   onProgress('Packaging review queue', 95);
-  const reviewQueue: AIReviewQueue = stubReviewQueue(allFeatures, scores);
+  const reviewQueue: AIReviewQueue = stubReviewQueue(
+    allFeatures,
+    scores,
+    pointGroups,
+  );
 
   // ── §30 Auto-explanations ──────────────────────────────────
   // Deterministic per-feature explanations sourced from Stage 6
@@ -339,7 +343,8 @@ function emptyReviewQueue(): AIReviewQueue {
 
 function stubReviewQueue(
   features: Feature[],
-  scores: Map<string, import('./types').ConfidenceScore>
+  scores: Map<string, import('./types').ConfidenceScore>,
+  pointGroups: Map<number, import('../types').PointGroup>,
 ): AIReviewQueue {
   const queue: AIReviewQueue = emptyReviewQueue();
   for (const f of features) {
@@ -351,10 +356,13 @@ function stubReviewQueue(
     // requires explicit Accept/Modify/Reject.
     const status: import('./types').ReviewItemStatus =
       tier === 5 ? 'ACCEPTED' : 'PENDING';
+    const pointGroupInfo = derivePointGroupReviewInfo(f, pointGroups);
     const item: import('./types').ReviewItem = {
       id: `review_${f.id}`,
       featureId: f.id,
-      pointIds: [],
+      pointIds: pointGroupInfo
+        ? pointGroupInfo.positionOptions.map((o) => o.pointId)
+        : [],
       annotationIds: [],
       title: f.properties?.aiLabel
         ? String(f.properties.aiLabel)
@@ -365,7 +373,7 @@ function stubReviewQueue(
       tier,
       flags: score?.flags ?? [],
       discrepancies: [],
-      pointGroupInfo: null,
+      pointGroupInfo,
       callComparison: null,
       status,
       userNote: null,
@@ -377,6 +385,55 @@ function stubReviewQueue(
     else queue.summary.pendingCount += 1;
   }
   return queue;
+}
+
+/**
+ * Phase 6 §1915 — when a POINT feature traces back to a
+ * PointGroup that holds multiple positions (calc + set, calc +
+ * found, etc.), surface every position to the review row so
+ * the surveyor can see what was chosen and what alternatives
+ * exist. Non-POINT features and ungrouped points return null.
+ */
+function derivePointGroupReviewInfo(
+  feature: Feature,
+  groups: Map<number, import('../types').PointGroup>,
+): import('./types').PointGroupReviewInfo | null {
+  if (feature.type !== 'POINT') return null;
+  const raw = feature.properties?.aiPointIds;
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  // Stage 2 emits a single pointId on POINT features (no commas).
+  const pointId = raw.split(',')[0];
+  // Find the group whose `allPoints` includes this id.
+  let owning: import('../types').PointGroup | null = null;
+  for (const g of groups.values()) {
+    if (g.allPoints.some((p) => p.id === pointId)) {
+      owning = g;
+      break;
+    }
+  }
+  if (!owning) return null;
+  if (owning.allPoints.length < 2) return null; // single shot — no choice
+  const finalId = owning.finalPoint.id;
+  return {
+    baseNumber: owning.baseNumber,
+    hasCalc: owning.calculated.length > 0,
+    hasSet: owning.set !== null,
+    hasFound: owning.found !== null,
+    finalSource: owning.finalSource,
+    calcSetDelta: owning.calcSetDelta,
+    calcFoundDelta: owning.calcFoundDelta,
+    hasDeltaWarning: owning.deltaWarning,
+    positionOptions: owning.allPoints.map((p) => ({
+      label:
+        p.parsedName.normalizedSuffix === 'NONE'
+          ? `Unsuffixed${p.id === finalId ? ' (used)' : ''}`
+          : `${p.parsedName.normalizedSuffix.charAt(0)}${p.parsedName.normalizedSuffix.slice(1).toLowerCase()}${p.id === finalId ? ' (used)' : ''}`,
+      pointId: p.id,
+      northing: p.northing,
+      easting: p.easting,
+      active: p.id === finalId,
+    })),
+  };
 }
 
 /**

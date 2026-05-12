@@ -57,6 +57,7 @@ export default function ReviewQueuePanel() {
   const openExplanation = useAIStore((s) => s.openExplanation);
   const addFeature = useDrawingStore((s) => s.addFeature);
   const removeFeature = useDrawingStore((s) => s.removeFeature);
+  const updateFeature = useDrawingStore((s) => s.updateFeature);
   const drawingFeatures = useDrawingStore((s) => s.document.features);
   const getFeature = useDrawingStore((s) => s.getFeature);
   const addAnnotation = useAnnotationStore((s) => s.addAnnotation);
@@ -126,6 +127,39 @@ export default function ReviewQueuePanel() {
         setItemStatus(item.id, 'ACCEPTED', null);
       }
     }
+  }
+
+  /**
+   * Phase 6 §1916 — surveyor re-picks which group position drives
+   * the drawn POINT feature. Updates the feature geometry to the
+   * selected option's coordinates; the review queue's
+   * pointGroupInfo block re-renders against the new "used" flag
+   * via React state on the next render pass. The change is
+   * MODIFIED for review-status purposes so the audit log keeps
+   * the surveyor's override visible.
+   */
+  function pickGroupPosition(
+    item: ReviewItem,
+    option: { pointId: string; northing: number; easting: number },
+  ) {
+    if (!item.featureId) return;
+    if (!drawingFeatures[item.featureId]) return;
+    updateFeature(item.featureId, {
+      geometry: {
+        type: 'POINT',
+        point: { x: option.easting, y: option.northing },
+      },
+      properties: {
+        ...drawingFeatures[item.featureId].properties,
+        aiPointIds: option.pointId,
+        aiGroupOverride: true,
+      },
+    });
+    setItemStatus(
+      item.id,
+      'MODIFIED',
+      `Group position re-picked to point ${option.pointId}`,
+    );
   }
 
   /**
@@ -264,6 +298,7 @@ export default function ReviewQueuePanel() {
                           setItemStatus(item.id, status, note);
                         }}
                         onFocus={() => focusReviewItem(item)}
+                        onPickPosition={(option) => pickGroupPosition(item, option)}
                         onExplain={
                           item.featureId &&
                           result?.explanations[item.featureId]
@@ -287,11 +322,17 @@ function ReviewRow({
   onAction,
   onExplain,
   onFocus,
+  onPickPosition,
 }: {
   item: ReviewItem;
   onAction: (status: ReviewItemStatus, note: string | null) => void;
   onExplain: (() => void) | null;
   onFocus: () => void;
+  onPickPosition: (option: {
+    pointId: string;
+    northing: number;
+    easting: number;
+  }) => void;
 }) {
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState(item.userNote ?? '');
@@ -342,6 +383,54 @@ function ReviewRow({
         </div>
         {item.userNote ? (
           <div style={styles.userNote}>“{item.userNote}”</div>
+        ) : null}
+        {/* Phase 6 §1915 — Monument group positions */}
+        {item.pointGroupInfo ? (
+          <div style={styles.groupBox}>
+            <div style={styles.groupHeader}>
+              <span style={styles.groupBadge}>
+                Group #{item.pointGroupInfo.baseNumber}
+              </span>
+              {item.pointGroupInfo.hasDeltaWarning ? (
+                <span style={styles.groupWarning}>
+                  Δ&nbsp;
+                  {Math.max(
+                    item.pointGroupInfo.calcSetDelta ?? 0,
+                    item.pointGroupInfo.calcFoundDelta ?? 0,
+                  ).toFixed(2)}′
+                </span>
+              ) : null}
+            </div>
+            <ul style={styles.groupList}>
+              {item.pointGroupInfo.positionOptions.map((opt) => (
+                <li key={opt.pointId} style={styles.groupOpt}>
+                  <button
+                    type="button"
+                    onClick={() => onPickPosition(opt)}
+                    disabled={opt.active}
+                    style={{
+                      ...styles.groupOptBtn,
+                      fontWeight: opt.active ? 600 : 400,
+                      color: opt.active ? '#111827' : '#374151',
+                      cursor: opt.active ? 'default' : 'pointer',
+                    }}
+                    title={
+                      opt.active
+                        ? 'Currently driving this feature'
+                        : 'Pick this position — replaces the feature geometry'
+                    }
+                  >
+                    <span>
+                      {opt.active ? '●' : '○'} {opt.label}
+                    </span>
+                    <span style={styles.groupCoords}>
+                      N {opt.northing.toFixed(2)}, E {opt.easting.toFixed(2)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
       </div>
       <div style={styles.actions}>
@@ -604,6 +693,62 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     fontWeight: 600,
     cursor: 'not-allowed',
+  },
+  groupBox: {
+    marginTop: 6,
+    padding: '6px 8px',
+    background: '#F9FAFB',
+    border: '1px solid #E5E7EB',
+    borderRadius: 6,
+    fontSize: 11,
+  },
+  groupHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  groupBadge: {
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#6B7280',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+  },
+  groupWarning: {
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#B45309',
+    background: '#FEF3C7',
+    padding: '1px 6px',
+    borderRadius: 999,
+  },
+  groupList: {
+    listStyle: 'none' as const,
+    margin: 0,
+    padding: 0,
+    display: 'grid',
+    rowGap: 2,
+  },
+  groupOpt: {
+    display: 'flex',
+  },
+  groupOptBtn: {
+    display: 'flex',
+    flex: 1,
+    justifyContent: 'space-between',
+    gap: 8,
+    background: 'transparent',
+    border: 'none',
+    padding: '2px 4px',
+    margin: 0,
+    fontSize: 11,
+    textAlign: 'left' as const,
+    borderRadius: 4,
+  },
+  groupCoords: {
+    fontVariantNumeric: 'tabular-nums' as const,
+    color: '#4B5563',
   },
   btnActiveAccept: {
     flex: 1,
