@@ -240,7 +240,7 @@ Maps to master plan Phase D-1 + D-10. ~3 weeks.
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **D-1a** | `POST /api/signup/precheck` + `POST /api/signup/complete` server routes | 2 days |
+| **D-1a** | `POST /api/signup/precheck` + `POST /api/signup/complete` server routes | 2 days | ✅ Precheck shipped — `app/api/signup/precheck/route.ts` checks slug + email; `lib/saas/reserved-slugs.ts` with `validateSlug()` + reserved-slug list; 14 vitest cases. `/api/signup/complete` deferred to next slice. |
 | **D-1b** | Signup wizard 4-step UI at `/signup` | 4 days |
 | **D-1c** | Idempotency + retry logic + provisioning-failed fallback screen | 2 days |
 | **D-1d** | Resend welcome-email template | 1 day |
