@@ -613,11 +613,20 @@ Adds polish + makes the rail learn the user's role.
 ### Phase 5 — Icon migration + tokenisation + flag flip (Week 6)
 Polishes the visual layer. Aligns with `UX_POLISH_PLAN.md` §1.2 (design-token migration) + §1.5 (icon vocabulary).
 
-- [ ] Replace emoji icons in route registry with lucide components
-- [ ] CSS variable tokens for rail backgrounds, hover states, active-border colour
-- [ ] Brand-coloured accents on workspace icons (Work=blue, Equipment=green, etc.)
-- [ ] Feature flag default-on
-- [ ] Old `AdminSidebar.tsx` removed after one PR-cycle grace period
+- [x] Replace emoji icons in route registry with lucide components *(slice 5a — the registry's `iconName` field was already shaped as lucide component-name strings from slice 1a; no migration step needed)*
+- [x] CSS variable tokens for rail backgrounds, hover states, active-border colour *(slice 5a — IconRail.css, AdminPageHeader.css, WorkspaceLanding.css use `var(--brand-blue)` / `var(--brand-blue-dark)` from globals.css; greys and ad-hoc accents remain as inline hex per UX_POLISH_PLAN §1.2 scope)*
+- [ ] Brand-coloured accents on workspace icons (Work=blue, Equipment=green, etc.) *(deferred pending §13.1 open question — operator hasn't locked the per-workspace color choice; specific colors are bikeshed-prone without sign-off)*
+- [x] Feature flag default-on *(slice 5a — `adminNavV2Enabled` now defaults to `true`; the HubGreeting "Revert to old nav" toggle remains until AdminSidebar deletion)*
+- [ ] Old `AdminSidebar.tsx` removed after one PR-cycle grace period *(deferred — the planning README rubric + the CLAUDE.md "don't delete AdminSidebar until grace closes" rule both gate this on the operator's call after the rollout window; this isn't a defer-to-empty-the-folder, it's an explicit policy)*
+
+**Slice 5a — Token sweep + V2 default-flip (shipped):**
+- `app/admin/components/nav/IconRail.css` — rail gradient now `linear-gradient(var(--brand-blue-dark), var(--brand-blue))`.
+- `app/admin/components/nav/AdminPageHeader.css` — breadcrumb hover uses `var(--brand-blue)`.
+- `app/admin/components/nav/WorkspaceLanding.css` — card hover border + label use `var(--brand-blue)`.
+- `lib/admin/nav-store.ts` — `adminNavV2Enabled` initial value is now `true`. Existing users keep their stored choice; new users land on the V2 rail. The HubGreeting toggle still offers "Revert to old nav" as a per-user opt-out until AdminSidebar is removed.
+- Icon registry migration is a no-op: slice 1a already shipped `iconName` values as lucide component-name strings (Home / Briefcase / Truck / Compass / GraduationCap / Building2 / etc.). The IconRail component is the only consumer that maps strings → React components today; downstream consumers (palette, fly-outs, page header) don't render registry icons yet.
+- Brand-coloured workspace icon accents are deferred pending operator answer to §13.1 (which colors per workspace). Once locked, the slice is a small follow-up that adds per-workspace classes to the rail.
+- AdminSidebar.tsx deletion is deferred to the operator's call after a PR-cycle grace per the planning README rubric + CLAUDE.md rule — this is an explicit policy deferral, not a defer-to-clear-the-folder one.
 
 **Acceptance:**
 - Zero emoji in the rail / palette / hub.

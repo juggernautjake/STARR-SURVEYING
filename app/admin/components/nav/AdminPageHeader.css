@@ -30,7 +30,7 @@
 }
 
 .admin-page-header__crumb:hover {
-  color: #1D3095;
+  color: var(--brand-blue);
 }
 
 .admin-page-header__crumb--active {

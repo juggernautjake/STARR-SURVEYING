@@ -11,7 +11,7 @@
   width: 48px;
   height: 100vh;
   height: 100dvh;
-  background: linear-gradient(180deg, #152050 0%, #1D3095 100%);
+  background: linear-gradient(180deg, var(--brand-blue-dark) 0%, var(--brand-blue) 100%);
   display: flex;
   flex-direction: column;
   align-items: center;

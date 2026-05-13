@@ -73,7 +73,7 @@
 }
 
 .ws-landing__card:hover {
-  border-color: #1D3095;
+  border-color: var(--brand-blue);
   box-shadow: 0 2px 8px rgba(29, 48, 149, 0.08);
   transform: translateY(-1px);
 }
@@ -85,7 +85,7 @@
 }
 
 .ws-landing__card:hover .ws-landing__card-label {
-  color: #1D3095;
+  color: var(--brand-blue);
 }
 
 .ws-landing__card-meta {

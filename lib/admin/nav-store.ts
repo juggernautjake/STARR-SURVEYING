@@ -64,7 +64,13 @@ export const useAdminNavStore = create<AdminNavStore>()(
       paletteOpen: false,
       recentRoutes: [],
       pinnedRoutes: [],
-      adminNavV2Enabled: false,
+      // Phase 5 cutover — V2 is the default. Existing users who
+      // already opted in keep their stored true; new users land on
+      // the rail by default. The HubGreeting still offers a "Revert
+      // to old nav" toggle until AdminSidebar is deleted (gated on
+      // the §8 Phase 5 PR-cycle grace period — see deferral note in
+      // the planning doc).
+      adminNavV2Enabled: true,
       personaOverride: null,
 
       openPalette: () => set({ paletteOpen: true }),
