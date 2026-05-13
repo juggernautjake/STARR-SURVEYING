@@ -179,7 +179,7 @@ Maps to master plan slice M-11. ~2-3 weeks.
 | **M-11b** | Org picker screen + AsyncStorage active_org_id cache | 2 days |
 | **M-11c** | Org switcher in Me tab + cascade refresh | 2 days |
 | **M-11d** | Bundle gating on tabs + useActiveOrg() hook | 2 days |
-| **M-11e** | Accept-invite deep link with Expo Linking | 2 days |
+| **M-11e** | Accept-invite deep link with Expo Linking | 2 days | ✅ Linking config + placeholder screen shipped — `mobile/app.json` adds `ios.associatedDomains: ['applinks:starrsoftware.com']` + `android.intentFilters` for https://starrsoftware.com/accept-invite/*; `mobile/app/accept-invite/[token].tsx` placeholder screen reads token from useLocalSearchParams + renders fallback "Open in browser" CTA. Full in-app acceptance flow gated on master plan M-9 auth refactor. |
 | **M-11f** | Offline queue org_id tagging | 1 day |
 | **M-11g** | EAS production submission with multi-tenant build | 1 day |
 | **M-11h** | iOS App Site Association file + Android intent filter | 1 day |
