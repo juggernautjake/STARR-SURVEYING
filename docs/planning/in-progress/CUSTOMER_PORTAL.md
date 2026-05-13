@@ -458,7 +458,7 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 - [x] Route-registry extension with `requiredBundle` field (already shipped earlier slice)
 - [x] Bundle-resolution helper `lib/saas/bundle-gate.ts` with workspace defaults + per-route overrides + Firm Suite implication; 21 vitest cases lock the resolution
 - [ ] Middleware check (gated on Phase A M-9 — JWT must carry activeOrgId + bundles before middleware can read them)
-- [ ] `/admin/billing/upgrade?requiredBundle=…` graceful gate page UI (gated on Phase D-2 billing portal scaffold)
+- [x] `/admin/billing/upgrade?requiredBundle=…` graceful gate page UI — shipped as `app/admin/billing/upgrade/page.tsx`. Reads bundle from query param, renders bundle metadata (label + tagline + monthly/annual pricing), CTAs to /admin/billing + return-to link, support-email fallback. Stripe one-click upgrade flow itself ships with Phase D-2 billing portal scaffold.
 - [x] Per-route bundle audit — `ROUTE_BUNDLE_OVERRIDES` map in `bundle-gate.ts` documents every customer-facing route's bundle (Hub + always-available routes return null; research-cad workspace's split into recon/draft/operator-only is explicit per-route; rest derive from `WORKSPACE_DEFAULT_BUNDLE`)
 - *Acceptance:* `bundleForRoute('/admin/cad')` returns `'draft'`, `canAccessRoute({ pathname: '/admin/jobs', bundles: ['recon'] })` returns false, all locked by tests.
 
