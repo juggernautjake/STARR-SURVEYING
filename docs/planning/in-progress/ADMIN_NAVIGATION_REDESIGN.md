@@ -492,6 +492,17 @@ Lands the central hub the user explicitly asked for. Hub coexists with the old s
 - `app/admin/my-pay/page.tsx` — 5-line wrapper.
 - `app/admin/me/page.tsx` — `panels.pay = <MyPayPanel />`.
 
+**Slice 2b/6 — Last three panels (shipped):**
+Batched the remaining three migrations (MyNotes, MyHours, Fieldbook) since each was the same mechanical extraction with no behavior change.
+- `app/admin/my-notes/MyNotesPanel.tsx` — 568 lines (Fieldbook-API-backed personal/job-notes tabs, list management, public/private toggles, full-page notebook editor).
+- `app/admin/my-hours/MyHoursPanel.tsx` — 647 lines (employee daily time logging — clock state, day picker, hour rows, advances + bonuses, rates editor).
+- `app/admin/learn/fieldbook/FieldbookPanel.tsx` — 513 lines (full fieldbook viewer with categories, search, AudioPlayer, all note management).
+- Each legacy `page.tsx` is now a 5-line wrapper.
+- Hub `panels.hours`, `panels.notes`, `panels.fieldbook` all wired. All 8 personal tabs are now live in `/admin/me`.
+
+**Phase 2 status — slice 2b complete:**
+All 8 personal-page bodies (profile, my-jobs, my-files, schedule, my-pay, my-hours, my-notes, learn/fieldbook) now render identically in their legacy route and the matching `?tab=` panel. Slice 2c flips each legacy route to a `redirect('/admin/me?tab=…')` and removes the now-dead `*Panel` re-import from the wrappers.
+
 **Slice 2a — Hub structural skeleton (shipped):**
 - `app/admin/me/page.tsx` — composes the six panels.
 - `HubGreeting.tsx` — time-of-day greeting + session name; clock-state CTA points at the legacy `/admin/my-hours` until 2b. Time-of-day computed client-side after mount so SSR + hydration agree across part-of-day boundaries.

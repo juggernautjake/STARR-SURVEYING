@@ -15,6 +15,9 @@ import MyJobsPanel from '../my-jobs/MyJobsPanel';
 import MyFilesPanel from '../my-files/MyFilesPanel';
 import SchedulePanel from '../schedule/SchedulePanel';
 import MyPayPanel from '../my-pay/MyPayPanel';
+import MyNotesPanel from '../my-notes/MyNotesPanel';
+import MyHoursPanel from '../my-hours/MyHoursPanel';
+import FieldbookPanel from '../learn/fieldbook/FieldbookPanel';
 
 import HubGreeting from './components/HubGreeting';
 import HubToday from './components/HubToday';
@@ -39,9 +42,12 @@ export default function HubPage() {
         panels={{
           schedule: <SchedulePanel />,
           jobs: <MyJobsPanel />,
+          hours: <MyHoursPanel />,
           pay: <MyPayPanel />,
+          notes: <MyNotesPanel />,
           files: <MyFilesPanel />,
           profile: <ProfilePanel />,
+          fieldbook: <FieldbookPanel />,
         }}
       />
       <HubNotifications />
