@@ -472,6 +472,11 @@ Lands the central hub the user explicitly asked for. Hub coexists with the old s
 - `app/admin/me/components/HubTabs.tsx` — renamed the optional `children` prop to `panels` to avoid shadowing React's built-in children semantics; only the active tab's element mounts, so unmounted panels never fetch their API data.
 - Remaining panels (schedule, my-jobs, my-hours, my-pay, my-notes, my-files, fieldbook) follow this same pattern in their own slices. Slice 2c lands once all eight panels live in the Hub.
 
+**Slice 2b/2 — MyJobs panel (shipped):**
+- `app/admin/my-jobs/MyJobsPanel.tsx` — extracted from `page.tsx` (168 lines, same data fetch + active/completed grouping + JobCard grid + UnderConstruction banner + dev guide).
+- `app/admin/my-jobs/page.tsx` — 5-line wrapper.
+- `app/admin/me/page.tsx` — `panels.jobs = <MyJobsPanel />`. `/admin/me?tab=jobs` now renders the assigned-jobs view directly.
+
 **Slice 2a — Hub structural skeleton (shipped):**
 - `app/admin/me/page.tsx` — composes the six panels.
 - `HubGreeting.tsx` — time-of-day greeting + session name; clock-state CTA points at the legacy `/admin/my-hours` until 2b. Time-of-day computed client-side after mount so SSR + hydration agree across part-of-day boundaries.

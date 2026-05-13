@@ -11,6 +11,7 @@
 // Spec: docs/planning/in-progress/ADMIN_NAVIGATION_REDESIGN.md §5.1 + §8 Phase 2.
 
 import ProfilePanel from '../profile/ProfilePanel';
+import MyJobsPanel from '../my-jobs/MyJobsPanel';
 
 import HubGreeting from './components/HubGreeting';
 import HubToday from './components/HubToday';
@@ -31,7 +32,12 @@ export default function HubPage() {
       <HubGreeting />
       <HubToday />
       <HubPinnedRecent />
-      <HubTabs panels={{ profile: <ProfilePanel /> }} />
+      <HubTabs
+        panels={{
+          jobs: <MyJobsPanel />,
+          profile: <ProfilePanel />,
+        }}
+      />
       <HubNotifications />
       <HubQuickActions />
     </div>
