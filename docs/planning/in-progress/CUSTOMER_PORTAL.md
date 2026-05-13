@@ -441,7 +441,7 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 - [x] Plan history tab — `app/admin/billing/plan-history/page.tsx` + `/api/admin/billing/plan-history` (renders every subscription_events row with color-coded event pill, triggered-by attribution, expandable metadata JSON; tab added to `/admin/billing` nav)
 - [ ] Usage tab — deferred (gated on the per-bundle usage_events ingestion path; meter aggregation lands with B-7 of SUBSCRIPTION_BILLING_SYSTEM.md)
 - [x] Stripe Customer Portal integration — `/api/admin/billing/customer-portal` endpoint (admin-gated; returns 503 with friendly "billing pending" message until `STRIPE_SECRET_KEY` + `subscriptions.stripe_customer_id` are both populated; real Stripe session creation lands with B-5 of SUBSCRIPTION_BILLING_SYSTEM.md). UI: "Update payment method" button now enabled and POSTs to this endpoint.
-- [ ] Plan-change flow with proration preview — `/api/admin/billing/change` endpoint
+- [ ] Plan-change flow with proration preview — `/api/admin/billing/change` endpoint — deferred (requires `STRIPE_SECRET_KEY` + the per-bundle price IDs in `BUNDLES`; proration preview is a Stripe-side computation. Lands with B-5 of SUBSCRIPTION_BILLING_SYSTEM.md.)
 - [x] Cancellation flow with 30-day grace — `/api/admin/billing/cancel` endpoint (admin-gated; toggles `cancel_at_period_end`; writes `subscription_events` row + audit_log entry; UI: "Cancel subscription" / "Reactivate subscription" button on `/admin/billing` opens a confirm + posts; access continues until `current_period_end` per master plan §6).
 - *Acceptance partial:* customer sees their plan + status; action buttons present but disabled with explanatory text until Stripe-side flows ship.
 
@@ -482,10 +482,10 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 - *Acceptance:* operator publishes a release; all customers see the banner; dismissal persists in localStorage; archive page shows history filtered by their bundles. ✓ (waits on the operator-side release composer at /platform/releases to actually publish)
 
 ### Phase D-8 — Org switcher (3 days)
-- Topbar dropdown for multi-org users
-- JWT active-org-id update
-- Smooth redirect
-- *Acceptance:* a user with 2 orgs can flip between them in one click; data isolation holds.
+- [x] `/admin/orgs` page + `/api/admin/orgs` (GET memberships with active flag; POST switches by mirroring into both `user_active_org.active_org_id` AND `registered_users.default_org_id` — the field every org-scoped API reads pre-M-9). Active org gets a yellow "Active" pill; others get a "Switch to" button that posts then reloads to `/admin/me`.
+- [ ] Topbar dropdown — deferred to M-10 chrome rework (the standalone `/admin/orgs` page substitutes for now)
+- [ ] JWT active-org-id update — deferred to M-9 (until then, reload picks up the new default_org_id from the registered_users row)
+- *Acceptance partial:* a user with 2 orgs can flip between them via `/admin/orgs`; data isolation holds because all org-scoped APIs read `default_org_id`. The single-click topbar dropdown waits on M-10.
 
 ### Phase D-9 — Customer audit log (3 days)
 - [x] `/admin/audit` page rendering table view with severity color coding + expandable metadata JSON
