@@ -40,6 +40,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/support': 'Support',
   '/admin/audit': 'Audit log',
   '/admin/billing': 'Billing',
+  '/admin/billing/invoices': 'Invoices',
   '/admin/dashboard': 'Dashboard',
   '/admin/learn': 'Learning Hub',
   '/admin/learn/roadmap': 'My Roadmap',

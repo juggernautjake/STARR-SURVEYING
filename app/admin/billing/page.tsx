@@ -76,6 +76,10 @@ export default function CustomerBillingPage() {
       <header>
         <h1>Billing</h1>
         {state ? <p>{state.org.name}</p> : null}
+        <nav className="billing-tabs">
+          <span className="billing-tab billing-tab--active">Overview</span>
+          <Link href="/admin/billing/invoices" className="billing-tab">Invoices</Link>
+        </nav>
       </header>
 
       {error ? (
@@ -191,7 +195,25 @@ export default function CustomerBillingPage() {
           font-weight: 600;
           margin: 0 0 0.25rem;
         }
-        header p { color: #6B7280; margin: 0; }
+        header p { color: #6B7280; margin: 0 0 0.85rem; }
+        .billing-tabs {
+          display: flex;
+          gap: 0.85rem;
+          border-bottom: 1px solid #E5E7EB;
+        }
+        .billing-tab {
+          padding: 0.45rem 0;
+          font-size: 0.88rem;
+          font-weight: 500;
+          color: #6B7280;
+          text-decoration: none;
+          border-bottom: 2px solid transparent;
+        }
+        .billing-tab:hover { color: #1D3095; }
+        .billing-tab--active {
+          color: #1D3095;
+          border-bottom-color: #1D3095;
+        }
         .billing-error, .billing-loading, .billing-empty {
           padding: 2rem;
           text-align: center;
