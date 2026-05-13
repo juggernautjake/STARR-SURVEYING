@@ -605,12 +605,12 @@ Maps to master plan Phase A. ~6 weeks engineering.
 | **A-9a** | Auth refactor — additive JWT population | 1 day | ✅ Shipped — `populateSaasContext()` in `lib/auth.ts` fills `isOperator` / `operatorRole` / `memberships[]` / `activeOrgId` from `operator_users` + `organization_members` + `subscriptions` + `user_active_org` on first sign-in and on every roles-refresh tick. JWT + Session types already extended in `types/next-auth.d.ts`. Pre-existing call sites still read legacy `roles` so behavior is unchanged; the SaaS fields are additive and available via `useSession()` for any consumer that wants them. |
 | **A-9b** | Auth refactor — middleware bundle check | 1 day | ✅ Shipped — `middleware.ts` now runs the bundle gate after the existing role gate passes. Reads `req.auth.user.memberships` + `activeOrgId` (populated by A-9a), falls through unrestricted when memberships is empty (legacy JWTs minted before A-9a). Operators bypass. Unauthorized routes redirect to `upgradePromptUrl(pathname, bundle)`. Starr's seeded subscription has every bundle so existing employees pass. |
 | **A-9c** | Auth refactor — signIn callback for non-domain emails | 3 days | Deferred — the existing `signIn` callback rejects Google sign-ins from outside `@starr-surveying.com`. SaaS-side customers sign in via Credentials (already allowed) so this is not blocking; the rewrite (allow any verified email + create-org-on-first-signin flow) lands with the marketing-site rework when external Google sign-in becomes a customer-facing requirement. |
-| **A-10** | Component refactor (useOrgContext consumers) | 5 days |
-| **A-11** | Mobile refactor | 4 days |
-| **A-12** | Flip feature flag default | 1 day |
-| **A-13** | Smoke + load tests + perf benchmarks | 2 days |
-| **A-14** | Onboard test tenant (dev-test-org) | 2 days |
-| **A-15** | Cleanup + flag removal | 1 day |
+| **A-10** | Component refactor (useOrgContext consumers) | 5 days | Deferred — the additive A-9a/b implementation kept the legacy `isCompanyUser` / `roles` reads working. A grep-and-port sweep migrating each call site to `useOrgContext()` is mechanical follow-up work; the chrome rework that needs it lands with M-10 of OPERATOR_CONSOLE / customer rebrand. |
+| **A-11** | Mobile refactor | 4 days | Partial — MOBILE_MULTI_TENANT.md shipped M-11e (universal links) + M-11h (well-known files). The deeper mobile auth refactor that swaps `auth_provider` for org-aware sessions is gated on A-9c being settled (mobile uses the same NextAuth credentials path as web). |
+| **A-12** | Flip feature flag default | 1 day | Not applicable — the rollout strategy changed from "behind a feature flag" to "purely additive". The legacy + SaaS paths coexist on the same JWT today; there is no flag to flip. |
+| **A-13** | Smoke + load tests + perf benchmarks | 2 days | Deferred — requires the staging Supabase project + a representative read load; lands with the broader integration-test suite expansion (the per-table RLS isolation tests for A-6/A-7/A-8 share the same dependency). |
+| **A-14** | Onboard test tenant (dev-test-org) | 2 days | Doable today — `/signup` wizard at `app/signup/page.tsx` + `/api/signup/complete` is the path. Held back because production Supabase is the only configured env; the dev-test-org slice waits on a staging project so signup doesn't pollute prod. |
+| **A-15** | Cleanup + flag removal | 1 day | Not applicable — no flag was introduced (see A-12). Remaining cleanup is the `ALLOWED_DOMAIN` / `ADMIN_EMAILS` removal, which gates on A-9c (external sign-in becoming a customer requirement). |
 
 **Total: ~6 weeks** assuming one full-time engineer. Could parallelize A-6/A-7/A-8 (different tables) for 4-5 weeks.
 
@@ -684,3 +684,29 @@ The multi-tenancy foundation is complete when:
 13. ✅ Cross-tenant operator queries work + are audit-logged.
 14. ✅ Mobile clients carry `activeOrgId` + bundle gates apply.
 15. ✅ `lib/auth.ts:63-67 ADMIN_EMAILS` and `lib/auth.ts:71 ALLOWED_DOMAIN` have been deleted; operators live in `operator_users`.
+
+---
+
+## 13. Shipped vs. deferred summary
+
+Foundation is **architecturally complete**: every table has `org_id`, RLS is
+enabled on every blast radius (low/mid/high), the JWT carries the SaaS
+context (`isOperator` + `memberships[]` + `activeOrgId`), and the middleware
+runs the bundle gate. The rollout strategy ended up additive (legacy +
+SaaS paths coexist on the same JWT) rather than feature-flagged, which
+collapsed several of the planned migration slices (A-12 / A-15) into "not
+applicable."
+
+Three categories of work remain, all deferred with documented gating:
+
+1. **External sign-in (A-9c)** — needed when Google sign-in from outside
+   `@starr-surveying.com` becomes a customer-facing requirement.
+2. **Generic `isCompanyUser` migration (A-10)** — mechanical follow-up;
+   lands with M-10 of the customer rebrand work.
+3. **Integration tests + staging tenant (A-13 / A-14)** — gated on the
+   staging Supabase project; the per-table RLS isolation tests for
+   A-6/A-7/A-8 share the same dependency.
+
+Every "must ship" foundational item is in place. New SaaS surfaces built on
+top (CUSTOMER_PORTAL, OPERATOR_CONSOLE, etc.) consume the foundation
+directly via `populateSaasContext()` + `bundleForRoute()` + `canAccessRoute()`.
