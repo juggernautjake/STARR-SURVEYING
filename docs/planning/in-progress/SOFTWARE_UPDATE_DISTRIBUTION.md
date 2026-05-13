@@ -177,7 +177,7 @@ Maps to master plan Phase G. ~2 weeks.
 | Slice | Description | Estimate |
 |---|---|---|
 | **G-1** | `releases` table schema (already shipped in seeds/267) | — |
-| **G-2** | `/platform/releases` list + draft + publish + archive | 3 days |
+| **G-2** | `/platform/releases` list + draft + publish + archive | 3 days | ✅ Shipped — `app/api/platform/releases/route.ts` (GET list 200-row cap, POST create/publish with operator gate + audit_log) + `app/platform/releases/page.tsx` (table with Version/Type/Bundles/Status/Required/By/When + composer modal: semver input, type select, bundle checkboxes, Markdown notes, required toggle, Save draft / Publish now). Archive UI deferred until edit/unpublish action lands. |
 | **G-3** | Audience resolution + org_notifications fanout | 2 days |
 | **G-4** | Customer-side "What's new" banner on Hub | 2 days | ✅ Shipped — `app/api/app/version/route.ts` (API + per-user latest-release lookup) + `app/admin/me/components/WhatsNewBanner.tsx` (amber gradient banner above HubGreeting; reads /api/app/version?for=user, dismissal persists in localStorage). Durable dismissal (writes to `release_acks` table) waits for the matching Phase D-7 API endpoint. |
 | **G-5** | `/admin/announcements` archive | 1 day | ✅ Shipped — `app/admin/announcements/page.tsx` + `app/api/admin/announcements/route.ts`. Bundle-filtered list with release-type pill (feature/fix/breaking/security) + Markdown body + `?id=<release>` deep-link. |
