@@ -455,11 +455,12 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 - *Acceptance:* admin can change org name, set domain restriction, export data, schedule deletion.
 
 ### Phase D-5 — Bundle gating (1 week)
-- Route-registry extension with `requiredBundle`
-- Middleware check
-- `/admin/billing/upgrade?requiredBundle=…` graceful gate page
-- Per-route bundle audit (every existing `/admin/*` route assigned a bundle)
-- *Acceptance:* a Recon-only customer hitting `/admin/cad` sees an upgrade prompt, not a 404.
+- [x] Route-registry extension with `requiredBundle` field (already shipped earlier slice)
+- [x] Bundle-resolution helper `lib/saas/bundle-gate.ts` with workspace defaults + per-route overrides + Firm Suite implication; 21 vitest cases lock the resolution
+- [ ] Middleware check (gated on Phase A M-9 — JWT must carry activeOrgId + bundles before middleware can read them)
+- [ ] `/admin/billing/upgrade?requiredBundle=…` graceful gate page UI (gated on Phase D-2 billing portal scaffold)
+- [x] Per-route bundle audit — `ROUTE_BUNDLE_OVERRIDES` map in `bundle-gate.ts` documents every customer-facing route's bundle (Hub + always-available routes return null; research-cad workspace's split into recon/draft/operator-only is explicit per-route; rest derive from `WORKSPACE_DEFAULT_BUNDLE`)
+- *Acceptance:* `bundleForRoute('/admin/cad')` returns `'draft'`, `canAccessRoute({ pathname: '/admin/jobs', bundles: ['recon'] })` returns false, all locked by tests.
 
 ### Phase D-6 — In-app notifications (1 week)
 - `notifications` table + WebSocket fan-out
