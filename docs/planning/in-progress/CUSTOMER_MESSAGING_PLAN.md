@@ -208,7 +208,7 @@ Maps to master plan Phase F. ~2 weeks.
 |---|---|---|---|
 | **F-1** | `lib/saas/notifications/*` service skeleton + types | 2 days | ✅ Shipped — `lib/saas/notifications/index.ts` |
 | **F-2** | Email adapter (Resend) + base templates (welcome, invite, password-reset) | 2 days | ✅ Shipped — `lib/saas/notifications/{email,templates,events}.ts` + 22 vitest cases |
-| **F-3** | In-app adapter + WebSocket fanout to existing /api/ws/ticket | 2 days |
+| **F-3** | In-app adapter + WebSocket fanout | 2 days | ✅ DB-write half shipped — `lib/saas/notifications/in-app.ts` writes to `org_notifications` via supabaseAdmin. WebSocket fanout deferred to the slice that builds the bell-icon UI consumer (the existing /api/ws/ticket is research-pipeline-specific; a generic per-user channel lands with the consumer). |
 | **F-4** | User preferences UI in /admin/me?tab=profile | 1 day |
 | **F-5** | Lifecycle event triggers wired (trial-ending, payment-failed, etc.) — fires from existing Stripe webhook + scheduled crons | 3 days |
 | **F-6** | Operator broadcast composer + history at /platform/broadcasts | 3 days |

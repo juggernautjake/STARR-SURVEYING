@@ -22,6 +22,7 @@ import {
   type NotificationRecipient,
 } from './index';
 import { renderTemplateDef, sendEmailViaResend, type TemplateDef } from './email';
+import { writeInAppNotification } from './in-app';
 import {
   INVITE_SENT,
   PASSWORD_RESET,
@@ -32,14 +33,18 @@ import {
 
 // ── Channel adapters ──────────────────────────────────────────────────
 
-/** Wire the Resend adapter as the email channel. In-app + SMS stay
- *  as no-op stubs until Phase F-3 / F-8. */
+/** Wire the Resend (email) + Supabase (in-app) adapters as the
+ *  notifications service's channels. SMS stays as a no-op stub
+ *  until Phase F-8 wires Twilio. */
 function wireChannels(): void {
   configureNotificationChannels({
     email: async (input) => {
       await sendEmailViaResend(input);
     },
-    // in_app + sms remain the default no-op stubs from index.ts
+    inApp: async (input) => {
+      await writeInAppNotification(input);
+    },
+    // sms remains the default no-op stub from index.ts
   });
 }
 
