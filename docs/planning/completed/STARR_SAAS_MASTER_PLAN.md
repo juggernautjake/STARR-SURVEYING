@@ -461,16 +461,16 @@ Foundational sub-plans are authored. Remaining sub-plans authored just-in-time w
 
 | # | Doc | Status |
 |---|---|---|
-| 1 | `MULTI_TENANCY_FOUNDATION.md` | ✅ Authored — locks Q1, Q2, Q7, Q8 |
-| 2 | `SUBSCRIPTION_BILLING_SYSTEM.md` | ✅ Authored — locks Q3, Q4 |
-| 3 | `OPERATOR_CONSOLE.md` | ✅ Authored |
-| 4 | `CUSTOMER_PORTAL.md` | ✅ Authored |
-| 5 | `SUPPORT_DESK.md` | Author when Phase E begins; current scope captured in CUSTOMER_PORTAL §3.7 + OPERATOR_CONSOLE §3.6 |
-| 6 | `CUSTOMER_MESSAGING_PLAN.md` | Author when Phase F begins; current scope captured in CUSTOMER_PORTAL §3.8 + OPERATOR_CONSOLE §3.8 |
-| 7 | `SOFTWARE_UPDATE_DISTRIBUTION.md` | Author when Phase G begins; current scope captured in master §5.5 + OPERATOR_CONSOLE §3.7 |
-| 8 | `SAAS_AUTH_REFRESH.md` | Merged into MULTI_TENANCY_FOUNDATION §4; no separate doc needed |
-| 9 | `MOBILE_MULTI_TENANT.md` | Author after Phase A web-side migration completes; mobile changes follow web shape |
-| 10 | `MARKETING_SIGNUP_FLOW.md` | Author when Phase D-10 (marketing redesign) starts; current scope captured in CUSTOMER_PORTAL §3.1 + §3.2 |
+| 1 | `MULTI_TENANCY_FOUNDATION.md` | ✅ Shipped (in `completed/`) |
+| 2 | `SUBSCRIPTION_BILLING_SYSTEM.md` | ✅ Shipped (in `completed/`) |
+| 3 | `OPERATOR_CONSOLE.md` | ✅ Shipped (in `completed/`) |
+| 4 | `CUSTOMER_PORTAL.md` | ✅ Shipped (in `completed/`) |
+| 5 | `SUPPORT_DESK.md` | ✅ Shipped (in `completed/`) |
+| 6 | `CUSTOMER_MESSAGING_PLAN.md` | ✅ Shipped (in `completed/`) |
+| 7 | `SOFTWARE_UPDATE_DISTRIBUTION.md` | ✅ Shipped (in `completed/`) |
+| 8 | `SAAS_AUTH_REFRESH.md` | Merged into MULTI_TENANCY_FOUNDATION §4 / `populateSaasContext()` in `lib/auth.ts`; no separate doc needed |
+| 9 | `MOBILE_MULTI_TENANT.md` | ✅ Shipped (in `completed/`) |
+| 10 | `MARKETING_SIGNUP_FLOW.md` | ✅ Shipped (in `completed/`) |
 
 The Self-Healing Adapter spec already in `completed/` becomes a Phase C / Phase G milestone — the existing plan applies, just under the operator console namespace.
 
@@ -556,3 +556,43 @@ The pivot is complete when:
 - `lib/admin/route-registry.ts:208-213` — `accessibleRoutes()` gains a `bundle` filter.
 - `app/api/webhooks/stripe/route.ts` — the existing webhook handler is the blueprint for the expanded firm-level subscription event handling.
 - `app/admin/research/testing/page.tsx` — the existing developer console; relocates to `/platform/dev/testing` but reuses the implementation.
+
+---
+
+## 13. Rollout summary (build pass 2026-05-13)
+
+This branch is the architectural build-out across every sub-plan above. The
+shipped state is captured in the §11 summary of each sub-plan; this section
+is the umbrella view.
+
+**End-to-end live flows (no Stripe credentials required):**
+
+1. Stranger lands on `/pricing/software`, picks a bundle, clicks Start free trial → `/signup?plan=<bundle>` preselects → fills wizard → `/api/signup/complete` creates org + admin + trial subscription + dispatches welcome email.
+2. Admin signs in, lands on Hub (`/admin/me`), sees WhatsNewBanner + HubNotifications + Today panel.
+3. Admin invites coworker from `/admin/invites` → invite_sent email dispatches → invitee clicks the link (acceptance UI defers behind M-9c).
+4. Admin views subscription state at `/admin/billing` → can cancel (graceful, 30-day) or reactivate → views invoices + plan history tabs → views audit at `/admin/audit`.
+5. Admin tweaks org settings at `/admin/org-settings`, switches active org at `/admin/orgs` (multi-org users).
+6. Admin files support ticket at `/admin/support/new` → operator handles at `/platform/support/tickets/[id]` → customer replies at `/admin/support/tickets/[id]`.
+7. Operator publishes release at `/platform/releases` → release-fanout writes one org_notifications row per matching org → customers see WhatsNewBanner + bell entry + archive at `/admin/announcements` → operator views delivery analytics at `/platform/releases/[id]`.
+8. Operator dashboard at `/platform` shows live MRR + customer count + open tickets + audit 24h + recent signups.
+9. Operator drills into a customer at `/platform/customers/[orgId]` → subscription + stats + recent audit.
+10. Operator manages team at `/platform/team` → invite second operator → audit_log entry on every invite.
+11. Daily trial-ending-D7 cron + payment_failed dispatch keep email comms running without manual operator intervention.
+
+**Deferred surfaces and what they wait on:**
+
+| Surface | Gate |
+|---|---|
+| `/accept-invite/[token]` acceptance page | M-9c — needs activeOrgId switching in the session |
+| Stripe-side billing writes (plan change preview, refund, dunning) | Operator pasting per-bundle price IDs into `BUNDLES` after Stripe dashboard product creation |
+| Bundle middleware fully closed for legacy sessions | M-9c — currently legacy JWTs without populated memberships fall through |
+| Impersonation, Slack alerts, two-person rule | First concrete operational need — schemas + audit patterns ready |
+| Mobile force-update / Expo Updates check | Mobile session refactor (gates on web M-9c) |
+| EAS GitHub Action / canary rollout cron | Operator credentials (EXPO_TOKEN, EAS project) |
+| Knowledge base UI + SLA tracking + email-per-event templates + file attachments | Polish layer; customer base size doesn't yet justify |
+| Logo upload + data-export/delete | Per-org Supabase Storage bucket plumbing |
+
+Every deferred item has a documented gating dependency in its sub-plan's
+§11 summary — none are blocked on technical unknowns. The substrate
+(schema + RLS + JWT shape + middleware + dispatch foundation) is in place
+across all eight sub-plans.
