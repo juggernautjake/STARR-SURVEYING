@@ -91,6 +91,93 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* ── Workspace fly-out ─────────────────────────────────────────── */
+
+.admin-rail__flyout-anchor {
+  position: relative;
+}
+
+.admin-rail__flyout {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 4px);
+  min-width: 260px;
+  max-width: 320px;
+  background: #FFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 20, 25, 0.15);
+  padding: 0.4rem 0;
+  z-index: 100;
+  animation: rail-flyout-in 0.12s ease-out;
+}
+
+@keyframes rail-flyout-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.admin-rail__flyout-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.35rem 0.85rem 0.4rem;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.admin-rail__flyout-title {
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0F1419;
+}
+
+.admin-rail__flyout-shortcut {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.7rem;
+  color: #6B7280;
+  background: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+}
+
+.admin-rail__flyout-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+}
+
+.admin-rail__flyout-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.4rem 0.85rem;
+  text-decoration: none;
+  color: #1F2937;
+  border-left: 3px solid transparent;
+}
+
+.admin-rail__flyout-link:hover {
+  background: #F0F4FF;
+  border-left-color: #1D3095;
+  color: #1D3095;
+}
+
+.admin-rail__flyout-link-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.admin-rail__flyout-link-meta {
+  font-size: 0.72rem;
+  color: #6B7280;
+}
+
+.admin-rail__flyout-link:hover .admin-rail__flyout-link-meta {
+  color: #4B5BB0;
+}
+
 /* Layout overrides for the V2 nav: tighten the topbar + main content
  * left offset from the legacy 260 px sidebar to the 48 px rail. */
 .admin-layout--nav-v2 .admin-layout__main {

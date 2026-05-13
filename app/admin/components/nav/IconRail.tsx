@@ -28,12 +28,12 @@ import {
 
 import {
   WORKSPACE_ORDER,
-  WORKSPACES,
   workspaceOf,
   type Workspace,
 } from '@/lib/admin/route-registry';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
 
+import WorkspaceFlyout from './WorkspaceFlyout';
 import './IconRail.css';
 
 const ICON_FOR_WORKSPACE: Record<Workspace, LucideIcon> = {
@@ -68,23 +68,14 @@ export default function IconRail() {
         />
       </Link>
       <nav className="admin-rail__workspaces">
-        {WORKSPACE_ORDER.map((id) => {
-          const ws = WORKSPACES[id];
-          const Icon = ICON_FOR_WORKSPACE[id];
-          const isActive = activeWorkspace === id;
-          return (
-            <Link
-              key={id}
-              href={ws.href}
-              title={`${ws.label} (${ws.shortcut})`}
-              aria-label={ws.label}
-              aria-current={isActive ? 'page' : undefined}
-              className={`admin-rail__icon${isActive ? ' admin-rail__icon--active' : ''}`}
-            >
-              <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
-            </Link>
-          );
-        })}
+        {WORKSPACE_ORDER.map((id) => (
+          <WorkspaceFlyout
+            key={id}
+            workspace={id}
+            icon={ICON_FOR_WORKSPACE[id]}
+            isActive={activeWorkspace === id}
+          />
+        ))}
       </nav>
       <div className="admin-rail__tools">
         <button

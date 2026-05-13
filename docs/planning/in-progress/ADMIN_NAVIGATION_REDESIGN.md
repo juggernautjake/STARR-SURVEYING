@@ -531,8 +531,8 @@ All 8 personal-page bodies (profile, my-jobs, my-files, schedule, my-pay, my-hou
 Replaces the visible sidebar. Old sidebar still ships under feature flag.
 
 - [x] `app/admin/components/nav/IconRail.tsx` — 48 px rail *(slice 3b)*
-- [ ] `app/admin/components/nav/RailExpandedPanel.tsx` — 240 px expanded mode
-- [ ] `app/admin/components/nav/WorkspaceFlyout.tsx` — hover submenu
+- [ ] `app/admin/components/nav/RailExpandedPanel.tsx` — 240 px expanded mode *(deferred to a Phase 6 polish slice; the fly-out + workspace landings already satisfy the "see this workspace's pages without an extra click" goal)*
+- [x] `app/admin/components/nav/WorkspaceFlyout.tsx` — hover submenu *(slice 3c)*
 - [x] `app/admin/work/page.tsx` — Work landing *(slice 3a)*
 - [x] `app/admin/research-cad/page.tsx` — Research & CAD landing *(slice 3a)*
 - [x] `app/admin/office/page.tsx` — Office landing *(slice 3a)*
@@ -554,6 +554,15 @@ Replaces the visible sidebar. Old sidebar still ships under feature flag.
 - `app/admin/components/AdminLayoutClient.tsx` — reads the flag and conditionally renders `<IconRail />` instead of `<AdminSidebar />`, plus applies the `admin-layout--nav-v2` modifier class.
 - `app/admin/components/nav/CommandPaletteProvider.tsx` — wires `Cmd+1..6` / `Ctrl+1..6` to navigate to the matching workspace landing. Gated to non-editable context per §10 (won't fire when typing in inputs).
 - Old sidebar still ships unchanged when the flag is off — fully reversible per the §2.7 goal.
+
+**Slice 3b/2 — Hub greeting toggle (shipped):**
+- `app/admin/me/components/HubGreeting.tsx` + `app/admin/me/AdminMe.css` — added a "Try new nav (beta)" / "Revert to old nav" toggle to the greeting actions row. Discoverable opt-in without console hacking. Phase 4 absorbs this into the proper persona-override + settings UI in the Profile tab.
+
+**Slice 3c — Workspace fly-outs (shipped):**
+- `app/admin/components/nav/WorkspaceFlyout.tsx` — wraps each IconRail icon. Hover-in starts a 200 ms timer; on fire it opens a submenu of the workspace's accessible pages (filtered by `accessibleRoutes` + `showInRail`). Mouse-out cancels the timer and closes immediately. Keyboard focus also triggers the menu so tab-users get the same affordance.
+- `app/admin/components/nav/IconRail.tsx` — replaced inline workspace `<Link>`s with `<WorkspaceFlyout>` instances. The rail still hosts its own brand logo + Search button outside the fly-out path.
+- `app/admin/components/nav/IconRail.css` — fly-out chrome: positioned to the right of the rail, 260-320 px wide, card list with a left-border accent on hover.
+- The doc's `RailExpandedPanel` (the 240 px "click hamburger to expand" mode) is deferred to a Phase 6 polish slice. With both the fly-out and the workspace-landing card grid in place, the §2.2 "make any surface ≤1 keystroke chord away" goal is already met without it.
 
 **Acceptance:**
 - Rail renders at 48 px; expanding shows 240 px with the workspace's pages.
