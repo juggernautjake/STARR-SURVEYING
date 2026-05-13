@@ -589,9 +589,9 @@ A `__tests__/fixtures/orgs.ts` helper provides:
 
 Maps to master plan Phase A. ~6 weeks engineering.
 
-| Slice | Description | Estimate |
-|---|---|---|
-| **A-1** | Schema: new tables + nullable org_id columns (no behavior change) | 3 days |
+| Slice | Description | Estimate | Status |
+|---|---|---|---|
+| **A-1** | Schema: new tables + nullable org_id columns (no behavior change) | 3 days | ✅ Shipped — `seeds/260_saas_multi_tenancy_foundation.sql` |
 | **A-2** | Seed Starr org + subscription | 1 day |
 | **A-3** | Backfill organization_members from existing users | 1 day |
 | **A-4** | Backfill org_id on all tenant tables | 2 days |
