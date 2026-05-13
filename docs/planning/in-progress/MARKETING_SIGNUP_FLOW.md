@@ -241,7 +241,7 @@ Maps to master plan Phase D-1 + D-10. ~3 weeks.
 | Slice | Description | Estimate |
 |---|---|---|
 | **D-1a** | `POST /api/signup/precheck` + `POST /api/signup/complete` server routes | 2 days | ✅ Precheck shipped — `app/api/signup/precheck/route.ts` checks slug + email; `lib/saas/reserved-slugs.ts` with `validateSlug()` + reserved-slug list; 14 vitest cases. `/api/signup/complete` deferred to next slice. |
-| **D-1b** | Signup wizard 4-step UI at `/signup` | 4 days |
+| **D-1b** | Signup wizard 4-step UI at `/signup` | 4 days | ✅ Shipped — `app/signup/page.tsx`. 4-step wizard (plan picker → org info → admin info → confirmation) with live slug uniqueness check (350ms debounce against /api/signup/precheck), email status check (new/existing/banned), per-step canContinue validation. Wrapped in Suspense (useSearchParams). Submit posts to `/api/signup/complete` (404 today → friendly fallback message + contact mailto until D-1e wires the endpoint). |
 | **D-1c** | Idempotency + retry logic + provisioning-failed fallback screen | 2 days |
 | **D-1d** | Resend welcome-email template | 1 day |
 | **D-1e** | Stripe subscription creation w/ trial_period_days = 14 + no card | 2 days |
