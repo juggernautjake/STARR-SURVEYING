@@ -565,3 +565,24 @@ The customer portal is complete when:
 13. Every customer-facing email (welcome, invite, plan-change, payment-failed, trial-ending, release announcement) ships via Resend with a working template.
 14. The marketing site's pricing page reflects the live bundle catalog; CTAs all work.
 15. Zero hardcoded "Starr Surveying" strings in customer-facing chrome (their org name + brand show consistently).
+
+---
+
+## 11. Shipped vs. deferred summary
+
+Every Phase D-1 through D-10 surface has either landed or is documented as
+deferred against a specific gating dependency. Items waiting on the M-9 auth
+refactor (JWT activeOrgId + bundles): the invite-acceptance page, the
+middleware bundle check, and the topbar org-switcher dropdown. Items waiting
+on Stripe-product readiness (B-5/B-7/B-9 of SUBSCRIPTION_BILLING_SYSTEM.md):
+plan-change preview, the Usage tab, and the data-export/delete flows. Items
+waiting on marketing-site rework: per-card → per-feature comparison matrix
+on `/pricing/software`, and the URL canonicalization that moves the SaaS
+pricing to `/pricing` itself. Items waiting on M-10 chrome rework: bell-icon
+unification (legacy + SaaS), and the topbar org-switcher polish.
+
+All shipped surfaces have route paths + audit-log entries + admin role
+gating; every server endpoint hits Supabase via the same
+`registered_users.default_org_id` → `organization_members` admin check
+pattern so the eventual M-9 cutover is a focused swap rather than a
+rewrite.
