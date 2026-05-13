@@ -449,10 +449,11 @@ Each phase produces a shippable state. Phase letters chained off the master plan
 - *Acceptance:* operator can refund a Starr test invoice; refund appears in Stripe within 30s; audit row written.
 
 ### Phase C-5 — Audit log surface (3 days)
-- `/platform/audit` list + detail.
-- Filters per §3.11.
-- Export to CSV (large queries are async, emailed link).
-- *Acceptance:* every action from Phase C-1 through C-4 is queryable.
+- [x] `/platform/audit` table view with When / Operator / Org / Action / Severity / Details columns
+- [x] Filters: search, severity, action type (dynamically populated from observed actions)
+- [x] `/api/platform/audit` server route — operator auth gate (session.isOperator OR operator_users lookup fallback until M-9), 1000-row cap
+- [ ] CSV export (async via background job) — deferred to follow-up slice when broader operator-tooling export pattern is settled
+- *Acceptance partial:* every action queryable; CSV export remains.
 
 ### Phase C-6 — Move developer surfaces (3 days)
 - Relocate `/admin/research/testing`, `/admin/research/pipeline`, `/admin/research/coverage`, `/admin/research/library`, `/admin/research/billing` (operator side), `/admin/error-log` → under `/platform/dev/*` and `/platform/health/*`.
