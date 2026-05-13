@@ -54,12 +54,13 @@ export function parseHubTab(value: string | null | undefined): HubTab {
 }
 
 interface HubTabsProps {
-  /** When provided, the tab body renders this instead of the legacy-
-   *  link placeholder. Slice 2b will pass real components here. */
-  children?: Partial<Record<HubTab, React.ReactNode>>;
+  /** Map of tab id → panel element. When set, the matching tab renders
+   *  the element instead of the legacy hand-off card. React only mounts
+   *  the active tab's element, so unmounted panels never fetch data. */
+  panels?: Partial<Record<HubTab, React.ReactNode>>;
 }
 
-export default function HubTabs({ children }: HubTabsProps = {}) {
+export default function HubTabs({ panels }: HubTabsProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -101,7 +102,7 @@ export default function HubTabs({ children }: HubTabsProps = {}) {
         })}
       </div>
       <div role="tabpanel" className="hub-tabs__panel">
-        {children?.[active] ?? (
+        {panels?.[active] ?? (
           activeSpec.id === 'overview' ? (
             <p className="hub-tabs__overview">
               Pick a tab above for your personal surfaces, or scroll for

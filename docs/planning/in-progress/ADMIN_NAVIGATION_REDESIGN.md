@@ -465,6 +465,13 @@ Lands the central hub the user explicitly asked for. Hub coexists with the old s
 - [x] Tab state persisted in URL (`?tab=…`) *(slice 2a; nav-store persistence not needed — URL is authoritative)*
 - [ ] `/admin/schedule`, `/admin/my-jobs`, `/admin/my-hours`, `/admin/my-pay`, `/admin/my-notes`, `/admin/my-files`, `/admin/profile`, `/admin/learn/fieldbook` — redirect to `/admin/me?tab=…` *(slice 2c — only after slice 2b moves content into tab bodies; redirecting today would regress real pages to placeholders)*
 
+**Slice 2b — Migration pattern + Profile panel (shipped):**
+- Pattern: each legacy `My …` page extracts its body into a standalone client-component panel (`<XPanel />`); the legacy route becomes a one-line wrapper that renders the panel; the Hub's matching tab body renders the SAME panel via `HubTabs panels={{ tabId: <XPanel /> }}`. Both surfaces show identical content until slice 2c flips the legacy route to a redirect.
+- `app/admin/profile/ProfilePanel.tsx` — extracted from `app/admin/profile/page.tsx` (216 lines → its own client component); `app/admin/profile/page.tsx` now a 5-line wrapper.
+- `app/admin/me/page.tsx` — Hub passes `<ProfilePanel />` to `HubTabs panels` so `/admin/me?tab=profile` renders the real profile content (avatar, hourly rate, credentials, learning credits, recent changes).
+- `app/admin/me/components/HubTabs.tsx` — renamed the optional `children` prop to `panels` to avoid shadowing React's built-in children semantics; only the active tab's element mounts, so unmounted panels never fetch their API data.
+- Remaining panels (schedule, my-jobs, my-hours, my-pay, my-notes, my-files, fieldbook) follow this same pattern in their own slices. Slice 2c lands once all eight panels live in the Hub.
+
 **Slice 2a — Hub structural skeleton (shipped):**
 - `app/admin/me/page.tsx` — composes the six panels.
 - `HubGreeting.tsx` — time-of-day greeting + session name; clock-state CTA points at the legacy `/admin/my-hours` until 2b. Time-of-day computed client-side after mount so SSR + hydration agree across part-of-day boundaries.
