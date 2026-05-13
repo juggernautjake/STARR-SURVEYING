@@ -437,7 +437,9 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 ### Phase D-2 — Billing portal (1.5 weeks)
 - [x] `/admin/billing` Overview — current plan, status (color-coded), monthly price, seats, trial-end + renewal dates, cancel-at-period-end warning, active bundles, action grid (Contact support live; others stubbed)
 - [x] `/api/admin/billing` GET — returns org + subscription state
-- [ ] Invoices / Usage / Plan history tabs — follow-up slices
+- [x] Invoices tab — `app/admin/billing/invoices/page.tsx` + `/api/admin/billing/invoices` (shipped earlier slice)
+- [x] Plan history tab — `app/admin/billing/plan-history/page.tsx` + `/api/admin/billing/plan-history` (renders every subscription_events row with color-coded event pill, triggered-by attribution, expandable metadata JSON; tab added to `/admin/billing` nav)
+- [ ] Usage tab — deferred (gated on the per-bundle usage_events ingestion path; meter aggregation lands with B-7 of SUBSCRIPTION_BILLING_SYSTEM.md)
 - [x] Stripe Customer Portal integration — `/api/admin/billing/customer-portal` endpoint (admin-gated; returns 503 with friendly "billing pending" message until `STRIPE_SECRET_KEY` + `subscriptions.stripe_customer_id` are both populated; real Stripe session creation lands with B-5 of SUBSCRIPTION_BILLING_SYSTEM.md). UI: "Update payment method" button now enabled and POSTs to this endpoint.
 - [ ] Plan-change flow with proration preview — `/api/admin/billing/change` endpoint
 - [x] Cancellation flow with 30-day grace — `/api/admin/billing/cancel` endpoint (admin-gated; toggles `cancel_at_period_end`; writes `subscription_events` row + audit_log entry; UI: "Cancel subscription" / "Reactivate subscription" button on `/admin/billing` opens a confirm + posts; access continues until `current_period_end` per master plan §6).

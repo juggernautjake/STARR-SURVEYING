@@ -124,6 +124,7 @@ export default function CustomerBillingPage() {
         <nav className="billing-tabs">
           <span className="billing-tab billing-tab--active">Overview</span>
           <Link href="/admin/billing/invoices" className="billing-tab">Invoices</Link>
+          <Link href="/admin/billing/plan-history" className="billing-tab">Plan history</Link>
         </nav>
       </header>
 
