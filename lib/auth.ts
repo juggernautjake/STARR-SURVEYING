@@ -290,6 +290,110 @@ export function canAccessWork(roles: UserRole[] | null | undefined): boolean {
   return hasAnyRole(roles, ['admin', 'developer', 'field_crew']);
 }
 
+// =============================================================================
+// SaaS PIVOT — JWT POPULATION HELPER (M-9a)
+// Populates the additive JWT fields (isOperator / operatorRole /
+// memberships / activeOrgId) from the existing tables. Pre-M-9
+// behavior is unchanged because middleware + every existing call
+// site still reads the legacy `roles` / `default_org_id` fields;
+// this helper just makes the SaaS fields available to anyone who
+// wants to consume them via useSession().
+// =============================================================================
+
+interface JwtSaasFields {
+  isOperator?: boolean;
+  operatorRole?: 'platform_admin' | 'platform_billing' | 'platform_support' | 'platform_developer' | 'platform_observer';
+  memberships?: Array<{
+    orgId: string;
+    orgSlug: string;
+    orgName: string;
+    role: 'admin' | 'surveyor' | 'bookkeeper' | 'field_only' | 'view_only';
+    bundles: Array<'recon' | 'draft' | 'office' | 'field' | 'academy' | 'firm_suite'>;
+  }>;
+  activeOrgId?: string | null;
+}
+
+async function populateSaasContext(token: Record<string, unknown> & JwtSaasFields): Promise<void> {
+  const email = token.email as string | undefined;
+  if (!email) return;
+
+  try {
+    // Operator status
+    const { data: operator } = await supabaseAdmin
+      .from('operator_users')
+      .select('email, role, status')
+      .eq('email', email)
+      .maybeSingle();
+    token.isOperator = !!operator && operator.status === 'active';
+    if (token.isOperator) token.operatorRole = operator?.role as JwtSaasFields['operatorRole'];
+
+    // Memberships + active org. Pull subscriptions in one extra query
+    // so we can hand back the active-bundle list per org. This runs at
+    // most once per ROLES_REFRESH_INTERVAL_SECONDS, so the cost is
+    // negligible.
+    const [{ data: memberships }, { data: activeRow }] = await Promise.all([
+      supabaseAdmin
+        .from('organization_members')
+        .select('org_id, role, organizations(id, slug, name)')
+        .eq('user_email', email)
+        .eq('status', 'active'),
+      supabaseAdmin
+        .from('user_active_org')
+        .select('active_org_id')
+        .eq('user_email', email)
+        .maybeSingle(),
+    ]);
+
+    type MembershipRow = { org_id: string; role: string; organizations: { id: string; slug: string; name: string } | null };
+    type OrgRole = 'admin' | 'surveyor' | 'bookkeeper' | 'field_only' | 'view_only';
+    type Bundle = 'recon' | 'draft' | 'office' | 'field' | 'academy' | 'firm_suite';
+
+    const rows = (memberships as MembershipRow[] | null) ?? [];
+    if (rows.length > 0) {
+      // Get subscription bundles for every org the user belongs to
+      const orgIds = rows.map((m) => m.org_id);
+      const { data: subs } = await supabaseAdmin
+        .from('subscriptions')
+        .select('org_id, bundles, status')
+        .in('org_id', orgIds);
+      const bundlesByOrg = new Map<string, Bundle[]>();
+      for (const s of subs ?? []) {
+        const sRow = s as { org_id: string; bundles: string[] | null; status: string };
+        if (sRow.status === 'active' || sRow.status === 'trialing') {
+          bundlesByOrg.set(sRow.org_id, (sRow.bundles ?? []) as Bundle[]);
+        }
+      }
+
+      token.memberships = rows.map((m) => ({
+        orgId: m.org_id,
+        orgSlug: m.organizations?.slug ?? '',
+        orgName: m.organizations?.name ?? '',
+        role: m.role as OrgRole,
+        bundles: bundlesByOrg.get(m.org_id) ?? [],
+      }));
+
+      const persisted = activeRow?.active_org_id as string | null | undefined;
+      if (persisted && bundlesByOrg.has(persisted)) {
+        token.activeOrgId = persisted;
+      } else {
+        // Fall back to the first membership's org so consumers always
+        // have a usable value.
+        token.activeOrgId = rows[0]?.org_id ?? null;
+      }
+    } else {
+      token.memberships = [];
+      token.activeOrgId = null;
+    }
+  } catch (err) {
+    // SaaS-context failure must not break sign-in. Existing legacy
+    // path still works; we just emit empty additive fields.
+    console.error('[auth] populateSaasContext failed', err);
+    token.isOperator = token.isOperator ?? false;
+    token.memberships = token.memberships ?? [];
+    token.activeOrgId = token.activeOrgId ?? null;
+  }
+}
+
 const authConfig: NextAuthConfig = {
   providers: [
     Google({
@@ -364,6 +468,7 @@ const authConfig: NextAuthConfig = {
         token.name = user.name;
         token.picture = user.image;
         token.rolesLastChecked = Math.floor(Date.now() / 1000);
+        await populateSaasContext(token);
       } else if (token.email) {
         const lastChecked = (token.rolesLastChecked as number) || 0;
         const now = Math.floor(Date.now() / 1000);
@@ -376,6 +481,7 @@ const authConfig: NextAuthConfig = {
           token.role = getPrimaryRole(token.roles as UserRole[]);
           token.rolesLastChecked = now;
           token.blocked = false;
+          await populateSaasContext(token);
         }
       }
       return token;
@@ -387,6 +493,11 @@ const authConfig: NextAuthConfig = {
         session.user.role = (token.role as UserRole) || getPrimaryRole(session.user.roles);
         session.user.name = token.name as string;
         session.user.image = token.picture as string;
+        // ── SaaS pivot — surface additive fields on the session ─────────
+        if (token.isOperator !== undefined) session.user.isOperator = token.isOperator as boolean;
+        if (token.operatorRole !== undefined) session.user.operatorRole = token.operatorRole as 'platform_admin' | 'platform_billing' | 'platform_support' | 'platform_developer' | 'platform_observer';
+        if (token.memberships !== undefined) session.user.memberships = token.memberships as NonNullable<typeof session.user.memberships>;
+        if (token.activeOrgId !== undefined) session.user.activeOrgId = token.activeOrgId as string | null;
       }
       return session;
     },
