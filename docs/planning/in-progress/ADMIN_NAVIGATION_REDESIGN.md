@@ -422,16 +422,31 @@ Each phase is shippable on its own; the old sidebar stays intact under a feature
 The biggest single UX win with the lowest blast radius. Adds the command palette without touching any existing page or sidebar.
 
 - [x] `lib/admin/route-registry.ts` — declares every current admin route *(slice 1a)*
-- [ ] `lib/admin/nav-store.ts` — Zustand slice for `recentRoutes`
-- [ ] `app/admin/components/nav/CommandPalette.tsx` — modal with fuzzy search
-- [ ] `app/admin/components/nav/CommandPaletteProvider.tsx` — mounted in `AdminLayoutClient`; registers `Cmd+K` / `Ctrl+K`
-- [ ] Recents auto-tracked on `usePathname` change
-- [ ] Initial command set: every route + 4 actions (Clock in/out, Run AI engine, New job, Approve receipts)
+- [x] `lib/admin/nav-store.ts` — Zustand slice for `recentRoutes` *(slice 1b)*
+- [x] `app/admin/components/nav/CommandPalette.tsx` — modal with fuzzy search *(slice 1b)*
+- [x] `app/admin/components/nav/CommandPaletteProvider.tsx` — mounted in `AdminLayoutClient`; registers `Cmd+K` / `Ctrl+K` *(slice 1b)*
+- [x] Recents auto-tracked on `usePathname` change *(slice 1b)*
+- [x] Initial command set: every route + 4 actions (Clock in/out, Run AI engine, New job, Approve receipts) *(slice 1b — actions ship as deep-links; Phase 6 swaps for event dispatchers + recent-use ranking)*
 
 **Slice 1a — Route registry + audit tests (shipped):**
 - `lib/admin/route-registry.ts` — `Workspace` union, `WORKSPACES` metadata for the 6 workspaces, 60+ `AdminRoute` entries covering every `app/admin/**/page.tsx` (excluding the dynamic `[id]`-segments), re-exports of the §6 role groups from `AdminSidebar.tsx:62-74`, lookups (`findRoute`, `workspaceOf`, `accessibleRoutes`, `routesForWorkspace`), and the `scoreRoute` + `rankRoutes` fuzzy ranker.
 - `__tests__/admin/route-registry.test.ts` — 22 vitest cases: shape + uniqueness, lookups (deepest-prefix `workspaceOf`), access filtering (admin sees all, internalOnly gating, role gates honored, equipment_manager hat), and ranker behavior (the §12 "typing 'rec' surfaces Receipts" acceptance is locked).
 - Note: the icon names in the registry are the lucide-react component strings the Phase 5 audit (§8) will consume. The registry is pure data — no React imports — so consumers (palette, rail, page header) map names to components.
+
+**Slice 1b — Cmd+K palette + recents (shipped):**
+- `lib/admin/nav-store.ts` — separate persist key (`starr-admin-nav`) holding `paletteOpen` (transient) + `recentRoutes` (capped LRU, persisted via `partialize`). Non-`/admin/*` hrefs are dropped at the entry point so junk paths never pollute the list. 8 vitest cases cover open/close/toggle, dedupe, cap, non-admin rejection, and clear.
+- `app/admin/components/nav/CommandPalette.tsx` — modal with search input, three-section results layout (Recent / Pages / Actions), ↑/↓/Enter/Esc keyboard nav, click-outside dismiss, focus management. Empty query shows top 6 recents + top 8 accessible pages + visible actions; non-empty query routes everything through `rankRoutes`. Actions surface as registry-shaped entries so the same ranker scores them and they respect the same role gates.
+- `app/admin/components/nav/CommandPaletteProvider.tsx` — mounts the palette + binds `Cmd+K` / `Ctrl+K` globally + tracks recents on every `usePathname` change. `Cmd+K` is intentionally NOT gated to non-editable context (per §10 it's the universal escape hatch); future shortcuts (`Cmd+1..6`, g-then-X) will be gated when they land in Phase 3.
+- `app/admin/styles/AdminCommandPalette.css` — palette chrome. Inline hex values intentionally — the Phase 5 token-migration pass (§8) sweeps every nav stylesheet at once.
+- `app/admin/components/AdminLayoutClient.tsx` — `<CommandPaletteProvider>` wraps the layout inside the session-authenticated branch so the palette reads roles + isCompanyUser via `useSession`.
+
+**Phase 1 acceptance — current state:**
+- ✅ `Cmd+K` from any admin page opens the palette.
+- ✅ Typing "rec" surfaces Receipts as the top result (locked by test).
+- ✅ Esc closes; arrow keys navigate; Enter activates.
+- ✅ Route-registry audit test confirms every route + workspace + ranker behavior.
+- ✅ Recents auto-tracked on `usePathname`; capped at 50; LRU on duplicates.
+- 3587 vitest cases pass (30 new admin tests + 3557 pre-existing); 35 pre-existing failures (all in mobile/node_modules tsconfig-paths) unchanged; build green; type-check clean.
 
 **Acceptance:**
 - `Cmd+K` from any admin page opens the palette.

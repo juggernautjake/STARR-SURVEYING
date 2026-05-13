@@ -1,0 +1,168 @@
+/* app/admin/styles/AdminCommandPalette.css
+ *
+ * Cmd+K command palette (admin-nav redesign Phase 1 slice 1b). Phase 5
+ * (§8) does the token-migration pass; this slice ships inline hex for
+ * consistency with the rest of AdminLayout.css. The Phase 5 audit
+ * sweeps both. */
+
+.cmdk-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 20, 25, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh 1rem 1rem;
+  z-index: 250; /* above admin-modal (200) so palette sits on top */
+  animation: cmdk-fade 0.12s ease-out;
+}
+
+@keyframes cmdk-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.cmdk-modal {
+  width: min(640px, 100%);
+  background: #FFF;
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+  overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.cmdk-search {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.cmdk-search__icon {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6B7280;
+  background: #F3F4F6;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+}
+
+.cmdk-search__input {
+  flex: 1;
+  border: 0;
+  outline: none;
+  font-size: 0.95rem;
+  color: #0F1419;
+  background: transparent;
+}
+
+.cmdk-search__input::placeholder {
+  color: #9CA3AF;
+}
+
+.cmdk-search__hint {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.7rem;
+  color: #6B7280;
+  background: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  border-bottom-width: 2px;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.cmdk-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.4rem 0;
+}
+
+.cmdk-section + .cmdk-section {
+  border-top: 1px solid #F3F4F6;
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+}
+
+.cmdk-section__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6B7280;
+  padding: 0.4rem 1rem 0.25rem;
+}
+
+.cmdk-row {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 1rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.88rem;
+  color: #1F2937;
+}
+
+.cmdk-row:hover,
+.cmdk-row--selected {
+  background: #F0F4FF;
+  color: #1D3095;
+}
+
+.cmdk-row__label {
+  flex: 0 0 auto;
+  font-weight: 500;
+}
+
+.cmdk-row__meta {
+  flex: 1 1 auto;
+  font-size: 0.78rem;
+  color: #6B7280;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmdk-row--selected .cmdk-row__meta {
+  color: #4B5BB0;
+}
+
+.cmdk-empty {
+  padding: 1.25rem 1rem;
+  font-size: 0.88rem;
+  color: #6B7280;
+  text-align: center;
+}
+
+.cmdk-footer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid #E5E7EB;
+  background: #FAFAFA;
+  font-size: 0.72rem;
+  color: #6B7280;
+}
+
+.cmdk-footer kbd {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.68rem;
+  background: #FFF;
+  border: 1px solid #E5E7EB;
+  border-bottom-width: 2px;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  margin-right: 0.2rem;
+}

@@ -13,6 +13,7 @@ import FloatingActionMenu from './FloatingActionMenu';
 import ErrorProvider from './error/ErrorProvider';
 import ErrorBoundary from './error/ErrorBoundary';
 import { ToastProvider } from './Toast';
+import CommandPaletteProvider from './nav/CommandPaletteProvider';
 
 // Layout-global CSS only. Route-specific stylesheets are imported from
 // the corresponding route segment layout (e.g. app/admin/research/layout.tsx)
@@ -127,6 +128,7 @@ function Inner({ children }: { children: React.ReactNode }) {
   return (
     <ErrorProvider>
       <ToastProvider>
+      <CommandPaletteProvider>
       <div className="admin-layout">
         <AdminSidebar role={role} roles={roles} userName={session.user.name || 'User'} userEmail={session.user.email || ''} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="admin-layout__main">
@@ -148,6 +150,7 @@ function Inner({ children }: { children: React.ReactNode }) {
           <Fieldbook />
         </FloatingActionMenu>
       </div>
+      </CommandPaletteProvider>
     </ToastProvider>
     </ErrorProvider>
   );
