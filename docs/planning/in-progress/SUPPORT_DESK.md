@@ -357,13 +357,13 @@ Maps to master plan Phase E. ~3 weeks.
 | **E-2** | Customer `/admin/support` list + new-ticket form | 3 days | ✅ Shipped — list page + new-ticket form + GET/POST API. The form auto-captures browser context per §3.2 (URL/UA/viewport/timezone/lang) with a user-scrub option before submit; redirects to `/admin/support/tickets/[id]` on success. |
 | **E-3** | Customer ticket thread view + reply UI | 2 days | ✅ Shipped — `/admin/support/tickets/[id]` page (header / message thread / reply textarea + Mark resolved button) + `/api/admin/support/tickets/[id]` GET (org-scoped, excludes internal notes) + POST (append reply, auto-bump awaiting_customer → awaiting_reply) + PATCH (mark_resolved / reopen). Real-time WebSocket fanout deferred — page reloads on submit, sufficient for v1. |
 | **E-4** | Operator `/platform/support` inbox + filters + bulk actions | 3 days | ✅ Inbox shipped — `app/platform/support/page.tsx` lists every ticket cross-tenant with #/Org (linked to customer detail)/Subject/Priority (color-coded)/Status/Assignee/Age columns. Server-side status filter (open / awaiting_reply / awaiting_customer / resolved / closed / all); client-side search across ticket # + subject + org + requester + assignee. `/api/platform/support/tickets` GET operator-gated. Bulk actions + assignment + reply-from-operator live in the corresponding /platform/support/tickets/[id] page (next slice). |
-| **E-5** | Operator ticket detail with internal notes + assign / priority / status / tag actions | 3 days |
-| **E-6** | WebSocket fanout via existing /api/ws/ticket extension | 2 days |
-| **E-7** | Knowledge base: `/docs` public read + admin authoring at `/platform/support/knowledge-base` | 4 days |
-| **E-8** | KB search + suggest-articles on new-ticket form | 2 days |
-| **E-9** | SLA tracking + breach alerts | 2 days |
-| **E-10** | Email integration: ticket-created notifies operators + ticket-replied notifies recipient | 2 days |
-| **E-11** | File attachments (Supabase Storage bucket per org) | 2 days |
+| **E-5** | Operator ticket detail with internal notes + assign / priority / status / tag actions | 3 days | ✅ Shipped — `app/platform/support/tickets/[id]/page.tsx` + `app/api/platform/support/tickets/[id]/route.ts`. Full thread view (including internal notes — amber-tinted), inline controls for status / priority / assignee (PATCH writes audit_log row on every change), reply textarea with "internal note" toggle (external replies auto-flip ticket to `awaiting_customer`). Operator-gated. |
+| **E-6** | WebSocket fanout via existing /api/ws/ticket extension | 2 days | Deferred — both detail pages (customer + operator) reload on reply submission, which is sufficient for the current ticket volume. WebSocket fanout becomes valuable when concurrent operator handling of the same ticket is a regular pattern. |
+| **E-7** | Knowledge base: `/docs` public read + admin authoring at `/platform/support/knowledge-base` | 4 days | Deferred — schema lives in `seeds/268_saas_support_kb_schema.sql` (`kb_articles` with tsvector + GIN). Authoring UI + public `/docs` reader are independent work; customer base size doesn't yet justify the polish layer. |
+| **E-8** | KB search + suggest-articles on new-ticket form | 2 days | Deferred behind E-7. |
+| **E-9** | SLA tracking + breach alerts | 2 days | Deferred — needs the `metadata.sla` shape per ticket priority + a cron job to find breaches. Lands when ticket volume justifies SLAs. |
+| **E-10** | Email integration: ticket-created notifies operators + ticket-replied notifies recipient | 2 days | Deferred — the dispatch foundation is in place (`lib/saas/notifications`) but the specific `ticket_created` / `ticket_replied` event handlers + templates are a focused follow-up. The customer-side reply page auto-flips status today, which makes the operator inbox's "awaiting_operator" filter the in-app inbox notification mechanism. |
+| **E-11** | File attachments (Supabase Storage bucket per org) | 2 days | Deferred — attachments need per-org Supabase Storage bucket + signed-URL plumbing (same dependency as D-4 logo upload). Customers can paste links to external storage today as a workaround. |
 
 **Total: ~3-4 weeks**.
 
@@ -419,3 +419,34 @@ Maps to master plan Phase E. ~3 weeks.
 9. ✅ File attachments work + are scanned for malware.
 10. ✅ Email notifications fire on every ticket event (created, replied, resolved, reassigned).
 11. ✅ All Phase E vitest cases pass.
+
+---
+
+## 11. Shipped vs. deferred summary
+
+End-to-end customer-to-operator ticket flow is **live**:
+
+- Customer files a ticket at `/admin/support/new` with auto-captured
+  browser context + user-scrub.
+- Ticket appears in `/platform/support` inbox with priority / status /
+  assignee columns; operator search + status filter.
+- Operator clicks through to `/platform/support/tickets/[id]`, replies
+  to customer or adds an internal note, changes status / priority /
+  assignee inline — every change writes an audit_log row.
+- Customer sees the reply at `/admin/support/tickets/[id]`, can reply
+  again or mark resolved.
+
+Five polish surfaces defer with documented gating:
+
+1. **WebSocket fanout (E-6)** — page reload is sufficient at current
+   ticket volumes; lands when concurrent-operator-on-same-ticket
+   becomes a regular pattern.
+2. **Knowledge base UI (E-7) + suggest-articles (E-8)** — schema is
+   shipped (`seeds/268`, with tsvector + GIN). Customer base size
+   doesn't yet justify the authoring polish.
+3. **SLA tracking (E-9)** — needs operational SLAs + a cron;
+   ticket volume too low to be useful.
+4. **Email notifications (E-10)** — dispatch foundation in place;
+   per-event templates are a focused follow-up.
+5. **File attachments (E-11)** — needs per-org Supabase Storage
+   bucket + signed-URL plumbing.
