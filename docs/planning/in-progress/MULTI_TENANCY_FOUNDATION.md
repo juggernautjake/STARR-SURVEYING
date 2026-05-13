@@ -592,9 +592,9 @@ Maps to master plan Phase A. ~6 weeks engineering.
 | Slice | Description | Estimate | Status |
 |---|---|---|---|
 | **A-1** | Schema: new tables + nullable org_id columns (no behavior change) | 3 days | ✅ Shipped — `seeds/260_saas_multi_tenancy_foundation.sql` |
-| **A-2** | Seed Starr org + subscription | 1 day |
-| **A-3** | Backfill organization_members from existing users | 1 day |
-| **A-4** | Backfill org_id on all tenant tables | 2 days |
+| **A-2** | Seed Starr org + subscription | 1 day | ✅ Shipped — `seeds/261_saas_seed_starr_tenant.sql` |
+| **A-3** | Backfill organization_members from existing users | 1 day | ✅ Shipped — `seeds/262_saas_backfill_org_members.sql` |
+| **A-4** | Backfill org_id on all tenant tables | 2 days | ✅ Shipped — `seeds/263_saas_backfill_org_id.sql` |
 | **A-5** | Tighten NOT NULL constraints | 1 day |
 | **A-6** | Enable RLS on low-blast-radius tables + tests | 3 days |
 | **A-7** | Enable RLS on mid-blast-radius tables + tests | 4 days |
