@@ -468,10 +468,10 @@ Each phase produces a shippable state. Phase letters chained off the master plan
 - *Acceptance:* operator tags release v2.4, writes notes, schedules broadcast; customers see banner.
 
 ### Phase C-8 — Cross-tenant health + dashboards (1 week)
-- `/platform` dashboard headline metrics wired to real data.
-- `/platform/health` error log cross-tenant.
-- Adapter health from existing Self-Healing spec data.
-- *Acceptance:* MRR is the real Stripe MRR; error log shows every tenant's errors.
+- [x] `/platform` dashboard headline metrics wired to real data — `app/api/platform/dashboard/route.ts` (operator-gated; aggregates `organizations` + `subscriptions` + `support_tickets` + `audit_log`) feeds `app/platform/page.tsx`. Four stat cards (Customers + MRR + Open tickets + Audit-24h) and a "Recent signups (last 7 days)" list. MRR is computed from subscriptions in active/trialing status; Stripe-side reconciliation lands with B-3.
+- [ ] `/platform/health` error log cross-tenant — deferred (the existing `/admin/error-log` covers Starr internally; cross-tenant aggregation needs the relocation work from C-6).
+- [ ] Adapter health from Self-Healing spec data — deferred to follow-up.
+- *Acceptance partial:* every operator sees real headline stats + recent signups; full health dashboard waits on C-6.
 
 ### Phase C-9 — Team + settings + two-person rule (1 week)
 - [x] `/platform/team` list + invite — `app/platform/team/page.tsx` + `/api/platform/team` (GET all operators with role/status/MFA-enrolled/last-signin/invited-by; POST adds a new operator — platform_admin only; audit_log entry with severity=warning on every invite). Role color-coding: platform_admin red, billing yellow, support green, developer blue, observer gray.
