@@ -353,8 +353,8 @@ Maps to master plan Phase E. ~3 weeks.
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **E-1** | Schema already shipped (seeds/267); add seeds/268 for KB + subscribers + links | 1 day |
-| **E-2** | Customer `/admin/support` list + new-ticket form | 3 days |
+| **E-1** | Schema already shipped (seeds/267); add seeds/268 for KB + subscribers + links | 1 day | ✅ Shipped — seeds/267 + seeds/268 |
+| **E-2** | Customer `/admin/support` list + new-ticket form | 3 days | ✅ Server helpers shipped — `lib/saas/tickets.ts` exposes `createSupportTicket` (allocates T-XXXX via SQL fn + inserts ticket + first message) and `listCustomerTickets` (org-scoped query with status filter). UI consumer (the actual /admin/support/new + /admin/support pages) is the next slice. |
 | **E-3** | Customer ticket thread view + reply UI | 2 days |
 | **E-4** | Operator `/platform/support` inbox + filters + bulk actions | 3 days |
 | **E-5** | Operator ticket detail with internal notes + assign / priority / status / tag actions | 3 days |
