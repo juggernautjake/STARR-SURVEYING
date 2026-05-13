@@ -1,9 +1,10 @@
 # Mobile Multi-Tenant — Planning Document
 
-**Status:** RFC / sub-plan of `STARR_SAAS_MASTER_PLAN.md` §3 + §4.1 (mobile parity row)
+**Status:** Spec complete. Foundation shipped (M-11e deep-link config + accept-invite placeholder screen; M-11h iOS/Android verification files). Every other slice (M-11a-d auth refactor + org picker + switcher + bundle gating, M-11f offline-queue tagging, M-11g-i EAS + store submission) is gated on web M-9 auth refactor or operator credentials (Apple Developer, Google Play). Resume after M-9 ships. Archived to `completed/` 2026-05-13.
 **Owner:** Jacob (Starr Software)
 **Created:** 2026-05-13
-**Target repo path:** `docs/planning/in-progress/MOBILE_MULTI_TENANT.md`
+**Last updated:** 2026-05-13 (foundation shipped; remaining deferred on M-9 or operator credentials)
+**Target repo path:** `docs/planning/completed/MOBILE_MULTI_TENANT.md`
 
 > **One-sentence pitch:** Pivot the Starr Field mobile app from single-tenant Starr-Surveying-only auth to multi-tenant org-context with bundle gating, org-switcher, accept-invite deep links, and EAS-driven release distribution — preserving the existing offline-first capture UX.
 
@@ -175,13 +176,13 @@ Maps to master plan slice M-11. ~2-3 weeks.
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **M-11a** | `mobile/lib/auth.tsx` — call new /api/auth/mobile-signin; receive memberships + active_org_id | 3 days |
-| **M-11b** | Org picker screen + AsyncStorage active_org_id cache | 2 days |
-| **M-11c** | Org switcher in Me tab + cascade refresh | 2 days |
-| **M-11d** | Bundle gating on tabs + useActiveOrg() hook | 2 days |
+| **M-11a** | `mobile/lib/auth.tsx` — call new /api/auth/mobile-signin; receive memberships + active_org_id | 3 days | ⏸ Deferred — gated on web M-9 auth refactor. The /api/auth/mobile-signin route returns the same JWT shape M-9 establishes on web; building it before M-9 means rebuilding the shape later. Pick up immediately after M-9 lands. |
+| **M-11b** | Org picker screen + AsyncStorage active_org_id cache | 2 days | ⏸ Deferred — consumes M-11a's session response shape. |
+| **M-11c** | Org switcher in Me tab + cascade refresh | 2 days | ⏸ Deferred — consumes M-11a + needs /api/auth/active-org PATCH endpoint (gated on M-9 web JWT shape). |
+| **M-11d** | Bundle gating on tabs + useActiveOrg() hook | 2 days | ⏸ Deferred — needs the mobile useActiveOrg() to read active org from JWT (M-11a output). Bundle catalog (lib/saas/bundles.ts) already exists; mobile mirrors it as `mobile/lib/saas/bundles.ts` when M-11d ships. |
 | **M-11e** | Accept-invite deep link with Expo Linking | 2 days | ✅ Linking config + placeholder screen shipped — `mobile/app.json` adds `ios.associatedDomains: ['applinks:starrsoftware.com']` + `android.intentFilters` for https://starrsoftware.com/accept-invite/*; `mobile/app/accept-invite/[token].tsx` placeholder screen reads token from useLocalSearchParams + renders fallback "Open in browser" CTA. Full in-app acceptance flow gated on master plan M-9 auth refactor. |
-| **M-11f** | Offline queue org_id tagging | 1 day |
-| **M-11g** | EAS production submission with multi-tenant build | 1 day |
+| **M-11f** | Offline queue org_id tagging | 1 day | ⏸ Deferred — consumes M-11a's active org id. One file change in mobile/lib (whichever stores the queue) once M-11a-c are live. |
+| **M-11g** | EAS production submission with multi-tenant build | 1 day | ⏸ Deferred — operator-credential-gated. `mobile/eas.json` has placeholder Apple Developer + Play Console credentials; ship is `eas build` invocation once credentials are in place. No code work. |
 | **M-11h** | iOS App Site Association file + Android intent filter | 1 day | ✅ Files shipped — `public/.well-known/apple-app-site-association` (universal-link config for accept-invite path) + `public/.well-known/assetlinks.json` (Android App Links). `vercel.json` headers ensure `Content-Type: application/json` on both (Apple/Google require this). Both files have `TEAMID` / `sha256_cert_fingerprints` placeholders the operator fills in from Apple Developer team + Play Console app signing key when those credentials exist. |
 | **M-11i** | App Store + Play Store submission with v2 binary | (operator-gated; depends on Apple Dev + Play Console credentials) |
 
