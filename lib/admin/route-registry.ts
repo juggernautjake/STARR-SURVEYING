@@ -252,11 +252,33 @@ export function scoreRoute(route: AdminRoute, query: string): number {
 }
 
 /** Ranks a route list by `scoreRoute`. Non-matching routes are dropped.
- *  Stable for equal scores (sort uses original index as tie-breaker). */
-export function rankRoutes(routes: AdminRoute[], query: string): AdminRoute[] {
+ *  Stable for equal scores (sort uses original index as tie-breaker).
+ *
+ *  When `recentRoutes` is provided, recent visits boost the score: a
+ *  route at index 0 (most-recent) earns a +25 boost; index 1 → +22;
+ *  each subsequent slot loses 3 points, floored at +0. This nudges
+ *  the palette to surface what the user actually used recently while
+ *  preserving exact-match ranking on the typed query. */
+export function rankRoutes(
+  routes: AdminRoute[],
+  query: string,
+  opts?: { recentRoutes?: string[] },
+): AdminRoute[] {
   const q = query.trim();
   if (!q) return routes.slice();
-  const scored = routes.map((route, index) => ({ route, index, score: scoreRoute(route, q) }));
+  const recencyBoost = (href: string): number => {
+    if (!opts?.recentRoutes) return 0;
+    const idx = opts.recentRoutes.indexOf(href);
+    if (idx < 0) return 0;
+    return Math.max(0, 25 - idx * 3);
+  };
+  const scored = routes.map((route, index) => {
+    const base = scoreRoute(route, q);
+    // Only boost when the route actually matches the query — recency
+    // should reorder hits, not surface unrelated recents.
+    const boost = base > 0 ? recencyBoost(route.href) : 0;
+    return { route, index, score: base + boost };
+  });
   return scored
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score || a.index - b.index)

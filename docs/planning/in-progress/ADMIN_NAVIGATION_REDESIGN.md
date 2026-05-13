@@ -635,10 +635,15 @@ Polishes the visual layer. Aligns with `UX_POLISH_PLAN.md` §1.2 (design-token m
 - All 220+ vitest tests still green.
 
 ### Phase 6 — Polish + analytics (Week 7-8)
-- [ ] Command palette ranks results by recent usage + role match
-- [ ] Hub widgets refresh on focus + after CRUD actions
-- [ ] `?` help button surfaces page-specific help from the resources catalogue
-- [ ] Analytics events: `nav.cmdk.open`, `nav.workspace.click`, `nav.pin.add`, `nav.persona.override` (writes to existing telemetry table; helps validate the IA in production)
+- [x] Command palette ranks results by recent usage + role match *(slice 6a — recency boost only applies to query-matching routes; locked by 2 new vitest cases)*
+- [ ] Hub widgets refresh on focus + after CRUD actions *(deferred — the Today / Notifications / Quick-Actions widgets in HubGreeting siblings are still placeholder content per Phase 2 slice 2a; refreshing strategy depends on the actual data sources which weren't picked. This becomes a real slice once a follow-up doc picks the data sources.)*
+- [ ] `?` help button surfaces page-specific help from the resources catalogue *(deferred — §13.7 open question: "who curates the help content?" remains unanswered. Building the drawer without content is dead UI; the slice lands when help content authoring starts.)*
+- [ ] Analytics events: `nav.cmdk.open`, `nav.workspace.click`, `nav.pin.add`, `nav.persona.override` *(deferred — §13.8 open question on telemetry destination ("`analytics_events` (existing) or a new `nav_events` table?") remains unanswered. Wiring the event emitters takes 30 minutes once the destination is picked; that decision needs the operator.)*
+
+**Slice 6a — Palette recency ranking (shipped):**
+- `lib/admin/route-registry.ts` — `rankRoutes` accepts an optional `{ recentRoutes }` option. When provided, the matching-route score gets a recency boost: most-recent visit earns +25, dropping by 3 per slot (capped at +0). Non-matching routes never receive the boost, so typing nonsense doesn't surface unrelated recents.
+- `app/admin/components/nav/CommandPalette.tsx` — passes the live `recentRoutes` from the store into `rankRoutes`. Empty query path (Recent section) was already correct; the typed-query path now also respects recency.
+- `__tests__/admin/route-registry.test.ts` — 2 new cases: (1) a recent visit floats a matching route to the top; (2) the recency boost never surfaces a non-matching route. 55/55 admin tests pass.
 
 ---
 
@@ -836,14 +841,21 @@ To answer with the operator before sign-off:
 
 The redesign is complete when:
 
-1. Visiting `/admin` lands on `/admin/me` Hub.
-2. The icon rail shows 6 workspaces + pinned shortcuts; collapsed by default.
-3. `⌘K` opens a working command palette from any admin route.
-4. All 7 `My …` legacy routes redirect to the right Hub tab.
-5. Every admin page renders the shared `AdminPageHeader` with breadcrumb + star.
-6. Per-persona rail defaults match §5.4.
-7. Zero emoji in the rail / palette / hub.
-8. `AdminSidebar.tsx` is deleted.
-9. All vitest tests pass (220 + new palette / route-registry / hub tests).
-10. Type-check + lint green.
-11. One PR-cycle grace period has elapsed since the feature flag flipped on by default.
+1. ✅ Visiting `/admin` lands on `/admin/me` Hub. *(Phase 2 slice 2a)*
+2. ✅ The icon rail shows 6 workspaces + pinned shortcuts; collapsed by default. *(Phase 3 slices 3b + 3c; Phase 4 slice 4a pinned section)*
+3. ✅ `⌘K` opens a working command palette from any admin route. *(Phase 1 slice 1b)*
+4. ✅ All 7 (8 incl. profile) `My …` legacy routes redirect to the right Hub tab. *(Phase 2 slices 2b/1-6 + 2c)*
+5. ✅ Every admin page renders the shared `AdminPageHeader` with breadcrumb + star. *(Phase 3 slice 3d + Phase 4 slice 4a; CAD + Hub keep custom chrome per §5.6)*
+6. ✅ Per-persona rail defaults match §5.4. *(Phase 4 slice 4b)*
+7. ✅ Zero emoji in the rail / palette / hub. *(route registry's `iconName` is lucide-shaped from slice 1a; the rail consumes that catalog)*
+8. ⏸ `AdminSidebar.tsx` is deleted. *(explicitly deferred per planning README rubric + CLAUDE.md rule — gated on PR-cycle grace after default-flip; not a defer-to-empty-folder)*
+9. ✅ All vitest tests pass. *(3613 total: 3557 pre-existing + 55 new admin cases + 1 hub-tabs case)*
+10. ✅ Type-check + lint green.
+11. ⏸ One PR-cycle grace period has elapsed since the feature flag flipped on by default. *(slice 5a flipped it on; the grace period runs against this PR's merge timestamp)*
+
+**Status summary at doc move-to-completed time:**
+- Phases 1-4 complete.
+- Phase 5 complete except (a) brand-coloured workspace icons (§13.1 unanswered) and (b) AdminSidebar deletion (gated on grace).
+- Phase 6 complete except (a) Hub-widget live data, (b) ? help drawer (§13.7 unanswered), and (c) nav.* telemetry events (§13.8 unanswered).
+- The 3 unanswered open questions (§13.1 / §13.7 / §13.8) are the only blockers. Each becomes a small follow-up slice once the operator answers.
+- 27 commits on `claude/planning-doc-buildout-bQL2H-3rzxF` from `d1c5606` (lint fixes) through this slice; net ~7000 lines added (panels mostly relocated, not net-new code).

@@ -159,4 +159,22 @@ describe('route-registry — Cmd+K ranker', () => {
     const b = rankRoutes(ADMIN_ROUTES, 'admin');
     expect(a.map((r) => r.href)).toEqual(b.map((r) => r.href));
   });
+
+  it('recentRoutes boosts a matching route over an equally-scoring fresh one (§8 Phase 6)', () => {
+    // "all" matches "All Jobs" and a few descriptions roughly equally;
+    // boosting the recent visit should bump it above the rest. Use a
+    // distinctive query that hits multiple routes.
+    const baseline = rankRoutes(ADMIN_ROUTES, 'admin');
+    expect(baseline.length).toBeGreaterThan(0);
+    const target = baseline[baseline.length - 1].href;
+    const boosted = rankRoutes(ADMIN_ROUTES, 'admin', { recentRoutes: [target] });
+    expect(boosted[0]?.href).toBe(target);
+  });
+
+  it('recencyBoost never surfaces a non-matching route', () => {
+    const ranked = rankRoutes(ADMIN_ROUTES, '~~zzzz~~', {
+      recentRoutes: ['/admin/receipts', '/admin/cad'],
+    });
+    expect(ranked).toEqual([]);
+  });
 });

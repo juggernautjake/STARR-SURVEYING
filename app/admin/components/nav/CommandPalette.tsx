@@ -92,7 +92,7 @@ export default function CommandPalette() {
       const actionRows: PaletteRow[] = visibleActions.map((route) => ({ section: 'Actions', route }));
       return [...recentRows, ...pageRows, ...actionRows];
     }
-    const ranked = rankRoutes([...visiblePages, ...visibleActions], q);
+    const ranked = rankRoutes([...visiblePages, ...visibleActions], q, { recentRoutes });
     const pageRows: PaletteRow[] = [];
     const actionRows: PaletteRow[] = [];
     for (const route of ranked) {
