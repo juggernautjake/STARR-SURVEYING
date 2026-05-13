@@ -463,10 +463,12 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 - *Acceptance:* `bundleForRoute('/admin/cad')` returns `'draft'`, `canAccessRoute({ pathname: '/admin/jobs', bundles: ['recon'] })` returns false, all locked by tests.
 
 ### Phase D-6 — In-app notifications (1 week)
-- `notifications` table + WebSocket fan-out
-- Bell icon in rail + notification panel
-- Templates for each event type per §3.8
-- *Acceptance:* operator broadcasts a release; all customer users see the bell badge + can read.
+- [x] `org_notifications` table + dispatcher write-path (seeds/267 + lib/saas/notifications/in-app.ts)
+- [x] `/api/admin/org-notifications` GET/PATCH/DELETE API — lists user-targeted + org-wide unread; marks read (single or all); dismisses (soft-delete via dismissed_at)
+- [ ] WebSocket fan-out — gated on the bell-icon UI consumer's design (the existing /api/ws/ticket is research-pipeline-specific; a generic per-user channel lands with the consumer)
+- [ ] Bell icon in rail + notification panel — UI consumer for the API above
+- [x] Templates for each event type — file-default templates in lib/saas/notifications/templates.ts + DB overrides via loadTemplate()
+- *Acceptance partial:* dispatch writes to the table; API serves listed / read / dismissed state. Bell-icon UI consumer remains.
 
 ### Phase D-7 — Release-notes drawer (3 days)
 - [x] Version-bump detection — `app/api/app/version/route.ts` returns `latestRelease` per user (G-4 partial)
