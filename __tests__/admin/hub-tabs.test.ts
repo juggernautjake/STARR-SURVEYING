@@ -5,7 +5,7 @@
 // 'overview' safely). UI behavior tests will land alongside JSDOM
 // setup in a later slice.
 //
-// Spec: docs/planning/in-progress/ADMIN_NAVIGATION_REDESIGN.md §5.1 + §8 Phase 2.
+// Spec: docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md §5.1 + §8 Phase 2.
 
 import { describe, expect, it } from 'vitest';
 

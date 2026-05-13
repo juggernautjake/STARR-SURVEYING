@@ -8,7 +8,7 @@
 // state, today data, notifications snapshot, quick-action set,
 // remaining personal-tab bodies.
 //
-// Spec: docs/planning/in-progress/ADMIN_NAVIGATION_REDESIGN.md §5.1 + §8 Phase 2.
+// Spec: docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md §5.1 + §8 Phase 2.
 
 import ProfilePanel from '../profile/ProfilePanel';
 import MyJobsPanel from '../my-jobs/MyJobsPanel';

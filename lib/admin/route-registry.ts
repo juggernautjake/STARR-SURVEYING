@@ -3,7 +3,7 @@
 // Single source of truth for the admin shell's navigation. Consumed by
 // the icon rail, the expanded panel, workspace fly-outs, the Cmd+K
 // palette, the AdminPageHeader breadcrumb resolver, and the route-audit
-// test. Spec: docs/planning/in-progress/ADMIN_NAVIGATION_REDESIGN.md §7.
+// test. Spec: docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md §7.
 //
 // Role gates mirror app/admin/components/AdminSidebar.tsx:62-74 + each
 // section's per-link `roles` value. The redesign reorganises discovery

@@ -4,7 +4,7 @@
 // rejection. The palette UI consumes this store; tests guard the data
 // behavior so the modal can stay focused on UX.
 //
-// Spec: docs/planning/in-progress/ADMIN_NAVIGATION_REDESIGN.md §5.5 + §12.
+// Spec: docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md §5.5 + §12.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 

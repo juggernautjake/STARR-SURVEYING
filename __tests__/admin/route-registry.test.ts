@@ -3,7 +3,7 @@
 // Phase 1 slice 1a — locks the data shape, role-gate parity, and Cmd+K
 // ranker behavior in the registry before the palette UI consumes it.
 //
-// Spec: docs/planning/in-progress/ADMIN_NAVIGATION_REDESIGN.md §7 + §12.
+// Spec: docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md §7 + §12.
 
 import { describe, expect, it } from 'vitest';
 

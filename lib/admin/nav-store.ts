@@ -3,7 +3,7 @@
 // Zustand store for the admin nav redesign — Cmd+K palette UI state +
 // the persisted recents list. Pinning, rail collapse state, and persona
 // override land in later phases (§5.5); this slice only ships what the
-// palette needs. Spec: docs/planning/in-progress/ADMIN_NAVIGATION_REDESIGN.md §5.5.
+// palette needs. Spec: docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md §5.5.
 //
 // Separate from `lib/cad/store/ui-store.ts` because the admin shell and
 // the CAD editor have unrelated concerns + different persist keys.
