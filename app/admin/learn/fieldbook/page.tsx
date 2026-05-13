@@ -1,10 +1,11 @@
 // app/admin/learn/fieldbook/page.tsx
 //
-// Thin route wrapper around `FieldbookPanel`. Same panel renders inside
-// the Hub at /admin/me?tab=fieldbook (admin-nav redesign Phase 2 slice 2b/6).
+// Legacy redirect — the fieldbook view now lives in the Hub at
+// /admin/me?tab=fieldbook (admin-nav redesign Phase 2 slice 2c).
+// FieldbookPanel still ships from this folder so the Hub can import it.
 
-import FieldbookPanel from './FieldbookPanel';
+import { redirect } from 'next/navigation';
 
-export default function FieldbookPage() {
-  return <FieldbookPanel />;
+export default function FieldbookPage(): never {
+  redirect('/admin/me?tab=fieldbook');
 }

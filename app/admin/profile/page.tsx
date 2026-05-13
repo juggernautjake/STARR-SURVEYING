@@ -1,12 +1,11 @@
 // app/admin/profile/page.tsx
 //
-// Thin route wrapper around `ProfilePanel`. The same panel renders
-// inside the Hub at /admin/me?tab=profile (admin-nav redesign Phase 2
-// slice 2b). When slice 2c lands the redirect, this file flips to a
-// server-side `redirect('/admin/me?tab=profile')`.
+// Legacy redirect — the profile view now lives in the Hub at
+// /admin/me?tab=profile (admin-nav redesign Phase 2 slice 2c).
+// ProfilePanel still ships from this folder so the Hub can import it.
 
-import ProfilePanel from './ProfilePanel';
+import { redirect } from 'next/navigation';
 
-export default function ProfilePage() {
-  return <ProfilePanel />;
+export default function ProfilePage(): never {
+  redirect('/admin/me?tab=profile');
 }

@@ -463,7 +463,7 @@ Lands the central hub the user explicitly asked for. Hub coexists with the old s
 - [x] `app/admin/me/components/HubPinnedRecent.tsx` — three-column grid (Pinned placeholder, Recent live from nav-store, Workspaces live from registry) *(slice 2a)*
 - [x] `app/admin/me/components/HubTabs.tsx` — Schedule / Jobs / Hours / Pay / Notes / Files / Profile / Fieldbook tab strip *(slice 2a — strip + URL state + legacy hand-off)*
 - [x] Tab state persisted in URL (`?tab=…`) *(slice 2a; nav-store persistence not needed — URL is authoritative)*
-- [ ] `/admin/schedule`, `/admin/my-jobs`, `/admin/my-hours`, `/admin/my-pay`, `/admin/my-notes`, `/admin/my-files`, `/admin/profile`, `/admin/learn/fieldbook` — redirect to `/admin/me?tab=…` *(slice 2c — only after slice 2b moves content into tab bodies; redirecting today would regress real pages to placeholders)*
+- [x] `/admin/schedule`, `/admin/my-jobs`, `/admin/my-hours`, `/admin/my-pay`, `/admin/my-notes`, `/admin/my-files`, `/admin/profile`, `/admin/learn/fieldbook` — redirect to `/admin/me?tab=…` *(slice 2c)*
 
 **Slice 2b — Migration pattern + Profile panel (shipped):**
 - Pattern: each legacy `My …` page extracts its body into a standalone client-component panel (`<XPanel />`); the legacy route becomes a one-line wrapper that renders the panel; the Hub's matching tab body renders the SAME panel via `HubTabs panels={{ tabId: <XPanel /> }}`. Both surfaces show identical content until slice 2c flips the legacy route to a redirect.
@@ -502,6 +502,12 @@ Batched the remaining three migrations (MyNotes, MyHours, Fieldbook) since each 
 
 **Phase 2 status — slice 2b complete:**
 All 8 personal-page bodies (profile, my-jobs, my-files, schedule, my-pay, my-hours, my-notes, learn/fieldbook) now render identically in their legacy route and the matching `?tab=` panel. Slice 2c flips each legacy route to a `redirect('/admin/me?tab=…')` and removes the now-dead `*Panel` re-import from the wrappers.
+
+**Slice 2c — Legacy route redirects (shipped):**
+- Every one of the 8 legacy routes (`/admin/schedule`, `/admin/my-jobs`, `/admin/my-hours`, `/admin/my-pay`, `/admin/my-notes`, `/admin/my-files`, `/admin/profile`, `/admin/learn/fieldbook`) now ships a server-side `redirect('/admin/me?tab=…')`. Each `*Panel.tsx` file stays in its original folder so the Hub continues to import it; only the route handler swaps.
+- `HubTabs.tsx` simplified: dropped the hand-off CTA branch (every personal tab now has a real panel mounted; the fallback message only fires for the bare overview tab). Unused `Link` import removed.
+- Phase 2 acceptance is now fully met: visiting `/admin` lands on `/admin/me`; all 7 (8 incl. profile) `My …` routes redirect; deep-linked `?tab=hours` opens the Hours tab; tab state survives reload.
+- Notable deferrals: live clock-state in the greeting (no useTimeStore in the repo — flagged as a follow-up); today / notifications / quick-actions panel content (placeholders + direct links remain — bolting on real data is a Phase-4 polish item or its own scoped follow-up).
 
 **Slice 2a — Hub structural skeleton (shipped):**
 - `app/admin/me/page.tsx` — composes the six panels.

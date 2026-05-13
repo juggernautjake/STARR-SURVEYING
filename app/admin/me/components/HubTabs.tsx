@@ -13,7 +13,6 @@
 // through the tab content.
 
 import { useCallback, useMemo } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 export const HUB_TABS = [
@@ -103,26 +102,11 @@ export default function HubTabs({ panels }: HubTabsProps = {}) {
       </div>
       <div role="tabpanel" className="hub-tabs__panel">
         {panels?.[active] ?? (
-          activeSpec.id === 'overview' ? (
-            <p className="hub-tabs__overview">
-              Pick a tab above for your personal surfaces, or scroll for
-              the full Hub landing.
-            </p>
-          ) : (
-            <div className="hub-tabs__handoff">
-              <p>{activeSpec.description}</p>
-              {activeSpec.legacyHref ? (
-                <Link className="hub-btn hub-btn--primary" href={activeSpec.legacyHref}>
-                  Open {activeSpec.label} →
-                </Link>
-              ) : null}
-              <p className="hub-tabs__handoff-note">
-                Tab content moves into this panel in slice 2b of the
-                admin-nav redesign; the legacy route stays live until
-                then.
-              </p>
-            </div>
-          )
+          <p className="hub-tabs__overview">
+            {activeSpec.id === 'overview'
+              ? 'Pick a tab above for your personal surfaces, or scroll for the full Hub landing.'
+              : `${activeSpec.description} (panel not yet mounted in this build.)`}
+          </p>
         )}
       </div>
     </section>

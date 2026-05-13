@@ -1,10 +1,11 @@
 // app/admin/schedule/page.tsx
 //
-// Thin route wrapper around `SchedulePanel`. Same panel renders inside
-// the Hub at /admin/me?tab=schedule (admin-nav redesign Phase 2 slice 2b/4).
+// Legacy redirect — the schedule view now lives in the Hub at
+// /admin/me?tab=schedule (admin-nav redesign Phase 2 slice 2c).
+// SchedulePanel still ships from this folder so the Hub can import it.
 
-import SchedulePanel from './SchedulePanel';
+import { redirect } from 'next/navigation';
 
-export default function SchedulePage() {
-  return <SchedulePanel />;
+export default function SchedulePage(): never {
+  redirect('/admin/me?tab=schedule');
 }
