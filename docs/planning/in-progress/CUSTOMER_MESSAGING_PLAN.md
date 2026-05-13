@@ -204,10 +204,10 @@ CREATE TABLE IF NOT EXISTS public.broadcasts (
 
 Maps to master plan Phase F. ~2 weeks.
 
-| Slice | Description | Estimate |
-|---|---|---|
-| **F-1** | `lib/saas/notifications/*` service skeleton + types | 2 days |
-| **F-2** | Email adapter (Resend) + base templates (welcome, invite, password-reset) | 2 days |
+| Slice | Description | Estimate | Status |
+|---|---|---|---|
+| **F-1** | `lib/saas/notifications/*` service skeleton + types | 2 days | ✅ Shipped — `lib/saas/notifications/index.ts` |
+| **F-2** | Email adapter (Resend) + base templates (welcome, invite, password-reset) | 2 days | ✅ Shipped — `lib/saas/notifications/{email,templates,events}.ts` + 22 vitest cases |
 | **F-3** | In-app adapter + WebSocket fanout to existing /api/ws/ticket | 2 days |
 | **F-4** | User preferences UI in /admin/me?tab=profile | 1 day |
 | **F-5** | Lifecycle event triggers wired (trial-ending, payment-failed, etc.) — fires from existing Stripe webhook + scheduled crons | 3 days |
