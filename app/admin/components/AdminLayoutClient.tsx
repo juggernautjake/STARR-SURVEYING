@@ -35,6 +35,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/work': 'Work',
   '/admin/office': 'Office',
   '/admin/research-cad': 'Research & CAD',
+  '/admin/announcements': "What's new",
+  '/admin/billing/upgrade': 'Upgrade required',
   '/admin/dashboard': 'Dashboard',
   '/admin/learn': 'Learning Hub',
   '/admin/learn/roadmap': 'My Roadmap',

@@ -469,10 +469,10 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 - *Acceptance:* operator broadcasts a release; all customer users see the bell badge + can read.
 
 ### Phase D-7 — Release-notes drawer (3 days)
-- Version-bump detection (server-side `app.version` vs. user's `last_seen_version`)
-- "What's new in v2.4" banner on Hub
-- `/admin/announcements` archive
-- *Acceptance:* operator publishes a release; all customers see the banner; dismissal persists; archive page shows history.
+- [x] Version-bump detection — `app/api/app/version/route.ts` returns `latestRelease` per user (G-4 partial)
+- [x] "What's new in v2.4" banner on Hub — `app/admin/me/components/WhatsNewBanner.tsx` (G-4 complete)
+- [x] `/admin/announcements` archive — `app/admin/announcements/page.tsx` + `app/api/admin/announcements/route.ts` filters releases by user's org bundles, renders Markdown-formatted release notes grouped by release type, supports ?id=<release-id> deep linking
+- *Acceptance:* operator publishes a release; all customers see the banner; dismissal persists in localStorage; archive page shows history filtered by their bundles. ✓ (waits on the operator-side release composer at /platform/releases to actually publish)
 
 ### Phase D-8 — Org switcher (3 days)
 - Topbar dropdown for multi-org users

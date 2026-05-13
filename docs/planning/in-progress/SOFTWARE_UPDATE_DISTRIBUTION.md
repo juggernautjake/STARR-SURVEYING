@@ -180,7 +180,7 @@ Maps to master plan Phase G. ~2 weeks.
 | **G-2** | `/platform/releases` list + draft + publish + archive | 3 days |
 | **G-3** | Audience resolution + org_notifications fanout | 2 days |
 | **G-4** | Customer-side "What's new" banner on Hub | 2 days | ✅ Shipped — `app/api/app/version/route.ts` (API + per-user latest-release lookup) + `app/admin/me/components/WhatsNewBanner.tsx` (amber gradient banner above HubGreeting; reads /api/app/version?for=user, dismissal persists in localStorage). Durable dismissal (writes to `release_acks` table) waits for the matching Phase D-7 API endpoint. |
-| **G-5** | `/admin/announcements` archive | 1 day |
+| **G-5** | `/admin/announcements` archive | 1 day | ✅ Shipped — `app/admin/announcements/page.tsx` + `app/api/admin/announcements/route.ts`. Bundle-filtered list with release-type pill (feature/fix/breaking/security) + Markdown body + `?id=<release>` deep-link. |
 | **G-6** | Mobile Expo Updates check on app launch + force-update enforcement | 2 days |
 | **G-7** | EAS OTA trigger via GitHub Action | 2 days |
 | **G-8** | Canary rollout (10% / 50% / 100% over 24h) cron | 2 days |
