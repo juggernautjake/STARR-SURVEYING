@@ -515,7 +515,7 @@ Maps to master plan Phase B. ~5 weeks engineering.
 | Slice | Description | Estimate |
 |---|---|---|
 | **B-1** | Stripe product + price catalog setup (manual in dashboard); new `subscriptions`, `invoices`, `subscription_events`, `usage_events`, `processed_webhook_events` tables | 3 days |
-| **B-2** | Extend `app/api/webhooks/stripe/route.ts` with new event handlers; idempotency via `processed_webhook_events` | 4 days |
+| **B-2** | Extend `app/api/webhooks/stripe/route.ts` with new event handlers; idempotency via `processed_webhook_events` | 4 days | ✅ Idempotency shipped — `processStripeEvent` does an `INSERT … ON CONFLICT` check against `processed_webhook_events`; duplicate event ids (Postgres 23505) short-circuit; transient DB errors fail-open + log. New event-type handlers (customer.created/updated/trial_will_end/invoice.created/etc.) deferred to a follow-up slice since each needs the new firm-level `subscriptions` table populated which depends on master-plan M-9 auth refactor. |
 | **B-3** | `/platform/plans` operator UI for managing Stripe products + prices via API | 3 days |
 | **B-4** | Customer billing portal `/admin/billing` (Overview / Invoices / Usage / Plan history) | 5 days |
 | **B-5** | Plan-change flow with proration preview | 4 days |

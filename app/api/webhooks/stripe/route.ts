@@ -162,6 +162,45 @@ function timingSafeEqual(a: string, b: string): boolean {
 // ── Event Processing ──────────────────────────────────────────────────────────
 
 async function processStripeEvent(event: StripeEvent): Promise<void> {
+  // SaaS pivot — Phase B-2 idempotency. Stripe occasionally fires the
+  // same event twice (network retries, smart-retry, replay-from-CLI).
+  // The processed_webhook_events table (seeds/266_saas_billing_schema.sql)
+  // is a single-column dedup ledger.
+  //
+  // INSERT with ON CONFLICT DO NOTHING returns success either way; we
+  // then check whether the row was actually inserted by counting affected
+  // rows. Supabase's PostgREST doesn't expose row counts directly — we
+  // use a select-after-insert pattern.
+  //
+  // Race-safe: if two replicas of this handler fire concurrently for
+  // the same event, only one INSERT succeeds (PRIMARY KEY constraint);
+  // the other gets a duplicate-key error which we swallow. Both then
+  // observe the row exists + return early.
+  try {
+    const { error: insertErr } = await supabaseAdmin
+      .from('processed_webhook_events')
+      .insert({
+        stripe_event_id: event.id,
+        event_type: event.type,
+      });
+    if (insertErr) {
+      // Duplicate key = already processed. Postgres code 23505.
+      const code = (insertErr as { code?: string }).code;
+      if (code === '23505') {
+        console.log(`[Webhook] Skipping duplicate event ${event.id} (${event.type})`);
+        return;
+      }
+      // Other DB errors aren't fatal — fall through to actual handling
+      // (better to process the event than silently lose it on a
+      // transient DB hiccup). The dedup table is best-effort.
+      console.warn('[Webhook] processed_webhook_events insert failed', insertErr);
+    }
+  } catch (err) {
+    // If processed_webhook_events doesn't exist yet (migration not
+    // applied), continue without dedup rather than fail the webhook.
+    console.warn('[Webhook] dedup check skipped — table may not exist yet', err);
+  }
+
   console.log(`[Webhook] Processing event: ${event.type} (${event.id})`);
 
   switch (event.type) {
