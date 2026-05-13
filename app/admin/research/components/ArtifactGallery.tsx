@@ -487,7 +487,7 @@ function Lightbox({
       setZoom(prev => {
         const next = Math.min(Math.max(prev + delta, 0.1), 10);
         console.log(`[ArtifactGallery] Scroll zoom: ${(prev * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`, {
-          artifact: artifact?.label, deltaY: e.deltaY,
+          deltaY: e.deltaY,
         });
         return next;
       });

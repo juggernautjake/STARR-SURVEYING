@@ -613,7 +613,7 @@ export default function DrawingCanvas({
     // Start drawing
     setIsDrawing(true);
     setCurrentPoints([svgPt]);
-  }, [activeTool, clientToSvg, applySnap, measureStart, isDrawing, currentPoints, toolSettings, annotations, zoom, addAnnotation, getMaxZIndex]);
+  }, [activeTool, clientToSvg, applySnap, measureStart, isDrawing, currentPoints, toolSettings, zoom, addAnnotation, getMaxZIndex]);
 
   const handleDrawMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawing) {
@@ -721,7 +721,7 @@ export default function DrawingCanvas({
     if (ONE_SHOT_TOOLS.includes(activeTool)) {
       onToolChange?.('select');
     }
-  }, [isDrawing, currentPoints, activeTool, toolSettings, annotations, onToolChange, addAnnotation, getMaxZIndex]);
+  }, [isDrawing, currentPoints, activeTool, toolSettings, onToolChange, addAnnotation, getMaxZIndex]);
 
   // Click to add polyline point
   const handlePolylineClick = useCallback((e: React.MouseEvent) => {
@@ -764,7 +764,7 @@ export default function DrawingCanvas({
     setTextInput(null);
     // Text placement is one-shot — revert to select
     onToolChange?.('select');
-  }, [textInput, clientToSvg, toolSettings, annotations, onToolChange, addAnnotation, getMaxZIndex]);
+  }, [textInput, clientToSvg, toolSettings, onToolChange, addAnnotation, getMaxZIndex]);
 
   // ── Tool: Image Placement ─────────────────────────────────────────────
 
@@ -810,7 +810,7 @@ export default function DrawingCanvas({
     reader.readAsDataURL(file);
     // Reset input so same file can be re-uploaded
     e.target.value = '';
-  }, [clientToSvg, zoom, toolSettings, annotations, onToolChange, addAnnotation, getMaxZIndex]);
+  }, [clientToSvg, zoom, toolSettings, onToolChange, addAnnotation, getMaxZIndex]);
 
   // ── Tool: Eraser ──────────────────────────────────────────────────────
 
@@ -825,7 +825,7 @@ export default function DrawingCanvas({
     if (annId) {
       deleteAnnotation(annId);
     }
-  }, [activeTool, annotations, deleteAnnotation]);
+  }, [activeTool, deleteAnnotation]);
 
   // ── Pan / Zoom (existing logic, tool-aware) ──────────────────────────
 
@@ -1022,7 +1022,7 @@ export default function DrawingCanvas({
       setZoom(newZoom);
       setPan(newPan);
     }
-  }, [activeTool, isDrawing, currentPoints, toolSettings, annotations, zoom, pan, setZoom, clampPan, addAnnotation, getMaxZIndex]);
+  }, [activeTool, isDrawing, currentPoints, toolSettings, zoom, pan, setZoom, clampPan, addAnnotation, getMaxZIndex]);
 
   // Mouse down — pan or draw
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -1407,7 +1407,7 @@ export default function DrawingCanvas({
     }
 
     setContextMenu(null);
-  }, [contextMenu, annotations, elements, onElementClick, onElementModified, onRevertElement, clipboard, addAnnotation, copyAnnotation, deleteAnnotation, getMaxZIndex, pasteAnnotations, updateAnnotation]);
+  }, [contextMenu, annotations, onElementClick, onElementModified, onRevertElement, addAnnotation, copyAnnotation, deleteAnnotation, getMaxZIndex, pasteAnnotations, updateAnnotation]);
 
   // ── Keyboard Shortcuts ────────────────────────────────────────────────
 

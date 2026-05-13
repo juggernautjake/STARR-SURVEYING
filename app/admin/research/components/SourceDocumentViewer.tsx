@@ -230,7 +230,7 @@ export default function SourceDocumentViewer({
       setZoom(prev => {
         const next = Math.min(Math.max(prev + delta, 0.1), 10);
         console.log(`[SourceDocumentViewer] Scroll zoom: ${(prev * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`, {
-          page: currentPage, deltaY: e.deltaY, doc_label: doc.document_label,
+          deltaY: e.deltaY,
         });
         return next;
       });
