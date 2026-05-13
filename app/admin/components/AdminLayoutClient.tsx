@@ -14,6 +14,8 @@ import ErrorProvider from './error/ErrorProvider';
 import ErrorBoundary from './error/ErrorBoundary';
 import { ToastProvider } from './Toast';
 import CommandPaletteProvider from './nav/CommandPaletteProvider';
+import IconRail from './nav/IconRail';
+import { useAdminNavStore } from '@/lib/admin/nav-store';
 
 // Layout-global CSS only. Route-specific stylesheets are imported from
 // the corresponding route segment layout (e.g. app/admin/research/layout.tsx)
@@ -111,6 +113,7 @@ function Inner({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navV2 = useAdminNavStore((s) => s.adminNavV2Enabled);
 
   if (pathname === '/admin/login') return <>{children}</>;
 
@@ -133,8 +136,12 @@ function Inner({ children }: { children: React.ReactNode }) {
     <ErrorProvider>
       <ToastProvider>
       <CommandPaletteProvider>
-      <div className="admin-layout">
-        <AdminSidebar role={role} roles={roles} userName={session.user.name || 'User'} userEmail={session.user.email || ''} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className={`admin-layout${navV2 ? ' admin-layout--nav-v2' : ''}`}>
+        {navV2 ? (
+          <IconRail />
+        ) : (
+          <AdminSidebar role={role} roles={roles} userName={session.user.name || 'User'} userEmail={session.user.email || ''} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        )}
         <div className="admin-layout__main">
           <AdminTopBar title={pageTitle} role={role} onMenuToggle={() => setSidebarOpen((p) => !p)} />
           <div className="admin-layout__content">

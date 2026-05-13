@@ -530,15 +530,15 @@ All 8 personal-page bodies (profile, my-jobs, my-files, schedule, my-pay, my-hou
 ### Phase 3 — Icon rail + workspace landings (Week 3-4)
 Replaces the visible sidebar. Old sidebar still ships under feature flag.
 
-- [ ] `app/admin/components/nav/IconRail.tsx` — 48 px rail
+- [x] `app/admin/components/nav/IconRail.tsx` — 48 px rail *(slice 3b)*
 - [ ] `app/admin/components/nav/RailExpandedPanel.tsx` — 240 px expanded mode
 - [ ] `app/admin/components/nav/WorkspaceFlyout.tsx` — hover submenu
 - [x] `app/admin/work/page.tsx` — Work landing *(slice 3a)*
 - [x] `app/admin/research-cad/page.tsx` — Research & CAD landing *(slice 3a)*
 - [x] `app/admin/office/page.tsx` — Office landing *(slice 3a)*
 - [ ] `app/admin/components/nav/AdminPageHeader.tsx` — breadcrumb + star
-- [ ] Feature flag `useUIStore.adminNavV2Enabled` (default false initially; flip to true after 1 PR cycle)
-- [ ] `Cmd+1..6` workspace shortcuts wired
+- [x] Feature flag `adminNavV2Enabled` on `lib/admin/nav-store.ts` (default false; flipped to true by default in Phase 5 after the PR-cycle grace) *(slice 3b)*
+- [x] `Cmd+1..6` workspace shortcuts wired *(slice 3b)*
 
 **Slice 3a — Workspace landings (shipped):**
 - `app/admin/components/nav/WorkspaceLanding.tsx` — shared factory used by all three new landings. Reads the registry via `accessibleRoutes`, filters to the target workspace, drops the workspace-landing self-link + any `showInRail: false` routes, and renders the result as a card grid. Empty state appears when role gates leave no accessible routes.
@@ -546,6 +546,14 @@ Replaces the visible sidebar. Old sidebar still ships under feature flag.
 - `app/admin/components/nav/WorkspaceLanding.css` — card-grid chrome (Phase 5 token sweep handles inline hex).
 - `AdminLayoutClient.tsx` — added the three new routes to `PAGE_TITLES` so the top-bar title is right.
 - Resolves the dead links from the Hub's Workspaces column (which already pointed at `/admin/work`, `/admin/office`, `/admin/research-cad`).
+
+**Slice 3b — IconRail + feature flag + Cmd+1..6 (shipped):**
+- `lib/admin/nav-store.ts` — added `adminNavV2Enabled: boolean` (default false, persisted via the existing `partialize` allowlist) and `setNavV2(enabled)`. Devs can flip it for preview via `useAdminNavStore.getState().setNavV2(true)` in the browser console; a UI toggle lands with the persona-override picker in Phase 4.
+- `app/admin/components/nav/IconRail.tsx` — 48 px rail with brand logo + 6 lucide workspace icons + Search button. Active workspace highlighted via `workspaceOf(pathname)`. Native `title` attribute for tooltips (the §5.1 200 ms fly-out lands in slice 3c).
+- `app/admin/components/nav/IconRail.css` — rail chrome + `.admin-layout--nav-v2` modifier rules that retarget `.admin-layout__main { margin-left }` and `.admin-topbar { left }` from the legacy 260 px sidebar to the 48 px rail. Mobile hides the rail (the legacy mobile drawer keeps working when the flag is off; slice 3c lands a mobile fallback when on).
+- `app/admin/components/AdminLayoutClient.tsx` — reads the flag and conditionally renders `<IconRail />` instead of `<AdminSidebar />`, plus applies the `admin-layout--nav-v2` modifier class.
+- `app/admin/components/nav/CommandPaletteProvider.tsx` — wires `Cmd+1..6` / `Ctrl+1..6` to navigate to the matching workspace landing. Gated to non-editable context per §10 (won't fire when typing in inputs).
+- Old sidebar still ships unchanged when the flag is off — fully reversible per the §2.7 goal.
 
 **Acceptance:**
 - Rail renders at 48 px; expanding shows 240 px with the workspace's pages.

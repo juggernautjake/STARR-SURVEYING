@@ -19,6 +19,11 @@ interface AdminNavStore {
    *  capped list survives reloads. Used as both the Hub's Recent column
    *  source (top 6) and the empty-query palette's Recent section. */
   recentRoutes: string[];
+  /** Phase 3 — when true, AdminLayoutClient shows the new IconRail
+   *  instead of AdminSidebar. Default off; flipped to true by default
+   *  in Phase 5 after the PR-cycle grace. Persisted so a user can
+   *  opt-in for early review. */
+  adminNavV2Enabled: boolean;
 
   openPalette: () => void;
   closePalette: () => void;
@@ -28,6 +33,8 @@ interface AdminNavStore {
    *  to the front; trims to MAX_RECENT_ROUTES. */
   pushRecent: (href: string) => void;
   clearRecents: () => void;
+
+  setNavV2: (enabled: boolean) => void;
 }
 
 export const useAdminNavStore = create<AdminNavStore>()(
@@ -35,6 +42,7 @@ export const useAdminNavStore = create<AdminNavStore>()(
     (set) => ({
       paletteOpen: false,
       recentRoutes: [],
+      adminNavV2Enabled: false,
 
       openPalette: () => set({ paletteOpen: true }),
       closePalette: () => set({ paletteOpen: false }),
@@ -49,12 +57,17 @@ export const useAdminNavStore = create<AdminNavStore>()(
         }),
 
       clearRecents: () => set({ recentRoutes: [] }),
+
+      setNavV2: (enabled) => set({ adminNavV2Enabled: !!enabled }),
     }),
     {
       name: 'starr-admin-nav',
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ recentRoutes: s.recentRoutes }),
+      partialize: (s) => ({
+        recentRoutes: s.recentRoutes,
+        adminNavV2Enabled: s.adminNavV2Enabled,
+      }),
     },
   ),
 );

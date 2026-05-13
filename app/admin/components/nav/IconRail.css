@@ -1,0 +1,118 @@
+/* app/admin/components/nav/IconRail.css
+ *
+ * 48 px icon rail (admin-nav redesign Phase 3 slice 3b). Phase 5
+ * token sweep migrates inline hex to CSS variables across every
+ * new nav stylesheet at once. */
+
+.admin-rail {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 48px;
+  height: 100vh;
+  height: 100dvh;
+  background: linear-gradient(180deg, #152050 0%, #1D3095 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 0;
+  gap: 0.25rem;
+  z-index: 60;
+  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.08);
+}
+
+.admin-rail__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.admin-rail__brand-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.admin-rail__workspaces {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.admin-rail__tools {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  width: 32px;
+  align-items: center;
+}
+
+.admin-rail__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s, border-left-color 0.15s;
+  border-left: 3px solid transparent;
+  padding-right: 3px; /* keep glyph optically centered when active */
+}
+
+.admin-rail__icon:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFF;
+}
+
+.admin-rail__icon--active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #FFF;
+  border-left-color: #5B7EE6;
+}
+
+.admin-rail__icon--button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.admin-rail__icon--button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Layout overrides for the V2 nav: tighten the topbar + main content
+ * left offset from the legacy 260 px sidebar to the 48 px rail. */
+.admin-layout--nav-v2 .admin-layout__main {
+  margin-left: 48px;
+}
+
+.admin-layout--nav-v2 .admin-topbar {
+  left: 48px;
+}
+
+@media (max-width: 768px) {
+  /* Mobile keeps the legacy hamburger pattern; the rail collapses out
+   * of view and AdminSidebar's existing mobile drawer behavior wins
+   * when the flag is off. When the flag is on, the rail tucks behind
+   * the topbar and the hamburger fall-back is added in slice 3c. */
+  .admin-rail {
+    display: none;
+  }
+
+  .admin-layout--nav-v2 .admin-layout__main,
+  .admin-layout--nav-v2 .admin-topbar {
+    margin-left: 0;
+    left: 0;
+  }
+}
