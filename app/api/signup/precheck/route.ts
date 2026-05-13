@@ -15,7 +15,7 @@
 // Rate-limited at the route level (TODO when middleware lands):
 // 30 requests per minute per IP to deter slug-enumeration.
 //
-// Spec: docs/planning/in-progress/MARKETING_SIGNUP_FLOW.md §4 step 2-3 + §5.
+// Spec: docs/planning/completed/MARKETING_SIGNUP_FLOW.md §4 step 2-3 + §5.
 
 import { NextResponse, type NextRequest } from 'next/server';
 

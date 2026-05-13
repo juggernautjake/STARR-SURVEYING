@@ -15,7 +15,7 @@
 // 24h so a retry returns the original org rather than creating a
 // duplicate.
 //
-// Spec: docs/planning/in-progress/MARKETING_SIGNUP_FLOW.md §5 + §6 D-1e.
+// Spec: docs/planning/completed/MARKETING_SIGNUP_FLOW.md §5 + §6 D-1e.
 
 import { NextResponse, type NextRequest } from 'next/server';
 import bcrypt from 'bcryptjs';

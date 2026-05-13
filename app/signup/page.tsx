@@ -8,7 +8,7 @@
 //
 // URL query: ?plan=<bundle_id> pre-selects step 1.
 //
-// Spec: docs/planning/in-progress/MARKETING_SIGNUP_FLOW.md §4 + §6 D-1b.
+// Spec: docs/planning/completed/MARKETING_SIGNUP_FLOW.md §4 + §6 D-1b.
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';

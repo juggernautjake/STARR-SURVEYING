@@ -1,9 +1,10 @@
 # Marketing + Signup Flow — Planning Document
 
-**Status:** RFC / sub-plan of `STARR_SAAS_MASTER_PLAN.md` §4.1 (marketing site) + Phase D-1/D-10
+**Status:** Spec complete. Foundation shipped (D-1a precheck + complete; D-1b wizard UI; D-1c idempotency + retry; D-1d welcome email). Remaining items deferred with rationale: D-1e Stripe sub creation (Stripe products operator-credential-gated), D-1f subdomain DNS (operator-credential-gated), D-10a-d pricing-page redesign (cost exceeds value pre-customer-validation). Resume after first ~3 customers signed up + Stripe products created. Archived to `completed/` 2026-05-13.
 **Owner:** Jacob (Starr Software)
 **Created:** 2026-05-13
-**Target repo path:** `docs/planning/in-progress/MARKETING_SIGNUP_FLOW.md`
+**Last updated:** 2026-05-13 (foundation shipped; remaining deferred with rationale)
+**Target repo path:** `docs/planning/completed/MARKETING_SIGNUP_FLOW.md`
 
 > **One-sentence pitch:** Redesign the marketing site's pricing page + add a 4-step signup wizard at `/signup` so a stranger can land on the marketing site, pick a bundle, complete signup, and reach `[their-slug].starrsoftware.com/admin/me` with a working 14-day trial in <60 seconds.
 
@@ -242,14 +243,14 @@ Maps to master plan Phase D-1 + D-10. ~3 weeks.
 |---|---|---|
 | **D-1a** | `POST /api/signup/precheck` + `POST /api/signup/complete` server routes | 2 days | ✅ Shipped — both routes. `complete` creates organizations + organization_members + registered_users (bcrypt-hashed password) + org_settings + subscriptions (trialing, 14-day) + audit_log; fires welcome email via dispatch. Idempotency-key support. Stripe customer/sub creation defers via metadata.stripe_pending=true until Stripe products exist; operator finalizes via /platform/billing. |
 | **D-1b** | Signup wizard 4-step UI at `/signup` | 4 days | ✅ Shipped — `app/signup/page.tsx`. 4-step wizard (plan picker → org info → admin info → confirmation) with live slug uniqueness check (350ms debounce against /api/signup/precheck), email status check (new/existing/banned), per-step canContinue validation. Wrapped in Suspense (useSearchParams). Submit posts to `/api/signup/complete` (404 today → friendly fallback message + contact mailto until D-1e wires the endpoint). |
-| **D-1c** | Idempotency + retry logic + provisioning-failed fallback screen | 2 days |
-| **D-1d** | Resend welcome-email template | 1 day |
+| **D-1c** | Idempotency + retry logic + provisioning-failed fallback screen | 2 days | ✅ Shipped — `/api/signup/complete` accepts `idempotencyKey` in body or `Idempotency-Key` header; cached in `organizations.metadata.idempotency_key`. Retry returns the original org. `/signup` wizard shows a friendly "contact info@starrsoftware.com" fallback on any non-2xx response, so partial failures aren't dead ends. |
+| **D-1d** | Resend welcome-email template | 1 day | ✅ Shipped as part of F-2 — `SIGNUP_WELCOME` template in `lib/saas/notifications/templates.ts`. `/api/signup/complete` fires `dispatch('signup_welcome', ...)` immediately after org creation; Resend sends the HTML email with admin name, org name, and admin-shell URL. |
+| **D-1f** | Subdomain DNS + Vercel routing validated for any slug | 1 day | ⏸ Deferred — operator-credential-gated. Requires Vercel project wildcard subdomain DNS (`*.starrsoftware.com` CNAME to `cname.vercel-dns.com`) configured in the Vercel dashboard + DNS provider. Once configured, every signed-up org's subdomain works automatically; no code change. Slug uniqueness + format validation already enforced server-side. |
 | **D-1e** | Stripe subscription creation w/ trial_period_days = 14 + no card | 2 days | ⏸ Deferred until Stripe products exist (operator-credential-gated). The /api/signup/complete route currently creates a trialing subscription row in the local `subscriptions` table with metadata.stripe_pending=true; once Stripe products are created in the Stripe dashboard, this slice wires `stripe.subscriptions.create({customer, trial_period_days: 14, items: [...]})` and updates the row with stripe_subscription_id + stripe_customer_id. ~1 day of engineering once products are live. |
-| **D-1f** | Subdomain DNS + Vercel routing validated for any slug | 1 day |
-| **D-10a** | Pricing page redesign at `/pricing` w/ bundle cards + comparison table | 3 days |
-| **D-10b** | Annual/monthly toggle wired | 1 day |
-| **D-10c** | FAQ accordion + service-pricing section retained | 1 day |
-| **D-10d** | Pricing page SEO (sitemap + schema.org structured data) | 1 day |
+| **D-10a** | Pricing page redesign at `/pricing` w/ bundle cards + comparison table | 3 days | ⏸ Deferred — pricing page redesign is substantial UI work that touches the existing service-pricing calculator (different audience: Starr Surveying's own customers). The /signup wizard's plan-picker step already lets prospects pick bundles + see pricing; the marketing-page redesign is high-value but not blocking signup. Pick up once the SaaS has its first 3-5 paying customers and the marketing voice is clearer. |
+| **D-10b** | Annual/monthly toggle wired | 1 day | ⏸ Deferred with D-10a (same page) |
+| **D-10c** | FAQ accordion + service-pricing section retained | 1 day | ⏸ Deferred with D-10a |
+| **D-10d** | Pricing page SEO (sitemap + schema.org structured data) | 1 day | ⏸ Deferred with D-10a — SEO most valuable after the page is final |
 
 **Total: ~3 weeks**.
 
