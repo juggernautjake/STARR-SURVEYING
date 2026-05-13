@@ -523,7 +523,7 @@ Maps to master plan Phase B. ~5 weeks engineering.
 | **B-7** | Operator refund queue + dunning queue + manual provisioning | 4 days |
 | **B-8** | Reconciliation cron + drift alerting | 2 days |
 | **B-9** | MRR + cohort dashboard | 4 days |
-| **B-10** | Trial-end + payment-failure email sequences via Resend | 2 days |
+| **B-10** | Trial-end + payment-failure email sequences via Resend | 2 days | ✅ Shipped — payment-failed email dispatches from the Stripe webhook handler on `invoice.payment_failed`; trial-ending-D7 email dispatches via the new daily `/api/cron/trial-ending` (wired into vercel.json crons at 14:00 UTC). Both templates live in `lib/saas/notifications/templates.ts`. Recipient resolves via `billing_contact_email` then `primary_admin_email` on the org. |
 
 **Total: ~5 weeks** with one engineer.
 
