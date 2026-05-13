@@ -23,6 +23,7 @@ import {
 } from './index';
 import { renderTemplateDef, sendEmailViaResend, type TemplateDef } from './email';
 import { writeInAppNotification } from './in-app';
+import { sendSMSViaTwilio } from './sms';
 import {
   INVITE_SENT,
   PASSWORD_RESET,
@@ -44,7 +45,9 @@ function wireChannels(): void {
     inApp: async (input) => {
       await writeInAppNotification(input);
     },
-    // sms remains the default no-op stub from index.ts
+    sms: async (input) => {
+      await sendSMSViaTwilio(input);
+    },
   });
 }
 

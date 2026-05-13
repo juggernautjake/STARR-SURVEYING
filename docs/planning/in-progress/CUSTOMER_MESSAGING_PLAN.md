@@ -213,7 +213,7 @@ Maps to master plan Phase F. ~2 weeks.
 | **F-5** | Lifecycle event triggers wired (trial-ending, payment-failed, etc.) — fires from existing Stripe webhook + scheduled crons | 3 days | ✅ payment_failed wired — `app/api/webhooks/stripe/route.ts` calls `registerAllEvents()` at module load + `dispatch('payment_failed', ...)` inside `handleInvoicePaymentFailed`. Legacy research-subs use user_email as billing contact; firm-level subs (post-M-9) use org's billing_contact_email. Notification failure is logged + swallowed (Stripe retry would otherwise re-dunn). trial-ending + subscription-canceled wiring follows the same pattern when the trial-end cron + cancellation handler exist. |
 | **F-6** | Operator broadcast composer + history at /platform/broadcasts | 3 days |
 | **F-7** | Operator email-template editor at /platform/settings | 2 days |
-| **F-8** | SMS adapter (Twilio) + security-alert event wiring | 2 days |
+| **F-8** | SMS adapter (Twilio) + security-alert event wiring | 2 days | ✅ Twilio adapter shipped — `lib/saas/notifications/sms.ts` posts to Twilio Messages API with HTTP Basic auth, form-encoded body, 1600-char cap. Dev-mode short-circuit when TWILIO_ACCOUNT_SID unset (mirrors Resend). `isValidPhoneNumber()` E.164 check. Wired as the `sms` channel in events.ts. Security-alert event registrations themselves (login_new_device, role_escalated) land when their emitters do. |
 
 **Total: ~2 weeks**.
 
