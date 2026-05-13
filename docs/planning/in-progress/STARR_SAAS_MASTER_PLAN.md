@@ -1,8 +1,9 @@
 # Starr Software SaaS Pivot — Master Planning Document
 
-**Status:** RFC / awaiting operator sign-off · DO NOT begin implementation slices until §10 open questions are answered
+**Status:** Architectural decisions Q1/Q2/Q3/Q4/Q7/Q8 locked per sub-plan defaults; remaining Q5/Q6/Q9/Q10 are scoping-only and don't block Phase A implementation. Sub-plans authored: MULTI_TENANCY_FOUNDATION, CUSTOMER_PORTAL, OPERATOR_CONSOLE, SUBSCRIPTION_BILLING_SYSTEM. Phase A (multi-tenancy slice M-1) is the next implementation slice.
 **Owner:** Jacob (Starr Software)
 **Created:** 2026-05-13
+**Last updated:** 2026-05-13 (decisions locked + 4 sub-plans authored)
 **Target repo path:** `docs/planning/in-progress/STARR_SAAS_MASTER_PLAN.md`
 
 > **One-sentence pitch:** Repackage the existing Starr Surveying internal admin tool — CAD, Research/Recon, Education, Field Mobile, Business Management — as a tiered SaaS sold to surveying firms, with self-service customer billing + a Starr Software operator console for managing tenants, support, billing, and rolling out software updates.
@@ -456,20 +457,20 @@ Each phase ends with a shippable state. Numbers are *engineering effort*, not ca
 
 ## 8. Sub-plans roadmap
 
-Each is a follow-up doc to author once the parent decisions in §10 are resolved. Listed in dependency order — earlier docs gate later ones.
+Foundational sub-plans are authored. Remaining sub-plans authored just-in-time when their phase begins. Listed in dependency order — earlier docs gate later ones.
 
-| # | Doc | Authors | Status |
-|---|---|---|---|
-| 1 | `MULTI_TENANCY_FOUNDATION.md` | Architecture | Outline below; full doc deferred until §10 Q1 + Q2 answered |
-| 2 | `SUBSCRIPTION_BILLING_SYSTEM.md` | Backend | After §10 Q3 + Q4 |
-| 3 | `OPERATOR_CONSOLE.md` | Full-stack | After §10 Q1 |
-| 4 | `CUSTOMER_PORTAL.md` | Frontend | After §10 Q3 |
-| 5 | `SUPPORT_DESK.md` | Full-stack | After §10 Q5 |
-| 6 | `CUSTOMER_MESSAGING_PLAN.md` | Backend | After Phase F priority confirmed |
-| 7 | `SOFTWARE_UPDATE_DISTRIBUTION.md` | Devops | After Phase G priority confirmed |
-| 8 | `SAAS_AUTH_REFRESH.md` | Backend | Subset of (1) but worth its own doc — auth changes have the highest blast radius |
-| 9 | `MOBILE_MULTI_TENANT.md` | Mobile | After (1) — mobile changes follow web |
-| 10 | `MARKETING_SIGNUP_FLOW.md` | Frontend | After §10 Q3 + Q4 |
+| # | Doc | Status |
+|---|---|---|
+| 1 | `MULTI_TENANCY_FOUNDATION.md` | ✅ Authored — locks Q1, Q2, Q7, Q8 |
+| 2 | `SUBSCRIPTION_BILLING_SYSTEM.md` | ✅ Authored — locks Q3, Q4 |
+| 3 | `OPERATOR_CONSOLE.md` | ✅ Authored |
+| 4 | `CUSTOMER_PORTAL.md` | ✅ Authored |
+| 5 | `SUPPORT_DESK.md` | Author when Phase E begins; current scope captured in CUSTOMER_PORTAL §3.7 + OPERATOR_CONSOLE §3.6 |
+| 6 | `CUSTOMER_MESSAGING_PLAN.md` | Author when Phase F begins; current scope captured in CUSTOMER_PORTAL §3.8 + OPERATOR_CONSOLE §3.8 |
+| 7 | `SOFTWARE_UPDATE_DISTRIBUTION.md` | Author when Phase G begins; current scope captured in master §5.5 + OPERATOR_CONSOLE §3.7 |
+| 8 | `SAAS_AUTH_REFRESH.md` | Merged into MULTI_TENANCY_FOUNDATION §4; no separate doc needed |
+| 9 | `MOBILE_MULTI_TENANT.md` | Author after Phase A web-side migration completes; mobile changes follow web shape |
+| 10 | `MARKETING_SIGNUP_FLOW.md` | Author when Phase D-10 (marketing redesign) starts; current scope captured in CUSTOMER_PORTAL §3.1 + §3.2 |
 
 The Self-Healing Adapter spec already in `completed/` becomes a Phase C / Phase G milestone — the existing plan applies, just under the operator console namespace.
 
@@ -493,29 +494,36 @@ The Self-Healing Adapter spec already in `completed/` becomes a Phase C / Phase 
 
 ---
 
-## 10. Open questions (BLOCKING — operator must answer before any slice ships)
+## 10. Decisions + remaining open questions
 
-These materially change the implementation plan. Defaults are proposed but should not be assumed.
+### 10a. Locked decisions (per sub-plan defaults)
 
-**Q1 — Multi-tenancy model.** Shared DB + RLS (recommended), schema-per-tenant, or DB-per-tenant?
+These are now canonical. Operator overrides go via the master plan PR review process.
 
-**Q2 — URL strategy.** Subdomain (`firm.starrsoftware.com`, recommended), path-based (`/firm/admin`), or both with custom-domain as a tier feature?
+| Q | Decision | Source |
+|---|---|---|
+| **Q1 — Multi-tenancy model** | Shared DB + Postgres RLS + `org_id` column on every tenant table | `MULTI_TENANCY_FOUNDATION.md` §0 |
+| **Q2 — URL strategy** | Subdomain (`acme.starrsoftware.com`) for v1; custom domain (`survey.acme.com`) as Firm Suite tier add-on | `MULTI_TENANCY_FOUNDATION.md` §0, §5 |
+| **Q3 — Product bundling** | Five separate bundles (Recon / Draft / Office / Field / Academy) + Firm Suite all-in-one | `SUBSCRIPTION_BILLING_SYSTEM.md` §0 |
+| **Q4 — Pricing structure** | Hybrid: per-firm base + per-seat overage. Firm Suite $499/mo (5 seats) + $49/extra seat. Standalone bundles $49-199/mo per seat (1-seat minimum). 14-day free trial, no card up front. Annual = 20% off. | `SUBSCRIPTION_BILLING_SYSTEM.md` §0, §3.1 |
+| **Q7 — Brand identity** | "Starr Software" platform brand stays. Product = "Starr Software Suite" or per-bundle ("Starr Recon", "Starr Field", etc.). White-label add-on for resellers in a later tier. | `MULTI_TENANCY_FOUNDATION.md` §0 |
+| **Q8 — Starr's data fate** | Tenant #1 of its own SaaS, silent migration. Every existing user → member of Starr org with role mapped from current global role. Email announcement explains the change. | `MULTI_TENANCY_FOUNDATION.md` §0, §6.3 |
 
-**Q3 — Product bundling.** Five-bundle proposal in §1.1 vs. one Firm Suite vs. á la carte. Specifically: is Recon a separate sellable product or only available as part of Firm Suite?
+### 10b. Remaining open questions (scoping-only — don't block Phase A)
 
-**Q4 — Pricing structure.** Per-firm flat tier, per-seat tiered, or hybrid (recommended)? With or without 14-day free trial? Annual vs monthly billing as default?
+These shape downstream sub-plans but don't block the multi-tenancy foundation or operator console work.
 
-**Q5 — Build vs buy for support ticketing.** In-house ticketing (recommended) or embed Intercom/Help Scout/Zendesk?
+**Q5 — Build vs buy for support ticketing.** Recommendation: build in-house, per OPERATOR_CONSOLE.md §3.6 + CUSTOMER_PORTAL.md §3.7. Decide before Phase E (week ~14).
 
-**Q6 — Desktop client?** Build an Electron/Tauri wrapper (3-month effort) or stick with web + mobile (recommended)?
+**Q6 — Desktop client?** Recommendation: defer — web + mobile suffices for v1. Revisit after first 20 customers if pattern of desktop-only feature requests emerges. Decide before Phase I (long-term).
 
-**Q7 — Brand identity.** Is the product "Starr Software" (the existing brand)? Or do we name the SaaS product separately (e.g., "Survey Suite by Starr Software") to keep room for non-Starr-affiliated firms to feel comfortable subscribing? This shapes asset rework + domain choice.
+**Q9 — Initial GTM window.** When is the first external customer expected to sign up? Affects Phase A→D parallelization. Default assumption: 6 months from this doc. Operator can compress (Recon-only-first launch) or extend.
 
-**Q8 — Starr Surveying's data fate.** Starr becomes tenant #1 of its own SaaS (recommended). Confirm? And: do existing employee accounts auto-migrate, or do they re-onboard?
+**Q10 — Operator team size.** How many people running customer success / billing / support? Shapes automation level. Default assumption: 1-2 people for first 50 customers. Affects whether we build the cross-tenant dashboards aggressively or hand-roll initial reports.
 
-**Q9 — Initial GTM (go-to-market) window.** When is the first external customer expected to sign up? This sets the latest acceptable date for Phase A-D completion.
+### 10c. Sub-plan-specific open questions
 
-**Q10 — Operator team size.** How many people will run customer success / billing / support? This shapes how much automation vs manual operator workflow we build into each operator surface.
+Each sub-plan has its own §9 open-questions section for narrower decisions (operator MFA, audit retention, coupon strategy, etc.). Those don't need master-plan-level resolution — they're sub-plan-internal and decided when their phase begins.
 
 ---
 
