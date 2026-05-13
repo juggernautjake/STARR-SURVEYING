@@ -1,8 +1,8 @@
 // lib/saas/notifications/templates.ts
 //
 // File-local default email + SMS templates. Operator-editable copies
-// in public.email_templates override these at dispatch time (lookup
-// happens in events/<name>.ts).
+// in public.email_templates override these at dispatch time via
+// loadTemplate() below.
 //
 // Templates use {{var}} substitution (see ./email.ts:renderTemplate).
 // Markup is intentionally minimal — Resend renders well-formed HTML
@@ -10,7 +10,9 @@
 // is provided for each so deliverability passes the SpamAssassin
 // "has-text-version" test.
 //
-// Spec: docs/planning/in-progress/CUSTOMER_MESSAGING_PLAN.md §4.
+// Spec: docs/planning/completed/CUSTOMER_MESSAGING_PLAN.md §4 + §6 F-7.
+
+import { supabaseAdmin } from '@/lib/supabase';
 
 import type { TemplateDef } from './email';
 
@@ -221,3 +223,35 @@ Stripe will automatically retry over the next 7 days. If we can't recover, your 
 ${FOOTER_TEXT}
   `.trim(),
 };
+
+// ── DB-backed template lookup (Phase F-7 partial) ────────────────────
+
+/** Map of file-default templates keyed by event type. Used as the
+ *  fallback when no operator override exists in public.email_templates. */
+const DEFAULT_TEMPLATES: Record<string, TemplateDef> = {
+  signup_welcome:    SIGNUP_WELCOME,
+  invite_sent:       INVITE_SENT,
+  password_reset:    PASSWORD_RESET,
+  trial_ending_d7:   TRIAL_ENDING_D7,
+  payment_failed:    PAYMENT_FAILED,
+};
+
+/** Looks up the operator-editable template from public.email_templates
+ *  and falls back to the file default. Returns null when neither
+ *  exists (caller should log + skip the channel). */
+export async function loadTemplate(eventType: string): Promise<TemplateDef | null> {
+  // Try DB override first
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('email_templates')
+      .select('subject_tpl, body_tpl')
+      .eq('event_type', eventType)
+      .maybeSingle();
+    if (!error && data && typeof data.subject_tpl === 'string' && typeof data.body_tpl === 'string') {
+      return { subject: data.subject_tpl, html: data.body_tpl };
+    }
+  } catch {
+    // Fall through to file default
+  }
+  return DEFAULT_TEMPLATES[eventType] ?? null;
+}

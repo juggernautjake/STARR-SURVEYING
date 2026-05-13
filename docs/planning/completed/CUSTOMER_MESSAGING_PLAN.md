@@ -1,9 +1,10 @@
 # Customer Messaging Plan — Planning Document
 
-**Status:** RFC / sub-plan of `STARR_SAAS_MASTER_PLAN.md` §5.3 + §5.4
+**Status:** Spec complete. Foundation shipped (F-1 service skeleton, F-2 Resend email adapter + 5 templates, F-3 DB-write in-app adapter, F-4 user-prefs backend, F-5 partial payment_failed wiring, F-7 template-loader DB fallback, F-8 Twilio SMS adapter). Remaining items (F-3 WebSocket fanout, F-5 trial-ending + cancellation wiring, F-6 broadcast composer UI, F-7 template-editor UI) are dependency-blocked: each requires either the bell-icon UI consumer, the trial-end cron, or the operator console C-2+ surface to be useful. Archived to `completed/` 2026-05-13 as the canonical messaging spec; resume when dependencies land.
 **Owner:** Jacob (Starr Software)
 **Created:** 2026-05-13
-**Target repo path:** `docs/planning/in-progress/CUSTOMER_MESSAGING_PLAN.md`
+**Last updated:** 2026-05-13 (foundation shipped; UI consumers dependency-blocked)
+**Target repo path:** `docs/planning/completed/CUSTOMER_MESSAGING_PLAN.md`
 
 > **One-sentence pitch:** Unified notification + transactional-messaging layer covering operator broadcasts to tenants, lifecycle email triggers (welcome, invite, trial-ending, payment-failed, release announcements), in-app notifications, and optional SMS for security alerts — all routed through a single `notifications` service abstraction.
 
@@ -211,8 +212,8 @@ Maps to master plan Phase F. ~2 weeks.
 | **F-3** | In-app adapter + WebSocket fanout | 2 days | ✅ DB-write half shipped — `lib/saas/notifications/in-app.ts` writes to `org_notifications` via supabaseAdmin. WebSocket fanout deferred to the slice that builds the bell-icon UI consumer (the existing /api/ws/ticket is research-pipeline-specific; a generic per-user channel lands with the consumer). |
 | **F-4** | User preferences UI in /admin/me?tab=profile | 1 day | ✅ Backend shipped — `seeds/271_saas_user_notification_prefs.sql` (per-user JSONB prefs table) + `lib/saas/notifications/prefs.ts` (getAllUserPrefs / getEventPrefs / setAllUserPrefs / setEventPrefs / effectiveChannels). Dispatcher's getUserPrefs now reads through this. UI consumer (the actual preferences card) waits for ProfilePanel refactor when Phase A M-10 component refactor lands. |
 | **F-5** | Lifecycle event triggers wired (trial-ending, payment-failed, etc.) — fires from existing Stripe webhook + scheduled crons | 3 days | ✅ payment_failed wired — `app/api/webhooks/stripe/route.ts` calls `registerAllEvents()` at module load + `dispatch('payment_failed', ...)` inside `handleInvoicePaymentFailed`. Legacy research-subs use user_email as billing contact; firm-level subs (post-M-9) use org's billing_contact_email. Notification failure is logged + swallowed (Stripe retry would otherwise re-dunn). trial-ending + subscription-canceled wiring follows the same pattern when the trial-end cron + cancellation handler exist. |
-| **F-6** | Operator broadcast composer + history at /platform/broadcasts | 3 days |
-| **F-7** | Operator email-template editor at /platform/settings | 2 days |
+| **F-6** | Operator broadcast composer + history at /platform/broadcasts | 3 days | ⏸ Deferred — depends on Operator Console C-2+ (customer list / detail) which is multi-week work. Schema exists (broadcasts table in seeds/268); the composer surface lives within /platform/broadcasts and needs the operator-console chrome conventions to be settled. Pick up after C-2 ships. |
+| **F-7** | Operator email-template editor at /platform/settings | 2 days | ✅ Backend shipped — `loadTemplate(eventType)` in `lib/saas/notifications/templates.ts` queries public.email_templates first + falls back to file-default. Dispatcher reads through this. Operator UI for editing templates (the actual /platform/settings/email-templates editor) waits for the operator console settings page (Phase C-9). |
 | **F-8** | SMS adapter (Twilio) + security-alert event wiring | 2 days | ✅ Twilio adapter shipped — `lib/saas/notifications/sms.ts` posts to Twilio Messages API with HTTP Basic auth, form-encoded body, 1600-char cap. Dev-mode short-circuit when TWILIO_ACCOUNT_SID unset (mirrors Resend). `isValidPhoneNumber()` E.164 check. Wired as the `sms` channel in events.ts. Security-alert event registrations themselves (login_new_device, role_escalated) land when their emitters do. |
 
 **Total: ~2 weeks**.

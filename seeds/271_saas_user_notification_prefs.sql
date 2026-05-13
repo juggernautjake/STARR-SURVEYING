@@ -11,7 +11,7 @@
 -- event default. App layer (lib/saas/notifications/prefs.ts) handles
 -- the lookup + fallback.
 --
--- Spec: docs/planning/in-progress/CUSTOMER_MESSAGING_PLAN.md §3 + §6 F-4.
+-- Spec: docs/planning/completed/CUSTOMER_MESSAGING_PLAN.md §3 + §6 F-4.
 -- ============================================================================
 
 BEGIN;

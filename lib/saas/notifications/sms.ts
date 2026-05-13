@@ -13,7 +13,7 @@
 // Dev-mode short-circuit (no TWILIO_ACCOUNT_SID set) logs + returns
 // true, matching the email adapter's behavior.
 //
-// Spec: docs/planning/in-progress/CUSTOMER_MESSAGING_PLAN.md §3 + §6 F-8.
+// Spec: docs/planning/completed/CUSTOMER_MESSAGING_PLAN.md §3 + §6 F-8.
 
 import type { SMSDispatchInput } from './index';
 

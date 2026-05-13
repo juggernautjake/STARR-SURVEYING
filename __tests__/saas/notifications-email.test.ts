@@ -3,7 +3,7 @@
 // Locks the template renderer + the Resend adapter's dev-mode short
 // circuit. Phase F-2.
 //
-// Spec: docs/planning/in-progress/CUSTOMER_MESSAGING_PLAN.md §3 + §4.
+// Spec: docs/planning/completed/CUSTOMER_MESSAGING_PLAN.md §3 + §4.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

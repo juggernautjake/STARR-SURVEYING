@@ -11,7 +11,7 @@
 // the real Resend + Twilio + WebSocket adapters. Phase F-5 wires the
 // lifecycle event triggers from the Stripe webhook + scheduled crons.
 //
-// Spec: docs/planning/in-progress/CUSTOMER_MESSAGING_PLAN.md §3.
+// Spec: docs/planning/completed/CUSTOMER_MESSAGING_PLAN.md §3.
 
 import type { BundleId } from '../bundles';
 

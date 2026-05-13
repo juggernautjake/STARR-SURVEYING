@@ -9,7 +9,7 @@
 // precedence over the file-local defaults; falls back to the literal
 // strings in templates.ts when nothing is in the DB.
 //
-// Spec: docs/planning/in-progress/CUSTOMER_MESSAGING_PLAN.md §3 + §4.
+// Spec: docs/planning/completed/CUSTOMER_MESSAGING_PLAN.md §3 + §4.
 
 import type { EmailDispatchInput } from './index';
 

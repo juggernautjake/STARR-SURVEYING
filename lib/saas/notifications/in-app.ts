@@ -11,7 +11,7 @@
 // generic per-user channel + client subscriber lands when the bell
 // UI component is built (CUSTOMER_PORTAL §3.8 → its own slice).
 //
-// Spec: docs/planning/in-progress/CUSTOMER_MESSAGING_PLAN.md §3 + §6 F-3.
+// Spec: docs/planning/completed/CUSTOMER_MESSAGING_PLAN.md §3 + §6 F-3.
 
 import { supabaseAdmin } from '@/lib/supabase';
 

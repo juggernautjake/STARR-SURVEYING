@@ -12,7 +12,7 @@
 // initialization point — typically inside instrumentation.ts or
 // the first /api route hit).
 //
-// Spec: docs/planning/in-progress/CUSTOMER_MESSAGING_PLAN.md §2 + §3.
+// Spec: docs/planning/completed/CUSTOMER_MESSAGING_PLAN.md §2 + §3.
 
 import {
   configureNotificationChannels,

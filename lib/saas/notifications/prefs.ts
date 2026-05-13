@@ -8,7 +8,7 @@
 // Shape: { "<event>": { "email": bool, "in_app": bool, "sms": bool } }
 // Missing entries fall back to the event's `defaults`.
 //
-// Spec: docs/planning/in-progress/CUSTOMER_MESSAGING_PLAN.md §3.
+// Spec: docs/planning/completed/CUSTOMER_MESSAGING_PLAN.md §3.
 
 import { supabaseAdmin } from '@/lib/supabase';
 
