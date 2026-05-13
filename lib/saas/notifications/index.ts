@@ -143,11 +143,13 @@ export function registerEvent<T extends Record<string, unknown>>(def: EventDefin
   REGISTRY[def.event] = def as EventDefinition<Record<string, unknown>>;
 }
 
-/** Get a user's channel preferences for this event. Stub for v0;
- *  Phase F-4 reads from org_settings.notifications_pref or a
- *  per-user prefs table. */
-async function getUserPrefs(_userEmail: string, _event: NotificationEvent): Promise<Partial<Record<ChannelKey, boolean>>> {
-  return {};
+/** Get a user's channel preferences for this event. Phase F-4
+ *  reads from public.user_notification_prefs via prefs.ts. */
+async function getUserPrefs(userEmail: string, event: NotificationEvent): Promise<Partial<Record<ChannelKey, boolean>>> {
+  // Lazy import to avoid a circular dep (prefs.ts imports
+  // ChannelKey + NotificationEvent from this module).
+  const { getEventPrefs } = await import('./prefs');
+  return getEventPrefs(userEmail, event);
 }
 
 /** The central dispatch function. */
