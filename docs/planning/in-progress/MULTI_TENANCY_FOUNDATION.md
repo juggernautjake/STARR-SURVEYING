@@ -599,7 +599,7 @@ Maps to master plan Phase A. ~6 weeks engineering.
 | **(parallel)** | Operator-console schema (operator_users, impersonation_sessions, audit_log, pending_operator_actions) | — | ✅ Shipped — `seeds/265_saas_operator_console_schema.sql` |
 | **(parallel)** | Billing schema (invoices, subscription_events, usage_events, processed_webhook_events) | — | ✅ Shipped — `seeds/266_saas_billing_schema.sql` |
 | **(parallel)** | Customer-portal schema (org_invitations, org_notifications, releases, release_acks, support_tickets, support_ticket_messages) | — | ✅ Shipped — `seeds/267_saas_customer_portal_schema.sql` |
-| **A-6** | Enable RLS on low-blast-radius tables + tests | 3 days |
+| **A-6** | Enable RLS on low-blast-radius tables + tests | 3 days | ✅ SQL shipped — `seeds/270_saas_rls_low_blast.sql` enables RLS + SELECT/INSERT/UPDATE/DELETE policies on `notifications`, `org_notifications`, `error_reports`, `audit_log`, `message_contacts`, `discussion_messages` via reusable `_enable_tenant_rls()` helper. Policies use `auth.email()` JWT claim → `organization_members` lookup. Idempotent. Live behavior unchanged (existing code uses supabaseAdmin which bypasses RLS); policies activate when M-9 ships the anon-client + JWT shift. Isolation tests deferred to integration-suite slice with real DB. |
 | **A-7** | Enable RLS on mid-blast-radius tables + tests | 4 days |
 | **A-8** | Enable RLS on high-blast-radius tables + tests | 4 days |
 | **A-9** | Auth refactor (NextAuth shape + middleware) | 5 days |
