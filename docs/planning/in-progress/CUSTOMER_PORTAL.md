@@ -444,10 +444,11 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 - *Acceptance partial:* customer sees their plan + status; action buttons present but disabled with explanatory text until Stripe-side flows ship.
 
 ### Phase D-3 — User management + invites (1 week)
-- `/admin/users` rescoped per §3.4
-- Invite flow + `/accept-invite/[token]`
-- Email templates for invites
-- *Acceptance:* admin can invite a coworker, the coworker accepts, they're in the org with the right role.
+- `/admin/users` rescoped per §3.4 — deferred behind M-9 (the legacy /admin/users page is Starr-roles-only; rescoping needs org-aware session)
+- [x] Invite composer + list + revoke — `app/admin/invites/page.tsx` (admin-only page; email + role dropdown; pending/accepted/revoked/expired badges; revoke action) + `app/api/admin/invites/route.ts` (admin-gated; GET lists org's last 100 invites; POST creates random URL-safe token + dispatches invite_sent email + audit_log) + `app/api/admin/invites/[id]/route.ts` (revoke pending; audit_log).
+- `/accept-invite/[token]` web acceptance page — deferred behind M-9 (needs ability to create-or-link a registered_users row and immediately set activeOrgId to the new org's id in the JWT)
+- [x] Email templates for invites — INVITE_SENT lives in `lib/saas/notifications/templates.ts`
+- *Acceptance partial:* admin can compose + send invites and revoke pending ones. Acceptance side waits on M-9.
 
 ### Phase D-4 — Org settings + branding (1 week)
 - `/admin/settings` rescoped per §3.5
