@@ -5,9 +5,16 @@
 // useTimeStore isn't in the repo yet (the team page reads clock state
 // per-API-call); slice 2a renders the greeting + a placeholder clock
 // card. Slice 2b wires a real clock fetch.
+//
+// Slice 3b/c — small "Try the new nav" toggle so users can preview
+// the IconRail without flipping `adminNavV2Enabled` via the browser
+// console. Phase 4's persona-override picker absorbs this into the
+// proper Profile-tab settings UI.
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
+
+import { useAdminNavStore } from '@/lib/admin/nav-store';
 
 function partOfDay(date: Date): string {
   const h = date.getHours();
@@ -25,6 +32,8 @@ function firstName(name?: string | null): string {
 
 export default function HubGreeting() {
   const { data: session } = useSession();
+  const navV2 = useAdminNavStore((s) => s.adminNavV2Enabled);
+  const setNavV2 = useAdminNavStore((s) => s.setNavV2);
   const [now, setNow] = useState<Date | null>(null);
 
   // Defer the time-of-day computation to the client so the SSR render
@@ -61,6 +70,17 @@ export default function HubGreeting() {
         <a className="hub-btn" href="/admin/schedule">
           View schedule
         </a>
+        <button
+          type="button"
+          className="hub-btn hub-greeting__nav-toggle"
+          onClick={() => setNavV2(!navV2)}
+          aria-pressed={navV2}
+          title={navV2
+            ? 'Currently using the new nav rail. Click to revert to the legacy sidebar.'
+            : 'Try the new icon rail (preview). Reverts on click.'}
+        >
+          {navV2 ? 'Revert to old nav' : 'Try new nav (beta)'}
+        </button>
       </div>
     </section>
   );

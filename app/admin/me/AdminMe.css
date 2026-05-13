@@ -129,6 +129,24 @@
   background: #F0F4FF;
 }
 
+.hub-greeting__nav-toggle {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.hub-greeting__nav-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.7);
+  color: #FFF;
+}
+
+.hub-greeting__nav-toggle[aria-pressed='true'] {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #FFF;
+}
+
 /* ── Panel 2: Today ──────────────────────────────────────────────── */
 
 .hub-today__placeholder {
