@@ -442,13 +442,13 @@ Each phase produces a shippable state. Phase letters chained off the master plan
 - Impersonation flow per §3.4.
 - Red banner + audit logging.
 - 30-minute TTL enforcement.
-- *Acceptance:* operator can impersonate Starr admin, see Starr's admin shell, banner shows, audit row written, TTL ends session.
+- *Deferred:* the `impersonation_sessions` table is shipped in `seeds/265` and the audit_log entry pattern is consistent across the operator surfaces. The actual session-issuance mechanic (mint a short-lived JWT that overrides `email` for downstream queries while preserving `operator_email` for audit) is a deliberate single-shot piece. Lands when the first cross-tenant debugging scenario demands it; until then operators read via `/platform/customers/[orgId]` and the audit log.
 
 ### Phase C-4 — Billing operations write surface (1 week)
 - Apply coupon, refund, plan change, cancel via operator console.
 - Each action calls Stripe API, audits, re-fetches state.
 - Dunning queue with retry / wait / cancel / comp.
-- *Acceptance:* operator can refund a Starr test invoice; refund appears in Stripe within 30s; audit row written.
+- *Deferred:* gated on Stripe products being live. The `subscriptions.stripe_*` columns exist + the customer-side cancel flow already updates `cancel_at_period_end` + writes a `subscription_events` row, so the foundation is shared. The operator-side Stripe writes (apply_coupon / refund / plan_change) land with B-3 through B-5 of SUBSCRIPTION_BILLING_SYSTEM.md.
 
 ### Phase C-5 — Audit log surface (3 days)
 - [x] `/platform/audit` table view with When / Operator / Org / Action / Severity / Details columns
@@ -460,12 +460,12 @@ Each phase produces a shippable state. Phase letters chained off the master plan
 ### Phase C-6 — Move developer surfaces (3 days)
 - Relocate `/admin/research/testing`, `/admin/research/pipeline`, `/admin/research/coverage`, `/admin/research/library`, `/admin/research/billing` (operator side), `/admin/error-log` → under `/platform/dev/*` and `/platform/health/*`.
 - Old paths redirect to new with a 301 (kept for 1 PR-cycle grace).
-- *Acceptance:* every existing developer-side URL keeps working; the route registry reflects the new home; customers can't reach `/platform/*`.
+- *Deferred:* substantial codebase touch (every existing developer-side route + its tests + its in-page links). Today the customer-side middleware bundle gate (M-9b) returns customers to `/admin/billing/upgrade` when they hit a route they don't have, so cross-tenant leak is closed; the relocation is purely a UX clean-up. Lands with the broader chrome rework.
 
 ### Phase C-7 — Releases + broadcasts (1.5 weeks)
-- `/platform/releases` per §3.7 (without mobile OTA — that's Phase G of the master plan).
-- `/platform/broadcasts` per §3.8.
-- *Acceptance:* operator tags release v2.4, writes notes, schedules broadcast; customers see banner.
+- [x] `/platform/releases` per §3.7 — shipped as G-2 of SOFTWARE_UPDATE_DISTRIBUTION.md (`app/platform/releases/page.tsx` + `app/api/platform/releases/route.ts`).
+- [ ] `/platform/broadcasts` per §3.8 — deferred. The `broadcasts` table exists in `seeds/268_saas_support_kb_schema.sql`; the audience-fanout pattern is the same as G-3 of SOFTWARE_UPDATE_DISTRIBUTION.md. Ships when the first non-release operator-to-customer announcement scenario lands (currently every customer comms channel — notifications, support tickets, billing emails — already covers the common cases).
+- *Acceptance partial:* operator tags release v2.4 from `/platform/releases`. Broadcast scheduling waits on a concrete need.
 
 ### Phase C-8 — Cross-tenant health + dashboards (1 week)
 - [x] `/platform` dashboard headline metrics wired to real data — `app/api/platform/dashboard/route.ts` (operator-gated; aggregates `organizations` + `subscriptions` + `support_tickets` + `audit_log`) feeds `app/platform/page.tsx`. Four stat cards (Customers + MRR + Open tickets + Audit-24h) and a "Recent signups (last 7 days)" list. MRR is computed from subscriptions in active/trialing status; Stripe-side reconciliation lands with B-3.
@@ -546,3 +546,31 @@ The operator console is complete when:
 13. Every page-load + action emits a row in `audit_log` (operator action) or `platform_telemetry` (page-view).
 14. Mobile responsiveness: rail collapses to a top-of-page menu; all detail surfaces are usable on a phone (operator-on-the-road use case).
 15. No customer-side user has access to `/platform/*`; every route is gated to `OperatorRole`.
+
+---
+
+## 11. Shipped vs. deferred summary
+
+Operator console is **live for read + low-risk write surfaces**: dashboard
+with real headline stats + recent signups, customer list + detail page,
+support inbox, audit log, releases composer, team list + invite. Operator
+gating is consistent across every route (`session.user.isOperator` OR
+`operator_users` lookup fallback until M-9b lands universally).
+
+Deferred surfaces share three gating dependencies:
+
+1. **Impersonation (C-3)** — needs the short-lived JWT issuance mechanic;
+   `impersonation_sessions` table + audit pattern ready, lands when the
+   first cross-tenant debugging scenario demands it.
+2. **Billing write surface (C-4)** — gated on Stripe products being live
+   (B-3 → B-5 of SUBSCRIPTION_BILLING_SYSTEM.md).
+3. **Developer surface relocation (C-6) + broadcasts (C-7) + health (C-8
+   beyond stats) + two-person rule (C-9)** — codebase touch + concrete
+   need not yet present. M-9b's customer-side middleware bundle gate
+   already closes the cross-tenant leak risk, so the relocations are
+   pure UX cleanup.
+
+Operator login flow (separate from `/admin/login`) still gates on the M-9c
+auth refactor slice; in the meantime operator emails are reachable by
+seeding into `operator_users` and signing in via the existing customer
+auth path with elevated operator status flagged on the JWT.
