@@ -38,6 +38,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/announcements': "What's new",
   '/admin/billing/upgrade': 'Upgrade required',
   '/admin/support': 'Support',
+  '/admin/audit': 'Audit log',
   '/admin/dashboard': 'Dashboard',
   '/admin/learn': 'Learning Hub',
   '/admin/learn/roadmap': 'My Roadmap',

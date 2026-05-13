@@ -481,9 +481,10 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 - *Acceptance:* a user with 2 orgs can flip between them in one click; data isolation holds.
 
 ### Phase D-9 — Customer audit log (3 days)
-- `/admin/audit` per §3.10
-- Filters + paginated query
-- *Acceptance:* org admin can see their org's audit trail.
+- [x] `/admin/audit` page rendering table view with severity color coding + expandable metadata JSON
+- [x] Search + severity filter (client-side over 200-row window)
+- [x] `/api/admin/audit` server route — admin-role check + org-scoped query, 500-row cap
+- *Acceptance shipped:* org admin sees their org's audit trail; non-admin org members see an empty list (defense in depth).
 
 ### Phase D-10 — Marketing pricing page + signup CTA (1 week)
 - Redesign `/pricing` per §3.1
