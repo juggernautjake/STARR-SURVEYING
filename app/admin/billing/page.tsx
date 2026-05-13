@@ -51,25 +51,70 @@ const BUNDLE_LABELS: Record<string, string> = {
 export default function CustomerBillingPage() {
   const [state, setState] = useState<BillingState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  async function load() {
+    try {
+      const res = await fetch('/api/admin/billing', { cache: 'no-store' });
+      if (!res.ok) {
+        setError(`Couldn't load billing (status ${res.status}).`);
+        return;
+      }
+      const data = (await res.json()) as BillingState;
+      setState(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load.');
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await fetch('/api/admin/billing', { cache: 'no-store' });
-        if (!res.ok) {
-          setError(`Couldn't load billing (status ${res.status}).`);
-          return;
-        }
-        const data = (await res.json()) as BillingState;
-        if (!cancelled) setState(data);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load.');
-      }
-    }
     load();
-    return () => { cancelled = true; };
   }, []);
+
+  async function openCustomerPortal() {
+    setActionMessage(null);
+    setWorking(true);
+    try {
+      const res = await fetch('/api/admin/billing/customer-portal', { method: 'POST' });
+      const data = (await res.json()) as { url?: string; message?: string; error?: string };
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setActionMessage(data.message ?? data.error ?? 'Unavailable.');
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function cancelSubscription() {
+    if (state?.subscription?.cancelAtPeriodEnd) {
+      if (!confirm('Reactivate this subscription so it does not cancel?')) return;
+    } else {
+      if (!confirm('Schedule cancellation at the end of the current billing period? You keep full access until then.')) return;
+    }
+    setActionMessage(null);
+    setWorking(true);
+    try {
+      const res = await fetch('/api/admin/billing/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reactivate: state?.subscription?.cancelAtPeriodEnd === true }),
+      });
+      if (res.ok) {
+        await load();
+        setActionMessage(state?.subscription?.cancelAtPeriodEnd
+          ? 'Subscription reactivated.'
+          : 'Cancellation scheduled. You retain access until the end of the current period.');
+      } else {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setActionMessage(data.error ?? `Failed (status ${res.status}).`);
+      }
+    } finally {
+      setWorking(false);
+    }
+  }
 
   return (
     <div className="billing-page">
@@ -163,19 +208,36 @@ export default function CustomerBillingPage() {
                 <span>Change plan</span>
                 <em>Ships with the /api/admin/billing/change endpoint (D-2 follow-up)</em>
               </button>
-              <button className="billing-action" disabled>
-                <span>Update payment method</span>
-                <em>Stripe Customer Portal redirect — needs /api/admin/billing/customer-portal endpoint</em>
+              <button
+                className="billing-action billing-action--enabled"
+                disabled={working}
+                onClick={openCustomerPortal}
+                type="button"
+              >
+                <span>Update payment method →</span>
+                <em>Opens the Stripe Customer Portal in a new tab.</em>
               </button>
-              <button className="billing-action" disabled>
-                <span>Cancel subscription</span>
-                <em>Two-step confirmation flow — ships with D-2 cancellation slice</em>
+              <button
+                className="billing-action billing-action--enabled"
+                disabled={working}
+                onClick={cancelSubscription}
+                type="button"
+              >
+                <span>{state.subscription.cancelAtPeriodEnd ? 'Reactivate subscription' : 'Cancel subscription'}</span>
+                <em>
+                  {state.subscription.cancelAtPeriodEnd
+                    ? 'Keep your subscription active beyond the current period.'
+                    : 'Keeps full access until the end of the current period.'}
+                </em>
               </button>
               <Link href="/admin/support/new" className="billing-action billing-action--enabled">
                 <span>Contact support →</span>
                 <em>Need help? File a ticket and we&apos;ll respond fast.</em>
               </Link>
             </div>
+            {actionMessage && (
+              <div className="billing-action-message">{actionMessage}</div>
+            )}
           </section>
         </>
       )}
@@ -313,6 +375,16 @@ export default function CustomerBillingPage() {
         }
         .billing-action--enabled span { color: #1D3095; }
         .billing-action--enabled:hover { background: #F0F4FF; }
+        .billing-action--enabled[disabled] { opacity: 0.6; cursor: progress; }
+        .billing-action-message {
+          margin-top: 0.85rem;
+          padding: 0.7rem 0.9rem;
+          background: #F0F4FF;
+          border: 1px solid #C7D2FE;
+          border-radius: 8px;
+          font-size: 0.88rem;
+          color: #1F2937;
+        }
         .billing-btn {
           display: inline-flex;
           padding: 0.7rem 1.4rem;

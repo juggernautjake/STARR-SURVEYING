@@ -438,9 +438,9 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 - [x] `/admin/billing` Overview — current plan, status (color-coded), monthly price, seats, trial-end + renewal dates, cancel-at-period-end warning, active bundles, action grid (Contact support live; others stubbed)
 - [x] `/api/admin/billing` GET — returns org + subscription state
 - [ ] Invoices / Usage / Plan history tabs — follow-up slices
-- [ ] Stripe Customer Portal integration — `/api/admin/billing/customer-portal` endpoint
+- [x] Stripe Customer Portal integration — `/api/admin/billing/customer-portal` endpoint (admin-gated; returns 503 with friendly "billing pending" message until `STRIPE_SECRET_KEY` + `subscriptions.stripe_customer_id` are both populated; real Stripe session creation lands with B-5 of SUBSCRIPTION_BILLING_SYSTEM.md). UI: "Update payment method" button now enabled and POSTs to this endpoint.
 - [ ] Plan-change flow with proration preview — `/api/admin/billing/change` endpoint
-- [ ] Cancellation flow with 30-day grace — `/api/admin/billing/cancel` endpoint
+- [x] Cancellation flow with 30-day grace — `/api/admin/billing/cancel` endpoint (admin-gated; toggles `cancel_at_period_end`; writes `subscription_events` row + audit_log entry; UI: "Cancel subscription" / "Reactivate subscription" button on `/admin/billing` opens a confirm + posts; access continues until `current_period_end` per master plan §6).
 - *Acceptance partial:* customer sees their plan + status; action buttons present but disabled with explanatory text until Stripe-side flows ship.
 
 ### Phase D-3 — User management + invites (1 week)
