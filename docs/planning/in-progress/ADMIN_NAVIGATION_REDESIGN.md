@@ -457,13 +457,25 @@ The biggest single UX win with the lowest blast radius. Adds the command palette
 ### Phase 2 — The Hub (`/admin/me`) (Week 2)
 Lands the central hub the user explicitly asked for. Hub coexists with the old sidebar; `/admin → /admin/me` redirect replaces the existing `/admin → /admin/dashboard` we shipped in QA §3.
 
-- [ ] `app/admin/me/page.tsx` — six-panel layout
-- [ ] `app/admin/me/components/HubGreeting.tsx` — clock state + active job
-- [ ] `app/admin/me/components/HubToday.tsx` — today's assignments / due items
-- [ ] `app/admin/me/components/HubPinnedRecent.tsx` — three-column grid
-- [ ] `app/admin/me/components/HubTabs.tsx` — Schedule / Jobs / Hours / Pay / Notes / Files / Profile / Fieldbook tab strip
-- [ ] Tab state persisted in URL (`?tab=…`) + `nav-store`
-- [ ] `/admin/schedule`, `/admin/my-jobs`, `/admin/my-hours`, `/admin/my-pay`, `/admin/my-notes`, `/admin/my-files`, `/admin/profile`, `/admin/learn/fieldbook` — redirect to `/admin/me?tab=…`
+- [x] `app/admin/me/page.tsx` — six-panel layout *(slice 2a)*
+- [x] `app/admin/me/components/HubGreeting.tsx` — time-of-day greeting; live clock-state widget deferred to slice 2b (no `useTimeStore` in the repo yet) *(slice 2a)*
+- [ ] `app/admin/me/components/HubToday.tsx` — today's assignments / due items *(skeleton in slice 2a; live data in slice 2b)*
+- [x] `app/admin/me/components/HubPinnedRecent.tsx` — three-column grid (Pinned placeholder, Recent live from nav-store, Workspaces live from registry) *(slice 2a)*
+- [x] `app/admin/me/components/HubTabs.tsx` — Schedule / Jobs / Hours / Pay / Notes / Files / Profile / Fieldbook tab strip *(slice 2a — strip + URL state + legacy hand-off)*
+- [x] Tab state persisted in URL (`?tab=…`) *(slice 2a; nav-store persistence not needed — URL is authoritative)*
+- [ ] `/admin/schedule`, `/admin/my-jobs`, `/admin/my-hours`, `/admin/my-pay`, `/admin/my-notes`, `/admin/my-files`, `/admin/profile`, `/admin/learn/fieldbook` — redirect to `/admin/me?tab=…` *(slice 2c — only after slice 2b moves content into tab bodies; redirecting today would regress real pages to placeholders)*
+
+**Slice 2a — Hub structural skeleton (shipped):**
+- `app/admin/me/page.tsx` — composes the six panels.
+- `HubGreeting.tsx` — time-of-day greeting + session name; clock-state CTA points at the legacy `/admin/my-hours` until 2b. Time-of-day computed client-side after mount so SSR + hydration agree across part-of-day boundaries.
+- `HubToday.tsx` — placeholder card explaining slice-2b hand-off + direct links to /admin/assignments + /admin/schedule.
+- `HubPinnedRecent.tsx` — three columns: Pinned (empty-state with Phase-4 hint), Recent (live from `nav-store.recentRoutes`, top 6, resolves each href through the registry to drop deleted routes), Workspaces (live from `WORKSPACES` metadata with the Cmd+1..6 shortcut hint).
+- `HubTabs.tsx` — nine-tab strip (overview + the 8 personal tabs from §5.2.1). Active tab persists via `?tab=…`; clicking a tab uses `router.replace` (no scroll) so back-button history isn't polluted. Each non-overview tab currently renders a hand-off link to its legacy route — slice 2b swaps that for real content via the optional `children` slot already on the component.
+- `HubNotifications.tsx`, `HubQuickActions.tsx` — Hub panels 5 and 6 with placeholder content + Cmd+K hint; live data lands in 2b.
+- `app/admin/me/AdminMe.css` — full Hub stylesheet. Inline hex matches AdminLayout.css convention; Phase 5 token audit sweeps both.
+- `app/admin/page.tsx` — `/admin → /admin/me` redirect (was `/admin/dashboard`). `/admin/dashboard` itself remains live and reachable via rail / palette.
+- `AdminLayoutClient.tsx` — added `/admin/me → 'Hub'` to PAGE_TITLES so the top bar shows the right title.
+- `__tests__/admin/hub-tabs.test.ts` — 4 vitest cases lock `parseHubTab` (null/empty → 'overview', case-sensitive matching, fallback to 'overview' on unknown ids, canonical tab order).
 
 **Acceptance:**
 - Visiting `/admin` lands on `/admin/me`.

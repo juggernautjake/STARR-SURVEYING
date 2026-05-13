@@ -28,6 +28,7 @@ import '../styles/AdminResponsive.css';
 import '../styles/AdminFieldWork.css';
 
 const PAGE_TITLES: Record<string, string> = {
+  '/admin/me': 'Hub',
   '/admin/dashboard': 'Dashboard',
   '/admin/learn': 'Learning Hub',
   '/admin/learn/roadmap': 'My Roadmap',

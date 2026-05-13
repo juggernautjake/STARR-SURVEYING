@@ -1,14 +1,15 @@
 // app/admin/page.tsx
 //
-// /admin landing → redirect to /admin/dashboard.
+// /admin landing → redirect to /admin/me (Hub).
 //
-// The AdminSidebar's "Main" group already lists Dashboard as the
-// first entry (`AdminSidebar.tsx:91-95`), so /admin (bare) is
-// effectively an alias. Without this redirect, /admin renders the
-// AdminLayoutClient chrome with an empty `children` slot — bad UX.
+// Admin-nav redesign Phase 2 (slice 2a): the Hub replaces /admin/dashboard
+// as the post-login destination per ADMIN_NAVIGATION_REDESIGN.md §5.1 +
+// §8 Phase 2. /admin/dashboard itself stays live and reachable from the
+// rail / palette; the redirect just shifts the bare /admin alias to the
+// Hub.
 
 import { redirect } from 'next/navigation';
 
 export default function AdminIndex(): never {
-  redirect('/admin/dashboard');
+  redirect('/admin/me');
 }
