@@ -9,10 +9,12 @@ import {
   useViewportStore,
   useUndoStore,
   useUIStore,
+  useTransferStore,
   makeRemoveFeatureEntry,
   makeBatchEntry,
 } from '@/lib/cad/store';
 import { computeBounds, featureBounds } from '@/lib/cad/geometry/bounds';
+import { transformFeature, translate } from '@/lib/cad/geometry/transform';
 import type { Feature } from '@/lib/cad/types';
 import { copyCadSelection, pasteCadClipboard, duplicateSelection } from '@/lib/cad/operations';
 import { cadLog } from '@/lib/cad/logger';
@@ -53,12 +55,30 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   'z s': 'view.zoomSelection',
   'ctrl+=': 'view.zoomIn',
   'ctrl+-': 'view.zoomOut',
+  // Bare +/- aliases — surveyors used to AutoCAD / Carlson reach
+  // for these without the Ctrl modifier. The serialiseKey path
+  // already returns lowercase, and the input-field filter (line
+  // 98-103) blocks them when the surveyor is typing in a field.
+  '=': 'view.zoomIn',
+  '-': 'view.zoomOut',
   f2: 'layer.panel',
   f3: 'snap.toggle',
   f7: 'snap.grid',
   f8: 'snap.ortho',
   f10: 'snap.polar',
   enter: 'tool.confirm',
+  // Arrow-key nudge for the selection. Step size = minor-grid
+  // spacing when the grid is visible, 1 ft otherwise. Shift+arrow
+  // scales the step 10×. Plain + Shift versions both register
+  // because shift folds into the serializeKey prefix.
+  arrowup: 'edit.nudge.up',
+  arrowdown: 'edit.nudge.down',
+  arrowleft: 'edit.nudge.left',
+  arrowright: 'edit.nudge.right',
+  'shift+arrowup': 'edit.nudge.up10',
+  'shift+arrowdown': 'edit.nudge.down10',
+  'shift+arrowleft': 'edit.nudge.left10',
+  'shift+arrowright': 'edit.nudge.right10',
 };
 
 /** Serialize a KeyboardEvent into a key combo string */
@@ -127,13 +147,32 @@ export function useKeyboard() {
     const undoStore = useUndoStore.getState();
 
     switch (action) {
-      case 'edit.undo':
+      case 'edit.undo': {
+        // Phase 8 §11.7.12 — Pick-mode-scoped Undo. While the
+        // LayerTransferDialog is in Pick mode, Ctrl+Z walks the
+        // pick-history (add / remove of features in the source
+        // set) without touching the document undo stack. So a
+        // surveyor mid-pick can roll back accidental picks
+        // without losing drawing edits they made before
+        // opening the dialog.
+        const tx = useTransferStore.getState();
+        if (tx.pickModeActive) {
+          tx.undoPick();
+          break;
+        }
         undoStore.undo();
         break;
+      }
       case 'edit.redo':
-      case 'edit.redo2':
+      case 'edit.redo2': {
+        const tx = useTransferStore.getState();
+        if (tx.pickModeActive) {
+          tx.redoPick();
+          break;
+        }
         undoStore.redo();
         break;
+      }
       case 'file.save':
         saveDocument();
         break;
@@ -155,9 +194,34 @@ export function useKeyboard() {
         selectionStore.selectMultiple(allIds, 'REPLACE');
         break;
       }
-      case 'edit.delete':
-        eraseSelected();
+      case 'edit.nudge.up':
+      case 'edit.nudge.down':
+      case 'edit.nudge.left':
+      case 'edit.nudge.right':
+      case 'edit.nudge.up10':
+      case 'edit.nudge.down10':
+      case 'edit.nudge.left10':
+      case 'edit.nudge.right10': {
+        nudgeSelection(action);
         break;
+      }
+      case 'edit.delete': {
+        // During an in-flight polyline / polygon draw, Backspace (+
+        // Delete) pops the last placed vertex — matches AutoCAD /
+        // Carlson convention and the existing `u` command-bar key
+        // documented in the Keyboard Shortcuts modal. Otherwise
+        // falls through to deleting the active selection.
+        const ts = toolStore.state;
+        if (
+          (ts.activeTool === 'DRAW_POLYLINE' || ts.activeTool === 'DRAW_POLYGON') &&
+          ts.drawingPoints.length > 0
+        ) {
+          toolStore.popDrawingPoint();
+        } else {
+          eraseSelected();
+        }
+        break;
+      }
       case 'edit.copy':
         copyCadSelected();
         break;
@@ -266,6 +330,49 @@ export function useKeyboard() {
 
   function copyCadSelected() {
     copyCadSelection();
+  }
+
+  /**
+   * Arrow-key nudge for the active selection. Step size respects
+   * the snap state:
+   *   - grid visible → minor-grid spacing (`gridMajorSpacing / gridMinorDivisions`)
+   *   - grid hidden  → 1 ft (the most common surveyor unit)
+   * Shift+arrow scales the step 10× for power-user nudging.
+   */
+  function nudgeSelection(action: string) {
+    const selectionStore = useSelectionStore.getState();
+    const drawingStore = useDrawingStore.getState();
+    const undoStore = useUndoStore.getState();
+    const ids = Array.from(selectionStore.selectedIds);
+    if (ids.length === 0) return;
+    const settings = drawingStore.document.settings;
+    const baseMinor =
+      settings.gridMajorSpacing > 0 && settings.gridMinorDivisions > 0
+        ? settings.gridMajorSpacing / settings.gridMinorDivisions
+        : 1;
+    const step = settings.gridVisible ? baseMinor : 1;
+    const multiplier = action.endsWith('10') ? 10 : 1;
+    const amount = step * multiplier;
+    let dx = 0;
+    let dy = 0;
+    if (action.includes('.up')) dy = amount;
+    else if (action.includes('.down')) dy = -amount;
+    else if (action.includes('.left')) dx = -amount;
+    else if (action.includes('.right')) dx = amount;
+    const ops: Array<{
+      type: 'MODIFY_FEATURE';
+      data: { id: string; before: Feature; after: Feature };
+    }> = [];
+    for (const id of ids) {
+      const f = drawingStore.getFeature(id);
+      if (!f) continue;
+      const newF = transformFeature(f, (p) => translate(p, dx, dy));
+      drawingStore.updateFeature(id, { geometry: newF.geometry });
+      ops.push({ type: 'MODIFY_FEATURE', data: { id, before: f, after: newF } });
+    }
+    if (ops.length > 0) {
+      undoStore.pushUndo(makeBatchEntry(`Nudge ${amount.toFixed(2)} ft`, ops));
+    }
   }
 
   function pasteCad() {

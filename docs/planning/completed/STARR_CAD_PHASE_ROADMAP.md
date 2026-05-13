@@ -1,13 +1,29 @@
 # STARR CAD — 8-Phase Implementation Roadmap
 
-> **⚠️ Superseded by `STARR_CAD_MASTER_PLAN.md` §17 (2026-04-30).**
-> The master plan's §17 is the canonical roadmap. The 8-phase structure
-> below is preserved for historical context; Phase 6–8 milestones have been
-> extended in the master plan to cover document ingestion, the calculation
-> methods registry, calculated points / monument recovery, and the
-> conversational basis-selection workspace, plus a new prep Phase 0 that
-> must complete before Phase 6 starts. Do not extend this doc; open PRs
-> against the master.
+> **Status — archived as historical roadmap (2026-05-12).** Superseded by
+> [`STARR_CAD_MASTER_PLAN.md`](./STARR_CAD_MASTER_PLAN.md) §17
+> (2026-04-30). The master plan's §17 is the canonical roadmap. The 8-phase
+> structure below is preserved for historical context; Phase 6–8 milestones
+> have been extended in the master plan to cover document ingestion, the
+> calculation methods registry, calculated points / monument recovery, and the
+> conversational basis-selection workspace, plus a new prep Phase 0 that must
+> complete before Phase 6 starts. Do not extend this doc; open PRs against
+> the master.
+>
+> **Phase absorption map** (where each phase's content now lives):
+>
+> | Phase | Status | Live doc |
+> |---|---|---|
+> | Phase 1 — Project Foundation & CAD Engine Core | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md`](../completed/STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md) |
+> | Phase 2 — Data Import & Point Code System | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md`](../completed/STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md) |
+> | Phase 3 — Layer System, Symbols, Line Types & Editors | ✅ shipped | [`STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`](./STARR_CAD_PHASE_3_STYLES_SYMBOLS.md) |
+> | Phase 4 — Geometry Tools | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md`](../completed/STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md) |
+> | Phase 5 — Annotations, Dimensions, Templates & Print | ✅ shipped | [`STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md) (still in-progress for residual items) |
+> | Phase 6 — AI Drawing Engine | ✅ shipped (best-fit-corner cluster deferred) | [`STARR_CAD_PHASE_6_AI_ENGINE.md`](./STARR_CAD_PHASE_6_AI_ENGINE.md) |
+> | Phase 7 — Final Delivery, RPLS Workflow & Export | ✅ shipped (POB + Regenerate + 60fps perf assertion deferred with rationale) | [`STARR_CAD_PHASE_7_FINAL.md`](./STARR_CAD_PHASE_7_FINAL.md) |
+> | Phase 8 — UX Completeness | ✅ shipped (Trim both + SPLINE × LINE deferred with rationale) | [`STARR_CAD_PHASE_8_UX_CONTROLS.md`](./STARR_CAD_PHASE_8_UX_CONTROLS.md) |
+> | Phase 9 — Trimble Access AutoSync | spec complete; implementation deferred (needs Trimble Connect Business + TDC600) | [`STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md`](./STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md) |
+> | Phase 0 — Foundations (NEW, must precede Phase 6) | added by master plan | master plan §17 |
 
 **Version:** 2.1 | **Date:** March 2026 | **Company:** Starr Surveying Company, Belton, TX
 
@@ -132,11 +148,11 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 - ✅ `.starr` file validator migrates pre-Phase-3 documents (back-fills frozen, lineTypeId, Phase 3 style fields, default layers)
 - ✅ Unit test suite: 215 tests across 9 test files covering all style modules, edge cases, and migration logic
 
-**NOT in Phase 3:** Symbol editor UI dialog, line type editor UI dialog, code-style mapping panel UI (reserved for future Phase 3 UI completion), SymbolPicker/LineTypePicker/ColorPicker dialogs.
+**NOT in Phase 3:** Symbol editor UI dialog + line type editor UI dialog (deferred — see Phase 3 spec; 100+ built-in symbols and 14+ built-in line types cover the surveyor's workflow). Code-to-style mapping panel + SymbolPicker / LineTypePicker have shipped; ColorPicker uses the native browser color input.
 
 **Depends On:** Phase 2 (codes assigned to points, line strings built)
 
-**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`
+**Spec File:** `./STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`
 
 ---
 
@@ -241,7 +257,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 **Estimated Duration:** 10–13 weeks
 
-**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md`
+**Spec File:** `./STARR_CAD_PHASE_6_AI_ENGINE.md`
 
 ---
 
@@ -275,7 +291,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 **Estimated Duration:** 7–9 weeks
 
-**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_7_FINAL.md`
+**Spec File:** `./STARR_CAD_PHASE_7_FINAL.md`
 
 ---
 
@@ -300,7 +316,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 **Estimated Duration:** 4–6 weeks
 
-**Spec File:** `./STARR_CAD/STARR_CAD_PHASE_8_UX_CONTROLS.md`
+**Spec File:** `./STARR_CAD_PHASE_8_UX_CONTROLS.md`
 
 ---
 
@@ -329,12 +345,12 @@ Each phase has its own implementation spec file:
 
 - `./STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md` — Built out fully
 - `./STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md` — Built out fully
-- `./STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md` — Built out fully
+- `./STARR_CAD_PHASE_3_STYLES_SYMBOLS.md` — Built out fully
 - `./STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md` — Built out fully
 - `./STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md` — Built out fully
-- `./STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md` — Built out fully (v2.0: includes dynamic offsets, enrichment, deliberation, confidence cards, element chat)
-- `./STARR_CAD/STARR_CAD_PHASE_7_FINAL.md` — Built out fully (editor integration, RPLS workflow, exports, Electron)
-- `./STARR_CAD/STARR_CAD_PHASE_8_UX_CONTROLS.md` — Built out fully (hotkeys, cursors, tooltips, settings)
+- `./STARR_CAD_PHASE_6_AI_ENGINE.md` — Built out fully (v2.0: includes dynamic offsets, enrichment, deliberation, confidence cards, element chat)
+- `./STARR_CAD_PHASE_7_FINAL.md` — Built out fully (editor integration, RPLS workflow, exports, Electron)
+- `./STARR_CAD_PHASE_8_UX_CONTROLS.md` — Built out fully (hotkeys, cursors, tooltips, settings)
 
 When starting a Copilot or Claude Code session, open the spec file for your current phase. It contains every TypeScript interface, function signature, algorithm, UI layout, and acceptance test needed to implement that phase. The master spec (`STARR_CAD_IMPLEMENTATION.md`) remains the single source of truth for the full picture — the phase specs are focused extractions optimized for implementation.
 

@@ -1,17 +1,47 @@
 # STARR CAD — Complete Implementation Specification
 
-> **⚠️ Superseded by `STARR_CAD_MASTER_PLAN.md` (2026-04-30).**
-> The master plan is the new single source of truth for the CAD + AI plat
-> system. This doc remains for historical context — Phases 1–5 detail here is
-> still authoritative for those phases (cross-linked from the master), but
-> Phase 6+ scope has moved to the master plan, which adds: document
-> ingestion, the calculation methods registry, calculated-points / monument
-> recovery, and the conversational basis-selection workspace. Do not extend
-> this doc; open PRs against the master.
+> **Status — archived as historical specification (2026-05-12).** Superseded
+> by [`STARR_CAD_MASTER_PLAN.md`](./STARR_CAD_MASTER_PLAN.md)
+> (2026-04-30). The master plan is the new single source of truth for the
+> CAD + AI plat system; per-phase detail docs in `STARR_CAD/` carry the
+> implementation specs. This doc remains for historical context — Phases 1–5
+> detail here is still authoritative for those phases (cross-linked from the
+> master) — but Phase 6+ scope has moved to the master plan, which adds:
+> document ingestion, the calculation methods registry, calculated-points /
+> monument recovery, and the conversational basis-selection workspace. Do
+> not extend this doc; open PRs against the master.
+>
+> **Section absorption map** (where each section's content now lives):
+>
+> | This doc § | Owner going forward |
+> |---|---|
+> | §1 Project overview + architecture | [`STARR_CAD_MASTER_PLAN.md`](./STARR_CAD_MASTER_PLAN.md) §3 |
+> | §2 Tech stack + project structure | Master plan §16 |
+> | §3 Core data models | [`STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md`](../completed/STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md) (shipped) |
+> | §4 Coordinate system + math engine | Phase 1 (shipped) |
+> | §5 Rendering engine | Phase 1 (shipped) |
+> | §6 Layer system | [`STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`](./STARR_CAD_PHASE_3_STYLES_SYMBOLS.md) (shipped) |
+> | §7 Point code system | Phase 3 |
+> | §8 Symbol system + symbol editor | Phase 3 |
+> | §9 Line type system + line editor | Phase 3 |
+> | §10 Styling + theme engine | Phase 3 |
+> | §11 Curve + arc geometry | [`STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md`](../completed/STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md) (shipped) |
+> | §12 Spline system | Phase 4 (shipped) |
+> | §13 Offset engine | Phase 4 (shipped) |
+> | §14 Survey tools (traverse, closure, legal-desc) | Phase 4 (shipped) · master plan §10 (calculation registry) |
+> | §15 File import + export | [`STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md`](../completed/STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md) (shipped) · [`STARR_CAD_PHASE_7_FINAL.md`](./STARR_CAD_PHASE_7_FINAL.md) (shipped) |
+> | §16 AI drawing engine | [`STARR_CAD_PHASE_6_AI_ENGINE.md`](./STARR_CAD_PHASE_6_AI_ENGINE.md) (shipped) · master plan §6-§8 |
+> | §17 Point-name suffix intelligence | Phase 3 |
+> | §18 Confidence rating system | Phase 6 |
+> | §19 Template system | [`STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md`](../in-progress/STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md) · master plan §5 (template hierarchy) |
+> | §20 UI/UX specification | [`STARR_CAD_PHASE_8_UX_CONTROLS.md`](./STARR_CAD_PHASE_8_UX_CONTROLS.md) (shipped) |
+> | §21 Keyboard shortcuts + command system | Phase 8 |
+> | §22 Development phases | Master plan §17 |
+> | §23 Appendices A-H | Various phases (referenced inline) |
 
 **Version:** 1.0 | **Date:** March 2026 | **Company:** Starr Surveying Company, Belton, TX
 
-**Purpose:** This is the single source of truth for building Starr CAD. Every data model, algorithm, UI component, and behavior rule is defined here. Code AI tools (Copilot, Claude Code) should reference this document for all implementation decisions.
+**Purpose (historical):** When written, this was intended as the single source of truth for building Starr CAD. The master plan now owns that role; this doc is retained for the per-phase context it provides on Phases 1–5.
 
 ---
 

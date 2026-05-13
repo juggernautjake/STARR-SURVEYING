@@ -22,7 +22,7 @@
  * The list is reactive (PowerSync useQuery), so retries / discards /
  * background drains all reflow the list immediately.
  */
-import { Stack, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
@@ -119,8 +119,6 @@ export default function UploadsScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top', 'bottom']}
     >
-      <Stack.Screen options={{ headerShown: false }} />
-
       <ScreenHeader back title="Uploads" />
 
       <Text style={[styles.subtitle, { color: palette.muted }]}>

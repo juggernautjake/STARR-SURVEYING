@@ -24,7 +24,7 @@
 
 import { useState, useMemo, useRef } from 'react';
 import {
-  X, RotateCcw, RotateCw, Compass, Info, ChevronDown, ChevronUp,
+  RotateCcw, RotateCw, Compass, Info, ChevronDown, ChevronUp,
   Search, CheckCircle2,
 } from 'lucide-react';
 import { useDrawingStore, useUndoStore, makeBatchEntry } from '@/lib/cad/store';
@@ -39,6 +39,7 @@ import type { ReferenceLine, BearingCandidate } from '@/lib/cad/geometry/orient'
 import { parseBearing, formatBearing, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import type { Feature, UndoOperation } from '@/lib/cad/types';
 import Tooltip from './Tooltip';
+import DialogCloseButton from './ui/DialogCloseButton';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -307,9 +308,7 @@ export default function OrientationDialog({ onClose }: Props) {
             <Compass size={16} className="text-blue-400" />
             <h2 className="font-semibold text-white">Survey Orientation Adjustment</h2>
           </div>
-          <button className="text-gray-400 hover:text-white transition-colors" onClick={onClose}>
-            <X size={16} />
-          </button>
+          <DialogCloseButton onClick={onClose} />
         </div>
 
         {/* Body */}

@@ -242,6 +242,30 @@ export default function LayerTransferDialog({ onClose }: Props) {
       if (!ok) return;
     }
 
+    // Move + locked-source warning. The user may have locked the
+    // source layer to protect the originals; reassigning them via
+    // Move silently bypasses the lock. Surface that intent
+    // explicitly so the surveyor doesn't lose work.
+    if (options.operation === 'MOVE') {
+      const lockedSourceLayers = new Set<string>();
+      for (const id of sourceIds) {
+        const f = drawingStore.getFeature(id);
+        const l = f ? drawingStore.document.layers[f.layerId] : null;
+        if (l?.locked) lockedSourceLayers.add(l.name);
+      }
+      if (lockedSourceLayers.size > 0) {
+        const names = Array.from(lockedSourceLayers).map((n) => `"${n}"`).join(', ');
+        const ok = await confirmAction({
+          title: 'Move features off a locked layer?',
+          message: `Some of the features you're moving live on a locked source layer (${names}). Move will reassign them to "${targetLayer.name}" anyway. Proceed?`,
+          confirmLabel: 'Move anyway',
+          cancelLabel: 'Cancel',
+          danger: true,
+        });
+        if (!ok) return;
+      }
+    }
+
     // Capture source-layer ids BEFORE the kernel runs so a
     // post-Confirm lock can target only the layers the
     // duplicates actually came from.
@@ -589,8 +613,20 @@ export default function LayerTransferDialog({ onClose }: Props) {
                 })}
               </select>
               {targetLocked && (
-                <p className="text-[10px] text-amber-400 mt-1">
-                  Target layer is locked — unlock it from the Layers panel before confirming.
+                <p className="text-[10px] text-amber-400 mt-1 flex items-center gap-1.5">
+                  <span>Target layer is locked.</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (options.targetLayerId) {
+                        drawingStore.updateLayer(options.targetLayerId, { locked: false });
+                      }
+                    }}
+                    className="underline underline-offset-2 hover:text-amber-200 transition-colors"
+                    title="Unlock this layer so Confirm becomes enabled"
+                  >
+                    Unlock layer
+                  </button>
                 </p>
               )}
               {/* Multi-target paste (Duplicate only) — additional
@@ -1634,12 +1670,25 @@ function SourceListContextMenu(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickedIds]);
 
-  function filterToType(keepType: string) {
+  async function filterToType(keepType: string) {
     const toRemove: string[] = [];
     for (const id of pickedIds) {
       const f = drawingStore.getFeature(id);
       if (!f) continue;
       if (f.type !== keepType) toRemove.push(id);
+    }
+    // Warn before silently dropping a non-trivial number of picks
+    // (Phase 8 §11.7.12). The single-feature case is the muscle-
+    // memory "narrow my pick" workflow; for batches surfacing the
+    // exact count gives the surveyor a chance to re-think.
+    if (toRemove.length > 1) {
+      const ok = await confirmAction({
+        title: 'Filter to one type?',
+        message: `This will drop ${toRemove.length} pick${toRemove.length === 1 ? '' : 's'} that aren't ${keepType}. Use Backspace if you change your mind.`,
+        confirmLabel: 'Filter',
+        cancelLabel: 'Cancel',
+      });
+      if (!ok) return;
     }
     if (toRemove.length > 0) removePicks(toRemove);
     props.onClose();

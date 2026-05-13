@@ -56,7 +56,7 @@ export interface LotIsolationResult {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
 /** Minimum cropped lot dimension (px) — below this the lot is too small to extract */
 const MIN_LOT_DIMENSION = 100;

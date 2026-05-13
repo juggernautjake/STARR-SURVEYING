@@ -15,7 +15,9 @@ import {
   useUndoStore,
   useUIStore,
   useAIStore,
+  AI_MODE_CYCLE,
 } from '@/lib/cad/store';
+import type { AIMode } from '@/lib/cad/store';
 import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { reverseFeature, explodeFeature, smoothPolyline, simplifyPolylineFeature } from '@/lib/cad/operations';
 import { cadLog } from '@/lib/cad/logger';
@@ -26,6 +28,7 @@ import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, d
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import SaveToDBDialog from './SaveToDBDialog';
+import DialogCloseButton from './ui/DialogCloseButton';
 
 interface MenuItem {
   label: string;
@@ -69,6 +72,12 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
   const toggleDrawingChat = useDrawingChatStore((s) => s.toggle);
   const aiSidebarOpen = useUIStore((s) => s.showAISidebar);
   const toggleAISidebar = useUIStore((s) => s.toggleAISidebar);
+  // Phase 6 §AI-mode-framework — surface the four AI modes here so
+  // the surveyor isn't forced to discover the Ctrl+Shift+M chord
+  // through the StatusBar chip tooltip alone. UX_POLISH §2.4.
+  const aiMode = useAIStore((s) => s.mode);
+  const setAIMode = useAIStore((s) => s.setMode);
+  const cycleAIMode = useAIStore((s) => s.cycleMode);
 
   // ─── File I/O ───────────────────────────────
   function saveDocument() {
@@ -263,13 +272,15 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       // subscription out of MenuBar's render path — print
       // settings change rarely and the menu doesn't need to
       // re-render when they do.
-      const { plotStyle } = useTemplateStore.getState().printConfig;
+      const { plotStyle, scaleMode, scale } = useTemplateStore.getState().printConfig;
       const { byteSize, filename } = downloadPdf(drawingStore.document, {
         plotStyle,
+        scaleMode,
+        scale,
       });
       cadLog.info(
         'FileIO',
-        `Exported drawing as PDF: ${filename} (${byteSize} bytes, plotStyle=${plotStyle})`
+        `Exported drawing as PDF: ${filename} (${byteSize} bytes, plotStyle=${plotStyle}, scaleMode=${scaleMode}${scaleMode === 'FIXED' ? `, 1"=${scale}'` : ''})`
       );
     } catch (err) {
       cadLog.error('FileIO', 'PDF export failed', err);
@@ -347,7 +358,6 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'Recover unsaved drawings…', action: () => { onOpenRecentRecoveries?.(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Save', shortcut: 'Ctrl+S', action: saveDocument },
-        { label: 'Save As…', action: saveDocument },
         { label: 'Save to Cloud…', action: () => { setDbDialog('save'); setOpenMenu(null); } },
         { separator: true },
         { label: 'Export as CSV (simplified)…', action: () => { exportCsv('simplified'); setOpenMenu(null); } },
@@ -445,7 +455,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
               action: () => { if (single) smoothPolyline(single.id); },
             },
             {
-              label: 'Simplify (RDP, 0.5 ft)',
+              label: 'Simplify polyline (0.5 ft tolerance)',
               disabled: !canSmoothOrSimplify,
               action: () => { if (single) simplifyPolylineFeature(single.id, 0.5); },
             },
@@ -519,6 +529,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           label: 'Title Block & North Arrow…',
           action: () => { onOpenTitleBlock?.(); setOpenMenu(null); },
         },
+        {
+          label: 'Code-to-Style Mapping…',
+          action: () => { window.dispatchEvent(new CustomEvent('cad:openCodeStylePanel')); setOpenMenu(null); },
+        },
         { separator: true },
         {
           label: 'Curve Calculator…',
@@ -559,6 +573,18 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     {
       label: 'AI',
       items: [
+        // AI mode picker — mirrors the StatusBar chip's cycle but
+        // makes every mode + the chord visible from the menu.
+        ...AI_MODE_CYCLE.map((mode: AIMode) => ({
+          label: `${mode === aiMode ? '● ' : '  '}AI mode: ${mode}`,
+          action: () => { setAIMode(mode); setOpenMenu(null); },
+        })),
+        {
+          label: 'Cycle AI mode',
+          shortcut: 'Ctrl+Shift+M',
+          action: () => { cycleAIMode(); setOpenMenu(null); },
+        },
+        { separator: true },
         { label: 'Run AI Drawing Engine…', action: () => { onOpenAIDrawing?.(); setOpenMenu(null); } },
         {
           label: aiQueuePanelOpen ? 'Hide AI review queue' : 'Show AI review queue',
@@ -716,7 +742,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold text-white">Keyboard Shortcuts</h2>
-              <button className="text-gray-400 hover:text-white text-lg leading-none" onClick={() => setShowShortcuts(false)}>✕</button>
+              <DialogCloseButton onClick={() => setShowShortcuts(false)} />
             </div>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 max-h-96 overflow-y-auto">
               {[

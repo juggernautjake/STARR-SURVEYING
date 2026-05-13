@@ -45,14 +45,21 @@ export async function compareDrawingToSources(
 
   if (!drawing) throw new Error('Drawing not found');
 
-  // 2. Run mathematical checks
-  const mathChecks = runMathematicalChecks(elements, dataPoints);
+  // 2. Run mathematical checks. Drawing elements are persisted in
+  // canvas-pixel space (px = (x_s - bbox.minX) × scale, see
+  // `surveyToCanvas` in drawing.service.ts), so the math checks
+  // need the canvas-to-survey scale to recover real-world feet.
+  const canvasScale =
+    typeof drawing.canvas_config?.scale === 'number' && drawing.canvas_config.scale > 0
+      ? drawing.canvas_config.scale
+      : 1;
+  const mathChecks = runMathematicalChecks(elements, dataPoints, canvasScale);
 
   // 3. Run AI semantic comparison
   const aiResult = await runAIComparison(elements, dataPoints, documents, mathChecks);
 
   // 4. Compute per-category confidence breakdown
-  const breakdown = computeConfidenceBreakdown(elements);
+  const breakdown = computeConfidenceBreakdown(elements, mathChecks);
 
   // 5. Compute overall confidence from weighted factors
   const avgElementConfidence = elements.length > 0
@@ -104,20 +111,24 @@ export async function compareDrawingToSources(
 
 function runMathematicalChecks(
   elements: DrawingElement[],
-  dataPoints: ExtractedDataPoint[]
+  dataPoints: ExtractedDataPoint[],
+  canvasScale: number
 ): MathCheckSummary {
   // Boundary elements for closure calculation
   const boundaryElements = elements.filter(e =>
     e.feature_class === 'property_boundary' && (e.element_type === 'line' || e.element_type === 'curve')
   );
 
-  // Calculate closure from boundary geometry
+  // Calculate closure from boundary geometry. `calculateClosure`
+  // returns pixel-space distances; divide by `canvasScale` to land
+  // in survey-space feet. Precision (totalDistance / misclosure) is
+  // scale-invariant so we keep the ratio directly.
   let closurePrecision: number | null = null;
   let closureMisclosure: number | null = null;
 
   if (boundaryElements.length >= 3) {
     const { misclosure, totalDistance } = calculateClosure(boundaryElements);
-    closureMisclosure = misclosure;
+    closureMisclosure = misclosure / canvasScale;
     closurePrecision = totalDistance > 0 ? Math.round(totalDistance / Math.max(misclosure, 0.001)) : null;
   }
 
@@ -128,7 +139,7 @@ function runMathematicalChecks(
     : null;
 
   const computedArea = boundaryElements.length >= 3
-    ? calculateAreaFromElements(boundaryElements)
+    ? calculateAreaFromElements(boundaryElements, canvasScale)
     : null;
 
   const areaDiff = statedArea !== null && computedArea !== null
@@ -194,7 +205,10 @@ function parseAreaAcres(dp: ExtractedDataPoint): number | null {
   return norm.value; // assume acres
 }
 
-function calculateAreaFromElements(boundaryElements: DrawingElement[]): number | null {
+function calculateAreaFromElements(
+  boundaryElements: DrawingElement[],
+  canvasScale: number
+): number | null {
   const lines = boundaryElements.filter(e => e.geometry.type === 'line');
   if (lines.length < 3) return null;
 
@@ -215,8 +229,12 @@ function calculateAreaFromElements(boundaryElements: DrawingElement[]): number |
   }
   area = Math.abs(area) / 2;
 
-  // Convert from drawing units (assumed feet) to acres
-  return area / 43560;
+  // Shoelace operates on canvas-pixel coordinates, so the result is
+  // in square pixels. Divide by scale² to land in square feet
+  // (pixels = feet × scale, so px² = ft² × scale²), then divide by
+  // 43,560 sq ft/acre.
+  const areaSqFt = area / (canvasScale * canvasScale);
+  return areaSqFt / 43560;
 }
 
 function countVerifiedCalls(callDataPoints: ExtractedDataPoint[], elements: DrawingElement[]): number {
@@ -372,18 +390,51 @@ function computeResolutionCompleteness(discrepancies: Discrepancy[]): number {
   return Math.round(ratio * 100);
 }
 
-function computeConfidenceBreakdown(elements: DrawingElement[]): ComparisonResult['confidence_breakdown'] {
+function computeConfidenceBreakdown(
+  elements: DrawingElement[],
+  checks: MathCheckSummary
+): ComparisonResult['confidence_breakdown'] {
   const byCategory = (featureClass: string) => {
     const matching = elements.filter(e => e.feature_class === featureClass);
     if (matching.length === 0) return 75; // neutral default
     return Math.round(matching.reduce((s, e) => s + e.confidence_score, 0) / matching.length);
   };
 
+  // Score area_accuracy from the absolute acreage difference between the
+  // computed boundary and the stated area. Null (no comparison data
+  // available) keeps the neutral default; tighter agreement scores higher.
+  let areaAccuracy = 75;
+  if (checks.area_difference_acres !== null) {
+    const diff = Math.abs(checks.area_difference_acres);
+    if (diff < 0.001)      areaAccuracy = 100;
+    else if (diff < 0.01)  areaAccuracy = 95;
+    else if (diff < 0.05)  areaAccuracy = 85;
+    else if (diff < 0.1)   areaAccuracy = 75;
+    else if (diff < 0.5)   areaAccuracy = 55;
+    else if (diff < 1.0)   areaAccuracy = 40;
+    else                   areaAccuracy = 25;
+  }
+
+  // closure_precision is totalDistance / misclosure — higher is better
+  // (e.g. 10,000 = 1 part in 10K, the TBPELS surveying standard). Null
+  // (insufficient boundary geometry) keeps the neutral default.
+  let closureQuality = 75;
+  if (checks.closure_precision !== null) {
+    const p = checks.closure_precision;
+    if (p >= 10000)      closureQuality = 100;
+    else if (p >= 5000)  closureQuality = 95;
+    else if (p >= 2500)  closureQuality = 85;
+    else if (p >= 1000)  closureQuality = 75;
+    else if (p >= 500)   closureQuality = 60;
+    else if (p >= 100)   closureQuality = 40;
+    else                 closureQuality = 25;
+  }
+
   return {
     boundary_accuracy: byCategory('property_boundary'),
     monument_accuracy: byCategory('monument'),
     easement_accuracy: byCategory('easement'),
-    area_accuracy: 75, // computed from math checks, default
-    closure_quality: 75, // computed from math checks, default
+    area_accuracy: areaAccuracy,
+    closure_quality: closureQuality,
   };
 }

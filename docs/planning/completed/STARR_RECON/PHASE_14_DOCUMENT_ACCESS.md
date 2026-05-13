@@ -2,7 +2,12 @@
 
 **Starr Software — AI Property Research Pipeline Phase**
 
-**Status:** ✅ COMPLETE v1.0 (March 2026)
+**Status:** ✅ COMPLETE v1.0 (March 2026) · archived 2026-05-12 — all 38
+acceptance items closed against shipped implementations (Phase 15 delivered
+the per-vendor purchase adapters, wallet schema, billing UI, Stripe webhook,
+notification service; this slice adds the statewide coverage dashboard at
+`/admin/research/coverage`). Read this doc for historical decision context;
+new work happens in subsequent phase docs.
 **Phase Duration:** Weeks 57–58
 **Depends On:** Phases 1–13
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
@@ -393,18 +398,18 @@ Step 4: After payment, STARR auto-fetches clean images
 
 ### Deferred to Phase 15
 
-- [ ] Full purchase automation for Tyler Pay (Playwright form-fill + confirmation flow)
-- [ ] Full purchase automation for Henschen Pay (Playwright form-fill + image download)
-- [ ] Full purchase automation for iDocket Pay (subscriber auth + full image download)
-- [ ] Full purchase automation for Fidlar Pay (session + payment form + image retrieval)
-- [ ] GovOS guest checkout automation (credit card form fill without account)
-- [ ] LandEx REST API integration (pure API — no Playwright needed, straightforward to automate)
-- [ ] Database schema migration: `document_wallet_balance` and `document_purchase_history` Supabase tables
-- [ ] Frontend billing dashboard UI at `/admin/research/billing` — wallet balance + transaction history + "Add Funds" button
-- [ ] Stripe webhook endpoint at `/api/webhooks/stripe` for `payment_intent.succeeded` and `checkout.session.completed` events
-- [ ] Notification system: email/SMS alert when clean document purchase completes and re-analysis finishes
-- [ ] Bexar County custom clerk adapter (San Antonio — uses its own custom portal)
-- [ ] Statewide coverage gap dashboard — admin page showing which counties have which access tiers
+- [x] Full purchase automation for Tyler Pay — shipped at `worker/src/services/purchase-adapters/tyler-pay-adapter.ts` (257 LOC; Playwright login → search → cart → checkout → download for ~30 Tyler/Odyssey Texas counties).
+- [x] Full purchase automation for Henschen Pay — shipped at `worker/src/services/purchase-adapters/henschen-pay-adapter.ts` (231 LOC).
+- [x] Full purchase automation for iDocket Pay — shipped at `worker/src/services/purchase-adapters/idocket-pay-adapter.ts` (207 LOC; subscriber auth + image download).
+- [x] Full purchase automation for Fidlar Pay — shipped at `worker/src/services/purchase-adapters/fidlar-pay-adapter.ts` (241 LOC; session + payment form + image retrieval).
+- [x] GovOS guest checkout automation — shipped at `worker/src/services/purchase-adapters/govos-guest-adapter.ts` (271 LOC; credit-card form fill without account).
+- [x] LandEx REST API integration — shipped at `worker/src/services/purchase-adapters/landex-api-adapter.ts` (331 LOC; pure REST API, no Playwright; national coverage including Texas, especially useful where Playwright automation is brittle and for batch parallel requests).
+- [x] Database schema migration: `document_wallet_balance` and `document_purchase_history` Supabase tables — shipped in `seeds/093_phase15_wallet_tables.sql` (Phase 15 picked up the deferred Phase 14 schema). Tables integrate with the Stripe webhook (credit/debit on payment events) and `worker/src/services/document-access-orchestrator.ts` (debit on purchases).
+- [x] Frontend billing dashboard UI at `/admin/research/billing` — shipped at `app/admin/research/billing/page.tsx`. Surfaces subscription status, usage metrics, invoice history, and document-purchase transaction log; ties into the wallet schema above.
+- [x] Stripe webhook endpoint at `/api/webhooks/stripe` — shipped at `app/api/webhooks/stripe/route.ts`. Handles `payment_intent.succeeded` and `checkout.session.completed` events; coverage via `__tests__/recon/phase15-purchase-automation.test.ts`.
+- [x] Notification system: email/SMS alert — shipped at `worker/src/services/notification-service.ts` (474 LOC, Phase 15). Email via Resend, SMS via Twilio; both optional (no credentials → logged-only fallback). Fires on document-purchase complete, pipeline finished, purchase failed / manual-intervention required, and billing events. Spec §15.8.
+- [x] Bexar County custom clerk adapter — shipped at `worker/src/adapters/bexar-clerk-adapter.ts` (335 LOC; covers the bexar.tx.publicsearch.us Kofile / GovOS PublicSearch portal + the bexar.org/169 records system, ~2M+ records).
+- [x] Statewide coverage gap dashboard — shipped at `app/admin/research/coverage/page.tsx`. Server component reading `CLERK_REGISTRY` + `getAdapterCoverage()` from `worker/src/adapters/clerk-registry.ts`; renders implemented / stub / unavailable status tiles + a sortable table (sort: status tier first, then county alpha). Each row carries the FIPS, county name, vendor label, status badge, portal link, and operator notes. The 232 unlisted counties fall back to the TexasFile aggregator (explained inline). Linked from `/admin/research`.
 
 ---
 

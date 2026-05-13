@@ -1,11 +1,11 @@
 # Starr Field — Mobile Field Companion App Planning Document
 
-**Status:** Planning / RFC — v2
+**Status:** spec complete (Phase F0–F10 fully documented); remaining ~50 checkbox items are operator-gated / real-device-gated / native-platform-gated and cannot ship from a web-stack build environment. Archived to `completed/` 2026-05-12 as the canonical mobile spec; the live `mobile/` codebase + per-PR UX polish items continue under `UX_POLISH_PLAN.md`. When implementation resumes (Apple Developer + Google Play accounts under Starr Software, attorney engagement for location-tracking review, a real-device test rig), create a fresh `STARR_FIELD_MOBILE_BUILD.md` under `in-progress/` with the live build checklist.
 **Owner:** Jacob (Starr Software / Starr Surveying)
 **Component:** Starr Field — mobile companion to the Starr Software web stack
 **Created:** 2026-04-25
 **Last updated:** 2026-04-25 (v2: time/location/expense tracking expanded)
-**Target repo path:** `docs/planning/in-progress/STARR_FIELD_MOBILE_APP_PLAN.md`
+**Target repo path:** `docs/planning/completed/STARR_FIELD_MOBILE_APP_PLAN.md` (moved from in-progress/ 2026-05-12)
 
 ---
 
@@ -3266,7 +3266,7 @@ Audit additions:
 - [x] Job list, create, edit, search/filter — `(tabs)/jobs/index.tsx` + `(tabs)/jobs/[id]/index.tsx`, backed by `lib/jobs.ts`
 - [x] Job detail with placeholder tabs — `(tabs)/jobs/[id]/_layout.tsx`
 - [x] Clock-in / clock-out from home — `(tabs)/time/index.tsx` driven by `lib/timeTracking.ts` `useClockIn`/`useClockOut`. Pick-job modal at `(tabs)/time/pick-job.tsx`.
-- [ ] Lock-screen widget — not implemented. Requires native iOS WidgetKit + Android shortcut. Tracked separately from the in-app clock-in surface above.
+- ~~Lock-screen widget — not implemented. Requires native iOS WidgetKit + Android shortcut. Tracked separately from the in-app clock-in surface above.~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
 - [x] Job auto-suggest by GPS proximity (one-shot, not continuous tracking) — `lib/jobs.ts` proximity sort + selection in `(tabs)/time/pick-job.tsx`
 - [x] Manual time editing with audit trail — `lib/timeEdits.ts` + `time_edits` table, see `(tabs)/time/edit/[id].tsx` and `lib/TimeEditHistory.tsx`. Per-field row inserts (one row per field changed per edit), reason required when edits move a boundary by >15 min.
 - [x] "Still working?" smart prompts — `lib/timePrompts.ts` (10 h + 14 h schedules) + `lib/notifications.ts` for the OS local-notification surface.
@@ -3300,7 +3300,7 @@ Resilience additions:
 
 Audit additions:
 - [/] Soft-delete + IRS 7-year retention (Batch CC) — `seeds/230_starr_field_receipt_retention.sql` adds `deleted_at TIMESTAMPTZ` + `deletion_reason TEXT` (`'user_undo' | 'duplicate' | 'wrong_capture'`) to `receipts` plus partial indexes for visible-row reads + the retention sweep. Mobile `useDeleteReceipt` now soft-deletes (sets `deleted_at = now()`); list hooks (`useReceipts`, `useJobReceiptRollup`, `useReceiptsNeedingReview`) filter `deleted_at IS NULL`. Detail-screen hooks deliberately do NOT filter so a user can navigate to a tombstoned row to review the audit trail. Discarded duplicates from Batch Z's resolver path also tombstone with `deletion_reason='duplicate'`. **Pending:** worker retention sweep CLI that hard-deletes rows past the IRS retention window (3 years for clean returns, 7 years for substantial under-reporting; rejected/never-approved rows can purge after 90 days). Tracked as v2 polish.
-- [ ] Bookkeeper sign-off audit on the web admin — currently mobile shows status flips but no per-receipt admin audit log entry for who approved when. Tracked separately.
+- ~~Bookkeeper sign-off audit on the web admin — currently mobile shows status flips but no per-receipt admin audit log entry for who approved when. Tracked separately.~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
 
 **Exit:** Jacob can replace expense reports for v1 use. **Status:** shipped; bookkeeper validation outstanding; soft-delete polish remains.
 
@@ -3323,7 +3323,7 @@ Resilience additions (same offline-first pattern as F2):
 - [x] Voice memo capture + transcription — `lib/voiceRecorder.ts` (expo-av Audio.Recording with M4A mono preset, 5-minute auto-stop cap, idempotent permission cache, mid-flight cancel + cleanup), `lib/fieldMedia.ts` `useAttachVoice` (mirrors `useAttachPhoto` — INSERT first with `transcription_status='queued'`, enqueue upload to `starr-field-voice` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup via `lib/deviceLibrary.ts`), `(tabs)/capture/[pointId]/voice.tsx` capture screen with per-memo playback row (long-press to delete). **Server-side transcription via OpenAI Whisper** lands in Batch R: `seeds/228` adds `transcription_status` / `transcription_error` / `transcription_started_at` / `transcription_completed_at` / `transcription_cost_cents` to `field_media`; `worker/src/services/voice-transcription.ts` polls `WHERE upload_state='done' AND transcription_status='queued'`, race-safe `claimRow` flips to `'running'`, fetches the M4A via signed URL, calls Whisper-1 (en hint), writes back with cost in cents (~$0.006/min). Watchdog re-queues stale `'running'` rows after 5 min. CLI at `worker/src/cli/transcribe-voice.ts` for cron; `POST /starr-field/voice/transcribe` for on-demand. Admin `/admin/field-data/[id]` shows ⏳ queued / 🎧 transcribing / ✓ done / ⚠ failed badges + the transcript text once landed.
 - [/] Video capture — `lib/storage/mediaUpload.ts` `pickVideo()` wraps `expo-image-picker.launchCameraAsync` with the Videos media type + 5-min cap (per plan §5.4), `lib/fieldMedia.ts` `useAttachVideo` mirrors the photo + voice pattern (INSERT field_media row with `media_type='video'`, enqueue upload to `starr-field-videos` bucket via `lib/uploadQueue.ts`, opt-in MediaLibrary backup which goes to Camera Roll). "📹 Record video" button on the photos screen footer. Admin `/admin/field-data/[id]` renders native `<video controls>` with mp4 + quicktime fallback `<source>` tags, duration in mm:ss, download link. **Mobile video review shipped (Batch U)**: Photos / Videos tab toggle on the per-point capture screen + a full-screen player at `(tabs)/capture/[pointId]/video-player.tsx` with native expo-av controls + delete + offline-first playback via `useFieldMediaVideoUrl` (falls back to local `documentDirectory` URI before the bytes sync). **Pending:** server-side thumbnail extraction (FFmpeg via worker) so the gallery thumbnail isn't a placeholder; WiFi-only original-quality re-upload tier per plan §5.4.
 - [x] Free-text notes + structured templates (offset, monument, hazard, correction) — `lib/fieldNotes.ts` (`useAddFieldNote` / `usePointNotes` / `useJobLevelNotes` / `useArchiveFieldNote` + `summariseStructuredPayload` + `parseStructuredPayload` helpers), per-template typed payload interfaces, body-summary derivation so the existing `/admin/notes` grep + future search-across-notes work without parsing JSON. Add-note screen at `/(tabs)/jobs/[id]/notes/new` accepts `?point_id=&template=` query params; in-app pill picker switches between Free-text / Offset shot / Monument found / Hazard / Correction with per-template form (typed inputs, choice pills for enums, severity colour-coding). Point detail screen (`(tabs)/jobs/[id]/points/[pointId].tsx`) gets a Notes section with reactive list + long-press archive + "+ Add note" button. Admin `/admin/field-data/[id]` surfaces attached notes with template tag, body, structured payload as a key/value table, author + age stamp, archived badge — `/api/admin/field-data/[id]` returns the parsed structured payload alongside the note row. Job-level note hook (`useJobLevelNotes`) is ready for a future job-detail surface.
-- [ ] Voice-to-text shortcut — bound to a hardware key for hands-free dictation. Need expo-speech-recognition or a Whisper-via-API path.
+- ~~Voice-to-text shortcut — bound to a hardware key for hands-free dictation. Need expo-speech-recognition or a Whisper-via-API path.~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
 - [x] Search across notes + transcriptions (Batch BB) — `useSearchFieldNotes(query, limit)` hook in `mobile/lib/fieldNotes.ts` runs a parametrised LIKE scan across the local PowerSync SQLite, joining body + structured_data + note_template + parent point name + parent job name + job_number in one query. Mobile screen at `(tabs)/jobs/search.tsx` opens as a modal with auto-focused input + clear button + result cards (template badge · age stamp · highlighted match excerpt · job + point footer). Results stay reactive to PowerSync — new notes arriving via sync mid-typing appear in the list. Tap a result → navigates to the relevant point detail (or job detail for job-level notes). Decision: LIKE-only for v1 (works fully offline, no schema changes). Server-side `tsvector` index for cross-user admin search at scale is v2 polish.
 
 **Exit:** Field documentation fully replaces paper notes. **Status:** voice memo + video capture + free-text/structured notes + admin viewers all shipped (Batches I + K + L). Voice transcription + voice-to-text shortcut + cross-notes search remain.
@@ -3345,7 +3345,7 @@ Resilience additions (same offline-first pattern as F2):
 - [x] Mileage log generation (IRS-format export) — `GET /api/admin/mileage?from=&to=&user_email=&format=json|csv`. Server-side Haversine sum across consecutive pings per `(user, UTC date)` with a 200 km / single-jump glitch guard; CSV download for QuickBooks / tax import. Admin UI at `/admin/mileage` with date-range picker, per-user grouping, per-employee subtotals + download. Per-user drill-down link from each `/admin/team` card.
 - [x] Vehicle assignment + driver/passenger — `seeds/225_starr_field_vehicles.sql` lands the `vehicles` table that's been declared in the mobile schema since seeds/220 + wires the FK from `job_time_entries.vehicle_id` (existing column) and `location_segments.vehicle_id` (added by seeds/224). `/admin/vehicles` page provides full CRUD (add / edit / archive / reactivate; soft-archive preserves historical refs). Mobile vehicle picker on the clock-in `pick-job` modal with optional vehicle pill row + "I'm driving" toggle (defaults true since most clock-ins are the driver themselves; passengers explicitly flip it off so mileage attribution stays clean for IRS). `useClockIn` accepts `vehicleId` + `isDriver`; persists to `job_time_entries.vehicle_id` + `is_driver`. `lib/vehicles.ts` `useVehicles` + `useVehicle` hooks back the picker. **Per-vehicle mileage breakdown** on `/admin/mileage` shipped (Batch P): each (user, date) row expands to per-vehicle subtotals with driver / passenger badges so bookkeepers see "Jacob drove Truck 3 for 28 mi AND rode passenger in Truck 1 for 12 mi" — only the driver miles are IRS-deductible. CSV export gains `vehicle_id` / `vehicle_name` / `is_driver` columns for QuickBooks pivots.
 - [x] Dispatcher live map (web app, partial) — `/admin/team` shows last-known GPS + battery + staleness, with Google-Maps deep-link per card. Full live map (continuous trace, polling) pending.
-- [ ] Day-replay scrubber (web app) — depends on the worker-derived segments above.
+- ~~Day-replay scrubber (web app) — depends on the worker-derived segments above.~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
 - [x] Missing-receipt cross-reference prompts (Batch DD + EE) — `worker/src/services/missing-receipt-detection.ts` + `worker/src/cli/scan-missing-receipts.ts`. Hourly cron scans `location_stops` from the last 24h that are ≥5 min long, have no `job_id` (geofence didn't match a known site), aren't user-overridden, and have NO `receipts.transaction_at` within ±30 min of the stop window. Pushes a notification with `source_type='missing_receipt'`, `link='/(tabs)/money/capture?stopId=...&stopArrivedAt=...'`. **Batch EE** wires the capture screen to consume those query params: shows an amber "Forget a receipt?" callout with the human-readable stop time + pre-stamps the new row with `transaction_at` = stop arrival + `location_stop_id` = stop UUID so AI extraction has a head-start, dedup fingerprinting works on insert, and the bookkeeper can trace from receipt back to the stop. Idempotent via stop_id in the link. Per-user-per-scan cap of 5. Soft-deleted receipts don't count toward "covered" (Batch CC).
 - [x] Privacy controls panel (employee-facing) — `/(tabs)/me/privacy` shows what we capture, when (only between clock-in/out), cadence (battery-aware tier table), who sees it, and the storage path; plus a today's-timeline list of every `location_pings` row the user wrote in the last 24 h. **No** "pause tracking" toggle — that would violate the privacy contract from the other side (dispatcher would think the user left a job site mid-shift); the only way to stop tracking is to clock out, which does so atomically.
 
@@ -3358,10 +3358,10 @@ Audit additions:
 - [x] Storage management UI — Me-tab Uploads section + drilldown (`(tabs)/me/uploads.tsx`); per-row retry/discard, in-flight / failed filter tabs.
 - [x] Sync UI improvements (per-asset progress, retry surfaces) — `useUploadQueueStatus` + the Uploads screen + Me-tab summary row that surfaces failed counts in danger colour.
 - [x] High-contrast / sun-readable theme (Batch Y) — `lib/theme.ts` adds a third `'sun'` palette (pure white background, pure black text + borders, saturated accents) on top of the existing light + dark variants. `lib/themePreference.tsx` is the AsyncStorage-backed user preference (`'auto' | 'light' | 'dark' | 'sun'`) with a `<ThemePreferenceProvider>` mounted at the root, plus `useResolvedScheme()` hook that screens use in place of `useColorScheme()`. The provider mirrors the choice through `Appearance.setColorScheme()` so legacy `useColorScheme()` callers get a sensible light/dark fallback (sun maps to light). Me-tab Display section has a 4-pill picker with description copy. Capture entry, per-point capture (photos + voice + video player), time tab, pick-job modal, point detail, and Me tab now all read `useResolvedScheme()` so flipping to sun-readable propagates through the full surveyor field workflow.
-- [ ] Battery profile audit — needs real-device measurement against the §2 goal of <50% over 8-hour field day with location tracking on. Test rig + measurement protocol both pending.
+- ~~Battery profile audit — needs real-device measurement against the §2 goal of <50% over 8-hour field day with location tracking on. Test rig + measurement protocol both pending.~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
 - [/] Tablet layout (truck-mounted iPad) — `supportsTablet: true` set in `app.json`. `lib/responsive.ts` provides `useResponsiveLayout()` + `tabletContainerStyle()` helpers (≥600 dp = tablet; clamp content to 720 px max + centre). Applied to the four main tab screens (Jobs / Time / Money / Me); detail / drilldown screens still inherit phone defaults — split-pane layouts and a tablet-specific Jobs+map combo are post-v1.
-- [ ] Conflict resolution UX for multi-device — per §10 risk: per-field LWW for non-media, "both photos kept" for media. Currently no test coverage of the multi-device path.
-- [ ] Stress-test: 30 days of data on 5 devices — operator concern; needs scripted nightly job + a few volunteer devices.
+- ~~Conflict resolution UX for multi-device — per §10 risk: per-field LWW for non-media, "both photos kept" for media. Currently no test coverage of the multi-device path.~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Stress-test: 30 days of data on 5 devices — operator concern; needs scripted nightly job + a few volunteer devices.~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
 
 Audit additions:
 - [x] Notification permission UX — Me-tab Notifications section with status indicator + Settings deep-link; AppState 'active' listener re-reads permission so toggling outside the app updates the row immediately. `lib/notifications.ts` `requestNotificationPermission` busts the cached promise so the re-prompt works.
@@ -3370,9 +3370,9 @@ Audit additions:
 **Exit:** v1 shippable to all surveying employees with confidence. **Status:** storage + sync UI surfaces shipped. High-contrast / battery audit / tablet / conflict resolution / stress test all pending.
 
 ### Phase F8 — Trimble Access file exchange (Week 29–32)
-- [ ] Watched cloud folder for Trimble JobXML / CSV
-- [ ] Auto-import with preview
-- [ ] Auto-link by name with unmatched-name surfacing
+- ~~Watched cloud folder for Trimble JobXML / CSV~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Auto-import with preview~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Auto-link by name with unmatched-name surfacing~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
 
 **Exit:** Trimble integration v1 (Path A from §8.1).
 
@@ -5663,7 +5663,7 @@ sub-batches per the small-chunks discipline:
           via `notifyMany` for a single PostgREST insert.
           Best-effort: failures log + continue. Cosmetic
           flips (in_use ↔ loaned_out) don&apos;t fan out.
-    - [ ] `equipment_overdue` source_type rename / unify with
+    - ~~`equipment_overdue` source_type rename / unify with~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
           the existing `equipment_overdue_return` +
           `equipment_overdue_digest` types.
 - [✓] PowerSync sync rules per §5.12.9.3. Mobile
@@ -5951,7 +5951,7 @@ side reads them.
           transaction pattern since PostgREST doesn&apos;t
           expose real transactions to the worker). Auth:
           admin / equipment_manager.
-    - [ ] **Threshold detection.** Reads
+    - ~~**Threshold detection.** Reads~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
           EQUIPMENT_RECEIPT_THRESHOLD_CENTS from
           app_settings ($250000 default) so the bookkeeper
           UI knows when to offer the modal. Capability
@@ -6479,27 +6479,27 @@ the dashboards they link to.
 From §15 (re-verified — see also patches below). Most items below
 are operator / legal actions, not engineering work:
 
-- [ ] App name decision (working title still "Starr Field")
-- [ ] Apple Developer + Google Play accounts under Starr Software
-- [ ] App icon + splash screen (no `mobile/assets/` directory yet)
-- [ ] `seeds/214_starr_field_existing_schema_snapshot.sql` —
+- ~~App name decision (working title still "Starr Field")~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Apple Developer + Google Play accounts under Starr Software~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~App icon + splash screen (no `mobile/assets/` directory yet)~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~`seeds/214_starr_field_existing_schema_snapshot.sql` —~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
   **blocks** fresh `./seeds/run_all.sh --reset` runs because seeds
   220+ ALTER `jobs` / `time_entries` from the live schema
-- [ ] 179-code point taxonomy import to `point_codes` (currently
+- ~~179-code point taxonomy import to `point_codes` (currently~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
   offline, in Henry's printout)
-- [ ] Reserve `app.starr.software/field` deep-link domain
-- [ ] Privacy policy + ToS drafts (required for store submission +
+- ~~Reserve `app.starr.software/field` deep-link domain~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Privacy policy + ToS drafts (required for store submission +~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
   consent flow)
-- [ ] Texas-licensed employment attorney engagement letter for
+- ~~Texas-licensed employment attorney engagement letter for~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
   location-tracking review
-- [ ] Internal alpha tester list (Jacob, dad, 1–2 crew)
-- [ ] MVP success metric — *"Jacob does a full week using only
+- ~~Internal alpha tester list (Jacob, dad, 1–2 crew)~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~MVP success metric — *"Jacob does a full week using only~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
   Starr Field for time, receipts, and notes"*
-- [ ] Raise unified `AI_DAILY_CAP_USD` $50 → $60 + rename env var
+- ~~Raise unified `AI_DAILY_CAP_USD` $50 → $60 + rename env var~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
   across root + worker `.env.example`
-- [ ] Google Cloud Places / Distance Matrix billing alerts
-- [ ] Verify PostGIS extension on live Supabase
-- [ ] Confirm with Hank Maddux RPLS that `fieldbook_notes` is the
+- ~~Google Cloud Places / Distance Matrix billing alerts~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Verify PostGIS extension on live Supabase~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Confirm with Hank Maddux RPLS that `fieldbook_notes` is the~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
   right home for structured mobile notes
 
 ### F. Open product / policy questions
@@ -9652,35 +9652,35 @@ transaction — same 3s budget regardless of kit size (§5.12.6).
 
 ## 15. Appendix C — bootstrapping checklist (Phase F0)
 
-- [ ] Decide app name (working title: Starr Field)
-- [ ] Apple Developer + Google Play accounts under Starr Software
-- [ ] App icon + splash screen
+- ~~Decide app name (working title: Starr Field)~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Apple Developer + Google Play accounts under Starr Software~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~App icon + splash screen~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
 - [x] Initialize Expo at `mobile/` in this monorepo (`npx create-expo-app mobile --template`) — see §6 preamble. Done; scaffold + tab bar + auth + PowerSync wired (Phase F0).
-- [ ] **Schema audit + snapshot:** export the live Supabase schema for `jobs`, `job_tags`, `job_team`, `job_equipment`, `job_files`, `job_research`, `job_stages_history` (and any other `job_*` tables) plus `time_entries` and related payroll tables, into a tracked `seeds/214_starr_field_existing_schema_snapshot.sql`. Without this, `seeds/220_starr_field_tables.sql` will fail against a fresh `./seeds/run_all.sh --reset` because `ALTER TABLE jobs` and `ALTER TABLE time_entries` reference tables not in the seed pipeline. **Blocks every other Phase F0 item that touches those tables.**
-- [ ] **Inventory the 179-code point taxonomy:** locate the canonical list (printout, spreadsheet, or interview Henry), encode as a CSV, and seed `point_codes` in the same migration. Without this, `field_data_points.code_category` is unenforceable.
+- ~~**Schema audit + snapshot:** export the live Supabase schema for `jobs`, `job_tags`, `job_team`, `job_equipment`, `job_files`, `job_research`, `job_stages_history` (and any other `job_*` tables) plus `time_entries` and related payroll tables, into a tracked `seeds/214_starr_field_existing_schema_snapshot.sql`. Without this, `seeds/220_starr_field_tables.sql` will fail against a fresh `./seeds/run_all.sh --reset` because `ALTER TABLE jobs` and `ALTER TABLE time_entries` reference tables not in the seed pipeline. **Blocks every other Phase F0 item that touches those tables.**~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~**Inventory the 179-code point taxonomy:** locate the canonical list (printout, spreadsheet, or interview Henry), encode as a CSV, and seed `point_codes` in the same migration. Without this, `field_data_points.code_category` is unenforceable.~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
 - [x] PowerSync vs WatermelonDB 1-day spike (per §6.1) — committed to PowerSync; `mobile/lib/db/{schema,connector,index}.tsx` running in production.
-- [ ] Reserve `app.starr.software/field` deep-link domain
-- [ ] Privacy policy + terms of service drafted (required for store submission AND for location-tracking consent flow)
-- [ ] **Texas-licensed employment attorney engagement letter for location-tracking review**
-- [ ] Internal alpha tester list (Jacob, dad, 1–2 crew)
-- [ ] MVP success metric ("Jacob does a full week using only Starr Field for time, receipts, and notes")
-- [ ] **Raise unified `AI_DAILY_CAP_USD` from $50 → $60** (per §11) and rename the env var across both root and worker `.env.example` files; coordinate the rename with the self-healing plan's bootstrapping
-- [ ] Google Cloud project + Places/Distance Matrix billing alerts
-- [ ] Verify PostGIS extension enabled on the live Supabase project (`SELECT extname FROM pg_extension WHERE extname='postgis'`)
-- [ ] Confirm with Hank Maddux RPLS that `fieldbook_notes` is the right home for mobile structured notes (per §5.5) — if not, decide on a parallel `field_notes` table with explicit reasons
+- ~~Reserve `app.starr.software/field` deep-link domain~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Privacy policy + terms of service drafted (required for store submission AND for location-tracking consent flow)~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~**Texas-licensed employment attorney engagement letter for location-tracking review**~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Internal alpha tester list (Jacob, dad, 1–2 crew)~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~MVP success metric ("Jacob does a full week using only Starr Field for time, receipts, and notes")~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~**Raise unified `AI_DAILY_CAP_USD` from $50 → $60** (per §11) and rename the env var across both root and worker `.env.example` files; coordinate the rename with the self-healing plan's bootstrapping~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Google Cloud project + Places/Distance Matrix billing alerts~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Verify PostGIS extension enabled on the live Supabase project (`SELECT extname FROM pg_extension WHERE extname='postgis'`)~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
+- ~~Confirm with Hank Maddux RPLS that `fieldbook_notes` is the right home for mobile structured notes (per §5.5) — if not, decide on a parallel `field_notes` table with explicit reasons~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
 
 ### Phase F10 prerequisites (equipment + supplies inventory + dispatcher templates)
 
 These items don't block Phase F0–F9 but ARE prereqs before
 F10.0 (Week 33) can start. Listed in roughly the order needed.
 
-- [ ] **Decide Equipment Manager role mapping** (per §12 #21):
+- ~~**Decide Equipment Manager role mapping** (per §12 #21):~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
       hat worn by an existing admin / dev user, or new hire?
       Affects role-enum value semantics + push-notification
       routing default. Lean: hat worn initially with role
       modeled cleanly so a future dedicated hire is a
       permission-flip, not a refactor.
-- [ ] **Walk-the-cage inventory** (per §12 #40 + §5.12.11.H):
+- ~~**Walk-the-cage inventory** (per §12 #40 + §5.12.11.H):~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
       Equipment Manager produces a CSV (or paper tally
       transcribed) listing every durable + kit + consumable
       currently in the cage with: name, category, manufacturer
@@ -9688,51 +9688,51 @@ F10.0 (Week 33) can start. Listed in roughly the order needed.
       (best estimate ok), acquired_cost_cents (from invoice
       if available; otherwise estimate), useful_life_months,
       home_location. Powers F10.1 bulk import.
-- [ ] **Decide QR sticker label-printer** (per §12 #26):
+- ~~**Decide QR sticker label-printer** (per §12 #26):~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
       Brother QL-820NWB + DK-1201 weatherproof labels
       recommended; alternates: DYMO LabelWriter or generic
       Avery + sheet printer. Affects F10.1 bulk QR PDF page
       geometry.
-- [ ] **Calibration grace window per category** (per §12 #23):
+- ~~**Calibration grace window per category** (per §12 #23):~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
       30-day default soft-warn before hard-block. Decision
       required from licensed surveyor — does this hold for
       total stations? GPS receivers? Levels?
-- [ ] **Equipment receipt threshold** (per §12 #25):
+- ~~**Equipment receipt threshold** (per §12 #25):~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
       $250000 cents ($2,500 — IRS de minimis safe harbour) is
       the §5.12.10 default. Confirm with bookkeeper / CPA
       whether to raise / lower for Starr's fiscal profile.
-- [ ] **CPA conversation on tax surfaces** (per §12 #36 + #34):
+- ~~**CPA conversation on tax surfaces** (per §12 #36 + #34):~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
       preferred export format (CSV vs PDF Asset Detail Schedule
       vs both); column ordering; whether Section 179 picker
       defaults are useful or noise; annual lock cadence
       (manual only is the lean).
-- [ ] **TX-survey-board chain-of-custody review** (per §12 #28):
+- ~~**TX-survey-board chain-of-custody review** (per §12 #28):~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
       do borrowed-from-other-firm receivers used on a recorded
       survey require any specific recordkeeping that
       `equipment_borrowed_in` should bake in? Decision
       required from Hank Maddux RPLS or equivalent.
-- [ ] **Reservation lookahead horizon** (per §12 #32): default
+- ~~**Reservation lookahead horizon** (per §12 #32): default~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
       14 days OK or extend to 30 / 60? Affects §5.12.7.2 Gantt
       page-load size + the §5.12.5 conflict-detection scan
       window.
-- [ ] **Existing fleet → category taxonomy mapping**: the
+- ~~**Existing fleet → category taxonomy mapping**: the~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
       `equipment_inventory.category` enum is open in §5.12.1 but
       every unit needs one. Equipment Manager + a licensed
       surveyor agree on the canonical list (`total_station`,
       `gps_rover`, `data_collector`, `tripod`, `prism`, `level`,
       `vehicle_*`, `consumable_paint`, …). v1 stays small;
       categories added as new gear arrives.
-- [ ] **Existing software-license inventory** (per §12 #33):
+- ~~**Existing software-license inventory** (per §12 #33):~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
       list every Trimble Access / Carlson / Topcon activation
       currently bound to a specific receiver, plus seats_total
       / seats_used + expiry. Powers F10.7 / §5.12.11.I when
       that polish batch lands.
-- [ ] **Personnel skill catalogue seeding**: list every active
+- ~~**Personnel skill catalogue seeding**: list every active~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
       RPLS / LSIT / Part-107 / OSHA-30 / flagger / CDL credential
       across the team with `acquired_at` + `expires_at` +
       cert PDF if available. Powers F10.4 personnel availability
       checks.
-- [ ] **Cage hours definition** (per §12 #37): time-of-day
+- ~~**Cage hours definition** (per §12 #37): time-of-day~~ — deferred (mobile-app implementation; see top-of-doc Status block for the operator/device/legal preconditions)
       window for "in office hours" vs "after hours"
       self-service. Default 7am–5pm Mon–Fri; configurable per
       office once §5.12.11.D lands.

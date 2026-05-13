@@ -1,3 +1,47 @@
+> **Status — archived as architectural reference (2026-05-12).**
+> This doc's planning function is discharged: every milestone has either shipped
+> under the STARR_CAD per-phase docs or has been reframed under
+> `STARR_CAD_MASTER_PLAN.md`. It is kept as the canonical reference for the
+> deterministic-AI-drafter philosophy (scene graph as single source of truth,
+> tool-call-only AI, rules engine + validation layer, consistency discipline)
+> per `docs/planning/README.md` ("Kept for historical decision context"). For
+> any forward-looking decision, read the master plan; this doc is no longer
+> extended.
+>
+> **Section absorption map** (where each section's content now lives):
+>
+> | This doc § | Owner going forward |
+> |---|---|
+> | §3 Architecture | `STARR_CAD_MASTER_PLAN.md` §3 (architectural principles) |
+> | §4 Scene graph | `STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md` (shipped) · master plan §4 (delta) |
+> | §5 Templates | `STARR_CAD/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md` · master plan §5 |
+> | §6 CAD tool functionality | Phases 1–5 (shipped) · master plan §13 (auto-draft) |
+> | §7 AI agent design | master plan §6 (tool surface), §7 (rules engine), §8 (validation), §8b (data-translation contract) |
+> | §8 Auto-drafting engine | master plan §13 + `STARR_CAD/STARR_CAD_PHASE_6_AI_ENGINE.md` |
+> | §9 Data ingestion | `STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md` (shipped) · master plan §9 (PDF/legal-description extension) |
+> | §10 Output & export | `STARR_CAD/STARR_CAD_PHASE_7_FINAL.md` · master plan §14 |
+> | §11 Quality / testing / consistency | master plan §15 |
+> | §12 Tech stack | master plan §16 |
+> | §13 Phase 1 roadmap (M1–M8) | master plan §17 (reframed) + per-phase detail docs |
+> | §14–§19 Phase 2 (Trimble) | `STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md` (spec shipped 2026-04-30; implementation deferred — needs Trimble Connect Business + TDC600) |
+> | §20 Cross-cutting concerns | master plan §18 |
+> | §21 Risks & open questions | master plan §19 |
+> | §22 Immediate next steps | Stack/repo/MVP-scope items met by current code; tribal-knowledge gathering (drafting standards, feature-code library) is ongoing under Phase 3/6 work |
+>
+> **Milestone status** (Phase 1 = §13 here; Phase 2 = §19 here):
+>
+> | Milestone | Status | Tracking doc |
+> |---|---|---|
+> | M1 Foundations (scene graph, undo/redo, persistence) | Shipped | Phase 1 (completed/) |
+> | M2 Manual CAD tools | Shipped | Phase 1 (completed/) |
+> | M3 Templates & styles | Shipped | Phase 3 (in-progress, items complete) · Phase 5 (in-progress) |
+> | M4 Import & export | Shipped | Phase 2 (completed/) · Phase 7 (in-progress) |
+> | M5 Feature code library | Shipped | Phase 3 (in-progress, items complete) |
+> | M6 Auto-draft engine | Forward-looking under Phase 6 | `STARR_CAD_PHASE_6_AI_ENGINE.md` + master plan §13 |
+> | M7 AI agent integration | Forward-looking under Phase 6 | `STARR_CAD_PHASE_6_AI_ENGINE.md` + master plan §6–§8 |
+> | M8 Polish & internal beta | Blocked on M6/M7 | Phase 8 (in-progress) |
+> | M9–M12 Trimble Access streaming | Shipped | Phase 9 (in-progress, items complete) |
+
 # AI-Powered Plat Drawing System — Project Plan
  
 **Prepared for:** Starr Surveying

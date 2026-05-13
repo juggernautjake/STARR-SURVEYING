@@ -1,5 +1,13 @@
 # Phase 18 — Data Versioning & Pipeline Diff Engine
 
+> **Status — shipped (archived 2026-05-12).** Implementation lives at
+> `worker/src/services/pipeline-version-store.ts` (PipelineVersionStore)
+> and the sibling diff engine; coverage at
+> `__tests__/recon/phase18-versioning.test.ts` (55 tests across the
+> store, diff engine, SQL schema, and API-route surface). Read this
+> doc for the architectural rationale; per the README rubric it's
+> kept for historical decision context, not extended.
+
 ## Overview
 
 Phase 18 adds **pipeline result versioning** to STARR RECON. Each time the AI pipeline runs for a research project — whether triggered by an initial upload, a document purchase, or a manual re-run — a complete snapshot of the results is saved as a numbered version.

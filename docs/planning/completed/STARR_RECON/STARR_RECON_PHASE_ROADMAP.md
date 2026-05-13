@@ -7,6 +7,8 @@
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)  
 **For:** AI Agent Consumption (Claude Code / GitHub Copilot / Claude.ai)
 
+> **Status:** canonical reference (v1.0); zero gated checkbox items. The roadmap is a build-status dashboard — every Phase 1-10 has its own per-phase spec doc (cross-linked in §6) and an ✅/❌/⚠️ status line tied to live code. Archived to `completed/` 2026-05-12 alongside the rest of the canonical RECON planning family. Per-phase implementation continues against the live spec docs.
+
 ---
 
 > **READ THIS FIRST.** This document is the single source of truth for any AI coding agent working on the STARR RECON pipeline. It tells you what exists, what doesn't, what to build next, and how every piece connects. Read all sections before writing any code.

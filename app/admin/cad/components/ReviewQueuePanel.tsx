@@ -15,12 +15,14 @@
 // should also glow per-tier; that lands as the next slice when
 // the apply-to-document wire goes in.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   useAIStore,
   useAnnotationStore,
   useDrawingStore,
+  useSelectionStore,
+  useViewportStore,
 } from '@/lib/cad/store';
 import type {
   AIJobResult,
@@ -28,6 +30,7 @@ import type {
   ReviewItemStatus,
 } from '@/lib/cad/ai-engine/types';
 import type { Feature } from '@/lib/cad/types';
+import { featureBounds } from '@/lib/cad/geometry/bounds';
 
 const TIER_ORDER: Array<1 | 2 | 3 | 4 | 5> = [1, 2, 3, 4, 5];
 
@@ -52,10 +55,17 @@ export default function ReviewQueuePanel() {
   const result = useAIStore((s) => s.result);
   const setItemStatus = useAIStore((s) => s.setItemStatus);
   const openExplanation = useAIStore((s) => s.openExplanation);
+  const reanalyze = useAIStore((s) => s.reanalyze);
+  const status = useAIStore((s) => s.status);
+  const [showAcceptConfirm, setShowAcceptConfirm] = useState(false);
   const addFeature = useDrawingStore((s) => s.addFeature);
   const removeFeature = useDrawingStore((s) => s.removeFeature);
+  const updateFeature = useDrawingStore((s) => s.updateFeature);
   const drawingFeatures = useDrawingStore((s) => s.document.features);
+  const getFeature = useDrawingStore((s) => s.getFeature);
   const addAnnotation = useAnnotationStore((s) => s.addAnnotation);
+  const selectMultiple = useSelectionStore((s) => s.selectMultiple);
+  const zoomToExtents = useViewportStore((s) => s.zoomToExtents);
 
   if (!isOpen) return null;
 
@@ -102,6 +112,109 @@ export default function ReviewQueuePanel() {
     removeFeature(item.featureId);
   }
 
+  // Phase 7 §1214 — when the surveyor confirms "Accept Drawing"
+  // (footer button + confirmation modal), bulk-apply every non-
+  // REJECTED review item so the full AI result lands in the
+  // drawing store + canvas. Already-applied items are no-ops
+  // because `applyReviewItem` guards on `drawingFeatures[id]`.
+  // Dispatches `cad:aiDrawingLoaded` afterwards so Phase 7
+  // listeners (version-snapshot, editor load) can react.
+  useEffect(() => {
+    const handler = () => {
+      if (!result) return;
+      let appliedCount = 0;
+      for (const tier of [5, 4, 3, 2, 1] as const) {
+        for (const item of result.reviewQueue.tiers[tier]) {
+          if (item.status === 'REJECTED') continue;
+          if (!item.featureId) continue;
+          if (drawingFeatures[item.featureId]) continue;
+          applyReviewItem(item, result);
+          appliedCount += 1;
+        }
+      }
+      window.dispatchEvent(
+        new CustomEvent('cad:aiDrawingLoaded', {
+          detail: { appliedCount },
+        }),
+      );
+    };
+    window.addEventListener('cad:acceptDrawing', handler);
+    return () => window.removeEventListener('cad:acceptDrawing', handler);
+    // applyReviewItem is a closure over the live store hooks; the
+    // dependency list keeps it fresh when the result swaps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, drawingFeatures]);
+
+  /**
+   * Phase 6 §1913-§1914 — batch-accept every PENDING item at or
+   * above the given minimum tier. Tier-5 items already auto-
+   * accept at pipeline time so the headline batch buttons are
+   * still useful when the surveyor rejected a few and wants to
+   * restore everything in one click, OR when a future config
+   * disables the per-item auto-accept.
+   */
+  function batchAccept(minTier: 4 | 5) {
+    if (!result) return;
+    for (const tier of [5, 4, 3, 2, 1] as const) {
+      if (tier < minTier) continue;
+      for (const item of result.reviewQueue.tiers[tier]) {
+        if (item.status === 'ACCEPTED') continue;
+        applyReviewItem(item, result);
+        setItemStatus(item.id, 'ACCEPTED', null);
+      }
+    }
+  }
+
+  /**
+   * Phase 6 §1916 — surveyor re-picks which group position drives
+   * the drawn POINT feature. Updates the feature geometry to the
+   * selected option's coordinates; the review queue's
+   * pointGroupInfo block re-renders against the new "used" flag
+   * via React state on the next render pass. The change is
+   * MODIFIED for review-status purposes so the audit log keeps
+   * the surveyor's override visible.
+   */
+  function pickGroupPosition(
+    item: ReviewItem,
+    option: { pointId: string; northing: number; easting: number },
+  ) {
+    if (!item.featureId) return;
+    if (!drawingFeatures[item.featureId]) return;
+    updateFeature(item.featureId, {
+      geometry: {
+        type: 'POINT',
+        point: { x: option.easting, y: option.northing },
+      },
+      properties: {
+        ...drawingFeatures[item.featureId].properties,
+        aiPointIds: option.pointId,
+        aiGroupOverride: true,
+      },
+    });
+    setItemStatus(
+      item.id,
+      'MODIFIED',
+      `Group position re-picked to point ${option.pointId}`,
+    );
+  }
+
+  /**
+   * Phase 6 §1911 — clicking a review row's title selects the
+   * underlying feature and zooms the viewport to it. Pending /
+   * rejected items whose feature hasn't been applied to the
+   * drawing yet fall back to selecting the original AI-payload
+   * feature only (no zoom, since there's nothing on canvas to
+   * zoom to). Tier-5 items, which auto-accept at pipeline time,
+   * always have a live feature to focus.
+   */
+  function focusReviewItem(item: ReviewItem) {
+    if (!item.featureId) return;
+    const live = getFeature(item.featureId);
+    if (!live) return;
+    selectMultiple([item.featureId], 'REPLACE');
+    zoomToExtents(featureBounds(live));
+  }
+
   const summary = result?.reviewQueue.summary ?? {
     totalElements: 0,
     acceptedCount: 0,
@@ -137,6 +250,48 @@ export default function ReviewQueuePanel() {
           ✕
         </button>
       </header>
+
+      {/* Phase 6 §1913-§1914 — batch-accept toolbar */}
+      {result && summary.totalElements > 0 ? (() => {
+        const tier5Pending = result.reviewQueue.tiers[5].filter(
+          (i) => i.status !== 'ACCEPTED',
+        ).length;
+        const tier45Pending =
+          tier5Pending +
+          result.reviewQueue.tiers[4].filter(
+            (i) => i.status !== 'ACCEPTED',
+          ).length;
+        return (
+          <div style={styles.batchBar}>
+            <button
+              type="button"
+              onClick={() => batchAccept(5)}
+              disabled={tier5Pending === 0}
+              style={
+                tier5Pending === 0
+                  ? styles.btnBatchDisabled
+                  : styles.btnBatch
+              }
+              title="Accept every PENDING tier-5 (★★★★★) item"
+            >
+              Accept ★★★★★ ({tier5Pending})
+            </button>
+            <button
+              type="button"
+              onClick={() => batchAccept(4)}
+              disabled={tier45Pending === 0}
+              style={
+                tier45Pending === 0
+                  ? styles.btnBatchDisabled
+                  : styles.btnBatch
+              }
+              title="Accept every PENDING tier-4-or-5 item"
+            >
+              Accept ≥ ★★★★ ({tier45Pending})
+            </button>
+          </div>
+        );
+      })() : null}
 
       <div style={styles.body}>
         {!result ? (
@@ -178,6 +333,8 @@ export default function ReviewQueuePanel() {
                           }
                           setItemStatus(item.id, status, note);
                         }}
+                        onFocus={() => focusReviewItem(item)}
+                        onPickPosition={(option) => pickGroupPosition(item, option)}
                         onExplain={
                           item.featureId &&
                           result?.explanations[item.featureId]
@@ -192,6 +349,90 @@ export default function ReviewQueuePanel() {
             })
         )}
       </div>
+
+      {/* Phase 6 §3107 + §3109 — bottom action bar */}
+      {result && summary.totalElements > 0 ? (
+        <footer style={styles.footer}>
+          <button
+            type="button"
+            onClick={reanalyze}
+            disabled={status === 'running'}
+            style={
+              status === 'running'
+                ? styles.btnFooterDisabled
+                : styles.btnFooterSecondary
+            }
+            title="Re-run the pipeline against the same input set"
+          >
+            {status === 'running' ? 'Re-analyzing…' : '↻ Re-analyze'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAcceptConfirm(true)}
+            disabled={summary.pendingCount > 0}
+            style={
+              summary.pendingCount > 0
+                ? styles.btnFooterDisabled
+                : styles.btnFooterPrimary
+            }
+            title={
+              summary.pendingCount > 0
+                ? `${summary.pendingCount} item${summary.pendingCount === 1 ? '' : 's'} still pending — review them first`
+                : 'Accept the drawing and seal the pipeline result'
+            }
+          >
+            ✓ Accept Drawing
+          </button>
+        </footer>
+      ) : null}
+
+      {/* Phase 6 §3107 — Accept-Drawing confirmation modal */}
+      {showAcceptConfirm ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm accept drawing"
+          style={styles.confirmOverlay}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAcceptConfirm(false);
+          }}
+        >
+          <div style={styles.confirmCard}>
+            <div style={styles.confirmTitle}>Accept this drawing?</div>
+            <div style={styles.confirmBody}>
+              Sealing the AI pipeline result will mark every item as
+              accepted, record a version snapshot, and hand off to the
+              Phase&nbsp;7 editor. You can still edit individual features
+              afterward, but the AI cards will not refresh until you
+              re-analyze.
+              <div style={styles.confirmStats}>
+                {summary.totalElements} item{summary.totalElements === 1 ? '' : 's'} · {summary.acceptedCount} accepted · {summary.modifiedCount} modified · {summary.rejectedCount} rejected
+              </div>
+            </div>
+            <div style={styles.confirmActions}>
+              <button
+                type="button"
+                onClick={() => setShowAcceptConfirm(false)}
+                style={styles.btnFooterSecondary}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAcceptConfirm(false);
+                  // Phase 7 wires the version-snapshot + editor load
+                  // listener; for now the event is the audit trail.
+                  window.dispatchEvent(new CustomEvent('cad:acceptDrawing'));
+                }}
+                style={styles.btnFooterPrimary}
+              >
+                ✓ Accept &amp; seal
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </aside>
   );
 }
@@ -200,10 +441,18 @@ function ReviewRow({
   item,
   onAction,
   onExplain,
+  onFocus,
+  onPickPosition,
 }: {
   item: ReviewItem;
   onAction: (status: ReviewItemStatus, note: string | null) => void;
   onExplain: (() => void) | null;
+  onFocus: () => void;
+  onPickPosition: (option: {
+    pointId: string;
+    northing: number;
+    easting: number;
+  }) => void;
 }) {
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState(item.userNote ?? '');
@@ -220,7 +469,14 @@ function ReviewRow({
     >
       <div style={styles.rowMain}>
         <div style={styles.rowTopRow}>
-          <strong style={styles.rowTitle}>{item.title}</strong>
+          <button
+            type="button"
+            onClick={onFocus}
+            style={styles.rowTitleBtn}
+            title="Select and zoom to this feature"
+          >
+            {item.title}
+          </button>
           <span style={styles.rowConfidence}>{item.confidence}</span>
         </div>
         <div style={styles.rowMeta}>
@@ -247,6 +503,54 @@ function ReviewRow({
         </div>
         {item.userNote ? (
           <div style={styles.userNote}>“{item.userNote}”</div>
+        ) : null}
+        {/* Phase 6 §1915 — Monument group positions */}
+        {item.pointGroupInfo ? (
+          <div style={styles.groupBox}>
+            <div style={styles.groupHeader}>
+              <span style={styles.groupBadge}>
+                Group #{item.pointGroupInfo.baseNumber}
+              </span>
+              {item.pointGroupInfo.hasDeltaWarning ? (
+                <span style={styles.groupWarning}>
+                  Δ&nbsp;
+                  {Math.max(
+                    item.pointGroupInfo.calcSetDelta ?? 0,
+                    item.pointGroupInfo.calcFoundDelta ?? 0,
+                  ).toFixed(2)}′
+                </span>
+              ) : null}
+            </div>
+            <ul style={styles.groupList}>
+              {item.pointGroupInfo.positionOptions.map((opt) => (
+                <li key={opt.pointId} style={styles.groupOpt}>
+                  <button
+                    type="button"
+                    onClick={() => onPickPosition(opt)}
+                    disabled={opt.active}
+                    style={{
+                      ...styles.groupOptBtn,
+                      fontWeight: opt.active ? 600 : 400,
+                      color: opt.active ? '#111827' : '#374151',
+                      cursor: opt.active ? 'default' : 'pointer',
+                    }}
+                    title={
+                      opt.active
+                        ? 'Currently driving this feature'
+                        : 'Pick this position — replaces the feature geometry'
+                    }
+                  >
+                    <span>
+                      {opt.active ? '●' : '○'} {opt.label}
+                    </span>
+                    <span style={styles.groupCoords}>
+                      N {opt.northing.toFixed(2)}, E {opt.easting.toFixed(2)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
       </div>
       <div style={styles.actions}>
@@ -401,6 +705,19 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
   },
   rowTitle: { fontSize: 13, color: '#111827' },
+  rowTitleBtn: {
+    fontSize: 13,
+    color: '#111827',
+    background: 'transparent',
+    border: 'none',
+    padding: 0,
+    margin: 0,
+    fontWeight: 600,
+    cursor: 'pointer',
+    textAlign: 'left' as const,
+    textDecoration: 'underline dotted',
+    textUnderlineOffset: 3,
+  },
   rowConfidence: {
     fontSize: 11,
     fontWeight: 600,
@@ -467,6 +784,174 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     fontWeight: 600,
     cursor: 'pointer',
+  },
+  batchBar: {
+    display: 'flex',
+    gap: 8,
+    padding: '8px 12px',
+    borderBottom: '1px solid #E5E7EB',
+    background: '#F9FAFB',
+  },
+  btnBatch: {
+    flex: 1,
+    padding: '6px 8px',
+    border: '1px solid #15803D',
+    color: '#FFFFFF',
+    background: '#15803D',
+    borderRadius: 6,
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  btnBatchDisabled: {
+    flex: 1,
+    padding: '6px 8px',
+    border: '1px solid #D1D5DB',
+    color: '#9CA3AF',
+    background: '#F3F4F6',
+    borderRadius: 6,
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'not-allowed',
+  },
+  groupBox: {
+    marginTop: 6,
+    padding: '6px 8px',
+    background: '#F9FAFB',
+    border: '1px solid #E5E7EB',
+    borderRadius: 6,
+    fontSize: 11,
+  },
+  groupHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  groupBadge: {
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#6B7280',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+  },
+  groupWarning: {
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#B45309',
+    background: '#FEF3C7',
+    padding: '1px 6px',
+    borderRadius: 999,
+  },
+  groupList: {
+    listStyle: 'none' as const,
+    margin: 0,
+    padding: 0,
+    display: 'grid',
+    rowGap: 2,
+  },
+  groupOpt: {
+    display: 'flex',
+  },
+  groupOptBtn: {
+    display: 'flex',
+    flex: 1,
+    justifyContent: 'space-between',
+    gap: 8,
+    background: 'transparent',
+    border: 'none',
+    padding: '2px 4px',
+    margin: 0,
+    fontSize: 11,
+    textAlign: 'left' as const,
+    borderRadius: 4,
+  },
+  groupCoords: {
+    fontVariantNumeric: 'tabular-nums' as const,
+    color: '#4B5563',
+  },
+  footer: {
+    display: 'flex',
+    gap: 8,
+    padding: '10px 12px',
+    borderTop: '1px solid #E5E7EB',
+    background: '#FFFFFF',
+  },
+  btnFooterPrimary: {
+    flex: 1,
+    padding: '8px 12px',
+    border: '1px solid #15803D',
+    color: '#FFFFFF',
+    background: '#15803D',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  btnFooterSecondary: {
+    flex: 1,
+    padding: '8px 12px',
+    border: '1px solid #475569',
+    color: '#475569',
+    background: '#FFFFFF',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  btnFooterDisabled: {
+    flex: 1,
+    padding: '8px 12px',
+    border: '1px solid #D1D5DB',
+    color: '#9CA3AF',
+    background: '#F3F4F6',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'not-allowed',
+  },
+  confirmOverlay: {
+    position: 'fixed' as const,
+    inset: 0,
+    background: 'rgba(0,0,0,0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  },
+  confirmCard: {
+    background: '#FFFFFF',
+    border: '1px solid #D1D5DB',
+    borderRadius: 8,
+    padding: 20,
+    width: 'min(440px, calc(100vw - 32px))',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
+  },
+  confirmTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#111827',
+    marginBottom: 8,
+  },
+  confirmBody: {
+    fontSize: 12,
+    color: '#374151',
+    lineHeight: 1.45,
+    marginBottom: 16,
+  },
+  confirmStats: {
+    marginTop: 10,
+    padding: 8,
+    background: '#F9FAFB',
+    border: '1px solid #E5E7EB',
+    borderRadius: 6,
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  confirmActions: {
+    display: 'flex',
+    gap: 8,
+    justifyContent: 'flex-end',
   },
   btnActiveAccept: {
     flex: 1,

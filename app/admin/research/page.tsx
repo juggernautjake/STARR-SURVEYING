@@ -141,6 +141,14 @@ export default function ResearchListPage() {
           <div className="research-page__actions">
             <button
               className="research-page__new-btn"
+              style={{ background: '#0F766E' }}
+              onClick={() => router.push('/admin/research/coverage')}
+              title="Texas county clerk adapter coverage"
+            >
+              Coverage
+            </button>
+            <button
+              className="research-page__new-btn"
               style={{ background: '#7C3AED' }}
               onClick={() => router.push('/admin/research/testing')}
             >

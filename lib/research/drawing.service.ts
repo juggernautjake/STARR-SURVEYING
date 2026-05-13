@@ -397,7 +397,15 @@ function buildCallSequence(dataPoints: ExtractedDataPoint[]): NormalizedCall[] {
 
     if (matchedByOrder.length > 0) return matchedByOrder;
 
-    // Strategy 3: Pair bearings and distances in order (1:1)
+    // Strategy 3: Pair bearings and distances in order (1:1).
+    // Brittle by design — a single missing extraction shifts every
+    // pair downstream and the resulting traverse goes badly off.
+    // Validate before accepting: run the candidate through
+    // `computeTraverse` and reject if the closure ratio is below
+    // a "1 part in 50" floor (anything less means the pairing
+    // probably isn't a real traverse). Sub-50 surveys do exist —
+    // pre-modern field work — but they'd never come out of
+    // positional pairing of clean modern call extractions.
     const count = Math.min(bearingDps.length, distanceDps.length);
     const pairedCalls: NormalizedCall[] = [];
     for (let i = 0; i < count; i++) {
@@ -410,8 +418,13 @@ function buildCallSequence(dataPoints: ExtractedDataPoint[]): NormalizedCall[] {
       });
     }
     if (pairedCalls.length > 0) {
-      console.log(`[Drawing Service] Synthesized ${pairedCalls.length} calls from paired bearings + distances.`);
-      return pairedCalls;
+      const STRATEGY_3_MIN_PRECISION = 50;
+      const probe = computeTraverse(pairedCalls);
+      if (probe.closure.precision_ratio >= STRATEGY_3_MIN_PRECISION) {
+        console.log(`[Drawing Service] Synthesized ${pairedCalls.length} calls from paired bearings + distances (closure 1:${Math.round(probe.closure.precision_ratio)}).`);
+        return pairedCalls;
+      }
+      console.warn(`[Drawing Service] Rejected Strategy 3 result — ${pairedCalls.length} paired calls produced closure 1:${Math.round(probe.closure.precision_ratio)} (< 1:${STRATEGY_3_MIN_PRECISION}). Probably a misalignment between the bearing + distance extraction lists; falling through to template-only.`);
     }
   }
 
@@ -586,23 +599,29 @@ export async function listDrawings(
 
   if (error || !drawings) return [];
 
-  // Get element counts
-  const drawingIds = (drawings as RenderedDrawing[]).map(d => d.id);
-  const results: (RenderedDrawing & { element_count: number })[] = [];
-
-  for (const drawing of drawings) {
-    const { count } = await supabaseAdmin
+  // Single-round-trip element counts: fetch every `drawing_elements`
+  // row that belongs to any drawing in the result set, projecting only
+  // the FK column, then tally per-drawing in memory. Beats the prior
+  // N+1 pattern (one COUNT per drawing) while sidestepping the
+  // PostgREST embedded-aggregate quirks. The FK index on
+  // `drawing_elements.drawing_id` (seeds/090) keeps the IN scan cheap.
+  const drawingIds = (drawings as RenderedDrawing[]).map((d) => d.id);
+  const countByDrawing = new Map<string, number>();
+  if (drawingIds.length > 0) {
+    const { data: elementRows } = await supabaseAdmin
       .from('drawing_elements')
-      .select('id', { count: 'exact', head: true })
-      .eq('drawing_id', drawing.id);
-
-    results.push({
-      ...(drawing as RenderedDrawing),
-      element_count: count || 0,
-    });
+      .select('drawing_id')
+      .in('drawing_id', drawingIds);
+    for (const row of elementRows ?? []) {
+      const k = (row as { drawing_id: string }).drawing_id;
+      countByDrawing.set(k, (countByDrawing.get(k) ?? 0) + 1);
+    }
   }
 
-  return results;
+  return (drawings as RenderedDrawing[]).map((d) => ({
+    ...d,
+    element_count: countByDrawing.get(d.id) ?? 0,
+  }));
 }
 
 // ── Coordinate Transformation ────────────────────────────────────────────────

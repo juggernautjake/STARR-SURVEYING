@@ -255,7 +255,7 @@ This structure is used when a county needs:
 
 ## Resources
 
-- **STARR RECON Phase Roadmap:** `docs/planning/in-progress/STARR_RECON/STARR_RECON_PHASE_ROADMAP.md` — complete pipeline specification
+- **STARR RECON Phase Roadmap:** `docs/planning/completed/STARR_RECON/STARR_RECON_PHASE_ROADMAP.md` — complete pipeline specification
 - **Phase 1 Spec:** `docs/planning/in-progress/STARR_RECON/PHASE_01_DISCOVERY.md` — discovery engine details
 - **Phase 2 Spec:** `docs/planning/in-progress/STARR_RECON/PHASE_02_DOCUMENT_HARVEST.md` — harvesting details
 - **County FIPS Codes:** `worker/src/lib/county-fips.ts` — all 254 Texas counties

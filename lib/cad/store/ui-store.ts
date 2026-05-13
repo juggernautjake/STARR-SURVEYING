@@ -2,6 +2,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { TransferOptions } from './transfer-store';
+import type { LinearUnit } from '../units/parse-length';
+import type { AreaUnit } from '../units/parse-area';
 
 export type AISidebarTab =
   | 'queue'
@@ -222,6 +224,20 @@ interface UIStore {
    *  appears. Default 600 ms; range 100–3000. Tooltips that
    *  pass an explicit `delay` prop override this. */
   tooltipDelayMs: number;
+  /** Phase 8 §11.5.7 — when true (default), the angle parser
+   *  treats decimals with 3+ fractional digits as DMS-packed
+   *  shortcuts (`45.3000` → `45°30'00"`). Surveyors who only ever
+   *  want decimal degrees can disable this so the heuristic stops
+   *  rewriting their input. Threaded through `parseAngle` opts at
+   *  every consumer site (`CommandBar`, `UnitInput`). */
+  dmsPackedShortcutEnabled: boolean;
+  /** Phase 8 §11.5.5 — per-field unit lock. Keyed by a stable
+   *  `fieldId` ("offset.distance", "fillet.radius", "array.col",
+   *  …) so a surveyor who pins an input to inches keeps that
+   *  unit across reloads even when the document defaults to
+   *  feet. UnitInput reads the entry on mount + writes through
+   *  on dropdown change when its `fieldId` prop is set. */
+  fieldUnitLocks: Record<string, LinearUnit | AreaUnit>;
   /** §9 — firm-wide branding logo, stored as a base64 data
    *  URL so it round-trips through `localStorage` without a
    *  separate asset pipeline. When present, the title-block
@@ -249,6 +265,8 @@ interface UIStore {
   setUITooltipsEnabled: (enabled: boolean) => void;
   setFeatureTooltipsEnabled: (enabled: boolean) => void;
   setTooltipDelayMs: (ms: number) => void;
+  setDmsPackedShortcutEnabled: (enabled: boolean) => void;
+  setFieldUnitLock: (fieldId: string, unit: LinearUnit | AreaUnit | null) => void;
   setFirmLogoDataUrl: (dataUrl: string | null) => void;
   /** Add a new transfer preset. id auto-generated. Replaces
    *  existing preset with the same name (so re-saving keeps
@@ -300,7 +318,9 @@ export const useUIStore = create<UIStore>()(
       hoveredFeatureId: null,
       uiTooltipsEnabled: true,
       featureTooltipsEnabled: true,
-      tooltipDelayMs: 600,
+      tooltipDelayMs: 500,
+      dmsPackedShortcutEnabled: true,
+      fieldUnitLocks: {},
       firmLogoDataUrl: null,
       // Seed bundled presets on initial state construction.
       // The persist middleware's onRehydrate will preserve
@@ -322,8 +342,20 @@ export const useUIStore = create<UIStore>()(
       setUITooltipsEnabled: (enabled) => set({ uiTooltipsEnabled: enabled }),
       setFeatureTooltipsEnabled: (enabled) => set({ featureTooltipsEnabled: enabled }),
       setTooltipDelayMs: (ms) => set({
-        tooltipDelayMs: Number.isFinite(ms) ? Math.max(100, Math.min(3000, Math.round(ms))) : 600,
+        tooltipDelayMs: Number.isFinite(ms) ? Math.max(100, Math.min(3000, Math.round(ms))) : 500,
       }),
+      setDmsPackedShortcutEnabled: (enabled) => set({ dmsPackedShortcutEnabled: !!enabled }),
+      setFieldUnitLock: (fieldId, unit) =>
+        set((s) => {
+          if (!fieldId) return s;
+          const next = { ...s.fieldUnitLocks };
+          if (unit == null) {
+            delete next[fieldId];
+          } else {
+            next[fieldId] = unit;
+          }
+          return { fieldUnitLocks: next };
+        }),
       setFirmLogoDataUrl: (dataUrl) => set({
         // Cap the persisted blob at ~1 MB so a giant logo
         // doesn't blow out localStorage (5 MB quota in most
@@ -426,13 +458,15 @@ export const useUIStore = create<UIStore>()(
     }),
     {
       name: 'starr-cad-ui',
-      version: 5,
+      version: 7,
       storage: createJSONStorage(() => localStorage),
       // Allow-list — only the surveyor-visible toggles persist.
       partialize: (s) => ({
         uiTooltipsEnabled: s.uiTooltipsEnabled,
         featureTooltipsEnabled: s.featureTooltipsEnabled,
         tooltipDelayMs: s.tooltipDelayMs,
+        dmsPackedShortcutEnabled: s.dmsPackedShortcutEnabled,
+        fieldUnitLocks: s.fieldUnitLocks,
         firmLogoDataUrl: s.firmLogoDataUrl,
         transferPresets: s.transferPresets,
         selectionBlocks: s.selectionBlocks,

@@ -612,7 +612,7 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
             ]}
           >
             <Button
-              label="Save"
+              label="Save receipt"
               onPress={onSave}
               loading={submitting}
               disabled={!totalsValid || retrying}

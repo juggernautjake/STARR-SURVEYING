@@ -183,7 +183,58 @@ function buildReasoning(
     parts.push(`Notable: ${top}`);
   }
 
+  // Phase 6 §3114 — tier ≤ 4 features (anything that isn't an
+  // auto-accept candidate) need a deeper "why this score?"
+  // breakdown so the surveyor doesn't have to scroll to the
+  // confidence factors panel to understand the call. Walk every
+  // factor that landed below 0.9 and surface it inline.
+  if (score.tier <= 4) {
+    const drags = listFactorDrags(score.factors);
+    if (drags.length > 0) {
+      parts.push(
+        `Score landed at ${score.score}% (Tier ${score.tier}) primarily because: ` +
+          drags.join('; ') +
+          '.'
+      );
+    }
+  }
+
   return parts.join(' ');
+}
+
+/**
+ * Phase 6 §3114 — convert sub-0.9 confidence factors into the
+ * one-sentence-per-factor explanations the surveyor needs to
+ * see in the reasoning paragraph. Only factors that actually
+ * dragged the score down are emitted; tier-5 features (all
+ * factors near 1.0) get nothing.
+ */
+function listFactorDrags(factors: ConfidenceFactors): string[] {
+  const out: string[] = [];
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  if (factors.codeClarity < 0.9) {
+    out.push(`code-clarity at ${pct(factors.codeClarity)}`);
+  }
+  if (factors.coordinateValidity < 0.9) {
+    out.push(`coordinate-validity at ${pct(factors.coordinateValidity)}`);
+  }
+  if (factors.deedRecordMatch < 0.9) {
+    out.push(`deed-record-match at ${pct(factors.deedRecordMatch)}`);
+  }
+  if (factors.closureQuality < 0.9) {
+    out.push(`closure-quality at ${pct(factors.closureQuality)}`);
+  }
+  if (factors.curveDataCompleteness < 0.9) {
+    out.push(
+      `curve-data-completeness at ${pct(factors.curveDataCompleteness)}`,
+    );
+  }
+  if (factors.contextualConsistency < 0.9) {
+    out.push(
+      `contextual-consistency at ${pct(factors.contextualConsistency)}`,
+    );
+  }
+  return out;
 }
 
 // ────────────────────────────────────────────────────────────

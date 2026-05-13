@@ -9,7 +9,7 @@
 > | Original phase here | Now lives in |
 > |---|---|
 > | Phase 1–5 (database schema · file upload + document processing · property search · AI analysis · results / discrepancy mgmt) | `docs/planning/in-progress/STARR_RECON/` (19 phase docs from PHASE_01_DISCOVERY through PHASE_19_LIDAR_CROSSCOUNTY) |
-> | Phase 6–14 (drawing data model · canvas engine · view modes · comparison · workflow UI · API routes · templates · AI parameterisation · white-label) | `docs/planning/in-progress/STARR_CAD_MASTER_PLAN.md` and the cross-linked detail docs in `docs/planning/in-progress/STARR_CAD/` (phases 1–8) |
+> | Phase 6–14 (drawing data model · canvas engine · view modes · comparison · workflow UI · API routes · templates · AI parameterisation · white-label) | `docs/planning/completed/STARR_CAD_MASTER_PLAN.md` and the per-phase detail docs in `docs/planning/completed/` (phases 1–9) |
 > | Phase 15 (dependencies + DevOps) and Appendix A/B (TS interfaces · middleware) | Largely captured by the live codebase + the newer plans; the originals stay below as historical context |
 >
 > Direct new work to the newer plans. Do not extend this doc.

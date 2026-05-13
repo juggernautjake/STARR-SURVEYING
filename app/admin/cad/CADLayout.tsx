@@ -36,6 +36,7 @@ import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
 import DeliveryHydrator from './components/DeliveryHydrator';
 import DrawingChatPanel from './components/DrawingChatPanel';
 import RecentRecoveriesDialog from './components/RecentRecoveriesDialog';
+import CodeStylePanel from './components/CodeStylePanel';
 import AISidebar from './components/AISidebar';
 import BidirectionalSync from './components/BidirectionalSync';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
@@ -157,6 +158,7 @@ export default function CADLayout() {
   const [showReviewModePanel, setShowReviewModePanel] = useState(false);
   const [showDescriptionPanel, setShowDescriptionPanel] = useState(false);
   const [showRecentRecoveries, setShowRecentRecoveries] = useState(false);
+  const [showCodeStylePanel, setShowCodeStylePanel] = useState(false);
   const [compassNotice, setCompassNotice] =
     useState<{ payload: CompassJobImport; stale: boolean } | null>(null);
   const [pendingSubmission, setPendingSubmission] =
@@ -265,6 +267,57 @@ export default function CADLayout() {
     window.addEventListener('cad:openSettings', handler);
     return () => window.removeEventListener('cad:openSettings', handler);
   }, []);
+
+  // Phase 3 §15 — code-to-style mapping panel
+  useEffect(() => {
+    const handler = () => setShowCodeStylePanel(true);
+    window.addEventListener('cad:openCodeStylePanel', handler);
+    return () => window.removeEventListener('cad:openCodeStylePanel', handler);
+  }, []);
+
+  // Phase 6 §3084 — when the AI pipeline finishes with usable
+  // PLSS / flood-zone data, merge it into the title-block notes
+  // field so the surveyor doesn't have to retype values that
+  // BLM + FEMA already published. We only touch `notes`; the
+  // surveyor's manual edits stay sticky because we skip the
+  // merge when `notes` already contains the auto-generated
+  // marker line.
+  useEffect(() => {
+    type EnrichmentDetail = {
+      plssSection: string | null;
+      plssTownship: string | null;
+      plssRange: string | null;
+      femaFloodZone: string | null;
+    };
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent<EnrichmentDetail>).detail;
+      if (!detail) return;
+      const lines: string[] = [];
+      if (detail.plssTownship || detail.plssRange || detail.plssSection) {
+        const parts = [
+          detail.plssTownship,
+          detail.plssRange,
+          detail.plssSection ? `Sec ${detail.plssSection}` : null,
+        ].filter((p): p is string => !!p);
+        if (parts.length > 0) lines.push(`PLSS: ${parts.join(' ')}`);
+      }
+      if (detail.femaFloodZone) {
+        lines.push(`Flood Zone: ${detail.femaFloodZone}`);
+      }
+      if (lines.length === 0) return;
+      const block = lines.join('\n');
+      const current = drawingStore.document.settings.titleBlock?.notes ?? '';
+      if (current.includes('PLSS:') || current.includes('Flood Zone:')) {
+        // Already populated (manually or by a prior pipeline run);
+        // don't clobber the surveyor's edits.
+        return;
+      }
+      const merged = current.length > 0 ? `${current}\n${block}` : block;
+      drawingStore.updateTitleBlock({ notes: merged });
+    };
+    window.addEventListener('cad:enrichmentReady', handler);
+    return () => window.removeEventListener('cad:enrichmentReady', handler);
+  }, [drawingStore]);
 
   // Phase 8 §11.7 Slice 10 — mount the linked-instance
   // subscriber so duplicates created via the
@@ -650,7 +703,7 @@ export default function CADLayout() {
             type="button"
             onClick={() => setCompassNotice(null)}
             className="text-indigo-700 hover:text-indigo-900 font-bold px-2"
-            aria-label="Dismiss"
+            aria-label="Close"
           >
             ✕
           </button>
@@ -786,7 +839,7 @@ export default function CADLayout() {
           />
         </div>
       )}
-      <StatusBar />
+      <StatusBar onOpenRecentRecoveries={() => setShowRecentRecoveries(true)} />
 
       {/* Feature properties dialog (opened by double-clicking a feature) */}
       {featureDialog && drawingStore.getFeature(featureDialog.featureId) && (
@@ -931,6 +984,12 @@ export default function CADLayout() {
       <RecentRecoveriesDialog
         open={showRecentRecoveries}
         onClose={() => setShowRecentRecoveries(false)}
+      />
+
+      {/* Phase 3 §15 — code-to-style mapping panel */}
+      <CodeStylePanel
+        open={showCodeStylePanel}
+        onClose={() => setShowCodeStylePanel(false)}
       />
 
       {/* Phase 7 §3 unified AI sidebar — tabbed view with

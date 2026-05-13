@@ -136,7 +136,7 @@ export abstract class CADAdapter {
     const screenshotBuffer = await this.page.screenshot({ fullPage: true });
     const base64 = screenshotBuffer.toString('base64');
     const model =
-      process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+      process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

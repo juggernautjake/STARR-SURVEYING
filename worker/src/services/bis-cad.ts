@@ -1524,7 +1524,7 @@ async function extractFromScreenshot(
     const client = new Anthropic({ apiKey: anthropicApiKey });
 
     const response = await client.messages.create({
-      model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929',
+      model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6',
       max_tokens: 8192,
       temperature: 0,
       messages: [

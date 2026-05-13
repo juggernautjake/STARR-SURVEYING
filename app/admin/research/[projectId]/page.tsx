@@ -3598,7 +3598,7 @@ export default function ResearchProjectPage() {
             {toast.type === 'error' ? '!' : toast.type === 'success' ? '\u2713' : 'i'}
           </span>
           <span className="research-toast__message">{toast.message}</span>
-          <button className="research-toast__close" onClick={() => setToast(null)} aria-label="Dismiss">&times;</button>
+          <button className="research-toast__close" onClick={() => setToast(null)} aria-label="Close">&times;</button>
         </div>
       )}
     </div>

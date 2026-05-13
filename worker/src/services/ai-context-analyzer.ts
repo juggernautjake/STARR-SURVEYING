@@ -33,7 +33,7 @@ import type { ReconciliationResult } from './geo-reconcile.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
-const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
 /** Maximum characters of the raw AI response to include in error log previews. */
 const MAX_ERROR_PREVIEW_LENGTH = 500;

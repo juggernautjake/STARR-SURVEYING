@@ -9,7 +9,7 @@ import type { LotInventoryEntry, InteriorLine, SubdivisionAnalysisResult } from 
 import { isolateAndAnalyzeLots } from './subdivision-lot-isolator.js';
 import type { PipelineLogger } from '../lib/logger.js';
 
-const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
 /** Plat extraction summary passed to the AI (from Phase 3 output) */
 export interface PlatExtractionSummary {

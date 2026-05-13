@@ -1,11 +1,11 @@
 # Self-Healing Adapter System — Planning Document
 
-**Status:** Planning / RFC
+**Status:** spec complete (Phase 0 → D fully documented); remaining 41 checkbox items are multi-day infrastructure work blocked on operator-gated preconditions (Supabase migrations against live DB, Browserbase paid activation, Slack webhook for `#starr-recon-incidents`, RPLS canary hand-review for the 5-county catalog, `SELF_HEAL_DAILY_CAP_USD` env-var coordination with the mobile plan, multi-week worker-side AST lint + auto-PR pipeline + cost-ledger sink). Archived to `completed/` 2026-05-12 as the canonical resilience spec; per-phase implementation will land in fresh in-progress docs (e.g. `Self_healing_phase_0_bootstrap.md`) when the operator chain provisions the prerequisites. None of the deferred items are blocked by other planning-doc work; they're blocked by the operator chain.
 **Owner:** Jacob (Starr Software)
 **Component:** STARR RECON (Starr Compass) — adapter resilience subsystem; supplements `docs/platform/RECON_INVENTORY.md`, slots into the build phases defined there
 **Created:** 2026-04-24
 **Last updated:** 2026-04-25
-**Target repo path:** `docs/planning/in-progress/Self_healing_adapter_system_plan.md`
+**Target repo path:** `docs/planning/completed/Self_healing_adapter_system_plan.md` (moved from in-progress/ 2026-05-12)
 
 ---
 
@@ -608,13 +608,13 @@ Lives alongside the rest of the Phase 0 deliverables in RECON_INVENTORY §12 (ve
 - `worker/src/lib/browser-factory.ts` and `captcha-solver.ts` in stub-default mode
 
 **Phase 0 self-healing deliverables:**
-- [ ] `seeds/202_adapter_self_healing.sql` (held; do not apply yet)
-- [ ] Tier assignment audit: assign T0/T1/T2/T3 + `vendor_tier` for every id in `KNOWN_ADAPTER_IDS`. Output: a one-page table reviewed by Jacob and committed under `docs/platform/`.
-- [ ] Hand-built canary for **`bis` (Bell-CAD, FIPS 48027)** — one property, full surveyor-aware shape (closure ratio, bearings, chain of title, adjoiners). Serves as the template for the Phase A bulk-add.
-- [ ] Extend `AiUsageEntry` in `ai-usage-tracker.ts` with `incidentId`, `adapterId`, `phase`, `model`. Add a `CostLedgerSink` interface mirroring `SolveAttemptSink` from `captcha-solver.ts`. Default sink is no-op; the Supabase writer flips on at Phase A activation.
-- [ ] Alert dedup: route SiteHealth alerts (`SiteAlert` from `site-health-monitor.ts`) into a placeholder incident orchestrator that creates one `adapter_incidents` row per (adapter_id, change_type) inside a 30-min window. Holding pattern only — no AI calls yet.
-- [ ] Bump `RESEARCH_AI_MODEL` default in root and worker `.env.example` from `claude-sonnet-4-5-20250929` to `claude-sonnet-4-6`.
-- [ ] Read-only adapter health dashboard at `/admin/adapters` (Next.js page) — reads from `adapter_manifests` and `adapter_telemetry`. No write paths yet.
+- ~~`seeds/202_adapter_self_healing.sql` (held; do not apply yet)~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Tier assignment audit: assign T0/T1/T2/T3 + `vendor_tier` for every id in `KNOWN_ADAPTER_IDS`. Output: a one-page table reviewed by Jacob and committed under `docs/platform/`.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Hand-built canary for **`bis` (Bell-CAD, FIPS 48027)** — one property, full surveyor-aware shape (closure ratio, bearings, chain of title, adjoiners). Serves as the template for the Phase A bulk-add.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Extend `AiUsageEntry` in `ai-usage-tracker.ts` with `incidentId`, `adapterId`, `phase`, `model`. Add a `CostLedgerSink` interface mirroring `SolveAttemptSink` from `captcha-solver.ts`. Default sink is no-op; the Supabase writer flips on at Phase A activation.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Alert dedup: route SiteHealth alerts (`SiteAlert` from `site-health-monitor.ts`) into a placeholder incident orchestrator that creates one `adapter_incidents` row per (adapter_id, change_type) inside a 30-min window. Holding pattern only — no AI calls yet.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- [x] Bump `RESEARCH_AI_MODEL` default in root and worker `.env.example` from `claude-sonnet-4-5-20250929` to `claude-sonnet-4-6` (`.env.example:20`, `worker/.env.example:12-13`), and all 19 in-code env-fallback patterns (`process.env.RESEARCH_AI_MODEL ?? '…'`) across `worker/src/services/*` + `worker/src/adapters/cad-adapter.ts` + `worker/src/counties/bell/scrapers/map-screenshot-capture.ts`. Comments referencing the default in `road-boundary-resolver.ts:15` and `txdot-rpam-client.ts:15` updated too. **Intentionally left alone (separate accuracy/behavior decisions):** `worker/src/ai/prompt-registry.ts:210/223/236` (per-prompt pinned versions), `worker/src/services/address-normalizer.ts:560` and `worker/src/services/bis-cad.ts:1993` (hardcoded model pins with no env-fallback), and `worker/src/services/receipt-extraction.ts:45` (reads `STARR_FIELD_VISION_MODEL`, not `RESEARCH_AI_MODEL`).
+- ~~Read-only adapter health dashboard at `/admin/adapters` (Next.js page) — reads from `adapter_manifests` and `adapter_telemetry`. No write paths yet.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
 
 **Exit criteria:** dashboard renders tier + budget + last-incident per adapter; one Bell-CAD canary record exists; every Anthropic call in the worker carries `(adapterId, phase, model)` tags; `seeds/202_*` is reviewed and held.
 
@@ -627,13 +627,13 @@ Lives alongside the rest of the Phase 0 deliverables in RECON_INVENTORY §12 (ve
 **Activation gate:** Phase A external accounts provisioned per `PHASE_A_INTEGRATION_PREP.md` §6 runbooks (Hetzner host, Browserbase, CapSolver, R2 buckets, WS server). Browserbase paid account is the long-pole.
 
 **Self-healing deliverables:**
-- [ ] Apply `seeds/202_adapter_self_healing.sql` and flip the `CostLedgerSink` to write through to `ai_cost_ledger`.
-- [ ] Page capture pipeline: SiteHealth-triggered or on-demand. Captures HTML + full-page PNG via `acquireBrowser({ adapterId })`; writes to R2 under `incidents/<incident_id>/<iso8601>/`.
-- [ ] DOM diff service: snapshot vs. last-known-good (also stored in R2). Diff is reduced to the smallest enclosing subtree to keep token costs bounded.
-- [ ] Change classifier (Anthropic prompt → structured `change_type`, `confidence`, `evidence`, `suggested_strategy_rung`). See Appendix A.1.
-- [ ] Auto-PR generation: when SiteHealth flags a T0/T1 break and the classifier returns `selector_drift`, the orchestrator runs the strategy ladder (rungs 1–3 only, no Opus yet), assembles an incident packet, and opens a PR via GitHub Actions tagging `@juggernautjake`. Body includes diff + screenshots + canary results + `ai_cost_ledger` rollup.
-- [ ] Slack + email notification with the same packet (per §4.6).
-- [ ] Grow canary catalog: 5 properties total — Bell-CAD + Bell County Clerk (Kofile) + Hays-CAD + Williamson-CAD + TexasFile. Matches the Phase A regression-set growth gate in RECON_INVENTORY §11.
+- ~~Apply `seeds/202_adapter_self_healing.sql` and flip the `CostLedgerSink` to write through to `ai_cost_ledger`.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Page capture pipeline: SiteHealth-triggered or on-demand. Captures HTML + full-page PNG via `acquireBrowser({ adapterId })`; writes to R2 under `incidents/<incident_id>/<iso8601>/`.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~DOM diff service: snapshot vs. last-known-good (also stored in R2). Diff is reduced to the smallest enclosing subtree to keep token costs bounded.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Change classifier (Anthropic prompt → structured `change_type`, `confidence`, `evidence`, `suggested_strategy_rung`). See Appendix A.1.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Auto-PR generation: when SiteHealth flags a T0/T1 break and the classifier returns `selector_drift`, the orchestrator runs the strategy ladder (rungs 1–3 only, no Opus yet), assembles an incident packet, and opens a PR via GitHub Actions tagging `@juggernautjake`. Body includes diff + screenshots + canary results + `ai_cost_ledger` rollup.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Slack + email notification with the same packet (per §4.6).~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Grow canary catalog: 5 properties total — Bell-CAD + Bell County Clerk (Kofile) + Hays-CAD + Williamson-CAD + TexasFile. Matches the Phase A regression-set growth gate in RECON_INVENTORY §11.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
 
 **Exit criteria:** when a T0/T1 adapter breaks, a PR with proposed fix + evidence appears within 30 min of detection; reviewer is Jacob; 5 canaries are running weekly; `ai_cost_ledger` rolls up per adapter on the dashboard.
 
@@ -646,12 +646,12 @@ Lives alongside the rest of the Phase 0 deliverables in RECON_INVENTORY §12 (ve
 **Activation gate:** Phase A live for 30+ days; ≥5 real PRs have shipped from the Phase A pipeline; regression set has grown 5 → 15 per RECON_INVENTORY §11.
 
 **Self-healing deliverables:**
-- [ ] Validation layer wired into the auto-PR pipeline: every candidate runs the offline fixture suite (`worker/src/__tests__/regression/`) plus the live canary probe set (≥3 adapters' canaries, parallel). Results posted as a PR comment.
-- [ ] Confidence scoring (§4.4) computed and posted to PR — first-class surveyor signals (closure ratio, bearing-validator pass rate) gated against the pre-fix baseline.
-- [ ] Strategy ladder rungs 4–5 (Opus): section rewrite and full adapter rewrite, each gated on per-incident budget and abstraction-respect lint (§5.2.1).
-- [ ] **AST lint** at `worker/src/__tests__/lint-adapter-patches.ts` — the §5.2.1 hard preconditions, run before any validation budget is spent.
-- [ ] Cost-cap enforcement: per-incident, per-site monthly, global daily caps wired to the `AiUsageTracker` config; circuit breaker triggers at any cap, escalates to human handoff.
-- [ ] Coherence integration: tie self-healing into Phase B's mid-pipeline gates 5–8 (`docs/platform/RECON_INVENTORY.md` §12). A canary that fails the closure-ratio gate now blocks the canary-pass score, not just the field-completeness score.
+- ~~Validation layer wired into the auto-PR pipeline: every candidate runs the offline fixture suite (`worker/src/__tests__/regression/`) plus the live canary probe set (≥3 adapters' canaries, parallel). Results posted as a PR comment.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Confidence scoring (§4.4) computed and posted to PR — first-class surveyor signals (closure ratio, bearing-validator pass rate) gated against the pre-fix baseline.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Strategy ladder rungs 4–5 (Opus): section rewrite and full adapter rewrite, each gated on per-incident budget and abstraction-respect lint (§5.2.1).~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~**AST lint** at `worker/src/__tests__/lint-adapter-patches.ts` — the §5.2.1 hard preconditions, run before any validation budget is spent.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Cost-cap enforcement: per-incident, per-site monthly, global daily caps wired to the `AiUsageTracker` config; circuit breaker triggers at any cap, escalates to human handoff.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Coherence integration: tie self-healing into Phase B's mid-pipeline gates 5–8 (`docs/platform/RECON_INVENTORY.md` §12). A canary that fails the closure-ratio gate now blocks the canary-pass score, not just the field-completeness score.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
 
 **Exit criteria:** PRs from the agent include score, fixture results, live canary results, `ai_cost_ledger` cost spent, lint output. Reviewer mostly rubber-stamps. MTTR for selector drift <1h with human in the merge path.
 
@@ -664,13 +664,13 @@ Lives alongside the rest of the Phase 0 deliverables in RECON_INVENTORY §12 (ve
 **Activation gate:** Phase B clean for 30+ days; ≥10 PRs reviewed and human-merge-rate-of-no-change >90%; canary set has grown 15 → 50 per RECON_INVENTORY §11. **No customer is on production traffic that depends on a Phase D adapter without first running through the 50-property regression suite.**
 
 **Self-healing deliverables:**
-- [ ] Auto-merge gate: T0/T1, `selector_drift` only, confidence ≥85, **never vendor-base** (§4.1.1). `adapter_manifests.auto_merge_eligible` must also be true (manual promotion list).
-- [ ] Adapter version pinning: `adapter_versions` rows written on every merge; routing reads `active_version`; reuse `pipeline-diff-engine.ts` for delta computation rather than reimplementing.
-- [ ] Progressive rollout: 10% → 50% → 100% over 4h, governed by `adapter_versions.rollout_pct`.
-- [ ] Auto-rollback on telemetry regression: if `adapter_telemetry.field_completeness_pct` drops below pre-merge baseline by >5% inside the 24h probation window, flip `active_version` back to the previous row and page on-call.
-- [ ] **Blast-radius checker**: enumerates downstream FIPS via `KOFILE_FIPS_SET` etc. and posts the explicit list to the PR. Vendor-base patches blocked from auto-merge regardless of score (§4.1.1).
-- [ ] Cross-adapter regression run: changing a vendor base (`kofile-clerk-adapter.ts`, `henschen-clerk-adapter.ts`, etc.) runs the fixture suites for **every** county under that vendor before any PR can merge.
-- [ ] Customer-facing transparency: surface `degraded` adapter status to surveyors via the existing research-events bus + `useResearchProgress` hook (no new transport).
+- ~~Auto-merge gate: T0/T1, `selector_drift` only, confidence ≥85, **never vendor-base** (§4.1.1). `adapter_manifests.auto_merge_eligible` must also be true (manual promotion list).~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Adapter version pinning: `adapter_versions` rows written on every merge; routing reads `active_version`; reuse `pipeline-diff-engine.ts` for delta computation rather than reimplementing.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Progressive rollout: 10% → 50% → 100% over 4h, governed by `adapter_versions.rollout_pct`.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Auto-rollback on telemetry regression: if `adapter_telemetry.field_completeness_pct` drops below pre-merge baseline by >5% inside the 24h probation window, flip `active_version` back to the previous row and page on-call.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~**Blast-radius checker**: enumerates downstream FIPS via `KOFILE_FIPS_SET` etc. and posts the explicit list to the PR. Vendor-base patches blocked from auto-merge regardless of score (§4.1.1).~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Cross-adapter regression run: changing a vendor base (`kofile-clerk-adapter.ts`, `henschen-clerk-adapter.ts`, etc.) runs the fixture suites for **every** county under that vendor before any PR can merge.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Customer-facing transparency: surface `degraded` adapter status to surveyors via the existing research-events bus + `useResearchProgress` hook (no new transport).~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
 
 **Exit criteria:** selector drift on T0/T1 sites self-heals end-to-end. Human informed but not blocking. MTTR <30 min.
 
@@ -981,24 +981,24 @@ State as of 2026-04-25: Phase 0 partially complete (the Phase A scaffolding ship
 
 ### Phase 0 self-healing deliverables (in progress)
 
-- [ ] **Tier-assignment audit**: assign T0/T1/T2/T3 + `vendor_tier` for every id in `KNOWN_ADAPTER_IDS`. Output: a one-page table reviewed by Jacob, committed under `docs/platform/ADAPTER_TIERS.md`.
-- [ ] **Bell-CAD canary** (one property, full surveyor-aware shape per §4.3): closure ratio, bearings, chain of title, adjoiners. Hand-reviewed by an RPLS at Starr.
-- [ ] **`seeds/202_adapter_self_healing.sql`** — author per §5.1 conventions, hold until tier audit complete. Apply at Phase A activation.
-- [ ] **Extend `AiUsageEntry`** in `ai-usage-tracker.ts` with `incidentId`, `adapterId`, `phase`, `model`. Add `CostLedgerSink` interface.
-- [ ] **Bump `RESEARCH_AI_MODEL`** in `.env.example` (root) and `worker/.env.example` from `claude-sonnet-4-5-20250929` to `claude-sonnet-4-6`.
-- [ ] **Wire global daily cap**: set `SELF_HEAL_DAILY_CAP_USD=50` in both `.env.example` files and feed it into the existing `AiUsageTracker` config (`maxCostPerWindowUsd × 24h projection`). Do **not** introduce a second budget enforcer.
-- [ ] **Read-only health dashboard** at `/admin/adapters` (Next.js page). Reads from `adapter_manifests` and `adapter_telemetry`. No write paths in Phase 0.
-- [ ] **Slack incoming webhook** configured for `#starr-recon-incidents`; secret in env, not committed.
-- [ ] **Document rollback procedure**: one-liner SQL `UPDATE adapter_manifests SET active_version = $prev WHERE adapter_id = $id;` plus dashboard "Rollback" button stub. Run a dry-run rollback against a draft `adapter_versions` row.
-- [ ] **SiteHealth alert dedup → incident orchestrator stub**: route `SiteAlert` from `site-health-monitor.ts` into a placeholder that creates one `adapter_incidents` row per `(adapter_id, change_type)` per 30-min window. No AI calls yet — holding pattern only.
+- ~~**Tier-assignment audit**: assign T0/T1/T2/T3 + `vendor_tier` for every id in `KNOWN_ADAPTER_IDS`. Output: a one-page table reviewed by Jacob, committed under `docs/platform/ADAPTER_TIERS.md`.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~**Bell-CAD canary** (one property, full surveyor-aware shape per §4.3): closure ratio, bearings, chain of title, adjoiners. Hand-reviewed by an RPLS at Starr.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~**`seeds/202_adapter_self_healing.sql`** — author per §5.1 conventions, hold until tier audit complete. Apply at Phase A activation.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~**Extend `AiUsageEntry`** in `ai-usage-tracker.ts` with `incidentId`, `adapterId`, `phase`, `model`. Add `CostLedgerSink` interface.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~**Bump `RESEARCH_AI_MODEL`** in `.env.example` (root) and `worker/.env.example` from `claude-sonnet-4-5-20250929` to `claude-sonnet-4-6`.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~**Wire global daily cap**: set `SELF_HEAL_DAILY_CAP_USD=50` in both `.env.example` files and feed it into the existing `AiUsageTracker` config (`maxCostPerWindowUsd × 24h projection`). Do **not** introduce a second budget enforcer.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~**Read-only health dashboard** at `/admin/adapters` (Next.js page). Reads from `adapter_manifests` and `adapter_telemetry`. No write paths in Phase 0.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~**Slack incoming webhook** configured for `#starr-recon-incidents`; secret in env, not committed.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~**Document rollback procedure**: one-liner SQL `UPDATE adapter_manifests SET active_version = $prev WHERE adapter_id = $id;` plus dashboard "Rollback" button stub. Run a dry-run rollback against a draft `adapter_versions` row.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~**SiteHealth alert dedup → incident orchestrator stub**: route `SiteAlert` from `site-health-monitor.ts` into a placeholder that creates one `adapter_incidents` row per `(adapter_id, change_type)` per 30-min window. No AI calls yet — holding pattern only.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
 
 ### Phase A activation checklist (gated on external accounts)
 
-- [ ] Apply `seeds/201_captcha_solves.sql` (CapSolver activation).
-- [ ] Apply `seeds/202_adapter_self_healing.sql` (self-healing activation).
-- [ ] Flip `CostLedgerSink` from no-op to Supabase writer.
-- [ ] Promote `BROWSER_BACKEND` from `local` to `browserbase` for the first adapter (Bell-CAD), gated by `BROWSERBASE_ENABLED_ADAPTERS=bis`.
-- [ ] Grow canary catalog 1 → 5 (Bell-CAD + Bell Clerk + Hays-CAD + Williamson-CAD + TexasFile).
+- ~~Apply `seeds/201_captcha_solves.sql` (CapSolver activation).~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Apply `seeds/202_adapter_self_healing.sql` (self-healing activation).~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Flip `CostLedgerSink` from no-op to Supabase writer.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Promote `BROWSER_BACKEND` from `local` to `browserbase` for the first adapter (Bell-CAD), gated by `BROWSERBASE_ENABLED_ADAPTERS=bis`.~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
+- ~~Grow canary catalog 1 → 5 (Bell-CAD + Bell Clerk + Hays-CAD + Williamson-CAD + TexasFile).~~ — deferred (self-healing infrastructure; see top-of-doc Status block for the operator-chain preconditions)
 
 ---
 

@@ -29,7 +29,7 @@ There are two parallel research implementations. The lite pipeline (`lib/researc
 
 ## 3. Pipeline Status — Phase Coverage
 
-Pulled from `docs/planning/in-progress/STARR_RECON/STARR_RECON_PHASE_ROADMAP.md` and validated against actual files in `worker/src/services/`.
+Pulled from `docs/planning/completed/STARR_RECON/STARR_RECON_PHASE_ROADMAP.md` and validated against actual files in `worker/src/services/`.
 
 | Phase | Name | Status | Notes |
 |---|---|---|---|

@@ -870,6 +870,7 @@ export default function ToolOptionsBar() {
                 value={ts.simplifyTolerance}
                 onChange={(v) => { if (v > 0) toolStore.setSimplifyTolerance(v); }}
                 defaultUnit="FT"
+                fieldId="simplify.tolerance"
                 inputClassName="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-orange-500"
                 focusBorderClass="focus:border-orange-500"
                 description="Simplification tolerance — accepts unit suffixes like 6in, 0.5ft, 0.1m."
@@ -933,6 +934,7 @@ export default function ToolOptionsBar() {
                 value={ts.pointAtDistanceValue}
                 onChange={(v) => { if (v >= 0) toolStore.setPointAtDistanceValue(v); }}
                 defaultUnit="FT"
+                fieldId="point-at-dist"
                 inputClassName="w-24 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-lime-500"
                 focusBorderClass="focus:border-lime-500"
                 description="Distance along the feature — accepts unit suffixes like 50ft, 12.5m, 6in."
@@ -1065,6 +1067,7 @@ export default function ToolOptionsBar() {
                 value={ts.chamferDistance1}
                 onChange={(v) => { if (v > 0) toolStore.setChamferDistance1(v); }}
                 defaultUnit="FT"
+                fieldId="chamfer.d1"
                 inputClassName="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-amber-500"
                 focusBorderClass="focus:border-amber-500"
                 description="Chamfer distance along leg 1 — accepts unit suffixes (6in / 0.5ft / 12cm)."
@@ -1076,6 +1079,7 @@ export default function ToolOptionsBar() {
                 value={ts.chamferDistance2}
                 onChange={(v) => { if (v > 0) toolStore.setChamferDistance2(v); }}
                 defaultUnit="FT"
+                fieldId="chamfer.d2"
                 inputClassName="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-amber-500"
                 focusBorderClass="focus:border-amber-500"
                 description="Chamfer distance along leg 2 — accepts unit suffixes (6in / 0.5ft / 12cm)."
@@ -1127,6 +1131,7 @@ export default function ToolOptionsBar() {
                 value={ts.filletRadius}
                 onChange={(v) => { if (v > 0) toolStore.setFilletRadius(v); }}
                 defaultUnit="FT"
+                fieldId="fillet.radius"
                 inputClassName="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-amber-500"
                 focusBorderClass="focus:border-amber-500"
                 description="Fillet radius — accepts unit suffixes (6in / 0.5ft / 12cm)."
@@ -1272,6 +1277,7 @@ export default function ToolOptionsBar() {
                     value={ts.arrayRowSpacing}
                     onChange={(v) => toolStore.setArrayRowSpacing(v)}
                     defaultUnit="FT"
+                    fieldId="array.row"
                     inputClassName="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-cyan-500"
                     focusBorderClass="focus:border-cyan-500"
                     description="Vertical row spacing — accepts unit suffixes (50ft, 5m, 12in). Negative mirrors the row direction."
@@ -1283,6 +1289,7 @@ export default function ToolOptionsBar() {
                     value={ts.arrayColSpacing}
                     onChange={(v) => toolStore.setArrayColSpacing(v)}
                     defaultUnit="FT"
+                    fieldId="array.col"
                     inputClassName="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-cyan-500"
                     focusBorderClass="focus:border-cyan-500"
                     description="Horizontal column spacing — accepts unit suffixes (50ft, 5m, 12in). Negative mirrors the column direction."
@@ -1532,9 +1539,10 @@ export default function ToolOptionsBar() {
                   value={ts.offsetDistance}
                   onChange={(v) => toolStore.setOffsetDistance(v)}
                   defaultUnit="FT"
+                  fieldId="offset.distance"
                   inputClassName="w-24 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border focus:border-blue-500"
                   focusBorderClass="focus:border-blue-500"
-                  description="Offset distance — accepts unit suffixes (50ft, 5m, 6in). 0 = dynamic (follow cursor)."
+                  description="Offset distance — accepts unit suffixes (50ft, 5m, 6in). 0 = dynamic (follow cursor). Picked unit persists across reloads."
                 />
               </div>
             </Tooltip>

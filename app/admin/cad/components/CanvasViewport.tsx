@@ -117,6 +117,7 @@ import {
 import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
+import PickModeContextMenu from './PickModeContextMenu';
 import InteractiveOpPanel from './InteractiveOpPanel';
 import ImageInsertDialog from './ImageInsertDialog';
 import TitleBlockEditorModal from './TitleBlockEditorModal';
@@ -756,6 +757,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const [cursorStyle, setCursorStyle] = useState('crosshair');
   const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [pickCtxMenu, setPickCtxMenu] = useState<{ x: number; y: number; featureId: string | null } | null>(null);
   const [drawingMenu, setDrawingMenu] = useState<DrawingMenuState | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
   // HUD: floating operation info panel near cursor
@@ -7419,6 +7421,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const toolState = toolStore.state;
       const { activeTool } = toolState;
 
+      // Phase 8 §11.7 — Pick-mode box-select. When the
+      // LayerTransferDialog is in Pick mode and the user starts
+      // dragging on empty canvas, start a box-select; mouseUp adds
+      // the captured features to the pick set (not the regular
+      // selection). MouseDown on a hit feature is left to the
+      // existing click handler at line ~7582 (togglePick on
+      // mouseUp), so we only intercept the empty-canvas case here.
+      const _pickTx = useTransferStore.getState();
+      if (_pickTx.pickModeActive) {
+        const _hit = hitTest(sx, sy);
+        if (!_hit) {
+          toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
+        }
+        return;
+      }
+
       // PAN tool: left-click-drag pans the viewport
       if (activeTool === 'PAN') {
         isPanningRef.current = true;
@@ -9809,8 +9827,39 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
-      // Finish box selection (works for both SELECT and BOX_SELECT tools)
-      if (toolState.isBoxSelecting && (toolState.activeTool === 'SELECT' || toolState.activeTool === 'BOX_SELECT')) {
+      // Phase 8 §11.7 — Pick-mode box-select resolution. Parallel
+      // to the SELECT/BOX_SELECT path below; captured features get
+      // added to (or removed from) the transferStore's pick set
+      // rather than the selection store. Pick mode preempts the
+      // regular flow.
+      //
+      // Modifier semantics on release:
+      //   plain drag           → addPicks (intersection of box + features)
+      //   Alt-drag             → removePicks (window-deselect; matches
+      //                          the existing Alt-click remove path)
+      //   Ctrl+Shift-drag      → also removePicks (alt mapping per spec)
+      const _pickTx = useTransferStore.getState();
+      if (toolState.isBoxSelecting && _pickTx.pickModeActive) {
+        const start = toolState.boxStart!;
+        const end = toolState.boxEnd ?? { x: sx, y: sy };
+        const dragDist = Math.hypot(end.x - start.x, end.y - start.y);
+        const threshold = drawingStore.document.settings.dragThreshold ?? 5;
+        if (dragDist > threshold) {
+          const ids = boxSelectFeatures(start, end);
+          if (ids.length > 0) {
+            const isDeselect = e.altKey || (e.ctrlKey && e.shiftKey) || (e.metaKey && e.shiftKey);
+            if (isDeselect) {
+              _pickTx.removePicks(ids);
+            } else {
+              _pickTx.addPicks(ids);
+            }
+          }
+        }
+        // Short-drag no-op: a plain click in Pick mode flows
+        // through the click handler at handleClick → togglePick.
+        toolStore.setBoxSelect(null, null, false);
+      } else if (toolState.isBoxSelecting && (toolState.activeTool === 'SELECT' || toolState.activeTool === 'BOX_SELECT')) {
+        // Finish box selection (works for both SELECT and BOX_SELECT tools)
         const start = toolState.boxStart!;
         const end = toolState.boxEnd ?? { x: sx, y: sy };
         const dragDist = Math.hypot(end.x - start.x, end.y - start.y);
@@ -10066,12 +10115,40 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (ops.length > 0) undStore.pushUndo(makeBatchEntry('Scale', ops));
       toolStore.resetToolState();
     };
+    // Command-bar "type a radius" path for DRAW_CIRCLE. Mirrors
+    // the second-click branch at line 7875 but uses the typed
+    // value directly instead of `hypot(worldPt - center)`.
+    const onDrawCircleByRadius = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | { center: Point2D; radius: number }
+        | undefined;
+      if (!detail) return;
+      const { center, radius } = detail;
+      if (!(radius > 0)) return;
+      const dwgStore = useDrawingStore.getState();
+      const tStore = useToolStore.getState();
+      const feature: Feature = {
+        id: generateId(),
+        type: 'CIRCLE',
+        geometry: { type: 'CIRCLE', circle: { center: { ...center }, radius } },
+        layerId: dwgStore.activeLayerId,
+        style: {
+          ...DEFAULT_FEATURE_STYLE,
+          ...dwgStore.getActiveLayerStyle(),
+        },
+        properties: { shapeType: 'CIRCLE' },
+      };
+      dwgStore.addFeature(withAutoLabels(feature));
+      useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+      tStore.clearDrawingPoints();
+    };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('cad:confirm', onConfirm);
     window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:rotate', onRotate);
     window.addEventListener('cad:scale', onScale);
+    window.addEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
 
     // ── Interactive rotate: cursor drives rotation in real-time ────────────
     const onStartInteractiveRotate = (e: Event) => {
@@ -10291,6 +10368,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
+      window.removeEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
       window.removeEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
       window.removeEventListener('cad:startInteractiveScale', onStartInteractiveScale);
       window.removeEventListener('cad:deleteSelection', onDeleteSelection);
@@ -10444,6 +10522,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Right-click during an interactive op: cancel the op, do not open context menu
       if (interactiveOpRef.current) {
         cancelInteractiveOp();
+        return;
+      }
+
+      // Phase 8 §11.7 — Pick mode owns right-click while
+      // LayerTransferDialog is picking. We don't want the regular
+      // feature context menu's Move / Delete / etc. actions to
+      // fire on a pick. The Pick-mode menu lets the surveyor
+      // remove picks without leaving Pick mode.
+      const tx = useTransferStore.getState();
+      if (tx.pickModeActive) {
+        const hit = hitTest(sx, sy);
+        setPickCtxMenu({ x: e.clientX, y: e.clientY, featureId: hit });
         return;
       }
 
@@ -10702,6 +10792,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         />
       )}
 
+      {/* Phase 8 §11.7 — Pick-mode right-click menu */}
+      {pickCtxMenu && (
+        <PickModeContextMenu
+          x={pickCtxMenu.x}
+          y={pickCtxMenu.y}
+          featureId={pickCtxMenu.featureId}
+          onClose={() => setPickCtxMenu(null)}
+        />
+      )}
+
       {/* Title-block element right-click context menu */}
       {tbContextMenu && (() => {
         const isScaleBar   = tbContextMenu.element === 'scaleBar';
@@ -10794,7 +10894,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         >
           <input
             autoFocus
-            className="bg-gray-900 border-2 border-blue-400 text-white text-sm px-2 py-1 outline-none shadow-2xl min-w-[160px] rounded font-sans"
+            className="bg-gray-900 border-2 border-blue-400 text-white text-sm px-2 py-1 outline-none shadow-2xl min-w-[160px] rounded"
             style={{ caretColor: '#60a5fa' }}
             placeholder="Type text here…"
             onKeyDown={(e) => {

@@ -56,6 +56,8 @@ import { PAPER_DIMENSIONS } from '../templates/types';
  */
 export type PdfPlotStyle = 'AS_DISPLAYED' | 'MONOCHROME' | 'GRAYSCALE';
 
+export type PdfScaleMode = 'FIXED' | 'FIT_TO_PAGE';
+
 export interface PdfExportOptions {
   /** Margin around the drawing area, in inches. Default 0.5". */
   marginIn?: number;
@@ -71,6 +73,14 @@ export interface PdfExportOptions {
    *  luminance equivalent so visual hierarchy survives without
    *  ink. */
   plotStyle?: PdfPlotStyle;
+  /** `'FIT_TO_PAGE'` (default) auto-scales the drawing to fill
+   *  the drawable area. `'FIXED'` honors `scale` (world units
+   *  per paper inch — i.e. `50` means `1"=50'`) so the PDF
+   *  measures correct footage when checked with a scale. */
+  scaleMode?: PdfScaleMode;
+  /** World units per paper inch — only consulted when
+   *  `scaleMode === 'FIXED'`. Defaults to 50. */
+  scale?: number;
 }
 
 export interface PdfExportResult {
@@ -90,6 +100,8 @@ export function exportToPdf(
   const samples = Math.max(8, options.curveSamples ?? 64);
   const includeHidden = !!options.includeHidden;
   const plotStyle: PdfPlotStyle = options.plotStyle ?? 'AS_DISPLAYED';
+  const scaleMode: PdfScaleMode = options.scaleMode ?? 'FIT_TO_PAGE';
+  const fixedScale = Math.max(0.0001, options.scale ?? 50);
 
   const settings = doc.settings;
   const orientation =
@@ -115,7 +127,10 @@ export function exportToPdf(
   // Reserve 1 inch at the bottom of the page for the title strip.
   const titleStripHeight = 1.0;
   const drawHeight = pageHeight - margin * 2 - titleStripHeight;
-  const xform = fitToPaper(extents, drawWidth, drawHeight, margin, margin + titleStripHeight);
+  const xform =
+    scaleMode === 'FIXED'
+      ? fixedScalePaper(extents, drawWidth, drawHeight, margin, margin + titleStripHeight, fixedScale)
+      : fitToPaper(extents, drawWidth, drawHeight, margin, margin + titleStripHeight);
 
   // ── Render features ──────────────────────────────────────
   pdf.setLineWidth(0.005);
@@ -180,6 +195,35 @@ function fitToPaper(
   const renderedW = worldW * scale;
   const renderedH = worldH * scale;
   // Center within the drawable area.
+  const offsetX =
+    marginX + (drawWidth - renderedW) / 2 - extents.min.x * scale;
+  const offsetY =
+    marginYBottom + (drawHeight - renderedH) / 2 + extents.min.y * scale;
+  return { scale, offsetX, offsetY, pageHeight: 0 };
+}
+
+/**
+ * Fixed-scale variant: a measured scale (e.g. 1"=50') instead of
+ * auto-fit. `fixedScale` is world units per paper inch, so the
+ * paper-inches-per-world-unit factor is `1 / fixedScale`. Centers
+ * the drawing in the drawable area; the caller is responsible for
+ * sizing the page (the writer doesn't split across pages today —
+ * a drawing too large to fit at the requested scale simply clips
+ * outside the page bounds).
+ */
+function fixedScalePaper(
+  extents: { min: Point2D; max: Point2D },
+  drawWidth: number,
+  drawHeight: number,
+  marginX: number,
+  marginYBottom: number,
+  fixedScale: number
+): XForm {
+  const worldW = Math.max(0.001, extents.max.x - extents.min.x);
+  const worldH = Math.max(0.001, extents.max.y - extents.min.y);
+  const scale = 1 / fixedScale;
+  const renderedW = worldW * scale;
+  const renderedH = worldH * scale;
   const offsetX =
     marginX + (drawWidth - renderedW) / 2 - extents.min.x * scale;
   const offsetY =
