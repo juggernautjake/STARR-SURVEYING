@@ -20,6 +20,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { dispatch } from '@/lib/saas/notifications';
+import { registerAllEvents } from '@/lib/saas/notifications/events';
+
+// Idempotent — runs on first webhook hit then short-circuits.
+// The notifications service needs to know about its events before
+// dispatch() is called.
+registerAllEvents();
 
 // ── Stripe webhook secret ─────────────────────────────────────────────────────
 
@@ -404,4 +411,29 @@ async function handleInvoicePaymentFailed(invoice: Record<string, unknown>): Pro
     .from('research_subscriptions')
     .update({ status: 'past_due', updated_at: new Date().toISOString() })
     .eq('stripe_customer_id', customerId);
+
+  // SaaS pivot F-5 — fire payment_failed notification (email + in-app)
+  // via the notifications service. For legacy research-subscription
+  // customers, user_email IS the billing contact. For firm-level
+  // subscriptions (post-M-9), the org's billing_contact_email is used.
+  if (userEmail) {
+    const amount = (invoice.amount_due as number | undefined) ?? 0;
+    const orgUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://starrsoftware.com';
+    try {
+      await dispatch('payment_failed', {
+        orgId: undefined, // legacy per-user sub; firm-level sub adds org_id post-M-9
+        payload: {
+          billingContactEmail: userEmail,
+          user: { name: userEmail.split('@')[0] },
+          org: { name: 'your subscription', url: orgUrl },
+          plan: { label: 'Research subscription' },
+          invoice: { amount: `$${(amount / 100).toFixed(2)}` },
+        },
+      });
+    } catch (err) {
+      // Notification failure shouldn't fail the webhook — Stripe
+      // will retry on a 5xx and we don't want duplicate dunning.
+      console.error('[Webhook] payment_failed notification failed', err);
+    }
+  }
 }
