@@ -536,7 +536,7 @@ Replaces the visible sidebar. Old sidebar still ships under feature flag.
 - [x] `app/admin/work/page.tsx` — Work landing *(slice 3a)*
 - [x] `app/admin/research-cad/page.tsx` — Research & CAD landing *(slice 3a)*
 - [x] `app/admin/office/page.tsx` — Office landing *(slice 3a)*
-- [ ] `app/admin/components/nav/AdminPageHeader.tsx` — breadcrumb + star
+- [x] `app/admin/components/nav/AdminPageHeader.tsx` — breadcrumb (star + ? help button land with Phase 4 pinning store / Phase 6 help drawer) *(slice 3d)*
 - [x] Feature flag `adminNavV2Enabled` on `lib/admin/nav-store.ts` (default false; flipped to true by default in Phase 5 after the PR-cycle grace) *(slice 3b)*
 - [x] `Cmd+1..6` workspace shortcuts wired *(slice 3b)*
 
@@ -563,6 +563,12 @@ Replaces the visible sidebar. Old sidebar still ships under feature flag.
 - `app/admin/components/nav/IconRail.tsx` — replaced inline workspace `<Link>`s with `<WorkspaceFlyout>` instances. The rail still hosts its own brand logo + Search button outside the fly-out path.
 - `app/admin/components/nav/IconRail.css` — fly-out chrome: positioned to the right of the rail, 260-320 px wide, card list with a left-border accent on hover.
 - The doc's `RailExpandedPanel` (the 240 px "click hamburger to expand" mode) is deferred to a Phase 6 polish slice. With both the fly-out and the workspace-landing card grid in place, the §2.2 "make any surface ≤1 keystroke chord away" goal is already met without it.
+
+**Slice 3d — AdminPageHeader breadcrumb (shipped):**
+- `app/admin/components/nav/AdminPageHeader.tsx` — resolves the active workspace + page via `workspaceOf(pathname)` + `findRoute(pathname)` and renders a `Workspace › Page` breadcrumb. Skipped on routes that already render their own title chrome (`/admin/me` Hub greeting, `/admin/cad` custom title bar — per §5.6).
+- `app/admin/components/nav/AdminPageHeader.css` — minimal breadcrumb chrome.
+- `AdminLayoutClient.tsx` mounts the header above `<ErrorBoundary>` inside `.admin-layout__content` — V2 mode only. Legacy sidebar mode keeps the original chrome unchanged.
+- Star button + `?` help button from the doc are deferred: star wires into the Phase 4 `pinnedRoutes` store, and the help drawer is a Phase 6 polish item. Once both ship, this component absorbs them with minimal churn.
 
 **Acceptance:**
 - Rail renders at 48 px; expanding shows 240 px with the workspace's pages.

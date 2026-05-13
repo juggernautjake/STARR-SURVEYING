@@ -15,6 +15,7 @@ import ErrorBoundary from './error/ErrorBoundary';
 import { ToastProvider } from './Toast';
 import CommandPaletteProvider from './nav/CommandPaletteProvider';
 import IconRail from './nav/IconRail';
+import AdminPageHeader from './nav/AdminPageHeader';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
 
 // Layout-global CSS only. Route-specific stylesheets are imported from
@@ -145,6 +146,7 @@ function Inner({ children }: { children: React.ReactNode }) {
         <div className="admin-layout__main">
           <AdminTopBar title={pageTitle} role={role} onMenuToggle={() => setSidebarOpen((p) => !p)} />
           <div className="admin-layout__content">
+            {navV2 ? <AdminPageHeader /> : null}
             <ErrorBoundary
               pageName={pageTitle}
               userEmail={session.user.email || undefined}

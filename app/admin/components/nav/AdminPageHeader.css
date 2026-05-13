@@ -1,0 +1,39 @@
+/* app/admin/components/nav/AdminPageHeader.css
+ *
+ * Breadcrumb header for the V2 admin pages (Phase 3 slice 3d).
+ * Phase 5 token sweep migrates inline hex. */
+
+.admin-page-header {
+  padding: 0.85rem 2rem 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.78rem;
+  color: #6B7280;
+}
+
+.admin-page-header__trail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.admin-page-header__crumb {
+  color: #6B7280;
+  text-decoration: none;
+}
+
+.admin-page-header__crumb:hover {
+  color: #1D3095;
+}
+
+.admin-page-header__crumb--active {
+  color: #0F1419;
+  font-weight: 500;
+}
+
+.admin-page-header__sep {
+  color: #D1D5DB;
+}
