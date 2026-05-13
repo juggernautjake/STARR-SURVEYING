@@ -416,6 +416,7 @@ export default function UsersPage() {
                     <td className="um-cell-user">
                       <div className="um-avatar" style={{ background: user.avatar_url ? 'transparent' : undefined }}>
                         {user.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                         ) : (
                           (user.name || user.email.split('@')[0]).split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'

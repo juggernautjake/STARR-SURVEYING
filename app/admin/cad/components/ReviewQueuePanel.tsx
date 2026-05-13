@@ -67,8 +67,6 @@ export default function ReviewQueuePanel() {
   const selectMultiple = useSelectionStore((s) => s.selectMultiple);
   const zoomToExtents = useViewportStore((s) => s.zoomToExtents);
 
-  if (!isOpen) return null;
-
   /**
    * Phase 6 apply-on-accept. Idempotently adds the feature
    * (with an `aiConfidenceTier` property the canvas renderer
@@ -144,6 +142,8 @@ export default function ReviewQueuePanel() {
     // dependency list keeps it fresh when the result swaps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result, drawingFeatures]);
+
+  if (!isOpen) return null;
 
   /**
    * Phase 6 §1913-§1914 — batch-accept every PENDING item at or

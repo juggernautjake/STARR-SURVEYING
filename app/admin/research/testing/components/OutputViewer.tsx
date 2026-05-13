@@ -245,6 +245,7 @@ function ScreenshotItem({
   }
   return (
     <div className="output-viewer__screenshot">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={url}
         alt={`Screenshot ${index + 1}`}
