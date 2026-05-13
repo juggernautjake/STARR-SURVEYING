@@ -1,0 +1,23 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["TEAMID.com.starrsoftware.starrfield"],
+        "components": [
+          {
+            "/": "/accept-invite/*",
+            "comment": "Accept-invite deep link → Starr Field mobile app"
+          },
+          {
+            "/": "/admin/*",
+            "exclude": true,
+            "comment": "Customer admin shell stays in browser — not deep-linked"
+          }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["TEAMID.com.starrsoftware.starrfield"]
+  }
+}

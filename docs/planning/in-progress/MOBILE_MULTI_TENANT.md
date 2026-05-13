@@ -182,7 +182,7 @@ Maps to master plan slice M-11. ~2-3 weeks.
 | **M-11e** | Accept-invite deep link with Expo Linking | 2 days | ✅ Linking config + placeholder screen shipped — `mobile/app.json` adds `ios.associatedDomains: ['applinks:starrsoftware.com']` + `android.intentFilters` for https://starrsoftware.com/accept-invite/*; `mobile/app/accept-invite/[token].tsx` placeholder screen reads token from useLocalSearchParams + renders fallback "Open in browser" CTA. Full in-app acceptance flow gated on master plan M-9 auth refactor. |
 | **M-11f** | Offline queue org_id tagging | 1 day |
 | **M-11g** | EAS production submission with multi-tenant build | 1 day |
-| **M-11h** | iOS App Site Association file + Android intent filter | 1 day |
+| **M-11h** | iOS App Site Association file + Android intent filter | 1 day | ✅ Files shipped — `public/.well-known/apple-app-site-association` (universal-link config for accept-invite path) + `public/.well-known/assetlinks.json` (Android App Links). `vercel.json` headers ensure `Content-Type: application/json` on both (Apple/Google require this). Both files have `TEAMID` / `sha256_cert_fingerprints` placeholders the operator fills in from Apple Developer team + Play Console app signing key when those credentials exist. |
 | **M-11i** | App Store + Play Store submission with v2 binary | (operator-gated; depends on Apple Dev + Play Console credentials) |
 
 **Total: ~2 weeks engineering** (M-11i is operator-gated on real credentials).
