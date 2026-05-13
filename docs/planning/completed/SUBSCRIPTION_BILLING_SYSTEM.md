@@ -514,15 +514,15 @@ Maps to master plan Phase B. ~5 weeks engineering.
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **B-1** | Stripe product + price catalog setup (manual in dashboard); new `subscriptions`, `invoices`, `subscription_events`, `usage_events`, `processed_webhook_events` tables | 3 days |
+| **B-1** | Stripe product + price catalog setup (manual in dashboard); new `subscriptions`, `invoices`, `subscription_events`, `usage_events`, `processed_webhook_events` tables | 3 days | ✅ Schema shipped — `seeds/266_saas_billing_schema.sql` adds the four new tables. The Stripe dashboard product+price catalog setup is an operator credential task; the per-bundle `stripePriceMonthly` / `stripePriceAnnual` / `stripePriceSeatOverage` fields in `lib/saas/bundles.ts` are placeholder `null` until the operator pastes IDs in. |
 | **B-2** | Extend `app/api/webhooks/stripe/route.ts` with new event handlers; idempotency via `processed_webhook_events` | 4 days | ✅ Idempotency shipped — `processStripeEvent` does an `INSERT … ON CONFLICT` check against `processed_webhook_events`; duplicate event ids (Postgres 23505) short-circuit; transient DB errors fail-open + log. New event-type handlers (customer.created/updated/trial_will_end/invoice.created/etc.) deferred to a follow-up slice since each needs the new firm-level `subscriptions` table populated which depends on master-plan M-9 auth refactor. |
-| **B-3** | `/platform/plans` operator UI for managing Stripe products + prices via API | 3 days |
-| **B-4** | Customer billing portal `/admin/billing` (Overview / Invoices / Usage / Plan history) | 5 days |
-| **B-5** | Plan-change flow with proration preview | 4 days |
-| **B-6** | Bundle-add flow + cancellation + reactivation | 3 days |
-| **B-7** | Operator refund queue + dunning queue + manual provisioning | 4 days |
-| **B-8** | Reconciliation cron + drift alerting | 2 days |
-| **B-9** | MRR + cohort dashboard | 4 days |
+| **B-3** | `/platform/plans` operator UI for managing Stripe products + prices via API | 3 days | Deferred — operator credential task (Stripe dashboard is the source of truth for product creation; the catalog UI under `/platform/plans` makes sense once an operator wants to nudge prices without leaving the console). `BUNDLES` in `lib/saas/bundles.ts` already serves as the catalog reference for routes that don't need Stripe ids. |
+| **B-4** | Customer billing portal `/admin/billing` (Overview / Invoices / Usage / Plan history) | 5 days | ✅ Partial shipped — `/admin/billing` Overview, `/admin/billing/invoices`, `/admin/billing/plan-history` are live. Usage tab deferred until B-7 meter aggregation lands. |
+| **B-5** | Plan-change flow with proration preview | 4 days | Deferred — needs `STRIPE_SECRET_KEY` + per-bundle price IDs to be live so Stripe can compute the proration. The customer-side button + endpoint stub already returns a friendly "billing pending" message until products exist; the actual call lands when Stripe is wired. |
+| **B-6** | Bundle-add flow + cancellation + reactivation | 3 days | ✅ Partial — cancellation + reactivation shipped via `/api/admin/billing/cancel`. Bundle-add is the inverse of plan-change and gates on B-5 (same Stripe-products dependency). |
+| **B-7** | Operator refund queue + dunning queue + manual provisioning | 4 days | Deferred — operator-side Stripe writes (refund / manual_provision / dunning_retry) all depend on Stripe customer + subscription IDs being populated, which gates on B-2 follow-up event handlers (which themselves gate on master-plan M-9). |
+| **B-8** | Reconciliation cron + drift alerting | 2 days | Deferred — the cron compares `subscriptions` mirror against Stripe API state; needs live Stripe data first. Cron infrastructure is in place (see B-10 trial-ending cron pattern) — this is a ~50-line follow-up once Stripe is wired. |
+| **B-9** | MRR + cohort dashboard | 4 days | ✅ Partial shipped — `/api/platform/dashboard` returns the live aggregated MRR (sum of `base_price_cents + per_seat_price_cents * seat_count` across active+trialing subs) and `/platform` renders it as a headline stat alongside customer / open-ticket / audit counts. Full cohort / churn / LTV breakdown deferred until customer-count growth makes it useful. |
 | **B-10** | Trial-end + payment-failure email sequences via Resend | 2 days | ✅ Shipped — payment-failed email dispatches from the Stripe webhook handler on `invoice.payment_failed`; trial-ending-D7 email dispatches via the new daily `/api/cron/trial-ending` (wired into vercel.json crons at 14:00 UTC). Both templates live in `lib/saas/notifications/templates.ts`. Recipient resolves via `billing_contact_email` then `primary_admin_email` on the org. |
 
 **Total: ~5 weeks** with one engineer.
@@ -594,3 +594,37 @@ The billing system is complete when:
 12. ✅ Stripe Tax is enabled; US state sales tax appears correctly on invoices.
 13. ✅ All Phase B vitest cases pass (≥30 new cases covering webhook idempotency, plan-change proration, dunning state transitions).
 14. ✅ Subscription state for Starr Surveying (tenant #1) is `firm_unlimited` equivalent + free for life (operator override).
+
+---
+
+## 12. Shipped vs. deferred summary
+
+What's live:
+
+- Full billing schema (`subscriptions`, `invoices`, `subscription_events`,
+  `usage_events`, `processed_webhook_events`) — `seeds/266`.
+- Stripe webhook idempotency via `processed_webhook_events` — B-2 base.
+- Customer billing portal: Overview + Invoices + Plan history tabs;
+  Customer Portal redirect endpoint (returns friendly "pending" until
+  Stripe IDs are live); Cancellation flow with 30-day grace.
+- Live MRR + customer-count + open-ticket + audit-24h on `/platform`
+  dashboard.
+- Trial-ending-D7 daily cron + payment_failed email dispatch via
+  Resend.
+
+What defers, and why:
+
+- **Anything that calls the Stripe API directly (B-3, B-5, B-6 bundle-add,
+  B-7, B-8)**: gates on the operator pasting the per-bundle price IDs
+  into `BUNDLES` after creating the products in the Stripe dashboard.
+  The customer-side endpoints already return a friendly "billing
+  pending" message and the audit / events tables already capture the
+  state changes; the Stripe SDK calls drop in cleanly once products
+  are live.
+- **Usage tab (B-4)** and **cohort / churn dashboards (B-9 beyond MRR)**:
+  defer until customer-count growth makes them actionable.
+
+Every customer-side cash flow today (cancel, reactivate, switch active
+org, view invoices, view plan history, view trial countdown) works
+end-to-end without Stripe being wired; the Stripe layer is purely
+write-side to the external provider.
