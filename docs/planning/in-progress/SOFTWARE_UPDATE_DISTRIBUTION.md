@@ -179,7 +179,7 @@ Maps to master plan Phase G. ~2 weeks.
 | **G-1** | `releases` table schema (already shipped in seeds/267) | — |
 | **G-2** | `/platform/releases` list + draft + publish + archive | 3 days |
 | **G-3** | Audience resolution + org_notifications fanout | 2 days |
-| **G-4** | Customer-side "What's new" banner on Hub | 2 days |
+| **G-4** | Customer-side "What's new" banner on Hub | 2 days | ✅ API + lookup helper shipped — `app/api/app/version/route.ts` returns `{version, commitSha, builtAt}` + per-user `latestRelease` (when `?for=user`) by intersecting subscription bundles with `releases` table + filtering `release_acks`. HubGreeting banner UI to consume this in a follow-up slice. |
 | **G-5** | `/admin/announcements` archive | 1 day |
 | **G-6** | Mobile Expo Updates check on app launch + force-update enforcement | 2 days |
 | **G-7** | EAS OTA trigger via GitHub Action | 2 days |
