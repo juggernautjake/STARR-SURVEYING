@@ -431,10 +431,11 @@ Each phase produces a shippable state. Phase letters chained off the master plan
 - *Acceptance partial:* operator can navigate to `/platform`, see the surface directory chrome, and be redirected if non-operator. Full login flow waits for M-9.
 
 ### Phase C-2 — Customer list + detail (1 week)
-- `organizations` table seeded with Starr Surveying as `org_01`.
-- `/platform/customers` shows the live list (1 row at first).
-- Customer detail tabs: Overview + Users + Billing (read-only).
-- *Acceptance:* operator can see Starr Surveying's data, click into users, see the billing state pulled from Stripe.
+- [x] `organizations` table seeded with Starr Surveying — `seeds/261_saas_seed_starr_tenant.sql`
+- [x] `/platform/customers` list — `app/platform/customers/page.tsx` table with name / slug / status (color-coded) / MRR / seats / bundles / admin email / founded; search + status + sort filters; total-MRR header
+- [x] `/api/platform/customers` GET — operator-auth-gated, joins organizations + subscriptions, computes monthly MRR per org
+- [ ] Customer detail tabs (Overview / Users / Billing / Tickets / Audit / Data) — separate follow-up slice; the list links to /platform/customers/[org-id] which 404s today
+- *Acceptance partial:* operator sees Starr Surveying in the list with MRR / status; detail-page click target exists but is unimplemented.
 
 ### Phase C-3 — Impersonation (1.5 weeks)
 - Impersonation flow per §3.4.
