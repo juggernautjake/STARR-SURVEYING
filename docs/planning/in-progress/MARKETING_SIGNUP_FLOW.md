@@ -240,11 +240,11 @@ Maps to master plan Phase D-1 + D-10. ~3 weeks.
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **D-1a** | `POST /api/signup/precheck` + `POST /api/signup/complete` server routes | 2 days | ✅ Precheck shipped — `app/api/signup/precheck/route.ts` checks slug + email; `lib/saas/reserved-slugs.ts` with `validateSlug()` + reserved-slug list; 14 vitest cases. `/api/signup/complete` deferred to next slice. |
+| **D-1a** | `POST /api/signup/precheck` + `POST /api/signup/complete` server routes | 2 days | ✅ Shipped — both routes. `complete` creates organizations + organization_members + registered_users (bcrypt-hashed password) + org_settings + subscriptions (trialing, 14-day) + audit_log; fires welcome email via dispatch. Idempotency-key support. Stripe customer/sub creation defers via metadata.stripe_pending=true until Stripe products exist; operator finalizes via /platform/billing. |
 | **D-1b** | Signup wizard 4-step UI at `/signup` | 4 days | ✅ Shipped — `app/signup/page.tsx`. 4-step wizard (plan picker → org info → admin info → confirmation) with live slug uniqueness check (350ms debounce against /api/signup/precheck), email status check (new/existing/banned), per-step canContinue validation. Wrapped in Suspense (useSearchParams). Submit posts to `/api/signup/complete` (404 today → friendly fallback message + contact mailto until D-1e wires the endpoint). |
 | **D-1c** | Idempotency + retry logic + provisioning-failed fallback screen | 2 days |
 | **D-1d** | Resend welcome-email template | 1 day |
-| **D-1e** | Stripe subscription creation w/ trial_period_days = 14 + no card | 2 days |
+| **D-1e** | Stripe subscription creation w/ trial_period_days = 14 + no card | 2 days | ⏸ Deferred until Stripe products exist (operator-credential-gated). The /api/signup/complete route currently creates a trialing subscription row in the local `subscriptions` table with metadata.stripe_pending=true; once Stripe products are created in the Stripe dashboard, this slice wires `stripe.subscriptions.create({customer, trial_period_days: 14, items: [...]})` and updates the row with stripe_subscription_id + stripe_customer_id. ~1 day of engineering once products are live. |
 | **D-1f** | Subdomain DNS + Vercel routing validated for any slug | 1 day |
 | **D-10a** | Pricing page redesign at `/pricing` w/ bundle cards + comparison table | 3 days |
 | **D-10b** | Annual/monthly toggle wired | 1 day |
