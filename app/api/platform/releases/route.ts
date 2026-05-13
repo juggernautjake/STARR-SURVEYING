@@ -8,6 +8,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { fanoutReleasePublished } from '@/lib/saas/release-fanout';
+import type { BundleId } from '@/lib/saas/bundles';
 
 export const runtime = 'nodejs';
 
@@ -103,5 +105,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     metadata: { release_id: data.id, version: data.version, bundles: body.bundles, type: body.releaseType },
   });
 
-  return NextResponse.json({ id: data.id, version: data.version }, { status: 201 });
+  // Fanout: when publishing, write an org-wide notification to every
+  // org whose active subscription has at least one of the release's
+  // bundles (or every active org if the release has no bundles).
+  let orgsNotified = 0;
+  if (body.publishNow) {
+    try {
+      const result = await fanoutReleasePublished({
+        releaseId: data.id,
+        version: data.version,
+        releaseType: body.releaseType ?? 'feature',
+        bundles: (body.bundles ?? []) as BundleId[],
+        required: body.required ?? false,
+        notesMarkdown: body.notesMarkdown ?? null,
+      });
+      orgsNotified = result.orgsNotified;
+    } catch (err) {
+      console.error('[platform/releases] fanout failed', err);
+    }
+  }
+
+  return NextResponse.json({ id: data.id, version: data.version, orgsNotified }, { status: 201 });
 }
