@@ -423,12 +423,12 @@ Every page-view in `/platform/*` is logged for debugging operator UX. Every muta
 Each phase produces a shippable state. Phase letters chained off the master plan's Phase C ("Operator console + customer detail") for context.
 
 ### Phase C-1 — Operator auth + dashboard shell (1 week)
-- `operator_users` + `audit_log` tables.
-- Operator login flow (separate from customer-side `/admin/login` — at `/platform/login`, credentials-only, MFA-required).
-- `/platform` dashboard with placeholder metric cards.
-- `/platform/customers` empty list (no real customer data yet — the migration to multi-tenant happens in master plan Phase A).
-- Operator role gate middleware.
-- *Acceptance:* operator can log in, see the dashboard chrome, navigate the rail; non-operators are 403'd.
+- [x] `operator_users` + `audit_log` tables — shipped in `seeds/265_saas_operator_console_schema.sql`.
+- [ ] Operator login flow (separate from customer-side `/admin/login` — at `/platform/login`, credentials-only, MFA-required) — gated on master plan M-9 auth refactor.
+- [x] `/platform` route scaffold + brand-distinct gradient layout + surface directory — shipped as `app/platform/{page,layout}.tsx` + `app/platform/components/PlatformLayoutClient.tsx`. Gates on `session.user.isOperator`; non-operators redirected to `/admin/me`; unauthenticated to `/admin/login`. Until M-9 ships the `isOperator` JWT claim, the route is unreachable in practice (defense in depth).
+- [ ] `/platform/customers` empty list — Phase C-2.
+- [x] Operator role gate (component-level redirect; middleware-level enforcement adds in C-2 alongside the customer list).
+- *Acceptance partial:* operator can navigate to `/platform`, see the surface directory chrome, and be redirected if non-operator. Full login flow waits for M-9.
 
 ### Phase C-2 — Customer list + detail (1 week)
 - `organizations` table seeded with Starr Surveying as `org_01`.
