@@ -474,10 +474,10 @@ Each phase produces a shippable state. Phase letters chained off the master plan
 - *Acceptance:* MRR is the real Stripe MRR; error log shows every tenant's errors.
 
 ### Phase C-9 — Team + settings + two-person rule (1 week)
-- `/platform/team` per §3.12.
-- Two-person approval flow per §6.4.
-- `/platform/settings` per §3.13.
-- *Acceptance:* operator can invite a second operator; the second operator can approve pending actions.
+- [x] `/platform/team` list + invite — `app/platform/team/page.tsx` + `/api/platform/team` (GET all operators with role/status/MFA-enrolled/last-signin/invited-by; POST adds a new operator — platform_admin only; audit_log entry with severity=warning on every invite). Role color-coding: platform_admin red, billing yellow, support green, developer blue, observer gray.
+- [ ] Two-person approval flow — deferred (`pending_operator_actions` table exists in `seeds/265`; the propose-and-approve wiring lands when an actual two-person-required action lands — refund > $500, comp > $200, force-update of a premium account — which all gate on C-4 Stripe-side flows).
+- [ ] `/platform/settings` — deferred (no per-operator settings have demand yet; lands when the first concrete setting need surfaces).
+- *Acceptance partial:* a platform_admin can invite a second operator from `/platform/team`. The second operator can sign in (MFA enrollment still manual) and access the console. Two-person-rule approvals + the settings surface defer.
 
 **Total: ~9 weeks of engineering** for Phase C complete. Order is flexible — C-3 (impersonation) and C-4 (billing ops) can swap; C-6 (move dev surfaces) can ship in parallel with anything.
 
