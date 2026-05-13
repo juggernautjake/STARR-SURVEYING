@@ -421,12 +421,17 @@ Each phase is shippable on its own; the old sidebar stays intact under a feature
 ### Phase 1 — Route registry + Cmd+K palette (Week 1)
 The biggest single UX win with the lowest blast radius. Adds the command palette without touching any existing page or sidebar.
 
-- [ ] `lib/admin/route-registry.ts` — declares every current admin route
+- [x] `lib/admin/route-registry.ts` — declares every current admin route *(slice 1a)*
 - [ ] `lib/admin/nav-store.ts` — Zustand slice for `recentRoutes`
 - [ ] `app/admin/components/nav/CommandPalette.tsx` — modal with fuzzy search
 - [ ] `app/admin/components/nav/CommandPaletteProvider.tsx` — mounted in `AdminLayoutClient`; registers `Cmd+K` / `Ctrl+K`
 - [ ] Recents auto-tracked on `usePathname` change
 - [ ] Initial command set: every route + 4 actions (Clock in/out, Run AI engine, New job, Approve receipts)
+
+**Slice 1a — Route registry + audit tests (shipped):**
+- `lib/admin/route-registry.ts` — `Workspace` union, `WORKSPACES` metadata for the 6 workspaces, 60+ `AdminRoute` entries covering every `app/admin/**/page.tsx` (excluding the dynamic `[id]`-segments), re-exports of the §6 role groups from `AdminSidebar.tsx:62-74`, lookups (`findRoute`, `workspaceOf`, `accessibleRoutes`, `routesForWorkspace`), and the `scoreRoute` + `rankRoutes` fuzzy ranker.
+- `__tests__/admin/route-registry.test.ts` — 22 vitest cases: shape + uniqueness, lookups (deepest-prefix `workspaceOf`), access filtering (admin sees all, internalOnly gating, role gates honored, equipment_manager hat), and ranker behavior (the §12 "typing 'rec' surfaces Receipts" acceptance is locked).
+- Note: the icon names in the registry are the lucide-react component strings the Phase 5 audit (§8) will consume. The registry is pure data — no React imports — so consumers (palette, rail, page header) map names to components.
 
 **Acceptance:**
 - `Cmd+K` from any admin page opens the palette.
