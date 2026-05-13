@@ -29,6 +29,9 @@ import '../styles/AdminFieldWork.css';
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/me': 'Hub',
+  '/admin/work': 'Work',
+  '/admin/office': 'Office',
+  '/admin/research-cad': 'Research & CAD',
   '/admin/dashboard': 'Dashboard',
   '/admin/learn': 'Learning Hub',
   '/admin/learn/roadmap': 'My Roadmap',

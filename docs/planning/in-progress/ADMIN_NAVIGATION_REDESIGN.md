@@ -533,12 +533,19 @@ Replaces the visible sidebar. Old sidebar still ships under feature flag.
 - [ ] `app/admin/components/nav/IconRail.tsx` — 48 px rail
 - [ ] `app/admin/components/nav/RailExpandedPanel.tsx` — 240 px expanded mode
 - [ ] `app/admin/components/nav/WorkspaceFlyout.tsx` — hover submenu
-- [ ] `app/admin/work/page.tsx` — Work landing
-- [ ] `app/admin/research-cad/page.tsx` — Research & CAD landing
-- [ ] `app/admin/office/page.tsx` — Office landing
+- [x] `app/admin/work/page.tsx` — Work landing *(slice 3a)*
+- [x] `app/admin/research-cad/page.tsx` — Research & CAD landing *(slice 3a)*
+- [x] `app/admin/office/page.tsx` — Office landing *(slice 3a)*
 - [ ] `app/admin/components/nav/AdminPageHeader.tsx` — breadcrumb + star
 - [ ] Feature flag `useUIStore.adminNavV2Enabled` (default false initially; flip to true after 1 PR cycle)
 - [ ] `Cmd+1..6` workspace shortcuts wired
+
+**Slice 3a — Workspace landings (shipped):**
+- `app/admin/components/nav/WorkspaceLanding.tsx` — shared factory used by all three new landings. Reads the registry via `accessibleRoutes`, filters to the target workspace, drops the workspace-landing self-link + any `showInRail: false` routes, and renders the result as a card grid. Empty state appears when role gates leave no accessible routes.
+- `app/admin/work/page.tsx`, `app/admin/office/page.tsx`, `app/admin/research-cad/page.tsx` — 5-line route handlers that mount the factory with their `workspace` id.
+- `app/admin/components/nav/WorkspaceLanding.css` — card-grid chrome (Phase 5 token sweep handles inline hex).
+- `AdminLayoutClient.tsx` — added the three new routes to `PAGE_TITLES` so the top-bar title is right.
+- Resolves the dead links from the Hub's Workspaces column (which already pointed at `/admin/work`, `/admin/office`, `/admin/research-cad`).
 
 **Acceptance:**
 - Rail renders at 48 px; expanding shows 240 px with the workspace's pages.
