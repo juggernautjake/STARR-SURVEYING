@@ -355,7 +355,7 @@ Maps to master plan Phase E. ~3 weeks.
 |---|---|---|
 | **E-1** | Schema already shipped (seeds/267); add seeds/268 for KB + subscribers + links | 1 day | ✅ Shipped — seeds/267 + seeds/268 |
 | **E-2** | Customer `/admin/support` list + new-ticket form | 3 days | ✅ Shipped — list page + new-ticket form + GET/POST API. The form auto-captures browser context per §3.2 (URL/UA/viewport/timezone/lang) with a user-scrub option before submit; redirects to `/admin/support/tickets/[id]` on success. |
-| **E-3** | Customer ticket thread view + reply UI | 2 days |
+| **E-3** | Customer ticket thread view + reply UI | 2 days | ✅ Shipped — `/admin/support/tickets/[id]` page (header / message thread / reply textarea + Mark resolved button) + `/api/admin/support/tickets/[id]` GET (org-scoped, excludes internal notes) + POST (append reply, auto-bump awaiting_customer → awaiting_reply) + PATCH (mark_resolved / reopen). Real-time WebSocket fanout deferred — page reloads on submit, sufficient for v1. |
 | **E-4** | Operator `/platform/support` inbox + filters + bulk actions | 3 days |
 | **E-5** | Operator ticket detail with internal notes + assign / priority / status / tag actions | 3 days |
 | **E-6** | WebSocket fanout via existing /api/ws/ticket extension | 2 days |
