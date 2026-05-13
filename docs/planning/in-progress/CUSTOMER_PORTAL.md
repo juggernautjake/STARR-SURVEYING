@@ -453,11 +453,11 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 - *Acceptance partial:* admin can compose + send invites and revoke pending ones. Acceptance side waits on M-9.
 
 ### Phase D-4 — Org settings + branding (1 week)
-- `/admin/settings` rescoped per §3.5
-- Domain restriction enforcement at invite + signin time
-- Logo upload + storage (Supabase Storage bucket per org)
-- Export + delete flows
-- *Acceptance:* admin can change org name, set domain restriction, export data, schedule deletion.
+- [x] `/admin/org-settings` admin-only page — name + slug (read-only) + state + phone + billing-contact + default invite role + session-timeout + MFA-required toggle + webhook URL. `app/api/admin/org-settings/route.ts` (GET + PATCH; admin-gated; upserts org_settings row; audit_log entry on every save). Parked at `/admin/org-settings` rather than `/admin/settings` because the legacy `/admin/settings` is Starr-internal; URL canonicalization defers to M-10 component rescoping.
+- [ ] Domain restriction enforcement at invite + signin time — deferred (requires NextAuth signIn callback edits that conflict with M-9 auth refactor; the field is captured for invite-side validation but not yet enforced).
+- [ ] Logo upload + storage — deferred (needs a per-org Supabase Storage bucket + signed-URL plumbing; logos surface only on customer-facing PDFs which aren't org-branded yet).
+- [ ] Export + delete flows — deferred (the data-export pipeline lands with B-9 of SUBSCRIPTION_BILLING_SYSTEM.md; org deletion is operator-only via /platform/customers until then).
+- *Acceptance partial:* admin can change org name, default invite role, and operational defaults. Domain restriction + logo + export/delete remain.
 
 ### Phase D-5 — Bundle gating (1 week)
 - [x] Route-registry extension with `requiredBundle` field (already shipped earlier slice)
