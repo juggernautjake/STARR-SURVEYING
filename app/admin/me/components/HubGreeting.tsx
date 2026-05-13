@@ -11,10 +11,17 @@
 // console. Phase 4's persona-override picker absorbs this into the
 // proper Profile-tab settings UI.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 
 import { useAdminNavStore } from '@/lib/admin/nav-store';
+import {
+  PERSONAS,
+  PERSONA_ORDER,
+  inferPersona,
+  type Persona,
+} from '@/lib/admin/personas';
+import type { UserRole } from '@/lib/auth';
 
 function partOfDay(date: Date): string {
   const h = date.getHours();
@@ -34,7 +41,16 @@ export default function HubGreeting() {
   const { data: session } = useSession();
   const navV2 = useAdminNavStore((s) => s.adminNavV2Enabled);
   const setNavV2 = useAdminNavStore((s) => s.setNavV2);
+  const personaOverride = useAdminNavStore((s) => s.personaOverride);
+  const setPersonaOverride = useAdminNavStore((s) => s.setPersonaOverride);
   const [now, setNow] = useState<Date | null>(null);
+
+  const roles: UserRole[] = useMemo(
+    () => (session?.user?.roles ?? (session?.user?.role ? [session.user.role] : [])) as UserRole[],
+    [session?.user?.roles, session?.user?.role],
+  );
+  const inferredPersona = useMemo(() => inferPersona(roles), [roles]);
+  const activePersona: Persona = personaOverride ?? inferredPersona;
 
   // Defer the time-of-day computation to the client so the SSR render
   // doesn't drift from the rehydrated render. (`new Date()` on the
@@ -81,6 +97,27 @@ export default function HubGreeting() {
         >
           {navV2 ? 'Revert to old nav' : 'Try new nav (beta)'}
         </button>
+        {navV2 ? (
+          <label className="hub-greeting__persona">
+            <span className="hub-greeting__persona-label">Persona</span>
+            <select
+              className="hub-greeting__persona-select"
+              value={personaOverride ?? ''}
+              onChange={(e) =>
+                setPersonaOverride(e.target.value === '' ? null : (e.target.value as Persona))
+              }
+              aria-label="Override your persona (rail ordering)"
+            >
+              <option value="">Auto ({PERSONAS[inferredPersona].label})</option>
+              {PERSONA_ORDER.map((id) => (
+                <option key={id} value={id}>
+                  {PERSONAS[id].label}
+                  {id === activePersona && personaOverride ? ' (active)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
     </section>
   );

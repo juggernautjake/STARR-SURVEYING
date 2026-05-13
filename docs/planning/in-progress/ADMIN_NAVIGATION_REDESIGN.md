@@ -580,9 +580,9 @@ Replaces the visible sidebar. Old sidebar still ships under feature flag.
 ### Phase 4 — Persona defaults + pinning UX (Week 5)
 Adds polish + makes the rail learn the user's role.
 
-- [ ] `lib/admin/personas.ts` — persona-from-roles inference
-- [ ] Default rail order per persona
-- [ ] Persona override picker in `/admin/me?tab=profile`
+- [x] `lib/admin/personas.ts` — persona-from-roles inference *(slice 4b)*
+- [x] Default rail order per persona *(slice 4b)*
+- [x] Persona override picker in `/admin/me` HubGreeting *(slice 4b — Profile-tab integration deferred since the legacy ProfilePanel stays untouched until Phase 6)*
 - [x] Pin star on `AdminPageHeader` — adds/removes from `pinnedRoutes` *(slice 4a)*
 - [x] Pinned section on rail + Hub *(slice 4a)*
 - [x] Toast confirmation when pinning ("Pinned to your nav") *(slice 4a)*
@@ -595,6 +595,15 @@ Adds polish + makes the rail learn the user's role.
 - `app/admin/components/nav/IconRail.tsx` + `IconRail.css` — added a Pinned section between workspaces and tools when `pinnedRoutes.length > 0`. Each pin is an icon link with a filled amber Star; active page highlighted with the same brand-blue left border the workspaces use.
 - `__tests__/admin/nav-store.test.ts` — 7 new vitest cases lock the pinning behavior (insertion order, dedupe, cap, non-admin rejection, unpin, togglePin return semantics, cap-hit no-op).
 - 41/41 admin tests pass (was 34); 3598 total vitest pass; build green.
+
+**Slice 4b — Persona inference + override picker (shipped):**
+- `lib/admin/personas.ts` — `Persona` union, `PERSONAS` record with the §5.4 rail-order tables (every entry exhaustive over `WORKSPACE_ORDER` — locked by test), `PERSONA_ORDER` for stable iteration, `inferPersona(roles)` for role→persona resolution, and `railOrderFor({ roles, override })` which honors an explicit override or falls back to inference.
+- `lib/admin/nav-store.ts` — added `personaOverride: Persona | null` (persisted) + `setPersonaOverride` action.
+- `app/admin/components/nav/IconRail.tsx` — workspace order now comes from `railOrderFor({ roles, override })` instead of the static `WORKSPACE_ORDER`. Users with the equipment_manager hat now see Equipment-first; researchers see Research & CAD-first; etc.
+- `app/admin/me/components/HubGreeting.tsx` — added a persona override `<select>` next to the V2 toggle. Default option is "Auto (<inferred persona>)"; choosing any explicit persona stores it as the override. Persona picker only renders when the V2 rail is enabled.
+- `app/admin/me/AdminMe.css` — picker chrome.
+- `__tests__/admin/personas.test.ts` — 12 vitest cases: shape (every persona has metadata + exhaustive rail order), inference priorities (equipment_manager > admin, researcher/drawer, admin+tech_support → dispatcher, plain admin, field_crew, student, fallback), and railOrderFor (override beats inference, exhaustive result).
+- 53/53 admin tests pass (was 41); type-check + lint clean; build green.
 
 **Acceptance:**
 - A `field_crew`-only user lands on Hub with rail ordered Hub / Work / Research & CAD / Knowledge / Equipment / Office.

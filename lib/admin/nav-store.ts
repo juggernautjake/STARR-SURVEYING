@@ -11,6 +11,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
+import type { Persona } from './personas';
+
 export const MAX_RECENT_ROUTES = 50;
 export const MAX_PINNED_ROUTES = 5;
 
@@ -30,6 +32,11 @@ interface AdminNavStore {
    *  in Phase 5 after the PR-cycle grace. Persisted so a user can
    *  opt-in for early review. */
   adminNavV2Enabled: boolean;
+  /** Phase 4 — when set, the rail uses this persona's order instead
+   *  of the one inferred from `session.user.roles`. Lets a multi-hat
+   *  user lock the view they actually want. `null` ⇒ infer from
+   *  roles. */
+  personaOverride: Persona | null;
 
   openPalette: () => void;
   closePalette: () => void;
@@ -48,6 +55,7 @@ interface AdminNavStore {
   togglePin: (href: string) => boolean;
 
   setNavV2: (enabled: boolean) => void;
+  setPersonaOverride: (persona: Persona | null) => void;
 }
 
 export const useAdminNavStore = create<AdminNavStore>()(
@@ -57,6 +65,7 @@ export const useAdminNavStore = create<AdminNavStore>()(
       recentRoutes: [],
       pinnedRoutes: [],
       adminNavV2Enabled: false,
+      personaOverride: null,
 
       openPalette: () => set({ paletteOpen: true }),
       closePalette: () => set({ paletteOpen: false }),
@@ -101,6 +110,8 @@ export const useAdminNavStore = create<AdminNavStore>()(
       },
 
       setNavV2: (enabled) => set({ adminNavV2Enabled: !!enabled }),
+
+      setPersonaOverride: (persona) => set({ personaOverride: persona }),
     }),
     {
       name: 'starr-admin-nav',
@@ -110,6 +121,7 @@ export const useAdminNavStore = create<AdminNavStore>()(
         recentRoutes: s.recentRoutes,
         pinnedRoutes: s.pinnedRoutes,
         adminNavV2Enabled: s.adminNavV2Enabled,
+        personaOverride: s.personaOverride,
       }),
     },
   ),

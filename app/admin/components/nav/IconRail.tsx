@@ -15,6 +15,7 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import {
   Briefcase,
   Building2,
@@ -28,12 +29,13 @@ import {
 } from 'lucide-react';
 
 import {
-  WORKSPACE_ORDER,
   findRoute,
   workspaceOf,
   type Workspace,
 } from '@/lib/admin/route-registry';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
+import { railOrderFor } from '@/lib/admin/personas';
+import type { UserRole } from '@/lib/auth';
 
 import WorkspaceFlyout from './WorkspaceFlyout';
 import './IconRail.css';
@@ -49,10 +51,22 @@ const ICON_FOR_WORKSPACE: Record<Workspace, LucideIcon> = {
 
 export default function IconRail() {
   const pathname = usePathname() || '/admin/me';
+  const { data: session } = useSession();
   const openPalette = useAdminNavStore((s) => s.openPalette);
   const pinnedRoutes = useAdminNavStore((s) => s.pinnedRoutes);
+  const personaOverride = useAdminNavStore((s) => s.personaOverride);
 
   const activeWorkspace = useMemo(() => workspaceOf(pathname), [pathname]);
+
+  const roles: UserRole[] = useMemo(
+    () => (session?.user?.roles ?? (session?.user?.role ? [session.user.role] : [])) as UserRole[],
+    [session?.user?.roles, session?.user?.role],
+  );
+
+  const workspaceOrder = useMemo(
+    () => railOrderFor({ roles, override: personaOverride }),
+    [roles, personaOverride],
+  );
 
   const pinnedEntries = useMemo(
     () => pinnedRoutes
@@ -78,7 +92,7 @@ export default function IconRail() {
         />
       </Link>
       <nav className="admin-rail__workspaces">
-        {WORKSPACE_ORDER.map((id) => (
+        {workspaceOrder.map((id) => (
           <WorkspaceFlyout
             key={id}
             workspace={id}

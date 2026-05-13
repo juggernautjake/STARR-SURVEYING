@@ -147,6 +147,40 @@
   color: #FFF;
 }
 
+.hub-greeting__persona {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.78rem;
+}
+
+.hub-greeting__persona-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.hub-greeting__persona-select {
+  background: transparent;
+  border: 0;
+  color: #FFF;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+}
+
+.hub-greeting__persona-select option {
+  color: #0F1419;
+}
+
 /* ── Panel 2: Today ──────────────────────────────────────────────── */
 
 .hub-today__placeholder {
