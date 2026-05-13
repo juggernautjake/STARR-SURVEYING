@@ -492,10 +492,9 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 - *Acceptance shipped:* org admin sees their org's audit trail; non-admin org members see an empty list (defense in depth).
 
 ### Phase D-10 — Marketing pricing page + signup CTA (1 week)
-- Redesign `/pricing` per §3.1
-- Compare-features table
-- "Start free trial" CTA wired
-- *Acceptance:* a visitor clicks the pricing CTA and is at the signup wizard.
+- [x] SaaS bundle pricing tiles + "Start free trial" CTA — `app/pricing/software/page.tsx` (one card per bundle from `BUNDLES`, monthly + annual-per-month price, included-seats / per-seat-overage callouts, Firm Suite gets a "Most popular" badge + implication checklist, CTA links to `/signup?bundle=<id>` so the wizard preselects). URL parked at `/pricing/software` rather than `/pricing` because the legacy `/pricing` still serves the surveying-services price list; the marketing-site rework that swaps them (move services → `/services/pricing`, software → `/pricing`) is its own follow-up.
+- Compare-features table — deferred (the per-card implication list covers the core comparison; a full feature matrix is a marketing-site rework).
+- *Acceptance shipped:* a visitor clicks the pricing CTA and is at the signup wizard with the bundle preselected. ✓
 
 **Total: ~10 weeks engineering.**
 
