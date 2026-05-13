@@ -477,6 +477,11 @@ Lands the central hub the user explicitly asked for. Hub coexists with the old s
 - `app/admin/my-jobs/page.tsx` — 5-line wrapper.
 - `app/admin/me/page.tsx` — `panels.jobs = <MyJobsPanel />`. `/admin/me?tab=jobs` now renders the assigned-jobs view directly.
 
+**Slice 2b/3 — MyFiles panel (shipped):**
+- `app/admin/my-files/MyFilesPanel.tsx` — extracted from `page.tsx` (205 lines, same UI shell: folder filters, search, drag-and-drop zone, file list table, dev guide).
+- `app/admin/my-files/page.tsx` — 5-line wrapper.
+- `app/admin/me/page.tsx` — `panels.files = <MyFilesPanel />`.
+
 **Slice 2a — Hub structural skeleton (shipped):**
 - `app/admin/me/page.tsx` — composes the six panels.
 - `HubGreeting.tsx` — time-of-day greeting + session name; clock-state CTA points at the legacy `/admin/my-hours` until 2b. Time-of-day computed client-side after mount so SSR + hydration agree across part-of-day boundaries.

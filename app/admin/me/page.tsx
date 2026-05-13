@@ -12,6 +12,7 @@
 
 import ProfilePanel from '../profile/ProfilePanel';
 import MyJobsPanel from '../my-jobs/MyJobsPanel';
+import MyFilesPanel from '../my-files/MyFilesPanel';
 
 import HubGreeting from './components/HubGreeting';
 import HubToday from './components/HubToday';
@@ -35,6 +36,7 @@ export default function HubPage() {
       <HubTabs
         panels={{
           jobs: <MyJobsPanel />,
+          files: <MyFilesPanel />,
           profile: <ProfilePanel />,
         }}
       />
