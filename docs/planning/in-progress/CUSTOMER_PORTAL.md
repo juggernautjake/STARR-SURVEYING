@@ -435,11 +435,13 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 - *Acceptance:* anyone can sign up for a 14-day trial; ends up in `/admin/me` of their new tenant.
 
 ### Phase D-2 — Billing portal (1.5 weeks)
-- `/admin/billing` Overview / Invoices / Usage / Plan history tabs per §3.3
-- Stripe Customer Portal integration for payment-method management
-- Plan-change flow with proration preview
-- Cancellation flow with 30-day grace
-- *Acceptance:* customer can upgrade, downgrade, cancel, and reactivate without operator help.
+- [x] `/admin/billing` Overview — current plan, status (color-coded), monthly price, seats, trial-end + renewal dates, cancel-at-period-end warning, active bundles, action grid (Contact support live; others stubbed)
+- [x] `/api/admin/billing` GET — returns org + subscription state
+- [ ] Invoices / Usage / Plan history tabs — follow-up slices
+- [ ] Stripe Customer Portal integration — `/api/admin/billing/customer-portal` endpoint
+- [ ] Plan-change flow with proration preview — `/api/admin/billing/change` endpoint
+- [ ] Cancellation flow with 30-day grace — `/api/admin/billing/cancel` endpoint
+- *Acceptance partial:* customer sees their plan + status; action buttons present but disabled with explanatory text until Stripe-side flows ship.
 
 ### Phase D-3 — User management + invites (1 week)
 - `/admin/users` rescoped per §3.4
