@@ -13,6 +13,7 @@
 import ProfilePanel from '../profile/ProfilePanel';
 import MyJobsPanel from '../my-jobs/MyJobsPanel';
 import MyFilesPanel from '../my-files/MyFilesPanel';
+import SchedulePanel from '../schedule/SchedulePanel';
 
 import HubGreeting from './components/HubGreeting';
 import HubToday from './components/HubToday';
@@ -35,6 +36,7 @@ export default function HubPage() {
       <HubPinnedRecent />
       <HubTabs
         panels={{
+          schedule: <SchedulePanel />,
           jobs: <MyJobsPanel />,
           files: <MyFilesPanel />,
           profile: <ProfilePanel />,
