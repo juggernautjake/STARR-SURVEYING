@@ -184,7 +184,7 @@ Maps to master plan Phase G. ~2 weeks.
 | **G-6** | Mobile Expo Updates check on app launch + force-update enforcement | 2 days |
 | **G-7** | EAS OTA trigger via GitHub Action | 2 days |
 | **G-8** | Canary rollout (10% / 50% / 100% over 24h) cron | 2 days |
-| **G-9** | Delivery analytics on `/platform/releases/[id]` (sent / seen / acked counts) | 1 day |
+| **G-9** | Delivery analytics on `/platform/releases/[id]` (sent / seen / acked counts) | 1 day | ✅ Shipped — `app/platform/releases/[id]/page.tsx` + `app/api/platform/releases/[id]/route.ts`. Four stat cards (Orgs notified / Reads / Dismissals / Acks) computed by joining `org_notifications` filtered by `payload->>release_id` and `release_acks`. Markdown release notes rendered inline. The version cell on `/platform/releases` now links here. |
 
 **Total: ~2 weeks**.
 

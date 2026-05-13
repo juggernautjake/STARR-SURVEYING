@@ -162,7 +162,9 @@ export default function PlatformReleasesPage() {
             {releases.map((r) => (
               <tr key={r.id}>
                 <td style={tdStyle}>
-                  <code style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '0.85rem' }}>{r.version}</code>
+                  <a href={`/platform/releases/${r.id}`} style={{ color: '#FCD34D', textDecoration: 'none' }}>
+                    <code style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '0.85rem' }}>{r.version}</code>
+                  </a>
                 </td>
                 <td style={tdStyle}>
                   <span style={{ color: TYPE_COLORS[r.releaseType] ?? '#9CA3AF', fontWeight: 600, fontSize: '0.82rem' }}>
