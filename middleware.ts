@@ -1,6 +1,8 @@
 import { auth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import type { UserRole } from '@/lib/auth';
+import { canAccessRoute, upgradePromptUrl, bundleForRoute } from '@/lib/saas/bundle-gate';
+import type { BundleId } from '@/lib/saas/bundles';
 
 // ── Route-level role enforcement ──
 // Maps route prefixes to the roles allowed to access them.
@@ -100,6 +102,29 @@ export default auth((req) => {
         return NextResponse.redirect(new URL('/admin/dashboard', req.url));
       }
       break;
+    }
+  }
+
+  // ── SaaS bundle gate (M-9b) ──
+  // Runs after role gate passes. Operators bypass (Starr employees who
+  // are also operator_users hit the operator console directly anyway).
+  // Sessions without a memberships array (legacy JWTs minted before
+  // M-9a's populateSaasContext) fall through unrestricted — they get
+  // bundle-gated once the JWT refresh tick repopulates.
+  const auth_user = req.auth.user as unknown as {
+    isOperator?: boolean;
+    memberships?: Array<{ orgId: string; bundles: BundleId[] }>;
+    activeOrgId?: string | null;
+  };
+  const memberships = auth_user.memberships;
+  if (!auth_user.isOperator && memberships && memberships.length > 0) {
+    const requiredBundle = bundleForRoute(pathname);
+    if (requiredBundle) {
+      const active = memberships.find((m) => m.orgId === auth_user.activeOrgId) ?? memberships[0];
+      const activeBundles = active?.bundles ?? [];
+      if (!canAccessRoute({ pathname, bundles: activeBundles })) {
+        return NextResponse.redirect(new URL(upgradePromptUrl(pathname, requiredBundle), req.url));
+      }
     }
   }
 

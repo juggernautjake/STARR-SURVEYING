@@ -20,6 +20,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.starrsoftware.starrfield",
       "usesAppleSignIn": true,
+      "associatedDomains": ["applinks:starrsoftware.com"],
       "infoPlist": {
         "NSFaceIDUsageDescription": "Starr Field uses Face ID to unlock the app and confirm sensitive actions like deleting field data.",
         "NSLocationWhenInUseUsageDescription": "Starr Field stamps your clock-in / clock-out times with GPS so timesheets and mileage logs are accurate.",
@@ -36,6 +37,20 @@
       "adaptiveIcon": {
         "backgroundColor": "#1D3095"
       },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "https",
+              "host": "starrsoftware.com",
+              "pathPrefix": "/accept-invite"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"],
+          "autoVerify": true
+        }
+      ],
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",

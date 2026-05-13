@@ -17,6 +17,7 @@
 // is already the target for that pass.
 
 import type { UserRole } from '@/lib/auth';
+import type { BundleId } from '@/lib/saas/bundles';
 
 // ── Workspaces (§5.3) ───────────────────────────────────────────────
 
@@ -78,6 +79,13 @@ export interface AdminRoute {
    *  Phase 1 the registry only ships routes; actions land in slice 1b
    *  alongside the palette. */
   isAction?:     boolean;
+  /** SaaS pivot — the bundle a customer's subscription must include
+   *  to access this route. null/undefined = no bundle gate (visible
+   *  to every authenticated user regardless of subscription). Phase D-5
+   *  middleware redirects users to /admin/billing/upgrade when missing.
+   *  Spec: docs/planning/in-progress/CUSTOMER_PORTAL.md §3.6 +
+   *  docs/planning/in-progress/MULTI_TENANCY_FOUNDATION.md §3.3. */
+  requiredBundle?: BundleId;
 }
 
 // ── Registry ────────────────────────────────────────────────────────
