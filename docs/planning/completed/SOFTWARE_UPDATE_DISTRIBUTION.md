@@ -181,9 +181,9 @@ Maps to master plan Phase G. ~2 weeks.
 | **G-3** | Audience resolution + org_notifications fanout | 2 days | ✅ Shipped — `lib/saas/release-fanout.ts` (`fanoutReleasePublished`) iterates every active or trialing subscription, matches the release's bundles against the org's `expandBundles()` set, and inserts one org-wide `org_notifications` row per matching org with type='release' + severity-by-release-type + action_url pointing at /admin/announcements?id=<release>. Wired into `/api/platform/releases` POST behind the `publishNow=true` flag; failures log but don't reject the publish. |
 | **G-4** | Customer-side "What's new" banner on Hub | 2 days | ✅ Shipped — `app/api/app/version/route.ts` (API + per-user latest-release lookup) + `app/admin/me/components/WhatsNewBanner.tsx` (amber gradient banner above HubGreeting; reads /api/app/version?for=user, dismissal persists in localStorage). Durable dismissal (writes to `release_acks` table) waits for the matching Phase D-7 API endpoint. |
 | **G-5** | `/admin/announcements` archive | 1 day | ✅ Shipped — `app/admin/announcements/page.tsx` + `app/api/admin/announcements/route.ts`. Bundle-filtered list with release-type pill (feature/fix/breaking/security) + Markdown body + `?id=<release>` deep-link. |
-| **G-6** | Mobile Expo Updates check on app launch + force-update enforcement | 2 days |
-| **G-7** | EAS OTA trigger via GitHub Action | 2 days |
-| **G-8** | Canary rollout (10% / 50% / 100% over 24h) cron | 2 days |
+| **G-6** | Mobile Expo Updates check on app launch + force-update enforcement | 2 days | Deferred — gated on the mobile auth refactor (MOBILE_MULTI_TENANT.md M-9 family) shipping organic mobile sessions; the check itself is `expo-updates` + a one-call `Updates.checkForUpdateAsync()` plus a banner. The `releases.required` flag is already a field; mobile reads will start consuming it once the mobile org context is live. |
+| **G-7** | EAS OTA trigger via GitHub Action | 2 days | Deferred — needs an EAS project + an `EXPO_TOKEN` GitHub Actions secret + the production build channel. Operator credentials task; CI workflow drop-in is ~20 lines once those are in place. |
+| **G-8** | Canary rollout (10% / 50% / 100% over 24h) cron | 2 days | Deferred — `rollout_strategy` is a stored column on `releases` (today only `'immediate'` is used). The bucketing logic (hash org_id, modulo into pct buckets) is straightforward; lands when audience-size growth makes immediate-rollouts risky. Until then "immediate" matches the actual operational reality. |
 | **G-9** | Delivery analytics on `/platform/releases/[id]` (sent / seen / acked counts) | 1 day | ✅ Shipped — `app/platform/releases/[id]/page.tsx` + `app/api/platform/releases/[id]/route.ts`. Four stat cards (Orgs notified / Reads / Dismissals / Acks) computed by joining `org_notifications` filtered by `payload->>release_id` and `release_acks`. Markdown release notes rendered inline. The version cell on `/platform/releases` now links here. |
 
 **Total: ~2 weeks**.
@@ -219,3 +219,28 @@ Maps to master plan Phase G. ~2 weeks.
 - `seeds/267_saas_customer_portal_schema.sql` — `releases` + `release_acks` tables already shipped
 - `mobile/eas.json` — existing EAS configuration
 - `app/admin/me/components/HubGreeting.tsx` — adds the What's-new banner above the greeting
+
+---
+
+## 10. Shipped vs. deferred summary
+
+Operator-facing release management is **end-to-end**: tag a release with
+bundles + Markdown notes + required flag → publish → fanout writes one
+org-wide notification per matching org → customers see the
+WhatsNewBanner + bell entry → archive page renders the notes → operator
+drills into `/platform/releases/[id]` for delivery analytics.
+
+Three remaining slices wait on external dependencies:
+
+1. **Mobile force-update / Expo Updates check (G-6)** — gated on
+   MOBILE_MULTI_TENANT mobile session refactor.
+2. **EAS OTA via GitHub Action (G-7)** — operator credential task
+   (EXPO_TOKEN secret + EAS project + production build channel).
+3. **Canary rollout cron (G-8)** — `rollout_strategy` is a column;
+   currently only `'immediate'` matches operational reality.
+
+`release_acks` durable dismissal API (D-7 follow-up) is the one remaining
+piece on the customer side — today dismissal persists in localStorage,
+which is good enough for v1. The acks count on `/platform/releases/[id]`
+already reads from the `release_acks` table so the analytics is ready
+the moment the persist endpoint ships.
