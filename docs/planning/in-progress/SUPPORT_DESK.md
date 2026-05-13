@@ -354,7 +354,7 @@ Maps to master plan Phase E. ~3 weeks.
 | Slice | Description | Estimate |
 |---|---|---|
 | **E-1** | Schema already shipped (seeds/267); add seeds/268 for KB + subscribers + links | 1 day | ✅ Shipped — seeds/267 + seeds/268 |
-| **E-2** | Customer `/admin/support` list + new-ticket form | 3 days | ✅ List UI + API shipped — `app/admin/support/page.tsx` renders the customer's tickets with status badge + age via /api/admin/support/tickets (GET + POST). New-ticket form UI (the /admin/support/new page itself) is a follow-up slice; the POST endpoint is ready to accept it. |
+| **E-2** | Customer `/admin/support` list + new-ticket form | 3 days | ✅ Shipped — list page + new-ticket form + GET/POST API. The form auto-captures browser context per §3.2 (URL/UA/viewport/timezone/lang) with a user-scrub option before submit; redirects to `/admin/support/tickets/[id]` on success. |
 | **E-3** | Customer ticket thread view + reply UI | 2 days |
 | **E-4** | Operator `/platform/support` inbox + filters + bulk actions | 3 days |
 | **E-5** | Operator ticket detail with internal notes + assign / priority / status / tag actions | 3 days |
