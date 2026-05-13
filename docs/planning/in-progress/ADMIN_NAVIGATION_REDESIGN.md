@@ -487,6 +487,11 @@ Lands the central hub the user explicitly asked for. Hub coexists with the old s
 - `app/admin/schedule/page.tsx` — 5-line wrapper.
 - `app/admin/me/page.tsx` — `panels.schedule = <SchedulePanel />`.
 
+**Slice 2b/5 — MyPay panel (shipped):**
+- `app/admin/my-pay/MyPayPanel.tsx` — extracted from `page.tsx` (306 lines, same BalanceCard + PayStubView + pay-stub history fetches).
+- `app/admin/my-pay/page.tsx` — 5-line wrapper.
+- `app/admin/me/page.tsx` — `panels.pay = <MyPayPanel />`.
+
 **Slice 2a — Hub structural skeleton (shipped):**
 - `app/admin/me/page.tsx` — composes the six panels.
 - `HubGreeting.tsx` — time-of-day greeting + session name; clock-state CTA points at the legacy `/admin/my-hours` until 2b. Time-of-day computed client-side after mount so SSR + hydration agree across part-of-day boundaries.
