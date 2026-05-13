@@ -25,6 +25,7 @@ import HubPinnedRecent from './components/HubPinnedRecent';
 import HubTabs from './components/HubTabs';
 import HubNotifications from './components/HubNotifications';
 import HubQuickActions from './components/HubQuickActions';
+import WhatsNewBanner from './components/WhatsNewBanner';
 
 import './AdminMe.css';
 
@@ -35,6 +36,7 @@ export default function HubPage() {
   // → schedule, jobs, hours, pay, notes, files, fieldbook).
   return (
     <div className="hub-page">
+      <WhatsNewBanner />
       <HubGreeting />
       <HubToday />
       <HubPinnedRecent />
