@@ -470,8 +470,8 @@ Each phase tied to the master plan's Phase A-D outline. Numbering picks up "D" s
 ### Phase D-6 — In-app notifications (1 week)
 - [x] `org_notifications` table + dispatcher write-path (seeds/267 + lib/saas/notifications/in-app.ts)
 - [x] `/api/admin/org-notifications` GET/PATCH/DELETE API — lists user-targeted + org-wide unread; marks read (single or all); dismisses (soft-delete via dismissed_at)
-- [ ] WebSocket fan-out — gated on the bell-icon UI consumer's design (the existing /api/ws/ticket is research-pipeline-specific; a generic per-user channel lands with the consumer)
-- [ ] Bell icon in rail + notification panel — UI consumer for the API above
+- [ ] WebSocket fan-out — deferred to follow-up; the panel polls every 30s, which is the simplest fan-out that satisfies the panel's interaction shape (the per-user WS channel design crystallizes when sub-second freshness becomes a requirement)
+- [x] In-app notification consumer — `HubNotifications` panel on `/admin/me` (icon + severity-color treatment + unread badge + mark-all-read + dismiss + action link); 30s polling on the API; legacy `NotificationBell` stays for Starr-internal events. Unified bell icon in the rail awaits M-10 component rescoping.
 - [x] Templates for each event type — file-default templates in lib/saas/notifications/templates.ts + DB overrides via loadTemplate()
 - *Acceptance partial:* dispatch writes to the table; API serves listed / read / dismissed state. Bell-icon UI consumer remains.
 
