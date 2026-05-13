@@ -22,12 +22,14 @@ import {
   GraduationCap,
   Home,
   Search,
+  Star,
   Truck,
   type LucideIcon,
 } from 'lucide-react';
 
 import {
   WORKSPACE_ORDER,
+  findRoute,
   workspaceOf,
   type Workspace,
 } from '@/lib/admin/route-registry';
@@ -48,8 +50,16 @@ const ICON_FOR_WORKSPACE: Record<Workspace, LucideIcon> = {
 export default function IconRail() {
   const pathname = usePathname() || '/admin/me';
   const openPalette = useAdminNavStore((s) => s.openPalette);
+  const pinnedRoutes = useAdminNavStore((s) => s.pinnedRoutes);
 
   const activeWorkspace = useMemo(() => workspaceOf(pathname), [pathname]);
+
+  const pinnedEntries = useMemo(
+    () => pinnedRoutes
+      .map((href) => findRoute(href))
+      .filter((r): r is NonNullable<typeof r> => !!r),
+    [pinnedRoutes],
+  );
 
   return (
     <aside className="admin-rail" role="navigation" aria-label="Primary">
@@ -77,6 +87,25 @@ export default function IconRail() {
           />
         ))}
       </nav>
+      {pinnedEntries.length > 0 ? (
+        <nav className="admin-rail__pinned" aria-label="Pinned pages">
+          {pinnedEntries.map((route) => {
+            const isActive = pathname === route.href;
+            return (
+              <Link
+                key={route.href}
+                href={route.href}
+                title={route.label}
+                aria-label={`Pinned: ${route.label}`}
+                aria-current={isActive ? 'page' : undefined}
+                className={`admin-rail__icon admin-rail__icon--pin${isActive ? ' admin-rail__icon--active' : ''}`}
+              >
+                <Star size={18} fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
+              </Link>
+            );
+          })}
+        </nav>
+      ) : null}
       <div className="admin-rail__tools">
         <button
           type="button"

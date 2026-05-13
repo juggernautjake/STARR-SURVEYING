@@ -8,6 +8,10 @@
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.78rem;
   color: #6B7280;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .admin-page-header__trail {
@@ -36,4 +40,35 @@
 
 .admin-page-header__sep {
   color: #D1D5DB;
+}
+
+.admin-page-header__star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #E5E7EB;
+  background: #FFF;
+  color: #9CA3AF;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.admin-page-header__star:hover:not(:disabled) {
+  background: #FEF3C7;
+  border-color: #F59E0B;
+  color: #F59E0B;
+}
+
+.admin-page-header__star--active {
+  background: #FEF3C7;
+  border-color: #F59E0B;
+  color: #F59E0B;
+}
+
+.admin-page-header__star:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

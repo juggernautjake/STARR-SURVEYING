@@ -12,6 +12,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 export const MAX_RECENT_ROUTES = 50;
+export const MAX_PINNED_ROUTES = 5;
 
 interface AdminNavStore {
   paletteOpen: boolean;
@@ -19,6 +20,11 @@ interface AdminNavStore {
    *  capped list survives reloads. Used as both the Hub's Recent column
    *  source (top 6) and the empty-query palette's Recent section. */
   recentRoutes: string[];
+  /** Phase 4 — user-curated pinned page hrefs, capped at
+   *  MAX_PINNED_ROUTES. Insertion order is preserved (newest at the
+   *  end). Surfaces on the IconRail below the workspaces and as the
+   *  Hub's Pinned column. */
+  pinnedRoutes: string[];
   /** Phase 3 — when true, AdminLayoutClient shows the new IconRail
    *  instead of AdminSidebar. Default off; flipped to true by default
    *  in Phase 5 after the PR-cycle grace. Persisted so a user can
@@ -34,14 +40,22 @@ interface AdminNavStore {
   pushRecent: (href: string) => void;
   clearRecents: () => void;
 
+  /** Adds the href to pinnedRoutes if not already pinned. No-op when
+   *  the cap is hit. Returns true if anything changed. */
+  pinRoute: (href: string) => boolean;
+  unpinRoute: (href: string) => boolean;
+  /** Returns the post-toggle pinned state (true = pinned). */
+  togglePin: (href: string) => boolean;
+
   setNavV2: (enabled: boolean) => void;
 }
 
 export const useAdminNavStore = create<AdminNavStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       paletteOpen: false,
       recentRoutes: [],
+      pinnedRoutes: [],
       adminNavV2Enabled: false,
 
       openPalette: () => set({ paletteOpen: true }),
@@ -58,6 +72,34 @@ export const useAdminNavStore = create<AdminNavStore>()(
 
       clearRecents: () => set({ recentRoutes: [] }),
 
+      pinRoute: (href) => {
+        if (!href || !href.startsWith('/admin/')) return false;
+        const state = get();
+        if (state.pinnedRoutes.includes(href)) return false;
+        if (state.pinnedRoutes.length >= MAX_PINNED_ROUTES) return false;
+        set({ pinnedRoutes: [...state.pinnedRoutes, href] });
+        return true;
+      },
+
+      unpinRoute: (href) => {
+        const state = get();
+        if (!state.pinnedRoutes.includes(href)) return false;
+        set({ pinnedRoutes: state.pinnedRoutes.filter((r) => r !== href) });
+        return true;
+      },
+
+      togglePin: (href) => {
+        const state = get();
+        if (state.pinnedRoutes.includes(href)) {
+          set({ pinnedRoutes: state.pinnedRoutes.filter((r) => r !== href) });
+          return false;
+        }
+        if (!href || !href.startsWith('/admin/')) return false;
+        if (state.pinnedRoutes.length >= MAX_PINNED_ROUTES) return false;
+        set({ pinnedRoutes: [...state.pinnedRoutes, href] });
+        return true;
+      },
+
       setNavV2: (enabled) => set({ adminNavV2Enabled: !!enabled }),
     }),
     {
@@ -66,6 +108,7 @@ export const useAdminNavStore = create<AdminNavStore>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         recentRoutes: s.recentRoutes,
+        pinnedRoutes: s.pinnedRoutes,
         adminNavV2Enabled: s.adminNavV2Enabled,
       }),
     },

@@ -583,9 +583,18 @@ Adds polish + makes the rail learn the user's role.
 - [ ] `lib/admin/personas.ts` — persona-from-roles inference
 - [ ] Default rail order per persona
 - [ ] Persona override picker in `/admin/me?tab=profile`
-- [ ] Pin star on `AdminPageHeader` — adds/removes from `pinnedRoutes`
-- [ ] Pinned section on rail + Hub
-- [ ] Toast confirmation when pinning ("Pinned to your nav")
+- [x] Pin star on `AdminPageHeader` — adds/removes from `pinnedRoutes` *(slice 4a)*
+- [x] Pinned section on rail + Hub *(slice 4a)*
+- [x] Toast confirmation when pinning ("Pinned to your nav") *(slice 4a)*
+
+**Slice 4a — Pinning store + star + Hub Pinned column + rail Pinned section (shipped):**
+- `lib/admin/nav-store.ts` — added `pinnedRoutes: string[]` (capped at `MAX_PINNED_ROUTES = 5`, persisted) + `pinRoute`, `unpinRoute`, `togglePin` actions. Non-admin hrefs and duplicates are rejected at the entry point.
+- `app/admin/components/nav/AdminPageHeader.tsx` — added a lucide Star button on the right of the breadcrumb. Toggles the current pathname in `pinnedRoutes`; `useToast` confirms with "Pinned …" / "Unpinned …". When the user is at the cap, the button is disabled + a warning toast nudges them to unpin one first.
+- `app/admin/components/nav/AdminPageHeader.css` — star button chrome (amber when active, hover-only otherwise).
+- `app/admin/me/components/HubPinnedRecent.tsx` — Pinned column now reads `pinnedRoutes` (live). Empty state replaced with "Tap the star on any page header to pin it here."
+- `app/admin/components/nav/IconRail.tsx` + `IconRail.css` — added a Pinned section between workspaces and tools when `pinnedRoutes.length > 0`. Each pin is an icon link with a filled amber Star; active page highlighted with the same brand-blue left border the workspaces use.
+- `__tests__/admin/nav-store.test.ts` — 7 new vitest cases lock the pinning behavior (insertion order, dedupe, cap, non-admin rejection, unpin, togglePin return semantics, cap-hit no-op).
+- 41/41 admin tests pass (was 34); 3598 total vitest pass; build green.
 
 **Acceptance:**
 - A `field_crew`-only user lands on Hub with rail ordered Hub / Work / Research & CAD / Knowledge / Equipment / Office.

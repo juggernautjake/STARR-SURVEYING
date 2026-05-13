@@ -8,10 +8,19 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { MAX_RECENT_ROUTES, useAdminNavStore } from '@/lib/admin/nav-store';
+import {
+  MAX_PINNED_ROUTES,
+  MAX_RECENT_ROUTES,
+  useAdminNavStore,
+} from '@/lib/admin/nav-store';
 
 function reset() {
-  useAdminNavStore.setState({ paletteOpen: false, recentRoutes: [] });
+  useAdminNavStore.setState({
+    paletteOpen: false,
+    recentRoutes: [],
+    pinnedRoutes: [],
+    adminNavV2Enabled: false,
+  });
 }
 
 describe('admin nav-store — palette state', () => {
@@ -79,5 +88,70 @@ describe('admin nav-store — recents (LRU)', () => {
     s.pushRecent('/admin/receipts');
     s.clearRecents();
     expect(useAdminNavStore.getState().recentRoutes).toEqual([]);
+  });
+});
+
+describe('admin nav-store — pinning', () => {
+  beforeEach(reset);
+
+  it('pinRoute appends a new href in insertion order', () => {
+    useAdminNavStore.getState().pinRoute('/admin/receipts');
+    useAdminNavStore.getState().pinRoute('/admin/cad');
+    expect(useAdminNavStore.getState().pinnedRoutes).toEqual([
+      '/admin/receipts',
+      '/admin/cad',
+    ]);
+  });
+
+  it('pinRoute is a no-op when the href is already pinned', () => {
+    const s = useAdminNavStore.getState();
+    s.pinRoute('/admin/receipts');
+    const changed = s.pinRoute('/admin/receipts');
+    expect(changed).toBe(false);
+    expect(useAdminNavStore.getState().pinnedRoutes).toEqual(['/admin/receipts']);
+  });
+
+  it('pinRoute caps at MAX_PINNED_ROUTES (5)', () => {
+    const s = useAdminNavStore.getState();
+    for (let i = 0; i < MAX_PINNED_ROUTES; i += 1) {
+      s.pinRoute(`/admin/p-${i}`);
+    }
+    const extra = s.pinRoute('/admin/overflow');
+    expect(extra).toBe(false);
+    expect(useAdminNavStore.getState().pinnedRoutes).toHaveLength(MAX_PINNED_ROUTES);
+    expect(useAdminNavStore.getState().pinnedRoutes).not.toContain('/admin/overflow');
+  });
+
+  it('pinRoute rejects non-admin hrefs', () => {
+    const changed = useAdminNavStore.getState().pinRoute('/marketing/about');
+    expect(changed).toBe(false);
+    expect(useAdminNavStore.getState().pinnedRoutes).toEqual([]);
+  });
+
+  it('unpinRoute removes an existing pin', () => {
+    const s = useAdminNavStore.getState();
+    s.pinRoute('/admin/receipts');
+    s.pinRoute('/admin/cad');
+    const changed = s.unpinRoute('/admin/receipts');
+    expect(changed).toBe(true);
+    expect(useAdminNavStore.getState().pinnedRoutes).toEqual(['/admin/cad']);
+  });
+
+  it('togglePin flips state and reports the new value', () => {
+    const s = useAdminNavStore.getState();
+    expect(s.togglePin('/admin/receipts')).toBe(true);
+    expect(useAdminNavStore.getState().pinnedRoutes).toContain('/admin/receipts');
+    expect(s.togglePin('/admin/receipts')).toBe(false);
+    expect(useAdminNavStore.getState().pinnedRoutes).not.toContain('/admin/receipts');
+  });
+
+  it('togglePin is a no-op at the cap (returns false; AdminPageHeader gates the cap-hit toast before calling)', () => {
+    const s = useAdminNavStore.getState();
+    for (let i = 0; i < MAX_PINNED_ROUTES; i += 1) {
+      s.pinRoute(`/admin/p-${i}`);
+    }
+    const result = s.togglePin('/admin/extra');
+    expect(result).toBe(false);
+    expect(useAdminNavStore.getState().pinnedRoutes).not.toContain('/admin/extra');
   });
 });

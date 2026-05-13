@@ -45,6 +45,24 @@
   min-height: 0;
 }
 
+.admin-rail__pinned {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  width: 32px;
+}
+
+.admin-rail__icon--pin {
+  color: rgba(255, 220, 130, 0.85);
+}
+
+.admin-rail__icon--pin:hover {
+  color: #FCD34D;
+}
+
 .admin-rail__tools {
   display: flex;
   flex-direction: column;

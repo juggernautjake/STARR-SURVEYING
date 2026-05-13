@@ -1,26 +1,31 @@
 'use client';
 // app/admin/components/nav/AdminPageHeader.tsx
 //
-// Breadcrumb trail above every V2 admin page (admin-nav redesign
-// Phase 3 slice 3d §5.6). Resolves the active workspace + page via the
-// route registry. The star (pinning) + ? (help) buttons land with the
-// pinning store in Phase 4 and the help drawer in Phase 6 — slice 3d
-// ships just the breadcrumb, which is the navigationally useful part.
+// Breadcrumb trail + star (pin) button above every V2 admin page
+// (admin-nav redesign Phase 3 slice 3d + Phase 4 slice 4a §5.6). The
+// star toggles the current route in `pinnedRoutes`; ToastProvider
+// confirms the action. The ? help button lands in Phase 6.
 //
 // Skipped on routes that already render their own header chrome
 // (CAD's custom title bar lives in the route itself; the Hub greeting
 // is the title of /admin/me). Per §5.6 those pages keep their custom
-// header and embed the future star button directly.
+// header and embed the star button directly when they want one.
 
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Star } from 'lucide-react';
 
 import {
   WORKSPACES,
   findRoute,
   workspaceOf,
 } from '@/lib/admin/route-registry';
+import {
+  MAX_PINNED_ROUTES,
+  useAdminNavStore,
+} from '@/lib/admin/nav-store';
+import { useToast } from '../Toast';
 
 import './AdminPageHeader.css';
 
@@ -31,6 +36,9 @@ const HIDE_ON_PATHS = new Set<string>([
 
 export default function AdminPageHeader() {
   const pathname = usePathname() || '/admin/me';
+  const pinnedRoutes = useAdminNavStore((s) => s.pinnedRoutes);
+  const togglePin = useAdminNavStore((s) => s.togglePin);
+  const { addToast } = useToast();
 
   const trail = useMemo(() => {
     if (HIDE_ON_PATHS.has(pathname)) return null;
@@ -49,6 +57,21 @@ export default function AdminPageHeader() {
   if (!trail) return null;
 
   const { workspace, route } = trail;
+  const isPinned = pinnedRoutes.includes(pathname);
+  const pinDisabled = !route || (!isPinned && pinnedRoutes.length >= MAX_PINNED_ROUTES);
+
+  function handleTogglePin() {
+    if (!route) return;
+    if (!isPinned && pinnedRoutes.length >= MAX_PINNED_ROUTES) {
+      addToast(`You can only pin ${MAX_PINNED_ROUTES} pages — unpin one first.`, 'warning');
+      return;
+    }
+    const nowPinned = togglePin(pathname);
+    addToast(
+      nowPinned ? `Pinned ${route.label}` : `Unpinned ${route.label}`,
+      'success',
+    );
+  }
 
   return (
     <nav className="admin-page-header" aria-label="Breadcrumb">
@@ -69,6 +92,17 @@ export default function AdminPageHeader() {
           </>
         ) : null}
       </ol>
+      <button
+        type="button"
+        className={`admin-page-header__star${isPinned ? ' admin-page-header__star--active' : ''}`}
+        onClick={handleTogglePin}
+        disabled={pinDisabled}
+        aria-pressed={isPinned}
+        aria-label={isPinned ? `Unpin ${route?.label ?? 'this page'}` : `Pin ${route?.label ?? 'this page'}`}
+        title={isPinned ? 'Unpin from your nav' : `Pin to your nav (max ${MAX_PINNED_ROUTES})`}
+      >
+        <Star size={14} fill={isPinned ? 'currentColor' : 'transparent'} strokeWidth={1.75} />
+      </button>
     </nav>
   );
 }
