@@ -387,7 +387,7 @@ Adds a new entry to `vercel.json` crons:
 | Slice | Description | Estimate |
 |---|---|---|
 | **R-1** | Schema: `jobs.result` + backfill + auto-set on stage→completed | 1 day | ✅ Schema shipped — `seeds/280_reports_job_result.sql` adds `result` / `result_set_at` / `result_reason` columns + CHECK constraint + partial index on `(org_id, result, result_set_at)`. Backfills `result='won'` + `result_set_at = COALESCE(date_delivered, updated_at, created_at)` for every existing row in `stage='completed'`. Auto-set-on-stage-→completed is the next slice (R-10 job-result UI lands the manual lost/abandoned action; the auto-`won` on stage transition piggy-backs there). |
-| **R-2** | `/api/admin/reports/operations` GET — all five sections | 3 days |
+| **R-2** | `/api/admin/reports/operations` GET — all five sections | 3 days | ✅ Shipped — `app/api/admin/reports/operations/route.ts`. Admin-gated, org-scoped, returns jobs (counts by status + result + per-row detail + quoted/invoiced/outstanding totals) + hours (per-employee with OT computed per ISO-week against 40h threshold × 1.5× multiplier + labor cost from `employee_profiles.hourly_rate`) + receipts (by status / category / employee + per-row detail) + mileage (per-employee from `mileage_entries`) + a derived financial roll-up (revenue minus labor + receipts + mileage; gross margin pct). Each section's loader is fault-tolerant — a missing column or table appends to `warnings[]` rather than failing the whole report. Defaults to month-to-date when no `from`/`to` is provided. |
 | **R-3** | `/admin/reports` page — header + date range selector + on-screen render | 3 days |
 | **R-4** | `@media print` stylesheet + Print button | 1 day |
 | **R-5** | Per-section CSV exports | 1 day |
