@@ -97,10 +97,16 @@ export async function GET(req: NextRequest): Promise<Response> {
   const fallback = defaultRange();
   const from = parseIsoDate(url.searchParams.get('from')) ?? fallback.from;
   const to = parseIsoDate(url.searchParams.get('to')) ?? fallback.to;
+  const employee = url.searchParams.get('employee') ?? undefined;
 
   let payload;
   try {
-    payload = await buildOperationsReport(user.default_org_id, from.toISOString(), to.toISOString());
+    payload = await buildOperationsReport(
+      user.default_org_id,
+      from.toISOString(),
+      to.toISOString(),
+      { employeeEmail: employee },
+    );
   } catch (err) {
     console.error('[reports/operations.pdf] build failed', err);
     return new Response('Failed to build report', { status: 500 });

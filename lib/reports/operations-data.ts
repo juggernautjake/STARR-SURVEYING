@@ -101,10 +101,19 @@ export interface ReportPayload {
 const OT_THRESHOLD_HOURS_PER_WEEK = 40;
 const OT_MULTIPLIER = 1.5;
 
+export interface ReportFilter {
+  /** When set, every section is filtered to this employee. For jobs
+   *  this scopes to `assigned_to = email`; for hours/mileage to the
+   *  `user_email` column; for receipts to the underlying user_id
+   *  matching this email. */
+  employeeEmail?: string;
+}
+
 export async function buildOperationsReport(
   orgId: string,
   fromIso: string,
   toIso: string,
+  filter: ReportFilter = {},
 ): Promise<ReportPayload> {
   const warnings: string[] = [];
 
@@ -117,10 +126,23 @@ export async function buildOperationsReport(
     throw new Error('Org not found');
   }
 
-  const jobsSection = await loadJobs(orgId, fromIso, toIso, warnings);
-  const hoursSection = await loadHours(orgId, fromIso, toIso, warnings);
-  const receiptsSection = await loadReceipts(orgId, fromIso, toIso, warnings);
-  const mileageSection = await loadMileage(orgId, fromIso, toIso, warnings);
+  // Resolve employee email → user_id for the receipts table (which
+  // stores user_id, not email).
+  let employeeUserId: string | null = null;
+  if (filter.employeeEmail) {
+    const { data: prof } = await supabaseAdmin
+      .from('employee_profiles')
+      .select('user_id')
+      .eq('org_id', orgId)
+      .eq('user_email', filter.employeeEmail)
+      .maybeSingle();
+    employeeUserId = (prof?.user_id as string | null) ?? null;
+  }
+
+  const jobsSection = await loadJobs(orgId, fromIso, toIso, warnings, filter);
+  const hoursSection = await loadHours(orgId, fromIso, toIso, warnings, filter);
+  const receiptsSection = await loadReceipts(orgId, fromIso, toIso, warnings, employeeUserId);
+  const mileageSection = await loadMileage(orgId, fromIso, toIso, warnings, filter);
 
   const revenueCents = jobsSection.invoicedTotalCents;
   const laborCostCents = hoursSection.totalLaborCostCents;
@@ -167,13 +189,17 @@ export async function buildOperationsReport(
   };
 }
 
-async function loadJobs(orgId: string, fromIso: string, toIso: string, warnings: string[]) {
-  const { data, error } = await supabaseAdmin
+async function loadJobs(orgId: string, fromIso: string, toIso: string, warnings: string[], filter: ReportFilter) {
+  let query = supabaseAdmin
     .from('jobs')
     .select('id, name, client_name, stage, result, result_set_at, quote_amount, final_amount, date_received, date_started, date_delivered, assigned_to')
     .eq('org_id', orgId)
     .or(`date_started.gte.${fromIso},date_delivered.gte.${fromIso},result_set_at.gte.${fromIso},created_at.gte.${fromIso}`)
     .lte('created_at', toIso);
+  if (filter.employeeEmail) {
+    query = query.eq('assigned_to', filter.employeeEmail);
+  }
+  const { data, error } = await query;
 
   if (error) {
     warnings.push(`jobs query: ${error.message}`);
@@ -246,13 +272,17 @@ async function loadJobs(orgId: string, fromIso: string, toIso: string, warnings:
   };
 }
 
-async function loadHours(orgId: string, fromIso: string, toIso: string, warnings: string[]) {
-  const { data: entries, error } = await supabaseAdmin
+async function loadHours(orgId: string, fromIso: string, toIso: string, warnings: string[], filter: ReportFilter) {
+  let query = supabaseAdmin
     .from('job_time_entries')
     .select('id, user_email, duration_minutes, clock_in_at, clock_out_at, billable, job_id')
     .eq('org_id', orgId)
     .gte('clock_in_at', fromIso)
     .lte('clock_in_at', toIso);
+  if (filter.employeeEmail) {
+    query = query.eq('user_email', filter.employeeEmail);
+  }
+  const { data: entries, error } = await query;
 
   if (error) {
     warnings.push(`hours query: ${error.message}`);
@@ -328,13 +358,17 @@ async function loadHours(orgId: string, fromIso: string, toIso: string, warnings
   };
 }
 
-async function loadReceipts(orgId: string, fromIso: string, toIso: string, warnings: string[]) {
-  const { data, error } = await supabaseAdmin
+async function loadReceipts(orgId: string, fromIso: string, toIso: string, warnings: string[], employeeUserId: string | null) {
+  let query = supabaseAdmin
     .from('receipts')
     .select('id, user_id, job_id, vendor_name, transaction_at, total_cents, status, category')
     .eq('org_id', orgId)
     .gte('transaction_at', fromIso)
     .lte('transaction_at', toIso);
+  if (employeeUserId) {
+    query = query.eq('user_id', employeeUserId);
+  }
+  const { data, error } = await query;
 
   if (error) {
     warnings.push(`receipts query: ${error.message}`);
@@ -400,13 +434,17 @@ async function loadReceipts(orgId: string, fromIso: string, toIso: string, warni
   return { byStatus, byCategory, byEmployee, entries };
 }
 
-async function loadMileage(orgId: string, fromIso: string, toIso: string, warnings: string[]) {
-  const { data, error } = await supabaseAdmin
+async function loadMileage(orgId: string, fromIso: string, toIso: string, warnings: string[], filter: ReportFilter) {
+  let query = supabaseAdmin
     .from('mileage_entries')
     .select('id, user_email, miles, rate_cents_per_mile, total_cents, entry_date, job_id')
     .eq('org_id', orgId)
     .gte('entry_date', fromIso.slice(0, 10))
     .lte('entry_date', toIso.slice(0, 10));
+  if (filter.employeeEmail) {
+    query = query.eq('user_email', filter.employeeEmail);
+  }
+  const { data, error } = await query;
 
   if (error) {
     warnings.push(`mileage query: ${error.message}`);

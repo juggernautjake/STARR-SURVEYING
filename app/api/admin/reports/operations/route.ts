@@ -56,9 +56,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const fallback = defaultRange();
   const from = parseIsoDate(url.searchParams.get('from')) ?? fallback.from;
   const to = parseIsoDate(url.searchParams.get('to')) ?? fallback.to;
+  const employee = url.searchParams.get('employee') ?? undefined;
 
   try {
-    const payload = await buildOperationsReport(user.default_org_id, from.toISOString(), to.toISOString());
+    const payload = await buildOperationsReport(
+      user.default_org_id,
+      from.toISOString(),
+      to.toISOString(),
+      { employeeEmail: employee },
+    );
     return NextResponse.json(payload);
   } catch (err) {
     console.error('[reports/operations] failed', err);

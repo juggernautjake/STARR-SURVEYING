@@ -48,6 +48,10 @@ interface ReportData {
 }
 
 type Preset = 'today' | 'week' | 'month' | 'quarter' | 'ytd' | 'last7' | 'last30' | 'custom';
+type SectionKey = 'jobs' | 'hours' | 'receipts' | 'mileage' | 'financials';
+const ALL_SECTIONS: SectionKey[] = ['jobs', 'hours', 'receipts', 'mileage', 'financials'];
+
+interface EmployeeOption { email: string; name: string; isActive: boolean }
 
 function presetRange(p: Preset, customFrom?: string, customTo?: string): { from: string; to: string } {
   const now = new Date();
@@ -99,6 +103,9 @@ export default function ReportsPage() {
   const [preset, setPreset] = useState<Preset>('month');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
+  const [employee, setEmployee] = useState<string>('');
+  const [sections, setSections] = useState<Set<SectionKey>>(new Set(ALL_SECTIONS));
+  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,12 +113,24 @@ export default function ReportsPage() {
   const range = useMemo(() => presetRange(preset, customFrom, customTo), [preset, customFrom, customTo]);
 
   useEffect(() => {
+    (async () => {
+      const res = await fetch('/api/admin/reports/employees', { cache: 'no-store' });
+      if (res.ok) {
+        const d = (await res.json()) as { employees: EmployeeOption[] };
+        setEmployees(d.employees);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/admin/reports/operations?from=${range.from}&to=${range.to}`, { cache: 'no-store' });
+        const params = new URLSearchParams({ from: range.from, to: range.to });
+        if (employee) params.set('employee', employee);
+        const res = await fetch(`/api/admin/reports/operations?${params.toString()}`, { cache: 'no-store' });
         if (!res.ok) {
           const err = (await res.json().catch(() => ({}))) as { error?: string };
           setError(err.error ?? `Failed (status ${res.status}).`);
@@ -126,7 +145,15 @@ export default function ReportsPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [range.from, range.to]);
+  }, [range.from, range.to, employee]);
+
+  function toggleSection(s: SectionKey) {
+    setSections((cur) => {
+      const next = new Set(cur);
+      if (next.has(s)) next.delete(s); else next.add(s);
+      return next;
+    });
+  }
 
   return (
     <div className="reports-page">
@@ -172,6 +199,41 @@ export default function ReportsPage() {
             </label>
           </div>
         )}
+
+        <div className="reports-filters">
+          <label className="reports-filter-block">
+            <span>Employee</span>
+            <select value={employee} onChange={(e) => setEmployee(e.target.value)}>
+              <option value="">All employees</option>
+              {employees.filter((e) => e.isActive).map((e) => (
+                <option key={e.email} value={e.email}>{e.name}</option>
+              ))}
+              {employees.some((e) => !e.isActive) && (
+                <optgroup label="Inactive">
+                  {employees.filter((e) => !e.isActive).map((e) => (
+                    <option key={e.email} value={e.email}>{e.name}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </label>
+
+          <div className="reports-filter-block">
+            <span>Sections</span>
+            <div className="reports-section-toggles">
+              {ALL_SECTIONS.map((s) => (
+                <label key={s} className="reports-section-toggle">
+                  <input
+                    type="checkbox"
+                    checked={sections.has(s)}
+                    onChange={() => toggleSection(s)}
+                  />
+                  {labelForSection(s)}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
 
       {error ? (
@@ -187,6 +249,7 @@ export default function ReportsPage() {
           )}
 
           {/* Section 1 — Jobs */}
+          {sections.has('jobs') && (
           <section className="reports-card">
             <SectionHeader title="Jobs" csvSection="jobs" range={range} />
             <div className="reports-stat-row">
@@ -224,7 +287,10 @@ export default function ReportsPage() {
             )}
           </section>
 
+          )}
+
           {/* Section 2 — Hours */}
+          {sections.has('hours') && (
           <section className="reports-card">
             <SectionHeader title="Employee Hours" csvSection="hours" range={range} />
             <div className="reports-financial-line">
@@ -252,7 +318,10 @@ export default function ReportsPage() {
             ) : <p className="reports-empty">No time entries in this window.</p>}
           </section>
 
+          )}
+
           {/* Section 3 — Receipts */}
+          {sections.has('receipts') && (
           <section className="reports-card">
             <SectionHeader title="Receipts" csvSection="receipts" range={range} />
             <div className="reports-financial-line">
@@ -290,7 +359,10 @@ export default function ReportsPage() {
             ) : <p className="reports-empty">No receipts in this window.</p>}
           </section>
 
+          )}
+
           {/* Section 4 — Mileage */}
+          {sections.has('mileage') && (
           <section className="reports-card">
             <SectionHeader title="Mileage" csvSection="mileage" range={range} />
             <div className="reports-financial-line">
@@ -315,7 +387,10 @@ export default function ReportsPage() {
             ) : <p className="reports-empty">No mileage entries in this window.</p>}
           </section>
 
+          )}
+
           {/* Section 5 — Financials */}
+          {sections.has('financials') && (
           <section className="reports-card">
             <h2>Financial Roll-up</h2>
             <table className="reports-table reports-finance-table">
@@ -336,6 +411,7 @@ export default function ReportsPage() {
               </tbody>
             </table>
           </section>
+          )}
         </>
       )}
 
@@ -428,6 +504,52 @@ export default function ReportsPage() {
           border-radius: 5px;
           font-size: 0.85rem;
           font-family: inherit;
+        }
+        .reports-filters {
+          display: flex;
+          gap: 1.2rem;
+          margin-top: 0.85rem;
+          padding-top: 0.85rem;
+          border-top: 1px solid #F3F4F6;
+          flex-wrap: wrap;
+        }
+        .reports-filter-block {
+          display: flex;
+          flex-direction: column;
+          gap: 0.3rem;
+        }
+        .reports-filter-block > span {
+          font-size: 0.72rem;
+          color: #6B7280;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          font-weight: 600;
+        }
+        .reports-filter-block select {
+          padding: 0.35rem 0.55rem;
+          border: 1px solid #D1D5DB;
+          border-radius: 5px;
+          font-size: 0.85rem;
+          font-family: inherit;
+          min-width: 200px;
+        }
+        .reports-section-toggles {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+        .reports-section-toggle {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          font-size: 0.85rem;
+          padding: 0.2rem 0.55rem;
+          border: 1px solid #D1D5DB;
+          border-radius: 999px;
+          cursor: pointer;
+        }
+        .reports-section-toggle input {
+          margin: 0;
         }
         .reports-card {
           background: #FFF;
@@ -618,5 +740,15 @@ function labelForPreset(p: Preset): string {
     case 'last7': return 'Last 7d';
     case 'last30': return 'Last 30d';
     case 'custom': return 'Custom';
+  }
+}
+
+function labelForSection(s: SectionKey): string {
+  switch (s) {
+    case 'jobs': return 'Jobs';
+    case 'hours': return 'Hours';
+    case 'receipts': return 'Receipts';
+    case 'mileage': return 'Mileage';
+    case 'financials': return 'Financials';
   }
 }
