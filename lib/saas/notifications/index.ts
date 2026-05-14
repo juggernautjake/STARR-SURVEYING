@@ -98,6 +98,12 @@ export interface EmailDispatchInput {
   text?: string;
   replyTo?: string;
   tags?: Record<string, string>;        // Resend tags for delivery analytics
+  attachments?: Array<{
+    filename: string;
+    /** Base64-encoded file contents. */
+    content: string;
+    contentType?: string;
+  }>;
 }
 
 export interface InAppDispatchInput {
