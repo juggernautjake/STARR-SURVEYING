@@ -279,7 +279,11 @@ export default function ReportsPage() {
                 <tbody>
                   {data.jobs.details.map((j) => (
                     <tr key={j.id}>
-                      <td><Link href={`/admin/jobs/${j.id}`}>{j.name}</Link></td>
+                      <td>
+                        <Link href={`/admin/reports/job/${j.id}`}>{j.name}</Link>
+                        {' '}
+                        <Link href={`/admin/jobs/${j.id}`} style={{ fontSize: '0.78rem', color: '#6B7280' }}>↗</Link>
+                      </td>
                       <td>{j.client ?? '—'}</td>
                       <td>{j.result ?? j.stage}</td>
                       <td>{j.dateStarted ? new Date(j.dateStarted).toLocaleDateString() : '—'}</td>
