@@ -224,6 +224,58 @@ ${FOOTER_TEXT}
   `.trim(),
 };
 
+// ── weekly_report_ready ────────────────────────────────────────────────
+
+export const WEEKLY_REPORT_READY: TemplateDef = {
+  subject: 'Your weekly operations report — {{report.range}}',
+  html: `
+    <div style="font-family: Inter, sans-serif; max-width: 600px;">
+      <h1 style="font-family: Sora, sans-serif; color: #1D3095;">
+        Weekly operations report
+      </h1>
+      <p>
+        Hi {{user.name}}, here's the operations report for {{org.name}} covering
+        <strong>{{report.range}}</strong>. The full PDF is attached.
+      </p>
+      <ul style="line-height: 1.7;">
+        <li><strong>Jobs:</strong> {{report.jobsCompleted}} completed · {{report.jobsInProgress}} in progress · {{report.jobsStarted}} started this week</li>
+        <li><strong>Hours:</strong> {{report.totalHours}} total ({{report.otHours}} OT) · {{report.laborCost}} labor</li>
+        <li><strong>Receipts:</strong> {{report.receiptsTotal}}</li>
+        <li><strong>Mileage:</strong> {{report.mileageMiles}} miles ({{report.mileageDollars}})</li>
+        <li><strong>Gross margin:</strong> {{report.grossMargin}} ({{report.grossMarginPct}})</li>
+      </ul>
+      <p>
+        <a href="{{org.url}}/admin/reports" style="display:inline-block; padding:10px 20px; background:#1D3095; color:#FFF; border-radius:6px; text-decoration:none;">
+          Open full report →
+        </a>
+      </p>
+      <p style="color:#6B7280; font-size:13px;">
+        Internal — Do Not Forward. The on-screen report supports custom date ranges
+        and CSV exports per section.
+      </p>
+      ${FOOTER_HTML}
+    </div>
+  `,
+  text: `
+Weekly operations report — {{report.range}}
+
+Hi {{user.name}}, here's the operations report for {{org.name}}.
+The full PDF is attached.
+
+Jobs: {{report.jobsCompleted}} completed · {{report.jobsInProgress}} in progress · {{report.jobsStarted}} started this week
+Hours: {{report.totalHours}} total ({{report.otHours}} OT) · {{report.laborCost}} labor
+Receipts: {{report.receiptsTotal}}
+Mileage: {{report.mileageMiles}} miles ({{report.mileageDollars}})
+Gross margin: {{report.grossMargin}} ({{report.grossMarginPct}})
+
+Open the full report at {{org.url}}/admin/reports.
+
+Internal — Do Not Forward.
+
+${FOOTER_TEXT}
+  `.trim(),
+};
+
 // ── DB-backed template lookup (Phase F-7 partial) ────────────────────
 
 /** Map of file-default templates keyed by event type. Used as the
@@ -232,8 +284,9 @@ const DEFAULT_TEMPLATES: Record<string, TemplateDef> = {
   signup_welcome:    SIGNUP_WELCOME,
   invite_sent:       INVITE_SENT,
   password_reset:    PASSWORD_RESET,
-  trial_ending_d7:   TRIAL_ENDING_D7,
-  payment_failed:    PAYMENT_FAILED,
+  trial_ending_d7:    TRIAL_ENDING_D7,
+  payment_failed:     PAYMENT_FAILED,
+  weekly_report_ready: WEEKLY_REPORT_READY,
 };
 
 /** Looks up the operator-editable template from public.email_templates

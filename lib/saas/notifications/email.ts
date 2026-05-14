@@ -51,6 +51,11 @@ export async function sendEmailViaResend(input: EmailDispatchInput): Promise<boo
         html: input.html,
         text: input.text,
         tags: tagsToResend(input.tags),
+        attachments: input.attachments?.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+          content_type: a.contentType,
+        })),
       }),
     });
 
