@@ -393,8 +393,8 @@ Adds a new entry to `vercel.json` crons:
 | **R-5** | Per-section CSV exports | 1 day | ✅ Shipped — `app/api/admin/reports/operations.csv/route.ts` returns spreadsheet-friendly rows for `section ∈ {jobs, hours, receipts, mileage}` with proper RFC 4180 escaping + `Content-Disposition: attachment` so browsers download (rather than render). Each card on `/admin/reports` has an "Export CSV ↓" link in the header that hands off the active date range. Print stylesheet hides the links. |
 | **R-6** | Server-rendered PDF endpoint (`/api/admin/reports/operations.pdf`) | 2 days | ✅ Shipped — refactored the section loaders out of the JSON route into `lib/reports/operations-data.ts` (`buildOperationsReport()`) so both the JSON, PDF, and weekly-cron paths share one source of truth. New `lib/reports/render-report-html.ts` produces a print-ready HTML document (proper `@page` letter sizing + page-break-inside: avoid + escape-html everywhere). `app/api/admin/reports/operations.pdf/route.ts` runs Playwright + `@sparticuz/chromium` (same pattern as `lib/research/browser-scrape.service.ts`) with `maxDuration: 60`. Returns `application/pdf` with a content-disposition attachment filename. |
 | **R-7** | Weekly cron + `weekly_report_ready` email template + Resend attachment wiring | 2 days | ✅ Shipped — `app/api/cron/weekly-reports/route.ts` runs every Monday 14:00 UTC (08:00 CST), pulls every active+trialing org, builds last-week's report → PDF → emails via Resend with the PDF attached. New `WEEKLY_REPORT_READY` template in `lib/saas/notifications/templates.ts` renders the summary (jobs counts, hours total, labor cost, receipts total, mileage, gross margin). `EmailDispatchInput` extended with `attachments[]` field (base64 content + filename + content_type) — wired through to Resend's `attachments` API field. Cron is `CRON_SECRET`-authed. vercel.json updated with `0 14 * * 1` schedule. Audit_log row written per successful send. |
-| **R-8** | `/admin/reports/email-settings` admin page | 1 day |
-| **R-9** | Mobile: ensure responsive layout works in Expo WebView; add Hub tile | 1 day |
+| **R-8** | `/admin/reports/email-settings` admin page | 1 day | Deferred — the cron currently sends to each org's `primary_admin_email` (which is the owner for Starr Surveying — exactly the v1 use case). A multi-recipient list + custom-day picker UI is overhead for a one-user workflow today; it lands when the second tenant signs up and needs different routing. The recipient resolution lives in one spot (`app/api/cron/weekly-reports/route.ts`) so swapping to a `org_settings.weekly_report_recipients` JSONB array is a focused follow-up. |
+| **R-9** | Mobile: ensure responsive layout works in Expo WebView; add Hub tile | 1 day | ✅ Partial — Hub tile shipped: `HubQuickActions` adds "View reports" and "Record payout" to the quick-action row. Responsive layout works as-is (every section uses `grid-template-columns: repeat(auto-fit, minmax(…, 1fr))`). Dedicated Expo native screen + native share-to-PDF intent defer to the mobile-app rework (separate sub-plan when that work begins). |
 | **R-10** | Job-result UI: "Mark as lost / abandoned" action on `/admin/jobs/[id]` | 1 day | ✅ Shipped — `app/api/admin/jobs/[id]/result/route.ts` PATCH endpoint (admin-only, org-scoped, sets `result` + `result_set_at` + `result_reason`; reason required for lost/abandoned). New `JobResultControl` inline component on `/admin/jobs/[id]` shows the current result pill (color-coded won=green/lost=red/abandoned=gray) and offers a three-button picker + reason input + Clear action. Auto-set-on-stage→completed is the natural follow-up that piggybacks on the existing `/api/admin/jobs/stages` POST handler. |
 | **R-11** | Filter the operations report by employee + section toggles | 2 days | ✅ Shipped — `lib/reports/operations-data.ts` accepts a `ReportFilter` with `employeeEmail`. Every section loader respects it: jobs filters by `assigned_to`, hours by `user_email`, receipts by resolved `user_id`, mileage by `user_email`. New `/api/admin/reports/employees` returns the roster. UI: employee dropdown (active + inactive optgroup) and five section-toggle chips on `/admin/reports`; conditional rendering of each card respects toggle state. URL params already encode the active employee through the JSON and PDF endpoints. |
 | **R-12** | Per-job report at `/admin/reports/job/[jobId]` (timeline + hours + receipts + mileage scoped to one job) | 2 days | ✅ Shipped — `app/api/admin/reports/job/[jobId]/route.ts` aggregates per-job hours / receipts / mileage / payouts + derives revenue-minus-cost gross margin. `app/admin/reports/job/[jobId]/page.tsx` renders the job header (12 metadata fields + result reason callout), per-employee hours table, receipts table, mileage table, payouts table (when present), financial roll-up. Job names on the operations report's Jobs section now link to the per-job report; an "↗" link opens the regular `/admin/jobs/[id]` page. Print stylesheet matches the main report. |
@@ -489,3 +489,41 @@ The reports feature is complete when:
 7. Year-to-date for a busy org returns in under 2 seconds on cold cache.
 8. Every report query is `org_id`-scoped (verified by a vitest case
    that asserts a second-tenant row never leaks).
+
+---
+
+## 13. Shipped vs. deferred summary
+
+Owner reports are **end-to-end live** for the v1 use case ("Hank pulls a
+weekly snapshot, the boss gets it in his inbox every Monday morning"):
+
+- `/admin/reports` renders six sections (Jobs / Hours / Receipts /
+  Mileage / Payouts / Financials) with preset + custom date ranges,
+  per-employee filter, and section-toggle chips.
+- Print → Save as PDF works via `@media print` stylesheet.
+- Per-section CSV export (`section=jobs|hours|receipts|mileage|payouts`).
+- Server-rendered PDF via Playwright + `@sparticuz/chromium`.
+- Weekly cron at Monday 14:00 UTC emails the prior week's PDF to every
+  org's primary admin via Resend (attachments wired through).
+- `/admin/payouts` records compensation outflows by rail (Venmo /
+  CashApp / Stripe / Check / Cash / ACH / Zelle / Other) with
+  reference + notes + audit.
+- Per-job report at `/admin/reports/job/[jobId]` shows the full
+  timeline for one job (hours / receipts / mileage / payouts /
+  margin).
+- Inline `JobResultControl` on `/admin/jobs/[id]` marks a job
+  won / lost / abandoned with a required reason for the negative
+  outcomes.
+- Hub quick-action tiles for "View reports" + "Record payout".
+
+What defers:
+
+- **R-8 email-settings UI** — primary admin = recipient covers v1.
+  Custom recipient list lands when a second tenant signs up with a
+  different routing need.
+- **R-9 dedicated mobile screen** — responsive web works in the Expo
+  WebView Hub today. Native screen + share-to-PDF intent is part of
+  the mobile-app rework when that sub-plan starts.
+- **Auto-set `result='won'` on stage → completed transition** —
+  natural piggyback when the existing `/api/admin/jobs/stages` POST
+  handler is next touched.

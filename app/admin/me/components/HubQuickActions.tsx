@@ -16,6 +16,8 @@ const ACTIONS: QuickAction[] = [
   { href: '/admin/my-hours',   label: 'Clock in / out' },
   { href: '/admin/receipts',   label: 'Approve receipts' },
   { href: '/admin/jobs/new',   label: 'New job' },
+  { href: '/admin/reports',    label: 'View reports' },
+  { href: '/admin/payouts',    label: 'Record payout' },
   { href: '/admin/cad',        label: 'Open CAD' },
 ];
 
