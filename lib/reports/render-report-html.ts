@@ -34,7 +34,7 @@ function fmtDate(iso: string | null): string {
 }
 
 export function renderReportHtml(data: ReportPayload): string {
-  const { org, range, jobs, hours, receipts, mileage, financials } = data;
+  const { org, range, jobs, hours, receipts, mileage, payouts, financials } = data;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -270,6 +270,30 @@ export function renderReportHtml(data: ReportPayload): string {
 </section>
 
 <section class="card">
+  <h2>Payouts</h2>
+  <div class="financial-line">
+    Total paid: <strong>${fmtMoney(payouts.totalCents)}</strong>
+    ${Object.keys(payouts.byMethod).length > 0 ? ' &middot; ' + Object.entries(payouts.byMethod).sort((a, b) => b[1] - a[1]).map(([m, c]) => `${escapeHtml(m)}: <strong>${fmtMoney(c)}</strong>`).join(' &middot; ') : ''}
+  </div>
+  ${payouts.entries.length > 0 ? `
+    <table>
+      <thead><tr><th>Paid on</th><th>Employee</th><th>Method</th><th>Reference</th><th class="right">Amount</th></tr></thead>
+      <tbody>
+        ${payouts.entries.map((p) => `
+          <tr>
+            <td>${fmtDate(p.paidAt)}</td>
+            <td>${escapeHtml(p.userEmail)}</td>
+            <td>${escapeHtml(p.method)}</td>
+            <td>${escapeHtml(p.reference ?? '—')}</td>
+            <td class="right">${fmtMoney(p.amountCents)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  ` : '<p class="empty">No payouts recorded in this window.</p>'}
+</section>
+
+<section class="card">
   <h2>Financial Roll-up</h2>
   <table>
     <tbody>
@@ -283,6 +307,7 @@ export function renderReportHtml(data: ReportPayload): string {
       </tr>
       <tr><td>Outstanding invoices</td><td class="right">${fmtMoney(financials.outstandingInvoicesCents)}</td></tr>
       <tr><td>Quotes pending acceptance</td><td class="right">${fmtMoney(financials.pendingQuotesCents)}</td></tr>
+      <tr><td>Payouts recorded (cash out)</td><td class="right">${fmtMoney(payouts.totalCents)}</td></tr>
     </tbody>
   </table>
 </section>

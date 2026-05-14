@@ -52,9 +52,25 @@ export interface MileageEntry {
   jobId: string | null;
 }
 
+export interface PayoutEntry {
+  id: string;
+  userEmail: string;
+  amountCents: number;
+  method: string;
+  reference: string | null;
+  paidAt: string;
+  notes: string | null;
+}
+
 export interface ReportPayload {
   range: { from: string; to: string };
   org: { id: string; name: string; slug: string };
+  payouts: {
+    totalCents: number;
+    byMethod: Record<string, number>;
+    perEmployee: Array<{ email: string; name: string; totalCents: number }>;
+    entries: PayoutEntry[];
+  };
   jobs: {
     started: number;
     inProgress: number;
@@ -143,6 +159,7 @@ export async function buildOperationsReport(
   const hoursSection = await loadHours(orgId, fromIso, toIso, warnings, filter);
   const receiptsSection = await loadReceipts(orgId, fromIso, toIso, warnings, employeeUserId);
   const mileageSection = await loadMileage(orgId, fromIso, toIso, warnings, filter);
+  const payoutsSection = await loadPayouts(orgId, fromIso, toIso, warnings, filter);
 
   const revenueCents = jobsSection.invoicedTotalCents;
   const laborCostCents = hoursSection.totalLaborCostCents;
@@ -156,6 +173,7 @@ export async function buildOperationsReport(
   return {
     range: { from: fromIso, to: toIso },
     org: { id: org.id, name: org.name, slug: org.slug },
+    payouts: payoutsSection,
     jobs: jobsSection,
     hours: hoursSection,
     receipts: {
@@ -516,6 +534,79 @@ async function loadMileage(orgId: string, fromIso: string, toIso: string, warnin
     perEmployee,
     entries,
   };
+}
+
+async function loadPayouts(orgId: string, fromIso: string, toIso: string, warnings: string[], filter: ReportFilter) {
+  let query = supabaseAdmin
+    .from('employee_payouts')
+    .select('id, user_email, amount_cents, method, reference, paid_at, notes')
+    .eq('org_id', orgId)
+    .gte('paid_at', fromIso)
+    .lte('paid_at', toIso)
+    .order('paid_at', { ascending: false });
+  if (filter.employeeEmail) {
+    query = query.eq('user_email', filter.employeeEmail);
+  }
+  const { data, error } = await query;
+  if (error) {
+    warnings.push(`payouts query: ${error.message}`);
+    return {
+      totalCents: 0,
+      byMethod: {} as Record<string, number>,
+      perEmployee: [] as Array<{ email: string; name: string; totalCents: number }>,
+      entries: [] as PayoutEntry[],
+    };
+  }
+
+  type Row = {
+    id: string;
+    user_email: string;
+    amount_cents: number;
+    method: string;
+    reference: string | null;
+    paid_at: string;
+    notes: string | null;
+  };
+
+  const byMethod: Record<string, number> = {};
+  const byEmployeeMap = new Map<string, number>();
+  let totalCents = 0;
+  const entries: PayoutEntry[] = [];
+
+  for (const r of (data ?? []) as Row[]) {
+    totalCents += r.amount_cents;
+    byMethod[r.method] = (byMethod[r.method] ?? 0) + r.amount_cents;
+    byEmployeeMap.set(r.user_email, (byEmployeeMap.get(r.user_email) ?? 0) + r.amount_cents);
+    entries.push({
+      id: r.id,
+      userEmail: r.user_email,
+      amountCents: r.amount_cents,
+      method: r.method,
+      reference: r.reference,
+      paidAt: r.paid_at,
+      notes: r.notes,
+    });
+  }
+
+  const emails = Array.from(byEmployeeMap.keys());
+  const nameByEmail = new Map<string, string>();
+  if (emails.length > 0) {
+    const { data: profiles } = await supabaseAdmin
+      .from('employee_profiles')
+      .select('user_email, user_name')
+      .in('user_email', emails);
+    for (const p of (profiles ?? []) as Array<{ user_email: string; user_name: string | null }>) {
+      nameByEmail.set(p.user_email, p.user_name ?? p.user_email);
+    }
+  }
+
+  const perEmployee = Array.from(byEmployeeMap.entries()).map(([email, cents]) => ({
+    email,
+    name: nameByEmail.get(email) ?? email,
+    totalCents: cents,
+  })).sort((a, b) => b.totalCents - a.totalCents);
+
+  return { totalCents, byMethod, perEmployee, entries };
 }
 
 function isoWeekKey(d: Date): string {

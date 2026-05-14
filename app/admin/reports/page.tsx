@@ -12,6 +12,12 @@ import Link from 'next/link';
 interface ReportData {
   range: { from: string; to: string };
   org: { id: string; name: string; slug: string };
+  payouts: {
+    totalCents: number;
+    byMethod: Record<string, number>;
+    perEmployee: Array<{ email: string; name: string; totalCents: number }>;
+    entries: Array<{ id: string; userEmail: string; amountCents: number; method: string; reference: string | null; paidAt: string; notes: string | null }>;
+  };
   jobs: {
     started: number; inProgress: number; notStarted: number;
     completed: number; lost: number; abandoned: number;
@@ -48,8 +54,8 @@ interface ReportData {
 }
 
 type Preset = 'today' | 'week' | 'month' | 'quarter' | 'ytd' | 'last7' | 'last30' | 'custom';
-type SectionKey = 'jobs' | 'hours' | 'receipts' | 'mileage' | 'financials';
-const ALL_SECTIONS: SectionKey[] = ['jobs', 'hours', 'receipts', 'mileage', 'financials'];
+type SectionKey = 'jobs' | 'hours' | 'receipts' | 'mileage' | 'payouts' | 'financials';
+const ALL_SECTIONS: SectionKey[] = ['jobs', 'hours', 'receipts', 'mileage', 'payouts', 'financials'];
 
 interface EmployeeOption { email: string; name: string; isActive: boolean }
 
@@ -389,7 +395,45 @@ export default function ReportsPage() {
 
           )}
 
-          {/* Section 5 — Financials */}
+          {/* Section 5 — Payouts */}
+          {sections.has('payouts') && (
+          <section className="reports-card">
+            <SectionHeader title="Payouts" csvSection="payouts" range={range} />
+            <div className="reports-financial-line">
+              Total paid: <strong>{fmtMoney(data.payouts.totalCents)}</strong>
+              {Object.keys(data.payouts.byMethod).length > 0 && (
+                <>
+                  {' · '}
+                  {Object.entries(data.payouts.byMethod).sort((a, b) => b[1] - a[1]).map(([method, cents], i, arr) => (
+                    <span key={method}>
+                      {method}: <strong>{fmtMoney(cents)}</strong>{i < arr.length - 1 ? ' · ' : ''}
+                    </span>
+                  ))}
+                </>
+              )}
+            </div>
+            {data.payouts.entries.length > 0 ? (
+              <table className="reports-table">
+                <thead>
+                  <tr><th>Paid on</th><th>Employee</th><th>Method</th><th>Reference</th><th className="reports-right">Amount</th></tr>
+                </thead>
+                <tbody>
+                  {data.payouts.entries.map((p) => (
+                    <tr key={p.id}>
+                      <td>{new Date(p.paidAt).toLocaleDateString()}</td>
+                      <td>{p.userEmail}</td>
+                      <td>{p.method}</td>
+                      <td><code style={{ fontFamily: 'JetBrains Mono, ui-monospace, monospace', fontSize: '0.82rem' }}>{p.reference ?? '—'}</code></td>
+                      <td className="reports-right">{fmtMoney(p.amountCents)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <p className="reports-empty">No payouts recorded in this window.</p>}
+          </section>
+          )}
+
+          {/* Section 6 — Financials */}
           {sections.has('financials') && (
           <section className="reports-card">
             <h2>Financial Roll-up</h2>
@@ -408,6 +452,7 @@ export default function ReportsPage() {
                 </tr>
                 <tr><td>Outstanding invoices</td><td className="reports-right">{fmtMoney(data.financials.outstandingInvoicesCents)}</td></tr>
                 <tr><td>Quotes pending acceptance</td><td className="reports-right">{fmtMoney(data.financials.pendingQuotesCents)}</td></tr>
+                <tr><td>Payouts recorded (cash out)</td><td className="reports-right">{fmtMoney(data.payouts.totalCents)}</td></tr>
               </tbody>
             </table>
           </section>
@@ -749,6 +794,7 @@ function labelForSection(s: SectionKey): string {
     case 'hours': return 'Hours';
     case 'receipts': return 'Receipts';
     case 'mileage': return 'Mileage';
+    case 'payouts': return 'Payouts';
     case 'financials': return 'Financials';
   }
 }

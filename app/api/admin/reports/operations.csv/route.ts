@@ -15,7 +15,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 
-type Section = 'jobs' | 'hours' | 'receipts' | 'mileage';
+type Section = 'jobs' | 'hours' | 'receipts' | 'mileage' | 'payouts';
 
 function csvEscape(value: unknown): string {
   if (value === null || value === undefined) return '';
@@ -131,6 +131,22 @@ export async function GET(req: NextRequest): Promise<Response> {
         (data ?? []).map((r: Record<string, unknown>) => [
           r.id, r.user_email, r.job_id, r.entry_date,
           r.miles, r.rate_cents_per_mile, r.total_cents,
+        ]),
+      );
+      break;
+    }
+    case 'payouts': {
+      const { data } = await supabaseAdmin
+        .from('employee_payouts')
+        .select('id, user_email, amount_cents, method, reference, paid_at, period_start, period_end, notes, created_by')
+        .eq('org_id', orgId)
+        .gte('paid_at', fromIso)
+        .lte('paid_at', toIso);
+      csv = rowsToCsv(
+        ['id', 'user_email', 'amount_cents', 'method', 'reference', 'paid_at', 'period_start', 'period_end', 'notes', 'created_by'],
+        (data ?? []).map((r: Record<string, unknown>) => [
+          r.id, r.user_email, r.amount_cents, r.method, r.reference,
+          r.paid_at, r.period_start, r.period_end, r.notes, r.created_by,
         ]),
       );
       break;
