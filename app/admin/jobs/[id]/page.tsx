@@ -47,6 +47,9 @@ interface Job {
   lead_rpls_email?: string;
   is_priority?: boolean;
   notes?: string;
+  result?: 'won' | 'lost' | 'abandoned' | null;
+  result_reason?: string | null;
+  result_set_at?: string | null;
   created_at: string;
   team: { id: string; user_email: string; user_name?: string; role: string; assigned_at: string; notes?: string }[];
   tags: string[];
@@ -346,9 +349,19 @@ export default function JobDetailPage() {
               {job.client_name && ` · ${job.client_name}`}
             </p>
           </div>
-          <span className="job-detail__stage-badge" style={{ background: stageInfo.color + '20', color: stageInfo.color }}>
-            {stageInfo.icon} {stageInfo.label}
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
+            <span className="job-detail__stage-badge" style={{ background: stageInfo.color + '20', color: stageInfo.color }}>
+              {stageInfo.icon} {stageInfo.label}
+            </span>
+            <JobResultControl
+              jobId={job.id}
+              currentResult={job.result ?? null}
+              currentReason={job.result_reason ?? null}
+              onUpdate={(r, reason) => {
+                setJob((cur) => cur ? { ...cur, result: r, result_reason: reason } : cur);
+              }}
+            />
+          </div>
         </div>
 
         {/* Quick stats */}
@@ -629,5 +642,177 @@ NEXT PRIORITY STEPS:
         </div>
       </div>
     </>
+  );
+}
+
+function JobResultControl({ jobId, currentResult, currentReason, onUpdate }: {
+  jobId: string;
+  currentResult: 'won' | 'lost' | 'abandoned' | null;
+  currentReason: string | null;
+  onUpdate: (result: 'won' | 'lost' | 'abandoned' | null, reason: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draftResult, setDraftResult] = useState<'won' | 'lost' | 'abandoned'>(currentResult ?? 'lost');
+  const [draftReason, setDraftReason] = useState(currentReason ?? '');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function save() {
+    if ((draftResult === 'lost' || draftResult === 'abandoned') && !draftReason.trim()) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/jobs/${jobId}/result`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result: draftResult, reason: draftReason.trim() }),
+      });
+      if (res.ok) {
+        onUpdate(draftResult, draftReason.trim() || null);
+        setEditing(false);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function clearResult() {
+    if (!confirm('Clear the result on this job? It will return to "still active".')) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/jobs/${jobId}/result`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result: null }),
+      });
+      if (res.ok) {
+        onUpdate(null, null);
+        setEditing(false);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const colors = { won: '#10B981', lost: '#EF4444', abandoned: '#9CA3AF' } as const;
+
+  if (!editing) {
+    if (currentResult) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <span style={{
+            padding: '0.18rem 0.55rem',
+            background: colors[currentResult] + '20',
+            color: colors[currentResult],
+            borderRadius: 999,
+            fontSize: '0.74rem',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+          }}>
+            {currentResult}
+          </span>
+          <button
+            onClick={() => setEditing(true)}
+            style={{ fontSize: '0.74rem', background: 'none', border: 0, color: '#6B7280', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            change
+          </button>
+        </div>
+      );
+    }
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        style={{
+          padding: '0.25rem 0.6rem',
+          background: 'transparent',
+          border: '1px dashed #D1D5DB',
+          borderRadius: 4,
+          fontSize: '0.74rem',
+          color: '#6B7280',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        Mark result…
+      </button>
+    );
+  }
+
+  return (
+    <div style={{
+      padding: '0.6rem',
+      background: '#FFF',
+      border: '1px solid #E5E7EB',
+      borderRadius: 6,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.4rem',
+      minWidth: 240,
+    }}>
+      <div style={{ display: 'flex', gap: '0.3rem' }}>
+        {(['won', 'lost', 'abandoned'] as const).map((r) => (
+          <button
+            key={r}
+            onClick={() => setDraftResult(r)}
+            style={{
+              flex: 1,
+              padding: '0.3rem 0.5rem',
+              border: '1px solid ' + (draftResult === r ? colors[r] : '#D1D5DB'),
+              background: draftResult === r ? colors[r] + '20' : '#FFF',
+              color: draftResult === r ? colors[r] : '#374151',
+              borderRadius: 4,
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+      {(draftResult === 'lost' || draftResult === 'abandoned') && (
+        <input
+          type="text"
+          value={draftReason}
+          onChange={(e) => setDraftReason(e.target.value)}
+          placeholder="Reason (required)"
+          style={{
+            padding: '0.35rem 0.5rem',
+            border: '1px solid #D1D5DB',
+            borderRadius: 4,
+            fontSize: '0.82rem',
+            fontFamily: 'inherit',
+          }}
+        />
+      )}
+      <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'space-between' }}>
+        {currentResult && (
+          <button
+            onClick={clearResult}
+            disabled={submitting}
+            style={{ fontSize: '0.74rem', background: 'none', border: 0, color: '#6B7280', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            Clear
+          </button>
+        )}
+        <div style={{ display: 'flex', gap: '0.3rem', marginLeft: 'auto' }}>
+          <button
+            onClick={() => setEditing(false)}
+            disabled={submitting}
+            style={{ padding: '0.25rem 0.6rem', background: '#FFF', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={submitting || ((draftResult === 'lost' || draftResult === 'abandoned') && !draftReason.trim())}
+            style={{ padding: '0.25rem 0.7rem', background: '#1D3095', color: '#FFF', border: 0, borderRadius: 4, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            {submitting ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
