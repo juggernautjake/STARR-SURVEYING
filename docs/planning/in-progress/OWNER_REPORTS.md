@@ -386,7 +386,7 @@ Adds a new entry to `vercel.json` crons:
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **R-1** | Schema: `jobs.result` + backfill + auto-set on stage→completed | 1 day |
+| **R-1** | Schema: `jobs.result` + backfill + auto-set on stage→completed | 1 day | ✅ Schema shipped — `seeds/280_reports_job_result.sql` adds `result` / `result_set_at` / `result_reason` columns + CHECK constraint + partial index on `(org_id, result, result_set_at)`. Backfills `result='won'` + `result_set_at = COALESCE(date_delivered, updated_at, created_at)` for every existing row in `stage='completed'`. Auto-set-on-stage-→completed is the next slice (R-10 job-result UI lands the manual lost/abandoned action; the auto-`won` on stage transition piggy-backs there). |
 | **R-2** | `/api/admin/reports/operations` GET — all five sections | 3 days |
 | **R-3** | `/admin/reports` page — header + date range selector + on-screen render | 3 days |
 | **R-4** | `@media print` stylesheet + Print button | 1 day |
