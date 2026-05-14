@@ -188,7 +188,7 @@ export default function ReportsPage() {
 
           {/* Section 1 — Jobs */}
           <section className="reports-card">
-            <h2>Jobs</h2>
+            <SectionHeader title="Jobs" csvSection="jobs" range={range} />
             <div className="reports-stat-row">
               <Stat label="Started" value={String(data.jobs.started)} />
               <Stat label="Completed (won)" value={String(data.jobs.completed)} secondary={fmtMoneyShort(data.jobs.invoicedTotalCents)} />
@@ -226,7 +226,7 @@ export default function ReportsPage() {
 
           {/* Section 2 — Hours */}
           <section className="reports-card">
-            <h2>Employee Hours</h2>
+            <SectionHeader title="Employee Hours" csvSection="hours" range={range} />
             <div className="reports-financial-line">
               Regular: <strong>{data.hours.totalRegularHours.toFixed(1)}h</strong>
               {' · '}OT: <strong>{data.hours.totalOtHours.toFixed(1)}h</strong>
@@ -254,7 +254,7 @@ export default function ReportsPage() {
 
           {/* Section 3 — Receipts */}
           <section className="reports-card">
-            <h2>Receipts</h2>
+            <SectionHeader title="Receipts" csvSection="receipts" range={range} />
             <div className="reports-financial-line">
               Approved: <strong>{fmtMoney(data.receipts.byStatus.approved)}</strong>
               {' · '}Paid: <strong>{fmtMoney(data.receipts.byStatus.paid)}</strong>
@@ -292,7 +292,7 @@ export default function ReportsPage() {
 
           {/* Section 4 — Mileage */}
           <section className="reports-card">
-            <h2>Mileage</h2>
+            <SectionHeader title="Mileage" csvSection="mileage" range={range} />
             <div className="reports-financial-line">
               Total miles: <strong>{data.mileage.totalMiles.toFixed(1)}</strong>
               {' · '}Reimbursement: <strong>${data.mileage.totalDollars.toFixed(2)}</strong>
@@ -559,6 +559,30 @@ export default function ReportsPage() {
           }
         }
       `}</style>
+    </div>
+  );
+}
+
+function SectionHeader({ title, csvSection, range }: { title: string; csvSection: string; range: { from: string; to: string } }) {
+  const csvHref = `/api/admin/reports/operations.csv?section=${csvSection}&from=${range.from}&to=${range.to}`;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.85rem' }}>
+      <h2 style={{ fontFamily: 'Sora, sans-serif', fontSize: '1.2rem', margin: 0 }}>{title}</h2>
+      <a
+        href={csvHref}
+        className="reports-no-print"
+        style={{
+          fontSize: '0.78rem',
+          color: '#1D3095',
+          fontWeight: 600,
+          textDecoration: 'none',
+          padding: '0.25rem 0.6rem',
+          border: '1px solid #C7D2FE',
+          borderRadius: 4,
+        }}
+      >
+        Export CSV ↓
+      </a>
     </div>
   );
 }
