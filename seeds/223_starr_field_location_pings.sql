@@ -116,10 +116,12 @@ END $$;
 
 -- ── Indexes ──────────────────────────────────────────────────────────────────
 -- Most-recent ping per user — drives the dispatcher Team page's
--- "last seen" column. 7-day partial keeps the index tight.
+-- "last seen" column. Postgres rejects time-bounded partial indexes
+-- because `now()` is not IMMUTABLE; full index works fine at our
+-- scale (a few crews) and the planner only walks the recent rows for
+-- the queries that matter.
 CREATE INDEX IF NOT EXISTS idx_location_pings_user_recent
-  ON location_pings (user_id, captured_at DESC)
-  WHERE captured_at > now() - interval '7 days';
+  ON location_pings (user_id, captured_at DESC);
 
 -- Per-time-entry route reconstruction. F6's segment-builder reads
 -- "every ping where job_time_entry_id = $1 ORDER BY captured_at."
