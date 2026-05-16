@@ -206,11 +206,23 @@
   left: 48px;
 }
 
+/* When nav-v2 is on, hide the legacy AdminSidebar at desktop widths
+ * so it doesn't overlap with the IconRail. On mobile the sidebar
+ * still renders as the hamburger drawer (this slice — "3c").
+ */
+@media (min-width: 1024px) {
+  .admin-layout--nav-v2 .admin-sidebar,
+  .admin-layout--nav-v2 .admin-sidebar-overlay {
+    display: none !important;
+  }
+}
+
 @media (max-width: 768px) {
   /* Mobile keeps the legacy hamburger pattern; the rail collapses out
-   * of view and AdminSidebar's existing mobile drawer behavior wins
-   * when the flag is off. When the flag is on, the rail tucks behind
-   * the topbar and the hamburger fall-back is added in slice 3c. */
+   * of view and AdminSidebar's mobile drawer takes over. The IconRail
+   * intentionally hides so the AdminSidebar drawer is the only nav
+   * surface — hamburger in the top bar toggles it open/closed.
+   */
   .admin-rail {
     display: none;
   }
