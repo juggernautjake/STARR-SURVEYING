@@ -144,11 +144,12 @@ function Inner({ children }: { children: React.ReactNode }) {
       <ToastProvider>
       <CommandPaletteProvider>
       <div className={`admin-layout${navV2 ? ' admin-layout--nav-v2' : ''}`}>
-        {navV2 ? (
-          <IconRail />
-        ) : (
-          <AdminSidebar role={role} roles={roles} userName={session.user.name || 'User'} userEmail={session.user.email || ''} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        )}
+        {navV2 && <IconRail />}
+        {/* AdminSidebar is the mobile drawer (and the only nav at desktop
+            widths when nav-v2 is off). When nav-v2 is on, it is hidden
+            on desktop via CSS but still present so the hamburger has
+            something to toggle on mobile. */}
+        <AdminSidebar role={role} roles={roles} userName={session.user.name || 'User'} userEmail={session.user.email || ''} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="admin-layout__main">
           <AdminTopBar title={pageTitle} role={role} onMenuToggle={() => setSidebarOpen((p) => !p)} />
           <div className="admin-layout__content">
