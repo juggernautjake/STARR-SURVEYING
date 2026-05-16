@@ -83,11 +83,7 @@ CREATE TABLE IF NOT EXISTS public.usage_events (
   created_at  TIMESTAMPTZ DEFAULT now()
 );
 COMMENT ON COLUMN public.usage_events.event_type IS
-  'Bundle-specific. Recon: research_report, document_purchase, ai_query, adapter_run. ' ||
-  'Draft: cad_export, ai_drawing_run, render_minute. ' ||
-  'Office: invoice_created, employee_added, payroll_run. ' ||
-  'Field: mobile_sync, photo_uploaded, point_collected. ' ||
-  'Academy: quiz_attempted, module_completed.';
+  'Bundle-specific event taxonomy. Recon: research_report, document_purchase, ai_query, adapter_run. Draft: cad_export, ai_drawing_run, render_minute. Office: invoice_created, employee_added, payroll_run. Field: mobile_sync, photo_uploaded, point_collected. Academy: quiz_attempted, module_completed.';
 
 CREATE INDEX IF NOT EXISTS idx_usage_org_bundle    ON public.usage_events(org_id, bundle, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_usage_org_type      ON public.usage_events(org_id, event_type, created_at DESC);

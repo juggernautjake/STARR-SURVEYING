@@ -29,6 +29,25 @@ CREATE TABLE IF NOT EXISTS public.kb_articles (
 );
 COMMENT ON TABLE  public.kb_articles IS 'Public knowledge base + internal operator runbooks. internal_only=true gates to /platform/support/knowledge-base.';
 
+-- Idempotency patches: an earlier partial run of this seed may have left
+-- the table in a state where some columns are missing. ADD COLUMN IF NOT
+-- EXISTS brings any half-built table up to spec before the indexes try
+-- to reference these columns.
+ALTER TABLE public.kb_articles
+  ADD COLUMN IF NOT EXISTS slug            TEXT,
+  ADD COLUMN IF NOT EXISTS category        TEXT,
+  ADD COLUMN IF NOT EXISTS title           TEXT,
+  ADD COLUMN IF NOT EXISTS body_markdown   TEXT,
+  ADD COLUMN IF NOT EXISTS bundle_scope    TEXT[],
+  ADD COLUMN IF NOT EXISTS internal_only   BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS author_email    TEXT,
+  ADD COLUMN IF NOT EXISTS helpful_count   INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS unhelpful_count INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS view_count      INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS published_at    TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS updated_at      TIMESTAMPTZ DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS created_at      TIMESTAMPTZ DEFAULT now();
+
 CREATE INDEX IF NOT EXISTS idx_kb_published ON public.kb_articles(published_at DESC) WHERE published_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_kb_category  ON public.kb_articles(category, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_kb_internal  ON public.kb_articles(internal_only, published_at DESC);

@@ -25,9 +25,7 @@ CREATE TABLE IF NOT EXISTS public.user_notification_prefs (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 COMMENT ON TABLE public.user_notification_prefs IS
-  'Per-user opt-in/opt-out for each notification event × channel pair. ' ||
-  'Missing entry = use the event''s own defaults. Read via ' ||
-  'lib/saas/notifications/prefs.ts:getUserPrefs.';
+  'Per-user opt-in/opt-out for each notification event x channel pair. Missing entry means use the event default. Read via lib/saas/notifications/prefs.ts:getUserPrefs.';
 
 CREATE INDEX IF NOT EXISTS idx_user_prefs_email ON public.user_notification_prefs(user_email);
 
