@@ -43,6 +43,10 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/',
   },
+
+  // PWA manifest — makes the site installable as a Progressive Web App
+  // on iOS + Android. "Add to Home Screen" creates a standalone app icon.
+  manifest: '/manifest.json',
   
   // ─────────────────────────────────────────────────────────────────────────
   // OPEN GRAPH - Facebook, iMessage, LinkedIn, Discord, Slack, etc.
@@ -122,6 +126,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: '#BD1218',
+  // Lock pinch-zoom off when installed as a PWA so the app feels native
+  // on phones; users can still zoom inside file viewers / image previews.
+  width: 'device-width',
+  initialScale: 1,
 };
 
 // ============================================================================
