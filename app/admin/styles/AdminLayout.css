@@ -292,6 +292,65 @@
   border-top-color: #065F46;
 }
 
+/* ─── Equal-size enforcement (all 3 FABs = same 48×48 square) ─────────────
+   Each wrap is constrained to button-size so its layout box doesn't
+   stretch wider than the icon. Tooltips remain absolutely positioned
+   above and stay hover-only — no text bleeding into the green bar.
+*/
+.fab-menu .fieldbook-fab-wrap,
+.fab-menu .discussion-fab-wrap,
+.fab-menu .messenger-fab-wrap {
+  width: 48px !important;
+  height: 48px !important;
+  flex: 0 0 48px !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  overflow: visible !important;
+}
+.fab-menu .fieldbook-fab,
+.fab-menu .discussion-fab,
+.fab-menu .messenger-fab {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 12px !important;
+  padding: 0 !important;
+  font-size: 1.3rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+/* Lock tooltips to hover-only — defensive in case sibling rules leak. */
+.fab-menu .fieldbook-fab-tooltip,
+.fab-menu .discussion-fab-tooltip,
+.fab-menu .messenger-fab-tooltip {
+  position: absolute !important;
+  bottom: calc(100% + 8px) !important;
+  left: 50% !important;
+  transform: translate(-50%, 4px) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  white-space: nowrap !important;
+  transition: opacity .15s ease, transform .15s ease !important;
+}
+.fab-menu .fieldbook-fab-wrap:hover .fieldbook-fab-tooltip,
+.fab-menu .discussion-fab-wrap:hover .discussion-fab-tooltip,
+.fab-menu .messenger-fab-wrap:hover .messenger-fab-tooltip {
+  opacity: 1 !important;
+  transform: translate(-50%, 0) !important;
+}
+/* Keyboard focus shows the tooltip too — accessibility. */
+.fab-menu .fieldbook-fab:focus-visible + .fieldbook-fab-tooltip,
+.fab-menu .discussion-fab:focus-visible + .discussion-fab-tooltip,
+.fab-menu .messenger-fab:focus-visible + .messenger-fab-tooltip,
+.fab-menu .fieldbook-fab-wrap:focus-within .fieldbook-fab-tooltip,
+.fab-menu .discussion-fab-wrap:focus-within .discussion-fab-tooltip,
+.fab-menu .messenger-fab-wrap:focus-within .messenger-fab-tooltip {
+  opacity: 1 !important;
+  transform: translate(-50%, 0) !important;
+}
+
 /* FAB button — rightmost in the bottom-right toolbar row */
 .fieldbook-fab-wrap { position:fixed; bottom:1.5rem; right:1.5rem; z-index:90; display:flex; flex-direction:column; align-items:center; }
 .fieldbook-fab { width:48px; height:48px; border-radius:12px; background:#BD1218; color:#FFF; border:none; font-size:1.3rem; cursor:pointer; box-shadow:0 4px 16px rgba(189,18,24,.35); transition:all .2s; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; }
