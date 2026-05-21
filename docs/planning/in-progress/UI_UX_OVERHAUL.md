@@ -156,17 +156,35 @@ Pages migrate in order of usage. Top 5: Hub, Jobs (list + new), Receipts, Report
 
 ## 4. Phased delivery
 
-21 slices, in 4 phases. Each slice = 1 commit + push.
+Slices grouped into 4 phases. Each slice = 1 commit + push.
+
+**Verification protocol** — interspersed `Vx` slices re-run `scripts/ui-audit.mjs`
+to see if recent fixes actually improved the rendered output. Each verification
+slice does:
+
+1. Re-run the audit script against the live site
+2. Read screenshots from `/tmp/ui-audit/`
+3. **For every issue catalogued as "fixed" since the last checkpoint**: confirm
+   the visual change landed. If a fix didn't take, note that in the plan + open
+   a follow-up slice.
+4. **For any NEW issues discovered during this checkpoint**: append them to the
+   plan as additional `U-N` slices in the appropriate phase. The plan grows
+   based on what we learn.
+5. Commit the audit log delta to `docs/UI_AUDIT.md` so we have history.
+
+This loops until a verification checkpoint finds **zero new issues** + confirms
+all prior fixes landed. Only then does the plan move to `completed/`.
 
 ### Phase 1 — Unblock functionality (5 slices, ~2 hours)
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **U-1** | Schema fix: add `receipts.deleted_at` + `receipts.org_id` columns | 30 min |
+| **U-1** | Schema fix: add `receipts.deleted_at` + `receipts.org_id` columns | 30 min | ✅ Seed shipped — `seeds/283_ui_audit_receipts_columns.sql` adds both columns (idempotent), indexes for `deleted_at IS NULL` + `(org_id, created_at)`, and backfills existing rows to Starr's org_id. **You need to run this in the Supabase SQL Editor** — see "How to apply" section below. |
 | **U-2** | Code fix: `lib/reports/operations-data.ts` `jobs.assigned_to` reference (use `job_team` JOIN or drop) | 20 min |
 | **U-3** | Code fix: `lib/reports/operations-data.ts` `job_time_entries.clock_*` reference (verify column name vs schema) | 20 min |
 | **U-4** | Add roles update SQL helper + apply for `jacobmaddux@starr-surveying.com` (unblocks workspace landings) | 10 min |
 | **U-5** | Fix `/platform/*` layout inheritance — operator console should not show the marketing header | 30 min |
+| **V-1** | **Verification checkpoint** — re-run `scripts/ui-audit.mjs` against the live site. Confirm /admin/receipts no longer 500s, /admin/reports loads cleanly, /platform shows operator layout, workspace landings populate. Append new findings to plan. | 30 min |
 
 ### Phase 2 — Universal mobile polish (4 slices, ~3 hours)
 
@@ -176,6 +194,7 @@ Pages migrate in order of usage. Top 5: Hub, Jobs (list + new), Receipts, Report
 | **U-7** | Stack Hub greeting card buttons vertically on mobile; persona dropdown full-width | 30 min |
 | **U-8** | Fix `/admin/invites` low-contrast text (form labels barely visible on white) | 20 min |
 | **U-9** | Fix `/admin/payouts` mobile: "Record payout" button wraps to 2 lines + Method dropdown overflows | 30 min |
+| **V-2** | **Verification checkpoint** — re-run audit. Confirm FAB no longer overlaps mobile content, Hub greeting card stacks cleanly, invites text is readable, payouts mobile fits. Append findings. | 30 min |
 
 ### Phase 3 — Design system foundation (6 slices, ~2 days)
 
@@ -184,9 +203,11 @@ Pages migrate in order of usage. Top 5: Hub, Jobs (list + new), Receipts, Report
 | **U-10** | Create `app/styles/tokens.css` with the full token catalog | 1 hour |
 | **U-11** | Create `app/styles/forms.css` normalizing input / select / textarea / button to uniform heights | 2 hours |
 | **U-12** | Import tokens + forms globally in `app/layout.tsx` so every page picks them up | 15 min |
+| **V-3** | **Verification checkpoint** — re-run audit. Confirm tokens are loaded (inspect any page's computed CSS for `--space-4` etc.) and no global regressions before migrating page CSS. | 30 min |
 | **U-13** | Migrate `/admin/me` (Hub) to use tokens — refactor `AdminMe.css` ad-hoc values | 2 hours |
 | **U-14** | Migrate `/admin/jobs` + `/admin/jobs/new` (Jobs list + new) to use tokens | 2 hours |
 | **U-15** | Migrate `/admin/receipts` + `/admin/reports` + `/admin/payouts` (3 highest-traffic new-feature pages) to use tokens | 3 hours |
+| **V-4** | **Verification checkpoint** — re-run audit. Confirm all 5 migrated pages have consistent form-element heights, button styles, and spacing. Buttons/inputs/dropdowns should now line up in every row. Append findings. | 30 min |
 
 ### Phase 4 — Per-page polish from audit (6 slices, ~half day)
 
@@ -197,9 +218,25 @@ Pages migrate in order of usage. Top 5: Hub, Jobs (list + new), Receipts, Report
 | **U-18** | `/` marketing — fix distorted "Starr Surveying" wordmark logo in header | 30 min |
 | **U-19** | `/` mobile — "Why Starr Surveying?" 4-column stat block: keep 2-column on small mobile instead of collapsing to 1 | 30 min |
 | **U-20** | Footer mobile — "Write a Review" + "Copy Link" button alignment + icon rendering | 30 min |
-| **U-21** | Final audit pass: re-run `scripts/ui-audit.mjs`, diff before/after, mark Phase 1-3 fixes verified, document any new findings | 1 hour |
+| **V-5** | **Final verification checkpoint** — re-run audit, save final screenshot set, diff against the original baseline. Confirm 0 new findings. If any remain, append slices U-22+ to continue the loop. | 1 hour |
+| **U-21** | When V-5 finds zero outstanding issues: move this plan to `docs/planning/completed/`. Final commit. | 5 min |
 
 ---
+
+## 4.5 — How to apply new SQL seeds
+
+When a slice ships a seed file (e.g., U-1 ships `seeds/283_*.sql`), you apply it via the **Supabase SQL Editor**:
+
+1. Open https://supabase.com/dashboard/project/pmpjaqrmxnbfdayddrha/sql/new
+2. Open the seed file on GitHub at its raw URL (e.g., `https://github.com/juggernautjake/STARR-SURVEYING/raw/claude/planning-doc-buildout-bQL2H-3rzxF/seeds/283_ui_audit_receipts_columns.sql?v=1` — append `?v=N` if you've already loaded it once to bypass browser cache)
+3. Copy the entire contents
+4. Paste into the SQL Editor
+5. Click **Run**
+6. Verify the result: each seed file has a `-- Verification` block at the bottom showing the queries to run and the expected output
+
+All seeds in this branch use `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` patterns so re-running is safe.
+
+After applying, the slice's "shipped" annotation in the table above gets the SQL run confirmed.
 
 ## 5. Risks + mitigations
 
