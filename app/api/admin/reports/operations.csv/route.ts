@@ -73,16 +73,16 @@ export async function GET(req: NextRequest): Promise<Response> {
     case 'jobs': {
       const { data } = await supabaseAdmin
         .from('jobs')
-        .select('id, name, client_name, stage, result, quote_amount, final_amount, date_started, date_delivered, assigned_to')
+        .select('id, name, client_name, stage, result, quote_amount, final_amount, date_started, date_delivered, lead_rpls_email')
         .eq('org_id', orgId)
         .or(`date_started.gte.${fromIso},date_delivered.gte.${fromIso},result_set_at.gte.${fromIso},created_at.gte.${fromIso}`)
         .lte('created_at', toIso);
       csv = rowsToCsv(
-        ['id', 'name', 'client', 'stage', 'result', 'quote', 'final', 'started', 'delivered', 'assigned_to'],
+        ['id', 'name', 'client', 'stage', 'result', 'quote', 'final', 'started', 'delivered', 'lead_rpls_email'],
         (data ?? []).map((r: Record<string, unknown>) => [
           r.id, r.name, r.client_name, r.stage, r.result,
           r.quote_amount, r.final_amount,
-          r.date_started, r.date_delivered, r.assigned_to,
+          r.date_started, r.date_delivered, r.lead_rpls_email,
         ]),
       );
       break;

@@ -179,8 +179,8 @@ all prior fixes landed. Only then does the plan move to `completed/`.
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **U-1** | Schema fix: add `receipts.deleted_at` + `receipts.org_id` columns | 30 min | ✅ Seed shipped — `seeds/283_ui_audit_receipts_columns.sql` adds both columns (idempotent), indexes for `deleted_at IS NULL` + `(org_id, created_at)`, and backfills existing rows to Starr's org_id. **You need to run this in the Supabase SQL Editor** — see "How to apply" section below. |
-| **U-2** | Code fix: `lib/reports/operations-data.ts` `jobs.assigned_to` reference (use `job_team` JOIN or drop) | 20 min |
+| **U-1** | Schema fix: add `receipts.deleted_at` + `receipts.org_id` columns | 30 min | ✅ Shipped + applied — `seeds/283_ui_audit_receipts_columns.sql`. User confirmed the SQL ran in the Supabase SQL Editor. |
+| **U-2** | Code fix: `lib/reports/operations-data.ts` `jobs.assigned_to` reference (use `job_team` JOIN or drop) | 20 min | ✅ Shipped — the jobs table's actual column is `lead_rpls_email` (the assigned lead RPLS), not `assigned_to`. Renamed every DB-column reference across `lib/reports/operations-data.ts`, `app/api/admin/reports/operations.csv/route.ts`, and `app/api/admin/reports/job/[jobId]/route.ts`. The output JS field stays `assignedTo` (camelCase) so React components are unaffected. |
 | **U-3** | Code fix: `lib/reports/operations-data.ts` `job_time_entries.clock_*` reference (verify column name vs schema) | 20 min |
 | **U-4** | Add roles update SQL helper + apply for `jacobmaddux@starr-surveying.com` (unblocks workspace landings) | 10 min |
 | **U-5** | Fix `/platform/*` layout inheritance — operator console should not show the marketing header | 30 min |

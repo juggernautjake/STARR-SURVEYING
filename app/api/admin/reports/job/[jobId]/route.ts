@@ -43,7 +43,7 @@ export async function GET(_req: Request, ctx: RouteContext): Promise<NextRespons
 
   const { data: job, error: jobErr } = await supabaseAdmin
     .from('jobs')
-    .select('id, name, client_name, job_number, address, stage, result, result_set_at, result_reason, quote_amount, final_amount, date_received, date_quoted, date_accepted, date_started, date_delivered, assigned_to, created_at, org_id')
+    .select('id, name, client_name, job_number, address, stage, result, result_set_at, result_reason, quote_amount, final_amount, date_received, date_quoted, date_accepted, date_started, date_delivered, lead_rpls_email, created_at, org_id')
     .eq('id', jobId)
     .maybeSingle();
 
@@ -201,7 +201,7 @@ export async function GET(_req: Request, ctx: RouteContext): Promise<NextRespons
       dateAccepted: job.date_accepted,
       dateStarted: job.date_started,
       dateDelivered: job.date_delivered,
-      assignedTo: job.assigned_to,
+      assignedTo: job.lead_rpls_email,
       createdAt: job.created_at,
     },
     hours: {
