@@ -200,7 +200,7 @@ all prior fixes landed. Only then does the plan move to `completed/`.
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **U-10** | Create `app/styles/tokens.css` with the full token catalog | 1 hour |
+| **U-10** | Create `app/styles/tokens.css` with the full token catalog | 1 hour | ✅ Shipped — `app/styles/tokens.css` defines the full design-token catalog on `:root` per §3.1: 8-step spacing scale, 7 font sizes, 4 weights, 3 font-families, 5 border radii, 4 border styles, 6 text colors, 5 surface colors, 3 brand colors (+ darker variants), 4 status colors (+ bg pairs), form-element heights (40px standard / 32 sm / 48 lg), form-element padding, 5 shadows, 7-step z-index scale, 3 transitions, and breakpoint constants. Not yet imported globally — that's U-12. |
 | **U-11** | Create `app/styles/forms.css` normalizing input / select / textarea / button to uniform heights | 2 hours |
 | **U-12** | Import tokens + forms globally in `app/layout.tsx` so every page picks them up | 15 min |
 | **V-3** | **Verification checkpoint** — re-run audit. Confirm tokens are loaded (inspect any page's computed CSS for `--space-4` etc.) and no global regressions before migrating page CSS. | 30 min |

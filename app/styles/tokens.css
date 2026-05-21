@@ -1,0 +1,137 @@
+/* ============================================================================
+ * app/styles/tokens.css — Starr Software design tokens
+ *
+ * Single source of truth for spacing, font sizes, colors, borders, shadows,
+ * form-element sizing, z-index, breakpoints, and transitions. Imported once
+ * in app/layout.tsx so every page picks the values up via `var(--...)`.
+ *
+ * Pattern: token names are descriptive (`--space-4`, `--color-text-primary`)
+ * rather than tied to specific elements. Page-specific stylesheets should
+ * compose these tokens instead of authoring their own pixel values.
+ *
+ * Migrating an existing page: replace ad-hoc values (e.g., `padding: 0.45rem
+ * 0.6rem; border: 1px solid #D1D5DB; height: 40px`) with token references
+ * (e.g., `padding: var(--input-padding-y) var(--input-padding-x); border:
+ * var(--border-normal); height: var(--input-height)`).
+ *
+ * Phase U-10 of UI_UX_OVERHAUL.md.
+ * ============================================================================
+ */
+
+:root {
+  /* ── Spacing scale (4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 px) ───────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* ── Font sizes ────────────────────────────────────────────────────── */
+  --text-xs:   0.72rem;   /* 11.5px — labels, secondary metadata */
+  --text-sm:   0.85rem;   /* 13.5px — table cells, body small */
+  --text-base: 0.95rem;   /* 15px   — primary body text */
+  --text-lg:   1.1rem;    /* 17.5px — section heading, big labels */
+  --text-xl:   1.3rem;    /* 21px   — card heading, primary heading on small surfaces */
+  --text-2xl:  1.6rem;    /* 25.5px — page heading */
+  --text-3xl:  2rem;      /* 32px   — hero / dashboard */
+
+  /* ── Font weights ──────────────────────────────────────────────────── */
+  --weight-normal:    400;
+  --weight-medium:    500;
+  --weight-semibold:  600;
+  --weight-bold:      700;
+
+  /* ── Font families (re-asserted here so they're discoverable) ─────── */
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: 'Sora', 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* ── Border radii ──────────────────────────────────────────────────── */
+  --radius-sm:   4px;     /* tags, badges */
+  --radius-md:   6px;     /* inputs, buttons, small cards */
+  --radius-lg:   10px;    /* cards */
+  --radius-xl:   14px;    /* large cards / modals */
+  --radius-pill: 999px;   /* pills, status chips */
+
+  /* ── Borders ───────────────────────────────────────────────────────── */
+  --border-light:  1px solid #E5E7EB;   /* subtle dividers */
+  --border-normal: 1px solid #D1D5DB;   /* inputs, buttons */
+  --border-strong: 1px solid #9CA3AF;   /* emphasis */
+  --border-focus:  2px solid #1D3095;   /* :focus ring */
+
+  /* ── Text colors (light theme — admin shell) ──────────────────────── */
+  --color-text-primary:   #0F1419;
+  --color-text-secondary: #4B5563;
+  --color-text-tertiary:  #6B7280;
+  --color-text-muted:     #9CA3AF;
+  --color-text-on-dark:   #FFFFFF;
+  --color-text-on-brand:  #FFFFFF;
+
+  /* ── Surface colors ────────────────────────────────────────────────── */
+  --color-bg-app:     #F9FAFB;
+  --color-bg-card:    #FFFFFF;
+  --color-bg-input:   #FFFFFF;
+  --color-bg-subtle:  #F3F4F6;
+  --color-bg-hover:   #F0F4FF;
+
+  /* ── Brand colors ──────────────────────────────────────────────────── */
+  --color-brand-red:    #BD1218;
+  --color-brand-red-d:  #9A0F14;   /* hover / active */
+  --color-brand-navy:   #1D3095;
+  --color-brand-navy-d: #152050;
+  --color-brand-gold:   #FCD34D;
+  --color-brand-gold-d: #EBA614;
+
+  /* ── Status colors ─────────────────────────────────────────────────── */
+  --color-success:    #10B981;
+  --color-success-bg: #ECFDF5;
+  --color-warning:    #F59E0B;
+  --color-warning-bg: #FFFBEB;
+  --color-error:      #EF4444;
+  --color-error-bg:   #FEF2F2;
+  --color-info:       #3B82F6;
+  --color-info-bg:    #EFF6FF;
+
+  /* ── Form element heights (KEEP IN SYNC across input/button/select) ─ */
+  --input-height:        40px;
+  --button-height:       40px;
+  --button-height-sm:    32px;
+  --button-height-lg:    48px;
+
+  /* ── Form element padding ──────────────────────────────────────────── */
+  --input-padding-y:     8px;
+  --input-padding-x:     12px;
+  --button-padding-y:    8px;
+  --button-padding-x:    16px;
+  --button-padding-x-sm: 12px;
+  --button-padding-x-lg: 24px;
+
+  /* ── Shadows ───────────────────────────────────────────────────────── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.16);
+  --shadow-focus: 0 0 0 3px rgba(29, 48, 149, 0.15);  /* matches --border-focus */
+
+  /* ── Z-index ───────────────────────────────────────────────────────── */
+  --z-base:    1;
+  --z-rail:    40;
+  --z-sidebar: 50;
+  --z-fab:     90;
+  --z-topbar:  100;
+  --z-modal:   200;
+  --z-toast:   300;
+
+  /* ── Transitions ───────────────────────────────────────────────────── */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.25s ease;
+  --transition-slow: 0.4s ease;
+
+  /* ── Breakpoints (documentation — CSS uses @media literals) ───────── */
+  --bp-mobile:  599px;
+  --bp-tablet:  1023px;
+  --bp-desktop: 1440px;
+}
