@@ -93,20 +93,20 @@ export default function AdminInvitesPage() {
   return (
     <div style={{ maxWidth: 1000, padding: '1.5rem' }}>
       <h1 style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.6rem', margin: '0 0 0.5rem' }}>Team invites</h1>
-      <p style={{ color: 'rgba(255,255,255,0.7)', margin: '0 0 1.5rem' }}>
+      <p style={{ color: '#4B5563', margin: '0 0 1.5rem' }}>
         Invite coworkers to your organization. They&apos;ll get an email with a one-use signup link.
       </p>
 
       <section style={{
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.1)',
+        background: '#F9FAFB',
+        border: '1px solid #E5E7EB',
         borderRadius: 12,
         padding: '1.25rem',
         marginBottom: '1.5rem',
       }}>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <label style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-            <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>Email</span>
+            <span style={{ fontSize: '0.8rem', color: '#4B5563', fontWeight: 600 }}>Email</span>
             <input
               type="email"
               value={email}
@@ -117,7 +117,7 @@ export default function AdminInvitesPage() {
             />
           </label>
           <label style={{ flex: '0 0 180px', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-            <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>Role</span>
+            <span style={{ fontSize: '0.8rem', color: '#4B5563', fontWeight: 600 }}>Role</span>
             <select value={role} onChange={(e) => setRole(e.target.value)} style={inputStyle}>
               {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
@@ -154,19 +154,19 @@ export default function AdminInvitesPage() {
             {invites.map((inv) => (
               <tr key={inv.id}>
                 <td style={tdStyle}>{inv.inviteeEmail}</td>
-                <td style={{ ...tdStyle, fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)' }}>{inv.role}</td>
+                <td style={{ ...tdStyle, fontSize: '0.82rem', color: '#4B5563' }}>{inv.role}</td>
                 <td style={tdStyle}>
                   <span style={{ color: STATUS_COLORS[inv.status] ?? '#9CA3AF', fontWeight: 600, fontSize: '0.82rem' }}>
                     {inv.status}
                   </span>
                 </td>
-                <td style={{ ...tdStyle, fontFamily: 'JetBrains Mono,monospace', fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)' }}>
+                <td style={{ ...tdStyle, fontFamily: 'JetBrains Mono,monospace', fontSize: '0.78rem', color: '#6B7280' }}>
                   {inv.inviterEmail}
                 </td>
-                <td style={{ ...tdStyle, color: 'rgba(255,255,255,0.6)', fontSize: '0.78rem' }}>
+                <td style={{ ...tdStyle, color: '#6B7280', fontSize: '0.78rem' }}>
                   {new Date(inv.createdAt).toLocaleDateString()}
                 </td>
-                <td style={{ ...tdStyle, color: 'rgba(255,255,255,0.6)', fontSize: '0.78rem' }}>
+                <td style={{ ...tdStyle, color: '#6B7280', fontSize: '0.78rem' }}>
                   {new Date(inv.expiresAt).toLocaleDateString()}
                 </td>
                 <td style={tdStyle}>
@@ -185,10 +185,10 @@ export default function AdminInvitesPage() {
 
 const inputStyle: React.CSSProperties = {
   padding: '0.5rem 0.75rem',
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.15)',
+  background: '#FFFFFF',
+  border: '1px solid #D1D5DB',
   borderRadius: 6,
-  color: '#FFF',
+  color: '#0F1419',
   fontSize: '0.88rem',
   fontFamily: 'inherit',
 };
@@ -219,16 +219,16 @@ const revokeBtnStyle: React.CSSProperties = {
 const emptyStyle: React.CSSProperties = {
   padding: '2rem',
   textAlign: 'center',
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: '#F9FAFB',
+  border: '1px solid #E5E7EB',
   borderRadius: 12,
-  color: 'rgba(255,255,255,0.6)',
+  color: '#6B7280',
 };
 
 const tableStyle: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: '#F9FAFB',
+  border: '1px solid #E5E7EB',
   borderRadius: 12,
   borderCollapse: 'separate',
   borderSpacing: 0,
@@ -240,13 +240,13 @@ const thStyle: React.CSSProperties = {
   padding: '0.55rem 0.85rem',
   fontSize: '0.78rem',
   fontWeight: 600,
-  color: 'rgba(255,255,255,0.6)',
-  borderBottom: '1px solid rgba(255,255,255,0.1)',
-  background: 'rgba(255,255,255,0.04)',
+  color: '#6B7280',
+  borderBottom: '1px solid #E5E7EB',
+  background: '#F9FAFB',
 };
 
 const tdStyle: React.CSSProperties = {
   padding: '0.6rem 0.85rem',
   fontSize: '0.88rem',
-  borderBottom: '1px solid rgba(255,255,255,0.06)',
+  borderBottom: '1px solid #F3F4F6',
 };

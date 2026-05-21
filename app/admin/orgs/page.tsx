@@ -67,7 +67,7 @@ export default function OrgsPage() {
       <h1 style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.6rem', margin: '0 0 0.5rem' }}>
         Your organizations
       </h1>
-      <p style={{ color: 'rgba(255,255,255,0.7)', margin: '0 0 1.5rem' }}>
+      <p style={{ color: '#4B5563', margin: '0 0 1.5rem' }}>
         Switch the active organization for your session. Only org-scoped data
         for the active org is visible.
       </p>
@@ -86,15 +86,15 @@ export default function OrgsPage() {
               justifyContent: 'space-between',
               alignItems: 'center',
               padding: '0.85rem 1rem',
-              background: m.isActive ? 'rgba(252,211,77,0.08)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${m.isActive ? 'rgba(252,211,77,0.3)' : 'rgba(255,255,255,0.1)'}`,
+              background: m.isActive ? 'rgba(252,211,77,0.08)' : '#F9FAFB',
+              border: `1px solid ${m.isActive ? 'rgba(252,211,77,0.3)' : '#E5E7EB'}`,
               borderRadius: 10,
             }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                 <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.05rem', fontWeight: 600 }}>
                   {m.orgName}
                 </div>
-                <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.55)' }}>
+                <div style={{ fontSize: '0.78rem', color: '#6B7280' }}>
                   {m.orgSlug ? <code style={{ fontFamily: 'JetBrains Mono,monospace' }}>{m.orgSlug}</code> : null}
                   {m.orgSlug ? ' · ' : ''}
                   {m.role}
@@ -146,8 +146,8 @@ const primaryBtnStyle: React.CSSProperties = {
 const emptyStyle: React.CSSProperties = {
   padding: '2rem',
   textAlign: 'center',
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: '#F9FAFB',
+  border: '1px solid #E5E7EB',
   borderRadius: 12,
-  color: 'rgba(255,255,255,0.6)',
+  color: '#6B7280',
 };
