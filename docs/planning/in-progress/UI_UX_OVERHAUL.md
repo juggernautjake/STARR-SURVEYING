@@ -190,7 +190,7 @@ all prior fixes landed. Only then does the plan move to `completed/`.
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **U-6** | Add bottom-padding to `.admin-layout__content` on mobile so FAB doesn't overlap content (single CSS rule, fixes ~30 pages) | 15 min |
+| **U-6** | Add bottom-padding to `.admin-layout__content` on mobile so FAB doesn't overlap content (single CSS rule, fixes ~30 pages) | 15 min | ✅ Shipped — `app/admin/styles/AdminLayout.css` mobile media queries now apply `padding-bottom: 96px` so the last element on every authenticated mobile page can scroll above the FAB. Two breakpoints touched (1023px + 599px). Pure CSS, no JS change. |
 | **U-7** | Stack Hub greeting card buttons vertically on mobile; persona dropdown full-width | 30 min |
 | **U-8** | Fix `/admin/invites` low-contrast text (form labels barely visible on white) | 20 min |
 | **U-9** | Fix `/admin/payouts` mobile: "Record payout" button wraps to 2 lines + Method dropdown overflows | 30 min |

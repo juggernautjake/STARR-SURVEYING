@@ -607,14 +607,19 @@
   .admin-layout__main { margin-left:0; }
   .admin-topbar { left:0; }
   .admin-topbar__hamburger { display:flex; }
-  .admin-layout__content { padding:1.25rem; }
+  /* FAB clearance: the floating .fab-menu pill is `position:fixed`
+   * at bottom-right with ~58px of height. Padding-bottom on the
+   * content area ensures the last scrollable element on every page
+   * can be fully reached without the FAB covering it. Audit U-6.
+   */
+  .admin-layout__content { padding:1.25rem 1.25rem 96px 1.25rem; }
   .fb { width:100%; border-radius:12px 12px 0 0; }
 }
 @media(max-width:599px) {
   .admin-topbar { padding:0 1rem; height:56px; }
   .admin-topbar__title { font-size:1rem; }
   .admin-topbar__role-badge { display:none; }
-  .admin-layout__content { padding:1rem; margin-top:56px; }
+  .admin-layout__content { padding:1rem 1rem 96px 1rem; margin-top:56px; }
   .admin-dashboard__cards { grid-template-columns:1fr; }
   .dashboard-cards { grid-template-columns:1fr; }
   .dashboard-card__metrics { flex-wrap:wrap; gap:.75rem; }
