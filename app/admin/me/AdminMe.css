@@ -265,6 +265,35 @@
   }
 }
 
+/* Mobile: greeting card stacks vertically. Without this, the actions
+ * row (Open timesheet / View schedule / Revert to old nav / Persona
+ * dropdown) takes ~60% of the row width, forcing the heading
+ * ("Good evening, Jacob") to wrap to 4 lines on a 390px viewport.
+ * Audit U-7.
+ */
+@media (max-width: 768px) {
+  .hub-greeting {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  .hub-greeting__actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .hub-greeting__actions .hub-btn,
+  .hub-greeting__actions .hub-greeting__nav-toggle {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .hub-greeting__persona {
+    width: 100%;
+  }
+  .hub-greeting__persona-select {
+    flex: 1 1 auto;
+  }
+}
+
 /* ── Panel 4: Personal tabs ──────────────────────────────────────── */
 
 .hub-tabs__strip {
