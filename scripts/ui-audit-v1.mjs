@@ -18,13 +18,23 @@ const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 900  },
 ];
 
-// Phase 1 fix targets only.
-const PAGES = [
-  { name: 'admin-receipts',  path: '/admin/receipts' },
-  { name: 'admin-reports',   path: '/admin/reports' },
-  { name: 'admin-work',      path: '/admin/work' },
-  { name: 'platform-home',   path: '/platform' },
-];
+// Audit fix targets (set via FOCUS env var, default = Phase 1+2 mix).
+const TARGETS = {
+  p1: [
+    { name: 'admin-receipts',  path: '/admin/receipts' },
+    { name: 'admin-reports',   path: '/admin/reports' },
+    { name: 'admin-work',      path: '/admin/work' },
+    { name: 'platform-home',   path: '/platform' },
+  ],
+  p2: [
+    { name: 'admin-hub',       path: '/admin/me' },
+    { name: 'admin-invites',   path: '/admin/invites' },
+    { name: 'admin-payouts',   path: '/admin/payouts' },
+    { name: 'admin-orgs',      path: '/admin/orgs' },
+  ],
+};
+const FOCUS = process.env.FOCUS || 'p1';
+const PAGES = TARGETS[FOCUS] || TARGETS.p1;
 
 async function signIn(page) {
   if (!EMAIL || !PASSWORD) return false;
