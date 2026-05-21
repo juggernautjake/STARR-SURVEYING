@@ -305,6 +305,7 @@ export default function PayoutsPage() {
           font-size: 0.88rem;
           cursor: pointer;
           font-family: inherit;
+          white-space: nowrap;
         }
         .payouts-btn-secondary {
           padding: 0.55rem 1.1rem;
@@ -410,6 +411,7 @@ export default function PayoutsPage() {
           display: flex;
           gap: 0.85rem;
           margin-bottom: 1rem;
+          flex-wrap: wrap;
         }
         .payouts-filters label {
           display: flex;
@@ -418,6 +420,8 @@ export default function PayoutsPage() {
           font-size: 0.78rem;
           color: #6B7280;
           font-weight: 600;
+          flex: 1 1 180px;
+          min-width: 0;
         }
         .payouts-filters select {
           padding: 0.4rem 0.6rem;
@@ -425,7 +429,9 @@ export default function PayoutsPage() {
           border-radius: 5px;
           font-size: 0.85rem;
           font-family: inherit;
-          min-width: 180px;
+          width: 100%;
+          max-width: 240px;
+          box-sizing: border-box;
         }
         .payouts-empty {
           background: #FFF;
