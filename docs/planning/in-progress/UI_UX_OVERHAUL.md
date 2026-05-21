@@ -213,7 +213,7 @@ all prior fixes landed. Only then does the plan move to `completed/`.
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **U-16** | Signup price formatter: `"$79.20mo"` → `"$79.20/mo"` (`/signup` mobile + tablet) | 15 min |
+| **U-16** | Signup price formatter: `"$79.20mo"` → `"$79.20/mo"` (`/signup` mobile + tablet) | 15 min | ✅ Shipped — `app/signup/page.tsx` `.signup-bundle__price` gains `white-space: nowrap` so the price + `/mo` stay on one line at any viewport width. Root cause: the bundle card uses `flex-direction: column` with `gap: 0.35rem`; on narrow widths the rendered string `$79.20/mo` was wrapping mid-string, putting the `/` at the start of a hidden second line and visually presenting as `"$79.20mo"`. Also swapped the hard-coded `#1D3095` to `var(--color-brand-navy)` to participate in the token system. |
 | **U-17** | `/about` team — add Cypriene's missing role/title | 5 min |
 | **U-18** | `/` marketing — fix distorted "Starr Surveying" wordmark logo in header | 30 min |
 | **U-19** | `/` mobile — "Why Starr Surveying?" 4-column stat block: keep 2-column on small mobile instead of collapsing to 1 | 30 min |

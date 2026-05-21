@@ -502,7 +502,15 @@ function SignupWizard() {
           background: #F0F4FF;
         }
         .signup-bundle__label { font-weight: 600; font-size: 0.95rem; }
-        .signup-bundle__price { font-family: 'Sora', sans-serif; font-size: 1.1rem; color: #1D3095; }
+        .signup-bundle__price {
+          font-family: 'Sora', sans-serif;
+          font-size: 1.1rem;
+          color: var(--color-brand-navy);
+          /* Prevent the "/" between $79.20 and /mo from wrapping to a new line
+           * on narrow viewports — the audit caught "$79.20mo" rendering when
+           * the slash slipped into a hidden line break. U-16. */
+          white-space: nowrap;
+        }
         .signup-bundle__tagline { font-size: 0.78rem; color: #6B7280; line-height: 1.35; }
         .signup-total {
           margin-top: 1rem; padding: 0.75rem 1rem;
