@@ -107,9 +107,16 @@
 }
 
 .logo {
+  /* Source PNG is 3014×618 (≈ 4.88:1). On narrow viewports the max-height
+   * scaling computes a width wider than the viewport, so without max-width
+   * the logo would overflow horizontally and look stretched/clipped (the
+   * audit caught this on mobile as a distorted wordmark). aspect-ratio
+   * pins the ratio for browsers that may otherwise reflow it. U-18. */
   max-height: var(--logo-max-height);
+  max-width: 100%;
   width: auto;
   height: auto;
+  aspect-ratio: 3014 / 618;
   object-fit: contain;
   pointer-events: auto;
 }
