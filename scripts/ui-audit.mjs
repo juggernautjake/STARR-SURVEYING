@@ -96,11 +96,14 @@ async function signIn(page) {
   if (!EMAIL || !PASSWORD) return false;
   console.log(`  ↻ Signing in as ${EMAIL}...`);
   await page.goto(`${BASE}/admin/login`, { waitUntil: 'networkidle', timeout: 30000 });
-  // Locate the email + password inputs by placeholder.
+  // Fill the email + password fields, then submit by pressing Enter on
+  // the password field. Using a button selector here is fragile
+  // because the login page has both a "Sign in with Google" and a
+  // "Sign In" (email+password) button — submit-via-Enter avoids that.
   await page.locator('input[type="email"], input[name="email"]').first().fill(EMAIL);
-  await page.locator('input[type="password"], input[name="password"]').first().fill(PASSWORD);
-  await page.locator('button[type="submit"], button:has-text("Sign In")').first().click();
-  // Wait for redirect away from /admin/login OR error message
+  const passwordInput = page.locator('input[type="password"], input[name="password"]').first();
+  await passwordInput.fill(PASSWORD);
+  await passwordInput.press('Enter');
   try {
     await page.waitForURL((url) => !url.toString().includes('/admin/login'), { timeout: 15000 });
     console.log(`  ✓ Signed in, landed on ${page.url()}`);
