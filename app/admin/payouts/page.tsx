@@ -39,11 +39,11 @@ const METHOD_COLORS: Record<string, string> = {
   venmo:   '#3D95CE',
   cashapp: '#00D632',
   stripe:  '#635BFF',
-  check:   '#6B7280',
-  cash:    '#10B981',
-  ach:     '#1D3095',
+  check:   'var(--color-text-tertiary)',
+  cash:    'var(--color-success)',
+  ach:     'var(--color-brand-navy)',
   zelle:   '#6D1ED4',
-  other:   '#9CA3AF',
+  other:   'var(--color-text-muted)',
 };
 
 function fmtMoney(cents: number): string {
@@ -218,7 +218,7 @@ export default function PayoutsPage() {
         </div>
         <div className="payouts-by-method">
           {Object.entries(byMethod).sort((a, b) => b[1] - a[1]).map(([method, cents]) => (
-            <span key={method} className="payouts-pill" style={{ background: METHOD_COLORS[method] ?? '#9CA3AF' }}>
+            <span key={method} className="payouts-pill" style={{ background: METHOD_COLORS[method] ?? 'var(--color-text-muted)' }}>
               {method}: {fmtMoney(cents)}
             </span>
           ))}
@@ -266,7 +266,7 @@ export default function PayoutsPage() {
                 <td>{new Date(p.paidAt).toLocaleDateString()}</td>
                 <td>{p.userEmail}</td>
                 <td>
-                  <span className="payouts-pill payouts-pill-sm" style={{ background: METHOD_COLORS[p.method] ?? '#9CA3AF' }}>
+                  <span className="payouts-pill payouts-pill-sm" style={{ background: METHOD_COLORS[p.method] ?? 'var(--color-text-muted)' }}>
                     {p.method}
                   </span>
                 </td>
