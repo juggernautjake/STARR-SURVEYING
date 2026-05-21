@@ -90,15 +90,15 @@ export async function GET(req: NextRequest): Promise<Response> {
     case 'hours': {
       const { data } = await supabaseAdmin
         .from('job_time_entries')
-        .select('id, user_email, job_id, clock_in_at, clock_out_at, duration_minutes, billable')
+        .select('id, user_email, job_id, start_time, end_time, duration_minutes, billable')
         .eq('org_id', orgId)
-        .gte('clock_in_at', fromIso)
-        .lte('clock_in_at', toIso);
+        .gte('start_time', fromIso)
+        .lte('start_time', toIso);
       csv = rowsToCsv(
         ['id', 'user_email', 'job_id', 'clock_in', 'clock_out', 'duration_minutes', 'billable'],
         (data ?? []).map((r: Record<string, unknown>) => [
           r.id, r.user_email, r.job_id,
-          r.clock_in_at, r.clock_out_at, r.duration_minutes, r.billable,
+          r.start_time, r.end_time, r.duration_minutes, r.billable,
         ]),
       );
       break;

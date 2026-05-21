@@ -293,10 +293,10 @@ async function loadJobs(orgId: string, fromIso: string, toIso: string, warnings:
 async function loadHours(orgId: string, fromIso: string, toIso: string, warnings: string[], filter: ReportFilter) {
   let query = supabaseAdmin
     .from('job_time_entries')
-    .select('id, user_email, duration_minutes, clock_in_at, clock_out_at, billable, job_id')
+    .select('id, user_email, duration_minutes, start_time, end_time, billable, job_id')
     .eq('org_id', orgId)
-    .gte('clock_in_at', fromIso)
-    .lte('clock_in_at', toIso);
+    .gte('start_time', fromIso)
+    .lte('start_time', toIso);
   if (filter.employeeEmail) {
     query = query.eq('user_email', filter.employeeEmail);
   }
@@ -315,13 +315,13 @@ async function loadHours(orgId: string, fromIso: string, toIso: string, warnings
   type Entry = {
     user_email: string;
     duration_minutes: number | null;
-    clock_in_at: string;
+    start_time: string;
   };
 
   const byEmployeeWeek = new Map<string, Map<string, number>>();
   for (const e of (entries ?? []) as Entry[]) {
     if (!e.duration_minutes || e.duration_minutes <= 0) continue;
-    const weekKey = isoWeekKey(new Date(e.clock_in_at));
+    const weekKey = isoWeekKey(new Date(e.start_time));
     const bucket = byEmployeeWeek.get(e.user_email) ?? new Map<string, number>();
     bucket.set(weekKey, (bucket.get(weekKey) ?? 0) + e.duration_minutes);
     byEmployeeWeek.set(e.user_email, bucket);
