@@ -56,7 +56,7 @@ export default function PayProgressionPage() {
   const [seniority, setSeniority] = useState<SeniorityBracket[]>([]);
   const [credentials, setCredentials] = useState<CredentialBonus[]>([]);
   const [xpMilestones, setXpMilestones] = useState<XpMilestone[]>([]);
-  const [earnedCreds, setEarnedCreds] = useState<{ credential_key: string }[]>([]);
+  const [earnedCreds, setEarnedCreds] = useState<{ credential_key: string; earned_date?: string }[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -321,29 +321,66 @@ export default function PayProgressionPage() {
         </div>
       </div>
 
-      {/* Credentials */}
+      {/* Credentials gallery \u2014 P-3 of PAY_PROGRESSION_OVERHAUL.md.
+       * Replaces the vertical flex list with a responsive grid of badge
+       * cards. Earned badges render in full color with the earned date
+       * below; locked badges are grayscaled with a "Earn to unlock" hint
+       * so the bonus impact is visible before earning. */}
       <div className="pay-prog__section">
-        <h3 className="pay-prog__section-title">&#x1F4DC; Credential Bonuses</h3>
+        <div className="pay-prog__section-header">
+          <h3 className="pay-prog__section-title">&#x1F4DC; Credential Bonuses</h3>
+          <span className="pay-prog__section-count">
+            {earnedCreds.length} of {credentials.length} earned \u00B7 cap +$8.00/hr
+          </span>
+        </div>
         <p className="pay-prog__section-desc">
           Each certification or credential you earn adds to your hourly rate. Total credential
           bonus is capped at <strong>$8.00/hr</strong> to keep compensation sustainable.
         </p>
-        <div className="pay-prog__creds-grid">
-          {credentials.map(c => {
-            const earned = earnedCredKeys.has(c.credential_key);
-            return (
-              <div key={c.credential_key} className={`pay-prog__cred-card ${earned ? 'pay-prog__cred-card--earned' : ''}`}>
-                <div className="pay-prog__cred-status">
-                  {earned ? '\u2705' : '\u26AA'}
+        <div className="pay-prog__badges">
+          {credentials
+            .sort((a, b) => Number(b.bonus_per_hour) - Number(a.bonus_per_hour))
+            .map(c => {
+              const earnedEntry = earnedCreds.find(e => e.credential_key === c.credential_key);
+              const earned = !!earnedEntry;
+              const earnedDate = earnedEntry?.earned_date
+                ? new Date(earnedEntry.earned_date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+                : null;
+              return (
+                <div
+                  key={c.credential_key}
+                  className={`pay-prog__badge ${earned ? 'pay-prog__badge--earned' : 'pay-prog__badge--locked'}`}
+                  title={earned ? `Earned ${earnedDate || ''}` : `Earn to unlock +$${Number(c.bonus_per_hour).toFixed(2)}/hr`}
+                >
+                  <div className="pay-prog__badge-medal" aria-hidden="true">
+                    {earned ? (
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="8" r="6" />
+                        <polyline points="8.21 13.89 7 22 12 19 17 22 15.79 13.88" />
+                      </svg>
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="4" y="11" width="16" height="10" rx="2" />
+                        <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="pay-prog__badge-body">
+                    <span className="pay-prog__badge-name">{c.label || c.credential_key}</span>
+                    <span className="pay-prog__badge-type">{c.credential_type}</span>
+                  </div>
+                  <div className="pay-prog__badge-meta">
+                    <span className="pay-prog__badge-bonus">+${Number(c.bonus_per_hour).toFixed(2)}/hr</span>
+                    {earned && earnedDate && (
+                      <span className="pay-prog__badge-date">Earned {earnedDate}</span>
+                    )}
+                    {!earned && (
+                      <span className="pay-prog__badge-hint">Locked</span>
+                    )}
+                  </div>
                 </div>
-                <div className="pay-prog__cred-info">
-                  <span className="pay-prog__cred-name">{c.label || c.credential_key}</span>
-                  <span className="pay-prog__cred-type">{c.credential_type}</span>
-                </div>
-                <span className="pay-prog__cred-bonus">+${c.bonus_per_hour.toFixed(2)}/hr</span>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
       </div>
 
