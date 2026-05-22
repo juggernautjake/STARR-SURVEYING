@@ -88,6 +88,114 @@
   overflow: auto;
 }
 
+/* C-3: tab strip in the modal toolbar. Each tab pill identifies a
+ * calculator model; clicking switches the active emulator. */
+.calc-tabstrip {
+  display: flex;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+.calc-tabstrip__tab {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  padding: 0.3rem 0.6rem;
+  border: var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.calc-tabstrip__tab:hover {
+  border-color: var(--color-brand-navy);
+  background: var(--color-bg-hover);
+}
+.calc-tabstrip__tab--active {
+  border-color: var(--color-brand-navy);
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+}
+.calc-tabstrip__brand {
+  font-family: var(--font-heading);
+  font-size: 0.6rem;
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  line-height: 1;
+}
+.calc-tabstrip__tab--active .calc-tabstrip__brand {
+  color: rgba(255, 255, 255, 0.6);
+}
+.calc-tabstrip__label {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+.calc-tabstrip__tab--active .calc-tabstrip__label {
+  color: var(--color-text-on-brand);
+}
+
+/* Phase-1 placeholder body — replaced per-model in Phase 2+ */
+.calc-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  height: 100%;
+  gap: 0.5rem;
+}
+.calc-placeholder__brand {
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+.calc-placeholder__title {
+  font-family: var(--font-heading);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  color: var(--color-brand-navy);
+  margin: 0;
+}
+.calc-placeholder__phase {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+.calc-placeholder__phase code {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  background: var(--color-bg-subtle);
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--radius-sm);
+}
+.calc-placeholder__hint {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--color-text-tertiary);
+  max-width: 280px;
+  line-height: 1.4;
+}
+.calc-placeholder__hint kbd {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  background: var(--color-bg-subtle);
+  border: var(--border-light);
+  border-bottom-width: 2px;
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--radius-sm);
+}
+
 /* Mobile: when the viewport is too narrow to drag freely, center-lock
  * the modal and let it scroll vertically inside. */
 @media (max-width: 480px) {

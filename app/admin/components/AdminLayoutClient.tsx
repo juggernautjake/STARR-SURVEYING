@@ -17,6 +17,7 @@ import CommandPaletteProvider from './nav/CommandPaletteProvider';
 import IconRail from './nav/IconRail';
 import AdminPageHeader from './nav/AdminPageHeader';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
+import { CalculatorProvider } from './calculator/CalculatorProvider';
 
 // Layout-global CSS only. Route-specific stylesheets are imported from
 // the corresponding route segment layout (e.g. app/admin/research/layout.tsx)
@@ -143,6 +144,7 @@ function Inner({ children }: { children: React.ReactNode }) {
     <ErrorProvider>
       <ToastProvider>
       <CommandPaletteProvider>
+      <CalculatorProvider>
       <div className={`admin-layout${navV2 ? ' admin-layout--nav-v2' : ''}`}>
         {navV2 && <IconRail />}
         {/* AdminSidebar is the mobile drawer (and the only nav at desktop
@@ -170,6 +172,7 @@ function Inner({ children }: { children: React.ReactNode }) {
           <Fieldbook />
         </FloatingActionMenu>
       </div>
+      </CalculatorProvider>
       </CommandPaletteProvider>
     </ToastProvider>
     </ErrorProvider>
