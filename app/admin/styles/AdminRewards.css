@@ -1196,6 +1196,67 @@
   background: var(--color-bg-hover);
 }
 
+/* P-14: system config row (key | description | numeric value | save) */
+.pay-prog__config-row {
+  display: grid;
+  grid-template-columns: 1fr 140px auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  background: var(--color-bg-card);
+  border: var(--border-light);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast);
+}
+.pay-prog__config-row--dirty {
+  border-color: var(--color-brand-navy);
+  box-shadow: 0 0 0 2px rgba(29, 48, 149, 0.1);
+}
+.pay-prog__config-key-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.pay-prog__config-key {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: var(--weight-semibold);
+  color: var(--color-brand-navy);
+  background: var(--color-bg-hover);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  align-self: flex-start;
+}
+.pay-prog__config-desc {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  color: var(--color-text-tertiary);
+  line-height: 1.35;
+}
+.pay-prog__config-value {
+  height: 32px;
+  padding: 0 0.6rem;
+  border: var(--border-normal);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-input);
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+  text-align: right;
+  width: 100%;
+  box-sizing: border-box;
+}
+.pay-prog__config-value:focus-visible {
+  outline: none;
+  border-color: var(--color-brand-navy);
+  box-shadow: var(--shadow-focus);
+}
+@media (max-width: 600px) {
+  .pay-prog__config-row { grid-template-columns: 1fr; }
+}
+
 /* P-13: XP milestone admin manager (table-style editor) */
 .pay-prog__xp-manager {
   margin-top: 1.5rem;

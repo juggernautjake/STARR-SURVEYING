@@ -212,15 +212,18 @@ export default function PayProgressionPage() {
       )}
 
       {isAdmin && editMode && (
-        <div className="pay-prog-edit-banner" role="status">
-          <span className="pay-prog-edit-banner__dot" aria-hidden="true" />
-          <span>
-            <strong>Admin edit mode is on.</strong>{' '}
-            Pencil icons next to each value let you edit work-type rates, role tiers,
-            seniority brackets, credentials, XP milestones, and system caps. Changes save through
-            the rewards API (Phase 3 slices P-10–P-14 wire each one up).
-          </span>
-        </div>
+        <>
+          <div className="pay-prog-edit-banner" role="status">
+            <span className="pay-prog-edit-banner__dot" aria-hidden="true" />
+            <span>
+              <strong>Admin edit mode is on.</strong>{' '}
+              Pencil icons next to each value let you edit work-type rates, role tiers,
+              seniority brackets, credentials, XP milestones, and system caps. Changes save through
+              the pay-config API.
+            </span>
+          </div>
+          <SystemConfigPanel />
+        </>
       )}
 
       {/* Hero: "You are here" — P-1 of PAY_PROGRESSION_OVERHAUL.md.
@@ -2291,6 +2294,106 @@ function NewXpMilestoneRow({ onDone, onCancel }: { onDone: () => void; onCancel:
         <button type="button" className="btn btn--sm btn--primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Add'}</button>
         <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={onCancel}>Cancel</button>
       </div>
+    </div>
+  );
+}
+
+// ─── System config panel (P-14) ─────────────────────────────────────────────
+// Lists all pay_system_config rows. Each row's `value` is editable inline.
+// Keys are stable so we don't expose POST/DELETE. Admin-only.
+
+interface SystemConfigEntry {
+  key: string;
+  value: number;
+  description: string | null;
+}
+
+function SystemConfigPanel() {
+  const [entries, setEntries] = useState<SystemConfigEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    try {
+      const res = await fetch('/api/admin/pay-config/system');
+      if (res.ok) {
+        const data = await res.json() as { config: SystemConfigEntry[] };
+        setEntries(data.config || []);
+      }
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  if (loading) {
+    return <div className="pay-prog__section">Loading system caps…</div>;
+  }
+
+  return (
+    <div className="pay-prog__section">
+      <div className="pay-prog__section-header">
+        <h3 className="pay-prog__section-title">⚙️ System Caps & Constants</h3>
+        <span className="pay-prog__section-count">{entries.length} keys · admin-only</span>
+      </div>
+      <p className="pay-prog__section-desc">
+        Global caps that the calculation honors. These are read-only references on the public page;
+        edits here apply immediately to everyone&apos;s effective rate.
+      </p>
+      <div className="pay-prog__xp-manager-list">
+        {entries.map(e => <SystemConfigRow key={e.key} entry={e} onSaved={load} />)}
+      </div>
+    </div>
+  );
+}
+
+function SystemConfigRow({ entry, onSaved }: { entry: SystemConfigEntry; onSaved: () => void }) {
+  const [value, setValue] = useState<number>(entry.value);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    setValue(entry.value);
+    setDirty(false);
+  }, [entry.key, entry.value]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/pay-config/system', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: entry.key, value: Number(value) }),
+      });
+      if (res.ok) {
+        setDirty(false);
+        onSaved();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        window.alert(body.error || 'Failed to save');
+      }
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className={`pay-prog__config-row ${dirty ? 'pay-prog__config-row--dirty' : ''}`}>
+      <div className="pay-prog__config-key-block">
+        <code className="pay-prog__config-key">{entry.key}</code>
+        {entry.description && <span className="pay-prog__config-desc">{entry.description}</span>}
+      </div>
+      <input
+        type="number"
+        step="0.01"
+        className="pay-prog__config-value"
+        value={value}
+        onChange={e => { setValue(Number(e.target.value)); setDirty(true); }}
+      />
+      <button
+        type="button"
+        className="btn btn--sm btn--primary"
+        disabled={saving || !dirty}
+        onClick={save}
+      >
+        {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
+      </button>
     </div>
   );
 }
