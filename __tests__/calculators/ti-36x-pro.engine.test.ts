@@ -160,6 +160,45 @@ describe('TI-36X Pro — memory + history (C-8)', () => {
   });
 });
 
+describe('TI-36X Pro — surveying functions (C-10)', () => {
+  it('→DMS shifts lastAnswer into DMS notation', () => {
+    let s: Ti36xState = { ...initialState(), lastAnswer: 12.51625, result: '12.51625' };
+    s = press(s, '2nd', 'pct');
+    expect(s.result).toBe('12°30\'58.50"');
+  });
+
+  it('F↔D round-trips a DMS string back to decimal degrees', () => {
+    let s: Ti36xState = { ...initialState(), result: '12°30\'58.50"' };
+    s = press(s, '2nd', 'frac');
+    expect(Number(s.result)).toBeCloseTo(12.51625, 6);
+    expect(s.lastAnswer).toBeCloseTo(12.51625, 6);
+  });
+
+  it('pol(3, 4) magnitude = 5', () => {
+    let s: Ti36xState = { ...initialState(), entry: 'pol(3,4)' };
+    s = evaluate(s);
+    expect(Number(s.result)).toBeCloseTo(5, 12);
+  });
+
+  it('atan2(1, 1) in DEG = 45', () => {
+    let s: Ti36xState = { ...initialState(), entry: 'atan2(1,1)' };
+    s = evaluate(s);
+    expect(Number(s.result)).toBeCloseTo(45, 12);
+  });
+
+  it('rec(10, 60) x-component in DEG = 5', () => {
+    let s: Ti36xState = { ...initialState(), entry: 'rec(10,60)' };
+    s = evaluate(s);
+    expect(Number(s.result)).toBeCloseTo(5, 6);
+  });
+
+  it('mod(10, 3) = 1', () => {
+    let s: Ti36xState = { ...initialState(), entry: 'mod(10,3)' };
+    s = evaluate(s);
+    expect(Number(s.result)).toBeCloseTo(1, 12);
+  });
+});
+
 describe('TI-36X Pro — serialize / hydrate round-trip (C-9)', () => {
   it('serialize drops transient flags', () => {
     const s: Ti36xState = { ...initialState(), shiftActive: true, pendingMemOp: 'sto' };

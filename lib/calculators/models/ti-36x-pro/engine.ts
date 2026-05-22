@@ -222,6 +222,27 @@ export function dispatch(state: Ti36xState, action: Action): Ti36xState {
   }
   if (id === 'eq' || id === 'enter') return evaluate(state);
 
+  // Surveying conversions (C-10).
+  // `→DMS` is the shifted action on the `pct` key — show lastAnswer in
+  // degrees-minutes-seconds notation (surveyor standard 12°30'45.6").
+  // `frac` shifted to `F↔D` is the inverse: take a DMS-formatted lastResult
+  // string back to decimal degrees so chained calculations work.
+  if (id === 'pct' && state.shiftActive) {
+    return { ...state, result: M.formatDms(state.lastAnswer, 2), shiftActive: false };
+  }
+  if (id === 'frac' && state.shiftActive) {
+    // Try to read the current result as a DMS string; fall back to no-op.
+    const dmsMatch = state.result.match(/^(-?\d+)°(\d+)'([\d.]+)"$/);
+    if (dmsMatch) {
+      const deg = Number(dmsMatch[1]);
+      const min = Number(dmsMatch[2]);
+      const sec = Number(dmsMatch[3]);
+      const decimal = M.dmsToDeg(deg, min, sec);
+      return { ...state, result: M.formatNorm(decimal, state.displayDigits), lastAnswer: decimal, shiftActive: false };
+    }
+    return { ...state, shiftActive: false };
+  }
+
   // Token append
   const mapping = APPEND[id];
   if (mapping) {
@@ -248,11 +269,19 @@ type Token =
   | { type: 'comma' }
   | { type: 'fact' };
 
+/** Single-argument functions — popped as `func(x)` against the RPN stack. */
 const FUNCTIONS = new Set([
   'sin', 'cos', 'tan', 'asin', 'acos', 'atan',
   'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
   'log', 'ln', 'exp', 'sqrt', 'cbrt', 'abs',
+  'dms',     // → DMS-formatted string (returns the decimal-deg input unchanged but flags result)
+  'fromdms', // dmsToDeg of a packed value (rare; built-in for completeness)
 ]);
+
+/** Two-argument surveying functions: `pol(x, y) = magnitude` and
+ *  `rec(r, θ) = x-component`. The companion y / theta lands in
+ *  `lastAnswer` via memory slot t (per TI-36X Pro convention). */
+const TWO_ARG_FUNCTIONS = new Set(['pol', 'rec', 'atan2', 'mod']);
 const PRECEDENCE: Record<string, number> = { '+': 2, '-': 2, '*': 3, '/': 3, '^': 4 };
 const RIGHT_ASSOC = new Set(['^']);
 
@@ -288,12 +317,13 @@ function tokenize(input: string, ans: number): Token[] {
       continue;
     }
 
-    // Functions / multi-char identifiers
+    // Functions / multi-char identifiers — start with a letter, may
+    // contain digits after the first char (e.g. `atan2`, `log10`).
     if (/[a-zA-Z_]/.test(c)) {
-      let j = i;
-      while (j < s.length && /[a-zA-Z_]/.test(s[j])) j++;
+      let j = i + 1;
+      while (j < s.length && /[a-zA-Z0-9_]/.test(s[j])) j++;
       const word = s.slice(i, j).toLowerCase();
-      if (!FUNCTIONS.has(word)) throw new Error('Unknown function');
+      if (!FUNCTIONS.has(word) && !TWO_ARG_FUNCTIONS.has(word)) throw new Error('Unknown function');
       tokens.push({ type: 'func', name: word });
       i = j;
       continue;
@@ -392,6 +422,25 @@ function applyFunc(name: string, x: number, mode: M.AngleMode): number {
     case 'sqrt': return M.sqrt(x);
     case 'cbrt': return M.cbrt(x);
     case 'abs':  return M.abs(x);
+    case 'dms':     return x;             // formatting-only marker — evaluator passes through
+    case 'fromdms': return x;             // intentionally a no-op for single-arg usage
+    default: throw new Error(`Unknown function ${name}`);
+  }
+}
+
+function applyFunc2(name: string, a: number, b: number, mode: M.AngleMode): number {
+  switch (name) {
+    case 'pol': {
+      // (x, y) → magnitude. Angle goes elsewhere — returning magnitude here
+      // matches what users expect on the display; θ via atan2 is one more call.
+      return Math.sqrt(a * a + b * b);
+    }
+    case 'rec': {
+      // (r, θ) → x. y component via r·sin(θ) is a separate expression.
+      return a * Math.cos(M.toRadians(b, mode));
+    }
+    case 'atan2': return M.atan2(a, b, mode);
+    case 'mod':   return a - Math.floor(a / b) * b;
     default: throw new Error(`Unknown function ${name}`);
   }
 }
@@ -419,6 +468,12 @@ export function evalRpn(rpn: Token[], mode: M.AngleMode): number {
       continue;
     }
     if (t.type === 'func') {
+      if (TWO_ARG_FUNCTIONS.has(t.name)) {
+        const b = stack.pop(); const a = stack.pop();
+        if (a === undefined || b === undefined) throw new Error('Syntax');
+        stack.push(applyFunc2(t.name, a, b, mode));
+        continue;
+      }
       const a = stack.pop();
       if (a === undefined) throw new Error('Syntax');
       stack.push(applyFunc(t.name, a, mode));
