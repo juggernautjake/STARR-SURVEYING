@@ -11,15 +11,20 @@
 'use client';
 
 import { Keypad } from '../Keypad';
-import { Display } from '../Display';
+import { NaturalDisplay } from '../NaturalDisplay';
 import { CASIO_FX991_KEYPAD, CASIO_FX991_GRID } from '@/lib/calculators/models/casio-fx-991/keypad-data';
 
 export function CasioFx991() {
+  // Demo expression so the C-12 layout review can see all three
+  // natural-display patterns at once. Replaced with the live entry
+  // buffer once C-13's engine wires up.
+  const demoExpression = 'sqrt(3^2+4^2)+frac{1}{2}';
+
   return (
     <div className="calc-model calc-model--casio-fx991">
-      <Display
-        entry=" "
-        result="0"
+      <NaturalDisplay
+        expression={demoExpression}
+        result="5.5"
         statusBadges={['DEG', 'NORM']}
       />
       <Keypad

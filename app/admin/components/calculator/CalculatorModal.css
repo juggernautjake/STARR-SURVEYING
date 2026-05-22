@@ -397,6 +397,110 @@
   font-size: 0.75rem;
 }
 
+/* Natural display (C-12) — stacked-typography renderer for Casio's
+ * "natural" entry mode. Sits between the simple LCD and a full LaTeX
+ * renderer: handles superscript exponents, vinculum-marked square
+ * roots, and stacked fractions. Other expressions fall through as
+ * plain text. */
+.calc-natural {
+  background: linear-gradient(180deg, #c8d0c5 0%, #b8c0b3 100%);
+  color: #0a0d08;
+  padding: 0.5rem 0.65rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  border: 1px solid #6f7867;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.calc-natural__status {
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: rgba(10, 13, 8, 0.65);
+  text-transform: uppercase;
+}
+.calc-natural__entry {
+  font-size: 0.9rem;
+  min-height: 26px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1;
+}
+.calc-natural__result-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+.calc-natural__result {
+  flex: 1;
+  text-align: right;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.calc-natural__copy {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(10, 13, 8, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.25);
+  color: #0a0d08;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-fast);
+}
+.calc-natural__copy:hover { background: rgba(255, 255, 255, 0.45); }
+
+/* Stacked-typography primitives */
+.calc-natural__sqrt {
+  display: inline-flex;
+  align-items: stretch;
+}
+.calc-natural__sqrt-sign {
+  align-self: flex-start;
+  font-size: 1.1em;
+  line-height: 1;
+}
+.calc-natural__sqrt-body {
+  border-top: 1.5px solid currentColor;
+  padding: 0 0.15em;
+  margin-top: 0.05em;
+}
+.calc-natural__frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: middle;
+  margin: 0 0.1em;
+  line-height: 1;
+}
+.calc-natural__frac-num {
+  border-bottom: 1.5px solid currentColor;
+  padding: 0 0.25em 1px;
+  font-size: 0.85em;
+}
+.calc-natural__frac-den {
+  padding: 1px 0.25em 0;
+  font-size: 0.85em;
+}
+.calc-natural__sup {
+  font-size: 0.7em;
+  vertical-align: super;
+  line-height: 0;
+}
+
 /* Casio fx-991ES PLUS palette override — silver body, dark-blue header
  * convention, yellow SHIFT labels + red ALPHA labels. */
 .calc-model--casio-fx991 {
