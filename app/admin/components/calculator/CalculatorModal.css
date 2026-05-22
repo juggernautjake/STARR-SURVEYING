@@ -609,6 +609,40 @@
     transform: translate(-50%, -50%);
     max-width: calc(100vw - 24px);
     max-height: calc(100vh - 24px);
+    /* Also override the inline width so the device's preferred px width
+     * doesn't push past the viewport on a 360-380px phone. */
+    width: calc(100vw - 24px) !important;
   }
   .calc-modal__header { cursor: default; }
+  /* C-23: shrink display + key fonts so the full keypad fits a small
+   * phone without horizontal scroll. */
+  .calc-display, .calc-natural {
+    min-height: 64px;
+    padding: 0.4rem 0.5rem;
+  }
+  .calc-display__result, .calc-natural__result { font-size: 1.15rem; }
+  .calc-key { font-size: 0.62rem; padding: 0.05rem 0.15rem; }
+  .calc-key--digit { font-size: 0.78rem; }
+  .calc-key--op, .calc-key--eval { font-size: 0.78rem; }
+  .calc-key__shift-label { font-size: 0.45rem; }
+  /* Touch target — minimum 30px x 30px even with reduced font. */
+  .calc-keypad { gap: 3px; }
+}
+
+/* C-23: very narrow phones (< 360px) — drop the shift labels entirely
+ * so the primary key labels stay legible. Users on such small screens
+ * who need shift functions can rotate to landscape. */
+@media (max-width: 360px) {
+  .calc-key__shift-label { display: none; }
+  .calc-key { padding: 0; }
+}
+
+/* C-23: disable the default browser long-press selection on keypad
+ * buttons so taps feel instant (no callout / context menu flash). */
+.calc-keypad {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
