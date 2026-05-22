@@ -17,6 +17,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { CalculatorModal } from './CalculatorModal';
 import { Ti36xPro } from './models/Ti36xPro';
+import { Ti30xsMultiView } from './models/Ti30xsMultiView';
 import { CasioFx991 } from './models/CasioFx991';
 import { CasioFx115 } from './models/CasioFx115';
 import { Hp35s } from './models/Hp35s';
@@ -216,6 +217,7 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
 function renderModel(model: ModelDef) {
   // C-6+ replaces each placeholder with the real shell as phases ship.
   if (model.key === 'ti-36x-pro') return <Ti36xPro />;
+  if (model.key === 'ti-30xs-multiview') return <Ti30xsMultiView />;
   if (model.key === 'casio-fx-991') return <CasioFx991 />;
   if (model.key === 'casio-fx-115') return <CasioFx115 />;
   if (model.key === 'hp-35s') return <Hp35s />;
