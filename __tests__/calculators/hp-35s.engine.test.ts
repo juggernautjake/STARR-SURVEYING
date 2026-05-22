@@ -126,6 +126,37 @@ describe('HP 35s RPN — constants + mode', () => {
   });
 });
 
+describe('HP 35s — blue (g-shift) functions (C-17)', () => {
+  it('gshift + sin → sinh', () => {
+    const s = press(initialState(), 'n1', 'gshift', 'sin');
+    expect(s.stack.x).toBeCloseTo(Math.sinh(1), 12);
+  });
+
+  it('gshift + cos → cosh', () => {
+    const s = press(initialState(), 'n1', 'gshift', 'cos');
+    expect(s.stack.x).toBeCloseTo(Math.cosh(1), 12);
+  });
+
+  it('gshift + tan → tanh', () => {
+    const s = press(initialState(), 'n1', 'gshift', 'tan');
+    expect(s.stack.x).toBeCloseTo(Math.tanh(1), 12);
+  });
+
+  it('gshift + sqrt → cube root', () => {
+    const s = press(initialState(), 'n2', 'n7', 'gshift', 'sqrt');
+    expect(s.stack.x).toBeCloseTo(3, 12);
+  });
+
+  it('►H.MS then gshift+►HR round-trips a decimal-degree value', () => {
+    let s = press(initialState(), 'n1', 'n2', 'dot', 'n5', 'n1', 'n6', 'n2', 'n5'); // 12.51625
+    s = press(s, 'enter');
+    s = press(s, 'dms');                  // ►H.MS — result shows DMS
+    expect(s.result).toBe('12°30\'58.50"');
+    s = press(s, 'gshift', 'dms');        // ►HR — back to decimal
+    expect(s.stack.x).toBeCloseTo(12.51625, 6);
+  });
+});
+
 describe('HP 35s — serialize/hydrate', () => {
   it('round-trip preserves stack, lastX, history, mode, memory', () => {
     let s = press(initialState(), 'n3', 'enter', 'n5', 'add');

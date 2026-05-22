@@ -220,6 +220,22 @@ export function dispatch(state: Hp35sState, action: Action): Hp35sState {
     return { ...state, angleMode: next, shiftActive: null };
   }
   if (id === 'dms') {
+    if (shift === 'g') {
+      // ►HR (C-17): the inverse of ►H.MS. Parse the current display as a
+      // DMS string and write the decimal-degree value back into X.
+      const m = state.result.match(/^(-?\d+)°(\d+)'([\d.]+)"$/);
+      if (m) {
+        const value = M.dmsToDeg(Number(m[1]), Number(m[2]), Number(m[3]));
+        return {
+          ...state,
+          stack: { ...state.stack, x: value },
+          result: formatX(value, state.displayMode, state.displayDigits),
+          shiftActive: null,
+        };
+      }
+      // No DMS on display — leave state unchanged but clear shift.
+      return { ...state, shiftActive: null };
+    }
     // ►H.MS — convert X to DMS notation in the result. Stack X stays decimal
     // for chained calcs; just format the display.
     const committed = commitEntry(state);
@@ -384,20 +400,28 @@ function binaryOp(state: Hp35sState, op: '+' | '-' | '*' | '/' | '^' | 'mod', la
 interface UnaryDef { fn: (x: number, mode: M.AngleMode) => number; label: string; }
 
 function unaryFor(id: string, shift: 'f' | 'g' | null): UnaryDef | null {
-  // Map keys (with shift) to math functions.
+  // Map keys (with shift) to math functions. C-17 added the g-shift
+  // (blue / right-shift) column for hyperbolic trig.
   const TABLE: Record<string, { primary?: UnaryDef; f?: UnaryDef; g?: UnaryDef }> = {
-    sin:   { primary: { fn: M.sin, label: 'sin' },   f: { fn: M.asin, label: 'sin⁻¹' } },
-    cos:   { primary: { fn: M.cos, label: 'cos' },   f: { fn: M.acos, label: 'cos⁻¹' } },
-    tan:   { primary: { fn: M.tan, label: 'tan' },   f: { fn: M.atan, label: 'tan⁻¹' } },
+    sin:   { primary: { fn: M.sin, label: 'sin' },
+             f:       { fn: M.asin, label: 'sin⁻¹' },
+             g:       { fn: (x) => M.sinh(x), label: 'sinh' } },
+    cos:   { primary: { fn: M.cos, label: 'cos' },
+             f:       { fn: M.acos, label: 'cos⁻¹' },
+             g:       { fn: (x) => M.cosh(x), label: 'cosh' } },
+    tan:   { primary: { fn: M.tan, label: 'tan' },
+             f:       { fn: M.atan, label: 'tan⁻¹' },
+             g:       { fn: (x) => M.tanh(x), label: 'tanh' } },
     sqrt:  { primary: { fn: (x) => M.sqrt(x), label: '√x' },
-             f:       { fn: (x) => x * x,    label: 'x²' } },
+             f:       { fn: (x) => x * x,    label: 'x²' },
+             g:       { fn: (x) => M.cbrt(x), label: '³√x' } },
     log:   { primary: { fn: (x) => M.log10(x), label: 'log' },
              f:       { fn: (x) => M.tenPow(x), label: '10ˣ' } },
     ln:    { primary: { fn: (x) => M.ln(x),    label: 'ln' },
              f:       { fn: (x) => M.exp(x),   label: 'eˣ' } },
     recip: { primary: { fn: (x) => M.reciprocal(x), label: '1/x' } },
     fact:  { primary: { fn: (x) => M.factorial(x),  label: 'x!' } },
-    absx:  { primary: { fn: (x) => M.abs(x),         label: '|x|' } },
+    absx:  { primary: { fn: (x) => M.abs(x),        label: '|x|' } },
   };
   const entry = TABLE[id];
   if (!entry) return null;
