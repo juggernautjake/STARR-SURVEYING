@@ -659,6 +659,15 @@
   color: #1a1a1a;
 }
 
+/* Casio fx-115ES PLUS palette override (CALCULATOR_POLISH_2 P-8 r2).
+ * Sibling of fx-991: shares the key palette (digit/op/eval/shift styles
+ * cascade from .calc-model--casio-fx991 already on this element). The
+ * only physical difference vs the fx-991 is the body — fx-115 ships in
+ * a white plastic shell instead of the dark-grey fx-991 case. */
+.calc-model--casio-fx115 {
+  background: linear-gradient(180deg, #f4f3ef 0%, #d8d4c8 100%);
+}
+
 /* Mobile: when the viewport is too narrow to drag freely, center-lock
  * the modal and let it scroll vertically inside. */
 @media (max-width: 480px) {
