@@ -159,22 +159,123 @@
 }
 
 /* === PAY PROGRESSION === */
-.pay-prog__current {
-  background: linear-gradient(135deg, #1D3095 0%, #0F1419 100%);
-  border-radius: 12px; padding: 1.5rem; color: #FFF; margin-bottom: 2rem;
+
+/* Hero "You are here" card — P-1 of PAY_PROGRESSION_OVERHAUL.md.
+ * Two columns: left side shows the current effective rate large with a
+ * chip breakdown of where the bonus comes from; right side shows the
+ * closest unlock-able next milestone with its $/hr delta. The brand-navy
+ * gradient signals "this is the headline number." On mobile the columns
+ * stack and the right side becomes a flat callout. */
+.pay-prog__hero {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 1.5rem;
+  background: linear-gradient(135deg, var(--color-brand-navy) 0%, var(--color-brand-navy-d) 100%);
+  border-radius: var(--radius-xl);
+  padding: 1.75rem 1.5rem;
+  color: var(--color-text-on-brand);
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-md);
 }
-.pay-prog__current h3 {
-  font-family: 'Sora', sans-serif; font-size: 1rem; font-weight: 600;
-  margin-bottom: 1rem; opacity: 0.9;
+.pay-prog__hero-left,
+.pay-prog__hero-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
 }
-.pay-prog__current-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
-.pay-prog__current-item { text-align: center; }
-.pay-prog__current-label {
-  display: block; font-family: 'Inter', sans-serif; font-size: 0.7rem;
-  opacity: 0.6; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.2rem;
+.pay-prog__hero-right {
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  padding-left: 1.5rem;
+  justify-content: center;
 }
-.pay-prog__current-value {
-  display: block; font-family: 'Sora', sans-serif; font-size: 1.1rem; font-weight: 700;
+.pay-prog__hero-eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+.pay-prog__hero-tier {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  text-transform: capitalize;
+}
+.pay-prog__hero-rate-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+.pay-prog__hero-rate {
+  font-family: var(--font-heading);
+  font-size: 3rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.pay-prog__hero-rate-unit {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: var(--weight-medium);
+  opacity: 0.7;
+}
+.pay-prog__hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+.pay-prog__hero-chip {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: var(--weight-semibold);
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
+}
+.pay-prog__hero-chip--accent {
+  background: rgba(252, 211, 77, 0.18);
+  border-color: rgba(252, 211, 77, 0.45);
+  color: var(--color-brand-gold);
+}
+.pay-prog__hero-next-delta {
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  font-weight: var(--weight-bold);
+  color: var(--color-brand-gold);
+  line-height: 1;
+}
+.pay-prog__hero-next-label {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: var(--weight-semibold);
+}
+.pay-prog__hero-next-detail {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  opacity: 0.7;
+}
+
+@media (max-width: 720px) {
+  .pay-prog__hero {
+    grid-template-columns: 1fr;
+    padding: 1.25rem;
+    gap: 1rem;
+  }
+  .pay-prog__hero-right {
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
+    padding-left: 0;
+    padding-top: 1rem;
+    justify-content: flex-start;
+  }
+  .pay-prog__hero-rate { font-size: 2.4rem; }
+  .pay-prog__hero-next-delta { font-size: 1.6rem; }
 }
 
 .pay-prog__section {

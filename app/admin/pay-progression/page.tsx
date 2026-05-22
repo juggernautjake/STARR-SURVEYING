@@ -87,6 +87,56 @@ export default function PayProgressionPage() {
     yearsEmployed >= s.min_years && (!s.max_years || yearsEmployed < s.max_years)
   );
 
+  // ── Hero "You are here" computations (P-1) ───────────────────────────────
+  // Resolve the user's tier_key. job_title is the legacy string field; we
+  // match it case-insensitively against role_tiers.role_key (e.g.
+  // "Party Chief" → "party_chief"). Phase 2 (P-6) replaces this with a
+  // direct FK on employee_profiles.tier_key.
+  const currentTierKey = profile?.job_title?.toLowerCase().replace(/\s+/g, '_');
+  const currentTier = roles.find(r => r.role_key === currentTierKey);
+  const sortedRoles = [...roles].sort((a, b) => a.base_bonus - b.base_bonus);
+  const currentTierIndex = currentTier ? sortedRoles.findIndex(r => r.role_key === currentTier.role_key) : -1;
+  const nextTier = currentTierIndex >= 0 && currentTierIndex < sortedRoles.length - 1
+    ? sortedRoles[currentTierIndex + 1]
+    : null;
+
+  const credentialsBonus = credentials
+    .filter(c => earnedCredKeys.has(c.credential_key))
+    .reduce((sum, c) => sum + Number(c.bonus_per_hour || 0), 0);
+  const seniorityBonus = Number(currentSeniority?.bonus_per_hour || 0);
+  const roleBonus = Number(currentTier?.base_bonus || 0);
+  const baseRateGuess = profile ? Math.max(0, Number(profile.hourly_rate || 0) - roleBonus - seniorityBonus - credentialsBonus) : 0;
+
+  // Pick the closest unlock-able next milestone (cheapest path to a raise).
+  const nextSeniority = seniority.find(s => s.min_years > yearsEmployed);
+  const yearsToNextSeniority = nextSeniority ? nextSeniority.min_years - yearsEmployed : null;
+  const nextCredentialBest = credentials
+    .filter(c => !earnedCredKeys.has(c.credential_key))
+    .sort((a, b) => Number(b.bonus_per_hour) - Number(a.bonus_per_hour))[0];
+
+  function pickNextMilestone(): { label: string; delta: number; detail: string } | null {
+    const candidates: Array<{ label: string; delta: number; detail: string }> = [];
+    if (nextTier) candidates.push({
+      label: `Promote to ${nextTier.label || nextTier.role_key}`,
+      delta: Number(nextTier.base_bonus) - roleBonus,
+      detail: `Next tier on the ladder`,
+    });
+    if (nextSeniority && yearsToNextSeniority !== null) candidates.push({
+      label: `${yearsToNextSeniority} more year${yearsToNextSeniority === 1 ? '' : 's'} with the company`,
+      delta: Number(nextSeniority.bonus_per_hour) - seniorityBonus,
+      detail: `Seniority bracket: ${nextSeniority.label}`,
+    });
+    if (nextCredentialBest) candidates.push({
+      label: `Earn ${nextCredentialBest.label || nextCredentialBest.credential_key}`,
+      delta: Number(nextCredentialBest.bonus_per_hour),
+      detail: `Credential bonus`,
+    });
+    if (candidates.length === 0) return null;
+    return candidates.sort((a, b) => b.delta - a.delta)[0];
+  }
+  const nextMilestone = pickNextMilestone();
+  // ─────────────────────────────────────────────────────────────────────────
+
   function getMultiplierLabel(m: number | null): string {
     if (!m || m === 1) return 'Full';
     if (m === 0.75) return '75%';
@@ -111,27 +161,58 @@ export default function PayProgressionPage() {
         </p>
       </div>
 
-      {/* Your Current Pay Breakdown */}
+      {/* Hero: "You are here" — P-1 of PAY_PROGRESSION_OVERHAUL.md.
+       * Replaces the read-as-printout 4-column grid with a card that
+       * communicates: current effective rate (large), how it breaks down
+       * (visual chips), and the cheapest next milestone with its $/hr delta. */}
       {profile && (
-        <div className="pay-prog__current">
-          <h3>Your Current Pay Breakdown</h3>
-          <div className="pay-prog__current-grid">
-            <div className="pay-prog__current-item">
-              <span className="pay-prog__current-label">Current Role</span>
-              <span className="pay-prog__current-value">{profile.job_title || 'Not set'}</span>
+        <div className="pay-prog__hero">
+          <div className="pay-prog__hero-left">
+            <span className="pay-prog__hero-eyebrow">You are here</span>
+            <span className="pay-prog__hero-tier">
+              {currentTier?.label || profile.job_title || 'Set your role'}
+            </span>
+            <div className="pay-prog__hero-rate-row">
+              <span className="pay-prog__hero-rate">${Number(profile.hourly_rate || 0).toFixed(2)}</span>
+              <span className="pay-prog__hero-rate-unit">/hr</span>
             </div>
-            <div className="pay-prog__current-item">
-              <span className="pay-prog__current-label">Years with Company</span>
-              <span className="pay-prog__current-value">{yearsEmployed} year{yearsEmployed !== 1 ? 's' : ''}</span>
+            <div className="pay-prog__hero-chips">
+              <span className="pay-prog__hero-chip" title="Base hourly rate before any bonuses">
+                Base ${baseRateGuess.toFixed(2)}
+              </span>
+              {roleBonus > 0 && (
+                <span className="pay-prog__hero-chip pay-prog__hero-chip--accent" title="Role tier bonus">
+                  Role +${roleBonus.toFixed(2)}
+                </span>
+              )}
+              {seniorityBonus > 0 && (
+                <span className="pay-prog__hero-chip pay-prog__hero-chip--accent" title={currentSeniority?.label || ''}>
+                  Seniority +${seniorityBonus.toFixed(2)}
+                </span>
+              )}
+              {credentialsBonus > 0 && (
+                <span className="pay-prog__hero-chip pay-prog__hero-chip--accent" title={`${earnedCreds.length} credential${earnedCreds.length === 1 ? '' : 's'} earned`}>
+                  Credentials +${credentialsBonus.toFixed(2)}
+                </span>
+              )}
             </div>
-            <div className="pay-prog__current-item">
-              <span className="pay-prog__current-label">Seniority Bonus</span>
-              <span className="pay-prog__current-value">+${currentSeniority?.bonus_per_hour?.toFixed(2) || '0.00'}/hr</span>
-            </div>
-            <div className="pay-prog__current-item">
-              <span className="pay-prog__current-label">Credentials Held</span>
-              <span className="pay-prog__current-value">{earnedCreds.length}</span>
-            </div>
+          </div>
+
+          <div className="pay-prog__hero-right">
+            {nextMilestone ? (
+              <>
+                <span className="pay-prog__hero-eyebrow">Closest next raise</span>
+                <span className="pay-prog__hero-next-delta">+${nextMilestone.delta.toFixed(2)}/hr</span>
+                <span className="pay-prog__hero-next-label">{nextMilestone.label}</span>
+                <span className="pay-prog__hero-next-detail">{nextMilestone.detail}</span>
+              </>
+            ) : (
+              <>
+                <span className="pay-prog__hero-eyebrow">Status</span>
+                <span className="pay-prog__hero-next-label">Top of every track 🎉</span>
+                <span className="pay-prog__hero-next-detail">No further milestones in the default system.</span>
+              </>
+            )}
           </div>
         </div>
       )}
