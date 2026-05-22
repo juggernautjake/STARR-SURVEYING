@@ -222,12 +222,21 @@ export function dispatch(state: Ti36xState, action: Action): Ti36xState {
   }
   if (id === 'eq' || id === 'enter') return evaluate(state);
 
-  // Surveying conversions (C-10).
-  // `→DMS` is the shifted action on the `pct` key — show lastAnswer in
-  // degrees-minutes-seconds notation (surveyor standard 12°30'45.6").
-  // `frac` shifted to `F↔D` is the inverse: take a DMS-formatted lastResult
-  // string back to decimal degrees so chained calculations work.
-  if (id === 'pct' && state.shiftActive) {
+  // Surveying conversions. F-1 fidelity audit moved ►DMS to the primary
+  // press of the `pct` key (which is the actual device label). The shift
+  // alternate ►HR reads a DMS string back to decimal degrees. `frac`
+  // shifted to `F↔D` keeps its own DMS-→-decimal path for backward compat.
+  if (id === 'pct') {
+    if (state.shiftActive) {
+      // ►HR — DMS string in `result` → decimal degrees.
+      const m = state.result.match(/^(-?\d+)°(\d+)'([\d.]+)"$/);
+      if (m) {
+        const decimal = M.dmsToDeg(Number(m[1]), Number(m[2]), Number(m[3]));
+        return { ...state, result: M.formatNorm(decimal, state.displayDigits), lastAnswer: decimal, shiftActive: false };
+      }
+      return { ...state, shiftActive: false };
+    }
+    // ►DMS — format lastAnswer as 12°30'58.50".
     return { ...state, result: M.formatDms(state.lastAnswer, 2), shiftActive: false };
   }
   if (id === 'frac' && state.shiftActive) {

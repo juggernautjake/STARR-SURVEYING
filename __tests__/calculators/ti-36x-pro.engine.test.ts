@@ -162,8 +162,10 @@ describe('TI-36X Pro — memory + history (C-8)', () => {
 
 describe('TI-36X Pro — surveying functions (C-10)', () => {
   it('→DMS shifts lastAnswer into DMS notation', () => {
+    // F-1 fidelity audit: ►DMS is now the primary (unshifted) press of
+    // the `pct` key, matching the real device's screen-print.
     let s: Ti36xState = { ...initialState(), lastAnswer: 12.51625, result: '12.51625' };
-    s = press(s, '2nd', 'pct');
+    s = press(s, 'pct');
     expect(s.result).toBe('12°30\'58.50"');
   });
 

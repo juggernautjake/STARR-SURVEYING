@@ -36,8 +36,8 @@ describe('TI-36X Pro surveying scenarios (V-2)', () => {
     const bearing2 = 22 + 30 / 60;
     let s: Ti36xState = { ...initialState(), entry: `${bearing1}+${bearing2}` };
     s = evaluate(s);
-    // Then apply →DMS.
-    s = press(s, '2nd', 'pct');
+    // F-1 fidelity: ►DMS is the primary (unshifted) press of `pct`.
+    s = press(s, 'pct');
     expect(s.result).toBe('67°45\'30.00"');
   });
 
