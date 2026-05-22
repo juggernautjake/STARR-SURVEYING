@@ -4,14 +4,20 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
-/* GET — Rewards overview: balance, store items, badges, pay progression */
+/* GET — Rewards overview: balance, store items, badges, pay progression.
+ *
+ * Admins can pass ?email=... to fetch the rewards/pay snapshot for a
+ * specific employee — used by the per-employee override page at
+ * /admin/pay-progression/[email] (P-17 of PAY_PROGRESSION_OVERHAUL.md).
+ * Non-admins always see their own data regardless of the query param. */
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const userEmail = session.user.email;
   const { searchParams } = new URL(req.url);
   const section = searchParams.get('section'); // 'store', 'badges', 'pay', 'all'
+  const targetEmail = searchParams.get('email');
+  const userEmail = (targetEmail && isAdmin(session.user.roles)) ? targetEmail : session.user.email;
 
   // XP Balance
   let { data: balance } = await supabaseAdmin.from('xp_balances')
