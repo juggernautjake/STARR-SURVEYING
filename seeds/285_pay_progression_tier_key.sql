@@ -11,12 +11,34 @@
 -- Idempotent: re-running is safe via ADD COLUMN IF NOT EXISTS and
 -- ON CONFLICT DO NOTHING.
 
--- ─── 1. Extend role_tiers with an aliases array ─────────────────────────────
+-- ─── 1. Extend role_tiers with an aliases array + icon column ───────────────
 ALTER TABLE public.role_tiers
   ADD COLUMN IF NOT EXISTS aliases TEXT[] DEFAULT ARRAY[]::TEXT[];
 
+ALTER TABLE public.role_tiers
+  ADD COLUMN IF NOT EXISTS icon TEXT;
+
 COMMENT ON COLUMN public.role_tiers.aliases IS
   'Legacy/alternate strings that should resolve to this tier (e.g. "Party Chief" → party_chief). Used by the backfill in this seed and going forward by any code that needs to match a free-text job_title to a tier.';
+
+COMMENT ON COLUMN public.role_tiers.icon IS
+  'Emoji or short identifier displayed next to the tier in admin UIs and the pay-progression page. Admin-editable via the Phase 3 CRUD surface.';
+
+-- Default icons for the seeded tiers (admin can change later).
+UPDATE public.role_tiers SET icon = '🌱' WHERE role_key = 'intern' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '👷' WHERE role_key = 'field_hand' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '📏' WHERE role_key = 'rodman' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '📡' WHERE role_key = 'instrument_op' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '🔧' WHERE role_key = 'survey_tech' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '👷‍♂️' WHERE role_key = 'party_chief' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '🎓' WHERE role_key = 'sit' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '📐' WHERE role_key = 'survey_drafter' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '🗂️' WHERE role_key = 'project_manager' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '📜' WHERE role_key = 'rpls' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '🏅' WHERE role_key = 'senior_rpls' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '👑' WHERE role_key = 'owner' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '🖥️' WHERE role_key = 'admin_staff' AND icon IS NULL;
+UPDATE public.role_tiers SET icon = '🛠️' WHERE role_key = 'it_support' AND icon IS NULL;
 
 -- Seed the common aliases for the 14 default tiers. ON CONFLICT here
 -- means re-running the seed leaves prior edits alone.

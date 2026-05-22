@@ -10,7 +10,8 @@ import RaiseHistory from '../../components/payroll/RaiseHistory';
 import CertificationsPanel from '../../components/payroll/CertificationsPanel';
 import BalanceCard from '../../components/payroll/BalanceCard';
 import PayStubView from '../../components/payroll/PayStubView';
-import { JOB_TITLES, formatCurrency, formatDate } from '../../components/payroll/PayrollConstants';
+import { formatCurrency, formatDate } from '../../components/payroll/PayrollConstants';
+import { useJobTitles } from '../../components/payroll/useJobTitles';
 
 interface EmployeeProfile {
   id: string;
@@ -32,6 +33,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
   const resolvedParams = use(params);
   const email = decodeURIComponent(resolvedParams.email);
   const { data: session } = useSession();
+  const jobTitles = useJobTitles();
   const router = useRouter();
   const { safeFetch, safeAction, reportPageError } = usePageError('EmployeeDetailPage');
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
@@ -115,7 +117,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
     </div>
   );
 
-  const titleInfo = JOB_TITLES[profile.job_title] || { label: profile.job_title, icon: '👤', description: '' };
+  const titleInfo = jobTitles[profile.job_title] || { label: profile.job_title, icon: '👤', description: '' };
 
   return (
     <div className="payroll-page">
@@ -145,7 +147,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
             <div className="payroll-form-group">
               <label>Position</label>
               <select value={editForm.job_title} onChange={e => setEditForm(f => ({ ...f, job_title: e.target.value }))}>
-                {Object.entries(JOB_TITLES).map(([key, val]) => (
+                {Object.entries(jobTitles).map(([key, val]) => (
                   <option key={key} value={key}>{val.icon} {val.label}</option>
                 ))}
               </select>
