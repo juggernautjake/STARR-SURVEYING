@@ -10,6 +10,17 @@
 
 import * as M from '@/lib/calculators/math';
 
+/** TI-36X Pro lettered variable slots (the same labels the device prints). */
+export const MEM_SLOTS = ['x', 'y', 'z', 't', 'a', 'b', 'c'] as const;
+export type MemSlot = typeof MEM_SLOTS[number];
+
+export interface HistoryEntry {
+  entry: string;
+  result: string;
+  /** Numeric value at the time — useful for recalling into a future expression. */
+  value: number;
+}
+
 export interface Ti36xState {
   schema_version: 1;
   entry: string;
@@ -19,7 +30,15 @@ export interface Ti36xState {
   displayMode: M.DisplayMode;
   displayDigits: number; // for FIX/SCI/ENG
   lastAnswer: number;
+  /** Lettered variable memory — one entry per slot in MEM_SLOTS. */
+  memory: Record<MemSlot, number>;
+  /** Recent (entry, result) pairs in chronological order. Newest last. */
+  history: HistoryEntry[];
+  /** When non-null, the next digit key 1-7 picks the slot to STO/RCL. */
+  pendingMemOp: 'sto' | 'rcl' | null;
 }
+
+const HISTORY_CAP = 10;
 
 export function initialState(): Ti36xState {
   return {
@@ -31,6 +50,9 @@ export function initialState(): Ti36xState {
     displayMode: 'NORM',
     displayDigits: 10,
     lastAnswer: 0,
+    memory: { x: 0, y: 0, z: 0, t: 0, a: 0, b: 0, c: 0 },
+    history: [],
+    pendingMemOp: null,
   };
 }
 
@@ -47,7 +69,31 @@ export function hydrate(blob: unknown): Ti36xState {
     displayMode: (b.displayMode as M.DisplayMode) || 'NORM',
     displayDigits: typeof b.displayDigits === 'number' ? b.displayDigits : 10,
     lastAnswer: typeof b.lastAnswer === 'number' ? b.lastAnswer : 0,
+    memory: hydrateMemory(b.memory),
+    history: hydrateHistory(b.history),
   };
+}
+
+function hydrateMemory(maybe: unknown): Record<MemSlot, number> {
+  const base: Record<MemSlot, number> = { x: 0, y: 0, z: 0, t: 0, a: 0, b: 0, c: 0 };
+  if (!maybe || typeof maybe !== 'object') return base;
+  for (const slot of MEM_SLOTS) {
+    const v = (maybe as Record<string, unknown>)[slot];
+    if (typeof v === 'number' && Number.isFinite(v)) base[slot] = v;
+  }
+  return base;
+}
+
+function hydrateHistory(maybe: unknown): HistoryEntry[] {
+  if (!Array.isArray(maybe)) return [];
+  return maybe
+    .filter((h): h is HistoryEntry =>
+      !!h && typeof h === 'object'
+      && typeof (h as HistoryEntry).entry === 'string'
+      && typeof (h as HistoryEntry).result === 'string'
+      && typeof (h as HistoryEntry).value === 'number'
+    )
+    .slice(-HISTORY_CAP);
 }
 
 export type Action =
@@ -59,6 +105,11 @@ export type Action =
  * special action it triggers. Shift-active behavior is checked first;
  * the `false` row is the primary key.
  */
+/** When a memory op is pending, these digit keys pick the slot (1..7 → x/y/z/t/a/b/c). */
+const DIGIT_TO_SLOT: Record<string, number> = {
+  n1: 0, n2: 1, n3: 2, n4: 3, n5: 4, n6: 5, n7: 6,
+};
+
 const APPEND: Record<string, { primary: string; shift?: string }> = {
   n0: { primary: '0' }, n1: { primary: '1' }, n2: { primary: '2' },
   n3: { primary: '3' }, n4: { primary: '4' }, n5: { primary: '5' },
@@ -91,9 +142,39 @@ const APPEND: Record<string, { primary: string; shift?: string }> = {
 };
 
 export function dispatch(state: Ti36xState, action: Action): Ti36xState {
-  if (action.type === 'reset') return { ...initialState(), lastAnswer: state.lastAnswer, angleMode: state.angleMode };
+  if (action.type === 'reset') return { ...initialState(), lastAnswer: state.lastAnswer, angleMode: state.angleMode, memory: state.memory };
   if (action.type !== 'press') return state;
   const id = action.keyId;
+
+  // Memory op pending: catch the next digit and act on the slot.
+  if (state.pendingMemOp) {
+    const slotIdx = DIGIT_TO_SLOT[id];
+    if (slotIdx !== undefined) {
+      const slot = MEM_SLOTS[slotIdx];
+      if (state.pendingMemOp === 'sto') {
+        return {
+          ...state,
+          memory: { ...state.memory, [slot]: state.lastAnswer },
+          pendingMemOp: null,
+          shiftActive: false,
+        };
+      } else { // rcl
+        return {
+          ...state,
+          entry: state.entry + String(state.memory[slot]),
+          pendingMemOp: null,
+          shiftActive: false,
+        };
+      }
+    }
+    // Any other key cancels the pending op.
+    return { ...state, pendingMemOp: null };
+  }
+
+  // STO / RCL — sto is the `sto` key; rcl is the shifted `apps` key per the
+  // TI-36X Pro layout.
+  if (id === 'sto') return { ...state, pendingMemOp: 'sto', shiftActive: false };
+  if (id === 'apps' && state.shiftActive) return { ...state, pendingMemOp: 'rcl', shiftActive: false };
 
   // Modifiers / specials
   if (id === '2nd') return { ...state, shiftActive: !state.shiftActive };
@@ -333,9 +414,10 @@ export function evaluate(state: Ti36xState): Ti36xState {
       return { ...state, result: 'Math ERROR', shiftActive: false };
     }
     const formatted = formatForDisplay(value, state);
+    const nextHistory = [...state.history, { entry: state.entry, result: formatted, value }].slice(-HISTORY_CAP);
     // Clear entry on a successful eval so the next keypress starts a new
     // expression. The previous result remains available via `ans`.
-    return { ...state, entry: '', result: formatted, lastAnswer: value, shiftActive: false };
+    return { ...state, entry: '', result: formatted, lastAnswer: value, shiftActive: false, history: nextHistory };
   } catch {
     return { ...state, result: 'Syntax ERROR', shiftActive: false };
   }

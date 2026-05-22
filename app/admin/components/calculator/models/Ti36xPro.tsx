@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Keypad } from '../Keypad';
 import { Display } from '../Display';
+import { HistoryStrip } from '../HistoryStrip';
 import { useCalculator } from '../CalculatorProvider';
 import { TI_36X_PRO_KEYPAD, TI_36X_PRO_GRID } from '@/lib/calculators/models/ti-36x-pro/keypad-data';
 import { dispatch, hydrate, initialState, type Ti36xState } from '@/lib/calculators/models/ti-36x-pro/engine';
@@ -54,9 +55,12 @@ export function Ti36xPro() {
 
   const statusBadges: string[] = [state.angleMode, state.displayMode];
   if (state.shiftActive) statusBadges.push('2nd');
+  if (state.pendingMemOp === 'sto') statusBadges.push('STO ?');
+  if (state.pendingMemOp === 'rcl') statusBadges.push('RCL ?');
 
   return (
     <div className="calc-model calc-model--ti-36x-pro">
+      <HistoryStrip rows={state.history.slice().reverse().map(h => ({ entry: h.entry, result: h.result }))} />
       <Display
         entry={state.entry}
         result={state.result}

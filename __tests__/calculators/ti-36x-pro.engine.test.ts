@@ -128,3 +128,34 @@ describe('TI-36X Pro — evaluator', () => {
     expect(Number(s.result)).toBeCloseTo(5, 12);
   });
 });
+
+describe('TI-36X Pro — memory + history (C-8)', () => {
+  it('stores lastAnswer into the x slot via sto+1', () => {
+    let s = press(initialState(), 'n4', 'n2', 'eq');           // result 42
+    s = press(s, 'sto', 'n1');                                  // store into slot x
+    expect(s.memory.x).toBe(42);
+    expect(s.pendingMemOp).toBeNull();
+  });
+
+  it('recalls slot via 2nd+apps then digit', () => {
+    let s: Ti36xState = { ...initialState(), memory: { x: 17, y: 0, z: 0, t: 0, a: 0, b: 0, c: 0 } };
+    s = press(s, '2nd', 'apps', 'n1');
+    expect(s.entry).toBe('17');
+  });
+
+  it('non-digit key cancels a pending memory op', () => {
+    let s = press(initialState(), 'sto');
+    expect(s.pendingMemOp).toBe('sto');
+    s = press(s, 'add');
+    expect(s.pendingMemOp).toBeNull();
+  });
+
+  it('history captures successful evaluations newest-last, capped at 10', () => {
+    let s = initialState();
+    for (let i = 1; i <= 12; i++) {
+      s = press(s, `n${(i % 10)}`, 'eq');
+    }
+    expect(s.history.length).toBe(10);
+    expect(s.history[s.history.length - 1].result).toBe(String(12 % 10));
+  });
+});
