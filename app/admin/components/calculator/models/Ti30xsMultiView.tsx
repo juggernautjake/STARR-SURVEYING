@@ -22,7 +22,7 @@ import { Display } from '../Display';
 import { HistoryStrip } from '../HistoryStrip';
 import { useCalculator } from '../CalculatorProvider';
 import { useCalculatorKeyEvents } from '../useCalculatorKeyEvents';
-import { TI_36X_PRO_KEYPAD, TI_36X_PRO_GRID } from '@/lib/calculators/models/ti-36x-pro/keypad-data';
+import { TI_30XS_MULTIVIEW_KEYPAD, TI_30XS_MULTIVIEW_GRID } from '@/lib/calculators/models/ti-30xs-multiview/keypad-data';
 import { dispatch, hydrate, initialState, serialize, type Ti36xState } from '@/lib/calculators/models/ti-36x-pro/engine';
 import type { KeyDef } from '@/lib/calculators/shared';
 
@@ -75,9 +75,9 @@ export function Ti30xsMultiView() {
         onCopyResult={copyResult}
       />
       <Keypad
-        keys={TI_36X_PRO_KEYPAD}
-        rows={TI_36X_PRO_GRID.rows}
-        cols={TI_36X_PRO_GRID.cols}
+        keys={TI_30XS_MULTIVIEW_KEYPAD}
+        rows={TI_30XS_MULTIVIEW_GRID.rows}
+        cols={TI_30XS_MULTIVIEW_GRID.cols}
         onKey={onKey}
         shiftActive={state.shiftActive}
       />
