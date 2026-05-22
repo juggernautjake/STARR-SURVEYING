@@ -1,0 +1,648 @@
+/* app/admin/components/calculator/CalculatorModal.css
+ *
+ * Movable modal shell for the exam-calculator emulators.
+ * C-2 of EXAM_CALCULATORS.md.
+ *
+ * Sits above the FAB but below toast layer (uses --z-modal=200).
+ * The frame floats in position:fixed coordinates; the header is
+ * the drag handle, the rest is content. */
+
+.calc-modal {
+  position: fixed;
+  z-index: var(--z-modal);
+  background: var(--color-bg-card);
+  border: var(--border-normal);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
+  /* Subtle "lifted" feel */
+  transform: translateZ(0);
+}
+
+.calc-modal__header {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.5rem 0 0.95rem;
+  background: linear-gradient(180deg, var(--color-brand-navy) 0%, var(--color-brand-navy-d) 100%);
+  color: var(--color-text-on-brand);
+  cursor: grab;
+  user-select: none;
+}
+.calc-modal__header:active {
+  cursor: grabbing;
+}
+
+.calc-modal__title {
+  font-family: var(--font-heading);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+}
+
+.calc-modal__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.calc-modal__btn {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-on-brand);
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-fast);
+}
+.calc-modal__btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.calc-modal__btn--close {
+  font-size: 1.4rem;
+  font-weight: var(--weight-bold);
+}
+
+.calc-modal__toolbar {
+  background: var(--color-bg-subtle);
+  border-bottom: var(--border-light);
+  padding: 0.4rem 0.5rem;
+  overflow-x: auto;
+}
+
+.calc-modal__body {
+  /* Children control their own padding; we just provide the box. */
+  background: var(--color-bg-app);
+  overflow: auto;
+}
+
+/* C-3: tab strip in the modal toolbar. Each tab pill identifies a
+ * calculator model; clicking switches the active emulator. */
+.calc-tabstrip {
+  display: flex;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+.calc-tabstrip__tab {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  padding: 0.3rem 0.6rem;
+  border: var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.calc-tabstrip__tab:hover {
+  border-color: var(--color-brand-navy);
+  background: var(--color-bg-hover);
+}
+.calc-tabstrip__tab--active {
+  border-color: var(--color-brand-navy);
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+}
+.calc-tabstrip__brand {
+  font-family: var(--font-heading);
+  font-size: 0.6rem;
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  line-height: 1;
+}
+.calc-tabstrip__tab--active .calc-tabstrip__brand {
+  color: rgba(255, 255, 255, 0.6);
+}
+.calc-tabstrip__label {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+.calc-tabstrip__tab--active .calc-tabstrip__label {
+  color: var(--color-text-on-brand);
+}
+
+/* Phase-1 placeholder body — replaced per-model in Phase 2+ */
+.calc-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  height: 100%;
+  gap: 0.5rem;
+}
+.calc-placeholder__brand {
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+.calc-placeholder__title {
+  font-family: var(--font-heading);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  color: var(--color-brand-navy);
+  margin: 0;
+}
+.calc-placeholder__phase {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+.calc-placeholder__phase code {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  background: var(--color-bg-subtle);
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--radius-sm);
+}
+.calc-placeholder__hint {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--color-text-tertiary);
+  max-width: 280px;
+  line-height: 1.4;
+}
+.calc-placeholder__hint kbd {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  background: var(--color-bg-subtle);
+  border: var(--border-light);
+  border-bottom-width: 2px;
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--radius-sm);
+}
+
+/* ─── History strip (C-8) ──────────────────────────────────────────────── */
+.calc-history {
+  max-height: 80px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+.calc-history__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  padding: 0.15rem 0.4rem;
+  background: rgba(200, 208, 197, 0.85);
+  border: 0;
+  border-radius: 2px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.7rem;
+  color: rgba(10, 13, 8, 0.85);
+  cursor: pointer;
+  text-align: right;
+  overflow: hidden;
+}
+.calc-history__row:hover {
+  background: rgba(200, 208, 197, 1);
+}
+.calc-history__entry {
+  flex: 1;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(10, 13, 8, 0.65);
+}
+.calc-history__sep {
+  color: rgba(10, 13, 8, 0.5);
+  font-weight: 600;
+}
+.calc-history__result {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ─── Display (C-6 visual; C-7 wires real values) ───────────────────────── */
+.calc-display {
+  background: linear-gradient(180deg, #c8d0c5 0%, #b8c0b3 100%);
+  color: #0a0d08;
+  padding: 0.5rem 0.65rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  border: 1px solid #6f7867;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.calc-display__status {
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: rgba(10, 13, 8, 0.65);
+  text-transform: uppercase;
+  min-height: 12px;
+}
+.calc-display__badge {
+  padding: 0 0.2rem;
+}
+.calc-display__entry {
+  font-size: 0.78rem;
+  text-align: right;
+  color: rgba(10, 13, 8, 0.7);
+  min-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.calc-display__result-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+.calc-display__result {
+  font-size: 1.45rem;
+  font-weight: 700;
+  text-align: right;
+  flex: 1;
+  letter-spacing: -0.01em;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.calc-display__copy {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(10, 13, 8, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.25);
+  color: #0a0d08;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-fast);
+}
+.calc-display__copy:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* ─── Keypad (C-6) ──────────────────────────────────────────────────────── */
+.calc-model {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  height: 100%;
+  background: linear-gradient(180deg, #1a1a1f 0%, #0e0e12 100%);
+  box-sizing: border-box;
+}
+.calc-keypad {
+  display: grid;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+}
+.calc-key {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem 0.25rem;
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.06s ease;
+  user-select: none;
+  /* Default = soft (function keys) */
+  background: linear-gradient(180deg, #d0d4d8 0%, #a8acb2 100%);
+  color: #0a0d08;
+  font-size: 0.7rem;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 2px 3px rgba(0, 0, 0, 0.35);
+}
+.calc-key:hover { filter: brightness(1.05); }
+.calc-key:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset; }
+
+.calc-key__shift-label {
+  font-size: 0.5rem;
+  font-weight: 700;
+  color: #2563eb;
+  margin-bottom: 1px;
+  line-height: 1;
+  text-transform: lowercase;
+}
+.calc-key__label {
+  line-height: 1.1;
+}
+
+/* Digit keys — lighter, larger label */
+.calc-key--digit {
+  background: linear-gradient(180deg, #f0f1f3 0%, #c5c8cd 100%);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+/* Operators — dark navy */
+.calc-key--op {
+  background: linear-gradient(180deg, #303440 0%, #1c1f29 100%);
+  color: #f0f1f3;
+  font-size: 0.9rem;
+}
+/* Equals / eval — red */
+.calc-key--eval {
+  background: linear-gradient(180deg, #c4341a 0%, #8a200d 100%);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+/* Shift modifier (2nd) — yellow body, dark text */
+.calc-key--shift {
+  background: linear-gradient(180deg, #f7c948 0%, #d1990c 100%);
+  color: #2b1a00;
+  font-size: 0.78rem;
+}
+.calc-key--shift.calc-key--armed {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+/* Accent — enter ring */
+.calc-key--accent {
+  background: linear-gradient(180deg, #5b6471 0%, #353c46 100%);
+  color: #f0f1f3;
+  font-size: 0.75rem;
+}
+
+/* Natural display (C-12) — stacked-typography renderer for Casio's
+ * "natural" entry mode. Sits between the simple LCD and a full LaTeX
+ * renderer: handles superscript exponents, vinculum-marked square
+ * roots, and stacked fractions. Other expressions fall through as
+ * plain text. */
+.calc-natural {
+  background: linear-gradient(180deg, #c8d0c5 0%, #b8c0b3 100%);
+  color: #0a0d08;
+  padding: 0.5rem 0.65rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  border: 1px solid #6f7867;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.calc-natural__status {
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: rgba(10, 13, 8, 0.65);
+  text-transform: uppercase;
+}
+.calc-natural__entry {
+  font-size: 0.9rem;
+  min-height: 26px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1;
+}
+.calc-natural__result-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+.calc-natural__result {
+  flex: 1;
+  text-align: right;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.calc-natural__copy {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(10, 13, 8, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.25);
+  color: #0a0d08;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-fast);
+}
+.calc-natural__copy:hover { background: rgba(255, 255, 255, 0.45); }
+
+/* Stacked-typography primitives */
+.calc-natural__sqrt {
+  display: inline-flex;
+  align-items: stretch;
+}
+.calc-natural__sqrt-sign {
+  align-self: flex-start;
+  font-size: 1.1em;
+  line-height: 1;
+}
+.calc-natural__sqrt-body {
+  border-top: 1.5px solid currentColor;
+  padding: 0 0.15em;
+  margin-top: 0.05em;
+}
+.calc-natural__frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: middle;
+  margin: 0 0.1em;
+  line-height: 1;
+}
+.calc-natural__frac-num {
+  border-bottom: 1.5px solid currentColor;
+  padding: 0 0.25em 1px;
+  font-size: 0.85em;
+}
+.calc-natural__frac-den {
+  padding: 1px 0.25em 0;
+  font-size: 0.85em;
+}
+.calc-natural__sup {
+  font-size: 0.7em;
+  vertical-align: super;
+  line-height: 0;
+}
+
+/* Inline pill button for embedding "open calculator" anywhere (exam-prep
+ * pages, near quiz inputs, etc.). FAB is global; this is contextual. */
+.calc-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: var(--border-normal);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+.calc-trigger:hover {
+  background: var(--color-brand-navy);
+  border-color: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+}
+.calc-trigger--sm {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.72rem;
+}
+.calc-trigger--md {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+}
+
+/* HP 35s palette override — gunmetal body, brushed-aluminum keys,
+ * orange (left-shift) + blue (right-shift) modifier tone. */
+.calc-model--hp-35s {
+  background: linear-gradient(180deg, #2a2c30 0%, #16181a 100%);
+}
+.calc-model--hp-35s .calc-key {
+  background: linear-gradient(180deg, #cfd2d6 0%, #989b9f 100%);
+  color: #1a1c20;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.calc-model--hp-35s .calc-key--digit {
+  background: linear-gradient(180deg, #e8eaec 0%, #b0b3b7 100%);
+  font-size: 0.85rem;
+}
+.calc-model--hp-35s .calc-key--op {
+  background: linear-gradient(180deg, #2a2d33 0%, #14161a 100%);
+  color: #f0f1f3;
+}
+.calc-model--hp-35s .calc-key--eval {
+  background: linear-gradient(180deg, #c4341a 0%, #8a200d 100%);
+  color: #fff;
+}
+.calc-model--hp-35s .calc-key--shift:nth-child(odd) {
+  /* fshift (orange/left) */
+  background: linear-gradient(180deg, #d97706 0%, #92400e 100%);
+  color: #1a1c20;
+}
+.calc-model--hp-35s .calc-key--shift:nth-child(even) {
+  /* gshift (blue/right) */
+  background: linear-gradient(180deg, #2563eb 0%, #1e3a8a 100%);
+  color: #f0f1f3;
+}
+.calc-model--hp-35s .calc-key--accent {
+  background: linear-gradient(180deg, #6b6f75 0%, #3f4248 100%);
+  color: #f0f1f3;
+  font-size: 0.78rem;
+}
+.calc-model--hp-35s .calc-key__shift-label {
+  color: #d97706; /* orange — primary shift convention */
+}
+
+/* Casio fx-991ES PLUS palette override — silver body, dark-blue header
+ * convention, yellow SHIFT labels + red ALPHA labels. */
+.calc-model--casio-fx991 {
+  background: linear-gradient(180deg, #d6d8db 0%, #8e9094 100%);
+}
+.calc-model--casio-fx991 .calc-key--soft .calc-key__shift-label {
+  color: #e6b800; /* yellow for SHIFT alt-label */
+}
+.calc-model--casio-fx991 .calc-key--digit {
+  background: linear-gradient(180deg, #1c1f29 0%, #0f111a 100%);
+  color: #f0f1f3;
+  font-weight: 700;
+}
+.calc-model--casio-fx991 .calc-key--op {
+  background: linear-gradient(180deg, #5a6168 0%, #3a3f46 100%);
+  color: #f0f1f3;
+}
+.calc-model--casio-fx991 .calc-key--eval {
+  background: linear-gradient(180deg, #e0a500 0%, #b58200 100%);
+  color: #1a1a1a;
+}
+.calc-model--casio-fx991 .calc-key--shift {
+  background: linear-gradient(180deg, #d4a000 0%, #a07700 100%);
+  color: #1a1a1a;
+}
+
+/* Mobile: when the viewport is too narrow to drag freely, center-lock
+ * the modal and let it scroll vertically inside. */
+@media (max-width: 480px) {
+  .calc-modal {
+    /* Override the inline left/top via a stronger selector. The author
+     * sets left/top inline; @media + !important needed to take over. */
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    /* Also override the inline width so the device's preferred px width
+     * doesn't push past the viewport on a 360-380px phone. */
+    width: calc(100vw - 24px) !important;
+  }
+  .calc-modal__header { cursor: default; }
+  /* C-23: shrink display + key fonts so the full keypad fits a small
+   * phone without horizontal scroll. */
+  .calc-display, .calc-natural {
+    min-height: 64px;
+    padding: 0.4rem 0.5rem;
+  }
+  .calc-display__result, .calc-natural__result { font-size: 1.15rem; }
+  .calc-key { font-size: 0.62rem; padding: 0.05rem 0.15rem; }
+  .calc-key--digit { font-size: 0.78rem; }
+  .calc-key--op, .calc-key--eval { font-size: 0.78rem; }
+  .calc-key__shift-label { font-size: 0.45rem; }
+  /* Touch target — minimum 30px x 30px even with reduced font. */
+  .calc-keypad { gap: 3px; }
+}
+
+/* C-23: very narrow phones (< 360px) — drop the shift labels entirely
+ * so the primary key labels stay legible. Users on such small screens
+ * who need shift functions can rotate to landscape. */
+@media (max-width: 360px) {
+  .calc-key__shift-label { display: none; }
+  .calc-key { padding: 0; }
+}
+
+/* C-23: disable the default browser long-press selection on keypad
+ * buttons so taps feel instant (no callout / context menu flash). */
+.calc-keypad {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

@@ -4,14 +4,20 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
-/* GET — Rewards overview: balance, store items, badges, pay progression */
+/* GET — Rewards overview: balance, store items, badges, pay progression.
+ *
+ * Admins can pass ?email=... to fetch the rewards/pay snapshot for a
+ * specific employee — used by the per-employee override page at
+ * /admin/pay-progression/[email] (P-17 of PAY_PROGRESSION_OVERHAUL.md).
+ * Non-admins always see their own data regardless of the query param. */
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const userEmail = session.user.email;
   const { searchParams } = new URL(req.url);
   const section = searchParams.get('section'); // 'store', 'badges', 'pay', 'all'
+  const targetEmail = searchParams.get('email');
+  const userEmail = (targetEmail && isAdmin(session.user.roles)) ? targetEmail : session.user.email;
 
   // XP Balance
   let { data: balance } = await supabaseAdmin.from('xp_balances')
@@ -84,9 +90,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .select('*').order('base_bonus', { ascending: false });
     result.role_tiers = roles || [];
 
-    // User's earned credentials
+    // User's earned credentials. Only verified rows count toward the pay
+    // calculation — pending (verified=false) rows come from learn completions
+    // that admin hasn't approved yet (P-19 / P-21). The pay-progression page
+    // hides the pending state from the employee; the admin approval queue
+    // surfaces it instead.
     const { data: earnedCreds } = await supabaseAdmin.from('employee_earned_credentials')
-      .select('credential_key, earned_date').eq('user_email', userEmail);
+      .select('credential_key, earned_date')
+      .eq('user_email', userEmail)
+      .eq('verified', true);
     result.earned_credentials = earnedCreds || [];
 
     // Employee profile for hire date

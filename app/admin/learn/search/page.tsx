@@ -57,7 +57,7 @@ function SearchContent() {
 
       {!loading && results.length > 0 && (
         <div className="search-results">
-          <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: '#6B7280', marginBottom: '.5rem' }}>{results.length} result{results.length !== 1 ? 's' : ''} found</p>
+          <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: 'var(--color-text-tertiary)', marginBottom: '.5rem' }}>{results.length} result{results.length !== 1 ? 's' : ''} found</p>
           {results.map((r, i) => (
             <Link key={`${r.type}-${r.id}-${i}`} href={r.href} className="search-result">
               <span className={`search-result__type ${typeColors[r.type] || ''}`}>{r.type}</span>

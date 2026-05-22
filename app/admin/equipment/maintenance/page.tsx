@@ -473,7 +473,7 @@ function FailedQaPanel({ events }: { events: CalEvent[] }) {
 
 const failedQaStyles: Record<string, React.CSSProperties> = {
   panel: {
-    background: '#FEF2F2',
+    background: 'var(--color-error-bg)',
     border: '1px solid #FCA5A5',
     borderRadius: 12,
     padding: 16,
@@ -515,7 +515,7 @@ const failedQaStyles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 12,
     padding: '8px 12px',
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #FCA5A5',
     borderLeft: '3px solid #B91C1C',
     borderRadius: 6,
@@ -531,7 +531,7 @@ const failedQaStyles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap' as const,
   },
   itemKind: {
-    background: '#F3F4F6',
+    background: 'var(--color-bg-subtle)',
     padding: '2px 8px',
     borderRadius: 4,
     fontSize: 11,
@@ -546,7 +546,7 @@ const failedQaStyles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap' as const,
   },
   itemDate: {
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontSize: 11,
     fontFamily: 'Menlo, monospace',
     textAlign: 'right' as const,
@@ -564,7 +564,7 @@ const failedQaStyles: Record<string, React.CSSProperties> = {
 function chipStyle(state: string): React.CSSProperties {
   const map: Record<string, React.CSSProperties> = {
     scheduled: { background: '#DBEAFE', color: '#1E3A8A' },
-    in_progress: { background: '#1D3095', color: '#FFFFFF' },
+    in_progress: { background: 'var(--color-brand-navy)', color: 'var(--color-text-on-brand)' },
     awaiting_parts: { background: '#FEF3C7', color: '#78350F' },
     awaiting_vendor: { background: '#FEF3C7', color: '#78350F' },
     complete: { background: '#DCFCE7', color: '#166534' },
@@ -574,8 +574,8 @@ function chipStyle(state: string): React.CSSProperties {
       border: '1.5px solid #B91C1C',
     },
     cancelled: {
-      background: '#FFFFFF',
-      color: '#9CA3AF',
+      background: 'var(--color-bg-card)',
+      color: 'var(--color-text-muted)',
       border: '1px dashed #D1D5DB',
     },
   };
@@ -592,7 +592,7 @@ function chipStyle(state: string): React.CSSProperties {
     overflow: 'hidden',
     whiteSpace: 'nowrap' as const,
     textOverflow: 'ellipsis',
-    ...(map[state] ?? { background: '#F3F4F6', color: '#374151' }),
+    ...(map[state] ?? { background: 'var(--color-bg-subtle)', color: '#374151' }),
   };
 }
 
@@ -601,7 +601,7 @@ function dueRowStyle(daysUntilDue: number, inLeadWindow: boolean): React.CSSProp
     return { background: '#FEE2E2' };
   }
   if (inLeadWindow) {
-    return { background: '#FFFBEB' };
+    return { background: 'var(--color-warning-bg)' };
   }
   return {};
 }
@@ -624,14 +624,14 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'baseline',
     gap: 6,
   },
-  h2Hint: { fontSize: 11, color: '#9CA3AF', fontWeight: 400 },
-  subtitle: { fontSize: 13, color: '#6B7280', margin: 0, maxWidth: 720 },
+  h2Hint: { fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 400 },
+  subtitle: { fontSize: 13, color: 'var(--color-text-tertiary)', margin: 0, maxWidth: 720 },
   headerControls: { display: 'flex', gap: 8, alignItems: 'center' },
   navBtn: {
     padding: '6px 12px',
     border: '1px solid #E2E5EB',
     borderRadius: 6,
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     fontSize: 13,
     cursor: 'pointer',
   },
@@ -639,8 +639,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '6px 12px',
     border: 'none',
     borderRadius: 6,
-    background: '#1D3095',
-    color: '#FFFFFF',
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
     fontSize: 13,
     cursor: 'pointer',
     fontWeight: 500,
@@ -651,13 +651,13 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 16,
     padding: '12px 16px',
-    background: '#F9FAFB',
+    background: 'var(--color-bg-app)',
     border: '1px solid #E2E5EB',
     borderRadius: 8,
     marginBottom: 12,
   },
   filterGroup: { display: 'flex', alignItems: 'center', gap: 6 },
-  filterLabel: { fontSize: 12, color: '#6B7280', fontWeight: 500 },
+  filterLabel: { fontSize: 12, color: 'var(--color-text-tertiary)', fontWeight: 500 },
   textInput: {
     padding: '4px 8px',
     border: '1px solid #E2E5EB',
@@ -672,7 +672,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 6,
     fontSize: 12,
     fontFamily: 'inherit',
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
   },
   summaryBar: {
     display: 'flex',
@@ -680,7 +680,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 6,
     padding: '12px 16px',
-    background: '#F9FAFB',
+    background: 'var(--color-bg-app)',
     border: '1px solid #E2E5EB',
     borderRadius: 8,
     marginBottom: 12,
@@ -689,7 +689,7 @@ const styles: Record<string, React.CSSProperties> = {
   summaryStrong: { color: '#111827', fontWeight: 600 },
   summaryAmber: { color: '#B45309', fontWeight: 600 },
   summaryRed: { color: '#B91C1C', fontWeight: 700 },
-  muted: { color: '#9CA3AF' },
+  muted: { color: 'var(--color-text-muted)' },
   layout: {
     display: 'grid',
     gridTemplateColumns: '1fr 280px',
@@ -697,7 +697,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 16,
   },
   calendarRegion: {
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #E2E5EB',
     borderRadius: 12,
     padding: 12,
@@ -711,7 +711,7 @@ const styles: Record<string, React.CSSProperties> = {
   dowCell: {
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.04em',
     padding: '4px 0',
@@ -728,7 +728,7 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: 110,
   },
   dayCell: {
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #F1F2F4',
     borderRadius: 6,
     padding: 6,
@@ -745,8 +745,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   dayNumber: { color: '#374151', fontWeight: 500 },
   dayCount: {
-    background: '#F3F4F6',
-    color: '#6B7280',
+    background: 'var(--color-bg-subtle)',
+    color: 'var(--color-text-tertiary)',
     padding: '0 6px',
     borderRadius: 999,
     fontSize: 10,
@@ -764,11 +764,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   overflowChip: {
     fontSize: 10,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     padding: '2px 6px',
   },
   sidebar: {
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #E2E5EB',
     borderRadius: 12,
     padding: 12,
@@ -776,7 +776,7 @@ const styles: Record<string, React.CSSProperties> = {
   sidebarEmpty: {
     padding: 12,
     fontSize: 12,
-    color: '#9CA3AF',
+    color: 'var(--color-text-muted)',
     fontStyle: 'italic' as const,
   },
   upcomingList: {
@@ -803,7 +803,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   upcomingMeta: {
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     margin: '2px 0',
     display: 'flex',
     alignItems: 'center',
@@ -814,7 +814,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#374151',
   },
   nextDueSection: {
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #E2E5EB',
     borderRadius: 12,
     padding: 16,
@@ -823,10 +823,10 @@ const styles: Record<string, React.CSSProperties> = {
   th: {
     textAlign: 'left' as const,
     padding: '8px 12px',
-    background: '#F9FAFB',
+    background: 'var(--color-bg-app)',
     borderBottom: '1px solid #E2E5EB',
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 600,
     letterSpacing: '0.04em',
     textTransform: 'uppercase' as const,
@@ -834,10 +834,10 @@ const styles: Record<string, React.CSSProperties> = {
   thRight: {
     textAlign: 'right' as const,
     padding: '8px 12px',
-    background: '#F9FAFB',
+    background: 'var(--color-bg-app)',
     borderBottom: '1px solid #E2E5EB',
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 600,
     letterSpacing: '0.04em',
     textTransform: 'uppercase' as const,
@@ -848,13 +848,13 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid #F1F2F4',
     textAlign: 'right' as const,
   },
-  link: { color: '#1D3095', textDecoration: 'none', fontWeight: 500 },
+  link: { color: 'var(--color-brand-navy)', textDecoration: 'none', fontWeight: 500 },
   empty: {
     padding: 32,
     textAlign: 'center' as const,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontSize: 13,
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #E2E5EB',
     borderRadius: 12,
   },

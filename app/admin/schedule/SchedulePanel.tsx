@@ -31,13 +31,13 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 
 const EVENT_TYPES = [
   { key: 'field_work', label: 'Field Work', color: '#059669' },
-  { key: 'office', label: 'Office Work', color: '#1D3095' },
+  { key: 'office', label: 'Office Work', color: 'var(--color-brand-navy)' },
   { key: 'meeting', label: 'Meeting', color: '#7C3AED' },
   { key: 'training', label: 'Training', color: '#D97706' },
-  { key: 'time_off', label: 'Time Off', color: '#EF4444' },
+  { key: 'time_off', label: 'Time Off', color: 'var(--color-error)' },
   { key: 'deadline', label: 'Deadline', color: '#991B1B' },
   { key: 'equipment', label: 'Equipment Maint.', color: '#0891B2' },
-  { key: 'other', label: 'Other', color: '#6B7280' },
+  { key: 'other', label: 'Other', color: 'var(--color-text-tertiary)' },
 ];
 
 function getWeekDates(date: Date): Date[] {
@@ -161,7 +161,7 @@ export default function SchedulePanel() {
           <h3 className="sched__form-title">Add Schedule Event</h3>
           <div className="sched__form-grid">
             <div className="sched__form-field sched__form-field--full">
-              <label>Event Title <span style={{ color: '#EF4444' }}>*</span></label>
+              <label>Event Title <span style={{ color: 'var(--color-error)' }}>*</span></label>
               <input type="text" value={formData.title} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))}
                 placeholder="e.g., Boundary survey — Johnson Property" />
             </div>
@@ -276,9 +276,9 @@ export default function SchedulePanel() {
       )}
 
       {/* Development Guide */}
-      <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px' }}>
+      <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'var(--color-bg-app)', border: 'var(--border-light)', borderRadius: '8px' }}>
         <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem', color: '#1F2937' }}>My Schedule — Development Guide</h3>
-        <div style={{ fontSize: '0.82rem', color: '#6B7280', lineHeight: 1.6 }}>
+        <div style={{ fontSize: '0.82rem', color: 'var(--color-text-tertiary)', lineHeight: 1.6 }}>
           <p style={{ margin: '0 0 0.75rem' }}><strong>Current Capabilities:</strong></p>
           <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
             <li>Week and month calendar views with navigation (prev/next/today)</li>

@@ -211,7 +211,7 @@ export default function FSModulePage() {
               .map((w, i) => (
                 <div key={i} className="fs-module__rec-item">
                   <span className="fs-module__rec-topic">{w.topic}</span>
-                  <span className="fs-module__rec-score" style={{ color: w.weakness_score > 0.6 ? '#EF4444' : '#F59E0B' }}>
+                  <span className="fs-module__rec-score" style={{ color: w.weakness_score > 0.6 ? 'var(--color-error)' : 'var(--color-warning)' }}>
                     {w.questions_correct}/{w.questions_attempted} correct
                   </span>
                 </div>

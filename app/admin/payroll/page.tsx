@@ -9,7 +9,8 @@ import UnderConstruction from '../components/messaging/UnderConstruction';
 import EmployeePayCard from '../components/payroll/EmployeePayCard';
 import PayRateTable from '../components/payroll/PayRateTable';
 import PayrollRunPanel from '../components/payroll/PayrollRunPanel';
-import { JOB_TITLES, formatCurrency } from '../components/payroll/PayrollConstants';
+import { formatCurrency } from '../components/payroll/PayrollConstants';
+import { useJobTitles } from '../components/payroll/useJobTitles';
 
 interface Employee {
   id: string;
@@ -31,6 +32,7 @@ export default function PayrollPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const { safeFetch, safeAction, reportPageError } = usePageError('PayrollPage');
+  const jobTitles = useJobTitles();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'employees' | 'rates' | 'payroll'>('overview');
@@ -159,7 +161,7 @@ export default function PayrollPage() {
           <div className="payroll-overview__section">
             <h3>Employees by Position</h3>
             <div className="payroll-overview__position-grid">
-              {Object.entries(JOB_TITLES).map(([key, info]) => {
+              {Object.entries(jobTitles).map(([key, info]) => {
                 const count = employees.filter(e => e.is_active && e.job_title === key).length;
                 return (
                   <div key={key} className="payroll-overview__position-card">
@@ -248,7 +250,7 @@ export default function PayrollPage() {
                 <div className="payroll-form-group">
                   <label>Position</label>
                   <select value={addForm.job_title} onChange={e => setAddForm(f => ({ ...f, job_title: e.target.value }))}>
-                    {Object.entries(JOB_TITLES).map(([key, val]) => (
+                    {Object.entries(jobTitles).map(([key, val]) => (
                       <option key={key} value={key}>{val.icon} {val.label}</option>
                     ))}
                   </select>

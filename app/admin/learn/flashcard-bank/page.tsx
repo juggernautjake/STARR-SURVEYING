@@ -169,8 +169,8 @@ export default function FlashcardBankPage() {
 
       {/* Create Form (personal section only) */}
       {showCreate && section === 'personal' && (
-        <div style={{ background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 10, padding: '1.25rem', marginBottom: '1rem' }}>
-          <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.9rem', fontWeight: 600, color: '#1D3095', marginBottom: '.75rem' }}>Create New Flashcard</h4>
+        <div style={{ background: 'var(--color-bg-card)', border: 'var(--border-light)', borderRadius: 10, padding: '1.25rem', marginBottom: '1rem' }}>
+          <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.9rem', fontWeight: 600, color: 'var(--color-brand-navy)', marginBottom: '.75rem' }}>Create New Flashcard</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.65rem' }}>
             <input className="manage__form-input" placeholder="Term / front of card *" value={newTerm} onChange={e => setNewTerm(e.target.value)} />
             <textarea className="manage__form-textarea" placeholder="Definition / back of card *" rows={3} value={newDef} onChange={e => setNewDef(e.target.value)} />
@@ -205,28 +205,28 @@ export default function FlashcardBankPage() {
         <div>
           {Object.entries(groupedCompany).sort(([a], [b]) => a.localeCompare(b)).map(([moduleName, cards]) => (
             <div key={moduleName} style={{ marginBottom: '1.5rem' }}>
-              <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.9rem', fontWeight: 600, color: '#1D3095', marginBottom: '.5rem', paddingBottom: '.35rem', borderBottom: '2px solid #EFF6FF' }}>
-                {moduleName} <span style={{ fontWeight: 400, color: '#9CA3AF', fontSize: '.78rem' }}>({cards.length} cards)</span>
+              <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.9rem', fontWeight: 600, color: 'var(--color-brand-navy)', marginBottom: '.5rem', paddingBottom: '.35rem', borderBottom: '2px solid #EFF6FF' }}>
+                {moduleName} <span style={{ fontWeight: 400, color: 'var(--color-text-muted)', fontSize: '.78rem' }}>({cards.length} cards)</span>
               </h3>
               <div className="fc-bank__grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '.75rem' }}>
                 {cards.map(c => (
                   <div key={c.id} onClick={() => setExpandedCard(expandedCard === c.id ? null : c.id)} style={{
-                    background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '.85rem', cursor: 'pointer', transition: 'border-color .15s',
-                    borderColor: expandedCard === c.id ? '#1D3095' : '#E5E7EB',
+                    background: 'var(--color-bg-card)', border: 'var(--border-light)', borderRadius: 8, padding: '.85rem', cursor: 'pointer', transition: 'border-color .15s',
+                    borderColor: expandedCard === c.id ? 'var(--color-brand-navy)' : '#E5E7EB',
                   }}>
-                    <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '.85rem', fontWeight: 600, color: '#0F1419', marginBottom: '.25rem' }}>{c.term}</div>
-                    <div style={{ fontSize: '.78rem', color: '#6B7280', lineHeight: 1.5 }}>
+                    <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '.85rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '.25rem' }}>{c.term}</div>
+                    <div style={{ fontSize: '.78rem', color: 'var(--color-text-tertiary)', lineHeight: 1.5 }}>
                       {expandedCard === c.id ? c.definition : c.definition.substring(0, 80) + (c.definition.length > 80 ? '...' : '')}
                     </div>
                     {expandedCard === c.id && c.hint_1 && (
-                      <div style={{ marginTop: '.5rem', fontSize: '.75rem', color: '#9CA3AF' }}>
+                      <div style={{ marginTop: '.5rem', fontSize: '.75rem', color: 'var(--color-text-muted)' }}>
                         Hint: {c.hint_1}
                       </div>
                     )}
                     {c.tags && c.tags.length > 0 && (
                       <div style={{ display: 'flex', gap: '.2rem', flexWrap: 'wrap', marginTop: '.4rem' }}>
                         {c.tags.slice(0, 4).map(tag => (
-                          <span key={tag} style={{ fontSize: '.6rem', padding: '1px 5px', background: '#F3F4F6', borderRadius: 3, color: '#6B7280' }}>{tag}</span>
+                          <span key={tag} style={{ fontSize: '.6rem', padding: '1px 5px', background: 'var(--color-bg-subtle)', borderRadius: 3, color: 'var(--color-text-tertiary)' }}>{tag}</span>
                         ))}
                       </div>
                     )}
@@ -240,7 +240,7 @@ export default function FlashcardBankPage() {
         /* Personal cards — flat list with edit support */
         <div className="fc-bank__grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '.75rem' }}>
           {filtered.map(c => (
-            <div key={c.id} style={{ background: '#FFF', border: `1px solid ${editingId === c.id ? '#1D3095' : '#E5E7EB'}`, borderRadius: 8, padding: '.85rem' }}>
+            <div key={c.id} style={{ background: 'var(--color-bg-card)', border: `1px solid ${editingId === c.id ? 'var(--color-brand-navy)' : '#E5E7EB'}`, borderRadius: 8, padding: '.85rem' }}>
               {editingId === c.id ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.45rem' }}>
                   <input className="manage__form-input" value={editData.term ?? c.term} onChange={e => setEditData(p => ({ ...p, term: e.target.value }))} placeholder="Term" style={{ fontSize: '.82rem' }} />
@@ -259,20 +259,20 @@ export default function FlashcardBankPage() {
               ) : (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '.25rem' }}>
-                    <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '.85rem', fontWeight: 600, color: '#0F1419' }}>{c.term}</div>
+                    <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '.85rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>{c.term}</div>
                     <div style={{ display: 'flex', gap: '.35rem', flexShrink: 0 }}>
                       <button onClick={(e) => { e.stopPropagation(); setEditingId(c.id); setEditData({}); }} style={{
-                        background: 'none', border: 'none', color: '#1D3095', cursor: 'pointer', fontSize: '.72rem', fontWeight: 600, padding: '.1rem .3rem',
+                        background: 'none', border: 'none', color: 'var(--color-brand-navy)', cursor: 'pointer', fontSize: '.72rem', fontWeight: 600, padding: '.1rem .3rem',
                       }}>Edit</button>
                       <button onClick={(e) => { e.stopPropagation(); deleteCard(c.id); }} style={{
-                        background: 'none', border: 'none', color: '#BD1218', cursor: 'pointer', fontSize: '.72rem', fontWeight: 600, padding: '.1rem .3rem',
+                        background: 'none', border: 'none', color: 'var(--color-brand-red)', cursor: 'pointer', fontSize: '.72rem', fontWeight: 600, padding: '.1rem .3rem',
                       }}>Delete</button>
                     </div>
                   </div>
-                  <div style={{ fontSize: '.78rem', color: '#6B7280', lineHeight: 1.5 }}>{c.definition}</div>
-                  {c.hint_1 && <div style={{ marginTop: '.35rem', fontSize: '.72rem', color: '#9CA3AF' }}>Hint: {c.hint_1}</div>}
+                  <div style={{ fontSize: '.78rem', color: 'var(--color-text-tertiary)', lineHeight: 1.5 }}>{c.definition}</div>
+                  {c.hint_1 && <div style={{ marginTop: '.35rem', fontSize: '.72rem', color: 'var(--color-text-muted)' }}>Hint: {c.hint_1}</div>}
                   {c.times_reviewed != null && c.times_reviewed > 0 && (
-                    <div style={{ marginTop: '.35rem', fontSize: '.68rem', color: '#10B981', display: 'flex', alignItems: 'center', gap: '.35rem', flexWrap: 'wrap' }}>
+                    <div style={{ marginTop: '.35rem', fontSize: '.68rem', color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '.35rem', flexWrap: 'wrap' }}>
                       <span>Reviewed {c.times_reviewed}x &middot; {c.times_correct || 0} correct</span>
                       <span className={`quiz-avg-badge ${((c.times_correct || 0) / c.times_reviewed * 100) >= 70 ? 'quiz-avg-badge--green' : ((c.times_correct || 0) / c.times_reviewed * 100) >= 40 ? 'quiz-avg-badge--yellow' : 'quiz-avg-badge--red'}`}>
                         {Math.round(((c.times_correct || 0) / c.times_reviewed) * 100)}%

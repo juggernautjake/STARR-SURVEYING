@@ -178,19 +178,19 @@ export default function MediaLibraryPage() {
       {/* Upload Modal */}
       {showUpload && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ background: '#FFF', borderRadius: 12, padding: '1.5rem', maxWidth: 600, width: '100%', maxHeight: '90vh', overflow: 'auto' }}>
+          <div style={{ background: 'var(--color-bg-card)', borderRadius: 12, padding: '1.5rem', maxWidth: 600, width: '100%', maxHeight: '90vh', overflow: 'auto' }}>
             <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.1rem', fontWeight: 600, marginBottom: '1rem' }}>Upload Media</h3>
 
             {/* File input */}
             <div style={{ marginBottom: '1rem' }}>
               <input ref={fileRef} type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx" onChange={handleFileSelect} style={{ display: 'none' }} />
               <button onClick={() => fileRef.current?.click()} className="admin-btn admin-btn--secondary admin-btn--sm" style={{ marginRight: '.5rem' }}>Choose File</button>
-              <span style={{ fontSize: '.82rem', color: '#6B7280' }}>or paste a URL below</span>
+              <span style={{ fontSize: '.82rem', color: 'var(--color-text-tertiary)' }}>or paste a URL below</span>
             </div>
 
             {previewUrl && uploadType === 'image' && (
               <div style={{ marginBottom: '1rem', textAlign: 'center' }}>
-                <Image src={previewUrl} alt="Preview" width={400} height={200} unoptimized style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, border: '1px solid #E5E7EB' }} />
+                <Image src={previewUrl} alt="Preview" width={400} height={200} unoptimized style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, border: 'var(--border-light)' }} />
               </div>
             )}
 
@@ -202,7 +202,7 @@ export default function MediaLibraryPage() {
                 </div>
                 <div className="media__field-type" style={{ flex: '0 0 140px' }}>
                   <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Type</label>
-                  <select className="manage__form-input" value={uploadType} onChange={e => setUploadType(e.target.value)} style={{ background: '#FFF' }}>
+                  <select className="manage__form-input" value={uploadType} onChange={e => setUploadType(e.target.value)} style={{ background: 'var(--color-bg-card)' }}>
                     <option value="image">Image</option>
                     <option value="video">Video</option>
                     <option value="audio">Audio</option>
@@ -236,7 +236,7 @@ export default function MediaLibraryPage() {
               <div className="media__form-row" style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <div className="media__field-res" style={{ flex: '0 0 140px' }}>
                   <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Resolution</label>
-                  <select className="manage__form-input" value={uploadResolution} onChange={e => setUploadResolution(e.target.value)} style={{ background: '#FFF' }}>
+                  <select className="manage__form-input" value={uploadResolution} onChange={e => setUploadResolution(e.target.value)} style={{ background: 'var(--color-bg-card)' }}>
                     <option value="original">Original</option>
                     <option value="thumbnail">Thumbnail (150px)</option>
                     <option value="small">Small (400px)</option>
@@ -269,7 +269,7 @@ export default function MediaLibraryPage() {
       {/* Edit Modal */}
       {editItem && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ background: '#FFF', borderRadius: 12, padding: '1.5rem', maxWidth: 500, width: '100%' }}>
+          <div style={{ background: 'var(--color-bg-card)', borderRadius: 12, padding: '1.5rem', maxWidth: 500, width: '100%' }}>
             <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Edit Media</h3>
             <div className="manage__form" style={{ gap: '.65rem' }}>
               <input className="manage__form-input" value={editItem.title} onChange={e => setEditItem({ ...editItem, title: e.target.value })} placeholder="Title" />
@@ -297,7 +297,7 @@ export default function MediaLibraryPage() {
       ) : (
         <div className="media__grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
           {media.map(item => (
-            <div key={item.id} style={{ background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', cursor: 'pointer' }}>
+            <div key={item.id} style={{ background: 'var(--color-bg-card)', border: 'var(--border-light)', borderRadius: 10, overflow: 'hidden', cursor: 'pointer' }}>
               <div style={{ height: 120, background: '#F8F9FA', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                 {item.media_type === 'image' && item.url ? (
                   <Image src={item.url} alt={item.alt_text || item.title} width={180} height={120} unoptimized style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -306,14 +306,14 @@ export default function MediaLibraryPage() {
                 )}
               </div>
               <div style={{ padding: '.65rem' }}>
-                <div style={{ fontSize: '.82rem', fontWeight: 600, color: '#0F1419', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</div>
-                <div style={{ fontSize: '.72rem', color: '#9CA3AF', marginTop: '.15rem' }}>
+                <div style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</div>
+                <div style={{ fontSize: '.72rem', color: 'var(--color-text-muted)', marginTop: '.15rem' }}>
                   {item.media_type} &middot; {new Date(item.created_at).toLocaleDateString()}
                 </div>
                 {item.tags?.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.15rem', marginTop: '.35rem' }}>
                     {item.tags.slice(0, 3).map(tag => (
-                      <span key={tag} style={{ fontSize: '.6rem', padding: '1px 4px', background: '#F3F4F6', borderRadius: 3, color: '#6B7280' }}>{tag}</span>
+                      <span key={tag} style={{ fontSize: '.6rem', padding: '1px 4px', background: 'var(--color-bg-subtle)', borderRadius: 3, color: 'var(--color-text-tertiary)' }}>{tag}</span>
                     ))}
                   </div>
                 )}

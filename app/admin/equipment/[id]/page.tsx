@@ -112,12 +112,12 @@ const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   maintenance: { bg: '#FEF3C7', fg: '#92400E' },
   loaned_out: { bg: '#E0E7FF', fg: '#4338CA' },
   lost: { bg: '#FEE2E2', fg: '#B91C1C' },
-  retired: { bg: '#F3F4F6', fg: '#6B7280' },
+  retired: { bg: 'var(--color-bg-subtle)', fg: 'var(--color-text-tertiary)' },
 };
 
 const CONDITION_COLORS: Record<string, { bg: string; fg: string }> = {
   new: { bg: '#DCFCE7', fg: '#15803D' },
-  good: { bg: '#ECFDF5', fg: '#047857' },
+  good: { bg: 'var(--color-success-bg)', fg: '#047857' },
   fair: { bg: '#FEF9C3', fg: '#854D0E' },
   poor: { bg: '#FED7AA', fg: '#9A3412' },
   damaged: { bg: '#FEE2E2', fg: '#B91C1C' },
@@ -208,8 +208,8 @@ export default function EquipmentDrilldownPage() {
   const statusColors = STATUS_COLORS[statusKey] ?? STATUS_COLORS.available;
   const conditionColors = row.condition
     ? (CONDITION_COLORS[row.condition] ?? {
-        bg: '#F3F4F6',
-        fg: '#6B7280',
+        bg: 'var(--color-bg-subtle)',
+        fg: 'var(--color-text-tertiary)',
       })
     : null;
 
@@ -258,7 +258,7 @@ export default function EquipmentDrilldownPage() {
             </span>
           ) : null}
           {row.retired_at ? (
-            <span style={{ ...styles.pill, background: '#F3F4F6', color: '#6B7280' }}>
+            <span style={{ ...styles.pill, background: 'var(--color-bg-subtle)', color: 'var(--color-text-tertiary)' }}>
               Retired
             </span>
           ) : null}
@@ -611,14 +611,14 @@ function Section({
 function maintStatePill(state: string): React.CSSProperties {
   const map: Record<string, React.CSSProperties> = {
     scheduled: { background: '#DBEAFE', color: '#1E3A8A' },
-    in_progress: { background: '#1D3095', color: '#FFFFFF' },
+    in_progress: { background: 'var(--color-brand-navy)', color: 'var(--color-text-on-brand)' },
     awaiting_parts: { background: '#FEF3C7', color: '#78350F' },
     awaiting_vendor: { background: '#FEF3C7', color: '#78350F' },
     complete: { background: '#DCFCE7', color: '#166534' },
     failed_qa: { background: '#FEE2E2', color: '#7F1D1D' },
     cancelled: {
-      background: '#F3F4F6',
-      color: '#6B7280',
+      background: 'var(--color-bg-subtle)',
+      color: 'var(--color-text-tertiary)',
       border: '1px dashed #D1D5DB',
     },
   };
@@ -630,7 +630,7 @@ function maintStatePill(state: string): React.CSSProperties {
     fontWeight: 600,
     textTransform: 'uppercase' as const,
     letterSpacing: '0.04em',
-    ...(map[state] ?? { background: '#F3F4F6', color: '#374151' }),
+    ...(map[state] ?? { background: 'var(--color-bg-subtle)', color: '#374151' }),
   };
 }
 
@@ -641,7 +641,7 @@ const maintRowStyles: Record<string, React.CSSProperties> = {
   },
   kindChip: {
     display: 'inline-block',
-    background: '#F3F4F6',
+    background: 'var(--color-bg-subtle)',
     padding: '1px 8px',
     borderRadius: 4,
     fontSize: 11,
@@ -666,7 +666,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-block',
     marginBottom: 12,
     fontSize: 13,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     textDecoration: 'none',
     fontWeight: 500,
   },
@@ -707,7 +707,7 @@ const styles: Record<string, React.CSSProperties> = {
   photoFallback: {
     padding: 20,
     fontSize: 12,
-    color: '#9CA3AF',
+    color: 'var(--color-text-muted)',
     textAlign: 'center',
     lineHeight: 1.5,
   },
@@ -727,7 +727,7 @@ const styles: Record<string, React.CSSProperties> = {
   fieldLabel: {
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
@@ -747,7 +747,7 @@ const styles: Record<string, React.CSSProperties> = {
   sectionBody: { padding: 16 },
   sectionSub: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     margin: '0 0 12px',
   },
   table: {
@@ -758,7 +758,7 @@ const styles: Record<string, React.CSSProperties> = {
   th: {
     textAlign: 'left',
     padding: '10px 14px',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 500,
     background: '#F7F8FA',
     borderBottom: '1px solid #E2E5EB',
@@ -768,12 +768,12 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid #F3F4F6',
     verticalAlign: 'top',
   },
-  link: { color: '#1D3095', fontWeight: 500, textDecoration: 'none' },
-  muted: { color: '#9CA3AF' },
+  link: { color: 'var(--color-brand-navy)', fontWeight: 500, textDecoration: 'none' },
+  muted: { color: 'var(--color-text-muted)' },
   code: {
     fontFamily: 'Menlo, monospace',
     fontSize: 11,
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     padding: '2px 6px',
     borderRadius: 4,
     border: '1px solid #E2E5EB',
@@ -796,14 +796,14 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     background: '#F7F8FA',
     borderRadius: 12,
     fontSize: 13,
   },
   note: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: 'var(--color-text-muted)',
     marginTop: 24,
     fontStyle: 'italic',
     textAlign: 'center',

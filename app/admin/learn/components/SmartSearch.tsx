@@ -38,7 +38,7 @@ interface SmartSearchProps {
 }
 
 const TYPE_META: Record<string, { icon: string; label: string; color: string }> = {
-  module:     { icon: '📚', label: 'Module',     color: '#1D3095' },
+  module:     { icon: '📚', label: 'Module',     color: 'var(--color-brand-navy)' },
   lesson:     { icon: '📖', label: 'Lesson',     color: '#059669' },
   topic:      { icon: '📝', label: 'Topic',      color: '#7C3AED' },
   article:    { icon: '📰', label: 'Article',    color: '#DC2626' },
@@ -181,7 +181,7 @@ export default function SmartSearch({ onSelect, placeholder, includeAll = true, 
 
           {Object.entries(results).map(([type, items]) => {
             if (!items || items.length === 0) return null;
-            const meta = TYPE_META[type] || { icon: '📄', label: type, color: '#6B7280' };
+            const meta = TYPE_META[type] || { icon: '📄', label: type, color: 'var(--color-text-tertiary)' };
             return (
               <div key={type} className="smart-search__group">
                 <div className="smart-search__group-header">

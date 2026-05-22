@@ -83,7 +83,7 @@ export default function CreateFlashcardsPage() {
           <div className="admin-card admin-card--accent-green">
             <div className="admin-card__label">Cards Saved This Session</div>
             <div style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: '#374151' }}>
-              {saved.map((s, i) => <span key={i} style={{ display: 'inline-block', background: '#ECFDF5', padding: '.15rem .5rem', borderRadius: '4px', marginRight: '.35rem', marginBottom: '.25rem', fontSize: '.8rem' }}>{s}</span>)}
+              {saved.map((s, i) => <span key={i} style={{ display: 'inline-block', background: 'var(--color-success-bg)', padding: '.15rem .5rem', borderRadius: '4px', marginRight: '.35rem', marginBottom: '.25rem', fontSize: '.8rem' }}>{s}</span>)}
             </div>
             <div style={{ marginTop: '.75rem' }}>
               <Link href={`/admin/learn/flashcards/${encodeURIComponent(deckName)}?type=user`} className="admin-btn admin-btn--secondary admin-btn--sm">Study These Cards →</Link>

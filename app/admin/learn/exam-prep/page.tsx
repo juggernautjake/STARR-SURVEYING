@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import FieldbookButton from '@/app/admin/components/FieldbookButton';
+import { CalculatorTriggerButton } from '@/app/admin/components/calculator/CalculatorTriggerButton';
 import { usePageError } from '../../hooks/usePageError';
 
 export default function ExamPrepPage() {
@@ -37,7 +38,10 @@ export default function ExamPrepPage() {
     <>
       <div className="admin-learn__header">
         <Link href="/admin/learn" className="admin-module-detail__back">&larr; Back to Learning Hub</Link>
-        <h2 className="admin-learn__title">&#x1F4DD; Exam Prep</h2>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <h2 className="admin-learn__title">&#x1F4DD; Exam Prep</h2>
+          <CalculatorTriggerButton size="sm" title="Open an NCEES-approved calculator (Casio fx-115/991, HP 33s/35s, TI-30X/36X)" />
+        </div>
         <p className="admin-learn__subtitle">
           Prepare for your surveying licensure exams with structured study modules, practice quizzes, and full mock exams.
         </p>
@@ -45,7 +49,7 @@ export default function ExamPrepPage() {
 
       <div className="admin-learn__sections">
         {/* FS Exam Prep Card */}
-        <Link href="/admin/learn/exam-prep/sit" className="admin-learn__section-card" style={{ borderColor: '#1D3095', borderWidth: '2px' }}>
+        <Link href="/admin/learn/exam-prep/sit" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-navy)', borderWidth: '2px' }}>
           <span className="admin-learn__section-icon">&#x1F3AF;</span>
           <h3 className="admin-learn__section-title">Fundamentals of Surveying (FS)</h3>
           <p className="admin-learn__section-desc">
@@ -54,12 +58,12 @@ export default function ExamPrepPage() {
           </p>
           {fsStats && (
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem' }}>
-              <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', background: '#EFF6FF', color: '#1D3095', borderRadius: '12px', fontWeight: 600 }}>
+              <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', background: 'var(--color-info-bg)', color: 'var(--color-brand-navy)', borderRadius: '12px', fontWeight: 600 }}>
                 {fsStats.completed_modules}/{fsStats.total_modules} modules
               </span>
               <span style={{
                 fontSize: '0.75rem', padding: '0.2rem 0.6rem', borderRadius: '12px', fontWeight: 600,
-                background: fsStats.overall_readiness >= 70 ? '#ECFDF5' : '#FEF3C7',
+                background: fsStats.overall_readiness >= 70 ? 'var(--color-success-bg)' : '#FEF3C7',
                 color: fsStats.overall_readiness >= 70 ? '#065F46' : '#92400E',
               }}>
                 {fsStats.overall_readiness}% ready
@@ -77,7 +81,7 @@ export default function ExamPrepPage() {
             Advanced preparation for the Registered Professional Land Surveyor exam.
             Complete the FS exam prep first to build your foundation.
           </p>
-          <span className="admin-learn__section-arrow" style={{ color: '#9CA3AF' }}>Coming Soon</span>
+          <span className="admin-learn__section-arrow" style={{ color: 'var(--color-text-muted)' }}>Coming Soon</span>
         </div>
       </div>
 
@@ -88,10 +92,10 @@ export default function ExamPrepPage() {
             Recent Quiz Attempts
           </h3>
           {attempts.slice(0, 10).map((a) => (
-            <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px', marginBottom: '0.5rem' }}>
+            <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--color-bg-card)', border: 'var(--border-light)', borderRadius: '8px', marginBottom: '0.5rem' }}>
               <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{a.exam_category} Quiz</span>
-              <span style={{ color: a.score_percent >= 70 ? '#10B981' : '#BD1218', fontWeight: 700 }}>{a.score_percent}%</span>
-              <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>{new Date(a.completed_at).toLocaleDateString()}</span>
+              <span style={{ color: a.score_percent >= 70 ? 'var(--color-success)' : 'var(--color-brand-red)', fontWeight: 700 }}>{a.score_percent}%</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{new Date(a.completed_at).toLocaleDateString()}</span>
             </div>
           ))}
         </div>

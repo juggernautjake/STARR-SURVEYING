@@ -1,14 +1,32 @@
 // app/admin/components/payroll/PayrollConstants.tsx
-// Shared constants for payroll system
+// Shared constants for payroll system.
+//
+// Job titles moved to a server-driven catalog (P-7 of
+// PAY_PROGRESSION_OVERHAUL.md). Use the `useJobTitles()` hook from
+// ./useJobTitles in client components — it returns the live data from
+// role_tiers via /api/role-tiers. JOB_TITLES_FALLBACK (below) covers
+// the 14 seeded tiers and is used by the hook when the network fails,
+// so consumers never see "undefined".
 
-export const JOB_TITLES: Record<string, { label: string; icon: string; description: string }> = {
-  survey_technician: { label: 'Survey Technician', icon: '🔧', description: 'Entry-level field technician' },
-  instrument_operator: { label: 'Instrument Operator', icon: '📡', description: 'Operates total station and GPS' },
-  party_chief: { label: 'Party Chief', icon: '👷', description: 'Leads field survey crew' },
-  survey_drafter: { label: 'Survey Drafter', icon: '📐', description: 'CAD drafting and drawing' },
-  office_tech: { label: 'Office Tech', icon: '🖥️', description: 'Office administrative support' },
-  lead_rpls: { label: 'Lead RPLS', icon: '📜', description: 'Registered Professional Land Surveyor' },
+export const JOB_TITLES_FALLBACK: Record<string, { label: string; icon: string; description: string }> = {
+  intern:           { label: 'Intern',                    icon: '🌱',  description: 'Learning the field' },
+  field_hand:       { label: 'Field Hand',                icon: '👷',  description: 'Entry-level field labor' },
+  rodman:           { label: 'Rodman',                    icon: '📏',  description: 'Assists field crew with measurements' },
+  instrument_op:    { label: 'Instrument Operator',       icon: '📡',  description: 'Operates total station and GPS' },
+  survey_tech:      { label: 'Survey Technician',         icon: '🔧',  description: 'Entry-level field technician' },
+  party_chief:      { label: 'Party Chief',               icon: '👷‍♂️', description: 'Leads field survey crew' },
+  sit:              { label: 'Surveyor in Training (SIT)', icon: '🎓', description: 'SIT exam passed; on the path to RPLS' },
+  survey_drafter:   { label: 'Survey Drafter',            icon: '📐',  description: 'CAD drafting and drawing' },
+  project_manager:  { label: 'Project Manager',           icon: '🗂️', description: 'Manages job lifecycle and client comms' },
+  rpls:             { label: 'RPLS',                      icon: '📜',  description: 'Registered Professional Land Surveyor' },
+  senior_rpls:      { label: 'Senior RPLS',               icon: '🏅',  description: 'Senior licensed surveyor; mentors RPLS' },
+  owner:            { label: 'Owner / Principal',         icon: '👑',  description: 'Owner / principal of the firm' },
+  admin_staff:      { label: 'Administrative Staff',      icon: '🖥️', description: 'Office administrative support' },
+  it_support:       { label: 'IT / Tech Support',         icon: '🛠️', description: 'IT and software support' },
 };
+
+/** @deprecated Import `useJobTitles` from ./useJobTitles instead — this is kept as a fallback only. */
+export const JOB_TITLES = JOB_TITLES_FALLBACK;
 
 export const CERTIFICATION_TYPES: Record<string, { label: string; icon: string }> = {
   sit_exam: { label: 'SIT Exam (Surveyor in Training)', icon: '📝' },

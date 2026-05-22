@@ -239,7 +239,8 @@
 /* Override child FAB positions: they now flow inside the menu instead of fixed positioning */
 .fab-menu .fieldbook-fab-wrap,
 .fab-menu .discussion-fab-wrap,
-.fab-menu .messenger-fab-wrap {
+.fab-menu .messenger-fab-wrap,
+.fab-menu .calculator-fab-wrap {
   position: static !important;
   bottom: auto !important;
   right: auto !important;
@@ -282,13 +283,15 @@
 /* Tooltip colors updated to match green bar */
 .fab-menu .fieldbook-fab-tooltip,
 .fab-menu .discussion-fab-tooltip,
-.fab-menu .messenger-fab-tooltip {
+.fab-menu .messenger-fab-tooltip,
+.fab-menu .calculator-fab-tooltip {
   background: #065F46;
   color: #FFF;
 }
 .fab-menu .fieldbook-fab-tooltip::after,
 .fab-menu .discussion-fab-tooltip::after,
-.fab-menu .messenger-fab-tooltip::after {
+.fab-menu .messenger-fab-tooltip::after,
+.fab-menu .calculator-fab-tooltip::after {
   border-top-color: #065F46;
 }
 
@@ -299,7 +302,8 @@
 */
 .fab-menu .fieldbook-fab-wrap,
 .fab-menu .discussion-fab-wrap,
-.fab-menu .messenger-fab-wrap {
+.fab-menu .messenger-fab-wrap,
+.fab-menu .calculator-fab-wrap {
   width: 48px !important;
   height: 48px !important;
   flex: 0 0 48px !important;
@@ -311,7 +315,8 @@
 }
 .fab-menu .fieldbook-fab,
 .fab-menu .discussion-fab,
-.fab-menu .messenger-fab {
+.fab-menu .messenger-fab,
+.fab-menu .calculator-fab {
   width: 48px !important;
   height: 48px !important;
   border-radius: 12px !important;
@@ -324,7 +329,8 @@
 /* Lock tooltips to hover-only — defensive in case sibling rules leak. */
 .fab-menu .fieldbook-fab-tooltip,
 .fab-menu .discussion-fab-tooltip,
-.fab-menu .messenger-fab-tooltip {
+.fab-menu .messenger-fab-tooltip,
+.fab-menu .calculator-fab-tooltip {
   position: absolute !important;
   bottom: calc(100% + 8px) !important;
   left: 50% !important;
@@ -336,7 +342,8 @@
 }
 .fab-menu .fieldbook-fab-wrap:hover .fieldbook-fab-tooltip,
 .fab-menu .discussion-fab-wrap:hover .discussion-fab-tooltip,
-.fab-menu .messenger-fab-wrap:hover .messenger-fab-tooltip {
+.fab-menu .messenger-fab-wrap:hover .messenger-fab-tooltip,
+.fab-menu .calculator-fab-wrap:hover .calculator-fab-tooltip {
   opacity: 1 !important;
   transform: translate(-50%, 0) !important;
 }
@@ -344,11 +351,66 @@
 .fab-menu .fieldbook-fab:focus-visible + .fieldbook-fab-tooltip,
 .fab-menu .discussion-fab:focus-visible + .discussion-fab-tooltip,
 .fab-menu .messenger-fab:focus-visible + .messenger-fab-tooltip,
+.fab-menu .calculator-fab:focus-visible + .calculator-fab-tooltip,
 .fab-menu .fieldbook-fab-wrap:focus-within .fieldbook-fab-tooltip,
 .fab-menu .discussion-fab-wrap:focus-within .discussion-fab-tooltip,
-.fab-menu .messenger-fab-wrap:focus-within .messenger-fab-tooltip {
+.fab-menu .messenger-fab-wrap:focus-within .messenger-fab-tooltip,
+.fab-menu .calculator-fab-wrap:focus-within .calculator-fab-tooltip {
   opacity: 1 !important;
   transform: translate(-50%, 0) !important;
+}
+
+/* Calculator FAB — brand-navy fill to distinguish from the other three. */
+.fab-menu .calculator-fab {
+  background: var(--color-brand-navy);
+  box-shadow: 0 2px 8px rgba(29, 48, 149, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: var(--color-text-on-brand);
+  font-size: 1.2rem;
+  cursor: pointer;
+  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+}
+.fab-menu .calculator-fab:hover {
+  background: var(--color-brand-navy-d);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(29, 48, 149, 0.45);
+}
+/* Tooltip base style — mirrors the fieldbook one. Outside the .fab-menu
+ * selector it doesn't apply since the FAB only lives inside the menu. */
+.calculator-fab-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+.calculator-fab-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  white-space: nowrap;
+  background: #FEF3C7;
+  color: #92400E;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.calculator-fab-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #FEF3C7;
+  border-bottom: none;
 }
 
 /* FAB button — rightmost in the bottom-right toolbar row */

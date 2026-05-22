@@ -1183,7 +1183,7 @@ export default function QuestionBuilderPage() {
             {showQuizAnalytics && (
               <>
                 {analyticsLoading && !quizAnalytics && (
-                  <p style={{ fontSize: '.78rem', color: '#6B7280' }}>Loading quiz analytics...</p>
+                  <p style={{ fontSize: '.78rem', color: 'var(--color-text-tertiary)' }}>Loading quiz analytics...</p>
                 )}
                 {quizAnalytics && (
                   <div>
@@ -1191,19 +1191,19 @@ export default function QuestionBuilderPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '.5rem', marginBottom: '.75rem' }}>
                       <div style={{ background: '#F0FDF4', borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
                         <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#16A34A' }}>{quizAnalytics.summary.pass_rate}%</div>
-                        <div style={{ fontSize: '.68rem', color: '#6B7280' }}>Overall Pass Rate</div>
+                        <div style={{ fontSize: '.68rem', color: 'var(--color-text-tertiary)' }}>Overall Pass Rate</div>
                       </div>
-                      <div style={{ background: '#EFF6FF', borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
+                      <div style={{ background: 'var(--color-info-bg)', borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
                         <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1D4ED8' }}>{quizAnalytics.summary.avg_score}%</div>
-                        <div style={{ fontSize: '.68rem', color: '#6B7280' }}>Avg Score</div>
+                        <div style={{ fontSize: '.68rem', color: 'var(--color-text-tertiary)' }}>Avg Score</div>
                       </div>
                       <div style={{ background: '#FAFBFF', borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
                         <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#374151' }}>{quizAnalytics.summary.total_attempts}</div>
-                        <div style={{ fontSize: '.68rem', color: '#6B7280' }}>Total Attempts</div>
+                        <div style={{ fontSize: '.68rem', color: 'var(--color-text-tertiary)' }}>Total Attempts</div>
                       </div>
                       <div style={{ background: '#FAFBFF', borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
                         <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#374151' }}>{quizAnalytics.summary.unique_users}</div>
-                        <div style={{ fontSize: '.68rem', color: '#6B7280' }}>Unique Users</div>
+                        <div style={{ fontSize: '.68rem', color: 'var(--color-text-tertiary)' }}>Unique Users</div>
                       </div>
                     </div>
                     {/* Pass/Fail bar */}
@@ -1223,24 +1223,24 @@ export default function QuestionBuilderPage() {
                       <div>
                         <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.4rem' }}>Breakdown by Quiz</h4>
                         {quizAnalytics.breakdown.map(b => {
-                          const passColor = b.pass_rate >= 70 ? '#10B981' : b.pass_rate >= 40 ? '#F59E0B' : '#EF4444';
+                          const passColor = b.pass_rate >= 70 ? 'var(--color-success)' : b.pass_rate >= 40 ? 'var(--color-warning)' : 'var(--color-error)';
                           return (
                             <div key={b.key} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.35rem', fontSize: '.72rem' }}>
                               <span style={{ fontWeight: 600, color: '#374151', minWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={b.label}>
                                 {b.label.length > 12 ? b.label.slice(0, 12) + '...' : b.label}
                               </span>
-                              <div style={{ flex: 1, height: 6, background: '#F3F4F6', borderRadius: 3, overflow: 'hidden' }}>
+                              <div style={{ flex: 1, height: 6, background: 'var(--color-bg-subtle)', borderRadius: 3, overflow: 'hidden' }}>
                                 <div style={{ height: '100%', width: `${b.pass_rate}%`, background: passColor, borderRadius: 3 }} />
                               </div>
                               <span style={{ color: passColor, fontWeight: 700, minWidth: 40, textAlign: 'right' }}>{b.pass_rate}%</span>
-                              <span style={{ color: '#9CA3AF', minWidth: 50 }}>{b.attempts} att.</span>
+                              <span style={{ color: 'var(--color-text-muted)', minWidth: 50 }}>{b.attempts} att.</span>
                             </div>
                           );
                         })}
                       </div>
                     )}
                     {quizAnalytics.summary.total_attempts === 0 && (
-                      <p style={{ fontSize: '.78rem', color: '#9CA3AF', textAlign: 'center' }}>No quiz attempts recorded yet.</p>
+                      <p style={{ fontSize: '.78rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>No quiz attempts recorded yet.</p>
                     )}
                   </div>
                 )}
@@ -1266,9 +1266,9 @@ export default function QuestionBuilderPage() {
 
             {/* Bulk Import Panel */}
             {showBulkImport && (
-              <div style={{ background: '#FAFBFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
-                <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.88rem', fontWeight: 600, color: '#1D3095', marginBottom: '.5rem' }}>Bulk Import Questions</h4>
-                <p style={{ fontSize: '.78rem', color: '#6B7280', marginBottom: '.5rem' }}>Paste a JSON array of questions. Each object needs at minimum: <code>question_text</code>, <code>correct_answer</code>. Optional: <code>question_type</code>, <code>options</code>, <code>explanation</code>, <code>difficulty</code>, <code>module_id</code>, <code>lesson_id</code>, <code>tags</code>.</p>
+              <div style={{ background: '#FAFBFF', border: 'var(--border-light)', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
+                <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.88rem', fontWeight: 600, color: 'var(--color-brand-navy)', marginBottom: '.5rem' }}>Bulk Import Questions</h4>
+                <p style={{ fontSize: '.78rem', color: 'var(--color-text-tertiary)', marginBottom: '.5rem' }}>Paste a JSON array of questions. Each object needs at minimum: <code>question_text</code>, <code>correct_answer</code>. Optional: <code>question_type</code>, <code>options</code>, <code>explanation</code>, <code>difficulty</code>, <code>module_id</code>, <code>lesson_id</code>, <code>tags</code>.</p>
                 <textarea
                   className="fc-form__textarea"
                   rows={6}
@@ -1282,7 +1282,7 @@ export default function QuestionBuilderPage() {
                     {bulkImporting ? 'Importing...' : 'Import Questions'}
                   </button>
                   {bulkResult && (
-                    <span style={{ fontSize: '.78rem', color: bulkResult.errors.length > 0 ? '#D97706' : '#10B981' }}>
+                    <span style={{ fontSize: '.78rem', color: bulkResult.errors.length > 0 ? '#D97706' : 'var(--color-success)' }}>
                       {bulkResult.success} imported{bulkResult.errors.length > 0 ? `, ${bulkResult.errors.length} errors` : ''}
                     </span>
                   )}
@@ -1297,8 +1297,8 @@ export default function QuestionBuilderPage() {
 
             {/* Simulated Practice Quiz */}
             {showSimQuiz && simQuestions.length > 0 && (
-              <div style={{ background: '#FFF', border: '2px solid #1D3095', borderRadius: 10, padding: '1.25rem', marginBottom: '1rem' }}>
-                <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.95rem', fontWeight: 700, color: '#1D3095', marginBottom: '.75rem' }}>
+              <div style={{ background: 'var(--color-bg-card)', border: '2px solid #1D3095', borderRadius: 10, padding: '1.25rem', marginBottom: '1rem' }}>
+                <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.95rem', fontWeight: 700, color: 'var(--color-brand-navy)', marginBottom: '.75rem' }}>
                   Practice Quiz ({simQuestions.length} questions)
                 </h4>
                 {simQuestions.map((q, qi) => {
@@ -1306,34 +1306,34 @@ export default function QuestionBuilderPage() {
                   const answered = simAnswers[q.id];
                   const isCorrect = answered === q.correct_answer;
                   return (
-                    <div key={q.id} style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: qi < simQuestions.length - 1 ? '1px solid #E5E7EB' : 'none' }}>
-                      <p style={{ fontSize: '.88rem', fontWeight: 600, color: '#0F1419', marginBottom: '.5rem' }}>
+                    <div key={q.id} style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: qi < simQuestions.length - 1 ? 'var(--border-light)' : 'none' }}>
+                      <p style={{ fontSize: '.88rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '.5rem' }}>
                         {qi + 1}. {q.question_text}
                         <span className={`manage__diff-badge manage__diff-badge--${q.difficulty}`} style={{ marginLeft: '.5rem' }}>{q.difficulty}</span>
                       </p>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
                         {opts.map((opt: string, oi: number) => {
-                          let bg = '#F9FAFB';
-                          let border = '1px solid #E5E7EB';
+                          let bg = 'var(--color-bg-app)';
+                          let border = 'var(--border-light)';
                           if (simRevealed) {
-                            if (opt === q.correct_answer) { bg = '#ECFDF5'; border = '1.5px solid #10B981'; }
-                            else if (opt === answered && !isCorrect) { bg = '#FEF2F2'; border = '1.5px solid #EF4444'; }
+                            if (opt === q.correct_answer) { bg = 'var(--color-success-bg)'; border = '1.5px solid #10B981'; }
+                            else if (opt === answered && !isCorrect) { bg = 'var(--color-error-bg)'; border = '1.5px solid #EF4444'; }
                           } else if (opt === answered) {
-                            bg = '#EFF6FF'; border = '1.5px solid #1D3095';
+                            bg = 'var(--color-info-bg)'; border = '1.5px solid #1D3095';
                           }
                           return (
                             <button key={oi} onClick={() => { if (!simRevealed) setSimAnswers(prev => ({ ...prev, [q.id]: opt })); }}
                               disabled={simRevealed}
                               style={{ textAlign: 'left', padding: '.45rem .75rem', borderRadius: 6, background: bg, border, fontSize: '.82rem', cursor: simRevealed ? 'default' : 'pointer', fontFamily: 'Inter,sans-serif' }}>
                               <strong style={{ marginRight: '.35rem' }}>{String.fromCharCode(65 + oi)}.</strong> {opt}
-                              {simRevealed && opt === q.correct_answer && <span style={{ marginLeft: '.5rem', color: '#10B981' }}>&#x2713;</span>}
-                              {simRevealed && opt === answered && !isCorrect && <span style={{ marginLeft: '.5rem', color: '#EF4444' }}>&#x2717;</span>}
+                              {simRevealed && opt === q.correct_answer && <span style={{ marginLeft: '.5rem', color: 'var(--color-success)' }}>&#x2713;</span>}
+                              {simRevealed && opt === answered && !isCorrect && <span style={{ marginLeft: '.5rem', color: 'var(--color-error)' }}>&#x2717;</span>}
                             </button>
                           );
                         })}
                       </div>
                       {simRevealed && q.explanation && (
-                        <p style={{ fontSize: '.78rem', color: '#1D3095', marginTop: '.35rem', background: '#F0F4FF', padding: '.35rem .65rem', borderRadius: 6 }}>{q.explanation}</p>
+                        <p style={{ fontSize: '.78rem', color: 'var(--color-brand-navy)', marginTop: '.35rem', background: 'var(--color-bg-hover)', padding: '.35rem .65rem', borderRadius: 6 }}>{q.explanation}</p>
                       )}
                     </div>
                   );
@@ -1346,7 +1346,7 @@ export default function QuestionBuilderPage() {
                     </button>
                   ) : (
                     <>
-                      <span style={{ fontFamily: 'Sora,sans-serif', fontSize: '.95rem', fontWeight: 700, color: getSimScore().correct >= getSimScore().total * 0.7 ? '#10B981' : '#EF4444' }}>
+                      <span style={{ fontFamily: 'Sora,sans-serif', fontSize: '.95rem', fontWeight: 700, color: getSimScore().correct >= getSimScore().total * 0.7 ? 'var(--color-success)' : 'var(--color-error)' }}>
                         Score: {getSimScore().correct}/{getSimScore().total} ({Math.round((getSimScore().correct / getSimScore().total) * 100)}%)
                       </span>
                       <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => startSimQuiz(filteredQuestions)}>New Quiz</button>
@@ -1411,7 +1411,7 @@ export default function QuestionBuilderPage() {
                         <div className="qb__bank-stats-bar">
                           <div className="qb__bank-stats-fill" style={{
                             width: `${q.stats.pass_rate ?? 0}%`,
-                            background: (q.stats.pass_rate ?? 0) >= 70 ? '#10B981' : (q.stats.pass_rate ?? 0) >= 40 ? '#F59E0B' : '#EF4444',
+                            background: (q.stats.pass_rate ?? 0) >= 70 ? 'var(--color-success)' : (q.stats.pass_rate ?? 0) >= 40 ? 'var(--color-warning)' : 'var(--color-error)',
                           }} />
                         </div>
                         <span className="qb__bank-stats-label">

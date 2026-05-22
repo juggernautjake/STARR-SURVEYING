@@ -105,7 +105,7 @@ const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   maintenance: { bg: '#FEF3C7', fg: '#92400E' },
   loaned_out: { bg: '#E0E7FF', fg: '#4338CA' },
   lost: { bg: '#FEE2E2', fg: '#B91C1C' },
-  retired: { bg: '#F3F4F6', fg: '#6B7280' },
+  retired: { bg: 'var(--color-bg-subtle)', fg: 'var(--color-text-tertiary)' },
 };
 
 // seeds/238 condition enum (physical condition, separate from
@@ -123,7 +123,7 @@ const CONDITION_OPTIONS: Array<{ value: string; label: string }> = [
 
 const CONDITION_COLORS: Record<string, { bg: string; fg: string }> = {
   new: { bg: '#DCFCE7', fg: '#15803D' },
-  good: { bg: '#ECFDF5', fg: '#047857' },
+  good: { bg: 'var(--color-success-bg)', fg: '#047857' },
   fair: { bg: '#FEF9C3', fg: '#854D0E' },
   poor: { bg: '#FED7AA', fg: '#9A3412' },
   damaged: { bg: '#FEE2E2', fg: '#B91C1C' },
@@ -1818,8 +1818,8 @@ export default function EquipmentInventoryPage() {
                     {row.condition ? (
                       (() => {
                         const c = CONDITION_COLORS[row.condition] ?? {
-                          bg: '#F3F4F6',
-                          fg: '#6B7280',
+                          bg: 'var(--color-bg-subtle)',
+                          fg: 'var(--color-text-tertiary)',
                         };
                         return (
                           <span
@@ -1954,7 +1954,7 @@ const styles: Record<string, React.CSSProperties> = {
   h1: { fontSize: 22, fontWeight: 600, margin: '0 0 4px' },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     margin: 0,
     maxWidth: 760,
     lineHeight: 1.5,
@@ -1970,7 +1970,7 @@ const styles: Record<string, React.CSSProperties> = {
   fieldLabel: {
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -1997,8 +1997,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
   addBtn: {
-    background: '#1D3095',
-    color: '#FFFFFF',
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 14px',
@@ -2013,7 +2013,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '4px 10px',
     cursor: 'pointer',
     fontSize: 12,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     fontWeight: 500,
   },
   rowActionBar: {
@@ -2027,7 +2027,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
     padding: '10px 14px',
     marginBottom: 12,
-    background: '#EFF6FF',
+    background: 'var(--color-info-bg)',
     border: '1px solid #BFDBFE',
     borderRadius: 8,
     fontSize: 13,
@@ -2071,7 +2071,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   submitBtn: {
     background: '#15803D',
-    color: '#FFFFFF',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 16px',
@@ -2108,7 +2108,7 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 1000,
   },
   modal: {
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     borderRadius: 12,
     width: '100%',
     maxWidth: 720,
@@ -2130,7 +2130,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     fontSize: 18,
     cursor: 'pointer',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     lineHeight: 1,
     padding: 4,
   },
@@ -2152,7 +2152,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   modalHint: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     margin: 0,
     fontStyle: 'italic',
   },
@@ -2191,13 +2191,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   summary: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     marginBottom: 12,
   },
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     background: '#F7F8FA',
     borderRadius: 12,
   },
@@ -2212,7 +2212,7 @@ const styles: Record<string, React.CSSProperties> = {
   th: {
     textAlign: 'left',
     padding: '10px 14px',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 500,
     background: '#F7F8FA',
     borderBottom: '1px solid #E2E5EB',
@@ -2220,7 +2220,7 @@ const styles: Record<string, React.CSSProperties> = {
   thRight: {
     textAlign: 'right',
     padding: '10px 14px',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 500,
     background: '#F7F8FA',
     borderBottom: '1px solid #E2E5EB',
@@ -2238,7 +2238,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   retiredRow: {
     background: '#FAFAFA',
-    color: '#9CA3AF',
+    color: 'var(--color-text-muted)',
   },
   statusPill: {
     display: 'inline-block',
@@ -2281,7 +2281,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: 12,
-    color: '#9CA3AF',
+    color: 'var(--color-text-muted)',
     flexShrink: 0,
     textAlign: 'center',
     padding: 8,
@@ -2294,8 +2294,8 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: 0,
   },
   fileBtn: {
-    background: '#1D3095',
-    color: '#FFFFFF',
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 6,
     padding: '6px 12px',
@@ -2370,8 +2370,8 @@ const styles: Record<string, React.CSSProperties> = {
     marginLeft: 6,
     padding: '2px 6px',
     borderRadius: 4,
-    background: '#F3F4F6',
-    color: '#6B7280',
+    background: 'var(--color-bg-subtle)',
+    color: 'var(--color-text-tertiary)',
     fontSize: 10,
     fontWeight: 600,
   },
@@ -2382,11 +2382,11 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '2px 6px',
     borderRadius: 4,
   },
-  muted: { color: '#9CA3AF' },
+  muted: { color: 'var(--color-text-muted)' },
   lowStock: { color: '#B45309', fontWeight: 600 },
   note: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: 'var(--color-text-muted)',
     marginTop: 24,
     fontStyle: 'italic',
   },

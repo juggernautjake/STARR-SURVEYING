@@ -48,12 +48,12 @@ interface RoadmapData {
 }
 
 const STATUS_COLORS: Record<string, { color: string; bg: string; border: string; label: string }> = {
-  not_started:     { color: '#6B7280', bg: '#FFFFFF',  border: 'transparent', label: 'Not Started' },
-  in_progress:     { color: '#92400E', bg: '#FFFBEB',  border: '#F59E0B', label: 'In Progress' },
-  completed:       { color: '#065F46', bg: '#ECFDF5',  border: '#10B981', label: 'Completed' },
-  due:             { color: '#1E40AF', bg: '#EFF6FF',  border: '#3B82F6', label: 'Due' },
+  not_started:     { color: 'var(--color-text-tertiary)', bg: '#FFFFFF',  border: 'transparent', label: 'Not Started' },
+  in_progress:     { color: '#92400E', bg: 'var(--color-warning-bg)',  border: 'var(--color-warning)', label: 'In Progress' },
+  completed:       { color: '#065F46', bg: 'var(--color-success-bg)',  border: 'var(--color-success)', label: 'Completed' },
+  due:             { color: '#1E40AF', bg: 'var(--color-info-bg)',  border: 'var(--color-info)', label: 'Due' },
   needs_refreshing:{ color: '#6D28D9', bg: '#F5F3FF',  border: '#8B5CF6', label: 'Needs Refreshing' },
-  assigned:        { color: '#991B1B', bg: '#FEF2F2',  border: '#EF4444', label: 'Assigned' },
+  assigned:        { color: '#991B1B', bg: 'var(--color-error-bg)',  border: 'var(--color-error)', label: 'Assigned' },
 };
 
 const PARTS = [
@@ -244,7 +244,7 @@ export default function RoadmapPage() {
                         className="roadmap__part-bar-fill"
                         style={{
                           width: `${partPct}%`,
-                          backgroundColor: partMilestone?.color || '#1D3095',
+                          backgroundColor: partMilestone?.color || 'var(--color-brand-navy)',
                         }}
                       />
                     </div>
@@ -317,11 +317,11 @@ function RoadmapModuleRow({ mod }: { mod: ModuleProgress }) {
     >
       <div className="roadmap__module-left">
         <span className="roadmap__module-num" style={
-          isLocked ? { background: '#9CA3AF' } :
-          modComplete ? { background: '#10B981' } :
-          status === 'in_progress' ? { background: '#F59E0B' } :
-          status === 'assigned' ? { background: '#EF4444' } :
-          status === 'due' ? { background: '#3B82F6' } :
+          isLocked ? { background: 'var(--color-text-muted)' } :
+          modComplete ? { background: 'var(--color-success)' } :
+          status === 'in_progress' ? { background: 'var(--color-warning)' } :
+          status === 'assigned' ? { background: 'var(--color-error)' } :
+          status === 'due' ? { background: 'var(--color-info)' } :
           status === 'needs_refreshing' ? { background: '#8B5CF6' } : {}
         }>
           {isLocked ? '\u{1F512}' : modComplete ? '\u2713' : mod.order_index}
@@ -339,7 +339,7 @@ function RoadmapModuleRow({ mod }: { mod: ModuleProgress }) {
               </span>
             )}
             {mod.is_academic && (
-              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#1D3095', background: '#EFF6FF', padding: '0.1rem 0.4rem', borderRadius: '3px' }}>ACC</span>
+              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--color-brand-navy)', background: 'var(--color-info-bg)', padding: '0.1rem 0.4rem', borderRadius: '3px' }}>ACC</span>
             )}
           </div>
         </div>
@@ -352,14 +352,14 @@ function RoadmapModuleRow({ mod }: { mod: ModuleProgress }) {
                 className="roadmap__module-bar-fill"
                 style={{
                   width: `${mod.percentage}%`,
-                  background: modComplete ? '#10B981' : meta.border !== 'transparent' ? meta.border : '#1D3095',
+                  background: modComplete ? 'var(--color-success)' : meta.border !== 'transparent' ? meta.border : 'var(--color-brand-navy)',
                 }}
               />
             </div>
             <span className="roadmap__module-pct">{mod.percentage}%</span>
           </>
         )}
-        {isLocked && <span style={{ fontSize: '0.85rem', color: '#9CA3AF' }}>&#x1F512;</span>}
+        {isLocked && <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>&#x1F512;</span>}
       </div>
 
       {/* Lock tooltip */}

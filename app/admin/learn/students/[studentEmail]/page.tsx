@@ -84,7 +84,7 @@ export default function StudentDetailPage() {
     );
   }
 
-  if (loading) return <div style={{ textAlign: 'center', padding: '3rem', color: '#6B7280' }}>Loading...</div>;
+  if (loading) return <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-tertiary)' }}>Loading...</div>;
   if (error) return <div className="admin-login__error" style={{ maxWidth: 500, margin: '2rem auto' }}>{error}</div>;
   if (!data) return null;
 
@@ -113,7 +113,7 @@ export default function StudentDetailPage() {
     <div style={{ padding: '0' }}>
       {/* Header */}
       <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/admin/learn/students" style={{ fontFamily: "'Inter',sans-serif", fontSize: '.82rem', color: '#6B7280', textDecoration: 'none' }}>
+        <Link href="/admin/learn/students" style={{ fontFamily: "'Inter',sans-serif", fontSize: '.82rem', color: 'var(--color-text-tertiary)', textDecoration: 'none' }}>
           &larr; Back to Student List
         </Link>
         <h2 className="admin-learn__title" style={{ marginTop: '.5rem' }}>
@@ -159,7 +159,7 @@ export default function StudentDetailPage() {
               fontFamily: "'Inter',sans-serif", fontSize: '.85rem', fontWeight: 600,
               padding: '.6rem 1rem', cursor: 'pointer', border: 'none', background: 'none',
               borderBottom: tab === t.key ? '3px solid #1D3095' : '3px solid transparent',
-              color: tab === t.key ? '#1D3095' : '#6B7280',
+              color: tab === t.key ? 'var(--color-brand-navy)' : 'var(--color-text-tertiary)',
               marginBottom: '-2px', transition: 'all .15s',
             }}
           >
@@ -172,11 +172,11 @@ export default function StudentDetailPage() {
       {tab === 'overview' && (
         <div>
           {/* Module Completions */}
-          <h3 style={{ fontFamily: "'Sora',sans-serif", fontSize: '1rem', fontWeight: 700, color: '#0F1419', marginBottom: '.75rem' }}>
+          <h3 style={{ fontFamily: "'Sora',sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '.75rem' }}>
             Module Completions
           </h3>
           {data.modules.length === 0 ? (
-            <p style={{ color: '#9CA3AF', fontSize: '.85rem', marginBottom: '1.5rem' }}>No modules completed yet.</p>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '.85rem', marginBottom: '1.5rem' }}>No modules completed yet.</p>
           ) : (
             <div style={{ overflowX: 'auto', marginBottom: '2rem' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'Inter',sans-serif", fontSize: '.85rem' }}>
@@ -195,12 +195,12 @@ export default function StudentDetailPage() {
                       <td style={tdStyle}>{m.module_title}</td>
                       <td style={tdStyle}>{m.module_type}</td>
                       <td style={{ ...tdStyle, fontWeight: 600 }}>+{m.xp_earned}</td>
-                      <td style={{ ...tdStyle, color: '#9CA3AF', fontSize: '.8rem' }}>{formatDate(m.completed_at)}</td>
+                      <td style={{ ...tdStyle, color: 'var(--color-text-muted)', fontSize: '.8rem' }}>{formatDate(m.completed_at)}</td>
                       <td style={tdStyle}>
                         <span style={{
                           display: 'inline-block', padding: '.15rem .5rem', borderRadius: 12,
                           fontSize: '.72rem', fontWeight: 600,
-                          background: m.is_current ? '#ECFDF5' : '#FEF3C7',
+                          background: m.is_current ? 'var(--color-success-bg)' : '#FEF3C7',
                           color: m.is_current ? '#065F46' : '#92400E',
                         }}>
                           {m.is_current ? 'Current' : 'Expired'}
@@ -214,11 +214,11 @@ export default function StudentDetailPage() {
           )}
 
           {/* Recent Lesson Completions */}
-          <h3 style={{ fontFamily: "'Sora',sans-serif", fontSize: '1rem', fontWeight: 700, color: '#0F1419', marginBottom: '.75rem' }}>
+          <h3 style={{ fontFamily: "'Sora',sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '.75rem' }}>
             Recent Lessons ({data.lessons.length} total)
           </h3>
           {data.lessons.length === 0 ? (
-            <p style={{ color: '#9CA3AF', fontSize: '.85rem' }}>No lessons completed yet.</p>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '.85rem' }}>No lessons completed yet.</p>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'Inter',sans-serif", fontSize: '.85rem' }}>
@@ -233,14 +233,14 @@ export default function StudentDetailPage() {
                   {data.lessons.slice(0, 30).map((l, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
                       <td style={tdStyle}>{l.lesson_title}</td>
-                      <td style={{ ...tdStyle, color: '#6B7280' }}>{l.module_title || '—'}</td>
-                      <td style={{ ...tdStyle, color: '#9CA3AF', fontSize: '.8rem' }}>{formatDate(l.completed_at)}</td>
+                      <td style={{ ...tdStyle, color: 'var(--color-text-tertiary)' }}>{l.module_title || '—'}</td>
+                      <td style={{ ...tdStyle, color: 'var(--color-text-muted)', fontSize: '.8rem' }}>{formatDate(l.completed_at)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               {data.lessons.length > 30 && (
-                <p style={{ color: '#9CA3AF', fontSize: '.8rem', marginTop: '.5rem' }}>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '.8rem', marginTop: '.5rem' }}>
                   Showing 30 of {data.lessons.length} lessons.
                 </p>
               )}
@@ -252,7 +252,7 @@ export default function StudentDetailPage() {
       {tab === 'quizzes' && (
         <div>
           {data.quizzes.length === 0 ? (
-            <p style={{ color: '#9CA3AF', fontSize: '.85rem' }}>No quizzes taken yet.</p>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '.85rem' }}>No quizzes taken yet.</p>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'Inter',sans-serif", fontSize: '.85rem' }}>
@@ -280,7 +280,7 @@ export default function StudentDetailPage() {
                       </td>
                       <td style={{ ...tdStyle, maxWidth: 250 }}>
                         <div style={{ fontWeight: 500 }}>{q.module_title || '—'}</div>
-                        {q.lesson_title && <div style={{ fontSize: '.78rem', color: '#9CA3AF' }}>{q.lesson_title}</div>}
+                        {q.lesson_title && <div style={{ fontSize: '.78rem', color: 'var(--color-text-muted)' }}>{q.lesson_title}</div>}
                       </td>
                       <td style={tdStyle}>
                         <span style={{
@@ -291,8 +291,8 @@ export default function StudentDetailPage() {
                         </span>
                       </td>
                       <td style={tdStyle}>{q.correct_answers}/{q.total_questions}</td>
-                      <td style={{ ...tdStyle, color: '#6B7280' }}>{formatTime(q.time_spent_seconds)}</td>
-                      <td style={{ ...tdStyle, color: '#9CA3AF', fontSize: '.8rem' }}>{formatDate(q.completed_at)}</td>
+                      <td style={{ ...tdStyle, color: 'var(--color-text-tertiary)' }}>{formatTime(q.time_spent_seconds)}</td>
+                      <td style={{ ...tdStyle, color: 'var(--color-text-muted)', fontSize: '.8rem' }}>{formatDate(q.completed_at)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -305,7 +305,7 @@ export default function StudentDetailPage() {
       {tab === 'xp' && (
         <div>
           {data.xp_history.length === 0 ? (
-            <p style={{ color: '#9CA3AF', fontSize: '.85rem' }}>No XP transactions yet.</p>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '.85rem' }}>No XP transactions yet.</p>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'Inter',sans-serif", fontSize: '.85rem' }}>
@@ -329,13 +329,13 @@ export default function StudentDetailPage() {
                         <span style={{
                           display: 'inline-block', padding: '.15rem .5rem', borderRadius: 12,
                           fontSize: '.72rem', fontWeight: 600,
-                          background: '#F3F4F6', color: '#374151',
+                          background: 'var(--color-bg-subtle)', color: '#374151',
                         }}>
                           {tx.transaction_type.replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td style={{ ...tdStyle, color: '#374151' }}>{tx.description}</td>
-                      <td style={{ ...tdStyle, color: '#9CA3AF', fontSize: '.8rem' }}>{formatDate(tx.created_at)}</td>
+                      <td style={{ ...tdStyle, color: 'var(--color-text-muted)', fontSize: '.8rem' }}>{formatDate(tx.created_at)}</td>
                     </tr>
                   ))}
                 </tbody>

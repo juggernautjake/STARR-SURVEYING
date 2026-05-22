@@ -23,9 +23,9 @@ interface ModuleDetail {
 }
 
 const LESSON_STATUS: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  not_started:  { label: 'Not Started',  color: '#6B7280', bg: '#FFFFFF',  border: 'transparent' },
-  in_progress:  { label: 'In Progress',  color: '#92400E', bg: '#FFFBEB',  border: '#F59E0B' },
-  completed:    { label: 'Completed',    color: '#065F46', bg: '#ECFDF5',  border: '#10B981' },
+  not_started:  { label: 'Not Started',  color: 'var(--color-text-tertiary)', bg: '#FFFFFF',  border: 'transparent' },
+  in_progress:  { label: 'In Progress',  color: '#92400E', bg: 'var(--color-warning-bg)',  border: 'var(--color-warning)' },
+  completed:    { label: 'Completed',    color: '#065F46', bg: 'var(--color-success-bg)',  border: 'var(--color-success)' },
 };
 
 export default function ModuleDetailPage() {
@@ -172,7 +172,7 @@ export default function ModuleDetailPage() {
           <span>Difficulty: {mod.difficulty}</span>
           <span>&#x23F1; ~{mod.estimated_hours}h</span>
           <span>&#x1F4D6; {totalCount} lessons</span>
-          {completedCount > 0 && <span style={{ color: '#10B981', fontWeight: 700 }}>&#x2705; {completedCount}/{totalCount} complete</span>}
+          {completedCount > 0 && <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>&#x2705; {completedCount}/{totalCount} complete</span>}
           {moduleAvgQuiz != null && (
             <span className={`quiz-avg-badge ${moduleAvgQuiz >= 70 ? 'quiz-avg-badge--green' : moduleAvgQuiz >= 40 ? 'quiz-avg-badge--yellow' : 'quiz-avg-badge--red'}`}>
               Avg Quiz: {moduleAvgQuiz}%
@@ -185,7 +185,7 @@ export default function ModuleDetailPage() {
         {totalCount > 0 && (
           <div className="modules__card-progress" style={{ marginTop: '0.75rem', maxWidth: '400px' }}>
             <div className="modules__card-progress-bar">
-              <div className="modules__card-progress-fill" style={{ width: `${Math.round((completedCount / totalCount) * 100)}%`, background: allComplete ? '#10B981' : '#F59E0B' }} />
+              <div className="modules__card-progress-fill" style={{ width: `${Math.round((completedCount / totalCount) * 100)}%`, background: allComplete ? 'var(--color-success)' : 'var(--color-warning)' }} />
             </div>
             <span className="modules__card-progress-text">{Math.round((completedCount / totalCount) * 100)}%</span>
           </div>
@@ -202,14 +202,14 @@ export default function ModuleDetailPage() {
 
       {/* Admin: Lesson Management Cards */}
       {canManage && lessons.length > 0 && (
-        <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#FAFBFF', border: '1px solid #E5E7EB', borderRadius: '10px' }}>
-          <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.92rem', fontWeight: 700, color: '#1D3095', marginBottom: '.75rem' }}>Manage Lessons</h3>
+        <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#FAFBFF', border: 'var(--border-light)', borderRadius: '10px' }}>
+          <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.92rem', fontWeight: 700, color: 'var(--color-brand-navy)', marginBottom: '.75rem' }}>Manage Lessons</h3>
           <div style={{ display: 'grid', gap: '.5rem' }}>
             {lessons.sort((a, b) => a.order_index - b.order_index).map(lesson => (
               <div key={lesson.id} className="module-lesson-card">
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: '.88rem', color: '#0F1419' }}>{lesson.order_index}. {lesson.title}</div>
-                  <div style={{ fontSize: '.72rem', color: '#6B7280' }}>~{lesson.estimated_minutes} min</div>
+                  <div style={{ fontWeight: 600, fontSize: '.88rem', color: 'var(--color-text-primary)' }}>{lesson.order_index}. {lesson.title}</div>
+                  <div style={{ fontSize: '.72rem', color: 'var(--color-text-tertiary)' }}>~{lesson.estimated_minutes} min</div>
                 </div>
                 <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center', flexShrink: 0 }}>
                   <Link href={`/admin/learn/manage/lesson-builder/${lesson.id}`} className="admin-btn admin-btn--primary admin-btn--sm">Edit</Link>
@@ -242,7 +242,7 @@ export default function ModuleDetailPage() {
               {seeding ? 'Populating...' : 'Populate Introductory Content'}
             </button>
           )}
-          {seedMsg && <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: seedMsg.includes('error') || seedMsg.includes('Failed') ? '#EF4444' : '#10B981' }}>{seedMsg}</p>}
+          {seedMsg && <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: seedMsg.includes('error') || seedMsg.includes('Failed') ? 'var(--color-error)' : 'var(--color-success)' }}>{seedMsg}</p>}
         </div>
       ) : (
         <div className="lesson-list">
@@ -254,15 +254,15 @@ export default function ModuleDetailPage() {
 
       {/* Module Test */}
       {lessons.length > 0 && (
-        <div className="module-test-section" style={{ marginTop: '2rem', padding: '1.5rem', background: allComplete ? '#ECFDF5' : '#FFF', border: `2px solid ${allComplete ? '#10B981' : '#E5E7EB'}`, borderRadius: '10px', textAlign: 'center' }}>
-          <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.1rem', fontWeight: 600, color: '#0F1419', marginBottom: '.5rem' }}>Module Test</h3>
+        <div className="module-test-section" style={{ marginTop: '2rem', padding: '1.5rem', background: allComplete ? 'var(--color-success-bg)' : '#FFF', border: `2px solid ${allComplete ? 'var(--color-success)' : '#E5E7EB'}`, borderRadius: '10px', textAlign: 'center' }}>
+          <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '.5rem' }}>Module Test</h3>
           {allComplete ? (
             <>
               <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: '#065F46', marginBottom: '1rem' }}>All lessons complete! You can now take the module test.</p>
               <Link href={`/admin/learn/modules/${moduleId}/test`} className="admin-btn admin-btn--primary">Take Module Test</Link>
             </>
           ) : (
-            <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: '#6B7280' }}>Complete all {totalCount} lessons to unlock the module test. ({completedCount}/{totalCount} done)</p>
+            <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: 'var(--color-text-tertiary)' }}>Complete all {totalCount} lessons to unlock the module test. ({completedCount}/{totalCount} done)</p>
           )}
         </div>
       )}
@@ -310,8 +310,8 @@ function LessonRow({ lesson, moduleId }: { lesson: EnrichedLesson; moduleId: str
       onTouchStart={handleTouchStart}
     >
       <div className="lesson-item__number" style={
-        lesson.status === 'completed' ? { background: '#10B981', color: '#FFF' } :
-        lesson.status === 'in_progress' ? { background: '#F59E0B', color: '#FFF' } : {}
+        lesson.status === 'completed' ? { background: 'var(--color-success)', color: 'var(--color-text-on-brand)' } :
+        lesson.status === 'in_progress' ? { background: 'var(--color-warning)', color: 'var(--color-text-on-brand)' } : {}
       }>
         {isLocked ? '\u{1F512}' : lesson.status === 'completed' ? '\u2713' : lesson.order_index}
       </div>
@@ -326,7 +326,7 @@ function LessonRow({ lesson, moduleId }: { lesson: EnrichedLesson; moduleId: str
             </span>
           )}
           {lesson.is_assigned && (
-            <span className="lesson-item__status-badge" style={{ color: '#1E40AF', background: '#EFF6FF', borderColor: '#3B82F6' }}>
+            <span className="lesson-item__status-badge" style={{ color: '#1E40AF', background: 'var(--color-info-bg)', borderColor: 'var(--color-info)' }}>
               Enrolled
             </span>
           )}
@@ -340,7 +340,7 @@ function LessonRow({ lesson, moduleId }: { lesson: EnrichedLesson; moduleId: str
         {lesson.total_interactions > 0 && lesson.status !== 'not_started' && !isLocked && (
           <div className="lesson-item__interactions">
             {lesson.completed_interactions}/{lesson.total_interactions} content items reviewed
-            {lesson.quiz_unlocked && <span style={{ color: '#10B981', fontWeight: 600 }}> &mdash; Quiz Unlocked</span>}
+            {lesson.quiz_unlocked && <span style={{ color: 'var(--color-success)', fontWeight: 600 }}> &mdash; Quiz Unlocked</span>}
           </div>
         )}
       </div>
