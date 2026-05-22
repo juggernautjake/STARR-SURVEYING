@@ -1,12 +1,18 @@
 // app/admin/components/calculator/HistoryStrip.tsx
 //
 // Compact, scrollable history strip displayed above the active
-// calculator's display. Each row shows entry → result; clicking a row
-// is reserved for a future slice (recall into the entry buffer).
+// calculator's display. Each row shows entry → result.
 //
-// C-8 of EXAM_CALCULATORS.md.
+// Originally C-8 of EXAM_CALCULATORS.md; refined by user feedback —
+// the strip used to grow visually as more rows arrived even though
+// max-height was set, because no scroll behavior was being asserted.
+// Now: fixed compact height (2-3 visible rows), styled scrollbar that
+// actually appears, auto-scroll to keep the newest entry in view,
+// and a "more above" affordance so the user knows scrolling is possible.
 
 'use client';
+
+import { useEffect, useRef } from 'react';
 
 export interface HistoryRow {
   entry: string;
@@ -19,9 +25,25 @@ interface HistoryStripProps {
 }
 
 export function HistoryStrip({ rows, onRecall }: HistoryStripProps) {
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll to the top whenever new rows arrive — newest entries
+  // render at the top (callers pass `history.reverse()`) so scrolling to
+  // top keeps the most recent calculation visible.
+  useEffect(() => {
+    if (ref.current) ref.current.scrollTop = 0;
+  }, [rows.length]);
+
   if (rows.length === 0) return null;
+
   return (
-    <div className="calc-history" role="log" aria-label="Calculator history">
+    <div
+      ref={ref}
+      className="calc-history"
+      role="log"
+      aria-label="Calculator history"
+      data-row-count={rows.length}
+    >
       {rows.map((row, i) => (
         <button
           key={i}

@@ -16,8 +16,10 @@ import type { KeyDef, KeyKind } from '@/lib/calculators/shared';
 const op = (kind: KeyKind = 'op'): { kind: KeyKind } => ({ kind });
 
 export const TI_36X_PRO_KEYPAD: KeyDef[] = [
-  // Row 1 — modifier / mode
-  { id: '2nd',   row: 1, col: 1, label: '2nd',   shiftLabel: undefined,           ...op('shift'), tone: 'shift' },
+  // Row 1 — modifier / mode. Photo-confirmed against the real device:
+  // the top row has 2nd | mode | math | apps | clear with `apps` (not
+  // `prb`) as the primary in col 4. `prb` lives below as its own key.
+  { id: '2nd',   row: 1, col: 1, label: '2nd',                                    ...op('shift'), tone: 'shift' },
   { id: 'mode',  row: 1, col: 2, label: 'mode',  shiftLabel: 'quit',              ...op('mode'),  tone: 'soft' },
   { id: 'math',  row: 1, col: 3, label: 'math',  shiftLabel: 'reset',             ...op(),         tone: 'soft' },
   { id: 'apps',  row: 1, col: 4, label: 'apps',  shiftLabel: 'recall mem',        ...op(),         tone: 'soft' },
@@ -47,7 +49,9 @@ export const TI_36X_PRO_KEYPAD: KeyDef[] = [
   { id: 'recip', row: 2, col: 4, label: 'x⁻¹',                                    ...op(),         tone: 'soft' },
   { id: 'sto',   row: 2, col: 5, label: 'sto→',  shiftLabel: 'mem',              ...op(),         tone: 'soft' },
 
-  { id: 'frac',  row: 3, col: 1, label: 'a b/c', shiftLabel: 'F↔D',              ...op(),         tone: 'soft' },
+  // Photo-confirmed: modern TI-36X Pro labels this `n/d` (natural fraction),
+  // not the older `a b/c` (mixed-number). `F↔D` shift is correct.
+  { id: 'frac',  row: 3, col: 1, label: 'n/d', shiftLabel: 'F↔D',                 ...op(),         tone: 'soft' },
   { id: 'pct',   row: 3, col: 5, label: '►DMS',  shiftLabel: '►HR',              ...op(),         tone: 'soft' },
 
   { id: 'xsq',   row: 4, col: 1, label: 'x²',    shiftLabel: '√',                ...op(),         tone: 'soft' },

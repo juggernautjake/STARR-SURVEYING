@@ -45,19 +45,21 @@ export interface ModelDef {
 }
 
 export const CALCULATOR_MODELS: ModelDef[] = [
+  // Widths bumped per user feedback — earlier widths cramped the keys.
+  // Heights also bumped a touch to keep the keypad aspect-ratio sane.
   // Phase 2: representative algebraic.
-  { key: 'ti-36x-pro',        brand: 'TI',    label: 'TI-36X Pro',         width: 320, height: 540, phase: 2 },
+  { key: 'ti-36x-pro',        brand: 'TI',    label: 'TI-36X Pro',          width: 380, height: 580, phase: 2 },
   // Phase 3: natural display.
-  { key: 'casio-fx-991',      brand: 'Casio', label: 'Casio fx-991ES PLUS', width: 340, height: 560, phase: 3 },
+  { key: 'casio-fx-991',      brand: 'Casio', label: 'Casio fx-991ES PLUS', width: 400, height: 600, phase: 3 },
   // Phase 4: RPN.
-  { key: 'hp-35s',            brand: 'HP',    label: 'HP 35s',             width: 280, height: 580, phase: 4 },
+  { key: 'hp-35s',            brand: 'HP',    label: 'HP 35s',              width: 360, height: 620, phase: 4 },
   // Phase 5: siblings (re-skins).
-  { key: 'casio-fx-115',      brand: 'Casio', label: 'Casio fx-115ES PLUS', width: 340, height: 560, phase: 5 },
-  { key: 'hp-33s',            brand: 'HP',    label: 'HP 33s',             width: 280, height: 580, phase: 5 },
-  { key: 'ti-30xs-multiview', brand: 'TI',    label: 'TI-30XS MultiView',  width: 320, height: 540, phase: 5 },
+  { key: 'casio-fx-115',      brand: 'Casio', label: 'Casio fx-115ES PLUS', width: 400, height: 600, phase: 5 },
+  { key: 'hp-33s',            brand: 'HP',    label: 'HP 33s',              width: 360, height: 620, phase: 5 },
+  { key: 'ti-30xs-multiview', brand: 'TI',    label: 'TI-30XS MultiView',   width: 380, height: 580, phase: 5 },
   // Post-plan addition (user-requested): TI-30Xa, the original single-line
   // TI-30X. Approved by NCEES under the "TI-30X" model-name rule.
-  { key: 'ti-30xa',           brand: 'TI',    label: 'TI-30Xa',             width: 300, height: 520, phase: 5 },
+  { key: 'ti-30xa',           brand: 'TI',    label: 'TI-30Xa',             width: 360, height: 560, phase: 5 },
 ];
 
 const LAST_MODEL_STORAGE_KEY = 'calculatorLastModel';
