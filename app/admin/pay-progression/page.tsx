@@ -19,6 +19,8 @@ interface RoleTier {
   label: string;
   base_bonus: number;
   max_effective_rate: number | null;
+  description?: string | null;
+  sort_order?: number | null;
 }
 
 interface SeniorityBracket {
@@ -248,28 +250,52 @@ export default function PayProgressionPage() {
         </p>
       </div>
 
-      {/* Role Tier Progression */}
+      {/* Role tier ladder — P-2 of PAY_PROGRESSION_OVERHAUL.md.
+       * Vertical step-by-step ladder ordered by base_bonus ascending. Each
+       * tier renders as a row with a state-aware marker (✓ unlocked,
+       * highlighted current, lock icon for future), tier label + $/hr
+       * bonus + optional cap + description. Connectors between rows
+       * communicate the path. Replaces the horizontal scroll timeline. */}
       <div className="pay-prog__section">
-        <h3 className="pay-prog__section-title">&#x1F4CA; Role Progression</h3>
-        <p className="pay-prog__section-desc">As you advance in your career, your role bonus increases. This is added on top of the base work type rate.</p>
-        <div className="pay-prog__timeline">
-          {roles.sort((a, b) => a.base_bonus - b.base_bonus).map((r, i) => {
-            const isCurrent = profile?.job_title?.toLowerCase().replace(/\s+/g, '_') === r.role_key;
+        <h3 className="pay-prog__section-title">&#x1F4CA; Role Tier Ladder</h3>
+        <p className="pay-prog__section-desc">
+          Every tier you climb adds to your role bonus on top of the base work-type rate.
+          Your current position is highlighted; tiers below are unlocked, tiers above show what&apos;s next.
+        </p>
+        <ol className="pay-prog__ladder" aria-label="Role tier progression">
+          {sortedRoles.map((r, i) => {
+            const isCurrent = currentTier?.role_key === r.role_key;
+            const isUnlocked = currentTierIndex >= 0 && i < currentTierIndex;
+            const isLocked = currentTierIndex >= 0 && i > currentTierIndex;
+            const state = isCurrent ? 'current' : isUnlocked ? 'unlocked' : isLocked ? 'locked' : 'neutral';
             return (
-              <div key={r.role_key} className={`pay-prog__timeline-item ${isCurrent ? 'pay-prog__timeline-item--current' : ''}`}>
-                <div className="pay-prog__timeline-dot" style={{ background: isCurrent ? '#1D3095' : i < roles.length / 2 ? '#10B981' : '#F59E0B' }} />
-                <div className="pay-prog__timeline-content">
-                  <span className="pay-prog__timeline-label">{r.label || r.role_key}</span>
-                  <span className="pay-prog__timeline-bonus">+${r.base_bonus.toFixed(2)}/hr</span>
-                  {r.max_effective_rate && (
-                    <span className="pay-prog__timeline-cap">max ${r.max_effective_rate.toFixed(0)}/hr</span>
+              <li key={r.role_key} className={`pay-prog__rung pay-prog__rung--${state}`}>
+                <div className="pay-prog__rung-marker" aria-hidden="true">
+                  {isUnlocked && (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  )}
+                  {isCurrent && <span className="pay-prog__rung-marker-pulse" />}
+                  {isLocked && (
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
                   )}
                 </div>
-                {i < roles.length - 1 && <div className="pay-prog__timeline-connector" />}
-              </div>
+                <div className="pay-prog__rung-body">
+                  <div className="pay-prog__rung-head">
+                    <span className="pay-prog__rung-label">{r.label || r.role_key}</span>
+                    {isCurrent && <span className="pay-prog__rung-badge">You are here</span>}
+                  </div>
+                  {r.description && <p className="pay-prog__rung-desc">{r.description}</p>}
+                </div>
+                <div className="pay-prog__rung-stats">
+                  <span className="pay-prog__rung-bonus">+${Number(r.base_bonus).toFixed(2)}/hr</span>
+                  {r.max_effective_rate && (
+                    <span className="pay-prog__rung-cap">cap ${Number(r.max_effective_rate).toFixed(0)}/hr</span>
+                  )}
+                </div>
+              </li>
             );
           })}
-        </div>
+        </ol>
       </div>
 
       {/* Seniority Milestones */}
