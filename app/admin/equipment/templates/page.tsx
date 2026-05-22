@@ -373,7 +373,7 @@ const styles: Record<string, React.CSSProperties> = {
   h1: { fontSize: 22, fontWeight: 600, margin: '0 0 4px' },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     margin: 0,
     maxWidth: 760,
     lineHeight: 1.5,
@@ -389,7 +389,7 @@ const styles: Record<string, React.CSSProperties> = {
   fieldLabel: {
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -416,8 +416,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
   addBtn: {
-    background: '#1D3095',
-    color: '#FFFFFF',
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 14px',
@@ -427,7 +427,7 @@ const styles: Record<string, React.CSSProperties> = {
     textDecoration: 'none',
     display: 'inline-block',
   },
-  summary: { fontSize: 13, color: '#6B7280', marginBottom: 12 },
+  summary: { fontSize: 13, color: 'var(--color-text-tertiary)', marginBottom: 12 },
   actionMsgOk: {
     background: '#F0FDF4',
     border: '1px solid #86EFAC',
@@ -449,7 +449,7 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     background: '#F7F8FA',
     borderRadius: 12,
   },
@@ -464,7 +464,7 @@ const styles: Record<string, React.CSSProperties> = {
   th: {
     textAlign: 'left',
     padding: '10px 14px',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 500,
     background: '#F7F8FA',
     borderBottom: '1px solid #E2E5EB',
@@ -472,7 +472,7 @@ const styles: Record<string, React.CSSProperties> = {
   thRight: {
     textAlign: 'right',
     padding: '10px 14px',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 500,
     background: '#F7F8FA',
     borderBottom: '1px solid #E2E5EB',
@@ -489,11 +489,11 @@ const styles: Record<string, React.CSSProperties> = {
     verticalAlign: 'top',
     fontVariantNumeric: 'tabular-nums',
   },
-  archivedRow: { background: '#FAFAFA', color: '#9CA3AF' },
-  link: { color: '#1D3095', textDecoration: 'none' },
+  archivedRow: { background: '#FAFAFA', color: 'var(--color-text-muted)' },
+  link: { color: 'var(--color-brand-navy)', textDecoration: 'none' },
   descLine: {
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     marginTop: 2,
     maxWidth: 360,
     overflow: 'hidden',
@@ -526,7 +526,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '1px 6px',
     borderRadius: 4,
   },
-  muted: { color: '#9CA3AF' },
+  muted: { color: 'var(--color-text-muted)' },
   activeBadge: {
     fontSize: 10,
     padding: '2px 6px',
@@ -540,8 +540,8 @@ const styles: Record<string, React.CSSProperties> = {
   archivedBadge: {
     fontSize: 10,
     padding: '2px 6px',
-    background: '#F3F4F6',
-    color: '#6B7280',
+    background: 'var(--color-bg-subtle)',
+    color: 'var(--color-text-tertiary)',
     borderRadius: 999,
     fontWeight: 700,
     textTransform: 'uppercase',
@@ -559,7 +559,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '4px 10px',
     cursor: 'pointer',
     fontSize: 12,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     fontWeight: 500,
     textDecoration: 'none',
     display: 'inline-block',
@@ -586,7 +586,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   note: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: 'var(--color-text-muted)',
     marginTop: 24,
     fontStyle: 'italic',
   },

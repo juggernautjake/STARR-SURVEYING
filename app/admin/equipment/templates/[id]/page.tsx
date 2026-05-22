@@ -1429,7 +1429,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     zIndex: 1000,
   },
   modal: {
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     borderRadius: 12,
     width: '100%',
     maxWidth: 560,
@@ -1451,7 +1451,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     border: 'none',
     fontSize: 18,
     cursor: 'pointer',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     lineHeight: 1,
     padding: 4,
   },
@@ -1508,7 +1508,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
     gap: 12,
   },
-  hint: { fontSize: 11, color: '#6B7280', fontStyle: 'italic' },
+  hint: { fontSize: 11, color: 'var(--color-text-tertiary)', fontStyle: 'italic' },
   code: {
     fontFamily: 'Menlo, monospace',
     fontSize: 11,
@@ -1518,7 +1518,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     border: '1px solid #E2E5EB',
   },
   error: {
-    background: '#FEF2F2',
+    background: 'var(--color-error-bg)',
     border: '1px solid #FCA5A5',
     color: '#B91C1C',
     padding: 10,
@@ -1527,7 +1527,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
   },
   primaryBtn: {
     background: '#15803D',
-    color: '#FFFFFF',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 16px',
@@ -1546,7 +1546,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
   },
   dangerBtn: {
     background: '#B91C1C',
-    color: '#FFFFFF',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 16px',
@@ -1579,7 +1579,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
   summaryLabel: {
     fontSize: 12,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.04em',
   },
@@ -1595,7 +1595,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-block',
     marginBottom: 12,
     fontSize: 13,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     textDecoration: 'none',
     fontWeight: 500,
   },
@@ -1606,7 +1606,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap',
     gap: 12,
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     alignItems: 'center',
   },
   metaItem: { display: 'inline-flex', alignItems: 'center', gap: 4 },
@@ -1623,8 +1623,8 @@ const styles: Record<string, React.CSSProperties> = {
   archivedBadge: {
     fontSize: 10,
     padding: '2px 8px',
-    background: '#F3F4F6',
-    color: '#6B7280',
+    background: 'var(--color-bg-subtle)',
+    color: 'var(--color-text-tertiary)',
     borderRadius: 999,
     fontWeight: 700,
     textTransform: 'uppercase',
@@ -1640,7 +1640,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
   errorBanner: {
-    background: '#FEF2F2',
+    background: 'var(--color-error-bg)',
     border: '1px solid #FCA5A5',
     color: '#B91C1C',
     padding: 12,
@@ -1661,7 +1661,7 @@ const styles: Record<string, React.CSSProperties> = {
   h2: { fontSize: 14, fontWeight: 600, margin: 0 },
   sectionSub: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     margin: '4px 0 0',
   },
   sectionBody: { padding: 16 },
@@ -1675,8 +1675,8 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid #E2E5EB',
   },
   addBtn: {
-    background: '#1D3095',
-    color: '#FFFFFF',
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 14px',
@@ -1693,7 +1693,7 @@ const styles: Record<string, React.CSSProperties> = {
   th: {
     textAlign: 'left',
     padding: '10px 14px',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 500,
     background: '#FAFBFC',
     borderBottom: '1px solid #E2E5EB',
@@ -1701,7 +1701,7 @@ const styles: Record<string, React.CSSProperties> = {
   thRight: {
     textAlign: 'right',
     padding: '10px 14px',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 500,
     background: '#FAFBFC',
     borderBottom: '1px solid #E2E5EB',
@@ -1759,8 +1759,8 @@ const styles: Record<string, React.CSSProperties> = {
   optionalBadge: {
     fontSize: 10,
     padding: '1px 6px',
-    background: '#F3F4F6',
-    color: '#6B7280',
+    background: 'var(--color-bg-subtle)',
+    color: 'var(--color-text-tertiary)',
     borderRadius: 4,
     fontWeight: 600,
     textTransform: 'uppercase',
@@ -1785,7 +1785,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '4px 10px',
     cursor: 'pointer',
     fontSize: 12,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     fontWeight: 500,
   },
   rowActionBtnDanger: {
@@ -1808,7 +1808,7 @@ const styles: Record<string, React.CSSProperties> = {
   formLabel: { fontSize: 12, fontWeight: 600, color: '#374151' },
   modalHint: {
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     marginTop: 2,
     fontStyle: 'italic',
   },
@@ -1831,7 +1831,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   submitBtn: {
     background: '#15803D',
-    color: '#FFFFFF',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 16px',
@@ -1842,7 +1842,7 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     background: '#FAFBFC',
     borderRadius: 8,
     fontSize: 13,
@@ -1855,10 +1855,10 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 4,
     border: '1px solid #E2E5EB',
   },
-  muted: { color: '#9CA3AF', fontWeight: 400 },
+  muted: { color: 'var(--color-text-muted)', fontWeight: 400 },
   note: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: 'var(--color-text-muted)',
     marginTop: 24,
     fontStyle: 'italic',
     textAlign: 'center',

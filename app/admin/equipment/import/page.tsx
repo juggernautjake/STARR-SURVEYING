@@ -344,7 +344,7 @@ const styles: Record<string, React.CSSProperties> = {
   h1: { fontSize: 22, fontWeight: 600, margin: '0 0 4px' },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     margin: '0 0 8px',
     maxWidth: 760,
     lineHeight: 1.5,
@@ -374,8 +374,8 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap',
   },
   fileBtn: {
-    background: '#1D3095',
-    color: '#FFFFFF',
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 14px',
@@ -393,8 +393,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
   addBtn: {
-    background: '#1D3095',
-    color: '#FFFFFF',
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 14px',
@@ -405,7 +405,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   submitBtn: {
     background: '#15803D',
-    color: '#FFFFFF',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 16px',
@@ -434,7 +434,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
   errorBanner: {
-    background: '#FEF2F2',
+    background: 'var(--color-error-bg)',
     border: '1px solid #FCA5A5',
     color: '#B91C1C',
     padding: 12,
@@ -450,7 +450,7 @@ const styles: Record<string, React.CSSProperties> = {
   th: {
     textAlign: 'left',
     padding: '6px 10px',
-    background: '#FEF2F2',
+    background: 'var(--color-error-bg)',
     color: '#7F1D1D',
     fontWeight: 600,
     borderBottom: '1px solid #FCA5A5',
@@ -463,19 +463,19 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
   },
-  link: { color: '#1D3095', fontWeight: 500 },
-  muted: { color: '#9CA3AF', fontSize: 13 },
+  link: { color: 'var(--color-brand-navy)', fontWeight: 500 },
+  muted: { color: 'var(--color-text-muted)', fontSize: 13 },
   modalHint: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     margin: 0,
     fontStyle: 'italic',
   },
   note: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: 'var(--color-text-muted)',
     marginTop: 24,
     fontStyle: 'italic',
   },

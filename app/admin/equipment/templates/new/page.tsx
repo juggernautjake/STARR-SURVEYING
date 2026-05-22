@@ -277,7 +277,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-block',
     marginBottom: 12,
     fontSize: 13,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     textDecoration: 'none',
     fontWeight: 500,
   },
@@ -285,7 +285,7 @@ const styles: Record<string, React.CSSProperties> = {
   h1: { fontSize: 22, fontWeight: 600, margin: '0 0 4px' },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     margin: 0,
     lineHeight: 1.5,
   },
@@ -293,7 +293,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 16,
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #E2E5EB',
     borderRadius: 12,
     padding: 20,
@@ -306,7 +306,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   modalHint: {
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     marginTop: 2,
     fontStyle: 'italic',
   },
@@ -323,7 +323,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
   },
   errorBanner: {
-    background: '#FEF2F2',
+    background: 'var(--color-error-bg)',
     border: '1px solid #FCA5A5',
     color: '#B91C1C',
     padding: 12,
@@ -349,7 +349,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   submitBtn: {
     background: '#15803D',
-    color: '#FFFFFF',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 16px',
@@ -360,11 +360,11 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
   },
   note: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: 'var(--color-text-muted)',
     marginTop: 24,
     fontStyle: 'italic',
     textAlign: 'center',

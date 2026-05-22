@@ -601,7 +601,7 @@ function FilterChip({
   const base: React.CSSProperties = {
     padding: '4px 10px',
     border: '1px solid #E2E5EB',
-    background: active ? '#1D3095' : '#FFFFFF',
+    background: active ? 'var(--color-brand-navy)' : '#FFFFFF',
     color: active ? '#FFFFFF' : '#374151',
     borderRadius: 999,
     fontSize: 12,
@@ -650,10 +650,10 @@ function sortIndicator(
 
 function rowStyleFor(badge: ReorderBadge): React.CSSProperties {
   if (badge === 'reorder_now') {
-    return { background: '#FEF2F2' };
+    return { background: 'var(--color-error-bg)' };
   }
   if (badge === 'reorder_soon') {
-    return { background: '#FFFBEB' };
+    return { background: 'var(--color-warning-bg)' };
   }
   return {};
 }
@@ -931,13 +931,13 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 16,
   },
   h1: { fontSize: 22, fontWeight: 600, margin: '0 0 4px' },
-  subtitle: { fontSize: 13, color: '#6B7280', margin: 0 },
+  subtitle: { fontSize: 13, color: 'var(--color-text-tertiary)', margin: 0 },
   refreshBtn: {
     padding: '8px 14px',
     border: 'none',
     borderRadius: 6,
-    background: '#1D3095',
-    color: '#FFFFFF',
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
     fontSize: 13,
     cursor: 'pointer',
     fontWeight: 500,
@@ -948,7 +948,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 8,
     padding: '12px 16px',
-    background: '#F9FAFB',
+    background: 'var(--color-bg-app)',
     border: '1px solid #E2E5EB',
     borderRadius: 8,
     marginBottom: 12,
@@ -956,7 +956,7 @@ const styles: Record<string, React.CSSProperties> = {
   table: {
     width: '100%',
     borderCollapse: 'collapse' as const,
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #E2E5EB',
     borderRadius: 12,
     overflow: 'hidden',
@@ -965,10 +965,10 @@ const styles: Record<string, React.CSSProperties> = {
   th: {
     textAlign: 'left' as const,
     padding: '10px 12px',
-    background: '#F9FAFB',
+    background: 'var(--color-bg-app)',
     borderBottom: '1px solid #E2E5EB',
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 600,
     letterSpacing: '0.04em',
     textTransform: 'uppercase' as const,
@@ -976,10 +976,10 @@ const styles: Record<string, React.CSSProperties> = {
   thRight: {
     textAlign: 'right' as const,
     padding: '10px 12px',
-    background: '#F9FAFB',
+    background: 'var(--color-bg-app)',
     borderBottom: '1px solid #E2E5EB',
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 600,
     letterSpacing: '0.04em',
     textTransform: 'uppercase' as const,
@@ -987,10 +987,10 @@ const styles: Record<string, React.CSSProperties> = {
   thSortable: {
     textAlign: 'left' as const,
     padding: '10px 12px',
-    background: '#F9FAFB',
+    background: 'var(--color-bg-app)',
     borderBottom: '1px solid #E2E5EB',
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 600,
     letterSpacing: '0.04em',
     textTransform: 'uppercase' as const,
@@ -1000,10 +1000,10 @@ const styles: Record<string, React.CSSProperties> = {
   thSortableRight: {
     textAlign: 'right' as const,
     padding: '10px 12px',
-    background: '#F9FAFB',
+    background: 'var(--color-bg-app)',
     borderBottom: '1px solid #E2E5EB',
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontWeight: 600,
     letterSpacing: '0.04em',
     textTransform: 'uppercase' as const,
@@ -1019,14 +1019,14 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid #F1F2F4',
     textAlign: 'right' as const,
   },
-  link: { color: '#1D3095', textDecoration: 'none', fontWeight: 500 },
-  muted: { color: '#9CA3AF' },
+  link: { color: 'var(--color-brand-navy)', textDecoration: 'none', fontWeight: 500 },
+  muted: { color: 'var(--color-text-muted)' },
   empty: {
     padding: 32,
     textAlign: 'center' as const,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontSize: 13,
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #E2E5EB',
     borderRadius: 12,
   },
@@ -1043,7 +1043,7 @@ const styles: Record<string, React.CSSProperties> = {
   pillGreen: { background: '#DCFCE7', color: '#166534' },
   note: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: 'var(--color-text-muted)',
     marginTop: 16,
     fontStyle: 'italic' as const,
     textAlign: 'center' as const,
@@ -1055,9 +1055,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   actionBtn: {
     padding: '4px 10px',
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #1D3095',
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     borderRadius: 6,
     fontSize: 11,
     cursor: 'pointer',
@@ -1065,7 +1065,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   actionBtnSecondary: {
     padding: '4px 10px',
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #E2E5EB',
     color: '#374151',
     borderRadius: 6,
@@ -1074,7 +1074,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   actionBtnDanger: {
     padding: '4px 10px',
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #FCA5A5',
     color: '#B91C1C',
     borderRadius: 6,
@@ -1104,7 +1104,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     zIndex: 1000,
   },
   modal: {
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     borderRadius: 12,
     width: '100%',
     maxWidth: 560,
@@ -1122,12 +1122,12 @@ const modalStyles: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid #E2E5EB',
   },
   title: { fontSize: 16, fontWeight: 600, margin: '0 0 4px' },
-  subtitle: { fontSize: 12, color: '#6B7280', margin: 0 },
+  subtitle: { fontSize: 12, color: 'var(--color-text-tertiary)', margin: 0 },
   close: {
     background: 'transparent',
     border: 'none',
     fontSize: 18,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     cursor: 'pointer',
     padding: 4,
     lineHeight: 1,
@@ -1162,9 +1162,9 @@ const modalStyles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
     gap: 12,
   },
-  hint: { fontSize: 11, color: '#6B7280', fontStyle: 'italic' as const },
+  hint: { fontSize: 11, color: 'var(--color-text-tertiary)', fontStyle: 'italic' as const },
   error: {
-    background: '#FEF2F2',
+    background: 'var(--color-error-bg)',
     border: '1px solid #FCA5A5',
     color: '#B91C1C',
     padding: 10,
@@ -1173,7 +1173,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
   },
   primaryBtn: {
     background: '#15803D',
-    color: '#FFFFFF',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 16px',
@@ -1194,14 +1194,14 @@ const modalStyles: Record<string, React.CSSProperties> = {
     padding: 10,
     borderRadius: 6,
     fontSize: 12,
-    background: '#F9FAFB',
+    background: 'var(--color-bg-app)',
     border: '1px solid #E2E5EB',
   },
   previewRed: { color: '#7F1D1D' },
   previewGreen: { color: '#166534' },
   dangerBtn: {
     background: '#B91C1C',
-    color: '#FFFFFF',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 16px',
@@ -1217,7 +1217,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
   },
   warningBox: {
     padding: 10,
-    background: '#FFFBEB',
+    background: 'var(--color-warning-bg)',
     border: '1px solid #FCD34D',
     color: '#78350F',
     borderRadius: 6,
@@ -1226,7 +1226,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
   code: {
     fontFamily: 'Menlo, monospace',
     fontSize: 12,
-    background: '#F3F4F6',
+    background: 'var(--color-bg-subtle)',
     padding: '1px 6px',
     borderRadius: 4,
     margin: '0 4px',
