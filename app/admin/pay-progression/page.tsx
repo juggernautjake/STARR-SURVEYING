@@ -342,7 +342,7 @@ export default function PayProgressionPage() {
         {isAdmin && editMode && <AddTierButton onAdded={fetchData} />}
       </div>
 
-      {/* Seniority Milestones */}
+      {/* Seniority Milestones — P-12 added inline CRUD. */}
       <div className="pay-prog__section">
         <h3 className="pay-prog__section-title">&#x1F4C5; Seniority Milestones</h3>
         <p className="pay-prog__section-desc">The longer you stay with the company, the more your hourly bonus grows.</p>
@@ -350,19 +350,18 @@ export default function PayProgressionPage() {
           {seniority.map((s, i) => {
             const reached = yearsEmployed >= s.min_years;
             return (
-              <div key={s.min_years} className={`pay-prog__timeline-item ${reached ? 'pay-prog__timeline-item--reached' : ''}`}>
-                <div className="pay-prog__timeline-dot" style={{ background: reached ? '#10B981' : '#E5E7EB' }} />
-                <div className="pay-prog__timeline-content">
-                  <span className="pay-prog__timeline-label">
-                    {s.min_years === 0 ? 'Start' : `${s.min_years} Year${s.min_years !== 1 ? 's' : ''}`}
-                  </span>
-                  <span className="pay-prog__timeline-bonus">+${s.bonus_per_hour.toFixed(2)}/hr</span>
-                </div>
-                {i < seniority.length - 1 && <div className={`pay-prog__timeline-connector ${reached ? 'pay-prog__timeline-connector--active' : ''}`} />}
-              </div>
+              <SeniorityBracketItem
+                key={s.min_years}
+                bracket={s}
+                reached={reached}
+                isLast={i === seniority.length - 1}
+                editMode={isAdmin && editMode}
+                onChanged={fetchData}
+              />
             );
           })}
         </div>
+        {isAdmin && editMode && <AddSeniorityBracketButton onAdded={fetchData} />}
       </div>
 
       {/* Credentials gallery \u2014 P-3 of PAY_PROGRESSION_OVERHAUL.md.
@@ -1726,6 +1725,236 @@ function AddTierButton({ onAdded }: { onAdded: () => void }) {
           <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={() => setAdding(false)}>
             Cancel
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Seniority bracket item (P-12) ──────────────────────────────────────────
+
+interface SeniorityBracketItemProps {
+  bracket: SeniorityBracket;
+  reached: boolean;
+  isLast: boolean;
+  editMode: boolean;
+  onChanged: () => void;
+}
+
+function SeniorityBracketItem({ bracket, reached, isLast, editMode, onChanged }: SeniorityBracketItemProps) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    min_years: bracket.min_years,
+    max_years: bracket.max_years,
+    bonus_per_hour: bracket.bonus_per_hour,
+    label: bracket.label || '',
+  });
+
+  useEffect(() => {
+    setDraft({
+      min_years: bracket.min_years,
+      max_years: bracket.max_years,
+      bonus_per_hour: bracket.bonus_per_hour,
+      label: bracket.label || '',
+    });
+  }, [bracket.min_years, bracket.max_years, bracket.bonus_per_hour, bracket.label]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/pay-config/seniority-brackets', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          min_years: bracket.min_years,
+          new_min_years: Number(draft.min_years),
+          max_years: draft.max_years === null || (draft.max_years as unknown as string) === ''
+            ? null
+            : Number(draft.max_years),
+          bonus_per_hour: Number(draft.bonus_per_hour),
+          label: draft.label || null,
+        }),
+      });
+      if (res.ok) {
+        setEditing(false);
+        onChanged();
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm(`Remove "${bracket.label || `${bracket.min_years} year`}" bracket?`)) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/pay-config/seniority-brackets?min_years=${bracket.min_years}`, { method: 'DELETE' });
+      if (res.ok) onChanged();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="pay-prog__timeline-item pay-prog__timeline-item--editing">
+        <div className="pay-prog__timeline-edit-body">
+          <input
+            className="pay-prog__rate-edit-label"
+            value={draft.label}
+            onChange={e => setDraft(d => ({ ...d, label: e.target.value }))}
+            placeholder="Label (e.g. 3-4 years)"
+            aria-label="Label"
+          />
+          <div className="pay-prog__timeline-edit-row">
+            <label className="pay-prog__rate-edit-field">
+              <span>Min years</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={draft.min_years}
+                onChange={e => setDraft(d => ({ ...d, min_years: Number(e.target.value) }))}
+              />
+            </label>
+            <label className="pay-prog__rate-edit-field">
+              <span>Max years</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={draft.max_years ?? ''}
+                onChange={e => setDraft(d => ({ ...d, max_years: e.target.value === '' ? null : Number(e.target.value) }))}
+                placeholder="∞"
+              />
+            </label>
+            <label className="pay-prog__rate-edit-field">
+              <span>Bonus $/hr</span>
+              <input
+                type="number"
+                min="0"
+                step="0.25"
+                value={draft.bonus_per_hour}
+                onChange={e => setDraft(d => ({ ...d, bonus_per_hour: Number(e.target.value) }))}
+              />
+            </label>
+          </div>
+          <div className="pay-prog__rate-edit-actions">
+            <button type="button" className="btn btn--sm btn--primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
+            <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={() => setEditing(false)}>Cancel</button>
+            <button type="button" className="btn btn--sm btn--danger" disabled={saving} onClick={remove}>Delete</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`pay-prog__timeline-item ${reached ? 'pay-prog__timeline-item--reached' : ''}`}>
+      {editMode && (
+        <button
+          type="button"
+          className="pay-prog__edit-pencil pay-prog__edit-pencil--top"
+          onClick={() => setEditing(true)}
+          aria-label={`Edit ${bracket.label || bracket.min_years}`}
+          title="Edit bracket"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          </svg>
+        </button>
+      )}
+      <div className="pay-prog__timeline-dot" style={{ background: reached ? '#10B981' : '#E5E7EB' }} />
+      <div className="pay-prog__timeline-content">
+        <span className="pay-prog__timeline-label">
+          {bracket.label || (bracket.min_years === 0 ? 'Start' : `${bracket.min_years} Year${bracket.min_years !== 1 ? 's' : ''}`)}
+        </span>
+        <span className="pay-prog__timeline-bonus">+${Number(bracket.bonus_per_hour).toFixed(2)}/hr</span>
+      </div>
+      {!isLast && <div className={`pay-prog__timeline-connector ${reached ? 'pay-prog__timeline-connector--active' : ''}`} />}
+    </div>
+  );
+}
+
+// ─── Add seniority bracket button (P-12) ────────────────────────────────────
+
+function AddSeniorityBracketButton({ onAdded }: { onAdded: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    min_years: 10,
+    max_years: null as number | null,
+    bonus_per_hour: 0,
+    label: '',
+  });
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/pay-config/seniority-brackets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          min_years: Number(draft.min_years),
+          max_years: draft.max_years,
+          bonus_per_hour: Number(draft.bonus_per_hour),
+          label: draft.label || null,
+        }),
+      });
+      if (res.ok) {
+        setAdding(false);
+        setDraft({ min_years: 10, max_years: null, bonus_per_hour: 0, label: '' });
+        onAdded();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        window.alert(body.error || 'Failed to add bracket');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!adding) {
+    return (
+      <button type="button" className="pay-prog__rung-add" onClick={() => setAdding(true)}>
+        <span aria-hidden="true">+</span> Add seniority bracket
+      </button>
+    );
+  }
+
+  return (
+    <div className="pay-prog__timeline-item pay-prog__timeline-item--editing" style={{ marginTop: '0.75rem' }}>
+      <div className="pay-prog__timeline-edit-body">
+        <input
+          className="pay-prog__rate-edit-label"
+          value={draft.label}
+          onChange={e => setDraft(d => ({ ...d, label: e.target.value }))}
+          placeholder="Label (e.g. 10+ years)"
+        />
+        <div className="pay-prog__timeline-edit-row">
+          <label className="pay-prog__rate-edit-field">
+            <span>Min years</span>
+            <input type="number" min="0" step="1" value={draft.min_years} onChange={e => setDraft(d => ({ ...d, min_years: Number(e.target.value) }))} />
+          </label>
+          <label className="pay-prog__rate-edit-field">
+            <span>Max years</span>
+            <input type="number" min="0" step="1" value={draft.max_years ?? ''}
+              onChange={e => setDraft(d => ({ ...d, max_years: e.target.value === '' ? null : Number(e.target.value) }))}
+              placeholder="∞"
+            />
+          </label>
+          <label className="pay-prog__rate-edit-field">
+            <span>Bonus $/hr</span>
+            <input type="number" min="0" step="0.25" value={draft.bonus_per_hour}
+              onChange={e => setDraft(d => ({ ...d, bonus_per_hour: Number(e.target.value) }))}
+            />
+          </label>
+        </div>
+        <div className="pay-prog__rate-edit-actions">
+          <button type="button" className="btn btn--sm btn--primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Add'}</button>
+          <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={() => setAdding(false)}>Cancel</button>
         </div>
       </div>
     </div>
