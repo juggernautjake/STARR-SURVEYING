@@ -196,6 +196,160 @@
   border-radius: var(--radius-sm);
 }
 
+/* ─── Display (C-6 visual; C-7 wires real values) ───────────────────────── */
+.calc-display {
+  background: linear-gradient(180deg, #c8d0c5 0%, #b8c0b3 100%);
+  color: #0a0d08;
+  padding: 0.5rem 0.65rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  border: 1px solid #6f7867;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.calc-display__status {
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: rgba(10, 13, 8, 0.65);
+  text-transform: uppercase;
+  min-height: 12px;
+}
+.calc-display__badge {
+  padding: 0 0.2rem;
+}
+.calc-display__entry {
+  font-size: 0.78rem;
+  text-align: right;
+  color: rgba(10, 13, 8, 0.7);
+  min-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.calc-display__result-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+.calc-display__result {
+  font-size: 1.45rem;
+  font-weight: 700;
+  text-align: right;
+  flex: 1;
+  letter-spacing: -0.01em;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.calc-display__copy {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(10, 13, 8, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.25);
+  color: #0a0d08;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-fast);
+}
+.calc-display__copy:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* ─── Keypad (C-6) ──────────────────────────────────────────────────────── */
+.calc-model {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  height: 100%;
+  background: linear-gradient(180deg, #1a1a1f 0%, #0e0e12 100%);
+  box-sizing: border-box;
+}
+.calc-keypad {
+  display: grid;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+}
+.calc-key {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem 0.25rem;
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.06s ease;
+  user-select: none;
+  /* Default = soft (function keys) */
+  background: linear-gradient(180deg, #d0d4d8 0%, #a8acb2 100%);
+  color: #0a0d08;
+  font-size: 0.7rem;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 2px 3px rgba(0, 0, 0, 0.35);
+}
+.calc-key:hover { filter: brightness(1.05); }
+.calc-key:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset; }
+
+.calc-key__shift-label {
+  font-size: 0.5rem;
+  font-weight: 700;
+  color: #2563eb;
+  margin-bottom: 1px;
+  line-height: 1;
+  text-transform: lowercase;
+}
+.calc-key__label {
+  line-height: 1.1;
+}
+
+/* Digit keys — lighter, larger label */
+.calc-key--digit {
+  background: linear-gradient(180deg, #f0f1f3 0%, #c5c8cd 100%);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+/* Operators — dark navy */
+.calc-key--op {
+  background: linear-gradient(180deg, #303440 0%, #1c1f29 100%);
+  color: #f0f1f3;
+  font-size: 0.9rem;
+}
+/* Equals / eval — red */
+.calc-key--eval {
+  background: linear-gradient(180deg, #c4341a 0%, #8a200d 100%);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+/* Shift modifier (2nd) — yellow body, dark text */
+.calc-key--shift {
+  background: linear-gradient(180deg, #f7c948 0%, #d1990c 100%);
+  color: #2b1a00;
+  font-size: 0.78rem;
+}
+.calc-key--shift.calc-key--armed {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+/* Accent — enter ring */
+.calc-key--accent {
+  background: linear-gradient(180deg, #5b6471 0%, #353c46 100%);
+  color: #f0f1f3;
+  font-size: 0.75rem;
+}
+
 /* Mobile: when the viewport is too narrow to drag freely, center-lock
  * the modal and let it scroll vertically inside. */
 @media (max-width: 480px) {

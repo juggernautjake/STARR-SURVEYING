@@ -16,6 +16,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { CalculatorModal } from './CalculatorModal';
+import { Ti36xPro } from './models/Ti36xPro';
 
 export type ModelKey =
   | 'ti-36x-pro'
@@ -202,10 +203,16 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
           </div>
         }
       >
-        <ModelPlaceholder model={activeModel} />
+        {renderModel(activeModel)}
       </CalculatorModal>
     </Ctx.Provider>
   );
+}
+
+function renderModel(model: ModelDef) {
+  // C-6+ replaces each placeholder with the real shell as phases ship.
+  if (model.key === 'ti-36x-pro') return <Ti36xPro />;
+  return <ModelPlaceholder model={model} />;
 }
 
 function ModelPlaceholder({ model }: { model: ModelDef }) {
