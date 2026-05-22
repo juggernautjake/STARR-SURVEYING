@@ -169,6 +169,18 @@ describe('TI-36X Pro — surveying functions (C-10)', () => {
     expect(s.result).toBe('12°30\'58.50"');
   });
 
+  it('F-1: pct primary press is ►DMS (no shift required)', () => {
+    let s: Ti36xState = { ...initialState(), lastAnswer: 45.5, result: '45.5' };
+    s = press(s, 'pct');
+    expect(s.result).toBe('45°30\'00.00"');
+  });
+
+  it('F-1: SHIFT+pct triggers ►HR (DMS → decimal) on the same key', () => {
+    let s: Ti36xState = { ...initialState(), result: '90°15\'00.00"' };
+    s = press(s, '2nd', 'pct');
+    expect(s.lastAnswer).toBeCloseTo(90.25, 8);
+  });
+
   it('F↔D round-trips a DMS string back to decimal degrees', () => {
     let s: Ti36xState = { ...initialState(), result: '12°30\'58.50"' };
     s = press(s, '2nd', 'frac');
