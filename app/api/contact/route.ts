@@ -46,25 +46,27 @@ interface IncomingFormData {
   company?: string;
   propertyStreet?: string;
   propertyCity?: string;
+  propertyCounty?: string;
   propertyNumber?: string;
   propertyAddress?: string;
   serviceType?: string;
   projectDetails?: string;
   preferredContact?: string;
   howHeard?: string;
-  
+
   // Alternative naming (from ContactForm component)
   full_name?: string;
   company_name?: string;
   service_type?: string;
   property_street?: string;
   property_city?: string;
+  property_county?: string;
   property_number?: string;
   property_address?: string;
   project_description?: string;
   preferred_contact_method?: string;
   how_heard?: string;
-  
+
   // Calculator-specific fields
   subject?: string;
   message?: string;
@@ -77,6 +79,7 @@ interface NormalizedData {
   phone: string;
   company: string;
   propertyAddress: string;
+  propertyCounty: string;
   propertyNumber: string;
   serviceType: string;
   projectDetails: string;
@@ -635,9 +638,15 @@ function buildContactFormEmailHtml(data: NormalizedData, referenceNumber: string
           <div class="field-value">${data.propertyAddress}</div>
         </div>
         ` : ''}
+        ${data.propertyCounty ? `
+        <div class="field">
+          <div class="field-label">County</div>
+          <div class="field-value">${data.propertyCounty}</div>
+        </div>
+        ` : ''}
         ${data.propertyNumber ? `
         <div class="field">
-          <div class="field-label">Property / Account Number</div>
+          <div class="field-label">Property ID</div>
           <div class="field-value">${data.propertyNumber}</div>
         </div>
         ` : ''}
@@ -782,9 +791,15 @@ function buildCustomerConfirmationHtml(data: NormalizedData, referenceNumber: st
           <div class="field-label">Property Address</div>
           <div class="field-value">${data.propertyAddress}</div>
         </div>
+        ${data.propertyCounty ? `
+        <div class="field">
+          <div class="field-label">County</div>
+          <div class="field-value">${data.propertyCounty}</div>
+        </div>
+        ` : ''}
         ${data.propertyNumber ? `
         <div class="field">
-          <div class="field-label">Property / Account Number</div>
+          <div class="field-label">Property ID</div>
           <div class="field-value">${data.propertyNumber}</div>
         </div>
         ` : ''}
@@ -895,7 +910,9 @@ Preferred Contact: ${data.preferredContact || 'Email'}
 PROPERTY & SERVICE
 ------------------
 Property Address: ${data.propertyAddress || 'Not provided'}
-${data.propertyNumber ? `Property / Account Number: ${data.propertyNumber}\n` : ''}Service Type: ${data.serviceType || 'Not specified'}
+County: ${data.propertyCounty || 'Not provided'}
+Property ID: ${data.propertyNumber || 'Not provided'}
+Service Type: ${data.serviceType || 'Not specified'}
 How They Found Us: ${data.howHeard || 'Not specified'}
 
 PROJECT DETAILS
@@ -938,7 +955,8 @@ function buildCustomerPlainText(data: NormalizedData, referenceNumber: string, i
   
   if (!isCalculator) {
     if (data.propertyAddress) text += `Property: ${data.propertyAddress}\n`;
-    if (data.propertyNumber) text += `Property / Account Number: ${data.propertyNumber}\n`;
+    if (data.propertyCounty) text += `County: ${data.propertyCounty}\n`;
+    if (data.propertyNumber) text += `Property ID: ${data.propertyNumber}\n`;
     if (data.serviceType) text += `Service: ${data.serviceType}\n`;
     if (data.projectDetails) text += `\nYour Message:\n${data.projectDetails}\n`;
   }
@@ -1017,6 +1035,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       phone: body.phone || '',
       company: body.company || body.company_name || '',
       propertyAddress: combinedAddress,
+      propertyCounty: body.propertyCounty || body.property_county || '',
       propertyNumber: body.propertyNumber || body.property_number || '',
       serviceType: body.serviceType || body.service_type || '',
       projectDetails: body.projectDetails || body.project_description || '',
@@ -1027,7 +1046,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       message: body.message || '',
     };
 
-    // Validate required fields
+    const isCalculator = data.source === 'pricing-calculator';
+
+    // Validate required fields. Quote / contact-form submissions also
+    // require property address, county, and ID; the pricing calculator
+    // has its own internal validation and skips these here.
     if (!data.name || !data.email || !data.phone) {
       return NextResponse.json(
         {
@@ -1038,8 +1061,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { status: 400 }
       );
     }
-
-    const isCalculator = data.source === 'pricing-calculator';
+    if (!isCalculator && (!data.propertyAddress || !data.propertyCounty || !data.propertyNumber)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Missing required fields',
+          error: 'Please include the property address, county, and Property ID.',
+        },
+        { status: 400 }
+      );
+    }
     
     // Build email content
     const businessSubject = isCalculator

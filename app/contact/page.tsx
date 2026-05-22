@@ -19,6 +19,7 @@ interface ContactFormData {
   company: string;
   propertyStreet: string;
   propertyCity: string;
+  propertyCounty: string;
   propertyNumber: string;
   serviceType: string;
   projectDetails: string;
@@ -47,6 +48,7 @@ export default function ContactPage(): React.ReactElement {
     company: '',
     propertyStreet: '',
     propertyCity: '',
+    propertyCounty: '',
     propertyNumber: '',
     serviceType: '',
     projectDetails: '',
@@ -127,7 +129,15 @@ export default function ContactPage(): React.ReactElement {
     e.preventDefault();
     setFormState((prev) => ({ ...prev, loading: true, error: '' }));
 
-    if (!formData.name || !formData.email || !formData.phone || !formData.propertyStreet || !formData.propertyCity) {
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.phone ||
+      !formData.propertyStreet ||
+      !formData.propertyCity ||
+      !formData.propertyCounty ||
+      !formData.propertyNumber
+    ) {
       setFormState((prev) => ({
         ...prev,
         loading: false,
@@ -155,6 +165,7 @@ export default function ContactPage(): React.ReactElement {
           company: '',
           propertyStreet: '',
           propertyCity: '',
+          propertyCounty: '',
           propertyNumber: '',
           serviceType: '',
           projectDetails: '',
@@ -185,6 +196,7 @@ export default function ContactPage(): React.ReactElement {
       company: '',
       propertyStreet: '',
       propertyCity: '',
+      propertyCounty: '',
       propertyNumber: '',
       serviceType: '',
       projectDetails: '',
@@ -390,10 +402,27 @@ export default function ContactPage(): React.ReactElement {
                   />
                 </div>
 
-                {/* Property Number - Optional */}
+                {/* Property County - Required */}
                 <div className="contact-form__group">
-                  <label htmlFor="propertyNumber" className="contact-form__label">
-                    Property / Account Number
+                  <label htmlFor="propertyCounty" className="contact-form__label contact-form__label--required">
+                    County
+                  </label>
+                  <input
+                    type="text"
+                    id="propertyCounty"
+                    name="propertyCounty"
+                    value={formData.propertyCounty}
+                    onChange={handleInputChange}
+                    className="contact-form__input"
+                    placeholder="Bell"
+                    required
+                  />
+                </div>
+
+                {/* Property ID - Required */}
+                <div className="contact-form__group">
+                  <label htmlFor="propertyNumber" className="contact-form__label contact-form__label--required">
+                    Property ID
                   </label>
                   <input
                     type="text"
@@ -402,7 +431,8 @@ export default function ContactPage(): React.ReactElement {
                     value={formData.propertyNumber}
                     onChange={handleInputChange}
                     className="contact-form__input"
-                    placeholder="CAD account or parcel number (optional)"
+                    placeholder="CAD account or parcel number"
+                    required
                   />
                 </div>
 
