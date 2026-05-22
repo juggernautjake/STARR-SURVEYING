@@ -5,6 +5,7 @@ import '../styles/AdminPayroll.css';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { computeEffectiveRate, findSeniorityBracket } from '@/lib/payroll/effective-rate';
 
 interface WorkTypeRate {
   work_type: string;
@@ -890,34 +891,40 @@ function PayCalculator({ roles, workRates, credentials, seniority, xpMilestones,
   const [credKeys, setCredKeys] = useState<Set<string>>(new Set(defaults.credentialKeys));
   const [xp, setXp] = useState<number>(defaults.xp);
 
-  const tier = roles.find(r => r.role_key === roleKey);
+  // P-16: use the canonical effective-rate calculator. All caps + cap logic
+  // live in lib/payroll/effective-rate.ts so the math here always matches
+  // what the per-user override page (P-17) will compute.
+  const tier = roles.find(r => r.role_key === roleKey) || null;
   const work = workRates.find(w => w.work_type === workType);
-  const bracket = seniority.find(s => years >= s.min_years && (!s.max_years || years < s.max_years));
+  const result = work
+    ? computeEffectiveRate({
+        workType: work,
+        tier,
+        yearsEmployed: years,
+        seniority,
+        earnedCredentialKeys: Array.from(credKeys),
+        credentials,
+        totalXp: xp,
+        xpMilestones,
+      })
+    : null;
 
-  const credentialBonus = credentials
-    .filter(c => credKeys.has(c.credential_key))
-    .reduce((sum, c) => sum + Number(c.bonus_per_hour || 0), 0);
-  const credentialCapped = Math.min(credentialBonus, 8); // pay_system_config.max_credential_stack
-
-  const xpBonus = xpMilestones
-    .filter(m => xp >= m.xp_threshold)
-    .reduce((sum, m) => sum + Number(m.bonus_per_hour || 0), 0);
-  const xpCapped = Math.min(xpBonus, 3); // pay_system_config.max_xp_milestone_bonus
-
-  const roleBonus = Number(tier?.base_bonus || 0);
-  const seniorityBonus = Number(bracket?.bonus_per_hour || 0);
-  const rawBonusTotal = roleBonus + seniorityBonus + credentialCapped + xpCapped;
-
-  const multiplier = Number(work?.bonus_multiplier ?? 1);
-  const adjustedBonus = rawBonusTotal * multiplier;
+  const baseRate = result?.baseRate ?? 0;
+  const roleBonus = result?.roleBonus ?? 0;
+  const seniorityBonus = result?.seniorityBonus ?? 0;
+  const credentialBonus = result?.credentialBonusRaw ?? 0;
+  const credentialCapped = result?.credentialBonusCapped ?? 0;
+  const xpBonus = result?.xpBonusRaw ?? 0;
+  const xpCapped = result?.xpBonusCapped ?? 0;
+  const rawBonusTotal = result?.rawBonusTotal ?? 0;
+  const multiplier = result?.multiplier ?? 1;
+  const adjustedBonus = result?.adjustedBonus ?? 0;
   const workCap = work?.max_bonus_cap ?? null;
-  const cappedBonus = workCap !== null ? Math.min(adjustedBonus, Number(workCap)) : adjustedBonus;
-
-  const baseRate = Number(work?.base_rate || 0);
-  const preCeilingTotal = baseRate + cappedBonus;
+  const cappedBonus = result?.cappedBonus ?? 0;
+  const effectiveRate = result?.effectiveRate ?? 0;
   const roleCeiling = tier?.max_effective_rate ?? null;
-  const effectiveRate = roleCeiling !== null ? Math.min(preCeilingTotal, Number(roleCeiling)) : preCeilingTotal;
-  const ceilingApplied = roleCeiling !== null && preCeilingTotal > Number(roleCeiling);
+  const ceilingApplied = result?.ceilingApplied ?? false;
+  const bracket = findSeniorityBracket(seniority, years);
 
   function toggleCred(key: string) {
     setCredKeys(prev => {
