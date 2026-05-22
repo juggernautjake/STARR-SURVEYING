@@ -17,7 +17,7 @@ import { Keypad } from '../Keypad';
 import { NaturalDisplay } from '../NaturalDisplay';
 import { useCalculator } from '../CalculatorProvider';
 import { useCalculatorKeyEvents } from '../useCalculatorKeyEvents';
-import { CASIO_FX991_KEYPAD, CASIO_FX991_GRID } from '@/lib/calculators/models/casio-fx-991/keypad-data';
+import { CASIO_FX115_KEYPAD, CASIO_FX115_GRID } from '@/lib/calculators/models/casio-fx-115/keypad-data';
 import { dispatch, hydrate, initialState, serialize, type CasioFx991State } from '@/lib/calculators/models/casio-fx-991/engine';
 import type { KeyDef } from '@/lib/calculators/shared';
 
@@ -70,9 +70,9 @@ export function CasioFx115() {
         onCopyResult={copyResult}
       />
       <Keypad
-        keys={CASIO_FX991_KEYPAD}
-        rows={CASIO_FX991_GRID.rows}
-        cols={CASIO_FX991_GRID.cols}
+        keys={CASIO_FX115_KEYPAD}
+        rows={CASIO_FX115_GRID.rows}
+        cols={CASIO_FX115_GRID.cols}
         onKey={onKey}
         shiftActive={state.shiftActive}
       />
