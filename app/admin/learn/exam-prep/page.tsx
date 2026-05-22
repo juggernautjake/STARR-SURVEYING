@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import FieldbookButton from '@/app/admin/components/FieldbookButton';
+import { CalculatorTriggerButton } from '@/app/admin/components/calculator/CalculatorTriggerButton';
 import { usePageError } from '../../hooks/usePageError';
 
 export default function ExamPrepPage() {
@@ -37,7 +38,10 @@ export default function ExamPrepPage() {
     <>
       <div className="admin-learn__header">
         <Link href="/admin/learn" className="admin-module-detail__back">&larr; Back to Learning Hub</Link>
-        <h2 className="admin-learn__title">&#x1F4DD; Exam Prep</h2>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <h2 className="admin-learn__title">&#x1F4DD; Exam Prep</h2>
+          <CalculatorTriggerButton size="sm" title="Open an NCEES-approved calculator (Casio fx-115/991, HP 33s/35s, TI-30X/36X)" />
+        </div>
         <p className="admin-learn__subtitle">
           Prepare for your surveying licensure exams with structured study modules, practice quizzes, and full mock exams.
         </p>

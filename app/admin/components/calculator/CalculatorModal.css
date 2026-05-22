@@ -501,6 +501,35 @@
   line-height: 0;
 }
 
+/* Inline pill button for embedding "open calculator" anywhere (exam-prep
+ * pages, near quiz inputs, etc.). FAB is global; this is contextual. */
+.calc-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: var(--border-normal);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+.calc-trigger:hover {
+  background: var(--color-brand-navy);
+  border-color: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+}
+.calc-trigger--sm {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.72rem;
+}
+.calc-trigger--md {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+}
+
 /* HP 35s palette override — gunmetal body, brushed-aluminum keys,
  * orange (left-shift) + blue (right-shift) modifier tone. */
 .calc-model--hp-35s {
