@@ -14,7 +14,7 @@
 
 'use client';
 
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { CalculatorModal } from './CalculatorModal';
 
 export type ModelKey =
@@ -58,6 +58,14 @@ interface CalculatorCtx {
   openCalculator: (model?: ModelKey) => void;
   closeCalculator: () => void;
   setCurrentModel: (model: ModelKey) => void;
+  /** Per-model engines call this with their JSON-serializable state. The
+   *  provider debounces writes to /api/admin/calculator-state. */
+  saveState: (model: ModelKey, state: unknown) => void;
+  /** Per-model engines call this on mount to hydrate from the server.
+   *  Resolves to null if no row exists yet. */
+  loadState: (model: ModelKey) => Promise<unknown | null>;
+  /** Wipe saved state for a model (called by the modal's ↻ button). */
+  clearState: (model: ModelKey) => Promise<void>;
 }
 
 const Ctx = createContext<CalculatorCtx | null>(null);
@@ -87,11 +95,77 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
     setIsOpen(true);
   }, [setCurrentModel]);
 
-  const closeCalculator = useCallback(() => setIsOpen(false), []);
+  const closeCalculator = useCallback(() => {
+    // Flush any pending debounced save before hiding.
+    void flushPendingSave();
+    setIsOpen(false);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Debounced state save (C-5) ────────────────────────────────────────────
+  // Engines call ctx.saveState(model, state) freely; we coalesce calls per
+  // model and PUT after 5s of quiet (or immediately on flush — modal close,
+  // tab switch, beforeunload).
+  const pendingRef = useRef(new Map<ModelKey, unknown>());
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushPendingSave = useCallback(async () => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (pendingRef.current.size === 0) return;
+    const entries = Array.from(pendingRef.current.entries());
+    pendingRef.current = new Map();
+    await Promise.all(entries.map(async ([model, state]) => {
+      try {
+        await fetch('/api/admin/calculator-state', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, state }),
+        });
+      } catch { /* network blip — engine will retry next save */ }
+    }));
+  }, []);
+
+  const saveState = useCallback((model: ModelKey, state: unknown) => {
+    pendingRef.current.set(model, state);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => { void flushPendingSave(); }, 5000);
+  }, [flushPendingSave]);
+
+  const loadState = useCallback(async (model: ModelKey): Promise<unknown | null> => {
+    try {
+      const res = await fetch(`/api/admin/calculator-state?model=${encodeURIComponent(model)}`);
+      if (!res.ok) return null;
+      const data = await res.json() as { state: unknown | null };
+      return data.state;
+    } catch { return null; }
+  }, []);
+
+  const clearState = useCallback(async (model: ModelKey): Promise<void> => {
+    pendingRef.current.delete(model);
+    try {
+      await fetch(`/api/admin/calculator-state?model=${encodeURIComponent(model)}`, {
+        method: 'DELETE',
+      });
+    } catch { /* ignore */ }
+  }, []);
+
+  // Flush on tab switch — the activeModel may be unmounting.
+  useEffect(() => { void flushPendingSave(); }, [currentModel, flushPendingSave]);
+
+  // Flush on tab close / navigation.
+  useEffect(() => {
+    function onBeforeUnload() {
+      // Synchronous best-effort: fire-and-forget; modern beforeunload doesn't
+      // wait for async work anyway.
+      void flushPendingSave();
+    }
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [flushPendingSave]);
 
   const ctxValue = useMemo<CalculatorCtx>(() => ({
     isOpen, currentModel, openCalculator, closeCalculator, setCurrentModel,
-  }), [isOpen, currentModel, openCalculator, closeCalculator, setCurrentModel]);
+    saveState, loadState, clearState,
+  }), [isOpen, currentModel, openCalculator, closeCalculator, setCurrentModel, saveState, loadState, clearState]);
 
   const activeModel = CALCULATOR_MODELS.find(m => m.key === currentModel) ?? CALCULATOR_MODELS[0];
 
@@ -104,6 +178,11 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
         width={activeModel.width}
         height={activeModel.height}
         onClose={closeCalculator}
+        onClearState={() => {
+          if (window.confirm(`Clear saved state for ${activeModel.label}? This wipes the display, memory, and history for this calculator.`)) {
+            void clearState(activeModel.key);
+          }
+        }}
         toolbar={
           <div className="calc-tabstrip" role="tablist" aria-label="Approved calculators">
             {CALCULATOR_MODELS.map(m => (
