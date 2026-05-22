@@ -403,6 +403,15 @@ export default function HomePage(): React.ReactElement {
             </p>
           </div>
 
+          <Link href="/pricing" className="home-contact__calc-banner">
+            <span className="home-contact__calc-banner-icon" aria-hidden="true">⚡</span>
+            <span className="home-contact__calc-banner-text">
+              <strong>Try our quote estimate calculator now!</strong>
+              <span className="home-contact__calc-banner-sub">Get an instant price range in under a minute — no waiting.</span>
+            </span>
+            <span className="home-contact__calc-banner-arrow" aria-hidden="true">→</span>
+          </Link>
+
           {formState.submitted ? (
             <div className="home-contact__success">
               <h3 className="home-contact__success-title">Thank You!</h3>
