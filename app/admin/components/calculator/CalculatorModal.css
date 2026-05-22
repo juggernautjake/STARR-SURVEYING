@@ -1,0 +1,104 @@
+/* app/admin/components/calculator/CalculatorModal.css
+ *
+ * Movable modal shell for the exam-calculator emulators.
+ * C-2 of EXAM_CALCULATORS.md.
+ *
+ * Sits above the FAB but below toast layer (uses --z-modal=200).
+ * The frame floats in position:fixed coordinates; the header is
+ * the drag handle, the rest is content. */
+
+.calc-modal {
+  position: fixed;
+  z-index: var(--z-modal);
+  background: var(--color-bg-card);
+  border: var(--border-normal);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
+  /* Subtle "lifted" feel */
+  transform: translateZ(0);
+}
+
+.calc-modal__header {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.5rem 0 0.95rem;
+  background: linear-gradient(180deg, var(--color-brand-navy) 0%, var(--color-brand-navy-d) 100%);
+  color: var(--color-text-on-brand);
+  cursor: grab;
+  user-select: none;
+}
+.calc-modal__header:active {
+  cursor: grabbing;
+}
+
+.calc-modal__title {
+  font-family: var(--font-heading);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+}
+
+.calc-modal__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.calc-modal__btn {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-on-brand);
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-fast);
+}
+.calc-modal__btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.calc-modal__btn--close {
+  font-size: 1.4rem;
+  font-weight: var(--weight-bold);
+}
+
+.calc-modal__toolbar {
+  background: var(--color-bg-subtle);
+  border-bottom: var(--border-light);
+  padding: 0.4rem 0.5rem;
+  overflow-x: auto;
+}
+
+.calc-modal__body {
+  /* Children control their own padding; we just provide the box. */
+  background: var(--color-bg-app);
+  overflow: auto;
+}
+
+/* Mobile: when the viewport is too narrow to drag freely, center-lock
+ * the modal and let it scroll vertically inside. */
+@media (max-width: 480px) {
+  .calc-modal {
+    /* Override the inline left/top via a stronger selector. The author
+     * sets left/top inline; @media + !important needed to take over. */
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+  }
+  .calc-modal__header { cursor: default; }
+}
