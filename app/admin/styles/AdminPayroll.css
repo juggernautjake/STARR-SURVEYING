@@ -222,6 +222,64 @@
   font-family: inherit;
 }
 
+/* Tier preview — P-8 of PAY_PROGRESSION_OVERHAUL.md.
+ * Inline card under the position dropdown. Shows base bonus, max
+ * effective rate, and description for the selected tier. When the
+ * dropdown differs from the saved tier, a delta banner appears
+ * showing the $/hr change (↑ for up, ↓ for down). */
+.payroll-tier-preview {
+  margin-top: 0.4rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--color-bg-app);
+  border: var(--border-light);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.payroll-tier-preview__row {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+}
+.payroll-tier-preview__label {
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.68rem;
+  font-weight: var(--weight-semibold);
+}
+.payroll-tier-preview__value {
+  color: var(--color-text-primary);
+  font-family: var(--font-heading);
+  font-weight: var(--weight-semibold);
+}
+.payroll-tier-preview__desc {
+  margin: 0.2rem 0 0;
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  color: var(--color-text-secondary);
+  line-height: 1.35;
+}
+.payroll-tier-preview__delta {
+  margin-top: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  font-weight: var(--weight-semibold);
+  text-align: center;
+}
+.payroll-tier-preview__delta--up {
+  background: var(--color-success-bg);
+  color: #166534;
+}
+.payroll-tier-preview__delta--down {
+  background: var(--color-warning-bg);
+  color: #92400E;
+}
+
 .payroll-form-group input:focus,
 .payroll-form-group select:focus,
 .payroll-form-group textarea:focus {

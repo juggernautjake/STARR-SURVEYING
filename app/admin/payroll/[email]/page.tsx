@@ -151,6 +151,14 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
                   <option key={key} value={key}>{val.icon} {val.label}</option>
                 ))}
               </select>
+              {/* P-8: show admins the pay impact of the tier they're selecting,
+               * sourced from the same role_tiers row that the calculation uses.
+               * Hidden until the dropdown actually changes from the saved
+               * value, so the form isn't cluttered when no edit is happening. */}
+              <TierPreview
+                tierKey={editForm.job_title}
+                currentTierKey={profile.job_title}
+              />
             </div>
             <div className="payroll-form-group">
               <label>Hourly Rate ($)</label>
@@ -263,6 +271,76 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
 
       {activeTab === 'stubs' && (
         <PayStubView email={email} />
+      )}
+    </div>
+  );
+}
+
+// ─── Tier preview (P-8) ──────────────────────────────────────────────────────
+// Fetches the role_tiers row for a given tier_key and shows the admin the
+// base bonus + max effective rate + description that selecting this tier
+// will grant. Only renders the "change" banner when the dropdown differs
+// from the saved value so the form isn't noisy during routine edits.
+
+interface TierPreviewProps {
+  tierKey: string;
+  currentTierKey: string;
+}
+
+interface TierPreviewData {
+  label: string;
+  description: string | null;
+  icon: string | null;
+  base_bonus: number;
+  max_effective_rate: number | null;
+}
+
+function TierPreview({ tierKey, currentTierKey }: TierPreviewProps) {
+  const [tier, setTier] = useState<TierPreviewData | null>(null);
+  const [currentBonus, setCurrentBonus] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch('/api/role-tiers');
+        if (!res.ok) return;
+        const data = await res.json() as { tiers: (TierPreviewData & { role_key: string })[] };
+        if (cancelled) return;
+        const match = data.tiers.find(t => t.role_key === tierKey);
+        const current = data.tiers.find(t => t.role_key === currentTierKey);
+        setTier(match || null);
+        setCurrentBonus(current ? Number(current.base_bonus) : null);
+      } catch { /* silent fail */ }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [tierKey, currentTierKey]);
+
+  if (!tier) return null;
+  const baseBonus = Number(tier.base_bonus || 0);
+  const changed = tierKey !== currentTierKey;
+  const delta = currentBonus !== null ? baseBonus - currentBonus : null;
+
+  return (
+    <div className="payroll-tier-preview">
+      <div className="payroll-tier-preview__row">
+        <span className="payroll-tier-preview__label">Base bonus</span>
+        <span className="payroll-tier-preview__value">+${baseBonus.toFixed(2)}/hr</span>
+      </div>
+      {tier.max_effective_rate !== null && (
+        <div className="payroll-tier-preview__row">
+          <span className="payroll-tier-preview__label">Max effective</span>
+          <span className="payroll-tier-preview__value">${Number(tier.max_effective_rate).toFixed(0)}/hr</span>
+        </div>
+      )}
+      {tier.description && (
+        <p className="payroll-tier-preview__desc">{tier.description}</p>
+      )}
+      {changed && delta !== null && (
+        <div className={`payroll-tier-preview__delta payroll-tier-preview__delta--${delta >= 0 ? 'up' : 'down'}`}>
+          {delta >= 0 ? '↑' : '↓'} {delta >= 0 ? '+' : ''}${Math.abs(delta).toFixed(2)}/hr vs. current tier
+        </div>
       )}
     </div>
   );
