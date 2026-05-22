@@ -556,6 +556,13 @@
   font-weight: var(--weight-semibold);
   color: var(--color-text-primary);
   text-transform: capitalize;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pay-prog__rung-icon {
+  font-size: 1rem;
+  line-height: 1;
 }
 .pay-prog__rung-badge {
   font-family: var(--font-body);
@@ -629,6 +636,51 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .pay-prog__rung-marker-pulse { animation: none; }
+}
+
+/* P-11: editing rung swaps the 3-column grid for a full-width form */
+.pay-prog__rung--editing {
+  grid-template-columns: 40px 1fr;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-brand-navy);
+  box-shadow: 0 0 0 3px rgba(29, 48, 149, 0.12);
+  padding: 1rem;
+}
+.pay-prog__rung-edit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.pay-prog__rung-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.pay-prog__rung-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.85rem 0 0 50px;
+  padding: 0.45rem 0.95rem;
+  border: 1px dashed var(--color-text-muted);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+.pay-prog__rung-add:hover {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+  background: var(--color-bg-hover);
+}
+@media (max-width: 600px) {
+  .pay-prog__rung-edit-grid { grid-template-columns: 1fr 1fr; }
+  .pay-prog__rung-add { margin-left: 32px; }
 }
 
 /* State: locked (above current) — gray + lock icon */

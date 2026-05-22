@@ -22,6 +22,7 @@ interface RoleTier {
   max_effective_rate: number | null;
   description?: string | null;
   sort_order?: number | null;
+  icon?: string | null;
 }
 
 interface SeniorityBracket {
@@ -325,33 +326,20 @@ export default function PayProgressionPage() {
             const isLocked = currentTierIndex >= 0 && i > currentTierIndex;
             const state = isCurrent ? 'current' : isUnlocked ? 'unlocked' : isLocked ? 'locked' : 'neutral';
             return (
-              <li key={r.role_key} className={`pay-prog__rung pay-prog__rung--${state}`}>
-                <div className="pay-prog__rung-marker" aria-hidden="true">
-                  {isUnlocked && (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  )}
-                  {isCurrent && <span className="pay-prog__rung-marker-pulse" />}
-                  {isLocked && (
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
-                  )}
-                </div>
-                <div className="pay-prog__rung-body">
-                  <div className="pay-prog__rung-head">
-                    <span className="pay-prog__rung-label">{r.label || r.role_key}</span>
-                    {isCurrent && <span className="pay-prog__rung-badge">You are here</span>}
-                  </div>
-                  {r.description && <p className="pay-prog__rung-desc">{r.description}</p>}
-                </div>
-                <div className="pay-prog__rung-stats">
-                  <span className="pay-prog__rung-bonus">+${Number(r.base_bonus).toFixed(2)}/hr</span>
-                  {r.max_effective_rate && (
-                    <span className="pay-prog__rung-cap">cap ${Number(r.max_effective_rate).toFixed(0)}/hr</span>
-                  )}
-                </div>
-              </li>
+              <TierRung
+                key={r.role_key}
+                tier={r}
+                state={state}
+                isCurrent={isCurrent}
+                isUnlocked={isUnlocked}
+                isLocked={isLocked}
+                editMode={isAdmin && editMode}
+                onChanged={fetchData}
+              />
             );
           })}
         </ol>
+        {isAdmin && editMode && <AddTierButton onAdded={fetchData} />}
       </div>
 
       {/* Seniority Milestones */}
@@ -1385,6 +1373,360 @@ function AddWorkTypeButton({ onAdded }: { onAdded: () => void }) {
         <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={() => setAdding(false)}>
           Cancel
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tier rung (P-11) ───────────────────────────────────────────────────────
+// Read-only display by default. When editMode is on, shows a pencil button
+// in the rung-stats column; clicking swaps the row into an inline editor
+// for label/base_bonus/max_effective_rate/description/icon. Save calls
+// /api/admin/pay-config/role-tiers (PUT); Delete calls DELETE (which
+// refuses if any employee still references this tier).
+
+interface TierRungProps {
+  tier: RoleTier;
+  state: 'current' | 'unlocked' | 'locked' | 'neutral';
+  isCurrent: boolean;
+  isUnlocked: boolean;
+  isLocked: boolean;
+  editMode: boolean;
+  onChanged: () => void;
+}
+
+function TierRung({ tier, state, isCurrent, isUnlocked, isLocked, editMode, onChanged }: TierRungProps) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    label: tier.label || tier.role_key,
+    description: tier.description || '',
+    icon: '',
+    base_bonus: tier.base_bonus,
+    max_effective_rate: tier.max_effective_rate,
+    sort_order: tier.sort_order ?? null,
+  });
+
+  useEffect(() => {
+    setDraft({
+      label: tier.label || tier.role_key,
+      description: tier.description || '',
+      icon: '',
+      base_bonus: tier.base_bonus,
+      max_effective_rate: tier.max_effective_rate,
+      sort_order: tier.sort_order ?? null,
+    });
+  }, [tier.role_key, tier.label, tier.description, tier.base_bonus, tier.max_effective_rate, tier.sort_order]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/pay-config/role-tiers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role_key: tier.role_key,
+          label: draft.label,
+          description: draft.description || null,
+          icon: draft.icon || undefined,
+          base_bonus: Number(draft.base_bonus),
+          max_effective_rate: draft.max_effective_rate === null || (draft.max_effective_rate as unknown as string) === ''
+            ? null
+            : Number(draft.max_effective_rate),
+          sort_order: draft.sort_order === null || (draft.sort_order as unknown as string) === ''
+            ? null
+            : Number(draft.sort_order),
+        }),
+      });
+      if (res.ok) {
+        setEditing(false);
+        onChanged();
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm(`Remove tier "${tier.label || tier.role_key}"? This is blocked if any employees still reference it.`)) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/pay-config/role-tiers?role_key=${encodeURIComponent(tier.role_key)}`, { method: 'DELETE' });
+      if (res.ok) {
+        onChanged();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        window.alert(body.error || 'Failed to delete tier');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <li className="pay-prog__rung pay-prog__rung--editing">
+        <div className="pay-prog__rung-marker" aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          </svg>
+        </div>
+        <div className="pay-prog__rung-edit-body">
+          <div className="pay-prog__rate-edit-row">
+            <input
+              className="pay-prog__rate-edit-icon"
+              value={draft.icon}
+              onChange={e => setDraft(d => ({ ...d, icon: e.target.value }))}
+              placeholder={tier.icon || '🏅'}
+              aria-label="Icon"
+              maxLength={4}
+            />
+            <input
+              className="pay-prog__rate-edit-label"
+              value={draft.label}
+              onChange={e => setDraft(d => ({ ...d, label: e.target.value }))}
+              placeholder="Label"
+            />
+          </div>
+          <label className="pay-prog__rate-edit-field">
+            <span>Description</span>
+            <input
+              value={draft.description}
+              onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
+              placeholder="What this tier does"
+            />
+          </label>
+          <div className="pay-prog__rung-edit-grid">
+            <label className="pay-prog__rate-edit-field">
+              <span>Base bonus $/hr</span>
+              <input
+                type="number"
+                step="0.25"
+                min="0"
+                value={draft.base_bonus}
+                onChange={e => setDraft(d => ({ ...d, base_bonus: Number(e.target.value) }))}
+              />
+            </label>
+            <label className="pay-prog__rate-edit-field">
+              <span>Max effective $/hr</span>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={draft.max_effective_rate ?? ''}
+                onChange={e => setDraft(d => ({ ...d, max_effective_rate: e.target.value === '' ? null : Number(e.target.value) }))}
+                placeholder="No ceiling"
+              />
+            </label>
+            <label className="pay-prog__rate-edit-field">
+              <span>Sort order</span>
+              <input
+                type="number"
+                step="1"
+                value={draft.sort_order ?? ''}
+                onChange={e => setDraft(d => ({ ...d, sort_order: e.target.value === '' ? null : Number(e.target.value) }))}
+                placeholder="Auto"
+              />
+            </label>
+          </div>
+          <div className="pay-prog__rate-edit-actions">
+            <button type="button" className="btn btn--sm btn--primary" disabled={saving} onClick={save}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={() => setEditing(false)}>
+              Cancel
+            </button>
+            <button type="button" className="btn btn--sm btn--danger" disabled={saving} onClick={remove}>
+              Delete
+            </button>
+          </div>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li className={`pay-prog__rung pay-prog__rung--${state}`}>
+      <div className="pay-prog__rung-marker" aria-hidden="true">
+        {isUnlocked && (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+        )}
+        {isCurrent && <span className="pay-prog__rung-marker-pulse" />}
+        {isLocked && (
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+        )}
+      </div>
+      <div className="pay-prog__rung-body">
+        <div className="pay-prog__rung-head">
+          <span className="pay-prog__rung-label">
+            {tier.icon && <span className="pay-prog__rung-icon" aria-hidden="true">{tier.icon}</span>}
+            {tier.label || tier.role_key}
+          </span>
+          {isCurrent && <span className="pay-prog__rung-badge">You are here</span>}
+        </div>
+        {tier.description && <p className="pay-prog__rung-desc">{tier.description}</p>}
+      </div>
+      <div className="pay-prog__rung-stats">
+        {editMode && (
+          <button
+            type="button"
+            className="pay-prog__edit-pencil"
+            onClick={() => setEditing(true)}
+            aria-label={`Edit ${tier.label || tier.role_key}`}
+            title="Edit tier"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+          </button>
+        )}
+        <span className="pay-prog__rung-bonus">+${Number(tier.base_bonus).toFixed(2)}/hr</span>
+        {tier.max_effective_rate && (
+          <span className="pay-prog__rung-cap">cap ${Number(tier.max_effective_rate).toFixed(0)}/hr</span>
+        )}
+      </div>
+    </li>
+  );
+}
+
+// ─── Add tier button (P-11) ─────────────────────────────────────────────────
+
+function AddTierButton({ onAdded }: { onAdded: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    role_key: '',
+    label: '',
+    description: '',
+    icon: '',
+    base_bonus: 0,
+    max_effective_rate: null as number | null,
+    sort_order: null as number | null,
+  });
+
+  async function save() {
+    if (!draft.role_key.trim()) {
+      window.alert('Tier key is required (e.g. "senior_party_chief").');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/pay-config/role-tiers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role_key: draft.role_key.trim(),
+          label: draft.label || draft.role_key,
+          description: draft.description || null,
+          icon: draft.icon || null,
+          base_bonus: Number(draft.base_bonus),
+          max_effective_rate: draft.max_effective_rate,
+          sort_order: draft.sort_order,
+        }),
+      });
+      if (res.ok) {
+        setAdding(false);
+        setDraft({ role_key: '', label: '', description: '', icon: '', base_bonus: 0, max_effective_rate: null, sort_order: null });
+        onAdded();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        window.alert(body.error || 'Failed to add tier');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!adding) {
+    return (
+      <button
+        type="button"
+        className="pay-prog__rung-add"
+        onClick={() => setAdding(true)}
+      >
+        <span aria-hidden="true">+</span> Add tier
+      </button>
+    );
+  }
+
+  return (
+    <div className="pay-prog__rung pay-prog__rung--editing">
+      <div className="pay-prog__rung-marker" aria-hidden="true">+</div>
+      <div className="pay-prog__rung-edit-body">
+        <label className="pay-prog__rate-edit-field">
+          <span>Key (snake_case)</span>
+          <input
+            value={draft.role_key}
+            onChange={e => setDraft(d => ({ ...d, role_key: e.target.value }))}
+            placeholder="e.g. senior_party_chief"
+          />
+        </label>
+        <div className="pay-prog__rate-edit-row">
+          <input
+            className="pay-prog__rate-edit-icon"
+            value={draft.icon}
+            onChange={e => setDraft(d => ({ ...d, icon: e.target.value }))}
+            placeholder="🏅"
+            aria-label="Icon"
+            maxLength={4}
+          />
+          <input
+            className="pay-prog__rate-edit-label"
+            value={draft.label}
+            onChange={e => setDraft(d => ({ ...d, label: e.target.value }))}
+            placeholder="Label"
+          />
+        </div>
+        <label className="pay-prog__rate-edit-field">
+          <span>Description</span>
+          <input
+            value={draft.description}
+            onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
+          />
+        </label>
+        <div className="pay-prog__rung-edit-grid">
+          <label className="pay-prog__rate-edit-field">
+            <span>Base bonus $/hr</span>
+            <input
+              type="number"
+              step="0.25"
+              min="0"
+              value={draft.base_bonus}
+              onChange={e => setDraft(d => ({ ...d, base_bonus: Number(e.target.value) }))}
+            />
+          </label>
+          <label className="pay-prog__rate-edit-field">
+            <span>Max effective $/hr</span>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              value={draft.max_effective_rate ?? ''}
+              onChange={e => setDraft(d => ({ ...d, max_effective_rate: e.target.value === '' ? null : Number(e.target.value) }))}
+              placeholder="No ceiling"
+            />
+          </label>
+          <label className="pay-prog__rate-edit-field">
+            <span>Sort order</span>
+            <input
+              type="number"
+              step="1"
+              value={draft.sort_order ?? ''}
+              onChange={e => setDraft(d => ({ ...d, sort_order: e.target.value === '' ? null : Number(e.target.value) }))}
+              placeholder="Auto"
+            />
+          </label>
+        </div>
+        <div className="pay-prog__rate-edit-actions">
+          <button type="button" className="btn btn--sm btn--primary" disabled={saving} onClick={save}>
+            {saving ? 'Saving…' : 'Add'}
+          </button>
+          <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={() => setAdding(false)}>
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
