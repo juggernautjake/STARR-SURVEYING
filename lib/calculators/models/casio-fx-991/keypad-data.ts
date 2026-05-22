@@ -21,11 +21,13 @@ export const CASIO_FX991_KEYPAD: KeyDef[] = [
   { id: 'mode',  row: 1, col: 4, label: 'MODE',  shiftLabel: 'SETUP',  ...op('mode'),  tone: 'soft' },
   { id: 'on',    row: 1, col: 5, label: 'ON',    shiftLabel: 'OFF',    ...op('clear'), tone: 'soft' },
 
-  // Row 2 — nav cluster + replay
+  // Row 2 — nav cluster + replay. F-2 fidelity fix: the real device's
+  // `Abs` key carries an ALPHA-shift letter (variable `A`), not a
+  // redundant `|x|`. Cleaned up the duplicate shift label.
   { id: 'left',  row: 2, col: 2, label: '◀', ...op('nav'), tone: 'accent' },
   { id: 'replay',row: 2, col: 3, label: 'REPLAY', ...op('nav'), tone: 'accent' },
   { id: 'right', row: 2, col: 4, label: '▶', ...op('nav'), tone: 'accent' },
-  { id: 'absx',  row: 2, col: 5, label: 'Abs', shiftLabel: '|x|', ...op(), tone: 'soft' },
+  { id: 'absx',  row: 2, col: 5, label: 'Abs', ...op(), tone: 'soft' },
 
   // Row 3 — function row
   { id: 'down',  row: 3, col: 3, label: '▼', ...op('nav'),     tone: 'accent' },
@@ -34,12 +36,15 @@ export const CASIO_FX991_KEYPAD: KeyDef[] = [
   { id: 'xsq',   row: 3, col: 4, label: 'x²',   shiftLabel: 'x⁻¹',   ...op(),  tone: 'soft' },
   { id: 'pow',   row: 3, col: 5, label: '^',    shiftLabel: '√(',    ...op(),  tone: 'soft' },
 
-  // Row 4 — log/ln/exp
+  // Row 4 — log/ln/exp + hyp + DMS. F-2 fidelity fix: moved `(−)` out
+  // of this row to the bottom numeric block where the real device has
+  // it (between . and Ans). `hyp` slides up next to ln to match the
+  // device's position for the hyperbolic-toggle key.
   { id: 'log',   row: 4, col: 1, label: 'log',  shiftLabel: '10ˣ',   ...op(), tone: 'soft' },
   { id: 'ln',    row: 4, col: 2, label: 'ln',   shiftLabel: 'eˣ',    ...op(), tone: 'soft' },
-  { id: 'neg',   row: 4, col: 3, label: '(−)',  ...op('negate'),     tone: 'soft' },
+  { id: 'hyp',   row: 4, col: 3, label: 'hyp',  ...op(),             tone: 'soft' },
   { id: 'dms',   row: 4, col: 4, label: '° ′ ″', shiftLabel: '◄DMS', ...op(), tone: 'soft' },
-  { id: 'hyp',   row: 4, col: 5, label: 'hyp',  ...op(),             tone: 'soft' },
+  { id: 'eng',   row: 4, col: 5, label: 'ENG',  ...op(),             tone: 'soft' },
 
   // Row 5 — trig
   { id: 'sin',   row: 5, col: 1, label: 'sin',  shiftLabel: 'sin⁻¹', ...op(), tone: 'soft' },
@@ -74,10 +79,15 @@ export const CASIO_FX991_KEYPAD: KeyDef[] = [
   { id: 'add', row: 9, col: 4, label: '+', ...op('binop'),  tone: 'op' },
   { id: 'sub', row: 9, col: 5, label: '−', ...op('binop'),  tone: 'op' },
 
+  // Bottom row — F-2 fidelity fix: real Casio fx-991 has the layout
+  // `0 | . | (−) | Ans | =` across the bottom row. Previously the
+  // `(−)` floated up in the function area and `=` colSpanned across
+  // its slot, which didn't match the silkscreen.
   { id: 'n0',   row: 10, col: 1, label: '0',   ...op('digit'),  tone: 'digit' },
   { id: 'dot',  row: 10, col: 2, label: '.',   ...op('dot'),    tone: 'digit' },
-  { id: 'ans',  row: 10, col: 3, label: 'Ans', shiftLabel: 'DRG', ...op('ans'), tone: 'soft' },
-  { id: 'eq',   row: 10, col: 4, label: '=',   ...op('eval'),   tone: 'eval', colSpan: 2 },
+  { id: 'neg',  row: 10, col: 3, label: '(−)', ...op('negate'), tone: 'digit' },
+  { id: 'ans',  row: 10, col: 4, label: 'Ans', shiftLabel: 'DRG', ...op('ans'), tone: 'soft' },
+  { id: 'eq',   row: 10, col: 5, label: '=',   ...op('eval'),   tone: 'eval' },
 ];
 
 export const CASIO_FX991_GRID = { rows: 10, cols: 5 };
