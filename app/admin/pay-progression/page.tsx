@@ -3,6 +3,7 @@
 import '../styles/AdminPayroll.css';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
 interface WorkTypeRate {
@@ -57,6 +58,13 @@ interface XpBalance {
 }
 
 export default function PayProgressionPage() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.roles?.includes('admin') ?? false;
+  // Admin edit mode (P-9). When on, Phase 3 CRUD affordances (P-10..P-14)
+  // render their pencil icons on each config value. Off by default so
+  // non-admins (and admins reading the page normally) see the same view.
+  const [editMode, setEditMode] = useState(false);
+
   const [workRates, setWorkRates] = useState<WorkTypeRate[]>([]);
   const [roles, setRoles] = useState<RoleTier[]>([]);
   const [seniority, setSeniority] = useState<SeniorityBracket[]>([]);
@@ -162,7 +170,7 @@ export default function PayProgressionPage() {
   );
 
   return (
-    <>
+    <div className={`pay-prog-page ${editMode ? 'pay-prog-page--edit' : ''}`}>
       <div className="admin-learn__header">
         <h2 className="admin-learn__title">&#x1F4B0; Pay Progression Roadmap</h2>
         <p className="admin-learn__subtitle">
@@ -170,6 +178,49 @@ export default function PayProgressionPage() {
           Multiple paths to earning more!
         </p>
       </div>
+
+      {/* Admin edit-mode toggle (P-9). Floating pill in the top-right.
+       * Toggling sets the .pay-prog-page--edit class on the root, which
+       * Phase 3 slices (P-10..P-14) use to reveal inline pencil icons
+       * next to every editable config value. Hidden for non-admins. */}
+      {isAdmin && (
+        <button
+          type="button"
+          className={`pay-prog-edit-pill ${editMode ? 'pay-prog-edit-pill--on' : ''}`}
+          onClick={() => setEditMode(prev => !prev)}
+          aria-pressed={editMode}
+          title={editMode ? 'Exit edit mode' : 'Enable admin edit mode'}
+        >
+          {editMode ? (
+            <>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>Edit mode on</span>
+            </>
+          ) : (
+            <>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+              <span>Edit pay system</span>
+            </>
+          )}
+        </button>
+      )}
+
+      {isAdmin && editMode && (
+        <div className="pay-prog-edit-banner" role="status">
+          <span className="pay-prog-edit-banner__dot" aria-hidden="true" />
+          <span>
+            <strong>Admin edit mode is on.</strong>{' '}
+            Pencil icons next to each value let you edit work-type rates, role tiers,
+            seniority brackets, credentials, XP milestones, and system caps. Changes save through
+            the rewards API (Phase 3 slices P-10–P-14 wire each one up).
+          </span>
+        </div>
+      )}
 
       {/* Hero: "You are here" — P-1 of PAY_PROGRESSION_OVERHAUL.md.
        * Replaces the read-as-printout 4-column grid with a card that
@@ -841,7 +892,7 @@ export default function PayProgressionPage() {
           Learn More About How Rewards Work
         </Link>
       </div>
-    </>
+    </div>
   );
 }
 

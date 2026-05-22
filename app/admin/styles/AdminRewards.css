@@ -160,6 +160,89 @@
 
 /* === PAY PROGRESSION === */
 
+/* Admin edit mode (P-9). The pill toggles edit mode; the banner
+ * explains what's happening when on. Phase 3 (P-10..P-14) hangs
+ * pencil-icon affordances off the .pay-prog-page--edit class. */
+.pay-prog-page {
+  position: relative;
+}
+.pay-prog-edit-pill {
+  position: sticky;
+  top: 0.75rem;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  background: var(--color-bg-card);
+  border: var(--border-normal);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  z-index: var(--z-fab);
+  float: right;
+}
+.pay-prog-edit-pill:hover {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+}
+.pay-prog-edit-pill--on {
+  background: var(--color-brand-navy);
+  border-color: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+}
+.pay-prog-edit-pill--on:hover {
+  background: var(--color-brand-navy-d);
+  border-color: var(--color-brand-navy-d);
+  color: var(--color-text-on-brand);
+}
+.pay-prog-edit-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.95rem;
+  margin-bottom: 1rem;
+  background: var(--color-info-bg);
+  border: 1px solid #BFDBFE;
+  border-left: 4px solid var(--color-brand-navy);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+.pay-prog-edit-banner__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-brand-navy);
+  flex-shrink: 0;
+  animation: pay-prog-edit-pulse 1.6s ease-in-out infinite;
+}
+@keyframes pay-prog-edit-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pay-prog-edit-banner__dot { animation: none; }
+}
+
+@media (max-width: 600px) {
+  .pay-prog-edit-pill {
+    float: none;
+    position: static;
+    width: 100%;
+    justify-content: center;
+    margin: 0 0 1rem;
+  }
+}
+
+
 /* Hero "You are here" card — P-1 of PAY_PROGRESSION_OVERHAUL.md.
  * Two columns: left side shows the current effective rate large with a
  * chip breakdown of where the bonus comes from; right side shows the
