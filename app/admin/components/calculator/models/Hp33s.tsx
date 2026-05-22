@@ -16,7 +16,7 @@ import { Keypad } from '../Keypad';
 import { Display } from '../Display';
 import { useCalculator } from '../CalculatorProvider';
 import { useCalculatorKeyEvents } from '../useCalculatorKeyEvents';
-import { HP_35S_KEYPAD, HP_35S_GRID } from '@/lib/calculators/models/hp-35s/keypad-data';
+import { HP_33S_KEYPAD, HP_33S_GRID } from '@/lib/calculators/models/hp-33s/keypad-data';
 import {
   dispatch, hydrate, initialState, serialize, type Hp35sState,
 } from '@/lib/calculators/models/hp-35s/engine';
@@ -82,9 +82,9 @@ export function Hp33s() {
         onCopyResult={copyResult}
       />
       <Keypad
-        keys={HP_35S_KEYPAD}
-        rows={HP_35S_GRID.rows}
-        cols={HP_35S_GRID.cols}
+        keys={HP_33S_KEYPAD}
+        rows={HP_33S_GRID.rows}
+        cols={HP_33S_GRID.cols}
         onKey={onKey}
       />
     </div>

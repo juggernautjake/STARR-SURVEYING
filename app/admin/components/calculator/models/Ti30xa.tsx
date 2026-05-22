@@ -1,18 +1,13 @@
-// app/admin/components/calculator/models/Ti30xsMultiView.tsx
+// app/admin/components/calculator/models/Ti30xa.tsx
 //
-// TI-30XS MultiView reskin. C-21 of EXAM_CALCULATORS.md.
+// TI-30Xa emulator — reuses the TI-36X Pro algebraic engine with a
+// device-accurate keypad layout for the simpler single-line TI-30Xa.
 //
-// The TI-30XS MultiView is the simpler sibling of the TI-36X Pro — same
-// MathPrint display family, same algebraic input, fewer specialty
-// functions (no matrix/vector menus, narrower stat support). For the
-// emulator's purposes, the keypads are 95% identical and the engine
-// is the same. We reuse the TI-36X Pro keypad + engine; only the
-// `model_key='ti-30xs-multiview'` differs so state is per-device.
-//
-// Plan called for a "TI-30X IIS" layout as a separate sibling — for v1
-// that's deferred (the IIS uses a fixed-function set that's a strict
-// subset of the MultiView; a user practicing for the IIS can use this
-// emulator without functional loss).
+// The 30Xa has a single-line LCD (no MathPrint), one 2nd shift modifier,
+// and the standard FS/PS-exam-relevant function set. Engine semantics
+// (tokenize → shunting-yard → RPN eval) are identical to the MultiView
+// and Pro, so the same engine module works. Distinct model_key keeps
+// saved state isolated per device.
 
 'use client';
 
@@ -22,13 +17,13 @@ import { Display } from '../Display';
 import { HistoryStrip } from '../HistoryStrip';
 import { useCalculator } from '../CalculatorProvider';
 import { useCalculatorKeyEvents } from '../useCalculatorKeyEvents';
-import { TI_30XS_MULTIVIEW_KEYPAD, TI_30XS_MULTIVIEW_GRID } from '@/lib/calculators/models/ti-30xs-multiview/keypad-data';
+import { TI_30XA_KEYPAD, TI_30XA_GRID } from '@/lib/calculators/models/ti-30xa/keypad-data';
 import { dispatch, hydrate, initialState, serialize, type Ti36xState } from '@/lib/calculators/models/ti-36x-pro/engine';
 import type { KeyDef } from '@/lib/calculators/shared';
 
-const MODEL_KEY = 'ti-30xs-multiview' as const;
+const MODEL_KEY = 'ti-30xa' as const;
 
-export function Ti30xsMultiView() {
+export function Ti30xa() {
   const { saveState, loadState } = useCalculator();
   const [state, setState] = useState<Ti36xState>(initialState);
   const [hydrated, setHydrated] = useState(false);
@@ -66,7 +61,7 @@ export function Ti30xsMultiView() {
   if (state.shiftActive) statusBadges.push('2nd');
 
   return (
-    <div className="calc-model calc-model--ti-36x-pro">
+    <div className="calc-model calc-model--ti-30xa">
       <HistoryStrip rows={state.history.slice().reverse().map(h => ({ entry: h.entry, result: h.result }))} />
       <Display
         entry={state.entry}
@@ -75,9 +70,9 @@ export function Ti30xsMultiView() {
         onCopyResult={copyResult}
       />
       <Keypad
-        keys={TI_30XS_MULTIVIEW_KEYPAD}
-        rows={TI_30XS_MULTIVIEW_GRID.rows}
-        cols={TI_30XS_MULTIVIEW_GRID.cols}
+        keys={TI_30XA_KEYPAD}
+        rows={TI_30XA_GRID.rows}
+        cols={TI_30XA_GRID.cols}
         onKey={onKey}
         shiftActive={state.shiftActive}
       />

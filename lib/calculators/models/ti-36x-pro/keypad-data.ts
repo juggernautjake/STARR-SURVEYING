@@ -23,21 +23,32 @@ export const TI_36X_PRO_KEYPAD: KeyDef[] = [
   { id: 'apps',  row: 1, col: 4, label: 'apps',  shiftLabel: 'recall mem',        ...op(),         tone: 'soft' },
   { id: 'clear', row: 1, col: 5, label: 'clear', shiftLabel: 'on/off',            ...op('clear'), tone: 'soft' },
 
-  // Row 2 — navigation cluster
+  // Row 2-4 — navigation cluster (real device has the 4-way arrow pad
+  // with an empty center — no enter button there; equals/enter is at
+  // the bottom-right of the numeric block). F-1 fidelity fix removed
+  // the previously-shipped bogus center-enter key.
   { id: 'up',    row: 2, col: 3, label: '▲',     ...op('nav'),  tone: 'soft' },
   { id: 'left',  row: 3, col: 2, label: '◀',     ...op('nav'),  tone: 'soft' },
-  { id: 'enter', row: 3, col: 3, label: 'enter', ...op('enter'), tone: 'accent' },
   { id: 'right', row: 3, col: 4, label: '▶',     ...op('nav'),  tone: 'soft' },
   { id: 'down',  row: 4, col: 3, label: '▼',     ...op('nav'),  tone: 'soft' },
 
-  // Row 2/3 — quick functions surrounding the nav
+  // Row 2/3 — quick functions surrounding the nav. F-1 fixes:
+  // • `eepow` label was `eᵉ/10ˣ` — that's redundant with ln-key shifts.
+  //   Replaced with `data` (the TI-36X Pro statistics-editor key) and a
+  //   `stat-reg` shift, which is closer to the device. The key currently
+  //   no-ops in the engine — placeholder for a future stats slice.
+  // • `recip` had a meaningless `x` shift label; removed (the device's
+  //   real shift here is the cube root which we already host on `xcube`).
+  // • `pct` was labeled `%` as primary with `→DMS` as shift; on the real
+  //   device the primary is `►DMS` (paired with `►HR` shift via 2nd).
+  //   Swapped so the surveyor-useful primary surfaces.
   { id: 'pi',    row: 2, col: 1, label: 'π',     shiftLabel: 'e',                ...op(),         tone: 'soft' },
-  { id: 'eepow', row: 2, col: 2, label: 'eᵉ',    shiftLabel: '10ˣ',              ...op(),         tone: 'soft' },
-  { id: 'recip', row: 2, col: 4, label: 'x⁻¹',   shiftLabel: 'x',                ...op(),         tone: 'soft' },
+  { id: 'data',  row: 2, col: 2, label: 'data',  shiftLabel: 'stat-reg',         ...op(),         tone: 'soft' },
+  { id: 'recip', row: 2, col: 4, label: 'x⁻¹',                                    ...op(),         tone: 'soft' },
   { id: 'sto',   row: 2, col: 5, label: 'sto→',  shiftLabel: 'mem',              ...op(),         tone: 'soft' },
 
   { id: 'frac',  row: 3, col: 1, label: 'a b/c', shiftLabel: 'F↔D',              ...op(),         tone: 'soft' },
-  { id: 'pct',   row: 3, col: 5, label: '%',     shiftLabel: '→DMS',             ...op(),         tone: 'soft' },
+  { id: 'pct',   row: 3, col: 5, label: '►DMS',  shiftLabel: '►HR',              ...op(),         tone: 'soft' },
 
   { id: 'xsq',   row: 4, col: 1, label: 'x²',    shiftLabel: '√',                ...op(),         tone: 'soft' },
   { id: 'xcube', row: 4, col: 2, label: 'x³',    shiftLabel: '³√',               ...op(),         tone: 'soft' },
@@ -75,7 +86,9 @@ export const TI_36X_PRO_KEYPAD: KeyDef[] = [
   { id: 'n2',   row: 9, col: 2, label: '2',    ...op('digit'), tone: 'digit' },
   { id: 'n3',   row: 9, col: 3, label: '3',    ...op('digit'), tone: 'digit' },
   { id: 'ans',  row: 9, col: 4, label: 'ans',  ...op('ans'),   tone: 'soft'  },
-  { id: 'eq',   row: 9, col: 5, label: '=',    ...op('eval'),  tone: 'eval' },
+  // F-1: TI-36X Pro labels this key `enter`, not `=`. Engine treats
+  // both ids interchangeably (dispatch handles both `enter` and `eq`).
+  { id: 'eq',   row: 9, col: 5, label: 'enter', ...op('eval'),  tone: 'eval' },
 
   { id: 'n0',     row: 10, col: 1, label: '0',   ...op('digit'),    tone: 'digit', colSpan: 2 },
   { id: 'dot',    row: 10, col: 3, label: '.',   ...op('dot'),      tone: 'digit' },
