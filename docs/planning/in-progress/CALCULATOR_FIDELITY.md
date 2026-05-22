@@ -81,7 +81,7 @@ For models that currently *reuse* a sibling's keypad (TI-30XS MultiView shares T
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **F-8** | Any engine-level fixes needed to support keys that were added or re-mapped in F-1..F-7. | 2 hours |
+| **F-8** | Any engine-level fixes needed to support keys that were added or re-mapped in F-1..F-7. | 2 hours | ✅ Shipped — biggest gap was the Casio HYP toggle: F-2 added the `hyp` key to the fx-991/115 keypads, but the engine had no handler so pressing it was a no-op. **Wired now**: `hypActive: boolean` added to `CasioFx991State` (transient — not serialized, same as `shiftActive`). Press `hyp` toggles the flag. When `hypActive` is true and the next press is sin/cos/tan, the engine appends `sinh(` / `cosh(` / `tanh(` instead and auto-clears the flag. Combined with `shiftActive`: SHIFT + HYP + sin appends `asinh(` (inverse hyperbolic). **5 new HYP tests pass**, total **149/149**. Other audit-introduced keys that remain intentional no-ops (cost > value for v1): `data`/`stat`/`prb`/`recall`/`mixed` on the TI MultiView (statistics-editor menu opening is its own bigger slice), `eng` on the Casio (display-mode cycling), `todeg` on the HP 33s (`→°` shows in DMS section work-around). Each is recognized by the keypad-data but the engine treats them as no-ops — pressing them does nothing rather than throwing. Typecheck clean. |
 | **F-9** | Refresh / add tests for any new dispatch paths. Re-run the 144-test suite and the cross-engine convergence test. | 1 hour |
 
 ### Phase 3 — Completion

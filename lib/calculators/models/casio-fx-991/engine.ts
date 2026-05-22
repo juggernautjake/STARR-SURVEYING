@@ -30,6 +30,10 @@ export interface CasioFx991State {
   result: string;
   shiftActive: boolean;
   alphaActive: boolean;
+  /** F-8: HYP toggle — when true, the next sin/cos/tan press inserts
+   *  the hyperbolic version (sinh/cosh/tanh) instead. Auto-clears after
+   *  consumption. Mirrors the device's HYP-on-then-press-trig flow. */
+  hypActive: boolean;
   angleMode: M.AngleMode;
   displayMode: M.DisplayMode;
   displayDigits: number;
@@ -48,6 +52,7 @@ export function initialState(): CasioFx991State {
     result: '0',
     shiftActive: false,
     alphaActive: false,
+    hypActive: false,
     angleMode: 'DEG',
     displayMode: 'NORM',
     displayDigits: 10,
@@ -167,6 +172,17 @@ export function dispatch(state: CasioFx991State, action: Action): CasioFx991Stat
   // Modifiers
   if (id === 'shift') return { ...state, shiftActive: !state.shiftActive, alphaActive: false };
   if (id === 'alpha') return { ...state, alphaActive: !state.alphaActive, shiftActive: false };
+  if (id === 'hyp') return { ...state, hypActive: !state.hypActive };
+
+  // F-8: HYP + sin/cos/tan inserts hyperbolic / inverse-hyperbolic
+  // depending on whether SHIFT is also armed. Matches the device's
+  // "press HYP then a trig key" flow.
+  if (state.hypActive && (id === 'sin' || id === 'cos' || id === 'tan')) {
+    const fn = state.shiftActive
+      ? { sin: 'asinh(', cos: 'acosh(', tan: 'atanh(' }[id]
+      : { sin: 'sinh(',  cos: 'cosh(',  tan: 'tanh('  }[id];
+    return { ...state, entry: state.entry + fn, hypActive: false, shiftActive: false };
+  }
   if (id === 'ac' || id === 'on') {
     return state.entry
       ? { ...state, entry: '', shiftActive: false, alphaActive: false }

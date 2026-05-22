@@ -85,6 +85,36 @@ describe('Casio fx-991 — natural-display fraction syntax', () => {
   });
 });
 
+describe('Casio fx-991 — HYP toggle (F-8)', () => {
+  it('HYP + sin appends sinh(', () => {
+    const s = press(initialState(), 'hyp', 'sin');
+    expect(s.entry).toBe('sinh(');
+    expect(s.hypActive).toBe(false); // consumed
+  });
+
+  it('HYP + cos appends cosh(', () => {
+    const s = press(initialState(), 'hyp', 'cos');
+    expect(s.entry).toBe('cosh(');
+  });
+
+  it('HYP + tan appends tanh(', () => {
+    const s = press(initialState(), 'hyp', 'tan');
+    expect(s.entry).toBe('tanh(');
+  });
+
+  it('SHIFT + HYP + sin appends asinh( (inverse hyperbolic)', () => {
+    const s = press(initialState(), 'hyp', 'shift', 'sin');
+    expect(s.entry).toBe('asinh(');
+  });
+
+  it('HYP toggles off when pressed twice', () => {
+    let s = press(initialState(), 'hyp');
+    expect(s.hypActive).toBe(true);
+    s = press(s, 'hyp');
+    expect(s.hypActive).toBe(false);
+  });
+});
+
 describe('Casio fx-991 — surveying scenarios', () => {
   it('sqrt(3^2+4^2) = 5', () => {
     let s: CasioFx991State = { ...initialState(), entry: 'sqrt(3^2+4^2)' };
