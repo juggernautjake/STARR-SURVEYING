@@ -164,7 +164,7 @@ Phases mirror the structure of the completed overhauls. Each slice is a single P
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **C-1** | SQL seed: create `user_calculator_state` table per §3.4. Idempotent. | 1 hour |
+| **C-1** | SQL seed: create `user_calculator_state` table per §3.4. Idempotent. | 1 hour | ✅ Shipped (awaiting apply) — `seeds/288_user_calculator_state.sql`. Composite PK on `(user_email, model_key)` so each user has at most one row per calculator they've used. `state JSONB NOT NULL DEFAULT '{}'::jsonb` holds the engine's serialize() output (each engine includes a `schema_version` field so older shapes migrate on load). `updated_at` trigger mirrors the convention used in `user_pay_overrides` (P-15). Index on `user_email` for the "list calculators this user has touched" query that powers the tab strip's last-used hints. **User action:** apply via Supabase SQL Editor — see `docs/planning/completed/PAY_PROGRESSION_OVERHAUL.md` §5 for the apply pattern. |
 | **C-2** | Movable modal shell (`<CalculatorModal>`) — draggable header, fixed dimensions, viewport clamp, position persisted to localStorage. No calculator content yet. | 4 hours |
 | **C-3** | Calculator context + provider mounted in `app/admin/layout.tsx`. Tab strip rendering the three v1 models as placeholder tabs. | 3 hours |
 | **C-4** | `lib/calculators/math.ts` — shared math primitives via `decimal.js`: arithmetic, trig with mode, log/exp, factorial, DMS, formatting. Unit tests for each function. | 4 hours |
