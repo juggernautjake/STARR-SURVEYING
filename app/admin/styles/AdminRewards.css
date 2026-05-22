@@ -1275,6 +1275,112 @@
   .pay-prog__override-preview-arrow { transform: rotate(90deg); }
 }
 
+/* P-18: audit-trail viewer */
+.pay-prog__audit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.pay-prog__audit-row {
+  background: var(--color-bg-card);
+  border: var(--border-light);
+  border-left: 4px solid var(--color-text-muted);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.pay-prog__audit-row--active { border-left-color: var(--color-success); background: linear-gradient(90deg, var(--color-success-bg) 0%, var(--color-bg-card) 25%); }
+.pay-prog__audit-row--future { border-left-color: var(--color-info); }
+.pay-prog__audit-row--expired { border-left-color: var(--color-text-muted); opacity: 0.85; }
+.pay-prog__audit-row--superseded { border-left-color: var(--color-warning); }
+.pay-prog__audit-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+.pay-prog__audit-badge {
+  font-family: var(--font-body);
+  font-size: 0.65rem;
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-pill);
+}
+.pay-prog__audit-badge--active { background: var(--color-success); color: var(--color-text-on-brand); }
+.pay-prog__audit-badge--future { background: var(--color-info); color: var(--color-text-on-brand); }
+.pay-prog__audit-badge--expired { background: var(--color-text-muted); color: var(--color-text-on-brand); }
+.pay-prog__audit-badge--superseded { background: var(--color-warning); color: var(--color-text-primary); }
+.pay-prog__audit-dates {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+  background: var(--color-bg-subtle);
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+  flex: 1;
+}
+.pay-prog__audit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.pay-prog__audit-reason {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  line-height: 1.4;
+}
+.pay-prog__audit-meta {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  color: var(--color-text-tertiary);
+}
+.pay-prog__audit-diffs {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.pay-prog__audit-diffs li {
+  display: grid;
+  grid-template-columns: 100px 1fr auto 1fr;
+  gap: 0.4rem;
+  align-items: center;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+}
+.pay-prog__audit-diff-label {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-tertiary);
+}
+.pay-prog__audit-diff-from {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+.pay-prog__audit-diff-arrow {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-bold);
+}
+.pay-prog__audit-diff-to {
+  color: var(--color-brand-navy);
+  font-weight: var(--weight-semibold);
+}
+@media (max-width: 600px) {
+  .pay-prog__audit-diffs li {
+    grid-template-columns: 1fr;
+  }
+  .pay-prog__audit-diff-arrow { display: none; }
+}
+
 /* P-14: system config row (key | description | numeric value | save) */
 .pay-prog__config-row {
   display: grid;

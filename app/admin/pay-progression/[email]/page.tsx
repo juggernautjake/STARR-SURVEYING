@@ -397,29 +397,146 @@ export default function EmployeeOverridePage({ params }: { params: Promise<{ ema
         </ul>
       </div>
 
-      {/* History (P-18 polishes — for now just a simple list) */}
+      {/* Audit-trail viewer — P-18.
+       * Shows each override with a state badge (Active / Future / Expired /
+       * Superseded), a field-by-field diff against the previous chronological
+       * row, the reason + approver, and a delete affordance. */}
       <div className="pay-prog__section">
         <h3 className="pay-prog__section-title">Override history ({history.length})</h3>
         {history.length === 0 ? (
           <p className="pay-prog__section-desc">No overrides applied yet.</p>
         ) : (
-          <div className="pay-prog__xp-manager-list">
-            {history.map(h => (
-              <div key={h.id} className="pay-prog__config-row">
-                <div className="pay-prog__config-key-block">
-                  <code className="pay-prog__config-key">{h.effective_date}{h.expires_at ? ` → ${h.expires_at}` : ''}</code>
-                  <span className="pay-prog__config-desc">
-                    {h.reason || 'No reason recorded'} · approved by {h.approved_by}
-                  </span>
-                </div>
-                <span className="pay-prog__config-value" style={{ textAlign: 'right' }}>
-                  {h.fixed_rate !== null
-                    ? `Fixed $${Number(h.fixed_rate).toFixed(2)}`
-                    : `×${Number(h.role_bonus_multiplier).toFixed(2)} role, ×${Number(h.seniority_multiplier).toFixed(2)} sen, +$${Number(h.flat_addition).toFixed(2)}`}
-                </span>
-              </div>
-            ))}
+          <div className="pay-prog__audit-list">
+            {history.map((h, idx) => {
+              // `history` is sorted newest-first. The previous chronological
+              // row (older) is at idx + 1; the diff compares h vs that older row.
+              const previous = history[idx + 1];
+              return (
+                <AuditRow
+                  key={h.id}
+                  row={h}
+                  previous={previous}
+                  isActive={current?.id === h.id}
+                  onDelete={loadEmployee}
+                />
+              );
+            })}
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Audit-trail row (P-18) ─────────────────────────────────────────────────
+
+interface AuditRowProps {
+  row: OverrideRow;
+  previous: OverrideRow | undefined;
+  isActive: boolean;
+  onDelete: () => void;
+}
+
+function AuditRow({ row, previous, isActive, onDelete }: AuditRowProps) {
+  const [busy, setBusy] = useState(false);
+
+  // State classification.
+  const today = new Date().toISOString().slice(0, 10);
+  const isFuture = row.effective_date > today;
+  const isExpired = row.expires_at !== null && row.expires_at <= today;
+  const isSuperseded = !isActive && !isFuture && !isExpired;
+  const stateLabel = isActive ? 'Active' : isFuture ? 'Future' : isExpired ? 'Expired' : 'Superseded';
+  const stateClass = isActive ? 'active' : isFuture ? 'future' : isExpired ? 'expired' : 'superseded';
+
+  // Field-by-field diff vs the previous row (or vs the default values if no
+  // previous exists — this is the oldest override).
+  const baseline = previous ?? {
+    fixed_rate: null as number | null,
+    role_bonus_multiplier: 1,
+    seniority_multiplier: 1,
+    flat_addition: 0,
+  };
+  const diffs: { label: string; from: string; to: string }[] = [];
+  if (Number(row.fixed_rate ?? -1) !== Number(baseline.fixed_rate ?? -1)) {
+    diffs.push({
+      label: 'Fixed rate',
+      from: baseline.fixed_rate === null ? 'unset' : `$${Number(baseline.fixed_rate).toFixed(2)}`,
+      to: row.fixed_rate === null ? 'unset' : `$${Number(row.fixed_rate).toFixed(2)}`,
+    });
+  }
+  if (Number(row.role_bonus_multiplier) !== Number(baseline.role_bonus_multiplier)) {
+    diffs.push({
+      label: 'Role ×',
+      from: `${Number(baseline.role_bonus_multiplier).toFixed(2)}`,
+      to: `${Number(row.role_bonus_multiplier).toFixed(2)}`,
+    });
+  }
+  if (Number(row.seniority_multiplier) !== Number(baseline.seniority_multiplier)) {
+    diffs.push({
+      label: 'Seniority ×',
+      from: `${Number(baseline.seniority_multiplier).toFixed(2)}`,
+      to: `${Number(row.seniority_multiplier).toFixed(2)}`,
+    });
+  }
+  if (Number(row.flat_addition) !== Number(baseline.flat_addition)) {
+    diffs.push({
+      label: 'Flat add',
+      from: `+$${Number(baseline.flat_addition).toFixed(2)}`,
+      to: `+$${Number(row.flat_addition).toFixed(2)}`,
+    });
+  }
+
+  async function remove() {
+    if (!window.confirm(`Delete this override (effective ${row.effective_date})? The next-oldest row will become active.`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/pay-config/overrides?id=${encodeURIComponent(row.id)}`, { method: 'DELETE' });
+      if (res.ok) onDelete();
+      else {
+        const body = await res.json().catch(() => ({}));
+        window.alert(body.error || 'Failed to delete');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={`pay-prog__audit-row pay-prog__audit-row--${stateClass}`}>
+      <div className="pay-prog__audit-head">
+        <span className={`pay-prog__audit-badge pay-prog__audit-badge--${stateClass}`}>{stateLabel}</span>
+        <code className="pay-prog__audit-dates">
+          {row.effective_date}
+          {row.expires_at ? ` → ${row.expires_at}` : ' → ∞'}
+        </code>
+        <button
+          type="button"
+          className="btn btn--sm btn--danger"
+          disabled={busy}
+          onClick={remove}
+          title="Delete this override row"
+        >
+          {busy ? '…' : 'Delete'}
+        </button>
+      </div>
+      <div className="pay-prog__audit-body">
+        {row.reason && <p className="pay-prog__audit-reason">{row.reason}</p>}
+        <p className="pay-prog__audit-meta">
+          Approved by <strong>{row.approved_by}</strong> on {new Date(row.created_at).toLocaleString()}
+        </p>
+        {diffs.length > 0 ? (
+          <ul className="pay-prog__audit-diffs">
+            {diffs.map(d => (
+              <li key={d.label}>
+                <span className="pay-prog__audit-diff-label">{d.label}:</span>
+                <span className="pay-prog__audit-diff-from">{d.from}</span>
+                <span className="pay-prog__audit-diff-arrow" aria-hidden="true">→</span>
+                <span className="pay-prog__audit-diff-to">{d.to}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="pay-prog__audit-meta">No field changes vs. previous row (re-affirmation).</p>
         )}
       </div>
     </div>
