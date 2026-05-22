@@ -397,6 +397,32 @@
   font-size: 0.75rem;
 }
 
+/* Casio fx-991ES PLUS palette override — silver body, dark-blue header
+ * convention, yellow SHIFT labels + red ALPHA labels. */
+.calc-model--casio-fx991 {
+  background: linear-gradient(180deg, #d6d8db 0%, #8e9094 100%);
+}
+.calc-model--casio-fx991 .calc-key--soft .calc-key__shift-label {
+  color: #e6b800; /* yellow for SHIFT alt-label */
+}
+.calc-model--casio-fx991 .calc-key--digit {
+  background: linear-gradient(180deg, #1c1f29 0%, #0f111a 100%);
+  color: #f0f1f3;
+  font-weight: 700;
+}
+.calc-model--casio-fx991 .calc-key--op {
+  background: linear-gradient(180deg, #5a6168 0%, #3a3f46 100%);
+  color: #f0f1f3;
+}
+.calc-model--casio-fx991 .calc-key--eval {
+  background: linear-gradient(180deg, #e0a500 0%, #b58200 100%);
+  color: #1a1a1a;
+}
+.calc-model--casio-fx991 .calc-key--shift {
+  background: linear-gradient(180deg, #d4a000 0%, #a07700 100%);
+  color: #1a1a1a;
+}
+
 /* Mobile: when the viewport is too narrow to drag freely, center-lock
  * the modal and let it scroll vertically inside. */
 @media (max-width: 480px) {
