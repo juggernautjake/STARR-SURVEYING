@@ -13,21 +13,27 @@ import type { KeyDef, KeyKind } from '@/lib/calculators/shared';
 const op = (kind: KeyKind = 'op'): { kind: KeyKind } => ({ kind });
 
 export const HP_35S_KEYPAD: KeyDef[] = [
-  // Row 1 — top function row + modifiers (top-left orange shift, top-right blue)
-  { id: 'fshift', row: 1, col: 1, label: '◀',   ...op('shift'), tone: 'shift' },         // left-shift (orange)
-  { id: 'gshift', row: 1, col: 2, label: '▶',   ...op('shift'), tone: 'shift' },         // right-shift (blue)
-  { id: 'on',     row: 1, col: 3, label: 'ON',  shiftLabel: 'OFF', ...op('clear'),  tone: 'soft' },
-  { id: 'mode',   row: 1, col: 4, label: 'MODE', shiftLabel: 'SETUP', ...op('mode'),  tone: 'soft' },
-  { id: 'rs',     row: 1, col: 5, label: 'R/S', ...op(),       tone: 'soft' },
-  { id: 'enter',  row: 1, col: 6, label: 'ENTER', ...op('enter'), tone: 'accent' },
+  // Row 1 — modifiers + clear. F-3 fidelity: removed the row-1 ENTER
+  // key that was misplaced; the real device has one large ENTER key
+  // and it lives in the row below the operators, not at the top.
+  // Top row instead carries f-shift, g-shift, the four editing arrows,
+  // and ON which is consistent with the device's general top-region.
+  { id: 'fshift', row: 1, col: 1, label: '◀f',  ...op('shift'), tone: 'shift' },
+  { id: 'gshift', row: 1, col: 2, label: '▶g',  ...op('shift'), tone: 'shift' },
+  { id: 'left',   row: 1, col: 3, label: '◀',   ...op('nav'),   tone: 'accent' },
+  { id: 'up',     row: 1, col: 4, label: '▲',   ...op('nav'),   tone: 'accent' },
+  { id: 'right',  row: 1, col: 5, label: '▶',   ...op('nav'),   tone: 'accent' },
+  { id: 'on',     row: 1, col: 6, label: 'ON',  shiftLabel: 'OFF', ...op('clear'),  tone: 'soft' },
 
-  // Row 2 — stack ops + clear
+  // Row 2 — stack ops + clear. F-3 added `down` arrow here (col 4) to
+  // complete the 4-way nav cluster; col 4 used to be EEX which moved
+  // down a column to share space with the unchanged stack ops.
   { id: 'xchgy',  row: 2, col: 1, label: 'x↔y',   shiftLabel: 'LAST x',  ...op(), tone: 'soft' },
   { id: 'rdown',  row: 2, col: 2, label: 'R↓',    shiftLabel: 'R↑',      ...op(), tone: 'soft' },
   { id: 'chs',    row: 2, col: 3, label: '+/−',   ...op('negate'),       tone: 'soft' },
-  { id: 'eex',    row: 2, col: 4, label: 'EEX',   ...op(),               tone: 'soft' },
-  { id: 'del',    row: 2, col: 5, label: '←',     shiftLabel: 'CLEAR',   ...op('delete'), tone: 'soft' },
-  { id: 'undo',   row: 2, col: 6, label: 'UNDO',  ...op(),               tone: 'soft' },
+  { id: 'down',   row: 2, col: 4, label: '▼',     ...op('nav'),          tone: 'accent' },
+  { id: 'eex',    row: 2, col: 5, label: 'EEX',   ...op(),               tone: 'soft' },
+  { id: 'del',    row: 2, col: 6, label: '←',     shiftLabel: 'CLEAR',   ...op('delete'), tone: 'soft' },
 
   // Row 3 — sin/cos/tan + inverses
   { id: 'sin',    row: 3, col: 1, label: 'sin',  shiftLabel: 'sin⁻¹',   ...op(), tone: 'soft' },
@@ -81,11 +87,17 @@ export const HP_35S_KEYPAD: KeyDef[] = [
   { id: 'n3',     row: 9, col: 3, label: '3',    ...op('digit'),        tone: 'digit' },
   { id: 'lastx',  row: 9, col: 4, label: 'LASTx', ...op(),              tone: 'soft' },
 
-  // Row 10 — zero / decimal / change-sign
-  { id: 'n0',     row: 10, col: 1, label: '0',   ...op('digit'),        tone: 'digit' },
-  { id: 'dot',    row: 10, col: 2, label: '.',   ...op('dot'),          tone: 'digit' },
-  { id: 'comma',  row: 10, col: 3, label: ',',   ...op('comma'),        tone: 'soft' },
-  { id: 'eq',     row: 10, col: 4, label: '=',   ...op('eval'),         tone: 'eval', colSpan: 3 },
+  // Row 10 — zero / decimal / change-sign + the wide ENTER key.
+  // F-3 fidelity fix: HP 35s has only one ENTER key (no `=` separate),
+  // and it's the wide rectangular key at the bottom-right. Previously
+  // we had two keys (`enter` in row 1 col 6, and `=` here colSpanning
+  // 3 cells), neither of which matched the device. Now: one ENTER
+  // spanning the bottom-right 3 cells; engine treats `enter` press
+  // exactly the same.
+  { id: 'n0',     row: 10, col: 1, label: '0',     ...op('digit'),  tone: 'digit' },
+  { id: 'dot',    row: 10, col: 2, label: '.',     ...op('dot'),    tone: 'digit' },
+  { id: 'comma',  row: 10, col: 3, label: ',',     ...op('comma'),  tone: 'soft' },
+  { id: 'enter',  row: 10, col: 4, label: 'ENTER', ...op('enter'),  tone: 'accent', colSpan: 3 },
 ];
 
 export const HP_35S_GRID = { rows: 10, cols: 6 };
