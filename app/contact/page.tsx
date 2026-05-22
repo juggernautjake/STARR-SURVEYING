@@ -4,6 +4,13 @@ import Link from 'next/link';
 import { useState, FormEvent, ChangeEvent } from 'react';
 import { OFFICE_ADDRESS, OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 } from '../components/ServiceAreaMap';
 import { trackConversion } from '../utils/gtag';
+import {
+  QUOTE_ATTACHMENT_ACCEPT,
+  QUOTE_ATTACHMENT_MAX_FILES,
+  QUOTE_ATTACHMENT_MAX_TOTAL_BYTES,
+  formatBytes,
+  validateQuoteAttachments,
+} from '@/lib/quote-attachments';
 
 // Import Contact page styles
 import '../styles/Contact.css';
@@ -61,6 +68,8 @@ export default function ContactPage(): React.ReactElement {
     submitted: false,
     error: '',
   });
+
+  const [attachments, setAttachments] = useState<File[]>([]);
 
   const serviceTypes = [
     'Boundary Survey',
@@ -125,6 +134,25 @@ export default function ContactPage(): React.ReactElement {
     }));
   };
 
+  const handleAttachmentChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    const incoming = Array.from(e.target.files || []);
+    if (incoming.length === 0) return;
+    const merged = [...attachments, ...incoming];
+    const err = validateQuoteAttachments(merged);
+    if (err) {
+      setFormState((prev) => ({ ...prev, error: err.message }));
+      e.target.value = '';
+      return;
+    }
+    setAttachments(merged);
+    setFormState((prev) => ({ ...prev, error: '' }));
+    e.target.value = '';
+  };
+
+  const handleAttachmentRemove = (index: number): void => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setFormState((prev) => ({ ...prev, loading: true, error: '' }));
@@ -147,11 +175,23 @@ export default function ContactPage(): React.ReactElement {
     }
 
     try {
-      const response = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      let response: Response;
+      if (attachments.length > 0) {
+        const body = new FormData();
+        for (const [key, value] of Object.entries(formData)) {
+          body.append(key, value);
+        }
+        for (const file of attachments) {
+          body.append('attachments', file, file.name);
+        }
+        response = await fetch('/api/contact', { method: 'POST', body });
+      } else {
+        response = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
+      }
 
       if (response.ok) {
         // Track Google Ads conversion on successful form submission
@@ -172,6 +212,7 @@ export default function ContactPage(): React.ReactElement {
           preferredContact: 'email',
           howHeard: '',
         });
+        setAttachments([]);
       } else {
         setFormState((prev) => ({
           ...prev,
@@ -203,6 +244,7 @@ export default function ContactPage(): React.ReactElement {
       preferredContact: 'email',
       howHeard: '',
     });
+    setAttachments([]);
     setFormState({ loading: false, submitted: false, error: '' });
   };
 
@@ -509,6 +551,49 @@ export default function ContactPage(): React.ReactElement {
                     className="contact-form__textarea"
                     placeholder="Tell us about your project, timeline, or any specific requirements..."
                   ></textarea>
+                </div>
+
+                {/* Attachments - Optional */}
+                <div className="contact-form__group contact-form__group--full">
+                  <label htmlFor="contact-attachments" className="contact-form__label">
+                    Attach Files (Optional)
+                  </label>
+                  <div className="contact-form__attachments">
+                    <label htmlFor="contact-attachments" className="contact-form__attachments-btn">
+                      <span aria-hidden="true">📎</span> Choose files…
+                      <input
+                        type="file"
+                        id="contact-attachments"
+                        name="attachments"
+                        multiple
+                        accept={QUOTE_ATTACHMENT_ACCEPT}
+                        onChange={handleAttachmentChange}
+                        className="contact-form__attachments-input"
+                      />
+                    </label>
+                    <span className="contact-form__attachments-hint">
+                      Photos, PDFs, docs, or CAD files. Up to {QUOTE_ATTACHMENT_MAX_FILES} files,{' '}
+                      {formatBytes(QUOTE_ATTACHMENT_MAX_TOTAL_BYTES)} total.
+                    </span>
+                    {attachments.length > 0 && (
+                      <ul className="contact-form__attachments-list">
+                        {attachments.map((file, idx) => (
+                          <li key={`${file.name}-${idx}`} className="contact-form__attachments-item">
+                            <span className="contact-form__attachments-name">{file.name}</span>
+                            <span className="contact-form__attachments-size">{formatBytes(file.size)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAttachmentRemove(idx)}
+                              className="contact-form__attachments-remove"
+                              aria-label={`Remove ${file.name}`}
+                            >
+                              ×
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
               </div>
 

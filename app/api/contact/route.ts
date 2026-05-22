@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateQuoteAttachments, formatBytes } from '@/lib/quote-attachments';
+
+interface ResendAttachment {
+  filename: string;
+  content: string; // base64
+}
 
 // =============================================================================
 // CONFIGURATION
@@ -88,6 +94,7 @@ interface NormalizedData {
   source: string;
   subject: string;
   message: string;
+  attachments: Array<{ name: string; size: number }>;
 }
 
 interface ParsedCalculatorData {
@@ -671,12 +678,23 @@ function buildContactFormEmailHtml(data: NormalizedData, referenceNumber: string
         <div class="notes-box">${data.projectDetails}</div>
       </div>
       ` : ''}
-      
+
+      ${data.attachments.length > 0 ? `
+      <!-- Attachments -->
+      <div class="section">
+        <h2 class="section-title">Attachments (${data.attachments.length})</h2>
+        <ul class="details-list">
+          ${data.attachments.map(a => `<li><strong>${a.name}</strong> &nbsp;<span style="color:${COLORS.gray};">${formatBytes(a.size)}</span></li>`).join('')}
+        </ul>
+        <p style="font-size: 12px; color: ${COLORS.gray}; margin: 12px 0 0 0;">Files are attached to this email.</p>
+      </div>
+      ` : ''}
+
       <div class="divider"></div>
-      
+
       <p class="timestamp">Submitted on ${timestamp} via Contact Form</p>
     </div>
-    
+
     ${getEmailFooter()}
   </div>
 </body>
@@ -818,7 +836,16 @@ function buildCustomerConfirmationHtml(data: NormalizedData, referenceNumber: st
         <div class="notes-box">${data.projectDetails}</div>
       </div>
       ` : ''}
-      
+
+      ${data.attachments.length > 0 ? `
+      <div class="section">
+        <h2 class="section-title">Files You Sent (${data.attachments.length})</h2>
+        <ul class="details-list">
+          ${data.attachments.map(a => `<li><strong>${a.name}</strong> &nbsp;<span style="color:${COLORS.gray};">${formatBytes(a.size)}</span></li>`).join('')}
+        </ul>
+      </div>
+      ` : ''}
+
       <!-- What's Next -->
       <div class="section section--red">
         <h2 class="section-title section-title--red">What Happens Next?</h2>
@@ -918,7 +945,11 @@ How They Found Us: ${data.howHeard || 'Not specified'}
 PROJECT DETAILS
 ---------------
 ${data.projectDetails || 'No details provided'}
-
+${data.attachments.length > 0 ? `
+ATTACHMENTS (${data.attachments.length})
+----------------------------------------
+${data.attachments.map(a => `- ${a.name} (${formatBytes(a.size)})`).join('\n')}
+` : ''}
 ----------------------------------------
 Submitted: ${timestamp}
 Source: Website Contact Form
@@ -960,7 +991,12 @@ function buildCustomerPlainText(data: NormalizedData, referenceNumber: string, i
     if (data.serviceType) text += `Service: ${data.serviceType}\n`;
     if (data.projectDetails) text += `\nYour Message:\n${data.projectDetails}\n`;
   }
-  
+
+  if (data.attachments.length > 0) {
+    text += `\nFiles You Sent (${data.attachments.length}):\n`;
+    for (const a of data.attachments) text += `- ${a.name} (${formatBytes(a.size)})\n`;
+  }
+
   text += `\nIf you have any urgent questions, please call us at (936) 662-0077.\n\n`;
   text += `---\n`;
   text += `Starr Surveying\n`;
@@ -980,23 +1016,28 @@ async function sendEmail(
   replyTo: string,
   subject: string,
   text: string,
-  html: string
+  html: string,
+  attachments?: ResendAttachment[]
 ): Promise<boolean> {
   try {
+    const payload: Record<string, unknown> = {
+      from: 'Starr Surveying <noreply@starr-surveying.com>',
+      to,
+      reply_to: replyTo,
+      subject,
+      text,
+      html,
+    };
+    if (attachments && attachments.length > 0) {
+      payload.attachments = attachments;
+    }
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        from: 'Starr Surveying <noreply@starr-surveying.com>',
-        to,
-        reply_to: replyTo,
-        subject,
-        text,
-        html,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -1016,10 +1057,52 @@ async function sendEmail(
 // MAIN API HANDLER
 // =============================================================================
 
+async function parseRequest(
+  request: NextRequest
+): Promise<{ body: IncomingFormData; files: ResendAttachment[]; fileSummaries: Array<{ name: string; size: number }> }> {
+  const contentType = request.headers.get('content-type') || '';
+
+  // JSON path — the calculator + the previous form-pre-attachments path
+  if (contentType.includes('application/json')) {
+    const body = (await request.json()) as IncomingFormData;
+    return { body, files: [], fileSummaries: [] };
+  }
+
+  // Multipart path — the new quote-form-with-attachments path.
+  // Form fields come back as strings; "attachments" is repeated per file.
+  const form = await request.formData();
+  const body: IncomingFormData = {};
+  const files: ResendAttachment[] = [];
+  const fileSummaries: Array<{ name: string; size: number }> = [];
+
+  for (const [key, value] of form.entries()) {
+    if (key === 'attachments' && value instanceof File) {
+      const buf = Buffer.from(await value.arrayBuffer());
+      fileSummaries.push({ name: value.name, size: buf.length });
+      files.push({ filename: value.name, content: buf.toString('base64') });
+    } else if (typeof value === 'string') {
+      (body as Record<string, string>)[key] = value;
+    }
+  }
+  return { body, files, fileSummaries };
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const body: IncomingFormData = await request.json();
+    const { body, files, fileSummaries } = await parseRequest(request);
     const referenceNumber = generateReferenceNumber();
+
+    // Server-side re-validation of attachments (client already checked,
+    // but treat the client as untrusted).
+    if (fileSummaries.length > 0) {
+      const err = validateQuoteAttachments(fileSummaries);
+      if (err) {
+        return NextResponse.json(
+          { success: false, message: 'Attachment validation failed', error: err.message },
+          { status: 400 }
+        );
+      }
+    }
 
     // Normalize field names
     const propertyStreet = body.propertyStreet || body.property_street || '';
@@ -1044,6 +1127,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       source: body.source || 'contact-form',
       subject: body.subject || '',
       message: body.message || '',
+      attachments: fileSummaries,
     };
 
     const isCalculator = data.source === 'pricing-calculator';
@@ -1107,18 +1191,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Send emails
+    // Send emails. Attachments go to the business notification only —
+    // the customer confirmation already has a summary of what they
+    // sent + their own copies of the files locally, so we skip
+    // duplicating the payload there.
     const emailResults = await Promise.allSettled([
-      // 1. Business notification email
+      // 1. Business notification email (with attachments if any)
       sendEmail(
         RESEND_API_KEY,
         EMAIL_RECIPIENTS,
         data.email,
         businessSubject,
         businessText,
-        businessHtml
+        businessHtml,
+        files
       ),
-      
+
       // 2. Customer confirmation email
       sendEmail(
         RESEND_API_KEY,
