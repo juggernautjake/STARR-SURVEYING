@@ -286,21 +286,18 @@ export default function PayProgressionPage() {
           role/seniority/credential bonuses apply to each work type.
         </p>
         <div className="pay-prog__rates-grid">
-          {workRates.sort((a, b) => b.base_rate - a.base_rate).map(r => (
-            <div key={r.work_type} className="pay-prog__rate-card">
-              <span className="pay-prog__rate-icon">{r.icon || '\u2699\uFE0F'}</span>
-              <span className="pay-prog__rate-label">{r.label || r.work_type}</span>
-              <span className="pay-prog__rate-amount">${r.base_rate.toFixed(2)}/hr</span>
-              <div className="pay-prog__rate-meta">
-                <span className={`pay-prog__rate-mult pay-prog__rate-mult--${getMultiplierLabel(r.bonus_multiplier).toLowerCase().replace('%','')}`}>
-                  {getMultiplierLabel(r.bonus_multiplier)} bonus
-                </span>
-                {r.max_bonus_cap && (
-                  <span className="pay-prog__rate-cap">cap ${r.max_bonus_cap.toFixed(0)}/hr</span>
-                )}
-              </div>
-            </div>
+          {[...workRates].sort((a, b) => b.base_rate - a.base_rate).map(r => (
+            <WorkTypeRateCard
+              key={r.work_type}
+              rate={r}
+              editMode={isAdmin && editMode}
+              getMultiplierLabel={getMultiplierLabel}
+              onChanged={fetchData}
+            />
           ))}
+          {isAdmin && editMode && (
+            <AddWorkTypeButton onAdded={fetchData} />
+          )}
         </div>
         <p className="pay-prog__section-note">
           <strong>How it works:</strong> Specialized work (field, drafting, supervision, legal) applies your
@@ -1087,6 +1084,307 @@ function PayCalculator({ roles, workRates, credentials, seniority, xpMilestones,
             )}
           </ul>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Work-type rate card (P-10) ─────────────────────────────────────────────
+// Renders as the original read-only card by default. When editMode is on,
+// shows a pencil button; clicking swaps to an inline form whose Save calls
+// PUT /api/admin/pay-config/work-types and Delete calls DELETE. The parent
+// page refetches via onChanged so the optimistic-update path stays simple.
+
+interface WorkTypeRateCardProps {
+  rate: WorkTypeRate;
+  editMode: boolean;
+  getMultiplierLabel: (m: number | null) => string;
+  onChanged: () => void;
+}
+
+function WorkTypeRateCard({ rate, editMode, getMultiplierLabel, onChanged }: WorkTypeRateCardProps) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    base_rate: rate.base_rate,
+    bonus_multiplier: rate.bonus_multiplier ?? 1,
+    max_bonus_cap: rate.max_bonus_cap,
+    icon: rate.icon || '',
+    label: rate.label || rate.work_type,
+  });
+
+  // Reset draft if the underlying row changes (e.g. another admin saved).
+  useEffect(() => {
+    setDraft({
+      base_rate: rate.base_rate,
+      bonus_multiplier: rate.bonus_multiplier ?? 1,
+      max_bonus_cap: rate.max_bonus_cap,
+      icon: rate.icon || '',
+      label: rate.label || rate.work_type,
+    });
+  }, [rate.work_type, rate.base_rate, rate.bonus_multiplier, rate.max_bonus_cap, rate.icon, rate.label]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/pay-config/work-types', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          work_type: rate.work_type,
+          base_rate: Number(draft.base_rate),
+          bonus_multiplier: Number(draft.bonus_multiplier),
+          max_bonus_cap: draft.max_bonus_cap === null || draft.max_bonus_cap === undefined || (draft.max_bonus_cap as unknown as string) === ''
+            ? null
+            : Number(draft.max_bonus_cap),
+          icon: draft.icon || null,
+          label: draft.label || null,
+        }),
+      });
+      if (res.ok) {
+        setEditing(false);
+        onChanged();
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm(`Remove "${rate.label || rate.work_type}" from the pay system? This affects every employee's calculation immediately.`)) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/pay-config/work-types?work_type=${encodeURIComponent(rate.work_type)}`, { method: 'DELETE' });
+      if (res.ok) onChanged();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="pay-prog__rate-card pay-prog__rate-card--editing">
+        <div className="pay-prog__rate-edit-row">
+          <input
+            className="pay-prog__rate-edit-icon"
+            value={draft.icon}
+            onChange={e => setDraft(d => ({ ...d, icon: e.target.value }))}
+            placeholder="🏗️"
+            aria-label="Icon"
+            maxLength={4}
+          />
+          <input
+            className="pay-prog__rate-edit-label"
+            value={draft.label}
+            onChange={e => setDraft(d => ({ ...d, label: e.target.value }))}
+            placeholder="Label"
+            aria-label="Label"
+          />
+        </div>
+        <label className="pay-prog__rate-edit-field">
+          <span>Base rate $/hr</span>
+          <input
+            type="number"
+            step="0.25"
+            min="0"
+            value={draft.base_rate}
+            onChange={e => setDraft(d => ({ ...d, base_rate: Number(e.target.value) }))}
+          />
+        </label>
+        <label className="pay-prog__rate-edit-field">
+          <span>Bonus multiplier</span>
+          <select
+            value={String(draft.bonus_multiplier ?? 1)}
+            onChange={e => setDraft(d => ({ ...d, bonus_multiplier: Number(e.target.value) }))}
+          >
+            <option value="1">100% (full)</option>
+            <option value="0.75">75%</option>
+            <option value="0.5">50%</option>
+            <option value="0">0% (no bonus)</option>
+          </select>
+        </label>
+        <label className="pay-prog__rate-edit-field">
+          <span>Max bonus cap $/hr (optional)</span>
+          <input
+            type="number"
+            step="1"
+            min="0"
+            value={draft.max_bonus_cap ?? ''}
+            onChange={e => setDraft(d => ({ ...d, max_bonus_cap: e.target.value === '' ? null : Number(e.target.value) }))}
+            placeholder="No cap"
+          />
+        </label>
+        <div className="pay-prog__rate-edit-actions">
+          <button type="button" className="btn btn--sm btn--primary" disabled={saving} onClick={save}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={() => setEditing(false)}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn--sm btn--danger" disabled={saving} onClick={remove}>
+            Delete
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pay-prog__rate-card">
+      {editMode && (
+        <button
+          type="button"
+          className="pay-prog__edit-pencil"
+          onClick={() => setEditing(true)}
+          aria-label={`Edit ${rate.label || rate.work_type}`}
+          title="Edit"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          </svg>
+        </button>
+      )}
+      <span className="pay-prog__rate-icon">{rate.icon || '⚙️'}</span>
+      <span className="pay-prog__rate-label">{rate.label || rate.work_type}</span>
+      <span className="pay-prog__rate-amount">${Number(rate.base_rate).toFixed(2)}/hr</span>
+      <div className="pay-prog__rate-meta">
+        <span className={`pay-prog__rate-mult pay-prog__rate-mult--${getMultiplierLabel(rate.bonus_multiplier).toLowerCase().replace('%','')}`}>
+          {getMultiplierLabel(rate.bonus_multiplier)} bonus
+        </span>
+        {rate.max_bonus_cap && (
+          <span className="pay-prog__rate-cap">cap ${Number(rate.max_bonus_cap).toFixed(0)}/hr</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Add work-type button (P-10) ────────────────────────────────────────────
+
+function AddWorkTypeButton({ onAdded }: { onAdded: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    work_type: '',
+    label: '',
+    icon: '',
+    base_rate: 18,
+    bonus_multiplier: 1,
+    max_bonus_cap: null as number | null,
+  });
+
+  async function save() {
+    if (!draft.work_type.trim()) {
+      window.alert('Work type key is required (e.g. "office_clerical").');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/pay-config/work-types', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          work_type: draft.work_type.trim(),
+          label: draft.label || draft.work_type,
+          icon: draft.icon || null,
+          base_rate: Number(draft.base_rate),
+          bonus_multiplier: Number(draft.bonus_multiplier),
+          max_bonus_cap: draft.max_bonus_cap,
+        }),
+      });
+      if (res.ok) {
+        setAdding(false);
+        setDraft({ work_type: '', label: '', icon: '', base_rate: 18, bonus_multiplier: 1, max_bonus_cap: null });
+        onAdded();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        window.alert(data.error || 'Failed to add work type');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!adding) {
+    return (
+      <button
+        type="button"
+        className="pay-prog__rate-card pay-prog__rate-card--add"
+        onClick={() => setAdding(true)}
+      >
+        <span aria-hidden="true" style={{ fontSize: '1.5rem', display: 'block', marginBottom: '0.25rem' }}>+</span>
+        <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Add work type</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="pay-prog__rate-card pay-prog__rate-card--editing">
+      <label className="pay-prog__rate-edit-field">
+        <span>Key (snake_case)</span>
+        <input
+          value={draft.work_type}
+          onChange={e => setDraft(d => ({ ...d, work_type: e.target.value }))}
+          placeholder="e.g. site_visit"
+        />
+      </label>
+      <div className="pay-prog__rate-edit-row">
+        <input
+          className="pay-prog__rate-edit-icon"
+          value={draft.icon}
+          onChange={e => setDraft(d => ({ ...d, icon: e.target.value }))}
+          placeholder="🏗️"
+          aria-label="Icon"
+          maxLength={4}
+        />
+        <input
+          className="pay-prog__rate-edit-label"
+          value={draft.label}
+          onChange={e => setDraft(d => ({ ...d, label: e.target.value }))}
+          placeholder="Label"
+        />
+      </div>
+      <label className="pay-prog__rate-edit-field">
+        <span>Base rate $/hr</span>
+        <input
+          type="number"
+          step="0.25"
+          min="0"
+          value={draft.base_rate}
+          onChange={e => setDraft(d => ({ ...d, base_rate: Number(e.target.value) }))}
+        />
+      </label>
+      <label className="pay-prog__rate-edit-field">
+        <span>Bonus multiplier</span>
+        <select
+          value={String(draft.bonus_multiplier)}
+          onChange={e => setDraft(d => ({ ...d, bonus_multiplier: Number(e.target.value) }))}
+        >
+          <option value="1">100% (full)</option>
+          <option value="0.75">75%</option>
+          <option value="0.5">50%</option>
+          <option value="0">0% (no bonus)</option>
+        </select>
+      </label>
+      <label className="pay-prog__rate-edit-field">
+        <span>Max bonus cap $/hr (optional)</span>
+        <input
+          type="number"
+          step="1"
+          min="0"
+          value={draft.max_bonus_cap ?? ''}
+          onChange={e => setDraft(d => ({ ...d, max_bonus_cap: e.target.value === '' ? null : Number(e.target.value) }))}
+          placeholder="No cap"
+        />
+      </label>
+      <div className="pay-prog__rate-edit-actions">
+        <button type="button" className="btn btn--sm btn--primary" disabled={saving} onClick={save}>
+          {saving ? 'Saving…' : 'Add'}
+        </button>
+        <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={() => setAdding(false)}>
+          Cancel
+        </button>
       </div>
     </div>
   );

@@ -381,6 +381,103 @@
 .pay-prog__rate-card {
   background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px;
   padding: 0.75rem; text-align: center;
+  position: relative;
+}
+
+/* P-10: inline edit pencil + editing state + add-card.
+ * The pencil button is positioned absolutely in the card's corner so it
+ * doesn't disturb the read-only layout. .pay-prog__rate-card--editing
+ * swaps the centered text layout for a left-aligned form. The dashed-
+ * border add card only renders in admin edit mode. */
+.pay-prog__edit-pencil {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-light);
+  background: var(--color-bg-card);
+  color: var(--color-text-tertiary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+.pay-prog__edit-pencil:hover {
+  background: var(--color-brand-navy);
+  border-color: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+}
+.pay-prog__rate-card--editing {
+  text-align: left;
+  background: var(--color-bg-card);
+  border-color: var(--color-brand-navy);
+  box-shadow: 0 0 0 3px rgba(29, 48, 149, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.pay-prog__rate-edit-row {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 0.4rem;
+}
+.pay-prog__rate-edit-icon,
+.pay-prog__rate-edit-label,
+.pay-prog__rate-edit-field input,
+.pay-prog__rate-edit-field select {
+  height: 30px;
+  padding: 0 0.5rem;
+  border: var(--border-normal);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-input);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--color-text-primary);
+  width: 100%;
+  box-sizing: border-box;
+}
+.pay-prog__rate-edit-icon { text-align: center; padding: 0; }
+.pay-prog__rate-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.pay-prog__rate-edit-field > span {
+  font-size: 0.62rem;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pay-prog__rate-edit-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+.pay-prog__rate-edit-actions .btn { font-size: 0.7rem; padding: 0.3rem 0.55rem; height: auto; }
+
+.pay-prog__rate-card--add {
+  border-style: dashed;
+  border-color: var(--color-text-muted);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.pay-prog__rate-card--add:hover {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+  background: var(--color-bg-hover);
 }
 .pay-prog__rate-icon { font-size: 1.5rem; display: block; margin-bottom: 0.25rem; }
 .pay-prog__rate-label {
