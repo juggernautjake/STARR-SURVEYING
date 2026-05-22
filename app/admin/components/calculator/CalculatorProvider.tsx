@@ -18,6 +18,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { CalculatorModal } from './CalculatorModal';
 import { Ti36xPro } from './models/Ti36xPro';
 import { CasioFx991 } from './models/CasioFx991';
+import { Hp35s } from './models/Hp35s';
 
 export type ModelKey =
   | 'ti-36x-pro'
@@ -214,6 +215,7 @@ function renderModel(model: ModelDef) {
   // C-6+ replaces each placeholder with the real shell as phases ship.
   if (model.key === 'ti-36x-pro') return <Ti36xPro />;
   if (model.key === 'casio-fx-991') return <CasioFx991 />;
+  if (model.key === 'hp-35s') return <Hp35s />;
   return <ModelPlaceholder model={model} />;
 }
 

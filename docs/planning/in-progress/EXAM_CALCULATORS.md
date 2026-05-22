@@ -202,7 +202,7 @@ RPN engine is a paradigm shift; calls for its own slice family.
 
 | Slice | Description | Estimate |
 |---|---|---|
-| **C-15** | HP 35s visual shell: long, narrow body; 6-row × 7-col keypad; orange + blue shift labels; 2-row dot-matrix display container. | 5 hours |
+| **C-15** | HP 35s visual shell: long, narrow body; 6-row × 7-col keypad; orange + blue shift labels; 2-row dot-matrix display container. | 5 hours | ✅ Shipped — `lib/calculators/models/hp-35s/keypad-data.ts` defines a 6 col × 10 row layout with ~46 keys covering: shift modifiers (left-orange `fshift` and right-blue `gshift` per device convention), stack ops (ENTER spans the row, x↔y, R↓, LASTx), full trig + inverses (via shift), log/ln/10ˣ/eˣ, STO/RCL, FIX/SCI/ENG/ALL display-mode keys, RAD/DEG toggle, `►H.MS` DMS conversion, factorial + nCr, parens, MOD, the standard numeric block, and a wide equals on the bottom row (col-spans 3). New `<Hp35s>` component composes the shared `<Display>` + `<Keypad>` and registers in `renderModel()`. CSS overrides paint the device's signature gunmetal body + brushed-aluminum keys; the two shift modifiers get orange-vs-blue gradient tones via `:nth-child(odd|even)` so `fshift` and `gshift` distinguish at a glance. Engine wiring (RPN stack machine) lands in C-16. Typecheck clean; 108 calculator tests still pass; CSS braces 84/84. |
 | **C-16** | HP 35s RPN stack machine: X / Y / Z / T registers, ENTER (stack lift), LastX, ROLL DOWN, SWAP. Algebraic-mode toggle (HP 35s supports both). | 6 hours |
 | **C-17** | HP 35s shifts + functions: blue/orange shift state, full set of f(x) keys (HYP, →RAD, →DEG, COMPLEX, etc.). | 3 hours |
 | **C-18** | HP 35s state serialize/hydrate + register save. | 1 hour |

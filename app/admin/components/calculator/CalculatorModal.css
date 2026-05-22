@@ -501,6 +501,48 @@
   line-height: 0;
 }
 
+/* HP 35s palette override — gunmetal body, brushed-aluminum keys,
+ * orange (left-shift) + blue (right-shift) modifier tone. */
+.calc-model--hp-35s {
+  background: linear-gradient(180deg, #2a2c30 0%, #16181a 100%);
+}
+.calc-model--hp-35s .calc-key {
+  background: linear-gradient(180deg, #cfd2d6 0%, #989b9f 100%);
+  color: #1a1c20;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.calc-model--hp-35s .calc-key--digit {
+  background: linear-gradient(180deg, #e8eaec 0%, #b0b3b7 100%);
+  font-size: 0.85rem;
+}
+.calc-model--hp-35s .calc-key--op {
+  background: linear-gradient(180deg, #2a2d33 0%, #14161a 100%);
+  color: #f0f1f3;
+}
+.calc-model--hp-35s .calc-key--eval {
+  background: linear-gradient(180deg, #c4341a 0%, #8a200d 100%);
+  color: #fff;
+}
+.calc-model--hp-35s .calc-key--shift:nth-child(odd) {
+  /* fshift (orange/left) */
+  background: linear-gradient(180deg, #d97706 0%, #92400e 100%);
+  color: #1a1c20;
+}
+.calc-model--hp-35s .calc-key--shift:nth-child(even) {
+  /* gshift (blue/right) */
+  background: linear-gradient(180deg, #2563eb 0%, #1e3a8a 100%);
+  color: #f0f1f3;
+}
+.calc-model--hp-35s .calc-key--accent {
+  background: linear-gradient(180deg, #6b6f75 0%, #3f4248 100%);
+  color: #f0f1f3;
+  font-size: 0.78rem;
+}
+.calc-model--hp-35s .calc-key__shift-label {
+  color: #d97706; /* orange — primary shift convention */
+}
+
 /* Casio fx-991ES PLUS palette override — silver body, dark-blue header
  * convention, yellow SHIFT labels + red ALPHA labels. */
 .calc-model--casio-fx991 {
