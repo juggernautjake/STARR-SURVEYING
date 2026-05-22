@@ -713,6 +713,183 @@
   color: var(--color-brand-navy);
 }
 
+/* Interactive calculator — P-5 of PAY_PROGRESSION_OVERHAUL.md.
+ * Two-column layout: inputs on the left (responsive grid of labeled
+ * fields), live output stack on the right with the effective rate
+ * shown prominently. Mobile collapses to a single column. */
+.pay-prog__calc {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+.pay-prog__calc-inputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-content: start;
+}
+.pay-prog__calc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.pay-prog__calc-field--full {
+  grid-column: 1 / -1;
+}
+.pay-prog__calc-label {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pay-prog__calc-select,
+.pay-prog__calc-input {
+  height: var(--input-height);
+  padding: var(--input-padding-y) var(--input-padding-x);
+  background: var(--color-bg-input);
+  border: var(--border-normal);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.4;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  box-sizing: border-box;
+  text-transform: capitalize;
+}
+.pay-prog__calc-select:focus-visible,
+.pay-prog__calc-input:focus-visible {
+  outline: none;
+  border-color: var(--color-brand-navy);
+  box-shadow: var(--shadow-focus);
+}
+.pay-prog__calc-creds {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.4rem;
+}
+.pay-prog__calc-cred {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--radius-md);
+  border: var(--border-light);
+  background: var(--color-bg-card);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.pay-prog__calc-cred:hover { border-color: var(--color-brand-navy); }
+.pay-prog__calc-cred--on {
+  border-color: var(--color-brand-gold);
+  background: #FFFDF5;
+  color: var(--color-text-primary);
+}
+.pay-prog__calc-cred input[type="checkbox"] { margin: 0; }
+.pay-prog__calc-cred-bonus {
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  font-weight: var(--weight-bold);
+  color: var(--color-success);
+}
+
+.pay-prog__calc-output {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, var(--color-bg-app) 0%, var(--color-bg-card) 100%);
+  border: var(--border-light);
+  border-radius: var(--radius-lg);
+}
+.pay-prog__calc-result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.pay-prog__calc-result-label {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.pay-prog__calc-result-rate {
+  font-family: var(--font-heading);
+  font-size: 2.4rem;
+  font-weight: var(--weight-bold);
+  color: var(--color-brand-navy);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.pay-prog__calc-result-unit {
+  font-size: 0.95rem;
+  font-weight: var(--weight-medium);
+  color: var(--color-text-tertiary);
+  margin-left: 0.2rem;
+}
+.pay-prog__calc-stack {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border-top: var(--border-light);
+  padding-top: 0.75rem;
+}
+.pay-prog__calc-stack li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+}
+.pay-prog__calc-stack li em {
+  font-style: normal;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin-left: 0.25rem;
+}
+.pay-prog__calc-stack li span:last-child {
+  font-family: var(--font-heading);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+.pay-prog__calc-stack-sub {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: var(--border-light);
+  font-weight: var(--weight-semibold);
+}
+.pay-prog__calc-stack-warn {
+  color: var(--color-warning) !important;
+}
+.pay-prog__calc-stack-warn span:last-child {
+  color: var(--color-warning) !important;
+}
+
+@media (max-width: 720px) {
+  .pay-prog__calc { grid-template-columns: 1fr; }
+  .pay-prog__calc-inputs { grid-template-columns: 1fr; }
+  .pay-prog__calc-result-rate { font-size: 2rem; }
+}
+
 /* Locked state — grayscale */
 .pay-prog__badge--locked {
   opacity: 0.78;

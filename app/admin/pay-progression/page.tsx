@@ -454,6 +454,26 @@ export default function PayProgressionPage() {
         );
       })()}
 
+      {/* Interactive calculator — P-5 of PAY_PROGRESSION_OVERHAUL.md.
+       * "What-if" tool. Pick a role, work type, years, credentials,
+       * and XP — see the effective hourly rate update in real time.
+       * Pre-fills with the user's current values so the displayed
+       * result matches the hero until they start tweaking. */}
+      <PayCalculator
+        roles={sortedRoles}
+        workRates={workRates}
+        credentials={credentials}
+        seniority={seniority}
+        xpMilestones={xpMilestones}
+        defaults={{
+          roleKey: currentTier?.role_key || (sortedRoles[Math.floor(sortedRoles.length / 2)]?.role_key ?? null),
+          workType: workRates[0]?.work_type || null,
+          years: yearsEmployed,
+          credentialKeys: earnedCreds.map(c => c.credential_key),
+          xp: Number(balance?.total_earned || 0),
+        }}
+      />
+
       {/* Education Reimbursement */}
       <div className="pay-prog__section">
         <h3 className="pay-prog__section-title">&#x1F393; Education &amp; College Classes</h3>
@@ -822,5 +842,201 @@ export default function PayProgressionPage() {
         </Link>
       </div>
     </>
+  );
+}
+
+// ─── Interactive "what-if" calculator (P-5) ──────────────────────────────────
+// Stateful sandbox for users to see how role, seniority, credentials, XP, and
+// work-type combine into an effective hourly rate. Reads the same config arrays
+// the rest of the page uses, so the math stays consistent. Phase 4 (P-16) lifts
+// this calculation into lib/payroll/effective-rate.ts so the override page can
+// reuse it.
+
+interface CalculatorDefaults {
+  roleKey: string | null;
+  workType: string | null;
+  years: number;
+  credentialKeys: string[];
+  xp: number;
+}
+
+interface PayCalculatorProps {
+  roles: RoleTier[];
+  workRates: WorkTypeRate[];
+  credentials: CredentialBonus[];
+  seniority: SeniorityBracket[];
+  xpMilestones: XpMilestone[];
+  defaults: CalculatorDefaults;
+}
+
+function PayCalculator({ roles, workRates, credentials, seniority, xpMilestones, defaults }: PayCalculatorProps) {
+  const [roleKey, setRoleKey] = useState<string | null>(defaults.roleKey);
+  const [workType, setWorkType] = useState<string | null>(defaults.workType);
+  const [years, setYears] = useState<number>(defaults.years);
+  const [credKeys, setCredKeys] = useState<Set<string>>(new Set(defaults.credentialKeys));
+  const [xp, setXp] = useState<number>(defaults.xp);
+
+  const tier = roles.find(r => r.role_key === roleKey);
+  const work = workRates.find(w => w.work_type === workType);
+  const bracket = seniority.find(s => years >= s.min_years && (!s.max_years || years < s.max_years));
+
+  const credentialBonus = credentials
+    .filter(c => credKeys.has(c.credential_key))
+    .reduce((sum, c) => sum + Number(c.bonus_per_hour || 0), 0);
+  const credentialCapped = Math.min(credentialBonus, 8); // pay_system_config.max_credential_stack
+
+  const xpBonus = xpMilestones
+    .filter(m => xp >= m.xp_threshold)
+    .reduce((sum, m) => sum + Number(m.bonus_per_hour || 0), 0);
+  const xpCapped = Math.min(xpBonus, 3); // pay_system_config.max_xp_milestone_bonus
+
+  const roleBonus = Number(tier?.base_bonus || 0);
+  const seniorityBonus = Number(bracket?.bonus_per_hour || 0);
+  const rawBonusTotal = roleBonus + seniorityBonus + credentialCapped + xpCapped;
+
+  const multiplier = Number(work?.bonus_multiplier ?? 1);
+  const adjustedBonus = rawBonusTotal * multiplier;
+  const workCap = work?.max_bonus_cap ?? null;
+  const cappedBonus = workCap !== null ? Math.min(adjustedBonus, Number(workCap)) : adjustedBonus;
+
+  const baseRate = Number(work?.base_rate || 0);
+  const preCeilingTotal = baseRate + cappedBonus;
+  const roleCeiling = tier?.max_effective_rate ?? null;
+  const effectiveRate = roleCeiling !== null ? Math.min(preCeilingTotal, Number(roleCeiling)) : preCeilingTotal;
+  const ceilingApplied = roleCeiling !== null && preCeilingTotal > Number(roleCeiling);
+
+  function toggleCred(key: string) {
+    setCredKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  return (
+    <div className="pay-prog__section">
+      <div className="pay-prog__section-header">
+        <h3 className="pay-prog__section-title">&#x1F9EE; Try the Calculator</h3>
+        <span className="pay-prog__section-count">Pre-filled with your values</span>
+      </div>
+      <p className="pay-prog__section-desc">
+        Play with the inputs to see how the pay system stacks up for any combination of role, seniority,
+        credentials, XP, and work type. Live math; no changes are saved.
+      </p>
+
+      <div className="pay-prog__calc">
+        <div className="pay-prog__calc-inputs">
+          <label className="pay-prog__calc-field">
+            <span className="pay-prog__calc-label">Role tier</span>
+            <select
+              className="pay-prog__calc-select"
+              value={roleKey || ''}
+              onChange={e => setRoleKey(e.target.value || null)}
+            >
+              {roles.map(r => (
+                <option key={r.role_key} value={r.role_key}>{r.label || r.role_key}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="pay-prog__calc-field">
+            <span className="pay-prog__calc-label">Work type</span>
+            <select
+              className="pay-prog__calc-select"
+              value={workType || ''}
+              onChange={e => setWorkType(e.target.value || null)}
+            >
+              {workRates.map(w => (
+                <option key={w.work_type} value={w.work_type}>{w.label || w.work_type}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="pay-prog__calc-field">
+            <span className="pay-prog__calc-label">Years employed</span>
+            <input
+              type="number"
+              min={0}
+              max={50}
+              className="pay-prog__calc-input"
+              value={years}
+              onChange={e => setYears(Math.max(0, Math.min(50, Number(e.target.value) || 0)))}
+            />
+          </label>
+
+          <label className="pay-prog__calc-field">
+            <span className="pay-prog__calc-label">XP earned</span>
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              className="pay-prog__calc-input"
+              value={xp}
+              onChange={e => setXp(Math.max(0, Number(e.target.value) || 0))}
+            />
+          </label>
+
+          <fieldset className="pay-prog__calc-field pay-prog__calc-field--full">
+            <legend className="pay-prog__calc-label">Credentials held</legend>
+            <div className="pay-prog__calc-creds">
+              {credentials.map(c => {
+                const checked = credKeys.has(c.credential_key);
+                return (
+                  <label key={c.credential_key} className={`pay-prog__calc-cred ${checked ? 'pay-prog__calc-cred--on' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleCred(c.credential_key)}
+                    />
+                    <span>{c.label || c.credential_key}</span>
+                    <span className="pay-prog__calc-cred-bonus">+${Number(c.bonus_per_hour).toFixed(2)}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        </div>
+
+        <div className="pay-prog__calc-output">
+          <div className="pay-prog__calc-result">
+            <span className="pay-prog__calc-result-label">Effective rate</span>
+            <span className="pay-prog__calc-result-rate">${effectiveRate.toFixed(2)}<span className="pay-prog__calc-result-unit">/hr</span></span>
+          </div>
+          <ul className="pay-prog__calc-stack">
+            <li><span>Base ({work?.label || work?.work_type || '—'})</span><span>${baseRate.toFixed(2)}</span></li>
+            <li><span>Role bonus ({tier?.label || tier?.role_key || '—'})</span><span>+${roleBonus.toFixed(2)}</span></li>
+            <li><span>Seniority ({bracket?.label || '—'})</span><span>+${seniorityBonus.toFixed(2)}</span></li>
+            <li>
+              <span>Credentials {credentialBonus !== credentialCapped && <em>(capped from ${credentialBonus.toFixed(2)})</em>}</span>
+              <span>+${credentialCapped.toFixed(2)}</span>
+            </li>
+            <li>
+              <span>XP milestones {xpBonus !== xpCapped && <em>(capped from ${xpBonus.toFixed(2)})</em>}</span>
+              <span>+${xpCapped.toFixed(2)}</span>
+            </li>
+            <li className="pay-prog__calc-stack-sub">
+              <span>Raw bonus</span><span>+${rawBonusTotal.toFixed(2)}</span>
+            </li>
+            <li>
+              <span>Work-type multiplier ({Math.round(multiplier * 100)}%)</span>
+              <span>×{multiplier.toFixed(2)}</span>
+            </li>
+            {workCap !== null && adjustedBonus > Number(workCap) && (
+              <li className="pay-prog__calc-stack-warn">
+                <span>Work-type cap applied (${Number(workCap).toFixed(0)})</span>
+                <span>→ +${cappedBonus.toFixed(2)}</span>
+              </li>
+            )}
+            {ceilingApplied && (
+              <li className="pay-prog__calc-stack-warn">
+                <span>Role ceiling applied (${Number(roleCeiling).toFixed(0)})</span>
+                <span>→ ${effectiveRate.toFixed(2)}</span>
+              </li>
+            )}
+          </ul>
+        </div>
+      </div>
+    </div>
   );
 }
