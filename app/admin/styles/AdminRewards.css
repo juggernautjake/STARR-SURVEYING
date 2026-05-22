@@ -869,6 +869,19 @@
   letter-spacing: 0.05em;
   color: var(--color-text-muted);
 }
+/* P-20: preview-the-bump pill on locked badges. Shows the user's
+ * effective rate if they earn this credential, computed via the
+ * canonical effective-rate function so the math matches the hero. */
+.pay-prog__badge-preview {
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  font-weight: var(--weight-bold);
+  color: var(--color-brand-navy);
+  background: var(--color-bg-hover);
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
 
 /* XP milestones bar — P-4 of PAY_PROGRESSION_OVERHAUL.md.
  * Horizontal progress track. .pay-prog__xp-track is the rail

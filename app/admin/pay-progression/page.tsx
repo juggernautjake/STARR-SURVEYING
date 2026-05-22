@@ -385,21 +385,56 @@ export default function PayProgressionPage() {
           bonus is capped at <strong>$8.00/hr</strong> to keep compensation sustainable.
         </p>
         <div className="pay-prog__badges">
-          {credentials
-            .slice()
-            .sort((a, b) => Number(b.bonus_per_hour) - Number(a.bonus_per_hour))
-            .map(c => {
-              const earnedEntry = earnedCreds.find(e => e.credential_key === c.credential_key);
-              return (
-                <CredentialBadge
-                  key={c.credential_key}
-                  credential={c}
-                  earnedEntry={earnedEntry}
-                  editMode={isAdmin && editMode}
-                  onChanged={fetchData}
-                />
-              );
-            })}
+          {(() => {
+            // P-20: "Preview the bump" — for each locked credential, compute
+            // the effective rate the user would have if that credential is
+            // added to their stack. Uses computeEffectiveRate so the math
+            // matches the hero card and what-if calculator exactly.
+            const previewWorkType = workRates[0] || null;
+            const baseEarnedKeys = earnedCreds.map(e => e.credential_key);
+            const computePreview = (extraKey?: string) => {
+              if (!previewWorkType) return null;
+              const keys = extraKey ? [...baseEarnedKeys, extraKey] : baseEarnedKeys;
+              return computeEffectiveRate({
+                workType: previewWorkType,
+                tier: currentTier ?? null,
+                yearsEmployed,
+                seniority,
+                earnedCredentialKeys: keys,
+                credentials,
+                totalXp: Number(balance?.total_earned || 0),
+                xpMilestones,
+              });
+            };
+            const baselineResult = computePreview();
+            return credentials
+              .slice()
+              .sort((a, b) => Number(b.bonus_per_hour) - Number(a.bonus_per_hour))
+              .map(c => {
+                const earnedEntry = earnedCreds.find(e => e.credential_key === c.credential_key);
+                const earned = !!earnedEntry;
+                let preview: { delta: number; rate: number } | null = null;
+                if (!earned && baselineResult) {
+                  const withCred = computePreview(c.credential_key);
+                  if (withCred) {
+                    preview = {
+                      delta: withCred.effectiveRate - baselineResult.effectiveRate,
+                      rate: withCred.effectiveRate,
+                    };
+                  }
+                }
+                return (
+                  <CredentialBadge
+                    key={c.credential_key}
+                    credential={c}
+                    earnedEntry={earnedEntry}
+                    editMode={isAdmin && editMode}
+                    onChanged={fetchData}
+                    preview={preview}
+                  />
+                );
+              });
+          })()}
           {isAdmin && editMode && <AddCredentialButton onAdded={fetchData} />}
         </div>
       </div>
@@ -1955,9 +1990,13 @@ interface CredentialBadgeProps {
   earnedEntry?: { credential_key: string; earned_date?: string };
   editMode: boolean;
   onChanged: () => void;
+  // P-20: if set, this locked badge shows "your rate would be $X/hr (+$Y)"
+  // computed via the canonical effective-rate calculator with this
+  // credential added to the user's stack.
+  preview?: { delta: number; rate: number } | null;
 }
 
-function CredentialBadge({ credential: c, earnedEntry, editMode, onChanged }: CredentialBadgeProps) {
+function CredentialBadge({ credential: c, earnedEntry, editMode, onChanged, preview }: CredentialBadgeProps) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState({
@@ -2086,7 +2125,12 @@ function CredentialBadge({ credential: c, earnedEntry, editMode, onChanged }: Cr
       <div className="pay-prog__badge-meta">
         <span className="pay-prog__badge-bonus">+${Number(c.bonus_per_hour).toFixed(2)}/hr</span>
         {earned && earnedDate && <span className="pay-prog__badge-date">Earned {earnedDate}</span>}
-        {!earned && <span className="pay-prog__badge-hint">Locked</span>}
+        {!earned && !preview && <span className="pay-prog__badge-hint">Locked</span>}
+        {!earned && preview && (
+          <span className="pay-prog__badge-preview" title={`Your effective rate would become $${preview.rate.toFixed(2)}/hr`}>
+            → ${preview.rate.toFixed(2)}/hr
+          </span>
+        )}
       </div>
     </div>
   );
