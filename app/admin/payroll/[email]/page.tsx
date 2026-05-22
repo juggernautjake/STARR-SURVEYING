@@ -1,6 +1,8 @@
 // app/admin/payroll/[email]/page.tsx — Employee Detail (Admin view)
 'use client';
 
+import Link from 'next/link';
+
 import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
@@ -133,11 +135,22 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
             <p>{titleInfo.label} • {profile.user_email}</p>
           </div>
         </div>
-        {isAdmin && (
-          <button className="payroll-btn payroll-btn--primary" onClick={() => setEditing(!editing)}>
-            {editing ? 'Cancel' : 'Edit Profile'}
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {isAdmin && (
+            <Link
+              className="payroll-btn"
+              href={`/admin/pay-progression/${encodeURIComponent(email)}`}
+              title="Open the pay-progression view + override panel for this employee"
+            >
+              💰 Pay progression
+            </Link>
+          )}
+          {isAdmin && (
+            <button className="payroll-btn payroll-btn--primary" onClick={() => setEditing(!editing)}>
+              {editing ? 'Cancel' : 'Edit Profile'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Edit Form */}
