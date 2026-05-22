@@ -340,19 +340,30 @@
   flex-shrink: 0;
 }
 
-.footer__reviews-link {
+/* Link + Copy buttons share padding, font-size, and border thickness so
+ * they line up perfectly when the actions row stacks them side by side
+ * on mobile. The buttons differ only in fill/text color. U-20. */
+.footer__reviews-link,
+.footer__reviews-copy {
   display: inline-flex;
   align-items: center;
-  padding: 0.55rem 1.1rem;
-  background-color: var(--brand-red);
-  color: #FFFFFF;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
   font-size: 0.85rem;
   font-weight: 700;
-  text-decoration: none;
   border-radius: var(--radius-sm);
   border: 2px solid rgba(255, 255, 255, 0.6);
   transition: all var(--transition-fast);
   white-space: nowrap;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.footer__reviews-link {
+  background-color: var(--brand-red);
+  color: #FFFFFF;
+  text-decoration: none;
 }
 
 .footer__reviews-link:hover {
@@ -362,18 +373,15 @@
 }
 
 .footer__reviews-copy {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.55rem 1rem;
   background-color: transparent;
   color: rgba(255, 255, 255, 0.8);
-  font-size: 0.82rem;
+  border-color: rgba(255, 255, 255, 0.35);
   font-weight: 600;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all var(--transition-fast);
-  white-space: nowrap;
+}
+
+.footer__reviews-copy-icon {
+  flex-shrink: 0;
 }
 
 .footer__reviews-copy:hover {

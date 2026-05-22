@@ -1,8 +1,11 @@
 /* app/admin/me/AdminMe.css
  *
- * Hub layout for /admin/me (admin-nav redesign Phase 2). Phase 5 token
- * audit sweeps inline hex values across nav-related stylesheets — for
- * slice 2a we match AdminLayout.css's existing inline-hex style. */
+ * Hub layout for /admin/me. Migrated U-13 to consume the design tokens
+ * from app/styles/tokens.css. Exact-match hex colors and rem-derived
+ * values are replaced with `var(--…)` references. Off-scale values
+ * (e.g. 0.85rem) are preserved as-is so this migration introduces no
+ * visual regression.
+ */
 
 .hub-page {
   display: flex;
@@ -11,16 +14,16 @@
   padding: 1.5rem;
   max-width: 1280px;
   margin: 0 auto;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #0F1419;
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
 }
 
 .hub-panel {
-  background: #FFF;
-  border: 1px solid #E5E7EB;
-  border-radius: 12px;
+  background: var(--color-bg-card);
+  border: var(--border-light);
+  border-radius: var(--radius-xl);
   padding: 1.25rem 1.5rem;
-  box-shadow: 0 1px 3px rgba(15, 20, 25, 0.04);
+  box-shadow: var(--shadow-sm);
 }
 
 .hub-panel__header {
@@ -31,16 +34,16 @@
 }
 
 .hub-panel__title {
-  font-family: 'Sora', 'Inter', sans-serif;
-  font-size: 1rem;
-  font-weight: 600;
+  font-family: var(--font-heading);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
   margin: 0;
 }
 
 .hub-panel__link {
   font-size: 0.82rem;
-  color: #1D3095;
+  color: var(--color-brand-navy);
   text-decoration: none;
 }
 
@@ -55,15 +58,15 @@
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  background: linear-gradient(135deg, #1D3095 0%, #2949C7 100%);
-  color: #FFF;
+  background: linear-gradient(135deg, var(--color-brand-navy) 0%, #2949C7 100%);
+  color: var(--color-text-on-brand);
   border-color: transparent;
 }
 
 .hub-greeting__heading {
-  font-family: 'Sora', 'Inter', sans-serif;
-  font-size: 1.6rem;
-  font-weight: 600;
+  font-family: var(--font-heading);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
   letter-spacing: -0.02em;
   margin: 0 0 0.35rem;
 }
@@ -90,43 +93,43 @@
 .hub-btn {
   display: inline-flex;
   align-items: center;
-  padding: 0.5rem 0.95rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 500;
+  padding: var(--space-2) 0.95rem;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
   text-decoration: none;
-  border: 1px solid #D1D5DB;
-  background: #FFF;
+  border: var(--border-normal);
+  background: var(--color-bg-card);
   color: #1F2937;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
   white-space: nowrap;
 }
 
 .hub-btn:hover {
-  border-color: #1D3095;
-  color: #1D3095;
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
 }
 
 .hub-btn--primary {
-  background: #FFF;
-  border-color: #FFF;
-  color: #1D3095;
+  background: var(--color-bg-card);
+  border-color: var(--color-bg-card);
+  color: var(--color-brand-navy);
 }
 
 .hub-btn--primary:hover {
-  background: #F0F4FF;
-  border-color: #F0F4FF;
-  color: #1D3095;
+  background: var(--color-bg-hover);
+  border-color: var(--color-bg-hover);
+  color: var(--color-brand-navy);
 }
 
 .hub-btn--outline {
   background: transparent;
-  border-color: #1D3095;
-  color: #1D3095;
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
 }
 
 .hub-btn--outline:hover {
-  background: #F0F4FF;
+  background: var(--color-bg-hover);
 }
 
 .hub-greeting__nav-toggle {
@@ -138,13 +141,13 @@
 .hub-greeting__nav-toggle:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.7);
-  color: #FFF;
+  color: var(--color-text-on-brand);
 }
 
 .hub-greeting__nav-toggle[aria-pressed='true'] {
   background: rgba(255, 255, 255, 0.18);
   border-color: rgba(255, 255, 255, 0.6);
-  color: #FFF;
+  color: var(--color-text-on-brand);
 }
 
 .hub-greeting__persona {
@@ -152,7 +155,7 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.4rem 0.6rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.05);
   color: rgba(255, 255, 255, 0.85);
@@ -160,7 +163,7 @@
 }
 
 .hub-greeting__persona-label {
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: rgba(255, 255, 255, 0.6);
@@ -169,28 +172,28 @@
 .hub-greeting__persona-select {
   background: transparent;
   border: 0;
-  color: #FFF;
+  color: var(--color-text-on-brand);
   font-family: inherit;
   font-size: 0.82rem;
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   outline: none;
   cursor: pointer;
 }
 
 .hub-greeting__persona-select option {
-  color: #0F1419;
+  color: var(--color-text-primary);
 }
 
 /* ── Panel 2: Today ──────────────────────────────────────────────── */
 
 .hub-today__placeholder {
   font-size: 0.88rem;
-  color: #6B7280;
+  color: var(--color-text-tertiary);
   padding: 0.65rem 0;
 }
 
 .hub-today__placeholder a {
-  color: #1D3095;
+  color: var(--color-brand-navy);
   text-decoration: none;
 }
 
@@ -209,19 +212,19 @@
 .hub-columns__col {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .hub-columns__title {
-  font-family: 'Sora', 'Inter', sans-serif;
+  font-family: var(--font-heading);
   font-size: 0.92rem;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   margin: 0 0 0.35rem;
 }
 
 .hub-columns__empty {
   font-size: 0.82rem;
-  color: #6B7280;
+  color: var(--color-text-tertiary);
   margin: 0;
 }
 
@@ -239,20 +242,20 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.45rem 0.6rem;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   text-decoration: none;
   color: #1F2937;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 .hub-columns__item:hover {
-  background: #F3F4F6;
-  color: #1D3095;
+  background: var(--color-bg-subtle);
+  color: var(--color-brand-navy);
 }
 
 .hub-columns__item-meta {
-  font-size: 0.72rem;
-  color: #6B7280;
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
 }
 
 .hub-columns__item:hover .hub-columns__item-meta {
@@ -265,13 +268,42 @@
   }
 }
 
+/* Mobile: greeting card stacks vertically. Without this, the actions
+ * row (Open timesheet / View schedule / Revert to old nav / Persona
+ * dropdown) takes ~60% of the row width, forcing the heading
+ * ("Good evening, Jacob") to wrap to 4 lines on a 390px viewport.
+ * Audit U-7.
+ */
+@media (max-width: 768px) {
+  .hub-greeting {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  .hub-greeting__actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .hub-greeting__actions .hub-btn,
+  .hub-greeting__actions .hub-greeting__nav-toggle {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .hub-greeting__persona {
+    width: 100%;
+  }
+  .hub-greeting__persona-select {
+    flex: 1 1 auto;
+  }
+}
+
 /* ── Panel 4: Personal tabs ──────────────────────────────────────── */
 
 .hub-tabs__strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
-  border-bottom: 1px solid #E5E7EB;
+  gap: var(--space-1);
+  border-bottom: var(--border-light);
   margin-bottom: 0.95rem;
 }
 
@@ -279,23 +311,23 @@
   border: 0;
   background: transparent;
   font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #6B7280;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-tertiary);
   padding: 0.55rem 0.85rem;
   cursor: pointer;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .hub-tabs__tab:hover {
-  color: #1D3095;
+  color: var(--color-brand-navy);
 }
 
 .hub-tabs__tab--active {
-  color: #1D3095;
-  border-bottom-color: #1D3095;
+  color: var(--color-brand-navy);
+  border-bottom-color: var(--color-brand-navy);
 }
 
 .hub-tabs__panel {
@@ -305,7 +337,7 @@
 
 .hub-tabs__overview {
   font-size: 0.88rem;
-  color: #6B7280;
+  color: var(--color-text-tertiary);
   margin: 0;
 }
 
@@ -323,7 +355,7 @@
 }
 
 .hub-tabs__handoff-note {
-  color: #6B7280 !important;
+  color: var(--color-text-tertiary) !important;
   font-size: 0.78rem !important;
 }
 
@@ -331,12 +363,12 @@
 
 .hub-notifications__empty {
   font-size: 0.88rem;
-  color: #6B7280;
+  color: var(--color-text-tertiary);
   margin: 0;
 }
 
 .hub-notifications__empty a {
-  color: #1D3095;
+  color: var(--color-brand-navy);
   text-decoration: none;
 }
 
@@ -348,17 +380,17 @@
 
 .hub-quick__hint {
   font-size: 0.78rem;
-  color: #6B7280;
+  color: var(--color-text-tertiary);
 }
 
 .hub-quick__hint kbd {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
-  background: #F3F4F6;
-  border: 1px solid #E5E7EB;
+  background: var(--color-bg-subtle);
+  border: var(--border-light);
   border-bottom-width: 2px;
   padding: 0.05rem 0.3rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   margin: 0 0.15rem;
 }
 
@@ -371,9 +403,9 @@
 /* ── "What's new" release banner (Phase G-4) ─────────────────────── */
 
 .hub-whatsnew {
-  background: linear-gradient(135deg, #FCD34D 0%, #F59E0B 100%);
-  color: #0F1419;
-  border-radius: 12px;
+  background: linear-gradient(135deg, var(--color-brand-gold) 0%, var(--color-warning) 100%);
+  color: var(--color-text-primary);
+  border-radius: var(--radius-xl);
   padding: 0.85rem 1.25rem;
   margin-bottom: -0.25rem;
 }
@@ -386,12 +418,12 @@
 }
 
 .hub-whatsnew__pill {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
   background: rgba(15, 20, 25, 0.15);
   padding: 0.2rem 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   white-space: nowrap;
 }
 
@@ -404,9 +436,9 @@
 }
 
 .hub-whatsnew__title {
-  font-family: 'Sora', 'Inter', sans-serif;
+  font-family: var(--font-heading);
   font-size: 0.92rem;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
 .hub-whatsnew__excerpt {
@@ -417,15 +449,15 @@
 
 .hub-whatsnew__link {
   font-size: 0.84rem;
-  font-weight: 600;
-  color: #0F1419;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
   text-decoration: underline;
   text-underline-offset: 2px;
   white-space: nowrap;
 }
 
 .hub-whatsnew__link:hover {
-  color: var(--brand-red, #BD1218);
+  color: var(--color-brand-red);
 }
 
 .hub-whatsnew__dismiss {
@@ -433,10 +465,10 @@
   border: 0;
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: 18px;
   line-height: 1;
-  color: #0F1419;
+  color: var(--color-text-primary);
   cursor: pointer;
   flex-shrink: 0;
 }

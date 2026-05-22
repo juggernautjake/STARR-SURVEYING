@@ -115,7 +115,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: '#D97706',
   approved: '#059669',
   rejected: '#DC2626',
-  exported: '#6B7280',
+  exported: 'var(--color-text-tertiary)',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -516,7 +516,7 @@ function ReceiptRow({
 
   const total = formatCents(row.total_cents);
   const date = formatDateTime(row.transaction_at ?? row.created_at);
-  const statusColor = STATUS_COLORS[row.status] ?? '#6B7280';
+  const statusColor = STATUS_COLORS[row.status] ?? 'var(--color-text-tertiary)';
 
   // Build a compact AI-extraction status caption.
   const aiCaption = useMemo(() => {
@@ -1147,12 +1147,12 @@ function MaintenancePicker({
 function maintLinkStateChip(state: string): React.CSSProperties {
   const map: Record<string, React.CSSProperties> = {
     scheduled: { background: '#DBEAFE', color: '#1E3A8A' },
-    in_progress: { background: '#1D3095', color: '#FFFFFF' },
+    in_progress: { background: 'var(--color-brand-navy)', color: 'var(--color-text-on-brand)' },
     awaiting_parts: { background: '#FEF3C7', color: '#78350F' },
     awaiting_vendor: { background: '#FEF3C7', color: '#78350F' },
     complete: { background: '#DCFCE7', color: '#166534' },
     failed_qa: { background: '#FEE2E2', color: '#7F1D1D' },
-    cancelled: { background: '#F3F4F6', color: '#6B7280' },
+    cancelled: { background: 'var(--color-bg-subtle)', color: 'var(--color-text-tertiary)' },
   };
   return {
     display: 'inline-block',
@@ -1162,7 +1162,7 @@ function maintLinkStateChip(state: string): React.CSSProperties {
     fontWeight: 600,
     textTransform: 'uppercase' as const,
     letterSpacing: '0.04em',
-    ...(map[state] ?? { background: '#F3F4F6', color: '#374151' }),
+    ...(map[state] ?? { background: 'var(--color-bg-subtle)', color: '#374151' }),
   };
 }
 
@@ -1190,7 +1190,7 @@ const maintLinkStyles: Record<string, React.CSSProperties> = {
   },
   linkBtn: {
     background: '#0C4A6E',
-    color: '#FFFFFF',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 6,
     padding: '6px 12px',
@@ -1216,7 +1216,7 @@ const maintLinkStyles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #BAE6FD',
     borderRadius: 6,
     padding: '6px 10px',
@@ -1238,7 +1238,7 @@ const maintLinkStyles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap' as const,
   },
   itemKindChip: {
-    background: '#F3F4F6',
+    background: 'var(--color-bg-subtle)',
     padding: '1px 8px',
     borderRadius: 4,
     fontSize: 11,
@@ -1253,7 +1253,7 @@ const maintLinkStyles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap' as const,
   },
   itemDetachBtn: {
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #B91C1C',
     color: '#B91C1C',
     padding: '4px 10px',
@@ -1282,7 +1282,7 @@ const pickerStyles: Record<string, React.CSSProperties> = {
     zIndex: 1000,
   },
   modal: {
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     borderRadius: 12,
     width: '100%',
     maxWidth: 720,
@@ -1303,7 +1303,7 @@ const pickerStyles: Record<string, React.CSSProperties> = {
     background: 'transparent',
     border: 'none',
     fontSize: 18,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     cursor: 'pointer',
     padding: 4,
     lineHeight: 1,
@@ -1319,7 +1319,7 @@ const pickerStyles: Record<string, React.CSSProperties> = {
   code: {
     fontFamily: 'Menlo, monospace',
     fontSize: 11,
-    background: '#F3F4F6',
+    background: 'var(--color-bg-subtle)',
     padding: '1px 6px',
     borderRadius: 4,
     margin: '0 2px',
@@ -1346,7 +1346,7 @@ const pickerStyles: Record<string, React.CSSProperties> = {
   loadingHint: {
     padding: '14px 4px',
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
     fontStyle: 'italic' as const,
     textAlign: 'center' as const,
   },
@@ -1365,7 +1365,7 @@ const pickerStyles: Record<string, React.CSSProperties> = {
     width: '100%',
     textAlign: 'left' as const,
     padding: '10px 12px',
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     border: '1px solid #E2E5EB',
     borderRadius: 6,
     cursor: 'pointer',
@@ -1399,10 +1399,10 @@ const pickerStyles: Record<string, React.CSSProperties> = {
     gap: 6,
     alignItems: 'center',
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
   },
   itemKindChip: {
-    background: '#F3F4F6',
+    background: 'var(--color-bg-subtle)',
     padding: '1px 6px',
     borderRadius: 4,
     fontSize: 11,
@@ -1411,11 +1411,11 @@ const pickerStyles: Record<string, React.CSSProperties> = {
   },
   itemDate: {
     fontFamily: 'Menlo, monospace',
-    color: '#6B7280',
+    color: 'var(--color-text-tertiary)',
   },
   itemLinkedBadge: {
     background: '#0C4A6E',
-    color: '#FFFFFF',
+    color: 'var(--color-text-on-brand)',
     padding: '1px 6px',
     borderRadius: 4,
     fontSize: 10,
@@ -1427,7 +1427,7 @@ const pickerStyles: Record<string, React.CSSProperties> = {
     fontStyle: 'italic' as const,
   },
   error: {
-    background: '#FEF2F2',
+    background: 'var(--color-error-bg)',
     border: '1px solid #FCA5A5',
     color: '#B91C1C',
     padding: 10,
@@ -1832,7 +1832,7 @@ function PromoteToAssetModal({
             style={{
               ...pickerStyles.cancelBtn,
               background: '#0C4A6E',
-              color: '#FFFFFF',
+              color: 'var(--color-text-on-brand)',
               borderColor: '#0C4A6E',
             }}
           >
@@ -1874,7 +1874,7 @@ const promoteStyles: Record<string, React.CSSProperties> = {
   },
   linkBtn: {
     background: '#78350F',
-    color: '#FFFFFF',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 6,
     padding: '6px 12px',
@@ -1902,7 +1902,7 @@ const promoteStyles: Record<string, React.CSSProperties> = {
   code: {
     fontFamily: 'Menlo, monospace',
     fontSize: 11,
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     padding: '1px 6px',
     borderRadius: 4,
     margin: '0 2px',
@@ -1966,9 +1966,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
   },
   tabButtonActive: {
-    background: '#1D3095',
-    color: '#fff',
-    borderColor: '#1D3095',
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
+    borderColor: 'var(--color-brand-navy)',
   },
   tabCount: { opacity: 0.7, fontSize: 12, marginLeft: 6 },
   filterRow: {
@@ -2002,8 +2002,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 16px',
     borderRadius: 6,
     border: '1px solid #1D3095',
-    background: '#1D3095',
-    color: '#fff',
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
     cursor: 'pointer',
     fontSize: 14,
     fontWeight: 500,
@@ -2012,8 +2012,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 16px',
     borderRadius: 6,
     border: '1px solid #1D3095',
-    background: '#fff',
-    color: '#1D3095',
+    background: 'var(--color-bg-card)',
+    color: 'var(--color-brand-navy)',
     fontSize: 14,
     fontWeight: 500,
     textDecoration: 'none',
@@ -2039,7 +2039,7 @@ const styles: Record<string, React.CSSProperties> = {
   row: {
     border: '1px solid #ddd',
     borderRadius: 8,
-    background: '#fff',
+    background: 'var(--color-bg-card)',
     overflow: 'hidden',
     display: 'flex',
     alignItems: 'stretch',
@@ -2056,7 +2056,7 @@ const styles: Record<string, React.CSSProperties> = {
     bottom: 0,
     marginTop: 12,
     padding: '12px 16px',
-    background: '#FFFFFF',
+    background: 'var(--color-bg-card)',
     borderTop: '1px solid #E2E5EB',
     display: 'flex',
     alignItems: 'center',
@@ -2071,7 +2071,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   bulkClearBtn: {
     background: 'transparent',
-    border: '1px solid #D1D5DB',
+    border: 'var(--border-normal)',
     borderRadius: 6,
     padding: '6px 12px',
     cursor: 'pointer',
@@ -2080,7 +2080,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   bulkApproveBtn: {
     background: '#059669',
-    color: '#FFFFFF',
+    color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 6,
     padding: '8px 16px',
@@ -2129,7 +2129,7 @@ const styles: Record<string, React.CSSProperties> = {
     objectFit: 'contain',
     border: '1px solid #ccc',
     borderRadius: 6,
-    background: '#fff',
+    background: 'var(--color-bg-card)',
   },
   photoFallback: {
     padding: 16,
@@ -2172,7 +2172,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     cursor: 'pointer',
   },
-  buttonApprove: { background: '#059669', color: '#fff' },
-  buttonReject: { background: '#DC2626', color: '#fff' },
-  buttonReopen: { background: '#6B7280', color: '#fff' },
+  buttonApprove: { background: '#059669', color: 'var(--color-text-on-brand)' },
+  buttonReject: { background: '#DC2626', color: 'var(--color-text-on-brand)' },
+  buttonReopen: { background: 'var(--color-text-tertiary)', color: 'var(--color-text-on-brand)' },
 };

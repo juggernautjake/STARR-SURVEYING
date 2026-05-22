@@ -119,7 +119,7 @@ const OT_MULTIPLIER = 1.5;
 
 export interface ReportFilter {
   /** When set, every section is filtered to this employee. For jobs
-   *  this scopes to `assigned_to = email`; for hours/mileage to the
+   *  this scopes to `lead_rpls_email = email`; for hours/mileage to the
    *  `user_email` column; for receipts to the underlying user_id
    *  matching this email. */
   employeeEmail?: string;
@@ -210,12 +210,12 @@ export async function buildOperationsReport(
 async function loadJobs(orgId: string, fromIso: string, toIso: string, warnings: string[], filter: ReportFilter) {
   let query = supabaseAdmin
     .from('jobs')
-    .select('id, name, client_name, stage, result, result_set_at, quote_amount, final_amount, date_received, date_started, date_delivered, assigned_to')
+    .select('id, name, client_name, stage, result, result_set_at, quote_amount, final_amount, date_received, date_started, date_delivered, lead_rpls_email')
     .eq('org_id', orgId)
     .or(`date_started.gte.${fromIso},date_delivered.gte.${fromIso},result_set_at.gte.${fromIso},created_at.gte.${fromIso}`)
     .lte('created_at', toIso);
   if (filter.employeeEmail) {
-    query = query.eq('assigned_to', filter.employeeEmail);
+    query = query.eq('lead_rpls_email', filter.employeeEmail);
   }
   const { data, error } = await query;
 
@@ -240,7 +240,7 @@ async function loadJobs(orgId: string, fromIso: string, toIso: string, warnings:
     date_received: string | null;
     date_started: string | null;
     date_delivered: string | null;
-    assigned_to: string | null;
+    lead_rpls_email: string | null;
   };
 
   const rows = (data ?? []) as Row[];
@@ -278,7 +278,7 @@ async function loadJobs(orgId: string, fromIso: string, toIso: string, warnings:
       finalCents,
       dateStarted: r.date_started,
       dateDelivered: r.date_delivered,
-      assignedTo: r.assigned_to,
+      assignedTo: r.lead_rpls_email,
     });
   }
 
@@ -293,10 +293,10 @@ async function loadJobs(orgId: string, fromIso: string, toIso: string, warnings:
 async function loadHours(orgId: string, fromIso: string, toIso: string, warnings: string[], filter: ReportFilter) {
   let query = supabaseAdmin
     .from('job_time_entries')
-    .select('id, user_email, duration_minutes, clock_in_at, clock_out_at, billable, job_id')
+    .select('id, user_email, duration_minutes, start_time, end_time, billable, job_id')
     .eq('org_id', orgId)
-    .gte('clock_in_at', fromIso)
-    .lte('clock_in_at', toIso);
+    .gte('start_time', fromIso)
+    .lte('start_time', toIso);
   if (filter.employeeEmail) {
     query = query.eq('user_email', filter.employeeEmail);
   }
@@ -315,13 +315,13 @@ async function loadHours(orgId: string, fromIso: string, toIso: string, warnings
   type Entry = {
     user_email: string;
     duration_minutes: number | null;
-    clock_in_at: string;
+    start_time: string;
   };
 
   const byEmployeeWeek = new Map<string, Map<string, number>>();
   for (const e of (entries ?? []) as Entry[]) {
     if (!e.duration_minutes || e.duration_minutes <= 0) continue;
-    const weekKey = isoWeekKey(new Date(e.clock_in_at));
+    const weekKey = isoWeekKey(new Date(e.start_time));
     const bucket = byEmployeeWeek.get(e.user_email) ?? new Map<string, number>();
     bucket.set(weekKey, (bucket.get(weekKey) ?? 0) + e.duration_minutes);
     byEmployeeWeek.set(e.user_email, bucket);

@@ -43,7 +43,7 @@ export async function GET(_req: Request, ctx: RouteContext): Promise<NextRespons
 
   const { data: job, error: jobErr } = await supabaseAdmin
     .from('jobs')
-    .select('id, name, client_name, job_number, address, stage, result, result_set_at, result_reason, quote_amount, final_amount, date_received, date_quoted, date_accepted, date_started, date_delivered, assigned_to, created_at, org_id')
+    .select('id, name, client_name, job_number, address, stage, result, result_set_at, result_reason, quote_amount, final_amount, date_received, date_quoted, date_accepted, date_started, date_delivered, lead_rpls_email, created_at, org_id')
     .eq('id', jobId)
     .maybeSingle();
 
@@ -54,9 +54,9 @@ export async function GET(_req: Request, ctx: RouteContext): Promise<NextRespons
   const [hoursRes, receiptsRes, mileageRes, payoutsRes] = await Promise.all([
     supabaseAdmin
       .from('job_time_entries')
-      .select('id, user_email, duration_minutes, clock_in_at, clock_out_at, billable')
+      .select('id, user_email, duration_minutes, start_time, end_time, billable')
       .eq('job_id', jobId)
-      .order('clock_in_at', { ascending: true }),
+      .order('start_time', { ascending: true }),
     supabaseAdmin
       .from('receipts')
       .select('id, user_id, vendor_name, transaction_at, total_cents, status, category')
@@ -90,10 +90,10 @@ export async function GET(_req: Request, ctx: RouteContext): Promise<NextRespons
 
   // Hours grouped by employee + per-week OT calc
   const byEmployeeWeek = new Map<string, Map<string, number>>();
-  type HourEntry = { id: string; user_email: string; duration_minutes: number | null; clock_in_at: string; clock_out_at: string | null; billable: boolean | null };
+  type HourEntry = { id: string; user_email: string; duration_minutes: number | null; start_time: string; end_time: string | null; billable: boolean | null };
   for (const e of (hoursRes.data ?? []) as HourEntry[]) {
     if (!e.duration_minutes || e.duration_minutes <= 0) continue;
-    const weekKey = isoWeekKey(new Date(e.clock_in_at));
+    const weekKey = isoWeekKey(new Date(e.start_time));
     const bucket = byEmployeeWeek.get(e.user_email) ?? new Map<string, number>();
     bucket.set(weekKey, (bucket.get(weekKey) ?? 0) + e.duration_minutes);
     byEmployeeWeek.set(e.user_email, bucket);
@@ -201,7 +201,7 @@ export async function GET(_req: Request, ctx: RouteContext): Promise<NextRespons
       dateAccepted: job.date_accepted,
       dateStarted: job.date_started,
       dateDelivered: job.date_delivered,
-      assignedTo: job.assigned_to,
+      assignedTo: job.lead_rpls_email,
       createdAt: job.created_at,
     },
     hours: {

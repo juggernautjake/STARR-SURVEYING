@@ -282,7 +282,7 @@ export default function ReportsPage() {
                       <td>
                         <Link href={`/admin/reports/job/${j.id}`}>{j.name}</Link>
                         {' '}
-                        <Link href={`/admin/jobs/${j.id}`} style={{ fontSize: '0.78rem', color: '#6B7280' }}>↗</Link>
+                        <Link href={`/admin/jobs/${j.id}`} style={{ fontSize: '0.78rem', color: 'var(--color-text-tertiary)' }}>↗</Link>
                       </td>
                       <td>{j.client ?? '—'}</td>
                       <td>{j.result ?? j.stage}</td>
@@ -744,7 +744,7 @@ function SectionHeader({ title, csvSection, range }: { title: string; csvSection
         className="reports-no-print"
         style={{
           fontSize: '0.78rem',
-          color: '#1D3095',
+          color: 'var(--color-brand-navy)',
           fontWeight: 600,
           textDecoration: 'none',
           padding: '0.25rem 0.6rem',
@@ -762,18 +762,18 @@ function Stat({ label, value, secondary }: { label: string; value: string; secon
   return (
     <div style={{
       padding: '0.7rem 0.85rem',
-      background: '#F9FAFB',
-      border: '1px solid #E5E7EB',
+      background: 'var(--color-bg-app)',
+      border: 'var(--border-light)',
       borderRadius: 8,
     }}>
-      <div style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
+      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
         {label}
       </div>
       <div style={{ fontFamily: 'Sora, sans-serif', fontSize: '1.5rem', fontWeight: 600, marginTop: '0.15rem' }}>
         {value}
       </div>
       {secondary && (
-        <div style={{ fontSize: '0.76rem', color: '#6B7280', marginTop: '0.15rem' }}>{secondary}</div>
+        <div style={{ fontSize: '0.76rem', color: 'var(--color-text-tertiary)', marginTop: '0.15rem' }}>{secondary}</div>
       )}
     </div>
   );

@@ -73,16 +73,16 @@ export async function GET(req: NextRequest): Promise<Response> {
     case 'jobs': {
       const { data } = await supabaseAdmin
         .from('jobs')
-        .select('id, name, client_name, stage, result, quote_amount, final_amount, date_started, date_delivered, assigned_to')
+        .select('id, name, client_name, stage, result, quote_amount, final_amount, date_started, date_delivered, lead_rpls_email')
         .eq('org_id', orgId)
         .or(`date_started.gte.${fromIso},date_delivered.gte.${fromIso},result_set_at.gte.${fromIso},created_at.gte.${fromIso}`)
         .lte('created_at', toIso);
       csv = rowsToCsv(
-        ['id', 'name', 'client', 'stage', 'result', 'quote', 'final', 'started', 'delivered', 'assigned_to'],
+        ['id', 'name', 'client', 'stage', 'result', 'quote', 'final', 'started', 'delivered', 'lead_rpls_email'],
         (data ?? []).map((r: Record<string, unknown>) => [
           r.id, r.name, r.client_name, r.stage, r.result,
           r.quote_amount, r.final_amount,
-          r.date_started, r.date_delivered, r.assigned_to,
+          r.date_started, r.date_delivered, r.lead_rpls_email,
         ]),
       );
       break;
@@ -90,15 +90,15 @@ export async function GET(req: NextRequest): Promise<Response> {
     case 'hours': {
       const { data } = await supabaseAdmin
         .from('job_time_entries')
-        .select('id, user_email, job_id, clock_in_at, clock_out_at, duration_minutes, billable')
+        .select('id, user_email, job_id, start_time, end_time, duration_minutes, billable')
         .eq('org_id', orgId)
-        .gte('clock_in_at', fromIso)
-        .lte('clock_in_at', toIso);
+        .gte('start_time', fromIso)
+        .lte('start_time', toIso);
       csv = rowsToCsv(
         ['id', 'user_email', 'job_id', 'clock_in', 'clock_out', 'duration_minutes', 'billable'],
         (data ?? []).map((r: Record<string, unknown>) => [
           r.id, r.user_email, r.job_id,
-          r.clock_in_at, r.clock_out_at, r.duration_minutes, r.billable,
+          r.start_time, r.end_time, r.duration_minutes, r.billable,
         ]),
       );
       break;
