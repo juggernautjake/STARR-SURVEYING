@@ -234,6 +234,8 @@ function normalize(input: string): string {
   s = s.replace(/\)(?=\d)/g, ')*');
   // 3. constant π/e followed by digit/letter/open-paren
   s = s.replace(/([πe])(?=[\dA-Za-z(])/g, '$1*');
+  // 4. factorial postfix followed by digit/letter/open-paren — e.g. 3!4! → 3!*4!
+  s = s.replace(/!(?=[\dA-Za-zπe(])/g, '!*');
   return s;
 }
 
