@@ -606,6 +606,99 @@
   color: var(--color-text-muted);
 }
 
+/* XP milestones bar — P-4 of PAY_PROGRESSION_OVERHAUL.md.
+ * Horizontal progress track. .pay-prog__xp-track is the rail
+ * (height 14px, gray bg). .pay-prog__xp-fill is the gold/navy
+ * gradient overlay sized by inline width %. .pay-prog__xp-notch
+ * positions absolutely along the track; each notch shows the $/hr
+ * unlocked above + the XP threshold below. Passed notches glow gold. */
+.pay-prog__xp-bar {
+  padding: 1.5rem 0.5rem 2.25rem;
+}
+.pay-prog__xp-track {
+  position: relative;
+  height: 14px;
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-light);
+  overflow: visible;
+}
+.pay-prog__xp-fill {
+  position: absolute;
+  inset: 1px auto 1px 1px;
+  height: calc(100% - 2px);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--color-brand-navy) 0%, var(--color-brand-gold) 100%);
+  transition: width var(--transition-base);
+  box-shadow: 0 0 8px rgba(252, 211, 77, 0.35);
+}
+.pay-prog__xp-notch {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+.pay-prog__xp-notch-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-bg-card);
+  border: 2px solid var(--color-text-muted);
+  margin: 0 auto;
+}
+.pay-prog__xp-notch-tag {
+  position: absolute;
+  bottom: 22px;
+  font-family: var(--font-heading);
+  font-size: 0.68rem;
+  font-weight: var(--weight-bold);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  padding: 0.15rem 0.45rem;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-sm);
+  border: var(--border-light);
+}
+.pay-prog__xp-notch-label {
+  position: absolute;
+  top: 20px;
+  font-family: var(--font-body);
+  font-size: 0.65rem;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pay-prog__xp-notch--passed .pay-prog__xp-notch-dot {
+  background: var(--color-brand-gold);
+  border-color: var(--color-brand-gold);
+  box-shadow: 0 0 0 3px rgba(252, 211, 77, 0.25), 0 0 10px rgba(252, 211, 77, 0.45);
+}
+.pay-prog__xp-notch--passed .pay-prog__xp-notch-tag {
+  color: var(--color-brand-navy);
+  border-color: var(--color-brand-gold);
+  background: #FFFDF5;
+}
+.pay-prog__xp-notch--passed .pay-prog__xp-notch-label {
+  color: var(--color-brand-navy);
+}
+.pay-prog__xp-next {
+  margin: 1.25rem 0 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .pay-prog__xp-bar { padding: 1.25rem 0 2rem; }
+  .pay-prog__xp-notch-tag { font-size: 0.6rem; padding: 0.1rem 0.3rem; }
+  .pay-prog__xp-notch-label { font-size: 0.6rem; }
+}
+
 /* Earned state — brand-gold medal, navy accent */
 .pay-prog__badge--earned {
   border-color: rgba(252, 211, 77, 0.55);

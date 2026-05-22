@@ -50,6 +50,12 @@ interface Profile {
   hourly_rate: number;
 }
 
+interface XpBalance {
+  current_balance: number;
+  total_earned: number;
+  total_spent: number;
+}
+
 export default function PayProgressionPage() {
   const [workRates, setWorkRates] = useState<WorkTypeRate[]>([]);
   const [roles, setRoles] = useState<RoleTier[]>([]);
@@ -58,6 +64,7 @@ export default function PayProgressionPage() {
   const [xpMilestones, setXpMilestones] = useState<XpMilestone[]>([]);
   const [earnedCreds, setEarnedCreds] = useState<{ credential_key: string; earned_date?: string }[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [balance, setBalance] = useState<XpBalance | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchData(); }, []);
@@ -74,6 +81,7 @@ export default function PayProgressionPage() {
         setXpMilestones(data.xp_milestones || []);
         setEarnedCreds(data.earned_credentials || []);
         setProfile(data.profile || null);
+        setBalance(data.balance || null);
       }
     } catch (err) { console.error('PayProgressionPage: fetch failed', err); }
     setLoading(false);
@@ -384,29 +392,67 @@ export default function PayProgressionPage() {
         </div>
       </div>
 
-      {/* XP Milestones */}
-      <div className="pay-prog__section">
-        <h3 className="pay-prog__section-title">&#x2B50; XP Milestones</h3>
-        <p className="pay-prog__section-desc">
-          Earn XP by completing modules, quizzes, and exams. Every 10,000 XP earns +$0.50/hr,
-          capped at <strong>$3.00/hr</strong> total from XP milestones.
-        </p>
-        <div className="pay-prog__xp-milestones">
-          {xpMilestones.map((m, i) => (
-            <div key={m.xp_threshold} className={`pay-prog__xp-milestone ${m.achieved ? 'pay-prog__xp-milestone--achieved' : ''}`}>
-              <div className="pay-prog__xp-dot" style={{ background: m.achieved ? '#10B981' : '#E5E7EB' }}>
-                {m.achieved ? '\u2713' : (i + 1)}
-              </div>
-              <div className="pay-prog__xp-info">
-                <span className="pay-prog__xp-label">{m.label}</span>
-                <span className="pay-prog__xp-threshold">{m.xp_threshold.toLocaleString()} XP</span>
-                <span className="pay-prog__xp-bonus">+${m.bonus_per_hour.toFixed(2)}/hr</span>
-              </div>
-              {i < xpMilestones.length - 1 && <div className={`pay-prog__xp-connector ${m.achieved ? 'pay-prog__xp-connector--active' : ''}`} />}
+      {/* XP milestones bar \u2014 P-4 of PAY_PROGRESSION_OVERHAUL.md.
+       * Horizontal progress track with notches at each xp_threshold.
+       * Bar fill width = currentXp / maxThreshold, clamped at 100%.
+       * Each notch tags the $/hr it unlocks; passed notches glow gold.
+       * Replaces the horizontal-scroll milestone strip. */}
+      {(() => {
+        const sortedMilestones = [...xpMilestones].sort((a, b) => a.xp_threshold - b.xp_threshold);
+        const currentXp = Number(balance?.total_earned || 0);
+        const maxThreshold = sortedMilestones.length > 0 ? sortedMilestones[sortedMilestones.length - 1].xp_threshold : 0;
+        const fillPct = maxThreshold > 0 ? Math.min(100, (currentXp / maxThreshold) * 100) : 0;
+        const nextMilestone = sortedMilestones.find(m => currentXp < m.xp_threshold);
+        const xpToNext = nextMilestone ? nextMilestone.xp_threshold - currentXp : 0;
+        const xpBonusEarned = sortedMilestones
+          .filter(m => currentXp >= m.xp_threshold)
+          .reduce((sum, m) => sum + Number(m.bonus_per_hour || 0), 0);
+        return (
+          <div className="pay-prog__section">
+            <div className="pay-prog__section-header">
+              <h3 className="pay-prog__section-title">&#x2B50; XP Milestones</h3>
+              <span className="pay-prog__section-count">
+                {currentXp.toLocaleString()} XP earned \u00b7 +${xpBonusEarned.toFixed(2)}/hr unlocked \u00b7 cap +$3.00/hr
+              </span>
             </div>
-          ))}
-        </div>
-      </div>
+            <p className="pay-prog__section-desc">
+              Earn XP by completing modules, quizzes, and exams. Every 10,000 XP earns +$0.50/hr,
+              capped at <strong>$3.00/hr</strong> total from XP milestones.
+            </p>
+            <div className="pay-prog__xp-bar">
+              <div className="pay-prog__xp-track" role="progressbar" aria-valuenow={Math.round(fillPct)} aria-valuemin={0} aria-valuemax={100}>
+                <div className="pay-prog__xp-fill" style={{ width: `${fillPct}%` }} />
+                {sortedMilestones.map(m => {
+                  const left = maxThreshold > 0 ? (m.xp_threshold / maxThreshold) * 100 : 0;
+                  const passed = currentXp >= m.xp_threshold;
+                  return (
+                    <div
+                      key={m.xp_threshold}
+                      className={`pay-prog__xp-notch ${passed ? 'pay-prog__xp-notch--passed' : ''}`}
+                      style={{ left: `${left}%` }}
+                      aria-hidden="true"
+                    >
+                      <span className="pay-prog__xp-notch-dot" />
+                      <span className="pay-prog__xp-notch-tag">+${Number(m.bonus_per_hour).toFixed(2)}/hr</span>
+                      <span className="pay-prog__xp-notch-label">{(m.xp_threshold / 1000).toFixed(0)}k</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {nextMilestone && (
+                <p className="pay-prog__xp-next">
+                  <strong>{xpToNext.toLocaleString()} XP</strong> to next milestone
+                  &nbsp;\u00b7&nbsp;
+                  unlocks <strong>+${Number(nextMilestone.bonus_per_hour).toFixed(2)}/hr</strong>
+                </p>
+              )}
+              {!nextMilestone && sortedMilestones.length > 0 && (
+                <p className="pay-prog__xp-next">All XP milestones unlocked &mdash; you&apos;ve maxed the XP track \ud83c\udf89</p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Education Reimbursement */}
       <div className="pay-prog__section">
