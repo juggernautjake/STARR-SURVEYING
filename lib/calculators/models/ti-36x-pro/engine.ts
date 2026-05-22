@@ -56,6 +56,37 @@ export function initialState(): Ti36xState {
   };
 }
 
+/**
+ * Project the engine state down to the JSON-safe subset worth persisting.
+ * Transient flags (shiftActive, pendingMemOp) intentionally drop — opening
+ * the calculator the next day shouldn't leave the user mid-2nd-modifier.
+ */
+export interface Ti36xSerialized {
+  schema_version: 1;
+  entry: string;
+  result: string;
+  angleMode: M.AngleMode;
+  displayMode: M.DisplayMode;
+  displayDigits: number;
+  lastAnswer: number;
+  memory: Record<MemSlot, number>;
+  history: HistoryEntry[];
+}
+
+export function serialize(state: Ti36xState): Ti36xSerialized {
+  return {
+    schema_version: 1,
+    entry: state.entry,
+    result: state.result,
+    angleMode: state.angleMode,
+    displayMode: state.displayMode,
+    displayDigits: state.displayDigits,
+    lastAnswer: state.lastAnswer,
+    memory: state.memory,
+    history: state.history,
+  };
+}
+
 /** Hydrate a saved state — tolerates older shapes via schema_version. */
 export function hydrate(blob: unknown): Ti36xState {
   const base = initialState();

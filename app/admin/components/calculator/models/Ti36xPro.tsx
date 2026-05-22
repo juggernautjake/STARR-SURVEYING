@@ -15,7 +15,7 @@ import { Display } from '../Display';
 import { HistoryStrip } from '../HistoryStrip';
 import { useCalculator } from '../CalculatorProvider';
 import { TI_36X_PRO_KEYPAD, TI_36X_PRO_GRID } from '@/lib/calculators/models/ti-36x-pro/keypad-data';
-import { dispatch, hydrate, initialState, type Ti36xState } from '@/lib/calculators/models/ti-36x-pro/engine';
+import { dispatch, hydrate, initialState, serialize, type Ti36xState } from '@/lib/calculators/models/ti-36x-pro/engine';
 import type { KeyDef } from '@/lib/calculators/shared';
 
 const MODEL_KEY = 'ti-36x-pro' as const;
@@ -38,10 +38,13 @@ export function Ti36xPro() {
     return () => { cancelled = true; };
   }, [loadState]);
 
-  // Push changes to the provider's debounced saver.
+  // Push changes to the provider's debounced saver. We serialize first so
+  // transient flags (2nd modifier armed, pending STO/RCL prompt) don't
+  // persist across sessions — opening the calculator should never leave
+  // the user mid-key-sequence.
   useEffect(() => {
     if (!hydrated) return;
-    saveState(MODEL_KEY, state);
+    saveState(MODEL_KEY, serialize(state));
   }, [state, hydrated, saveState]);
 
   const onKey = useCallback((key: KeyDef) => {

@@ -4,7 +4,7 @@
 // C-7 of EXAM_CALCULATORS.md.
 
 import { describe, it, expect } from 'vitest';
-import { dispatch, evaluate, initialState, type Ti36xState } from '@/lib/calculators/models/ti-36x-pro/engine';
+import { dispatch, evaluate, hydrate, initialState, serialize, type Ti36xState } from '@/lib/calculators/models/ti-36x-pro/engine';
 
 function press(state: Ti36xState, ...ids: string[]): Ti36xState {
   return ids.reduce((s, id) => dispatch(s, { type: 'press', keyId: id }), state);
@@ -157,5 +157,46 @@ describe('TI-36X Pro — memory + history (C-8)', () => {
     }
     expect(s.history.length).toBe(10);
     expect(s.history[s.history.length - 1].result).toBe(String(12 % 10));
+  });
+});
+
+describe('TI-36X Pro — serialize / hydrate round-trip (C-9)', () => {
+  it('serialize drops transient flags', () => {
+    const s: Ti36xState = { ...initialState(), shiftActive: true, pendingMemOp: 'sto' };
+    const json = serialize(s);
+    expect('shiftActive' in json).toBe(false);
+    expect('pendingMemOp' in json).toBe(false);
+  });
+
+  it('hydrate(serialize(state)) preserves all persisted fields', () => {
+    let s = press(initialState(), 'n4', 'n2', 'eq');
+    s = press(s, 'sto', 'n1');                          // memory.x = 42
+    s = press(s, 'mode');                               // RAD
+    const json = serialize(s);
+    const round = hydrate(JSON.parse(JSON.stringify(json)));
+    expect(round.lastAnswer).toBe(42);
+    expect(round.memory.x).toBe(42);
+    expect(round.angleMode).toBe('RAD');
+    expect(round.history.length).toBe(1);
+    // Transient flags reset to defaults.
+    expect(round.shiftActive).toBe(false);
+    expect(round.pendingMemOp).toBeNull();
+  });
+
+  it('hydrate of malformed blob falls back to initial state', () => {
+    const r1 = hydrate(null);
+    expect(r1.entry).toBe('');
+    expect(r1.lastAnswer).toBe(0);
+    const r2 = hydrate({ memory: 'not an object' });
+    expect(r2.memory.x).toBe(0);
+  });
+
+  it('hydrate truncates oversized history to cap', () => {
+    const oversized = Array.from({ length: 25 }, (_, i) => ({ entry: String(i), result: String(i), value: i }));
+    const r = hydrate({ history: oversized });
+    expect(r.history.length).toBe(10);
+    // Latest 10 retained (slice(-10)).
+    expect(r.history[0].value).toBe(15);
+    expect(r.history[9].value).toBe(24);
   });
 });
