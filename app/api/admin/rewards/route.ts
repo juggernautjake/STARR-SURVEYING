@@ -90,9 +90,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .select('*').order('base_bonus', { ascending: false });
     result.role_tiers = roles || [];
 
-    // User's earned credentials
+    // User's earned credentials. Only verified rows count toward the pay
+    // calculation — pending (verified=false) rows come from learn completions
+    // that admin hasn't approved yet (P-19 / P-21). The pay-progression page
+    // hides the pending state from the employee; the admin approval queue
+    // surfaces it instead.
     const { data: earnedCreds } = await supabaseAdmin.from('employee_earned_credentials')
-      .select('credential_key, earned_date').eq('user_email', userEmail);
+      .select('credential_key, earned_date')
+      .eq('user_email', userEmail)
+      .eq('verified', true);
     result.earned_credentials = earnedCreds || [];
 
     // Employee profile for hire date
