@@ -223,6 +223,7 @@ export default function PayProgressionPage() {
               the pay-config API.
             </span>
           </div>
+          <CredentialQueue />
           <SystemConfigPanel />
         </>
       )}
@@ -2445,6 +2446,125 @@ function SystemConfigRow({ entry, onSaved }: { entry: SystemConfigEntry; onSaved
       >
         {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
       </button>
+    </div>
+  );
+}
+
+// ─── Credential approval queue (P-21) ───────────────────────────────────────
+// Admin panel listing all pending earned credentials. Approve flips
+// verified=true (the bump becomes live via the rewards-API filter).
+// Deny removes the pending row. Hidden by default — only renders when
+// admin edit mode is on.
+
+interface QueueEntry {
+  id: string;
+  user_email: string;
+  credential_key: string;
+  earned_date: string;
+  source: string | null;
+  created_at: string;
+  bonus_per_hour: number | null;
+  credential_label: string | null;
+}
+
+function CredentialQueue() {
+  const [queue, setQueue] = useState<QueueEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/pay-config/credential-queue');
+      if (res.ok) {
+        const data = await res.json() as { queue: QueueEntry[] };
+        setQueue(data.queue || []);
+      }
+    } finally { setLoading(false); }
+  }
+  useEffect(() => { load(); }, []);
+
+  async function act(id: string, action: 'approve' | 'deny') {
+    setBusyId(id);
+    try {
+      const res = await fetch('/api/admin/pay-config/credential-queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action }),
+      });
+      if (res.ok) load();
+      else {
+        const body = await res.json().catch(() => ({}));
+        window.alert(body.error || 'Action failed');
+      }
+    } finally { setBusyId(null); }
+  }
+
+  if (loading) {
+    return <div className="pay-prog__section">Loading credential queue…</div>;
+  }
+
+  return (
+    <div className="pay-prog__section">
+      <div className="pay-prog__section-header">
+        <h3 className="pay-prog__section-title">🛂 Credential approval queue</h3>
+        <span className="pay-prog__section-count">{queue.length} pending</span>
+      </div>
+      <p className="pay-prog__section-desc">
+        When an employee completes a learning module that maps to a credential, a pending row is
+        created here. Approving flips <code>verified=true</code> so the pay calculator counts the
+        bump on the next reload. Denying removes the row.
+      </p>
+      {queue.length === 0 ? (
+        <p className="pay-prog__section-desc" style={{ marginTop: '0.5rem' }}>
+          ✅ Nothing waiting — every earned credential has been verified.
+        </p>
+      ) : (
+        <div className="pay-prog__audit-list">
+          {queue.map(q => (
+            <div key={q.id} className="pay-prog__queue-row">
+              <div className="pay-prog__queue-info">
+                <div className="pay-prog__queue-head">
+                  <span className="pay-prog__queue-user">{q.user_email}</span>
+                  <span className="pay-prog__queue-cred">
+                    {q.credential_label || q.credential_key}
+                    {q.bonus_per_hour !== null && (
+                      <strong className="pay-prog__queue-bonus"> · +${Number(q.bonus_per_hour).toFixed(2)}/hr</strong>
+                    )}
+                  </span>
+                </div>
+                <span className="pay-prog__queue-meta">
+                  Earned {q.earned_date}
+                  {q.source && <> · source <code>{q.source}</code></>}
+                  &nbsp;· submitted {new Date(q.created_at).toLocaleString()}
+                </span>
+              </div>
+              <div className="pay-prog__queue-actions">
+                <button
+                  type="button"
+                  className="btn btn--sm btn--primary"
+                  disabled={busyId === q.id}
+                  onClick={() => act(q.id, 'approve')}
+                >
+                  {busyId === q.id ? '…' : 'Approve'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--sm btn--danger"
+                  disabled={busyId === q.id}
+                  onClick={() => {
+                    if (window.confirm(`Deny ${q.credential_key} for ${q.user_email}? The pending row will be deleted.`)) {
+                      act(q.id, 'deny');
+                    }
+                  }}
+                >
+                  Deny
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
