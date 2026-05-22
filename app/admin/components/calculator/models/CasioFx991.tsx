@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Keypad } from '../Keypad';
 import { NaturalDisplay } from '../NaturalDisplay';
 import { useCalculator } from '../CalculatorProvider';
+import { useCalculatorKeyEvents } from '../useCalculatorKeyEvents';
 import { CASIO_FX991_KEYPAD, CASIO_FX991_GRID } from '@/lib/calculators/models/casio-fx-991/keypad-data';
 import { dispatch, hydrate, initialState, serialize, type CasioFx991State } from '@/lib/calculators/models/casio-fx-991/engine';
 import type { KeyDef } from '@/lib/calculators/shared';
@@ -39,6 +40,10 @@ export function CasioFx991() {
   const onKey = useCallback((key: KeyDef) => {
     setState(prev => dispatch(prev, { type: 'press', keyId: key.id }));
   }, []);
+
+  useCalculatorKeyEvents(useCallback((keyId: string) => {
+    setState(prev => dispatch(prev, { type: 'press', keyId }));
+  }, []));
 
   const copyResult = useCallback(() => {
     if (!state.result) return;

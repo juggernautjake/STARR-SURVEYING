@@ -21,6 +21,7 @@ import { Keypad } from '../Keypad';
 import { Display } from '../Display';
 import { HistoryStrip } from '../HistoryStrip';
 import { useCalculator } from '../CalculatorProvider';
+import { useCalculatorKeyEvents } from '../useCalculatorKeyEvents';
 import { TI_36X_PRO_KEYPAD, TI_36X_PRO_GRID } from '@/lib/calculators/models/ti-36x-pro/keypad-data';
 import { dispatch, hydrate, initialState, serialize, type Ti36xState } from '@/lib/calculators/models/ti-36x-pro/engine';
 import type { KeyDef } from '@/lib/calculators/shared';
@@ -51,6 +52,10 @@ export function Ti30xsMultiView() {
   const onKey = useCallback((key: KeyDef) => {
     setState(prev => dispatch(prev, { type: 'press', keyId: key.id }));
   }, []);
+
+  useCalculatorKeyEvents(useCallback((keyId: string) => {
+    setState(prev => dispatch(prev, { type: 'press', keyId }));
+  }, []));
 
   const copyResult = useCallback(() => {
     if (!state.result) return;

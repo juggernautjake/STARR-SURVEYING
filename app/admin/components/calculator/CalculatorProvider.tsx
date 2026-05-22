@@ -168,6 +168,40 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [flushPendingSave]);
 
+  // ── Keyboard accelerators (C-24) ──────────────────────────────────────────
+  // While the modal is open, common physical keys map to canonical key ids
+  // that every model recognizes (n0..n9, dot, add/sub/mul/div, eq, del,
+  // enter). Tab navigation (←/→) stays here in the provider. The model
+  // wrappers each subscribe to a `calculator:key` CustomEvent on window
+  // — see useCalculatorKeyEvents() in CalculatorKeyboard.tsx.
+  useEffect(() => {
+    if (!isOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      // Don't intercept typing in an input/textarea — the user is filling
+      // a quiz field, not driving the calculator.
+      const tgt = e.target as HTMLElement | null;
+      if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable)) {
+        return;
+      }
+      // Tab navigation (alt-arrow so we don't fight inline text editing).
+      if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        const idx = CALCULATOR_MODELS.findIndex(m => m.key === currentModel);
+        const next = e.key === 'ArrowLeft'
+          ? (idx - 1 + CALCULATOR_MODELS.length) % CALCULATOR_MODELS.length
+          : (idx + 1) % CALCULATOR_MODELS.length;
+        setCurrentModel(CALCULATOR_MODELS[next].key);
+        e.preventDefault();
+        return;
+      }
+      const id = mapKey(e.key);
+      if (!id) return;
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('calculator:key', { detail: { keyId: id } }));
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, currentModel, setCurrentModel]);
+
   const ctxValue = useMemo<CalculatorCtx>(() => ({
     isOpen, currentModel, openCalculator, closeCalculator, setCurrentModel,
     saveState, loadState, clearState,
@@ -212,6 +246,25 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
       </CalculatorModal>
     </Ctx.Provider>
   );
+}
+
+// Map a physical keyboard event to a canonical keypad-data id.
+function mapKey(key: string): string | null {
+  if (/^[0-9]$/.test(key)) return `n${key}`;
+  if (key === '.') return 'dot';
+  if (key === '+') return 'add';
+  if (key === '-') return 'sub';
+  if (key === '*') return 'mul';
+  if (key === '/') return 'div';
+  if (key === '(') return 'lparen';
+  if (key === ')') return 'rparen';
+  if (key === ',') return 'comma';
+  if (key === '!') return 'fact';
+  if (key === '^') return 'pow';
+  if (key === 'Enter') return 'enter';
+  if (key === '=') return 'eq';
+  if (key === 'Backspace') return 'del';
+  return null;
 }
 
 function renderModel(model: ModelDef) {

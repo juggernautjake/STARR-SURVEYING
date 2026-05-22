@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Keypad } from '../Keypad';
 import { Display } from '../Display';
 import { useCalculator } from '../CalculatorProvider';
+import { useCalculatorKeyEvents } from '../useCalculatorKeyEvents';
 import { HP_35S_KEYPAD, HP_35S_GRID } from '@/lib/calculators/models/hp-35s/keypad-data';
 import {
   dispatch, hydrate, initialState, serialize, type Hp35sState,
@@ -53,6 +54,10 @@ export function Hp33s() {
   const onKey = useCallback((key: KeyDef) => {
     setState(prev => dispatch(prev, { type: 'press', keyId: key.id }));
   }, []);
+
+  useCalculatorKeyEvents(useCallback((keyId: string) => {
+    setState(prev => dispatch(prev, { type: 'press', keyId }));
+  }, []));
 
   const copyResult = useCallback(() => {
     if (!state.result) return;
