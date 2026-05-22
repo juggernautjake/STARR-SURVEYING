@@ -572,6 +572,21 @@
   color: #d97706; /* orange — primary shift convention */
 }
 
+/* TI-30Xa palette — the original 30X has a darker charcoal body and
+ * a green-tinted LCD vs the Pro's lighter grey. Keys are also a touch
+ * more saturated. Engine + shared keypad tones still apply; this just
+ * tweaks the surroundings. */
+.calc-model--ti-30xa {
+  background: linear-gradient(180deg, #2a2c2e 0%, #14161a 100%);
+}
+.calc-model--ti-30xa .calc-key--shift {
+  background: linear-gradient(180deg, #f0b830 0%, #b78900 100%);
+  color: #1a1a1a;
+}
+.calc-model--ti-30xa .calc-key__shift-label {
+  color: #d97706;
+}
+
 /* Casio fx-991ES PLUS palette override — silver body, dark-blue header
  * convention, yellow SHIFT labels + red ALPHA labels. */
 .calc-model--casio-fx991 {

@@ -18,6 +18,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { CalculatorModal } from './CalculatorModal';
 import { Ti36xPro } from './models/Ti36xPro';
 import { Ti30xsMultiView } from './models/Ti30xsMultiView';
+import { Ti30xa } from './models/Ti30xa';
 import { CasioFx991 } from './models/CasioFx991';
 import { CasioFx115 } from './models/CasioFx115';
 import { Hp35s } from './models/Hp35s';
@@ -26,6 +27,7 @@ import { Hp33s } from './models/Hp33s';
 export type ModelKey =
   | 'ti-36x-pro'
   | 'ti-30xs-multiview'
+  | 'ti-30xa'
   | 'casio-fx-991'
   | 'casio-fx-115'
   | 'hp-35s'
@@ -53,6 +55,9 @@ export const CALCULATOR_MODELS: ModelDef[] = [
   { key: 'casio-fx-115',      brand: 'Casio', label: 'Casio fx-115ES PLUS', width: 340, height: 560, phase: 5 },
   { key: 'hp-33s',            brand: 'HP',    label: 'HP 33s',             width: 280, height: 580, phase: 5 },
   { key: 'ti-30xs-multiview', brand: 'TI',    label: 'TI-30XS MultiView',  width: 320, height: 540, phase: 5 },
+  // Post-plan addition (user-requested): TI-30Xa, the original single-line
+  // TI-30X. Approved by NCEES under the "TI-30X" model-name rule.
+  { key: 'ti-30xa',           brand: 'TI',    label: 'TI-30Xa',             width: 300, height: 520, phase: 5 },
 ];
 
 const LAST_MODEL_STORAGE_KEY = 'calculatorLastModel';
@@ -271,6 +276,7 @@ function renderModel(model: ModelDef) {
   // C-6+ replaces each placeholder with the real shell as phases ship.
   if (model.key === 'ti-36x-pro') return <Ti36xPro />;
   if (model.key === 'ti-30xs-multiview') return <Ti30xsMultiView />;
+  if (model.key === 'ti-30xa') return <Ti30xa />;
   if (model.key === 'casio-fx-991') return <CasioFx991 />;
   if (model.key === 'casio-fx-115') return <CasioFx115 />;
   if (model.key === 'hp-35s') return <Hp35s />;
