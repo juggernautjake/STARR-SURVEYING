@@ -196,16 +196,39 @@
   border-radius: var(--radius-sm);
 }
 
-/* ─── History strip (C-8) ──────────────────────────────────────────────── */
+/* ─── History strip (C-8 + user-feedback refinement) ──────────────────────
+ * Fixed compact height with an always-visible scrollbar — previously the
+ * strip would silently expand-then-compress as rows piled up; now the
+ * height is constant and scroll is the way to see older entries.
+ * Newest entry pinned at top via auto-scroll (HistoryStrip.tsx). */
 .calc-history {
-  max-height: 80px;
-  overflow-y: auto;
+  /* Roughly 3 visible rows. Older entries scroll under. */
+  height: 58px;
+  min-height: 58px;
+  max-height: 58px;
+  overflow-y: scroll;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 1px;
   background: rgba(0, 0, 0, 0.2);
   border-radius: var(--radius-sm);
   padding: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+.calc-history::-webkit-scrollbar {
+  width: 6px;
+}
+.calc-history::-webkit-scrollbar-track {
+  background: transparent;
+}
+.calc-history::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+}
+.calc-history::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.6);
 }
 .calc-history__row {
   display: flex;
@@ -222,6 +245,7 @@
   cursor: pointer;
   text-align: right;
   overflow: hidden;
+  flex-shrink: 0; /* never compress rows — scroll instead */
 }
 .calc-history__row:hover {
   background: rgba(200, 208, 197, 1);
@@ -572,19 +596,41 @@
   color: #d97706; /* orange — primary shift convention */
 }
 
-/* TI-30Xa palette — the original 30X has a darker charcoal body and
- * a green-tinted LCD vs the Pro's lighter grey. Keys are also a touch
- * more saturated. Engine + shared keypad tones still apply; this just
- * tweaks the surroundings. */
+/* TI-30Xa palette — refined from a high-resolution user-supplied
+ * device photo (CALCULATOR_POLISH_2.md P-4 followup). The real device
+ * is unusual: the 2nd key is BRIGHT GREEN (most TI calculators use
+ * yellow), the digit + operator keys are BLACK with white labels
+ * (not light grey like the rest of the function keys), and the
+ * shift-labels printed above the keys are tiny yellow text. */
 .calc-model--ti-30xa {
-  background: linear-gradient(180deg, #2a2c2e 0%, #14161a 100%);
+  background: linear-gradient(180deg, #4a4d52 0%, #2a2c2f 100%);
+}
+.calc-model--ti-30xa .calc-key {
+  background: linear-gradient(180deg, #f4f5f6 0%, #c8cbcf 100%);
+  color: #0c0e10;
+  border: 1px solid rgba(0, 0, 0, 0.35);
 }
 .calc-model--ti-30xa .calc-key--shift {
-  background: linear-gradient(180deg, #f0b830 0%, #b78900 100%);
-  color: #1a1a1a;
+  /* The hallmark green 2nd key. */
+  background: linear-gradient(180deg, #56b146 0%, #2e7d2a 100%);
+  color: #ffffff;
+}
+.calc-model--ti-30xa .calc-key--digit {
+  background: linear-gradient(180deg, #2a2c2f 0%, #16181b 100%);
+  color: #f5f7f9;
+  font-weight: 700;
+}
+.calc-model--ti-30xa .calc-key--op {
+  background: linear-gradient(180deg, #2a2c2f 0%, #16181b 100%);
+  color: #f5f7f9;
+}
+.calc-model--ti-30xa .calc-key--eval {
+  background: linear-gradient(180deg, #2a2c2f 0%, #16181b 100%);
+  color: #f5f7f9;
 }
 .calc-model--ti-30xa .calc-key__shift-label {
-  color: #d97706;
+  color: #f0b830;
+  font-weight: 700;
 }
 
 /* Casio fx-991ES PLUS palette override — silver body, dark-blue header
@@ -611,6 +657,15 @@
 .calc-model--casio-fx991 .calc-key--shift {
   background: linear-gradient(180deg, #d4a000 0%, #a07700 100%);
   color: #1a1a1a;
+}
+
+/* Casio fx-115ES PLUS palette override (CALCULATOR_POLISH_2 P-8 r2).
+ * Sibling of fx-991: shares the key palette (digit/op/eval/shift styles
+ * cascade from .calc-model--casio-fx991 already on this element). The
+ * only physical difference vs the fx-991 is the body — fx-115 ships in
+ * a white plastic shell instead of the dark-grey fx-991 case. */
+.calc-model--casio-fx115 {
+  background: linear-gradient(180deg, #f4f3ef 0%, #d8d4c8 100%);
 }
 
 /* Mobile: when the viewport is too narrow to drag freely, center-lock

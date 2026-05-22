@@ -16,12 +16,20 @@ import type { KeyDef, KeyKind } from '@/lib/calculators/shared';
 const op = (kind: KeyKind = 'op'): { kind: KeyKind } => ({ kind });
 
 export const TI_36X_PRO_KEYPAD: KeyDef[] = [
-  // Row 1 — modifier / mode
-  { id: '2nd',   row: 1, col: 1, label: '2nd',   shiftLabel: undefined,           ...op('shift'), tone: 'shift' },
-  { id: 'mode',  row: 1, col: 2, label: 'mode',  shiftLabel: 'quit',              ...op('mode'),  tone: 'soft' },
-  { id: 'math',  row: 1, col: 3, label: 'math',  shiftLabel: 'reset',             ...op(),         tone: 'soft' },
-  { id: 'apps',  row: 1, col: 4, label: 'apps',  shiftLabel: 'recall mem',        ...op(),         tone: 'soft' },
-  { id: 'clear', row: 1, col: 5, label: 'clear', shiftLabel: 'on/off',            ...op('clear'), tone: 'soft' },
+  // Row 1 — modifier / mode. Photo-confirmed from a high-resolution
+  // user-supplied TI-36X Pro shot (CALCULATOR_POLISH_2 audit).
+  // The real device shows: 2nd | mode (quit) | delete (insert) | arrow
+  // cluster | arrow cluster — i.e. the right two cells host the nav,
+  // not `apps`/`clear`. Renamed `apps` → `delete` to match the
+  // silkscreen; `clear` floats up to col 5 as a placeholder until the
+  // numeric block restructuring puts it near `on` (deferred — bigger
+  // slice). `math` shift label updated from `reset` to `d/dx□` per the
+  // device (derivative function).
+  { id: '2nd',   row: 1, col: 1, label: '2nd',                                    ...op('shift'),   tone: 'shift' },
+  { id: 'mode',  row: 1, col: 2, label: 'mode',  shiftLabel: 'quit',              ...op('mode'),    tone: 'soft' },
+  { id: 'math',  row: 1, col: 3, label: 'math',  shiftLabel: 'd/dx□',             ...op(),           tone: 'soft' },
+  { id: 'del',   row: 1, col: 4, label: 'delete', shiftLabel: 'insert',           ...op('delete'),  tone: 'soft' },
+  { id: 'clear', row: 1, col: 5, label: 'clear', shiftLabel: 'on/off',            ...op('clear'),   tone: 'soft' },
 
   // Row 2-4 — navigation cluster (real device has the 4-way arrow pad
   // with an empty center — no enter button there; equals/enter is at
@@ -47,7 +55,9 @@ export const TI_36X_PRO_KEYPAD: KeyDef[] = [
   { id: 'recip', row: 2, col: 4, label: 'x⁻¹',                                    ...op(),         tone: 'soft' },
   { id: 'sto',   row: 2, col: 5, label: 'sto→',  shiftLabel: 'mem',              ...op(),         tone: 'soft' },
 
-  { id: 'frac',  row: 3, col: 1, label: 'a b/c', shiftLabel: 'F↔D',              ...op(),         tone: 'soft' },
+  // Photo-confirmed: modern TI-36X Pro labels this `n/d` (natural fraction),
+  // not the older `a b/c` (mixed-number). `F↔D` shift is correct.
+  { id: 'frac',  row: 3, col: 1, label: 'n/d', shiftLabel: 'F↔D',                 ...op(),         tone: 'soft' },
   { id: 'pct',   row: 3, col: 5, label: '►DMS',  shiftLabel: '►HR',              ...op(),         tone: 'soft' },
 
   { id: 'xsq',   row: 4, col: 1, label: 'x²',    shiftLabel: '√',                ...op(),         tone: 'soft' },
@@ -90,10 +100,14 @@ export const TI_36X_PRO_KEYPAD: KeyDef[] = [
   // both ids interchangeably (dispatch handles both `enter` and `eq`).
   { id: 'eq',   row: 9, col: 5, label: 'enter', ...op('eval'),  tone: 'eval' },
 
+  // Bottom row. Real device has `0 | . | (−) | enter`-aligned-with-row-above
+  // and `on` in the corner. Row 1's `delete` replaces the previously-shipped
+  // bottom-right `del`; this row now hosts `ans` instead so the (−) and
+  // numeric keys have the device's bottom-of-block layout.
   { id: 'n0',     row: 10, col: 1, label: '0',   ...op('digit'),    tone: 'digit', colSpan: 2 },
   { id: 'dot',    row: 10, col: 3, label: '.',   ...op('dot'),      tone: 'digit' },
   { id: 'negate', row: 10, col: 4, label: '(−)', ...op('negate'),   tone: 'digit' },
-  { id: 'del',    row: 10, col: 5, label: 'del', ...op('delete'),   tone: 'soft'  },
+  { id: 'on',     row: 10, col: 5, label: 'on',  shiftLabel: 'off', ...op('clear'),  tone: 'soft' },
 ];
 
 export const TI_36X_PRO_GRID = { rows: 10, cols: 5 };

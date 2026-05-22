@@ -1,103 +1,105 @@
 // lib/calculators/models/hp-35s/keypad-data.ts
 //
-// HP 35s keypad layout. C-15 of EXAM_CALCULATORS.md.
+// HP 35s keypad layout. **Restructured from a high-resolution user-
+// supplied device photo** during CALCULATOR_POLISH_2 P-6.
 //
-// Real device is 7 cols × 9 rows. We render 6×11 with the most-used keys
-// surfaced for FS/PS exam practice. The HP 35s has *two* shift modifiers
-// (left-shift orange, right-shift blue) — the generic KeyDef only carries
-// one `shiftLabel`, so each key's orange label goes there. Blue labels
-// will land in C-16 alongside the engine state machine.
+// Major structural change vs the previously-shipped layout:
+//   • The two shift modifiers ◀f (yellow) and ▶g (blue) are NOT at
+//     the top row — they're in the LEFT COLUMN between digit rows,
+//     adjacent to the numeric block per the real device.
+//   • Top of keypad is the small function-key row (R/S | GTO | XEQ
+//     | MODE | DISPLAY/↑ | CONST/MEM/↓), not modifiers.
+//   • ENTER is a WIDE key (spans 2 cols) in the middle row right
+//     under the trig keys — NOT at the bottom.
+//   • SIN/COS/TAN row sits high in the keypad, not in the middle.
+//   • The tiny `a b/c` fraction key is isolated at the very bottom-
+//     left corner.
+//
+// Engine handlers in models/hp-35s/engine.ts dispatch on `keyId`
+// strings (fshift, gshift, enter, n0..n9, sin/cos/tan, etc.) — those
+// IDs are preserved so existing tests keep passing.
 
 import type { KeyDef, KeyKind } from '@/lib/calculators/shared';
 
 const op = (kind: KeyKind = 'op'): { kind: KeyKind } => ({ kind });
 
 export const HP_35S_KEYPAD: KeyDef[] = [
-  // Row 1 — modifiers + clear. F-3 fidelity: removed the row-1 ENTER
-  // key that was misplaced; the real device has one large ENTER key
-  // and it lives in the row below the operators, not at the top.
-  // Top row instead carries f-shift, g-shift, the four editing arrows,
-  // and ON which is consistent with the device's general top-region.
-  { id: 'fshift', row: 1, col: 1, label: '◀f',  ...op('shift'), tone: 'shift' },
-  { id: 'gshift', row: 1, col: 2, label: '▶g',  ...op('shift'), tone: 'shift' },
-  { id: 'left',   row: 1, col: 3, label: '◀',   ...op('nav'),   tone: 'accent' },
-  { id: 'up',     row: 1, col: 4, label: '▲',   ...op('nav'),   tone: 'accent' },
-  { id: 'right',  row: 1, col: 5, label: '▶',   ...op('nav'),   tone: 'accent' },
-  { id: 'on',     row: 1, col: 6, label: 'ON',  shiftLabel: 'OFF', ...op('clear'),  tone: 'soft' },
+  // ── Row 1 — top function row (small slabs) ─────────────────────────────
+  { id: 'rs',     row: 1, col: 1, label: 'R/S',  shiftLabel: 'PRGM',           ...op(),         tone: 'soft' },
+  { id: 'gto',    row: 1, col: 2, label: 'GTO',  shiftLabel: 'ISG',            ...op(),         tone: 'soft' },
+  { id: 'xeq',    row: 1, col: 3, label: 'XEQ',  shiftLabel: 'LBL',            ...op(),         tone: 'soft' },
+  { id: 'mode',   row: 1, col: 4, label: 'MODE', shiftLabel: 'x?y',            ...op('mode'),   tone: 'soft' },
+  { id: 'up',     row: 1, col: 5, label: '▲',                                   ...op('nav'),    tone: 'accent' },
+  { id: 'const',  row: 1, col: 6, label: 'CONST', shiftLabel: 'FLAGS',         ...op(),         tone: 'soft' },
 
-  // Row 2 — stack ops + clear. F-3 added `down` arrow here (col 4) to
-  // complete the 4-way nav cluster; col 4 used to be EEX which moved
-  // down a column to share space with the unchanged stack ops.
-  { id: 'xchgy',  row: 2, col: 1, label: 'x↔y',   shiftLabel: 'LAST x',  ...op(), tone: 'soft' },
-  { id: 'rdown',  row: 2, col: 2, label: 'R↓',    shiftLabel: 'R↑',      ...op(), tone: 'soft' },
-  { id: 'chs',    row: 2, col: 3, label: '+/−',   ...op('negate'),       tone: 'soft' },
-  { id: 'down',   row: 2, col: 4, label: '▼',     ...op('nav'),          tone: 'accent' },
-  { id: 'eex',    row: 2, col: 5, label: 'EEX',   ...op(),               tone: 'soft' },
-  { id: 'del',    row: 2, col: 6, label: '←',     shiftLabel: 'CLEAR',   ...op('delete'), tone: 'soft' },
+  // ── Row 2 — second function row + arrow ────────────────────────────────
+  { id: 'rcl',    row: 2, col: 1, label: 'RCL',  shiftLabel: 'x²',             ...op(),         tone: 'soft' },
+  { id: 'rdown',  row: 2, col: 2, label: 'R↓',   shiftLabel: 'R↑',             ...op(),         tone: 'soft' },
+  { id: 'xchgy',  row: 2, col: 3, label: 'x↔y',  shiftLabel: 'LAST x',         ...op(),         tone: 'soft' },
+  { id: 'arg',    row: 2, col: 4, label: '+/−',  shiftLabel: 'ARG',            ...op('negate'), tone: 'soft' },
+  { id: 'down',   row: 2, col: 5, label: '▼',                                   ...op('nav'),    tone: 'accent' },
+  { id: 'mem',    row: 2, col: 6, label: 'MEM',  shiftLabel: 'i',              ...op(),         tone: 'soft' },
 
-  // Row 3 — sin/cos/tan + inverses
-  { id: 'sin',    row: 3, col: 1, label: 'sin',  shiftLabel: 'sin⁻¹',   ...op(), tone: 'soft' },
-  { id: 'cos',    row: 3, col: 2, label: 'cos',  shiftLabel: 'cos⁻¹',   ...op(), tone: 'soft' },
-  { id: 'tan',    row: 3, col: 3, label: 'tan',  shiftLabel: 'tan⁻¹',   ...op(), tone: 'soft' },
-  { id: 'sqrt',   row: 3, col: 4, label: '√x',   shiftLabel: 'x²',      ...op(), tone: 'soft' },
-  { id: 'ypowx',  row: 3, col: 5, label: 'yˣ',   shiftLabel: 'ˣ√y',     ...op(), tone: 'soft' },
-  { id: 'pi',     row: 3, col: 6, label: 'π',    shiftLabel: 'e',       ...op(), tone: 'soft' },
+  // ── Row 3 — trig + log/ln ──────────────────────────────────────────────
+  { id: 'sin',    row: 3, col: 1, label: 'SIN',  shiftLabel: 'ASIN',           ...op(), tone: 'soft' },
+  { id: 'cos',    row: 3, col: 2, label: 'COS',  shiftLabel: 'ACOS',           ...op(), tone: 'soft' },
+  { id: 'tan',    row: 3, col: 3, label: 'TAN',  shiftLabel: 'ATAN',           ...op(), tone: 'soft' },
+  { id: 'sqrt',   row: 3, col: 4, label: '√x',   shiftLabel: 'x²',             ...op(), tone: 'soft' },
+  { id: 'ypowx',  row: 3, col: 5, label: 'yˣ',   shiftLabel: 'ˣ√y',            ...op(), tone: 'soft' },
+  { id: 'recip',  row: 3, col: 6, label: '1/x',  shiftLabel: 'LOG',            ...op(), tone: 'soft' },
 
-  // Row 4 — log/ln/exp + storage
-  { id: 'log',    row: 4, col: 1, label: 'log',  shiftLabel: '10ˣ',     ...op(), tone: 'soft' },
-  { id: 'ln',     row: 4, col: 2, label: 'ln',   shiftLabel: 'eˣ',      ...op(), tone: 'soft' },
-  { id: 'recip',  row: 4, col: 3, label: '1/x',  ...op(),               tone: 'soft' },
-  { id: 'sto',    row: 4, col: 4, label: 'STO',  ...op(),               tone: 'soft' },
-  { id: 'rcl',    row: 4, col: 5, label: 'RCL',  ...op(),               tone: 'soft' },
-  { id: 'fact',   row: 4, col: 6, label: 'x!',   shiftLabel: 'nCr',     ...op(), tone: 'soft' },
+  // ── Row 4 — log/ln + ENTER (spans 2 cols) ──────────────────────────────
+  { id: 'log',    row: 4, col: 1, label: 'log',  shiftLabel: '10ˣ',            ...op(), tone: 'soft' },
+  { id: 'ln',     row: 4, col: 2, label: 'ln',   shiftLabel: 'eˣ',             ...op(), tone: 'soft' },
+  { id: 'enter',  row: 4, col: 3, label: 'ENTER', shiftLabel: 'EQN',           ...op('enter'), tone: 'accent', colSpan: 2 },
+  { id: 'eex',    row: 4, col: 5, label: 'E',    shiftLabel: 'ENG',            ...op(), tone: 'soft' },
+  { id: 'undo',   row: 4, col: 6, label: '←',    shiftLabel: 'CLEAR',          ...op('delete'), tone: 'soft' },
 
-  // Row 5 — display modes + RAD/DEG
-  { id: 'fix',    row: 5, col: 1, label: 'FIX',  ...op(),               tone: 'soft' },
-  { id: 'sci',    row: 5, col: 2, label: 'SCI',  ...op(),               tone: 'soft' },
-  { id: 'eng',    row: 5, col: 3, label: 'ENG',  ...op(),               tone: 'soft' },
-  { id: 'all',    row: 5, col: 4, label: 'ALL',  ...op(),               tone: 'soft' },
-  { id: 'rad',    row: 5, col: 5, label: '►RAD', shiftLabel: '►DEG',    ...op(), tone: 'soft' },
-  { id: 'dms',    row: 5, col: 6, label: '►H.MS', shiftLabel: '►HR',    ...op(), tone: 'soft' },
+  // ── Row 5 — EQN row (just an extra function row) ───────────────────────
+  { id: 'eqn',    row: 5, col: 1, label: 'EQN',  shiftLabel: 'SOLVE',          ...op(), tone: 'soft' },
+  { id: 'pi',     row: 5, col: 2, label: 'π',    shiftLabel: 'e',              ...op(), tone: 'soft' },
+  { id: 'fact',   row: 5, col: 3, label: 'x!',   shiftLabel: 'nCr',            ...op(), tone: 'soft' },
+  { id: 'absx',   row: 5, col: 4, label: '|x|',  ...op(),                       tone: 'soft' },
+  { id: 'mod',    row: 5, col: 5, label: 'MOD',                                 ...op(),         tone: 'soft' },
+  { id: 'pct',    row: 5, col: 6, label: '%',                                   ...op(),         tone: 'soft' },
 
-  // Row 6 — power / abs / parens
-  { id: 'absx',   row: 6, col: 1, label: '|x|',  ...op(),               tone: 'soft' },
-  { id: 'lparen', row: 6, col: 2, label: '(',    ...op('paren'),        tone: 'soft' },
-  { id: 'rparen', row: 6, col: 3, label: ')',    ...op('paren'),        tone: 'soft' },
-  { id: 'mod',    row: 6, col: 4, label: 'MOD',  ...op(),               tone: 'soft' },
-  { id: 'mul',    row: 7, col: 5, label: '×',    ...op('binop'),        tone: 'op' },
-  { id: 'div',    row: 7, col: 6, label: '÷',    ...op('binop'),        tone: 'op' },
+  // ── Row 6 — numeric block top: digits 7-9 + ÷, with operator column ──
+  // F-shift (yellow ◀) sits in col 1 — the device's hallmark layout.
+  { id: 'fshift', row: 6, col: 1, label: '◀f',                                  ...op('shift'),  tone: 'shift' },
+  { id: 'n7',     row: 6, col: 2, label: '7',                                    ...op('digit'),  tone: 'digit' },
+  { id: 'n8',     row: 6, col: 3, label: '8',                                    ...op('digit'),  tone: 'digit' },
+  { id: 'n9',     row: 6, col: 4, label: '9',                                    ...op('digit'),  tone: 'digit' },
+  { id: 'dms',    row: 6, col: 5, label: '►H.MS', shiftLabel: '►HMS',            ...op(),         tone: 'soft' },
+  { id: 'div',    row: 6, col: 6, label: '÷',                                    ...op('binop'),  tone: 'op' },
 
-  // Row 7 — top of numeric block
-  { id: 'n7',     row: 7, col: 1, label: '7',    ...op('digit'),        tone: 'digit' },
-  { id: 'n8',     row: 7, col: 2, label: '8',    ...op('digit'),        tone: 'digit' },
-  { id: 'n9',     row: 7, col: 3, label: '9',    ...op('digit'),        tone: 'digit' },
-  { id: 'space',  row: 7, col: 4, label: ' ',    ...op(),               tone: 'soft' },
+  // ── Row 7 — digits 4-6, × on right.  Blue ▶g in col 1 ──────────────────
+  { id: 'gshift', row: 7, col: 1, label: '▶g',                                  ...op('shift'),  tone: 'shift' },
+  { id: 'n4',     row: 7, col: 2, label: '4',                                    ...op('digit'),  tone: 'digit' },
+  { id: 'n5',     row: 7, col: 3, label: '5',                                    ...op('digit'),  tone: 'digit' },
+  { id: 'n6',     row: 7, col: 4, label: '6',                                    ...op('digit'),  tone: 'digit' },
+  { id: 'rad',    row: 7, col: 5, label: '►RAD', shiftLabel: '►DEG',            ...op(),         tone: 'soft' },
+  { id: 'mul',    row: 7, col: 6, label: '×',                                    ...op('binop'),  tone: 'op' },
 
-  // Row 8 — middle of numeric block
-  { id: 'n4',     row: 8, col: 1, label: '4',    ...op('digit'),        tone: 'digit' },
-  { id: 'n5',     row: 8, col: 2, label: '5',    ...op('digit'),        tone: 'digit' },
-  { id: 'n6',     row: 8, col: 3, label: '6',    ...op('digit'),        tone: 'digit' },
-  { id: 'pct',    row: 8, col: 4, label: '%',    ...op(),               tone: 'soft' },
-  { id: 'sub',    row: 8, col: 5, label: '−',    ...op('binop'),        tone: 'op' },
-  { id: 'add',    row: 8, col: 6, label: '+',    ...op('binop'),        tone: 'op' },
+  // ── Row 8 — digits 1-3, − on right. LASTx in col 1 ─────────────────────
+  { id: 'lastx',  row: 8, col: 1, label: 'LASTx',                                ...op(),         tone: 'soft' },
+  { id: 'n1',     row: 8, col: 2, label: '1',                                    ...op('digit'),  tone: 'digit' },
+  { id: 'n2',     row: 8, col: 3, label: '2',                                    ...op('digit'),  tone: 'digit' },
+  { id: 'n3',     row: 8, col: 4, label: '3',                                    ...op('digit'),  tone: 'digit' },
+  { id: 'chs',    row: 8, col: 5, label: '+/−',                                  ...op('negate'), tone: 'soft' },
+  { id: 'sub',    row: 8, col: 6, label: '−',                                    ...op('binop'),  tone: 'op' },
 
-  // Row 9 — bottom of numeric block + ans
-  { id: 'n1',     row: 9, col: 1, label: '1',    ...op('digit'),        tone: 'digit' },
-  { id: 'n2',     row: 9, col: 2, label: '2',    ...op('digit'),        tone: 'digit' },
-  { id: 'n3',     row: 9, col: 3, label: '3',    ...op('digit'),        tone: 'digit' },
-  { id: 'lastx',  row: 9, col: 4, label: 'LASTx', ...op(),              tone: 'soft' },
+  // ── Row 9 — bottom row: C/ON | 0 . Σ | + ───────────────────────────────
+  { id: 'on',     row: 9, col: 1, label: 'C',    shiftLabel: 'ON',              ...op('clear'),  tone: 'soft' },
+  { id: 'n0',     row: 9, col: 2, label: '0',                                    ...op('digit'),  tone: 'digit' },
+  { id: 'dot',    row: 9, col: 3, label: '.',                                    ...op('dot'),    tone: 'digit' },
+  { id: 'sigma',  row: 9, col: 4, label: 'Σ+',                                   ...op(),         tone: 'soft' },
+  { id: 'left',   row: 9, col: 5, label: '◀',                                    ...op('nav'),    tone: 'accent' },
+  { id: 'add',    row: 9, col: 6, label: '+',                                    ...op('binop'),  tone: 'op' },
 
-  // Row 10 — zero / decimal / change-sign + the wide ENTER key.
-  // F-3 fidelity fix: HP 35s has only one ENTER key (no `=` separate),
-  // and it's the wide rectangular key at the bottom-right. Previously
-  // we had two keys (`enter` in row 1 col 6, and `=` here colSpanning
-  // 3 cells), neither of which matched the device. Now: one ENTER
-  // spanning the bottom-right 3 cells; engine treats `enter` press
-  // exactly the same.
-  { id: 'n0',     row: 10, col: 1, label: '0',     ...op('digit'),  tone: 'digit' },
-  { id: 'dot',    row: 10, col: 2, label: '.',     ...op('dot'),    tone: 'digit' },
-  { id: 'comma',  row: 10, col: 3, label: ',',     ...op('comma'),  tone: 'soft' },
-  { id: 'enter',  row: 10, col: 4, label: 'ENTER', ...op('enter'),  tone: 'accent', colSpan: 3 },
+  // ── Row 10 — tiny isolated `a b/c` at the bottom-left corner ──────────
+  { id: 'frac',   row: 10, col: 1, label: 'a b/c',                               ...op(),         tone: 'soft' },
+  { id: 'comma',  row: 10, col: 2, label: ',',                                   ...op('comma'),  tone: 'soft' },
+  { id: 'right',  row: 10, col: 5, label: '▶',                                   ...op('nav'),    tone: 'accent' },
 ];
 
 export const HP_35S_GRID = { rows: 10, cols: 6 };

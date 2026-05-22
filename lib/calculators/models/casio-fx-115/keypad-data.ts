@@ -38,7 +38,8 @@ export const CASIO_FX115_KEYPAD: KeyDef[] = [
 
   // Row 3 — function row
   { id: 'down',  row: 3, col: 3, label: '▼', ...op('nav'),     tone: 'accent' },
-  { id: 'frac',  row: 3, col: 1, label: '◇/▢', shiftLabel: '◇/▢/▢', ...op(),  tone: 'soft' },
+  // P-5: stacked-rectangles glyph matches the real ES PLUS silkscreen.
+  { id: 'frac',  row: 3, col: 1, label: '▭/▭', shiftLabel: '▭▭/▭', ...op(),  tone: 'soft' },
   { id: 'sqrt',  row: 3, col: 2, label: '√',    shiftLabel: '∛',     ...op(),  tone: 'soft' },
   { id: 'xsq',   row: 3, col: 4, label: 'x²',   shiftLabel: 'x⁻¹',   ...op(),  tone: 'soft' },
   { id: 'pow',   row: 3, col: 5, label: '^',    shiftLabel: '√(',    ...op(),  tone: 'soft' },

@@ -29,9 +29,14 @@ export const CASIO_FX991_KEYPAD: KeyDef[] = [
   { id: 'right', row: 2, col: 4, label: '▶', ...op('nav'), tone: 'accent' },
   { id: 'absx',  row: 2, col: 5, label: 'Abs', ...op(), tone: 'soft' },
 
-  // Row 3 — function row
+  // Row 3 — function row. P-5 photo audit: the real fx-991ES PLUS uses
+  // a "stacked-rectangles" glyph for the natural-fraction builder key
+  // (not the diamond `◇/▢` placeholder we shipped). Closer approximation
+  // with `▭/▭`; the modal's natural-display renderer (NaturalDisplay.tsx)
+  // still consumes the `frac{n}{d}` engine notation regardless of this
+  // visual label. Shifted version is the mixed-number builder ▭▭/▭.
   { id: 'down',  row: 3, col: 3, label: '▼', ...op('nav'),     tone: 'accent' },
-  { id: 'frac',  row: 3, col: 1, label: '◇/▢', shiftLabel: '◇/▢/▢', ...op(),  tone: 'soft' },
+  { id: 'frac',  row: 3, col: 1, label: '▭/▭', shiftLabel: '▭▭/▭', ...op(),  tone: 'soft' },
   { id: 'sqrt',  row: 3, col: 2, label: '√',    shiftLabel: '∛',     ...op(),  tone: 'soft' },
   { id: 'xsq',   row: 3, col: 4, label: 'x²',   shiftLabel: 'x⁻¹',   ...op(),  tone: 'soft' },
   { id: 'pow',   row: 3, col: 5, label: '^',    shiftLabel: '√(',    ...op(),  tone: 'soft' },

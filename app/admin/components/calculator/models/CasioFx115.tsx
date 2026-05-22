@@ -62,7 +62,7 @@ export function CasioFx115() {
   if (state.alphaActive) statusBadges.push('ALPHA');
 
   return (
-    <div className="calc-model calc-model--casio-fx991">
+    <div className="calc-model calc-model--casio-fx991 calc-model--casio-fx115">
       <NaturalDisplay
         expression={state.entry}
         result={state.result}
