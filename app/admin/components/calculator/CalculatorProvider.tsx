@@ -20,6 +20,7 @@ import { Ti36xPro } from './models/Ti36xPro';
 import { CasioFx991 } from './models/CasioFx991';
 import { CasioFx115 } from './models/CasioFx115';
 import { Hp35s } from './models/Hp35s';
+import { Hp33s } from './models/Hp33s';
 
 export type ModelKey =
   | 'ti-36x-pro'
@@ -218,6 +219,7 @@ function renderModel(model: ModelDef) {
   if (model.key === 'casio-fx-991') return <CasioFx991 />;
   if (model.key === 'casio-fx-115') return <CasioFx115 />;
   if (model.key === 'hp-35s') return <Hp35s />;
+  if (model.key === 'hp-33s') return <Hp33s />;
   return <ModelPlaceholder model={model} />;
 }
 
