@@ -1162,6 +1162,110 @@
 .pay-prog__badge--locked .pay-prog__badge-medal { color: var(--color-text-muted); }
 .pay-prog__badge--locked:hover { opacity: 0.95; }
 
+/* P-13: badge edit + add states */
+.pay-prog__badge--editing {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border-color: var(--color-brand-navy);
+  box-shadow: 0 0 0 3px rgba(29, 48, 149, 0.12);
+}
+.pay-prog__badge--editing .pay-prog__rate-edit-label,
+.pay-prog__badge--editing .pay-prog__rate-edit-field input,
+.pay-prog__badge--editing .pay-prog__rate-edit-field select {
+  width: 100%;
+}
+.pay-prog__badge--add {
+  border-style: dashed;
+  border-color: var(--color-text-muted);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: center;
+  font-family: var(--font-body);
+  transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+.pay-prog__badge--add:hover {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+  background: var(--color-bg-hover);
+}
+
+/* P-13: XP milestone admin manager (table-style editor) */
+.pay-prog__xp-manager {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: var(--color-bg-app);
+  border: var(--border-light);
+  border-radius: var(--radius-md);
+}
+.pay-prog__xp-manager-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.6rem;
+}
+.pay-prog__xp-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.pay-prog__xp-manager-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 110px auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0.65rem;
+  background: var(--color-bg-card);
+  border: var(--border-light);
+  border-radius: var(--radius-sm);
+}
+.pay-prog__xp-manager-row--editing {
+  grid-template-columns: 110px 1fr 110px auto;
+  border-color: var(--color-brand-navy);
+  box-shadow: 0 0 0 2px rgba(29, 48, 149, 0.1);
+}
+.pay-prog__xp-manager-row input {
+  height: 30px;
+  padding: 0 0.5rem;
+  border: var(--border-normal);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-input);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+.pay-prog__xp-manager-threshold {
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+}
+.pay-prog__xp-manager-label {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+}
+.pay-prog__xp-manager-bonus {
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  font-weight: var(--weight-semibold);
+  color: var(--color-success);
+}
+@media (max-width: 600px) {
+  .pay-prog__xp-manager-row,
+  .pay-prog__xp-manager-row--editing { grid-template-columns: 1fr; }
+}
+
 /* XP Milestones */
 .pay-prog__xp-milestones {
   display: flex; overflow-x: auto; gap: 0; padding: 1rem 0;

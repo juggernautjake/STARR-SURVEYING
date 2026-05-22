@@ -382,48 +382,21 @@ export default function PayProgressionPage() {
         </p>
         <div className="pay-prog__badges">
           {credentials
+            .slice()
             .sort((a, b) => Number(b.bonus_per_hour) - Number(a.bonus_per_hour))
             .map(c => {
               const earnedEntry = earnedCreds.find(e => e.credential_key === c.credential_key);
-              const earned = !!earnedEntry;
-              const earnedDate = earnedEntry?.earned_date
-                ? new Date(earnedEntry.earned_date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
-                : null;
               return (
-                <div
+                <CredentialBadge
                   key={c.credential_key}
-                  className={`pay-prog__badge ${earned ? 'pay-prog__badge--earned' : 'pay-prog__badge--locked'}`}
-                  title={earned ? `Earned ${earnedDate || ''}` : `Earn to unlock +$${Number(c.bonus_per_hour).toFixed(2)}/hr`}
-                >
-                  <div className="pay-prog__badge-medal" aria-hidden="true">
-                    {earned ? (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="8" r="6" />
-                        <polyline points="8.21 13.89 7 22 12 19 17 22 15.79 13.88" />
-                      </svg>
-                    ) : (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="4" y="11" width="16" height="10" rx="2" />
-                        <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                      </svg>
-                    )}
-                  </div>
-                  <div className="pay-prog__badge-body">
-                    <span className="pay-prog__badge-name">{c.label || c.credential_key}</span>
-                    <span className="pay-prog__badge-type">{c.credential_type}</span>
-                  </div>
-                  <div className="pay-prog__badge-meta">
-                    <span className="pay-prog__badge-bonus">+${Number(c.bonus_per_hour).toFixed(2)}/hr</span>
-                    {earned && earnedDate && (
-                      <span className="pay-prog__badge-date">Earned {earnedDate}</span>
-                    )}
-                    {!earned && (
-                      <span className="pay-prog__badge-hint">Locked</span>
-                    )}
-                  </div>
-                </div>
+                  credential={c}
+                  earnedEntry={earnedEntry}
+                  editMode={isAdmin && editMode}
+                  onChanged={fetchData}
+                />
               );
             })}
+          {isAdmin && editMode && <AddCredentialButton onAdded={fetchData} />}
         </div>
       </div>
 
@@ -485,6 +458,9 @@ export default function PayProgressionPage() {
                 <p className="pay-prog__xp-next">All XP milestones unlocked &mdash; you&apos;ve maxed the XP track \ud83c\udf89</p>
               )}
             </div>
+            {isAdmin && editMode && (
+              <XpMilestoneManager milestones={sortedMilestones} onChanged={fetchData} />
+            )}
           </div>
         );
       })()}
@@ -1956,6 +1932,364 @@ function AddSeniorityBracketButton({ onAdded }: { onAdded: () => void }) {
           <button type="button" className="btn btn--sm btn--primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Add'}</button>
           <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={() => setAdding(false)}>Cancel</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Credential badge (P-13) ────────────────────────────────────────────────
+
+interface CredentialBadgeProps {
+  credential: CredentialBonus;
+  earnedEntry?: { credential_key: string; earned_date?: string };
+  editMode: boolean;
+  onChanged: () => void;
+}
+
+function CredentialBadge({ credential: c, earnedEntry, editMode, onChanged }: CredentialBadgeProps) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    label: c.label || '',
+    bonus_per_hour: c.bonus_per_hour,
+    credential_type: c.credential_type || 'other',
+  });
+
+  useEffect(() => {
+    setDraft({
+      label: c.label || '',
+      bonus_per_hour: c.bonus_per_hour,
+      credential_type: c.credential_type || 'other',
+    });
+  }, [c.credential_key, c.label, c.bonus_per_hour, c.credential_type]);
+
+  const earned = !!earnedEntry;
+  const earnedDate = earnedEntry?.earned_date
+    ? new Date(earnedEntry.earned_date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+    : null;
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/pay-config/credentials', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          credential_key: c.credential_key,
+          label: draft.label,
+          bonus_per_hour: Number(draft.bonus_per_hour),
+          credential_type: draft.credential_type,
+        }),
+      });
+      if (res.ok) { setEditing(false); onChanged(); }
+    } finally { setSaving(false); }
+  }
+
+  async function remove() {
+    if (!window.confirm(`Remove credential "${c.label || c.credential_key}"?`)) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/pay-config/credentials?credential_key=${encodeURIComponent(c.credential_key)}`, { method: 'DELETE' });
+      if (res.ok) onChanged();
+      else {
+        const body = await res.json().catch(() => ({}));
+        window.alert(body.error || 'Failed to delete');
+      }
+    } finally { setSaving(false); }
+  }
+
+  if (editing) {
+    return (
+      <div className="pay-prog__badge pay-prog__badge--editing">
+        <input
+          className="pay-prog__rate-edit-label"
+          value={draft.label}
+          onChange={e => setDraft(d => ({ ...d, label: e.target.value }))}
+          placeholder="Label"
+        />
+        <label className="pay-prog__rate-edit-field">
+          <span>Bonus $/hr</span>
+          <input
+            type="number"
+            step="0.25"
+            min="0"
+            value={draft.bonus_per_hour}
+            onChange={e => setDraft(d => ({ ...d, bonus_per_hour: Number(e.target.value) }))}
+          />
+        </label>
+        <label className="pay-prog__rate-edit-field">
+          <span>Type</span>
+          <select value={draft.credential_type} onChange={e => setDraft(d => ({ ...d, credential_type: e.target.value }))}>
+            <option value="exam">Exam</option>
+            <option value="license">License</option>
+            <option value="safety">Safety</option>
+            <option value="cert">Certification</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <div className="pay-prog__rate-edit-actions">
+          <button type="button" className="btn btn--sm btn--primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
+          <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={() => setEditing(false)}>Cancel</button>
+          <button type="button" className="btn btn--sm btn--danger" disabled={saving} onClick={remove}>Delete</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`pay-prog__badge ${earned ? 'pay-prog__badge--earned' : 'pay-prog__badge--locked'}`}
+      title={earned ? `Earned ${earnedDate || ''}` : `Earn to unlock +$${Number(c.bonus_per_hour).toFixed(2)}/hr`}
+    >
+      {editMode && (
+        <button
+          type="button"
+          className="pay-prog__edit-pencil pay-prog__edit-pencil--top"
+          onClick={() => setEditing(true)}
+          aria-label={`Edit ${c.label || c.credential_key}`}
+          title="Edit credential"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          </svg>
+        </button>
+      )}
+      <div className="pay-prog__badge-medal" aria-hidden="true">
+        {earned ? (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="8" r="6" />
+            <polyline points="8.21 13.89 7 22 12 19 17 22 15.79 13.88" />
+          </svg>
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="11" width="16" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          </svg>
+        )}
+      </div>
+      <div className="pay-prog__badge-body">
+        <span className="pay-prog__badge-name">{c.label || c.credential_key}</span>
+        <span className="pay-prog__badge-type">{c.credential_type}</span>
+      </div>
+      <div className="pay-prog__badge-meta">
+        <span className="pay-prog__badge-bonus">+${Number(c.bonus_per_hour).toFixed(2)}/hr</span>
+        {earned && earnedDate && <span className="pay-prog__badge-date">Earned {earnedDate}</span>}
+        {!earned && <span className="pay-prog__badge-hint">Locked</span>}
+      </div>
+    </div>
+  );
+}
+
+function AddCredentialButton({ onAdded }: { onAdded: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    credential_key: '',
+    label: '',
+    bonus_per_hour: 0.5,
+    credential_type: 'cert',
+  });
+
+  async function save() {
+    if (!draft.credential_key.trim()) { window.alert('Credential key required.'); return; }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/pay-config/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          credential_key: draft.credential_key.trim(),
+          label: draft.label || draft.credential_key,
+          bonus_per_hour: Number(draft.bonus_per_hour),
+          credential_type: draft.credential_type,
+        }),
+      });
+      if (res.ok) {
+        setAdding(false);
+        setDraft({ credential_key: '', label: '', bonus_per_hour: 0.5, credential_type: 'cert' });
+        onAdded();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        window.alert(body.error || 'Failed to add');
+      }
+    } finally { setSaving(false); }
+  }
+
+  if (!adding) {
+    return (
+      <button type="button" className="pay-prog__badge pay-prog__badge--add" onClick={() => setAdding(true)}>
+        <span aria-hidden="true" style={{ fontSize: '1.5rem' }}>+</span>
+        <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Add credential</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="pay-prog__badge pay-prog__badge--editing">
+      <label className="pay-prog__rate-edit-field">
+        <span>Key (snake_case)</span>
+        <input value={draft.credential_key} onChange={e => setDraft(d => ({ ...d, credential_key: e.target.value }))} placeholder="e.g. cad_civil3d" />
+      </label>
+      <input
+        className="pay-prog__rate-edit-label"
+        value={draft.label}
+        onChange={e => setDraft(d => ({ ...d, label: e.target.value }))}
+        placeholder="Label"
+      />
+      <label className="pay-prog__rate-edit-field">
+        <span>Bonus $/hr</span>
+        <input type="number" min="0" step="0.25" value={draft.bonus_per_hour} onChange={e => setDraft(d => ({ ...d, bonus_per_hour: Number(e.target.value) }))} />
+      </label>
+      <label className="pay-prog__rate-edit-field">
+        <span>Type</span>
+        <select value={draft.credential_type} onChange={e => setDraft(d => ({ ...d, credential_type: e.target.value }))}>
+          <option value="exam">Exam</option>
+          <option value="license">License</option>
+          <option value="safety">Safety</option>
+          <option value="cert">Certification</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <div className="pay-prog__rate-edit-actions">
+        <button type="button" className="btn btn--sm btn--primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Add'}</button>
+        <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={() => setAdding(false)}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── XP milestone admin manager (P-13) ──────────────────────────────────────
+// Table-style editor below the XP progress bar. Each milestone gets a row
+// with inline fields; admin can edit threshold/bonus/label/active in place.
+
+interface XpMilestoneManagerProps {
+  milestones: XpMilestone[];
+  onChanged: () => void;
+}
+
+function XpMilestoneManager({ milestones, onChanged }: XpMilestoneManagerProps) {
+  const [adding, setAdding] = useState(false);
+
+  return (
+    <div className="pay-prog__xp-manager">
+      <h4 className="pay-prog__xp-manager-title">Manage milestones</h4>
+      <div className="pay-prog__xp-manager-list">
+        {milestones.map(m => <XpMilestoneRow key={m.xp_threshold} milestone={m} onChanged={onChanged} />)}
+      </div>
+      {!adding ? (
+        <button type="button" className="pay-prog__rung-add" onClick={() => setAdding(true)} style={{ marginLeft: 0 }}>
+          <span aria-hidden="true">+</span> Add milestone
+        </button>
+      ) : (
+        <NewXpMilestoneRow onDone={() => { setAdding(false); onChanged(); }} onCancel={() => setAdding(false)} />
+      )}
+    </div>
+  );
+}
+
+function XpMilestoneRow({ milestone, onChanged }: { milestone: XpMilestone; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    xp_threshold: milestone.xp_threshold,
+    bonus_per_hour: milestone.bonus_per_hour,
+    label: milestone.label || '',
+  });
+
+  useEffect(() => {
+    setDraft({
+      xp_threshold: milestone.xp_threshold,
+      bonus_per_hour: milestone.bonus_per_hour,
+      label: milestone.label || '',
+    });
+  }, [milestone.xp_threshold, milestone.bonus_per_hour, milestone.label]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/pay-config/xp-milestones', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          xp_threshold: milestone.xp_threshold,
+          new_xp_threshold: Number(draft.xp_threshold),
+          bonus_per_hour: Number(draft.bonus_per_hour),
+          label: draft.label || null,
+        }),
+      });
+      if (res.ok) { setEditing(false); onChanged(); }
+    } finally { setSaving(false); }
+  }
+
+  async function remove() {
+    if (!window.confirm(`Remove "${milestone.label || `${milestone.xp_threshold} XP`}" milestone?`)) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/pay-config/xp-milestones?xp_threshold=${milestone.xp_threshold}`, { method: 'DELETE' });
+      if (res.ok) onChanged();
+    } finally { setSaving(false); }
+  }
+
+  if (!editing) {
+    return (
+      <div className="pay-prog__xp-manager-row">
+        <span className="pay-prog__xp-manager-threshold">{milestone.xp_threshold.toLocaleString()} XP</span>
+        <span className="pay-prog__xp-manager-label">{milestone.label || '—'}</span>
+        <span className="pay-prog__xp-manager-bonus">+${Number(milestone.bonus_per_hour).toFixed(2)}/hr</span>
+        <button type="button" className="btn btn--sm btn--secondary" onClick={() => setEditing(true)}>Edit</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pay-prog__xp-manager-row pay-prog__xp-manager-row--editing">
+      <input type="number" min="0" step="1000" value={draft.xp_threshold} onChange={e => setDraft(d => ({ ...d, xp_threshold: Number(e.target.value) }))} placeholder="Threshold" />
+      <input value={draft.label} onChange={e => setDraft(d => ({ ...d, label: e.target.value }))} placeholder="Label" />
+      <input type="number" min="0" step="0.25" value={draft.bonus_per_hour} onChange={e => setDraft(d => ({ ...d, bonus_per_hour: Number(e.target.value) }))} placeholder="Bonus" />
+      <div className="pay-prog__rate-edit-actions">
+        <button type="button" className="btn btn--sm btn--primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
+        <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={() => setEditing(false)}>Cancel</button>
+        <button type="button" className="btn btn--sm btn--danger" disabled={saving} onClick={remove}>Delete</button>
+      </div>
+    </div>
+  );
+}
+
+function NewXpMilestoneRow({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({ xp_threshold: 70000, bonus_per_hour: 0.5, label: '' });
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/pay-config/xp-milestones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          xp_threshold: Number(draft.xp_threshold),
+          bonus_per_hour: Number(draft.bonus_per_hour),
+          label: draft.label || null,
+          is_active: true,
+        }),
+      });
+      if (res.ok) onDone();
+      else {
+        const body = await res.json().catch(() => ({}));
+        window.alert(body.error || 'Failed to add');
+      }
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="pay-prog__xp-manager-row pay-prog__xp-manager-row--editing">
+      <input type="number" min="0" step="1000" value={draft.xp_threshold} onChange={e => setDraft(d => ({ ...d, xp_threshold: Number(e.target.value) }))} placeholder="Threshold" />
+      <input value={draft.label} onChange={e => setDraft(d => ({ ...d, label: e.target.value }))} placeholder="Label" />
+      <input type="number" min="0" step="0.25" value={draft.bonus_per_hour} onChange={e => setDraft(d => ({ ...d, bonus_per_hour: Number(e.target.value) }))} placeholder="Bonus" />
+      <div className="pay-prog__rate-edit-actions">
+        <button type="button" className="btn btn--sm btn--primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Add'}</button>
+        <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={onCancel}>Cancel</button>
       </div>
     </div>
   );
